@@ -89,7 +89,7 @@ function filterSessionDecisionWithoutGrant(
 export function decodeCodexInteractiveRequest(
   request: ProviderInboundRequest,
 ): DecodedInteractiveRequest | null {
-  if (typeof request.id !== "string" && typeof request.id !== "number") {
+  if (request.id === undefined) {
     return null;
   }
 

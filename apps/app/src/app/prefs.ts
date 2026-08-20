@@ -4,7 +4,7 @@
 
 import { agentWriteModeSchema, type AgentWriteMode } from "@repo/domain/agent-write-mode";
 import { parseTheme, type Theme } from "@repo/ui/lib/theme";
-import { APPEARANCE_DEFAULTS, parseAppearance, type Appearance } from "./appearance";
+import { APPEARANCE_DEFAULTS, appearanceSchema, type Appearance } from "./appearance";
 
 const KEYS = {
   sidebarWidth: "inteligir.sidebar-width",
@@ -124,7 +124,7 @@ export function readAppearance(): Appearance {
     return APPEARANCE_DEFAULTS;
   }
   try {
-    return parseAppearance(JSON.parse(raw));
+    return appearanceSchema.parse(JSON.parse(raw));
   } catch {
     return APPEARANCE_DEFAULTS;
   }

@@ -42,16 +42,17 @@ export const createMarkdownEditor = (config: MarkdownEditorConfig): MarkdownEdit
     onOpenTag,
     resolveAsset,
   } = config;
+  const editorOptions: MarkdownEditorOptions = {};
+  if (onOpenLink !== undefined) editorOptions.onOpenLink = onOpenLink;
+  if (onOpenTag !== undefined) editorOptions.onOpenTag = onOpenTag;
+  if (resolveAsset !== undefined) editorOptions.resolveAsset = resolveAsset;
+
   const view = new EditorView({
     parent,
     state: EditorState.create({
       doc,
       extensions: [
-        markdownEditorExtensions({
-          ...(onOpenLink === undefined ? {} : { onOpenLink }),
-          ...(onOpenTag === undefined ? {} : { onOpenTag }),
-          ...(resolveAsset === undefined ? {} : { resolveAsset }),
-        }),
+        markdownEditorExtensions(editorOptions),
         onDocChanged
           ? EditorView.updateListener.of((update) => {
               if (update.docChanged) onDocChanged(update.state.doc);

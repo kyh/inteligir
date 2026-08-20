@@ -238,14 +238,14 @@ export function createCodexProviderAdapter(
           sandbox: permissionSettings.sandbox,
           cwd: command.cwd,
           ...resolveCodexInstructionOverrides(command),
-          ...(command.options.model !== undefined ? { model: command.options.model } : {}),
           // The runtime reaps idle thread-scoped Codex processes and later
           // resumes by provider thread id, so the rollout must exist on
           // disk. Codex already defaults to non-ephemeral; pin the value so
           // a future default flip cannot silently break resume.
           ephemeral: false,
-          ...(config !== undefined ? { config } : {}),
         };
+        if (command.options.model !== undefined) params.model = command.options.model;
+        if (config !== undefined) params.config = config;
         return {
           kind: "request",
           method: "thread/start",
@@ -262,9 +262,9 @@ export function createCodexProviderAdapter(
           sandbox: permissionSettings.sandbox,
           cwd: command.cwd,
           ...resolveCodexInstructionOverrides(command),
-          ...(command.options.model !== undefined ? { model: command.options.model } : {}),
-          ...(config !== undefined ? { config } : {}),
         };
+        if (command.options.model !== undefined) params.model = command.options.model;
+        if (config !== undefined) params.config = config;
         return {
           kind: "request",
           method: "thread/resume",
@@ -327,7 +327,7 @@ export function createCodexProviderAdapter(
     translateEvent(event: ProviderRuntimeEvent) {
       return translateCodexEvent(event);
     },
-    parseModelListResult(result: unknown) {
+    parseModelListResult(result: JsonValue) {
       return { models: parseModelsResponse(result) };
     },
     decodeInteractiveRequest(request: ProviderInboundRequest) {

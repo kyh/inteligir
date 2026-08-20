@@ -26,7 +26,7 @@ const bothAnswers = (doc: string) => {
 };
 
 /** Every document shape the delegation surface can produce or has to survive. */
-const AGREED: Record<string, string> = {
+const AGREED = {
   "alone after a paragraph": `# Doc\n\nA paragraph.\n${MARKER}\n\n- [ ] a task\n`,
   "interrupting a paragraph": `Some text\n${MARKER}\n`,
   "inside a blockquote": `> quoted\n> ${MARKER}\n`,
@@ -65,7 +65,7 @@ describe("the editor's tree answer agrees with the vault's scan", () => {
 // keeps a CommonMark construct the scan disables, so it sees code where the
 // scan sees a comment. Pinned as facts rather than left to be rediscovered.
 describe("where they differ, the editor answers with strictly fewer markers", () => {
-  const DIVERGENT: Record<string, string> = {
+  const DIVERGENT = {
     "four-space indented (lezer parses codeIndented, the scan does not)": `Para.\n\n    ${MARKER}\n`,
     "inside a flow HTML block (lezer parses htmlFlow, the scan does not)": `<div>\n${MARKER}\n</div>\n`,
   };

@@ -32,8 +32,17 @@ const decoEntries = (set: DecorationSet): DecoEntry[] => {
   return entries;
 };
 
+/** The spec fields these readers look at. CodeMirror types `Decoration.spec`
+ *  as `any` — whatever the extension passed to `Decoration.mark`/`replace` —
+ *  so the fields are named here rather than read off an untyped value. */
+interface DecorationSpecFields {
+  class?: string;
+  attributes?: { class?: string };
+  widget?: unknown;
+}
+
 const decoClass = (deco: Decoration): string => {
-  const spec = deco.spec as { class?: string; attributes?: { class?: string } };
+  const spec: DecorationSpecFields = deco.spec;
   return spec.class ?? spec.attributes?.class ?? "";
 };
 
@@ -44,7 +53,7 @@ export const rangesWithClass = (set: DecorationSet, cls: string): [number, numbe
     .map((entry) => [entry.from, entry.to]);
 
 const hasWidget = (deco: Decoration): boolean => {
-  const spec = deco.spec as { widget?: unknown };
+  const spec: DecorationSpecFields = deco.spec;
   return spec.widget !== undefined && spec.widget !== null;
 };
 

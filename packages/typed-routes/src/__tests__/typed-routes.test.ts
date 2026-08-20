@@ -77,18 +77,20 @@ describe("typedRoutes", () => {
     const app = createApp();
     const { get } = typedRoutes(app);
 
-    const missingSchema: unknown = {
+    const missingSchema = {
       path: "/search",
       method: "get",
       request: { source: "query" },
       response: { status: 200, format: "json" },
     };
-    const badMethod: unknown = {
+    const badMethod = {
       path: "/search",
       method: "fetch",
       request: { source: "none" },
       response: { status: 200, format: "json" },
     };
+    // SAFETY: deliberately drops the registrar's compile-time contract so the
+    // test can hand it malformed descriptors and observe the runtime rejection.
     const looseGet = get as (...args: unknown[]) => void;
     expect(() => looseGet(missingSchema, () => new Response())).toThrow(
       /expected a route definition/,
@@ -99,6 +101,9 @@ describe("typedRoutes", () => {
   it("throws when a descriptor is registered under the wrong method", () => {
     const app = createApp();
     const { post } = typedRoutes(app);
+    // SAFETY: deliberately drops the registrar's compile-time contract so the
+    // test can register a descriptor under the wrong method and observe the
+    // runtime rejection.
     const loosePost = post as (...args: unknown[]) => void;
     expect(() => loosePost(testRoutes.search, () => new Response())).toThrow(
       /declares method "get" but was registered as "post"/,

@@ -105,9 +105,6 @@ export async function bootTestApp(options: BootTestAppOptions = {}): Promise<Boo
   const args: CreateAppArgs = {
     agent,
     bus,
-    ...(options.cloudTransport === undefined ? {} : { cloudTransport: options.cloudTransport }),
-    ...(options.codexMcpRunner === undefined ? {} : { codexMcpRunner: options.codexMcpRunner }),
-    ...(options.openExternalUrl === undefined ? {} : { openExternalUrl: options.openExternalUrl }),
     config: {
       databasePath,
       dataDir,
@@ -139,6 +136,9 @@ export async function bootTestApp(options: BootTestAppOptions = {}): Promise<Boo
     vault,
     version: "0.1.0-test",
   };
+  if (options.cloudTransport !== undefined) args.cloudTransport = options.cloudTransport;
+  if (options.codexMcpRunner !== undefined) args.codexMcpRunner = options.codexMcpRunner;
+  if (options.openExternalUrl !== undefined) args.openExternalUrl = options.openExternalUrl;
   const composed = createApp(args);
   cleanups.push(() => composed.cloud.dispose());
   const client = createApiClient("http://app.test", {

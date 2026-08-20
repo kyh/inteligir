@@ -6,6 +6,7 @@ import {
 } from "@repo/cloud-contract/pairing";
 import { env, SELF } from "cloudflare:test";
 import { expect } from "vitest";
+import { z } from "zod";
 import { createDb } from "../db/client";
 import { inviteCode } from "../db/schema";
 
@@ -33,9 +34,13 @@ export async function signUpUser(email: string): Promise<{ bearer: string; passw
   return { bearer: bearer ?? "", password: PASSWORD };
 }
 
-export function sessionHeaders(bearer: string): Record<string, string> {
+export function sessionHeaders(bearer: string) {
   return { authorization: `Bearer ${bearer}`, origin: ORIGIN };
 }
+
+/** Better Auth's `get-session` answer, read for the one field these tests
+ *  need. A signed-out session answers `null`, which fails the parse. */
+const sessionUserSchema = z.looseObject({ user: z.looseObject({ id: z.string() }) });
 
 /** The signed-in user's id — what names their ThreadSyncDO. Ask BEFORE any
  * test deletes the account; afterwards the session no longer answers. */
@@ -43,19 +48,9 @@ export async function userIdOf(bearer: string): Promise<string> {
   const response = await SELF.fetch(`${ORIGIN}/api/auth/get-session`, {
     headers: sessionHeaders(bearer),
   });
-  const body: unknown = await response.json();
-  const userId =
-    typeof body === "object" &&
-    body !== null &&
-    "user" in body &&
-    typeof body.user === "object" &&
-    body.user !== null &&
-    "id" in body.user &&
-    typeof body.user.id === "string"
-      ? body.user.id
-      : null;
-  if (userId === null) throw new Error("no session for that bearer");
-  return userId;
+  const body = sessionUserSchema.safeParse(await response.json());
+  if (!body.success) throw new Error("no session for that bearer");
+  return body.data.user.id;
 }
 
 /** Mint a code bound to a PKCE challenge — the approve page's act. Returns both
@@ -86,6 +81,6 @@ export async function pairDevice(
   return redeemDeviceResponseSchema.parse(await response.json());
 }
 
-export function deviceHeaders(credential: string): Record<string, string> {
+export function deviceHeaders(credential: string) {
   return { authorization: `Bearer ${credential}` };
 }

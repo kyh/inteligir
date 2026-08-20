@@ -75,7 +75,7 @@ const tmpColor = new THREE.Color();
 // The idle/starting states use a neutral base color that tracks the active
 // theme so the orb stays legible on both light and dark backgrounds; the
 // other states keep their semantic hues (visible against either background).
-function makeMoods(baseColor: string): Record<DisplayStatus, Mood> {
+function makeMoods(baseColor: string): MoodTable {
   return {
     idle: {
       speed: 20,
@@ -134,7 +134,16 @@ function makeMoods(baseColor: string): Record<DisplayStatus, Mood> {
   };
 }
 
-function rgb(hex: string): { r: number; g: number; b: number } {
+/** Closed over the status vocabulary: a new status must declare its mood. */
+type MoodTable = { [K in DisplayStatus]: Mood };
+
+interface RgbColor {
+  r: number;
+  g: number;
+  b: number;
+}
+
+function rgb(hex: string): RgbColor {
   tmpColor.set(hex);
   return { r: tmpColor.r, g: tmpColor.g, b: tmpColor.b };
 }

@@ -13,7 +13,7 @@ import {
   resolveDevDefaultPort,
   resolveDevInstanceId,
 } from "@repo/app/node/config";
-import type { SystemStatusResponse } from "@repo/server-contract/routes";
+import type { HealthResponse, SystemStatusResponse } from "@repo/server-contract/routes";
 import { afterEach, describe, expect, it } from "vitest";
 import { CliExitError, EXIT_UNREACHABLE } from "../cli-error";
 import { deriveServerCandidates, resolveServer, type ProbeFetch } from "../server-discovery";
@@ -32,7 +32,12 @@ function makeTempDir(prefix: string): string {
   return dir;
 }
 
-function fixture(): { homeDir: string; appCheckoutDir: string } {
+interface Fixture {
+  homeDir: string;
+  appCheckoutDir: string;
+}
+
+function fixture(): Fixture {
   return {
     homeDir: makeTempDir("inteligir-cli-home-"),
     appCheckoutDir: makeTempDir("inteligir-cli-app-"),
@@ -127,7 +132,11 @@ function statusBody(dataDir: string): SystemStatusResponse {
   };
 }
 
-function jsonResponse(body: unknown): Response {
+/** What a probed port answers with: this server's own envelopes, or the junk
+ *  some other local service on the port returns. */
+type ProbeBody = HealthResponse | SystemStatusResponse | { ok?: string; hello?: string };
+
+function jsonResponse(body: ProbeBody): Response {
   return new Response(JSON.stringify(body), {
     status: 200,
     headers: { "content-type": "application/json" },
@@ -135,7 +144,7 @@ function jsonResponse(body: unknown): Response {
 }
 
 /** A server on `port` that reports `dataDir` as its identity. */
-function serverOn(port: number, dataDir: string, healthBody: unknown = { ok: true }): ProbeFetch {
+function serverOn(port: number, dataDir: string, healthBody: ProbeBody = { ok: true }): ProbeFetch {
   return async (url) => {
     const parsed = new URL(url);
     if (parsed.port !== String(port)) {
@@ -198,7 +207,7 @@ describe("resolveServer", () => {
       fetchImpl: serverOn(derived, "/some/other/checkout/data"),
     }).then(
       () => undefined,
-      (error: unknown) => error,
+      (cause: unknown) => cause,
     );
     expect(failure).toBeInstanceOf(CliExitError);
     if (failure instanceof CliExitError) {
@@ -232,7 +241,7 @@ describe("resolveServer", () => {
       },
     }).then(
       () => undefined,
-      (error: unknown) => error,
+      (cause: unknown) => cause,
     );
     expect(failure).toBeInstanceOf(CliExitError);
     if (failure instanceof CliExitError) {

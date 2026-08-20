@@ -10,7 +10,9 @@ import { createContext, useContext, useEffect, useMemo, useState } from "react";
 export type Theme = "system" | "light" | "dark";
 export type ResolvedTheme = "light" | "dark";
 
-export function parseTheme(value: unknown): Theme | undefined {
+/** A stored theme preference, read back from wherever a surface persisted it
+ *  (localStorage, the desktop bridge). Anything else is no preference. */
+export function parseTheme(value: string | null | undefined): Theme | undefined {
   if (value === "system" || value === "light" || value === "dark") return value;
   return undefined;
 }

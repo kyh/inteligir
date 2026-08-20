@@ -234,11 +234,11 @@ export function threadCommand(deps: CliDeps) {
                 { query: { threadId: args.id } },
                 { init: { signal: AbortSignal.timeout(remainingMs) } },
               )
-              .catch((error: unknown) => {
+              .catch((cause: unknown) => {
                 if (Date.now() >= deadline) {
                   throw expire();
                 }
-                throw error;
+                throw cause;
               });
             const { thread: current } = await (await requireOk(response)).json();
             if (current.status === "idle") {

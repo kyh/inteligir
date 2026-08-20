@@ -26,6 +26,7 @@ import {
   listProposals,
   resolveProposal,
   rewriteProposal,
+  type ListProposalsFilter,
   type ProposalRow,
 } from "@repo/db/proposals";
 import type { DbNotifier } from "@repo/domain/notifier";
@@ -38,6 +39,13 @@ export interface ProposalServiceArgs {
   db: DbConnection;
   notifier: DbNotifier;
   vault: VaultService;
+}
+
+/** `hunkIndex` omitted resolves the whole proposal — see the header. */
+export interface ResolveProposalArgs {
+  proposalId: string;
+  expectedRevision: number;
+  hunkIndex?: number;
 }
 
 export type ProposalOutcome =
@@ -71,11 +79,11 @@ export class ProposalService {
   }
 
   async list(query: ListProposalsQuery): Promise<Proposal[]> {
-    const rows = listProposals(this.db, {
-      ...(query.docPath === undefined ? {} : { docPath: query.docPath }),
-      ...(query.threadId === undefined ? {} : { threadId: query.threadId }),
-      ...(query.includeResolved === undefined ? {} : { includeResolved: query.includeResolved }),
-    });
+    const filter: ListProposalsFilter = {};
+    if (query.docPath !== undefined) filter.docPath = query.docPath;
+    if (query.threadId !== undefined) filter.threadId = query.threadId;
+    if (query.includeResolved !== undefined) filter.includeResolved = query.includeResolved;
+    const rows = listProposals(this.db, filter);
     return Promise.all(rows.map((row) => this.toWire(row)));
   }
 
@@ -88,11 +96,7 @@ export class ProposalService {
    * Land the named hunk (or the whole proposal) through the vault's own CAS
    * write, then advance the proposal's base past what landed.
    */
-  async accept(args: {
-    proposalId: string;
-    expectedRevision: number;
-    hunkIndex?: number;
-  }): Promise<ProposalOutcome> {
+  async accept(args: ResolveProposalArgs): Promise<ProposalOutcome> {
     const row = getProposal(this.db, args.proposalId);
     if (row === null) {
       return { kind: "not-found" };
@@ -150,11 +154,7 @@ export class ProposalService {
   }
 
   /** Give a hunk (or the whole suggestion) back to the base. Touches no file. */
-  async reject(args: {
-    proposalId: string;
-    expectedRevision: number;
-    hunkIndex?: number;
-  }): Promise<ProposalOutcome> {
+  async reject(args: ResolveProposalArgs): Promise<ProposalOutcome> {
     const row = getProposal(this.db, args.proposalId);
     if (row === null) {
       return { kind: "not-found" };

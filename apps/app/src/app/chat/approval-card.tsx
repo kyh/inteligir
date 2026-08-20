@@ -11,11 +11,11 @@ import type {
 import type { PendingInteraction } from "@repo/server-contract/threads";
 import { Button } from "@repo/ui/components/button";
 
-const DECISION_LABELS: Record<PendingInteractionApprovalDecision, string> = {
+const DECISION_LABELS = {
   allow_once: "Allow once",
   allow_for_session: "Allow for session",
   deny: "Deny",
-};
+} satisfies Record<PendingInteractionApprovalDecision, string>;
 
 export interface ApprovalCardProps {
   interaction: PendingInteraction;

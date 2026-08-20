@@ -143,9 +143,15 @@ class HunkActionsWidget extends WidgetType {
   }
 }
 
+/** An inclusive run of document lines, 1-based. */
+interface LineSpan {
+  from: number;
+  to: number;
+}
+
 /** The document line numbers (1-based) a hunk covers, clamped to the doc. An
  *  insertion (zero-width base span) marks the line it sits before. */
-function lineSpanOf(state: EditorState, hunk: ProposalHunkView): { from: number; to: number } {
+function lineSpanOf(state: EditorState, hunk: ProposalHunkView): LineSpan {
   const lastLine = state.doc.lines;
   const from = Math.min(Math.max(hunk.baseStart + 1, 1), lastLine);
   const to = Math.min(Math.max(hunk.baseEnd, from), lastLine);

@@ -9,6 +9,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { apiPath, apiRoutes } from "@repo/server-contract/routes";
+import { z } from "zod";
 import { agentBrowserSession, probeHeadlessOrSkip } from "../harness/agent-browser";
 import { expect } from "../harness/assert";
 import type { Scenario } from "../harness/scenario";
@@ -57,7 +58,25 @@ const ASSET_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="40" height="20
 /** What one `eval` pass reports about the rendered editor: a named list of
  *  strings per construct, so adding a construct is one line of probe script
  *  and one assertion rather than another round trip and another parser. */
-type RenderedProbe = Record<string, string[]>;
+/** One field per construct the probe script reads out of the rendered DOM.
+ *  Named rather than a bag: a field the script stops returning is then a parse
+ *  failure here, where a lookup that answered `undefined` would have read as
+ *  "the construct rendered nothing" and passed a deleted extension. */
+const renderedProbeSchema = z.object({
+  tags: z.array(z.string()),
+  calloutLabels: z.array(z.string()),
+  calloutLines: z.array(z.string()),
+  math: z.array(z.string()),
+  mathErrors: z.array(z.string()),
+  images: z.array(z.string()),
+  imageErrors: z.array(z.string()),
+  mermaid: z.array(z.string()),
+  mermaidLabels: z.array(z.string()),
+  tableHeaders: z.array(z.string()),
+  tableCells: z.array(z.string()),
+});
+
+type RenderedProbe = z.infer<typeof renderedProbeSchema>;
 
 // `get text <sel>` answers for the FIRST match only, so a construct that
 // renders N times is read through one eval that reports all of them. The CLI
@@ -89,39 +108,24 @@ const PROBE_SCRIPT = `({
     .map((n) => n.textContent),
 })`;
 
-function isStringArray(value: unknown): value is string[] {
-  return Array.isArray(value) && value.every((entry) => typeof entry === "string");
-}
-
-function isRenderedProbe(value: unknown): value is RenderedProbe {
-  if (typeof value !== "object" || value === null) return false;
-  for (const key of Object.keys(value)) {
-    const entry: unknown = Reflect.get(value, key);
-    if (!isStringArray(entry)) return false;
-  }
-  return true;
-}
-
 /** Parse the eval answer, refusing anything that is not the probe's shape —
  *  a scenario that read `undefined` as "no chips" would pass a regression
  *  that deleted the whole extension. */
 function parseProbe(raw: string): RenderedProbe {
-  let parsed: unknown;
+  let json: unknown;
   try {
-    parsed = JSON.parse(raw);
-  } catch (error) {
-    expect(false, `the probe answer did not parse (${String(error)}):\n${raw}`);
+    json = JSON.parse(raw);
+  } catch (cause) {
+    expect(false, `the probe answer did not parse (${String(cause)}):\n${raw}`);
   }
-  expect(isRenderedProbe(parsed), `the probe answered an unexpected shape:\n${raw}`);
-  return parsed;
+  const parsed = renderedProbeSchema.safeParse(json);
+  expect(parsed.success, `the probe answered an unexpected shape:\n${raw}`);
+  return parsed.data;
 }
 
-/** One construct's rendered strings. Absent is a failure, never an empty list:
- *  the probe script and the assertions have to name the same field. */
-function rendered(probe: RenderedProbe, field: string): string[] {
-  const value = probe[field];
-  expect(value !== undefined, `the probe reports no "${field}" field`);
-  return value;
+/** One construct's rendered strings. */
+function rendered(probe: RenderedProbe, field: keyof RenderedProbe): string[] {
+  return probe[field];
 }
 
 export const editorConstructsBrowser: Scenario = {

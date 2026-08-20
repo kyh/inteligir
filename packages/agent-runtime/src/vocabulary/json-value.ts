@@ -10,6 +10,11 @@ export type JsonValue =
   | JsonValue[]
   | { [key: string]: JsonValue | undefined };
 
+/** A decoded JSON object: the keys are whatever the wire sent, and each value
+ *  is still JSON — a schema for the specific message is what gives one a
+ *  domain type. */
+export type JsonObject = { [key: string]: JsonValue | undefined };
+
 export const jsonValueSchema: z.ZodType<JsonValue> = z.lazy(() =>
   z.union([
     z.boolean(),
@@ -20,3 +25,5 @@ export const jsonValueSchema: z.ZodType<JsonValue> = z.lazy(() =>
     z.record(z.string(), jsonValueSchema),
   ]),
 );
+
+export const jsonObjectSchema: z.ZodType<JsonObject> = z.record(z.string(), jsonValueSchema);

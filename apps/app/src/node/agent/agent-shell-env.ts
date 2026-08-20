@@ -64,17 +64,14 @@ export interface AgentShellEnvArgs {
  * replaced: the agent still needs git, node and everything else it inherits —
  * this only makes `inteligir` win over nothing.
  */
-export function buildAgentShellEnv(args: AgentShellEnvArgs): Record<string, string> {
+export function buildAgentShellEnv(args: AgentShellEnvArgs) {
+  if (args.cliBinDir === null) {
+    return { INTELIGIR_SERVER_URL: args.serverUrl };
+  }
   const inheritedPath = args.env.PATH ?? "";
   return {
     INTELIGIR_SERVER_URL: args.serverUrl,
-    ...(args.cliBinDir === null
-      ? {}
-      : {
-          PATH:
-            inheritedPath.length === 0
-              ? args.cliBinDir
-              : `${args.cliBinDir}${delimiter}${inheritedPath}`,
-        }),
+    PATH:
+      inheritedPath.length === 0 ? args.cliBinDir : `${args.cliBinDir}${delimiter}${inheritedPath}`,
   };
 }

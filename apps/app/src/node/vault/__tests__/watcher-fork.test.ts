@@ -11,7 +11,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
-import { parseChildToParentMessage, type ChildToParentMessage } from "../watcher/messages";
+import { childToParentMessageSchema, type ChildToParentMessage } from "../watcher/messages";
 
 const cleanups: Array<() => void> = [];
 
@@ -43,9 +43,9 @@ describe("the forked watcher child", () => {
       const inbox: ChildToParentMessage[] = [];
       let failed: Error | null = null;
       child.on("message", (raw) => {
-        const parsed = parseChildToParentMessage(raw);
-        if (parsed !== null) {
-          inbox.push(parsed);
+        const parsed = childToParentMessageSchema.safeParse(raw);
+        if (parsed.success) {
+          inbox.push(parsed.data);
         }
       });
       child.on("error", (error) => {

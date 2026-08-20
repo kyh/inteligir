@@ -6,6 +6,7 @@
 // `translateCodexEvent` is stateless as a result.
 
 import type {
+  ThreadEventFileChange,
   ThreadEventItemApprovalStatus,
   ThreadEventItemStatus,
   ThreadEventTurnStatus,
@@ -15,14 +16,24 @@ import type {
   ProviderErrorCategory,
   ProviderErrorInfo,
   ProviderEvent,
+  ProviderErrorEvent,
+  ProviderEventCommandExecutionItem,
   ProviderEventContextWindowUsage,
   ProviderEventItem,
+  ProviderEventToolCallItem,
   ProviderEventUserContent,
   ProviderEventWebFetchItem,
   ProviderEventWebSearchItem,
+  ProviderToolCallProgressEvent,
+  ProviderTurnCompletedEvent,
+  ProviderTurnPlanUpdatedEvent,
+  ProviderWarningEvent,
 } from "../vocabulary/provider-event.js";
-import { toOptionalRecord } from "../shared/adapter-utils.js";
-import { createUnhandledProviderEvent } from "../shared/provider-unhandled-event.js";
+import { jsonObjectSchema } from "../vocabulary/json-value.js";
+import {
+  createUnhandledProviderEvent,
+  type CreateUnhandledProviderEventArgs,
+} from "../shared/provider-unhandled-event.js";
 import { UNSTAMPED_THREAD_ID } from "../shared/unstamped-thread-id.js";
 import type { JsonRpcMessage, ProviderRuntimeEvent } from "../runtime-json-rpc.js";
 import {
@@ -35,6 +46,7 @@ import {
   type CodexHandledThreadItem,
   type CodexItemStatus,
   type CodexParsedUserInput,
+  type CodexThreadItemEnvelope,
   type CodexTurnStatus,
 } from "./schemas.js";
 import { codexVisibilityMetadata } from "./visibility.js";
@@ -68,91 +80,41 @@ function toCodexContextWindowUsage(
   };
 }
 
-function getCodexErrorProviderCode(errorInfo: CodexErrorInfo): string {
-  if (typeof errorInfo === "string") {
-    return errorInfo;
+function getProviderErrorCategory(kind: CodexErrorInfo["kind"]): ProviderErrorCategory {
+  switch (kind) {
+    case "contextWindowExceeded":
+      return "context-window-exceeded";
+    case "usageLimitExceeded":
+      return "rate-limit";
+    case "serverOverloaded":
+      return "overloaded";
+    case "cyberPolicy":
+      return "policy";
+    case "internalServerError":
+      return "internal";
+    case "unauthorized":
+      return "unauthorized";
+    case "badRequest":
+      return "bad-request";
+    case "threadRollbackFailed":
+      return "thread-rollback-failed";
+    case "sandboxError":
+      return "sandbox";
+    case "other":
+      return "unknown";
+    case "httpConnectionFailed":
+      return "connection-failed";
+    case "responseStreamConnectionFailed":
+      return "connection-failed";
+    case "responseStreamDisconnected":
+      return "stream-disconnected";
+    case "responseTooManyFailedAttempts":
+      return "too-many-failed-attempts";
+    case "activeTurnNotSteerable":
+      return "active-turn-not-steerable";
+    default:
+      return assertNever(kind);
   }
-  if ("httpConnectionFailed" in errorInfo) {
-    return "httpConnectionFailed";
-  }
-  if ("responseStreamConnectionFailed" in errorInfo) {
-    return "responseStreamConnectionFailed";
-  }
-  if ("responseStreamDisconnected" in errorInfo) {
-    return "responseStreamDisconnected";
-  }
-  if ("responseTooManyFailedAttempts" in errorInfo) {
-    return "responseTooManyFailedAttempts";
-  }
-  if ("activeTurnNotSteerable" in errorInfo) {
-    return "activeTurnNotSteerable";
-  }
-  return assertNever(errorInfo);
-}
-
-function getCodexErrorHttpStatusCode(errorInfo: CodexErrorInfo): number | null {
-  if (typeof errorInfo === "string") {
-    return null;
-  }
-  if ("httpConnectionFailed" in errorInfo) {
-    return errorInfo.httpConnectionFailed.httpStatusCode;
-  }
-  if ("responseStreamConnectionFailed" in errorInfo) {
-    return errorInfo.responseStreamConnectionFailed.httpStatusCode;
-  }
-  if ("responseStreamDisconnected" in errorInfo) {
-    return errorInfo.responseStreamDisconnected.httpStatusCode;
-  }
-  if ("responseTooManyFailedAttempts" in errorInfo) {
-    return errorInfo.responseTooManyFailedAttempts.httpStatusCode;
-  }
-  if ("activeTurnNotSteerable" in errorInfo) {
-    return null;
-  }
-  return assertNever(errorInfo);
-}
-
-function getProviderErrorCategory(errorInfo: CodexErrorInfo): ProviderErrorCategory {
-  if (typeof errorInfo === "string") {
-    switch (errorInfo) {
-      case "contextWindowExceeded":
-        return "context-window-exceeded";
-      case "usageLimitExceeded":
-        return "rate-limit";
-      case "serverOverloaded":
-        return "overloaded";
-      case "cyberPolicy":
-        return "policy";
-      case "internalServerError":
-        return "internal";
-      case "unauthorized":
-        return "unauthorized";
-      case "badRequest":
-        return "bad-request";
-      case "threadRollbackFailed":
-        return "thread-rollback-failed";
-      case "sandboxError":
-        return "sandbox";
-      case "other":
-        return "unknown";
-    }
-  }
-  if ("httpConnectionFailed" in errorInfo) {
-    return "connection-failed";
-  }
-  if ("responseStreamConnectionFailed" in errorInfo) {
-    return "connection-failed";
-  }
-  if ("responseStreamDisconnected" in errorInfo) {
-    return "stream-disconnected";
-  }
-  if ("responseTooManyFailedAttempts" in errorInfo) {
-    return "too-many-failed-attempts";
-  }
-  if ("activeTurnNotSteerable" in errorInfo) {
-    return "active-turn-not-steerable";
-  }
-  return assertNever(errorInfo);
 }
 
 function toProviderErrorInfo(error: CodexErrorPayload): ProviderErrorInfo | null {
@@ -161,9 +123,9 @@ function toProviderErrorInfo(error: CodexErrorPayload): ProviderErrorInfo | null
     return null;
   }
   return {
-    category: getProviderErrorCategory(errorInfo),
-    providerCode: getCodexErrorProviderCode(errorInfo),
-    httpStatusCode: getCodexErrorHttpStatusCode(errorInfo),
+    category: getProviderErrorCategory(errorInfo.kind),
+    providerCode: errorInfo.kind,
+    httpStatusCode: errorInfo.httpStatusCode,
   };
 }
 
@@ -181,16 +143,35 @@ function buildUnhandledCodexEvent(args: CodexUnhandledEventArgs): ProviderEvent[
     return [];
   }
 
-  return [
-    createUnhandledProviderEvent({
-      providerId: "codex",
-      rawEvent: args.rawEvent,
-      rawType: args.rawType ?? description.kind,
-      ...(args.threadId ? { threadId: args.threadId } : {}),
-      ...(args.providerThreadId ? { providerThreadId: args.providerThreadId } : {}),
-      ...(args.turnId ? { turnId: args.turnId } : {}),
-    }),
-  ];
+  const unhandled: CreateUnhandledProviderEventArgs = {
+    providerId: "codex",
+    rawEvent: args.rawEvent,
+    rawType: args.rawType ?? description.kind,
+  };
+  if (args.threadId) unhandled.threadId = args.threadId;
+  if (args.providerThreadId) unhandled.providerThreadId = args.providerThreadId;
+  if (args.turnId) unhandled.turnId = args.turnId;
+
+  return [createUnhandledProviderEvent(unhandled)];
+}
+
+/** Codex reports both warning kinds with the same params, and neither is
+ *  scoped to a thread the host has stamped yet. */
+function buildCodexWarning(
+  category: ProviderWarningEvent["category"],
+  summary: string,
+  details: string | null | undefined,
+): ProviderWarningEvent {
+  const warning: ProviderWarningEvent = {
+    type: "provider/warning",
+    threadId: UNSTAMPED_THREAD_ID,
+    providerThreadId: "",
+    scope: threadScope(),
+    category,
+    summary,
+  };
+  if (details) warning.details = details;
+  return warning;
 }
 
 function toTurnStatus(status: CodexTurnStatus): ThreadEventTurnStatus {
@@ -252,7 +233,7 @@ function translateCodexUserContent(content: CodexParsedUserInput): ProviderEvent
 }
 
 function collectNonEmptyStrings(values: Array<string | null | undefined>): string[] {
-  return values.filter((value): value is string => typeof value === "string" && value.length > 0);
+  return values.flatMap((value) => (value != null && value.length > 0 ? [value] : []));
 }
 
 function dedupeStrings(values: string[]): string[] {
@@ -347,7 +328,7 @@ function shouldIgnoreCodexWebItem(
 }
 
 function translateCodexItem(
-  item: unknown,
+  item: CodexThreadItemEnvelope,
   eventMethod: "item/started" | "item/completed",
 ): CodexItemTranslationResult {
   const parsed = codexHandledThreadItemSchema.safeParse(item);
@@ -376,57 +357,55 @@ function translateCodexItem(
         item: { type: "userMessage", id: parsedItem.id, content },
       };
     }
-    case "commandExecution":
-      return {
-        kind: "translated",
-        item: {
-          type: "commandExecution",
-          id: parsedItem.id,
-          command: parsedItem.command,
-          cwd: parsedItem.cwd,
-          status: isStartedEvent ? "pending" : toItemStatus(parsedItem.status),
-          approvalStatus: toApprovalStatus(parsedItem.status, eventMethod),
-          ...(parsedItem.aggregatedOutput !== null
-            ? { aggregatedOutput: parsedItem.aggregatedOutput }
-            : {}),
-          ...(parsedItem.exitCode !== null ? { exitCode: parsedItem.exitCode } : {}),
-          ...(parsedItem.durationMs !== null ? { durationMs: parsedItem.durationMs } : {}),
-        },
+    case "commandExecution": {
+      const item: ProviderEventCommandExecutionItem = {
+        type: "commandExecution",
+        id: parsedItem.id,
+        command: parsedItem.command,
+        cwd: parsedItem.cwd,
+        status: isStartedEvent ? "pending" : toItemStatus(parsedItem.status),
+        approvalStatus: toApprovalStatus(parsedItem.status, eventMethod),
       };
+      if (parsedItem.aggregatedOutput !== null) item.aggregatedOutput = parsedItem.aggregatedOutput;
+      if (parsedItem.exitCode !== null) item.exitCode = parsedItem.exitCode;
+      if (parsedItem.durationMs !== null) item.durationMs = parsedItem.durationMs;
+      return { kind: "translated", item };
+    }
     case "fileChange":
       return {
         kind: "translated",
         item: {
           type: "fileChange",
           id: parsedItem.id,
-          changes: parsedItem.changes.map((change) => ({
-            path: change.path,
-            kind: change.kind.type,
-            ...(change.kind.type === "update" && change.kind.move_path
-              ? { movePath: change.kind.move_path }
-              : {}),
-            ...(change.diff ? { diff: change.diff } : {}),
-          })),
+          changes: parsedItem.changes.map((change) => {
+            const fileChange: ThreadEventFileChange = {
+              path: change.path,
+              kind: change.kind.type,
+            };
+            if (change.kind.type === "update" && change.kind.move_path) {
+              fileChange.movePath = change.kind.move_path;
+            }
+            if (change.diff) fileChange.diff = change.diff;
+            return fileChange;
+          }),
           status: isStartedEvent ? "pending" : toItemStatus(parsedItem.status),
           approvalStatus: toApprovalStatus(parsedItem.status, eventMethod),
         },
       };
     case "mcpToolCall": {
-      const toolArguments = toOptionalRecord(parsedItem.arguments);
+      const toolArguments = jsonObjectSchema.safeParse(parsedItem.arguments);
       const errorMessage = parsedItem.error?.message;
-      return {
-        kind: "translated",
-        item: {
-          type: "toolCall",
-          id: parsedItem.id,
-          server: parsedItem.server,
-          tool: parsedItem.tool,
-          ...(toolArguments ? { arguments: toolArguments } : {}),
-          status: isStartedEvent ? "pending" : toItemStatus(parsedItem.status),
-          ...(errorMessage !== undefined ? { error: errorMessage } : {}),
-          ...(parsedItem.durationMs !== null ? { durationMs: parsedItem.durationMs } : {}),
-        },
+      const item: ProviderEventToolCallItem = {
+        type: "toolCall",
+        id: parsedItem.id,
+        server: parsedItem.server,
+        tool: parsedItem.tool,
+        status: isStartedEvent ? "pending" : toItemStatus(parsedItem.status),
       };
+      if (toolArguments.success) item.arguments = toolArguments.data;
+      if (errorMessage !== undefined) item.error = errorMessage;
+      if (parsedItem.durationMs !== null) item.durationMs = parsedItem.durationMs;
+      return { kind: "translated", item };
     }
     case "webSearch": {
       if (shouldIgnoreCodexWebItem(parsedItem)) {
@@ -485,8 +464,8 @@ export function translateCodexEvent(event: ProviderRuntimeEvent): ProviderEvent[
   const rawEvent: JsonRpcMessage = {
     jsonrpc: "2.0",
     method: envelope.data.method,
-    ...(envelope.data.params ? { params: envelope.data.params } : {}),
   };
+  if (envelope.data.params) rawEvent.params = envelope.data.params;
 
   const parsed = codexHandledEventSchema.safeParse(rawEvent);
   if (!parsed.success) {
@@ -506,19 +485,18 @@ export function translateCodexEvent(event: ProviderRuntimeEvent): ProviderEvent[
           scope: turnScope(handledEvent.params.turn.id),
         },
       ];
-    case "turn/completed":
-      return [
-        {
-          type: "turn/completed",
-          threadId: handledEvent.params.threadId,
-          providerThreadId: handledEvent.params.threadId,
-          scope: turnScope(handledEvent.params.turn.id),
-          status: toTurnStatus(handledEvent.params.turn.status),
-          ...(handledEvent.params.turn.error?.message
-            ? { error: { message: handledEvent.params.turn.error.message } }
-            : {}),
-        },
-      ];
+    case "turn/completed": {
+      const completed: ProviderTurnCompletedEvent = {
+        type: "turn/completed",
+        threadId: handledEvent.params.threadId,
+        providerThreadId: handledEvent.params.threadId,
+        scope: turnScope(handledEvent.params.turn.id),
+        status: toTurnStatus(handledEvent.params.turn.status),
+      };
+      const errorMessage = handledEvent.params.turn.error?.message;
+      if (errorMessage) completed.error = { message: errorMessage };
+      return [completed];
+    }
     case "thread/started": {
       const events: ProviderEvent[] = [
         {
@@ -656,17 +634,17 @@ export function translateCodexEvent(event: ProviderRuntimeEvent): ProviderEvent[
           delta: handledEvent.params.delta,
         },
       ];
-    case "item/mcpToolCall/progress":
-      return [
-        {
-          type: "item/toolCall/progress",
-          threadId: handledEvent.params.threadId,
-          providerThreadId: handledEvent.params.threadId,
-          scope: turnScope(handledEvent.params.turnId),
-          itemId: handledEvent.params.itemId,
-          ...(handledEvent.params.message ? { message: handledEvent.params.message } : {}),
-        },
-      ];
+    case "item/mcpToolCall/progress": {
+      const progress: ProviderToolCallProgressEvent = {
+        type: "item/toolCall/progress",
+        threadId: handledEvent.params.threadId,
+        providerThreadId: handledEvent.params.threadId,
+        scope: turnScope(handledEvent.params.turnId),
+        itemId: handledEvent.params.itemId,
+      };
+      if (handledEvent.params.message) progress.message = handledEvent.params.message;
+      return [progress];
+    }
     case "thread/tokenUsage/updated":
       return [
         {
@@ -703,22 +681,22 @@ export function translateCodexEvent(event: ProviderRuntimeEvent): ProviderEvent[
           ),
         },
       ];
-    case "turn/plan/updated":
-      return [
-        {
-          type: "turn/plan/updated",
-          threadId: handledEvent.params.threadId,
-          providerThreadId: handledEvent.params.threadId,
-          scope: turnScope(handledEvent.params.turnId),
-          plan: handledEvent.params.plan.map((step) => ({
-            step: step.step,
-            status: step.status === "inProgress" ? "active" : step.status,
-          })),
-          ...(handledEvent.params.explanation
-            ? { explanation: handledEvent.params.explanation }
-            : {}),
-        },
-      ];
+    case "turn/plan/updated": {
+      const planUpdated: ProviderTurnPlanUpdatedEvent = {
+        type: "turn/plan/updated",
+        threadId: handledEvent.params.threadId,
+        providerThreadId: handledEvent.params.threadId,
+        scope: turnScope(handledEvent.params.turnId),
+        plan: handledEvent.params.plan.map((step) => ({
+          step: step.step,
+          status: step.status === "inProgress" ? "active" : step.status,
+        })),
+      };
+      if (handledEvent.params.explanation) {
+        planUpdated.explanation = handledEvent.params.explanation;
+      }
+      return [planUpdated];
+    }
     case "turn/diff/updated":
       return [
         {
@@ -731,46 +709,29 @@ export function translateCodexEvent(event: ProviderRuntimeEvent): ProviderEvent[
       ];
     case "error": {
       const errorInfo = toProviderErrorInfo(handledEvent.params.error);
-      return [
-        {
-          type: "provider/error",
-          threadId: handledEvent.params.threadId,
-          providerThreadId: handledEvent.params.threadId,
-          scope: handledEvent.params.turnId ? turnScope(handledEvent.params.turnId) : threadScope(),
-          message: "Provider error",
-          detail: handledEvent.params.error.additionalDetails
-            ? `${handledEvent.params.error.message}\n${handledEvent.params.error.additionalDetails}`
-            : handledEvent.params.error.message,
-          ...(handledEvent.params.willRetry !== undefined
-            ? { willRetry: handledEvent.params.willRetry }
-            : {}),
-          ...(errorInfo ? { errorInfo } : {}),
-        },
-      ];
+      const providerError: ProviderErrorEvent = {
+        type: "provider/error",
+        threadId: handledEvent.params.threadId,
+        providerThreadId: handledEvent.params.threadId,
+        scope: handledEvent.params.turnId ? turnScope(handledEvent.params.turnId) : threadScope(),
+        message: "Provider error",
+        detail: handledEvent.params.error.additionalDetails
+          ? `${handledEvent.params.error.message}\n${handledEvent.params.error.additionalDetails}`
+          : handledEvent.params.error.message,
+      };
+      if (handledEvent.params.willRetry !== undefined) {
+        providerError.willRetry = handledEvent.params.willRetry;
+      }
+      if (errorInfo) providerError.errorInfo = errorInfo;
+      return [providerError];
     }
     case "deprecationNotice":
       return [
-        {
-          type: "provider/warning",
-          threadId: UNSTAMPED_THREAD_ID,
-          providerThreadId: "",
-          scope: threadScope(),
-          category: "deprecation",
-          summary: handledEvent.params.summary,
-          ...(handledEvent.params.details ? { details: handledEvent.params.details } : {}),
-        },
+        buildCodexWarning("deprecation", handledEvent.params.summary, handledEvent.params.details),
       ];
     case "configWarning":
       return [
-        {
-          type: "provider/warning",
-          threadId: UNSTAMPED_THREAD_ID,
-          providerThreadId: "",
-          scope: threadScope(),
-          category: "config",
-          summary: handledEvent.params.summary,
-          ...(handledEvent.params.details ? { details: handledEvent.params.details } : {}),
-        },
+        buildCodexWarning("config", handledEvent.params.summary, handledEvent.params.details),
       ];
     default:
       return assertNever(handledEvent);

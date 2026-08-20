@@ -53,12 +53,14 @@ function openStore(dbPath: string, vaultRoot = "/vault"): SqlKnowledgeStore {
   return store;
 }
 
-function docRow(
-  path: string,
-  content: string,
-): { row: Parameters<SqlKnowledgeStore["upsertDoc"]>[0]; body: string } {
+function docRow(path: string, content: string) {
   const projection: DocProjection = projectDoc(path, content);
-  return { row: { path, contentHash: sha256Hex(content), projection }, body: content };
+  const row: Parameters<SqlKnowledgeStore["upsertDoc"]>[0] = {
+    path,
+    contentHash: sha256Hex(content),
+    projection,
+  };
+  return { row, body: content };
 }
 
 function seed(store: SqlKnowledgeStore): void {

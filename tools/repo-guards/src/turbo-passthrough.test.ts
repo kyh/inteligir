@@ -32,6 +32,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { ENV_VAR_NAMES } from "@repo/app/node/config";
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 import { REPO_ROOT, sourceOf, workspaceFiles, workspaces, type Workspace } from "./repo";
 
 /** The one reader of the environment table. A workspace reaching it has an env
@@ -43,10 +44,12 @@ const CONFIG_READER = "resolveAppConfig";
  * path that actually starts them. The drain below fails the moment one gains a
  * turbo.json, because at that point the reason here stopped being true.
  */
-const RUNS_OUTSIDE_TURBO: Record<string, string> = {
-  "@repo/cli":
+const RUNS_OUTSIDE_TURBO = new Map<string, string>([
+  [
+    "@repo/cli",
     "started by apps/cli/bin/inteligir — the root `cli` script, and the PATH shim the agent's shell gets — never by a turbo task",
-};
+  ],
+]);
 
 interface TurboTask {
   name: string;
@@ -55,35 +58,30 @@ interface TurboTask {
   passThroughEnv: string[] | null;
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
+const turboConfigSchema = z.looseObject({ tasks: z.record(z.string(), z.unknown()) });
+/** A task body, read for only the two fields this guard judges. `persistent`
+ *  is true or it is not; anything else is a task that is not persistent. */
+const turboTaskSchema = z.looseObject({
+  persistent: z.literal(true).optional().catch(undefined),
+  passThroughEnv: z.array(z.string()).optional(),
+});
 
 /** turbo.json is JSONC. `sourceOf` drops full-line comments, which is every
  *  comment this repo's turbo configs use. */
 function turboTasks(configPath: string): TurboTask[] {
-  const parsed: unknown = JSON.parse(sourceOf(configPath));
-  if (!isRecord(parsed)) throw new Error(`${configPath}: expected a JSON object`);
-  const tasks = parsed["tasks"];
-  if (!isRecord(tasks)) throw new Error(`${configPath}: expected an object at "tasks"`);
-  return Object.entries(tasks).map(([name, body]) => {
-    if (!isRecord(body)) throw new Error(`${configPath}: tasks.${name} must be an object`);
-    const declared = body["passThroughEnv"];
-    if (declared !== undefined && !Array.isArray(declared)) {
-      throw new Error(`${configPath}: tasks.${name}.passThroughEnv must be an array`);
+  const parsed = turboConfigSchema.safeParse(JSON.parse(sourceOf(configPath)));
+  if (!parsed.success) throw new Error(`${configPath}: expected an object at "tasks"`);
+  return Object.entries(parsed.data.tasks).map(([name, body]) => {
+    const task = turboTaskSchema.safeParse(body);
+    if (!task.success) {
+      throw new Error(
+        `${configPath}: tasks.${name} must be an object whose passThroughEnv is an array of strings`,
+      );
     }
     return {
       name,
-      persistent: body["persistent"] === true,
-      passThroughEnv:
-        declared === undefined
-          ? null
-          : declared.map((entry: unknown) => {
-              if (typeof entry !== "string") {
-                throw new Error(`${configPath}: tasks.${name}.passThroughEnv must hold strings`);
-              }
-              return entry;
-            }),
+      persistent: task.data.persistent === true,
+      passThroughEnv: task.data.passThroughEnv ?? null,
     };
   });
 }
@@ -157,7 +155,7 @@ describe("turbo passes through the whole environment contract", () => {
     const violations: string[] = [];
     for (const workspace of consumers) {
       if (turboConfigOf(workspace) !== null) continue;
-      if (workspace.name in RUNS_OUTSIDE_TURBO) continue;
+      if (RUNS_OUTSIDE_TURBO.has(workspace.name)) continue;
       violations.push(
         `UNCHECKED CONFIG READER  ${workspace.name}\n` +
           `  rule: a workspace calling ${CONFIG_READER}() has an environment contract, and this one has no turbo.json for it to be held against\n` +
@@ -169,7 +167,7 @@ describe("turbo passes through the whole environment contract", () => {
 
   it("no entry in RUNS_OUTSIDE_TURBO is stale", () => {
     const stale: string[] = [];
-    for (const [name, why] of Object.entries(RUNS_OUTSIDE_TURBO)) {
+    for (const [name, why] of RUNS_OUTSIDE_TURBO) {
       const workspace = consumers.find((candidate) => candidate.name === name);
       if (workspace === undefined) {
         stale.push(

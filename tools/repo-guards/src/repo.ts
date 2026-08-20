@@ -8,6 +8,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { parse as parseYaml } from "yaml";
+import { z } from "zod";
 
 export const REPO_ROOT = path.resolve(import.meta.dirname, "../../..");
 
@@ -31,12 +32,18 @@ export function isSkippedDir(name: string): boolean {
 
 const SOURCE_FILE = /\.(?:tsx?|mts|cts|mjs|cjs|jsx?)$/;
 
-export interface Manifest {
-  name: string;
-  dependencies?: Record<string, string>;
-  devDependencies?: Record<string, string>;
-  peerDependencies?: Record<string, string>;
-}
+/** A dependency group that is not a name→range map is dropped rather than
+ *  read partially — the original reader skipped malformed groups the same way. */
+const versionMapSchema = z.record(z.string(), z.string()).optional().catch(undefined);
+
+const manifestSchema = z.object({
+  name: z.string(),
+  dependencies: versionMapSchema,
+  devDependencies: versionMapSchema,
+  peerDependencies: versionMapSchema,
+});
+
+export type Manifest = z.infer<typeof manifestSchema>;
 
 export interface Workspace {
   /** The manifest's `name`, e.g. `@repo/notes` — the id every guard speaks. */
@@ -46,26 +53,15 @@ export interface Workspace {
   manifest: Manifest;
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
-function isVersionMap(value: unknown): value is Record<string, string> {
-  return isRecord(value) && Object.values(value).every((entry) => typeof entry === "string");
-}
-
 /** Parse at the boundary: a manifest is JSON on disk, so a shape this cannot
  *  reason about is refused rather than read through `any`. */
 function parseManifest(file: string): Manifest {
   const value: unknown = JSON.parse(fs.readFileSync(file, "utf8"));
-  if (!isRecord(value) || typeof value.name !== "string") {
+  const manifest = manifestSchema.safeParse(value);
+  if (!manifest.success) {
     throw new Error(`${file}: expected a package.json with a string "name"`);
   }
-  const manifest: Manifest = { name: value.name };
-  if (isVersionMap(value.dependencies)) manifest.dependencies = value.dependencies;
-  if (isVersionMap(value.devDependencies)) manifest.devDependencies = value.devDependencies;
-  if (isVersionMap(value.peerDependencies)) manifest.peerDependencies = value.peerDependencies;
-  return manifest;
+  return manifest.data;
 }
 
 export interface WorkspaceGlobs {
@@ -88,26 +84,27 @@ let cachedGlobs: WorkspaceGlobs | undefined;
  */
 export function workspaceGlobs(): WorkspaceGlobs {
   if (cachedGlobs !== undefined) return cachedGlobs;
-  const parsed: unknown = parseYaml(
-    fs.readFileSync(path.join(REPO_ROOT, WORKSPACE_MANIFEST), "utf8"),
-  );
-  if (!isRecord(parsed) || !Array.isArray(parsed.packages)) {
+  const parsed = z
+    .looseObject({ packages: z.array(z.unknown()) })
+    .safeParse(parseYaml(fs.readFileSync(path.join(REPO_ROOT, WORKSPACE_MANIFEST), "utf8")));
+  if (!parsed.success) {
     throw new Error(`${WORKSPACE_MANIFEST}: expected a "packages" list of workspace globs`);
   }
   const groups: string[] = [];
   const standalone: string[] = [];
-  for (const entry of parsed.packages) {
-    if (typeof entry !== "string") {
+  for (const packagesEntry of parsed.data.packages) {
+    const entry = z.string().safeParse(packagesEntry);
+    if (!entry.success) {
       throw new Error(`${WORKSPACE_MANIFEST}: every "packages" entry must be a string`);
     }
-    const glob = entry.replace(/\/+$/, "");
+    const glob = entry.data.replace(/\/+$/, "");
     if (glob.endsWith("/*") && !glob.slice(0, -2).includes("*")) {
       groups.push(glob.slice(0, -2));
     } else if (!glob.includes("*") && !glob.startsWith("!")) {
       standalone.push(glob);
     } else {
       throw new Error(
-        `${WORKSPACE_MANIFEST}: cannot read the workspace glob "${entry}".\n` +
+        `${WORKSPACE_MANIFEST}: cannot read the workspace glob "${entry.data}".\n` +
           `  rule: tools/repo-guards/src/repo.ts derives every guard's tree walk from this list, and understands "<dir>/*" and a plain "<dir>" only\n` +
           `  fix: teach workspaceGlobs() this shape — leaving it unread would silently shrink what every guard covers`,
       );

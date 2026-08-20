@@ -105,20 +105,20 @@ function pairCallbackPage(completion: PairCompletion): CallbackPage {
   }
 }
 
-const HTML_ESCAPES: Record<string, string> = {
-  "&": "&amp;",
-  "<": "&lt;",
-  ">": "&gt;",
-  '"': "&quot;",
-  "'": "&#39;",
-};
+const HTML_ESCAPES = new Map([
+  ["&", "&amp;"],
+  ["<", "&lt;"],
+  [">", "&gt;"],
+  ['"', "&quot;"],
+  ["'", "&#39;"],
+]);
 
 /** Everything interpolated below is this process's own text today, and the
  *  cloud's refusal sentence is the one piece that is not — escaped anyway,
  *  because "the source is trusted" is the assumption that stops being true
  *  without anyone editing this file. */
 function escapeHtml(value: string): string {
-  return value.replaceAll(/[&<>"']/gu, (character) => HTML_ESCAPES[character] ?? character);
+  return value.replaceAll(/[&<>"']/gu, (character) => HTML_ESCAPES.get(character) ?? character);
 }
 
 function renderPage(page: CallbackPage): string {

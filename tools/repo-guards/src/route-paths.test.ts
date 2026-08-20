@@ -36,12 +36,16 @@ const USE = "apiPath(apiRoutes.<row>) from @repo/server-contract/routes";
  * whose file no longer matches fails, so an exemption cannot outlive its
  * reason.
  */
-const ELSEWHERE: Record<string, string> = {
-  "apps/launcher/scripts/smoke.mjs":
+const ELSEWHERE = new Map<string, string>([
+  [
+    "apps/launcher/scripts/smoke.mjs",
     "a plain .mjs script run by `node` against a PACKED tarball in a scratch prefix — it has no bundler, no TypeScript and no workspace link to import the contract through, and giving it one would mean shipping the contract inside the published artifact to satisfy a test",
-  "apps/desktop/scripts/smoke-packaged.mjs":
+  ],
+  [
+    "apps/desktop/scripts/smoke-packaged.mjs",
     "the same, one layer further out: it drives the packaged .app's own Electron binary as a bare node process, so the only module it can import is the one the artifact itself publishes (inteligir/scripts/staged-layout.mjs)",
-};
+  ],
+]);
 
 interface Hit {
   file: string;
@@ -96,7 +100,7 @@ describe("one spelling per API route path", () => {
     const violations: string[] = [];
     for (const hit of hits(files)) {
       if (hit.file === HOME) continue;
-      if (ELSEWHERE[hit.file] !== undefined) continue;
+      if (ELSEWHERE.has(hit.file)) continue;
       violations.push(
         `HAND-SPELLED ROUTE PATH  ${hit.file}\n` +
           `  found: ${hit.what}\n` +
@@ -109,7 +113,7 @@ describe("one spelling per API route path", () => {
 
   it("no ELSEWHERE row is stale", () => {
     const matched = new Set(hits(files).map((hit) => hit.file));
-    const stale = Object.entries(ELSEWHERE)
+    const stale = [...ELSEWHERE]
       .filter(([file]) => !matched.has(file))
       .map(
         ([file, why]) =>

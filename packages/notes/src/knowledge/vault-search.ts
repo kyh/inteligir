@@ -69,7 +69,9 @@ export function searchVaultNotes(
  * only the first one counts — two tag filters would have to mean AND or OR, and
  * a box that silently picks one is worse than a box that takes one. An empty
  * `tag` means no filter, which is also what a bare `tag:` types out to. */
-export function parseSearchQuery(raw: string): { query: string; tag: string } {
+export type ParsedSearchQuery = { query: string; tag: string };
+
+export function parseSearchQuery(raw: string): ParsedSearchQuery {
   const terms = raw.split(/\s+/).filter((term) => term !== "");
   let tag = "";
   const text: string[] = [];

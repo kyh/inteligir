@@ -19,7 +19,7 @@ afterEach(async () => {
   for (const cleanup of cleanups.splice(0).toReversed()) await cleanup();
 });
 
-function makeDirs(): { root: string; dataDir: string } {
+function makeDirs() {
   const instanceDir = makeTempDir("inteligir-knowledge-runtime-");
   const root = join(instanceDir, "vault");
   const dataDir = join(instanceDir, "data");
@@ -30,10 +30,7 @@ function makeDirs(): { root: string; dataDir: string } {
 
 /** A service + runtime pair wired the way production wires them: every
  * service mutation announces its paths into the runtime. */
-function boot(dirs: { root: string; dataDir: string }): {
-  service: VaultService;
-  knowledge: KnowledgeRuntime;
-} {
+function boot(dirs: ReturnType<typeof makeDirs>) {
   let sink: KnowledgeRuntime | null = null;
   const service = createVaultService({
     root: dirs.root,

@@ -1,4 +1,4 @@
-import type { Node, Parent } from "mdast";
+import type { Literal, Node, Parent } from "mdast";
 import { describe, expect, it } from "vitest";
 import { parseScan } from "../scan-parse";
 import { isThreadAnchorToken } from "../thread-anchor";
@@ -14,19 +14,30 @@ const OTHER = "anc_ffffffffffff";
 const MARKER = threadMarkerText(ANC);
 
 function isParent(node: Node): node is Parent {
-  return "children" in node && Array.isArray((node as Parent).children);
+  return "children" in node && Array.isArray(node.children);
 }
 
+function isLiteral(node: Node): node is Literal {
+  return "value" in node;
+}
+
+/** A node reduced to what the comparison below judges: its kind, plus either
+ *  its normalized text or its surviving children. */
+type StrippedNode =
+  | { type: string; value: string | null }
+  | { type: string; children: StrippedNode[] };
+
 /**
- * The document's shape with every marker node dropped — what inserting a marker
- * must leave untouched. Trailing whitespace on text is normalized, because the
- * one byte an insertion legitimately adds to a neighbouring node is the line
- * break carrying the marker's own line (a marker directly under a paragraph is
- * a lazy continuation of it: same blocks, same text, same rendering).
+ * The document's outline with every marker node dropped — what inserting a
+ * marker must leave untouched. Trailing whitespace on text is normalized,
+ * because the one byte an insertion legitimately adds to a neighbouring node is
+ * the line break carrying the marker's own line (a marker directly under a
+ * paragraph is a lazy continuation of it: same blocks, same text, same
+ * rendering).
  */
-function shapeWithoutMarkers(content: string): string {
-  const strip = (node: Node): unknown => {
-    const value = (node as { value?: string }).value;
+function outlineWithoutMarkers(content: string): string {
+  const strip = (node: Node): StrippedNode | null => {
+    const value = isLiteral(node) ? node.value : undefined;
     if (node.type === "html" && /inteligir:thread/u.test(String(value))) {
       return null;
     }
@@ -137,7 +148,7 @@ describe("insertion computes a legal block boundary", () => {
       // The anchor exists, is recognized, and nothing else about the document
       // changed shape — which is the whole safety property.
       expect(findThreadMarkers(inserted).map((marker) => marker.anchor)).toEqual([ANC]);
-      expect(shapeWithoutMarkers(inserted)).toBe(shapeWithoutMarkers(testCase.doc));
+      expect(outlineWithoutMarkers(inserted)).toBe(outlineWithoutMarkers(testCase.doc));
     });
   }
 

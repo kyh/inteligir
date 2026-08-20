@@ -45,11 +45,11 @@ export async function runCliForTest(args: RunArgs): Promise<CliRunResult> {
   // nothing in the CLI reaches for `console` any more — consola writes to the
   // stream object it was constructed with, which is this one.
   const outSpy = vi.spyOn(process.stdout, "write").mockImplementation((chunk) => {
-    stdout += typeof chunk === "string" ? chunk : new TextDecoder().decode(chunk);
+    stdout += chunk instanceof Uint8Array ? new TextDecoder().decode(chunk) : chunk;
     return true;
   });
   const errSpy = vi.spyOn(process.stderr, "write").mockImplementation((chunk) => {
-    stderr += typeof chunk === "string" ? chunk : new TextDecoder().decode(chunk);
+    stderr += chunk instanceof Uint8Array ? new TextDecoder().decode(chunk) : chunk;
     return true;
   });
   // process.stdin is a getter, so it is swapped by descriptor rather than a

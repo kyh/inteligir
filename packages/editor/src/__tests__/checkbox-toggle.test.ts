@@ -19,7 +19,13 @@ afterEach(() => {
   editor = undefined;
 });
 
-const mount = (): { editor: MarkdownEditor; userEvents: string[] } => {
+/** The mounted editor and the user-event annotations it has recorded. */
+interface MountedEditor {
+  editor: MarkdownEditor;
+  userEvents: string[];
+}
+
+const mount = (): MountedEditor => {
   const userEvents: string[] = [];
   const mounted = createMarkdownEditor({
     parent: document.body,

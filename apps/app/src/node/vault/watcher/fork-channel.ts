@@ -4,7 +4,7 @@ import { fork, type ChildProcess } from "node:child_process";
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { parseChildToParentMessage, type ParentToChildMessage } from "./messages";
+import { childToParentMessageSchema, type ParentToChildMessage } from "./messages";
 import type { ChildChannel } from "./parcel-watcher-proxy";
 
 // Resolve the watcher child entry relative to this module's runtime location.
@@ -94,9 +94,9 @@ function createChildChannel(child: ChildProcess): ChildChannel {
     },
     onMessage(listener) {
       child.on("message", (message) => {
-        const parsed = parseChildToParentMessage(message);
-        if (parsed !== null) {
-          listener(parsed);
+        const parsed = childToParentMessageSchema.safeParse(message);
+        if (parsed.success) {
+          listener(parsed.data);
         }
       });
     },

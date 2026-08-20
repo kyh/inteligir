@@ -32,10 +32,11 @@ interface RecordingEngine {
 }
 
 function recordingEngine(head = "rev-1"): RecordingEngine {
+  const scopedCommits: RecordedCommit[] = [];
   const state = {
     holds: 0,
     releases: 0,
-    scopedCommits: [] as RecordedCommit[],
+    scopedCommits,
     wholeTreeCommits: 0,
     headMoves: 0,
   };

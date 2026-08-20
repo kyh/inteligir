@@ -72,7 +72,12 @@ function harness(initial: string) {
 
 const noop = (): void => {};
 
-function deferred(): { promise: Promise<SaveResult>; resolve: (result: SaveResult) => void } {
+interface Deferred {
+  promise: Promise<SaveResult>;
+  resolve: (result: SaveResult) => void;
+}
+
+function deferred(): Deferred {
   let resolve: (result: SaveResult) => void = noop;
   const promise = new Promise<SaveResult>((r) => {
     resolve = r;

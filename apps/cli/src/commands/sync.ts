@@ -18,7 +18,11 @@
 // in front of the state it discards, not a verb in the surface built for a
 // model to drive.
 
-import type { CloudPairBeginResponse, CloudStatusResponse } from "@repo/server-contract/cloud";
+import type {
+  CloudPairBeginRequest,
+  CloudPairBeginResponse,
+  CloudStatusResponse,
+} from "@repo/server-contract/cloud";
 import { defineCommand } from "citty";
 import { apiFor, type CliDeps } from "../context";
 import { jsonArg, outputJson, requireOk, writeLines } from "../output";
@@ -91,12 +95,11 @@ export function syncCommand(deps: CliDeps) {
         },
         run: async ({ args }) => {
           const api = await apiFor(deps);
-          const response = await api.cloud.pair.begin.$post({
-            json: {
-              ...(args.name === undefined ? {} : { deviceName: args.name }),
-              openBrowser: !args.json,
-            },
-          });
+          const json: CloudPairBeginRequest = { openBrowser: !args.json };
+          if (args.name !== undefined) {
+            json.deviceName = args.name;
+          }
+          const response = await api.cloud.pair.begin.$post({ json });
           const body = await (await requireOk(response)).json();
           if (outputJson(args, body)) {
             return;

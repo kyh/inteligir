@@ -35,99 +35,101 @@ import {
  * nothing about what a consumer of this package pulls in — but they must still
  * be declared in the manifest, which the manifest test below covers.
  */
-const DECLARED_EDGES: Record<string, readonly string[]> = {
-  // Leaves. Nothing in this repo may be below them.
-  "@repo/cloud-contract": [],
-  "@repo/domain": [],
-  "@repo/notes": [],
-  "@repo/typed-routes": [],
-  "@repo/ui": [],
+const DECLARED_EDGES = new Map<string, readonly string[]>(
+  Object.entries({
+    // Leaves. Nothing in this repo may be below them.
+    "@repo/cloud-contract": [],
+    "@repo/domain": [],
+    "@repo/notes": [],
+    "@repo/typed-routes": [],
+    "@repo/ui": [],
 
-  "@repo/editor": ["@repo/notes"],
-  // The @repo/notes edge is two grammars the contract validates against —
-  // the delegation anchor's token (`markdown/thread-anchor`) and the vault
-  // path (`knowledge/vault-path`) — and it is narrow ON PURPOSE: both modules
-  // are parser-free, so refusing a bad value in the contract cannot drag
-  // remark into every client bundle. Widening this edge to a remark-carrying
-  // module is the regression to catch.
-  // The @repo/cloud-contract edge is ONE fact, and it is a wire fact: the
-  // device name `/cloud/pair/begin` accepts is the name the cloud's own
-  // `/v1/device/redeem` will eventually be sent, so the ceiling it validates
-  // against has to be that route's. A hand-copied number here is a value this
-  // end accepts and the cloud then refuses, arriving as a shape error long
-  // after the click that caused it. Both packages are zod-only leaves, so the
-  // edge costs a client bundle nothing but the schemas it already parses.
-  "@repo/server-contract": [
-    "@repo/cloud-contract",
-    "@repo/domain",
-    "@repo/notes",
-    "@repo/typed-routes",
-  ],
-  "@repo/agent-runtime": ["@repo/domain"],
-  // Persistence sits BELOW the wire: the store announces its writes through
-  // @repo/domain's `DbNotifier`, whose change-kind vocabulary the contract
-  // serializes. An edge the other way would drag hono, the route machinery and
-  // the contract's own @repo/notes edge into the build graph of a package that
-  // only writes rows.
-  "@repo/db": ["@repo/domain"],
-  "@repo/thread-view": ["@repo/domain", "@repo/server-contract"],
+    "@repo/editor": ["@repo/notes"],
+    // The @repo/notes edge is two grammars the contract validates against —
+    // the delegation anchor's token (`markdown/thread-anchor`) and the vault
+    // path (`knowledge/vault-path`) — and it is narrow ON PURPOSE: both modules
+    // are parser-free, so refusing a bad value in the contract cannot drag
+    // remark into every client bundle. Widening this edge to a remark-carrying
+    // module is the regression to catch.
+    // The @repo/cloud-contract edge is ONE fact, and it is a wire fact: the
+    // device name `/cloud/pair/begin` accepts is the name the cloud's own
+    // `/v1/device/redeem` will eventually be sent, so the ceiling it validates
+    // against has to be that route's. A hand-copied number here is a value this
+    // end accepts and the cloud then refuses, arriving as a shape error long
+    // after the click that caused it. Both packages are zod-only leaves, so the
+    // edge costs a client bundle nothing but the schemas it already parses.
+    "@repo/server-contract": [
+      "@repo/cloud-contract",
+      "@repo/domain",
+      "@repo/notes",
+      "@repo/typed-routes",
+    ],
+    "@repo/agent-runtime": ["@repo/domain"],
+    // Persistence sits BELOW the wire: the store announces its writes through
+    // @repo/domain's `DbNotifier`, whose change-kind vocabulary the contract
+    // serializes. An edge the other way would drag hono, the route machinery and
+    // the contract's own @repo/notes edge into the build graph of a package that
+    // only writes rows.
+    "@repo/db": ["@repo/domain"],
+    "@repo/thread-view": ["@repo/domain", "@repo/server-contract"],
 
-  // The product: the one workspace that composes everything.
-  "@repo/app": [
-    "@repo/agent-runtime",
-    // The cloud wire (issue #572). This app is the OTHER end of what
-    // apps/web serves: the sync client parses the same push/pull/capture
-    // schemas, the same ws ping frames and the same error envelope the Worker
-    // produces, so the contract has two implementations and no second reading.
-    // It stays a zod-only leaf precisely so this edge costs the local process
-    // nothing beyond the grammar.
-    "@repo/cloud-contract",
-    "@repo/db",
-    "@repo/domain",
-    "@repo/editor",
-    "@repo/notes",
-    "@repo/server-contract",
-    "@repo/thread-view",
-    "@repo/typed-routes",
-    "@repo/ui",
-  ],
-  // Drives a RUNNING app over the typed client; the @repo/app edge is the
-  // discovery config (which port/dataDir this checkout means), not the server.
-  // It reaches no runtime — an approval it prints is domain grammar, and a
-  // client that could not print one without the package that spawns provider
-  // processes would be carrying a process tree to format a string.
-  "@repo/cli": ["@repo/app", "@repo/domain", "@repo/server-contract", "@repo/thread-view"],
-  // The Cloudflare Worker. Only the two zod-only/browser-only packages it can
-  // survive on workerd — see the workerd rule below for what enforces that
-  // beyond this row.
-  "@repo/web": ["@repo/cloud-contract", "@repo/ui"],
-  // The two SHIPPING surfaces. Both consume the product as a BUILT DIRECTORY
-  // rather than as a module — the launcher stages @repo/app's and @repo/cli's
-  // dist into its own package and imports the staged bundle by path; the shell
-  // spawns that bundle as a child. The build ORDER those relationships need
-  // lives in each turbo.json as an explicit `<package>#build`, which is what
-  // it is — an ordering, not an import edge.
-  inteligir: [],
-  // The shell's ONE module edge, and it is never the server — it is the three
-  // facts the two processes must AGREE on, imported rather than re-stated:
-  // the config resolution (the window is pinned to an origin, so the port that
-  // origin names has to be the one the app itself would bind — env, then
-  // `<dataDir>/config.json`, then the default; a shell with its own partial
-  // copy points at a dead port), the identity primitives it verifies a
-  // responder with, and the shutdown budget its SIGKILL grace must exceed.
-  // Same call apps/cli's discovery makes, for the same reason. Bundled by
-  // esbuild at build time, hence a devDependency rather than a runtime one.
-  //
-  // The contract edge is the fourth fact, and it is a WIRE fact rather than a
-  // configuration one: the shell challenges a responder before adopting it, so
-  // it needs the identity row's path and the schema that responder's answer is
-  // held against. A shell narrowing that body for itself is a second, weaker
-  // reading of the one message a squatter gets to compose.
-  "@repo/desktop": ["@repo/app", "@repo/server-contract"],
+    // The product: the one workspace that composes everything.
+    "@repo/app": [
+      "@repo/agent-runtime",
+      // The cloud wire (issue #572). This app is the OTHER end of what
+      // apps/web serves: the sync client parses the same push/pull/capture
+      // schemas, the same ws ping frames and the same error envelope the Worker
+      // produces, so the contract has two implementations and no second reading.
+      // It stays a zod-only leaf precisely so this edge costs the local process
+      // nothing beyond the grammar.
+      "@repo/cloud-contract",
+      "@repo/db",
+      "@repo/domain",
+      "@repo/editor",
+      "@repo/notes",
+      "@repo/server-contract",
+      "@repo/thread-view",
+      "@repo/typed-routes",
+      "@repo/ui",
+    ],
+    // Drives a RUNNING app over the typed client; the @repo/app edge is the
+    // discovery config (which port/dataDir this checkout means), not the server.
+    // It reaches no runtime — an approval it prints is domain grammar, and a
+    // client that could not print one without the package that spawns provider
+    // processes would be carrying a process tree to format a string.
+    "@repo/cli": ["@repo/app", "@repo/domain", "@repo/server-contract", "@repo/thread-view"],
+    // The Cloudflare Worker. Only the two zod-only/browser-only packages it can
+    // survive on workerd — see the workerd rule below for what enforces that
+    // beyond this row.
+    "@repo/web": ["@repo/cloud-contract", "@repo/ui"],
+    // The two SHIPPING surfaces. Both consume the product as a BUILT DIRECTORY
+    // rather than as a module — the launcher stages @repo/app's and @repo/cli's
+    // dist into its own package and imports the staged bundle by path; the shell
+    // spawns that bundle as a child. The build ORDER those relationships need
+    // lives in each turbo.json as an explicit `<package>#build`, which is what
+    // it is — an ordering, not an import edge.
+    inteligir: [],
+    // The shell's ONE module edge, and it is never the server — it is the three
+    // facts the two processes must AGREE on, imported rather than re-stated:
+    // the config resolution (the window is pinned to an origin, so the port that
+    // origin names has to be the one the app itself would bind — env, then
+    // `<dataDir>/config.json`, then the default; a shell with its own partial
+    // copy points at a dead port), the identity primitives it verifies a
+    // responder with, and the shutdown budget its SIGKILL grace must exceed.
+    // Same call apps/cli's discovery makes, for the same reason. Bundled by
+    // esbuild at build time, hence a devDependency rather than a runtime one.
+    //
+    // The contract edge is the fourth fact, and it is a WIRE fact rather than a
+    // configuration one: the shell challenges a responder before adopting it, so
+    // it needs the identity row's path and the schema that responder's answer is
+    // held against. A shell narrowing that body for itself is a second, weaker
+    // reading of the one message a squatter gets to compose.
+    "@repo/desktop": ["@repo/app", "@repo/server-contract"],
 
-  "@repo/e2e": ["@repo/app", "@repo/notes", "@repo/server-contract"],
-  "@repo/repo-guards": [],
-};
+    "@repo/e2e": ["@repo/app", "@repo/notes", "@repo/server-contract"],
+    "@repo/repo-guards": [],
+  }),
+);
 
 /**
  * ARTIFACT edges: a workspace dependency that is real in the MANIFEST and has
@@ -147,15 +149,17 @@ const DECLARED_EDGES: Record<string, readonly string[]> = {
  * reads the line that puts the product inside the shell as dead weight and
  * says to delete it.
  */
-const DECLARED_ARTIFACT_EDGES: Record<string, Record<string, string>> = {
-  "@repo/desktop": {
-    inteligir:
-      "the shell PACKS the published artifact into the .app and spawns its server entry as a CHILD PROCESS — src/main/server-paths.ts resolves it as a path under node_modules rather than importing it, and the packaged smoke reaches its staged-layout module from scripts/, which is not shipped source either",
-  },
-};
+const DECLARED_ARTIFACT_EDGES = new Map<string, Record<string, string>>(
+  Object.entries({
+    "@repo/desktop": {
+      inteligir:
+        "the shell PACKS the published artifact into the .app and spawns its server entry as a CHILD PROCESS — src/main/server-paths.ts resolves it as a path under node_modules rather than importing it, and the packaged smoke reaches its staged-layout module from scripts/, which is not shipped source either",
+    },
+  }),
+);
 
 function artifactEdgesFrom(name: string): Record<string, string> {
-  return DECLARED_ARTIFACT_EDGES[name] ?? {};
+  return DECLARED_ARTIFACT_EDGES.get(name) ?? {};
 }
 
 /** `node:*`, react and electron — the three platform surfaces a package can
@@ -179,44 +183,46 @@ interface PurityRule {
  * What each package's shipped source may NOT reach. Absent from this table
  * means "no platform constraint" — apps and the node-side packages.
  */
-const PURITY_RULES: Record<string, PurityRule> = {
-  "@repo/notes": {
-    forbidden: ["node", "react", "electron"],
-    why: "the pure sharing seam: it runs in the browser AND on node, and every platform capability (the SQL driver, the clock, content hashes) is INJECTED",
-  },
-  "@repo/domain": {
-    forbidden: ["node", "react", "electron"],
-    why: "a zod-only leaf: the thread grammar is parsed on both sides of every wire",
-  },
-  "@repo/server-contract": {
-    forbidden: ["node", "react", "electron"],
-    why: "a zod-only leaf: the same table builds the server's routes and the browser's client",
-  },
-  "@repo/cloud-contract": {
-    forbidden: ["node", "react", "electron"],
-    why: "a zod-only leaf: the cloud wire runs on workerd, where node builtins do not exist, and the local app parses the same frames",
-  },
-  "@repo/typed-routes": {
-    forbidden: ["node", "react", "electron"],
-    why: "@repo/server-contract derives from it and ships to the browser, so this rides along into every client bundle",
-  },
-  "@repo/thread-view": {
-    forbidden: ["node", "react", "electron"],
-    why: "isomorphic: the same projection folds a thread's events on the server and in any client",
-  },
-  "@repo/agent-runtime": {
-    forbidden: ["react", "electron"],
-    why: "it spawns provider processes, so it is node-side by definition — and nothing it exports may pull a process tree into a renderer; the grammars a client reads live in @repo/domain",
-  },
-  "@repo/editor": {
-    forbidden: ["node", "electron"],
-    why: "browser-only: CodeMirror in the page, never in the Node process",
-  },
-  "@repo/ui": {
-    forbidden: ["node", "electron"],
-    why: "browser-only, and consumed by the Worker's SSR half as well as the local app",
-  },
-};
+const PURITY_RULES = new Map<string, PurityRule>(
+  Object.entries({
+    "@repo/notes": {
+      forbidden: ["node", "react", "electron"],
+      why: "the pure sharing seam: it runs in the browser AND on node, and every platform capability (the SQL driver, the clock, content hashes) is INJECTED",
+    },
+    "@repo/domain": {
+      forbidden: ["node", "react", "electron"],
+      why: "a zod-only leaf: the thread grammar is parsed on both sides of every wire",
+    },
+    "@repo/server-contract": {
+      forbidden: ["node", "react", "electron"],
+      why: "a zod-only leaf: the same table builds the server's routes and the browser's client",
+    },
+    "@repo/cloud-contract": {
+      forbidden: ["node", "react", "electron"],
+      why: "a zod-only leaf: the cloud wire runs on workerd, where node builtins do not exist, and the local app parses the same frames",
+    },
+    "@repo/typed-routes": {
+      forbidden: ["node", "react", "electron"],
+      why: "@repo/server-contract derives from it and ships to the browser, so this rides along into every client bundle",
+    },
+    "@repo/thread-view": {
+      forbidden: ["node", "react", "electron"],
+      why: "isomorphic: the same projection folds a thread's events on the server and in any client",
+    },
+    "@repo/agent-runtime": {
+      forbidden: ["react", "electron"],
+      why: "it spawns provider processes, so it is node-side by definition — and nothing it exports may pull a process tree into a renderer; the grammars a client reads live in @repo/domain",
+    },
+    "@repo/editor": {
+      forbidden: ["node", "electron"],
+      why: "browser-only: CodeMirror in the page, never in the Node process",
+    },
+    "@repo/ui": {
+      forbidden: ["node", "electron"],
+      why: "browser-only, and consumed by the Worker's SSR half as well as the local app",
+    },
+  }),
+);
 
 /** zod-only means zod-only. `@repo/server-contract` and `@repo/typed-routes`
  *  are NOT on this list: both carry hono, which is isomorphic and therefore
@@ -246,7 +252,7 @@ for (const workspace of workspaces()) {
 }
 
 function declaredFor(name: string): readonly string[] {
-  const row = DECLARED_EDGES[name];
+  const row = DECLARED_EDGES.get(name);
   if (row === undefined) {
     throw new Error(
       `${name} has no row in DECLARED_EDGES (tools/repo-guards/src/dep-dag.test.ts).\n` +
@@ -326,7 +332,7 @@ describe("the package dependency DAG", () => {
 
   it("every declared artifact edge is a real, unimported manifest dependency", () => {
     const violations: string[] = [];
-    for (const [name, targets] of Object.entries(DECLARED_ARTIFACT_EDGES)) {
+    for (const [name, targets] of DECLARED_ARTIFACT_EDGES) {
       const workspace = workspaces().find((candidate) => candidate.name === name);
       if (workspace === undefined) {
         violations.push(
@@ -399,7 +405,7 @@ describe("platform purity", () => {
   it("no package reaches a platform its rule forbids", () => {
     const violations: string[] = [];
     for (const workspace of workspaces()) {
-      const rule = PURITY_RULES[workspace.name];
+      const rule = PURITY_RULES.get(workspace.name);
       if (rule === undefined) continue;
       for (const file of workspaceFiles(workspace).shipped) {
         for (const specifier of importsOf(file)) {

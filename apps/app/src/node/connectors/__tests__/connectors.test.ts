@@ -20,11 +20,21 @@ import {
 } from "../connectors-service";
 import { bootTestApp } from "../../__tests__/boot-app";
 
+/** The transport block codex prints, as much of it as these fixtures set. */
+interface CodexTransportFixture {
+  type: string;
+  url?: string;
+  command?: string;
+  args?: readonly string[];
+  env?: Record<string, string> | null;
+  bearer_token_env_var?: string | null;
+}
+
 /** Codex's own listing shape, as much of it as this product reads. */
 interface CodexServerFixture {
   name: string;
   enabled?: boolean;
-  transport: Record<string, unknown>;
+  transport: CodexTransportFixture;
   auth_status?: string | null;
 }
 

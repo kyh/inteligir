@@ -8,7 +8,10 @@ import { createPendingInteraction, getPendingInteraction } from "@repo/db/pendin
 import { listQueuedThreadMessages } from "@repo/db/queued-messages";
 import { applyThreadLifecycleEvent } from "@repo/db/threads";
 import { createApiClient, type ApiClient } from "@repo/server-contract/client";
-import { serverMessageLenientSchema } from "@repo/server-contract/notifications";
+import {
+  serverMessageLenientSchema,
+  type ServerMessage,
+} from "@repo/server-contract/notifications";
 import { apiErrorResponseSchema } from "@repo/server-contract/errors";
 import {
   pendingInteractionSchema,
@@ -26,6 +29,7 @@ import { unavailableTurnDriver, type CreateTurnDriver } from "../threads/turn-dr
 import { hermeticGitEnv } from "../vault/__tests__/git-test-env";
 import { createVaultRuntime } from "../vault/vault-runtime";
 import { WsBus } from "../ws-bus";
+import { boundAddressSchema } from "./bound-address";
 import { FakeTurnDriver, type FakeTurnDriverOptions } from "./fake-turn-driver";
 import { makeTempDir } from "./temp-dir";
 
@@ -826,19 +830,17 @@ describe("a fake-provider turn end-to-end", () => {
     if (server.address() === null) {
       await new Promise<void>((resolve) => server.once("listening", resolve));
     }
-    const address = server.address();
-    if (address === null || typeof address === "string") {
-      throw new Error("expected a bound AddressInfo");
-    }
+    const address = boundAddressSchema.parse(server.address());
     const client = createApiClient(`http://127.0.0.1:${address.port}`);
     const threadId = await createThread(client);
 
     const socket = new WebSocket(`ws://127.0.0.1:${address.port}/ws`);
     cleanups.push(() => socket.close());
-    const frames: unknown[] = [];
+    const frames: ServerMessage[] = [];
     socket.addEventListener("message", (event) => {
-      if (typeof event.data === "string") {
-        frames.push(JSON.parse(event.data));
+      const text = z.string().safeParse(event.data);
+      if (text.success) {
+        frames.push(serverMessageLenientSchema.parse(JSON.parse(text.data)));
       }
     });
     await new Promise<void>((resolve, reject) => {
@@ -854,7 +856,8 @@ describe("a fake-provider turn end-to-end", () => {
       const deadline = Date.now() + 5_000;
       for (;;) {
         while (frames.length > 0) {
-          const frame = serverMessageLenientSchema.parse(frames.shift());
+          const frame = frames.shift();
+          if (frame === undefined) continue;
           if (
             frame.type === "changed" &&
             frame.entity === "thread" &&

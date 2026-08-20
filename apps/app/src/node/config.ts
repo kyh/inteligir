@@ -439,10 +439,7 @@ export function resolveAppConfig(args: ResolveAppConfigArgs): AppConfig {
       ? DEFAULT_CLOUD_URL
       : parseCloudUrlValue("config.json cloudUrl", managed.cloudUrl));
 
-  return {
-    ...(envSyncIntervalMs === undefined
-      ? {}
-      : { vaultSyncIntervalMs: envSyncIntervalMs === 0 ? null : envSyncIntervalMs }),
+  const config: AppConfig = {
     databasePath: join(dataDir, SQLITE_DATABASE_FILE_NAME),
     dataDir,
     devHmrPort,
@@ -459,4 +456,8 @@ export function resolveAppConfig(args: ResolveAppConfigArgs): AppConfig {
     agentModel,
     cloudUrl,
   };
+  if (envSyncIntervalMs !== undefined) {
+    config.vaultSyncIntervalMs = envSyncIntervalMs === 0 ? null : envSyncIntervalMs;
+  }
+  return config;
 }

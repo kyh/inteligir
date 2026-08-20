@@ -6,6 +6,7 @@
 
 import type { DocChangeKind, ThreadChangeKind, VaultChangeKind } from "@repo/domain/change-kinds";
 import type { DbNotifier } from "@repo/domain/notifier";
+import { z } from "zod";
 import {
   clientMessageSchema,
   realtimeSubscriptionTargetKey,
@@ -13,6 +14,7 @@ import {
   type ChangedMessage,
   type HelloMessage,
   type RealtimeSubscriptionTarget,
+  type VaultChangedMessage,
 } from "@repo/server-contract/notifications";
 
 /** Structural on purpose: production passes hono/ws WSContext, tests a fake. */
@@ -32,19 +34,28 @@ const SOCKET_OPEN_STATE = 1;
  *  so the page can distinguish a deliberate stop from a dropped connection. */
 const GOING_AWAY_CLOSE_CODE = 1001;
 
-/** Invoke `raw.terminate()` if the transport has one. Narrowed rather than
+/** The transport under hono's wrapper, when it can be terminated. */
+interface TerminableTransport {
+  terminate(): void;
+}
+
+// `z.custom` passes the ORIGINAL object through, which is what keeps
+// `terminate()` bound to the socket that owns it.
+const terminableTransportSchema = z.custom<TerminableTransport>(
+  (value) =>
+    z.looseObject({ terminate: z.custom((member) => member instanceof Function) }).safeParse(value)
+      .success,
+);
+
+/** Invoke `raw.terminate()` if the transport has one. Parsed rather than
  *  asserted: the fake sockets the tests inject have no raw at all. */
 function terminateTransport(socket: BusSocket): void {
-  const raw = socket.raw;
-  if (typeof raw !== "object" || raw === null || !("terminate" in raw)) {
-    return;
-  }
-  const terminate: unknown = Reflect.get(raw, "terminate");
-  if (typeof terminate !== "function") {
+  const transport = terminableTransportSchema.safeParse(socket.raw);
+  if (!transport.success) {
     return;
   }
   try {
-    Reflect.apply(terminate, raw, []);
+    transport.data.terminate();
   } catch {
     // A socket already gone is the outcome we wanted.
   }
@@ -52,9 +63,15 @@ function terminateTransport(socket: BusSocket): void {
 
 const socketPayloadDecoder = new TextDecoder();
 
-function decodeSocketPayload(raw: unknown): string {
-  if (typeof raw === "string") {
-    return raw;
+/** What a ws transport may hand over as a frame body. `Blob` and a shared
+ *  buffer are in the union because a transport can produce them; the decoder
+ *  below refuses them rather than guessing at an encoding. */
+export type SocketPayload = string | Blob | ArrayBufferLike | ArrayBufferView;
+
+function decodeSocketPayload(raw: SocketPayload): string {
+  const text = z.string().safeParse(raw);
+  if (text.success) {
+    return text.data;
   }
   if (raw instanceof ArrayBuffer) {
     return socketPayloadDecoder.decode(raw);
@@ -134,7 +151,7 @@ export class WsBus implements DbNotifier {
   }
 
   /** Inbound frames are parsed strictly; anything else closes the socket. */
-  handleMessage(socket: BusSocket, raw: unknown): void {
+  handleMessage(socket: BusSocket, raw: SocketPayload): void {
     let decoded: unknown;
     try {
       decoded = JSON.parse(decodeSocketPayload(raw));
@@ -187,12 +204,9 @@ export class WsBus implements DbNotifier {
   }
 
   notifyVault(changes: VaultChangeKind[], paths?: readonly string[]): void {
-    this.notifyClients({
-      type: "changed",
-      entity: "vault",
-      changes,
-      ...(paths === undefined ? {} : { paths }),
-    });
+    const message: VaultChangedMessage = { type: "changed", entity: "vault", changes };
+    if (paths !== undefined) message.paths = paths;
+    this.notifyClients(message);
   }
 
   notifyDoc(docId: string, changes: DocChangeKind[]): void {

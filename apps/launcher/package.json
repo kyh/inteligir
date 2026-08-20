@@ -43,7 +43,8 @@
   "dependencies": {
     "@fugood/whisper.node": "catalog:",
     "@parcel/watcher": "catalog:",
-    "better-sqlite3": "catalog:"
+    "better-sqlite3": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@types/node": "catalog:",

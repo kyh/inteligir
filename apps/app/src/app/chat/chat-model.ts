@@ -89,7 +89,7 @@ export function threadActivity(thread: Thread, counts: ThreadActivityCounts): Th
 }
 
 /** The one word every surface names an activity with. */
-export const THREAD_ACTIVITY_LABELS: Record<ThreadActivity, string> = {
+export const THREAD_ACTIVITY_LABELS = {
   queued: "queued",
   running: "running",
   "needs-approval": "needs approval",
@@ -97,10 +97,10 @@ export const THREAD_ACTIVITY_LABELS: Record<ThreadActivity, string> = {
   done: "done",
   failed: "failed",
   archived: "archived",
-};
+} satisfies Record<ThreadActivity, string>;
 
 /** The status dot beside a thread, in the chrome Tailwind paints. */
-export const THREAD_ACTIVITY_DOT_CLASSES: Record<ThreadActivity, string> = {
+export const THREAD_ACTIVITY_DOT_CLASSES = {
   queued: "bg-muted-foreground/40",
   running: "bg-sky-500 animate-pulse",
   "needs-approval": "bg-amber-500",
@@ -108,10 +108,10 @@ export const THREAD_ACTIVITY_DOT_CLASSES: Record<ThreadActivity, string> = {
   done: "bg-muted-foreground/40",
   failed: "bg-destructive",
   archived: "bg-muted-foreground/40",
-};
+} satisfies Record<ThreadActivity, string>;
 
 /** The same activity in the editor chip's own palette vocabulary. */
-export const THREAD_ACTIVITY_TONES: Record<ThreadActivity, ThreadChipTone> = {
+export const THREAD_ACTIVITY_TONES = {
   queued: "neutral",
   running: "busy",
   "needs-approval": "attention",
@@ -119,7 +119,7 @@ export const THREAD_ACTIVITY_TONES: Record<ThreadActivity, ThreadChipTone> = {
   done: "positive",
   failed: "negative",
   archived: "muted",
-};
+} satisfies Record<ThreadActivity, ThreadChipTone>;
 
 /** Only a settled thread's marker may be removed from the buffer. */
 export function isSettledActivity(activity: ThreadActivity): boolean {
@@ -156,11 +156,11 @@ export type AnchorFailure =
 
 export type AnchorOutcome = { ok: true } | { ok: false; reason: AnchorFailure };
 
-export const ANCHOR_FAILURE_MESSAGES: Record<AnchorFailure, string> = {
+export const ANCHOR_FAILURE_MESSAGES = {
   "block-gone": "That block is gone, so the delegation was not created.",
   "no-editor": "The note closed before the delegation could be anchored.",
   "save-failed": "The note could not be saved, so the delegation was not created.",
-};
+} satisfies Record<AnchorFailure, string>;
 
 /** A delegation the editor armed and the composer will finish: what was
  *  selected, plus the two closures that own the editor side of it. */
@@ -214,10 +214,10 @@ export interface ComposeDelegationArgs {
   prompt: string;
 }
 
-const INTENT_PREAMBLE: Record<DelegationIntent, string> = {
+const INTENT_PREAMBLE = {
   do: "This is a delegation from a note in the vault. Do the work and apply the result directly to the vault files.",
   ask: "This is a question about a note in the vault. Answer in this thread only — do not modify any files.",
-};
+} satisfies Record<DelegationIntent, string>;
 
 /**
  * What review mode adds to the prompt. The agent's tools and working

@@ -24,7 +24,7 @@
 // (@repo/app/node/instance-identity says what that proof is worth). A squatter
 // that cannot produce the proof wins nothing.
 
-import { resolveAppConfig } from "@repo/app/node/config";
+import { resolveAppConfig, type ResolveAppConfigArgs } from "@repo/app/node/config";
 import {
   newIdentityChallenge,
   readInstanceSecret,
@@ -71,7 +71,7 @@ export interface ResolveServerTargetArgs {
 
 export function resolveServerTarget(args: ResolveServerTargetArgs): ServerTargetResult {
   try {
-    const config = resolveAppConfig({
+    const configArgs: ResolveAppConfigArgs = {
       checkoutPath: args.appCheckoutDir,
       // `app.isPackaged` decides the mode, never the ambient NODE_ENV: a
       // packaged install IS the production one and a checkout is not, and
@@ -79,8 +79,11 @@ export function resolveServerTarget(args: ResolveServerTargetArgs): ServerTarget
       // shell that ran as production from a checkout would drive the
       // developer's own ~/.inteligir and ~/Inteligir.
       env: { ...args.env, NODE_ENV: args.isPackaged ? "production" : "development" },
-      ...(args.homeDir !== undefined ? { homeDir: args.homeDir } : {}),
-    });
+    };
+    if (args.homeDir !== undefined) {
+      configArgs.homeDir = args.homeDir;
+    }
+    const config = resolveAppConfig(configArgs);
     return {
       kind: "resolved",
       target: {

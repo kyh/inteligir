@@ -448,11 +448,11 @@ if (target.kind === "refused") {
     app
       .whenReady()
       .then(() => onAppReady(resolved))
-      .catch((error: unknown) => {
-        console.error("[desktop] fatal startup error", error);
+      .catch((cause: unknown) => {
+        console.error("[desktop] fatal startup error", cause);
         dialog.showErrorBox(
           "Inteligir failed to start",
-          error instanceof Error ? error.message : String(error),
+          cause instanceof Error ? cause.message : String(cause),
         );
         app.quit();
       });

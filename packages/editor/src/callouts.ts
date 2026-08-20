@@ -31,37 +31,37 @@ const CALLOUT_HEADER = /^\[!([A-Za-z][\w-]*)\][+-]?[ \t]?/;
 // Obsidian's vocabulary collapses onto a handful of intents; the aliases are
 // what a note actually carries. A type outside this table still gets its box
 // and its label — an unknown callout is a callout, not a parse failure.
-const CALLOUT_INTENTS: Record<string, string> = {
-  note: "note",
-  abstract: "note",
-  summary: "note",
-  tldr: "note",
-  info: "info",
-  todo: "info",
-  tip: "tip",
-  hint: "tip",
-  important: "tip",
-  success: "success",
-  check: "success",
-  done: "success",
-  question: "question",
-  help: "question",
-  faq: "question",
-  warning: "warning",
-  caution: "warning",
-  attention: "warning",
-  failure: "danger",
-  fail: "danger",
-  missing: "danger",
-  danger: "danger",
-  error: "danger",
-  bug: "danger",
-  example: "example",
-  quote: "quote",
-  cite: "quote",
-};
+const CALLOUT_INTENTS = new Map([
+  ["note", "note"],
+  ["abstract", "note"],
+  ["summary", "note"],
+  ["tldr", "note"],
+  ["info", "info"],
+  ["todo", "info"],
+  ["tip", "tip"],
+  ["hint", "tip"],
+  ["important", "tip"],
+  ["success", "success"],
+  ["check", "success"],
+  ["done", "success"],
+  ["question", "question"],
+  ["help", "question"],
+  ["faq", "question"],
+  ["warning", "warning"],
+  ["caution", "warning"],
+  ["attention", "warning"],
+  ["failure", "danger"],
+  ["fail", "danger"],
+  ["missing", "danger"],
+  ["danger", "danger"],
+  ["error", "danger"],
+  ["bug", "danger"],
+  ["example", "example"],
+  ["quote", "quote"],
+  ["cite", "quote"],
+]);
 
-const intentOf = (type: string): string => CALLOUT_INTENTS[type.toLowerCase()] ?? "note";
+const intentOf = (type: string): string => CALLOUT_INTENTS.get(type.toLowerCase()) ?? "note";
 
 /** The `Callout` node type, at a paragraph's inline start. Registered in
  *  `markdown-language.ts`; the decorations below are what make it visible. */
@@ -147,7 +147,7 @@ function calloutChrome(state: EditorState, node: SyntaxNodeRef): Range<Decoratio
   return ranges;
 }
 
-const calloutLightTokens: Record<string, string> = {
+const calloutLightTokens = {
   "--callout-note": "oklch(58% 0.09 250)",
   "--callout-info": "oklch(60% 0.1 220)",
   "--callout-tip": "oklch(60% 0.1 175)",
@@ -160,7 +160,7 @@ const calloutLightTokens: Record<string, string> = {
   "--callout-tint": "6%",
 };
 
-const calloutDarkTokens: Record<string, string> = {
+const calloutDarkTokens = {
   "--callout-note": "oklch(74% 0.09 250)",
   "--callout-info": "oklch(75% 0.1 220)",
   "--callout-tip": "oklch(76% 0.09 175)",

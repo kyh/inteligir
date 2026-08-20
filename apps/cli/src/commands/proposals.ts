@@ -12,7 +12,11 @@
 // it did not read is exactly the stale-index case the guard exists to refuse,
 // and there is no honest way for a person to supply one.
 
-import type { Proposal } from "@repo/server-contract/proposals";
+import type {
+  AcceptProposalRequest,
+  ListProposalsQueryInput,
+  Proposal,
+} from "@repo/server-contract/proposals";
 import { defineCommand } from "citty";
 import { CliExitError } from "../cli-error";
 import { apiFor, type CliDeps } from "../context";
@@ -23,13 +27,13 @@ interface VerbOptions extends JsonOutputOptions {
 }
 
 function summaryLine(proposal: Proposal): string {
-  const shape =
+  const change =
     proposal.proposedContent === null
       ? "delete"
       : proposal.baseHash === null
         ? "create"
         : `${proposal.hunks.length} hunk(s)`;
-  return `${proposal.id}  ${proposal.status}  ${proposal.docPath}  ${shape}`;
+  return `${proposal.id}  ${proposal.status}  ${proposal.docPath}  ${change}`;
 }
 
 /** A unified-diff body for the whole proposal — the hunks the host derived,
@@ -80,11 +84,13 @@ async function runVerb(
   // longer holds, and this read is what makes the number honest.
   const fetched = await requireOk(await api.proposals.get.$get({ query: { proposalId: id } }));
   const { proposal } = await fetched.json();
-  const json = {
+  const json: AcceptProposalRequest = {
     proposalId: id,
     expectedRevision: proposal.revision,
-    ...(hunkIndex === undefined ? {} : { hunkIndex }),
   };
+  if (hunkIndex !== undefined) {
+    json.hunkIndex = hunkIndex;
+  }
   const answered = await requireOk(
     verb === "accept"
       ? await api.proposals.accept.$post({ json })
@@ -120,15 +126,17 @@ export function proposalsCommand(deps: CliDeps) {
         },
         run: async ({ args }) => {
           const api = await apiFor(deps);
-          const listing = await requireOk(
-            await api.proposals.list.$get({
-              query: {
-                ...(args.doc === undefined ? {} : { docPath: args.doc }),
-                ...(args.thread === undefined ? {} : { threadId: args.thread }),
-                ...(args.all === true ? { includeResolved: "true" as const } : {}),
-              },
-            }),
-          );
+          const query: ListProposalsQueryInput = {};
+          if (args.doc !== undefined) {
+            query.docPath = args.doc;
+          }
+          if (args.thread !== undefined) {
+            query.threadId = args.thread;
+          }
+          if (args.all === true) {
+            query.includeResolved = "true";
+          }
+          const listing = await requireOk(await api.proposals.list.$get({ query }));
           const body = await listing.json();
           if (outputJson(args, body)) {
             return;

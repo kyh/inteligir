@@ -58,6 +58,7 @@ import {
   getThread,
   listThreads,
   listThreadsByOriginDoc,
+  type CreateThreadInput,
   type ThreadRow,
 } from "@repo/db/threads";
 import type { ThreadEvent } from "@repo/domain/provider-event";
@@ -79,7 +80,7 @@ import type { ApiErrorCode } from "@repo/server-contract/errors";
 import { computeTimelineDelta } from "@repo/server-contract/thread-timeline";
 import { ThreadTimelineProjector } from "./timeline-projection";
 import { TurnDriverUnavailableError, type CreateTurnDriver, type TurnDriver } from "./turn-driver";
-import type { ProviderEventSink } from "./turn-driver";
+import type { ProviderEventSink, TurnDriverStartArgs, TurnDriverSteerArgs } from "./turn-driver";
 
 /**
  * Why a send can conflict — a SUBSET of the API's vocabulary, held against it
@@ -225,14 +226,12 @@ export class ThreadService implements ProviderEventSink {
   }
 
   create(input: CreateThreadRequest): Thread {
-    return toWireThread(
-      createThread(this.db, this.notifier, {
-        ...(input.title !== undefined ? { title: input.title } : {}),
-        ...(input.originDocPath !== undefined ? { originDocPath: input.originDocPath } : {}),
-        ...(input.originAnchor !== undefined ? { originAnchor: input.originAnchor } : {}),
-        ...(input.writeMode !== undefined ? { writeMode: input.writeMode } : {}),
-      }),
-    );
+    const created: CreateThreadInput = {};
+    if (input.title !== undefined) created.title = input.title;
+    if (input.originDocPath !== undefined) created.originDocPath = input.originDocPath;
+    if (input.originAnchor !== undefined) created.originAnchor = input.originAnchor;
+    if (input.writeMode !== undefined) created.writeMode = input.writeMode;
+    return toWireThread(createThread(this.db, this.notifier, created));
   }
 
   list(): Thread[] {
@@ -359,36 +358,35 @@ export class ThreadService implements ProviderEventSink {
             },
           };
         }
-        if (
-          thread.activeTurnId === null ||
-          !this.driver.steerTurn({
+        if (thread.activeTurnId !== null) {
+          const steer: TurnDriverSteerArgs = {
             threadId: thread.id,
             turnId: thread.activeTurnId,
             text: request.text,
-            ...(request.viewContext === undefined ? {} : { viewContext: request.viewContext }),
-          })
-        ) {
-          return {
-            kind: "done",
-            outcome: {
-              kind: "conflict",
-              error: "not_steerable",
-              message: "The active turn cannot be steered",
-            },
           };
+          if (request.viewContext !== undefined) steer.viewContext = request.viewContext;
+          if (this.driver.steerTurn(steer)) {
+            const steered: Extract<ThreadEvent, { type: "client/turn/requested" }> = {
+              type: "client/turn/requested",
+              threadId: thread.id,
+              text: request.text,
+              kind: "steer",
+              scope: threadScope(),
+            };
+            if (request.viewContext !== undefined) steered.viewContext = request.viewContext;
+            this.appendLocal(tx, [steered]);
+            buffer.notifyThread(thread.id, ["events-appended"]);
+            return { kind: "done", outcome: { kind: "steered", turnId: thread.activeTurnId } };
+          }
         }
-        this.appendLocal(tx, [
-          {
-            type: "client/turn/requested",
-            threadId: thread.id,
-            text: request.text,
-            kind: "steer",
-            ...(request.viewContext === undefined ? {} : { viewContext: request.viewContext }),
-            scope: threadScope(),
+        return {
+          kind: "done",
+          outcome: {
+            kind: "conflict",
+            error: "not_steerable",
+            message: "The active turn cannot be steered",
           },
-        ]);
-        buffer.notifyThread(thread.id, ["events-appended"]);
-        return { kind: "done", outcome: { kind: "steered", turnId: thread.activeTurnId } };
+        };
       }
       case "starting":
       case "stopping": {
@@ -457,16 +455,15 @@ export class ThreadService implements ProviderEventSink {
       };
     }
     buffer.notifyThread(threadId, ["status-changed"]);
-    this.appendLocal(tx, [
-      {
-        type: "client/turn/requested",
-        threadId,
-        text,
-        kind: "message",
-        ...(viewContext === undefined ? {} : { viewContext }),
-        scope: threadScope(),
-      },
-    ]);
+    const requested: Extract<ThreadEvent, { type: "client/turn/requested" }> = {
+      type: "client/turn/requested",
+      threadId,
+      text,
+      kind: "message",
+      scope: threadScope(),
+    };
+    if (viewContext !== undefined) requested.viewContext = viewContext;
+    this.appendLocal(tx, [requested]);
     buffer.notifyThread(threadId, ["events-appended"]);
     return {
       kind: "dispatch",
@@ -479,14 +476,15 @@ export class ThreadService implements ProviderEventSink {
   }
 
   private dispatchTurn(decision: Extract<SendDecision, { kind: "dispatch" }>): SendOutcome {
+    const start: TurnDriverStartArgs = {
+      threadId: decision.threadId,
+      turnId: decision.turnId,
+      text: decision.text,
+      writeMode: decision.writeMode,
+    };
+    if (decision.viewContext !== undefined) start.viewContext = decision.viewContext;
     try {
-      this.driver.startTurn({
-        threadId: decision.threadId,
-        turnId: decision.turnId,
-        text: decision.text,
-        writeMode: decision.writeMode,
-        ...(decision.viewContext === undefined ? {} : { viewContext: decision.viewContext }),
-      });
+      this.driver.startTurn(start);
     } catch (error) {
       this.recordDispatchFailure(decision.threadId, error);
       return error instanceof TurnDriverUnavailableError
@@ -498,8 +496,8 @@ export class ThreadService implements ProviderEventSink {
 
   /** ANY dispatch throw settles the run: provider/error recorded and the
    *  thread lands in `error`, never wedged in `starting`. */
-  private recordDispatchFailure(threadId: string, error: unknown): void {
-    const message = error instanceof Error ? error.message : String(error);
+  private recordDispatchFailure(threadId: string, cause: unknown): void {
+    const message = cause instanceof Error ? cause.message : String(cause);
     const buffer = new NotificationBuffer();
     this.db.transaction(
       (tx) => {

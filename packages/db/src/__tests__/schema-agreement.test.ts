@@ -29,6 +29,8 @@ import { fileURLToPath } from "node:url";
 import Database from "better-sqlite3";
 import { afterAll, describe, expect, it } from "vitest";
 import { createConnection } from "../connection";
+import { asMapping, isText, type JsonValue } from "../json-source";
+import { parseMigrationJournal, type MigrationJournal } from "../migration-journal";
 import { getSchemaVersion } from "../meta";
 import { runMigrations } from "../migrate";
 
@@ -49,17 +51,23 @@ interface SchemaObject {
   sql: string;
 }
 
-function isSchemaRow(value: unknown): value is { type: string; name: string; sql: string | null } {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "type" in value &&
-    typeof value.type === "string" &&
-    "name" in value &&
-    typeof value.name === "string" &&
-    "sql" in value &&
-    (typeof value.sql === "string" || value.sql === null)
-  );
+/** A `sqlite_master` row, as better-sqlite3 hands it back untyped. `sql` is
+ *  null for the objects sqlite creates for itself (auto-indexes), which is
+ *  why it is nullable and skipped below. */
+interface SchemaRow {
+  type: string;
+  name: string;
+  sql: string | null;
+}
+
+function parseSchemaRow(row: JsonValue): SchemaRow | null {
+  const fields = asMapping(row);
+  const type = fields?.["type"];
+  const name = fields?.["name"];
+  const sql = fields?.["sql"];
+  if (!isText(type) || !isText(name)) return null;
+  if (sql === null) return { type, name, sql: null };
+  return isText(sql) ? { type, name, sql } : null;
 }
 
 /** Split a `CREATE TABLE` body on its TOP-LEVEL commas: a CHECK constraint and
@@ -104,11 +112,12 @@ function names(objects: SchemaObject[]): string[] {
 
 function schemaOf(databaseFile: string): SchemaObject[] {
   const raw = new Database(databaseFile, { readonly: true });
-  const rows = raw.prepare("select type, name, sql from sqlite_master").all();
+  const rows = raw.prepare<[], JsonValue>("select type, name, sql from sqlite_master").all();
   raw.close();
   const objects: SchemaObject[] = [];
-  for (const row of rows) {
-    if (!isSchemaRow(row)) throw new Error("sqlite_master returned an unexpected row shape");
+  for (const rawRow of rows) {
+    const row = parseSchemaRow(rawRow);
+    if (!row) throw new Error("sqlite_master returned an unexpected row shape");
     if (NOT_SCHEMA.test(row.name) || row.sql === null) continue;
     objects.push({ type: row.type, name: row.name, sql: normalize(row.type, row.sql) });
   }
@@ -146,35 +155,9 @@ function declaredDatabase(): string {
   return file;
 }
 
-interface Journal {
-  entries: Array<{ idx: number; tag: string }>;
-}
-
-function isJournal(value: unknown): value is Journal {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "entries" in value &&
-    Array.isArray(value.entries) &&
-    value.entries.every(
-      (entry: unknown) =>
-        typeof entry === "object" &&
-        entry !== null &&
-        "idx" in entry &&
-        typeof entry.idx === "number" &&
-        "tag" in entry &&
-        typeof entry.tag === "string",
-    )
-  );
-}
-
-function journal(): Journal {
-  const value: unknown = JSON.parse(
-    readFileSync(join(MIGRATIONS_DIR, "meta/_journal.json"), "utf8"),
-  );
-  if (!isJournal(value))
-    throw new Error("drizzle/meta/_journal.json: expected { entries: [{ idx, tag }] }");
-  return value;
+function journal(): MigrationJournal {
+  const journalPath = join(MIGRATIONS_DIR, "meta/_journal.json");
+  return parseMigrationJournal(readFileSync(journalPath, "utf8"), journalPath);
 }
 
 describe("the migrations and the declared schema agree", () => {

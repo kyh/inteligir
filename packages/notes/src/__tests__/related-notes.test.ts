@@ -11,7 +11,7 @@ import { KnowledgeIndex } from "../knowledge/knowledge-index";
 import type { RelatedNoteEntry } from "../knowledge/related-notes";
 
 /** The structural cluster: `subject` links to `hub` and carries two tags. */
-const CORPUS: Record<string, string> = {
+const CORPUS = {
   "notes/subject.md": "# Subject\n\nSee [[hub]].\n\n#alpha #beta\n",
   // Direct forward neighbor — must NOT appear (the Links panel owns it).
   "notes/hub.md": "# Hub\n\nPlain body.\n",

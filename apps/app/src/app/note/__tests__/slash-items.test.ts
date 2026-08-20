@@ -14,7 +14,7 @@ import { noteSlashItems } from "../slash-items";
  * a construct cannot join the menu without someone saying which decoration
  * makes it visible.
  */
-const CONSTRUCTS: Record<string, string> = {
+const CONSTRUCTS = {
   "heading-1": "ATXHeading1",
   "heading-2": "ATXHeading2",
   "heading-3": "ATXHeading3",
@@ -28,7 +28,7 @@ const CONSTRUCTS: Record<string, string> = {
   table: "Table",
   "math-block": "Math",
   image: "Image",
-};
+} satisfies Record<string, string>;
 
 const HANDOFFS = ["agent-ask", "agent-write"];
 

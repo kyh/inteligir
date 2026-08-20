@@ -22,7 +22,7 @@ import type {
 } from "@repo/domain/provider-event";
 import type { ThreadEventScope } from "@repo/domain/thread-event-scope";
 import { z } from "zod";
-import { jsonValueSchema } from "./json-value";
+import { jsonValueSchema, type JsonObject } from "./json-value";
 
 export const providerErrorCategoryValues = [
   "active-turn-not-steerable",
@@ -80,42 +80,48 @@ export interface ProviderEventWebFetchItem {
   resultText: string | null;
 }
 
+export interface ProviderEventCommandExecutionItem {
+  type: "commandExecution";
+  id: string;
+  command: string;
+  cwd: string;
+  status: ThreadEventItemStatus;
+  approvalStatus: ThreadEventItemApprovalStatus;
+  /** Omitted when the process produced no stdout/stderr. */
+  aggregatedOutput?: string;
+  exitCode?: number;
+  durationMs?: number;
+}
+
+export interface ProviderEventFileChangeItem {
+  type: "fileChange";
+  id: string;
+  changes: ThreadEventFileChange[];
+  status: ThreadEventItemStatus;
+  approvalStatus: ThreadEventItemApprovalStatus;
+}
+
+export interface ProviderEventToolCallItem {
+  type: "toolCall";
+  id: string;
+  server?: string;
+  tool: string;
+  arguments?: JsonObject;
+  status: ThreadEventItemStatus;
+  result?: unknown;
+  error?: string;
+  durationMs?: number;
+}
+
 export type ProviderEventItem =
   | { type: "userMessage"; id: string; content: ProviderEventUserContent[] }
   | { type: "agentMessage"; id: string; text: string }
-  | {
-      type: "commandExecution";
-      id: string;
-      command: string;
-      cwd: string;
-      status: ThreadEventItemStatus;
-      approvalStatus: ThreadEventItemApprovalStatus;
-      /** Omitted when the process produced no stdout/stderr. */
-      aggregatedOutput?: string;
-      exitCode?: number;
-      durationMs?: number;
-    }
-  | {
-      type: "fileChange";
-      id: string;
-      changes: ThreadEventFileChange[];
-      status: ThreadEventItemStatus;
-      approvalStatus: ThreadEventItemApprovalStatus;
-    }
+  | ProviderEventCommandExecutionItem
+  | ProviderEventFileChangeItem
   | ProviderEventWebSearchItem
   | ProviderEventWebFetchItem
   | { type: "imageView"; id: string; path: string }
-  | {
-      type: "toolCall";
-      id: string;
-      server?: string;
-      tool: string;
-      arguments?: Record<string, unknown>;
-      status: ThreadEventItemStatus;
-      result?: unknown;
-      error?: string;
-      durationMs?: number;
-    }
+  | ProviderEventToolCallItem
   | { type: "reasoning"; id: string; summary: string[]; content: string[] }
   | { type: "plan"; id: string; text: string }
   | { type: "contextCompaction"; id: string };
@@ -144,6 +150,43 @@ interface ItemDeltaEventData extends ProviderThreadEventData {
   delta: string;
 }
 
+export interface ProviderTurnCompletedEvent extends ScopedEventData {
+  type: "turn/completed";
+  threadId: string;
+  // Runtime reconciliation can synthesize interrupted completions when
+  // the provider thread id was never resolved.
+  providerThreadId: string | null;
+  status: ThreadEventTurnStatus;
+  error?: { message: string };
+}
+
+export interface ProviderToolCallProgressEvent extends ProviderThreadEventData {
+  type: "item/toolCall/progress";
+  itemId: string;
+  message?: string;
+}
+
+export interface ProviderTurnPlanUpdatedEvent extends ProviderThreadEventData {
+  type: "turn/plan/updated";
+  plan: ProviderEventPlanStep[];
+  explanation?: string;
+}
+
+export interface ProviderErrorEvent extends ProviderThreadEventData {
+  type: "provider/error";
+  message: string;
+  detail?: string;
+  willRetry?: boolean;
+  errorInfo?: ProviderErrorInfo;
+}
+
+export interface ProviderWarningEvent extends ProviderThreadEventData {
+  type: "provider/warning";
+  category: "deprecation" | "config";
+  summary?: string;
+  details?: string;
+}
+
 /**
  * Events originating from a provider process via the agent runtime. Every
  * one carries `threadId` (the host's id, stamped by the runtime) and — for
@@ -155,15 +198,7 @@ export type ProviderEvent =
   | ({ type: "thread/name/updated"; threadName: string } & ProviderThreadEventData)
   | ({ type: "thread/compacted" } & ProviderThreadEventData)
   | ({ type: "turn/started" } & ProviderThreadEventData)
-  | ({
-      type: "turn/completed";
-      threadId: string;
-      // Runtime reconciliation can synthesize interrupted completions when
-      // the provider thread id was never resolved.
-      providerThreadId: string | null;
-      status: ThreadEventTurnStatus;
-      error?: { message: string };
-    } & ScopedEventData)
+  | ProviderTurnCompletedEvent
   | ({ type: "item/started"; item: ProviderEventItem } & ProviderThreadEventData)
   | ({ type: "item/completed"; item: ProviderEventItem } & ProviderThreadEventData)
   | ({ type: "item/agentMessage/delta" } & ItemDeltaEventData)
@@ -176,7 +211,7 @@ export type ProviderEvent =
   | ({ type: "item/reasoning/summaryTextDelta" } & ItemDeltaEventData)
   | ({ type: "item/reasoning/textDelta" } & ItemDeltaEventData)
   | ({ type: "item/plan/delta" } & ItemDeltaEventData)
-  | ({ type: "item/toolCall/progress"; itemId: string; message?: string } & ProviderThreadEventData)
+  | ProviderToolCallProgressEvent
   | ({
       type: "thread/tokenUsage/updated";
       tokenUsage: ThreadEventTokenUsage;
@@ -185,25 +220,10 @@ export type ProviderEvent =
       type: "thread/contextWindowUsage/updated";
       contextWindowUsage: ProviderEventContextWindowUsage;
     } & ProviderThreadEventData)
-  | ({
-      type: "turn/plan/updated";
-      plan: ProviderEventPlanStep[];
-      explanation?: string;
-    } & ProviderThreadEventData)
+  | ProviderTurnPlanUpdatedEvent
   | ({ type: "turn/diff/updated"; diff?: string } & ProviderThreadEventData)
-  | ({
-      type: "provider/error";
-      message: string;
-      detail?: string;
-      willRetry?: boolean;
-      errorInfo?: ProviderErrorInfo;
-    } & ProviderThreadEventData)
-  | ({
-      type: "provider/warning";
-      category: "deprecation" | "config";
-      summary?: string;
-      details?: string;
-    } & ProviderThreadEventData)
+  | ProviderErrorEvent
+  | ProviderWarningEvent
   | ({
       type: "provider/unhandled";
       providerId: string;

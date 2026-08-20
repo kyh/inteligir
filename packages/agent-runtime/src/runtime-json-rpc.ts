@@ -3,9 +3,24 @@
 import type { ChildProcess } from "node:child_process";
 import type { Writable } from "node:stream";
 import { z } from "zod";
+import { jsonValueSchema } from "./vocabulary/json-value.js";
 import type { ProviderRequestCommandPlan } from "./provider-adapter.js";
 
-export type JsonRpcObject = Record<string, unknown>;
+/**
+ * A decoded JSON-RPC frame, before the role its fields imply (response,
+ * request, notification) has been established — `parseJsonRpcLine` is what
+ * establishes that. Which fields the wire sent is exactly what the reader
+ * cannot assume, so each is optional and `params`/`result`/`error` stay
+ * uninterpreted until a schema for the specific method parses them.
+ */
+export interface JsonRpcObject {
+  jsonrpc?: unknown;
+  id?: string | number | undefined;
+  method?: string | undefined;
+  params?: unknown;
+  result?: unknown;
+  error?: unknown;
+}
 
 export interface JsonRpcMessage extends JsonRpcObject {
   jsonrpc: "2.0";
@@ -53,11 +68,16 @@ export class JsonRpcResponseError extends Error {
 }
 
 export interface PendingJsonRpcRequest {
-  resolve: (result: unknown) => void;
+  /** Handed the whole response frame: the caller's `resultSchema` is the only
+   *  thing that can say what its `result` means. */
+  resolve: (response: JsonRpcObject) => void;
   reject: (error: Error) => void;
 }
 
-export const ignoredJsonRpcResultSchema = z.unknown();
+/** The `result` member as JSON, for requests whose payload the caller either
+ *  ignores or parses itself. Never fails the request: a response carrying no
+ *  usable result resolves as null, exactly as an ignored one does. */
+export const ignoredJsonRpcResultSchema = jsonValueSchema.catch(() => null);
 
 export interface ParsedJsonRpcNonJsonLine {
   kind: "non_json";
@@ -136,38 +156,61 @@ interface SettleJsonRpcResponseArgs {
 const closedJsonRpcStdinErrorCodes = new Set(["EPIPE", "ERR_STREAM_DESTROYED"]);
 const jsonRpcStdinErrorHandledStreams = new WeakSet<Writable>();
 
-function isJsonRpcObject(value: unknown): value is JsonRpcObject {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
-}
+/** A frame off the wire. A field the peer spelled in a shape this protocol
+ *  has no reading for is taken as absent rather than failing the frame — the
+ *  role branches below are what decide whether the remainder is usable. */
+const jsonRpcFrameSchema = z.looseObject({
+  jsonrpc: z.unknown().optional(),
+  id: z
+    .union([z.string(), z.number()])
+    .optional()
+    .catch(() => undefined),
+  method: z
+    .string()
+    .optional()
+    .catch(() => undefined),
+  params: z.unknown().optional(),
+  result: z.unknown().optional(),
+  error: z.unknown().optional(),
+});
 
-function isJsonRpcId(value: unknown): value is string | number {
-  return typeof value === "string" || typeof value === "number";
-}
+/** A JSON-RPC `error` member: `code` and `message` when the peer sent a
+ *  well-formed one, absent fields when it did not. */
+const jsonRpcErrorPayloadSchema = z.looseObject({
+  code: z
+    .number()
+    .optional()
+    .catch(() => undefined),
+  message: z
+    .string()
+    .optional()
+    .catch(() => undefined),
+  // A `message` the peer sent in a shape this cannot read is the same fact as
+  // one it never sent: `formatJsonRpcErrorMessage` falls back to the payload.
+});
 
-function formatJsonRpcErrorMessage(error: unknown): string {
-  if (isJsonRpcObject(error) && typeof error.message === "string") {
-    return error.message;
+/** Node stamps a string `code` on the stream errors this module recognizes. */
+const errnoSchema = z.looseObject({ code: z.string() });
+
+function formatJsonRpcErrorMessage(cause: unknown): string {
+  const payload = jsonRpcErrorPayloadSchema.safeParse(cause);
+  if (payload.success && payload.data.message !== undefined) {
+    return payload.data.message;
   }
-  return JSON.stringify(error);
+  return JSON.stringify(cause);
 }
 
-function jsonRpcResponseError(error: unknown): Error {
-  if (
-    isJsonRpcObject(error) &&
-    typeof error.code === "number" &&
-    typeof error.message === "string"
-  ) {
-    return new JsonRpcResponseError(error.code, error.message);
+function jsonRpcResponseError(cause: unknown): Error {
+  const payload = jsonRpcErrorPayloadSchema.safeParse(cause);
+  if (payload.success && payload.data.code !== undefined && payload.data.message !== undefined) {
+    return new JsonRpcResponseError(payload.data.code, payload.data.message);
   }
-  return new Error(formatJsonRpcErrorMessage(error));
+  return new Error(formatJsonRpcErrorMessage(cause));
 }
 
-function isClosedJsonRpcStdinError(error: Error): boolean {
-  return (
-    "code" in error &&
-    typeof error.code === "string" &&
-    closedJsonRpcStdinErrorCodes.has(error.code)
-  );
+function isClosedJsonRpcStdinError(cause: Error): boolean {
+  const errno = errnoSchema.safeParse(cause);
+  return errno.success && closedJsonRpcStdinErrorCodes.has(errno.data.code);
 }
 
 function handleJsonRpcStdinError(error: Error): void {
@@ -195,20 +238,22 @@ function writeJsonRpcLine(child: ChildProcess, line: string): void {
 }
 
 export function parseJsonRpcLine(line: string): ParsedJsonRpcLine {
-  let parsed: unknown;
+  let decoded: unknown;
   try {
-    parsed = JSON.parse(line);
+    decoded = JSON.parse(line);
   } catch {
     return { kind: "non_json" };
   }
 
-  if (!isJsonRpcObject(parsed)) {
+  const frame = jsonRpcFrameSchema.safeParse(decoded);
+  if (!frame.success) {
     return { kind: "invalid_json_rpc" };
   }
 
+  const parsed = frame.data;
   const parsedId = parsed.id;
   const parsedMethod = parsed.method;
-  if (isJsonRpcId(parsedId) && !parsedMethod) {
+  if (parsedId !== undefined && !parsedMethod) {
     return {
       kind: "response",
       parsed,
@@ -216,13 +261,13 @@ export function parseJsonRpcLine(line: string): ParsedJsonRpcLine {
     };
   }
 
-  if (isJsonRpcId(parsedId) && typeof parsedMethod === "string") {
+  if (parsedId !== undefined && parsedMethod !== undefined) {
     const rawRequest: JsonRpcMessage = {
       jsonrpc: "2.0",
       id: parsedId,
       method: parsedMethod,
-      ...(Object.hasOwn(parsed, "params") ? { params: parsed.params } : {}),
     };
+    if (Object.hasOwn(parsed, "params")) rawRequest.params = parsed.params;
     return {
       kind: "request",
       parsedId,
@@ -231,7 +276,7 @@ export function parseJsonRpcLine(line: string): ParsedJsonRpcLine {
     };
   }
 
-  if (typeof parsedMethod === "string") {
+  if (parsedMethod !== undefined) {
     return {
       kind: "notification",
       notificationMethod: parsedMethod,
@@ -243,12 +288,13 @@ export function parseJsonRpcLine(line: string): ParsedJsonRpcLine {
 }
 
 export function getJsonRpcStringParam(message: JsonRpcObject, key: string): string | undefined {
-  if (!isJsonRpcObject(message.params)) {
+  const params = z.record(z.string(), z.unknown()).safeParse(message.params);
+  if (!params.success) {
     return undefined;
   }
 
-  const value = message.params[key];
-  return typeof value === "string" ? value : undefined;
+  const value = z.string().safeParse(params.data[key]);
+  return value.success ? value.data : undefined;
 }
 
 export function settleJsonRpcResponse(args: SettleJsonRpcResponseArgs): void {
@@ -263,7 +309,7 @@ export function settleJsonRpcResponse(args: SettleJsonRpcResponseArgs): void {
     return;
   }
 
-  pending.resolve(args.response.result);
+  pending.resolve(args.response);
 }
 
 export function sendJsonRpc(
@@ -280,11 +326,12 @@ export function toJsonRpcMessage(
   if ("jsonrpc" in message) {
     return message;
   }
-  return {
+  const converted: JsonRpcMessage = {
     jsonrpc: "2.0",
     method: message.method,
-    ...(message.params !== undefined ? { params: message.params } : {}),
   };
+  if (message.params !== undefined) converted.params = message.params;
+  return converted;
 }
 
 export function sendJsonRpcRequest<TResult>(
@@ -299,9 +346,9 @@ export function sendJsonRpcRequest<TResult>(
       reject(new Error(`JSON-RPC request timed out: ${message.method}`));
     }, args.timeoutMs ?? 30_000);
     args.pending.set(id, {
-      resolve: (result) => {
+      resolve: (response) => {
         clearTimeout(timer);
-        const parsedResult = args.resultSchema.safeParse(result);
+        const parsedResult = args.resultSchema.safeParse(response.result);
         if (!parsedResult.success) {
           reject(new Error(`Invalid JSON-RPC result for ${message.method}`));
           return;

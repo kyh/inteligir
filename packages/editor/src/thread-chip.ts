@@ -66,7 +66,9 @@ export const setThreadChips = StateEffect.define<ThreadChipState>();
  *  ANSWER rather than about a thread: the query has not landed, and it landed
  *  claiming nothing for this anchor (deleted db, foreign vault). Only the
  *  second may be dismissed, and neither opens anything. */
-const NO_INFO: Record<ThreadChipState["kind"], Omit<ThreadChipInfo, "anchor">> = {
+type ThreadChipFallbackInfo = { [K in ThreadChipState["kind"]]: Omit<ThreadChipInfo, "anchor"> };
+
+const NO_INFO: ThreadChipFallbackInfo = {
   loading: { tone: "muted", activity: "delegation", title: null, dismissable: false },
   ready: { tone: "muted", activity: "no thread", title: null, dismissable: true },
 };
@@ -225,7 +227,7 @@ const busy = "var(--chip-busy)";
 // dark under `:root[data-theme="dark"]`, which the host stamps. A
 // `prefers-color-scheme` block cannot work inside a CM theme — see the note in
 // editor-theme.ts.
-const chipLightTokens: Record<string, string> = {
+const chipLightTokens = {
   "--chip-border": "oklch(88% 0.01 260)",
   "--chip-fg": "oklch(50% 0.03 257)",
   "--chip-neutral": "oklch(72% 0.015 260)",
@@ -236,7 +238,7 @@ const chipLightTokens: Record<string, string> = {
   "--chip-muted": "oklch(80% 0.01 260)",
 };
 
-const chipDarkTokens: Record<string, string> = {
+const chipDarkTokens = {
   "--chip-border": "oklch(38% 0.015 260)",
   "--chip-fg": "oklch(68% 0.025 257)",
   "--chip-neutral": "oklch(55% 0.02 260)",

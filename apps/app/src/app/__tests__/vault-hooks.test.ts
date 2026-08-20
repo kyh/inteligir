@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { createApiClient, type ApiClient } from "@repo/server-contract/client";
+import type { ApiErrorResponse } from "@repo/server-contract/errors";
 import {
   vaultStatusResponseSchema,
   type VaultStatusResponse,
@@ -50,7 +51,11 @@ describe("the note a virgin boot opens", () => {
 const renameApi = (response: () => Response): ApiClient =>
   createApiClient("http://local.test", { fetch: () => Promise.resolve(response()) });
 
-const jsonResponse = (status: number, body: unknown): Response =>
+/** The rename route's two answers, as these cases spell them: the fields the
+ *  hook actually reads, and the server's refusal envelope. */
+type RenameBody = { from: string; to: string; rewritten: string[] } | ApiErrorResponse;
+
+const jsonResponse = (status: number, body: RenameBody): Response =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 
 describe("renaming a vault entry", () => {

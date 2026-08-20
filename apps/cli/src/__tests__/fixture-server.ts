@@ -33,7 +33,7 @@ const NOT_FOUND: ApiErrorResponse = { error: "not_found", message: "Not found" }
 
 const FIXTURE_CLOUD_URL = "https://cloud.fixture";
 
-interface FixtureThread {
+export interface FixtureThread {
   thread: Thread;
   pendingInteractions: PendingInteraction[];
   /** Optional: most fixtures never queue, and the response defaults it. */
@@ -300,12 +300,15 @@ function createFixtureApp(state: FixtureState): Hono {
     });
   });
   post(apiRoutes.threads.create, (c, body) => {
-    const thread = makeThread({
+    const overrides: Partial<Thread> & Pick<Thread, "id"> = {
       id: state.nextCreatedThreadId,
       originDocPath: body.originDocPath ?? null,
       originAnchor: body.originAnchor ?? null,
-      ...(body.title !== undefined ? { title: body.title } : {}),
-    });
+    };
+    if (body.title !== undefined) {
+      overrides.title = body.title;
+    }
+    const thread = makeThread(overrides);
     state.threads.push({ thread, pendingInteractions: [], timeline: EMPTY_TIMELINE });
     return c.json({ thread }, 201);
   });

@@ -32,17 +32,17 @@ import { verifyDeviceCredential } from "../device/device-auth";
 // cookie path to protect (the contract's ws module states this).
 // ---------------------------------------------------------------------------
 
-const DO_PATH_BY_ROUTE: Record<string, string> = {
-  [`POST ${CAPTURE_API_PATHS.capture}`]: "/capture",
-  [`POST ${SYNC_API_PATHS.push}`]: "/push",
-  [`GET ${SYNC_API_PATHS.pull}`]: "/pull",
-  [`POST ${CAPTURE_API_PATHS.claim}`]: "/captures/claim",
-  [`POST ${CAPTURE_API_PATHS.ack}`]: "/captures/ack",
-  [`GET ${SYNC_WS_PATH}`]: "/ws",
-};
+const DO_PATH_BY_ROUTE = new Map<string, string>([
+  [`POST ${CAPTURE_API_PATHS.capture}`, "/capture"],
+  [`POST ${SYNC_API_PATHS.push}`, "/push"],
+  [`GET ${SYNC_API_PATHS.pull}`, "/pull"],
+  [`POST ${CAPTURE_API_PATHS.claim}`, "/captures/claim"],
+  [`POST ${CAPTURE_API_PATHS.ack}`, "/captures/ack"],
+  [`GET ${SYNC_WS_PATH}`, "/ws"],
+]);
 
 export async function handleSyncRoutes(request: Request, env: Env, url: URL): Promise<Response> {
-  const doPath = DO_PATH_BY_ROUTE[`${request.method} ${url.pathname}`];
+  const doPath = DO_PATH_BY_ROUTE.get(`${request.method} ${url.pathname}`);
   if (doPath === undefined) return refuse("not-found", "No such route.");
 
   const verified = await verifyDeviceCredential(

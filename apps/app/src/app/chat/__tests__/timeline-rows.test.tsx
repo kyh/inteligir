@@ -10,24 +10,32 @@ import type {
   TimelineTurnRow,
 } from "@repo/server-contract/thread-timeline";
 import { cleanup, render } from "@testing-library/react";
-import { afterEach, expect, it, vi } from "vitest";
+import { afterEach, expect, it } from "vitest";
 import { TimelineRowView } from "../timeline-rows";
 
-const { spinnerRenders } = vi.hoisted(() => ({ spinnerRenders: { count: 0 } }));
+afterEach(cleanup);
 
-// The one leaf inside a pending turn's subtree, counted: it renders exactly
-// when its turn row does.
-vi.mock("@repo/ui/components/spinner", () => ({
-  Spinner: () => {
-    spinnerRenders.count += 1;
-    return <span data-testid="spinner" />;
-  },
-}));
+/** A row that counts the renders it takes part in. `TimelineRowView` reads
+ *  `kind` once per render to dispatch on it, so a memoized row that bails out
+ *  reads nothing at all — which is what identity preservation buys, observed
+ *  through the component's own prop rather than by replacing a module. */
+interface CountedRow<Row extends TimelineRow> {
+  row: Row;
+  renders: () => number;
+}
 
-afterEach(() => {
-  cleanup();
-  spinnerRenders.count = 0;
-});
+function counted<Row extends TimelineRow>(row: Row): CountedRow<Row> {
+  let renders = 0;
+  const { kind } = row;
+  const counting = Object.defineProperty({ ...row }, "kind", {
+    get: () => {
+      renders += 1;
+      return kind;
+    },
+    enumerable: true,
+  });
+  return { row: counting, renders: () => renders };
+}
 
 const base = { threadId: "thr_1", createdAt: 1_000 };
 
@@ -76,14 +84,19 @@ const List = ({ rows }: { rows: readonly TimelineRow[] }) => (
 );
 
 it("re-renders only the row a delta actually replaced", () => {
-  const view = render(<List rows={[assistant("Two commits ", 6), pendingTurn]} />);
-  expect(spinnerRenders.count).toBe(1);
+  const streamed = counted(assistant("Two commits ", 6));
+  const turn = counted(pendingTurn);
+  const view = render(<List rows={[streamed.row, turn.row]} />);
+  expect(streamed.renders()).toBe(1);
+  expect(turn.renders()).toBe(1);
 
   // Exactly what applyTimelineDelta yields for one more token: a new object
   // for the streamed row, the SAME object for everything else.
-  view.rerender(<List rows={[assistant("Two commits landed today.", 7), pendingTurn]} />);
+  const restreamed = counted(assistant("Two commits landed today.", 7));
+  view.rerender(<List rows={[restreamed.row, turn.row]} />);
 
-  expect(spinnerRenders.count).toBe(1);
+  expect(restreamed.renders()).toBe(1);
+  expect(turn.renders()).toBe(1);
   expect(view.container.textContent).toContain("Two commits landed today.");
 });
 

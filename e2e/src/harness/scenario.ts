@@ -4,7 +4,7 @@
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { exec, hermeticProcessEnv } from "./exec";
-import { launchApp, type AppInstance, type BootMode } from "./instance";
+import { launchApp, type AppInstance, type BootMode, type LaunchAppArgs } from "./instance";
 
 interface BootOptions {
   /** Short label, unique within the scenario ("a", "b", "solo"). */
@@ -55,7 +55,7 @@ export function createScenarioContext(args: CreateScenarioContextArgs): Scenario
         await mkdir(vaultDir, { recursive: true });
         await options.seedVault(vaultDir);
       }
-      return launchApp({
+      const launchArgs: LaunchAppArgs = {
         mode: args.mode,
         name: options.name,
         instanceDir,
@@ -64,9 +64,12 @@ export function createScenarioContext(args: CreateScenarioContextArgs): Scenario
         // Registered at spawn, BEFORE the health wait, so the runner's
         // teardown owns the process group through every early-exit path.
         register: (instance) => args.instances.push(instance),
-        ...(options.vaultRemote === undefined ? {} : { vaultRemote: options.vaultRemote }),
-        ...(options.extraEnv === undefined ? {} : { extraEnv: options.extraEnv }),
-      });
+      };
+      // Assigned only when set: an absent option must stay absent rather than
+      // arrive as an explicit `undefined` the launcher reads as configured.
+      if (options.vaultRemote !== undefined) launchArgs.vaultRemote = options.vaultRemote;
+      if (options.extraEnv !== undefined) launchArgs.extraEnv = options.extraEnv;
+      return launchApp(launchArgs);
     },
     async bareRemote(name = "remote") {
       const remoteDir = join(args.scratchDir, `${name}.git`);

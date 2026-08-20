@@ -35,7 +35,7 @@ export interface NoteControllerArgs {
   save: (content: string, base: string) => Promise<SaveResult>;
   /** An external change overlapped an unsaved edit; the buffer won. */
   onConflict: () => void;
-  onSaveError: (error: unknown) => void;
+  onSaveError: (cause: unknown) => void;
   debounceMs?: number;
 }
 

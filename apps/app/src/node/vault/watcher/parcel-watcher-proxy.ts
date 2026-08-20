@@ -22,6 +22,15 @@ export interface ChildChannel {
 
 type ProxyLogLevel = "info" | "warn" | "error";
 
+/** The structured fields the proxy's own log lines carry. */
+interface ProxyLogFields {
+  sinceLastPongMs?: number;
+  delayMs?: number;
+  consecutiveRestarts?: number;
+  activeSubscriptions?: number;
+  watchError?: string;
+}
+
 export interface ParcelWatcherProxyOptions {
   spawnChannel: () => ChildChannel;
   /** How often to ping the child to detect a wedged (e.g. deadlocked) process. */
@@ -33,10 +42,10 @@ export interface ParcelWatcherProxyOptions {
   baseRestartDelayMs?: number;
   /** Cap on the exponential respawn backoff. */
   maxRestartDelayMs?: number;
-  log?: (level: ProxyLogLevel, message: string, fields?: Record<string, unknown>) => void;
+  log?: (level: ProxyLogLevel, message: string, fields?: ProxyLogFields) => void;
 }
 
-type SubscribeCallback = (error: ParcelWatcherError, events: ParcelWatcherEventBatch) => unknown;
+type SubscribeCallback = (error: ParcelWatcherError, events: ParcelWatcherEventBatch) => void;
 
 interface SubscriptionRecord {
   id: string;

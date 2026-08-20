@@ -40,8 +40,16 @@ const MAX_COLUMN_CH = 48;
 
 type ColumnAlign = "left" | "center" | "right";
 
-/** Rendered inline content: text, or an element wrapping more of it. */
-type Span = string | { tag: string; className: string | null; children: Span[] };
+/** Rendered inline content: literal text, or an element wrapping more of it.
+ *  Tagged rather than `string | object` so materialize() branches on the kind
+ *  the builder decided, not on the runtime shape it happens to have. */
+type Span =
+  | { kind: "text"; text: string }
+  | { kind: "element"; tag: string; className: string | null; children: Span[] };
+
+function textSpan(text: string): Span {
+  return { kind: "text", text };
+}
 
 const EMPHASIS_MARKS: ReadonlySet<string> = new Set(["EmphasisMark"]);
 const CODE_MARKS: ReadonlySet<string> = new Set(["CodeMark"]);
@@ -56,11 +64,11 @@ function childSpans(state: EditorState, node: SyntaxNode, skip: ReadonlySet<stri
   const spans: Span[] = [];
   let pos = node.from;
   for (let child = node.firstChild; child !== null; child = child.nextSibling) {
-    if (child.from > pos) spans.push(state.doc.sliceString(pos, child.from));
+    if (child.from > pos) spans.push(textSpan(state.doc.sliceString(pos, child.from)));
     if (!skip.has(child.name)) spans.push(...spansOf(state, child));
     pos = child.to;
   }
-  if (pos < node.to) spans.push(state.doc.sliceString(pos, node.to));
+  if (pos < node.to) spans.push(textSpan(state.doc.sliceString(pos, node.to)));
   return spans;
 }
 
@@ -71,7 +79,7 @@ function element(
   skip: ReadonlySet<string>,
   className: string | null = null,
 ): Span[] {
-  return [{ tag, className, children: childSpans(state, node, skip) }];
+  return [{ kind: "element", tag, className, children: childSpans(state, node, skip) }];
 }
 
 function spansOf(state: EditorState, node: SyntaxNode): Span[] {
@@ -91,14 +99,14 @@ function spansOf(state: EditorState, node: SyntaxNode): Span[] {
       return childSpans(state, node, ESCAPE_MARKS);
     default:
       // Everything else keeps its own bytes rather than being approximated.
-      return [state.doc.sliceString(node.from, node.to)];
+      return [textSpan(state.doc.sliceString(node.from, node.to))];
   }
 }
 
 function materialize(host: HTMLElement, spans: readonly Span[]): void {
   for (const span of spans) {
-    if (typeof span === "string") {
-      host.append(span);
+    if (span.kind === "text") {
+      host.append(span.text);
       continue;
     }
     const node = document.createElement(span.tag);

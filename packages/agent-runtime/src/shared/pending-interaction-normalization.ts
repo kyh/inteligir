@@ -5,10 +5,11 @@ import {
   pendingInteractionRequestedPermissionProfileSchema,
   type PendingInteractionRequestedPermissionProfile,
 } from "@repo/domain/pending-interactions";
+import type { JsonValue } from "../vocabulary/json-value.js";
 
 // Providers inconsistently omit fields or send null for the same "not present"
 // wire value. Normalize that external input before validating the domain shape.
-const nullToUndefined = (value: unknown): unknown => (value === null ? undefined : value);
+const nullToUndefined = (value: JsonValue | undefined) => (value === null ? undefined : value);
 
 const nullableBooleanInputSchema = z.preprocess(nullToUndefined, z.boolean().optional());
 

@@ -8,6 +8,7 @@ import { createConnection, type DbConnection } from "../connection";
 import { createPrefixedId, GENERATED_ID_SUFFIX_LENGTH } from "../ids";
 import { getMetaValue, getSchemaVersion } from "../meta";
 import { runMigrations } from "../migrate";
+import { parseMigrationJournal } from "../migration-journal";
 import { noopNotifier } from "@repo/domain/notifier";
 
 const tempDirs: string[] = [];
@@ -21,15 +22,12 @@ const MIGRATIONS_DIR = fileURLToPath(new URL("../../drizzle", import.meta.url));
  * hand-typed number turns every new migration into an unrelated test edit.
  */
 function latestGeneration(): number {
-  const parsed: unknown = JSON.parse(
-    readFileSync(join(MIGRATIONS_DIR, "meta/_journal.json"), "utf8"),
-  );
-  const entries =
-    typeof parsed === "object" && parsed !== null ? Reflect.get(parsed, "entries") : undefined;
-  if (!Array.isArray(entries) || entries.length === 0) {
-    throw new Error("drizzle/meta/_journal.json has no entries array");
+  const journalPath = join(MIGRATIONS_DIR, "meta/_journal.json");
+  const journal = parseMigrationJournal(readFileSync(journalPath, "utf8"), journalPath);
+  if (journal.entries.length === 0) {
+    throw new Error(`${journalPath} has no entries`);
   }
-  return entries.length;
+  return journal.entries.length;
 }
 
 const LATEST = latestGeneration();
@@ -53,31 +51,16 @@ afterEach(() => {
 function freezeMigrationsAt(dir: string, generations: number): void {
   cpSync(MIGRATIONS_DIR, dir, { recursive: true });
   const journalPath = join(dir, "meta", "_journal.json");
-  const parsed: unknown = JSON.parse(readFileSync(journalPath, "utf8"));
-  if (typeof parsed !== "object" || parsed === null) {
-    throw new Error("drizzle/meta/_journal.json is not an object");
-  }
-  const journal: Record<string, unknown> = { ...parsed };
-  const entries = journal["entries"];
-  if (!Array.isArray(entries)) {
-    throw new Error("drizzle/meta/_journal.json has no entries array");
-  }
-  journal["entries"] = entries.filter((entry: unknown) => {
-    if (typeof entry !== "object" || entry === null) {
-      throw new Error("a journal entry is not an object");
-    }
-    const idx = Reflect.get(entry, "idx");
-    const tag = Reflect.get(entry, "tag");
-    if (typeof idx !== "number" || typeof tag !== "string") {
-      throw new Error("a journal entry is missing idx/tag");
-    }
-    if (idx >= generations) {
-      unlinkSync(join(dir, `${tag}.sql`));
+  const journal = parseMigrationJournal(readFileSync(journalPath, "utf8"), journalPath);
+  const kept = journal.entries.filter((entry) => {
+    if (entry.idx >= generations) {
+      unlinkSync(join(dir, `${entry.tag}.sql`));
       return false;
     }
     return true;
   });
-  writeFileSync(journalPath, JSON.stringify(journal));
+  journal.document["entries"] = kept.map((entry) => entry.source);
+  writeFileSync(journalPath, JSON.stringify(journal.document));
 }
 
 describe("boot", () => {

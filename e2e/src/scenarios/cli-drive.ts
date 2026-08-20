@@ -11,6 +11,7 @@ import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
 import { buildAgentShellEnv, resolveCliBinDir } from "@repo/app/node/agent/agent-shell-env";
+import { z } from "zod";
 import { expect, expectEq } from "../harness/assert";
 import { exec, hermeticProcessEnv, type ExecResult } from "../harness/exec";
 import type { Scenario } from "../harness/scenario";
@@ -20,6 +21,13 @@ const NOTE_TOKEN = "clidrivetoken";
 const NOTE_CONTENT = `# CLI drive\n\nA note carrying ${NOTE_TOKEN} for search.\n`;
 const PROMPT = "Hello from cli-drive";
 const SEARCH_DEADLINE_MS = 30_000;
+
+// The CLI's `--json` payloads, read the way any other consumer would have to:
+// only the fields this scenario asserts on, so an addition upstream does not
+// fail the run. Loose, because the CLI is free to carry more.
+const searchOutputSchema = z.looseObject({ results: z.array(z.unknown()) });
+const searchHitSchema = z.looseObject({ path: z.string() });
+const threadOutputSchema = z.looseObject({ thread: z.looseObject({ id: z.string() }) });
 
 export const cliDrive: Scenario = {
   name: "cli-drive",
@@ -77,20 +85,11 @@ export const cliDrive: Scenario = {
     const searchDeadline = Date.now() + SEARCH_DEADLINE_MS;
     for (;;) {
       const search = await cli("search", NOTE_TOKEN, "--json");
-      const parsed: unknown = JSON.parse(search.stdout);
-      const results =
-        typeof parsed === "object" && parsed !== null && "results" in parsed
-          ? parsed.results
-          : undefined;
-      if (Array.isArray(results) && results.length > 0) {
+      const parsed = searchOutputSchema.safeParse(JSON.parse(search.stdout));
+      const results = parsed.success ? parsed.data.results : [];
+      if (results.length > 0) {
         expect(
-          results.some(
-            (result) =>
-              typeof result === "object" &&
-              result !== null &&
-              "path" in result &&
-              result.path === NOTE_PATH,
-          ),
+          results.some((result) => searchHitSchema.safeParse(result).data?.path === NOTE_PATH),
           "search names the written note",
         );
         break;
@@ -101,19 +100,8 @@ export const cliDrive: Scenario = {
 
     ctx.log("thread new + wait under the scripted driver");
     const created = await cli("thread", "new", PROMPT, "--json");
-    const createdParsed: unknown = JSON.parse(created.stdout);
-    let threadId: string | undefined;
-    if (
-      typeof createdParsed === "object" &&
-      createdParsed !== null &&
-      "thread" in createdParsed &&
-      typeof createdParsed.thread === "object" &&
-      createdParsed.thread !== null &&
-      "id" in createdParsed.thread &&
-      typeof createdParsed.thread.id === "string"
-    ) {
-      threadId = createdParsed.thread.id;
-    }
+    const createdParsed = threadOutputSchema.safeParse(JSON.parse(created.stdout));
+    const threadId = createdParsed.data?.thread.id;
     expect(threadId !== undefined, "thread new --json names the thread id");
     if (threadId === undefined) {
       return;

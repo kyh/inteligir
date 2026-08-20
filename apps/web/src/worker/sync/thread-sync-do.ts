@@ -4,11 +4,11 @@ import {
   CAPTURE_CLAIM_TTL_MS,
   claimCapturesRequestSchema,
   type AckCapturesResponse,
-  type AckOutcome,
   type CaptureResponse,
   type CaptureRow,
   type ClaimCapturesResponse,
 } from "@repo/cloud-contract/captures";
+import { revokeDeviceRequestSchema } from "@repo/cloud-contract/pairing";
 import {
   pullQuerySchema,
   pushRequestSchema,
@@ -24,6 +24,7 @@ import {
   type SyncPing,
 } from "@repo/cloud-contract/ws";
 import { DurableObject } from "cloudflare:workers";
+import { z } from "zod";
 import { refuse } from "../cloud-http";
 
 // ---------------------------------------------------------------------------
@@ -62,18 +63,21 @@ type SocketTag = {
   readonly platform: DevicePlatform;
 };
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
+/** One id's ack outcome, as the contract's response declares it. */
+type AckResult = AckCapturesResponse["results"][number];
+
+/** What this object wrote with `serializeAttachment`, read back. Parsed rather
+ *  than trusted: a socket hibernated before the tag's shape last changed comes
+ *  back carrying the OLD one, and an untagged socket is one this object no
+ *  longer knows how to address. */
+const socketTagSchema = z.object({
+  deviceId: z.string().min(1),
+  platform: devicePlatformSchema,
+});
 
 function readSocketTag(ws: WebSocket): SocketTag | null {
-  const raw: unknown = ws.deserializeAttachment();
-  if (!isRecord(raw)) return null;
-  const { deviceId, platform } = raw;
-  if (typeof deviceId !== "string" || deviceId === "") return null;
-  const parsedPlatform = devicePlatformSchema.safeParse(platform);
-  if (!parsedPlatform.success) return null;
-  return { deviceId, platform: parsedPlatform.data };
+  const tag = socketTagSchema.safeParse(ws.deserializeAttachment());
+  return tag.success ? tag.data : null;
 }
 
 export class ThreadSyncDO extends DurableObject<Env> {
@@ -202,14 +206,14 @@ export class ThreadSyncDO extends DurableObject<Env> {
    * thread ping until it disconnects on its own.
    */
   private async severDevice(request: Request): Promise<Response> {
-    const body: unknown = await request.json().catch(() => null);
-    if (!isRecord(body) || typeof body.deviceId !== "string") {
+    const body = revokeDeviceRequestSchema.safeParse(await request.json().catch(() => null));
+    if (!body.success) {
       return refuse("bad-request", "Send { deviceId }.");
     }
     let severed = 0;
     for (const ws of this.ctx.getWebSockets()) {
       const tag = readSocketTag(ws);
-      if (tag?.deviceId !== body.deviceId) continue;
+      if (tag?.deviceId !== body.data.deviceId) continue;
       try {
         ws.close(1008, "device revoked");
         severed += 1;
@@ -489,7 +493,7 @@ export class ThreadSyncDO extends DurableObject<Env> {
     if (!body.success) return refuse("bad-request", "Send { claimToken, ids }.");
     const sql = this.ctx.storage.sql;
 
-    const results = body.data.ids.map((id): { id: string; outcome: AckOutcome } => {
+    const results = body.data.ids.map((id): AckResult => {
       const deleted = sql
         .exec<{ id: string }>(
           "DELETE FROM captures WHERE id = ? AND claim_token = ? RETURNING id",

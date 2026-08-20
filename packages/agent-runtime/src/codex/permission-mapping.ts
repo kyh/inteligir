@@ -87,35 +87,21 @@ export function toPendingInteractionGrantablePermissionProfile(
 export function toCodexGrantedPermissionProfile(
   args: PendingInteractionGrantedPermissionProfile,
 ): PermissionsRequestApprovalResponse["permissions"] {
-  return {
-    ...(args.network ? { network: { enabled: args.network.enabled } } : {}),
-    ...(args.fileSystem
-      ? {
-          fileSystem: {
-            read: args.fileSystem.read.length > 0 ? args.fileSystem.read : null,
-            write: args.fileSystem.write.length > 0 ? args.fileSystem.write : null,
-          },
-        }
-      : {}),
-  };
+  const permissions: PermissionsRequestApprovalResponse["permissions"] = {};
+  if (args.network) permissions.network = { enabled: args.network.enabled };
+  if (args.fileSystem) {
+    permissions.fileSystem = {
+      read: args.fileSystem.read.length > 0 ? args.fileSystem.read : null,
+      write: args.fileSystem.write.length > 0 ? args.fileSystem.write : null,
+    };
+  }
+  return permissions;
 }
 
 function fromCodexCommandApprovalDecision(
   decision: CodexSimpleCommandApprovalDecision,
 ): PendingInteractionApprovalDecision {
   return codexToPendingInteractionApprovalDecision[decision];
-}
-
-type CodexPolicyAmendmentDecision = Extract<CodexCommandApprovalDecision, object>;
-
-function isCodexPolicyAmendmentDecision(
-  decision: CodexCommandApprovalDecision,
-): decision is CodexPolicyAmendmentDecision {
-  return (
-    typeof decision === "object" &&
-    decision !== null &&
-    ("acceptWithExecpolicyAmendment" in decision || "applyNetworkPolicyAmendment" in decision)
-  );
 }
 
 export function toCodexCommandApprovalDecision(
@@ -138,10 +124,10 @@ export function parseCodexAvailableDecisions(
 
   const mappedDecisions: PendingInteractionApprovalDecision[] = [];
   for (const decision of decisions) {
-    if (isCodexPolicyAmendmentDecision(decision)) {
+    if (decision.kind === "policyAmendment") {
       continue;
     }
-    mappedDecisions.push(fromCodexCommandApprovalDecision(decision));
+    mappedDecisions.push(fromCodexCommandApprovalDecision(decision.decision));
   }
   const uniqueDecisions = [...new Set(mappedDecisions)];
   if (uniqueDecisions.length === 0) {

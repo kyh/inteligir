@@ -3,6 +3,7 @@
 // route, method, body and the keepalive flag itself.
 
 import { describe, expect, it, vi } from "vitest";
+import { z } from "zod";
 import { sendKeepaliveWrite } from "../keepalive-write";
 
 describe("sendKeepaliveWrite", () => {
@@ -14,7 +15,8 @@ describe("sendKeepaliveWrite", () => {
     const url = input instanceof URL || input instanceof Request ? null : input;
     expect(url).toBe("http://127.0.0.1:4664/api/v1/vault/file");
     expect(init).toMatchObject({ method: "PUT", keepalive: true });
-    const body: unknown = typeof init?.body === "string" ? JSON.parse(init.body) : null;
+    const sent = z.string().safeParse(init?.body);
+    const body: unknown = sent.success ? JSON.parse(sent.data) : null;
     expect(body).toEqual({ path: "notes/a.md", content: "content\n" });
   });
 

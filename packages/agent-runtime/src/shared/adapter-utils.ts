@@ -4,13 +4,8 @@
 // raw-output recovery path, neither of which is carried.
 
 import { z } from "zod";
-import { isRecord } from "./provider-visibility-helpers.js";
 
 const shellEnvironmentVariableKeySchema = z.string().regex(/^[A-Z_][A-Z0-9_]*$/i);
-
-export function toOptionalRecord(value: unknown): Record<string, unknown> | undefined {
-  return isRecord(value) ? value : undefined;
-}
 
 export function buildShellEnvironmentPolicyConfig(
   envVars?: Record<string, string>,

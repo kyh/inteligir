@@ -5,7 +5,7 @@
 import type { ModelReasoningEffort } from "./provider-types";
 import type { ReasoningLevel } from "./shared-types";
 
-const REASONING_EFFORT_BY_LEVEL: Record<ReasoningLevel, ModelReasoningEffort> = {
+const REASONING_EFFORT_BY_LEVEL = {
   none: { reasoningEffort: "none", description: "No extended thinking" },
   low: { reasoningEffort: "low", description: "Low reasoning effort" },
   medium: { reasoningEffort: "medium", description: "Medium reasoning effort" },
@@ -20,7 +20,7 @@ const REASONING_EFFORT_BY_LEVEL: Record<ReasoningLevel, ModelReasoningEffort> = 
     reasoningEffort: "ultra",
     description: "Maximum reasoning with automatic task delegation",
   },
-};
+} satisfies Record<ReasoningLevel, ModelReasoningEffort>;
 
 // Expands coarse reasoning levels into the descriptive picker entries above.
 // Returns fresh objects so callers can hand the result out in mutable API

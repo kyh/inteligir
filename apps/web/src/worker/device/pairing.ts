@@ -85,7 +85,16 @@ export async function mintPairingCode(
   return { code, expiresInMs: PAIRING_CODE_TTL_MS };
 }
 
-export type RedeemFailure = "invalid-code" | "code-expired" | "code-consumed" | "device-limit";
+type RedeemFailure = "invalid-code" | "code-expired" | "code-consumed" | "device-limit";
+
+/** The redeem outcome: the minted credential, or the reason it was refused. */
+export type RedeemResult =
+  | { readonly redeemed: true; readonly response: RedeemDeviceResponse }
+  | { readonly redeemed: false; readonly failure: RedeemFailure };
+
+function refuseRedeem(failure: RedeemFailure): RedeemResult {
+  return { redeemed: false, failure };
+}
 
 /**
  * Consume `code` exactly once and mint the durable device credential, in ONE
@@ -120,14 +129,14 @@ export async function redeemPairingCode(
   rawCode: string,
   deviceName: string,
   verifier: string,
-): Promise<RedeemDeviceResponse | RedeemFailure> {
+): Promise<RedeemResult> {
   const code = rawCode.trim().toUpperCase();
-  if (!PAIRING_CODE_PATTERN.test(code)) return "invalid-code";
+  if (!PAIRING_CODE_PATTERN.test(code)) return refuseRedeem("invalid-code");
 
   const row = await db.select().from(pairingCode).where(eq(pairingCode.code, code)).get();
-  if (row === undefined || row.purpose !== DEVICE_PAIR_PURPOSE) return "invalid-code";
-  if (row.consumedAt !== null) return "code-consumed";
-  if (row.expiresAt.getTime() < Date.now()) return "code-expired";
+  if (row === undefined || row.purpose !== DEVICE_PAIR_PURPOSE) return refuseRedeem("invalid-code");
+  if (row.consumedAt !== null) return refuseRedeem("code-consumed");
+  if (row.expiresAt.getTime() < Date.now()) return refuseRedeem("code-expired");
 
   // PKCE, BEFORE the consume: a mismatch answers `invalid-code` and leaves the
   // code alive, so a wrong-verifier attempt by an interceptor neither reveals
@@ -135,16 +144,16 @@ export async function redeemPairingCode(
   // challenge (minted before this column, or somehow plain) can never match,
   // and is refused rather than waved through. The compare is constant-time,
   // and `S256(verifier)` is computed the contract's one way.
-  if (row.challenge === null) return "invalid-code";
+  if (row.challenge === null) return refuseRedeem("invalid-code");
   const presented = await pkceChallengeS256(verifier);
-  if (!constantTimeEqual(presented, row.challenge)) return "invalid-code";
+  if (!constantTimeEqual(presented, row.challenge)) return refuseRedeem("invalid-code");
 
   const openDevices = await db
     .select({ id: device.id })
     .from(device)
     .where(and(eq(device.userId, row.userId), isNull(device.revokedAt)))
     .all();
-  if (openDevices.length >= MAX_DEVICES_PER_ACCOUNT) return "device-limit";
+  if (openDevices.length >= MAX_DEVICES_PER_ACCOUNT) return refuseRedeem("device-limit");
 
   const credential = generateDeviceCredential();
   const deviceId = crypto.randomUUID();
@@ -189,9 +198,9 @@ export async function redeemPairingCode(
     // refused. Which one is a read away, and the read is worth it: the two
     // have completely different fixes.
     const after = await db.select().from(pairingCode).where(eq(pairingCode.code, code)).get();
-    return after?.deviceId === deviceId ? "device-limit" : "code-consumed";
+    return refuseRedeem(after?.deviceId === deviceId ? "device-limit" : "code-consumed");
   }
-  return { deviceId, credential };
+  return { redeemed: true, response: { deviceId, credential } };
 }
 
 /**

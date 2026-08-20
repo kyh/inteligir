@@ -87,12 +87,18 @@ export function writeLines(lines: readonly string[]): void {
   process.stdout.write(`${lines.join("\n")}\n`);
 }
 
+/** Anything a command prints under `--json`. Every caller hands over a body
+ *  the typed client already gave a contract type, and a TypeScript interface
+ *  satisfies no index signature — so the bound this can state is that the
+ *  value exists. */
+type Printable = NonNullable<unknown>;
+
 /**
  * Print data as JSON and return true, or return false when --json was not
  * requested. The ONE JSON output path for every command, so the fitness test
  * walking the flags is also a statement about behavior.
  */
-export function outputJson(opts: JsonOutputOptions, data: unknown): boolean {
+export function outputJson(opts: JsonOutputOptions, data: Printable): boolean {
   if (opts.json !== true) {
     return false;
   }
@@ -101,11 +107,13 @@ export function outputJson(opts: JsonOutputOptions, data: unknown): boolean {
 }
 
 /** The shape hono's client gives every response; `ok` is a LITERAL per status
- *  member, which is what lets `Extract` split success from refusal. */
+ *  member, which is what lets `Extract` split success from refusal. Every route
+ *  answers with a JSON object or array, so the body is read as `object` — the
+ *  refusal path below parses it before reading a field. */
 interface ResponseLike {
   ok: boolean;
   status: number;
-  json(): Promise<unknown>;
+  json(): Promise<object>;
 }
 
 /** A narrowing predicate rather than a cast — repo rule, and it is what makes

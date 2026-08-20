@@ -1,12 +1,20 @@
 import { createServer, type Server } from "node:net";
 
-function listenOnEphemeral(): Promise<{ server: Server; port: number }> {
+/** One held loopback port and the server holding it. */
+interface HeldPort {
+  server: Server;
+  port: number;
+}
+
+function listenOnEphemeral(): Promise<HeldPort> {
   return new Promise((resolve, reject) => {
     const server = createServer();
     server.once("error", (error) => reject(error));
     server.listen(0, "127.0.0.1", () => {
+      // `address()` answers a plain string for a unix socket — unreachable
+      // here (this listens on a TCP port), but it is what the union carries.
       const address = server.address();
-      if (address === null || typeof address === "string") {
+      if (!(address instanceof Object)) {
         server.close();
         reject(new Error("expected a bound AddressInfo"));
         return;
@@ -38,7 +46,7 @@ function closeServer(server: Server): Promise<void> {
  * retries with fresh ports.
  */
 export async function reserveFreePorts(count: number): Promise<number[]> {
-  const held: { server: Server; port: number }[] = [];
+  const held: HeldPort[] = [];
   try {
     for (let index = 0; index < count; index += 1) {
       held.push(await listenOnEphemeral());

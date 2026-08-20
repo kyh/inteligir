@@ -30,18 +30,20 @@ function mapItem(item: ProviderItem): ThreadEventItem | null {
       return { type: "agentMessage", id: item.id, text: item.text };
     case "reasoning":
       return { type: "reasoning", id: item.id, summary: item.summary, content: item.content };
-    case "commandExecution":
-      return {
+    case "commandExecution": {
+      const mapped: Extract<ThreadEventItem, { type: "commandExecution" }> = {
         type: "commandExecution",
         id: item.id,
         command: item.command,
         cwd: item.cwd,
         status: item.status,
         approvalStatus: item.approvalStatus,
-        ...(item.aggregatedOutput !== undefined ? { aggregatedOutput: item.aggregatedOutput } : {}),
-        ...(item.exitCode !== undefined ? { exitCode: item.exitCode } : {}),
-        ...(item.durationMs !== undefined ? { durationMs: item.durationMs } : {}),
       };
+      if (item.aggregatedOutput !== undefined) mapped.aggregatedOutput = item.aggregatedOutput;
+      if (item.exitCode !== undefined) mapped.exitCode = item.exitCode;
+      if (item.durationMs !== undefined) mapped.durationMs = item.durationMs;
+      return mapped;
+    }
     case "fileChange":
       return {
         type: "fileChange",
@@ -50,18 +52,20 @@ function mapItem(item: ProviderItem): ThreadEventItem | null {
         status: item.status,
         approvalStatus: item.approvalStatus,
       };
-    case "toolCall":
-      return {
+    case "toolCall": {
+      const mapped: Extract<ThreadEventItem, { type: "toolCall" }> = {
         type: "toolCall",
         id: item.id,
-        ...(item.server !== undefined ? { server: item.server } : {}),
         tool: item.tool,
-        ...(item.arguments !== undefined ? { arguments: item.arguments } : {}),
         status: item.status,
-        ...(item.result !== undefined ? { result: item.result } : {}),
-        ...(item.error !== undefined ? { error: item.error } : {}),
-        ...(item.durationMs !== undefined ? { durationMs: item.durationMs } : {}),
       };
+      if (item.server !== undefined) mapped.server = item.server;
+      if (item.arguments !== undefined) mapped.arguments = item.arguments;
+      if (item.result !== undefined) mapped.result = item.result;
+      if (item.error !== undefined) mapped.error = item.error;
+      if (item.durationMs !== undefined) mapped.durationMs = item.durationMs;
+      return mapped;
+    }
     case "plan":
       return { type: "plan", id: item.id, text: item.text };
     // The send path already recorded the user's message as
@@ -98,16 +102,14 @@ export function mapProviderEvent(
       if (turnId === null) {
         return dropped("turn/completed with no host turn bound");
       }
-      return {
-        kind: "mapped",
-        event: {
-          type: "turn/completed",
-          threadId: event.threadId,
-          scope: turnScope(turnId),
-          status: event.status,
-          ...(event.error !== undefined ? { error: event.error } : {}),
-        },
+      const completed: Extract<ThreadEvent, { type: "turn/completed" }> = {
+        type: "turn/completed",
+        threadId: event.threadId,
+        scope: turnScope(turnId),
+        status: event.status,
       };
+      if (event.error !== undefined) completed.error = event.error;
+      return { kind: "mapped", event: completed };
     }
     case "item/started":
     case "item/completed": {
@@ -145,17 +147,15 @@ export function mapProviderEvent(
       if (turnId === null) {
         return dropped(`${event.type} with no host turn bound`);
       }
-      return {
-        kind: "mapped",
-        event: {
-          type: event.type,
-          threadId: event.threadId,
-          scope: turnScope(turnId),
-          itemId: event.itemId,
-          delta: event.delta,
-          ...(event.reset !== undefined ? { reset: event.reset } : {}),
-        },
+      const outputDelta: Extract<ThreadEvent, { type: "item/commandExecution/outputDelta" }> = {
+        type: event.type,
+        threadId: event.threadId,
+        scope: turnScope(turnId),
+        itemId: event.itemId,
+        delta: event.delta,
       };
+      if (event.reset !== undefined) outputDelta.reset = event.reset;
+      return { kind: "mapped", event: outputDelta };
     }
     case "thread/tokenUsage/updated": {
       if (turnId === null) {
@@ -171,18 +171,17 @@ export function mapProviderEvent(
         },
       };
     }
-    case "provider/error":
-      return {
-        kind: "mapped",
-        event: {
-          type: "provider/error",
-          threadId: event.threadId,
-          scope: turnId === null ? threadScope() : turnScope(turnId),
-          message: event.message,
-          ...(event.detail !== undefined ? { detail: event.detail } : {}),
-          ...(event.willRetry !== undefined ? { willRetry: event.willRetry } : {}),
-        },
+    case "provider/error": {
+      const failure: Extract<ThreadEvent, { type: "provider/error" }> = {
+        type: "provider/error",
+        threadId: event.threadId,
+        scope: turnId === null ? threadScope() : turnScope(turnId),
+        message: event.message,
       };
+      if (event.detail !== undefined) failure.detail = event.detail;
+      if (event.willRetry !== undefined) failure.willRetry = event.willRetry;
+      return { kind: "mapped", event: failure };
+    }
     case "thread/started":
     case "thread/identity":
     case "thread/name/updated":

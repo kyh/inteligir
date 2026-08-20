@@ -31,12 +31,12 @@ type WriteRefusal =
   | { kind: "not-found"; message: string }
   | { kind: "unavailable"; message: string };
 
-function refusalFor(error: unknown): WriteRefusal | null {
-  if (error instanceof ConnectorConflictError) {
-    return { kind: error.kind, message: error.message };
+function refusalFor(cause: unknown): WriteRefusal | null {
+  if (cause instanceof ConnectorConflictError) {
+    return { kind: cause.kind, message: cause.message };
   }
-  if (error instanceof ConnectorsUnavailableError || error instanceof CodexMcpError) {
-    return { kind: "unavailable", message: error.message };
+  if (cause instanceof ConnectorsUnavailableError || cause instanceof CodexMcpError) {
+    return { kind: "unavailable", message: cause.message };
   }
   return null;
 }

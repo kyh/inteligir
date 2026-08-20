@@ -4,7 +4,7 @@
 // the WHOLE log per call is quadratic in the turn's own event count.
 
 import { join } from "node:path";
-import { createConnection, type DbConnection } from "@repo/db/connection";
+import { createConnection } from "@repo/db/connection";
 import { runMigrations } from "@repo/db/migrate";
 import { noopNotifier } from "@repo/domain/notifier";
 import type { ThreadEvent } from "@repo/domain/provider-event";
@@ -20,6 +20,12 @@ const { reads, projections } = vi.hoisted(() => ({
   projections: { calls: 0 },
 }));
 
+// A COST bound, not a behaviour: one row read per frame, never the log so far.
+// It has to hold for every path the service reaches, so the count is taken at
+// the module every reader goes through. Handing ThreadService a counting
+// reader instead would bound only the reads the test itself wired up, and a
+// quadratic re-read is exactly the kind nobody wires on purpose.
+// oxlint-disable-next-line anti-slop/no-module-mocking
 vi.mock("@repo/db/events", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@repo/db/events")>();
   return {
@@ -33,6 +39,12 @@ vi.mock("@repo/db/events", async (importOriginal) => {
   };
 });
 
+// `buildThreadTimeline` is a pure function reached through an import, so there
+// is no boundary a fake could sit at: the claim is that a frame projects once,
+// from the projection served last, rather than rebuilding the turn from its
+// whole log. Counting at the module is the only vantage that sees a rebuild
+// made somewhere down the call path.
+// oxlint-disable-next-line anti-slop/no-module-mocking
 vi.mock("@repo/thread-view/build-thread-timeline", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@repo/thread-view/build-thread-timeline")>();
   return {
@@ -44,7 +56,7 @@ vi.mock("@repo/thread-view/build-thread-timeline", async (importOriginal) => {
   };
 });
 
-function openService(): { db: DbConnection; service: ThreadService } {
+function openService() {
   const db = createConnection(join(makeTempDir("inteligir-timeline-cost-"), "test.db"));
   runMigrations(db);
   return {
@@ -58,7 +70,7 @@ function openService(): { db: DbConnection; service: ThreadService } {
 }
 
 /** A thread mid-turn, with a streaming assistant message open. */
-function streamingThread(service: ThreadService): { threadId: string; delta: (n: number) => void } {
+function streamingThread(service: ThreadService) {
   const thread = service.create({});
   const scope = turnScope("turn_1");
   const base = { threadId: thread.id, scope };
@@ -71,7 +83,7 @@ function streamingThread(service: ThreadService): { threadId: string; delta: (n:
   service.ingestProviderEvents(thread.id, [started, opened]);
   return {
     threadId: thread.id,
-    delta: (n) => {
+    delta: (n: number) => {
       service.ingestProviderEvents(thread.id, [
         { type: "item/agentMessage/delta", ...base, itemId: "item_a", delta: `t${n} ` },
       ]);

@@ -38,8 +38,8 @@ function reply(response: VoiceWorkerResponse): void {
   port?.postMessage(response);
 }
 
-function message(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
+function message(cause: unknown): string {
+  return cause instanceof Error ? cause.message : String(cause);
 }
 
 async function run(request: VoiceWorkerRequest): Promise<VoiceWorkerResponse> {
@@ -77,8 +77,8 @@ async function run(request: VoiceWorkerRequest): Promise<VoiceWorkerResponse> {
 }
 
 const request: VoiceWorkerRequest = workerData;
-run(request).then(reply, (error: unknown) => {
+run(request).then(reply, (cause: unknown) => {
   // The only path here is the dynamic import itself throwing — a broken JS
   // wrapper — which is as unusable as a binding that will not load.
-  reply({ kind: "failed", message: message(error), modelUnusable: true });
+  reply({ kind: "failed", message: message(cause), modelUnusable: true });
 });

@@ -15,7 +15,12 @@
 // explicitly named server skips the check on purpose: you named it, you own
 // it — and `inteligir status` prints the data dir and vault it bound to.
 
-import { DEV_PORT_PROBE_LIMIT, PROD_SERVER_PORT, resolveAppConfig } from "@repo/app/node/config";
+import {
+  DEV_PORT_PROBE_LIMIT,
+  PROD_SERVER_PORT,
+  resolveAppConfig,
+  type ResolveAppConfigArgs,
+} from "@repo/app/node/config";
 import {
   apiPath,
   apiRoutes,
@@ -70,11 +75,14 @@ export function deriveServerCandidates(args: DeriveServerCandidatesArgs): Server
     return { kind: "url", baseUrl: parseServerUrl(explicitUrl) };
   }
 
-  const config = resolveAppConfig({
+  const configArgs: ResolveAppConfigArgs = {
     checkoutPath: args.appCheckoutDir,
     env: args.env,
-    ...(args.homeDir !== undefined ? { homeDir: args.homeDir } : {}),
-  });
+  };
+  if (args.homeDir !== undefined) {
+    configArgs.homeDir = args.homeDir;
+  }
+  const config = resolveAppConfig(configArgs);
 
   // A configured port is exact — the server never probes off one, so neither
   // does the CLI.
@@ -99,12 +107,17 @@ export function deriveServerCandidates(args: DeriveServerCandidatesArgs): Server
 
 export type ProbeFetch = (url: string, init: { signal: AbortSignal }) => Promise<Response>;
 
-async function fetchJson(url: string, fetchImpl: ProbeFetch): Promise<unknown> {
+/** The probe's answer, or null when the port answered with a refusal. The BODY
+ *  is left unread: each caller parses it against the schema it expects, because
+ *  another local service can answer 200 with anything. */
+async function probe(url: string, fetchImpl: ProbeFetch): Promise<Response | null> {
   const response = await fetchImpl(url, { signal: AbortSignal.timeout(PROBE_TIMEOUT_MS) });
-  if (!response.ok) {
-    return undefined;
-  }
-  return response.json().catch(() => undefined);
+  return response.ok ? response : null;
+}
+
+async function probeBody(url: string, fetchImpl: ProbeFetch) {
+  const response = await probe(url, fetchImpl);
+  return response === null ? undefined : await response.json().catch(() => undefined);
 }
 
 type ProbeOutcome =
@@ -121,12 +134,12 @@ async function probeCandidate(
   try {
     // The body shape, not just a 2xx: another local service on the port can
     // answer 200 with anything.
-    const health = await fetchJson(`${baseUrl}${apiPath(apiRoutes.health)}`, fetchImpl);
+    const health = await probeBody(`${baseUrl}${apiPath(apiRoutes.health)}`, fetchImpl);
     if (!healthResponseSchema.safeParse(health).success) {
       return { kind: "silent" };
     }
     const status = systemStatusResponseSchema.safeParse(
-      await fetchJson(`${baseUrl}${apiPath(apiRoutes.system.status)}`, fetchImpl),
+      await probeBody(`${baseUrl}${apiPath(apiRoutes.system.status)}`, fetchImpl),
     );
     if (!status.success) {
       return { kind: "silent" };

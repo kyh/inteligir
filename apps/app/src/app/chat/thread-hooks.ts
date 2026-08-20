@@ -54,7 +54,7 @@ export function useDocThreads(docPath: string): UseQueryResult<ListDocThreadsRes
  * kind whose whole effect is on the LIST — the query sweep beside this
  * subscriber already refetches that.
  */
-const MOVES_THE_TIMELINE: Record<ThreadChangeKind, boolean> = {
+const MOVES_THE_TIMELINE = {
   "thread-created": false,
   "events-appended": true,
   "status-changed": true,
@@ -66,7 +66,7 @@ const MOVES_THE_TIMELINE: Record<ThreadChangeKind, boolean> = {
   // surfaces that show one (the dock card, the doc bar) are query-cached, so
   // the sweep beside this subscriber already refetches them.
   "proposals-changed": false,
-};
+} satisfies Record<ThreadChangeKind, boolean>;
 
 /**
  * The live timeline: full fetch on mount, then a delta fetch per

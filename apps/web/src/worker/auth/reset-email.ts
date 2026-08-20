@@ -27,7 +27,13 @@ const FROM_NAME = "inteligir";
 /** Compose the reset email. Plain-text plus a minimal HTML alternative —
  * both carry the URL, per deliverability guidance (text-only clients + spam
  * scoring). Tests assert on the recorded builder the mock binding captures. */
-function composeResetEmail(url: string): { subject: string; text: string; html: string } {
+interface ResetEmail {
+  subject: string;
+  text: string;
+  html: string;
+}
+
+function composeResetEmail(url: string): ResetEmail {
   return {
     subject: "Reset your inteligir password",
     text: [

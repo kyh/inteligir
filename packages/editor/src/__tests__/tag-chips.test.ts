@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, test } from "vitest";
-import { createMarkdownEditor, type MarkdownEditor } from "../create-markdown-editor";
+import {
+  createMarkdownEditor,
+  type MarkdownEditor,
+  type MarkdownEditorConfig,
+} from "../create-markdown-editor";
 
 // The chip is a MARK, so what it decorates is asserted through the rendered
 // DOM rather than a decoration set: a ViewPlugin's decorations are not a state
@@ -31,12 +35,11 @@ afterEach(() => {
   editor = undefined;
 });
 
-const mount = (source: string, onOpenTag?: (tag: string) => void): MarkdownEditor =>
-  createMarkdownEditor({
-    parent: document.body,
-    doc: source,
-    ...(onOpenTag === undefined ? {} : { onOpenTag }),
-  });
+const mount = (source: string, onOpenTag?: (tag: string) => void): MarkdownEditor => {
+  const config: MarkdownEditorConfig = { parent: document.body, doc: source };
+  if (onOpenTag !== undefined) config.onOpenTag = onOpenTag;
+  return createMarkdownEditor(config);
+};
 
 const chipTexts = (instance: MarkdownEditor): string[] =>
   [...instance.view.contentDOM.querySelectorAll(".cm-tag")].map((node) => node.textContent ?? "");

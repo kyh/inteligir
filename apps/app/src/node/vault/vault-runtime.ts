@@ -9,9 +9,15 @@ import { join, resolve } from "node:path";
 import type { DbNotifier } from "@repo/domain/notifier";
 import type { VaultStatusResponse } from "@repo/server-contract/vault";
 import { assertVaultAndDataDirDisjoint } from "../path-containment";
-import { createGitEngine, ensureVaultRepo, type GitEngine } from "./git";
+import {
+  createGitEngine,
+  ensureVaultRepo,
+  type EnsureVaultRepoArgs,
+  type GitEngine,
+  type GitEngineArgs,
+} from "./git";
 import { createVaultService, sweepStaleTmpFiles, type VaultService } from "./vault-service";
-import { createVaultWatcher, type VaultWatcher } from "./watcher";
+import { createVaultWatcher, type VaultWatcher, type VaultWatcherArgs } from "./watcher";
 import type { ParcelWatcherBackend } from "./watcher/parcel-backend";
 
 const DEFAULT_SYNC_INTERVAL_MS = 60_000;
@@ -68,22 +74,23 @@ export async function createVaultRuntime(args: VaultRuntimeArgs): Promise<VaultR
   // directly-composed runtime (tests, future callers) cannot skip it.
   assertVaultAndDataDirDisjoint(root, resolve(args.dataDir));
 
-  await ensureVaultRepo({
+  const ensureArgs: EnsureVaultRepoArgs = {
     root,
     seed: (vaultRoot) => writeFile(join(vaultRoot, WELCOME_FILE_NAME), WELCOME_CONTENT, "utf8"),
-    ...(args.gitEnv ? { env: args.gitEnv } : {}),
-  });
+  };
+  if (args.gitEnv) ensureArgs.env = args.gitEnv;
+  await ensureVaultRepo(ensureArgs);
   // A full recursive walk that nothing waits on — see the sweep's own note.
   // Boot must not hold the listener open behind it, so it runs beside
   // everything below and only ever unlinks what predates this call.
-  void sweepStaleTmpFiles(root, Date.now()).catch((error: unknown) => {
-    console.error(`vault: stale staging sweep failed: ${String(error)}`);
+  void sweepStaleTmpFiles(root, Date.now()).catch((cause: unknown) => {
+    console.error(`vault: stale staging sweep failed: ${String(cause)}`);
   });
 
   // Watcher batches held back while a sync ran; drained as ONE notification.
   let sawChangesDuringSync = false;
 
-  const git = createGitEngine({
+  const gitArgs: GitEngineArgs = {
     root,
     remoteUrl: args.vaultRemote,
     onStatusChanged: () => {
@@ -102,8 +109,9 @@ export async function createVaultRuntime(args: VaultRuntimeArgs): Promise<VaultR
       sawChangesDuringSync = true;
     },
     onError: (message) => console.error(`vault git: ${message}`),
-    ...(args.gitEnv ? { env: args.gitEnv } : {}),
-  });
+  };
+  if (args.gitEnv) gitArgs.env = args.gitEnv;
+  const git = createGitEngine(gitArgs);
   const gitIsSyncing = () => git.isSyncing();
 
   // Exact-path echo suppression for the service's own writes: the mutation
@@ -141,7 +149,7 @@ export async function createVaultRuntime(args: VaultRuntimeArgs): Promise<VaultR
 
   let watcher: VaultWatcher | null = null;
   if (args.watch ?? true) {
-    watcher = createVaultWatcher({
+    const watcherArgs: VaultWatcherArgs = {
       root,
       onChanged: (paths) => {
         if (gitIsSyncing()) {
@@ -157,8 +165,9 @@ export async function createVaultRuntime(args: VaultRuntimeArgs): Promise<VaultR
         git.scheduleCommit(external);
       },
       onError: (message) => console.error(`vault watcher: ${message}`),
-      ...(args.watcherBackend ? { backend: args.watcherBackend } : {}),
-    });
+    };
+    if (args.watcherBackend) watcherArgs.backend = args.watcherBackend;
+    watcher = createVaultWatcher(watcherArgs);
     watcher.start();
   }
 

@@ -22,10 +22,12 @@ function makeOps(): TreeOps {
   };
 }
 
-function renderTree(overrides: Partial<React.ComponentProps<typeof FileTree>> = {}): {
+interface RenderedTree {
   ops: TreeOps;
   onOpenFile: ReturnType<typeof vi.fn>;
-} {
+}
+
+function renderTree(overrides: Partial<React.ComponentProps<typeof FileTree>> = {}): RenderedTree {
   const ops = makeOps();
   const onOpenFile = vi.fn();
   render(

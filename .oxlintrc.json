@@ -22,6 +22,8 @@
     "typeAware": true
   },
   "ignorePatterns": [
+    ".claude",
+    ".codex",
     "dist",
     "dist-node",
     "node_modules",
@@ -35,12 +37,28 @@
     "packages/agent-runtime/src/codex/generated"
   ],
   "plugins": ["eslint", "typescript", "unicorn", "react", "oxc", "node", "promise"],
+  "jsPlugins": [{ "name": "anti-slop", "specifier": "@kyh/oxlint/anti-slop" }],
   "categories": {
     "correctness": "error",
     "suspicious": "error",
     "perf": "error"
   },
   "rules": {
+    "anti-slop/no-chained-type-assertions": "error",
+    "anti-slop/no-conditional-empty-object-spread": "error",
+    "anti-slop/no-known-value-widening": "error",
+    "anti-slop/no-module-mocking": "error",
+    "anti-slop/no-object-parameters": "error",
+    "anti-slop/no-reflect-apply": "error",
+    "anti-slop/no-reflect-get": "error",
+    "anti-slop/no-runtime-typeof": "error",
+    "anti-slop/no-shape-in-symbol-names": "error",
+    "anti-slop/no-unknown-parameters": "error",
+    "anti-slop/no-unknown-returns": "error",
+    "anti-slop/no-unknown-type-aliases": "error",
+    "anti-slop/no-unsafe-dictionary-type": "error",
+    "anti-slop/no-widen-then-assert": "error",
+    "anti-slop/require-safety-comment-for-type-assertion": "error",
     "typescript/no-explicit-any": "error",
     "typescript/no-non-null-assertion": "error",
     "typescript/consistent-type-assertions": [
@@ -59,6 +77,17 @@
       }
     ],
     "unicorn/prefer-node-protocol": "error",
+    // `instanceof Function` is how a `string | (() => T)` union is
+    // discriminated now that `anti-slop/no-runtime-typeof` owns the `typeof`
+    // spelling. The rule's objection — a cross-realm callable fails
+    // `instanceof` — reaches none of these sites: every one discriminates a
+    // value this realm constructed.
+    "unicorn/no-instanceof-builtins": [
+      "error",
+      {
+        "exclude": ["Function"]
+      }
+    ],
 
     // Type-aware rules, staged. `options.typeAware` switches on EVERY
     // type-aware rule the enabled categories carry, so every one is named
@@ -160,6 +189,10 @@
       // same reason.
       "files": ["packages/editor/src/vendor/**"],
       "rules": {
+        "anti-slop/no-chained-type-assertions": "off",
+        "anti-slop/no-runtime-typeof": "off",
+        "anti-slop/no-unknown-parameters": "off",
+        "anti-slop/require-safety-comment-for-type-assertion": "off",
         "typescript/consistent-type-assertions": "off",
         "typescript/no-unsafe-type-assertion": "off",
         "eslint/no-underscore-dangle": "off",

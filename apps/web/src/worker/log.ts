@@ -15,19 +15,25 @@
  * The URL's SEARCH string is deliberately dropped: `?path=` carries vault file
  * names and `?state=` carries a sign-in nonce — neither belongs in a log.
  */
-export function logUnhandled(surface: string, request: Request, error: unknown): void {
+export function logUnhandled(surface: string, request: Request, cause: unknown): void {
   console.error({
     event: "unhandled-error",
     surface,
     method: request.method,
     path: new URL(request.url).pathname,
-    ...errorFields(error),
+    ...errorFields(cause),
   });
 }
 
-function errorFields(error: unknown): { message: string; stack: string | undefined } {
+/** The two queryable fields a throw contributes to the line above. */
+interface ErrorFields {
+  message: string;
+  stack: string | undefined;
+}
+
+function errorFields(cause: unknown): ErrorFields {
   return {
-    message: error instanceof Error ? error.message : String(error),
-    stack: error instanceof Error ? error.stack : undefined,
+    message: cause instanceof Error ? cause.message : String(cause),
+    stack: cause instanceof Error ? cause.stack : undefined,
   };
 }

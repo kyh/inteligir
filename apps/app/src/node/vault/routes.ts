@@ -33,12 +33,12 @@ import {
  */
 type VaultRefusal = VaultServiceErrorCode | "invalid_path";
 
-function classifyVaultError(error: unknown): { code: VaultRefusal; body: ApiErrorResponse } | null {
-  if (error instanceof VaultPathError) {
-    return { code: "invalid_path", body: { error: "invalid_path", message: error.message } };
+function classifyVaultError(cause: unknown): { code: VaultRefusal; body: ApiErrorResponse } | null {
+  if (cause instanceof VaultPathError) {
+    return { code: "invalid_path", body: { error: "invalid_path", message: cause.message } };
   }
-  if (error instanceof VaultServiceError) {
-    return { code: error.code, body: { error: error.code, message: error.message } };
+  if (cause instanceof VaultServiceError) {
+    return { code: cause.code, body: { error: cause.code, message: cause.message } };
   }
   return null;
 }
@@ -52,7 +52,7 @@ export type RenameNote = (from: string, to: string) => Promise<VaultRenameRespon
 function assetMediaType(path: string): string | null {
   const dot = path.lastIndexOf(".");
   if (dot < 0) return null;
-  return VAULT_ASSET_MEDIA_TYPES[path.slice(dot).toLowerCase()] ?? null;
+  return VAULT_ASSET_MEDIA_TYPES.get(path.slice(dot).toLowerCase()) ?? null;
 }
 
 // An asset is bytes from a vault a git remote can write into, served from the
@@ -61,7 +61,7 @@ function assetMediaType(path: string): string | null {
 // URL renders it as a document, and a sandbox with no `allow-scripts` refuses
 // that. `no-cache` with an ETag: a re-mounted image revalidates in a round
 // trip instead of re-downloading, and an edited asset is never stale.
-const ASSET_HEADERS: Readonly<Record<string, string>> = {
+const ASSET_HEADERS = {
   "cache-control": "no-cache",
   "content-security-policy": "default-src 'none'; sandbox",
   "x-content-type-options": "nosniff",
@@ -153,8 +153,8 @@ export function registerVaultRoutes(
       const refused: VaultWriteConflict = {
         error: "cas_mismatch",
         message: `${body.path} changed since the base this write was derived from`,
-        ...(result.current === null ? {} : { current: result.current }),
       };
+      if (result.current !== null) refused.current = result.current;
       return c.json(refused, API_ERROR_STATUS.cas_mismatch);
     } catch (error) {
       const refusal = classifyVaultError(error);

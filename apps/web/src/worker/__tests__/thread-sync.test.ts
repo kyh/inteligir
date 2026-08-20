@@ -8,6 +8,7 @@ import {
   pullResponseSchema,
   pushResponseSchema,
   type PushRequest,
+  type ThreadMetaInput,
 } from "@repo/cloud-contract/sync";
 import { syncPingSchema, type SyncPing } from "@repo/cloud-contract/ws";
 import { env, runInDurableObject, SELF } from "cloudflare:test";
@@ -56,8 +57,12 @@ function meta(
   lane: "any" | "desktop",
   updatedAt: number,
   title?: string,
-): NonNullable<PushRequest["threads"]>[number] {
-  return { threadId, lane, updatedAt, ...(title === undefined ? {} : { title }) };
+): ThreadMetaInput {
+  const meta: ThreadMetaInput = { threadId, lane, updatedAt };
+  // Absent stays absent: an explicit `undefined` title is a different fact
+  // from an unsent one, and the contract is strict about which arrives.
+  if (title !== undefined) meta.title = title;
+  return meta;
 }
 
 function capture(credential: string, text: string, idempotencyKey: string): Promise<Response> {
@@ -102,9 +107,10 @@ async function openSocket(
   socket.accept();
   const frames: SyncPing[] = [];
   socket.addEventListener("message", (message) => {
-    if (typeof message.data === "string") {
-      frames.push(syncPingSchema.parse(JSON.parse(message.data)));
-    }
+    // Keepalive frames are text; a binary frame is not one of them.
+    const { data } = message;
+    if (data instanceof ArrayBuffer) return;
+    frames.push(syncPingSchema.parse(JSON.parse(data)));
   });
   return { frames, socket };
 }

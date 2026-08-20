@@ -50,10 +50,13 @@ export interface ThreadLifecycleSupersessionPredicates {
   notDeleted?: true;
 }
 
-export const THREAD_LIFECYCLE_EVENT_PREDICATES: Record<
-  ThreadLifecycleEventType,
-  ThreadLifecycleSupersessionPredicates
-> = {
+/** A closed table over the event vocabulary: every event names its predicates,
+ *  so adding an event is a compile error here rather than a silent gap. */
+type ThreadLifecycleEventPredicateTable = {
+  [K in ThreadLifecycleEventType]: ThreadLifecycleSupersessionPredicates;
+};
+
+export const THREAD_LIFECYCLE_EVENT_PREDICATES: ThreadLifecycleEventPredicateTable = {
   "run.preparing": { notArchived: true, notDeleted: true },
   "run.started": { notArchived: true, notDeleted: true },
   "run.succeeded": {},
@@ -69,10 +72,14 @@ export const THREAD_LIFECYCLE_EVENT_PREDICATES: Record<
  * scheduled/queued turn unable to reactivate a stopping thread. Absent cell =
  * the event is a no-op in that status.
  */
-export const THREAD_LIFECYCLE: Record<
-  ThreadStatus,
-  Partial<Record<ThreadLifecycleEventType, ThreadStatus>>
-> = {
+/** Which events move a thread out of a status, and to where. An absent cell is
+ *  an event that is a no-op in that status. */
+type ThreadLifecycleTransitions = Partial<Record<ThreadLifecycleEventType, ThreadStatus>>;
+
+/** Closed over the status vocabulary: a new status must declare its row. */
+type ThreadLifecycleTable = { [K in ThreadStatus]: ThreadLifecycleTransitions };
+
+export const THREAD_LIFECYCLE: ThreadLifecycleTable = {
   idle: {
     "run.preparing": "starting",
     "run.started": "active",
@@ -127,8 +134,14 @@ export interface EvaluateThreadLifecycleEventArgs {
   thread: ThreadLifecycleRowState;
 }
 
+/** Whether an event settles the thread's active turn, and which turn it names. */
+interface SettlingTurn {
+  settles: boolean;
+  turnId: string | null;
+}
+
 /** The turn a settling event names, or a marker that the event settles nothing. */
-function settlingTurnId(event: ThreadLifecycleEvent): { settles: boolean; turnId: string | null } {
+function settlingTurnId(event: ThreadLifecycleEvent): SettlingTurn {
   switch (event.type) {
     case "run.succeeded":
     case "run.failed":

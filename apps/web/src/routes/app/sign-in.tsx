@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { createFileRoute, Link, redirect, useRouter } from "@tanstack/react-router";
+import { z } from "zod";
 
 import { Button } from "@repo/ui/components/button";
 
@@ -15,11 +16,14 @@ interface SignInSearch {
   next?: string;
 }
 
+/** Loose: the router hands over every search param, and only `next` is ours. */
+const signInSearchSchema = z.looseObject({ next: z.string().min(1) });
+
 export const Route = createFileRoute("/app/sign-in")({
   ssr: ssrWhenSignedOut,
-  validateSearch: (search: Record<string, unknown>): SignInSearch => {
-    const next = search["next"];
-    return typeof next === "string" && next !== "" ? { next } : {};
+  validateSearch: (search): SignInSearch => {
+    const parsed = signInSearchSchema.safeParse(search);
+    return parsed.success ? { next: parsed.data.next } : {};
   },
   beforeLoad: async ({ search }) => {
     if ((await currentSession()) !== null) {

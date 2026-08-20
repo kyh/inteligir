@@ -10,6 +10,7 @@
 
 import { useTheme, type ResolvedTheme } from "@repo/ui/lib/theme";
 import { useLayoutEffect, useMemo, useState, createContext, useContext } from "react";
+import { z } from "zod";
 import { readAppearance, writeAppearance } from "./prefs";
 
 type EditorFont = "sans" | "serif" | "mono";
@@ -99,30 +100,39 @@ export const APPEARANCE_DEFAULTS: Appearance = {
   accent: "default",
 };
 
+/** The record as localStorage holds it: five optional strings, because a user
+ *  can edit the key by hand and a field of the wrong type is the same fact as
+ *  a missing one. */
+const storedAppearanceSchema = z
+  .object({
+    font: z.string().optional().catch(undefined),
+    size: z.string().optional().catch(undefined),
+    leading: z.string().optional().catch(undefined),
+    measure: z.string().optional().catch(undefined),
+    accent: z.string().optional().catch(undefined),
+  })
+  .catch({});
+
+/** The option table is each axis's vocabulary: a value outside it reads as the
+ *  default rather than reaching the document unrecognized. */
 function pick<Value extends string, Css>(
   options: readonly Option<Value, Css>[],
-  raw: unknown,
+  raw: string | undefined,
   fallback: Value,
 ): Value {
   return options.find((option) => option.value === raw)?.value ?? fallback;
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
-/** Parse at the boundary: a stored record is user-writable data, so every axis
- *  falls back to its default rather than reaching the document unrecognized. */
-export function parseAppearance(raw: unknown): Appearance {
-  const fields: Record<string, unknown> = isRecord(raw) ? raw : {};
-  return {
-    font: pick(EDITOR_FONTS, fields["font"], APPEARANCE_DEFAULTS.font),
-    size: pick(EDITOR_SIZES, fields["size"], APPEARANCE_DEFAULTS.size),
-    leading: pick(EDITOR_LEADINGS, fields["leading"], APPEARANCE_DEFAULTS.leading),
-    measure: pick(EDITOR_MEASURES, fields["measure"], APPEARANCE_DEFAULTS.measure),
-    accent: pick(EDITOR_ACCENTS, fields["accent"], APPEARANCE_DEFAULTS.accent),
-  };
-}
+/** Parse at the boundary: a stored record is user-writable data. */
+export const appearanceSchema = storedAppearanceSchema.transform(
+  (stored): Appearance => ({
+    font: pick(EDITOR_FONTS, stored.font, APPEARANCE_DEFAULTS.font),
+    size: pick(EDITOR_SIZES, stored.size, APPEARANCE_DEFAULTS.size),
+    leading: pick(EDITOR_LEADINGS, stored.leading, APPEARANCE_DEFAULTS.leading),
+    measure: pick(EDITOR_MEASURES, stored.measure, APPEARANCE_DEFAULTS.measure),
+    accent: pick(EDITOR_ACCENTS, stored.accent, APPEARANCE_DEFAULTS.accent),
+  }),
+);
 
 function cssOf<Value extends string, Css>(
   options: readonly Option<Value, Css>[],

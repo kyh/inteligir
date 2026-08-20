@@ -17,6 +17,7 @@
 import { describe, expect, it } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
+import { asMapping, isText, parseJsonSource, type JsonValue } from "./json-source";
 
 const PACKAGE_ROOT = path.resolve(import.meta.dirname, "../..");
 const COMPONENTS_DIR = path.join(PACKAGE_ROOT, "src", "components");
@@ -27,25 +28,27 @@ type ProvenanceEntry =
   | { origin: "registry"; item: string; sha256: string }
   | { origin: "local"; sha256: string };
 
+/** Which registry preset the components were pulled from. */
+interface RegistryIdentity {
+  style: string;
+  baseColor: string;
+}
+
 type Provenance = {
-  registry: { style: string; baseColor: string };
+  registry: RegistryIdentity;
   components: Record<string, ProvenanceEntry>;
 };
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
 const SHA256 = /^[\da-f]{64}$/;
 
-function parseEntry(name: string, value: unknown): ProvenanceEntry {
-  const fields = isRecord(value) ? value : {};
+function parseEntry(name: string, value: JsonValue | undefined): ProvenanceEntry {
+  const fields = asMapping(value) ?? {};
   const { origin, item, sha256 } = fields;
-  if (typeof sha256 !== "string" || !SHA256.test(sha256)) {
+  if (!isText(sha256) || !SHA256.test(sha256)) {
     throw new Error(`components.provenance.json: "${name}" has no valid sha256`);
   }
   if (origin === "local") return { origin: "local", sha256 };
-  if (origin === "registry" && typeof item === "string") {
+  if (origin === "registry" && isText(item)) {
     return { origin: "registry", item, sha256 };
   }
   throw new Error(
@@ -56,29 +59,32 @@ function parseEntry(name: string, value: unknown): ProvenanceEntry {
 /** Parse at the boundary: the manifest is generated data on disk, so the test
  * refuses a shape it cannot reason about rather than reading through `any`. */
 function parseProvenance(raw: string): Provenance {
-  const value: unknown = JSON.parse(raw);
-  if (!isRecord(value) || !isRecord(value.registry) || !isRecord(value.components)) {
+  const value = asMapping(parseJsonSource(raw));
+  const registry = asMapping(value?.["registry"]);
+  const componentsSource = asMapping(value?.["components"]);
+  if (!registry || !componentsSource) {
     throw new Error("components.provenance.json: expected { registry, components }");
   }
-  const { style, baseColor } = value.registry;
-  if (typeof style !== "string" || typeof baseColor !== "string") {
+  const { style, baseColor } = registry;
+  if (!isText(style) || !isText(baseColor)) {
     throw new Error("components.provenance.json: registry needs a string style and baseColor");
   }
   const components: Record<string, ProvenanceEntry> = {};
-  for (const [name, entry] of Object.entries(value.components)) {
+  for (const [name, entry] of Object.entries(componentsSource)) {
     components[name] = parseEntry(name, entry);
   }
   return { registry: { style, baseColor }, components };
 }
 
-function parseShadcnConfig(raw: string): { style: string; baseColor: string } {
-  const value: unknown = JSON.parse(raw);
-  if (!isRecord(value) || !isRecord(value.tailwind)) {
+function parseShadcnConfig(raw: string): RegistryIdentity {
+  const value = asMapping(parseJsonSource(raw));
+  const tailwind = asMapping(value?.["tailwind"]);
+  if (!value || !tailwind) {
     throw new Error("components.json: expected { style, tailwind }");
   }
   const { style } = value;
-  const { baseColor } = value.tailwind;
-  if (typeof style !== "string" || typeof baseColor !== "string") {
+  const { baseColor } = tailwind;
+  if (!isText(style) || !isText(baseColor)) {
     throw new Error("components.json: expected string style and tailwind.baseColor");
   }
   return { style, baseColor };

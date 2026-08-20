@@ -17,6 +17,7 @@ import {
   syncPingSchema,
 } from "@repo/cloud-contract/ws";
 import type { CloudSocket, CloudSocketOpener } from "./cloud-client";
+import { z } from "zod";
 
 /** The client keepalive cadence. The server answers it from the runtime's
  *  auto-response table without waking the hibernated object, so this costs a
@@ -65,12 +66,13 @@ export const openCloudSocket: CloudSocketOpener = (args): CloudSocket => {
   });
 
   socket.addEventListener("message", (event) => {
-    if (typeof event.data !== "string") {
+    const frame = z.string().safeParse(event.data);
+    if (!frame.success) {
       return;
     }
     let raw: unknown;
     try {
-      raw = JSON.parse(event.data);
+      raw = JSON.parse(frame.data);
     } catch {
       // The keepalive pong is a bare word, not a frame.
       return;

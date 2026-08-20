@@ -18,6 +18,7 @@ import { readDeviceCredential } from "../credential-store";
 import {
   createCloudRuntime,
   type CloudRuntime,
+  type CloudTransport,
   type PairCompletion,
   type SyncedEventSink,
 } from "../sync-runtime";
@@ -119,6 +120,14 @@ function makeHarness(
       writeSyncCursor(db, args.cursor);
     },
   };
+  const transport: CloudTransport = {
+    fetch: options.fetch ?? cloud.fetch,
+    openSocket: (args): CloudSocket => {
+      socketOpens.push(args);
+      return { close: () => undefined };
+    },
+  };
+  if (options.pollIntervalMs !== undefined) transport.pollIntervalMs = options.pollIntervalMs;
   const runtime = createCloudRuntime({
     db,
     dataDir,
@@ -129,14 +138,7 @@ function makeHarness(
       opened.push(url);
       return options.canOpenBrowser ?? true;
     },
-    transport: {
-      fetch: options.fetch ?? cloud.fetch,
-      openSocket: (args): CloudSocket => {
-        socketOpens.push(args);
-        return { close: () => undefined };
-      },
-      ...(options.pollIntervalMs === undefined ? {} : { pollIntervalMs: options.pollIntervalMs }),
-    },
+    transport,
   });
   runtime.attach(sink);
   teardown.push(() => {

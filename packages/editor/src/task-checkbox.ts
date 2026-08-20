@@ -15,14 +15,14 @@ import { foldableSyntaxFacet } from "./vendor/prosemark/lib/fold/core";
 const tick = (stroke: string): string =>
   `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none'%3E%3Cpath d='M3.75 8.5 6.75 11.5 12.25 4.75' stroke='${stroke}' stroke-width='2.25' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`;
 
-const checkboxLightTokens: Record<string, string> = {
+const checkboxLightTokens = {
   "--editor-checkbox-line": "oklch(80% 0.008 260)",
   "--editor-checkbox-line-hover": "oklch(68% 0.012 260)",
   "--editor-checkbox-on": "oklch(44% 0.014 260)",
   "--editor-checkbox-tick": tick("%23ffffff"),
 };
 
-const checkboxDarkTokens: Record<string, string> = {
+const checkboxDarkTokens = {
   "--editor-checkbox-line": "oklch(42% 0.012 260)",
   "--editor-checkbox-line-hover": "oklch(56% 0.016 260)",
   "--editor-checkbox-on": "oklch(80% 0.008 260)",
@@ -88,9 +88,15 @@ class TaskCheckboxWidget extends WidgetType {
   }
 }
 
+/** A half-open document span, in character offsets. */
+interface DocumentRange {
+  from: number;
+  to: number;
+}
+
 // TaskMarker -> Task -> ListItem; the replace range starts at the ListMark so
 // the whole `- [x]` prefix renders as one checkbox.
-const taskReplaceRange = (node: SyntaxNodeRef): { from: number; to: number } => {
+const taskReplaceRange = (node: SyntaxNodeRef): DocumentRange => {
   const listItem = node.node.parent?.parent;
   const listMark = listItem?.getChild("ListMark");
   return { from: listMark ? listMark.from : node.from, to: node.to };

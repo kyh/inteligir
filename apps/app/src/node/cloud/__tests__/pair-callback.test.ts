@@ -10,6 +10,7 @@ import { deviceCredentialPath } from "../credential-store";
 import { pairCallbackUrlFor } from "../pair-callback";
 import { bootTestApp, type BootedTestApp } from "../../__tests__/boot-app";
 import { FakeCloud } from "./fake-cloud";
+import { z } from "zod";
 
 const LOOPBACK_HOST = "127.0.0.1:4664";
 const CODE = "ABCD-EFGH";
@@ -90,14 +91,17 @@ describe("beginning a pairing", () => {
   });
 });
 
+/** Only the field these cases read back off a begin answer. */
+const beginAnswerSchema = z.object({ url: z.string() });
+
 describe("the loopback callback", () => {
   it("pairs, at 0600, and consumes the state it used", async () => {
     const cloud = new FakeCloud();
     const app = await boot(cloud);
 
-    const begun: unknown = await (await begin(app)).json();
-    const url = typeof begun === "object" && begun !== null ? Reflect.get(begun, "url") : null;
-    if (typeof url !== "string") throw new Error("begin answered no url");
+    const begun = beginAnswerSchema.safeParse(await (await begin(app)).json());
+    if (!begun.success) throw new Error("begin answered no url");
+    const url = begun.data.url;
     const state = new URL(url).searchParams.get("state") ?? "";
     approveMint(cloud, url, CODE);
 
@@ -142,9 +146,9 @@ describe("the loopback callback", () => {
   it("refuses a state that is not the one this app is waiting on", async () => {
     const cloud = new FakeCloud();
     const app = await boot(cloud);
-    const begun: unknown = await (await begin(app)).json();
-    const url = typeof begun === "object" && begun !== null ? Reflect.get(begun, "url") : null;
-    if (typeof url !== "string") throw new Error("begin answered no url");
+    const begun = beginAnswerSchema.safeParse(await (await begin(app)).json());
+    if (!begun.success) throw new Error("begin answered no url");
+    const url = begun.data.url;
 
     const wrong = await app.composed.app.request(callbackFor(url, CODE, "f".repeat(32)));
     expect(wrong.status).toBe(400);

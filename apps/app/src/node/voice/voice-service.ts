@@ -26,6 +26,7 @@ import {
   modelFilePath,
   ModelDownloadError,
   removeModel,
+  type DownloadModelArgs,
 } from "./model-store";
 import { runVoiceWorker } from "./voice-worker-host";
 
@@ -150,15 +151,16 @@ export class WhisperVoiceService implements VoiceService {
     // request timeout worth having.
     void (async () => {
       try {
-        await downloadModel({
+        const download: DownloadModelArgs = {
           modelDir: this.#modelDir,
           spec: VOICE_MODEL,
           signal: inFlight.controller.signal,
           onProgress: (receivedBytes) => {
             inFlight.receivedBytes = receivedBytes;
           },
-          ...(this.#fetchImpl === undefined ? {} : { fetchImpl: this.#fetchImpl }),
-        });
+        };
+        if (this.#fetchImpl !== undefined) download.fetchImpl = this.#fetchImpl;
+        await downloadModel(download);
         // Only if THIS download is still the current one: a `remove` racing it
         // already aborted and cleared, and warming a model it just deleted
         // would report `preparing` for a file that is gone.

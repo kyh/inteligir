@@ -36,6 +36,8 @@
 // `loadAll()` (the port's one-shot contract) is that same cursor, drained.
 // ---------------------------------------------------------------------------
 
+import { z } from "zod";
+
 import type { SearchResult } from "./knowledge-index";
 import type { KnowledgeStore, StoredDocRow } from "./knowledge-store";
 import { PROJECTION_VERSION } from "./projection";
@@ -51,7 +53,7 @@ export const KNOWLEDGE_SCHEMA_VERSION = 11;
 /** What the store binds/reads. SQLite NULL/REAL/INTEGER/TEXT — no blobs. */
 type SqlValue = null | number | string;
 
-export type SqlRow = Record<string, unknown>;
+export type SqlRow = Record<string, SqlValue>;
 
 /** The per-platform SQLite binding. Implementations own the file/instance
  * lifecycle; the store owns every statement that runs through it.
@@ -252,14 +254,14 @@ function renderFtsMatch(plan: SearchQueryPlan): string {
 // ---- Row parsing (SQL boundary) ------------------------------------------------
 
 function columnNumber(row: SqlRow, key: string): number {
-  const value = row[key];
-  if (typeof value === "number") return value;
+  const value = z.number().safeParse(row[key]);
+  if (value.success) return value.data;
   throw new Error(`knowledge-store: column ${key} is not a number`);
 }
 
 function columnString(row: SqlRow, key: string): string {
-  const value = row[key];
-  if (typeof value === "string") return value;
+  const value = z.string().safeParse(row[key]);
+  if (value.success) return value.data;
   throw new Error(`knowledge-store: column ${key} is not text`);
 }
 
@@ -573,6 +575,6 @@ export function createSqlKnowledgeStore(driver: SqlDriver, vaultRoot: string): S
   };
 }
 
-function messageOf(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
+function messageOf(cause: unknown): string {
+  return cause instanceof Error ? cause.message : String(cause);
 }

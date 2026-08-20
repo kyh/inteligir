@@ -50,20 +50,24 @@ function isValueFlag(token: string): token is ValueFlag {
   return Object.hasOwn(VALUE_FLAGS, token);
 }
 
-function parsePort(raw: string): number | { error: string } {
+/** A flag's value, or the refusal to print instead. Tagged, so the caller
+ *  branches on the outcome rather than on the value's representation. */
+type FlagValue<T> = { ok: true; value: T } | { ok: false; error: string };
+
+function parsePort(raw: string): FlagValue<number> {
   const port = Number(raw);
   if (String(port) !== raw || !Number.isInteger(port) || port < 1 || port > 65_535) {
-    return { error: `--port must be a valid TCP port (got "${raw}")` };
+    return { ok: false, error: `--port must be a valid TCP port (got "${raw}")` };
   }
-  return port;
+  return { ok: true, value: port };
 }
 
-function parseNonEmpty(flag: string, raw: string): string | { error: string } {
+function parseNonEmpty(flag: string, raw: string): FlagValue<string> {
   const trimmed = raw.trim();
   if (trimmed.length === 0) {
-    return { error: `${flag} must not be empty` };
+    return { ok: false, error: `${flag} must not be empty` };
   }
-  return trimmed;
+  return { ok: true, value: trimmed };
 }
 
 /** `argv` is the arguments only — slice off the node executable and the entry
@@ -116,20 +120,28 @@ export function parseLauncherArgs(argv: readonly string[]): LauncherCommand {
     const key = VALUE_FLAGS[flag];
     if (key === "port") {
       const parsed = parsePort(raw);
-      if (typeof parsed !== "number") {
+      if (!parsed.ok) {
         return { kind: "error", message: parsed.error };
       }
-      options.port = parsed;
+      options.port = parsed.value;
       continue;
     }
     const parsed = parseNonEmpty(flag, raw);
-    if (typeof parsed !== "string") {
+    if (!parsed.ok) {
       return { kind: "error", message: parsed.error };
     }
-    options[key] = parsed;
+    options[key] = parsed.value;
   }
 
   return { kind: "boot", options };
+}
+
+/** The INTELIGIR_* variables the launcher sets; an option left at its default
+ *  contributes no key, so the app's own resolution still decides it. */
+export interface LauncherEnv {
+  INTELIGIR_PORT?: string;
+  INTELIGIR_DATA_DIR?: string;
+  INTELIGIR_VAULT_DIR?: string;
 }
 
 export interface ResolveLauncherEnvArgs {
@@ -147,8 +159,8 @@ export interface ResolveLauncherEnvArgs {
  * the app's own config layer expands it, and expanding it twice is how a
  * literal `~` directory gets created.
  */
-export function resolveLauncherEnv(args: ResolveLauncherEnvArgs): Record<string, string> {
-  const env: Record<string, string> = {};
+export function resolveLauncherEnv(args: ResolveLauncherEnvArgs): LauncherEnv {
+  const env: LauncherEnv = {};
   if (args.options.port !== null) {
     env.INTELIGIR_PORT = String(args.options.port);
   }

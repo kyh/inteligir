@@ -21,13 +21,13 @@ export type ParcelWatcherError = Parameters<ParcelWatcherCallback>[0];
 export interface ParcelWatcherBackend {
   subscribe(
     dir: string,
-    callback: (error: ParcelWatcherError, events: ParcelWatcherEventBatch) => unknown,
+    callback: (error: ParcelWatcherError, events: ParcelWatcherEventBatch) => void,
     opts?: ParcelWatcherSubscribeOptions,
   ): Promise<ParcelAsyncSubscription>;
 }
 
-export function toWatchErrorMessage(error: unknown): string {
-  return error instanceof Error && error.message.trim().length > 0
-    ? error.message
+export function toWatchErrorMessage(cause: unknown): string {
+  return cause instanceof Error && cause.message.trim().length > 0
+    ? cause.message
     : "Unknown watch error";
 }

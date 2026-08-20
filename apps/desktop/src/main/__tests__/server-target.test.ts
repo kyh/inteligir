@@ -29,8 +29,14 @@ function scratchHome(): string {
   return dir;
 }
 
-/** The managed config the app reads from `<dataDir>/config.json`. */
-function writeManagedConfig(dataDir: string, config: Record<string, unknown>): void {
+/** The managed config the app reads from `<dataDir>/config.json` — only the
+ *  two fields these cases pin. */
+interface ManagedConfig {
+  port?: number;
+  vaultDir?: string;
+}
+
+function writeManagedConfig(dataDir: string, config: ManagedConfig): void {
   mkdirSync(dataDir, { recursive: true });
   writeFileSync(join(dataDir, "config.json"), JSON.stringify(config), "utf8");
 }

@@ -13,11 +13,8 @@ import {
   type ProviderRawEventDescription,
   type ProviderVisibilityMetadata,
 } from "../provider-visibility.js";
-import {
-  getRecordProperty,
-  getStringProperty,
-  isRecord,
-} from "../shared/provider-visibility-helpers.js";
+import { getRecordProperty, getStringProperty } from "../shared/provider-visibility-helpers.js";
+import { jsonObjectSchema } from "../vocabulary/json-value.js";
 
 type CodexServerNotificationMethod = keyof typeof CODEX_SERVER_NOTIFICATION_METHODS;
 
@@ -268,8 +265,9 @@ function describeParsedCodexRawEvent(event: CodexRawEvent): ProviderRawEventDesc
         return { kind: event.method, coverage: "noise" };
       }
       if (event.method === "item/commandExecution/terminalInteraction") {
-        if (isRecord(event.params)) {
-          const stdin = getStringProperty(event.params, "stdin");
+        const interaction = jsonObjectSchema.safeParse(event.params);
+        if (interaction.success) {
+          const stdin = getStringProperty(interaction.data, "stdin");
           if (stdin !== undefined && stdin.length === 0) {
             return { kind: event.method, coverage: "noise" };
           }
@@ -290,10 +288,11 @@ function describeParsedCodexRawEvent(event: CodexRawEvent): ProviderRawEventDesc
 }
 
 function isCodexUserMessageItemEvent(event: CodexNotificationRawEvent): boolean {
-  if (!isRecord(event.params)) {
+  const params = jsonObjectSchema.safeParse(event.params);
+  if (!params.success) {
     return false;
   }
-  const item = getRecordProperty(event.params, "item");
+  const item = getRecordProperty(params.data, "item");
   return item ? getStringProperty(item, "type") === "userMessage" : false;
 }
 

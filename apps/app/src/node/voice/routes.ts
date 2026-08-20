@@ -21,15 +21,15 @@ type WriteRefusal =
   | { kind: "unavailable"; message: string }
   | { kind: "transcription"; message: string };
 
-function refusalFor(error: unknown): WriteRefusal | null {
-  if (error instanceof VoiceBusyError) {
-    return { kind: "busy", message: error.message };
+function refusalFor(cause: unknown): WriteRefusal | null {
+  if (cause instanceof VoiceBusyError) {
+    return { kind: "busy", message: cause.message };
   }
-  if (error instanceof VoiceUnavailableError) {
-    return { kind: "unavailable", message: error.message };
+  if (cause instanceof VoiceUnavailableError) {
+    return { kind: "unavailable", message: cause.message };
   }
-  if (error instanceof VoiceTranscriptionError) {
-    return { kind: "transcription", message: error.message };
+  if (cause instanceof VoiceTranscriptionError) {
+    return { kind: "transcription", message: cause.message };
   }
   return null;
 }

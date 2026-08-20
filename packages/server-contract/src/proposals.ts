@@ -113,16 +113,16 @@ export const proposalIdQuerySchema = z.object({ proposalId: z.string().min(1) })
 export type ProposalIdQuery = z.infer<typeof proposalIdQuerySchema>;
 
 /** `hunkIndex` omitted means the whole proposal. */
-const proposalVerbShape = {
+const proposalVerbFields = {
   proposalId: z.string().min(1),
   expectedRevision: z.number().int().min(1),
   hunkIndex: z.number().int().min(0).optional(),
 };
 
-export const acceptProposalRequestSchema = z.object(proposalVerbShape).strict();
+export const acceptProposalRequestSchema = z.object(proposalVerbFields).strict();
 export type AcceptProposalRequest = z.infer<typeof acceptProposalRequestSchema>;
 
-export const rejectProposalRequestSchema = z.object(proposalVerbShape).strict();
+export const rejectProposalRequestSchema = z.object(proposalVerbFields).strict();
 export type RejectProposalRequest = z.infer<typeof rejectProposalRequestSchema>;
 
 export interface ResolveProposalResponse {

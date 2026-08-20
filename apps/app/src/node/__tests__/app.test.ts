@@ -12,11 +12,16 @@ import {
   systemStatusResponseSchema,
 } from "@repo/server-contract/routes";
 import { createApiClient } from "@repo/server-contract/client";
-import { serverMessageLenientSchema } from "@repo/server-contract/notifications";
+import {
+  serverMessageLenientSchema,
+  type ServerMessage,
+} from "@repo/server-contract/notifications";
 import { afterEach, describe, expect, it } from "vitest";
+import { z } from "zod";
 import { type AppFallback } from "../app";
 import { newIdentityChallenge, verifyIdentityProof } from "../instance-identity";
 import { bootTestApp } from "./boot-app";
+import { boundAddressSchema } from "./bound-address";
 import { makeTempDir } from "./temp-dir";
 
 const cleanups: Array<() => void | Promise<void>> = [];
@@ -32,7 +37,7 @@ afterEach(async () => {
  *  nonce it was handed, which is the whole of what this layer owes it: the
  *  document is the entry's to render, per request, under a nonce the policy
  *  header will name. */
-function makeProdFallback(): { clientDir: string; fallback: AppFallback } {
+function makeProdFallback() {
   const clientDir = makeTempDir("inteligir-client-test-");
   return {
     clientDir,
@@ -41,7 +46,7 @@ function makeProdFallback(): { clientDir: string; fallback: AppFallback } {
       clientDir,
       startFetch: (_request, options) =>
         Promise.resolve(new Response(`start nonce=${options.context.nonce}`, { status: 200 })),
-    },
+    } satisfies AppFallback,
   };
 }
 
@@ -327,10 +332,7 @@ describe("the browser-origin guard", () => {
     if (server.address() === null) {
       await new Promise<void>((resolve) => server.once("listening", resolve));
     }
-    const address = server.address();
-    if (address === null || typeof address === "string") {
-      throw new Error("expected a bound AddressInfo");
-    }
+    const address = boundAddressSchema.parse(server.address());
 
     const status = await new Promise<number | undefined>((resolve, reject) => {
       const request = httpRequest({
@@ -383,10 +385,7 @@ describe("the real socket upgrade", () => {
     if (server.address() === null) {
       await new Promise<void>((resolve) => server.once("listening", resolve));
     }
-    const address = server.address();
-    if (address === null || typeof address === "string") {
-      throw new Error("expected a bound AddressInfo");
-    }
+    const address = boundAddressSchema.parse(server.address());
     const baseUrl = `http://127.0.0.1:${address.port}`;
 
     // The typed hc client against the live server — contract → handler → client.
@@ -400,16 +399,17 @@ describe("the real socket upgrade", () => {
     const socket = new WebSocket(`ws://127.0.0.1:${address.port}/ws`);
     cleanups.push(() => socket.close());
 
-    const frames: unknown[] = [];
+    const frames: ServerMessage[] = [];
     let announceFrame: (() => void) | undefined;
     socket.addEventListener("message", (event) => {
-      if (typeof event.data === "string") {
-        frames.push(JSON.parse(event.data));
+      const text = z.string().safeParse(event.data);
+      if (text.success) {
+        frames.push(serverMessageLenientSchema.parse(JSON.parse(text.data)));
       }
       announceFrame?.();
     });
 
-    async function nextFrame(): Promise<unknown> {
+    async function nextFrame(): Promise<ServerMessage> {
       const deadline = Date.now() + 5_000;
       while (frames.length === 0) {
         if (Date.now() > deadline) {
@@ -420,7 +420,11 @@ describe("the real socket upgrade", () => {
           setTimeout(resolve, 50);
         });
       }
-      return frames.shift();
+      const frame = frames.shift();
+      if (frame === undefined) {
+        throw new Error("timed out waiting for a ws frame");
+      }
+      return frame;
     }
 
     await new Promise<void>((resolve, reject) => {
@@ -428,13 +432,13 @@ describe("the real socket upgrade", () => {
       socket.addEventListener("error", () => reject(new Error("ws error")));
     });
 
-    const hello = serverMessageLenientSchema.parse(await nextFrame());
+    const hello = await nextFrame();
     expect(hello).toEqual({ type: "hello", version: "0.1.0-test" });
 
     socket.send(JSON.stringify({ type: "subscribe", target: { kind: "doc-detail", docId: "d1" } }));
     // Subscription is processed on receipt; poll until the broadcast lands.
     const deadline = Date.now() + 5_000;
-    let changed: unknown;
+    let changed: ServerMessage | undefined;
     while (changed === undefined) {
       if (Date.now() > deadline) {
         throw new Error("timed out waiting for the changed frame");
@@ -446,7 +450,7 @@ describe("the real socket upgrade", () => {
       }
       await new Promise((resolve) => setTimeout(resolve, 25));
     }
-    expect(serverMessageLenientSchema.parse(changed)).toEqual({
+    expect(changed).toEqual({
       type: "changed",
       entity: "doc",
       id: "d1",

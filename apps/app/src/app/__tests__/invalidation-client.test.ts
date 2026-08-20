@@ -1,9 +1,20 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type {
-  ChangedMessage,
-  RealtimeSubscriptionTarget,
+import {
+  clientMessageSchema,
+  type ChangedMessage,
+  type ClientMessage,
+  type RealtimeSubscriptionTarget,
 } from "@repo/server-contract/notifications";
 import { InvalidationClient, type InvalidationSocket } from "../invalidation-client";
+
+/** A frame as it arrives off the wire: this client's own vocabulary, plus
+ *  whatever a newer server sends that it does not yet understand. */
+interface WireFrame {
+  type: string;
+  entity?: string;
+  version?: string;
+  changes?: string[];
+}
 
 class FakeSocket implements InvalidationSocket {
   sent: string[] = [];
@@ -24,7 +35,7 @@ class FakeSocket implements InvalidationSocket {
     this.onOpen?.();
   }
 
-  receive(frame: unknown): void {
+  receive(frame: WireFrame): void {
     this.onMessage?.({ data: JSON.stringify(frame) });
   }
 
@@ -32,8 +43,8 @@ class FakeSocket implements InvalidationSocket {
     this.onClose?.();
   }
 
-  sentFrames(): unknown[] {
-    return this.sent.map((raw): unknown => JSON.parse(raw));
+  sentFrames(): ClientMessage[] {
+    return this.sent.map((raw) => clientMessageSchema.parse(JSON.parse(raw)));
   }
 }
 
@@ -110,15 +121,7 @@ describe("subscriptions", () => {
     h.client.subscribe({ kind: "vault" });
     release();
     release();
-    const unsubscribes = socket
-      ?.sentFrames()
-      .filter(
-        (frame) =>
-          typeof frame === "object" &&
-          frame !== null &&
-          "type" in frame &&
-          frame.type === "unsubscribe",
-      );
+    const unsubscribes = socket?.sentFrames().filter((frame) => frame.type === "unsubscribe");
     expect(unsubscribes).toEqual([]);
   });
 });

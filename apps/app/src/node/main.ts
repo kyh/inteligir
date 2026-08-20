@@ -28,7 +28,7 @@ import {
   type TeardownStepName,
 } from "./shutdown";
 import { redactRemoteUrl } from "./vault/git";
-import { createVaultRuntime } from "./vault/vault-runtime";
+import { createVaultRuntime, type VaultRuntimeArgs } from "./vault/vault-runtime";
 import { WsBus } from "./ws-bus";
 
 interface EntryLayout {
@@ -79,23 +79,26 @@ async function createDevFallback(hmrPort: number): Promise<AppFallback> {
   return { kind: "dev", middlewares: vite.middlewares };
 }
 
-function extractStartFetch(
-  entryModule: unknown,
+/** What the built server entry must export. `z.custom` passes the ORIGINAL
+ *  object through, so `fetch` stays bound to the default export that owns it. */
+const startEntrySchema = z.object({
+  default: z.custom<StartEntry>(
+    (value) =>
+      z.looseObject({ fetch: z.custom((member) => member instanceof Function) }).safeParse(value)
+        .success,
+  ),
+});
+
+interface StartEntry {
+  fetch(request: Request, options: StartFetchOptions): Promise<Response> | Response;
+}
+
+function startFetchOf(
+  entry: StartEntry,
   entryPath: string,
 ): (request: Request, options: StartFetchOptions) => Promise<Response> {
-  if (typeof entryModule !== "object" || entryModule === null || !("default" in entryModule)) {
-    throw new Error(`${entryPath} has no default export`);
-  }
-  const entry = entryModule.default;
-  if (typeof entry !== "object" || entry === null || !("fetch" in entry)) {
-    throw new Error(`${entryPath} default export has no fetch member`);
-  }
-  const fetchMember = entry.fetch;
-  if (typeof fetchMember !== "function") {
-    throw new Error(`${entryPath} default.fetch is not a function`);
-  }
   return async (request, options) => {
-    const response: unknown = await fetchMember.call(entry, request, options);
+    const response: unknown = await entry.fetch(request, options);
     if (!(response instanceof Response)) {
       throw new Error(`${entryPath} fetch did not return a Response`);
     }
@@ -106,11 +109,14 @@ function extractStartFetch(
 async function createProdFallback(): Promise<AppFallback> {
   const clientDir = fileURLToPath(new URL("dist/client", appDirUrl));
   const entryPath = fileURLToPath(new URL("dist/server/server.js", appDirUrl));
-  const entryModule: unknown = await import(pathToFileURL(entryPath).href);
+  const entryModule = startEntrySchema.safeParse(await import(pathToFileURL(entryPath).href));
+  if (!entryModule.success) {
+    throw new Error(`${entryPath} has no default export with a fetch member`);
+  }
   return {
     kind: "prod",
     clientDir,
-    startFetch: extractStartFetch(entryModule, entryPath),
+    startFetch: startFetchOf(entryModule.data.default, entryPath),
   };
 }
 
@@ -160,16 +166,17 @@ async function boot(): Promise<{ serverUrl: string }> {
   // the hook late-binds; changes before it exists are covered by the boot
   // reconcile the first pass always runs.
   let knowledgeRef: KnowledgeRuntime | null = null;
-  const vault = await createVaultRuntime({
+  const vaultArgs: VaultRuntimeArgs = {
     vaultDir: config.vaultDir,
     vaultRemote: config.vaultRemote,
     dataDir: config.dataDir,
     notifier: bus,
     onFilesChanged: (change) => knowledgeRef?.noteVaultChange(change),
-    ...(config.vaultSyncIntervalMs === undefined
-      ? {}
-      : { syncIntervalMs: config.vaultSyncIntervalMs }),
-  });
+  };
+  if (config.vaultSyncIntervalMs !== undefined) {
+    vaultArgs.syncIntervalMs = config.vaultSyncIntervalMs;
+  }
+  const vault = await createVaultRuntime(vaultArgs);
   registerTeardown("vault", () => vault.dispose());
   const knowledge = createKnowledgeRuntime({
     dataDir: config.dataDir,
@@ -277,9 +284,9 @@ installShutdownSignals({
   },
 });
 
-const booted = await boot().catch(async (error: unknown) => {
+const booted = await boot().catch(async (cause: unknown) => {
   console.error(
-    `inteligir failed to start: ${error instanceof Error ? (error.stack ?? error.message) : String(error)}`,
+    `inteligir failed to start: ${cause instanceof Error ? (cause.stack ?? cause.message) : String(cause)}`,
   );
   // Whatever came up must come down, or the process lives on inside the
   // watcher fork's IPC channel with nothing listening.

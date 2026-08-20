@@ -10,6 +10,12 @@ import { setThreadChips, threadChipsExtension } from "../thread-chip";
 
 const { scans } = vi.hoisted(() => ({ scans: { count: 0 } }));
 
+// The assertion is that NOTHING on the keystroke path reaches
+// `findThreadMarkers`, transitively included. Counting through the module is
+// the only vantage that sees a call the field makes indirectly: injecting the
+// scanner as a seam would mean the field takes it as a dependency, which is
+// the coupling this test exists to forbid, and would make the count vacuous.
+// oxlint-disable-next-line anti-slop/no-module-mocking
 vi.mock("@repo/notes/markdown/thread-marker", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@repo/notes/markdown/thread-marker")>();
   return {

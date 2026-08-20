@@ -10,7 +10,7 @@
 // it twelfth" — which is the difference between what an embedding buys and
 // what a reranker buys.
 
-export const EVAL_VAULT: Readonly<Record<string, string>> = {
+export const EVAL_VAULT = {
   "health/burnout.md": `# Burnout
 
 I have been exhausted lately and cannot focus on anything at work. Every small

@@ -29,7 +29,7 @@ import {
   type DelegationDraft,
   type ViewContextSource,
 } from "./chat-model";
-import { createChatThreadResolver, sendToThread } from "./chat-service";
+import { createChatThreadResolver, sendToThread, type SendToThreadArgs } from "./chat-service";
 import { TimelineRowView } from "./timeline-rows";
 import { useThreadDetail, useThreads, useThreadTimeline } from "./thread-hooks";
 
@@ -170,12 +170,15 @@ export function ChatDock({
           threadId = (await resolveChatThread()).id;
           setChatThreadId(threadId);
         }
-        const outcome = await sendToThread(api, {
+        const send: SendToThreadArgs = {
           threadId,
           text: trimmed,
           activeTurnId: detailQuery.data?.thread.activeTurnId ?? null,
-          ...(viewContext === null ? {} : { viewContext }),
-        });
+        };
+        if (viewContext !== null) {
+          send.viewContext = viewContext;
+        }
+        const outcome = await sendToThread(api, send);
         if (outcome.kind === "refused") {
           toast.error(outcome.message);
           return;

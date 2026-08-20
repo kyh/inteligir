@@ -17,7 +17,7 @@ export type BootMode = "dev" | "prod";
 
 const HEALTH_POLL_INTERVAL_MS = 250;
 /** Dev pays a vite cold start; prod is a plain node boot. */
-const HEALTH_DEADLINE_MS: Record<BootMode, number> = { dev: 120_000, prod: 30_000 };
+const HEALTH_DEADLINE_MS = { dev: 120_000, prod: 30_000 } satisfies Record<BootMode, number>;
 const STOP_SIGTERM_GRACE_MS = 5_000;
 const STOP_SIGKILL_GRACE_MS = 2_000;
 const KILL_POLL_INTERVAL_MS = 100;
@@ -126,7 +126,13 @@ function buildChildEnv(
   return env;
 }
 
-function resolveCommand(mode: BootMode, appDir: string): { file: string; argv: string[] } {
+/** The executable and argv one boot mode spawns. */
+interface LaunchCommand {
+  file: string;
+  argv: string[];
+}
+
+function resolveCommand(mode: BootMode, appDir: string): LaunchCommand {
   if (mode === "dev") {
     return {
       file: join(appDir, "node_modules", ".bin", "tsx"),
@@ -192,15 +198,21 @@ type AttemptResult =
   /** The reserved port was taken between reserve and bind; retry fresh. */
   { kind: "port-lost"; tail: string } | { kind: "ready"; instance: AppInstance };
 
+/** A spawned child, paired with the liveness flag its exit handlers set. */
+interface SpawnedAttempt {
+  instance: AppInstance;
+  exited: () => boolean;
+}
+
 function spawnAttempt(
   args: LaunchAppArgs,
-  command: { file: string; argv: string[] },
+  command: LaunchCommand,
   appDir: string,
   dataDir: string,
   vaultDir: string,
   port: number,
   hmrPort: number | undefined,
-): { instance: AppInstance; exited: () => boolean } {
+): SpawnedAttempt {
   const baseUrl = `http://127.0.0.1:${port}`;
 
   // Its own process group, so stop() can kill the whole tree — the dev entry
@@ -303,7 +315,7 @@ function spawnAttempt(
 
 async function attemptLaunch(
   args: LaunchAppArgs,
-  command: { file: string; argv: string[] },
+  command: LaunchCommand,
   appDir: string,
   dataDir: string,
   vaultDir: string,

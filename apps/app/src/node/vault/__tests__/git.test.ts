@@ -3,7 +3,13 @@ import { readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { createGitEngine, ensureVaultRepo, runGit, type GitEngine } from "../git";
+import {
+  createGitEngine,
+  ensureVaultRepo,
+  runGit,
+  type GitEngine,
+  type GitEngineArgs,
+} from "../git";
 import { hermeticGitEnv } from "./git-test-env";
 
 const cleanups: Array<() => void | Promise<void>> = [];
@@ -36,16 +42,17 @@ async function makeEngine(args: {
   const root = scratchDir("inteligir-git-vault-");
   await ensureVaultRepo({ root, env });
   let statusChanges = 0;
-  const engine = createGitEngine({
+  const engineArgs: GitEngineArgs = {
     root,
     remoteUrl: args.remoteUrl,
     env,
     onStatusChanged: () => {
       statusChanges += 1;
     },
-    ...(args.quietMs === undefined ? {} : { quietMs: args.quietMs }),
-    ...(args.maxWaitMs === undefined ? {} : { maxWaitMs: args.maxWaitMs }),
-  });
+  };
+  if (args.quietMs !== undefined) engineArgs.quietMs = args.quietMs;
+  if (args.maxWaitMs !== undefined) engineArgs.maxWaitMs = args.maxWaitMs;
+  const engine = createGitEngine(engineArgs);
   cleanups.push(() => engine.dispose());
   return { root, engine, statusChanges: () => statusChanges };
 }

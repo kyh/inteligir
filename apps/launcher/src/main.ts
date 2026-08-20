@@ -13,6 +13,7 @@
 
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { z } from "zod";
 import { LAUNCHER_USAGE, parseLauncherArgs, resolveLauncherEnv } from "./args";
 import { openBrowser } from "./open-browser";
 
@@ -23,24 +24,34 @@ const distUrl = new URL("./", import.meta.url);
 const appEntryUrl = new URL("apps/app/dist-node/main.js", distUrl);
 const packageRootUrl = new URL("../", distUrl);
 
-/** The one string each of the two JSON-ish inputs must carry. Hand-narrowed
- *  rather than parsed with a schema library: this bundle is what `npx` fetches
- *  before anything is running, and a validator would be most of its bytes. */
-function requiredString(source: unknown, key: string, origin: string): string {
-  if (typeof source !== "object" || source === null || !(key in source)) {
+/** A value from outside this bundle, before anything has read it: the parsed
+ *  package.json, and the app bundle's module namespace. */
+type ExternalValue = NonNullable<unknown>;
+
+/** Any keyed source, with its values still unread — the two inputs below are
+ *  shaped differently (a JSON object, a module namespace) and only the one key
+ *  each is asked for. */
+const keyedSource = z.record(z.string(), z.unknown());
+
+/** The one string each of the two JSON-ish inputs must carry. A missing key
+ *  and a key holding the wrong thing are different failures: the first means
+ *  the file or bundle is not what it claims to be, the second that it is
+ *  damaged. */
+function requiredString(source: ExternalValue, key: string, origin: string): string {
+  const fields = keyedSource.safeParse(source);
+  if (!fields.success || !(key in fields.data)) {
     throw new Error(`${origin} has no ${key}`);
   }
-  const value: unknown = Reflect.get(source, key);
-  if (typeof value !== "string" || value.length === 0) {
+  const value = z.string().min(1).safeParse(fields.data[key]);
+  if (!value.success) {
     throw new Error(`${origin}'s ${key} is not a non-empty string`);
   }
-  return value;
+  return value.data;
 }
 
 function readVersion(): string {
   const path = new URL("package.json", packageRootUrl);
-  const raw: unknown = JSON.parse(readFileSync(path, "utf8"));
-  return requiredString(raw, "version", fileURLToPath(path));
+  return requiredString(JSON.parse(readFileSync(path, "utf8")), "version", fileURLToPath(path));
 }
 
 async function boot(): Promise<void> {
@@ -70,7 +81,7 @@ async function boot(): Promise<void> {
       `the app bundle is missing (${fileURLToPath(appEntryUrl)}) — this install is incomplete`,
     );
   }
-  const appModule: unknown = await import(appEntryUrl.href);
+  const appModule = await import(appEntryUrl.href);
   const serverUrl = requiredString(appModule, "serverUrl", fileURLToPath(appEntryUrl));
   console.log(`\n  inteligir is running — ${serverUrl}\n`);
   if (command.options.open) {

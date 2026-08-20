@@ -74,18 +74,19 @@ function build(previous) {
   }
 
   const preset = previous?.registry?.preset;
+  const registry = {
+    url: REGISTRY_URL,
+    // Mirrored from components.json, which is the config the shadcn CLI
+    // actually reads; the test asserts they agree.
+    style: config.style,
+    baseColor: config.tailwind.baseColor,
+  };
+  // Not derivable from anything on disk: hand-written once, carried forward.
+  if (preset !== undefined) registry.preset = preset;
   return {
     manifest: {
       generatedBy: "pnpm --filter @repo/ui provenance",
-      registry: {
-        url: REGISTRY_URL,
-        // Mirrored from components.json, which is the config the shadcn CLI
-        // actually reads; the test asserts they agree.
-        style: config.style,
-        baseColor: config.tailwind.baseColor,
-        // Not derivable from anything on disk: hand-written once, carried forward.
-        ...(preset === undefined ? {} : { preset }),
-      },
+      registry,
       hash: "sha256",
       components,
     },

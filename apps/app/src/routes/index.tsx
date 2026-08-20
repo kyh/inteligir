@@ -4,12 +4,15 @@
 // rides the `note` search param (deep-linkable, back/forward works).
 
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { z } from "zod";
 import { Workspace } from "../app/workspace";
 import { WorkspaceProvider } from "../app/workspace-context";
 
-interface WorkspaceSearch {
-  note?: string;
-}
+/** An empty or non-string `note` is the same as none: the workspace opens
+ *  what it was last on rather than an unnamed document. */
+const workspaceSearchSchema = z.object({
+  note: z.string().min(1).optional().catch(undefined),
+});
 
 export const Route = createFileRoute("/")({
   // This subtree reaches `window` before its first paint (the api client, the
@@ -19,10 +22,7 @@ export const Route = createFileRoute("/")({
   // fills. `spa: { enabled: true }` alone does not arrange that — it
   // prerenders _shell.html and leaves the deployed entry rendering for real.
   ssr: false,
-  validateSearch: (search: Record<string, unknown>): WorkspaceSearch => {
-    const note = search["note"];
-    return typeof note === "string" && note !== "" ? { note } : {};
-  },
+  validateSearch: workspaceSearchSchema,
   component: Index,
 });
 

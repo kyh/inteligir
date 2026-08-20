@@ -20,11 +20,18 @@
 import { mkdirSync, renameSync, rmSync } from "node:fs";
 import { dirname } from "node:path";
 import Database from "better-sqlite3";
-import type { SqlDriver, SqlRow } from "@repo/notes/knowledge/sql-knowledge-store";
+import type { SqlDriver } from "@repo/notes/knowledge/sql-knowledge-store";
+import { z } from "zod";
 import { messageOf } from "./message-of";
 
-function isSqlRow(row: unknown): row is SqlRow {
-  return typeof row === "object" && row !== null;
+// The store binds and reads NULL/REAL/INTEGER/TEXT only, so a row carrying
+// anything else is not one this driver can hand over.
+const sqlRowSchema = z.record(z.string(), z.union([z.null(), z.number(), z.string()]));
+
+/** What the recovery ladder opened, and which backing it settled on. */
+interface OpenedIndexDb {
+  db: Database.Database;
+  backing: "file" | "memory";
 }
 
 const SIDE_SUFFIXES = ["", "-wal", "-shm"] as const;
@@ -76,7 +83,7 @@ export function createSqliteDriver(dbPath: string): SqlDriver {
 
   /** The recovery ladder: file → delete-and-retry → rename-aside-and-retry →
    * memory. Never throws. */
-  function openBestEffort(): { db: Database.Database; backing: "file" | "memory" } {
+  function openBestEffort(): OpenedIndexDb {
     try {
       return { db: openAt(dbPath), backing: "file" };
     } catch (err) {
@@ -123,7 +130,10 @@ export function createSqliteDriver(dbPath: string): SqlDriver {
 
     all(sql, params) {
       const rows: unknown[] = prepared(sql).all(...params);
-      return rows.filter(isSqlRow);
+      return rows.flatMap((row) => {
+        const parsed = sqlRowSchema.safeParse(row);
+        return parsed.success ? [parsed.data] : [];
+      });
     },
 
     reset() {

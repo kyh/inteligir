@@ -10,6 +10,7 @@ import {
   decodeCodexInteractiveRequest,
 } from "../codex/interactive-requests";
 import type { ProviderExecutionContext } from "../provider-adapter";
+import type { JsonObject } from "../vocabulary/json-value";
 
 const workspaceOptions: ProviderExecutionContext = {
   permissionMode: "accept-edits",
@@ -19,7 +20,7 @@ const workspaceOptions: ProviderExecutionContext = {
   envVars: {},
 };
 
-function notification(method: string, params: Record<string, unknown>) {
+function notification(method: string, params: JsonObject) {
   return { jsonrpc: "2.0", method, params };
 }
 

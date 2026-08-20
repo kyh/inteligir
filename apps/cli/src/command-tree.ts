@@ -46,14 +46,14 @@ function subCommandsOf(command: CommandDef): SubCommandsDef | undefined {
   if (value === undefined) {
     return undefined;
   }
-  if (typeof value === "function" || value instanceof Promise) {
+  if (value instanceof Function || value instanceof Promise) {
     return refuseLazy("subCommands");
   }
   return value;
 }
 
 function commandOf(value: SubCommandsDef[string]): CommandDef {
-  if (typeof value === "function" || value instanceof Promise) {
+  if (value instanceof Function || value instanceof Promise) {
     return refuseLazy("a subCommands entry");
   }
   return value;
@@ -64,7 +64,7 @@ export function argsOf(command: CommandDef): ArgsDef {
   if (value === undefined) {
     return {};
   }
-  if (typeof value === "function" || value instanceof Promise) {
+  if (value instanceof Function || value instanceof Promise) {
     return refuseLazy("args");
   }
   return value;
@@ -130,7 +130,7 @@ function declaredFlags(argsDef: ArgsDef): Set<string> {
     names.add(name.replace(/[A-Z]/gu, (letter) => `-${letter.toLowerCase()}`));
     names.add(name.replace(/-(\w)/gu, (_, letter: string) => letter.toUpperCase()));
     const alias = "alias" in def ? def.alias : undefined;
-    for (const one of typeof alias === "string" ? [alias] : (alias ?? [])) {
+    for (const one of alias === undefined ? [] : Array.isArray(alias) ? alias : [alias]) {
       names.add(one);
     }
   }

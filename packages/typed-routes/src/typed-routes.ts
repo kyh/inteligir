@@ -31,10 +31,9 @@
 import type { Context, Hono } from "hono";
 import type { BlankEnv } from "hono/types";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
-import { ZodError, type ZodType } from "zod";
+import { ZodError, ZodType, z } from "zod";
 import type { Endpoint } from "./endpoint";
 import type {
-  AnyRouteRequestDescriptor,
   EndpointFromRouteDescriptor,
   RouteDefinition,
   RouteMethod,
@@ -139,57 +138,34 @@ function validationMessageFromZodError(error: ZodError): string {
   return issue.message;
 }
 
-type LooseHandler = (c: Context, input?: unknown) => HandlerReturn;
+type LooseHandler = (c: Context, input?: z.output<ZodType>) => HandlerReturn;
 type MountableHandler = (c: Context) => HandlerReturn;
 
-/** The registration call sites are typed exhaustively above; these predicates
+/** What the registrars' precise generic handler types erase to at the runtime
+ *  boundary: `never[]` keeps every instantiation assignable without a cast,
+ *  and the contract below re-establishes callability by parsing. */
+type RegisteredHandler = (...args: never[]) => HandlerReturn;
+
+/** The registration call sites are typed exhaustively above; these contracts
  *  re-establish the same facts for the loosely-typed runtime without casts. */
-function isLooseHandler(value: unknown): value is LooseHandler {
-  return typeof value === "function";
-}
+const registeredHandlerContract = z.custom<LooseHandler>((value) => value instanceof Function);
 
-function isZodSchema(value: unknown): value is ZodType {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "parse" in value &&
-    typeof value.parse === "function"
-  );
-}
+const routeSchemaContract = z.custom<ZodType>((value) => value instanceof ZodType);
 
-const ROUTE_METHODS: readonly RouteMethod[] = ["get", "post", "patch", "delete", "put"];
+const routeRequestContract = z.union([
+  z.looseObject({ source: z.literal("none") }),
+  z.looseObject({ source: z.enum(["query", "json"]), schema: routeSchemaContract }),
+]);
 
-function isRouteMethod(value: unknown): value is RouteMethod {
-  return typeof value === "string" && ROUTE_METHODS.some((method) => method === value);
-}
-
-function isRouteRequestDescriptor(value: unknown): value is AnyRouteRequestDescriptor {
-  if (typeof value !== "object" || value === null || !("source" in value)) {
-    return false;
-  }
-  if (value.source === "none") {
-    return true;
-  }
-  if (value.source !== "query" && value.source !== "json") {
-    return false;
-  }
-  return "schema" in value && isZodSchema(value.schema);
-}
-
-function isRouteDefinition(value: unknown): value is RouteDefinition {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "path" in value &&
-    typeof value.path === "string" &&
-    value.path.length > 0 &&
-    "method" in value &&
-    isRouteMethod(value.method) &&
-    "request" in value &&
-    isRouteRequestDescriptor(value.request) &&
-    "response" in value
-  );
-}
+const routeDefinitionContract = z
+  .looseObject({
+    path: z.string().min(1),
+    method: z.enum(["get", "post", "patch", "delete", "put"]),
+    request: routeRequestContract,
+  })
+  // `response` is never read at runtime, so only its presence is checked —
+  // `z.unknown()` would accept an absent key.
+  .refine((definition) => "response" in definition);
 
 interface RegistrarDeps {
   app: Hono;
@@ -249,30 +225,32 @@ function createValidatedHandler(args: {
 function registerRoute(
   deps: RegistrarDeps,
   method: RouteMethod,
-  descriptor: unknown,
-  handler: unknown,
+  descriptor: RouteDefinition,
+  handler: RegisteredHandler,
 ): void {
-  if (!isRouteDefinition(descriptor)) {
+  const definition = routeDefinitionContract.safeParse(descriptor);
+  if (!definition.success) {
     throw new Error(
       "typedRoutes: expected a route definition (path + method + request + response)",
     );
   }
-  if (descriptor.method !== method) {
+  if (definition.data.method !== method) {
     throw new Error(
-      `typedRoutes: route "${descriptor.path}" declares method "${descriptor.method}" but was registered as "${method}"`,
+      `typedRoutes: route "${definition.data.path}" declares method "${definition.data.method}" but was registered as "${method}"`,
     );
   }
-  if (!isLooseHandler(handler)) {
+  const mountable = registeredHandlerContract.safeParse(handler);
+  if (!mountable.success) {
     throw new Error("typedRoutes: expected a handler for the route definition");
   }
-  const request = descriptor.request;
+  const request = definition.data.request;
   if (request.source === "query" || request.source === "json") {
     mount(
       deps.app,
       method,
-      descriptor.path,
+      definition.data.path,
       createValidatedHandler({
-        handler,
+        handler: mountable.data,
         makeError: deps.makeError,
         schema: request.schema,
         source: request.source,
@@ -280,7 +258,7 @@ function registerRoute(
     );
     return;
   }
-  mount(deps.app, method, descriptor.path, handler);
+  mount(deps.app, method, definition.data.path, mountable.data);
 }
 
 export function typedRoutes(app: Hono, options?: TypedRoutesOptions): TypedRoutesRegistrars {
@@ -288,13 +266,15 @@ export function typedRoutes(app: Hono, options?: TypedRoutesOptions): TypedRoute
   const deps: RegistrarDeps = { app, makeError };
 
   return {
-    get: (descriptor: unknown, handler: unknown) => registerRoute(deps, "get", descriptor, handler),
-    post: (descriptor: unknown, handler: unknown) =>
+    get: (descriptor: RouteDefinition, handler: RegisteredHandler) =>
+      registerRoute(deps, "get", descriptor, handler),
+    post: (descriptor: RouteDefinition, handler: RegisteredHandler) =>
       registerRoute(deps, "post", descriptor, handler),
-    patch: (descriptor: unknown, handler: unknown) =>
+    patch: (descriptor: RouteDefinition, handler: RegisteredHandler) =>
       registerRoute(deps, "patch", descriptor, handler),
-    del: (descriptor: unknown, handler: unknown) =>
+    del: (descriptor: RouteDefinition, handler: RegisteredHandler) =>
       registerRoute(deps, "delete", descriptor, handler),
-    put: (descriptor: unknown, handler: unknown) => registerRoute(deps, "put", descriptor, handler),
+    put: (descriptor: RouteDefinition, handler: RegisteredHandler) =>
+      registerRoute(deps, "put", descriptor, handler),
   };
 }

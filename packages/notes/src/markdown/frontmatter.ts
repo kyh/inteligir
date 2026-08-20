@@ -12,9 +12,19 @@
 // ---------------------------------------------------------------------------
 
 import { isMap, isScalar, parse as parseYaml, parseDocument } from "yaml";
+import { z } from "zod";
+
+// A single frontmatter value as the YAML 1.2 core schema yields it. Core has
+// no timestamp tag, so everything is JSON-shaped; the non-JSON stragglers
+// (`.nan`/`.inf`) fail the schema and are treated as absent/unsupported, which
+// is the same "what we can't read we don't guess at" posture as a non-mapping
+// root.
+const yamlValue = z.json();
+type YamlValue = z.infer<typeof yamlValue>;
 
 /** A doc's frontmatter as a parsed top-level mapping. */
-type Properties = Record<string, unknown>;
+const propertiesSchema = z.record(z.string(), yamlValue);
+type Properties = z.infer<typeof propertiesSchema>;
 
 export type SplitDoc = {
   /** Parsed frontmatter mapping. `{}` when there is no frontmatter (or it was
@@ -31,8 +41,15 @@ export type SplitDoc = {
 // The body begins immediately after the closing fence's line terminator.
 const FRONTMATTER_RE = /^---[ \t]*\r?\n(?:([\s\S]*?)\r?\n)?---[ \t]*(?:\r?\n|$)/;
 
-function isPlainRecord(value: unknown): value is Properties {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
+/** Parse yaml source into a top-level mapping; malformed yaml or a
+ * non-mapping root yields `{}`. */
+function parseYamlRecord(source: string): Properties {
+  try {
+    const parsed = propertiesSchema.safeParse(parseYaml(source));
+    return parsed.success ? parsed.data : {};
+  } catch {
+    return {};
+  }
 }
 
 /** The raw yaml source inside a doc's leading frontmatter fences (no fences,
@@ -54,13 +71,7 @@ export function splitFrontmatter(text: string): SplitDoc {
   const match = FRONTMATTER_RE.exec(text);
   if (!match) return { properties: {}, body: text };
   const body = text.slice(match[0].length);
-  let parsed: unknown;
-  try {
-    parsed = parseYaml(match[1] ?? "");
-  } catch {
-    parsed = null;
-  }
-  return { properties: isPlainRecord(parsed) ? parsed : {}, body };
+  return { properties: parseYamlRecord(match[1] ?? ""), body };
 }
 
 // ---------------------------------------------------------------------------
@@ -111,17 +122,23 @@ export type ParsedProperties =
 // than being silently reclassified; the point is byte-safety, not validation.
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
-function isStringArray(value: unknown): value is string[] {
-  return Array.isArray(value) && value.every((item) => typeof item === "string");
-}
-
-function classify(key: string, value: unknown, rawYaml: string): TypedProperty {
-  if (typeof value === "boolean") return { key, type: "checkbox", value };
-  if (typeof value === "number" && Number.isFinite(value)) return { key, type: "number", value };
-  if (typeof value === "string") {
-    return DATE_RE.test(value) ? { key, type: "date", value } : { key, type: "text", value };
+// The branch order is the classification precedence; each zod check replaces
+// a typeof/shape test one-for-one (z.number() already rejects NaN/±Infinity,
+// matching the old Number.isFinite gate).
+function classify(key: string, value: YamlValue, rawYaml: string): TypedProperty {
+  const checkbox = z.boolean().safeParse(value);
+  if (checkbox.success) return { key, type: "checkbox", value: checkbox.data };
+  const number = z.number().safeParse(value);
+  if (number.success) return { key, type: "number", value: number.data };
+  const text = z.string().safeParse(value);
+  if (text.success) {
+    const parsed = text.data;
+    return DATE_RE.test(parsed)
+      ? { key, type: "date", value: parsed }
+      : { key, type: "text", value: parsed };
   }
-  if (isStringArray(value)) return { key, type: "tags", value };
+  const tags = z.array(z.string()).safeParse(value);
+  if (tags.success) return { key, type: "tags", value: tags.data };
   return { key, type: "unsupported", rawYaml };
 }
 
@@ -149,8 +166,10 @@ export function parseProperties(yamlText: string): ParsedProperties {
     // range[0..1] is the value span (excludes the key and trailing node gap).
     const range = valueNode?.range;
     const rawYaml = range ? yamlText.slice(range[0], range[1]).trimEnd() : "";
-    const value = valueNode == null ? null : valueNode.toJSON();
-    properties.push(classify(key, value, rawYaml));
+    const value = yamlValue.safeParse(valueNode == null ? null : valueNode.toJSON());
+    properties.push(
+      value.success ? classify(key, value.data, rawYaml) : { key, type: "unsupported", rawYaml },
+    );
   }
   return { kind: "valid", properties };
 }
@@ -207,22 +226,23 @@ export function addFrontmatterAlias(content: string, alias: string): string | nu
  * @public */
 export function typeNewProperty(key: string, rawValue: string): TypedProperty {
   if (rawValue.trim() === "") return { key, type: "text", value: "" };
-  let value: unknown;
   try {
-    value = parseYaml(rawValue);
+    const parsed = yamlValue.safeParse(parseYaml(rawValue));
+    return parsed.success
+      ? classify(key, parsed.data, rawValue)
+      : { key, type: "unsupported", rawYaml: rawValue };
   } catch {
-    value = rawValue;
+    return classify(key, rawValue, rawValue);
   }
-  return classify(key, value, rawValue);
 }
 
-function typedValue(prop: TypedProperty): unknown {
+function typedValue(prop: TypedProperty) {
   return prop.type === "unsupported" ? undefined : prop.value;
 }
 
 /** Property-value equality as the typed ADT defines it: strict for scalars,
  * element-wise for the flat string arrays `tags` carries. */
-function valueEqual(a: unknown, b: unknown): boolean {
+function valueEqual(a: YamlValue | undefined, b: ReturnType<typeof typedValue>): boolean {
   if (Array.isArray(a) && Array.isArray(b)) {
     return a.length === b.length && a.every((item, i) => item === b[i]);
   }
@@ -239,13 +259,7 @@ function valueEqual(a: unknown, b: unknown): boolean {
 export function serializeProperties(properties: TypedProperty[], priorRaw: string): string {
   if (properties.length === 0) return "";
   const doc = parseDocument(priorRaw);
-  let parsedPrior: unknown = null;
-  try {
-    if (priorRaw.trim() !== "") parsedPrior = parseYaml(priorRaw);
-  } catch {
-    parsedPrior = null;
-  }
-  const priorValues: Properties = isPlainRecord(parsedPrior) ? parsedPrior : {};
+  const priorValues = parseYamlRecord(priorRaw);
   if (isMap(doc.contents)) {
     const desired = new Set(properties.map((prop) => prop.key));
     const removable = doc.contents.items

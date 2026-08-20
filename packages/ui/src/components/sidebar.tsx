@@ -72,7 +72,7 @@ function SidebarProvider({
   const open = openProp ?? _open;
   const setOpen = React.useCallback(
     (value: boolean | ((value: boolean) => boolean)) => {
-      const openState = typeof value === "function" ? value(open) : value;
+      const openState = value instanceof Function ? value(open) : value;
       if (setOpenProp) {
         setOpenProp(openState);
       } else {
@@ -506,7 +506,7 @@ function SidebarMenuButton({
     return comp;
   }
 
-  if (typeof tooltip === "string") {
+  if (!(tooltip instanceof Object)) {
     tooltip = {
       children: tooltip,
     };

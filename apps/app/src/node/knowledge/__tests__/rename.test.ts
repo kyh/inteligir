@@ -18,7 +18,7 @@ afterEach(async () => {
   for (const cleanup of cleanups.splice(0).toReversed()) await cleanup();
 });
 
-function boot(): { root: string; service: VaultService; knowledge: KnowledgeRuntime } {
+function boot() {
   const instanceDir = makeTempDir("inteligir-knowledge-rename-");
   const root = join(instanceDir, "vault");
   const dataDir = join(instanceDir, "data");

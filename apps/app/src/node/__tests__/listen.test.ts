@@ -3,6 +3,7 @@ import { connect, createServer, type Server, type Socket } from "node:net";
 import type { Duplex } from "node:stream";
 import { afterEach, describe, expect, it } from "vitest";
 import { closeServer, listenWithRetry, type ListenResult } from "../listen";
+import { boundAddressSchema } from "./bound-address";
 
 const cleanups: Array<() => Promise<void>> = [];
 
@@ -28,11 +29,7 @@ async function occupyPort(): Promise<number> {
   const blocker = createServer();
   await new Promise<void>((resolve) => blocker.listen(0, "127.0.0.1", resolve));
   cleanups.push(() => closeNetServer(blocker));
-  const address = blocker.address();
-  if (address === null || typeof address === "string") {
-    throw new Error("expected a bound AddressInfo");
-  }
-  return address.port;
+  return boundAddressSchema.parse(blocker.address()).port;
 }
 
 function trackResult(result: ListenResult): ListenResult {
@@ -145,8 +142,8 @@ function upgradingServer(): UpgradingServer {
   });
   const listening = new Promise<number>((resolve) => {
     server.listen(0, "127.0.0.1", () => {
-      const address = server.address();
-      resolve(address === null || typeof address === "string" ? 0 : address.port);
+      const address = boundAddressSchema.safeParse(server.address());
+      resolve(address.success ? address.data.port : 0);
     });
   });
   cleanups.push(async () => {

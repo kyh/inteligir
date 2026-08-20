@@ -17,28 +17,28 @@
 // ---------------------------------------------------------------------------
 
 import { API_BASE_PATH, apiRoutes } from "@repo/server-contract/routes";
-import type { RouteDefinition, RouteMethod } from "@repo/typed-routes/route-descriptor";
+import type { RouteDefinition } from "@repo/typed-routes/route-descriptor";
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 import { bootTestApp } from "./boot-app";
 
-const ROUTE_METHODS: readonly RouteMethod[] = ["get", "post", "patch", "delete", "put"];
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
 /** The table is a nested object of rows; identify one structurally, so a new
- *  domain group is walked with no edit here. */
-function isRouteDefinition(value: unknown): value is RouteDefinition {
-  return (
-    isRecord(value) &&
-    typeof value.path === "string" &&
-    typeof value.method === "string" &&
-    ROUTE_METHODS.some((method) => method === value.method) &&
-    isRecord(value.request) &&
-    "response" in value
-  );
+ *  domain group is walked with no edit here. `looseObject` keeps the row's
+ *  other members, which is what makes the walk below a walk and not a rewrite. */
+const routeDefinitionSchema = z.looseObject({
+  path: z.string(),
+  method: z.enum(["get", "post", "patch", "delete", "put"]),
+  request: z.looseObject({}),
+  response: z.unknown(),
+});
+
+/** A group in the table: anything that is not a row is walked into. */
+interface RouteTableGroup {
+  readonly [name: string]: RouteTableNode;
 }
+
+/** One node of the nested table — a row, or a group of them. */
+type RouteTableNode = RouteDefinition | RouteTableGroup;
 
 /** `GET /api/v1/vault/file` — method and path together, because `/vault/file`
  *  is two rows (read and write) and either can go missing alone. */
@@ -46,12 +46,16 @@ function key(method: string, path: string): string {
   return `${method.toUpperCase()} ${path}`;
 }
 
-function flattenRouteTable(node: unknown, out: Map<string, string[]>, trail: string[]): void {
-  if (isRouteDefinition(node)) {
-    out.set(key(node.method, `${API_BASE_PATH}${node.path}`), trail);
+function flattenRouteTable(
+  node: RouteTableNode,
+  out: Map<string, string[]>,
+  trail: string[],
+): void {
+  const row = routeDefinitionSchema.safeParse(node);
+  if (row.success) {
+    out.set(key(row.data.method, `${API_BASE_PATH}${row.data.path}`), trail);
     return;
   }
-  if (!isRecord(node)) return;
   for (const [name, child] of Object.entries(node)) {
     flattenRouteTable(child, out, [...trail, name]);
   }

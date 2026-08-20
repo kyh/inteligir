@@ -24,8 +24,6 @@ export type CodexItemStatus = z.infer<typeof codexItemStatusSchema>;
 
 const codexPlanStepStatusSchema = z.enum(["pending", "inProgress", "completed", "failed"]);
 
-type ZodObjectSchema = z.ZodObject<z.ZodRawShape>;
-
 const codexStringArraySchema = z.array(z.string());
 
 const codexUserInputSchema = z.discriminatedUnion("type", [
@@ -139,10 +137,19 @@ const codexNetworkPolicyAmendmentDecisionSchema = z.object({
   }),
 });
 
+/** A decision Codex offers: either one the provider-neutral vocabulary has a
+ *  name for, or a policy amendment — whose payload nothing here reads, so it
+ *  is tagged and left at that. Both wire spellings (a bare string, a one-key
+ *  object) parse into this one tagged value. */
 const codexCommandApprovalDecisionSchema = z.union([
-  codexSimpleCommandApprovalDecisionSchema,
-  codexExecPolicyAmendmentDecisionSchema,
-  codexNetworkPolicyAmendmentDecisionSchema,
+  codexSimpleCommandApprovalDecisionSchema.transform((decision) => ({
+    kind: "simple" as const,
+    decision,
+  })),
+  codexExecPolicyAmendmentDecisionSchema.transform(() => ({ kind: "policyAmendment" as const })),
+  codexNetworkPolicyAmendmentDecisionSchema.transform(() => ({
+    kind: "policyAmendment" as const,
+  })),
 ]);
 export type CodexCommandApprovalDecision = z.infer<typeof codexCommandApprovalDecisionSchema>;
 
@@ -262,12 +269,15 @@ export const codexPermissionsRequestApprovalParamsSchema = z.object({
   permissions: codexRequestPermissionsSchema,
 });
 
+/** What every thread item carries before its variant is known: the tag the
+ *  handled-item union discriminates on, plus the id. */
 const codexThreadItemEnvelopeSchema = z
   .object({
     type: z.string(),
     id: z.string(),
   })
   .passthrough();
+export type CodexThreadItemEnvelope = z.infer<typeof codexThreadItemEnvelopeSchema>;
 
 export const codexHandledThreadItemSchema = z.discriminatedUnion("type", [
   z
@@ -374,30 +384,80 @@ const codexErrorHttpStatusSchema = z
   })
   .strip();
 
+/** Which error codex reported, and the upstream status when the variant
+ *  carries one. Codex serializes this enum Rust-style — a unit variant is a
+ *  bare string, a data variant a one-key object — so the schema below parses
+ *  both spellings into this one tagged value and readers branch on `kind`
+ *  rather than re-deriving the variant from the wire's shape. */
+export interface CodexErrorInfo {
+  kind:
+    | "contextWindowExceeded"
+    | "usageLimitExceeded"
+    | "serverOverloaded"
+    | "cyberPolicy"
+    | "internalServerError"
+    | "unauthorized"
+    | "badRequest"
+    | "threadRollbackFailed"
+    | "sandboxError"
+    | "other"
+    | "httpConnectionFailed"
+    | "responseStreamConnectionFailed"
+    | "responseStreamDisconnected"
+    | "responseTooManyFailedAttempts"
+    | "activeTurnNotSteerable";
+  httpStatusCode: number | null;
+}
+
 const codexErrorInfoSchema = z.union([
-  z.literal("contextWindowExceeded"),
-  z.literal("usageLimitExceeded"),
-  z.literal("serverOverloaded"),
-  z.literal("cyberPolicy"),
-  z.object({ httpConnectionFailed: codexErrorHttpStatusSchema }),
-  z.object({ responseStreamConnectionFailed: codexErrorHttpStatusSchema }),
-  z.literal("internalServerError"),
-  z.literal("unauthorized"),
-  z.literal("badRequest"),
-  z.literal("threadRollbackFailed"),
-  z.literal("sandboxError"),
-  z.object({ responseStreamDisconnected: codexErrorHttpStatusSchema }),
-  z.object({ responseTooManyFailedAttempts: codexErrorHttpStatusSchema }),
-  z.object({
-    activeTurnNotSteerable: z
-      .object({
-        turnKind: z.enum(["review", "compact"]),
-      })
-      .strip(),
-  }),
-  z.literal("other"),
+  z
+    .enum([
+      "contextWindowExceeded",
+      "usageLimitExceeded",
+      "serverOverloaded",
+      "cyberPolicy",
+      "internalServerError",
+      "unauthorized",
+      "badRequest",
+      "threadRollbackFailed",
+      "sandboxError",
+      "other",
+    ])
+    .transform((kind): CodexErrorInfo => ({ kind, httpStatusCode: null })),
+  z.object({ httpConnectionFailed: codexErrorHttpStatusSchema }).transform(
+    (variant): CodexErrorInfo => ({
+      kind: "httpConnectionFailed",
+      httpStatusCode: variant.httpConnectionFailed.httpStatusCode,
+    }),
+  ),
+  z.object({ responseStreamConnectionFailed: codexErrorHttpStatusSchema }).transform(
+    (variant): CodexErrorInfo => ({
+      kind: "responseStreamConnectionFailed",
+      httpStatusCode: variant.responseStreamConnectionFailed.httpStatusCode,
+    }),
+  ),
+  z.object({ responseStreamDisconnected: codexErrorHttpStatusSchema }).transform(
+    (variant): CodexErrorInfo => ({
+      kind: "responseStreamDisconnected",
+      httpStatusCode: variant.responseStreamDisconnected.httpStatusCode,
+    }),
+  ),
+  z.object({ responseTooManyFailedAttempts: codexErrorHttpStatusSchema }).transform(
+    (variant): CodexErrorInfo => ({
+      kind: "responseTooManyFailedAttempts",
+      httpStatusCode: variant.responseTooManyFailedAttempts.httpStatusCode,
+    }),
+  ),
+  z
+    .object({
+      activeTurnNotSteerable: z
+        .object({
+          turnKind: z.enum(["review", "compact"]),
+        })
+        .strip(),
+    })
+    .transform((): CodexErrorInfo => ({ kind: "activeTurnNotSteerable", httpStatusCode: null })),
 ]);
-export type CodexErrorInfo = z.infer<typeof codexErrorInfoSchema>;
 
 const codexTurnErrorSchema = z
   .object({
@@ -464,7 +524,7 @@ export const codexBridgeEnvelopeSchema = z.union([
     .passthrough(),
 ]);
 
-function createCodexEventSchema<TMethod extends string, TParams extends ZodObjectSchema>(
+function createCodexEventSchema<TMethod extends string, TParams extends z.ZodObject>(
   method: TMethod,
   params: TParams,
 ) {
@@ -625,7 +685,9 @@ export type CodexHandledEvent = z.infer<typeof codexHandledEventSchema>;
 type HandledCodexMethod = CodexHandledEvent["method"];
 
 const handledCodexMethodSet = new Set<string>(
-  codexHandledEventSchema.options.map((option) => option.shape.method.value),
+  // Bracket notation: `shape` is zod's own property name, not a symbol this
+  // repo gets to name.
+  codexHandledEventSchema.options.map((option) => option["shape"].method.value),
 );
 
 export function isHandledCodexMethod(method: string): method is HandledCodexMethod {

@@ -12,7 +12,7 @@ import { pathContains } from "../path-containment";
  * on the RESOLVED result — the normalize pass is the real gate, this is the
  * belt to its braces.
  */
-export function resolveVaultPath(root: string, raw: string): { relPath: string; absPath: string } {
+export function resolveVaultPath(root: string, raw: string) {
   const relPath = normalizeVaultPath(raw);
   const absPath = resolve(root, relPath);
   if (!pathContains(root, absPath)) {

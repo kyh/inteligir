@@ -32,13 +32,11 @@ export function toProviderExecutionContext(
   args: ToProviderExecutionContextArgs,
 ): ProviderExecutionContext {
   const permissionPolicy: RuntimePermissionPolicy = args.execOpts;
-  return {
-    ...permissionPolicy,
-    ...(args.execOpts.model !== undefined ? { model: args.execOpts.model } : {}),
-    ...(args.execOpts.reasoningLevel !== undefined
-      ? { reasoningLevel: args.execOpts.reasoningLevel }
-      : {}),
-    ...(args.instructions !== undefined ? { instructions: args.instructions } : {}),
-    envVars: args.envVars,
-  };
+  const context: ProviderExecutionContext = { ...permissionPolicy, envVars: args.envVars };
+  if (args.execOpts.model !== undefined) context.model = args.execOpts.model;
+  if (args.execOpts.reasoningLevel !== undefined) {
+    context.reasoningLevel = args.execOpts.reasoningLevel;
+  }
+  if (args.instructions !== undefined) context.instructions = args.instructions;
+  return context;
 }

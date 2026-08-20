@@ -8,6 +8,8 @@
 import {
   KNOWLEDGE_RELATED_MAX_LIMIT,
   KNOWLEDGE_SEARCH_MAX_LIMIT,
+  type KnowledgeRelatedRequest,
+  type KnowledgeSearchRequest,
 } from "@repo/server-contract/knowledge";
 import { defineCommand } from "citty";
 import { invalidUsage } from "../cli-error";
@@ -39,11 +41,11 @@ export function searchCommand(deps: CliDeps) {
     run: async ({ args }) => {
       const limit = parseLimit(args.limit, KNOWLEDGE_SEARCH_MAX_LIMIT);
       const api = await apiFor(deps);
-      const found = await requireOk(
-        await api.knowledge.search.$get({
-          query: { q: args.query, ...(limit === undefined ? {} : { limit }) },
-        }),
-      );
+      const query: KnowledgeSearchRequest = { q: args.query };
+      if (limit !== undefined) {
+        query.limit = limit;
+      }
+      const found = await requireOk(await api.knowledge.search.$get({ query }));
       const body = await found.json();
       if (outputJson(args, body)) {
         return;
@@ -102,11 +104,11 @@ export function relatedCommand(deps: CliDeps) {
     run: async ({ args }) => {
       const limit = parseLimit(args.limit, KNOWLEDGE_RELATED_MAX_LIMIT);
       const api = await apiFor(deps);
-      const found = await requireOk(
-        await api.knowledge.related.$get({
-          query: { path: args.path, ...(limit === undefined ? {} : { limit }) },
-        }),
-      );
+      const query: KnowledgeRelatedRequest = { path: args.path };
+      if (limit !== undefined) {
+        query.limit = limit;
+      }
+      const found = await requireOk(await api.knowledge.related.$get({ query }));
       const body = await found.json();
       if (outputJson(args, body)) {
         return;

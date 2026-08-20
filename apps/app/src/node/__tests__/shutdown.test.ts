@@ -288,16 +288,16 @@ describe("installShutdownSignals", () => {
 });
 
 function fakeFatalTarget() {
-  const handlers = new Map<FatalEvent, (reason: unknown) => void>();
+  const handlers = new Map<FatalEvent, (cause: unknown) => void>();
   const exits: number[] = [];
   return {
     exits,
-    raise(event: FatalEvent, reason: unknown) {
-      handlers.get(event)?.(reason);
+    raise(event: FatalEvent, cause: unknown) {
+      handlers.get(event)?.(cause);
     },
     registered: () => [...handlers.keys()],
     target: {
-      on(event: FatalEvent, handler: (reason: unknown) => void) {
+      on(event: FatalEvent, handler: (cause: unknown) => void) {
         handlers.set(event, handler);
       },
       exit(code: number) {

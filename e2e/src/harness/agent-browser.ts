@@ -29,13 +29,13 @@ export function agentBrowserSession(label: string): AgentBrowser {
  *  own streams, so a reason that drops them is one nobody can act on. Local:
  *  the skip below is the only report that needs it, and an export nothing
  *  imports fails this repo's knip gate. */
-function describeExecError(error: unknown): string {
-  if (error instanceof ExecError) {
-    return [error.message, error.stdout.trim(), error.stderr.trim()]
+function describeExecError(cause: unknown): string {
+  if (cause instanceof ExecError) {
+    return [cause.message, cause.stdout.trim(), cause.stderr.trim()]
       .filter((part) => part.length > 0)
       .join("\n");
   }
-  return error instanceof Error ? error.message : String(error);
+  return cause instanceof Error ? cause.message : String(cause);
 }
 
 /** Can a headless browser launch HERE at all? Skips the scenario if not (see

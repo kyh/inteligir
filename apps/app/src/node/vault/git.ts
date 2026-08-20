@@ -118,12 +118,11 @@ function isUnmerged(entry: PorcelainEntry): boolean {
  * one has chosen how ssh runs, and overriding it would break the setups that
  * exist to make these fetches work.
  */
-function nonInteractiveGitEnv(env: NodeJS.ProcessEnv): Record<string, string> {
-  const base: Record<string, string> = { GIT_TERMINAL_PROMPT: "0" };
+function nonInteractiveGitEnv(env: NodeJS.ProcessEnv) {
   if (env.GIT_SSH_COMMAND === undefined) {
-    base.GIT_SSH_COMMAND = "ssh -o BatchMode=yes";
+    return { GIT_TERMINAL_PROMPT: "0", GIT_SSH_COMMAND: "ssh -o BatchMode=yes" };
   }
-  return base;
+  return { GIT_TERMINAL_PROMPT: "0" };
 }
 
 export function runGit(
@@ -177,7 +176,7 @@ export function redactRemoteUrl(url: string): string {
   }
 }
 
-function identityEnv(author?: CommitAuthor): Record<string, string> {
+function identityEnv(author?: CommitAuthor) {
   return {
     GIT_AUTHOR_NAME: author?.name ?? ENGINE_IDENTITY.name,
     GIT_AUTHOR_EMAIL: author?.email ?? ENGINE_IDENTITY.email,
@@ -447,7 +446,7 @@ export function createGitEngine(args: GitEngineArgs): GitEngine {
         "commit.gpgsign=false",
         "commit",
         "-m",
-        typeof subject === "string" ? subject : subject(dirty.length),
+        subject instanceof Function ? subject(dirty.length) : subject,
       ],
       { env: identityEnv(author) },
     );
@@ -499,11 +498,11 @@ export function createGitEngine(args: GitEngineArgs): GitEngine {
         scoped === null
           ? commitIfDirty()
           : commitPathsIfDirty([...scoped], undefined, (files) => `vault: update ${files} files`),
-      ).catch((error: unknown) => {
+      ).catch((cause: unknown) => {
         // Whatever failed is still dirty and its paths are spent, so the next
         // flush has to be the one that sweeps everything.
         pendingCommitPaths = null;
-        args.onError?.(error instanceof Error ? error.message : "auto-commit failed");
+        args.onError?.(cause instanceof Error ? cause.message : "auto-commit failed");
       });
     },
   });
@@ -573,8 +572,8 @@ export function createGitEngine(args: GitEngineArgs): GitEngine {
       .toSorted();
   }
 
-  function isMissingRemoteRef(error: unknown): boolean {
-    return error instanceof GitError && /couldn't find remote ref/i.test(error.stderr);
+  function isMissingRemoteRef(cause: unknown): boolean {
+    return cause instanceof GitError && /couldn't find remote ref/i.test(cause.stderr);
   }
 
   async function doSync(): Promise<void> {
@@ -724,8 +723,8 @@ export function createGitEngine(args: GitEngineArgs): GitEngine {
     syncing = true;
     args.onStatusChanged?.();
     const pass = withRepoLock(doSync)
-      .catch((error: unknown) => {
-        lastError = error instanceof Error ? error.message : "sync failed";
+      .catch((cause: unknown) => {
+        lastError = cause instanceof Error ? cause.message : "sync failed";
         args.onError?.(lastError);
       })
       .then(() => {

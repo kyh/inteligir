@@ -10,13 +10,17 @@ import { createApiClient, type ApiClient } from "@repo/server-contract/client";
 import { act, cleanup, renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { useNoteDisk } from "../note-disk";
+import type { ApiErrorResponse } from "@repo/server-contract/errors";
 import type { DocEvents } from "../../workspace-context";
 
 afterEach(cleanup);
 
 const PATH = "notes/open.md";
 
-function jsonResponse(body: unknown, status: number): Response {
+/** The vault read route's own two answers: the file, or a refusal. */
+type VaultFileBody = { path: string | null; content: string } | ApiErrorResponse;
+
+function jsonResponse(body: VaultFileBody, status: number): Response {
   return new Response(JSON.stringify(body), {
     status,
     headers: { "content-type": "application/json" },
@@ -45,8 +49,7 @@ function createFakeVault(initial: string): FakeVault {
 
   const api = createApiClient("http://local.test", {
     fetch: async (input) => {
-      const href =
-        typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      const href = input instanceof URL ? input.href : input instanceof Request ? input.url : input;
       const url = new URL(href);
       if (url.pathname !== "/api/v1/vault/file") {
         throw new Error(`unexpected request to ${url.pathname}`);

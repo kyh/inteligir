@@ -46,7 +46,7 @@ import { siteConfig } from "@/lib/site-config";
 
 export const Route = createFileRoute("/app/pair")({
   ssr: false,
-  validateSearch: (search: Record<string, unknown>): Partial<PairApproveSearch> => {
+  validateSearch: (search): Partial<PairApproveSearch> => {
     const parsed = pairApproveSearchSchema.safeParse(search);
     // A refusal keeps the URL rather than throwing: the page below renders the
     // "this link is not a pairing request" state, which is a far more useful

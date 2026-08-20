@@ -254,10 +254,9 @@ export class RuntimeProviderProcessManager {
     }
 
     providerProcess.expectedShutdownExpectations += 1;
-    await this.terminateProviderProcess({
-      providerProcess,
-      ...(args.timeoutMs !== undefined ? { timeoutMs: args.timeoutMs } : {}),
-    });
+    const termination: TerminateProviderProcessArgs = { providerProcess };
+    if (args.timeoutMs !== undefined) termination.timeoutMs = args.timeoutMs;
+    await this.terminateProviderProcess(termination);
     if (hasChildProcessExited(providerProcess.child)) {
       await providerProcess.exitFinalized;
     }

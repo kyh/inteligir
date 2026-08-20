@@ -29,10 +29,15 @@ export interface OpenNoteView {
 export async function readNoteViewContext(path: string, view: OpenNoteView): Promise<ViewContext> {
   await view.flush().catch(() => {});
   const { content, from, to } = view.read();
-  return {
+  const context: ViewContext = {
     surface: "doc",
     resource: path,
     revision: await contentHashHex(content),
-    ...(from === to ? {} : { selection: { from, to, text: content.slice(from, to) } }),
   };
+  // A caret is not a selection: an empty range would claim the agent was
+  // pointed at nothing in particular.
+  if (from !== to) {
+    context.selection = { from, to, text: content.slice(from, to) };
+  }
+  return context;
 }

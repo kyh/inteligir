@@ -49,6 +49,7 @@ import type {
   AgentRuntimeExecutionOptions,
   AgentRuntimeOptions,
   ReapedIdleProviderSession,
+  ResumeThreadArgs,
 } from "./types.js";
 import { buildThreadShellEnvironment } from "./thread-shell-environment.js";
 import { resolveThreadIdentityResult, threadIdentityResultSchema } from "./thread-identity.js";
@@ -258,14 +259,15 @@ function createAgentRuntimeInternal(options: AgentRuntimeInternalOptions): Agent
     resultSchema: SendJsonRpcRequestArgs<TResult>["resultSchema"];
     timeoutMs?: number;
   }): Promise<TResult> {
-    return sendJsonRpcRequest({
+    const request: SendJsonRpcRequestArgs<TResult> = {
       child: args.proc.child,
       getNextId: () => nextRequestId++,
       message: args.message,
       pending: args.proc.pending,
       resultSchema: args.resultSchema,
-      ...(args.timeoutMs !== undefined ? { timeoutMs: args.timeoutMs } : {}),
-    });
+    };
+    if (args.timeoutMs !== undefined) request.timeoutMs = args.timeoutMs;
+    return sendJsonRpcRequest(request);
   }
 
   function resolveProviderForThread(threadId: string): string {
@@ -518,14 +520,15 @@ function createAgentRuntimeInternal(options: AgentRuntimeInternalOptions): Agent
     });
 
     const resumeInstructions = args.instructions ?? currentConfig.instructions;
-    await runtime.resumeThread({
+    const resumeArgs: ResumeThreadArgs = {
       threadId: args.threadId,
       providerThreadId,
       providerId: currentConfig.providerId,
       options: args.options,
-      ...(resumeInstructions !== undefined ? { instructions: resumeInstructions } : {}),
       instructionMode: currentConfig.instructionMode,
-    });
+    };
+    if (resumeInstructions !== undefined) resumeArgs.instructions = resumeInstructions;
+    await runtime.resumeThread(resumeArgs);
   }
 
   function emitTranslatedEvents(args: EmitTranslatedEventsArgs): void {
@@ -586,11 +589,12 @@ function createAgentRuntimeInternal(options: AgentRuntimeInternalOptions): Agent
 
   function handleProviderNotification(args: RuntimeParsedMessageArgs): void {
     const sourceThreadId = getJsonRpcStringParam(args.parsed, "threadId");
-    emitTranslatedEvents({
+    const emitArgs: EmitTranslatedEventsArgs = {
       events: args.proc.adapter.translateEvent(args.parsed),
       proc: args.proc,
-      ...(sourceThreadId !== undefined ? { sourceThreadId } : {}),
-    });
+    };
+    if (sourceThreadId !== undefined) emitArgs.sourceThreadId = sourceThreadId;
+    emitTranslatedEvents(emitArgs);
   }
 
   function handleStdoutLine(line: string, proc: ProviderProcess): void {
@@ -642,11 +646,10 @@ function createAgentRuntimeInternal(options: AgentRuntimeInternalOptions): Agent
 
   const runtime: AgentRuntime = {
     async ensureProvider({ providerId, forThreadId }) {
+      const processKeyArgs: ResolveProviderProcessKeyArgs = { providerId };
+      if (forThreadId !== undefined) processKeyArgs.threadId = forThreadId;
       await providerProcesses.ensureProvider({
-        processKey: resolveProviderProcessKey({
-          providerId,
-          ...(forThreadId !== undefined ? { threadId: forThreadId } : {}),
-        }),
+        processKey: resolveProviderProcessKey(processKeyArgs),
         providerId,
       });
     },
@@ -676,14 +679,15 @@ function createAgentRuntimeInternal(options: AgentRuntimeInternalOptions): Agent
             shouldWaitForProviderIdentity: true,
             threadId,
           });
-          setThreadRuntimeConfig(threadId, {
+          const runtimeConfig: ThreadRuntimeConfig = {
             instructionMode,
-            ...(instructions !== undefined ? { instructions } : {}),
             options: execOpts,
             processKey,
             providerId,
             workspacePath: options.workspacePath,
-          });
+          };
+          if (instructions !== undefined) runtimeConfig.instructions = instructions;
+          setThreadRuntimeConfig(threadId, runtimeConfig);
 
           const envVars = buildThreadShellEnvironment({
             baseShellEnv: options.shellEnv,
@@ -760,14 +764,15 @@ function createAgentRuntimeInternal(options: AgentRuntimeInternalOptions): Agent
             shouldWaitForProviderIdentity: providerThreadId === undefined,
             threadId,
           });
-          setThreadRuntimeConfig(threadId, {
+          const runtimeConfig: ThreadRuntimeConfig = {
             instructionMode,
-            ...(instructions !== undefined ? { instructions } : {}),
             options: execOpts,
             processKey,
             providerId,
             workspacePath: options.workspacePath,
-          });
+          };
+          if (instructions !== undefined) runtimeConfig.instructions = instructions;
+          setThreadRuntimeConfig(threadId, runtimeConfig);
 
           if (providerThreadId) {
             recordProviderThreadIdentity(proc, threadId, providerThreadId);

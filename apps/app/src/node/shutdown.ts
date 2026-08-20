@@ -115,7 +115,7 @@ export interface GracefulShutdownArgs {
   /** Read at RUN time, so a caller that fills the array as its boot proceeds
    *  gets a deadline over what it actually registered. */
   steps: readonly ShutdownStep[];
-  onStepFailed(name: string, error: unknown): void;
+  onStepFailed(name: string, cause: unknown): void;
   /** Called once, from the backstop, when the sequence has not finished. Told
    *  the deadline it just passed, because that number is derived and nobody
    *  else holds it. */
@@ -253,7 +253,7 @@ export const FATAL_EVENTS = ["uncaughtException", "unhandledRejection"] as const
 export type FatalEvent = (typeof FATAL_EVENTS)[number];
 
 interface FatalTarget {
-  on(event: FatalEvent, handler: (reason: unknown) => void): void;
+  on(event: FatalEvent, handler: (cause: unknown) => void): void;
   exit(code: number): void;
 }
 
@@ -262,7 +262,7 @@ export interface InstallFatalErrorHandlersArgs {
   target: FatalTarget;
   /** Reported before the teardown runs, because the teardown can take seconds
    *  and the cause is what someone reading the log needs first. */
-  onFatal(event: FatalEvent, reason: unknown): void;
+  onFatal(event: FatalEvent, cause: unknown): void;
 }
 
 /**
@@ -281,8 +281,8 @@ export interface InstallFatalErrorHandlersArgs {
  */
 export function installFatalErrorHandlers(args: InstallFatalErrorHandlersArgs): void {
   for (const event of FATAL_EVENTS) {
-    args.target.on(event, (reason) => {
-      args.onFatal(event, reason);
+    args.target.on(event, (cause) => {
+      args.onFatal(event, cause);
       void (async () => {
         // `run()` is idempotent, so a second fatal during the teardown joins
         // the first sequence instead of tearing down over half-closed

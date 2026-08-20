@@ -115,18 +115,18 @@ export async function contentHashBytesHex(
  * carry script. `<img>` never runs it; a direct NAVIGATION to the asset URL
  * would, which is why the route answers with a `sandbox` CSP.
  */
-export const VAULT_ASSET_MEDIA_TYPES: Readonly<Record<string, string>> = {
-  ".apng": "image/apng",
-  ".avif": "image/avif",
-  ".bmp": "image/bmp",
-  ".gif": "image/gif",
-  ".ico": "image/x-icon",
-  ".jpeg": "image/jpeg",
-  ".jpg": "image/jpeg",
-  ".png": "image/png",
-  ".svg": "image/svg+xml",
-  ".webp": "image/webp",
-};
+export const VAULT_ASSET_MEDIA_TYPES = new Map([
+  [".apng", "image/apng"],
+  [".avif", "image/avif"],
+  [".bmp", "image/bmp"],
+  [".gif", "image/gif"],
+  [".ico", "image/x-icon"],
+  [".jpeg", "image/jpeg"],
+  [".jpg", "image/jpeg"],
+  [".png", "image/png"],
+  [".svg", "image/svg+xml"],
+  [".webp", "image/webp"],
+]);
 
 export const vaultReadRequestSchema = z.object({ path: vaultPathSchema }).strict();
 export type VaultReadRequest = z.infer<typeof vaultReadRequestSchema>;
@@ -238,14 +238,14 @@ export const vaultConflictSchema = z
   .strict();
 export type VaultConflict = z.infer<typeof vaultConflictSchema>;
 
-const syncFieldsShape = {
+const syncStatusFields = {
   /** Epoch ms of the last sync that pushed successfully. */
   lastSyncAt: z.number().int().nullable(),
   lastError: z.string().nullable(),
 };
 
 export const vaultStatusResponseSchema = z.discriminatedUnion("state", [
-  z.object({ state: z.literal("no-remote"), ...syncFieldsShape }).strict(),
+  z.object({ state: z.literal("no-remote"), ...syncStatusFields }).strict(),
   /** A sync left rebase state behind that even `rebase --abort` could not
    *  clear; `lastError` names the manual recovery. The engine never syncs
    *  again while broken. */
@@ -253,28 +253,28 @@ export const vaultStatusResponseSchema = z.discriminatedUnion("state", [
     .object({
       state: z.literal("broken"),
       remote: z.string().min(1),
-      ...syncFieldsShape,
+      ...syncStatusFields,
     })
     .strict(),
   z
     .object({
       state: z.literal("clean"),
       remote: z.string().min(1),
-      ...syncFieldsShape,
+      ...syncStatusFields,
     })
     .strict(),
   z
     .object({
       state: z.literal("dirty"),
       remote: z.string().min(1),
-      ...syncFieldsShape,
+      ...syncStatusFields,
     })
     .strict(),
   z
     .object({
       state: z.literal("syncing"),
       remote: z.string().min(1),
-      ...syncFieldsShape,
+      ...syncStatusFields,
     })
     .strict(),
   /** An agent turn holds the vault's commits, which a sync pass would have to
@@ -286,7 +286,7 @@ export const vaultStatusResponseSchema = z.discriminatedUnion("state", [
     .object({
       state: z.literal("held"),
       remote: z.string().min(1),
-      ...syncFieldsShape,
+      ...syncStatusFields,
     })
     .strict(),
   /** The last pass could not reach the remote. NOT `clean`: "unpushed" is
@@ -297,7 +297,7 @@ export const vaultStatusResponseSchema = z.discriminatedUnion("state", [
     .object({
       state: z.literal("offline"),
       remote: z.string().min(1),
-      ...syncFieldsShape,
+      ...syncStatusFields,
     })
     .strict(),
   z
@@ -305,7 +305,7 @@ export const vaultStatusResponseSchema = z.discriminatedUnion("state", [
       state: z.literal("conflict"),
       remote: z.string().min(1),
       conflict: vaultConflictSchema,
-      ...syncFieldsShape,
+      ...syncStatusFields,
     })
     .strict(),
 ]);

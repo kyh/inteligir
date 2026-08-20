@@ -25,7 +25,6 @@ import {
   CAPTURE_CLAIM_TTL_MS,
   claimCapturesRequestSchema,
   type AckCapturesResponse,
-  type AckOutcome,
   type CaptureRow,
   type ClaimCapturesResponse,
 } from "@repo/cloud-contract/captures";
@@ -46,8 +45,15 @@ import {
   type SyncEventRow,
 } from "@repo/cloud-contract/sync";
 import type { CloudFetch } from "../cloud-client";
+import { z } from "zod";
 
-const STATUS_BY_CODE: Record<CloudErrorCode, number> = {
+/** A decoded request body, before a route's schema reads it. */
+type RequestBody = z.infer<ReturnType<typeof z.json>>;
+
+/** One row of an ack answer, as the contract spells it. */
+type AckCaptureResult = AckCapturesResponse["results"][number];
+
+const STATUS_BY_CODE = {
   "bad-request": 400,
   unauthorized: 401,
   "not-found": 404,
@@ -61,7 +67,7 @@ const STATUS_BY_CODE: Record<CloudErrorCode, number> = {
   "account-deleted": 410,
   "artifacts-not-enabled": 503,
   internal: 500,
-};
+} satisfies Record<CloudErrorCode, number>;
 
 function refuse(code: CloudErrorCode, message: string, deviceSeq?: number): Response {
   return Response.json(cloudError(code, message, deviceSeq), { status: STATUS_BY_CODE[code] });
@@ -147,8 +153,8 @@ export class FakeCloud {
     const url = new URL(input);
     const method = init?.method ?? "GET";
     this.requests.push(`${method} ${url.pathname}`);
-    const body: unknown =
-      typeof init?.body === "string" ? JSON.parse(init.body) : (init?.body ?? null);
+    const text = z.string().safeParse(init?.body);
+    const body: RequestBody = text.success ? JSON.parse(text.data) : null;
 
     if (method === "POST" && url.pathname === DEVICE_API_PATHS.redeem) {
       return await this.redeem(body);
@@ -175,14 +181,17 @@ export class FakeCloud {
 
   private authorize(init: RequestInit | undefined): { deviceId: string } | null {
     const headers = init?.headers;
-    const authorization =
-      headers !== undefined && !Array.isArray(headers) && !(headers instanceof Headers)
-        ? headers.authorization
-        : undefined;
-    if (typeof authorization !== "string") {
+    const authorization = z
+      .string()
+      .safeParse(
+        headers !== undefined && !Array.isArray(headers) && !(headers instanceof Headers)
+          ? headers.authorization
+          : undefined,
+      );
+    if (!authorization.success) {
       return null;
     }
-    const credential = authorization.replace(/^Bearer /u, "");
+    const credential = authorization.data.replace(/^Bearer /u, "");
     const device = this.devices.get(credential);
     if (device === undefined || device.revoked) {
       return null;
@@ -190,7 +199,7 @@ export class FakeCloud {
     return { deviceId: device.deviceId };
   }
 
-  private async redeem(body: unknown): Promise<Response> {
+  private async redeem(body: RequestBody): Promise<Response> {
     const parsed = redeemDeviceRequestSchema.safeParse(body);
     if (!parsed.success) {
       return refuse("bad-request", "Send { code, deviceName, verifier }.");
@@ -214,7 +223,7 @@ export class FakeCloud {
     return Response.json(response);
   }
 
-  private push(deviceId: string, body: unknown): Response {
+  private push(deviceId: string, body: RequestBody): Response {
     const parsed = pushRequestSchema.safeParse(body);
     if (!parsed.success) {
       return refuse("bad-request", "Malformed push batch.");
@@ -298,7 +307,7 @@ export class FakeCloud {
     return Response.json(response);
   }
 
-  private claim(body: unknown): Response {
+  private claim(body: RequestBody): Response {
     const parsed = claimCapturesRequestSchema.safeParse(body);
     if (!parsed.success) {
       return refuse("bad-request", "Send { limit? }.");
@@ -325,12 +334,12 @@ export class FakeCloud {
     return Response.json(response);
   }
 
-  private ack(body: unknown): Response {
+  private ack(body: RequestBody): Response {
     const parsed = ackCapturesRequestSchema.safeParse(body);
     if (!parsed.success) {
       return refuse("bad-request", "Send { claimToken, ids }.");
     }
-    const results = parsed.data.ids.map((id): { id: string; outcome: AckOutcome } => {
+    const results = parsed.data.ids.map((id): AckCaptureResult => {
       const index = this.inbox.findIndex((row) => row.id === id);
       if (index === -1) {
         return { id, outcome: "unknown" };

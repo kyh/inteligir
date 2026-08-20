@@ -1,13 +1,10 @@
 import { and, eq, isNull } from "drizzle-orm";
+import { z } from "zod";
 import { createSignUpAuth } from "./auth";
 import { createDb } from "../db/client";
 import { inviteCode } from "../db/schema";
 
 import { allowInWindow, callerIp, type RateWindow } from "../rate-limit";
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
 
 // ---------------------------------------------------------------------------
 // `POST /v1/auth/sign-up` — the only way an account is created on this
@@ -53,26 +50,21 @@ function refuse(status: number, message: string): Response {
   return Response.json({ message }, { status });
 }
 
-type SignUpBody = {
-  readonly name: string;
-  readonly email: string;
-  readonly password: string;
-  readonly code: string;
-};
-
-/** Parse the request body, or `null` when it is not a sign-up at all. Field
+/** The request body, or a refusal when it is not a sign-up at all. Field
  * CONTENT (email shape, password length) is Better Auth's to judge — this only
  * proves the four strings are present so the claim is not made for a request
- * that could never have succeeded. */
-function parseSignUp(body: unknown): SignUpBody | null {
-  if (!isRecord(body)) return null;
-  const { name, email, password, inviteCode: code } = body;
-  if (typeof name !== "string" || name.trim() === "") return null;
-  if (typeof email !== "string" || email.trim() === "") return null;
-  if (typeof password !== "string" || password === "") return null;
-  if (typeof code !== "string") return null;
-  return { name: name.trim(), email: email.trim(), password, code: code.trim() };
-}
+ * that could never have succeeded. Loose, because Better Auth's own sign-up
+ * body may carry more than the fields forwarded below. */
+const signUpBodySchema = z
+  .looseObject({
+    name: z.string().transform((value) => value.trim()),
+    email: z.string().transform((value) => value.trim()),
+    password: z.string().min(1),
+    inviteCode: z.string().transform((value) => value.trim()),
+  })
+  .refine((body) => body.name !== "" && body.email !== "");
+
+type SignUpBody = z.infer<typeof signUpBodySchema>;
 
 export async function handleInviteSignUp(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
@@ -85,21 +77,17 @@ export async function handleInviteSignUp(request: Request, env: Env): Promise<Re
     }
   }
 
-  let parsed: SignUpBody | null;
-  try {
-    parsed = parseSignUp(await request.json());
-  } catch {
-    parsed = null;
-  }
-  if (parsed === null) return refuse(400, "Fill in every field to create an account.");
-  if (!CODE_PATTERN.test(parsed.code)) return refuse(403, INVITE_REFUSED);
+  const body = signUpBodySchema.safeParse(await request.json().catch(() => null));
+  if (!body.success) return refuse(400, "Fill in every field to create an account.");
+  const parsed = body.data;
+  if (!CODE_PATTERN.test(parsed.inviteCode)) return refuse(403, INVITE_REFUSED);
 
   // The claim. `.returning().get()` is undefined when the predicate matched
   // nothing — an unknown code and an already-redeemed one are the same answer.
   const claimed = await db
     .update(inviteCode)
     .set({ redeemedBy: parsed.email, redeemedAt: new Date() })
-    .where(and(eq(inviteCode.code, parsed.code), isNull(inviteCode.redeemedAt)))
+    .where(and(eq(inviteCode.code, parsed.inviteCode), isNull(inviteCode.redeemedAt)))
     .returning()
     .get();
   if (claimed === undefined) return refuse(403, INVITE_REFUSED);
@@ -111,7 +99,7 @@ export async function handleInviteSignUp(request: Request, env: Env): Promise<Re
     await db
       .update(inviteCode)
       .set({ redeemedBy: null, redeemedAt: null })
-      .where(and(eq(inviteCode.code, parsed.code), eq(inviteCode.redeemedBy, parsed.email)));
+      .where(and(eq(inviteCode.code, parsed.inviteCode), eq(inviteCode.redeemedBy, parsed.email)));
   }
   return response;
 }

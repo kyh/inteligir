@@ -69,8 +69,8 @@ export function describeCloudFailure(failure: CloudFailure): string {
   }
 }
 
-function unreachable(error: unknown): CloudFailure {
-  return { kind: "unreachable", message: error instanceof Error ? error.message : String(error) };
+function unreachable(cause: unknown): CloudFailure {
+  return { kind: "unreachable", message: cause instanceof Error ? cause.message : String(cause) };
 }
 
 async function readFailure(response: Response): Promise<CloudFailure> {
@@ -122,6 +122,17 @@ async function readValue<TSchema extends z.ZodType>(
  * is not a bound anything here can live inside.
  */
 const REQUEST_TIMEOUT_MS = 30_000;
+
+/** A request body as the wire carries it; `undefined` means GET, and an
+ *  undefined MEMBER is a key `JSON.stringify` drops. */
+type JsonBody =
+  | string
+  | number
+  | boolean
+  | null
+  | undefined
+  | readonly JsonBody[]
+  | { readonly [key: string]: JsonBody };
 
 export interface CloudEndpoint {
   /** Origin of the cloud deployment, e.g. `https://inteligir.com`. */
@@ -191,7 +202,7 @@ export function createCloudClient(args: CreateCloudClientArgs): CloudClient {
    *  bearer can never be dropped by one that passed its own header list. */
   async function send<TSchema extends z.ZodType>(
     path: string,
-    json: unknown,
+    json: JsonBody,
     schema: TSchema,
   ): Promise<CloudResult<z.infer<TSchema>>> {
     const signal = callSignal(args.signal);

@@ -7,27 +7,46 @@ import { z } from "zod";
 import { reasoningEffortsForLevels } from "../vocabulary/reasoning-efforts";
 import type { AvailableModel, ModelReasoningEffort } from "../vocabulary/provider-types";
 import { reasoningLevelSchema, type ReasoningLevel } from "../vocabulary/shared-types";
-import { isRecord } from "../shared/provider-visibility-helpers.js";
+import type { JsonValue } from "../vocabulary/json-value.js";
 
 const FALLBACK_REASONING_LEVEL: ReasoningLevel = "medium";
 
-const codexModelIdentitySchema = z
-  .object({
-    id: z.string().min(1),
-    model: z.string().min(1),
-  })
-  .passthrough();
+/** Soft by design: every optional field a Codex build might not send, or
+ *  might send in a shape this version has no reading for, reads as absent
+ *  rather than failing the model entry. Codex levels the runtime knows
+ *  (including Codex-only "ultra") pass through the shared schema; unknown
+ *  future names soft-fail the same way. */
+const softText = z
+  .string()
+  .optional()
+  .catch(() => undefined);
 
-/** Map a Codex-native reasoning effort string into a runtime ReasoningLevel. */
-function mapCodexReasoningLevelToBb(value: unknown): ReasoningLevel | null {
-  if (typeof value !== "string") {
-    return null;
-  }
-  // Codex levels the runtime knows about (including Codex-only "ultra") pass
-  // through via the shared schema. Unknown future names soft-fail to null.
-  const parsed = reasoningLevelSchema.safeParse(value);
-  return parsed.success ? parsed.data : null;
-}
+const codexReasoningEffortOptionSchema = z.looseObject({
+  reasoningEffort: reasoningLevelSchema,
+  description: softText,
+});
+
+const codexModelIdentitySchema = z.looseObject({
+  id: z.string().min(1),
+  model: z.string().min(1),
+  displayName: softText,
+  description: softText,
+  isDefault: z
+    .boolean()
+    .optional()
+    .catch(() => undefined),
+  defaultReasoningEffort: reasoningLevelSchema.optional().catch(() => undefined),
+  // An entry this version cannot read is skipped, not fatal to the model.
+  supportedReasoningEfforts: z
+    .array(codexReasoningEffortOptionSchema.nullable().catch(() => null))
+    .optional()
+    .catch(() => undefined),
+});
+
+type CodexReasoningEffortOption = z.infer<typeof codexReasoningEffortOptionSchema>;
+
+/** Only the envelope is required; each entry inside is parsed leniently. */
+const modelListPayloadSchema = z.looseObject({ data: z.array(z.unknown()) });
 
 /**
  * Map a runtime ReasoningLevel to the string Codex app-server expects for
@@ -58,38 +77,31 @@ function effortDescriptionForLevel(level: ReasoningLevel): string {
   return reasoningEffortsForLevels([level])[0]?.description ?? "";
 }
 
-function parseReasoningEffortOption(raw: unknown): ModelReasoningEffort | null {
-  if (!isRecord(raw)) {
-    return null;
-  }
-  const level = mapCodexReasoningLevelToBb(raw.reasoningEffort);
-  if (!level) {
-    return null;
-  }
-  const description =
-    typeof raw.description === "string" && raw.description.length > 0
-      ? raw.description
-      : effortDescriptionForLevel(level);
+function toModelReasoningEffort(option: CodexReasoningEffortOption): ModelReasoningEffort {
   return {
-    reasoningEffort: level,
-    description,
+    reasoningEffort: option.reasoningEffort,
+    description:
+      option.description !== undefined && option.description.length > 0
+        ? option.description
+        : effortDescriptionForLevel(option.reasoningEffort),
   };
 }
 
-function parseSupportedReasoningEfforts(raw: unknown): ModelReasoningEffort[] {
-  if (!Array.isArray(raw) || raw.length === 0) {
+function parseSupportedReasoningEfforts(
+  options: Array<CodexReasoningEffortOption | null> | undefined,
+): ModelReasoningEffort[] {
+  if (!options || options.length === 0) {
     return cloneDefaultReasoningEfforts();
   }
 
   const efforts: ModelReasoningEffort[] = [];
   const seen = new Set<ReasoningLevel>();
-  for (const item of raw) {
-    const effort = parseReasoningEffortOption(item);
-    if (!effort || seen.has(effort.reasoningEffort)) {
+  for (const option of options) {
+    if (!option || seen.has(option.reasoningEffort)) {
       continue;
     }
-    seen.add(effort.reasoningEffort);
-    efforts.push(effort);
+    seen.add(option.reasoningEffort);
+    efforts.push(toModelReasoningEffort(option));
   }
 
   // All efforts unknown/unmapped — fall back rather than rejecting the model.
@@ -98,7 +110,7 @@ function parseSupportedReasoningEfforts(raw: unknown): ModelReasoningEffort[] {
 
 function toAvailableModel(raw: z.infer<typeof codexModelIdentitySchema>): AvailableModel {
   const efforts = parseSupportedReasoningEfforts(raw.supportedReasoningEfforts);
-  const mappedDefault = mapCodexReasoningLevelToBb(raw.defaultReasoningEffort);
+  const mappedDefault = raw.defaultReasoningEffort;
   const defaultReasoningEffort =
     mappedDefault && efforts.some((effort) => effort.reasoningEffort === mappedDefault)
       ? mappedDefault
@@ -108,10 +120,8 @@ function toAvailableModel(raw: z.infer<typeof codexModelIdentitySchema>): Availa
     id: raw.id,
     model: raw.model,
     displayName:
-      typeof raw.displayName === "string" && raw.displayName.length > 0
-        ? raw.displayName
-        : raw.model,
-    description: typeof raw.description === "string" ? raw.description : "",
+      raw.displayName !== undefined && raw.displayName.length > 0 ? raw.displayName : raw.model,
+    description: raw.description ?? "",
     supportedReasoningEfforts: efforts,
     defaultReasoningEffort,
     isDefault: raw.isDefault === true,
@@ -125,18 +135,14 @@ function toAvailableModel(raw: z.infer<typeof codexModelIdentitySchema>): Availa
  * entries are skipped, and only a completely unusable payload fails hard.
  * This keeps the model picker working when Codex introduces new effort names.
  */
-export function parseModelsResponse(result: unknown): AvailableModel[] {
-  if (!isRecord(result)) {
-    throw new Error("Invalid response from codex model/list.");
-  }
-
-  const data = result.data;
-  if (!Array.isArray(data)) {
+export function parseModelsResponse(result: JsonValue): AvailableModel[] {
+  const payload = modelListPayloadSchema.safeParse(result);
+  if (!payload.success) {
     throw new Error("Invalid response from codex model/list.");
   }
 
   const models: AvailableModel[] = [];
-  for (const entry of data) {
+  for (const entry of payload.data.data) {
     const identity = codexModelIdentitySchema.safeParse(entry);
     if (!identity.success) {
       continue;

@@ -77,7 +77,7 @@ export function tasksInTree(tree: Nodes, source: string): ExtractedTask[] {
  * one — which is what keeps this count level with the editor's, where such a
  * bullet renders without a checkbox widget. */
 function collectTaskItems(node: Nodes, out: Array<{ item: ListItem; checked: boolean }>): void {
-  if (node.type === "listItem" && typeof node.checked === "boolean") {
+  if (node.type === "listItem" && node.checked != null) {
     out.push({ item: node, checked: node.checked });
   }
   if ("children" in node) {

@@ -49,6 +49,7 @@ import {
   publishedBinMap,
 } from "../../../apps/launcher/scripts/staged-layout.mjs";
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 import { REPO_ROOT, sourceOf } from "./repo";
 
 /** The module every encoder below is measured against. */
@@ -59,13 +60,20 @@ const ELECTRON_BUILDER = "apps/desktop/electron-builder.yml";
 /** The `.mjs` callers that must IMPORT the layout rather than restate it. Each
  *  one used to spell the tree out for itself; the desktop smoke was a fourth
  *  independent spelling that never called the shell's own resolver either. */
-const IMPORTERS: Record<string, string> = {
-  "apps/launcher/scripts/build.mjs": "the producer — it writes the tree every other encoder walks",
-  "apps/launcher/scripts/smoke.mjs":
+const IMPORTERS = new Map<string, string>([
+  [
+    "apps/launcher/scripts/build.mjs",
+    "the producer — it writes the tree every other encoder walks",
+  ],
+  [
+    "apps/launcher/scripts/smoke.mjs",
     "proves a real npm install has the tree at the paths it claims",
-  "apps/desktop/scripts/smoke-packaged.mjs":
+  ],
+  [
+    "apps/desktop/scripts/smoke-packaged.mjs",
     "proves the packed .app carries the same tree inside app.asar.unpacked",
-};
+  ],
+]);
 
 interface Encoder {
   file: string;
@@ -124,9 +132,8 @@ function joinedLiteral(segments: readonly string[]): RegExp {
   return new RegExp(segments.map((segment) => segment.replaceAll(".", "\\.")).join("[/\\\\]"));
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
+/** The one field of the launcher manifest this guard reads. */
+const binMapSchema = z.looseObject({ bin: z.record(z.string(), z.string()) });
 
 describe("the staged install layout", () => {
   it("has a layout module, and it is the one every importer names", () => {
@@ -134,7 +141,7 @@ describe("the staged install layout", () => {
     // importers are checked before anything is measured against it.
     expect(fs.existsSync(path.join(REPO_ROOT, LAYOUT)), `${LAYOUT} is missing`).toBe(true);
     const violations: string[] = [];
-    for (const [file, role] of Object.entries(IMPORTERS)) {
+    for (const [file, role] of IMPORTERS) {
       if (!fs.existsSync(path.join(REPO_ROOT, file))) {
         violations.push(
           `MISSING IMPORTER  ${file}\n  it was ${role}\n  fix: update IMPORTERS, or restore the file`,
@@ -157,8 +164,8 @@ describe("the staged install layout", () => {
     // every packed file it does not name here, and the agent's resolver
     // refuses a file without one — so a bin entry that drifts from the staged
     // path removes the CLI from the agent's PATH on a published install only.
-    const parsed: unknown = JSON.parse(sourceOf(LAUNCHER_MANIFEST));
-    const declared = isRecord(parsed) && isRecord(parsed["bin"]) ? parsed["bin"] : null;
+    const parsed = binMapSchema.safeParse(JSON.parse(sourceOf(LAUNCHER_MANIFEST)));
+    const declared = parsed.success ? parsed.data.bin : null;
     expect(
       declared,
       `${LAUNCHER_MANIFEST} declares no "bin" map; ${LAYOUT} says it must be ${JSON.stringify(publishedBinMap())}`,

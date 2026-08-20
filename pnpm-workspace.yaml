@@ -57,6 +57,10 @@ catalog:
 # that major. CI installs --frozen-lockfile, so this only affects resolution
 # during a local `pnpm add`/`pnpm update`.
 minimumReleaseAge: 1440
+# First-party packages: we publish them, so the cooldown protects nothing and
+# only delays adopting our own releases.
+minimumReleaseAgeExclude:
+  - "@kyh/oxlint"
 
 # A transitive dep resolved from git/a tarball/a URL bypasses both the cooldown
 # above and the registry integrity the lockfile records. Direct deps may still

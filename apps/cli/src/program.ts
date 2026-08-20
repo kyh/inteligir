@@ -17,6 +17,7 @@
 
 import { readFileSync } from "node:fs";
 import { runCommand, defineCommand, renderUsage, type CommandDef } from "citty";
+import { z } from "zod";
 import { CliExitError, EXIT_ERROR, getErrorMessage, invalidUsage } from "./cli-error";
 import { argsOf, assertKnownFlags, resolveCommandPath } from "./command-tree";
 import { connectorsCommand } from "./commands/connectors";
@@ -31,20 +32,17 @@ import { vaultCommand } from "./commands/vault";
 import { describeContext, type CliDeps } from "./context";
 import { out, wantsJsonOutput, writeOut } from "./output";
 
+const manifestSchema = z.looseObject({ version: z.string() });
+
 /** package.json sits one level above this module in src/ AND in the dist/
  *  bundle, so one relative read serves both layouts. */
 function readCliVersion(): string {
   try {
-    const parsed: unknown = JSON.parse(
-      readFileSync(new URL("../package.json", import.meta.url), "utf8"),
+    const manifest = manifestSchema.safeParse(
+      JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")),
     );
-    if (
-      typeof parsed === "object" &&
-      parsed !== null &&
-      "version" in parsed &&
-      typeof parsed.version === "string"
-    ) {
-      return parsed.version;
+    if (manifest.success) {
+      return manifest.data.version;
     }
   } catch {
     // Fall through to the placeholder.
@@ -155,13 +153,13 @@ interface Failure {
  * name. Every one of them is the caller's own mistake, which is the class
  * commander reported for the same inputs.
  */
-function asFailure(error: unknown): Failure {
-  if (error instanceof CliExitError) {
-    return { code: error.code, message: error.message, exitCode: error.exitCode };
+function asFailure(cause: unknown): Failure {
+  if (cause instanceof CliExitError) {
+    return { code: cause.code, message: cause.message, exitCode: cause.exitCode };
   }
-  if (error instanceof Error && error.name === "CLIError") {
-    const local = invalidUsage(error.message);
+  if (cause instanceof Error && cause.name === "CLIError") {
+    const local = invalidUsage(cause.message);
     return { code: local.code, message: local.message, exitCode: local.exitCode };
   }
-  return { code: "unexpected", message: getErrorMessage(error), exitCode: EXIT_ERROR };
+  return { code: "unexpected", message: getErrorMessage(cause), exitCode: EXIT_ERROR };
 }

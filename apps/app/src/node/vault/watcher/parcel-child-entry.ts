@@ -6,7 +6,7 @@
 
 import fs from "node:fs/promises";
 import parcelWatcher from "@parcel/watcher";
-import { parseParentToChildMessage } from "./messages";
+import { parentToChildMessageSchema } from "./messages";
 import { createParcelChildHandler } from "./parcel-child-handler";
 
 const handler = createParcelChildHandler({
@@ -18,9 +18,9 @@ const handler = createParcelChildHandler({
 });
 
 process.on("message", (message) => {
-  const parsed = parseParentToChildMessage(message);
-  if (parsed !== null) {
-    handler.handleMessage(parsed);
+  const parsed = parentToChildMessageSchema.safeParse(message);
+  if (parsed.success) {
+    handler.handleMessage(parsed.data);
   }
 });
 

@@ -16,8 +16,8 @@ import type { CaptureTurnProposals } from "./agent-commits";
 import type { AppConfig } from "../config";
 import type { VaultRuntime } from "../vault/vault-runtime";
 import { createBoundedAgentLog } from "./agent-log";
-import { createCodexRuntimeManager } from "./runtime-manager";
-import { createScriptedTurnDriverFactory } from "./scripted-driver";
+import { createCodexRuntimeManager, type CodexRuntimeManagerDeps } from "./runtime-manager";
+import { createScriptedTurnDriverFactory, type ScriptedDriverDeps } from "./scripted-driver";
 
 export interface ResolveAgentDriverArgs {
   config: Pick<AppConfig, "agent" | "agentModel" | "vaultDir">;
@@ -80,14 +80,15 @@ export function resolveAgentDriver(args: ResolveAgentDriverArgs): ResolvedAgentD
   // occurrence per stripped-id key logs in full, repeats log a count.
   const onDebug = createBoundedAgentLog();
   if (mode === "scripted") {
+    const scripted: ScriptedDriverDeps = {
+      vault: args.vault.service,
+      git: args.vault.git,
+      onError: onDebug,
+    };
+    if (args.captureProposals !== undefined) scripted.captureProposals = args.captureProposals;
     return {
       status: { mode, runtime: "scripted", detail: null },
-      createTurnDriver: createScriptedTurnDriverFactory({
-        vault: args.vault.service,
-        git: args.vault.git,
-        ...(args.captureProposals === undefined ? {} : { captureProposals: args.captureProposals }),
-        onError: onDebug,
-      }),
+      createTurnDriver: createScriptedTurnDriverFactory(scripted),
       dispose: noDispose,
     };
   }
@@ -103,17 +104,18 @@ export function resolveAgentDriver(args: ResolveAgentDriverArgs): ResolvedAgentD
     };
   }
 
-  const manager = createCodexRuntimeManager({
+  const codex: CodexRuntimeManagerDeps = {
     db: args.db,
     notifier: args.notifier,
     vaultDir: args.config.vaultDir,
     git: args.vault.git,
     model: args.config.agentModel,
-    ...(args.shellEnv !== undefined ? { shellEnv: args.shellEnv } : {}),
-    ...(args.cliBinDir !== undefined ? { cliBinDir: args.cliBinDir } : {}),
-    ...(args.captureProposals === undefined ? {} : { captureProposals: args.captureProposals }),
     onDebug,
-  });
+  };
+  if (args.shellEnv !== undefined) codex.shellEnv = args.shellEnv;
+  if (args.cliBinDir !== undefined) codex.cliBinDir = args.cliBinDir;
+  if (args.captureProposals !== undefined) codex.captureProposals = args.captureProposals;
+  const manager = createCodexRuntimeManager(codex);
   return {
     status: { mode, runtime: "codex", detail: null },
     createTurnDriver: manager.createTurnDriver,

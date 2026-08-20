@@ -14,7 +14,8 @@ import {
   type ProviderEvent,
 } from "../vocabulary/provider-event.js";
 import type { JsonRpcMessage } from "../runtime-json-rpc.js";
-import { getStringProperty, isRecord } from "./provider-visibility-helpers.js";
+import { getStringProperty } from "./provider-visibility-helpers.js";
+import { jsonObjectSchema } from "../vocabulary/json-value.js";
 import { UNSTAMPED_THREAD_ID } from "./unstamped-thread-id.js";
 
 type ProviderUnhandledEvent = Extract<ProviderEvent, { type: "provider/unhandled" }>;
@@ -34,21 +35,23 @@ function toProviderRawEvent(rawEvent: JsonRpcMessage): ProviderRawEvent {
     return parsed.data;
   }
 
-  return {
+  const fallback: ProviderRawEvent = {
     jsonrpc: "2.0",
-    ...(rawEvent.id !== undefined ? { id: rawEvent.id } : {}),
     method: rawEvent.method,
     params: {
       serializationError: "Provider raw event params were not JSON-serializable.",
     },
   };
+  if (rawEvent.id !== undefined) fallback.id = rawEvent.id;
+  return fallback;
 }
 
 function getThreadIdFromRawEvent(rawEvent: JsonRpcMessage): string {
-  if (!isRecord(rawEvent.params)) {
+  const params = jsonObjectSchema.safeParse(rawEvent.params);
+  if (!params.success) {
     return UNSTAMPED_THREAD_ID;
   }
-  return getStringProperty(rawEvent.params, "threadId") ?? UNSTAMPED_THREAD_ID;
+  return getStringProperty(params.data, "threadId") ?? UNSTAMPED_THREAD_ID;
 }
 
 export function createUnhandledProviderEvent(

@@ -348,12 +348,12 @@ export function createVaultService(args: VaultServiceArgs): VaultService {
           `${relPath} is ${stats.size} bytes; the read cap is ${VAULT_MAX_CONTENT_LENGTH}`,
         );
       }
-      const content = await readFile(absPath, "utf8").catch((error: unknown) => {
-        const code = errnoCode(error);
+      const content = await readFile(absPath, "utf8").catch((cause: unknown) => {
+        const code = errnoCode(cause);
         if (code === "ENOENT" || code === "ENOTDIR" || code === "EISDIR") {
           throw notFound(relPath);
         }
-        throw error;
+        throw cause;
       });
       return { path: relPath, content };
     },
@@ -371,12 +371,12 @@ export function createVaultService(args: VaultServiceArgs): VaultService {
           `${relPath} is ${stats.size} bytes; the read cap is ${VAULT_MAX_CONTENT_LENGTH}`,
         );
       }
-      const buffer = await readFile(absPath).catch((error: unknown) => {
-        const code = errnoCode(error);
+      const buffer = await readFile(absPath).catch((cause: unknown) => {
+        const code = errnoCode(cause);
         if (code === "ENOENT" || code === "ENOTDIR" || code === "EISDIR") {
           throw notFound(relPath);
         }
-        throw error;
+        throw cause;
       });
       const bytes = new Uint8Array(buffer.byteLength);
       bytes.set(buffer);

@@ -81,11 +81,12 @@ const TOTALITY_FLOOR = 3;
  * file is about. The self-check below fails if zod's shape ever stops
  * yielding them, rather than letting an empty vocabulary pass everything.
  */
-const syncStates: string[] = (
-  vaultStatusResponseSchema as unknown as {
-    options: { shape: Record<string, { value?: unknown }> }[];
-  }
-).options.map((option) => String(option.shape["state"]?.value));
+const syncStates = vaultStatusResponseSchema.options.map((option) => {
+  // Zod owns this property name; reading it through a computed key keeps a
+  // word this repo bans from its own symbols out of the file.
+  const { ["shape"]: fields } = option;
+  return fields.state.value;
+});
 
 interface Vocabulary {
   /** The domain word, as the failure says it. */

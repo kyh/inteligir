@@ -20,7 +20,7 @@ const accent = "var(--editor-accent, var(--editor-accent-fallback))";
 // silently. Every consumer therefore resolves the theme itself and stamps it
 // (apps/app's EditorThemeCarrier; `dev/main.ts` for the demo);
 // `__tests__/theme-carrier.test.ts` keeps the dead pattern from coming back.
-const lightTokens: Record<string, string> = {
+const lightTokens = {
   "--editor-accent-fallback": "oklch(58.8% 0.158 241.966)",
   "--editor-fg": "oklch(24% 0.012 260)",
   "--editor-faint": "oklch(72% 0.015 260)",
@@ -47,7 +47,7 @@ const lightTokens: Record<string, string> = {
   "--pm-syntax-invalid": "oklch(64.62% 0.203 29.2)",
 };
 
-const darkTokens: Record<string, string> = {
+const darkTokens = {
   "--editor-accent-fallback": "oklch(72% 0.14 241.966)",
   "--editor-fg": "oklch(88% 0.01 260)",
   "--editor-faint": "oklch(48% 0.02 260)",

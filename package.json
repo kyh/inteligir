@@ -25,10 +25,11 @@
     "verify": "pnpm typecheck && pnpm lint && pnpm knip && pnpm format && pnpm test && pnpm build"
   },
   "devDependencies": {
+    "@kyh/oxlint": "^0.1.2",
     "dotenv-cli": "^11.0.0",
     "knip": "^6.29.0",
     "oxfmt": "^0.60.0",
-    "oxlint": "^1.75.0",
+    "oxlint": "^1.78.0",
     "oxlint-tsgolint": "^7.0.2001",
     "turbo": "^2.10.6",
     "typescript": "catalog:"

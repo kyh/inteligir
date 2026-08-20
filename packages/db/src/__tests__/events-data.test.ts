@@ -23,7 +23,13 @@ function openTempDir(): string {
   return dir;
 }
 
-function openTempDb(): { db: DbConnection; databasePath: string } {
+/** A migrated database in a scratch directory, and where it lives. */
+interface TempDb {
+  db: DbConnection;
+  databasePath: string;
+}
+
+function openTempDb(): TempDb {
   const databasePath = join(openTempDir(), "test.db");
   const db = createConnection(databasePath);
   runMigrations(db);

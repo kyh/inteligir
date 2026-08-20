@@ -10,8 +10,8 @@ import { cn } from "@repo/ui/lib/utils";
 import { refusalMessage } from "../api";
 
 /** `refusalMessage`, toasted — the sections' one way of saying a verb failed. */
-export function failed(error: unknown, fallback: string): void {
-  toast.error(refusalMessage(error, fallback));
+export function failed(cause: unknown, fallback: string): void {
+  toast.error(refusalMessage(cause, fallback));
 }
 
 export function Row({ label, children }: { label: string; children: React.ReactNode }) {

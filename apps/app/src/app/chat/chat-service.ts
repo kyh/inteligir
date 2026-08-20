@@ -42,7 +42,9 @@ export interface SendToThreadArgs {
   viewContext?: ViewContext;
 }
 
-async function refusalMessage(response: { json(): Promise<unknown> }): Promise<string> {
+/** Any response the client can hand back: the body is parsed against the error
+ *  envelope, so its declared type is whatever that caller's route returns. */
+async function refusalMessage<Body>(response: { json(): Promise<Body> }): Promise<string> {
   try {
     const parsed = apiErrorResponseSchema.safeParse(await response.json());
     return parsed.success ? parsed.data.message : "The send was refused.";
@@ -60,18 +62,29 @@ async function refusalMessage(response: { json(): Promise<unknown> }): Promise<s
  * is bounded to one — it re-reads once and then queues rather than racing a
  * thread that keeps moving.
  */
+/** One send, in the mode named, guarding the turn named. `expectedTurnId` and
+ *  the view context are omitted rather than sent empty: the server reads an
+ *  absent guard as "this client believes the thread is idle". */
+function sendRequest(
+  args: SendToThreadArgs,
+  mode: SendMessageRequest["mode"],
+  expectedTurnId: string | null,
+): SendMessageRequest {
+  const request: SendMessageRequest = { threadId: args.threadId, text: args.text, mode };
+  if (expectedTurnId !== null) {
+    request.expectedTurnId = expectedTurnId;
+  }
+  if (args.viewContext !== undefined) {
+    request.viewContext = args.viewContext;
+  }
+  return request;
+}
+
 export async function sendToThread(
   api: ApiClient,
   args: SendToThreadArgs,
 ): Promise<ComposerSendOutcome> {
-  const context = args.viewContext === undefined ? {} : { viewContext: args.viewContext };
-  const steer: SendMessageRequest = {
-    threadId: args.threadId,
-    text: args.text,
-    mode: "steer-if-active",
-    ...(args.activeTurnId === null ? {} : { expectedTurnId: args.activeTurnId }),
-    ...context,
-  };
+  const steer = sendRequest(args, "steer-if-active", args.activeTurnId);
   const first = await api.threads.send.$post({ json: steer });
   if (first.ok) {
     return first.json();
@@ -83,7 +96,7 @@ export async function sendToThread(
   const errorClass = refusal.success ? refusal.data.error : "conflict";
   if (errorClass === "not_steerable") {
     const queued = await api.threads.send.$post({
-      json: { threadId: args.threadId, text: args.text, mode: "queue-if-active", ...context },
+      json: sendRequest(args, "queue-if-active", null),
     });
     if (queued.ok) {
       return queued.json();
@@ -97,20 +110,14 @@ export async function sendToThread(
     }
     const { thread } = await detail.json();
     const retry = await api.threads.send.$post({
-      json: {
-        threadId: args.threadId,
-        text: args.text,
-        mode: "steer-if-active",
-        ...(thread.activeTurnId === null ? {} : { expectedTurnId: thread.activeTurnId }),
-        ...context,
-      },
+      json: sendRequest(args, "steer-if-active", thread.activeTurnId),
     });
     if (retry.ok) {
       return retry.json();
     }
     if (retry.status === 409) {
       const queued = await api.threads.send.$post({
-        json: { threadId: args.threadId, text: args.text, mode: "queue-if-active", ...context },
+        json: sendRequest(args, "queue-if-active", null),
       });
       if (queued.ok) {
         return queued.json();

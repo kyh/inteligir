@@ -37,7 +37,13 @@ interface RecordedThreadChange {
   changes: ThreadChangeKind[];
 }
 
-function recordingNotifier(): { notifier: DbNotifier; threadChanges: RecordedThreadChange[] } {
+/** A notifier plus the list it appends every thread change to. */
+interface RecordingNotifier {
+  notifier: DbNotifier;
+  threadChanges: RecordedThreadChange[];
+}
+
+function recordingNotifier(): RecordingNotifier {
   const threadChanges: RecordedThreadChange[] = [];
   return {
     threadChanges,

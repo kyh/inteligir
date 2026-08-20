@@ -16,6 +16,7 @@ import type {
 } from "@repo/domain/pending-interactions";
 import type { ProviderEvent, ProviderEventUserContent } from "./vocabulary/provider-event.js";
 import type { ProviderInboundRequest, ProviderRuntimeEvent } from "./runtime-json-rpc.js";
+import type { JsonValue } from "./vocabulary/json-value.js";
 
 /** What a turn's prompt is made of; bb's PromptInput, mentions dropped. */
 export type PromptInput = ProviderEventUserContent;
@@ -42,7 +43,7 @@ export type ProviderCommandPlan = ProviderRequestCommandPlan | ProviderNoopComma
 export interface ProviderPostInitializeRequest {
   plan: ProviderRequestCommandPlan;
   required: boolean;
-  onResult(result: unknown): void;
+  onResult(result: JsonValue): void;
 }
 
 export type ProviderInteractiveResponse =
@@ -147,7 +148,7 @@ export interface ProviderAdapter {
    * versions unusable when they do not implement the read.
    */
   buildPostInitializeRequests?(): readonly ProviderPostInitializeRequest[];
-  parseModelListResult(result: unknown): { models: AvailableModel[] };
+  parseModelListResult(result: JsonValue): { models: AvailableModel[] };
   translateEvent(
     event: ProviderRuntimeEvent,
     context?: ProviderTranslationContext,

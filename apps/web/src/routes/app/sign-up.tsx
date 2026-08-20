@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { createFileRoute, Link, redirect, useRouter } from "@tanstack/react-router";
+import { z } from "zod";
 
 import { Button } from "@repo/ui/components/button";
 
@@ -14,20 +15,14 @@ const SIGN_UP_URL = "/v1/auth/sign-up";
 
 const FALLBACK_ERROR = "Something went wrong — try again.";
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
+/** Both this route's gate and Better Auth answer with a `message`, so one
+ * reader serves both. Loose, because Better Auth's envelope carries more. */
+const refusalSchema = z.looseObject({ message: z.string().min(1) });
 
-/** The refusal to show. Both this route's gate and Better Auth answer with a
- * `message`, so one reader serves both. */
+/** The refusal to show. */
 async function refusalMessage(response: Response): Promise<string> {
-  try {
-    const body: unknown = await response.json();
-    const message = isRecord(body) ? body["message"] : null;
-    return typeof message === "string" && message !== "" ? message : FALLBACK_ERROR;
-  } catch {
-    return FALLBACK_ERROR;
-  }
+  const body = refusalSchema.safeParse(await response.json().catch(() => null));
+  return body.success ? body.data.message : FALLBACK_ERROR;
 }
 
 export const Route = createFileRoute("/app/sign-up")({

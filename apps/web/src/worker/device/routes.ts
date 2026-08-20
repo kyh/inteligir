@@ -60,10 +60,10 @@ export async function handleDeviceRoutes(request: Request, env: Env, url: URL): 
       body.data.deviceName,
       body.data.verifier,
     );
-    if (typeof redeemed === "string") {
-      return refuse(redeemed, redeemFailureMessage(redeemed));
+    if (!redeemed.redeemed) {
+      return refuse(redeemed.failure, redeemFailureMessage(redeemed.failure));
     }
-    return jsonNoStore(redeemed);
+    return jsonNoStore(redeemed.response);
   }
 
   const userId = await sessionUserId(request, env, url.origin);

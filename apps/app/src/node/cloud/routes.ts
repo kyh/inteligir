@@ -7,7 +7,7 @@
 // not a row in this table (see `pair-callback.ts`).
 
 import { pairCallbackUrlFor } from "./pair-callback";
-import type { CloudRuntime } from "./sync-runtime";
+import type { BeginPairArgs, CloudRuntime } from "./sync-runtime";
 import { cloudRoutes } from "@repo/server-contract/cloud";
 import { API_ERROR_STATUS, type ApiErrorResponse } from "@repo/server-contract/errors";
 import type { TypedRoutesRegistrars } from "@repo/typed-routes/typed-routes";
@@ -34,13 +34,9 @@ export function registerCloudRoutes(
       };
       return c.json(refusal, API_ERROR_STATUS.invalid_request);
     }
-    return c.json(
-      await runtime.beginPair({
-        callbackUrl,
-        ...(body.deviceName === undefined ? {} : { deviceName: body.deviceName }),
-        openBrowser: body.openBrowser,
-      }),
-    );
+    const begin: BeginPairArgs = { callbackUrl, openBrowser: body.openBrowser };
+    if (body.deviceName !== undefined) begin.deviceName = body.deviceName;
+    return c.json(await runtime.beginPair(begin));
   });
 
   post(cloudRoutes.unpair, (c) => c.json(runtime.unpair()));

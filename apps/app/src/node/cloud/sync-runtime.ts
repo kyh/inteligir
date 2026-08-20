@@ -68,10 +68,12 @@ import {
   describeCloudFailure,
   redeemDevice,
   type CloudClient,
+  type CloudEndpoint,
   type CloudFailure,
   type CloudFetch,
   type CloudSocket,
   type CloudSocketOpener,
+  type CreateCloudClientArgs,
 } from "./cloud-client";
 import {
   clearDeviceCredential,
@@ -196,6 +198,12 @@ export interface CloudRuntimeArgs {
   onDebug?: (message: string) => void;
 }
 
+export interface BeginPairArgs {
+  callbackUrl: string;
+  deviceName?: string;
+  openBrowser: boolean;
+}
+
 export interface CloudRuntime {
   status(): CloudStatusResponse;
   /** The outbox hook the thread service calls inside its append transaction. */
@@ -211,11 +219,7 @@ export interface CloudRuntime {
    * ALREADY been through `pairRedirectUrlSchema` — `pair-callback.ts` is the
    * one gate, so nothing here re-decides which targets are admissible.
    */
-  beginPair(args: {
-    callbackUrl: string;
-    deviceName?: string;
-    openBrowser: boolean;
-  }): Promise<CloudPairBeginResponse>;
+  beginPair(args: BeginPairArgs): Promise<CloudPairBeginResponse>;
   /** Redeem `code`, but only for the approval this app is actually waiting on. */
   completePair(args: { code: string; state: string }): Promise<PairCompletion>;
   unpair(): CloudStatusResponse;
@@ -306,6 +310,18 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
   let dirty = false;
   let pendingPair: PendingPair | null = null;
 
+  /** The endpoint every call rides. `fetch` stays ABSENT unless a suite
+   *  injected one, so the client falls back to the global. */
+  function endpoint(): CloudEndpoint {
+    const target: CloudEndpoint = { baseUrl: args.cloudUrl };
+    if (transport.fetch !== undefined) target.fetch = transport.fetch;
+    return target;
+  }
+
+  function clientArgs(credential: string, signal: AbortSignal): CreateCloudClientArgs {
+    return { ...endpoint(), credential, signal };
+  }
+
   /** End the current session and hand back a fresh, un-aborted controller.
    *  Called by every transition, so no path can forget to cancel. */
   function closeSession(): void {
@@ -320,12 +336,7 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
       kind: "live",
       id: sessionCounter,
       credential,
-      client: createCloudClient({
-        baseUrl: args.cloudUrl,
-        credential: credential.credential,
-        signal: sessionAbort.signal,
-        ...(transport.fetch === undefined ? {} : { fetch: transport.fetch }),
-      }),
+      client: createCloudClient(clientArgs(credential.credential, sessionAbort.signal)),
     };
   }
 
@@ -918,13 +929,11 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
       // of a shoulder-surfed address bar — and the whole point of binding the
       // two is that the pairing this app started happens once.
       pendingPair = null;
-      const redeemed = await redeemDevice(
-        {
-          baseUrl: args.cloudUrl,
-          ...(transport.fetch === undefined ? {} : { fetch: transport.fetch }),
-        },
-        { code: request.code, deviceName: pending.deviceName, verifier: pending.verifier },
-      );
+      const redeemed = await redeemDevice(endpoint(), {
+        code: request.code,
+        deviceName: pending.deviceName,
+        verifier: pending.verifier,
+      });
       if (disposed) {
         // Teardown ran during the redeem round trip: do not write a credential
         // or open a session after the process was told to stop.

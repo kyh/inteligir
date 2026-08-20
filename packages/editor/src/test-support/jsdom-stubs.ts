@@ -4,7 +4,7 @@
 // the same setup file is inert under node-environment test files.
 
 if (typeof window !== "undefined") {
-  if (typeof window.matchMedia !== "function") {
+  if (!window.matchMedia) {
     window.matchMedia = (query: string) => ({
       matches: false,
       media: query,
@@ -16,10 +16,10 @@ if (typeof window !== "undefined") {
       dispatchEvent: () => false,
     });
   }
-  if (typeof Element.prototype.scrollIntoView !== "function") {
+  if (!Element.prototype.scrollIntoView) {
     Element.prototype.scrollIntoView = () => {};
   }
-  if (typeof globalThis.ResizeObserver !== "function") {
+  if (!globalThis.ResizeObserver) {
     class ResizeObserverStub {
       observe(): void {}
       unobserve(): void {}

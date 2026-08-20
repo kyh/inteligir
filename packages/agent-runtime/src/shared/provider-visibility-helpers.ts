@@ -1,19 +1,18 @@
 // Vendored from bb (github.com/get-bb/bb), MIT. © bb contributors.
 
-export interface StringRecord {
-  [key: string]: unknown;
-}
+import { z } from "zod";
+import { jsonObjectSchema, type JsonObject } from "../vocabulary/json-value.js";
 
-export function isRecord(value: unknown): value is StringRecord {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
+export type StringRecord = JsonObject;
 
+/** The value at `key` when the wire sent an object there, else null. */
 export function getRecordProperty(value: StringRecord, key: string): StringRecord | null {
-  const next = value[key];
-  return isRecord(next) ? next : null;
+  const next = jsonObjectSchema.safeParse(value[key]);
+  return next.success ? next.data : null;
 }
 
+/** The value at `key` when the wire sent text there, else undefined. */
 export function getStringProperty(value: StringRecord, key: string): string | undefined {
-  const next = value[key];
-  return typeof next === "string" ? next : undefined;
+  const next = z.string().safeParse(value[key]);
+  return next.success ? next.data : undefined;
 }

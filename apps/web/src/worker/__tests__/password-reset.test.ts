@@ -20,8 +20,14 @@ const NEW_PASSWORD = "new-password-5678";
  * never sees a raw `EmailMessage`; the send path doesn't construct MIME). */
 type RecordedEmail = EmailMessageBuilder;
 
+/** The mock binding and the messages it captured. */
+interface EmailRecorder {
+  EMAIL: SendEmail;
+  sent: RecordedEmail[];
+}
+
 /** A recording stand-in for the `send_email` binding. */
-function recordingEmail(): { EMAIL: SendEmail; sent: RecordedEmail[] } {
+function recordingEmail(): EmailRecorder {
   const sent: RecordedEmail[] = [];
   const EMAIL: SendEmail = {
     send: async (message: EmailMessage | EmailMessageBuilder): Promise<EmailSendResult> => {

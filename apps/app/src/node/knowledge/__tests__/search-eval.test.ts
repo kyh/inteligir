@@ -38,6 +38,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { makeTempDir } from "../../__tests__/temp-dir";
 import { createSqliteDriver } from "../sqlite-driver";
 import { EVAL_QUERIES, EVAL_VAULT, type EvalQuery } from "./search-eval-vault";
+import { z } from "zod";
 
 /** The result window a person actually looks at. */
 const K = 10;
@@ -112,6 +113,16 @@ function scoreOne(retrieved: string[], gold: readonly string[]) {
   };
 }
 
+/** Every metric the table averages — `Object.keys` would only answer `string`. */
+const METRIC_KEYS = [
+  "answered",
+  "recall",
+  "precisionAt1",
+  "precisionAtK",
+  "mrr",
+  "meanResults",
+] as const satisfies readonly (keyof Metrics)[];
+
 function measure(retrieve: Retrieve, queries: readonly EvalQuery[]): Metrics {
   const totals: Metrics = {
     answered: 0,
@@ -123,9 +134,9 @@ function measure(retrieve: Retrieve, queries: readonly EvalQuery[]): Metrics {
   };
   for (const { query, gold } of queries) {
     const one = scoreOne(retrieve(query, K), gold);
-    for (const key of Object.keys(totals) as Array<keyof Metrics>) totals[key] += one[key];
+    for (const key of METRIC_KEYS) totals[key] += one[key];
   }
-  for (const key of Object.keys(totals) as Array<keyof Metrics>) totals[key] /= queries.length;
+  for (const key of METRIC_KEYS) totals[key] /= queries.length;
   return totals;
 }
 
@@ -174,9 +185,10 @@ afterAll(() => {
 });
 
 function probe(match: string, limit: number): string[] {
-  return driver
-    .all(PROBE_SEARCH_SQL, [match, limit])
-    .map((row) => (typeof row.path === "string" ? row.path : ""));
+  return driver.all(PROBE_SEARCH_SQL, [match, limit]).map((row) => {
+    const path = z.string().safeParse(row.path);
+    return path.success ? path.data : "";
+  });
 }
 
 const before: Retrieve = (query, limit) => {

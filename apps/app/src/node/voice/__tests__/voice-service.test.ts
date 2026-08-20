@@ -32,6 +32,11 @@ async function installFakeModel(modelDir: string): Promise<void> {
   await writeFile(modelFilePath(modelDir, VOICE_MODEL), Buffer.alloc(VOICE_MODEL.sizeBytes));
 }
 
+/** A latch the test opens by hand; `release` exists once the executor ran. */
+interface Gate {
+  release?: () => void;
+}
+
 describe("WhisperVoiceService", () => {
   it("reports a runtime that will not load as unavailable, and refuses both verbs", async () => {
     const service = new WhisperVoiceService({
@@ -122,7 +127,7 @@ describe("WhisperVoiceService", () => {
     // while the first is in flight" is a fact rather than a timing bet. A
     // `delay()` raced the second call's own `stat` under a saturated CI and
     // flaked. The executor captures `gate`, which keeps the linter happy.
-    const gate: { release?: () => void } = {};
+    const gate: Gate = {};
     const held = new Promise<void>((resolve) => {
       gate.release = resolve;
     });

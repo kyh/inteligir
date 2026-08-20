@@ -18,7 +18,7 @@ import {
 import { getThread } from "@repo/db/threads";
 import { describe, expect, it } from "vitest";
 import { hermeticGitEnv } from "../../vault/__tests__/git-test-env";
-import { createCodexRuntimeManager } from "../runtime-manager";
+import { createCodexRuntimeManager, type CodexRuntimeManagerDeps } from "../runtime-manager";
 import { bootTestApp, type BootedTestApp } from "../../__tests__/boot-app";
 import { makeTempDir } from "../../__tests__/temp-dir";
 import {
@@ -44,7 +44,7 @@ async function bootWithManager(
   return bootTestApp({
     agent: { mode: "codex", runtime: "codex", detail: null },
     makeDriver: ({ db, bus, vault, vaultDir }) => {
-      const manager = createCodexRuntimeManager({
+      const deps: CodexRuntimeManagerDeps = {
         db,
         notifier: bus,
         vaultDir,
@@ -55,10 +55,11 @@ async function bootWithManager(
           options.markerPath !== undefined ? { markerPath: options.markerPath } : undefined,
         ),
         reapIntervalMs: null,
-        ...(options.turnIdleTimeoutMs === undefined
-          ? {}
-          : { turnIdleTimeoutMs: options.turnIdleTimeoutMs }),
-      });
+      };
+      if (options.turnIdleTimeoutMs !== undefined) {
+        deps.turnIdleTimeoutMs = options.turnIdleTimeoutMs;
+      }
+      const manager = createCodexRuntimeManager(deps);
       return {
         createTurnDriver: manager.createTurnDriver,
         dispose: () => manager.dispose(),
@@ -290,14 +291,14 @@ describe("the codex runtime manager over real HTTP", () => {
 
     // A valid decision wrapped around wrong-shape grantedPermissions is 400
     // at the route — never accepted here and silently denied downstream.
-    const wrongShape = await harness.client.threads.interaction.answer.$post({
+    const unknownPermissions = await harness.client.threads.interaction.answer.$post({
       json: {
         threadId,
         interactionId: interaction.id,
         resolution: JSON.stringify({ decision: "allow_once", grantedPermissions: { bogus: 1 } }),
       },
     });
-    expect(wrongShape.status).toBe(400);
+    expect(unknownPermissions.status).toBe(400);
 
     const answered = await harness.client.threads.interaction.answer.$post({
       json: { threadId, interactionId: interaction.id, resolution: "allow_once" },

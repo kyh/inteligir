@@ -11,6 +11,7 @@ import {
   type ChangedMessage,
   type RealtimeSubscriptionTarget,
 } from "@repo/server-contract/notifications";
+import { z } from "zod";
 
 /** The slice of the WebSocket surface this client drives; the browser's
  *  WebSocket satisfies it, tests hand in a scriptable fake. */
@@ -116,12 +117,13 @@ export class InvalidationClient {
       this.hasConnectedBefore = true;
     };
     socket.onMessage = (event) => {
-      if (typeof event.data !== "string") {
+      const frame = z.string().safeParse(event.data);
+      if (!frame.success) {
         return;
       }
       let decoded: unknown;
       try {
-        decoded = JSON.parse(event.data);
+        decoded = JSON.parse(frame.data);
       } catch {
         return;
       }

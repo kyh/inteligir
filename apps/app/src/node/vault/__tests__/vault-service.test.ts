@@ -15,7 +15,7 @@ afterEach(() => {
   }
 });
 
-function deferred(): { promise: Promise<void>; release: () => void } {
+function deferred() {
   let release: (() => void) | undefined;
   const promise = new Promise<void>((resolvePromise) => {
     release = resolvePromise;

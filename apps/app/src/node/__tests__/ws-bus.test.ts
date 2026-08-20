@@ -3,6 +3,7 @@ import {
   changedMessageLenientSchema,
   serverMessageLenientSchema,
   serverMessageSchema,
+  type ServerMessage,
 } from "@repo/server-contract/notifications";
 import { WsBus, type BusSocket } from "../ws-bus";
 
@@ -30,12 +31,12 @@ function createBus(): WsBus {
   return new WsBus({ version: "0.1.0-test" });
 }
 
-function lastFrame(socket: FakeSocket): unknown {
+function lastFrame(socket: FakeSocket): ServerMessage {
   const raw = socket.sent.at(-1);
   if (raw === undefined) {
     throw new Error("socket received no frames");
   }
-  return JSON.parse(raw);
+  return serverMessageLenientSchema.parse(JSON.parse(raw));
 }
 
 describe("registerClient", () => {

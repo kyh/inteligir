@@ -59,8 +59,15 @@ type SocialCredential = {
   readonly disableSignUp: true;
 };
 
-function socialCredentials(env: Env): Record<string, SocialCredential> {
-  const providers: Record<string, SocialCredential> = {};
+/** The providers this deployment can be configured for — each present only
+ *  when both of its secrets are bound. */
+type SocialProviders = {
+  github?: SocialCredential;
+  google?: SocialCredential;
+};
+
+function socialCredentials(env: Env): SocialProviders {
+  const providers: SocialProviders = {};
   if (env.GITHUB_CLIENT_ID !== undefined && env.GITHUB_CLIENT_SECRET !== undefined) {
     providers.github = {
       clientId: env.GITHUB_CLIENT_ID,

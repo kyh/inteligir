@@ -35,13 +35,13 @@ export function invalidUsage(message: string): CliExitError {
  * under `cause`. Multi-address connections use an AggregateError, so walk
  * both links while guarding against malformed cyclic error graphs.
  */
-export function getErrorMessage(err: unknown): string {
-  if (!(err instanceof Error)) {
-    return String(err);
+export function getErrorMessage(cause: unknown): string {
+  if (!(cause instanceof Error)) {
+    return String(cause);
   }
   const seen = new Set<Error>();
   const messages: string[] = [];
-  const pending: Error[] = [err];
+  const pending: Error[] = [cause];
 
   while (pending.length > 0) {
     const current = pending.pop();

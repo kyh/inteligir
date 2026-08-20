@@ -32,6 +32,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { parse as parseYaml } from "yaml";
+import { z } from "zod";
 import { REPO_ROOT, sourceOf, workspaces } from "./repo";
 
 const WORKFLOW_DIR = ".github/workflows";
@@ -46,16 +47,24 @@ const GATE_TRIGGERS = ["pull_request", "push"];
  * be in `verify`. Keyed `<workflow>:<step name>`, which is why a run step in a
  * gate workflow has to carry a name.
  */
-const DECLARED_CI_EXTRAS: Record<string, string> = {
-  "ci.yml:Install":
+const DECLARED_CI_EXTRAS = new Map<string, string>([
+  [
+    "ci.yml:Install",
     "provisioning, not a gate — `verify` runs against an installed tree and cannot install one for itself",
-  "ci.yml:E2E browser":
+  ],
+  [
+    "ci.yml:E2E browser",
     "installs agent-browser and its system deps globally on the runner; a developer installs it once, so making `verify` do it on every run would be a minutes-long tax on the static gate",
-  "ci.yml:E2E (dev)":
+  ],
+  [
+    "ci.yml:E2E (dev)",
     "boots real instances and drives them over the wire — `pnpm e2e` is deliberately outside `verify`'s test task (e2e/package.json), because every unit passes while the composition fails",
-  "ci.yml:E2E (prod)":
+  ],
+  [
+    "ci.yml:E2E (prod)",
     "the same suite against the BUILT shell under the real CSP; dev serves Vite's middleware and no policy, so a policy regression is invisible to the run above",
-};
+  ],
+]);
 
 /** The script name a workspace's smoke is spelled as. */
 const SMOKE_SCRIPT = "smoke";
@@ -71,29 +80,31 @@ const ROOT_SMOKE_PREFIX = "smoke";
  * The table drains: a row naming a script that no longer exists fails, and so
  * does one naming a script a gate workflow has since started running.
  */
-const MANUAL_SMOKES: Record<string, string> = {
-  "smoke:package":
+const MANUAL_SMOKES = new Map<string, string>([
+  [
+    "smoke:package",
     "it packs the publishable tarball, installs it into a scratch prefix and binds a port — minutes of work per run to prove a thing that only changes when the artifact's shape does, and nothing about it is a PR-sized risk",
-  "smoke:desktop":
+  ],
+  [
+    "smoke:desktop",
     "it drives a packaged macOS arm64 .app through that app's own Electron binary; the gate runs on ubuntu, where neither packaging it nor executing it is possible — running it means adding a macOS job, which is worth doing the day the shell is something users install",
-};
+  ],
+]);
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
+const scriptTableSchema = z.looseObject({ scripts: z.record(z.string(), z.unknown()) });
 
 /** The root manifest's scripts. The `verify` chain and every step command are
  *  read against this, so neither side is retyped here. */
-function rootScripts(): Record<string, string> {
-  const parsed: unknown = JSON.parse(sourceOf(ROOT_MANIFEST));
-  if (!isRecord(parsed) || !isRecord(parsed["scripts"])) {
+function rootScripts() {
+  const parsed = scriptTableSchema.safeParse(JSON.parse(sourceOf(ROOT_MANIFEST)));
+  if (!parsed.success) {
     throw new Error(`${ROOT_MANIFEST}: expected an object at "scripts"`);
   }
   const scripts: Record<string, string> = {};
-  for (const [name, body] of Object.entries(parsed["scripts"])) {
-    if (typeof body !== "string")
-      throw new Error(`${ROOT_MANIFEST}: scripts.${name} is not a string`);
-    scripts[name] = body;
+  for (const [name, body] of Object.entries(parsed.data.scripts)) {
+    const script = z.string().safeParse(body);
+    if (!script.success) throw new Error(`${ROOT_MANIFEST}: scripts.${name} is not a string`);
+    scripts[name] = script.data;
   }
   return scripts;
 }
@@ -132,13 +143,36 @@ interface GateWorkflow {
   steps: WorkflowStep[];
 }
 
-function stringArray(value: unknown): string[] {
-  if (typeof value === "string") return [value];
-  if (Array.isArray(value))
-    return value.filter((entry): entry is string => typeof entry === "string");
-  if (isRecord(value)) return Object.keys(value);
-  return [];
-}
+/** A workflow's `on:` — a bare trigger, a list of them, or a mapping keyed by
+ *  trigger. Every spelling reads out as the trigger names it declares; a shape
+ *  outside the three declares none. */
+const triggersSchema = z
+  .union([
+    z.string().transform((trigger) => [trigger]),
+    z.array(z.unknown()).transform((entries) =>
+      entries.flatMap((entry) => {
+        const trigger = z.string().safeParse(entry);
+        return trigger.success ? [trigger.data] : [];
+      }),
+    ),
+    z.record(z.string(), z.unknown()).transform((mapping) => Object.keys(mapping)),
+  ])
+  .catch([]);
+
+/** Only the two keys this guard reads; `on` absent is a workflow no trigger
+ *  fires, which is not a gate. */
+// `z.unknown()` is NOT implicitly optional in zod 4 — without `.optional()` an
+// absent key fails the parse, which here would silently downgrade "this gate
+// has no jobs" from a thrown error to a skipped workflow.
+const workflowSchema = z
+  .looseObject({ on: triggersSchema.optional(), jobs: z.unknown().optional() })
+  .catch({});
+
+const jobsSchema = z.record(z.string(), z.looseObject({ steps: z.array(z.unknown()).optional() }));
+
+/** A step this guard reads: `run:` is what makes one, `name:` is what makes it
+ *  declarable in DECLARED_CI_EXTRAS. */
+const runStepSchema = z.looseObject({ run: z.string(), name: z.unknown().optional() });
 
 /** Every workflow a `pull_request` or `push` fires: the gates. */
 function gateWorkflows(): GateWorkflow[] {
@@ -146,25 +180,31 @@ function gateWorkflows(): GateWorkflow[] {
   const found: GateWorkflow[] = [];
   for (const entry of fs.readdirSync(dir).toSorted()) {
     if (!/\.ya?ml$/.test(entry)) continue;
-    const parsed: unknown = parseYaml(fs.readFileSync(path.join(dir, entry), "utf8"));
-    if (!isRecord(parsed)) continue;
-    if (!stringArray(parsed["on"]).some((trigger) => GATE_TRIGGERS.includes(trigger))) continue;
-    const jobs = parsed["jobs"];
-    if (!isRecord(jobs)) throw new Error(`${WORKFLOW_DIR}/${entry}: expected an object at "jobs"`);
+    const workflow = workflowSchema.parse(
+      parseYaml(fs.readFileSync(path.join(dir, entry), "utf8")),
+    );
+    if (!(workflow.on ?? []).some((trigger) => GATE_TRIGGERS.includes(trigger))) continue;
+    const jobs = jobsSchema.safeParse(workflow.jobs);
+    if (!jobs.success) throw new Error(`${WORKFLOW_DIR}/${entry}: expected an object at "jobs"`);
     const steps: WorkflowStep[] = [];
-    for (const [jobName, job] of Object.entries(jobs)) {
-      if (!isRecord(job) || !Array.isArray(job["steps"])) continue;
-      for (const step of job["steps"]) {
-        if (!isRecord(step) || typeof step["run"] !== "string") continue;
-        const name = step["name"];
-        if (typeof name !== "string") {
+    for (const [jobName, job] of Object.entries(jobs.data)) {
+      for (const jobStep of job.steps ?? []) {
+        const step = runStepSchema.safeParse(jobStep);
+        if (!step.success) continue;
+        const name = z.string().safeParse(step.data.name);
+        if (!name.success) {
           throw new Error(
             `${WORKFLOW_DIR}/${entry}: a \`run:\` step in job "${jobName}" has no \`name:\`.\n` +
               `  rule: the name is how a step is declared in DECLARED_CI_EXTRAS; an unnamed step cannot be excepted, only guessed at\n` +
               `  fix: give it a name`,
           );
         }
-        steps.push({ id: `${entry}:${name}`, workflow: entry, name, run: step["run"].trim() });
+        steps.push({
+          id: `${entry}:${name.data}`,
+          workflow: entry,
+          name: name.data,
+          run: step.data.run.trim(),
+        });
       }
     }
     found.push({ file: entry, steps });
@@ -233,7 +273,7 @@ describe("CI does not drift from `pnpm verify`", () => {
         const script = scriptRunBy(step, scripts);
         if (script === VERIFY_SCRIPT) continue;
         if (!callsVerify && script !== null && chain.includes(script)) continue;
-        const reason = DECLARED_CI_EXTRAS[step.id];
+        const reason = DECLARED_CI_EXTRAS.get(step.id);
         if (reason !== undefined && reason.length > 0) continue;
         violations.push(
           `UNDECLARED CI STEP  ${step.id}\n` +
@@ -252,11 +292,11 @@ describe("CI does not drift from `pnpm verify`", () => {
     // was found: it existed, it passed, and no script in the repo named it.
     const violations: string[] = [];
     for (const workspace of workspaces()) {
-      const manifest: unknown = JSON.parse(
-        sourceOf(path.posix.join(workspace.dir, "package.json")),
+      const manifest = scriptTableSchema.safeParse(
+        JSON.parse(sourceOf(path.posix.join(workspace.dir, "package.json"))),
       );
-      if (!isRecord(manifest) || !isRecord(manifest["scripts"])) continue;
-      if (manifest["scripts"][SMOKE_SCRIPT] === undefined) continue;
+      if (!manifest.success) continue;
+      if (manifest.data.scripts[SMOKE_SCRIPT] === undefined) continue;
       const invocation = new RegExp(
         `--filter[= ]${workspace.name.replace(/[/\\^$*+?.()|[\]{}]/g, "\\$&")}\\s+${SMOKE_SCRIPT}\\b`,
       );
@@ -283,7 +323,7 @@ describe("CI does not drift from `pnpm verify`", () => {
     );
     for (const name of rootSmokes) {
       if (ranByGate.has(name)) continue;
-      const reason = MANUAL_SMOKES[name];
+      const reason = MANUAL_SMOKES.get(name);
       if (reason !== undefined && reason.length > 0) continue;
       violations.push(
         `UNDECLARED MANUAL SMOKE  ${ROOT_MANIFEST}: "${name}"\n` +
@@ -291,7 +331,7 @@ describe("CI does not drift from `pnpm verify`", () => {
           `  fix: add a step to a gate workflow, or a row to MANUAL_SMOKES in tools/repo-guards/src/ci-verify-parity.test.ts`,
       );
     }
-    for (const [name, why] of Object.entries(MANUAL_SMOKES)) {
+    for (const [name, why] of MANUAL_SMOKES) {
       if (scripts[name] === undefined) {
         violations.push(
           `STALE MANUAL SMOKE  "${name}" is not a script in ${ROOT_MANIFEST}\n` +
@@ -311,7 +351,7 @@ describe("CI does not drift from `pnpm verify`", () => {
 
   it("no entry in DECLARED_CI_EXTRAS is stale", () => {
     const live = new Set(gates.flatMap((gate) => gate.steps.map((step) => step.id)));
-    const stale = Object.keys(DECLARED_CI_EXTRAS)
+    const stale = [...DECLARED_CI_EXTRAS.keys()]
       .filter((id) => !live.has(id))
       .map(
         (id) =>

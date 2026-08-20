@@ -50,7 +50,7 @@ const stagedApp = stagedAppDir(packageRoot);
 const stagedCli = stagedCliDir(packageRoot);
 
 const { version } = JSON.parse(await readFile(join(packageRoot, "package.json"), "utf8"));
-if (typeof version !== "string" || version.length === 0) {
+if (!version) {
   throw new Error("apps/launcher/package.json must declare a version");
 }
 

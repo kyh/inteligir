@@ -30,8 +30,26 @@ function enabledEnv(): Env {
   };
 }
 
+/** What the two Artifacts endpoints answer inside the envelope, as this test
+ *  stubs them — every field optional because each case sends only what the
+ *  assertion under it reads. */
+interface ArtifactsResult {
+  id?: string;
+  name?: string;
+  default_branch?: string;
+  plaintext?: string;
+  scope?: string;
+  expires_at?: string;
+}
+
+/** The half of `fetch`'s init the code under test fills in. */
+interface StubbedInit {
+  method?: string;
+  body?: string;
+}
+
 /** Cloudflare's v4 envelope. */
-function v4(result: unknown): Response {
+function v4(result: ArtifactsResult): Response {
   return Response.json({ success: true, errors: [], messages: [], result });
 }
 
@@ -53,12 +71,14 @@ describe("artifacts mint (flag on, stubbed API)", () => {
     const userId = await userIdOf(bearer);
 
     const calls: { url: string; method: string; body: unknown }[] = [];
-    vi.stubGlobal("fetch", async (input: string, init?: RequestInit) => {
+    // The stub declares what the code under test actually sends: a URL string
+    // and a JSON body it stringified itself.
+    vi.stubGlobal("fetch", async (input: string, init?: StubbedInit) => {
       const url = input;
       calls.push({
         url,
         method: init?.method ?? "GET",
-        body: typeof init?.body === "string" ? JSON.parse(init.body) : null,
+        body: init?.body === undefined ? null : JSON.parse(init.body),
       });
       if (url.endsWith("/repos")) {
         return v4({ id: "repo_123", name: `vault-${userId}`, default_branch: "main" });
@@ -129,7 +149,7 @@ describe("artifacts mint (flag on, stubbed API)", () => {
 describe("artifacts repo deletion", () => {
   it("deletes the account's repo", async () => {
     const calls: { url: string; method: string }[] = [];
-    vi.stubGlobal("fetch", async (input: string, init?: RequestInit) => {
+    vi.stubGlobal("fetch", async (input: string, init?: StubbedInit) => {
       calls.push({ url: input, method: init?.method ?? "GET" });
       return v4({ id: "repo_123" });
     });

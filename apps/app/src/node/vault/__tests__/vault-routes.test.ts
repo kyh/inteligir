@@ -9,6 +9,7 @@ import { createConnection } from "@repo/db/connection";
 import { getSchemaVersion } from "@repo/db/meta";
 import { runMigrations } from "@repo/db/migrate";
 import { apiErrorResponseSchema } from "@repo/server-contract/errors";
+import { vaultChangedMessageSchema } from "@repo/server-contract/notifications";
 import {
   VAULT_MAX_CONTENT_LENGTH,
   vaultReadResponseSchema,
@@ -90,7 +91,11 @@ async function bootVaultApp() {
   return { app, bus, vaultDir };
 }
 
-function jsonRequest(method: string, body: unknown): RequestInit {
+/** Any JSON-encodable body, including the malformed ones the refusal cases
+ *  send — this helper only serializes, the route decides what is admissible. */
+type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
+
+function jsonRequest(method: string, body: JsonValue): RequestInit {
   return {
     method,
     headers: { "content-type": "application/json" },
@@ -361,17 +366,9 @@ describe("the vault routes", () => {
       "/api/v1/vault/file",
       jsonRequest("PUT", { path: "notify.md", content: "ping" }),
     );
-    const sawVaultChange = frames
-      .map((frame): unknown => JSON.parse(frame))
-      .some(
-        (frame) =>
-          typeof frame === "object" &&
-          frame !== null &&
-          "type" in frame &&
-          frame.type === "changed" &&
-          "entity" in frame &&
-          frame.entity === "vault",
-      );
+    const sawVaultChange = frames.some(
+      (frame) => vaultChangedMessageSchema.safeParse(JSON.parse(frame)).success,
+    );
     expect(sawVaultChange).toBe(true);
   });
 });

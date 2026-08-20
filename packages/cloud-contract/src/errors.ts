@@ -56,7 +56,7 @@ export type CloudError = z.infer<typeof cloudErrorSchema>;
 /** Build the envelope. Pure — the transport (status line, headers) is the
  * server's; the app matches on `code`, never on the message or the status. */
 export function cloudError(code: CloudErrorCode, message: string, deviceSeq?: number): CloudError {
-  return {
-    error: { code, message, ...(deviceSeq === undefined ? {} : { deviceSeq }) },
-  };
+  const error: CloudError["error"] = { code, message };
+  if (deviceSeq !== undefined) error.deviceSeq = deviceSeq;
+  return { error };
 }

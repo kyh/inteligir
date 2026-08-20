@@ -106,22 +106,22 @@ export function realtimeSubscriptionTargetKey(target: RealtimeSubscriptionTarget
 function changedMessagePair<
   TEntity extends string,
   TKind extends string,
-  TIdShape extends z.ZodRawShape,
->(entity: TEntity, kinds: readonly [TKind, ...TKind[]], idShape: TIdShape) {
+  TIdFields extends Record<string, z.ZodType>,
+>(entity: TEntity, kinds: readonly [TKind, ...TKind[]], idFields: TIdFields) {
   const known: ReadonlySet<string> = new Set(kinds);
   return {
     strict: z
       .object({
         type: z.literal("changed"),
         entity: z.literal(entity),
-        ...idShape,
+        ...idFields,
         changes: z.array(z.enum(kinds)).readonly(),
       })
       .strict(),
     lenient: z.object({
       type: z.literal("changed"),
       entity: z.literal(entity),
-      ...idShape,
+      ...idFields,
       changes: z
         .array(z.string())
         .transform((values) => values.filter((value): value is TKind => known.has(value)))

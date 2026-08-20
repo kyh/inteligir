@@ -19,7 +19,8 @@
     "@repo/server-contract": "workspace:*",
     "@repo/thread-view": "workspace:*",
     "citty": "catalog:",
-    "consola": "catalog:"
+    "consola": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@hono/node-server": "catalog:",

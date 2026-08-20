@@ -10,13 +10,17 @@ import { composeViewContextBlock, turnPromptInput } from "../view-context-prompt
 
 const REVISION = "b".repeat(64);
 
-function docContext(selection?: { from: number; to: number; text: string }): ViewContext {
-  return {
+type DocViewContext = Extract<ViewContext, { surface: "doc" }>;
+type ViewContextSelection = NonNullable<DocViewContext["selection"]>;
+
+function docContext(selection?: ViewContextSelection): ViewContext {
+  const context: DocViewContext = {
     surface: "doc",
     resource: "Notes/Plans.md",
     revision: REVISION,
-    ...(selection === undefined ? {} : { selection }),
   };
+  if (selection !== undefined) context.selection = selection;
+  return context;
 }
 
 function utf8Length(text: string): number {

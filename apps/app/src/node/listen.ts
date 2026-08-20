@@ -23,8 +23,8 @@ export interface ListenResult {
  *  discovery dials exactly the range this file may bind. */
 const MAX_PORT_PROBES = DEV_PORT_PROBE_LIMIT;
 
-function isAddrInUse(error: unknown): boolean {
-  return errnoCode(error) === "EADDRINUSE";
+function isAddrInUse(cause: unknown): boolean {
+  return errnoCode(cause) === "EADDRINUSE";
 }
 
 function listenOnce(
@@ -33,8 +33,8 @@ function listenOnce(
   port: number,
 ): Promise<ListenResult> {
   return new Promise((resolve, reject) => {
-    const onError = (error: unknown) => {
-      reject(error instanceof Error ? error : new Error(String(error)));
+    const onError = (cause: unknown) => {
+      reject(cause instanceof Error ? cause : new Error(String(cause)));
     };
     const server = serve({ fetch, hostname, port }, (info) => {
       server.removeListener("error", onError);

@@ -21,12 +21,19 @@ export function getRouter() {
   // it. Undefined in the browser, where the router reads that meta instead —
   // and passing `ssr: { nonce: undefined }` there would overwrite what it read.
   const nonce = getGlobalStartContext()?.nonce;
+  if (nonce === undefined) {
+    return createRouter({
+      routeTree,
+      defaultPreload: "intent",
+      // Every route match, not just the root's — see render-crash.tsx for why
+      // the root route's own `errorComponent` would not cover the workspace.
+      defaultErrorComponent: RenderCrash,
+    });
+  }
   return createRouter({
     routeTree,
     defaultPreload: "intent",
-    // Every route match, not just the root's — see render-crash.tsx for why
-    // the root route's own `errorComponent` would not cover the workspace.
     defaultErrorComponent: RenderCrash,
-    ...(nonce === undefined ? {} : { ssr: { nonce } }),
+    ssr: { nonce },
   });
 }

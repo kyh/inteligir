@@ -24,7 +24,11 @@ import { browserRequestProblem, buildLocalAppOrigins } from "./browser-request-g
 import type { OpenExternalUrl } from "./cloud/browser-opener";
 import { handlePairCallback } from "./cloud/pair-callback";
 import { registerCloudRoutes } from "./cloud/routes";
-import { createCloudRuntime, type CloudTransport } from "./cloud/sync-runtime";
+import {
+  createCloudRuntime,
+  type CloudRuntimeArgs,
+  type CloudTransport,
+} from "./cloud/sync-runtime";
 import type { AppConfig } from "./config";
 import { systemCodexMcpRunner, type CodexMcpRunner } from "./connectors/codex-mcp";
 import { createConnectorsService } from "./connectors/connectors-service";
@@ -56,7 +60,7 @@ class ApiValidationError extends Error {}
 type NodeMiddleware = (
   req: IncomingMessage,
   res: ServerResponse,
-  next: (err?: unknown) => void,
+  next: (cause?: unknown) => void,
 ) => void;
 
 export interface StartFetchOptions {
@@ -237,14 +241,15 @@ export function createApp(args: CreateAppArgs) {
   // Built BEFORE the thread service, which needs its outbox hook at
   // construction; the ingest sink goes back the other way once that service
   // exists. An install with no credential in its data dir starts nothing here.
-  const cloud = createCloudRuntime({
+  const cloudArgs: CloudRuntimeArgs = {
     db: args.db,
     dataDir: args.config.dataDir,
     cloudUrl: args.config.cloudUrl,
     vault: args.vault.service,
-    ...(args.cloudTransport === undefined ? {} : { transport: args.cloudTransport }),
-    ...(args.openExternalUrl === undefined ? {} : { openExternalUrl: args.openExternalUrl }),
-  });
+  };
+  if (args.cloudTransport !== undefined) cloudArgs.transport = args.cloudTransport;
+  if (args.openExternalUrl !== undefined) cloudArgs.openExternalUrl = args.openExternalUrl;
+  const cloud = createCloudRuntime(cloudArgs);
   const threads = new ThreadService({
     db: args.db,
     notifier: args.bus,
@@ -290,9 +295,9 @@ export function createApp(args: CreateAppArgs) {
   if (fallback.kind === "dev") {
     app.all("*", (c) => {
       const { incoming, outgoing } = c.env;
-      fallback.middlewares(incoming, outgoing, (err?: unknown) => {
-        if (err !== undefined && err !== null) {
-          console.error("vite middleware error", err);
+      fallback.middlewares(incoming, outgoing, (cause?: unknown) => {
+        if (cause !== undefined && cause !== null) {
+          console.error("vite middleware error", cause);
           if (!outgoing.headersSent) {
             outgoing.statusCode = 500;
           }

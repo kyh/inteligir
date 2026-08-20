@@ -13,6 +13,7 @@
 // (2) and (3) are the honest-exit invariant: a body read without a status
 // check prints the error envelope as if it were the answer.
 
+import { apiErrorResponseSchema } from "@repo/server-contract/errors";
 import { afterEach, describe, expect, it } from "vitest";
 import { argsOf, collectLeafCommands, type LeafCommand } from "../command-tree";
 import { LEAF_INVOCATIONS, testProgram } from "./command-tree";
@@ -102,7 +103,7 @@ function leaves(): LeafCommand[] {
 }
 
 function invocationFor(path: string): readonly string[] {
-  const argv = LEAF_INVOCATIONS[path];
+  const argv = LEAF_INVOCATIONS.get(path);
   if (argv === undefined) {
     throw new Error(`no invocation registered for leaf "${path}" (add one to LEAF_INVOCATIONS)`);
   }
@@ -131,7 +132,7 @@ describe("CLI --json flag enforcement", () => {
       leaves()
         .map((leaf) => leaf.path)
         .toSorted(),
-    ).toEqual(Object.keys(LEAF_INVOCATIONS).toSorted());
+    ).toEqual([...LEAF_INVOCATIONS.keys()].toSorted());
   });
 
   it("every leaf answers parseable JSON on stdout under --json, and nothing else", async () => {
@@ -207,13 +208,8 @@ describe("honest exits — no command may print a refusal as an answer", () => {
         if (result.stdout.length > 0) {
           broken.push(`${path}: wrote to stdout while failing`);
         }
-        const envelope: unknown = JSON.parse(result.stderr);
-        if (
-          typeof envelope !== "object" ||
-          envelope === null ||
-          !("error" in envelope) ||
-          typeof envelope.error !== "string"
-        ) {
+        const envelope = apiErrorResponseSchema.safeParse(JSON.parse(result.stderr));
+        if (!envelope.success) {
           broken.push(`${path}: stderr is not an {error,message} envelope (${result.stderr})`);
         }
       }

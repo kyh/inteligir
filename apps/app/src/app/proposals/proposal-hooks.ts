@@ -8,7 +8,7 @@
 // both, a reject moves only this, and a client that could not tell them apart
 // would re-read a file to learn about a row.
 
-import type { Proposal } from "@repo/server-contract/proposals";
+import type { AcceptProposalRequest, Proposal } from "@repo/server-contract/proposals";
 import { useMutation, useQuery, useQueryClient, type UseQueryResult } from "@tanstack/react-query";
 import { useCallback } from "react";
 import { ApiError, queryKeys, unwrap } from "../api";
@@ -71,11 +71,13 @@ export function useProposalActions(onError: (message: string) => void): Proposal
 
   const run = useCallback(
     async (verb: "accept" | "reject", args: ProposalVerbArgs): Promise<void> => {
-      const json = {
+      const json: AcceptProposalRequest = {
         proposalId: args.proposalId,
         expectedRevision: args.expectedRevision,
-        ...(args.hunkIndex === undefined ? {} : { hunkIndex: args.hunkIndex }),
       };
+      if (args.hunkIndex !== undefined) {
+        json.hunkIndex = args.hunkIndex;
+      }
       try {
         await unwrap(
           verb === "accept"

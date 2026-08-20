@@ -67,8 +67,8 @@ export class ApiError extends Error {
 /** The server's own refusal sentence when it sent one; anything else — a
  *  dropped connection, a thrown string — has none of its own to show, so the
  *  caller's fallback stands in. The ONE spelling of that choice. */
-export function refusalMessage(error: unknown, fallback: string): string {
-  return error instanceof ApiError ? error.message : fallback;
+export function refusalMessage(cause: unknown, fallback: string): string {
+  return cause instanceof ApiError ? cause.message : fallback;
 }
 
 /** hc types `ok` as literal true/false per declared status, so the success
@@ -77,15 +77,17 @@ interface SuccessResponse<T> {
   ok: true;
   json(): Promise<T>;
 }
-interface FailureResponse {
+interface FailureResponse<Body> {
   ok: false;
   status: number;
-  json(): Promise<unknown>;
+  json(): Promise<Body>;
 }
 
 /** Resolves a typed-client response to its 200 body; a declared non-2xx
  *  becomes a thrown ApiError carrying the contract's error class. */
-export async function unwrap<T>(response: SuccessResponse<T> | FailureResponse): Promise<T> {
+export async function unwrap<T, Body>(
+  response: SuccessResponse<T> | FailureResponse<Body>,
+): Promise<T> {
   if (response.ok) {
     return response.json();
   }

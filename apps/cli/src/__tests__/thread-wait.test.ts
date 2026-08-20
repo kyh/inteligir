@@ -9,6 +9,7 @@ import {
   EMPTY_TIMELINE,
   type FixtureServer,
   type FixtureState,
+  type FixtureThread,
 } from "./fixture-server";
 import { runCliForTest } from "./run-cli";
 
@@ -24,12 +25,15 @@ async function bootWithThread(
   statusSequence: FixtureState["threads"][number]["statusSequence"],
 ): Promise<FixtureServer> {
   const state = makeFixtureState();
-  state.threads.push({
+  const entry: FixtureThread = {
     thread: makeThread({ id: "thr_wait", status: "starting" }),
     pendingInteractions: [],
     timeline: EMPTY_TIMELINE,
-    ...(statusSequence === undefined ? {} : { statusSequence }),
-  });
+  };
+  if (statusSequence !== undefined) {
+    entry.statusSequence = statusSequence;
+  }
+  state.threads.push(entry);
   const server = await serveFixture(state);
   cleanups.push(() => server.close());
   return server;

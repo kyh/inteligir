@@ -60,7 +60,7 @@ export function AuthField({
  */
 export function fieldValue(form: FormData, name: string): string {
   const value = form.get(name);
-  return typeof value === "string" ? value : "";
+  return value === null || value instanceof File ? "" : value;
 }
 
 /** The one place a form failure is rendered. `role="alert"` because the

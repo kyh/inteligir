@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import type { DbConnection } from "./connection";
+import { parseMigrationJournal } from "./migration-journal";
 
 // The committed SQL migrations live at `packages/db/drizzle/`, next to this
 // source. A deployment whose bundling moves the folder (apps/app's prod
@@ -18,14 +19,9 @@ const SOURCE_MIGRATIONS_FOLDER = fileURLToPath(new URL("../drizzle", import.meta
  * fully-migrated database should be on.
  */
 function latestSchemaVersion(migrationsFolder: string): number {
-  const raw: unknown = JSON.parse(
-    readFileSync(join(migrationsFolder, "meta", "_journal.json"), "utf8"),
-  );
-  const entries = typeof raw === "object" && raw !== null ? Reflect.get(raw, "entries") : undefined;
-  if (!Array.isArray(entries)) {
-    throw new Error(`${migrationsFolder}/meta/_journal.json has no "entries" array`);
-  }
-  return entries.length;
+  const journalPath = join(migrationsFolder, "meta", "_journal.json");
+  const journal = parseMigrationJournal(readFileSync(journalPath, "utf8"), journalPath);
+  return journal.entries.length;
 }
 
 /**

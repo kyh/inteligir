@@ -34,12 +34,15 @@
 
 import {
   createAgentRuntimeWithAdapters,
+  type AgentRuntimeInternalOptions,
   type ProviderAdapterFactory,
 } from "@repo/agent-runtime/runtime";
 import type {
   AgentRuntime,
   AgentRuntimeExecutionOptions,
   AgentRuntimeShellEnvironment,
+  ResumeThreadArgs,
+  StartThreadArgs,
 } from "@repo/agent-runtime/types";
 import type { ProviderEvent } from "@repo/agent-runtime/vocabulary/provider-event";
 import {
@@ -55,6 +58,7 @@ import {
   createPendingInteraction,
   interruptOpenPendingInteractions,
   interruptPendingInteraction,
+  type CreatePendingInteractionInput,
 } from "@repo/db/pending-interactions";
 import { getThread, setThreadProviderSession } from "@repo/db/threads";
 import type { ThreadEvent } from "@repo/domain/provider-event";
@@ -170,13 +174,14 @@ interface InteractionWaiter {
 }
 
 function executionOptionsFor(model: string | null): AgentRuntimeExecutionOptions {
-  return {
-    ...(model !== null ? { model } : {}),
+  const options: AgentRuntimeExecutionOptions = {
     permissionMode: "accept-edits",
     permissionScope: "workspace",
     approvalReviewer: "user",
     permissionEscalation: "ask",
   };
+  if (model !== null) options.model = model;
+  return options;
 }
 
 class CodexTurnDriver implements TurnDriver {
@@ -242,12 +247,8 @@ class CodexTurnDriver implements TurnDriver {
       return this.runtime;
     }
     const createRuntime = this.deps.createRuntime ?? createAgentRuntimeWithAdapters;
-    const runtime = createRuntime({
+    const runtimeOptions: AgentRuntimeInternalOptions = {
       workspacePath: this.deps.vaultDir,
-      ...(this.deps.shellEnv !== undefined ? { shellEnv: this.deps.shellEnv() } : {}),
-      ...(this.deps.adapterFactory !== undefined
-        ? { adapterFactory: this.deps.adapterFactory }
-        : {}),
       onEvent: (event) => this.onRuntimeEvent(event),
       onInteractiveRequest: (request) => this.onInteractiveRequest(request),
       onStderr: (line) => this.debug(`codex: ${line}`),
@@ -281,7 +282,12 @@ class CodexTurnDriver implements TurnDriver {
           );
         }
       },
-    });
+    };
+    if (this.deps.shellEnv !== undefined) runtimeOptions.shellEnv = this.deps.shellEnv();
+    if (this.deps.adapterFactory !== undefined) {
+      runtimeOptions.adapterFactory = this.deps.adapterFactory;
+    }
+    const runtime = createRuntime(runtimeOptions);
     this.runtime = runtime;
     const reapIntervalMs = this.deps.reapIntervalMs;
     if (reapIntervalMs !== null) {
@@ -327,8 +333,8 @@ class CodexTurnDriver implements TurnDriver {
       idleTimer: null,
     });
     this.armWatchdog(args.threadId);
-    void this.dispatchTurn(args).catch((error: unknown) => {
-      this.failTurn(args.threadId, error);
+    void this.dispatchTurn(args).catch((cause: unknown) => {
+      this.failTurn(args.threadId, cause);
     });
   }
 
@@ -397,14 +403,15 @@ class CodexTurnDriver implements TurnDriver {
     const instructions = loadAgentInstructions(this.deps.vaultDir, this.deps.cliBinDir ?? null);
     const persisted = getThread(this.deps.db, threadId)?.providerThreadId ?? null;
     if (persisted !== null) {
+      const resume: ResumeThreadArgs = {
+        threadId,
+        providerThreadId: persisted,
+        providerId: CODEX_PROVIDER_ID,
+        options: this.options,
+      };
+      if (instructions !== undefined) resume.instructions = instructions;
       try {
-        const resumed = await runtime.resumeThread({
-          threadId,
-          providerThreadId: persisted,
-          providerId: CODEX_PROVIDER_ID,
-          options: this.options,
-          ...(instructions === undefined ? {} : { instructions }),
-        });
+        const resumed = await runtime.resumeThread(resume);
         setThreadProviderSession(this.deps.db, {
           threadId,
           providerId: CODEX_PROVIDER_ID,
@@ -422,12 +429,13 @@ class CodexTurnDriver implements TurnDriver {
         );
       }
     }
-    const started = await runtime.startThread({
+    const start: StartThreadArgs = {
       threadId,
       providerId: CODEX_PROVIDER_ID,
       options: this.options,
-      ...(instructions === undefined ? {} : { instructions }),
-    });
+    };
+    if (instructions !== undefined) start.instructions = instructions;
+    const started = await runtime.startThread(start);
     setThreadProviderSession(this.deps.db, {
       threadId,
       providerId: CODEX_PROVIDER_ID,
@@ -580,12 +588,13 @@ class CodexTurnDriver implements TurnDriver {
       state !== undefined && !state.settled && state.providerTurnId === create.turnId
         ? state.ourTurnId
         : null;
-    const row = createPendingInteraction(this.deps.db, this.deps.notifier, {
+    const pending: CreatePendingInteractionInput = {
       threadId: create.threadId,
-      ...(hostTurnId !== null ? { turnId: hostTurnId } : {}),
       requestKey: create.providerRequestId,
       payload: JSON.stringify(payload),
-    });
+    };
+    if (hostTurnId !== null) pending.turnId = hostTurnId;
+    const row = createPendingInteraction(this.deps.db, this.deps.notifier, pending);
     if (row.status === "resolved" && row.resolution !== null) {
       const parsed = parseApprovalResolution(row.resolution, payload);
       return parsed.ok ? parsed.resolution : { decision: "deny" };
@@ -657,21 +666,21 @@ class CodexTurnDriver implements TurnDriver {
     this.turnsByThreadId.delete(threadId);
     this.cancelWaiters(threadId);
     interruptOpenPendingInteractions(this.deps.db, this.deps.notifier, threadId);
-    void state.writes.finish().catch((error: unknown) => {
+    void state.writes.finish().catch((cause: unknown) => {
       this.debug(
-        `settling the write set for thread ${threadId} failed: ${error instanceof Error ? error.message : String(error)}`,
+        `settling the write set for thread ${threadId} failed: ${cause instanceof Error ? cause.message : String(cause)}`,
       );
     });
   }
 
   /** Settle a turn the provider never (or no longer) reports on, through the
    *  same grammar a provider report uses. */
-  private failTurn(threadId: string, error: unknown): void {
+  private failTurn(threadId: string, cause: unknown): void {
     const state = this.turnsByThreadId.get(threadId);
     if (state === undefined || state.settled) {
       this.debug(
         `dispatch failure for thread ${threadId} after its turn settled: ${
-          error instanceof Error ? error.message : String(error)
+          cause instanceof Error ? cause.message : String(cause)
         }`,
       );
       return;
@@ -687,7 +696,7 @@ class CodexTurnDriver implements TurnDriver {
         type: "provider/error",
         threadId,
         message: "The agent provider failed",
-        detail: error instanceof Error ? error.message : String(error),
+        detail: cause instanceof Error ? cause.message : String(cause),
         scope: threadScope(),
       },
       { type: "turn/completed", threadId, status: "failed", scope },

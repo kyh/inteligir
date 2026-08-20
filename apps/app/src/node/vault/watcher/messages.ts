@@ -5,6 +5,8 @@
 // instances) — parcel events already are ({path, type}); errors travel as
 // their message string.
 
+import { z } from "zod";
+
 import type { ParcelWatcherSubscribeOptions } from "./parcel-backend";
 
 export interface SerializedParcelEvent {
@@ -36,74 +38,61 @@ export type ChildToParentMessage =
   | { kind: "events"; id: string; events: SerializedParcelEvent[] }
   | { kind: "watch-error"; id: string; message: string };
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
+const serializedParcelEventSchema = z.object({
+  path: z.string(),
+  type: z.enum(["create", "update", "delete"]),
+});
 
-function isSerializedParcelEvent(value: unknown): value is SerializedParcelEvent {
-  return (
-    isRecord(value) &&
-    typeof value.path === "string" &&
-    (value.type === "create" || value.type === "update" || value.type === "delete")
+/** A batch keeps the entries it can read: one malformed event must not cost
+ *  the watcher every other change delivered in the same message. */
+const parcelEventBatchSchema = z.array(z.unknown()).transform((events) =>
+  events.flatMap((event) => {
+    const parsed = serializedParcelEventSchema.safeParse(event);
+    return parsed.success ? [parsed.data] : [];
+  }),
+);
+
+/** Only `ignore` crosses the fork; an entry that is not a path is dropped, and
+ *  an `ignore` that is not a list reads as options carrying nothing. */
+const subscribeOptionsSchema = z
+  .object({
+    ignore: z
+      .array(z.unknown())
+      .optional()
+      .catch(undefined)
+      .transform((entries) =>
+        entries?.flatMap((entry) => {
+          const path = z.string().safeParse(entry);
+          return path.success ? [path.data] : [];
+        }),
+      ),
+  })
+  .transform(
+    ({ ignore }): ParcelWatcherSubscribeOptions => (ignore === undefined ? {} : { ignore }),
   );
-}
 
-/** node's IPC delivers `unknown`; both sides narrow with these instead of a cast. */
-export function parseParentToChildMessage(value: unknown): ParentToChildMessage | null {
-  if (!isRecord(value)) {
-    return null;
-  }
-  switch (value.kind) {
-    case "subscribe": {
-      if (
-        typeof value.id !== "string" ||
-        typeof value.dir !== "string" ||
-        typeof value.rescan !== "boolean"
-      ) {
-        return null;
-      }
-      const opts = isRecord(value.opts) ? readSubscribeOptions(value.opts) : undefined;
-      return { kind: "subscribe", id: value.id, dir: value.dir, opts, rescan: value.rescan };
-    }
-    case "unsubscribe":
-      return typeof value.id === "string" ? { kind: "unsubscribe", id: value.id } : null;
-    case "ping":
-      return typeof value.nonce === "number" ? { kind: "ping", nonce: value.nonce } : null;
-    default:
-      return null;
-  }
-}
+/** node's IPC delivers an unparsed payload; both sides read one through these
+ *  schemas instead of a cast. */
+export const parentToChildMessageSchema = z.discriminatedUnion("kind", [
+  z
+    .object({
+      kind: z.literal("subscribe"),
+      id: z.string(),
+      dir: z.string(),
+      rescan: z.boolean(),
+      opts: subscribeOptionsSchema.optional().catch(undefined),
+    })
+    .transform(({ kind, id, dir, rescan, opts }) => ({ kind, id, dir, opts, rescan })),
+  z.object({ kind: z.literal("unsubscribe"), id: z.string() }),
+  z.object({ kind: z.literal("ping"), nonce: z.number() }),
+]);
 
-function readSubscribeOptions(value: Record<string, unknown>): ParcelWatcherSubscribeOptions {
-  const ignore = Array.isArray(value.ignore)
-    ? value.ignore.filter((entry): entry is string => typeof entry === "string")
-    : undefined;
-  return ignore === undefined ? {} : { ignore };
-}
-
-export function parseChildToParentMessage(value: unknown): ChildToParentMessage | null {
-  if (!isRecord(value)) {
-    return null;
-  }
-  switch (value.kind) {
-    case "ready":
-      return { kind: "ready" };
-    case "pong":
-      return typeof value.nonce === "number" ? { kind: "pong", nonce: value.nonce } : null;
-    case "subscribed":
-      return typeof value.id === "string" ? { kind: "subscribed", id: value.id } : null;
-    case "unsubscribed":
-      return typeof value.id === "string" ? { kind: "unsubscribed", id: value.id } : null;
-    case "subscribe-failed":
-    case "watch-error":
-      return typeof value.id === "string" && typeof value.message === "string"
-        ? { kind: value.kind, id: value.id, message: value.message }
-        : null;
-    case "events":
-      return typeof value.id === "string" && Array.isArray(value.events)
-        ? { kind: "events", id: value.id, events: value.events.filter(isSerializedParcelEvent) }
-        : null;
-    default:
-      return null;
-  }
-}
+export const childToParentMessageSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("ready") }),
+  z.object({ kind: z.literal("pong"), nonce: z.number() }),
+  z.object({ kind: z.literal("subscribed"), id: z.string() }),
+  z.object({ kind: z.literal("unsubscribed"), id: z.string() }),
+  z.object({ kind: z.literal("subscribe-failed"), id: z.string(), message: z.string() }),
+  z.object({ kind: z.literal("watch-error"), id: z.string(), message: z.string() }),
+  z.object({ kind: z.literal("events"), id: z.string(), events: parcelEventBatchSchema }),
+]);

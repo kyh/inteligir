@@ -59,8 +59,8 @@ function DevicesPage() {
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(() => {
-    void fetchDevices().then(setDevices, (failure: unknown) => {
-      setError(failure instanceof Error ? failure.message : "Couldn't load devices.");
+    void fetchDevices().then(setDevices, (cause: unknown) => {
+      setError(cause instanceof Error ? cause.message : "Couldn't load devices.");
     });
   }, []);
 
@@ -68,8 +68,8 @@ function DevicesPage() {
 
   const onRevoke = (deviceId: string) => {
     setError(null);
-    void revokeDevice(deviceId).then(refresh, (failure: unknown) => {
-      setError(failure instanceof Error ? failure.message : "Couldn't revoke that device.");
+    void revokeDevice(deviceId).then(refresh, (cause: unknown) => {
+      setError(cause instanceof Error ? cause.message : "Couldn't revoke that device.");
     });
   };
 

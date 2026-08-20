@@ -97,8 +97,8 @@ export function toBase64(bytes: ArrayBuffer): string {
  * not used: `NotAllowedError` reads "Permission denied", which does not tell
  * anyone which permission or where to change it.
  */
-export function microphoneProblem(error: unknown): string {
-  const name = error instanceof Error ? error.name : "";
+export function microphoneProblem(cause: unknown): string {
+  const name = cause instanceof Error ? cause.name : "";
   switch (name) {
     case "NotAllowedError":
     case "SecurityError":
@@ -117,12 +117,19 @@ export function microphoneProblem(error: unknown): string {
  *  caret was. Pure so the insertion rule is testable without a DOM: the
  *  transcript goes AT THE CARET, spaced from whatever it lands between, and
  *  the returned caret sits after it so typing continues from there. */
+/** The composer after a transcript lands: the whole text, and where the caret
+ *  sits in it. */
+export interface TranscriptInsertion {
+  text: string;
+  caret: number;
+}
+
 export function insertTranscript(args: {
   text: string;
   transcript: string;
   selectionStart: number;
   selectionEnd: number;
-}): { text: string; caret: number } {
+}): TranscriptInsertion {
   const transcript = args.transcript.trim();
   if (transcript === "") {
     return { text: args.text, caret: args.selectionEnd };

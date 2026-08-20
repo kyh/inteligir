@@ -7,9 +7,13 @@
 // stale revision a 409 and the other a 400.
 
 import type { ApiErrorResponse } from "@repo/server-contract/errors";
-import { proposalRoutes, type ResolveProposalResponse } from "@repo/server-contract/proposals";
+import {
+  proposalRoutes,
+  type AcceptProposalRequest,
+  type ResolveProposalResponse,
+} from "@repo/server-contract/proposals";
 import type { TypedRoutesRegistrars } from "@repo/typed-routes/typed-routes";
-import type { ProposalOutcome, ProposalService } from "./proposal-service";
+import type { ProposalOutcome, ProposalService, ResolveProposalArgs } from "./proposal-service";
 
 const NOT_FOUND: ApiErrorResponse = { error: "not_found", message: "Suggestion not found" };
 
@@ -30,6 +34,17 @@ function proposalAnswer(outcome: ProposalOutcome): ProposalAnswer {
     case "disk-changed":
       return { status: 409, body: { error: "cas_mismatch", message: outcome.message } };
   }
+}
+
+/** Accept and reject carry the SAME body (see the header) — one reader serves
+ *  both. `hunkIndex` stays absent when unsent. */
+function resolveArgs(body: AcceptProposalRequest): ResolveProposalArgs {
+  const args: ResolveProposalArgs = {
+    proposalId: body.proposalId,
+    expectedRevision: body.expectedRevision,
+  };
+  if (body.hunkIndex !== undefined) args.hunkIndex = body.hunkIndex;
+  return args;
 }
 
 export interface RegisterProposalRoutesArgs {
@@ -53,24 +68,12 @@ export function registerProposalRoutes(args: RegisterProposalRoutesArgs): void {
   });
 
   routes.post(proposalRoutes.accept, async (c, body) => {
-    const answer = proposalAnswer(
-      await service.accept({
-        proposalId: body.proposalId,
-        expectedRevision: body.expectedRevision,
-        ...(body.hunkIndex === undefined ? {} : { hunkIndex: body.hunkIndex }),
-      }),
-    );
+    const answer = proposalAnswer(await service.accept(resolveArgs(body)));
     return answer.status === 200 ? c.json(answer.body) : c.json(answer.body, answer.status);
   });
 
   routes.post(proposalRoutes.reject, async (c, body) => {
-    const answer = proposalAnswer(
-      await service.reject({
-        proposalId: body.proposalId,
-        expectedRevision: body.expectedRevision,
-        ...(body.hunkIndex === undefined ? {} : { hunkIndex: body.hunkIndex }),
-      }),
-    );
+    const answer = proposalAnswer(await service.reject(resolveArgs(body)));
     return answer.status === 200 ? c.json(answer.body) : c.json(answer.body, answer.status);
   });
 }

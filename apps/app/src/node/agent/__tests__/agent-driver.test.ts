@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 import { codexBinaryOnPath, resolveAgentDriver } from "../agent-driver";
 import { bootTestApp } from "../../__tests__/boot-app";
 import { createThread } from "./agent-test-harness";
+import { apiErrorResponseSchema } from "@repo/server-contract/errors";
 
 describe("agent driver resolution", () => {
   it("finds no codex on an empty PATH", () => {
@@ -37,7 +38,7 @@ describe("agent driver resolution", () => {
       json: { threadId, text: "hello", mode: "steer-if-active" },
     });
     expect(send.status).toBe(503);
-    const body = (await send.json()) as { error: string; message: string };
+    const body = apiErrorResponseSchema.parse(await send.json());
     expect(body.error).toBe("provider_unavailable");
     expect(body.message).toContain("codex binary was not found");
   });

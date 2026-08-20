@@ -1,5 +1,6 @@
 import { ClientOnly, createFileRoute } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
+import { z } from "zod";
 
 import { HeroOrb } from "@/components/hero-orb";
 import { SiteHeader } from "@/components/site-header";
@@ -21,19 +22,23 @@ function MacLogoIcon({ className }: { className?: string }) {
 // until the first desktop release is published.
 let cached: { url: string | null; expires: number } | null = null;
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
+/** A GitHub release, read for the only two asset fields this page uses. The
+ * list is `unknown` element-wise on purpose: one malformed entry must not hide
+ * the real `.dmg` behind a whole-payload refusal. */
+const releaseSchema = z.looseObject({ assets: z.array(z.unknown()) });
+const releaseAssetSchema = z.looseObject({
+  name: z.string(),
+  browser_download_url: z.string(),
+});
 
-/** The `.dmg` asset's download URL from a GitHub release payload, or null if
- * the response isn't shaped the way we expect. */
-function findDmgUrl(payload: unknown): string | null {
-  if (!isRecord(payload) || !Array.isArray(payload["assets"])) return null;
-  for (const asset of payload["assets"]) {
-    if (!isRecord(asset)) continue;
-    const name = asset["name"];
-    const url = asset["browser_download_url"];
-    if (typeof name === "string" && name.endsWith(".dmg") && typeof url === "string") return url;
+type Release = z.infer<typeof releaseSchema>;
+
+/** The `.dmg` asset's download URL from a parsed GitHub release, or null when
+ * the release publishes no `.dmg`. */
+function findDmgUrl(release: Release): string | null {
+  for (const entry of release.assets) {
+    const asset = releaseAssetSchema.safeParse(entry);
+    if (asset.success && asset.data.name.endsWith(".dmg")) return asset.data.browser_download_url;
   }
   return null;
 }
@@ -51,7 +56,8 @@ const getDownloadUrl = createServerFn().handler(async (): Promise<string | null>
     // Annotating `await res.json()` with the expected shape is an unchecked
     // assertion — a shape change then surfaces as a TypeError swallowed by the
     // outer catch, which reads as "GitHub is down" instead of "we mis-parsed".
-    const url = findDmgUrl(await res.json());
+    const release = releaseSchema.safeParse(await res.json());
+    const url = release.success ? findDmgUrl(release.data) : null;
     cached = { url, expires: Date.now() + CACHE_TTL_MS };
     return url;
   } catch {

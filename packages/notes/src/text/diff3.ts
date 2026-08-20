@@ -23,6 +23,12 @@ interface SideCursor {
   sideLine: number;
 }
 
+/** The hunks one unstable region collects, per side. */
+interface RegionHunks {
+  mine: DiffHunk[];
+  theirs: DiffHunk[];
+}
+
 /** Element-wise, never joined strings: segments are compared as the arrays
  *  they are, so segmentation itself participates in equality. */
 function segmentsEqual(a: readonly string[], b: readonly string[]): boolean {
@@ -76,7 +82,7 @@ export function diff3(base: string, mine: string, theirs: string): Diff3Result {
 
     // Group every hunk not separated from the region by a stable line.
     let regionEnd = regionStart;
-    const inRegion: { mine: DiffHunk[]; theirs: DiffHunk[] } = { mine: [], theirs: [] };
+    const inRegion: RegionHunks = { mine: [], theirs: [] };
     let progressed = true;
     while (progressed) {
       progressed = false;
