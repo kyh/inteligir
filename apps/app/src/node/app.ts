@@ -35,6 +35,7 @@ import { proveIdentity } from "./instance-identity";
 import type { KnowledgeRuntime } from "./knowledge/knowledge-runtime";
 import { renameNoteWithLinkRewrite } from "./knowledge/rename";
 import { registerKnowledgeRoutes } from "./knowledge/routes";
+import { registerMemoryRoutes } from "./memory/routes";
 import { ProposalService } from "./proposals/proposal-service";
 import { registerProposalRoutes } from "./proposals/routes";
 import { registerThreadRoutes } from "./threads/routes";
@@ -214,6 +215,11 @@ export function createApp(args: CreateAppArgs) {
     registrars,
     createConnectorsService(args.codexMcpRunner ?? systemCodexMcpRunner),
   );
+
+  // Human-facing only: the agent reads and writes memory files with its own
+  // shell (issue #575), so these routes serve the settings surface's list and
+  // delete, never an agent write.
+  registerMemoryRoutes(registrars, args.config.memoryDir);
 
   // `scripted` is selected by INTELIGIR_VOICE and is the whole reason the
   // scenario suite can drive a microphone: it answers `ready` with no model on
