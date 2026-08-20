@@ -92,6 +92,18 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
       "@repo/typed-routes",
       "@repo/ui",
     ],
+    // The mobile companion (issue #576). It is the THIRD implementation of the
+    // cloud wire — a sync-only thread/capture client that parses the same
+    // push/pull/capture schemas and error envelope apps/web serves and apps/app
+    // consumes, over React Native storage instead of better-sqlite3. The
+    // @repo/domain edge is the ThreadEvent grammar: the pull answers opaque
+    // event bodies, and this client parses each with `threadEventSchema` before
+    // it renders one. Both are zod-only leaves, so the edge costs the RN bundle
+    // only the schemas it already parses — and the phone reaches NOTHING else
+    // in the repo (no apps/app Node, no apps/web worker, no @repo/notes vault
+    // engine): the settled shape is that the agent and the vault stay on the
+    // desktop.
+    "@repo/mobile": ["@repo/cloud-contract", "@repo/domain"],
     // Drives a RUNNING app over the typed client; the @repo/app edge is the
     // discovery config (which port/dataDir this checkout means), not the server.
     // It reaches no runtime — an approval it prints is domain grammar, and a
