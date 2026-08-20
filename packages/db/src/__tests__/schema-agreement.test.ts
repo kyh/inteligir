@@ -184,7 +184,10 @@ describe("the migrations and the declared schema agree", () => {
       );
     }
     expect(differences, `\n${differences.join("\n\n")}\n`).toEqual([]);
-  });
+    // 30s, not vitest's default 5s: this spawns `pnpm exec drizzle-kit export`,
+    // a subprocess whose latency tracks machine load — it runs ~0.5s idle but
+    // timed out at 5s on a CI runner busy installing the whole dep tree.
+  }, 30_000);
 
   it("leave meta.schema_version at the latest migration's generation", () => {
     const entries = journal().entries;
