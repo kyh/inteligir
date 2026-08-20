@@ -211,7 +211,9 @@ describe("atomic writes and crash artifacts", () => {
     await service.write("note.md", "the real write");
     expect((await service.read("note.md")).content).toBe("the real write");
 
-    await sweepStaleTmpFiles(root, Date.now());
+    // Cutoff a minute in the FUTURE so the orphan is unambiguously older —
+    // granularity-proof, the mirror of the in-flight test below.
+    await sweepStaleTmpFiles(root, Date.now() + 60_000);
     const names = await readdir(root);
     expect(names.filter((name) => name.startsWith(VAULT_TMP_PREFIX))).toEqual([]);
   });
@@ -219,8 +221,11 @@ describe("atomic writes and crash artifacts", () => {
   it("a sweep leaves an in-flight write's staging file alone", async () => {
     // It runs beside live writes now, so its bound has to be the one thing a
     // leftover can never satisfy: being older than the sweep that looks for it.
+    // The cutoff sits a minute in the PAST so the fresh file is unambiguously
+    // newer — a `Date.now()` captured microseconds before the write raced the
+    // filesystem's mtime granularity (coarse on CI's tmpfs) and flaked.
     const { root } = bootService();
-    const before = Date.now();
+    const before = Date.now() - 60_000;
     await writeFile(join(root, `${VAULT_TMP_PREFIX}inflight`), "half a note");
 
     await sweepStaleTmpFiles(root, before);
