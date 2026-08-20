@@ -72,18 +72,36 @@ describe("composeViewContextBlock", () => {
 });
 
 describe("turnPromptInput", () => {
-  it("carries the user's text alone when there is no context", () => {
-    expect(turnPromptInput("make this shorter", undefined)).toEqual([
+  it("carries the user's text alone when there is no context and no memory", () => {
+    // The byte-identical-to-before-memory-existed case (acceptance #2): both
+    // leading sources empty yields exactly the one element it always did.
+    expect(turnPromptInput("make this shorter", undefined, undefined)).toEqual([
       { type: "text", text: "make this shorter" },
     ]);
   });
 
-  it("leads with the block and leaves the user's text its own element", () => {
-    const input = turnPromptInput("make this shorter", docContext());
+  it("leads with the view-context block and leaves the user's text its own element", () => {
+    const input = turnPromptInput("make this shorter", docContext(), undefined);
     expect(input).toHaveLength(2);
     expect(input[0]?.text).toBe(composeViewContextBlock(docContext()));
     // The user's own bytes, unmangled — the reason the block is a separate
     // element rather than a prefix.
     expect(input[1]).toEqual({ type: "text", text: "make this shorter" });
+  });
+
+  it("leads with memory, then view context, then the user's text", () => {
+    const input = turnPromptInput("make this shorter", docContext(), "MEMORY BLOCK");
+    expect(input).toEqual([
+      { type: "text", text: "MEMORY BLOCK" },
+      { type: "text", text: composeViewContextBlock(docContext()) },
+      { type: "text", text: "make this shorter" },
+    ]);
+  });
+
+  it("carries memory alone when there is no view context", () => {
+    expect(turnPromptInput("hi", undefined, "MEMORY BLOCK")).toEqual([
+      { type: "text", text: "MEMORY BLOCK" },
+      { type: "text", text: "hi" },
+    ]);
   });
 });

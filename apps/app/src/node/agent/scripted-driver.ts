@@ -28,6 +28,9 @@ export interface ScriptedDriverDeps {
   git: GitEngine;
   /** Review mode's seam, same as the codex manager's. */
   captureProposals?: CaptureTurnProposals;
+  /** The memory index for this turn, same as the codex manager's — read fresh
+   *  each turn so a fact written between turns is carried into the next. */
+  readMemoryIndex?: () => string | undefined;
   onError?: (message: string) => void;
 }
 
@@ -49,7 +52,7 @@ class ScriptedTurnDriver implements TurnDriver {
   startTurn(args: TurnDriverStartArgs): void {
     const scope = turnScope(args.turnId);
     const itemId = `item_${args.turnId}_message`;
-    const prompt = turnPromptInput(args.text, args.viewContext)
+    const prompt = turnPromptInput(args.text, args.viewContext, this.deps.readMemoryIndex?.())
       .map((part) => part.text)
       .join("\n\n");
     const text = `Noted: ${prompt}`;
