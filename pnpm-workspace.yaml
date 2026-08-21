@@ -6,12 +6,16 @@ packages:
 
 catalog:
   "@base-ui/react": ^1.6.0
-  # Dictation (issue #574). Pinned EXACT: the binary arrives through 14
-  # per-platform optionalDependencies pinned to the same version, and its
-  # postinstall is a no-op unless someone asks to build from source — which is
-  # the property `apps/launcher`'s zero-rebuild install depends on, so the
-  # version it was verified against is the version that ships.
-  "@fugood/whisper.node": 1.1.1
+  # Dictation (issue #578): streaming Parakeet through sherpa-onnx. Pinned EXACT
+  # for the reason the whisper pin it replaces stated — the binary arrives
+  # through 6 per-platform optionalDependencies and there is NO install/build
+  # script (a prebuilt N-API addon), which is the property `apps/launcher`'s
+  # zero-rebuild install depends on, so the version verified against is the one
+  # that ships. `tar` + `unbzip2-stream` extract the `.tar.bz2` model archive in
+  # pure JS (Node has no bzip2, and Windows' tar.exe cannot do `-j`).
+  "sherpa-onnx-node": 1.13.6
+  tar: ^7.5.22
+  unbzip2-stream: ^1.4.3
   "@cloudflare/vite-plugin": ^1.47.0
   "@cloudflare/vitest-pool-workers": ^0.18.8
   # The mobile companion (issue #576). Expo SDK 57 uses `~57.0.x` unified

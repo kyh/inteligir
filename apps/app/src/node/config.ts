@@ -243,7 +243,7 @@ const ENV_VARS = {
   voice: defineEnvVar({
     name: "INTELIGIR_VOICE",
     description:
-      "Dictation runtime: auto (whisper.cpp against a downloaded model) or scripted (an in-process fake that needs neither, for e2e).",
+      "Dictation runtime: auto (streaming Parakeet via sherpa-onnx against a downloaded model) or scripted (an in-process fake that needs neither, for e2e).",
     parse: ({ name, value }) => parseVoiceModeValue(name, value),
   }),
   cloudUrl: defineEnvVar({
