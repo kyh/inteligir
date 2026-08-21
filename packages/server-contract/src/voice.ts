@@ -8,19 +8,23 @@
 // below is a fact about the filesystem, `install` fetches and `remove`
 // deletes, and "off" is spelled "no model on disk".
 //
-// THE AUDIO IS PCM, DECLARED HERE RATHER THAN NEGOTIATED. Whisper wants 16 kHz
-// mono, and the browser is the only side that can resample honestly (its
-// `decodeAudioData` runs a real resampler against whatever the microphone and
-// the recorder produced). So the client converts once and the wire carries the
-// one format this contract names; a `sampleRate` field would be a number the
-// server cannot check and a client could get wrong.
+// THE AUDIO IS PCM, DECLARED HERE RATHER THAN NEGOTIATED. sherpa-onnx wants
+// 16 kHz mono, and the browser is the only side that can resample honestly (its
+// `AudioContext` runs a real resampler against whatever the microphone
+// produced). So the client converts once and the wire carries the one format
+// this contract names; a `sampleRate` field would be a number the server cannot
+// check and a client could get wrong.
 //
-// It travels BASE64 IN A JSON BODY, not as a binary request. `@repo/typed-
-// routes` is vendored and carries no binary request descriptor, and adding one
-// would put house code inside files whose provenance record says `vendored`.
-// The cost is a third more bytes over loopback on a payload capped at
-// `VOICE_MAX_AUDIO_BYTES`; the gain is that the encoding is a declared part of
-// the contract rather than a convention two sides remember separately.
+// TWO PATHS OVER ONE FORMAT. The mic streams: a dedicated websocket
+// (`VOICE_STREAM_PATH`) carries PCM16 frames UP as binary and `partial`/`final`
+// /`error` messages DOWN — the streaming Parakeet recognizer emits partials as
+// frames arrive and one final on release (issue #578). The batch route
+// (`/voice/transcribe`) STAYS for a whole-clip caller (scripted mode, any
+// non-interactive path): it travels BASE64 IN A JSON BODY, not as a binary
+// request, because `@repo/typed-routes` is vendored and carries no binary
+// request descriptor and adding one would put house code inside files whose
+// provenance record says `vendored`. Both feed the same engine — the batch path
+// pushes the whole clip through a stream and reads its final.
 
 import type { EmptyInput } from "@repo/typed-routes/endpoint";
 import {
@@ -32,14 +36,15 @@ import {
 import { z } from "zod";
 import type { ApiErrorResponse } from "./errors";
 
-/** What whisper.cpp reads: mono, signed 16-bit little-endian, 16 kHz. */
+/** What sherpa-onnx reads: mono, signed 16-bit little-endian, 16 kHz. */
 export const VOICE_SAMPLE_RATE = 16_000;
 export const VOICE_BYTES_PER_SAMPLE = 2;
 
 /**
  * The ceiling on ONE dictation. Two minutes is far past a spoken composer
- * message and still bounds the request body, the worker's memory and the wait
- * — a 62 s clip measured 513 ms to transcribe, so this cap is ~1 s of work.
+ * message and bounds the batch request body — and it is the same cap the
+ * streaming session enforces on a long hold (`stream-session.ts`), so a
+ * runaway microphone cannot grow the recognizer's state without limit.
  */
 export const VOICE_MAX_AUDIO_SECONDS = 120;
 export const VOICE_MAX_AUDIO_BYTES =
@@ -168,3 +173,57 @@ export const voiceRoutes = {
     ] as const,
   }),
 };
+
+// ---------------------------------------------------------------------------
+// The dictation stream (issue #578).
+//
+// A websocket, NOT a contract row, for the reason `/ws` states its own: a
+// websocket is not a request/response pair, and no typed client derives from
+// it. It rides its OWN endpoint rather than the invalidation bus, because that
+// bus carries change-kind PINGS by decision and never a payload — and this
+// carries audio up and transcripts down. It sits behind the SAME
+// loopback/browser-origin guard the `/ws` upgrade uses.
+//
+// The grammar is asymmetric on purpose. FRAMES GO UP AS BINARY (PCM16, the
+// format above), because base64 in a text frame would inflate every 128 ms
+// chunk by a third for no gain a JSON envelope buys back. CONTROL GOES UP AS
+// TEXT (`finalize`), and everything DOWN is text — the transcripts are small
+// and JSON keeps them self-describing. Cancelling is closing the socket: there
+// is nothing to say, and a client that vanished says it the same way.
+// ---------------------------------------------------------------------------
+
+/** The dictation websocket. At the ROOT, beside `/ws` — not under the api base
+ *  and not a `defineRoute` row (a websocket is neither a request/response pair
+ *  nor something the typed client can reach). */
+export const VOICE_STREAM_PATH = "/voice/stream";
+
+/**
+ * The largest single binary frame the stream accepts. A capture pushing ~128 ms
+ * per frame is nowhere near this; one whole second of PCM16 is the ceiling, so
+ * a frame past it is a misbehaving or hostile client and is dropped rather than
+ * fed to the recognizer.
+ */
+export const VOICE_STREAM_FRAME_MAX_BYTES = VOICE_SAMPLE_RATE * VOICE_BYTES_PER_SAMPLE;
+
+/**
+ * Client → server control. Binary frames (the PCM16 audio) are NOT described
+ * here — they are raw bytes, validated by length, not by a schema. This is only
+ * the text control channel, a discriminated union so a second verb is one row.
+ */
+export const voiceStreamUpMessageSchema = z.discriminatedUnion("type", [
+  /** Stop capturing: transcribe what has been fed and answer one `final`. */
+  z.object({ type: z.literal("finalize") }).strict(),
+]);
+export type VoiceStreamUpMessage = z.infer<typeof voiceStreamUpMessageSchema>;
+
+/**
+ * Server → client. Partials REWRITE as more audio arrives — inherent to every
+ * streaming recognizer, expected rather than a defect — and exactly one `final`
+ * or one `error` ends the session; the server closes the socket after either.
+ */
+export const voiceStreamDownMessageSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("partial"), text: z.string() }).strict(),
+  z.object({ type: z.literal("final"), text: z.string() }).strict(),
+  z.object({ type: z.literal("error"), message: z.string().min(1) }).strict(),
+]);
+export type VoiceStreamDownMessage = z.infer<typeof voiceStreamDownMessageSchema>;

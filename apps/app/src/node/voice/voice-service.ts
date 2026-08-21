@@ -1,5 +1,5 @@
 // Dictation, server-side: what this machine can do, how the model gets here,
-// and one clip in / one sentence out.
+// one clip in / one sentence out, and a live streaming session per hold.
 //
 // TWO IMPLEMENTATIONS OF ONE INTERFACE, not one implementation with a flag.
 // The scripted service exists so a scenario can drive the WHOLE path — mic
@@ -12,6 +12,10 @@
 // shared across every checkout on this machine (see `AppConfig.modelDir`) and
 // a second instance can install or delete under this one. The one thing held
 // in memory is the download in flight, which is this process's own fact.
+//
+// THE ENGINE IS STREAMING PARAKEET (sherpa-onnx), restored from before the
+// rewrite (issue #578) — one model, both paths: a whole clip through
+// `transcribe`, and a live hold through `createStreamSession`.
 
 import {
   VOICE_BYTES_PER_SAMPLE,
@@ -23,12 +27,18 @@ import { SCRIPTED_VOICE_MODEL, VOICE_MODEL, type VoiceModelSpec } from "./model-
 import {
   downloadModel,
   isModelInstalled,
-  modelFilePath,
+  resolveModelFiles,
   ModelDownloadError,
   removeModel,
   type DownloadModelArgs,
 } from "./model-store";
-import { runVoiceWorker } from "./voice-worker-host";
+import {
+  ScriptedStreamSession,
+  WorkerStreamSession,
+  type StreamHandlers,
+  type StreamSession,
+} from "./stream-session";
+import { runVoiceWorker, spawnVoiceStreamWorker } from "./voice-worker-host";
 
 /** No usable transcription runtime, or no model to run. */
 export class VoiceUnavailableError extends Error {}
@@ -43,6 +53,9 @@ export interface VoiceService {
   remove(): Promise<VoiceStatusResponse>;
   /** The clip's samples; the caller owns validating that they are in range. */
   transcribe(pcm: ArrayBuffer): Promise<string>;
+  /** A live dictation session over `/voice/stream`. Returns synchronously; a
+   *  runtime or model problem is delivered through `handlers.onError`. */
+  createStreamSession(handlers: StreamHandlers): StreamSession;
   dispose(): Promise<void>;
 }
 
@@ -58,16 +71,19 @@ interface DownloadInFlight {
 }
 
 /**
- * A second of silence, transcribed once after a download so the GPU shader
- * library compiles inside the install rather than inside the user's first
- * dictation. Measured on an M1 Max: `ggml_metal_library_init` takes 9.865 s
- * the first time a machine runs this binary and 0.012 s on every run after,
- * across process restarts — so this is a one-off, and the only question is
- * which affordance is on screen while it happens.
+ * A second of silence, transcribed once after a download so the model is opened
+ * — and its onnx graph loaded — inside the install rather than inside the user's
+ * first dictation. It is also the moment a model that passed the size/digest
+ * gate but cannot be opened by sherpa-onnx is caught: at the install the user is
+ * watching, not at their first dictation.
  */
 const WARM_UP_PCM_BYTES = VOICE_SAMPLE_RATE * VOICE_BYTES_PER_SAMPLE;
 
-export interface WhisperVoiceServiceArgs {
+/** The sentence shown when a model would not load and was removed — one
+ *  spelling, used by both the batch path and a streaming session. */
+const MODEL_REMOVED_MESSAGE = `The ${VOICE_MODEL.label} model could not be loaded and was removed. Turn voice input on again in Settings to re-download it.`;
+
+export interface ParakeetVoiceServiceArgs {
   modelDir: string;
   /** Tests inject a transport rather than reaching the model's host. */
   fetchImpl?: typeof fetch;
@@ -78,12 +94,16 @@ export interface WhisperVoiceServiceArgs {
    * about the platform the suite happens to be running on.
    */
   runWorker?: typeof runVoiceWorker;
+  /** Tests inject a fake persistent worker to drive the streaming lifecycle
+   *  without a native binding. */
+  spawnStreamWorker?: typeof spawnVoiceStreamWorker;
 }
 
-export class WhisperVoiceService implements VoiceService {
+export class ParakeetVoiceService implements VoiceService {
   readonly #modelDir: string;
   readonly #fetchImpl: typeof fetch | undefined;
   readonly #runWorker: typeof runVoiceWorker;
+  readonly #spawnStreamWorker: typeof spawnVoiceStreamWorker;
   #download: DownloadInFlight | null = null;
   /** Why the last install stopped, so `no-model` can say it. Cleared by the
    *  next install and by `remove`, because both make it stale. */
@@ -95,10 +115,11 @@ export class WhisperVoiceService implements VoiceService {
    *  is a property of this build on this machine and cannot change under us. */
   #runtimeProblem: string | null | undefined = undefined;
 
-  constructor(args: WhisperVoiceServiceArgs) {
+  constructor(args: ParakeetVoiceServiceArgs) {
     this.#modelDir = args.modelDir;
     this.#fetchImpl = args.fetchImpl;
     this.#runWorker = args.runWorker ?? runVoiceWorker;
+    this.#spawnStreamWorker = args.spawnStreamWorker ?? spawnVoiceStreamWorker;
   }
 
   async #probe(): Promise<string | null> {
@@ -147,7 +168,7 @@ export class WhisperVoiceService implements VoiceService {
     this.#download = inFlight;
     this.#lastError = null;
     // Deliberately not awaited: the route answers the status this moved to and
-    // the surface polls for `receivedBytes` — a 32 MB fetch outlives any
+    // the surface polls for `receivedBytes` — a 100 MB fetch outlives any
     // request timeout worth having.
     void (async () => {
       try {
@@ -182,14 +203,14 @@ export class WhisperVoiceService implements VoiceService {
   }
 
   /**
-   * Transcribe a second of silence, ONCE, so the shader compile lands here —
-   * and, because this is the first time the freshly-downloaded model is
-   * actually loaded, so a model that passed the size/digest gate but cannot be
-   * opened by whisper.cpp is caught HERE, at the install the user is watching,
-   * rather than at their first dictation. Such a model is nuked so the status
-   * drops to `no-model` with the reason, the same delete-and-rebuild recovery
-   * the knowledge cache uses. A decode failure (the runtime loaded but choked
-   * on silence) is recorded but keeps the model — it is not about the bytes.
+   * Transcribe a second of silence, ONCE, so the graph load lands here — and,
+   * because this is the first time the freshly-downloaded model is actually
+   * loaded, so a model that passed the size/digest gate but cannot be opened by
+   * sherpa-onnx is caught HERE, at the install the user is watching, rather than
+   * at their first dictation. Such a model is nuked so the status drops to
+   * `no-model` with the reason, the same delete-and-rebuild recovery the
+   * knowledge cache uses. A decode failure (the runtime loaded but choked on
+   * silence) is recorded but keeps the model — it is not about the bytes.
    */
   #warmUp(): void {
     this.#preparing = true;
@@ -197,7 +218,7 @@ export class WhisperVoiceService implements VoiceService {
       try {
         const answer = await this.#runWorker({
           kind: "transcribe",
-          modelPath: modelFilePath(this.#modelDir, VOICE_MODEL),
+          model: resolveModelFiles(this.#modelDir, VOICE_MODEL),
           pcm: new ArrayBuffer(WARM_UP_PCM_BYTES),
         });
         if (answer.kind === "failed") {
@@ -256,7 +277,7 @@ export class WhisperVoiceService implements VoiceService {
     try {
       const answer = await this.#runWorker({
         kind: "transcribe",
-        modelPath: modelFilePath(this.#modelDir, VOICE_MODEL),
+        model: resolveModelFiles(this.#modelDir, VOICE_MODEL),
         pcm,
       });
       if (answer.kind === "transcribed") {
@@ -271,13 +292,38 @@ export class WhisperVoiceService implements VoiceService {
       // A model that would not load is now gone, so this is `unavailable`, not
       // a bad clip; a decode failure keeps the model and reports as one.
       throw answer.modelUnusable
-        ? new VoiceUnavailableError(
-            `The ${VOICE_MODEL.label} model could not be loaded and was removed. Turn voice input on again in Settings to re-download it.`,
-          )
+        ? new VoiceUnavailableError(MODEL_REMOVED_MESSAGE)
         : new VoiceTranscriptionError(answer.message);
     } finally {
       this.#transcribing = false;
     }
+  }
+
+  createStreamSession(handlers: StreamHandlers): StreamSession {
+    return new WorkerStreamSession({
+      handlers,
+      prepare: async () => {
+        const problem = await this.#probe();
+        if (problem !== null) {
+          return { ok: false, reason: problem };
+        }
+        if (this.#preparing) {
+          return { ok: false, reason: "The speech model is still being prepared." };
+        }
+        if (!(await isModelInstalled(this.#modelDir, VOICE_MODEL))) {
+          return {
+            ok: false,
+            reason: `Dictation needs the ${VOICE_MODEL.label} model. Turn on voice input in Settings to download it.`,
+          };
+        }
+        return { ok: true, model: resolveModelFiles(this.#modelDir, VOICE_MODEL) };
+      },
+      spawn: (model, callbacks) => this.#spawnStreamWorker(model, callbacks),
+      onModelUnusable: async () => {
+        await this.#recordWorkerFailure(MODEL_REMOVED_MESSAGE, true);
+        return MODEL_REMOVED_MESSAGE;
+      },
+    });
   }
 
   async dispose(): Promise<void> {
@@ -294,7 +340,7 @@ export class WhisperVoiceService implements VoiceService {
 
 /**
  * The e2e runtime. It reports `ready` with no model on disk and no binding
- * loaded, and its answer NAMES THE SAMPLE COUNT — so a scenario asserting the
+ * loaded, and its answers NAME THE SAMPLE COUNT — so a scenario asserting the
  * composer's text proves the microphone's bytes reached the server, not merely
  * that a button was clicked.
  */
@@ -313,6 +359,10 @@ export class ScriptedVoiceService implements VoiceService {
 
   async transcribe(pcm: ArrayBuffer): Promise<string> {
     return `scripted dictation of ${pcm.byteLength / VOICE_BYTES_PER_SAMPLE} samples`;
+  }
+
+  createStreamSession(handlers: StreamHandlers): StreamSession {
+    return new ScriptedStreamSession(handlers);
   }
 
   async dispose(): Promise<void> {
