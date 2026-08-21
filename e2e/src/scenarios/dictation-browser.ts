@@ -1,13 +1,14 @@
 // Dictation, driven end to end in a real browser against a real server.
 //
-// WHAT IS REAL HERE AND WHAT IS NOT. Everything above the decode is real: the
-// microphone permission, `getUserMedia`, MediaRecorder, the decode to 16 kHz
-// mono, the PCM conversion, the wire, the route, and the insertion into the
-// composer. Only whisper.cpp itself is stood in for — the server runs with
-// INTELIGIR_VOICE=scripted, whose answer NAMES THE SAMPLE COUNT it received.
-// That is what makes this an assertion rather than a click test: a composer
-// reading "scripted dictation of N samples" with N > 0 proves the
-// microphone's bytes travelled the whole path.
+// WHAT IS REAL HERE AND WHAT IS NOT. Everything above the recognizer is real:
+// the microphone permission, `getUserMedia`, the ScriptProcessor frames, the
+// 16 kHz PCM conversion, the dictation WEBSOCKET, the route, the live partial
+// and the insertion into the composer. Only the Parakeet recognizer is stood in
+// for — the server runs with INTELIGIR_VOICE=scripted, whose partials and final
+// NAME THE SAMPLE COUNT they received. That is what makes this an assertion
+// rather than a click test: a partial appearing DURING the hold and a composer
+// reading "scripted dictation of N samples" with N > 0 both prove the
+// microphone's bytes are streaming the whole path.
 //
 // The alternative was a 32 MB model download inside CI, which would make the
 // suite depend on a third-party host being up and on a decode that takes a
@@ -27,8 +28,6 @@ import type { Scenario } from "../harness/scenario";
 const agentBrowser = agentBrowserSession("dictation");
 const MOUNT_DEADLINE_MS = 90_000;
 const TRANSCRIPT_DEADLINE_MS = 60_000;
-/** Enough of the fake device's tone to be worth transcribing. */
-const SPEAKING_MS = 1_500;
 
 const CHROME_MEDIA_ARGS = [
   "--use-fake-ui-for-media-stream",
@@ -38,6 +37,8 @@ const CHROME_MEDIA_ARGS = [
 const COMPOSER = 'textarea[aria-label="Message the agent"]';
 const MIC = 'button[aria-label="Dictate"]';
 const MIC_RECORDING = 'button[aria-label="Stop dictating"]';
+const PREVIEW = "[data-dictation-preview]";
+const TRANSCRIPT = /scripted dictation of (\d+) samples/u;
 
 export const dictationBrowser: Scenario = {
   name: "dictation-browser",
@@ -60,25 +61,43 @@ export const dictationBrowser: Scenario = {
       ctx.log("recording");
       await agentBrowser(["click", MIC]);
       await agentBrowser(["wait", MIC_RECORDING], 30_000);
-      await delay(SPEAKING_MS);
 
-      ctx.log("releasing, then waiting for the transcript to land in the composer");
+      // THE POINT OF STREAMING: the words appear as you speak. A live partial
+      // shows in the preview BEFORE release, and scripted mode names the sample
+      // count — so a matching partial proves the microphone's bytes are reaching
+      // the server over the socket mid-hold, not just on stop.
+      ctx.log("waiting for a live partial during the hold");
+      await agentBrowser(["wait", PREVIEW], 30_000);
+      const partialDeadline = Date.now() + TRANSCRIPT_DEADLINE_MS;
+      for (;;) {
+        const preview = await agentBrowser(["get", "text", PREVIEW]);
+        if (TRANSCRIPT.test(preview)) {
+          break;
+        }
+        expect(
+          Date.now() < partialDeadline,
+          `no live partial appeared during the hold; the preview holds ${JSON.stringify(preview)}`,
+        );
+        await delay(300);
+      }
+
+      ctx.log("releasing, then waiting for the final to land in the composer");
       await agentBrowser(["click", MIC_RECORDING]);
       const deadline = Date.now() + TRANSCRIPT_DEADLINE_MS;
       let composed = "";
       for (;;) {
         composed = await agentBrowser(["get", "value", COMPOSER]);
-        if (/scripted dictation of (\d+) samples/u.test(composed)) {
+        if (TRANSCRIPT.test(composed)) {
           break;
         }
         expect(
           Date.now() < deadline,
-          `no transcript reached the composer; it holds ${JSON.stringify(composed)}`,
+          `no final transcript reached the composer; it holds ${JSON.stringify(composed)}`,
         );
         await delay(500);
       }
 
-      const samples = Number(/scripted dictation of (\d+) samples/u.exec(composed)?.[1] ?? "0");
+      const samples = Number(TRANSCRIPT.exec(composed)?.[1] ?? "0");
       expect(
         samples > 0,
         `the transcript claims ${samples} samples — the microphone's bytes did not reach the server`,

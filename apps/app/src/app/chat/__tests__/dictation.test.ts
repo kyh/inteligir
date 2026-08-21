@@ -11,7 +11,6 @@ import {
   levelFrom,
   resampleTo16k,
   spliceIntoComposer,
-  toBase64,
   toPcm16,
 } from "../dictation";
 
@@ -47,17 +46,6 @@ describe("levelFrom", () => {
   it("is zero for silence and saturates for a loud frame", () => {
     expect(levelFrom(new Float32Array(64))).toBe(0);
     expect(levelFrom(new Float32Array(64).fill(1))).toBe(1);
-  });
-});
-
-describe("toBase64", () => {
-  it("round-trips bytes past the chunking boundary", () => {
-    const bytes = new Uint8Array(0x8000 + 7);
-    for (let index = 0; index < bytes.length; index += 1) {
-      bytes[index] = index % 256;
-    }
-    const decoded = Uint8Array.from(atob(toBase64(bytes.buffer)), (char) => char.charCodeAt(0));
-    expect(decoded).toEqual(bytes);
   });
 });
 

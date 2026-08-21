@@ -17,7 +17,7 @@ import { resolveAppConfig } from "./config";
 import { ensureDevDataDirOwnership } from "./data-dir";
 import { ensureInstanceSecret } from "./instance-identity";
 import { createKnowledgeRuntime, type KnowledgeRuntime } from "./knowledge/knowledge-runtime";
-import { closeServer, listenWithRetry } from "./listen";
+import { closeServer, listenWithRetry, type UpgradedSockets } from "./listen";
 import { createTurnProposalCapture } from "./proposals/turn-proposals";
 import {
   createGracefulShutdown,
@@ -210,7 +210,7 @@ async function boot(): Promise<{ serverUrl: string }> {
   });
   registerTeardown("agent", () => agentDriver.dispose());
 
-  const { app, cloud, injectWebSocket, voice } = createApp({
+  const { app, cloud, injectWebSocket, voice, voiceStreamHub } = createApp({
     agent: agentDriver.status,
     bus,
     // The real dial, injected because it cannot be imported from `app.ts` —
@@ -236,7 +236,21 @@ async function boot(): Promise<{ serverUrl: string }> {
     port: config.port,
     probeOnBusyPort: config.mode === "dev" && config.portSource === "default",
   });
-  registerTeardown("listener", () => closeServer(server, bus));
+  // Both kinds of upgraded socket are closed by name in the listener step: the
+  // invalidation bus AND every live dictation stream. Each detaches from the
+  // HTTP server's connection tracking on upgrade, so an open one of EITHER would
+  // stall `server.close()` past the vault flush behind it.
+  const upgradedSockets: UpgradedSockets = {
+    closeAllClients: () => {
+      bus.closeAllClients();
+      voiceStreamHub.closeAllClients();
+    },
+    terminateAllClients: () => {
+      bus.terminateAllClients();
+      voiceStreamHub.terminateAllClients();
+    },
+  };
+  registerTeardown("listener", () => closeServer(server, upgradedSockets));
   injectWebSocket(server);
   // Nothing ever scheduled the boot pass, so the hydrate-and-reconcile landed
   // in front of whichever query settled first — the user's first ⌘K. Kicked

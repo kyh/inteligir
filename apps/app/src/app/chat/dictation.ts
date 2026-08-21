@@ -6,35 +6,34 @@
 // under a hold that dialog arrives DURING the hold — it takes the pointer, the
 // button's pointerup never comes, and the user's first attempt records nothing
 // and explains nothing. A toggle has an unambiguous start and an unambiguous
-// stop, so the prompt simply happens between them. The rest follows: a hold
-// that ends because the pointer left the button, because a system dialog stole
-// focus, or because the window blurred is a lost dictation with no error, and
-// a composer is a place where hands are already on the keyboard.
+// stop, so the prompt simply happens between them.
 //
-// THE BROWSER DOES THE RESAMPLING. `AudioContext({ sampleRate })` plus
-// `decodeAudioData` runs a real resampler over whatever the microphone and the
-// recorder produced; the linear interpolation below is a fallback for a
-// browser that ignores the rate hint, and it is stated as the worse path
-// rather than made the normal one.
-//
-// RECORD FIRST, DECODE AT RELEASE. MediaRecorder costs almost nothing while
-// the user speaks; pulling raw frames would need an AudioWorklet, which is a
-// module the page fetches as a script — and this app's production CSP names
-// `worker-src 'none'` on purpose. Decoding once, after the stop, keeps
-// dictation inside the policy the shell already ships.
+// FRAMES ARE STREAMED, NOT RECORDED. Dictation is live now (issue #578): raw
+// PCM chunks go up a websocket as the user speaks, and partials come back. That
+// needs the audio graph's own frames, which a `ScriptProcessorNode` delivers on
+// the main thread — deliberately NOT an `AudioWorklet`, whose module the page
+// would have to fetch as a script, and this app's production CSP names
+// `worker-src 'none'` on purpose. ScriptProcessorNode is deprecated but loads no
+// module, so it is the one raw-frame source the policy admits. The capture
+// context is opened AT 16 kHz so its resampler does the work; the linear
+// fallback below only runs if a browser ignores that hint.
 
 import { VOICE_SAMPLE_RATE } from "@repo/server-contract/voice";
 
 /**
- * What the mic button is doing. `recording` carries the level the meter draws
- * and `transcribing` carries nothing, because there is nothing honest to show
- * — the server answers in one shot and a fake progress bar would be a lie.
+ * What the mic button is doing. `recording` carries the level the meter draws;
+ * the live partial transcript is the dock's to render, not this state's — a
+ * partial that updated here would re-render the button on every frame.
  */
 export type DictationState =
   | { kind: "idle" }
   | { kind: "requesting" }
   | { kind: "recording"; level: number }
-  | { kind: "transcribing" };
+  | { kind: "finalizing" };
+
+/** ~128 ms of 16 kHz audio per frame: enough to transcribe incrementally, small
+ *  enough to feel live. A power of two, as `createScriptProcessor` requires. */
+const FRAME_SAMPLES = 2048;
 
 /** Zero to one, from the analyser's time-domain RMS. */
 export function levelFrom(samples: Float32Array): number {
@@ -80,18 +79,6 @@ export function toPcm16(samples: Float32Array): ArrayBuffer {
   return buffer;
 }
 
-export function toBase64(bytes: ArrayBuffer): string {
-  const view = new Uint8Array(bytes);
-  let binary = "";
-  // Chunked: spreading a multi-megabyte view into String.fromCharCode
-  // overflows the argument limit.
-  const chunk = 0x8000;
-  for (let offset = 0; offset < view.length; offset += chunk) {
-    binary += String.fromCharCode(...view.subarray(offset, offset + chunk));
-  }
-  return btoa(binary);
-}
-
 /**
  * Why the microphone is not available, in words. The browser's own message is
  * not used: `NotAllowedError` reads "Permission denied", which does not tell
@@ -113,10 +100,6 @@ export function microphoneProblem(cause: unknown): string {
   }
 }
 
-/** Where dictated text lands, given what the composer holds and where the
- *  caret was. Pure so the insertion rule is testable without a DOM: the
- *  transcript goes AT THE CARET, spaced from whatever it lands between, and
- *  the returned caret sits after it so typing continues from there. */
 /** The composer after a transcript lands: the whole text, and where the caret
  *  sits in it. */
 export interface TranscriptInsertion {
@@ -124,6 +107,10 @@ export interface TranscriptInsertion {
   caret: number;
 }
 
+/** Where dictated text lands, given what the composer holds and where the caret
+ *  was. Pure so the insertion rule is testable without a DOM: the transcript
+ *  goes AT THE CARET, spaced from whatever it lands between, and the returned
+ *  caret sits after it so typing continues from there. */
 export function insertTranscript(args: {
   text: string;
   transcript: string;
@@ -155,11 +142,11 @@ export interface ComposerSelection {
 /**
  * Splice a transcript into the LIVE composer. Both the base text AND the caret
  * come from `composer` — never a base captured in a render closure, which the
- * seconds-long mic round-trip makes stale the instant the user types while the
- * transcription is in flight. Reading the base from the closure and the caret
- * from the DOM was the mis-splice: the caret indexed text the base did not
- * have. `fallback` stands in only when the composer is gone (unmounted
- * mid-flight), where there is nothing live left to read.
+ * seconds-long dictation makes stale the instant the user types while the hold
+ * is running. Reading the base from the closure and the caret from the DOM was
+ * the mis-splice: the caret indexed text the base did not have. `fallback`
+ * stands in only when the composer is gone (unmounted mid-flight), where there
+ * is nothing live left to read.
  */
 export function spliceIntoComposer(
   composer: ComposerSelection | null,
@@ -172,96 +159,74 @@ export function spliceIntoComposer(
   return insertTranscript({ text: base, transcript, selectionStart: start, selectionEnd: end });
 }
 
-export interface CaptureHandle {
-  /** Resolves with the samples the contract wants, or null if nothing was
-   *  captured (a stop before any data arrived). */
-  stop: () => Promise<Float32Array | null>;
+export interface StreamCaptureHandle {
   /** Latest meter level; read on a timer rather than pushed, so the caller
    *  decides how often the UI re-renders. */
   level: () => number;
-  /** Drop the microphone without decoding — the abandon path. */
-  cancel: () => void;
+  /** Stop the microphone and the audio graph. Frames already streamed are the
+   *  caller's to finalize over the wire — there is nothing to decode here. */
+  stop: () => void;
 }
 
 /**
- * Open the microphone and start recording. Rejects with whatever
- * `getUserMedia` refused, so the caller can turn it into a sentence.
+ * Open the microphone and stream 16 kHz mono PCM16 frames to `onFrame` as they
+ * arrive (~every 128 ms). Rejects with whatever `getUserMedia` refused, so the
+ * caller can turn it into a sentence.
  *
- * Once `getUserMedia` grants, the microphone is LIVE — the OS indicator is
- * lit and the tracks are open. So everything built after it (the recorder, the
- * meter's AudioContext) runs under a guard: if any constructor throws, the
- * stream is released before the rejection propagates, or the mic stays hot
- * with no handle left to stop it.
+ * Once `getUserMedia` grants, the microphone is LIVE — the OS indicator is lit
+ * and the tracks are open. So everything built after it runs under a guard: if
+ * any constructor throws, the stream is released before the rejection
+ * propagates, or the mic stays hot with no handle left to stop it.
  */
-export async function startCapture(): Promise<CaptureHandle> {
+export async function startStreamingCapture(
+  onFrame: (pcm: ArrayBuffer) => void,
+): Promise<StreamCaptureHandle> {
   const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-  let meterContext: AudioContext | null = null;
+  let context: AudioContext | null = null;
   try {
-    const recorder = new MediaRecorder(stream);
-    const chunks: Blob[] = [];
-    recorder.addEventListener("dataavailable", (event) => {
-      if (event.data.size > 0) {
-        chunks.push(event.data);
-      }
-    });
-
-    // The meter reads the LIVE stream rather than the recorded blob, so it
-    // moves while the user speaks instead of after they stop.
-    meterContext = new AudioContext();
-    const analyser = meterContext.createAnalyser();
+    // Ask for 16 kHz so the context's own resampler feeds sherpa's rate; the
+    // linear fallback covers a browser that ignores the hint.
+    context = new AudioContext({ sampleRate: VOICE_SAMPLE_RATE });
+    const source = context.createMediaStreamSource(stream);
+    const processor = context.createScriptProcessor(FRAME_SAMPLES, 1, 1);
+    const analyser = context.createAnalyser();
     analyser.fftSize = 512;
-    meterContext.createMediaStreamSource(stream).connect(analyser);
-    const frame = new Float32Array(analyser.fftSize);
+    source.connect(analyser);
+    source.connect(processor);
+    // A ScriptProcessorNode only fires while connected to a destination; its
+    // output buffer is left untouched, so what reaches the speakers is silence.
+    processor.connect(context.destination);
+    const meterFrame = new Float32Array(analyser.fftSize);
+    const sourceRate = context.sampleRate;
 
-    const context = meterContext;
-    const release = (): void => {
-      for (const track of stream.getTracks()) {
-        track.stop();
-      }
-      void context.close();
+    processor.onaudioprocess = (event) => {
+      const input = event.inputBuffer.getChannelData(0);
+      onFrame(toPcm16(resampleTo16k(input, sourceRate)));
     };
 
-    recorder.start();
-
+    const closing = context;
     return {
       level: () => {
-        analyser.getFloatTimeDomainData(frame);
-        return levelFrom(frame);
+        analyser.getFloatTimeDomainData(meterFrame);
+        return levelFrom(meterFrame);
       },
-      cancel: () => {
-        if (recorder.state !== "inactive") {
-          recorder.stop();
+      stop: () => {
+        processor.onaudioprocess = null;
+        processor.disconnect();
+        source.disconnect();
+        analyser.disconnect();
+        for (const track of stream.getTracks()) {
+          track.stop();
         }
-        release();
-      },
-      stop: async () => {
-        const stopped = new Promise<void>((resolve) => {
-          recorder.addEventListener("stop", () => resolve(), { once: true });
-        });
-        if (recorder.state !== "inactive") {
-          recorder.stop();
-        }
-        await stopped;
-        release();
-        if (chunks.length === 0) {
-          return null;
-        }
-        const bytes = await new Blob(chunks).arrayBuffer();
-        const decodeContext = new AudioContext({ sampleRate: VOICE_SAMPLE_RATE });
-        try {
-          const audio = await decodeContext.decodeAudioData(bytes);
-          return resampleTo16k(audio.getChannelData(0), audio.sampleRate);
-        } finally {
-          void decodeContext.close();
-        }
+        void closing.close();
       },
     };
   } catch (error) {
     for (const track of stream.getTracks()) {
       track.stop();
     }
-    if (meterContext !== null) {
-      void meterContext.close();
+    if (context !== null) {
+      void context.close();
     }
     throw error;
   }

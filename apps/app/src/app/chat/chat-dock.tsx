@@ -103,6 +103,11 @@ export function ChatDock({
 
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
+  // The live dictation transcript, shown as a preview OUTSIDE the field while
+  // recording — never spliced in until the final. Partials rewrite as more
+  // audio arrives, and touching the textarea on each one would risk eating text
+  // the user typed mid-hold; the field only changes once, on the final splice.
+  const [dictationPartial, setDictationPartial] = useState<string | null>(null);
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const voiceStatus = useVoiceStatus().data;
@@ -378,6 +383,16 @@ export function ChatDock({
           </div>
         ) : null}
 
+        {dictationPartial !== null ? (
+          <div
+            data-dictation-preview=""
+            aria-live="polite"
+            className="mb-2 rounded-lg border border-line bg-surface-raised px-3 py-2 text-xs text-muted-foreground shadow-surface-1"
+          >
+            {dictationPartial === "" ? "Listening…" : dictationPartial}
+          </div>
+        ) : null}
+
         <div className="flex items-end gap-2 pb-3">
           <Textarea
             ref={composerRef}
@@ -404,7 +419,12 @@ export function ChatDock({
               }
             }}
           />
-          <MicButton status={voiceStatus} onTranscript={acceptTranscript} disabled={sending} />
+          <MicButton
+            status={voiceStatus}
+            onTranscript={acceptTranscript}
+            onPartial={setDictationPartial}
+            disabled={sending}
+          />
           <Button
             size="icon-sm"
             aria-label="Send"
