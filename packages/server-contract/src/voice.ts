@@ -59,7 +59,7 @@ export const VOICE_MAX_AUDIO_BASE64_LENGTH = Math.ceil(VOICE_MAX_AUDIO_BYTES / 3
 export const voiceModelSchema = z
   .object({
     id: z.string().min(1),
-    /** What to call it to a person, e.g. "Whisper tiny (English)". */
+    /** What to call it to a person, e.g. "Parakeet streaming (English)". */
     label: z.string().min(1),
     /** Exact, from the catalog's pin — not a Content-Length the server was told. */
     sizeBytes: z.number().int().min(1),
@@ -97,13 +97,12 @@ export const voiceStatusResponseSchema = z.discriminatedUnion("state", [
     })
     .strict(),
   /**
-   * The bytes are on disk and the runtime is compiling its GPU shader library.
-   * Its own state because it is MEASURED at ~10 s on an M1 Max
-   * (`ggml_metal_library_init: loaded in 9.865 sec`) and the OS caches the
-   * result afterwards — 0.012 s on every later run, across restarts. Paying it
-   * during the install, where the user is already watching a progress
-   * affordance, is the difference between a slow switch and a first dictation
-   * that appears to have hung.
+   * The bytes are on disk and a warm-up is loading the model once — sherpa-onnx
+   * opens the four onnx files and brings up onnxruntime's session. Its own state
+   * because it is where a model that passed the size/digest gate but cannot be
+   * OPENED is caught, at the install the user is already watching rather than at
+   * their first dictation. It is short (~a second), unlike whisper's one-time
+   * Metal shader compile the reversed #574 paid here.
    */
   z.object({ state: z.literal("preparing"), model: voiceModelSchema }).strict(),
   z.object({ state: z.literal("ready"), model: voiceModelSchema }).strict(),
@@ -139,7 +138,7 @@ export const voiceRoutes = {
   }),
   /**
    * Start the download and answer the status it moved to. It does NOT wait for
-   * the bytes: a 32 MB fetch outlives any request timeout worth having, so the
+   * the bytes: a ~106 MB fetch outlives any request timeout worth having, so the
    * surface polls `status` for `receivedBytes` while it runs.
    */
   install: defineRoute({

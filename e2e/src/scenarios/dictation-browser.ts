@@ -10,7 +10,7 @@
 // reading "scripted dictation of N samples" with N > 0 both prove the
 // microphone's bytes are streaming the whole path.
 //
-// The alternative was a 32 MB model download inside CI, which would make the
+// The alternative was a ~106 MB model download inside CI, which would make the
 // suite depend on a third-party host being up and on a decode that takes a
 // different amount of time on every runner.
 //

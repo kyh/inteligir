@@ -21,8 +21,8 @@ files:
   - "!**/*.map"
 # NO native rebuild step, and that is a fact about the three modules rather
 # than an omission: better-sqlite3 13, @parcel/watcher and
-# @fugood/whisper.node are all Node-API addons that ship per-platform
-# prebuilds (whisper.node through per-platform optionalDependencies), and
+# sherpa-onnx-node are all Node-API addons that ship per-platform
+# prebuilds (sherpa-onnx-node through per-platform optionalDependencies), and
 # Node-API is ABI-stable across Node and Electron — so the binary npm
 # installed is the one the packaged app loads. npmRebuild stays OFF because it
 # would rebuild in place, and in a pnpm workspace that means clobbering the
