@@ -27,9 +27,10 @@ apps/
                  is the sync CLIENT (issue #572): the credential at rest, the
                  frozen-body outbox, the pull/apply loop and the local
                  /cloud/* routes Settings and `inteligir sync` drive.
-                 src/node/voice/ is dictation (issue #574): the pinned model
-                 cache under ~/.inteligir/models/, and whisper.cpp on a worker
-                 thread per clip. src/node/memory/ is agent memory (issue #575):
+                 src/node/voice/ is dictation (issue #578): the pinned model
+                 cache under ~/.inteligir/models/, and streaming Parakeet
+                 (sherpa-onnx) on a persistent session worker per hold, over a
+                 dedicated /voice/stream websocket. src/node/memory/ is agent memory (issue #575):
                  flat markdown facts about the USER under ~/.inteligir/memory/,
                  read/written by the agent's own shell — the app only DERIVES
                  the per-turn prompt index off them and serves Settings'
@@ -403,65 +404,81 @@ description, type }`. It is machine-global and shared across checkouts because
   per session (the path is stable; the CONTENTS are read live), never a per-turn
   channel, because only the injection needs to move per turn and it already does.
 
-- **DICTATION TRANSCRIBES IN THE NODE PROCESS, ON A WORKER PER CLIP, and the
-  MODEL FILE IS THE SWITCH** (issue #574). Four runtimes were measured on this
-  machine against a 9.5 s and a 62 s clip before anything was built — the table
-  and the argument are the issue's first two comments. whisper.cpp through
-  `@fugood/whisper.node` (MIT, prebuilt per-platform, `postinstall` exits 0
-  unless asked to build from source) wins every axis: **94 ms** warm on a
-  dictated sentence and 513 ms on a full minute, 185 MB peak, off a 32 MB
-  download, returning the passage verbatim WITH punctuation and capitals.
-  The rejections are measured rather than argued. **transformers.js in the
-  renderer is refused by this app's own CSP** — verified by serving the bundle
-  under `csp.ts`'s policy verbatim: it needs `script-src … 'wasm-unsafe-eval'`
-  AND `worker-src 'self' blob:` together, and it would ship a 24 MB `.wasm` in
-  the SPA. **transformers.js on onnxruntime-node** is 3.7x slower at 3.3x the
-  memory, and both of its paths hallucinated at the 30 s chunk boundary where
-  whisper.cpp's sequential decode did not. **sherpa-onnx + streaming Parakeet**
-  — which this repo shipped before the rewrite — has the one thing whisper.cpp
-  cannot, a measured **0 ms** tail after the user stops, and loses anyway: the
-  tail it removes is 94 ms and already imperceptible, while it costs 4x the
-  download, 2x the memory, 8x the CPU, and returns **no punctuation and no
-  capitalization**, which in a composer is an edit per sentence. It was also
-  chosen here for a hands-free voice-call mode that `c9c8b76d` deleted as
-  unreachable; streaming was load-bearing for the feature that went away.
-  **ONE WORKER PER CLIP, not a warm pool**: opening the model is 37–92 ms and
-  the whole round trip 130–210 ms against a 2 s budget, so a resident context
-  would buy nothing perceptible and cost 185 MB plus an idle timer and a
-  teardown step. The worker is not optional — `better-sqlite3` is synchronous
-  and the watcher's fork channel pings on a bare timer, so an inline 700 ms
-  decode stalls a save, a query and the watcher's liveness together; measured
-  the other way, `/health` answered 450 times with a 15 ms worst case DURING a
-  62 s transcribe. **THE SHADER COMPILE IS PAID AT INSTALL**, which is what the
-  `preparing` state is for: `ggml_metal_library_init` takes 9.865 s the first
-  time this binary runs on a machine and 0.012 s on every run after, across
-  restarts, so it lands inside the switch the user is already watching rather
-  than inside their first dictation. There is NO `voiceEnabled` flag, for the
-  reason stated below about the device credential — the model on disk is the
-  fact, `install` fetches it against a pinned digest and `remove` deletes it.
-  **THE AUDIO IS BASE64 PCM IN A JSON BODY**: `@repo/typed-routes` is vendored
-  and has no binary request descriptor, and adding one would put house code in
-  files whose provenance row says `vendored`. **THE PROBE ACTUALLY LOADS THE
-  NATIVE BINDING** (`loadWhisperModule()`, not a bare `import` of the JS
-  wrapper — the `.node` is dlopened lazily and the import never reaches it), so
-  a platform whose binary cannot load answers `unavailable` at the switch
-  rather than passing every check and failing only the first real dictation.
-  **A MODEL THAT WILL NOT LOAD IS NUKED**: readiness is size-only (hashing a
-  32 MB file on every polled status is not free), so recovery is on the load —
-  the worker reports `modelUnusable` when whisper.cpp refuses the file, and the
-  service deletes it and drops to `no-model` with the reason, the same
-  delete-and-rebuild the knowledge cache uses; a decode failure keeps the file,
-  because that is about the clip, not the bytes. **THE DESKTOP SHELL GRANTS
-  `media`, ORIGIN-SCOPED**: the origin pin's permission handlers are no longer
-  an empty denylist — `classifyPermission` grants the microphone ONLY to the
-  window's own origin and denies everything else, because the pin already keeps
-  the window on one origin but a grant that ignored the origin would be a
-  standing one the day a subframe or embed changes that. **NO CLI VERB**, the
-  same reason connectors gets `list` and nothing else: dictation is a human
-  affordance, and an agent that wanted to transcribe a file would be asking for
-  a different feature. The residuals are stated: macOS **15+** only (the
-  binary's `minos`), English only, and the first dictation on a machine that
-  got its model from another checkout still pays the shader compile.
+- **DICTATION IS STREAMING PARAKEET AGAIN, REVERSING #574's whisper.cpp**
+  (issue #578). This is a deliberate reversal, and it must not be "fixed" back
+  by someone reading only #574: that issue optimized the FINAL TEXT (whisper
+  returns punctuation and capitals verbatim) and, in doing so, made dictation
+  batch — hold, release, THEN the whole clip transcribes. The owner chose the
+  STREAMING FEEL over the cleaner final: the words appear as you speak. So the
+  engine is `sherpa-onnx-node` + a streaming NeMo Parakeet transducer again, the
+  runtime this repo shipped before the local-first rewrite. THE TRADEOFF IS THE
+  WHOLE POINT AND IS ACCEPTED: the final has NO punctuation and NO
+  capitalization. Do not bolt whisper back on to fix that — the two were weighed
+  and the live partials won.
+- **ONE MODEL, BOTH PATHS.** The mic streams over a websocket; the batch
+  `POST /voice/transcribe` stays for a whole-clip caller (scripted mode, any
+  non-interactive path) and feeds the SAME engine — it pushes the clip through a
+  stream and reads the final. The model is the int8 variant
+  (`…-480ms-int8`, ~106 MB download vs 450 MB fp32, the size the one-model path
+  was chosen for), a `.tar.bz2` of four files (encoder/decoder/joiner + tokens)
+  pinned by the ARCHIVE's sha and extracted in pure JS (`tar` + `unbzip2-stream`
+  — Node has no bzip2, and Windows' tar.exe cannot do `-j`). THE MODEL FILE IS
+  STILL THE SWITCH: no `voiceEnabled` flag, `install` fetches against the pin,
+  `remove` deletes, "off" is "no model on disk".
+- **A PERSISTENT SESSION WORKER, not one per clip.** Streaming re-uses the
+  recognizer as frames arrive, so the model loads ONCE per hold and stays warm;
+  a worker per re-transcription would pay the ~0.7 s load on every cadence.
+  `stream-session.ts` owns it and it is TORN DOWN ON EVERY EXIT PATH — release,
+  cancel, ws disconnect, and app teardown — with no leaked worker and no escaped
+  rejection (the prior `#warmUp` unhandled-rejection is the reason every async
+  path here catches and every worker terminates; pinned in
+  `stream-session.test.ts`). The batch path and the probe stay one-shot
+  (`runVoiceWorker`), because they answer once. The worker is not optional —
+  `better-sqlite3` is synchronous and the watcher's fork channel pings on a bare
+  timer, so an inline native decode would stall a save, a query and the
+  watcher's liveness together.
+- **A DEDICATED DICTATION WEBSOCKET, off the invalidation bus.** `GET
+/voice/stream` carries PCM16 frames UP (binary) and `partial`/`final`/`error`
+  DOWN (text); the `/ws` bus carries change-kind PINGS by decision and NEVER a
+  payload, so this is its own endpoint. It sits behind the SAME
+  loopback/browser-origin guard and, like `/ws`, is exempt from the route-table
+  guard because a websocket is neither a request/response pair nor something the
+  typed client reaches. Its sockets are HIJACKED off the HTTP server on upgrade
+  exactly as the bus's are, so the listener teardown step closes BOTH by name —
+  a live hold must not stall the process's exit (the same trap the shutdown
+  decision records for `/ws`).
+- **THE RENDERER STREAMS WITH A `ScriptProcessorNode`, not an `AudioWorklet`.**
+  A worklet's module is fetched as a script, and this app's prod CSP names
+  `worker-src 'none'` on purpose (the same directive that refused transformers.js
+  in #574). ScriptProcessorNode is deprecated but loads no module, so it is the
+  one raw-frame source the policy admits — proven under the real policy by
+  `pnpm e2e --prod`. Partials render in a PREVIEW OUTSIDE the composer field and
+  only the final splices in (`spliceIntoComposer`, the #574 live-base/live-caret
+  fix), so a partial rewriting mid-hold can never eat text the user typed.
+- **THE SESSION IS BOUNDED.** Parakeet streams incrementally, so there is no
+  window to slide — but the recognizer's state still grows with audio, so a hold
+  is capped at `VOICE_MAX_AUDIO_SECONDS`; frames past it are dropped and the
+  final answers what was fed.
+- **THE SHA GATE IS THE REAL GUARD; the `modelUnusable` nuke is the backstop**
+  (kept from #574). `model-store` verifies the archive's sha256 against the pin
+  before extracting, so only the exact bytes that DO load ever reach the
+  recognizer — the practical protection against a bad model. The worker still
+  reports `modelUnusable` for a CATCHABLE load refusal and the service nukes the
+  model and drops to `no-model` (the delete-and-rebuild the knowledge cache
+  uses); a decode failure keeps the files, because that is about the audio. The
+  honest residual: onnxruntime does NOT translate a parse failure into a
+  catchable error — it raises a C++ exception that aborts — so a truly
+  unparseable model would crash rather than nuke. The sha gate is why that path
+  is unreachable, which is exactly why it is the guard that matters. The
+  `preparing` state covers the one-time onnx graph load a warm-up forces at
+  install, so a catchable open failure is caught there rather than at the first
+  dictation. **THE PROBE ACTUALLY LOADS THE NATIVE BINDING** (`import(
+"sherpa-onnx-node")` requires the addon), so a platform whose binary cannot
+  load answers `unavailable` at the switch. **THE DESKTOP SHELL GRANTS `media`,
+  ORIGIN-SCOPED** (unchanged), and there is **NO CLI VERB** — dictation is a
+  human affordance, the same reason connectors gets `list` and nothing else. The
+  residual is stated: English only, and the final's rough text is the accepted
+  cost of the streaming feel.
 - **THE DEVICE CREDENTIAL IS THE SYNC SWITCH, and it lives in the data dir.**
   `<dataDir>/device-credential` at 0600, beside `instance-secret` and for the
   same reason — and the two places it must NOT go are what fix the location:

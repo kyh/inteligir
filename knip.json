@@ -56,7 +56,7 @@
     "apps/launcher": {
       "entry": ["scripts/*.mjs", "src/main.ts", "src/**/__tests__/**/*.test.ts"],
       "project": ["src/**/*.ts", "scripts/*.mjs"],
-      "ignoreDependencies": ["@fugood/whisper.node", "@parcel/watcher", "better-sqlite3"]
+      "ignoreDependencies": ["@parcel/watcher", "better-sqlite3", "sherpa-onnx-node"]
     },
     // The mobile companion (issue #576). The expo-router file routes under
     // src/app are the UI roots; the tests are the sync/credential/pairing

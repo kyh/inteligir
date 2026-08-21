@@ -16,10 +16,16 @@ import {
   serverMessageLenientSchema,
   type ServerMessage,
 } from "@repo/server-contract/notifications";
+import {
+  VOICE_STREAM_PATH,
+  voiceStreamDownMessageSchema,
+  type VoiceStreamDownMessage,
+} from "@repo/server-contract/voice";
 import { afterEach, describe, expect, it } from "vitest";
 import { z } from "zod";
 import { type AppFallback } from "../app";
 import { newIdentityChallenge, verifyIdentityProof } from "../instance-identity";
+import { closeServer } from "../listen";
 import { bootTestApp } from "./boot-app";
 import { boundAddressSchema } from "./bound-address";
 import { makeTempDir } from "./temp-dir";
@@ -313,6 +319,20 @@ describe("the browser-origin guard", () => {
     expect(own.status).not.toBe(403);
   });
 
+  it("guards the voice stream upgrade exactly like the ws upgrade", async () => {
+    const { composed } = await bootTestApp({ port: 4664 });
+
+    const foreign = await composed.app.request(VOICE_STREAM_PATH, {
+      headers: { origin: "http://evil.example", upgrade: "websocket" },
+    });
+    expect(foreign.status).toBe(403);
+
+    const own = await composed.app.request(VOICE_STREAM_PATH, {
+      headers: { origin: "http://127.0.0.1:4664", upgrade: "websocket" },
+    });
+    expect(own.status).not.toBe(403);
+  });
+
   it("refuses a real upgrade over the wire for a foreign Origin", async () => {
     const { composed } = await bootTestApp();
     const server = serve({ fetch: composed.app.fetch, hostname: "127.0.0.1", port: 0 });
@@ -456,5 +476,85 @@ describe("the real socket upgrade", () => {
       id: "d1",
       changes: ["content-changed"],
     });
+  });
+});
+
+async function serveVoiceApp() {
+  const booted = await bootTestApp();
+  const server = serve({ fetch: booted.composed.app.fetch, hostname: "127.0.0.1", port: 0 });
+  booted.composed.injectWebSocket(server);
+  if (server.address() === null) {
+    await new Promise<void>((resolve) => server.once("listening", resolve));
+  }
+  const address = boundAddressSchema.parse(server.address());
+  return { booted, server, port: address.port };
+}
+
+function closeServerOnce(server: ReturnType<typeof serve>): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    server.close((error) => (error ? reject(error) : resolve()));
+  });
+}
+
+describe("the dictation stream socket", () => {
+  it("streams a scripted partial and a final over the socket, then closes", async () => {
+    const { server, port } = await serveVoiceApp();
+    cleanups.push(() => closeServerOnce(server));
+
+    const socket = new WebSocket(`ws://127.0.0.1:${port}${VOICE_STREAM_PATH}`);
+    socket.binaryType = "arraybuffer";
+    const frames: VoiceStreamDownMessage[] = [];
+    let announce: (() => void) | undefined;
+    socket.addEventListener("message", (event) => {
+      const text = z.string().safeParse(event.data);
+      if (text.success) {
+        frames.push(voiceStreamDownMessageSchema.parse(JSON.parse(text.data)));
+      }
+      announce?.();
+    });
+    await new Promise<void>((resolve, reject) => {
+      socket.addEventListener("open", () => resolve());
+      socket.addEventListener("error", () => reject(new Error("voice ws error")));
+    });
+
+    // Two 16-bit samples up, then finalize — the scripted session names the count.
+    socket.send(new Uint8Array([1, 0, 2, 0]).buffer);
+    socket.send(JSON.stringify({ type: "finalize" }));
+
+    const deadline = Date.now() + 5_000;
+    while (!frames.some((frame) => frame.type === "final")) {
+      if (Date.now() > deadline) {
+        throw new Error(`no final; frames: ${JSON.stringify(frames)}`);
+      }
+      await new Promise<void>((resolve) => {
+        announce = resolve;
+        setTimeout(resolve, 50);
+      });
+    }
+
+    const partial = frames.find((frame) => frame.type === "partial");
+    const final = frames.find((frame) => frame.type === "final");
+    expect(partial?.type === "partial" ? partial.text : "").toBe("scripted dictation of 2 samples");
+    expect(final?.type === "final" ? final.text : "").toBe("scripted dictation of 2 samples");
+  });
+
+  it("does not stall teardown while a dictation socket is open", async () => {
+    const { booted, server, port } = await serveVoiceApp();
+
+    const socket = new WebSocket(`ws://127.0.0.1:${port}${VOICE_STREAM_PATH}`);
+    await new Promise<void>((resolve, reject) => {
+      socket.addEventListener("open", () => resolve());
+      socket.addEventListener("error", () => reject(new Error("voice ws error")));
+    });
+    // Keep it open (mid-hold): a frame up, no finalize.
+    socket.send(new Uint8Array([1, 0]).buffer);
+
+    // The listener teardown closes the voice socket BY NAME, so this resolves
+    // rather than hanging on a hijacked connection the server cannot see.
+    await closeServer(server, {
+      closeAllClients: () => booted.composed.voiceStreamHub.closeAllClients(),
+      terminateAllClients: () => booted.composed.voiceStreamHub.terminateAllClients(),
+    });
+    socket.close();
   });
 });

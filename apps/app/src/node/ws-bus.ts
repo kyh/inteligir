@@ -48,8 +48,10 @@ const terminableTransportSchema = z.custom<TerminableTransport>(
 );
 
 /** Invoke `raw.terminate()` if the transport has one. Parsed rather than
- *  asserted: the fake sockets the tests inject have no raw at all. */
-function terminateTransport(socket: BusSocket): void {
+ *  asserted: the fake sockets the tests inject have no raw at all. Exported
+ *  because the voice-stream hub tears down its own hijacked sockets the same
+ *  way — one spelling of "destroy a transport that ignored its close frame". */
+export function terminateTransport(socket: { readonly raw?: unknown }): void {
   const transport = terminableTransportSchema.safeParse(socket.raw);
   if (!transport.success) {
     return;

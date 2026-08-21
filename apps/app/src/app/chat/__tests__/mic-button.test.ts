@@ -7,7 +7,11 @@ import type { VoiceStatusResponse } from "@repo/server-contract/voice";
 import { describe, expect, it } from "vitest";
 import { micBlockedReason } from "../mic-button";
 
-const MODEL = { id: "ggml-tiny.en-q5_1", label: "Whisper tiny (English)", sizeBytes: 32_166_155 };
+const MODEL = {
+  id: "sherpa-onnx-nemo-streaming-fast-conformer-transducer-en-480ms-int8",
+  label: "Parakeet streaming (English)",
+  sizeBytes: 105_913_204,
+};
 
 describe("micBlockedReason", () => {
   it("says the runtime is still being asked about before the status arrives", () => {
@@ -24,8 +28,8 @@ describe("micBlockedReason", () => {
 
   it("names the model AND its size, so nobody starts a download blind", () => {
     const reason = micBlockedReason({ state: "no-model", model: MODEL, lastError: null });
-    expect(reason).toContain("Whisper tiny (English)");
-    expect(reason).toContain("32 MB");
+    expect(reason).toContain("Parakeet streaming (English)");
+    expect(reason).toContain("106 MB");
     expect(reason).toContain("Settings");
   });
 

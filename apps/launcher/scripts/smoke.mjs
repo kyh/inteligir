@@ -185,7 +185,7 @@ try {
   // Dictation's native binding is the ONE runtime dependency this smoke checks
   // by BEHAVIOUR rather than presence, and it is a real check because the
   // status is computed from a worker that spawns from the staged bundle,
-  // resolves `@fugood/whisper.node` from the installed tree and dlopens the
+  // resolves `sherpa-onnx-node` from the installed tree and dlopens the
   // addon. So a fresh install must answer `no-model` (binding loaded, no model
   // downloaded) — `ready` is also accepted, since the model dir is shared
   // across installs and this machine may already hold one. `unavailable` is

@@ -50,9 +50,11 @@ import type { VaultRuntime } from "./vault/vault-runtime";
 import { registerVoiceRoutes } from "./voice/routes";
 import {
   ScriptedVoiceService,
-  WhisperVoiceService,
+  ParakeetVoiceService,
   type VoiceService,
 } from "./voice/voice-service";
+import { VoiceStreamHub, type VoiceStreamConnection } from "./voice/voice-stream-hub";
+import { VOICE_STREAM_PATH } from "@repo/server-contract/voice";
 import type { WsBus } from "./ws-bus";
 
 /** Thrown by the typed-routes validation wrapper; everything else is a 500. */
@@ -232,8 +234,9 @@ export function createApp(args: CreateAppArgs) {
   const voice: VoiceService =
     args.config.voice === "scripted"
       ? new ScriptedVoiceService()
-      : new WhisperVoiceService({ modelDir: args.config.modelDir });
+      : new ParakeetVoiceService({ modelDir: args.config.modelDir });
   registerVoiceRoutes(registrars, voice);
+  const voiceStreamHub = new VoiceStreamHub(voice);
 
   registerProposalRoutes({
     routes: { get, post },
@@ -283,6 +286,33 @@ export function createApp(args: CreateAppArgs) {
       onMessage: (event, socket) => args.bus.handleMessage(socket, event.data),
       onClose: (_event, socket) => args.bus.unregisterClient(socket),
     })),
+  );
+
+  // Beside `/ws`, behind the SAME guard, but its OWN endpoint: a dictation
+  // socket carries PCM16 frames UP and `partial`/`final`/`error` messages DOWN
+  // (issue #578) — a PAYLOAD, which the invalidation bus carries none of by
+  // decision. Not a contract row for the reason `/ws` is not (a websocket is
+  // neither a request/response pair nor something the typed client reaches), so
+  // the route-table guard exempts it exactly as it exempts `/ws`. The hub tracks
+  // every connection so the listener teardown can close them by name.
+  app.get(
+    VOICE_STREAM_PATH,
+    guardBrowserRequest,
+    upgradeWebSocket(() => {
+      let connection: VoiceStreamConnection | null = null;
+      return {
+        onOpen: (_event, socket) => {
+          connection = voiceStreamHub.open(socket);
+        },
+        onMessage: (event) => {
+          connection?.receive(event.data);
+        },
+        onClose: () => {
+          void connection?.dispose();
+          connection = null;
+        },
+      };
+    }),
   );
 
   // Beside the upgrade above and for the mirror-image reason: `/ws` is not a
@@ -383,5 +413,5 @@ export function createApp(args: CreateAppArgs) {
   // invalidations through are mounted.
   cloud.start();
 
-  return { app, cloud, injectWebSocket, voice };
+  return { app, cloud, injectWebSocket, voice, voiceStreamHub };
 }
