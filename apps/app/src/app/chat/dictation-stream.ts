@@ -46,6 +46,7 @@ export class DictationStreamClient {
   #settled = false;
   #cancelled = false;
   #finalizeRequested = false;
+  #finalizing = false;
   #pending: ArrayBuffer[] = [];
 
   constructor(args: DictationStreamClientArgs) {
@@ -87,7 +88,10 @@ export class DictationStreamClient {
       const down = parsed.data;
       switch (down.type) {
         case "partial":
-          if (!this.#settled) {
+          // Once the user has released, the final is authoritative and any
+          // partial still in flight is stale — dropping it keeps a late one
+          // from reappearing after the preview was cleared.
+          if (!this.#settled && !this.#finalizing) {
             this.#handlers.onPartial(down.text);
           }
           break;
@@ -124,11 +128,13 @@ export class DictationStreamClient {
     }
   }
 
-  /** The user released: ask the server for the final over everything fed. */
+  /** The user released: ask the server for the final over everything fed. From
+   *  here on, partials are dropped — the final is what lands. */
   finalize(): void {
     if (this.#settled || this.#cancelled) {
       return;
     }
+    this.#finalizing = true;
     if (this.#socket !== null && this.#open) {
       this.#socket.send(JSON.stringify({ type: "finalize" }));
     } else {

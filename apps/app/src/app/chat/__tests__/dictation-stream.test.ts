@@ -93,6 +93,24 @@ describe("DictationStreamClient", () => {
     expect(fake.isClosed()).toBe(true);
   });
 
+  it("drops a partial that arrives after finalize — the final is authoritative", () => {
+    const fake = fakeSocket();
+    const rec = recorder();
+    const client = new DictationStreamClient({
+      createSocket: () => fake.socket,
+      handlers: rec.handlers,
+    });
+    client.start();
+    fake.socket.onOpen?.();
+    fake.socket.onMessage?.({ data: JSON.stringify({ type: "partial", text: "hel" }) });
+    client.finalize();
+    // A late partial (in flight when the user released) must not reappear.
+    fake.socket.onMessage?.({ data: JSON.stringify({ type: "partial", text: "hello wor" }) });
+    fake.socket.onMessage?.({ data: JSON.stringify({ type: "final", text: "hello world" }) });
+    expect(rec.partials).toEqual(["hel"]);
+    expect(rec.finals).toEqual(["hello world"]);
+  });
+
   it("turns a server error frame into onError", () => {
     const fake = fakeSocket();
     const rec = recorder();

@@ -144,6 +144,9 @@ export function MicButton({ status, onTranscript, onPartial, disabled }: MicButt
         // The session may have been cancelled while permission was pending.
         if (clientRef.current === client) {
           setState({ kind: "recording", level: 0 });
+          // Show the preview immediately ("Listening…") — the first real partial
+          // replaces the empty string as soon as words are recognized.
+          onPartial("");
         } else {
           captureRef.current?.stop();
           captureRef.current = null;
