@@ -26,9 +26,11 @@ export type ExpressionNode =
 
 const REF_RE = /^@\(([A-Za-z][A-Za-z0-9_-]*)#([^#()\s]+)#([^#()\s]+)\)/u;
 // Optional $, digits with optional well-formed thousands groups, optional
-// decimals, then at most one of %/k/m/b. A malformed comma run is not a
-// number, which makes the whole expression symbolic rather than half-parsed.
-const NUMBER_RE = /^\$?(\d{1,3}(?:,\d{3})+|\d+)(\.\d+)?([%kmb])?/u;
+// decimals, then an optional magnitude suffix (either case — Moss writes
+// `5K`) and an optional trailing `%` that composes with it (`5k%`). A
+// malformed comma run is not a number, which makes the whole expression
+// symbolic rather than half-parsed.
+const NUMBER_RE = /^\$?(\d{1,3}(?:,\d{3})+|\d+)(\.\d+)?([kmb])?(%)?/iu;
 
 function tokenize(source: string): Token[] | null {
   const tokens: Token[] = [];
@@ -46,19 +48,18 @@ function tokenize(source: string): Token[] | null {
     }
     const number = NUMBER_RE.exec(rest);
     if (number !== null) {
-      const [whole, integer, decimals, suffix] = number;
+      const [whole, integer, decimals, suffix, percent] = number;
       const base = Number.parseFloat(`${(integer ?? "").replaceAll(",", "")}${decimals ?? ""}`);
+      const magnitude = suffix?.toLowerCase();
       const scaled =
-        suffix === "%"
-          ? base / 100
-          : suffix === "k"
-            ? base * 1e3
-            : suffix === "m"
-              ? base * 1e6
-              : suffix === "b"
-                ? base * 1e9
-                : base;
-      tokens.push({ kind: "number", value: scaled });
+        magnitude === "k"
+          ? base * 1e3
+          : magnitude === "m"
+            ? base * 1e6
+            : magnitude === "b"
+              ? base * 1e9
+              : base;
+      tokens.push({ kind: "number", value: percent === "%" ? scaled / 100 : scaled });
       rest = rest.slice(whole.length);
       continue;
     }

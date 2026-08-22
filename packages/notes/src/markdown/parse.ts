@@ -8,6 +8,7 @@ import remarkParse from "remark-parse";
 import { unified } from "unified";
 
 import { MD_REMARK_PLUGINS } from "./md-plugins";
+import { escapeMossPipesInTables } from "./moss-table-pipes";
 
 type ParseFailure = { message: string; line: number | null };
 
@@ -41,7 +42,9 @@ export function parseMdast(md: string): ParseResult {
   try {
     // runSync is a no-op today — none of our plugins register transformers —
     // but keeps us correct if one ever does.
-    const tree = processor.runSync(processor.parse(md));
+    // Moss-written bytes first: raw pill pipes in table cells become `\|`
+    // (moss-table-pipes.ts states why this lives ahead of micromark).
+    const tree = processor.runSync(processor.parse(escapeMossPipesInTables(md)));
     if (!isMdastRoot(tree)) throw new Error("markdown transform returned a non-root node");
     return { ok: true, root: tree };
   } catch (error) {

@@ -67,6 +67,25 @@ const MOSS_FENCE_TYPES = new Map([
 
 const PRIORITY_LEVELS = new Set(["low", "medium", "high", "critical"]);
 
+// The kinds a moss-callout payload may open with: Moss's three plus the
+// legacy variants callout-node still accents (a converted note must keep
+// reading as a callout). Anything else falls back to a plain code block —
+// Moss's own unknown-type behavior — instead of a bogus-variant callout.
+const CALLOUT_VARIANTS = new Set([
+  "caution",
+  "error",
+  "info",
+  "note",
+  "priority",
+  "tip",
+  "warning",
+]);
+
+// Moss also writes the payload lines as `type: warning` / `level: high`; the
+// prefixed spelling is remembered on the node so re-serializing is byte-exact.
+const TYPE_PREFIX_RE = /^type\s*:/i;
+const LEVEL_PREFIX_RE = /^level\s*:/i;
+
 const defaultCodeBlock = defaultRules.code_block;
 const defaultCodeBlockDeserialize = defaultCodeBlock?.deserialize;
 if (defaultCodeBlockDeserialize === undefined || defaultCodeBlockDeserialize === null) {
@@ -345,7 +364,11 @@ export const MD_RULES: MdRules = {
     serialize: (node: TElement, options: SerializeMdOptions): MdCode => {
       const editor = options.editor;
       const variant = typeof node.variant === "string" ? node.variant : "info";
-      const level = typeof node.level === "string" && node.level !== "" ? [node.level] : [];
+      const typeLine = node.typePrefixed === true ? `type: ${variant}` : variant;
+      const level =
+        typeof node.level === "string" && node.level !== ""
+          ? [node.levelPrefixed === true ? `level: ${node.level}` : node.level]
+          : [];
       const children: Descendant[] = node.children;
       const body =
         editor === undefined
@@ -357,7 +380,7 @@ export const MD_RULES: MdRules = {
       return {
         lang: "moss-callout",
         type: "code",
-        value: [variant, ...level, ...(body === "" ? [] : [body])].join("\n"),
+        value: [typeLine, ...level, ...(body === "" ? [] : [body])].join("\n"),
       };
     },
   },
@@ -420,8 +443,16 @@ export const MD_RULES: MdRules = {
     deserialize: (node: MdCode, deco, options): TElement => {
       if (node.lang === "moss-callout") {
         const payload = node.value.split("\n");
-        const kind = payload[0]?.trim() ?? "info";
-        const hasLevel = kind === "priority" && PRIORITY_LEVELS.has(payload[1]?.trim() ?? "");
+        const rawKind = payload[0]?.trim() ?? "";
+        const typePrefixed = TYPE_PREFIX_RE.test(rawKind);
+        const kind = (typePrefixed ? rawKind.replace(TYPE_PREFIX_RE, "") : rawKind).trim();
+        if (!CALLOUT_VARIANTS.has(kind)) {
+          return defaultCodeBlockDeserialize(node, deco, options);
+        }
+        const rawLevel = payload[1]?.trim() ?? "";
+        const levelPrefixed = LEVEL_PREFIX_RE.test(rawLevel);
+        const level = (levelPrefixed ? rawLevel.replace(LEVEL_PREFIX_RE, "") : rawLevel).trim();
+        const hasLevel = kind === "priority" && PRIORITY_LEVELS.has(level);
         const body = payload.slice(hasLevel ? 2 : 1).join("\n");
         const parsed = parseMdast(body);
         const children: Descendant[] = parsed.ok
@@ -431,7 +462,8 @@ export const MD_RULES: MdRules = {
           children: children.length > 0 ? children : [{ children: [{ text: "" }], type: "p" }],
           type: "callout",
           variant: kind,
-          ...(hasLevel ? { level: payload[1]?.trim() ?? "" } : {}),
+          ...(typePrefixed ? { typePrefixed: true } : {}),
+          ...(hasLevel ? { level, ...(levelPrefixed ? { levelPrefixed: true } : {}) } : {}),
         };
       }
       const richBlock = MOSS_FENCE_TYPES.get(node.lang ?? "");

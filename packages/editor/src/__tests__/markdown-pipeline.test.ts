@@ -257,10 +257,10 @@ describe("parseWikiBody (display-time helper)", () => {
     expect(parseWikiBody("a#sec")).toEqual({ anchor: "sec", target: "a" });
   });
 
-  it("drops empty segments", () => {
+  it("drops an empty alias; a trailing # is title text (tight-# rule)", () => {
     expect(parseWikiBody("a|")).toEqual({ target: "a" });
-    expect(parseWikiBody("a#")).toEqual({ target: "a" });
-    expect(parseWikiBody("a#|x")).toEqual({ alias: "x", target: "a" });
+    expect(parseWikiBody("a#")).toEqual({ target: "a#" });
+    expect(parseWikiBody("a#|x")).toEqual({ alias: "x", target: "a#" });
   });
 
   it("the LAST pipe splits the alias (Moss dialect: a piped title keeps its pipes)", () => {
@@ -488,6 +488,46 @@ describe("gate API", () => {
     ).toBe("Parse error at line 4: Unexpected closing tag");
     expect(describeRawReason({ kind: "parse-error", line: null, message: "Nope" })).toBe(
       "Parse error: Nope",
+    );
+  });
+});
+
+// Moss also writes the payload lines prefixed (`type: warning` / `level:
+// high`); the spelling is remembered on the node, so the round trip is
+// byte-exact — and an unknown kind is a plain code block, as in Moss.
+const variantsOf = (md: string): string => {
+  const parsed = parseMarkdown(md);
+  expect(parsed.ok).toBe(true);
+  if (!parsed.ok) return "";
+  return JSON.stringify(parsed.value);
+};
+
+describe("moss-callout payload forms (Moss `type:`/`level:` + unknown kinds)", () => {
+  it("round-trips the prefixed spellings byte-exact", () => {
+    for (const md of [
+      "```moss-callout\ntype: warning\nCareful.\n```\n",
+      "```moss-callout\ntype: priority\nlevel: high\nShip it.\n```\n",
+    ]) {
+      expect(roundTrip(md)).toBe(md);
+    }
+  });
+
+  it("prefixed and bare forms parse to the same callout variant", () => {
+    const bare = variantsOf("```moss-callout\nwarning\nCareful.\n```\n");
+    const prefixed = variantsOf("```moss-callout\ntype: warning\nCareful.\n```\n");
+    expect(bare).toContain('"variant":"warning"');
+    expect(prefixed).toContain('"variant":"warning"');
+  });
+
+  it("an unknown kind stays a plain code block, byte-stable", () => {
+    const md = "```moss-callout\nshiny\nbody\n```\n";
+    expect(roundTrip(md)).toBe(md);
+    expect(variantsOf(md)).not.toContain('"type":"callout"');
+  });
+
+  it("a priority level line under a non-priority kind is body text", () => {
+    expect(roundTrip("```moss-callout\ntype: info\nlevel: high\n```\n")).toBe(
+      "```moss-callout\ntype: info\nlevel: high\n```\n",
     );
   });
 });

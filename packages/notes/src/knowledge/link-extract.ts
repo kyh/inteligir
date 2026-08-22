@@ -65,6 +65,13 @@ export type DocScan = {
   /** The doc's GFM task items, in ordinal order (./task-ordinal owns the
    * count). Empty when the note opts out via frontmatter `tasks: false`. */
   tasks: ExtractedTask[];
+  /** Frontmatter `pinned: true` — the sidebar's pinned section. Extracted
+   * here because frontmatter is the only property store and this scan is its
+   * one parse; anything but a literal boolean true is false. */
+  pinned: boolean;
+  /** Frontmatter `id:` — the note's Moss identity, which `[[Title|uuid]]`
+   * links resolve through. Null when absent or not a plain string. */
+  noteId: string | null;
 };
 
 /** Parse a doc once and pull out title, headings, note links, tags, tasks. */
@@ -80,6 +87,8 @@ export function scanDoc(source: string): DocScan {
     tags: extractTags(tree, frontmatter),
     aliases: frontmatterAliases(frontmatter),
     tasks: frontmatterTasksDisabled(frontmatter) ? [] : tasksInTree(tree, source),
+    pinned: frontmatterPinned(frontmatter),
+    noteId: frontmatterNoteId(frontmatter),
   };
   walk(tree, (node) => {
     switch (node.type) {
@@ -330,6 +339,20 @@ function frontmatterTasksDisabled(parsed: ParsedProperties | null): boolean {
   if (parsed === null || parsed.kind !== "valid") return false;
   const prop = parsed.properties.find((p) => p.key === "tasks");
   return prop !== undefined && prop.type === "checkbox" && !prop.value;
+}
+
+function frontmatterPinned(parsed: ParsedProperties | null): boolean {
+  if (parsed === null || parsed.kind !== "valid") return false;
+  const prop = parsed.properties.find((p) => p.key === "pinned");
+  return prop !== undefined && prop.type === "checkbox" && prop.value;
+}
+
+function frontmatterNoteId(parsed: ParsedProperties | null): string | null {
+  if (parsed === null || parsed.kind !== "valid") return null;
+  const prop = parsed.properties.find((p) => p.key === "id");
+  if (prop === undefined || prop.type !== "text") return null;
+  const id = prop.value.trim();
+  return id === "" ? null : id;
 }
 
 type NodePosition = { span: Span; line: number };

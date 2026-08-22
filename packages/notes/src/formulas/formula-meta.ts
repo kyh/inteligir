@@ -22,7 +22,8 @@ export function parseFormulaMeta(meta: string | undefined): FormulaMeta {
     const value = eq === -1 ? "" : pair.slice(eq + 1).trim();
     if (key === "id") parsed.id = value;
     else if (key === "name") parsed.name = value;
-    else if (key === "stale") parsed.stale = value === "1";
+    // Moss writes both spellings; serializeFormulaMeta re-emits the `1` form.
+    else if (key === "stale") parsed.stale = value === "1" || value === "true";
     else if (key === "format")
       continue; // legacy — accepted, ignored, dropped on rewrite
     else if (key !== "") parsed.unknown.push({ key, value });

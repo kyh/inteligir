@@ -88,8 +88,11 @@ export const wikiTargetSchema = z
     title: z.string(),
     type: z.enum(["doc", "asset"]),
     aliases: z.array(z.string()).optional(),
+    pinned: z.boolean().optional(),
   })
   .strict();
+
+export type WikiTargetWire = z.infer<typeof wikiTargetSchema>;
 
 export const knowledgeWikiTargetsResponseSchema = z
   .object({ targets: z.array(wikiTargetSchema) })

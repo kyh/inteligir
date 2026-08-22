@@ -192,10 +192,47 @@ export type WikiBody = {
   alias?: string;
 };
 
-/** `WikiBody` plus the exact code-unit range of `target` inside `body` — the
- * slice a rename-rewrite replaces. Absent when the body has no target text
- * (pure-anchor links like `[[#sec]]`). */
+/** `WikiBody` plus the exact code-unit range of the target's RAW slice inside
+ * `body` — what a rename-rewrite replaces. Absent when the body has no target
+ * text (pure-anchor links like `[[#sec]]`). When the title carries `\#`/`\\`
+ * escapes the range maps the escaped bytes while `target` is the unescaped
+ * text, so span verification fails closed and such a link is never rewritten. */
 export type WikiBodyRange = WikiBody & { targetRange?: { start: number; end: number } };
+
+/** Moss's resolved-link form puts the target note's uuid after the pipe; a
+ * uuid-shaped alias is identity plumbing, never display text. */
+const UUID_ALIAS_RE = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
+
+export function isUuidWikiAlias(alias: string): boolean {
+  return UUID_ALIAS_RE.test(alias);
+}
+
+function isEscapedAt(text: string, index: number): boolean {
+  let backslashes = 0;
+  for (let i = index - 1; i >= 0 && text[i] === "\\"; i--) backslashes++;
+  return backslashes % 2 === 1;
+}
+
+// Only Moss's two escapes unescape; any other backslash is title text.
+function unescapeWikiText(text: string): string {
+  return text.replace(/\\([\\#])/g, "$1");
+}
+
+/** The first `#` that starts an anchor: unescaped, and TIGHT — at position 0
+ * or with non-whitespace on both sides (Moss's rule, so `[[C# Notes]]` and
+ * `[[A # B]]` stay titles while `[[Note#Heading]]` splits). */
+function anchorIndex(head: string): number {
+  for (let i = 0; i < head.length; i++) {
+    if (head[i] !== "#" || isEscapedAt(head, i)) continue;
+    if (i === 0) return 0;
+    const before = head[i - 1];
+    const after = head[i + 1];
+    const tight =
+      before !== undefined && !/\s/.test(before) && after !== undefined && !/\s/.test(after);
+    if (tight) return i;
+  }
+  return -1;
+}
 
 /** Split a raw wiki body into target / #anchor / |alias, tracking where the
  * target sits inside the body (for byte-surgical rewrites). */
@@ -206,14 +243,15 @@ export function parseWikiBodyRange(body: string): WikiBodyRange {
   const pipe = body.lastIndexOf("|");
   const head = pipe === -1 ? body : body.slice(0, pipe);
   const alias = pipe === -1 ? undefined : body.slice(pipe + 1).trim();
-  const hash = head.indexOf("#");
+  const hash = anchorIndex(head);
   const segment = hash === -1 ? head : head.slice(0, hash);
-  const target = segment.trim();
-  const anchor = hash === -1 ? undefined : head.slice(hash + 1).trim();
+  const rawTarget = segment.trim();
+  const target = unescapeWikiText(rawTarget);
+  const anchor = hash === -1 ? undefined : unescapeWikiText(head.slice(hash + 1).trim());
   const result: WikiBodyRange = { target };
   if (target !== "") {
     const start = segment.length - segment.trimStart().length;
-    result.targetRange = { start, end: start + target.length };
+    result.targetRange = { start, end: start + rawTarget.length };
   }
   if (anchor !== undefined && anchor !== "") result.anchor = anchor;
   if (alias !== undefined && alias !== "") result.alias = alias;
