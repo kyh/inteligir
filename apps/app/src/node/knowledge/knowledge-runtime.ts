@@ -25,7 +25,11 @@
 import { join } from "node:path";
 import { isDocPath } from "@repo/notes/knowledge/doc-file";
 import type { SearchResult } from "@repo/notes/knowledge/knowledge-index";
-import { LinkGraphIndex, type BacklinkEntry } from "@repo/notes/knowledge/link-graph-index";
+import {
+  LinkGraphIndex,
+  type BacklinkEntry,
+  type WikiTarget,
+} from "@repo/notes/knowledge/link-graph-index";
 import { renameCandidates } from "@repo/notes/knowledge/rename-candidates";
 import { relatedNotes, type RelatedNoteEntry } from "@repo/notes/knowledge/related-notes";
 import { projectDoc } from "@repo/notes/knowledge/projection";
@@ -87,6 +91,8 @@ export interface KnowledgeRuntime {
   settle(): Promise<void>;
   search(params: { query: string; tag?: string; limit: number }): Promise<SearchResult[]>;
   backlinks(path: string): Promise<BacklinkEntry[]>;
+  /** Every linkable `[[` target, docs first — the alias source resolution reads. */
+  wikiTargets(): Promise<WikiTarget[]>;
   relatedNotes(path: string, limit: number): Promise<RelatedNoteEntry[]>;
   tags(): Promise<TagCount[]>;
   renameCandidates(from: string, to: string): Promise<string[]>;
@@ -442,6 +448,11 @@ export function createKnowledgeRuntime(args: KnowledgeRuntimeArgs): KnowledgeRun
     async backlinks(path) {
       await settle();
       return graph.backlinks(normalizePath(path));
+    },
+
+    async wikiTargets() {
+      await settle();
+      return graph.wikiTargets();
     },
 
     // The ranking is the engine's (related-notes.ts); this shell supplies its

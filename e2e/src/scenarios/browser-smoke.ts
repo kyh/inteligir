@@ -1,7 +1,9 @@
 // Drives a real headless browser over the agent-browser CLI. The invariants:
 // the page loads, the SPA mounts (sidebar + editor), the virgin boot opens
 // the seeded welcome note, the page reaches the API, the palette shortcut
-// does not edit the note under it, and the console stays clean.
+// does not edit the note under it, and the console stays clean. The editor is
+// the Plate surface (`[data-slate-editor]`); a caret move alone must not
+// serialize, so the chord check's byte-identity oracle still holds.
 
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -23,14 +25,15 @@ const SAVE_SETTLE_MS = 2_500;
 const PALETTE_INPUT = 'input[placeholder^="Search notes"]';
 /** agent-browser drives a browser on THIS machine, so the running platform is
  *  the one the page sees — and the app claims ⌘ there, Ctrl elsewhere. */
-const PALETTE_CHORD = process.platform === "darwin" ? "Meta+k" : "Control+k";
+const PALETTE_CHORD = process.platform === "darwin" ? "Meta+p" : "Control+p";
 
 function pageIsMounted(bodyText: string): boolean {
   // The seeded welcome note's content only reaches the page through a
-  // successful /api/v1/vault/file round trip; the sidebar row proves the
-  // tree query ran. Together they prove the client bundle ran against this
-  // instance's API.
-  return bodyText.includes("Welcome") && bodyText.includes("Welcome.md");
+  // successful /api/v1/vault/file round trip; the sync pill proves the status
+  // query ran. Together they prove the client bundle ran against this
+  // instance's API. (The sidebar lists TITLES now — "Welcome", not
+  // "Welcome.md" — so the content line is the sturdier witness.)
+  return bodyText.includes("Welcome to inteligir") && bodyText.includes("Local only");
 }
 
 /**
@@ -90,7 +93,7 @@ export const browserSmoke: Scenario = {
       await agentBrowser(["wait", "aside"], 90_000);
 
       ctx.log("waiting for the virgin-boot note to open in the editor");
-      await agentBrowser(["wait", ".cm-content"], 90_000);
+      await agentBrowser(["wait", '[data-slate-editor="true"]'], 90_000);
 
       const title = await agentBrowser(["get", "title"]);
       expect(title === "inteligir", `document title is ${JSON.stringify(title)}`);
@@ -117,7 +120,7 @@ export const browserSmoke: Scenario = {
       ctx.log("the palette chord opens the palette without editing the note under it");
       const welcomeFile = join(app.vaultDir, "Welcome.md");
       const beforeChord = await readFile(welcomeFile, "utf8");
-      await agentBrowser(["click", ".cm-content"]);
+      await agentBrowser(["click", '[data-slate-editor="true"]']);
       await agentBrowser(["press", "End"]);
       await agentBrowser(["press", PALETTE_CHORD]);
       await agentBrowser(["wait", PALETTE_INPUT], 30_000);

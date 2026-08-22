@@ -19,7 +19,7 @@ import type { ExtractedTask } from "./task-ordinal";
 
 /** Bump whenever `projectDoc`'s OUTPUT shape or semantics change — persisted
  * projections from another version are discarded and rebuilt from the vault. */
-export const PROJECTION_VERSION = 7;
+export const PROJECTION_VERSION = 9;
 
 const SNIPPET_MAX = 200;
 
@@ -50,6 +50,10 @@ export type DocProjection = {
    * them regardless — that count is the editor's checkbox lockstep — so
    * carrying the result costs one json field and no second parse. */
   tasks: ExtractedTask[];
+  /** Frontmatter `pinned: true` — the sidebar's pinned section. */
+  pinned: boolean;
+  /** Frontmatter `id:` — the identity `[[Title|uuid]]` links resolve through. */
+  noteId: string | null;
 };
 
 /** Parse a doc once into its projection. Pure: same bytes, same output. */
@@ -66,5 +70,7 @@ export function projectDoc(path: string, content: string): DocProjection {
     tags: scan.tags,
     aliases: scan.aliases,
     tasks: scan.tasks,
+    pinned: scan.pinned,
+    noteId: scan.noteId,
   };
 }

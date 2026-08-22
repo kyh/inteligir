@@ -7,7 +7,7 @@
 // between, which no type forces because the field is optional.
 
 import type { AgentRuntime } from "@repo/agent-runtime/types";
-import type { createAgentRuntimeWithAdapters } from "@repo/agent-runtime/runtime";
+import type { createAcpAgentRuntime } from "@repo/agent-runtime/acp/acp-runtime";
 import { describe, expect, it } from "vitest";
 import { delimiter } from "node:path";
 import { CLI_POINTER_INSTRUCTIONS } from "../agent-instructions";
@@ -16,7 +16,7 @@ import { createCodexRuntimeManager } from "../runtime-manager";
 import { bootTestApp } from "../../__tests__/boot-app";
 import { createThread, waitFor } from "./agent-test-harness";
 
-type RuntimeOptions = Parameters<typeof createAgentRuntimeWithAdapters>[0];
+type RuntimeOptions = Parameters<typeof createAcpAgentRuntime>[0];
 type StartThreadArgs = Parameters<AgentRuntime["startThread"]>[0];
 
 interface Recorded {
@@ -24,7 +24,7 @@ interface Recorded {
   startThreads: StartThreadArgs[];
 }
 
-function recordingCreateRuntime(recorded: Recorded): typeof createAgentRuntimeWithAdapters {
+function recordingCreateRuntime(recorded: Recorded): typeof createAcpAgentRuntime {
   return (options) => {
     recorded.options.push(options);
     const runtime: AgentRuntime = {
@@ -56,7 +56,7 @@ describe("codex runtime shell env wiring", () => {
     const recorded: Recorded = { options: [], startThreads: [] };
     const shellEnv: Record<string, string> = {};
     const harness = await bootTestApp({
-      agent: { mode: "codex", runtime: "codex", detail: null },
+      agent: { mode: "codex", runtime: "acp", detail: null },
       makeDriver: ({ db, bus, vault, vaultDir }) => {
         const manager = createCodexRuntimeManager({
           db,
@@ -80,7 +80,6 @@ describe("codex runtime shell env wiring", () => {
         serverUrl: "http://127.0.0.1:21999",
         env: { PATH: "/usr/bin" },
         cliBinDir: "/repo/apps/cli/bin",
-        memoryDir: "/home/user/.inteligir/memory",
       }),
     );
 
@@ -93,7 +92,6 @@ describe("codex runtime shell env wiring", () => {
     const options = await waitFor(() => recorded.options[0], "the runtime to be constructed");
     expect(options.shellEnv).toEqual({
       INTELIGIR_SERVER_URL: "http://127.0.0.1:21999",
-      INTELIGIR_MEMORY_DIR: "/home/user/.inteligir/memory",
       PATH: `/repo/apps/cli/bin${delimiter}/usr/bin`,
     });
     expect(options.workspacePath).toBe(harness.vaultDir);

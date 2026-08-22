@@ -33,6 +33,8 @@ export function registerKnowledgeRoutes(
     return c.json({ results });
   });
 
+  get(knowledgeRoutes.wikiTargets, async (c) => c.json({ targets: await knowledge.wikiTargets() }));
+
   get(knowledgeRoutes.backlinks, async (c, query) => {
     const backlinks = await knowledge.backlinks(query.path);
     return c.json({

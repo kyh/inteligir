@@ -79,6 +79,26 @@ export const backlinkEntrySchema = z
   .strict();
 export type BacklinkEntryWire = z.infer<typeof backlinkEntrySchema>;
 
+/** Every linkable target for the `[[` picker: docs first (title + aliases
+ * from the index — the SAME alias source backlink resolution reads), then
+ * attachments. */
+export const wikiTargetSchema = z
+  .object({
+    path: z.string().min(1),
+    title: z.string(),
+    type: z.enum(["doc", "asset"]),
+    aliases: z.array(z.string()).optional(),
+    pinned: z.boolean().optional(),
+  })
+  .strict();
+
+export type WikiTargetWire = z.infer<typeof wikiTargetSchema>;
+
+export const knowledgeWikiTargetsResponseSchema = z
+  .object({ targets: z.array(wikiTargetSchema) })
+  .strict();
+export type KnowledgeWikiTargetsResponse = z.infer<typeof knowledgeWikiTargetsResponseSchema>;
+
 export const knowledgeBacklinksRequestSchema = z.object({ path: vaultPathSchema }).strict();
 export type KnowledgeBacklinksRequest = z.infer<typeof knowledgeBacklinksRequestSchema>;
 
@@ -168,6 +188,12 @@ export const knowledgeRoutes = {
     method: "get",
     request: queryRequest<EmptyInput, KnowledgeSearchRequest>(knowledgeSearchRequestSchema),
     response: jsonResponse<KnowledgeSearchResponse>(),
+  }),
+  wikiTargets: defineRoute({
+    path: "/knowledge/wiki-targets",
+    method: "get",
+    request: noRequest(),
+    response: jsonResponse<KnowledgeWikiTargetsResponse>(),
   }),
   backlinks: defineRoute({
     path: "/knowledge/backlinks",

@@ -42,6 +42,8 @@
   },
   "dependencies": {
     "@parcel/watcher": "catalog:",
+    "@zed-industries/claude-code-acp": "0.16.2",
+    "@zed-industries/codex-acp": "0.16.0",
     "better-sqlite3": "catalog:",
     "sherpa-onnx-node": "catalog:",
     "zod": "catalog:"

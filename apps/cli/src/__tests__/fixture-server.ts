@@ -17,6 +17,7 @@ import type {
   SearchResultWire,
   TagCountWire,
 } from "@repo/server-contract/knowledge";
+import type { CommentThreadWire } from "@repo/server-contract/comments";
 import type { Proposal } from "@repo/server-contract/proposals";
 import type {
   PendingInteraction,
@@ -60,6 +61,8 @@ export interface FixtureState {
   cloud: CloudStatusResponse;
   threads: FixtureThread[];
   proposals: Proposal[];
+  /** Comment threads per note path, in the wire shape the routes answer. */
+  comments: Map<string, CommentThreadWire[]>;
   guideMarkdown: string;
   agent: AgentStatus;
   vaultStatus: VaultStatusResponse;
@@ -102,6 +105,7 @@ export function makeThread(overrides: Partial<Thread> & Pick<Thread, "id">): Thr
     activeTurnId: null,
     originDocPath: null,
     originAnchor: null,
+    providerId: null,
     writeMode: "direct",
     archivedAt: null,
     createdAt: 1_700_000_000_000,
@@ -120,12 +124,13 @@ export function makeFixtureState(): FixtureState {
     tags: [],
     backlinks: [],
     related: [],
-    connectors: { state: "ready", servers: [] },
+    connectors: { servers: [] },
     cloud: { state: "off", cloudUrl: FIXTURE_CLOUD_URL },
     threads: [],
     proposals: [],
+    comments: new Map(),
     guideMarkdown: "# Fixture guide\n\nBe kind to the vault.\n",
-    agent: { mode: "auto", runtime: "codex", detail: null },
+    agent: { mode: "auto", runtime: "acp", detail: null },
     vaultStatus: { state: "no-remote", lastSyncAt: null, lastError: null },
     nextCreatedThreadId: "thr_created_1",
   };
@@ -261,7 +266,95 @@ function createFixtureApp(state: FixtureState): Hono {
   get(apiRoutes.knowledge.tags, (c) => c.json({ tags: state.tags, total: state.tags.length }));
   get(apiRoutes.knowledge.renameCandidates, (c) => c.json({ candidates: [], total: 0 }));
 
+  const commentsBody = (path: string) => {
+    const threads = state.comments.get(path) ?? [];
+    return { path, threads, total: threads.length, orphanMarkers: [], strayIds: [] };
+  };
+  get(apiRoutes.comments.list, (c, query) => c.json(commentsBody(query.path)));
+  post(apiRoutes.comments.add, (c, body) => {
+    const threads = state.comments.get(body.path) ?? [];
+    threads.push({
+      anchored: false,
+      replies: [],
+      resolved: false,
+      root: { createdAt: 1, source: "user", text: body.text, updatedAt: 1 },
+      rootId: body.id,
+    });
+    state.comments.set(body.path, threads);
+    return c.json(commentsBody(body.path));
+  });
+  post(apiRoutes.comments.reply, (c, body) => {
+    const threads = state.comments.get(body.path) ?? [];
+    const thread = threads.find((row) => row.rootId === body.parentId);
+    if (thread === undefined) {
+      return c.json({ error: "not_found", message: `no thread ${body.parentId}` }, 404);
+    }
+    thread.replies.push({
+      entry: { createdAt: 2, source: "user", text: body.text, updatedAt: 2 },
+      id: body.id,
+    });
+    return c.json(commentsBody(body.path));
+  });
+  post(apiRoutes.comments.resolve, (c, body) => {
+    const thread = (state.comments.get(body.path) ?? []).find((row) => row.rootId === body.id);
+    if (thread === undefined) {
+      return c.json({ error: "not_found", message: `no thread ${body.id}` }, 404);
+    }
+    thread.resolved = body.resolved;
+    return c.json(commentsBody(body.path));
+  });
+  post(apiRoutes.comments.remove, (c, body) => {
+    const threads = state.comments.get(body.path) ?? [];
+    const remaining = threads.filter((row) => row.rootId !== body.id);
+    if (remaining.length === threads.length) {
+      return c.json({ error: "not_found", message: `no thread ${body.id}` }, 404);
+    }
+    state.comments.set(body.path, remaining);
+    return c.json({ ...commentsBody(body.path), removedIds: [body.id] });
+  });
+
   get(apiRoutes.connectors.list, (c) => c.json(state.connectors));
+  post(apiRoutes.connectors.add, (c, body) => {
+    if (state.connectors.servers.some((row) => row.name === body.name)) {
+      return c.json({ error: "already_exists", message: `"${body.name}" exists` }, 409);
+    }
+    state.connectors.servers.push({
+      enabled: true,
+      name: body.name,
+      transport:
+        body.transport.kind === "stdio"
+          ? { args: body.transport.args, command: body.transport.command, kind: "stdio" }
+          : {
+              hasAuth: Object.keys(body.transport.headers ?? {}).length > 0,
+              kind: "http",
+              url: body.transport.url,
+            },
+    });
+    return c.json(state.connectors);
+  });
+  post(apiRoutes.connectors.remove, (c, body) => {
+    const before = state.connectors.servers.length;
+    state.connectors.servers = state.connectors.servers.filter((row) => row.name !== body.name);
+    if (state.connectors.servers.length === before) {
+      return c.json({ error: "not_found", message: `no connector ${body.name}` }, 404);
+    }
+    return c.json(state.connectors);
+  });
+  post(apiRoutes.connectors.update, (c, body) => {
+    const row = state.connectors.servers.find((candidate) => candidate.name === body.name);
+    if (row === undefined) {
+      return c.json({ error: "not_found", message: `no connector ${body.name}` }, 404);
+    }
+    return c.json(state.connectors);
+  });
+  post(apiRoutes.connectors.toggle, (c, body) => {
+    const row = state.connectors.servers.find((candidate) => candidate.name === body.name);
+    if (row === undefined) {
+      return c.json({ error: "not_found", message: `no connector ${body.name}` }, 404);
+    }
+    row.enabled = body.enabled;
+    return c.json(state.connectors);
+  });
 
   get(apiRoutes.cloud.status, (c) => c.json(state.cloud));
   // The real route opens a browser; this one never can, so `opened` mirrors

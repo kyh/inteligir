@@ -158,6 +158,7 @@ function toWireThread(row: ThreadRow): Thread {
     activeTurnId: row.activeTurnId,
     originDocPath: row.originDocPath,
     originAnchor: row.originAnchor,
+    providerId: row.providerId,
     writeMode: row.writeMode,
     archivedAt: row.archivedAt,
     createdAt: row.createdAt,
@@ -230,6 +231,7 @@ export class ThreadService implements ProviderEventSink {
     if (input.title !== undefined) created.title = input.title;
     if (input.originDocPath !== undefined) created.originDocPath = input.originDocPath;
     if (input.originAnchor !== undefined) created.originAnchor = input.originAnchor;
+    if (input.providerId !== undefined) created.providerId = input.providerId;
     if (input.writeMode !== undefined) created.writeMode = input.writeMode;
     return toWireThread(createThread(this.db, this.notifier, created));
   }

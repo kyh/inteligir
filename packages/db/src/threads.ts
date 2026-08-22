@@ -20,6 +20,8 @@ export interface CreateThreadInput {
   title?: string;
   originDocPath?: string;
   originAnchor?: string;
+  /** The harness this thread runs on; unset adopts the dispatch default. */
+  providerId?: string;
   writeMode?: AgentWriteMode;
 }
 
@@ -38,6 +40,7 @@ export function createThread(
       activeTurnId: null,
       originDocPath: input.originDocPath ?? null,
       originAnchor: input.originAnchor ?? null,
+      providerId: input.providerId ?? null,
       writeMode: input.writeMode ?? DEFAULT_AGENT_WRITE_MODE,
       archivedAt: null,
       createdAt: now,

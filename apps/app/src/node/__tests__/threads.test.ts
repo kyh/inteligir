@@ -23,6 +23,10 @@ import { applyTimelineDelta, type TimelineRow } from "@repo/server-contract/thre
 import { afterEach, describe, expect, it } from "vitest";
 import { z } from "zod";
 import { createApp, type CreateAppArgs } from "../app";
+import { createConnectorsService } from "../connectors/connectors-service";
+import { createConnectorsStore } from "../connectors/connectors-store";
+import { createNoteIntelligence } from "../note-intelligence/note-intelligence";
+import { createNoteIntelligenceSettingsStore } from "../note-intelligence/settings-store";
 import { createKnowledgeRuntime } from "../knowledge/knowledge-runtime";
 import { ThreadEventThreadIdMismatchError, ThreadService } from "../threads/service";
 import { unavailableTurnDriver, type CreateTurnDriver } from "../threads/turn-driver";
@@ -101,6 +105,12 @@ async function bootThreadsApp(
   cleanups.push(() => knowledge.dispose());
   const args: CreateAppArgs = {
     agent: { mode: "off", runtime: "off", detail: null },
+    connectors: createConnectorsService(createConnectorsStore(dataDir)),
+    noteIntelligence: createNoteIntelligence({
+      infer: () => Promise.resolve(null),
+      settings: createNoteIntelligenceSettingsStore(dataDir),
+      vault: vault.service,
+    }),
     bus,
     config: {
       databasePath,
@@ -113,7 +123,6 @@ async function bootThreadsApp(
       vaultDir,
       vaultRemote: null,
       modelDir: join(dataDir, "models"),
-      memoryDir: join(dataDir, "memory"),
       voice: "scripted",
       agent: "off",
       agentModel: null,

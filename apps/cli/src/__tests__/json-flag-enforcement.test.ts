@@ -54,19 +54,26 @@ function seedFixture(state: FixtureState): void {
     { path: "notes/nearby.md", title: "Nearby", score: 3, reasons: ["shares #project"] },
   ];
   state.connectors = {
-    state: "ready",
     servers: [
       {
         name: "context7",
         enabled: true,
-        transport: { kind: "http", url: "https://mcp.context7.com/mcp" },
-        authStatus: "not_logged_in",
+        transport: { kind: "http", url: "https://mcp.context7.com/mcp", hasAuth: true },
       },
     ],
   };
   state.proposals.length = 0;
   state.proposals.push(makeProposal({ id: "prp_1" }));
   state.threads.length = 0;
+  state.comments.set("notes/hello.md", [
+    {
+      anchored: false,
+      replies: [],
+      resolved: false,
+      root: { createdAt: 1, source: "user", text: "seeded", updatedAt: 1 },
+      rootId: "c1",
+    },
+  ]);
   state.threads.push({
     thread: makeThread({ id: "thr_1", status: "idle" }),
     pendingInteractions: [

@@ -141,7 +141,7 @@ describe("the API over the in-process app", () => {
     expect(response.status).toBe(200);
     const guide = guideResponseSchema.parse(await response.json());
     expect(guide.markdown).toContain("# The inteligir CLI");
-    expect(guide.markdown).toContain("inteligir thread wait");
+    expect(guide.markdown).toContain("inteligir action wait");
   });
 
   it("404s unmatched paths when no UI fallback is mounted", async () => {

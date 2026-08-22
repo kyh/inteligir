@@ -27,9 +27,11 @@ export const threads = sqliteTable(
     // every settle. The lifecycle CAS matches settles against it so a late
     // completion for an old turn cannot settle the running one.
     activeTurnId: text("active_turn_id"),
-    // Set together for a doc-bound delegation (issue #552): the vault doc the
-    // thread was spawned from and the stable anchor inside it. Both null for a
-    // plain chat thread; the CHECK makes a half-bound origin unrepresentable.
+    // The vault doc this thread is ABOUT (an action attaches to the note it
+    // was composed over, #587), and — for a legacy doc-bound delegation — the
+    // stable anchor inside it. Both null for a plain chat thread; the CHECK
+    // keeps an anchor from existing without its doc, while a doc alone is a
+    // marker-less attachment.
     originDocPath: text("origin_doc_path"),
     originAnchor: text("origin_anchor"),
     // The provider session this thread resumes into (issue #549): which
@@ -63,7 +65,7 @@ export const threads = sqliteTable(
       .where(sql`${table.archivedAt} IS NOT NULL`),
     check(
       "threads_origin_pair_check",
-      sql`(${table.originDocPath} IS NULL) = (${table.originAnchor} IS NULL)`,
+      sql`(${table.originAnchor} IS NULL OR ${table.originDocPath} IS NOT NULL)`,
     ),
     // The open note asks "which threads are bound to THIS doc?" on every
     // thread invalidation, and a rename rebinds by the same key — both are

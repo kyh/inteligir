@@ -65,7 +65,11 @@ export function buildContentSecurityPolicy(args: ContentSecurityPolicyArgs): str
     // The shell is loaded in a top-level window (a browser tab or the Electron
     // shell) and never framed.
     "frame-ancestors 'none'",
-    "frame-src 'none'",
+    // 'self' rather than 'none' for the ONE frame this app draws: moss-html's
+    // sandboxed srcdoc preview (opaque origin, never allow-same-origin — the
+    // sandbox is the guard; this directive only refuses REMOTE frames, which
+    // keeps the connect-src exfiltration story intact).
+    "frame-src 'self'",
     "worker-src 'none'",
   ].join("; ");
 }

@@ -14,10 +14,13 @@ import { createApiClient, type ApiClient } from "@repo/server-contract/client";
 import type { AgentStatus } from "@repo/server-contract/routes";
 import { afterEach } from "vitest";
 import { createApp, type AppFallback, type CreateAppArgs } from "../app";
+import { createConnectorsService } from "../connectors/connectors-service";
+import { createConnectorsStore } from "../connectors/connectors-store";
+import { createNoteIntelligence } from "../note-intelligence/note-intelligence";
+import { createNoteIntelligenceSettingsStore } from "../note-intelligence/settings-store";
 import type { OpenExternalUrl } from "../cloud/browser-opener";
 import type { CloudTransport } from "../cloud/sync-runtime";
 import type { AppConfig } from "../config";
-import type { CodexMcpRunner } from "../connectors/codex-mcp";
 import { ensureInstanceSecret } from "../instance-identity";
 import { createKnowledgeRuntime, type KnowledgeRuntime } from "../knowledge/knowledge-runtime";
 import { unavailableTurnDriver, type CreateTurnDriver } from "../threads/turn-driver";
@@ -42,7 +45,6 @@ export interface BootTestAppOptions {
   /** Omitted, the connector routes drive whatever `codex` this machine has —
    *  so a suite asserting on them injects a fake and never touches the
    *  developer's own `~/.codex/config.toml`. */
-  codexMcpRunner?: CodexMcpRunner;
   fallback?: AppFallback;
   /** Omitted, a pairing would reach the real opener — so any suite that begins
    *  one has to supply this, or `pnpm test` pops a browser window. */
@@ -105,6 +107,12 @@ export async function bootTestApp(options: BootTestAppOptions = {}): Promise<Boo
   const args: CreateAppArgs = {
     agent,
     bus,
+    connectors: createConnectorsService(createConnectorsStore(dataDir)),
+    noteIntelligence: createNoteIntelligence({
+      infer: () => Promise.resolve(null),
+      settings: createNoteIntelligenceSettingsStore(dataDir),
+      vault: vault.service,
+    }),
     config: {
       databasePath,
       dataDir,
@@ -121,8 +129,7 @@ export async function bootTestApp(options: BootTestAppOptions = {}): Promise<Boo
       modelDir: join(instanceDir, "models"),
       // Under the instance dir, disjoint from the vault: `remove` is a route
       // under test, and a suite that shared the machine's real memory dir could
-      // delete a fact a developer's own agent recorded.
-      memoryDir: join(instanceDir, "memory"),
+      // delete a fact a developer's own agent recorded. "memory"),
       // Never `auto` in a suite: the real runtime dlopens a native binding and
       // would make every route test a claim about this machine's platform.
       voice: options.voice ?? "scripted",
@@ -141,7 +148,6 @@ export async function bootTestApp(options: BootTestAppOptions = {}): Promise<Boo
     version: "0.1.0-test",
   };
   if (options.cloudTransport !== undefined) args.cloudTransport = options.cloudTransport;
-  if (options.codexMcpRunner !== undefined) args.codexMcpRunner = options.codexMcpRunner;
   if (options.openExternalUrl !== undefined) args.openExternalUrl = options.openExternalUrl;
   const composed = createApp(args);
   cleanups.push(() => composed.cloud.dispose());

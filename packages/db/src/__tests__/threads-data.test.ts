@@ -229,16 +229,26 @@ describe("listThreads query plan", () => {
     }
   });
 
-  it("refuses a half-bound origin pair at the database", () => {
+  it("accepts a doc-attached thread with no anchor (a marker-less action)", () => {
+    const db = openTempDb();
+    db.$client
+      .prepare(
+        `INSERT INTO threads (id, title, status, active_turn_id, origin_doc_path, origin_anchor, archived_at, created_at, updated_at)
+         VALUES ('thr_doc', NULL, 'idle', NULL, 'notes/a.md', NULL, NULL, 0, 0)`,
+      )
+      .run();
+  });
+
+  it("refuses an anchor without its doc at the database", () => {
     const db = openTempDb();
     expect(() =>
       db.$client
         .prepare(
           `INSERT INTO threads (id, title, status, active_turn_id, origin_doc_path, origin_anchor, archived_at, created_at, updated_at)
-           VALUES ('thr_bad', NULL, 'idle', NULL, 'notes/a.md', NULL, NULL, 0, 0)`,
+           VALUES ('thr_bad', NULL, 'idle', NULL, NULL, 'anc_aaaaaaaaaaaa', NULL, 0, 0)`,
         )
         .run(),
-    ).toThrow(/CHECK/u);
+    ).toThrow(/threads_origin_pair_check/u);
   });
 });
 

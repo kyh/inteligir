@@ -65,6 +65,13 @@ export type DocScan = {
   /** The doc's GFM task items, in ordinal order (./task-ordinal owns the
    * count). Empty when the note opts out via frontmatter `tasks: false`. */
   tasks: ExtractedTask[];
+  /** Frontmatter `pinned: true` — the sidebar's pinned section. Extracted
+   * here because frontmatter is the only property store and this scan is its
+   * one parse; anything but a literal boolean true is false. */
+  pinned: boolean;
+  /** Frontmatter `id:` — the note's Moss identity, which `[[Title|uuid]]`
+   * links resolve through. Null when absent or not a plain string. */
+  noteId: string | null;
 };
 
 /** Parse a doc once and pull out title, headings, note links, tags, tasks. */
@@ -80,6 +87,8 @@ export function scanDoc(source: string): DocScan {
     tags: extractTags(tree, frontmatter),
     aliases: frontmatterAliases(frontmatter),
     tasks: frontmatterTasksDisabled(frontmatter) ? [] : tasksInTree(tree, source),
+    pinned: frontmatterPinned(frontmatter),
+    noteId: frontmatterNoteId(frontmatter),
   };
   walk(tree, (node) => {
     switch (node.type) {
@@ -122,10 +131,66 @@ export function scanDoc(source: string): DocScan {
         if (link) scan.links.push(link);
         return;
       }
+      case "code": {
+        if (node.lang === "moss-callout") scanCalloutBody(source, node, scan);
+        return;
+      }
       default:
     }
   });
   return scan;
+}
+
+/**
+ * A moss-callout fence's body is MARKDOWN (the editor models and renders it,
+ * wiki links included), so the scan must count what the editor draws —
+ * editor ⊆ vault is the containment direction the knowledge index owes. The
+ * body is re-scanned and every link's span is shifted into the OUTER source,
+ * so rename byte-surgery lands inside the fence exactly.
+ *
+ * Only a column-0 fence qualifies: an indented fence (inside a list/quote)
+ * prefixes every body line, and a flat offset shift would name wrong bytes —
+ * those bodies are skipped whole, stated rather than mis-indexed.
+ */
+function scanCalloutBody(
+  source: string,
+  node: Extract<Nodes, { type: "code" }>,
+  scan: DocScan,
+): void {
+  const pos = node.position;
+  if (pos?.start.offset === undefined || pos.start.column !== 1) return;
+  // Body bytes start after the opening-fence line and the kind/level header
+  // lines; mdast's `value` is exactly the body, so locate it by line walking.
+  const openLineEnd = source.indexOf("\n", pos.start.offset);
+  if (openLineEnd === -1) return;
+  const payloadStart = openLineEnd + 1;
+  const lines = node.value.split("\n");
+  const kind = lines[0]?.trim() ?? "";
+  const level = lines[1]?.trim() ?? "";
+  const headerLines =
+    kind === "priority" && ["low", "medium", "high", "critical"].includes(level) ? 2 : 1;
+  let bodyStart = payloadStart;
+  for (let skipped = 0; skipped < headerLines; skipped++) {
+    const nl = source.indexOf("\n", bodyStart);
+    if (nl === -1) return;
+    bodyStart = nl + 1;
+  }
+  const body = lines.slice(headerLines).join("\n");
+  if (source.slice(bodyStart, bodyStart + body.length) !== body) return;
+  const inner = scanDoc(body);
+  for (const link of inner.links) {
+    const shifted: ExtractedLink = {
+      ...link,
+      line: link.line + source.slice(0, bodyStart).split("\n").length - 1,
+    };
+    if (link.targetSpan !== undefined) {
+      shifted.targetSpan = {
+        start: link.targetSpan.start + bodyStart,
+        end: link.targetSpan.end + bodyStart,
+      };
+    }
+    scan.links.push(shifted);
+  }
 }
 
 // ---- Tree walking -----------------------------------------------------------
@@ -274,6 +339,20 @@ function frontmatterTasksDisabled(parsed: ParsedProperties | null): boolean {
   if (parsed === null || parsed.kind !== "valid") return false;
   const prop = parsed.properties.find((p) => p.key === "tasks");
   return prop !== undefined && prop.type === "checkbox" && !prop.value;
+}
+
+function frontmatterPinned(parsed: ParsedProperties | null): boolean {
+  if (parsed === null || parsed.kind !== "valid") return false;
+  const prop = parsed.properties.find((p) => p.key === "pinned");
+  return prop !== undefined && prop.type === "checkbox" && prop.value;
+}
+
+function frontmatterNoteId(parsed: ParsedProperties | null): string | null {
+  if (parsed === null || parsed.kind !== "valid") return null;
+  const prop = parsed.properties.find((p) => p.key === "id");
+  if (prop === undefined || prop.type !== "text") return null;
+  const id = prop.value.trim();
+  return id === "" ? null : id;
 }
 
 type NodePosition = { span: Span; line: number };

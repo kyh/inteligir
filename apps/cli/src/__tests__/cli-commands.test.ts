@@ -280,22 +280,19 @@ describe("knowledge commands", () => {
 });
 
 describe("connectors", () => {
-  it("names each server, what it runs, and codex's own state words", async () => {
+  it("names each server, what it runs, and its auth state", async () => {
     const state = seededState();
     state.connectors = {
-      state: "ready",
       servers: [
         {
           name: "files",
           enabled: true,
           transport: { kind: "stdio", command: "npx", args: ["-y", "server-files"] },
-          authStatus: null,
         },
         {
           name: "context7",
           enabled: false,
-          transport: { kind: "http", url: "https://mcp.context7.com/mcp" },
-          authStatus: "not_logged_in",
+          transport: { kind: "http", url: "https://mcp.context7.com/mcp", hasAuth: true },
         },
       ],
     };
@@ -305,23 +302,44 @@ describe("connectors", () => {
 
     expect(listed.stdout).toBe(
       "files  npx -y server-files  [enabled]\n" +
-        "context7  https://mcp.context7.com/mcp  [disabled not_logged_in]\n",
+        "context7  https://mcp.context7.com/mcp  [disabled authenticated]\n",
     );
   });
 
-  it("states why there is nothing to list rather than printing an empty one", async () => {
-    const state = seededState();
-    state.connectors = { state: "unavailable", detail: "The codex binary was not found on PATH" };
-    const server = await boot(state);
+  it("adds and removes through the registry routes", async () => {
+    const server = await boot(seededState());
 
-    const listed = await runCliForTest({ argv: ["connectors", "list"], baseUrl: server.baseUrl });
+    const added = await runCliForTest({
+      argv: [
+        "connectors",
+        "add",
+        "exa",
+        "--url",
+        "https://mcp.exa.ai/mcp",
+        "--header",
+        "x-api-key=sk-test",
+        "--json",
+      ],
+      baseUrl: server.baseUrl,
+    });
+    expect(added.code).toBe(0);
+    expect(added.stdout).not.toContain("sk-test");
 
-    expect(listed.code).toBe(0);
-    expect(listed.stdout).toContain("The codex binary was not found on PATH");
+    const removed = await runCliForTest({
+      argv: ["connectors", "remove", "exa", "--json"],
+      baseUrl: server.baseUrl,
+    });
+    expect(removed.code).toBe(0);
+
+    const ghost = await runCliForTest({
+      argv: ["connectors", "remove", "exa", "--json"],
+      baseUrl: server.baseUrl,
+    });
+    expect(ghost.code).toBe(1);
   });
 });
 
-describe("thread commands", () => {
+describe("action commands", () => {
   it("lists threads and shows one with the compact timeline", async () => {
     const state = seededState();
     state.threads.push({
@@ -331,11 +349,11 @@ describe("thread commands", () => {
     });
     const server = await boot(state);
 
-    const list = await runCliForTest({ argv: ["thread", "list"], baseUrl: server.baseUrl });
+    const list = await runCliForTest({ argv: ["action", "list"], baseUrl: server.baseUrl });
     expect(list.stdout).toBe("thr_1  idle  Note writing\n");
 
     const show = await runCliForTest({
-      argv: ["thread", "show", "thr_1"],
+      argv: ["action", "show", "thr_1"],
       baseUrl: server.baseUrl,
     });
     expect(show.code).toBe(0);
@@ -361,18 +379,17 @@ describe("thread commands", () => {
     const state = seededState();
     const server = await boot(state);
     const result = await runCliForTest({
-      argv: ["thread", "new", "Summarize my inbox"],
+      argv: ["action", "new", "Summarize my inbox"],
       baseUrl: server.baseUrl,
     });
     expect(result.code).toBe(0);
-    expect(result.stdout).toBe("Thread thr_created_1\n✔ Turn turn_for_thr_created_1 started\n");
+    expect(result.stdout).toBe("Action thr_created_1\n✔ Turn turn_for_thr_created_1 started\n");
 
-    const half = await runCliForTest({
-      argv: ["thread", "new", "x", "--doc", "notes/hello.md"],
+    const attached = await runCliForTest({
+      argv: ["action", "new", "x", "--doc", "notes/hello.md"],
       baseUrl: server.baseUrl,
     });
-    expect(half.code).toBe(1);
-    expect(half.stderr).toContain("--doc and --anchor must be provided together");
+    expect(attached.code).toBe(0);
   });
 
   it("sends follow-ups and archives", async () => {
@@ -384,13 +401,13 @@ describe("thread commands", () => {
     });
     const server = await boot(state);
     const send = await runCliForTest({
-      argv: ["thread", "send", "thr_1", "and then?"],
+      argv: ["action", "send", "thr_1", "and then?"],
       baseUrl: server.baseUrl,
     });
     expect(send.stdout).toBe("✔ Turn turn_for_thr_1 started\n");
 
     const archive = await runCliForTest({
-      argv: ["thread", "archive", "thr_1"],
+      argv: ["action", "archive", "thr_1"],
       baseUrl: server.baseUrl,
     });
     expect(archive.stdout).toBe("✔ Archived thr_1\n");
@@ -452,7 +469,7 @@ describe("status, guide and help", () => {
       "Data dir: /fixture/data",
       "Vault: /fixture/vault",
       "Schema: v3 — uptime 65s",
-      "Agent: codex (mode auto)",
+      "Agent: acp (mode auto)",
       "Thread context: thr_ctx",
     ]);
   });
@@ -556,7 +573,7 @@ describe("vault write reads stdin as BYTES", () => {
   });
 });
 
-describe("thread new never orphans a thread silently", () => {
+describe("action new never orphans a thread silently", () => {
   it("names the created thread when its first turn fails", async () => {
     const state = seededState();
     const server = await boot(state);
@@ -564,13 +581,13 @@ describe("thread new never orphans a thread silently", () => {
     // the id would otherwise be lost.
     state.refuseSend = { error: "provider_unavailable", message: "no agent" };
     const result = await runCliForTest({
-      argv: ["thread", "new", "do a thing"],
+      argv: ["action", "new", "do a thing"],
       baseUrl: server.baseUrl,
     });
     expect(result.code).toBe(1);
     expect(result.stderr).toContain("thr_created_1");
     expect(result.stderr).toContain("was created but its first turn failed");
-    expect(result.stderr).toContain("inteligir thread send thr_created_1");
+    expect(result.stderr).toContain("inteligir action send thr_created_1");
   });
 });
 
@@ -635,13 +652,13 @@ describe("--json failures", () => {
   it("reports a local usage refusal with a CLI-side class", async () => {
     const server = await boot(seededState());
     const result = await runCliForTest({
-      argv: ["thread", "new", "x", "--doc", "a.md", "--json"],
+      argv: ["action", "wait", "thr_1", "--timeout", "nope", "--json"],
       baseUrl: server.baseUrl,
     });
     expect(result.code).toBe(1);
     expect(JSON.parse(result.stderr)).toEqual({
       error: "invalid_usage",
-      message: "--doc and --anchor must be provided together",
+      message: '--timeout must be a positive number (got "nope")',
     });
   });
 });

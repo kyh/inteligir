@@ -1,16 +1,16 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
+@import "@fontsource-variable/geist";
 @import "@fontsource-variable/geist-mono";
 @import "./typeset.css";
-@import "@fontsource-variable/inter";
 
 /* Typeset presets — one per markdown-rendering surface. `typeset-docs` is the
    document surface (the note editor); `typeset-chat` is the compact AI chat /
    delegation transcript scale. */
 .typeset-docs {
-  --typeset-font-body: var(--font-inter);
-  --typeset-font-heading: var(--font-inter);
+  --typeset-font-body: var(--font-geist);
+  --typeset-font-heading: var(--font-geist);
   --typeset-font-mono: var(--font-geist-mono);
   --typeset-size: 14px;
   --typeset-leading: 1.75;
@@ -18,8 +18,8 @@
 }
 
 .typeset-chat {
-  --typeset-font-body: var(--font-inter);
-  --typeset-font-heading: var(--font-inter);
+  --typeset-font-body: var(--font-geist);
+  --typeset-font-heading: var(--font-geist);
   --typeset-font-mono: var(--font-geist-mono);
   --typeset-size: 12px;
   --typeset-leading: 1.6;
@@ -127,30 +127,33 @@
 
 :root {
   /* Typeset font hooks — same faces the theme's font-sans/font-mono use
-     (fontsource variable builds imported at the top of this file). */
-  --font-inter: "Inter Variable", system-ui, sans-serif;
+     (fontsource variable builds imported at the top of this file). Geist is
+     the UI face — the proliferate-language pair (#593). */
+  --font-geist: "Geist Variable", system-ui, sans-serif;
   --font-geist-mono: "Geist Mono Variable", ui-monospace, monospace;
 
-  /* Stock shadcn zinc palette (written by the applied preset). */
+  /* Proliferate-language monochrome (#593): a white sheet over a soft ground,
+     hairline borders, pill neutrals, near-black ink. Reimplemented as our own
+     values — the reference is a look, not a stylesheet. */
   --background: oklch(1 0 0);
-  --foreground: oklch(0.141 0.005 285.823);
+  --foreground: oklch(0.205 0 0);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.141 0.005 285.823);
+  --card-foreground: oklch(0.205 0 0);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.141 0.005 285.823);
-  --primary: oklch(0.21 0.006 285.885);
+  --popover-foreground: oklch(0.205 0 0);
+  --primary: oklch(0.205 0 0);
   --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.967 0.001 286.375);
-  --secondary-foreground: oklch(0.21 0.006 285.885);
-  --muted: oklch(0.967 0.001 286.375);
-  --muted-foreground: oklch(0.552 0.016 285.938);
-  --accent: oklch(0.967 0.001 286.375);
-  --accent-foreground: oklch(0.21 0.006 285.885);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.955 0 0);
+  --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: #ffffff;
-  --border: oklch(0.92 0.004 286.32);
-  --input: oklch(0.92 0.004 286.32);
-  --ring: oklch(0.705 0.015 286.067);
+  --border: oklch(0.945 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
 
   --chart-1: oklch(0.871 0.006 286.286);
   --chart-2: oklch(0.552 0.016 285.938);
@@ -161,14 +164,14 @@
 
   /* Sidebar width lives as an inline var on SidebarProvider's wrapper (and is
      driven by the desktop resize hook) — no :root seed needed. */
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.141 0.005 285.823);
-  --sidebar-primary: oklch(0.21 0.006 285.885);
+  --sidebar: oklch(0.955 0 0);
+  --sidebar-foreground: oklch(0.205 0 0);
+  --sidebar-primary: oklch(0.205 0 0);
   --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.967 0.001 286.375);
-  --sidebar-accent-foreground: oklch(0.21 0.006 285.885);
-  --sidebar-border: oklch(0.92 0.004 286.32);
-  --sidebar-ring: oklch(0.705 0.015 286.067);
+  --sidebar-accent: oklch(0.922 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.91 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
 
   /* Shadow ladder — additive layers, halving offsets (1/3/6/12/24/48/96 px). */
   --shadow-color: rgb(0 0 0 / 0.06);
@@ -229,26 +232,27 @@
 }
 
 .dark {
-  /* Stock shadcn zinc palette, dark. */
-  --background: oklch(0.141 0.005 285.823);
+  /* Proliferate-language monochrome, dark: a deep neutral sheet over a
+     deeper ground, white ink, hairline borders as translucent white. */
+  --background: oklch(0.205 0 0);
   --foreground: oklch(0.985 0 0);
-  --card: oklch(0.21 0.006 285.885);
+  --card: oklch(0.239 0 0);
   --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.21 0.006 285.885);
+  --popover: oklch(0.239 0 0);
   --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.92 0.004 286.32);
-  --primary-foreground: oklch(0.21 0.006 285.885);
-  --secondary: oklch(0.274 0.006 286.033);
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
   --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.274 0.006 286.033);
-  --muted-foreground: oklch(0.705 0.015 286.067);
-  --accent: oklch(0.274 0.006 286.033);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
   --accent-foreground: oklch(0.985 0 0);
   --destructive: oklch(0.704 0.191 22.216);
   --destructive-foreground: #f5f5f5;
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.552 0.016 285.938);
+  --ring: oklch(0.556 0 0);
 
   --chart-1: oklch(0.871 0.006 286.286);
   --chart-2: oklch(0.552 0.016 285.938);

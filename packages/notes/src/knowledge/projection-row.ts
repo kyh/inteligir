@@ -53,6 +53,10 @@ const storedProjectionRow = z.object({
       ordinal: z.number(),
     }),
   ),
+  // Strict, not optional: a PROJECTION_VERSION mismatch wipes and rebuilds,
+  // so no stored row can legitimately lack a current field.
+  pinned: z.boolean(),
+  noteId: z.string().nullable(),
 });
 
 // Rebuilt key by key rather than spread: an optional that was absent must
@@ -97,5 +101,7 @@ export function parseStoredProjection(json: string): DocProjection {
     tags: row.data.tags,
     aliases: row.data.aliases,
     tasks: row.data.tasks,
+    pinned: row.data.pinned,
+    noteId: row.data.noteId,
   };
 }

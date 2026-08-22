@@ -37,7 +37,9 @@ describe("buildContentSecurityPolicy", () => {
     expect(policy).toContain("default-src 'self'");
     expect(policy).toContain("object-src 'none'");
     expect(policy).toContain("frame-ancestors 'none'");
-    expect(policy).toContain("frame-src 'none'");
+    // 'self' rather than 'none' for exactly one frame: moss-html's sandboxed
+    // srcdoc preview. Remote frames stay refused.
+    expect(policy).toContain("frame-src 'self'");
     expect(policy).toContain("worker-src 'none'");
     expect(policy).toContain("base-uri 'self'");
     expect(policy).toContain("form-action 'self'");

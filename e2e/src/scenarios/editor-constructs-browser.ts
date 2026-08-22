@@ -1,144 +1,82 @@
-// Every live-preview construct rendered by a REAL browser over the real
-// product, against one seeded note. The unit suite drives an EditorView under
-// jsdom, which has no layout and no font metrics — so it can prove which
-// ranges decorate but never that the widget survived the bundle, the CSP and a
-// real measure pass. That is this scenario's whole job: the constructs are
-// asserted through the DOM the browser actually built, and the buffer is
-// re-read from disk afterwards to prove rendering wrote nothing.
+// Every construct the Plate editor draws, rendered by a REAL browser over the
+// real product against one seeded note. The unit suite proves the kits under
+// jsdom, which has no layout and no real bundle — this proves the constructs
+// survive the build, the parse gate and a real mount.
+//
+// The second assertion is the sharper one: OPENING a note must write nothing.
+// The serializer is allowed to canonicalize bytes a real EDIT touches, but a
+// render alone dirties nothing — the seeded bytes are the oracle.
 
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { apiPath, apiRoutes } from "@repo/server-contract/routes";
+import { setTimeout as delay } from "node:timers/promises";
 import { z } from "zod";
 import { agentBrowserSession, probeHeadlessOrSkip } from "../harness/agent-browser";
-import { expect } from "../harness/assert";
+import { expect, expectEq } from "../harness/assert";
 import type { Scenario } from "../harness/scenario";
 
 const agentBrowser = agentBrowserSession("editor");
 const DOC_PATH = "Constructs.md";
+const EDITOR = '[data-slate-editor="true"]';
 
 const DOC = `# Constructs
 
-Prose carrying #alpha and #nested/child, plus a literal \`#incode\` one.
+Prose with **bold** and \`inline code\`.
 
-> [!WARNING] Mind the gap
-> A second line inside the same callout.
+> [!WARNING]
+> Mind the gap.
 
 > An ordinary quote, which is not a callout.
 
-Inline $a^2 + b^2 = c^2$ math, then a display block:
+- [ ] an open task
+- [x] a done task
 
-$$
-\\int_0^1 x^2 \\, dx = \\frac{1}{3}
-$$
-
-A broken $\\frobnicate{x}$ shows its own source.
-
-![a diagram](assets/diagram.svg)
-
-Refused: ![no](javascript:alert(1)).
-
-\`\`\`mermaid
-graph TD
-  Buffer --> File
+\`\`\`ts
+const x = 1;
 \`\`\`
 
-\`\`\`mermaid
-not a diagram this renderer can draw
-\`\`\`
-
-| Name | **Bold** | Right |
-| --- | :---: | ---: |
-| a \`code\` b | [link](https://x.dev) | 1 |
+| Name | Right |
+| ---- | ----- |
+| a    | 1     |
 `;
 
-const ASSET_PATH = "assets/diagram.svg";
-const ASSET_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="40" height="20"></svg>\n`;
-
-/** What one `eval` pass reports about the rendered editor: a named list of
- *  strings per construct, so adding a construct is one line of probe script
- *  and one assertion rather than another round trip and another parser. */
-/** One field per construct the probe script reads out of the rendered DOM.
- *  Named rather than a bag: a field the script stops returning is then a parse
- *  failure here, where a lookup that answered `undefined` would have read as
- *  "the construct rendered nothing" and passed a deleted extension. */
-const renderedProbeSchema = z.object({
-  tags: z.array(z.string()),
-  calloutLabels: z.array(z.string()),
-  calloutLines: z.array(z.string()),
-  math: z.array(z.string()),
-  mathErrors: z.array(z.string()),
-  images: z.array(z.string()),
-  imageErrors: z.array(z.string()),
-  mermaid: z.array(z.string()),
-  mermaidLabels: z.array(z.string()),
-  tableHeaders: z.array(z.string()),
-  tableCells: z.array(z.string()),
-});
-
-type RenderedProbe = z.infer<typeof renderedProbeSchema>;
-
-// `get text <sel>` answers for the FIRST match only, so a construct that
-// renders N times is read through one eval that reports all of them. The CLI
-// serializes the returned value as JSON, so the script returns the object.
-const PROBE_SCRIPT = `({
-  tags: [...document.querySelectorAll('.cm-content .cm-tag')].map((n) => n.textContent),
-  calloutLabels: [...document.querySelectorAll('.cm-content .cm-callout-label')]
-    .map((n) => n.textContent + ':' + n.dataset.callout),
-  calloutLines: [...document.querySelectorAll('.cm-content .cm-callout-line')]
-    .map((n) => n.dataset.callout),
-  math: [...document.querySelectorAll('.cm-content .cm-math')]
-    .map((n) => (n.classList.contains('cm-math-display') ? 'display' : 'inline')
-      + ':' + (n.querySelector('.katex') ? 'katex' : 'error')),
-  mathErrors: [...document.querySelectorAll('.cm-content .cm-math-error-source')]
-    .map((n) => n.textContent),
-  images: [...document.querySelectorAll('.cm-content img.cm-image-img')]
-    .map((n) => n.getAttribute('src') + ':'
-      + (n.complete && n.naturalWidth > 0 ? 'loaded' : 'broken')),
-  imageErrors: [...document.querySelectorAll('.cm-content .cm-image-error-message')]
-    .map((n) => n.textContent),
-  mermaid: [...document.querySelectorAll('.cm-content .cm-mermaid')]
-    .map((n) => n.querySelector('svg') ? 'svg'
-      : n.querySelector('.cm-mermaid-error') ? 'error' : 'pending'),
-  mermaidLabels: [...document.querySelectorAll('.cm-content .cm-mermaid svg .node text')]
-    .map((n) => n.textContent),
-  tableHeaders: [...document.querySelectorAll('.cm-content .cm-table th')]
-    .map((n) => n.textContent + ':' + n.style.textAlign),
-  tableCells: [...document.querySelectorAll('.cm-content .cm-table td')]
-    .map((n) => n.textContent),
+/** One eval pass reporting every construct: adding one is a probe line and an
+ *  assertion, not another round trip. */
+const PROBE = `JSON.stringify({
+  bold: !!document.querySelector('${EDITOR} strong, ${EDITOR} b'),
+  blockquotes: document.querySelectorAll('${EDITOR} blockquote').length,
+  checkboxes: document.querySelectorAll('${EDITOR} input[type=checkbox], ${EDITOR} [role=checkbox]').length,
+  fence: !!document.querySelector('${EDITOR} pre'),
+  table: !!document.querySelector('${EDITOR} table'),
 })`;
 
-/** Parse the eval answer, refusing anything that is not the probe's shape —
- *  a scenario that read `undefined` as "no chips" would pass a regression
- *  that deleted the whole extension. */
-function parseProbe(raw: string): RenderedProbe {
-  let json: unknown;
-  try {
-    json = JSON.parse(raw);
-  } catch (cause) {
-    expect(false, `the probe answer did not parse (${String(cause)}):\n${raw}`);
-  }
-  const parsed = renderedProbeSchema.safeParse(json);
-  expect(parsed.success, `the probe answered an unexpected shape:\n${raw}`);
-  return parsed.data;
+/** agent-browser eval answers a JSON-encoded string (page evals always yield
+ *  strings via String()/JSON.stringify); unwrap, then parse the payload at
+ *  this boundary against the schema the caller expects. */
+function parseEval<T>(raw: string, schema: z.ZodType<T>): T {
+  const text = z.string().parse(JSON.parse(raw));
+  return schema.parse(/^[{[]/u.test(text) ? JSON.parse(text) : text);
 }
 
-/** One construct's rendered strings. */
-function rendered(probe: RenderedProbe, field: keyof RenderedProbe): string[] {
-  return probe[field];
-}
+const probeSchema = z
+  .object({
+    bold: z.boolean(),
+    blockquotes: z.number(),
+    checkboxes: z.number(),
+    fence: z.boolean(),
+    table: z.boolean(),
+  })
+  .strict();
 
 export const editorConstructsBrowser: Scenario = {
   name: "editor-constructs-browser",
-  description: "every live-preview construct renders headless, and rendering writes no bytes",
+  description: "seeded constructs render as their elements, and rendering writes nothing",
   async run(ctx) {
     const app = await ctx.boot({
       name: "solo",
-      // The only root note, so the virgin boot opens it.
+      // Sorts before the seeded welcome note, so the virgin boot opens it.
       seedVault: async (vaultDir) => {
         await writeFile(join(vaultDir, DOC_PATH), DOC, "utf8");
-        await mkdir(join(vaultDir, "assets"), { recursive: true });
-        await writeFile(join(vaultDir, ASSET_PATH), ASSET_SVG, "utf8");
       },
     });
 
@@ -147,75 +85,51 @@ export const editorConstructsBrowser: Scenario = {
 
       ctx.log(`opening ${app.baseUrl}/`);
       await agentBrowser(["open", `${app.baseUrl}/`], 60_000);
-      await agentBrowser(["wait", ".cm-content"], 90_000);
-      await agentBrowser(["wait", ".cm-tag"], 30_000);
-      // The mermaid renderer is a lazy chunk, so its first fence paints after
-      // a round trip; everything else is synchronous by the time it does.
-      await agentBrowser(["wait", ".cm-mermaid svg"], 30_000);
+      await agentBrowser(["wait", EDITOR], 90_000);
+      await agentBrowser(["wait", `${EDITOR} table`], 30_000);
 
-      const probe = parseProbe(await agentBrowser(["eval", PROBE_SCRIPT]));
+      ctx.log("probing the rendered constructs");
+      const probe = parseEval(await agentBrowser(["eval", PROBE]), probeSchema);
+      expect(probe.bold, "bold text did not render as <strong>");
+      // The alert AND the ordinary quote both render as blockquotes; the
+      // callout kit styles the first, but both must at least be present.
+      expect(probe.blockquotes >= 2, `expected 2 blockquotes, got ${probe.blockquotes}`);
+      expect(probe.checkboxes >= 2, `expected the 2 task checkboxes, got ${probe.checkboxes}`);
+      expect(probe.fence, "the code fence did not render as <pre>");
+      expect(probe.table, "the table did not render as <table>");
 
-      ctx.log("inline #tag chips");
-      const tags = rendered(probe, "tags");
-      expect(
-        tags.join(" ") === "#alpha #nested/child",
-        `the tag chips are exactly the index's tokens, got: ${JSON.stringify(tags)}`,
-      );
-
-      ctx.log("callouts");
-      expect(
-        rendered(probe, "calloutLabels").join(" ") === "WARNING:warning",
-        `the callout header folds to its label, got: ${JSON.stringify(rendered(probe, "calloutLabels"))}`,
-      );
-      expect(
-        rendered(probe, "calloutLines").join(" ") === "warning warning",
-        `both callout lines carry the box, and the plain quote none, got: ${JSON.stringify(rendered(probe, "calloutLines"))}`,
-      );
-
-      ctx.log("math");
-      expect(
-        rendered(probe, "math").join(" ") === "inline:katex display:katex inline:error",
-        `KaTeX renders inline and display math, and a broken formula falls back, got: ${JSON.stringify(rendered(probe, "math"))}`,
-      );
-      expect(
-        rendered(probe, "mathErrors").join(" ") === "$\\frobnicate{x}$",
-        `the failed formula keeps its own source on screen, got: ${JSON.stringify(rendered(probe, "mathErrors"))}`,
-      );
-
-      ctx.log("images");
-      expect(
-        rendered(probe, "images").join(" ") ===
-          `${apiPath(apiRoutes.vault.asset)}?path=assets%2Fdiagram.svg:loaded`,
-        `the vault embed resolves through the asset route and the bytes arrive, got: ${JSON.stringify(rendered(probe, "images"))}`,
-      );
-      expect(
-        rendered(probe, "imageErrors").join(" ") === "javascript: images are not loaded",
-        `a javascript: src never reaches an <img>, got: ${JSON.stringify(rendered(probe, "imageErrors"))}`,
-      );
-
-      ctx.log("mermaid");
-      expect(
-        rendered(probe, "mermaid").join(" ") === "svg error",
-        `a drawable fence becomes an SVG and an undrawable one falls back, got: ${JSON.stringify(rendered(probe, "mermaid"))}`,
-      );
-      expect(
-        rendered(probe, "mermaidLabels").join(" ") === "Buffer File",
-        `the diagram's own nodes are drawn, got: ${JSON.stringify(rendered(probe, "mermaidLabels"))}`,
-      );
-
-      ctx.log("tables");
-      expect(
-        rendered(probe, "tableHeaders").join(" ") === "Name:left Bold:center Right:right",
-        `the header cells render with the delimiter row's alignment, got: ${JSON.stringify(rendered(probe, "tableHeaders"))}`,
-      );
-      expect(
-        rendered(probe, "tableCells").join(" | ") === "a code b | link | 1",
-        `each cell renders its own inline markdown, got: ${JSON.stringify(rendered(probe, "tableCells"))}`,
-      );
-
-      ctx.log("the file on disk is byte-identical after rendering");
+      ctx.log("rendering wrote nothing: the seeded bytes are untouched");
+      await delay(2_500);
       const onDisk = await readFile(join(app.vaultDir, DOC_PATH), "utf8");
-      expect(onDisk === DOC, "rendering the note rewrote its bytes");
+      expectEq(onDisk, DOC, "opening the note changed its bytes");
+
+      ctx.log("an edit keeps every construct on disk");
+      // The bottom toolbar floats over the note's lower half, so a text-target
+      // click can land under it; clicking the editable surface itself always
+      // hits, and the caret lands wherever — the edit below types at Home.
+      await agentBrowser(["click", EDITOR]);
+      await agentBrowser(["press", "Meta+Home"]);
+      await agentBrowser(["press", "End"]);
+      await agentBrowser(["type", EDITOR, " Edited."]);
+      const deadline = Date.now() + 15_000;
+      for (;;) {
+        const after = await readFile(join(app.vaultDir, DOC_PATH), "utf8");
+        if (after.includes("Edited.")) {
+          for (const marker of [
+            "**bold**",
+            "`inline code`",
+            "> [!WARNING]",
+            "- [ ]",
+            "```ts",
+            "| Name |",
+          ]) {
+            expect(after.includes(marker), `${marker} was lost by the save:\n${after}`);
+          }
+          break;
+        }
+        expect(Date.now() < deadline, `the edit never saved:\n${after}`);
+        await delay(250);
+      }
     } finally {
       await agentBrowser(["close"], 30_000).catch(() => undefined);
     }

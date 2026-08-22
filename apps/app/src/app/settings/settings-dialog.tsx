@@ -1,11 +1,10 @@
 // Minimal settings: what the server already answers (vault location, git
 // remote, sync state, the agent block of /system/status, the connectors codex
 // itself manages, the About block) plus the client-side preferences that exist
-// today (theme, and what a delegation does with its writes). The remote is
+// today (theme, and what an action does with its writes). The remote is
 // display-only — changing it rides INTELIGIR_VAULT_REMOTE / config.json until
 // a config route exists.
 
-import type { AgentWriteMode } from "@repo/domain/agent-write-mode";
 import { Button } from "@repo/ui/components/button";
 import {
   Dialog,
@@ -15,7 +14,6 @@ import {
   DialogTitle,
 } from "@repo/ui/components/dialog";
 import { Separator } from "@repo/ui/components/separator";
-import { useState } from "react";
 import { useTheme, type Theme } from "@repo/ui/lib/theme";
 import {
   EDITOR_ACCENTS,
@@ -25,7 +23,6 @@ import {
   EDITOR_SIZES,
   useAppearance,
 } from "../appearance";
-import { readDelegationWriteMode, writeDelegationWriteMode } from "../prefs";
 import {
   canSyncNow,
   syncBlockedReason,
@@ -34,8 +31,9 @@ import {
   useVaultStatus,
   useVaultTree,
 } from "../vault-hooks";
+import { AgentsSection } from "./agents-section";
 import { ConnectorsSection } from "./connectors-section";
-import { MemorySection } from "./memory-section";
+import { NoteIntelligenceSection } from "./note-intelligence-section";
 import { ChoiceRow, Row, SectionHeading } from "./settings-chrome";
 import { SyncSection } from "./sync-section";
 import { VoiceSection } from "./voice-section";
@@ -44,17 +42,6 @@ const THEMES: readonly { value: Theme; label: string }[] = [
   { value: "system", label: "System" },
   { value: "light", label: "Light" },
   { value: "dark", label: "Dark" },
-];
-
-/** The default a delegation gets when the surface that created it did not
- *  name a mode — the checkbox fast path, and anything the CLI starts. */
-const WRITE_MODES: readonly { value: AgentWriteMode; label: string; hint: string }[] = [
-  { value: "direct", label: "Apply directly", hint: "Edits land in the vault as the agent works." },
-  {
-    value: "propose",
-    label: "Suggest first",
-    hint: "Edits are held for you to accept or reject, hunk by hunk.",
-  },
 ];
 
 export interface SettingsDialogProps {
@@ -89,11 +76,6 @@ function SettingsBody({ onSyncNow }: { onSyncNow: () => void }) {
   const systemQuery = useSystemStatus();
   const { theme, setTheme } = useTheme();
   const { appearance, setAppearance } = useAppearance();
-  const [writeMode, setWriteModeState] = useState<AgentWriteMode>(readDelegationWriteMode);
-  const setWriteMode = (next: AgentWriteMode): void => {
-    writeDelegationWriteMode(next);
-    setWriteModeState(next);
-  };
 
   const status = statusQuery.data;
   const system = systemQuery.data;
@@ -155,25 +137,17 @@ function SettingsBody({ onSyncNow }: { onSyncNow: () => void }) {
               <span className="text-xs text-muted-foreground">{system.agent.detail}</span>
             </Row>
           ) : null}
-          <Row label="Edits">
-            <ChoiceRow
-              label="What a delegation does with its edits"
-              options={WRITE_MODES}
-              value={writeMode}
-              onChange={setWriteMode}
-            />
-            <span className="mt-1 block text-xs text-muted-foreground">
-              {WRITE_MODES.find((mode) => mode.value === writeMode)?.hint}
-            </span>
-          </Row>
         </dl>
       </section>
       <Separator />
+      <AgentsSection />
+
       <ConnectorsSection />
       <Separator />
-      <MemorySection />
       <Separator />
       <VoiceSection />
+
+      <NoteIntelligenceSection />
       <Separator />
       <SyncSection />
       <Separator />

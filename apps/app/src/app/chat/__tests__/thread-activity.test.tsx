@@ -18,6 +18,7 @@ const thread = (over: Partial<Thread> = {}): Thread => ({
   activeTurnId: null,
   originDocPath: null,
   originAnchor: null,
+  providerId: null,
   writeMode: "direct",
   archivedAt: null,
   createdAt: 0,
@@ -99,7 +100,7 @@ describe("the palette renders that answer and no other", () => {
         }}
       />,
     );
-    fireEvent.click(screen.getByText("Chats & delegations"));
+    fireEvent.click(screen.getByText("Actions"));
     expect(
       screen.getByText(THREAD_ACTIVITY_LABELS[threadActivity(subject, NO_ACTIVITY_COUNTS)]),
     ).toBeDefined();
@@ -117,10 +118,9 @@ describe("only one module reads a thread's lifecycle", () => {
   const LIFECYCLE = /["'](?:starting|stopping)["']/u;
 
   it.each([
-    "apps/app/src/app/chat/chat-dock.tsx",
+    "apps/app/src/app/actions/actions-panel.tsx",
+    "apps/app/src/app/actions/action-composer.tsx",
     "apps/app/src/app/palette/command-palette.tsx",
-    "apps/app/src/app/note/note-view.tsx",
-    "packages/editor/src/thread-chip.ts",
   ])("%s derives none of its own", (relative) => {
     expect(sourceOf(relative)).not.toMatch(LIFECYCLE);
   });

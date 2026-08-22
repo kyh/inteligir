@@ -13,15 +13,17 @@ import type { AgentStatus } from "@repo/server-contract/routes";
 import type { CreateTurnDriver } from "../threads/turn-driver";
 import { createUnavailableTurnDriver } from "../threads/turn-driver";
 import type { CaptureTurnProposals } from "./agent-commits";
+import type { AcpMcpServerConfig } from "@repo/agent-runtime/acp/acp-runtime";
 import type { AppConfig } from "../config";
 import type { VaultRuntime } from "../vault/vault-runtime";
 import { createBoundedAgentLog } from "./agent-log";
-import { readMemoryPromptBlock } from "./memory-prompt";
 import { createCodexRuntimeManager, type CodexRuntimeManagerDeps } from "./runtime-manager";
 import { createScriptedTurnDriverFactory, type ScriptedDriverDeps } from "./scripted-driver";
 
 export interface ResolveAgentDriverArgs {
-  config: Pick<AppConfig, "agent" | "agentModel" | "vaultDir" | "memoryDir">;
+  config: Pick<AppConfig, "agent" | "agentModel" | "vaultDir">;
+  /** The enabled connector rows every session gets (issue #591). */
+  mcpServers?: () => AcpMcpServerConfig[];
   db: DbConnection;
   notifier: DbNotifier;
   vault: VaultRuntime;
@@ -46,12 +48,16 @@ export interface ResolvedAgentDriver {
 }
 
 export function codexBinaryOnPath(env: NodeJS.ProcessEnv): string | null {
+  return harnessBinaryOnPath("codex", env);
+}
+
+function harnessBinaryOnPath(name: string, env: NodeJS.ProcessEnv): string | null {
   const pathValue = env.PATH ?? "";
   for (const dir of pathValue.split(delimiter)) {
     if (dir.length === 0) {
       continue;
     }
-    const candidate = join(dir, "codex");
+    const candidate = join(dir, name);
     try {
       if (!statSync(candidate).isFile()) {
         continue;
@@ -80,16 +86,10 @@ export function resolveAgentDriver(args: ResolveAgentDriverArgs): ResolvedAgentD
   // The bounded log keeps a chatty provider VISIBLE without flooding: first
   // occurrence per stripped-id key logs in full, repeats log a count.
   const onDebug = createBoundedAgentLog();
-  // The per-turn memory read, shared by both drivers: memory is the agent's
-  // model of the user, not of which provider happens to run, so the injection
-  // is a property of the turn rather than of the driver. Read fresh each turn
-  // (issue #575), so a fact written between turns is carried into the next.
-  const readMemoryIndex = (): string | undefined => readMemoryPromptBlock(args.config.memoryDir);
   if (mode === "scripted") {
     const scripted: ScriptedDriverDeps = {
       vault: args.vault.service,
       git: args.vault.git,
-      readMemoryIndex,
       onError: onDebug,
     };
     if (args.captureProposals !== undefined) scripted.captureProposals = args.captureProposals;
@@ -100,10 +100,17 @@ export function resolveAgentDriver(args: ResolveAgentDriverArgs): ResolvedAgentD
     };
   }
 
-  const binary = codexBinaryOnPath(args.env ?? process.env);
-  if (binary === null) {
+  // EITHER harness CLI on PATH boots the runtime; per-thread absence is the
+  // registry's detect+guide to explain. The default harness is claude while
+  // codex-acp 0.16.0 is live-broken upstream (its bundled core cannot parse
+  // the current models response); codex stays selectable and heals on the
+  // next adapter release — flip the default back then.
+  const env = args.env ?? process.env;
+  const claudeBinary = harnessBinaryOnPath("claude", env);
+  const codexBinary = harnessBinaryOnPath("codex", env);
+  if (claudeBinary === null && codexBinary === null) {
     const detail =
-      "The codex binary was not found on PATH — install the Codex CLI, or set INTELIGIR_AGENT=scripted";
+      "No agent CLI was found on PATH — install Claude Code or the Codex CLI, or set INTELIGIR_AGENT=scripted";
     return {
       status: { mode, runtime: "unavailable", detail },
       createTurnDriver: () => createUnavailableTurnDriver(detail),
@@ -117,15 +124,16 @@ export function resolveAgentDriver(args: ResolveAgentDriverArgs): ResolvedAgentD
     vaultDir: args.config.vaultDir,
     git: args.vault.git,
     model: args.config.agentModel,
-    readMemoryIndex,
     onDebug,
   };
+  codex.defaultProviderId = claudeBinary === null ? "codex" : "claude";
+  if (args.mcpServers !== undefined) codex.mcpServers = args.mcpServers;
   if (args.shellEnv !== undefined) codex.shellEnv = args.shellEnv;
   if (args.cliBinDir !== undefined) codex.cliBinDir = args.cliBinDir;
   if (args.captureProposals !== undefined) codex.captureProposals = args.captureProposals;
   const manager = createCodexRuntimeManager(codex);
   return {
-    status: { mode, runtime: "codex", detail: null },
+    status: { mode, runtime: "acp", detail: null },
     createTurnDriver: manager.createTurnDriver,
     dispose: () => manager.dispose(),
   };

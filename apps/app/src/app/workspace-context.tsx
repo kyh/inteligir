@@ -22,7 +22,7 @@ import { readTheme, writeTheme } from "./prefs";
  *  paths); the open note re-checks its own file either way. */
 type DocListener = (docId: string | null) => void;
 
-export interface DocEvents {
+interface DocEvents {
   subscribe: (listener: DocListener) => () => void;
 }
 
@@ -66,6 +66,7 @@ export function applyChangedMessage(
       if (message.changes.includes("files-changed")) {
         void queryClient.invalidateQueries({ queryKey: queryKeys.vaultTree });
         void queryClient.invalidateQueries({ queryKey: queryKeys.knowledgeRoot });
+        void queryClient.invalidateQueries({ queryKey: queryKeys.commentsRoot });
         // A NAMED change reaches only the notes it names; an unnamed one
         // asserts nothing, so every open note re-checks its own file.
         if (message.paths === undefined) {

@@ -38,13 +38,19 @@ import {
 const DECLARED_EDGES = new Map<string, readonly string[]>(
   Object.entries({
     // Leaves. Nothing in this repo may be below them.
+    // agent-skills is CONTENT (the vendored Moss dialect spec, issue #581) —
+    // markdown served to agents, importing nothing and imported as files.
+    "@repo/agent-skills": [],
     "@repo/cloud-contract": [],
     "@repo/domain": [],
     "@repo/notes": [],
     "@repo/typed-routes": [],
     "@repo/ui": [],
 
-    "@repo/editor": ["@repo/notes"],
+    // The Plate editor draws with the shared component kit — the same
+    // shadcn-on-Base-UI vocabulary the app's chrome uses — so the edge is a
+    // rendering dependency, not a domain one. @repo/ui stays a leaf below it.
+    "@repo/editor": ["@repo/notes", "@repo/ui"],
     // The @repo/notes edge is two grammars the contract validates against —
     // the delegation anchor's token (`markdown/thread-anchor`) and the vault
     // path (`knowledge/vault-path`) — and it is narrow ON PURPOSE: both modules
@@ -163,6 +169,10 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
  */
 const DECLARED_ARTIFACT_EDGES = new Map<string, Record<string, string>>(
   Object.entries({
+    "@repo/app": {
+      "@repo/agent-skills":
+        "the vendored Moss dialect skills are CONTENT the agent reads with its shell — agent-shell-env.ts resolves the package's skills/ directory via createRequire and hands the path to agent sessions as INTELIGIR_SKILLS_DIR; no module import exists or should",
+    },
     "@repo/desktop": {
       inteligir:
         "the shell PACKS the published artifact into the .app and spawns its server entry as a CHILD PROCESS — src/main/server-paths.ts resolves it as a path under node_modules rather than importing it, and the packaged smoke reaches its staged-layout module from scripts/, which is not shipped source either",

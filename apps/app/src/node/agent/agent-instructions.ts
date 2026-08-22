@@ -16,9 +16,18 @@ const AGENT_INSTRUCTIONS_MAX_BYTES = 32_768;
 /** Kept minimal on purpose: the full manual is a `inteligir guide` away, so
  *  the per-turn cost is a pointer, not the manual. */
 export const CLI_POINTER_INSTRUCTIONS = `The \`inteligir\` CLI drives this notes app from your shell: vault file CRUD, \
-full-text search, agent threads. INTELIGIR_SERVER_URL and INTELIGIR_THREAD_ID \
+full-text search, agent actions and comments. INTELIGIR_SERVER_URL and INTELIGIR_THREAD_ID \
 are set in your environment. Run \`inteligir guide\` for the manual; every \
 command takes \`--json\`.`;
+
+/** Appended when the vendored dialect skills resolved: notes here persist the
+ *  Moss dialect, and the skills are its first-party spec — three sentences of
+ *  pointer, never the spec itself (the per-turn cost rule above). */
+const SKILLS_POINTER_INSTRUCTIONS = `Notes in this vault use the Moss markdown dialect \
+(wiki links, {{formula}} pills, %%m:id%% comment anchors, moss-* fenced blocks). \
+The dialect's own skills live in $INTELIGIR_SKILLS_DIR — read the relevant \
+SKILL.md there (moss-notes first) before authoring or editing constructs, and \
+follow it exactly; the app parses what it specifies.`;
 
 /**
  * Cut to at most `maxBytes` of UTF-8 WITHOUT splitting a character. Measuring
@@ -65,12 +74,18 @@ function loadVaultInstructions(vaultDir: string): string | undefined {
 export function loadAgentInstructions(
   vaultDir: string,
   cliBinDir: string | null,
+  skillsDir?: string | null,
 ): string | undefined {
   const vaultInstructions = loadVaultInstructions(vaultDir);
-  if (cliBinDir === null) {
-    return vaultInstructions;
+  const parts: string[] = [];
+  if (cliBinDir !== null) {
+    parts.push(CLI_POINTER_INSTRUCTIONS);
   }
-  return vaultInstructions === undefined
-    ? CLI_POINTER_INSTRUCTIONS
-    : `${CLI_POINTER_INSTRUCTIONS}\n\n${vaultInstructions}`;
+  if (skillsDir !== undefined && skillsDir !== null) {
+    parts.push(SKILLS_POINTER_INSTRUCTIONS);
+  }
+  if (vaultInstructions !== undefined) {
+    parts.push(vaultInstructions);
+  }
+  return parts.length === 0 ? undefined : parts.join("\n\n");
 }

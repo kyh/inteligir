@@ -28,6 +28,9 @@ export const threadSchema = z
     /** Set together for a doc-bound delegation; both null for a plain chat. */
     originDocPath: z.string().nullable(),
     originAnchor: z.string().nullable(),
+    /** The harness this thread runs on, once one ever dispatched (or was
+     *  chosen at create); null adopts the default at next dispatch. */
+    providerId: z.string().nullable(),
     /** Where this thread's turns land: the vault, or a reviewable proposal. */
     writeMode: agentWriteModeSchema,
     archivedAt: z.number().nullable(),
@@ -71,18 +74,22 @@ export const createThreadRequestSchema = z
      *  one would sit in the database forever, unmatched by every by-doc query. */
     originDocPath: vaultPathSchema.optional(),
     originAnchor: originAnchorSchema.optional(),
+    /** The harness this thread runs on ("claude" | "codex" today); omitted
+     *  adopts the server's default at first dispatch. */
+    providerId: z.string().min(1).optional(),
     /** Omitted means `direct` — v1's behaviour, so a caller that has never
      *  heard of review mode keeps the semantics it was written against. */
     writeMode: agentWriteModeSchema.optional(),
   })
   .strict()
   .superRefine((value, ctx) => {
-    // Both-or-neither: a delegation binds to an anchored block, never half a
-    // doc; the db CHECK is the storage-level twin of this refine.
-    if ((value.originAnchor === undefined) !== (value.originDocPath === undefined)) {
+    // An anchor names a marker inside its doc, so it cannot exist without one;
+    // a doc ALONE is a marker-less attachment (an action composed over the
+    // note, #587). The db CHECK is the storage-level twin of this refine.
+    if (value.originAnchor !== undefined && value.originDocPath === undefined) {
       ctx.addIssue({
         code: "custom",
-        message: "originDocPath and originAnchor must be provided together",
+        message: "originAnchor requires originDocPath",
         path: [value.originAnchor === undefined ? "originAnchor" : "originDocPath"],
       });
     }

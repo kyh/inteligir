@@ -10,7 +10,7 @@
 
 export const CLI_SKILL_MD = `---
 name: inteligir-cli
-description: Drive the local inteligir notes app — vault files, knowledge search, agent threads — from the shell.
+description: Drive the local inteligir notes app — vault files, knowledge search, agent actions — from the shell.
 ---
 
 # The inteligir CLI
@@ -62,70 +62,59 @@ Paths are vault-relative POSIX paths (\`notes/idea.md\`). Prefer wiki links
   the reasons it is there. \`--limit <n>\` caps results (1–50).
 - \`inteligir tags\` — every tag with its usage count, most used first.
 
-## Threads — the agent
+## Actions — the agent
 
-- \`inteligir thread list\` — all threads with status.
-- \`inteligir thread new [--doc <path> --anchor <a>] <prompt>\` — create a
-  thread (optionally bound to a doc anchor) and send the first turn. \`--doc\`
-  and \`--anchor\` go together. If the thread is created but its first turn
-  fails, the failure names the new thread id so you can retry or archive it.
-- \`inteligir thread send <id> <prompt>\` — send a follow-up; steers the
+- \`inteligir action list\` — all actions with status.
+- \`inteligir action new [--doc <path>] <prompt>\` — start an action
+  (optionally attached to a note) and send the first turn. If the action is
+  created but its first turn fails, the failure names the new id so you can
+  retry or archive it.
+- \`inteligir action send <id> <prompt>\` — send a follow-up; steers the
   active turn by default, \`--queue\` queues it for after the turn instead.
-- \`inteligir thread show <id>\` — thread detail plus the compact timeline
+- \`inteligir action show <id>\` — action detail plus the compact timeline
   (turns, commands, file changes, messages).
-- \`inteligir thread wait <id>\` — block until the thread settles. Exit code
+- \`inteligir action wait <id>\` — block until the action settles. Exit code
   0 = idle, 1 = settled in error, 2 = timeout. \`--timeout <seconds>\` is a
   real wall-clock bound (default 600) and \`--poll-interval <ms>\` sets the
   poll cadence (default 300).
-- \`inteligir thread archive <id>\` — archive a thread.
+- \`inteligir action archive <id>\` — archive an action.
 
 The spawn-and-wait loop an agent should use:
 
 \`\`\`sh
-id=$(inteligir thread new "Summarize notes/inbox.md" --json | jq -r .thread.id)
-inteligir thread wait "$id" && inteligir thread show "$id"
+id=$(inteligir action new "Summarize notes/inbox.md" --json | jq -r .thread.id)
+inteligir action wait "$id" && inteligir action show "$id"
 \`\`\`
 
-## Connectors — the MCP servers Codex offers you
+## Comments — the review channel
 
-- \`inteligir connectors list\` — the MCP servers Codex is configured with, and
-  whether each is enabled and logged in. Read-only on purpose: an MCP server is
-  code the agent then talks to, so adding or removing one is a person's own act
-  in the app's Settings → Connectors, not a command.
+Anchored comments live in a \`<note>.comments.json\` sidecar beside the note;
+the \`%%m:id:start%%…%%m:id:end%%\` body markers wrap the ranges they are
+about (the vendored moss-comments skill states the grammar — follow it when
+editing files directly).
 
-## Memory — what you remember about the user
+- \`inteligir comment list <path>\` — a note's comment threads, replies and
+  resolution state.
+- \`inteligir comment add <path> <text>\` — start a thread in the sidecar. It
+  is UNANCHORED until markers wrap a range in the note body.
+- \`inteligir comment reply <path> <parent-id> <text>\` — reply in a thread.
+- \`inteligir comment resolve <path> <id>\` — resolve a thread
+  (\`--reopen\` reverses it).
+- \`inteligir comment remove <path> <id>\` — delete a thread's entries; the
+  answer names the marker ids you still owe the note body.
 
-Durable facts about the USER — who they are, and how they want you to work —
-live as flat markdown files in the directory named by \`$INTELIGIR_MEMORY_DIR\`.
-This is NOT the vault (the user's notes) and NOT the thread history (which
-already records what was said). It is your own model of the user, and you keep
-it with your shell: there is no CLI command and no tool for it, because you can
-already read and write these files directly.
+## Connectors — the MCP servers every session gets
 
-- One fact per file. Each file is YAML frontmatter — \`name\`, \`description\`,
-  \`type\` — then the full note as the body:
+The registry is this app's own; enabled rows reach every agent session's
+launch, Claude Code and Codex alike.
 
-  \`\`\`md
-  ---
-  name: Prefers concise commits
-  description: Short, imperative commit messages; no filler.
-  type: preference
-  ---
-  Confirmed twice while reviewing PRs — sacrifice grammar for concision.
-  \`\`\`
-
-- \`type\` is exactly one of \`user\` (who they are: role, projects, expertise,
-  standing facts) or \`preference\` (how they want you to work; corrections they
-  have made). Do not invent other types, and do NOT keep a running transcript
-  of the conversation here — the thread history already does that.
-- READ a fact with \`cat "$INTELIGIR_MEMORY_DIR/<file>.md"\`, or \`rg\` across the
-  directory. REMEMBER something by writing a new \`.md\` file there. FORGET it by
-  deleting the file. Nothing else is needed — the app reads these files live.
-- The \`description\` is what you are shown at the start of each turn (a compact
-  index of everything you remember), so keep it short and specific; the body
-  holds the detail you read on demand.
-- The user sees and deletes these in the app's Settings → Memory, so record
-  only what you would be comfortable showing them.
+- \`inteligir connectors list\` — the configured servers, each with its target
+  and whether it is enabled and authenticated.
+- \`inteligir connectors add <name> --url <https://…> [--header NAME=VALUE]\` —
+  add a remote server (the header carries its API key). For a local command
+  server: \`--command <program> [--arg <a> …]\`.
+- \`inteligir connectors remove <name>\` — remove one; sessions stop getting it
+  from their next launch.
 
 ## Interactions — approvals the agent is waiting on
 
@@ -135,29 +124,6 @@ already read and write these files directly.
   one; resolutions are \`allow_once\`, \`allow_for_session\`, or \`deny\` (a
   request may offer only some of them, and the CLI says which). \`--thread\`
   names the owning thread; omitted, it is looked up from the listing.
-
-## Proposals — suggested edits waiting for review
-
-A delegation created in **review mode** does not write the vault. Its file
-writes are captured as suggestions against the revision the turn started from,
-and the working tree is left exactly as it was — so the loop below is how that
-work reaches the file.
-
-- \`inteligir proposals list [--doc <path>] [--thread <id>] [--all]\` — the
-  review queue: one line per suggestion (\`<id> <status> <path> <shape>\`).
-  \`--doc\` and \`--thread\` narrow it; \`--all\` includes resolved ones.
-- \`inteligir proposals show <id>\` — the suggestion as a unified diff, with
-  each hunk's INDEX in its \`@@\` header.
-- \`inteligir proposals accept <id> [--hunk <index>]\` — apply it through the
-  vault's guarded write. Omit \`--hunk\` for the whole suggestion; pass one to
-  apply a single hunk and leave the rest reviewable.
-- \`inteligir proposals reject <id> [--hunk <index>]\` — discard it (or one
-  hunk of it). No file is touched.
-
-A \`stale\` status means the file changed after the suggestion was written, so
-its hunks no longer describe what is on disk. Accepting one answers 409
-\`cas_mismatch\` rather than overwriting; redo the task against the current
-file instead.
 
 ## Sync — this install's account pairing
 

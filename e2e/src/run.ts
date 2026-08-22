@@ -13,12 +13,10 @@ import { killAllLiveGroups, type AppInstance, type BootMode } from "./harness/in
 import { createScenarioContext, type Scenario } from "./harness/scenario";
 import { browserSmoke } from "./scenarios/browser-smoke";
 import { cliDrive } from "./scenarios/cli-drive";
-import { delegationChipBrowser } from "./scenarios/delegation-chip-browser";
 import { delegationScripted } from "./scenarios/delegation-scripted";
 import { dictationBrowser } from "./scenarios/dictation-browser";
 import { editorConstructsBrowser } from "./scenarios/editor-constructs-browser";
 import { externalEditBrowser } from "./scenarios/external-edit-browser";
-import { memoryScripted } from "./scenarios/memory-scripted";
 import { proposalReview } from "./scenarios/proposal-review";
 import { slashMenuBrowser } from "./scenarios/slash-menu-browser";
 import { threadsScripted } from "./scenarios/threads-scripted";
@@ -31,11 +29,9 @@ const SCENARIOS: readonly Scenario[] = [
   vaultSync,
   threadsScripted,
   delegationScripted,
-  memoryScripted,
   proposalReview,
   cliDrive,
   browserSmoke,
-  delegationChipBrowser,
   editorConstructsBrowser,
   slashMenuBrowser,
   externalEditBrowser,

@@ -30,11 +30,10 @@ apps/
                  src/node/voice/ is dictation (issue #578): the pinned model
                  cache under ~/.inteligir/models/, and streaming Parakeet
                  (sherpa-onnx) on a persistent session worker per hold, over a
-                 dedicated /voice/stream websocket. src/node/memory/ is agent memory (issue #575):
-                 flat markdown facts about the USER under ~/.inteligir/memory/,
-                 read/written by the agent's own shell — the app only DERIVES
-                 the per-turn prompt index off them and serves Settings'
-                 list/delete.
+                 dedicated /voice/stream websocket. src/node/comments/ serves the
+                 anchored-comment sidecars through the vault (#583). Agent
+                 memory was REMOVED (#589 reversed #575) — the harnesses
+                 carry their own.
   cli/           @repo/cli — the `inteligir` CLI (issue #553): citty over
                  the typed hc client, consola for the human path (raw writes
                  for anything verbatim — consola rewrites `backtick` spans).
@@ -99,10 +98,21 @@ packages/
   notes/         @repo/notes — PURE platform-neutral domain: the knowledge
                  engine (link graph, FTS5 search over an injected SqlDriver,
                  tags, tasks, rename byte-surgery) over ONE markdown scan
-                 (scan-parse + wiki-links), frontmatter, the delegation
-                 marker, and `text/` — ONE Myers diff under diff3, the editor's
-                 external replace and the suggested-edit hunks. No
-                 node/react/ui imports — lint-enforced.
+                 (scan-parse + wiki-links), frontmatter, the Moss dialect's
+                 own modules (markdown/remark-moss-*, comments/, formulas/),
+                 and `text/` — ONE Myers diff under diff3. No node/react/ui
+                 imports — lint-enforced.
+  editor/        @repo/editor — the Plate.js WYSIWYG (resurrected, #580):
+                 kits/nodes for every dialect construct, the md-rules table,
+                 the fixpoint serializer + fixture matrix, the open-note
+                 runtime (vault-session/note-runtime/open-note-store) the app
+                 drives through injected ports (host.tsx / host-io.ts).
+  agent-runtime/ @repo/agent-runtime — the ACP runtime (#588): one adapter
+                 speaks Zed's agent-client-protocol to claude-code-acp and
+                 codex-acp children; harnesses are data rows; the
+                 provider-event vocabulary is the one internal grammar.
+  agent-skills/  @repo/agent-skills — vendored moss-skills (MIT): the
+                 dialect's first-party spec, served to agents as files.
   ui/            @repo/ui — vendored stock shadcn on Base UI; leaf.
 tools/
   repo-guards/   @repo/repo-guards — derived fitness tests over the REPO: the
@@ -171,18 +181,33 @@ command is `db:push:local`.
 
 ## Decisions
 
-- **THE BUFFER IS THE FILE.** The editor is CodeMirror over the markdown
-  source, so byte-stability is a property of the design rather than a
-  round-trip to defend: there is no rich-model serializer that can disagree
-  with disk. Every construct renders as a decoration over the real text.
+- **THE EDITOR IS A WYSIWYG OVER A BYTE-DISCIPLINED SERIALIZER** (epic #579,
+  reversing #542's editor line — deliberately, by the owner; do not "fix" it
+  back). The editor is Plate.js (Slate) resurrected whole from `7dc78ffe^`
+  WITH its byte-stability apparatus: one owned parse (`@repo/notes/markdown`),
+  one rule table (`packages/editor/src/markdown/md-rules.ts`), a bounded
+  FIXPOINT serializer, kit parity between the live editor and its headless
+  mirror, and a byte-pinned fixture matrix (canonical / churn / raw tiers).
+  Byte stability is a CONTRACT DEFENDED BY TESTS rather than a property of the
+  data model: canonical files round-trip byte-exact; churn-class constructs
+  (legacy forms, marker normalization) may canonicalize on the first save,
+  stated per fixture; a file the pipeline cannot round-trip safely opens RAW.
+  The fixtures are formatter-exempt — their bytes ARE the assertion.
 
-- **The editor reads its own tree; the vault's parse stays authoritative.**
-  Delegation markers are found off the Lezer tree CodeMirror already
-  maintains, never by re-parsing the document — the mdast scan cost 78ms per
-  keystroke on a 50KB note. The two grammars are pinned against each other by
-  a parity test, and where they part company the required relation is
-  CONTAINMENT (editor ⊆ vault), because that direction only ever declines to
-  chip an anchor, while the reverse would chip a span a dismiss then deletes.
+- **NOTES SPEAK THE MOSS DIALECT, byte-compatibly** (#581; the vendored
+  `@repo/agent-skills` is the first-party spec and the syntax must not drift
+  from it): `[[Title]]` / `[[Title#H]]` / `[[Title|alias]]` / `[[Title|uuid]]`
+  wiki links (the LAST pipe starts the alias), `{{source|display|meta}}`
+  formula pills, `%%m:id:start/end%%` comment anchors, and `moss-callout` /
+  `moss-chart` / `moss-canvas` / `moss-html` / `:::tabs` blocks — all valid
+  markdown, all round-tripping through the fixpoint. The FILE LAYOUT stays
+  plain nested `.md` (Moss's external-note mode): no note bundles, no
+  meta.json/layout.json; frontmatter remains the only property store, and a
+  note's UUID is frontmatter `id:`. `{{` is reserved from MDX expressions by
+  a tokenizer guard on BOTH braces. Comments' thread bodies live in a
+  `<note>.comments.json` sidecar beside the note — a per-note name because
+  Moss's own folder-level sidecar exists only for bundle notes (stated
+  interop residual: anchors are Moss-compatible, sidecar location is ours).
 
 - **A turn row's `sourceSeqEnd` names its own contributors**, not every
   turn-scoped event. A streaming assistant message is turn-scoped but lands as
@@ -207,7 +232,11 @@ command is `db:push:local`.
   WITH the current content, and the client merges (diff3) and retries. Creation
   uses `ifAbsent` instead. Without this, an agent write landing between a
   client's read and its save is silently overwritten — the failure mode is
-  invisible, so the guard has to be in the protocol, not the UI.
+  invisible, so the guard has to be in the protocol, not the UI. This
+  DELIBERATELY diverges from Moss's activeUserWins rebase, which discards
+  concurrent disk body edits wholesale; diff3 merging non-overlapping regions
+  is strictly less lossy, so the two produce different disk bytes on conflict
+  and ours is not to be "fixed" toward Moss's (#603).
 - **Containment is PHYSICAL, not lexical.** The vault realpaths the deepest
   existing ancestor and refuses symlinked leaves. A lexical check passes
   `notes.md` when that name is a symlink to `~/.ssh/id_ed25519`, and a `git
@@ -224,24 +253,20 @@ pull` from a hostile remote is enough to plant one.
   events, under a counted commit hold that defers the vault's debounce and
   blocks a sync from starting. Committing the whole dirty tree attributes a
   concurrent turn's writes — and the user's — to whoever settles first.
-- **A turn's writes settle as a COMMIT or as a PROPOSAL, through one seam**
-  (`agent/agent-commits.ts`, issue #560). Review mode is a per-thread column,
-  not a second pipeline: the same write set, the same commit hold, taken once
-  and released once on every exit path — and `finish` commits nothing when the
-  set is empty, so a review turn leaves no orphan hold and no empty commit.
-  What review mode adds is forced by the provider owning the filesystem.
-  THE BASE COMES FROM GIT: a write is reported after it lands, so `ready`
-  flushes the dirty tree into the ordinary engine commit the debounce would
-  have made anyway and pins HEAD, which the hold then holds still for the turn.
-  THE CAPTURE IS AT SETTLE, not per event — reverting a file the instant its
-  write is reported pulls the ground out from under a multi-step edit, because
-  the agent reads back what it just wrote. The residual is stated rather than
-  hidden: for the turn's duration the agent's bytes ARE on disk and an open
-  editor merges them as it would any external change; closing that window needs
-  a per-turn worktree the provider is pointed at, which is a different seam.
-  THE REVERT IS GUARDED (`writeIfUnchanged`/`removeIfUnchanged`), so a save
-  that landed in between keeps its bytes and the proposal it invalidated reads
-  stale instead of overwriting it.
+- **THE AGENT SURFACE IS THE ⌘K ACTION COMPOSER AND THE RIGHT PANEL** (#587,
+  the Moss model — retiring the chat dock, the delegation checkbox/selection
+  affordances, thread-chip markers, and #560's proposals pipeline whole). An
+  ACTION is an ordinary thread ATTACHED to the note it was composed over
+  (`threads.originDocPath` alone; an anchor still cannot exist without its
+  doc, but a doc alone is a marker-less attachment). The agent edits the
+  vault directly, and ANCHORED COMMENTS are the review channel (#583): the
+  panel's Actions | Comments | Properties tabs are the transcript, review and
+  metadata surfaces; approvals answer inline. `threads.writeMode` survives as
+  an INERT column (cross-device sync version skew makes a drop unsafe).
+  The palette moved to ⌘P; ⌘\ is zen. The selection toolbar's "Ask agent"
+  seeds the composer with the quoted selection through a module-store seam
+  the app registers — the editor package never imports the shell.
+
 - **A VIEW CONTEXT RIDES THE MESSAGE, and it is a statement about the past.**
   What the user was looking at when they pressed Enter travels on the send
   (`@repo/domain/view-context`) — never as a thread column, never as a mutable
@@ -263,26 +288,6 @@ pull` from a hostile remote is enough to plant one.
   drain is minutes later, and storing a context for later gives away the exact
   property that makes it immune to rot.
 
-- **A proposal stores BOTH SIDES WHOLE, never a hunk list.** The hunks every
-  surface renders are `diffLines(base, proposed)` — the Myers walk
-  `@repo/notes/text` already carries — so storing hunks would store a
-  derivation of the same two columns that can disagree with them, and a partial
-  accept would need a second assembler to turn hunks back into bytes. With the
-  content stored, the bytes applied ARE the bytes recorded, and accept and
-  reject are one operation from opposite ends: accepting advances the base past
-  a region, rejecting retreats the proposal to it, and the hunk leaves the
-  derived list either way. An accept is an ORDINARY vault write —
-  `writeGuarded` with the proposal's own base hash — so the index, git, the
-  watcher and every open editor see it, and an accept against changed disk
-  refuses rather than clobbering.
-- **`stale` is DERIVED, and `acceptedHunks` is COUNTED.** A base no longer
-  matching disk is a fact about the filesystem, so a column for it would be
-  wrong the instant a watcher was late; the read hashes the file instead. The
-  opposite holds for what LANDED: once the hunk list empties, the (base,
-  proposed) pair looks identical whether the hunks were taken or discarded, so
-  the count is kept rather than inferred — a history calling a
-  partially-applied suggestion "rejected" would contradict the note it
-  describes.
 - **Backlinks live UNDER the document, and no graph view is coming.** The
   editor column is the product's centre of gravity, so the notes linking into
   the open one are a collapsible section at the foot of it, inside the note's
@@ -344,65 +349,22 @@ body_stems` at the same bm25 weights, and `@repo/notes/knowledge/search-query`
   across to the literal body, so a stemmed hit rendered the note's opening
   filler.
 
-- **Connectors are CODEX'S MCP servers, and this app keeps no registry of its
-  own.** `codex mcp list|add|remove` over `~/.codex/config.toml` is where the
-  agent reads them from, so a second store here would be a second answer the
-  agent ignores — and writing that file directly would mean owning codex's
-  schema and racing the codex processes the runtime already spawns. The routes
-  (`apps/app/src/node/connectors/`) drive the CLI with `execFile` and an argv
-  list, never a shell, and `codex mcp add` puts the command after `--` so one
-  that looks like a flag stays a command. Two guards are this product's rather
-  than codex's, because codex exits 0 for both: `add` refuses a name that
-  already exists (codex OVERWRITES it), and `remove` refuses one that does not
-  (codex shrugs). The READ answers 200 either way — `{ state: "unavailable",
-detail }` when no codex is installed, in the shape the Agent section already
-  states an unavailable runtime, because an empty list is a claim there are no
-  connectors. **The CLI gets `list` and nothing else on purpose**: an MCP
-  server is code the agent then talks to, so adding one is a person's act in
-  Settings with the exact invocation on screen, not a verb in the surface built
-  for a model to drive.
+- **CONNECTORS ARE AN APP-OWNED REGISTRY, injected per-session over ACP**
+  (#591, reversing the codex-owned-registry decision — its stated premise,
+  codex as the only harness, died with #588). One local store, edited in
+  Settings → Connectors and by the CLI's parity verbs; every harness receives
+  the same enabled rows through ACP `session/new`'s `mcpServers`.
+  `~/.codex/config.toml` is no longer consulted. Secrets stay in the data
+  dir and are REDACTED in every read.
 
-- **AGENT MEMORY IS FILES THE AGENT READS AND WRITES WITH ITS SHELL, not a CLI
-  verb and not a tool** (issue #575). Memory is durable markdown facts about the
-  USER — who they are, how they want the agent to work — one fact per file in
-  `~/.inteligir/memory/` (INTELIGIR_MEMORY_DIR), frontmatter `{ name,
-description, type }`. It is machine-global and shared across checkouts because
-  it is about the user, not a vault — the model-cache decision's neighbour —
-  and asserted OUTSIDE the vault at boot for the model dir's reason: a fact
-  under the vault would be committed and pushed. It is NOT the vault (the user's
-  notes) and NOT the thread log (already durable and synced); it is the
-  DISTILLATE, so the type vocabulary is CLOSED to `user` and `preference` and
-  there is deliberately NO `session`/transcript type — a running log would
-  duplicate the thread history. A third type later is one additive row.
-  THE AGENT WRITES MEMORY DIRECTLY, with `cat`/`rg`/write/`rm`, because it has a
-  bash shell as the same user — so there is no `inteligir memory` CLI leaf and
-  no add/remove-for-agent route, for the SAME reason view-context ships no
-  `get_view_context` tool: a round trip to the app to do what the shell already
-  does buys nothing, and the one thing a route could add cannot be made honest.
-  This is the ASYMMETRY WITH CONNECTORS, and it must not be "fixed": an MCP
-  server is code the agent then talks to, so adding one is a person's act;
-  a memory is the agent's own observation about the user, so writing it IS the
-  agent's job, and gating every remembered fact behind a human click defeats the
-  feature. The safety valve is that the user SEES and deletes memory in
-  Settings, not a per-fact gate.
-  THE APP DERIVES AND SERVES THE HUMAN — nothing more. It DERIVES the per-turn
-  index (name + description per fact, grouped by type, head-capped) into the
-  leading `{type:"text"}` element of the turn `input`, beside the view-context
-  block, because `input` is the only per-turn channel codex honours — read
-  fresh off the files each turn (nothing persisted), so a fact written this turn
-  is carried into the next, and an EMPTY memory dir injects nothing, leaving the
-  provider input byte-identical to a turn with no memory. And it SERVES the
-  human: `GET /memory` (list) and `POST /memory/remove` (delete) back the
-  Settings → Memory surface — for the user who is NOT in a shell — and nothing
-  else; memory has no workspace surface, no palette command, no composer entry.
-  THERE IS NO MAINTAINED INDEX FILE: the per-fact files are the ONLY source of
-  truth, so there is no index to race and nothing to keep atomic — every read
-  globs the directory, VALIDATES frontmatter at that boundary, and surfaces a
-  malformed file (with the reason) rather than dropping it. It is a rebuildable
-  cache and is NOT synced across devices in v1 — thread sync carries threads,
-  not this — stated, not hidden. INTELIGIR_MEMORY_DIR rides the agent shell env
-  per session (the path is stable; the CONTENTS are read live), never a per-turn
-  channel, because only the injection needs to move per turn and it already does.
+- **AGENT MEMORY IS REMOVED** (#589, reversing #575 — deliberately). Claude
+  Code and Codex carry their own memory systems, and the Moss model ships
+  none; a third memory beside theirs was two answers to one question. What
+  DID survive the removal is the pattern: content the agent consumes lives in
+  FILES read with its own shell — the vendored dialect skills ride
+  `INTELIGIR_SKILLS_DIR` (resolved from `@repo/agent-skills`, staged beside
+  the app bundle in the packaged layout), with a three-sentence instructions
+  pointer, never the spec inlined.
 
 - **DICTATION IS STREAMING PARAKEET AGAIN, REVERSING #574's whisper.cpp**
   (issue #578). This is a deliberate reversal, and it must not be "fixed" back
@@ -645,89 +607,15 @@ description, type }`. It is machine-global and shared across checkouts because
   delivery with exactly-once deletion by the owning claim, so the client's
   apply must be idempotent on the capture id. "Exactly-once" was written first
   and was false in both directions.
-- **A delegation marker is parsed, never matched.** `<!-- inteligir:thread
-anc_… -->` counts only as a block-level node alone on its line, so the same
-  text inside a fence or frontmatter stays literal — and insertion computes a
-  legal block boundary, because a marker spliced into frontmatter invalidates
-  the YAML and silently changes what `tags:` and `tasks: false` mean. The
-  invariant under test: inserting a marker leaves the rest of the document
-  parsing identically.
-- **The slash menu asks the tree ONE question — does a block begin here — and
-  the app stocks it.** `/` opens the insertion menu
-  (`@repo/editor/slash-menu`) only where lezer says a `Paragraph` starts at
-  that character, and that single question is what makes a rule list
-  unnecessary: a fence, frontmatter, a URL, a mid-word slash and a line lazily
-  continuing the paragraph above all decline because none of them begins a
-  block — and that Paragraph must hang off the DOCUMENT, because inside a
-  blockquote or a list item the question still passes while the answer stops
-  being safe: a multi-line snippet's continuation lines carry no `> ` and no
-  indent, so the construct opens inside the container and closes outside it.
-  Supporting a container means prefixing every continuation line with the
-  enclosing context, a per-context byte transform that needs its own
-  round-trip pins; until it has them, `/` in a container is a literal slash.
-  The tree is also MADE to answer: lezer parses under a time budget, so the
-  slash keystroke — only that one — forces the parse up to itself and declines
-  if the budget runs out, because a trigger computed once gets no second
-  chance and an unparsed region has no answer to guess at.
-  The typed insertion is allowed to be LONGER than the slash, because
-  CodeMirror reads typing off DOM mutations and coalesces a fast burst into
-  one change — a one-character rule would make the menu a function of typing
-  speed. What may NOT redefine the query is anything that is not that typing:
-  a caret move, a paste and an external write each CLOSE the menu, because the
-  `/query` range is the one an apply deletes and a caret walked rightwards over
-  prose would otherwise make the user's own bytes the query, and a BLUR closes
-  it too — that one needs `focusChangeEffect`, because clicking out of the
-  editor dispatches no transaction and a menu left armed applies on the next
-  refocus. Applying an item is ONE transaction under an `input.type.` user
-  event, which makes one undo take the construct AND the `/query` that asked
-  for it — BEST EFFORT, not a guarantee: `HistoryState.addChanges` joins on
-  that prefix AND on `time - prevTime < 500ms`, so a longer pause mid-menu
-  leaves two undo steps. Stated as the known limit it is. A ONE-LINE snippet
-  takes the rest of the line (`/head` before `tail` is `# tail` — the block
-  transform); a MULTI-LINE one gets a BLANK LINE after it, derived from the
-  snippet rather than declared per item, because ` ```tail ` is not a closing
-  fence and a table or a `$$` paragraph swallows the remainder one line lower
-  down — and the remainder is the rest of the PARAGRAPH, not of the line, since
-  a paragraph runs across every line up to a blank one. The divider row emits
-  `***` rather than `---` for a neighbouring reason: the frontmatter parser
-  fires at line 0 and takes any later `---` as its closer, so a dash divider at
-  the top of a note turns the whole note into YAML the moment a second one
-  lands. The
-  vocabulary is DATA the app injects
-  (`apps/app/src/app/note/slash-items.ts`), the same split
-  `DelegationAffordanceConfig` uses, and it is BOUNDED BY WHAT THE EDITOR
-  DRAWS — every row's markdown re-parses to a decorated construct, asserted
-  against the editor's own grammar rather than by string equality. The two
-  agent rows reach `draftFor`, the same closure the selection tooltip reaches;
-  a menu that armed a delegation its own way would be a second dispatch path
-  over one thread service. **"Link to a note" is deliberately absent**: this
-  editor renders no wiki-links, and a vault-relative markdown link IS
-  decorated but its click handler is `window.open`, so it would open a dead
-  browser tab. That row lands when the editor gets a wiki-link extension, not
-  before.
-- **An EXTERNAL write is attributed in the buffer, and the annotation is the
-  discriminator.** `replaceDoc` already stamps every external replacement with
-  `externalReplaceAnnotation`, so "this transaction was not the user" is a fact
-  the transaction carries rather than something a decoration layer infers from
-  timing (`@repo/editor/external-edit-marks`). The tint covers the inserted
-  spans, trimmed of the line breaks that carried them, and clears on a timer
-  whose transaction is excluded from history — an undo spent removing a
-  highlight is an undo the user's own last edit did not get. The tint is FLAT
-  rather than fading, because the state is the only clock that can be right:
-  CodeMirror renders only visible ranges, so scrolling a marked span away and
-  back rebuilds its DOM and restarts any CSS animation on it from full tint,
-  which the timer then cuts mid-fade. Pinning the animation to the mark's age
-  does not rescue it — a decoration spec is built once, so a negative
-  `animation-delay` computed there is zero forever. A later write
-  REPLACES the attribution rather than stacking on it, and a MARK NEVER COVERS
-  BYTES THE USER TYPED — mapping alone does not keep that true, because a range
-  set maps a mark THROUGH a replacement of the text it covers, so a user edit
-  reaching into a mark drops it. A pure deletion is
-  the stated residual: it leaves no span to tint, and a zero-width widget
-  standing in for absent text says less than the count the host reports. That
-  count is what a conflicted merge now shows — diff3 kept the buffer, so the
-  only honest thing to state is what DID merge in, and the toast lives exactly
-  as long as the marks it offers to jump to.
+- **THE PLATE SLASH MENU AND BOTTOM TOOLBAR ARE THE INSERTION SURFACES.**
+  Slash items are grouped data in `packages/editor/src/slash-menu.tsx`; the
+  bottom-center toolbar (Moss's chrome) acts through the live-editor registry
+  and is deliberately selection-stateless. Every insertable row's markdown
+  must re-parse to a modeled construct — the kit-parity vocabulary pins the
+  set. Legacy `<!-- inteligir:thread anc_… -->` markers in existing vaults
+  parse as opaque comments and are preserved verbatim; nothing writes new
+  ones.
+
 - **The launcher boots in-process; the desktop shell supervises a child.**
   Opposite answers because the failure differs: `npx` wants one exit code and
   a `^C` that reaches the vault's owner, while the shell must not share its
@@ -760,8 +648,9 @@ anc_… -->` counts only as a block-level node alone on its line, so the same
   list.** The built shell's one inline script hashes cleanly, but the Start
   router INJECTS further inline scripts at runtime whose content varies per
   render, so a hash allowlist blocks the app the moment it hydrates (measured,
-  not assumed). `style-src` keeps `'unsafe-inline'` because CodeMirror injects
-  its theme at runtime — the one stated residual. The directive that earns the
+  not assumed). `style-src` keeps `'unsafe-inline'` for runtime-injected component styles —
+  the one stated residual. `frame-src` is `'self'` for exactly one frame:
+  moss-html's sandboxed srcdoc preview (never allow-same-origin). The directive that earns the
   most here is `connect-src`: a script that cannot reach a third-party origin
   cannot exfiltrate the vault.
 - **Better Auth's `baseURL` is derived per-request from the request origin**,
@@ -795,8 +684,7 @@ export` over `src/worker/db/schema.ts`. A second deployer or a destructive
   (`@repo/notes/markdown/scan-parse`). A checkbox is addressed by its POSITION
   among a doc's task items, so the scan's count has to agree with the set the
   editor draws — and CommonMark's defaults are where a micromark scan and
-  lezer-markdown diverge. The agreement is pinned from the editor's side by
-  `packages/editor/src/__tests__/checkbox-toggle.test.ts`.
+  lezer-markdown diverge. The agreement is pinned by the editor's roundtrip fixture matrix.
 - **Frontmatter is the ONLY property store.** No metadata table, ever. YAML the
   typing rules can't represent is preserved byte-exactly, never coerced.
 - **No coverage tooling, on purpose.** This repo enforces targeted invariants

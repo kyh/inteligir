@@ -7,12 +7,10 @@ const sourceOf = (relative: string): string => readFileSync(join(REPO_ROOT, rela
 
 const TOKEN = "--editor-width";
 
-/** Every column that has to line up on the measure. */
-const CONSUMERS = [
-  "apps/app/src/app/note/note-view.tsx",
-  "apps/app/src/app/chat/chat-dock.tsx",
-  "packages/editor/src/editor-theme.ts",
-];
+/** Every reader of the measure: the appearance dial writes it, the stylesheet
+ * derives the Plate column's inset from it, and the editor package reads the
+ * inset. */
+const CONSUMERS = ["apps/app/src/app/appearance.tsx", "apps/app/src/styles/globals.css"];
 
 describe("the editor measure", () => {
   it("is DEFINED, once, on the one ancestor all three columns share", () => {

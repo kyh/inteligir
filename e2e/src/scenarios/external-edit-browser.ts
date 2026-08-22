@@ -1,30 +1,31 @@
-// The agent edits the note the user has open, and the buffer SAYS SO.
+// External writes against the OPEN note, both sides of the dirty gate.
 //
-// Every hop is production code: the scripted driver writes through the vault
-// service, the watcher fires, the ws doc invalidation lands, the note's reader
-// re-reads, the controller adopts into the buffer through `replaceDoc` — and
-// that transaction's `externalReplaceAnnotation` is what the attribution marks
-// read. Nothing here reaches into the editor; the tint has to arrive on its
-// own or the chain is broken somewhere along it.
+// CLEAN BUFFER: the scripted agent rewrites the note through the vault
+// service — watcher, ws ping, session reload, buffer adoption — and the
+// rendered editor updates on its own. Every hop is production code.
 //
-// The unit suite can drive `replaceDoc` directly, so it proves the decoration
-// and never that a write on disk reaches it.
+// DIRTY BUFFER: the user is mid-keystroke when the file changes under them.
+// The reload refuses (unsaved edits win the buffer), and the autosave's
+// guarded write meets the CAS 409 instead — the port three-way merges and
+// retries, so DISK ends up holding both changes. No silent clobber in either
+// direction is the invariant; the attribution tint died with the CM editor.
 
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { setTimeout as delay } from "node:timers/promises";
 import { join } from "node:path";
 import { agentBrowserSession, probeHeadlessOrSkip } from "../harness/agent-browser";
-import { expect, expectEq } from "../harness/assert";
+import { expect } from "../harness/assert";
 import type { Scenario } from "../harness/scenario";
 
 const agentBrowser = agentBrowserSession("external-edit");
 const PROMPT = "rewrite the note";
 const BASE_NOTE = "# Agent note\n\nthe line that was already here\n";
 const TURN_DEADLINE_MS = 30_000;
+const EDITOR = '[data-slate-editor="true"]';
 
 export const externalEditBrowser: Scenario = {
   name: "external-edit-browser",
-  description: "an agent write into the OPEN note is attributed in the buffer",
+  description: "a clean buffer adopts an agent write; a dirty buffer merges instead of clobbering",
   async run(ctx) {
     const app = await ctx.boot({
       name: "solo",
@@ -35,8 +36,8 @@ export const externalEditBrowser: Scenario = {
     const created = await app.api.threads.create.$post({ json: { title: PROMPT } });
     expect(created.status === 201, `create answered ${created.status}`);
     const { thread } = await created.json();
-    // The scripted driver writes exactly here; seeding it first makes the
-    // turn a MODIFICATION, which is the case with hunks to attribute.
+    // The scripted driver writes exactly here; folders sort before root
+    // files, so the virgin boot opens this note without a deep link.
     const notePath = `Agent/${thread.id}.md`;
     const seeded = await app.api.vault.file.$put({
       json: { path: notePath, content: BASE_NOTE, ifAbsent: true },
@@ -46,58 +47,54 @@ export const externalEditBrowser: Scenario = {
     try {
       await probeHeadlessOrSkip(agentBrowser, ctx.log);
 
-      // The open note rides the route's `note` search param — deep-linkable,
-      // which is what lets this scenario open a note in a subdirectory.
-      const url = `${app.baseUrl}/?note=${encodeURIComponent(notePath)}`;
-      ctx.log(`opening ${url}`);
-      await agentBrowser(["open", url], 60_000);
-      await agentBrowser(["wait", ".cm-content"], 90_000);
-      const opened = await agentBrowser(["get", "text", ".cm-content"]);
+      ctx.log(`opening ${app.baseUrl}/`);
+      await agentBrowser(["open", `${app.baseUrl}/`], 60_000);
+      await agentBrowser(["wait", EDITOR], 90_000);
+      const opened = await agentBrowser(["get", "text", EDITOR]);
       expect(
         opened.includes("the line that was already here"),
         `the browser did not open ${notePath} — got: ${opened}`,
       );
 
-      ctx.log("run the turn: the agent rewrites the note under the caret");
+      ctx.log("clean buffer: the agent rewrites the note, the editor adopts");
       const send = await app.api.threads.send.$post({
         json: { threadId: thread.id, text: PROMPT, mode: "steer-if-active" },
       });
       expect(send.status === 200, `send answered ${send.status}`);
 
-      ctx.log("the buffer attributes the write on its own");
-      await agentBrowser(["wait", ".cm-external-edit"], TURN_DEADLINE_MS);
-      const attributed = await agentBrowser([
-        "eval",
-        "[...document.querySelectorAll('.cm-content .cm-external-edit')].map((n) => n.textContent).join(' ')",
-      ]);
-      expect(
-        attributed.includes(PROMPT),
-        `the tint does not cover what the agent wrote — got: ${attributed}`,
-      );
-
-      ctx.log("the buffer holds the agent's bytes, and so does the file");
-      const deadline = Date.now() + TURN_DEADLINE_MS;
+      const adoptDeadline = Date.now() + TURN_DEADLINE_MS;
       for (;;) {
-        const onDisk = await readFile(join(app.vaultDir, notePath), "utf8");
-        if (onDisk.includes(PROMPT)) {
+        const buffer = await agentBrowser(["get", "text", EDITOR]);
+        if (buffer.includes(PROMPT)) {
           expect(
-            !onDisk.includes("the line that was already here"),
-            `the agent's write did not replace the base:\n${onDisk}`,
+            !buffer.includes("the line that was already here"),
+            `the buffer kept the replaced base:\n${buffer}`,
           );
           break;
         }
-        expect(Date.now() < deadline, `the agent's write never reached disk:\n${onDisk}`);
+        expect(Date.now() < adoptDeadline, `the buffer never adopted the write — got: ${buffer}`);
         await delay(250);
       }
-      const buffer = await agentBrowser(["get", "text", ".cm-content"]);
-      expect(buffer.includes(PROMPT), `the buffer never took the write — got: ${buffer}`);
+      const rewritten = await readFile(join(app.vaultDir, notePath), "utf8");
+      expect(rewritten.includes(PROMPT), `the agent's write never reached disk:\n${rewritten}`);
 
-      ctx.log("the attribution is a decoration, not bytes");
-      expectEq(
-        (await readFile(join(app.vaultDir, notePath), "utf8")).includes("cm-external-edit"),
-        false,
-        "the tint wrote itself into the file",
-      );
+      ctx.log("dirty buffer: a mid-keystroke external write merges on the save");
+      await agentBrowser(["click", EDITOR]);
+      await agentBrowser(["press", "End"]);
+      await agentBrowser(["type", EDITOR, " user-typed-tail"]);
+      // Inside the autosave debounce: append a line the buffer does not hold.
+      const external = `${rewritten}\nexternal-appended-line\n`;
+      await writeFile(join(app.vaultDir, notePath), external, "utf8");
+
+      const mergeDeadline = Date.now() + TURN_DEADLINE_MS;
+      for (;;) {
+        const onDisk = await readFile(join(app.vaultDir, notePath), "utf8");
+        if (onDisk.includes("user-typed-tail") && onDisk.includes("external-appended-line")) {
+          break;
+        }
+        expect(Date.now() < mergeDeadline, `disk never held both sides of the merge:\n${onDisk}`);
+        await delay(250);
+      }
     } finally {
       await agentBrowser(["close"], 30_000).catch(() => undefined);
     }

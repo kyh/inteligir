@@ -24,10 +24,10 @@ import { connectorsCommand } from "./commands/connectors";
 import { guideCommand } from "./commands/guide";
 import { interactionsCommand } from "./commands/interactions";
 import { backlinksCommand, relatedCommand, searchCommand, tagsCommand } from "./commands/knowledge";
-import { proposalsCommand } from "./commands/proposals";
 import { statusCommand } from "./commands/status";
 import { syncCommand } from "./commands/sync";
-import { threadCommand } from "./commands/thread";
+import { actionCommand } from "./commands/action";
+import { commentCommand } from "./commands/comment";
 import { vaultCommand } from "./commands/vault";
 import { describeContext, type CliDeps } from "./context";
 import { out, wantsJsonOutput, writeOut } from "./output";
@@ -63,7 +63,7 @@ export function buildProgram(deps: CliDeps): CommandDef {
     meta: {
       name: "inteligir",
       version: readCliVersion(),
-      description: "Drive the local inteligir notes app — vault, search, agent threads",
+      description: "Drive the local inteligir notes app — vault, search, agent actions",
     },
     subCommands: {
       vault: vaultCommand(deps),
@@ -71,10 +71,10 @@ export function buildProgram(deps: CliDeps): CommandDef {
       backlinks: backlinksCommand(deps),
       related: relatedCommand(deps),
       tags: tagsCommand(deps),
-      thread: threadCommand(deps),
+      action: actionCommand(deps),
+      comment: commentCommand(deps),
       interactions: interactionsCommand(deps),
       connectors: connectorsCommand(deps),
-      proposals: proposalsCommand(deps),
       sync: syncCommand(deps),
       status: statusCommand(deps),
       guide: guideCommand(deps),

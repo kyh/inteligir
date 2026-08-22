@@ -12,10 +12,36 @@
 // execute bit rather than assumed present.
 
 import { accessSync, constants, statSync } from "node:fs";
+import { createRequire } from "node:module";
 import { delimiter, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const CLI_BIN_NAME = "inteligir";
+
+/**
+ * The vendored Moss dialect skills (@repo/agent-skills), resolved from wherever
+ * this build's module graph put them — the agent reads them with its own shell
+ * (`cat`, `rg`), the memory pattern's sibling. Null when the package cannot be
+ * resolved (a packaged layout that did not stage the content), and the
+ * instructions then simply do not promise them.
+ */
+export function resolveSkillsDir(): string | null {
+  try {
+    const require = createRequire(import.meta.url);
+    const manifest = require.resolve("@repo/agent-skills/package.json");
+    const skills = join(dirname(manifest), "skills");
+    if (statSync(skills).isDirectory()) return skills;
+  } catch {
+    // Workspace resolution is the dev path; the packaged layout stages the
+    // content beside the app bundle instead (launcher build.mjs).
+  }
+  try {
+    const staged = join(dirname(fileURLToPath(import.meta.url)), "..", "skills");
+    return statSync(staged).isDirectory() ? staged : null;
+  } catch {
+    return null;
+  }
+}
 
 function isExecutableFile(path: string): boolean {
   try {
@@ -57,30 +83,35 @@ export interface AgentShellEnvArgs {
   /** The host process's environment, whose PATH the agent shell inherits. */
   env: NodeJS.ProcessEnv;
   cliBinDir: string | null;
-  /** The agent's memory directory (issue #575) — where the model reads a fact's
-   *  full text and writes or deletes files to update what it remembers. */
-  memoryDir: string;
 }
 
 /**
  * The env the runtime injects into the agent's shell. PATH is PREPENDED, not
  * replaced: the agent still needs git, node and everything else it inherits —
  * this only makes `inteligir` win over nothing.
- *
- * INTELIGIR_MEMORY_DIR is per-session, which is enough: the path never changes,
- * and the CONTENTS are read live off disk (`cat`/`rg` by the agent, and the
- * per-turn injection by the app). The agent remembers by writing a file there
- * and forgets by deleting one — its own filesystem, no round trip to the app.
  */
-export function buildAgentShellEnv(args: AgentShellEnvArgs) {
+/** What the agent's shell inherits from this app, and nothing else. */
+export interface AgentShellEnv {
+  INTELIGIR_SERVER_URL: string;
+  /** Present when the vendored dialect skills resolved on this layout. */
+  INTELIGIR_SKILLS_DIR?: string;
+  /** Present when the CLI's bin dir resolved — the PATH that reaches it. */
+  PATH?: string;
+}
+
+export function buildAgentShellEnv(args: AgentShellEnvArgs): AgentShellEnv {
+  const skillsDir = resolveSkillsDir();
+  const base: AgentShellEnv = {
+    INTELIGIR_SERVER_URL: args.serverUrl,
+  };
+  if (skillsDir !== null) {
+    base.INTELIGIR_SKILLS_DIR = skillsDir;
+  }
   if (args.cliBinDir === null) {
-    return { INTELIGIR_SERVER_URL: args.serverUrl, INTELIGIR_MEMORY_DIR: args.memoryDir };
+    return base;
   }
   const inheritedPath = args.env.PATH ?? "";
-  return {
-    INTELIGIR_SERVER_URL: args.serverUrl,
-    INTELIGIR_MEMORY_DIR: args.memoryDir,
-    PATH:
-      inheritedPath.length === 0 ? args.cliBinDir : `${args.cliBinDir}${delimiter}${inheritedPath}`,
-  };
+  base.PATH =
+    inheritedPath.length === 0 ? args.cliBinDir : `${args.cliBinDir}${delimiter}${inheritedPath}`;
+  return base;
 }

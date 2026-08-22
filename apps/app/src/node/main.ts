@@ -10,7 +10,16 @@ import { getSchemaVersion } from "@repo/db/meta";
 import { runMigrations } from "@repo/db/migrate";
 import { z } from "zod";
 import { resolveAgentDriver } from "./agent/agent-driver";
-import { buildAgentShellEnv, resolveCliBinDir } from "./agent/agent-shell-env";
+import type { AcpMcpServerConfig } from "@repo/agent-runtime/acp/acp-runtime";
+import { createConnectorsService } from "./connectors/connectors-service";
+import { createCliInferenceRunner } from "./note-intelligence/infer";
+import {
+  createNoteIntelligence,
+  type NoteIntelligence,
+} from "./note-intelligence/note-intelligence";
+import { createNoteIntelligenceSettingsStore } from "./note-intelligence/settings-store";
+import { createConnectorsStore } from "./connectors/connectors-store";
+import { buildAgentShellEnv, resolveCliBinDir, type AgentShellEnv } from "./agent/agent-shell-env";
 import { createApp, type AppFallback, type StartFetchOptions } from "./app";
 import { openCloudSocket } from "./cloud/cloud-socket";
 import { resolveAppConfig } from "./config";
@@ -166,12 +175,16 @@ async function boot(): Promise<{ serverUrl: string }> {
   // the hook late-binds; changes before it exists are covered by the boot
   // reconcile the first pass always runs.
   let knowledgeRef: KnowledgeRuntime | null = null;
+  let noteIntelligenceRef: NoteIntelligence | null = null;
   const vaultArgs: VaultRuntimeArgs = {
     vaultDir: config.vaultDir,
     vaultRemote: config.vaultRemote,
     dataDir: config.dataDir,
     notifier: bus,
-    onFilesChanged: (change) => knowledgeRef?.noteVaultChange(change),
+    onFilesChanged: (change) => {
+      knowledgeRef?.noteVaultChange(change);
+      noteIntelligenceRef?.noteVaultChange();
+    },
   };
   if (config.vaultSyncIntervalMs !== undefined) {
     vaultArgs.syncIntervalMs = config.vaultSyncIntervalMs;
@@ -189,14 +202,54 @@ async function boot(): Promise<{ serverUrl: string }> {
 
   // Filled in after listen (the bound port may be a probed one); read lazily by
   // the codex runtime on the first turn, which an HTTP request precedes.
-  let agentShellEnv: Record<string, string> = {};
+  let agentShellEnv: AgentShellEnv = { INTELIGIR_SERVER_URL: "" };
   const cliBinDir = resolveCliBinDir();
+  // The connectors registry (issue #591): ONE service, consumed twice — the
+  // routes edit it, session launch composes its enabled rows into every
+  // harness's mcpServers.
+  const connectors = createConnectorsService(createConnectorsStore(config.dataDir));
+  // Note Intelligence (issue #590): OFF until the Settings toggle turns it
+  // on; the files-changed hook below only ever schedules, never spawns, while
+  // disabled.
+  const noteIntelligence = createNoteIntelligence({
+    infer: createCliInferenceRunner({ cwd: config.dataDir }),
+    settings: createNoteIntelligenceSettingsStore(config.dataDir),
+    vault: vault.service,
+    onLog: (message) => {
+      console.error(message);
+    },
+  });
+  registerTeardown("intelligence", async () => {
+    noteIntelligence.dispose();
+  });
+  noteIntelligenceRef = noteIntelligence;
+
   const agentDriver = resolveAgentDriver({
     config,
     db,
     notifier: bus,
     vault,
     cliBinDir,
+    mcpServers: () =>
+      connectors.enabledForSessions().map((row) => {
+        if (row.transport.kind === "stdio") {
+          return {
+            args: row.transport.args,
+            command: row.transport.command,
+            kind: "stdio" as const,
+            name: row.name,
+          };
+        }
+        const server: AcpMcpServerConfig = {
+          kind: "http",
+          name: row.name,
+          url: row.transport.url,
+        };
+        if (row.transport.headers !== undefined) {
+          server.headers = row.transport.headers;
+        }
+        return server;
+      }),
     captureProposals: createTurnProposalCapture({
       db,
       notifier: bus,
@@ -211,6 +264,8 @@ async function boot(): Promise<{ serverUrl: string }> {
   registerTeardown("agent", () => agentDriver.dispose());
 
   const { app, cloud, injectWebSocket, voice, voiceStreamHub } = createApp({
+    connectors,
+    noteIntelligence,
     agent: agentDriver.status,
     bus,
     // The real dial, injected because it cannot be imported from `app.ts` —
@@ -264,7 +319,6 @@ async function boot(): Promise<{ serverUrl: string }> {
     serverUrl: `http://127.0.0.1:${port}`,
     env: process.env,
     cliBinDir,
-    memoryDir: config.memoryDir,
   });
   console.log(
     `inteligir ${version} (${config.mode}) listening on http://127.0.0.1:${port} — data: ${config.dataDir} — vault: ${config.vaultDir}${config.vaultRemote === null ? "" : ` ⇄ ${redactRemoteUrl(config.vaultRemote)}`}`,

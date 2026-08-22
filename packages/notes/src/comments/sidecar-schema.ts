@@ -1,0 +1,61 @@
+// The comments sidecar (`<note>.md.comments.json`), in Moss's row shape — the
+// vendored moss-comments skill is the contract. One JSON object keyed by
+// comment id; entries validate the fields this app reads and PASS THROUGH
+// everything else, because an external writer (Moss itself included) may hold
+// fields this version has never heard of and a rewrite must not eat them.
+
+import { z } from "zod";
+
+export const COMMENT_SOURCES = ["user", "agent", "external"] as const;
+export const commentSourceSchema = z.enum(COMMENT_SOURCES);
+export type CommentSource = z.infer<typeof commentSourceSchema>;
+
+/** IDs are letters, digits, `_`, `-` — the marker grammar's own alphabet, so
+ * every sidecar key could legally appear in a body marker. */
+export const COMMENT_ID_RE = /^[A-Za-z0-9_-]+$/;
+export const commentIdSchema = z.string().regex(COMMENT_ID_RE);
+
+export const commentEntrySchema = z.looseObject({
+  text: z.string(),
+  /** Unix seconds; never changed after creation. */
+  createdAt: z.number().finite(),
+  /** Unix seconds; bumped on every change to the entry. */
+  updatedAt: z.number().finite(),
+  /** Absent on legacy entries — preserved as unknown, never backfilled. */
+  source: commentSourceSchema.optional(),
+  /** Replies only; roots carry none. */
+  parentId: z.string().optional(),
+  /** Note-relative attachment paths under `assets/`. */
+  imageUrls: z.array(z.string()).optional(),
+  resolvedAt: z.number().finite().optional(),
+  resolvedBy: commentSourceSchema.optional(),
+});
+export type CommentEntry = z.infer<typeof commentEntrySchema>;
+
+export const commentSidecarSchema = z.record(commentIdSchema, commentEntrySchema);
+export type CommentSidecar = z.infer<typeof commentSidecarSchema>;
+
+export type SidecarParse = { ok: true; sidecar: CommentSidecar } | { ok: false; error: string };
+
+/** Parse sidecar bytes. A malformed sidecar is SURFACED, never treated as
+ * empty — folding it to `{}` would let the next write erase every thread. */
+export function parseSidecar(raw: string): SidecarParse {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "not JSON" };
+  }
+  const result = commentSidecarSchema.safeParse(parsed);
+  if (!result.success) {
+    return { ok: false, error: result.error.issues[0]?.message ?? "invalid sidecar" };
+  }
+  return { ok: true, sidecar: result.data };
+}
+
+/** Serialize with 2-space indent and a trailing newline — a diffable file a
+ * human (or Moss) edits by hand. Insertion order is preserved, so an external
+ * writer's ordering survives a rewrite. */
+export function serializeSidecar(sidecar: CommentSidecar): string {
+  return `${JSON.stringify(sidecar, null, 2)}\n`;
+}

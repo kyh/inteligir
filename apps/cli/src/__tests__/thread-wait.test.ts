@@ -43,7 +43,7 @@ describe("thread wait", () => {
   it("exits 0 once the thread reaches idle", async () => {
     const server = await bootWithThread(["starting", "active", "idle"]);
     const result = await runCliForTest({
-      argv: ["thread", "wait", "thr_wait", "--poll-interval", "20"],
+      argv: ["action", "wait", "thr_wait", "--poll-interval", "20"],
       baseUrl: server.baseUrl,
     });
     expect(result.code).toBe(0);
@@ -53,7 +53,7 @@ describe("thread wait", () => {
   it("answers --json on settle", async () => {
     const server = await bootWithThread(["idle"]);
     const result = await runCliForTest({
-      argv: ["thread", "wait", "thr_wait", "--json"],
+      argv: ["action", "wait", "thr_wait", "--json"],
       baseUrl: server.baseUrl,
     });
     expect(result.code).toBe(0);
@@ -63,7 +63,7 @@ describe("thread wait", () => {
   it("exits 1 when the thread settles in error", async () => {
     const server = await bootWithThread(["active", "error"]);
     const result = await runCliForTest({
-      argv: ["thread", "wait", "thr_wait", "--poll-interval", "20"],
+      argv: ["action", "wait", "thr_wait", "--poll-interval", "20"],
       baseUrl: server.baseUrl,
     });
     expect(result.code).toBe(1);
@@ -73,7 +73,7 @@ describe("thread wait", () => {
   it("exits 2 on timeout while the thread is still running", async () => {
     const server = await bootWithThread(["active"]);
     const result = await runCliForTest({
-      argv: ["thread", "wait", "thr_wait", "--timeout", "0.2", "--poll-interval", "20"],
+      argv: ["action", "wait", "thr_wait", "--timeout", "0.2", "--poll-interval", "20"],
       baseUrl: server.baseUrl,
     });
     expect(result.code).toBe(2);
@@ -83,7 +83,7 @@ describe("thread wait", () => {
   it("exits 1 for a thread that does not exist", async () => {
     const server = await bootWithThread(undefined);
     const result = await runCliForTest({
-      argv: ["thread", "wait", "thr_missing"],
+      argv: ["action", "wait", "thr_missing"],
       baseUrl: server.baseUrl,
     });
     expect(result.code).toBe(1);

@@ -3,7 +3,7 @@
 // codex shell (agent-shell-env.ts). An absolute path to dist/index.js would
 // prove the code works and leave the headline flow — a model typing
 // `inteligir …` in bash — untested; that gap is exactly what this scenario
-// exists to close. Then: write a note, search finds it, thread new + wait
+// exists to close. Then: write a note, search finds it, action new + wait
 // under the scripted driver, show renders the timeline.
 
 import { readFile } from "node:fs/promises";
@@ -31,7 +31,7 @@ const threadOutputSchema = z.looseObject({ thread: z.looseObject({ id: z.string(
 
 export const cliDrive: Scenario = {
   name: "cli-drive",
-  description: "the built CLI drives a real instance: vault write, search, thread new+wait+show",
+  description: "the built CLI drives a real instance: vault write, search, action new+wait+show",
   async run(ctx) {
     ctx.log("build the CLI bundle");
     await exec("pnpm", ["--filter", "@repo/cli", "build"], {
@@ -55,7 +55,6 @@ export const cliDrive: Scenario = {
       serverUrl: app.baseUrl,
       env: hermeticProcessEnv(),
       cliBinDir,
-      memoryDir: app.memoryDir,
     });
 
     // `inteligir`, not a path: found through PATH exactly as an agent's bash
@@ -99,20 +98,20 @@ export const cliDrive: Scenario = {
       await delay(250);
     }
 
-    ctx.log("thread new + wait under the scripted driver");
-    const created = await cli("thread", "new", PROMPT, "--json");
+    ctx.log("action new + wait under the scripted driver");
+    const created = await cli("action", "new", PROMPT, "--json");
     const createdParsed = threadOutputSchema.safeParse(JSON.parse(created.stdout));
     const threadId = createdParsed.data?.thread.id;
-    expect(threadId !== undefined, "thread new --json names the thread id");
+    expect(threadId !== undefined, "action new --json names the thread id");
     if (threadId === undefined) {
       return;
     }
     // exec throws on a non-zero exit, so a clean return IS the exit-0 assert.
-    const waited = await cli("thread", "wait", threadId, "--timeout", "60");
+    const waited = await cli("action", "wait", threadId, "--timeout", "60");
     expect(waited.stdout.includes("is idle"), "wait reports the idle settle");
 
     ctx.log("show renders the timeline");
-    const shown = await cli("thread", "show", threadId);
+    const shown = await cli("action", "show", threadId);
     expect(shown.stdout.includes(`Thread ${threadId} — idle`), "show names the settled thread");
     expect(shown.stdout.includes("── user ──"), "the user turn is rendered");
     expect(shown.stdout.includes(`Noted: ${PROMPT}`), "the scripted agent's reply is rendered");

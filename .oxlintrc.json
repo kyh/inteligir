@@ -147,6 +147,41 @@
   },
   "overrides": [
     {
+      // The resurrected Plate editor and the unified/mdast pipeline it feeds
+      // (recovered from 7dc78ffe^, predating these rules). Slate and mdast
+      // nodes are structurally-typed unions with no named parse boundary: a
+      // `typeof` discrimination inside a tree walk IS the boundary check, and
+      // "parse first" would mean re-validating every node on every visit.
+      // Scoped to exactly the tree-walking rules that idiom collides with.
+      "files": [
+        "packages/editor/src/**",
+        "packages/notes/src/markdown/md-plugins.ts",
+        "packages/notes/src/markdown/parse.ts",
+        "packages/notes/src/markdown/remark-mdx-agnostic.ts",
+        "packages/notes/src/markdown/remark-opaque.ts"
+      ],
+      "rules": {
+        "anti-slop/no-runtime-typeof": "off",
+        "anti-slop/no-unknown-parameters": "off",
+        "anti-slop/no-known-value-widening": "off",
+        "anti-slop/no-unsafe-dictionary-type": "off",
+        "anti-slop/no-object-parameters": "off",
+        "anti-slop/no-conditional-empty-object-spread": "off",
+        "anti-slop/require-safety-comment-for-type-assertion": "off",
+        "anti-slop/no-chained-type-assertions": "off"
+      }
+    },
+    {
+      // The Plate editor's component tests stub platejs/react and the host-io
+      // singleton at module scope — the same wire-shape exemption the general
+      // test override states, extended to module mocks for a package whose
+      // subject IS the module seam.
+      "files": ["packages/editor/src/**/*.test.ts", "packages/editor/src/**/*.test.tsx"],
+      "rules": {
+        "anti-slop/no-module-mocking": "off"
+      }
+    },
+    {
       "files": ["**/__tests__/**", "**/*.test.ts", "**/*.test.tsx"],
       "rules": {
         // A test builds the shapes production code receives from the wire, so

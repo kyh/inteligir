@@ -6,7 +6,7 @@
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { createApiClient, type ApiClient } from "@repo/server-contract/client";
 import { apiPath, apiRoutes, healthResponseSchema } from "@repo/server-contract/routes";
@@ -68,7 +68,6 @@ export interface AppInstance {
   /** This instance's agent-memory dir — a hermetic sibling of the data dir, so
    *  a scenario can seed a fact without touching the developer's real
    *  ~/.inteligir/memory (which the default would otherwise resolve to). */
-  memoryDir: string;
   port: number;
   name: string;
   /** The child's interleaved stdout+stderr tail, for failure transcripts. */
@@ -89,9 +88,6 @@ const HARNESS_OWNED_ENV_KEYS = new Set([
 
 /** The hermetic memory dir for an instance: a sibling of its data dir, so it
  *  is disjoint from the vault and never the developer's real ~/.inteligir. */
-function memoryDirFor(dataDir: string): string {
-  return join(dirname(dataDir), "memory");
-}
 
 function buildChildEnv(
   args: LaunchAppArgs,
@@ -116,10 +112,6 @@ function buildChildEnv(
   }
   // extraEnv merges FIRST; the harness-owned keys below always win.
   Object.assign(env, args.extraEnv ?? {});
-  // A per-instance default so every scenario is hermetic — the unset default
-  // would resolve to the developer's real ~/.inteligir/memory. A scenario that
-  // sets it via extraEnv wins (`??=`).
-  env.INTELIGIR_MEMORY_DIR ??= memoryDirFor(dataDir);
   env.INTELIGIR_DATA_DIR = dataDir;
   env.INTELIGIR_VAULT_DIR = vaultDir;
   env.INTELIGIR_PORT = String(port);
@@ -319,7 +311,6 @@ function spawnAttempt(
     baseUrl,
     dataDir,
     vaultDir,
-    memoryDir: memoryDirFor(dataDir),
     port,
     name: args.name,
     outputTail,

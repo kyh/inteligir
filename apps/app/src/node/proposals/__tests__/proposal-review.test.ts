@@ -40,7 +40,7 @@ async function bootReviewApp(): Promise<BootedTestApp> {
     agent: { mode: "scripted", runtime: "scripted", detail: null },
     makeDriver: ({ db, bus, vault, vaultDir }) => {
       const resolved = resolveAgentDriver({
-        config: { agent: "scripted", agentModel: null, vaultDir, memoryDir: `${vaultDir}-memory` },
+        config: { agent: "scripted", agentModel: null, vaultDir },
         db,
         notifier: bus,
         vault,

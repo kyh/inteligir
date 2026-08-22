@@ -56,7 +56,13 @@
     "apps/launcher": {
       "entry": ["scripts/*.mjs", "src/main.ts", "src/**/__tests__/**/*.test.ts"],
       "project": ["src/**/*.ts", "scripts/*.mjs"],
-      "ignoreDependencies": ["@parcel/watcher", "better-sqlite3", "sherpa-onnx-node"]
+      "ignoreDependencies": [
+        "@parcel/watcher",
+        "better-sqlite3",
+        "sherpa-onnx-node",
+        "@zed-industries/claude-code-acp",
+        "@zed-industries/codex-acp"
+      ]
     },
     // The mobile companion (issue #576). The expo-router file routes under
     // src/app are the UI roots; the tests are the sync/credential/pairing
@@ -113,13 +119,8 @@
     // components: those exports are the UPSTREAM surface, and trimming them
     // makes the next re-vendor a conflict. dev/ is the human-eyes vite demo.
     "packages/editor": {
-      "entry": [
-        "src/**/__tests__/**/*.test.ts",
-        "src/vendor/prosemark/lib/**/*.ts",
-        "src/vendor/prosemark/tests/*.test.ts",
-        "dev/main.ts"
-      ],
-      "project": ["src/**/*.{ts,tsx}", "dev/**/*.ts"]
+      "entry": ["src/**/__tests__/**/*.test.ts", "src/**/*.test.{ts,tsx}"],
+      "project": ["src/**/*.{ts,tsx}"]
     },
     "packages/typed-routes": {
       "entry": ["src/**/__tests__/**/*.test.ts"],
@@ -146,8 +147,11 @@
     // reported, deliberately — trimming it is what makes the next re-vendor a
     // conflict. Trim residue in the OTHER thirty-odd modules still surfaces.
     "packages/agent-runtime": {
-      "entry": ["src/**/__tests__/**/*.test.ts", "src/test-support/fake-codex-app-server.mjs"],
-      "project": ["src/**/*.{ts,mjs}"]
+      "entry": ["src/**/__tests__/**/*.test.ts"],
+      "project": ["src/**/*.{ts,mjs}"],
+      // The ACP adapters are ARTIFACTS: harness-registry createRequire-resolves
+      // their entry files to spawn as children; no module import exists.
+      "ignoreDependencies": ["@zed-industries/claude-code-acp", "@zed-industries/codex-acp"]
     },
     "packages/thread-view": {
       "entry": ["src/**/__tests__/**/*.test.ts"],

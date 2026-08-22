@@ -30,7 +30,10 @@ export type TargetResolver = {
   resolveMd: (target: string, fromPath: string) => string | null;
 };
 
-function pickBest(candidates: readonly string[]): string | null {
+/** The deterministic ambiguity break every tier shares (fewest segments,
+ * shortest, lexicographic) — exported so the id tier in link-graph-index
+ * breaks a duplicated frontmatter id the same way. */
+export function pickBest(candidates: readonly string[]): string | null {
   if (candidates.length === 0) return null;
   let best: string | null = null;
   let bestSegments = Number.POSITIVE_INFINITY;

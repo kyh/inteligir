@@ -1,0 +1,4 @@
+interface:
+  display_name: "Moss Links"
+  short_description: "Create Moss note, web, preview, video, and media links"
+  default_prompt: "Use $moss-links to create or update Moss wiki links, web links, previews, video embeds, and note-local media references with the correct syntax."

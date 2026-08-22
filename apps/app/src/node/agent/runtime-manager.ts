@@ -33,10 +33,10 @@
 //   bounded rather than trusted.
 
 import {
-  createAgentRuntimeWithAdapters,
-  type AgentRuntimeInternalOptions,
-  type ProviderAdapterFactory,
-} from "@repo/agent-runtime/runtime";
+  createAcpAgentRuntime,
+  type AcpAgentRuntimeOptions,
+  type AcpMcpServerConfig,
+} from "@repo/agent-runtime/acp/acp-runtime";
 import type {
   AgentRuntime,
   AgentRuntimeExecutionOptions,
@@ -80,6 +80,7 @@ import {
   type VaultPathResolver,
 } from "./agent-commits";
 import { loadAgentInstructions } from "./agent-instructions";
+import { resolveSkillsDir } from "./agent-shell-env";
 import { ProviderEventCoalescer } from "./event-coalescer";
 import { mapProviderEvent } from "./event-mapping";
 import { turnPromptInput } from "./view-context-prompt";
@@ -128,10 +129,14 @@ export interface CodexRuntimeManagerDeps {
    * really reach it — see agent-shell-env.ts.
    */
   cliBinDir?: string | null;
-  /** Tests: point the runtime at a fake app-server. */
-  adapterFactory?: ProviderAdapterFactory;
+  /** The harness a NEW thread runs on; a resumed thread keeps its own. */
+  defaultProviderId?: string;
+  /** Tests: replace the adapter child spawn (the fake ACP agent). */
+  spawnAdapter?: AcpAgentRuntimeOptions["spawnAdapter"];
   /** Tests: observe/replace runtime construction (the shellEnv wiring test). */
-  createRuntime?: typeof createAgentRuntimeWithAdapters;
+  /** The enabled connector rows every session gets (issue #591). */
+  mcpServers?: () => AcpMcpServerConfig[];
+  createRuntime?: typeof createAcpAgentRuntime;
   /** Review mode's seam: where a turn's write set goes when the thread asks
    *  for proposals instead of writes. Omitted, every turn writes directly. */
   captureProposals?: CaptureTurnProposals;
@@ -250,8 +255,8 @@ class CodexTurnDriver implements TurnDriver {
     if (this.runtime !== null) {
       return this.runtime;
     }
-    const createRuntime = this.deps.createRuntime ?? createAgentRuntimeWithAdapters;
-    const runtimeOptions: AgentRuntimeInternalOptions = {
+    const createRuntime = this.deps.createRuntime ?? createAcpAgentRuntime;
+    const runtimeOptions: AcpAgentRuntimeOptions = {
       workspacePath: this.deps.vaultDir,
       onEvent: (event) => this.onRuntimeEvent(event),
       onInteractiveRequest: (request) => this.onInteractiveRequest(request),
@@ -288,9 +293,9 @@ class CodexTurnDriver implements TurnDriver {
       },
     };
     if (this.deps.shellEnv !== undefined) runtimeOptions.shellEnv = this.deps.shellEnv();
-    if (this.deps.adapterFactory !== undefined) {
-      runtimeOptions.adapterFactory = this.deps.adapterFactory;
-    }
+    if (this.deps.model !== null) runtimeOptions.model = this.deps.model;
+    if (this.deps.mcpServers !== undefined) runtimeOptions.mcpServers = this.deps.mcpServers;
+    if (this.deps.spawnAdapter !== undefined) runtimeOptions.spawnAdapter = this.deps.spawnAdapter;
     const runtime = createRuntime(runtimeOptions);
     this.runtime = runtime;
     const reapIntervalMs = this.deps.reapIntervalMs;
@@ -404,13 +409,20 @@ class CodexTurnDriver implements TurnDriver {
   }
 
   private async openThreadSession(runtime: AgentRuntime, threadId: string): Promise<void> {
-    const instructions = loadAgentInstructions(this.deps.vaultDir, this.deps.cliBinDir ?? null);
-    const persisted = getThread(this.deps.db, threadId)?.providerThreadId ?? null;
+    const instructions = loadAgentInstructions(
+      this.deps.vaultDir,
+      this.deps.cliBinDir ?? null,
+      resolveSkillsDir(),
+    );
+    const row = getThread(this.deps.db, threadId);
+    const persisted = row?.providerThreadId ?? null;
+    // A thread that ever ran keeps its harness; a new one adopts the default.
+    const providerId = row?.providerId ?? this.deps.defaultProviderId ?? CODEX_PROVIDER_ID;
     if (persisted !== null) {
       const resume: ResumeThreadArgs = {
         threadId,
         providerThreadId: persisted,
-        providerId: CODEX_PROVIDER_ID,
+        providerId,
         options: this.options,
       };
       if (instructions !== undefined) resume.instructions = instructions;
@@ -418,7 +430,7 @@ class CodexTurnDriver implements TurnDriver {
         const resumed = await runtime.resumeThread(resume);
         setThreadProviderSession(this.deps.db, {
           threadId,
-          providerId: CODEX_PROVIDER_ID,
+          providerId,
           providerThreadId: resumed.providerThreadId,
         });
         return;
@@ -435,19 +447,26 @@ class CodexTurnDriver implements TurnDriver {
     }
     const start: StartThreadArgs = {
       threadId,
-      providerId: CODEX_PROVIDER_ID,
+      providerId,
       options: this.options,
     };
     if (instructions !== undefined) start.instructions = instructions;
     const started = await runtime.startThread(start);
     setThreadProviderSession(this.deps.db, {
       threadId,
-      providerId: CODEX_PROVIDER_ID,
+      providerId,
       providerThreadId: started.providerThreadId,
     });
   }
 
-  steerTurn(args: TurnDriverSteerArgs): boolean {
+  steerTurn(_args: TurnDriverSteerArgs): boolean {
+    // ACP has no steer: a prompt owns its session until it settles. Refusing
+    // here routes the message into the queued-messages drain, which delivers
+    // it the moment the turn settles — delayed, never dropped.
+    return false;
+  }
+
+  private steerTurnUnreachable(args: TurnDriverSteerArgs): boolean {
     const state = this.turnsByThreadId.get(args.threadId);
     const runtime = this.runtime;
     if (

@@ -357,3 +357,34 @@ describe("titleFromPath", () => {
     expect(titleFromPath("plain")).toBe("plain");
   });
 });
+
+describe("moss-callout fence bodies (editor ⊆ vault)", () => {
+  it("indexes wiki links inside a callout body with outer-source spans", () => {
+    const source = "# T\n\n```moss-callout\ninfo\nSee [[Target Note]] here.\n```\n";
+    const scan = scanDoc(source);
+    const link = scan.links.find((row) => row.target === "Target Note");
+    expect(link).toBeDefined();
+    if (link === undefined || link.targetSpan === undefined) throw new Error("no span");
+    expect(source.slice(link.targetSpan.start, link.targetSpan.end)).toBe("Target Note");
+  });
+
+  it("skips the priority level header line in span math", () => {
+    const source = "```moss-callout\npriority\nhigh\n[[Deep Link]]\n```\n";
+    const scan = scanDoc(source);
+    const link = scan.links.find((row) => row.target === "Deep Link");
+    expect(link).toBeDefined();
+    if (link === undefined || link.targetSpan === undefined) throw new Error("no span");
+    expect(source.slice(link.targetSpan.start, link.targetSpan.end)).toBe("Deep Link");
+  });
+
+  it("refuses an indented fence rather than mis-indexing it", () => {
+    const source = "- item\n\n  ```moss-callout\n  info\n  [[Hidden]]\n  ```\n";
+    const scan = scanDoc(source);
+    expect(scan.links.find((row) => row.target === "Hidden")).toBeUndefined();
+  });
+
+  it("plain code fences stay unindexed", () => {
+    const scan = scanDoc("```\n[[Not A Link]]\n```\n");
+    expect(scan.links).toEqual([]);
+  });
+});

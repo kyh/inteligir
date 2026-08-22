@@ -15,10 +15,12 @@ repo carries only the codex slice of a three-provider runtime. Files keep
 upstream's names so a re-vendor diffs cleanly; the one layout change is the
 directory, `src/domain/` → `src/vocabulary/`, because `@repo/domain` is a
 package here and two things called domain in one import list is a reader's
-trap. House-authored files in this package: `src/thread-shell-environment.ts`
-(rewritten around INTELIGIR_* variables), `src/vocabulary/reasoning-efforts.ts`
-(constants folded), and everything under `src/test-support/` and
-`__tests__/`.
+trap. What remains vendored after the ACP migration (issue #588) is the VOCABULARY —
+`src/vocabulary/`, `src/types.ts` and `src/thread-shell-environment.ts` keep
+bb's provider-event grammar and runtime interface as the one internal contract.
+bb's app-server runtime machinery and codex adapter were REPLACED by the
+house-authored ACP runtime under `src/acp/`; everything under
+`src/test-support/` is house-authored.
 
 ## Attribution
 
@@ -33,10 +35,9 @@ Vendored from bb (github.com/get-bb/bb), MIT.
 Exempt paths, each with the reason it carries a different header (or none):
 
 ```text
-src/codex/generated/**   the generator's own ts-rs header, kept byte-faithful to `codex app-server generate-ts` so a regenerate diffs cleanly — generated FROM the codex binary, not authored by bb
+src/acp/**               house-authored: the ACP runtime that replaced bb's app-server machinery (issue #588)
 src/test-support/**      house-authored
-src/__tests__/**         house-authored
-vitest.config.ts         house scaffolding; the vendored surface is src/
+vitest.config.ts         house scaffolding; the vendored surface is the remaining bb-derived files
 ```
 
 ## Not carried (the trims), each with its consumer

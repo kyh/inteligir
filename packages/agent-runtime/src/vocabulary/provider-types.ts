@@ -5,13 +5,12 @@
 // catalog lookup.
 
 import { z } from "zod";
-import { permissionModeSchema, reasoningLevelSchema } from "./shared-types";
+import { reasoningLevelSchema } from "./shared-types";
 
 const modelReasoningEffortSchema = z.object({
   reasoningEffort: reasoningLevelSchema,
   description: z.string(),
 });
-export type ModelReasoningEffort = z.infer<typeof modelReasoningEffortSchema>;
 
 const availableModelSchema = z.object({
   id: z.string(),
@@ -23,15 +22,3 @@ const availableModelSchema = z.object({
   isDefault: z.boolean(),
 });
 export type AvailableModel = z.infer<typeof availableModelSchema>;
-
-const providerCapabilitiesSchema = z.object({
-  supportsUserQuestion: z.boolean(),
-  supportedPermissionModes: z.array(permissionModeSchema).min(1),
-});
-export type ProviderCapabilities = z.infer<typeof providerCapabilitiesSchema>;
-
-/** bb resolves this from its provider catalog; with one provider it is a fact. */
-export const CODEX_PROVIDER_CAPABILITIES: ProviderCapabilities = {
-  supportsUserQuestion: false,
-  supportedPermissionModes: ["accept-edits", "auto", "full"],
-};

@@ -29,6 +29,7 @@ export const queryKeys = {
    *  directory is shared across checkouts and is not the vault — so the
    *  surfaces that need progress poll this family while it is on screen. */
   voiceStatus: ["voice", "status"] as const,
+  noteIntelligence: ["note-intelligence"] as const,
   /** The agent's memory files. Nothing on the ws bus announces the memory
    *  directory changing — it is machine-global, not the vault, and the agent
    *  writes it with its shell rather than through the app — so the settings
@@ -44,6 +45,7 @@ export const queryKeys = {
    *  and the family is swept at the prefix rather than one root per query —
    *  the next derived read inherits the sweep instead of needing its own. */
   knowledgeRoot: ["knowledge"] as const,
+  wikiTargets: ["knowledge", "wiki-targets"] as const,
   backlinks: (docPath: string) => ["knowledge", "backlinks", docPath] as const,
   related: (docPath: string) => ["knowledge", "related", docPath] as const,
   /** The whole thread family — what a ws thread invalidation sweeps. */
@@ -51,6 +53,11 @@ export const queryKeys = {
   threads: ["threads", "list"] as const,
   threadDetail: (threadId: string) => ["threads", "detail", threadId] as const,
   threadsByDoc: (docPath: string) => ["threads", "by-doc", docPath] as const,
+  /** The whole comments family. Sidecars are vault files, so the vault's own
+   *  files-changed sweep is what invalidates them — no comments change kind
+   *  exists or is needed. */
+  commentsRoot: ["comments"] as const,
+  comments: (docPath: string) => ["comments", docPath] as const,
   /** The whole proposal family — what a ws `proposals-changed` sweeps. */
   proposalsRoot: ["proposals"] as const,
   proposalsByDoc: (docPath: string) => ["proposals", "by-doc", docPath] as const,

@@ -8,6 +8,7 @@ import {
   VAULT_ASSET_MEDIA_TYPES,
   type VaultRenameResponse,
   type VaultWriteConflict,
+  VAULT_ASSET_WRITE_MAX_BYTES,
 } from "@repo/server-contract/vault";
 import type { TypedRoutesRegistrars } from "@repo/typed-routes/typed-routes";
 import { VaultPathError } from "@repo/notes/knowledge/vault-path";
@@ -125,6 +126,49 @@ export function registerVaultRoutes(
           return c.json(refusal.body, API_ERROR_STATUS.not_found);
         case "too_large":
           return c.json(refusal.body, API_ERROR_STATUS.too_large);
+        case "conflict":
+        case undefined:
+          throw error;
+      }
+    }
+  });
+
+  post(apiRoutes.vault.assetWrite, async (c, body) => {
+    if (assetMediaType(body.baseName) === null) {
+      return c.json(
+        {
+          error: "invalid_path",
+          message: `${body.baseName} is not an image type this vault serves`,
+        },
+        400,
+      );
+    }
+    const byteLength = Math.floor((body.bytesBase64.length * 3) / 4);
+    if (byteLength > VAULT_ASSET_WRITE_MAX_BYTES) {
+      return c.json(
+        {
+          error: "too_large",
+          message: `attachment is ~${byteLength} bytes; the cap is ${VAULT_ASSET_WRITE_MAX_BYTES}`,
+        },
+        API_ERROR_STATUS.too_large,
+      );
+    }
+    let bytes: Uint8Array;
+    try {
+      bytes = new Uint8Array(Buffer.from(body.bytesBase64, "base64"));
+    } catch {
+      return c.json({ error: "invalid_request", message: "bytesBase64 is not base64" }, 400);
+    }
+    try {
+      return c.json(await vault.service.writeAsset(body.dir, body.baseName, bytes));
+    } catch (error) {
+      const refusal = classifyVaultError(error);
+      switch (refusal?.code) {
+        case "invalid_path":
+          return c.json(refusal.body, API_ERROR_STATUS.invalid_path);
+        case "too_large":
+          return c.json(refusal.body, API_ERROR_STATUS.too_large);
+        case "not_found":
         case "conflict":
         case undefined:
           throw error;

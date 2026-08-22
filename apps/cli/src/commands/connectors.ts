@@ -1,15 +1,13 @@
-// `inteligir connectors` — the MCP servers codex will offer the agent.
-//
-// READ-ONLY, and that is the design rather than a gap. An MCP server is
-// arbitrary code the agent then talks to, so adding one has to be a person's
-// deliberate act with the command in front of them — which is what Settings →
-// Connectors is. A CLI leaf for it would put "install a tool for yourself" in
-// the same reach as `search`, in the one surface whose whole purpose is to be
-// driven by a model. Listing is the half an agent has a real use for: knowing
-// which tools it has.
+// `inteligir connectors` — the app-owned MCP registry every agent session
+// gets (issue #591). List, add and remove, under the parity principle:
+// everything a user can do in Settings → Connectors, the agent can do here.
+// The old list-only rule was reasoned from codex owning the store; the store
+// is this app's now, so a CLI write races nothing and hides nothing —
+// Settings shows the same rows the moment they change.
 
-import { connectorTarget } from "@repo/server-contract/connectors";
+import { connectorTarget, type ConnectorTransportInput } from "@repo/server-contract/connectors";
 import { defineCommand } from "citty";
+import { invalidUsage } from "../cli-error";
 import { apiFor, type CliDeps } from "../context";
 import { jsonArg, out, outputJson, requireOk, writeLines } from "../output";
 
@@ -17,8 +15,7 @@ export function connectorsCommand(deps: CliDeps) {
   return defineCommand({
     meta: {
       name: "connectors",
-      description:
-        "The MCP servers Codex is configured with (read-only; add and remove in the app)",
+      description: "The MCP servers every agent session gets",
     },
     subCommands: {
       list: defineCommand({
@@ -30,22 +27,96 @@ export function connectorsCommand(deps: CliDeps) {
           if (outputJson(args, body)) {
             return;
           }
-          if (body.state === "unavailable") {
-            out.info(body.detail);
-            return;
-          }
           if (body.servers.length === 0) {
             out.info("No MCP servers are configured.");
             return;
           }
           writeLines(
             body.servers.map((server) => {
-              const state = [server.enabled ? "enabled" : "disabled", server.authStatus]
-                .filter((part) => part !== null)
-                .join(" ");
-              return `${server.name}  ${connectorTarget(server.transport)}  [${state}]`;
+              const auth =
+                server.transport.kind === "http" && server.transport.hasAuth
+                  ? " authenticated"
+                  : "";
+              return `${server.name}  ${connectorTarget(server.transport)}  [${server.enabled ? "enabled" : "disabled"}${auth}]`;
             }),
           );
+        },
+      }),
+
+      add: defineCommand({
+        meta: {
+          name: "add",
+          description: "Add an MCP server (http URL, or a command after --)",
+        },
+        args: {
+          name: { type: "positional", required: true, description: "Registry name" },
+          url: { type: "string", description: "The server's http(s) URL" },
+          header: {
+            type: "string",
+            description: "Auth header as NAME=VALUE (http only)",
+          },
+          command: {
+            type: "string",
+            description: "Program to run for a stdio server",
+          },
+          arg: {
+            type: "string",
+            description: "One argument for --command (repeatable)",
+          },
+          ...jsonArg,
+        },
+        run: async ({ args }) => {
+          if ((args.url === undefined) === (args.command === undefined)) {
+            throw invalidUsage("provide exactly one of --url or --command");
+          }
+          let transport: ConnectorTransportInput;
+          if (args.url !== undefined) {
+            transport = { kind: "http", url: args.url };
+            if (args.header !== undefined) {
+              const eq = args.header.indexOf("=");
+              if (eq <= 0) {
+                throw invalidUsage("--header takes NAME=VALUE");
+              }
+              transport.headers = { [args.header.slice(0, eq)]: args.header.slice(eq + 1) };
+            }
+          } else if (args.command !== undefined) {
+            const extra = args.arg;
+            transport = {
+              args: extra === undefined ? [] : Array.isArray(extra) ? extra : [extra],
+              command: args.command,
+              kind: "stdio",
+            };
+          } else {
+            throw invalidUsage("provide exactly one of --url or --command");
+          }
+          const api = await apiFor(deps);
+          const response = await requireOk(
+            await api.connectors.add.$post({ json: { name: args.name, transport } }),
+          );
+          const body = await response.json();
+          if (outputJson(args, body)) {
+            return;
+          }
+          out.success(`Added ${args.name}; sessions get it from their next launch.`);
+        },
+      }),
+
+      remove: defineCommand({
+        meta: { name: "remove", description: "Remove an MCP server from the registry" },
+        args: {
+          name: { type: "positional", required: true, description: "Registry name" },
+          ...jsonArg,
+        },
+        run: async ({ args }) => {
+          const api = await apiFor(deps);
+          const response = await requireOk(
+            await api.connectors.remove.$post({ json: { name: args.name } }),
+          );
+          const body = await response.json();
+          if (outputJson(args, body)) {
+            return;
+          }
+          out.success(`Removed ${args.name}.`);
         },
       }),
     },

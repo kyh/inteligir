@@ -5,7 +5,6 @@
 
 import { describe, expect, it } from "vitest";
 import {
-  assertMemoryDirOutsideVault,
   assertModelDirOutsideVault,
   assertVaultAndDataDirDisjoint,
   pathContains,
@@ -58,32 +57,5 @@ describe("assertModelDirOutsideVault", () => {
     expect(() => assertModelDirOutsideVault("/home/models", "/home/models/vault")).toThrow(
       /outside the vault/u,
     );
-  });
-
-  it("allows the default, which sits under the data dir, not the vault", () => {
-    // The model dir DEFAULTS to <dataDir>/models; only the vault is checked,
-    // because a cache the data dir owns is intended.
-    expect(() =>
-      assertModelDirOutsideVault("/home/.inteligir/models", "/home/Inteligir"),
-    ).not.toThrow();
-    expect(() => assertModelDirOutsideVault("/home/vault-models", "/home/vault")).not.toThrow();
-  });
-});
-
-describe("assertMemoryDirOutsideVault", () => {
-  it("refuses a memory dir inside the vault — a fact would be committed and pushed", () => {
-    expect(() => assertMemoryDirOutsideVault("/home/vault/memory", "/home/vault")).toThrow(
-      /outside the vault/u,
-    );
-    expect(() => assertMemoryDirOutsideVault("/home/memory", "/home/memory/vault")).toThrow(
-      /outside the vault/u,
-    );
-  });
-
-  it("allows the default under ~/.inteligir and a sibling of the vault", () => {
-    expect(() =>
-      assertMemoryDirOutsideVault("/home/.inteligir/memory", "/home/Inteligir"),
-    ).not.toThrow();
-    expect(() => assertMemoryDirOutsideVault("/home/vault-memory", "/home/vault")).not.toThrow();
   });
 });

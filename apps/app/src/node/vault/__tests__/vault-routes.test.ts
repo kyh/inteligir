@@ -19,6 +19,10 @@ import {
 } from "@repo/server-contract/vault";
 import { afterEach, describe, expect, it } from "vitest";
 import { createApp } from "../../app";
+import { createConnectorsService } from "../../connectors/connectors-service";
+import { createConnectorsStore } from "../../connectors/connectors-store";
+import { createNoteIntelligence } from "../../note-intelligence/note-intelligence";
+import { createNoteIntelligenceSettingsStore } from "../../note-intelligence/settings-store";
 import { createKnowledgeRuntime } from "../../knowledge/knowledge-runtime";
 import { unavailableTurnDriver } from "../../threads/turn-driver";
 import { WsBus, type BusSocket } from "../../ws-bus";
@@ -61,6 +65,12 @@ async function bootVaultApp() {
   cleanups.push(() => knowledge.dispose());
   const { app } = createApp({
     agent: { mode: "off", runtime: "off", detail: null },
+    connectors: createConnectorsService(createConnectorsStore(dataDir)),
+    noteIntelligence: createNoteIntelligence({
+      infer: () => Promise.resolve(null),
+      settings: createNoteIntelligenceSettingsStore(dataDir),
+      vault: vault.service,
+    }),
     bus,
     createTurnDriver: () => unavailableTurnDriver,
     db,
@@ -75,7 +85,6 @@ async function bootVaultApp() {
       vaultDir,
       vaultRemote: null,
       modelDir: join(dataDir, "models"),
-      memoryDir: join(dataDir, "memory"),
       voice: "scripted",
       agent: "off",
       agentModel: null,
@@ -123,8 +132,8 @@ describe("the vault routes", () => {
     expect(parsedTree.root).toBe(realpathSync(vaultDir));
     expect(parsedTree.entries).toEqual([
       { kind: "dir", path: "notes" },
-      { kind: "file", path: "notes/api.md" },
-      { kind: "file", path: "Welcome.md" },
+      { kind: "file", modifiedMs: expect.any(Number), path: "notes/api.md" },
+      { kind: "file", modifiedMs: expect.any(Number), path: "Welcome.md" },
     ]);
 
     const read = await app.request("/api/v1/vault/file?path=notes%2Fapi.md");

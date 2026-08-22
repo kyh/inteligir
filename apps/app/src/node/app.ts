@@ -30,16 +30,19 @@ import {
   type CloudTransport,
 } from "./cloud/sync-runtime";
 import type { AppConfig } from "./config";
-import { systemCodexMcpRunner, type CodexMcpRunner } from "./connectors/codex-mcp";
-import { createConnectorsService } from "./connectors/connectors-service";
+import type { ConnectorsService } from "./connectors/connectors-service";
+import type { NoteIntelligence } from "./note-intelligence/note-intelligence";
 import { registerConnectorRoutes } from "./connectors/routes";
+import { registerNoteIntelligenceRoutes } from "./note-intelligence/routes";
 import { buildContentSecurityPolicy } from "./csp";
 import { CLI_SKILL_MD } from "./guide/cli-skill";
 import { proveIdentity } from "./instance-identity";
 import type { KnowledgeRuntime } from "./knowledge/knowledge-runtime";
 import { renameNoteWithLinkRewrite } from "./knowledge/rename";
+import { createCommentsService } from "./comments/comments-service";
+import { registerCommentsRoutes } from "./comments/routes";
 import { registerKnowledgeRoutes } from "./knowledge/routes";
-import { registerMemoryRoutes } from "./memory/routes";
+import { registerAgentRoutes } from "./agent/agent-routes";
 import { ProposalService } from "./proposals/proposal-service";
 import { registerProposalRoutes } from "./proposals/routes";
 import { registerThreadRoutes } from "./threads/routes";
@@ -92,7 +95,9 @@ export interface CreateAppArgs {
    *  someone pairs, since an install with no credential opens nothing. */
   cloudTransport?: CloudTransport;
   /** Tests: drive `codex mcp` without a codex on the machine. */
-  codexMcpRunner?: CodexMcpRunner;
+  /** The app-owned MCP registry (issue #591); routes edit what sessions get. */
+  connectors: ConnectorsService;
+  noteIntelligence: NoteIntelligence;
   config: AppConfig;
   /** The provider seam (agent-driver.ts resolves which driver boots). */
   createTurnDriver: CreateTurnDriver;
@@ -217,15 +222,19 @@ export function createApp(args: CreateAppArgs) {
   );
   registerKnowledgeRoutes(registrars, args.knowledge);
 
-  registerConnectorRoutes(
+  // The sidecar rides the vault service, so containment, the watcher ping,
+  // auto-commit and sync come with it; timestamps are unix seconds minted at
+  // this boundary (issue #583).
+  registerCommentsRoutes(
     registrars,
-    createConnectorsService(args.codexMcpRunner ?? systemCodexMcpRunner),
+    createCommentsService(args.vault.service, () => Math.floor(Date.now() / 1000)),
   );
 
-  // Human-facing only: the agent reads and writes memory files with its own
-  // shell (issue #575), so these routes serve the settings surface's list and
-  // delete, never an agent write.
-  registerMemoryRoutes(registrars, args.config.memoryDir);
+  registerConnectorRoutes(registrars, args.connectors);
+  registerNoteIntelligenceRoutes(registrars, args.noteIntelligence);
+
+  // Detect + guide: harness CLI/credential facts for Settings (issue #588).
+  registerAgentRoutes(registrars);
 
   // `scripted` is selected by INTELIGIR_VOICE and is the whole reason the
   // scenario suite can drive a microphone: it answers `ready` with no model on

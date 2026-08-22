@@ -1,4 +1,4 @@
-/* Inter Variable + the theme tokens both come from @repo/ui/globals.css. */
+/* Geist + the theme tokens both come from @repo/ui/globals.css. */
 @import "@repo/ui/globals.css";
 
 :root {
@@ -12,7 +12,7 @@
      through to the `-apple-system` stack baked into the editor theme, which put
      two typefaces on one screen — Inter in the sidebar and the composer, the
      system UI face in the document. */
-  --editor-font: var(--font-inter);
+  --editor-font: var(--font-geist);
   --editor-mono: var(--font-geist-mono);
   --editor-size: 1rem;
   --editor-line-height: 1.75;
@@ -23,6 +23,9 @@
      share. A fallback repeated at each use is three values wearing one
      name, which is exactly how they stop agreeing. */
   --editor-width: 38rem;
+  /* The Plate column centers itself from this inset; deriving it here keeps
+     the appearance dial (--editor-width) the one measure everything obeys. */
+  --editor-column-inset: calc(50% - var(--editor-width) / 2);
 
   /* `--editor-accent` is deliberately absent: the editor theme carries its own
      light and dark fallback, and a value here would flatten both into one. The

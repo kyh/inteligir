@@ -1,26 +1,23 @@
-// Settings → Connectors: the MCP servers the coding agent can talk to.
+// Settings → Connectors: the app-owned MCP registry (issue #591). What is
+// listed here is what EVERY agent session gets — session launch composes the
+// enabled rows into ACP's mcpServers, identically for Claude Code and Codex —
+// so this surface is the registry's real editor, not a face over someone
+// else's config file.
 //
-// This surface OWNS NOTHING. Codex keeps the list; the routes behind this
-// section are a typed face over `codex mcp list|add|remove`, so what is drawn
-// here is what the agent actually gets. When codex is not installed the
-// section says so in the same shape the Agent section states an unavailable
-// runtime — a sentence, not an empty list, because an empty list is a claim
-// that there are no connectors.
-//
-// ADDING ONE IS A DELIBERATE ACT, AND THE ACT IS SHOWN. An MCP server is a
-// program codex will run on this machine (stdio) or a service it will send
-// note content to (http) — it can reach whatever the person running this app
-// can reach. So the form composes the EXACT `codex mcp add …` invocation and
-// prints it above the button: nothing is inferred, suggested, or accepted
-// from anywhere but these inputs.
+// ADDING ONE IS A DELIBERATE ACT. An MCP server is a program this app will
+// run on this machine (stdio) or a service note content will be sent to
+// (http). The catalog below prefills KNOWN servers' coordinates; it never
+// adds anything itself — every add goes through the same form and the same
+// route. Secrets: header values are sent once on save and never come back;
+// a configured row says "authenticated", nothing more.
 
 import {
   CONNECTOR_ARGS_MAX,
   CONNECTOR_NAME_MAX_LENGTH,
   CONNECTOR_NAME_PATTERN,
   connectorTarget,
-  type Connector,
   type ConnectorTransportInput,
+  type ConnectorView,
   type ConnectorsResponse,
 } from "@repo/server-contract/connectors";
 import { Button } from "@repo/ui/components/button";
@@ -34,12 +31,6 @@ import { queryKeys, unwrap } from "../api";
 import { useWorkspace } from "../workspace-context";
 import { ChoiceRow, failed, SectionHeading } from "./settings-chrome";
 
-/**
- * Codex's config file is not on the ws bus — nothing in this app writes it,
- * and codex does not announce it — so the query opts out of the fresh-forever
- * default and re-reads whenever the dialog mounts, exactly like
- * `useSystemStatus`. Its own mutations hand back the new listing directly.
- */
 function useConnectors() {
   const { api } = useWorkspace();
   return useQuery<ConnectorsResponse>({
@@ -47,16 +38,6 @@ function useConnectors() {
     queryFn: async () => unwrap(await api.connectors.$get()),
     staleTime: 0,
   });
-}
-
-/** The invocation the Add button will run, spelled out for the user to read
- *  BEFORE it runs. Mirrors `codexMcpArgs` on the server. */
-export function addCommandPreview(name: string, transport: ConnectorTransportInput): string {
-  const target =
-    transport.kind === "stdio"
-      ? `-- ${[transport.command, ...transport.args].join(" ")}`
-      : `--url ${transport.url}`;
-  return `codex mcp add ${name === "" ? "<name>" : name} ${target}`;
 }
 
 /** One argument per line; blank lines are spacing, not empty arguments. */
@@ -70,8 +51,8 @@ export function argumentLines(text: string): string[] {
 type TransportKind = ConnectorTransportInput["kind"];
 
 const TRANSPORT_CHOICES: readonly { value: TransportKind; label: string }[] = [
-  { value: "stdio", label: "Command" },
   { value: "http", label: "URL" },
+  { value: "stdio", label: "Command" },
 ];
 
 export interface AddConnectorDraft {
@@ -80,21 +61,64 @@ export interface AddConnectorDraft {
   command: string;
   argsText: string;
   url: string;
+  headerName: string;
+  headerValue: string;
 }
 
 export const EMPTY_DRAFT: AddConnectorDraft = {
   name: "",
-  kind: "stdio",
+  kind: "http",
   command: "",
   argsText: "",
   url: "",
+  headerName: "",
+  headerValue: "",
 };
 
 /**
+ * A KNOWN server's coordinates, prefill-only. `authHeader` names the header
+ * the service documents for its API key; `unavailableReason` marks a row the
+ * form cannot honestly add yet (OAuth-only services) — shown disabled with
+ * the reason rather than pretending a key field would work.
+ */
+interface CatalogEntry {
+  name: string;
+  description: string;
+  url: string;
+  authHeader?: string;
+  docsUrl: string;
+  unavailableReason?: string;
+}
+
+/** Verified against each service's own docs at vendoring time — a wrong URL
+ *  here is a server that can never connect, so rows are few and real. */
+const CATALOG: readonly CatalogEntry[] = [
+  {
+    name: "context7",
+    description: "Up-to-date library documentation for coding questions",
+    url: "https://mcp.context7.com/mcp",
+    authHeader: "CONTEXT7_API_KEY",
+    docsUrl: "https://context7.com/docs",
+  },
+  {
+    name: "exa",
+    description: "Web search and crawling",
+    url: "https://mcp.exa.ai/mcp",
+    authHeader: "x-api-key",
+    docsUrl: "https://docs.exa.ai/reference/exa-mcp",
+  },
+  {
+    name: "linear",
+    description: "Issues and projects",
+    url: "https://mcp.linear.app/mcp",
+    docsUrl: "https://linear.app/docs/mcp",
+    unavailableReason: "Authenticates with OAuth, which this app does not run yet",
+  },
+];
+
+/**
  * The draft as a request, or the sentence that stops it. Pure and total, so
- * the preview, the disabled state and the submit all read the same answer —
- * a form that renders a command it will then refuse to run is worse than one
- * that never showed it.
+ * the disabled state and the submit read the same answer.
  */
 export function draftToRequest(
   draft: AddConnectorDraft,
@@ -103,264 +127,323 @@ export function draftToRequest(
     return { ok: false, problem: "A name uses letters, numbers, '-' and '_' only." };
   }
   if (draft.name.length > CONNECTOR_NAME_MAX_LENGTH) {
-    return { ok: false, problem: `A name is at most ${CONNECTOR_NAME_MAX_LENGTH} characters.` };
+    return {
+      ok: false,
+      problem: `A name is at most ${String(CONNECTOR_NAME_MAX_LENGTH)} characters.`,
+    };
   }
   if (draft.kind === "stdio") {
     const command = draft.command.trim();
     if (command.length === 0) {
-      return { ok: false, problem: "Name the program codex should run." };
+      return { ok: false, problem: "Name the program to run." };
     }
     const args = argumentLines(draft.argsText);
     if (args.length > CONNECTOR_ARGS_MAX) {
-      return { ok: false, problem: `At most ${CONNECTOR_ARGS_MAX} arguments.` };
+      return { ok: false, problem: `At most ${String(CONNECTOR_ARGS_MAX)} arguments.` };
     }
-    return { ok: true, transport: { kind: "stdio", command, args } };
+    return { ok: true, transport: { args, command, kind: "stdio" } };
   }
   const url = draft.url.trim();
   let protocol = "";
   try {
     protocol = new URL(url).protocol;
   } catch {
-    return { ok: false, problem: "Enter an http:// or https:// URL." };
+    return { ok: false, problem: "The URL does not parse." };
   }
   if (protocol !== "http:" && protocol !== "https:") {
-    return { ok: false, problem: "Enter an http:// or https:// URL." };
+    return { ok: false, problem: "The URL must be http:// or https://." };
   }
-  return { ok: true, transport: { kind: "http", url } };
-}
-
-export interface AddConnectorFormProps {
-  draft: AddConnectorDraft;
-  onDraftChange: (draft: AddConnectorDraft) => void;
-  onSubmit: (transport: ConnectorTransportInput) => void;
-  onCancel: () => void;
-  pending: boolean;
-}
-
-export function AddConnectorForm({
-  draft,
-  onDraftChange,
-  onSubmit,
-  onCancel,
-  pending,
-}: AddConnectorFormProps) {
-  const fieldId = useId();
-  const parsed = draftToRequest(draft);
-  const preview = parsed.ok ? addCommandPreview(draft.name, parsed.transport) : null;
-
-  return (
-    <form
-      className="space-y-3 rounded-md border border-border p-3"
-      onSubmit={(event) => {
-        event.preventDefault();
-        if (parsed.ok && !pending) {
-          onSubmit(parsed.transport);
-        }
-      }}
-    >
-      <div className="space-y-1">
-        <Label htmlFor={`${fieldId}-name`}>Name</Label>
-        <Input
-          id={`${fieldId}-name`}
-          value={draft.name}
-          placeholder="my-server"
-          onChange={(event) => onDraftChange({ ...draft, name: event.target.value })}
-        />
-      </div>
-      <ChoiceRow
-        label="How codex reaches this server"
-        options={TRANSPORT_CHOICES}
-        value={draft.kind}
-        onChange={(kind) => onDraftChange({ ...draft, kind })}
-      />
-      {draft.kind === "stdio" ? (
-        <>
-          <div className="space-y-1">
-            <Label htmlFor={`${fieldId}-command`}>Command</Label>
-            <Input
-              id={`${fieldId}-command`}
-              value={draft.command}
-              placeholder="npx"
-              onChange={(event) => onDraftChange({ ...draft, command: event.target.value })}
-            />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor={`${fieldId}-args`}>Arguments</Label>
-            <Textarea
-              id={`${fieldId}-args`}
-              value={draft.argsText}
-              placeholder={"-y\n@modelcontextprotocol/server-everything"}
-              onChange={(event) => onDraftChange({ ...draft, argsText: event.target.value })}
-            />
-            <p className="text-xs text-muted-foreground">
-              One per line — never split or quoted, so a path with a space stays one argument.
-            </p>
-          </div>
-        </>
-      ) : (
-        <div className="space-y-1">
-          <Label htmlFor={`${fieldId}-url`}>URL</Label>
-          <Input
-            id={`${fieldId}-url`}
-            value={draft.url}
-            placeholder="https://example.com/mcp"
-            onChange={(event) => onDraftChange({ ...draft, url: event.target.value })}
-          />
-        </div>
-      )}
-      <p className="text-xs text-muted-foreground">
-        An MCP server is a program codex runs on this machine, or a service it sends note content
-        to. It can reach whatever you can. Add only servers you trust.
-      </p>
-      {preview === null ? (
-        <p className="text-xs text-destructive">{parsed.ok ? "" : parsed.problem}</p>
-      ) : (
-        <p className="overflow-x-auto rounded bg-muted px-2 py-1 font-mono text-xs whitespace-pre">
-          {preview}
-        </p>
-      )}
-      <div className="flex gap-2">
-        <Button type="submit" size="xs" disabled={!parsed.ok || pending}>
-          Add connector
-        </Button>
-        <Button type="button" size="xs" variant="outline" onClick={onCancel} disabled={pending}>
-          Cancel
-        </Button>
-      </div>
-    </form>
-  );
-}
-
-export interface ConnectorListProps {
-  servers: readonly Connector[];
-  onRemove: (name: string) => void;
-  pending: boolean;
-}
-
-export function ConnectorList({ servers, onRemove, pending }: ConnectorListProps) {
-  if (servers.length === 0) {
-    return <p className="text-sm text-muted-foreground">No MCP servers are configured.</p>;
+  const headerName = draft.headerName.trim();
+  const headerValue = draft.headerValue.trim();
+  if ((headerName === "") !== (headerValue === "")) {
+    return { ok: false, problem: "An auth header needs both its name and its value." };
   }
-  return (
-    <ul className="space-y-2">
-      {servers.map((server) => {
-        const target = connectorTarget(server.transport);
-        return (
-          <li key={server.name} className="space-y-0.5">
-            <div className="flex items-baseline justify-between gap-2">
-              <span className="truncate text-sm">{server.name}</span>
-              <Button
-                size="xs"
-                variant="ghost"
-                disabled={pending}
-                onClick={() => onRemove(server.name)}
-              >
-                Remove
-              </Button>
-            </div>
-            <p className="truncate font-mono text-xs text-muted-foreground" title={target}>
-              {target}
-            </p>
-            {/* Codex's own words, unaltered — the Agent section above shows
-                machine vocabulary the same way rather than paraphrasing it. */}
-            <p className="font-mono text-xs text-muted-foreground">
-              {[server.enabled ? "enabled" : "disabled", server.authStatus]
-                .filter((part) => part !== null)
-                .join(" · ")}
-            </p>
-          </li>
-        );
-      })}
-    </ul>
-  );
+  const transport: ConnectorTransportInput = { kind: "http", url };
+  if (headerName !== "") {
+    transport.headers = { [headerName]: headerValue };
+  }
+  return { ok: true, transport };
 }
 
-export function ConnectorsSection() {
+function ConnectorRow({
+  server,
+  onChanged,
+}: {
+  server: ConnectorView;
+  onChanged: (servers: ConnectorView[]) => void;
+}) {
   const { api } = useWorkspace();
-  const queryClient = useQueryClient();
-  const connectorsQuery = useConnectors();
-  const [adding, setAdding] = useState(false);
-  const [draft, setDraft] = useState<AddConnectorDraft>(EMPTY_DRAFT);
-  const [pending, setPending] = useState(false);
+  const [busy, setBusy] = useState(false);
 
-  // Both writes answer with the whole listing, so the cache takes the server's
-  // own view rather than a re-read of what it just returned.
-  const applyServers = (servers: readonly Connector[]): void => {
-    const next: ConnectorsResponse = { state: "ready", servers: [...servers] };
-    queryClient.setQueryData<ConnectorsResponse>(queryKeys.connectors, () => next);
-  };
-
-  const add = (transport: ConnectorTransportInput): void => {
-    setPending(true);
+  const toggle = (): void => {
+    setBusy(true);
     void (async () => {
       try {
-        const result = await unwrap(
-          await api.connectors.add.$post({ json: { name: draft.name, transport } }),
+        const body = unwrap(
+          await api.connectors.toggle.$post({
+            json: { enabled: !server.enabled, name: server.name },
+          }),
         );
-        applyServers(result.servers);
-        setDraft(EMPTY_DRAFT);
-        setAdding(false);
-      } catch (error) {
-        failed(error, `Could not add ${draft.name}.`);
+        onChanged((await body).servers);
+      } catch (cause) {
+        failed(cause, `Could not toggle ${server.name}.`);
       } finally {
-        setPending(false);
+        setBusy(false);
       }
     })();
   };
 
-  const remove = (name: string): void => {
+  const remove = (): void => {
     void (async () => {
       const confirmed = await confirm({
-        title: `Remove the connector ${name}?`,
-        body: "Codex stops offering its tools to the agent. The server itself is not touched.",
+        title: `Remove ${server.name}?`,
+        body: "Agent sessions stop getting this server on their next launch.",
         confirmLabel: "Remove",
         destructive: true,
       });
       if (!confirmed) {
         return;
       }
-      setPending(true);
+      setBusy(true);
       try {
-        const result = await unwrap(await api.connectors.remove.$post({ json: { name } }));
-        applyServers(result.servers);
-      } catch (error) {
-        failed(error, `Could not remove ${name}.`);
+        const body = unwrap(await api.connectors.remove.$post({ json: { name: server.name } }));
+        onChanged((await body).servers);
+      } catch (cause) {
+        failed(cause, `Could not remove ${server.name}.`);
       } finally {
-        setPending(false);
+        setBusy(false);
       }
     })();
   };
 
-  const connectors = connectorsQuery.data;
+  return (
+    <div className="flex items-center gap-2 py-1.5">
+      <div className="min-w-0 flex-1">
+        <p className="text-sm">
+          {server.name}
+          {server.transport.kind === "http" && server.transport.hasAuth ? (
+            <span className="ml-2 text-xs text-muted-foreground">authenticated</span>
+          ) : null}
+        </p>
+        <p className="truncate text-xs text-muted-foreground">
+          {connectorTarget(server.transport)}
+        </p>
+      </div>
+      <Button size="xs" variant="ghost" disabled={busy} onClick={toggle}>
+        {server.enabled ? "Disable" : "Enable"}
+      </Button>
+      <Button size="xs" variant="ghost" disabled={busy} onClick={remove}>
+        Remove
+      </Button>
+    </div>
+  );
+}
+
+export function ConnectorsSection() {
+  const { api } = useWorkspace();
+  const queryClient = useQueryClient();
+  const query = useConnectors();
+  const [draft, setDraft] = useState<AddConnectorDraft>(EMPTY_DRAFT);
+  const [adding, setAdding] = useState(false);
+  const formId = useId();
+
+  const servers = query.data?.servers ?? [];
+  const setServers = (next: ConnectorView[]): void => {
+    queryClient.setQueryData<ConnectorsResponse>(queryKeys.connectors, { servers: next });
+  };
+
+  const verdict = draftToRequest(draft);
+
+  const submit = (): void => {
+    if (!verdict.ok || adding) {
+      return;
+    }
+    setAdding(true);
+    void (async () => {
+      try {
+        const body = unwrap(
+          await api.connectors.add.$post({
+            json: { name: draft.name, transport: verdict.transport },
+          }),
+        );
+        setServers((await body).servers);
+        setDraft(EMPTY_DRAFT);
+      } catch (cause) {
+        failed(cause, `Could not add ${draft.name}.`);
+      } finally {
+        setAdding(false);
+      }
+    })();
+  };
+
+  const prefill = (entry: CatalogEntry): void => {
+    setDraft({
+      ...EMPTY_DRAFT,
+      headerName: entry.authHeader ?? "",
+      kind: "http",
+      name: entry.name,
+      url: entry.url,
+    });
+  };
 
   return (
-    <section className="space-y-2">
+    <section>
       <SectionHeading>Connectors</SectionHeading>
-      {connectors === undefined ? (
-        <p className="text-sm text-muted-foreground">…</p>
-      ) : connectors.state === "unavailable" ? (
-        <p className="text-xs text-muted-foreground">{connectors.detail}</p>
+      <p className="mb-2 text-xs text-muted-foreground">
+        MCP servers every agent session gets — Claude Code and Codex alike. Enabled rows ride each
+        session's launch; changes apply from the next action.
+      </p>
+
+      {query.isError ? (
+        <p className="text-sm text-destructive">The connector list could not be read.</p>
+      ) : servers.length === 0 ? (
+        <p className="text-sm text-muted-foreground">No connectors configured.</p>
       ) : (
-        <>
-          <ConnectorList servers={connectors.servers} onRemove={remove} pending={pending} />
-          {adding ? (
-            <AddConnectorForm
-              draft={draft}
-              onDraftChange={setDraft}
-              onSubmit={add}
-              onCancel={() => {
-                setDraft(EMPTY_DRAFT);
-                setAdding(false);
-              }}
-              pending={pending}
-            />
-          ) : (
-            <Button size="xs" variant="outline" onClick={() => setAdding(true)}>
-              Add connector
-            </Button>
-          )}
-        </>
+        <div className="divide-y divide-line">
+          {servers.map((server) => (
+            <ConnectorRow key={server.name} server={server} onChanged={setServers} />
+          ))}
+        </div>
       )}
+
+      <SectionHeading>Add a connector</SectionHeading>
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center gap-2">
+          <Label htmlFor={`${formId}-name`} className="w-24 shrink-0 text-xs">
+            Name
+          </Label>
+          <Input
+            id={`${formId}-name`}
+            value={draft.name}
+            placeholder="context7"
+            onChange={(event) => {
+              setDraft({ ...draft, name: event.target.value });
+            }}
+          />
+        </div>
+        <ChoiceRow
+          label="Transport"
+          value={draft.kind}
+          options={TRANSPORT_CHOICES}
+          onChange={(kind) => {
+            setDraft({ ...draft, kind });
+          }}
+        />
+        {draft.kind === "http" ? (
+          <>
+            <div className="flex items-center gap-2">
+              <Label htmlFor={`${formId}-url`} className="w-24 shrink-0 text-xs">
+                URL
+              </Label>
+              <Input
+                id={`${formId}-url`}
+                value={draft.url}
+                placeholder="https://mcp.example.com/mcp"
+                onChange={(event) => {
+                  setDraft({ ...draft, url: event.target.value });
+                }}
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <Label htmlFor={`${formId}-header`} className="w-24 shrink-0 text-xs">
+                Auth header
+              </Label>
+              <Input
+                id={`${formId}-header`}
+                value={draft.headerName}
+                placeholder="x-api-key"
+                className="w-40"
+                onChange={(event) => {
+                  setDraft({ ...draft, headerName: event.target.value });
+                }}
+              />
+              <Input
+                aria-label="Auth header value"
+                type="password"
+                value={draft.headerValue}
+                placeholder="value"
+                onChange={(event) => {
+                  setDraft({ ...draft, headerValue: event.target.value });
+                }}
+              />
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="flex items-center gap-2">
+              <Label htmlFor={`${formId}-command`} className="w-24 shrink-0 text-xs">
+                Command
+              </Label>
+              <Input
+                id={`${formId}-command`}
+                value={draft.command}
+                placeholder="npx"
+                onChange={(event) => {
+                  setDraft({ ...draft, command: event.target.value });
+                }}
+              />
+            </div>
+            <div className="flex items-start gap-2">
+              <Label htmlFor={`${formId}-args`} className="w-24 shrink-0 pt-2 text-xs">
+                Arguments
+              </Label>
+              <Textarea
+                id={`${formId}-args`}
+                value={draft.argsText}
+                rows={2}
+                placeholder={"one argument\nper line"}
+                onChange={(event) => {
+                  setDraft({ ...draft, argsText: event.target.value });
+                }}
+              />
+            </div>
+          </>
+        )}
+        <div className="flex items-center gap-2">
+          {draft.name !== "" && !verdict.ok ? (
+            <p className="flex-1 text-xs text-muted-foreground">{verdict.problem}</p>
+          ) : (
+            <span className="flex-1" />
+          )}
+          <Button size="sm" disabled={!verdict.ok || adding} onClick={submit}>
+            Add
+          </Button>
+        </div>
+      </div>
+
+      <SectionHeading>Known servers</SectionHeading>
+      <div className="divide-y divide-line">
+        {CATALOG.map((entry) => (
+          <div key={entry.name} className="flex items-center gap-2 py-1.5">
+            <div className="min-w-0 flex-1">
+              <p className="text-sm">
+                {entry.name}
+                <a
+                  href={entry.docsUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="ml-2 text-xs text-muted-foreground underline-offset-2 hover:underline"
+                >
+                  docs
+                </a>
+              </p>
+              <p className="truncate text-xs text-muted-foreground">
+                {entry.unavailableReason ?? entry.description}
+              </p>
+            </div>
+            <Button
+              size="xs"
+              variant="ghost"
+              disabled={entry.unavailableReason !== undefined}
+              onClick={() => {
+                prefill(entry);
+              }}
+            >
+              Use
+            </Button>
+          </div>
+        ))}
+      </div>
     </section>
   );
 }

@@ -10,9 +10,11 @@ import {
 import { z } from "zod";
 import { cloudRoutes } from "./cloud";
 import { connectorRoutes } from "./connectors";
+import { noteIntelligenceRoutes } from "./note-intelligence";
 import type { ApiErrorResponse } from "./errors";
+import { commentRoutes } from "./comments";
 import { knowledgeRoutes } from "./knowledge";
-import { memoryRoutes } from "./memory";
+import { agentsRoutes } from "./agents";
 import { proposalRoutes } from "./proposals";
 import { threadRoutes } from "./threads";
 import { vaultRoutes } from "./vault";
@@ -47,7 +49,7 @@ export type HealthResponse = z.infer<typeof healthResponseSchema>;
 export const agentStatusSchema = z
   .object({
     mode: z.enum(["auto", "codex", "scripted", "off"]),
-    runtime: z.enum(["codex", "scripted", "unavailable", "off"]),
+    runtime: z.enum(["acp", "scripted", "unavailable", "off"]),
     detail: z.string().nullable(),
   })
   .strict();
@@ -151,8 +153,10 @@ export const apiRoutes = {
   }),
   cloud: cloudRoutes,
   connectors: connectorRoutes,
+  noteIntelligence: noteIntelligenceRoutes,
+  comments: commentRoutes,
   knowledge: knowledgeRoutes,
-  memory: memoryRoutes,
+  agents: agentsRoutes,
   proposals: proposalRoutes,
   threads: threadRoutes,
   vault: vaultRoutes,

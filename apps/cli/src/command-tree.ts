@@ -13,7 +13,7 @@ import type { ArgsDef, CommandDef, SubCommandsDef } from "citty";
 import { invalidUsage } from "./cli-error";
 
 export interface LeafCommand {
-  /** Space-joined, as a user types it: `vault list`, `proposals accept`. */
+  /** Space-joined, as a user types it: `vault list`, `comment resolve`. */
   path: string;
   command: CommandDef;
 }

@@ -216,6 +216,46 @@ export function addFrontmatterAlias(content: string, alias: string): string | nu
   return `---\n${nextYaml}\n---\n${body}`;
 }
 
+/** A field Note Intelligence (or any additive writer) may mint: a text scalar
+ * or a tag list. */
+export type AbsentFrontmatterField =
+  | { key: string; kind: "text"; value: string }
+  | { key: string; kind: "tags"; value: string[] };
+
+/** Add ONLY the fields whose keys are absent from the doc's frontmatter,
+ * preserving every existing byte the typing rules can't represent (the same
+ * serializeProperties discipline `addFrontmatterAlias` rides). A doc with no
+ * frontmatter gains a block; the body is preserved byte-exactly. Answers null
+ * when nothing was absent — or when the block cannot be edited safely
+ * (invalid yaml), which the caller must treat as a skip, never a retry loop. */
+export function addAbsentFrontmatterFields(
+  content: string,
+  fields: readonly AbsentFrontmatterField[],
+): string | null {
+  const yaml = frontmatterYaml(content);
+  const parsed = parseProperties(yaml ?? "");
+  if (parsed.kind === "invalid") return null;
+  const props = parsed.kind === "valid" ? parsed.properties : [];
+  const present = new Set(props.map((prop) => prop.key));
+  const absent = fields.filter((field) => !present.has(field.key));
+  if (absent.length === 0) return null;
+  const nextProps: TypedProperty[] = [
+    ...props,
+    ...absent.map(
+      (field): TypedProperty =>
+        field.kind === "tags"
+          ? { key: field.key, type: "tags", value: field.value }
+          : { key: field.key, type: "text", value: field.value },
+    ),
+  ];
+  const nextYaml = serializeProperties(nextProps, yaml ?? "");
+  const body = splitFrontmatter(content).body;
+  return `---
+${nextYaml}
+---
+${body}`;
+}
+
 /** Type a single new key from a user-entered raw value: the value is read as a
  * YAML scalar so `true`, `42`, `2026-07-01`, `[a, b]` type naturally, exactly
  * as if it had been typed into the block. An empty value is an empty text
