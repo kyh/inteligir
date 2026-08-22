@@ -52,7 +52,9 @@ declare module "mdast" {
 // No pipes or braces inside source/display (the dialect has no escape form);
 // the optional metadata tail may hold anything but braces.
 const FORMULA_RE = /\{\{([^|{}\n]+)(?:\|([^|{}\n]*))?(?:\|([^{}\n]*))?\}\}/g;
-const MARKER_RE = /%%m:([A-Za-z0-9_-]+(?:,[A-Za-z0-9_-]+)*):(start|end)%%/g;
+/** The comment-anchor grammar, exported as the ONE spelling comments tooling
+ * shares (marker extraction must never drift from what parses here). */
+export const MARKER_RE = /%%m:([A-Za-z0-9_-]+(?:,[A-Za-z0-9_-]+)*):(start|end)%%/g;
 
 /** Parse one formula body (the text between braces) into its halves. */
 export function parseFormulaRaw(raw: string): Pick<MossFormula, "source" | "display" | "meta"> {

@@ -15,6 +15,7 @@ import { Plate, usePlateEditor } from "platejs/react";
 import { serializeMd } from "@platejs/markdown";
 
 import { Editor, EditorContainer } from "@repo/editor/editor-chrome";
+import { setHeadingCollapseScope } from "@repo/editor/heading-collapse";
 import { registerLiveEditor } from "@repo/editor/live-editor";
 import { WRITE_PLACEHOLDER } from "@repo/editor/kits/block-placeholder-kit";
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
@@ -139,6 +140,11 @@ export function MarkdownEditor({ path, value, onChange, onRegisterSerializeFlush
   // writes ride this same serialize path to disk. Path-keyed like the
   // transient settler above.
   useEffect(() => registerLiveEditor(path, editor), [path, editor]);
+
+  // Collapsed-heading view state is per note; point the store at this one.
+  useEffect(() => {
+    setHeadingCollapseScope(path);
+  }, [path]);
 
   return (
     <Plate

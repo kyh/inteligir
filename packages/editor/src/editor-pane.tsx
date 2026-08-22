@@ -4,6 +4,7 @@ import { toast } from "@repo/ui/components/sonner";
 import { cn } from "@repo/ui/lib/utils";
 
 import { EDITOR_COLUMN_PX } from "@repo/editor/editor-chrome";
+import { EditorBottomToolbar } from "@repo/editor/editor-bottom-toolbar";
 import { MarkdownEditor } from "@repo/editor/markdown-editor";
 import { openDocPath } from "@repo/editor/note/open-doc";
 import { useOpenNote } from "@repo/editor/note/open-note-store";
@@ -209,6 +210,7 @@ function NotePane({ path, showRich }: { path: string; showRich: boolean }) {
       <div className={EDITOR_COLUMN_PX}>
         <ConnectionsPanel path={path} />
       </div>
+      {showRich ? <EditorBottomToolbar path={path} /> : null}
     </div>
   );
 }

@@ -31,12 +31,14 @@ import {
   SquareCheckIcon,
   Table2Icon,
   WorkflowIcon,
+  PanelsTopLeftIcon,
 } from "lucide-react";
 import { KEYS } from "platejs";
 import type { PlateEditor, PlateElementProps } from "platejs/react";
 import { PlateElement, createPlatePlugin } from "platejs/react";
 
 import { TURN_INTO, turnIntoSelection } from "@repo/editor/block-transforms";
+import { insertTabGroup } from "@repo/editor/kits/tabs-kit";
 import { EmbedUrlDialogHost, openEmbedUrlDialog } from "@repo/editor/embed-url-dialog";
 import {
   InlineCombobox,
@@ -182,6 +184,16 @@ const GROUPS: { group: string; items: SlashItem[] }[] = [
   {
     group: "Advanced",
     items: [
+      {
+        icon: <PanelsTopLeftIcon />,
+        label: "Tabs",
+        value: "tabs",
+        description: "Peer views inspected one at a time.",
+        keywords: ["tabs", "tab", "panels", "switch"],
+        onSelect: (editor) => {
+          insertTabGroup(editor);
+        },
+      },
       {
         icon: <Columns2Icon />,
         label: "2 columns",

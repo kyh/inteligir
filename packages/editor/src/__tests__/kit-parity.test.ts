@@ -41,6 +41,8 @@ const VOCABULARY_PLUGIN_KEYS = [
   "wikiEmbed",
   "mossFormula",
   "mossCommentMarker",
+  "tab_group",
+  "tab_panel",
   "opaqueBlock",
   "opaqueInline",
 ];

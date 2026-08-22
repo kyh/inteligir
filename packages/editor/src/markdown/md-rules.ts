@@ -38,11 +38,26 @@ import {
   type MossCommentMarker,
   type MossFormula,
 } from "@repo/notes/markdown/remark-moss-inline";
+import type { MossTabPanel, MossTabs } from "@repo/notes/markdown/remark-moss-tabs";
 import type { WikiEmbed, WikiLink } from "@repo/notes/markdown/remark-wiki-link";
 
 // Fail fast if a @platejs/markdown bump reshapes defaultRules — the alert rule
 // delegates every non-alert blockquote to the stock path, and the table rule
 // wraps the stock table deserializer.
+/** Serialized panel children must fit the dialect node's vocabulary — the
+ * conversion can only produce root-level mdast, so this narrows by exclusion
+ * the same way the remark transform does. */
+function isPanelContent(
+  node: MossTabPanel["children"][number] | { type: string },
+): node is MossTabPanel["children"][number] {
+  return node.type !== "yaml" && node.type !== "mossTabs" && node.type !== "mossTabPanel";
+}
+
+/** A tab panel's children must be blocks; an empty panel gets one empty p. */
+function ensureBlocks(children: Descendant[]): Descendant[] {
+  return children.length > 0 ? children : [{ children: [{ text: "" }], type: "p" }];
+}
+
 const PRIORITY_LEVELS = new Set(["low", "medium", "high", "critical"]);
 
 const defaultCodeBlock = defaultRules.code_block;
@@ -414,6 +429,43 @@ export const MD_RULES: MdRules = {
       }
       return defaultCodeBlockDeserialize(node, deco, options);
     },
+  },
+
+  // Moss tab groups: mossTabs/mossTabPanel (remark-moss-tabs owns the line
+  // grammar) ↔ tab_group/tab_panel elements. Panel children ride the shared
+  // conversion both ways, so anything a note can hold survives inside a tab.
+  mossTabs: {
+    deserialize: (node: MossTabs, deco, options): TElement => ({
+      children: node.children.map(
+        (panel): TElement => ({
+          children: ensureBlocks(convertChildrenDeserialize(panel.children, deco, options)),
+          label: panel.label,
+          type: "tab_panel",
+        }),
+      ),
+      type: "tab_group",
+    }),
+  },
+  tab_group: {
+    serialize: (node: TElement, options: SerializeMdOptions): MossTabs => ({
+      children: node.children.flatMap((panel): MossTabPanel[] => {
+        if (typeof panel !== "object" || !("type" in panel) || panel.type !== "tab_panel") {
+          return [];
+        }
+        const children: Descendant[] = Array.isArray(panel.children) ? panel.children : [];
+        const panelChildren = convertNodesSerialize(children, options).flatMap(
+          (child): MossTabPanel["children"] => (isPanelContent(child) ? [child] : []),
+        );
+        return [
+          {
+            children: panelChildren,
+            label: typeof panel.label === "string" ? panel.label : "Tab",
+            type: "mossTabPanel",
+          },
+        ];
+      }),
+      type: "mossTabs",
+    }),
   },
 
   // Moss inline constructs; inner text stays verbatim both directions (the
