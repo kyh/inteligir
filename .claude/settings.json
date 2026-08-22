@@ -23,5 +23,19 @@
       "Bash(pnpm --filter @repo/web db:studio)",
       "Bash(pnpm -F @repo/web db:studio)"
     ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ \"$CLAUDE_CODE_REMOTE\" = \"true\" ] && cd \"$CLAUDE_PROJECT_DIR\" && pnpm install || true",
+            "timeout": 600
+          }
+        ]
+      }
+    ]
   }
 }
