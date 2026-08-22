@@ -133,7 +133,7 @@ export function resolveAgentDriver(args: ResolveAgentDriverArgs): ResolvedAgentD
   if (args.captureProposals !== undefined) codex.captureProposals = args.captureProposals;
   const manager = createCodexRuntimeManager(codex);
   return {
-    status: { mode, runtime: "codex", detail: null },
+    status: { mode, runtime: "acp", detail: null },
     createTurnDriver: manager.createTurnDriver,
     dispose: () => manager.dispose(),
   };

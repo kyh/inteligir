@@ -469,7 +469,7 @@ describe("status, guide and help", () => {
       "Data dir: /fixture/data",
       "Vault: /fixture/vault",
       "Schema: v3 — uptime 65s",
-      "Agent: codex (mode auto)",
+      "Agent: acp (mode auto)",
       "Thread context: thr_ctx",
     ]);
   });

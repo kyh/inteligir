@@ -130,7 +130,7 @@ export function makeFixtureState(): FixtureState {
     proposals: [],
     comments: new Map(),
     guideMarkdown: "# Fixture guide\n\nBe kind to the vault.\n",
-    agent: { mode: "auto", runtime: "codex", detail: null },
+    agent: { mode: "auto", runtime: "acp", detail: null },
     vaultStatus: { state: "no-remote", lastSyncAt: null, lastError: null },
     nextCreatedThreadId: "thr_created_1",
   };

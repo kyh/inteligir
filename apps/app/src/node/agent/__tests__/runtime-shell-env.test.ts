@@ -56,7 +56,7 @@ describe("codex runtime shell env wiring", () => {
     const recorded: Recorded = { options: [], startThreads: [] };
     const shellEnv: Record<string, string> = {};
     const harness = await bootTestApp({
-      agent: { mode: "codex", runtime: "codex", detail: null },
+      agent: { mode: "codex", runtime: "acp", detail: null },
       makeDriver: ({ db, bus, vault, vaultDir }) => {
         const manager = createCodexRuntimeManager({
           db,

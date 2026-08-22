@@ -61,7 +61,7 @@ async function bootWithManager(
   options: ManagerOptions = {},
 ): Promise<BootedTestApp> {
   return bootTestApp({
-    agent: { mode: "codex", runtime: "codex", detail: null },
+    agent: { mode: "codex", runtime: "acp", detail: null },
     makeDriver: ({ db, bus, vault, vaultDir }) => {
       const deps: CodexRuntimeManagerDeps = {
         db,
