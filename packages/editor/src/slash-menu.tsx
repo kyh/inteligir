@@ -148,7 +148,7 @@ const GROUPS: { group: string; items: SlashItem[] }[] = [
         icon: <InfoIcon />,
         label: "Callout",
         value: "callout",
-        description: "Highlighted note (GitHub alert).",
+        description: "Highlighted note (info, warning, priority).",
         keywords: ["callout", "alert", "note", "warning", "tip", "admonition"],
         onSelect: (editor) => turnInto(editor, "Callout"),
       },

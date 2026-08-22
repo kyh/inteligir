@@ -11,11 +11,14 @@ import { cn } from "@repo/ui/lib/utils";
 
 // Accents mirror nodes/blockquote-node.tsx's ALERTS palette (string-keyed on
 // the callout's own variant names rather than GH marker names).
+// The moss-callout kinds first (the dialect's vocabulary); the legacy names
+// keep their accents so a converted note reads the same mid-migration.
 const VARIANT_ACCENTS: Record<string, string> = {
   caution: "border-red-500/60 bg-red-500/[0.05]",
   error: "border-red-500/60 bg-red-500/[0.05]",
   info: "border-blue-500/60 bg-blue-500/[0.05]",
   note: "border-blue-500/60 bg-blue-500/[0.05]",
+  priority: "border-red-500/60 bg-red-500/[0.05]",
   tip: "border-emerald-500/60 bg-emerald-500/[0.05]",
   warning: "border-amber-500/60 bg-amber-500/[0.05]",
 };
