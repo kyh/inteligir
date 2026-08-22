@@ -13,6 +13,8 @@
 
 import {
   EditorHostProvider,
+  useConnectionsPanel,
+  useVaultListing,
   type EditorHost,
   type VaultActions,
   type VaultListing,
@@ -25,12 +27,15 @@ import {
   type VaultEntry,
 } from "@repo/editor/host-io";
 import { createDebouncer } from "@repo/editor/lib/debounce";
-import { setOpenNoteFlush } from "@repo/editor/note/open-note-flush";
-import { publishOpenPath } from "@repo/editor/note/open-note-store";
-import { publishEditor } from "@repo/editor/note/open-note-store";
+import type { VaultIO } from "@repo/editor/vault-editor";
+import { registerOpenNoteStore } from "@repo/editor/note/open-note-flush";
+import { OpenNoteStoreProvider } from "@repo/editor/note/open-note-context";
+import { createOpenNoteStore } from "@repo/editor/note/open-note-store";
+import { setSplitViewActions } from "@repo/editor/split-request";
 import {
   createVaultSession,
   type VaultSession,
+  type VaultSessionPorts,
   type WorkspaceBoot,
 } from "@repo/editor/note/vault-session";
 import { useVaultActions } from "@repo/editor/host";
@@ -44,9 +49,23 @@ import { diff3 } from "@repo/notes/text/diff3";
 import type { KnowledgeWikiTargetsResponse } from "@repo/server-contract/knowledge";
 import { contentHashHex, type VaultTreeResponse } from "@repo/server-contract/vault";
 import { toast } from "@repo/ui/components/sonner";
-import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
+import {
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+  type RefObject,
+} from "react";
 
 import { readLastOpenNote, writeLastOpenNote } from "../prefs";
+import {
+  createPaneCoordinator,
+  PaneInfraContext,
+  type PaneId,
+  type VaultPanesHandle,
+} from "./split-view";
 import { useWorkspace, type WorkspaceRuntime } from "../workspace-context";
 import { BacklinksSection } from "./backlinks-panel";
 import { RelatedSection } from "./related-panel";
@@ -100,6 +119,13 @@ export interface VaultProviderProps {
   /** The session's actions, handed to the shell's own callbacks (tree ops,
    * palette) — identity is fixed for the session's life. */
   actionsRef: RefObject<VaultActions | null>;
+  /** Imperative pane reads for action-time callers (view context, export). */
+  panesRef: RefObject<VaultPanesHandle | null>;
+  /** The FOCUSED pane's open path, mirrored on every focus/open change. */
+  onFocusedPathChange: (path: string | null) => void;
+  onFocusedPaneChange: (pane: PaneId) => void;
+  /** Open `path` in the split pane (the workspace owns the split's state). */
+  onOpenInSplit: (path: string) => void;
 }
 
 export function VaultProvider({
@@ -107,6 +133,10 @@ export function VaultProvider({
   initialPath,
   onOpenPath,
   actionsRef,
+  panesRef,
+  onFocusedPathChange,
+  onFocusedPaneChange,
+  onOpenInSplit,
 }: VaultProviderProps) {
   // Captured once: the param mirrors back through onOpenPath after boot, and
   // a later navigation must not re-run the boot preference.
@@ -137,74 +167,47 @@ export function VaultProvider({
   const onOpenPathRef = useRef(onOpenPath);
   onOpenPathRef.current = onOpenPath;
 
+  // One store per pane; the primary's lives for the provider's life.
+  const primaryStore = useMemo(() => createOpenNoteStore(), []);
+
+  // Live pane paths + focus, coordinated here so an open landing on a note
+  // the OTHER pane holds focuses that pane instead of double-mounting it.
+  const onFocusedPathRef = useRef(onFocusedPathChange);
+  onFocusedPathRef.current = onFocusedPathChange;
+  const onFocusedPaneRef = useRef(onFocusedPaneChange);
+  onFocusedPaneRef.current = onFocusedPaneChange;
+
+  const coordinator = useMemo(
+    () =>
+      createPaneCoordinator((pane, path) => {
+        onFocusedPaneRef.current(pane);
+        onFocusedPathRef.current(path);
+      }),
+    [],
+  );
+
+  useEffect(() => {
+    coordinator.registerStore("primary", primaryStore);
+    return () => {
+      coordinator.registerStore("primary", null);
+    };
+  }, [coordinator, primaryStore]);
+
+  useEffect(() => {
+    panesRef.current = {
+      focusedState: () => {
+        const store = coordinator.store(coordinator.focusedPane()) ?? primaryStore;
+        return store.state();
+      },
+      focusedPane: () => coordinator.focusedPane(),
+      focus: coordinator.focus,
+    };
+  }, [panesRef, primaryStore, coordinator]);
+
   const session = useMemo<VaultSession>(() => {
-    // Base bytes per path, recorded at every read; what a guarded write's
-    // expectedHash is computed FROM.
-    const bases = new Map<string, string>();
-
-    const read = async (path: string): Promise<string> => {
-      const content = await readFile(api, path);
-      bases.set(path, content);
-      return content;
-    };
-
-    const write = async (path: string, content: string): Promise<void> => {
-      const base = bases.get(path) ?? content;
-      const expectedHash = await contentHashHex(base);
-      const response = await api.vault.file.$put({ json: { path, content, expectedHash } });
-      if (response.ok) {
-        bases.set(path, content);
-        return;
-      }
-      if (response.status === 409) {
-        const body = await response.json();
-        if (body.error === "cas_mismatch" && body.current !== undefined) {
-          const disk = body.current.content;
-          const { merged } = diff3(base, content, disk);
-          const retryHash = await contentHashHex(disk);
-          const retry = await api.vault.file.$put({
-            json: { path, content: merged, expectedHash: retryHash },
-          });
-          if (retry.ok) {
-            bases.set(path, merged);
-            return;
-          }
-          throw new Error(`write ${path}: conflict retry refused (${String(retry.status)})`);
-        }
-        throw new Error(`write ${path}: ${body.error}`);
-      }
-      throw new Error(`write ${path}: ${String(response.status)}`);
-    };
-
-    const remove = async (path: string): Promise<DeleteVaultEntryResult> => {
-      // A note deletes into the vault's Trash/ (Moss's shape — restorable for
-      // 30 days); anything else, and anything already in the trash, deletes
-      // for real. The port answers "trashed" either way: the session only
-      // needs to know the row is gone from the listing.
-      const isNote = path.toLowerCase().endsWith(".md");
-      const inTrash = path === "Trash" || path.startsWith("Trash/");
-      if (isNote && !inTrash) {
-        const response = await api.vault.trash.$post({ json: { path } });
-        if (response.ok) return { outcome: "trashed" };
-        if (response.status === 404) return { outcome: "absent" };
-        const body = await response.json();
-        throw new Error(`trash ${path}: ${body.error}`);
-      }
-      const response = await api.vault.delete.$post({ json: { path } });
-      if (response.ok) return { outcome: "trashed" };
-      if (response.status === 404) return { outcome: "absent" };
-      const body = await response.json();
-      throw new Error(`delete ${path}: ${body.error}`);
-    };
-
-    const fetchTree = async (): Promise<VaultTreeResponse> => {
-      const response = await api.vault.tree.$get();
-      if (!response.ok) throw new Error("vault tree unavailable");
-      return response.json();
-    };
-
+    const io = createGuardedVaultIo(api);
     const boot = async (): Promise<WorkspaceBoot> => {
-      const tree = await fetchTree();
+      const tree = await fetchTree(api);
       setVaultName(tree.name);
       const flat = listingEntries(tree);
       // The deep link wins, then the last-open note, then the first doc — the
@@ -219,29 +222,15 @@ export function VaultProvider({
           : (flat.find((entry) => entry.kind === "doc")?.path ?? null);
       let openNote: WorkspaceBoot["openNote"] = null;
       if (target !== null) {
-        const content = await read(target).catch(() => null);
+        const content = await io.read(target).catch(() => null);
         if (content !== null) openNote = { path: target, content };
       }
       return { root: tree.root, entries: flat, openNote };
     };
-
-    return createVaultSession({
+    return buildPaneSession({
+      api,
+      io,
       boot,
-      list: async () => listingEntries(await fetchTree()),
-      // No host re-announce over HTTP — a refresh IS a re-list, published
-      // through the same ordered path list() callers use.
-      refresh: () => Promise.resolve(),
-      exists: async (path) => {
-        const response = await api.vault.file.$get({ query: { path } });
-        return response.ok;
-      },
-      rename: async (from, to) => {
-        const response = await api.vault.rename.$post({ json: { from, to } });
-        if (response.ok) return { ok: true };
-        const body = await response.json();
-        return { ok: false, error: body.message };
-      },
-      note: { read, write, remove },
       publishListing: (next) => {
         entriesRef.current = next;
         setEntries(next);
@@ -250,23 +239,48 @@ export function VaultProvider({
         rootRef.current = root;
       },
       publishOpenPath: (path, change) => {
-        publishOpenPath(path, change);
+        primaryStore.publishOpenPath(path, change);
+        coordinator.reportOpenPath("primary", path);
         writeLastOpenNote(path);
         onOpenPathRef.current(path);
       },
-      publishEditor,
-      // One surface: the editor column is always up in this shell.
-      showEditor: () => {},
-      notify: (level, message) => {
-        if (level === "error") toast.error(message);
-        else toast.warning(message);
-      },
+      publishEditor: primaryStore.publishEditor,
     });
-  }, [api, bootPath]);
+  }, [api, bootPath, primaryStore, coordinator]);
+
+  // The shell's actions open into the PRIMARY pane, guarded by the
+  // coordinator: a path the split already holds focuses the split instead.
+  const guardedActions = useMemo<VaultActions>(
+    () => ({
+      ...session.actions,
+      openFile: (path) => {
+        if (!coordinator.requestOpen("primary", path)) return;
+        session.actions.openFile(path);
+      },
+    }),
+    [session, coordinator],
+  );
 
   useEffect(() => {
-    actionsRef.current = session.actions;
-  }, [session, actionsRef]);
+    actionsRef.current = guardedActions;
+  }, [guardedActions, actionsRef]);
+
+  // The editor's split seam (wiki-chip right-click): the workspace owns the
+  // split's open state; the coordinator only vets the target first.
+  useEffect(() => {
+    setSplitViewActions({
+      openInSplit: (path) => {
+        if (coordinator.openPath("primary") === path) {
+          coordinator.focus("primary");
+          return;
+        }
+        onOpenInSplit(path);
+      },
+    });
+    return () => {
+      setSplitViewActions(null);
+    };
+  }, [coordinator, onOpenInSplit]);
 
   useEffect(() => {
     void session.start();
@@ -331,14 +345,16 @@ export function VaultProvider({
     };
   }, [session]);
 
-  // Non-React callers (palette actions, shortcuts) persist the live buffer
-  // through this registration.
+  // Non-React callers (palette actions, shortcuts) persist the live buffers
+  // through the pane registry; the flush action itself lives in the store.
   useEffect(() => {
-    setOpenNoteFlush(session.actions.flush);
+    primaryStore.setFlush(session.actions.flush);
+    const unregister = registerOpenNoteStore(primaryStore);
     return () => {
-      setOpenNoteFlush(null);
+      primaryStore.setFlush(null);
+      unregister();
     };
-  }, [session]);
+  }, [session, primaryStore]);
 
   // The editor's I/O singleton, installed before any editor mounts. Reads ride
   // the same routes the app already serves; subscriptions ride the ws bus.
@@ -455,9 +471,241 @@ export function VaultProvider({
   }, [entries, vaultName, wikiTargets]);
 
   const host = useMemo<EditorHost>(
-    () => ({ actions: session.actions, listing, ConnectionsPanel }),
-    [session, listing],
+    () => ({ actions: guardedActions, listing, ConnectionsPanel }),
+    [guardedActions, listing],
   );
 
-  return <EditorHostProvider host={host}>{children}</EditorHostProvider>;
+  return (
+    <PaneInfraContext.Provider value={coordinator}>
+      <OpenNoteStoreProvider store={primaryStore}>
+        <EditorHostProvider host={host}>{children}</EditorHostProvider>
+      </OpenNoteStoreProvider>
+    </PaneInfraContext.Provider>
+  );
+}
+
+/** The base-bytes-guarded VaultIO (CAS + diff3 retry) — one per pane, which is
+ * safe because the coordinator refuses the same path in two panes. */
+function createGuardedVaultIo(api: Api): VaultIO {
+  // Base bytes per path, recorded at every read; what a guarded write's
+  // expectedHash is computed FROM.
+  const bases = new Map<string, string>();
+
+  const read = async (path: string): Promise<string> => {
+    const content = await readFile(api, path);
+    bases.set(path, content);
+    return content;
+  };
+
+  const write = async (path: string, content: string): Promise<void> => {
+    const base = bases.get(path) ?? content;
+    const expectedHash = await contentHashHex(base);
+    const response = await api.vault.file.$put({ json: { path, content, expectedHash } });
+    if (response.ok) {
+      bases.set(path, content);
+      return;
+    }
+    if (response.status === 409) {
+      const body = await response.json();
+      if (body.error === "cas_mismatch" && body.current !== undefined) {
+        const disk = body.current.content;
+        const { merged } = diff3(base, content, disk);
+        const retryHash = await contentHashHex(disk);
+        const retry = await api.vault.file.$put({
+          json: { path, content: merged, expectedHash: retryHash },
+        });
+        if (retry.ok) {
+          bases.set(path, merged);
+          return;
+        }
+        throw new Error(`write ${path}: conflict retry refused (${String(retry.status)})`);
+      }
+      throw new Error(`write ${path}: ${body.error}`);
+    }
+    throw new Error(`write ${path}: ${String(response.status)}`);
+  };
+
+  const remove = async (path: string): Promise<DeleteVaultEntryResult> => {
+    // A note deletes into the vault's Trash/ (Moss's shape — restorable for
+    // 30 days); anything else, and anything already in the trash, deletes
+    // for real. The port answers "trashed" either way: the session only
+    // needs to know the row is gone from the listing.
+    const isNote = path.toLowerCase().endsWith(".md");
+    const inTrash = path === "Trash" || path.startsWith("Trash/");
+    if (isNote && !inTrash) {
+      const response = await api.vault.trash.$post({ json: { path } });
+      if (response.ok) return { outcome: "trashed" };
+      if (response.status === 404) return { outcome: "absent" };
+      const body = await response.json();
+      throw new Error(`trash ${path}: ${body.error}`);
+    }
+    const response = await api.vault.delete.$post({ json: { path } });
+    if (response.ok) return { outcome: "trashed" };
+    if (response.status === 404) return { outcome: "absent" };
+    const body = await response.json();
+    throw new Error(`delete ${path}: ${body.error}`);
+  };
+
+  return { read, write, remove };
+}
+
+async function fetchTree(api: Api): Promise<VaultTreeResponse> {
+  const response = await api.vault.tree.$get();
+  if (!response.ok) throw new Error("vault tree unavailable");
+  return response.json();
+}
+
+type PaneSessionConfig = {
+  api: Api;
+  io: ReturnType<typeof createGuardedVaultIo>;
+  boot: () => Promise<WorkspaceBoot>;
+  publishListing: (entries: VaultEntry[]) => void;
+  publishRoot: (root: string) => void;
+  publishOpenPath: VaultSessionPorts["publishOpenPath"];
+  publishEditor: VaultSessionPorts["publishEditor"];
+};
+
+/** One pane's session over this app's transports — ports identical across
+ * panes except where each pane publishes. */
+function buildPaneSession(cfg: PaneSessionConfig): VaultSession {
+  const { api, io } = cfg;
+  return createVaultSession({
+    boot: cfg.boot,
+    list: async () => listingEntries(await fetchTree(api)),
+    // No host re-announce over HTTP — a refresh IS a re-list, published
+    // through the same ordered path list() callers use.
+    refresh: () => Promise.resolve(),
+    exists: async (path) => {
+      const response = await api.vault.file.$get({ query: { path } });
+      return response.ok;
+    },
+    rename: async (from, to) => {
+      const response = await api.vault.rename.$post({ json: { from, to } });
+      if (response.ok) return { ok: true };
+      const body = await response.json();
+      return { ok: false, error: body.message };
+    },
+    note: io,
+    publishListing: cfg.publishListing,
+    publishRoot: cfg.publishRoot,
+    publishOpenPath: cfg.publishOpenPath,
+    publishEditor: cfg.publishEditor,
+    // One surface: the editor column is always up in this shell.
+    showEditor: () => {},
+    notify: (level, message) => {
+      if (level === "error") toast.error(message);
+      else toast.warning(message);
+    },
+  });
+}
+
+/**
+ * The SECOND pane (#595): its own store + session over the same transports,
+ * listing publications muted (the primary owns the shared listing state).
+ * Mounted by the workspace only while a split is open; unmounting flushes and
+ * unregisters, returning the workspace to singular.
+ */
+export function SplitPane({
+  path,
+  onOpenPath,
+  children,
+}: {
+  path: string;
+  onOpenPath: (path: string | null) => void;
+  children: ReactNode;
+}) {
+  const { api, docEvents } = useWorkspace();
+  const coordinator = useContext(PaneInfraContext);
+  if (coordinator === null) throw new Error("SplitPane used outside <VaultProvider>");
+  const outerListing = useVaultListing();
+  const connections = useConnectionsPanel();
+  const store = useMemo(() => createOpenNoteStore(), []);
+  const [bootTarget] = useState(path);
+  const rootRef = useRef("");
+  const onOpenPathRef = useRef(onOpenPath);
+  onOpenPathRef.current = onOpenPath;
+  // Effects close over the coordinator identity from first render; it is
+  // provider-lifetime stable.
+  const coordinatorRef = useRef(coordinator);
+
+  const session = useMemo<VaultSession>(() => {
+    const io = createGuardedVaultIo(api);
+    return buildPaneSession({
+      api,
+      io,
+      boot: async () => {
+        const tree = await fetchTree(api);
+        const content = await io.read(bootTarget).catch(() => null);
+        return {
+          root: tree.root,
+          entries: listingEntries(tree),
+          openNote: content === null ? null : { path: bootTarget, content },
+        };
+      },
+      // The primary pane owns the shared listing; a second publisher would
+      // just race it with identical data.
+      publishListing: () => {},
+      publishRoot: (root) => {
+        rootRef.current = root;
+      },
+      publishOpenPath: (next, change) => {
+        store.publishOpenPath(next, change);
+        coordinatorRef.current.reportOpenPath("split", next);
+        onOpenPathRef.current(next);
+      },
+      publishEditor: store.publishEditor,
+    });
+  }, [api, bootTarget, store]);
+
+  useEffect(() => {
+    const paneCoordinator = coordinatorRef.current;
+    paneCoordinator.registerStore("split", store);
+    store.setFlush(session.actions.flush);
+    const unregister = registerOpenNoteStore(store);
+    void session.start();
+    return () => {
+      session.stop();
+      store.setFlush(null);
+      unregister();
+      paneCoordinator.registerStore("split", null);
+    };
+  }, [session, store]);
+
+  // The workspace re-targets the split by prop (palette, wiki menu); the
+  // session's own flush-then-switch ordering applies as for any open.
+  useEffect(() => {
+    if (store.state().openPath !== path) session.actions.openFile(path);
+  }, [path, session, store]);
+
+  useEffect(
+    () =>
+      docEvents.subscribe((docId) => {
+        session.handleVaultChanged({
+          root: rootRef.current,
+          changed: docId === null ? null : { upserted: [docId], removed: [] },
+        });
+      }),
+    [docEvents, session],
+  );
+
+  const host = useMemo<EditorHost>(
+    () => ({
+      actions: {
+        ...session.actions,
+        openFile: (next) => {
+          if (!coordinatorRef.current.requestOpen("split", next)) return;
+          session.actions.openFile(next);
+        },
+      },
+      listing: outerListing,
+      ConnectionsPanel: connections,
+    }),
+    [session, outerListing, connections],
+  );
+
+  return (
+    <OpenNoteStoreProvider store={store}>
+      <EditorHostProvider host={host}>{children}</EditorHostProvider>
+    </OpenNoteStoreProvider>
+  );
 }

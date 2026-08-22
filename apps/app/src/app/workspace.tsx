@@ -10,10 +10,19 @@ import type { ViewContextSource } from "./chat/chat-model";
 import type { Thread } from "@repo/server-contract/threads";
 import type { VaultEntry } from "@repo/server-contract/vault";
 import { ConfirmDialogHost, confirm } from "@repo/ui/components/confirm-dialog";
+import { Button } from "@repo/ui/components/button";
+import { XIcon } from "lucide-react";
 import { cn } from "@repo/ui/lib/utils";
 import { Toaster, toast } from "@repo/ui/components/sonner";
 import { useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 import { queryKeys, refusalMessage, unwrap } from "./api";
 import { setCommentActions } from "@repo/editor/comments/comment-store";
 import { ActionComposer } from "./actions/action-composer";
@@ -23,12 +32,12 @@ import { platformShortcutModifier, useGlobalShortcuts } from "./global-shortcuts
 import { setAgentRequestActions } from "@repo/editor/agent-request";
 import { EditorPane } from "@repo/editor/editor-pane";
 import { flushOpenNote } from "@repo/editor/note/open-note-flush";
-import { openNoteState } from "@repo/editor/note/open-note-store";
 import { exportNoteAsPdf, printTitleForPath } from "./note/export-pdf";
 import type { VaultActions } from "@repo/editor/host";
 import { dailyNotePath, dailyNoteTemplate } from "./note/daily";
 import { readNoteViewContext } from "./note/note-view-context";
-import { VaultProvider } from "./note/vault-provider";
+import { SplitPane, VaultProvider } from "./note/vault-provider";
+import type { PaneId, VaultPanesHandle } from "./note/split-view";
 import { CommandPalette } from "./palette/command-palette";
 import {
   NOTE_SEARCH_LIMIT,
@@ -54,7 +63,7 @@ import {
   useVaultStatus,
   useVaultTree,
 } from "./vault-hooks";
-import { readSidebarWidth, writeSidebarWidth } from "./prefs";
+import { readSidebarWidth, writeSidebarWidth, readSplitNote, writeSplitNote } from "./prefs";
 import { useWorkspace } from "./workspace-context";
 
 export interface WorkspaceProps {
@@ -87,6 +96,57 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
   const [composerSeed, setComposerSeed] = useState<string | null>(null);
   // Zen (⌘\): just the document — both rails fold away, nothing unmounts.
   const [zen, setZen] = useState(false);
+  // The split pane (#595): which note the second pane shows — view state,
+  // never bytes. The FOCUSED pane is what the right panel, the composer and
+  // every action-time read follow.
+  const [splitPath, setSplitPath] = useState<string | null>(() => readSplitNote());
+  const [focusedPath, setFocusedPath] = useState<string | null>(null);
+  const [focusedPane, setFocusedPane] = useState<PaneId>("primary");
+  const panesRef = useRef<VaultPanesHandle | null>(null);
+  const focusedPathRef = useRef<string | null>(null);
+  focusedPathRef.current = focusedPath;
+
+  // Split ratio (primary pane's share, 0.25..0.75) — session state only.
+  const [splitRatio, setSplitRatio] = useState(0.5);
+  const paneRowRef = useRef<HTMLDivElement | null>(null);
+  const onDividerPointerDown = useCallback((down: ReactPointerEvent<HTMLDivElement>): void => {
+    down.preventDefault();
+    const row = paneRowRef.current;
+    if (row === null) return;
+    const rect = row.getBoundingClientRect();
+    const onMove = (move: PointerEvent): void => {
+      const ratio = (move.clientX - rect.left) / rect.width;
+      setSplitRatio(Math.min(0.75, Math.max(0.25, ratio)));
+    };
+    const onUp = (): void => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  }, []);
+
+  const openInSplit = useCallback((path: string): void => {
+    setSplitPath(path);
+    writeSplitNote(path);
+  }, []);
+  const closeSplit = useCallback((): void => {
+    setSplitPath(null);
+    writeSplitNote(null);
+  }, []);
+  // The split session's open-path mirror: a wiki click inside the split moves
+  // it; the note vanishing (deleted, vault switch) closes it.
+  const onSplitOpenPath = useCallback(
+    (path: string | null): void => {
+      if (path === null) {
+        closeSplit();
+        return;
+      }
+      setSplitPath(path);
+      writeSplitNote(path);
+    },
+    [closeSplit],
+  );
   const [panelThreadId, setPanelThreadId] = useState<string | null>(null);
 
   const openThread = useCallback((threadId: string | null): void => {
@@ -103,7 +163,9 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
   useEffect(() => {
     setCommentActions({
       create: async (id, text) => {
-        const path = openNote;
+        // The FOCUSED pane's doc — a comment created in the split must land
+        // in the split's sidecar, not the primary's.
+        const path = focusedPathRef.current;
         if (path === null) {
           return false;
         }
@@ -122,13 +184,15 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
     return () => {
       setCommentActions(null);
     };
-  }, [api, openNote, queryClient]);
+  }, [api, queryClient]);
 
   // What the user is looking at, pulled at submit: the open note's buffer via
   // the store the editor publishes into. Selection offsets return with the
   // composer surface (#587) — until then the context names the note whole.
   const readViewContext = useCallback<ViewContextSource>(async (): Promise<ViewContext | null> => {
-    const { editor } = openNoteState();
+    const panes = panesRef.current;
+    if (panes === null) return null;
+    const { editor } = panes.focusedState();
     if (editor.path === null) {
       return null;
     }
@@ -138,7 +202,7 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
         await flushOpenNote();
       },
       read: () => {
-        const { editor: current } = openNoteState();
+        const { editor: current } = panes.focusedState();
         return { content: current.path === path ? current.content : "", from: 0, to: 0 };
       },
     });
@@ -355,20 +419,41 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
       syncNow,
       openSettings: onOpenSettings,
       openTrash: () => setTrashOpen(true),
+      openInSplit,
+      closeSplit: splitPath === null ? null : closeSplit,
       exportPdf:
-        openNote === null
+        focusedPath === null
           ? null
           : () => {
-              exportNoteAsPdf(printTitleForPath(openNote));
+              exportNoteAsPdf(printTitleForPath(focusedPath));
             },
     }),
-    [setOpenNote, newUntitledNote, openDailyNote, openThread, syncNow, onOpenSettings, openNote],
+    [
+      setOpenNote,
+      newUntitledNote,
+      openDailyNote,
+      openThread,
+      syncNow,
+      onOpenSettings,
+      openInSplit,
+      closeSplit,
+      splitPath,
+      focusedPath,
+    ],
   );
 
   const threads = threadsQuery.data?.threads ?? EMPTY_THREADS;
 
   return (
-    <VaultProvider initialPath={openNote} onOpenPath={onOpenNote} actionsRef={actionsRef}>
+    <VaultProvider
+      initialPath={openNote}
+      onOpenPath={onOpenNote}
+      actionsRef={actionsRef}
+      panesRef={panesRef}
+      onFocusedPathChange={setFocusedPath}
+      onFocusedPaneChange={setFocusedPane}
+      onOpenInSplit={openInSplit}
+    >
       <SidebarProvider
         className="h-dvh overflow-hidden bg-surface text-ink print:h-auto print:overflow-visible"
         open={railOpen && !zen}
@@ -403,14 +488,57 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
           <div className="absolute top-2 left-2 z-10 print:hidden">
             <SidebarTrigger />
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto print:overflow-visible">
-            <EditorPane />
+          <div className="flex min-h-0 flex-1 print:block" ref={paneRowRef}>
+            <div
+              className={cn(
+                "min-h-0 min-w-0 overflow-y-auto print:overflow-visible",
+                splitPath === null ? "flex-1" : "print:w-full",
+                splitPath !== null && focusedPane === "split" && "print:hidden",
+              )}
+              style={splitPath === null ? undefined : { width: `${String(splitRatio * 100)}%` }}
+              onPointerDownCapture={() => panesRef.current?.focus("primary")}
+            >
+              <EditorPane />
+            </div>
+            {splitPath !== null ? (
+              <div
+                role="separator"
+                aria-orientation="vertical"
+                className="w-1 shrink-0 cursor-col-resize bg-line hover:bg-border print:hidden"
+                onPointerDown={onDividerPointerDown}
+              />
+            ) : null}
+            {splitPath !== null ? (
+              <div
+                className={cn(
+                  "flex min-h-0 min-w-0 flex-1 flex-col",
+                  focusedPane === "primary" && "print:hidden",
+                )}
+                onPointerDownCapture={() => panesRef.current?.focus("split")}
+              >
+                <SplitPane path={splitPath} onOpenPath={onSplitOpenPath}>
+                  <div className="flex items-center justify-end border-b border-line px-2 py-1 print:hidden">
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
+                      aria-label="Close split"
+                      onClick={closeSplit}
+                    >
+                      <XIcon />
+                    </Button>
+                  </div>
+                  <div className="min-h-0 flex-1 overflow-y-auto print:overflow-visible">
+                    <EditorPane />
+                  </div>
+                </SplitPane>
+              </div>
+            ) : null}
           </div>
           <ActionComposer
             open={composerOpen}
             onOpenChange={setComposerOpen}
             seed={composerSeed}
-            docPath={openNote}
+            docPath={focusedPath}
             readViewContext={readViewContext}
             onLaunched={openThread}
           />
@@ -422,7 +550,7 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
           )}
         >
           <ActionsPanel
-            docPath={openNote}
+            docPath={focusedPath}
             commentFocus={commentFocus}
             selectedThreadId={panelThreadId}
             onSelectThread={setPanelThreadId}

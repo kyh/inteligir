@@ -7,7 +7,7 @@ import { EDITOR_COLUMN_PX } from "@repo/editor/editor-chrome";
 import { EditorBottomToolbar } from "@repo/editor/editor-bottom-toolbar";
 import { MarkdownEditor } from "@repo/editor/markdown-editor";
 import { openDocPath } from "@repo/editor/note/open-doc";
-import { useOpenNote } from "@repo/editor/note/open-note-store";
+import { useOpenNote } from "@repo/editor/note/open-note-context";
 import { registerNoteTitleFocus } from "@repo/editor/note-title-focus";
 import { useConnectionsPanel, useVaultActions } from "@repo/editor/host";
 import { checkNoteName, noteNameErrorMessage } from "@repo/notes/knowledge/note-name";
