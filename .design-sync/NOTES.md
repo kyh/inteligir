@@ -114,3 +114,35 @@ node .ds-sync/resync.mjs --config .design-sync/config.json \
   via `cfg.dtsPropsFor.Button` if it matters.
 - The font is the self-hosted `packages/ui/src/fonts/InterVariable.ttf` (referenced by
   `prepare.mjs` `INTER_LATIN_CSS`). If that file moves/renames, update the `../src/fonts/…` path.
+
+## Re-sync 2026-08-22 — the fluid component layer
+
+- Card set 19 → **21**: Tabs REMOVED (tabs.tsx deleted with the fluid swap; preview deleted,
+  remote `components/general/Tabs/**` + `_preview/Tabs.js` must be deleted on upload), ADDED
+  InputMessage (cardMode column), TabsSubtle, ScrollArea (previews authored). Every other
+  existing preview still compiles against the fluid components — the swap kept prop compat
+  (Button even keeps `leadingIcon`/`md`/`icon-sm` aliases).
+- componentSrcMap grew to 135 entries: fluid subparts (sidebar's widened surface, checkbox
+  group forms, dropdown compat names, tabs-subtle/scroll-area subparts), the system layer
+  (IconProvider/SizeProvider/SelectionBackgrounds), and the August-era chat/product families
+  (Attachment/Bubble/Message*/NativeSelect/InputGroup/Sheet/Separator) are ALL nulled —
+  bundle-only until deliberately carded. Popover gained Header/Title/Description exports and
+  Sidebar gained SidebarInset — null them or they card (they leaked on the first run).
+- dtsPropsFor: Sidebar/Tooltip/Checkbox/Menu entries DELETED — the fluid sources export real
+  prop interfaces and extraction now beats the stale hand-written bodies (Sidebar's said
+  `collapsible: icon` — pre-fluid API). The remaining entries cover still-stock components.
+- Fonts rebuilt: the self-hosted InterVariable.ttf is GONE from the tree, so prepare.mjs now
+  emits faces for the families the tokens NAME — "Inter Variable" + "Geist Variable" +
+  "Geist Mono Variable" — from fontsource latin wght woff2s (geist pair are ui deps; inter is
+  an ORPHAN pnpm-store entry, resolved by a store glob fallback; if a store prune drops it,
+  add @fontsource-variable/inter somewhere real). Remote `fonts/InterVariable.ttf` is dead —
+  delete on upload.
+- Bundle 1848 KB (was ~1521) — framer-motion's cost; syntax OK, no scheduler regression
+  (react-three exclusion override still applies).
+- validate warnings accepted: TOKENS_MISSING for --scroll-area-thumb-* (runtime-set),
+  --editor-* (app appearance provider), --tw (tailwind internal); RENDER_SKIPPED (browser-
+  graded instead — all 21 cards mounted, overlays verified in screenshots).
+- FOUND, out of scope here: the vendored fluid Switch hardcodes its checked track blue
+  (#6B97FF/#5C89F2 inline) — unthemed against the monochrome palette, in the app AND the DS
+  pane. Same family as the --focus-ring fix; wants a token (e.g. track → var(--focus-ring)).
+- Remote anchor (.design-sync/.cache/remote-sync.json) was gone → full-scope upload.

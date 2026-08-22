@@ -231,10 +231,12 @@ const Switch = forwardRef<HTMLDivElement, SwitchProps>(
           style={{
             width: m.trackWidth,
             height: m.trackHeight,
+            // Upstream hardcodes its blue; the monochrome skin themes the
+            // checked track off primary instead (the --focus-ring precedent).
             backgroundColor: checked
               ? hovered
-                ? "#5C89F2"
-                : "#6B97FF"
+                ? "color-mix(in oklab, var(--primary), rgb(var(--overlay)) 12%)"
+                : "var(--primary)"
               : hovered
                 ? "color-mix(in oklab, var(--accent), rgb(var(--overlay)) 10%)"
                 : "var(--accent)",
