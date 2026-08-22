@@ -1,10 +1,12 @@
-<callout variant="info">
-  single quotes
-</callout>
+```moss-callout
+info
+single quotes
+```
 
-<callout title="a & b">
-  entity attr
-</callout>
+```moss-callout
+info
+entity attr
+```
 
 <toggle />
 
@@ -18,6 +20,7 @@
   </column>
 </column_group>
 
-<callout variant="info">
-  attrs on lines
-</callout>
+```moss-callout
+info
+attrs on lines
+```

@@ -122,10 +122,66 @@ export function scanDoc(source: string): DocScan {
         if (link) scan.links.push(link);
         return;
       }
+      case "code": {
+        if (node.lang === "moss-callout") scanCalloutBody(source, node, scan);
+        return;
+      }
       default:
     }
   });
   return scan;
+}
+
+/**
+ * A moss-callout fence's body is MARKDOWN (the editor models and renders it,
+ * wiki links included), so the scan must count what the editor draws —
+ * editor ⊆ vault is the containment direction the knowledge index owes. The
+ * body is re-scanned and every link's span is shifted into the OUTER source,
+ * so rename byte-surgery lands inside the fence exactly.
+ *
+ * Only a column-0 fence qualifies: an indented fence (inside a list/quote)
+ * prefixes every body line, and a flat offset shift would name wrong bytes —
+ * those bodies are skipped whole, stated rather than mis-indexed.
+ */
+function scanCalloutBody(
+  source: string,
+  node: Extract<Nodes, { type: "code" }>,
+  scan: DocScan,
+): void {
+  const pos = node.position;
+  if (pos?.start.offset === undefined || pos.start.column !== 1) return;
+  // Body bytes start after the opening-fence line and the kind/level header
+  // lines; mdast's `value` is exactly the body, so locate it by line walking.
+  const openLineEnd = source.indexOf("\n", pos.start.offset);
+  if (openLineEnd === -1) return;
+  const payloadStart = openLineEnd + 1;
+  const lines = node.value.split("\n");
+  const kind = lines[0]?.trim() ?? "";
+  const level = lines[1]?.trim() ?? "";
+  const headerLines =
+    kind === "priority" && ["low", "medium", "high", "critical"].includes(level) ? 2 : 1;
+  let bodyStart = payloadStart;
+  for (let skipped = 0; skipped < headerLines; skipped++) {
+    const nl = source.indexOf("\n", bodyStart);
+    if (nl === -1) return;
+    bodyStart = nl + 1;
+  }
+  const body = lines.slice(headerLines).join("\n");
+  if (source.slice(bodyStart, bodyStart + body.length) !== body) return;
+  const inner = scanDoc(body);
+  for (const link of inner.links) {
+    const shifted: ExtractedLink = {
+      ...link,
+      line: link.line + source.slice(0, bodyStart).split("\n").length - 1,
+    };
+    if (link.targetSpan !== undefined) {
+      shifted.targetSpan = {
+        start: link.targetSpan.start + bodyStart,
+        end: link.targetSpan.end + bodyStart,
+      };
+    }
+    scan.links.push(shifted);
+  }
 }
 
 // ---- Tree walking -----------------------------------------------------------

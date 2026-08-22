@@ -1,10 +1,12 @@
-<callout variant="info">
-  first callout
-</callout>
+```moss-callout
+info
+first callout
+```
 
-<callout variant="warning">
-  second callout
-</callout>
+```moss-callout
+warning
+second callout
+```
 
 <column_group>
   <column>

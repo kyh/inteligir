@@ -51,7 +51,9 @@ const EXPECTED: Record<string, Classification> = {
   "tagged.md": "canonical",
   // Vocabulary notes — canonical by construction (drafted, then pinned to
   // the pipeline's own round-trip output).
-  "components-playground.md": "canonical",
+  // Carries legacy <callout> JSX: converts to the moss-callout fence and the
+  // attribute NAME letters vanish with the mechanism (see jsx-callout churn).
+  "components-playground.md": "letters-diverge",
   "math-and-diagrams.md": "canonical",
   "wiki/hub.md": "canonical",
   "wiki/target note.md": "canonical",

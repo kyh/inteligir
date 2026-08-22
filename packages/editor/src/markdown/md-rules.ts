@@ -17,6 +17,7 @@ import {
   type MdMdxJsxFlowElement,
   type MdMdxJsxTextElement,
   type MdRules,
+  type MdCode,
   type MdTableRow,
   type MdText,
   type MdYaml,
@@ -30,6 +31,7 @@ import {
 } from "@platejs/markdown";
 
 import { MD_STRINGIFY } from "@repo/notes/markdown/md-plugins";
+import { parseMdast } from "@repo/notes/markdown/parse";
 import type { OpaqueBlock, OpaqueInline } from "@repo/notes/markdown/remark-opaque";
 import {
   parseFormulaRaw,
@@ -41,6 +43,14 @@ import type { WikiEmbed, WikiLink } from "@repo/notes/markdown/remark-wiki-link"
 // Fail fast if a @platejs/markdown bump reshapes defaultRules — the alert rule
 // delegates every non-alert blockquote to the stock path, and the table rule
 // wraps the stock table deserializer.
+const PRIORITY_LEVELS = new Set(["low", "medium", "high", "critical"]);
+
+const defaultCodeBlock = defaultRules.code_block;
+const defaultCodeBlockDeserialize = defaultCodeBlock?.deserialize;
+if (defaultCodeBlockDeserialize === undefined || defaultCodeBlockDeserialize === null) {
+  throw new Error("@platejs/markdown defaultRules.code_block lost its deserialize — pin the bump");
+}
+
 const defaultBlockquote = defaultRules.blockquote;
 const defaultBlockquoteDeserialize = defaultBlockquote?.deserialize;
 const defaultBlockquoteSerialize = defaultBlockquote?.serialize;
@@ -302,10 +312,32 @@ export const MD_RULES: MdRules = {
     },
   },
 
-  // id-leak overrides (see mediaSerializeWithoutId).
+  // Moss callout: a ```moss-callout fence whose payload is a kind line
+  // (info | warning | priority), an optional priority level line, then the
+  // body as markdown. The body round-trips through the SAME pipeline
+  // (nested serializeMd / convertChildrenDeserialize), so marks, wiki links
+  // and pills inside a callout survive byte-exact. The fence form is the
+  // dialect's (vendored moss-skills); the old <callout> JSX form now parses
+  // as opaque MDX and is preserved verbatim rather than converted.
   callout: {
-    serialize: (node: TElement, options: SerializeMdOptions) =>
-      jsxFlowSerialize(node, options, { name: "callout" }),
+    serialize: (node: TElement, options: SerializeMdOptions): MdCode => {
+      const editor = options.editor;
+      const variant = typeof node.variant === "string" ? node.variant : "info";
+      const level = typeof node.level === "string" && node.level !== "" ? [node.level] : [];
+      const children: Descendant[] = node.children;
+      const body =
+        editor === undefined
+          ? ""
+          : serializeMd(editor, {
+              remarkStringifyOptions: MD_STRINGIFY,
+              value: children,
+            }).replace(/\n$/, "");
+      return {
+        lang: "moss-callout",
+        type: "code",
+        value: [variant, ...level, ...(body === "" ? [] : [body])].join("\n"),
+      };
+    },
   },
   video: { serialize: mediaSerializeWithoutId },
   media_embed: { serialize: mediaSerializeWithoutId },
@@ -360,6 +392,28 @@ export const MD_RULES: MdRules = {
       body: typeof node.body === "string" ? node.body : "",
       type: "wikiEmbed",
     }),
+  },
+
+  code_block: {
+    deserialize: (node: MdCode, deco, options): TElement => {
+      if (node.lang === "moss-callout") {
+        const payload = node.value.split("\n");
+        const kind = payload[0]?.trim() ?? "info";
+        const hasLevel = kind === "priority" && PRIORITY_LEVELS.has(payload[1]?.trim() ?? "");
+        const body = payload.slice(hasLevel ? 2 : 1).join("\n");
+        const parsed = parseMdast(body);
+        const children: Descendant[] = parsed.ok
+          ? convertChildrenDeserialize(parsed.root.children, deco, options)
+          : [{ children: [{ text: body }], type: "p" }];
+        return {
+          children: children.length > 0 ? children : [{ children: [{ text: "" }], type: "p" }],
+          type: "callout",
+          variant: kind,
+          ...(hasLevel ? { level: payload[1]?.trim() ?? "" } : {}),
+        };
+      }
+      return defaultCodeBlockDeserialize(node, deco, options);
+    },
   },
 
   // Moss inline constructs; inner text stays verbatim both directions (the

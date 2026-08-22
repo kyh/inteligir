@@ -2,9 +2,10 @@
 
 Intro paragraph with [[Some Note]] and an alias [[Other|friendly]] plus ![[embed.png]] inline.
 
-<callout variant="info">
-  Callout body with **bold** and $$E=mc^2$$ inline.
-</callout>
+```moss-callout
+info
+Callout body with **bold** and $$E=mc^2$$ inline.
+```
 
 <toggle>
   Hidden content line.
