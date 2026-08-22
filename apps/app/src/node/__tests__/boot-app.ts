@@ -16,6 +16,8 @@ import { afterEach } from "vitest";
 import { createApp, type AppFallback, type CreateAppArgs } from "../app";
 import { createConnectorsService } from "../connectors/connectors-service";
 import { createConnectorsStore } from "../connectors/connectors-store";
+import { createNoteIntelligence } from "../note-intelligence/note-intelligence";
+import { createNoteIntelligenceSettingsStore } from "../note-intelligence/settings-store";
 import type { OpenExternalUrl } from "../cloud/browser-opener";
 import type { CloudTransport } from "../cloud/sync-runtime";
 import type { AppConfig } from "../config";
@@ -106,6 +108,11 @@ export async function bootTestApp(options: BootTestAppOptions = {}): Promise<Boo
     agent,
     bus,
     connectors: createConnectorsService(createConnectorsStore(dataDir)),
+    noteIntelligence: createNoteIntelligence({
+      infer: () => Promise.resolve(null),
+      settings: createNoteIntelligenceSettingsStore(dataDir),
+      vault: vault.service,
+    }),
     config: {
       databasePath,
       dataDir,

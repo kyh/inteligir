@@ -25,6 +25,8 @@ import { z } from "zod";
 import { createApp, type CreateAppArgs } from "../app";
 import { createConnectorsService } from "../connectors/connectors-service";
 import { createConnectorsStore } from "../connectors/connectors-store";
+import { createNoteIntelligence } from "../note-intelligence/note-intelligence";
+import { createNoteIntelligenceSettingsStore } from "../note-intelligence/settings-store";
 import { createKnowledgeRuntime } from "../knowledge/knowledge-runtime";
 import { ThreadEventThreadIdMismatchError, ThreadService } from "../threads/service";
 import { unavailableTurnDriver, type CreateTurnDriver } from "../threads/turn-driver";
@@ -104,6 +106,11 @@ async function bootThreadsApp(
   const args: CreateAppArgs = {
     agent: { mode: "off", runtime: "off", detail: null },
     connectors: createConnectorsService(createConnectorsStore(dataDir)),
+    noteIntelligence: createNoteIntelligence({
+      infer: () => Promise.resolve(null),
+      settings: createNoteIntelligenceSettingsStore(dataDir),
+      vault: vault.service,
+    }),
     bus,
     config: {
       databasePath,

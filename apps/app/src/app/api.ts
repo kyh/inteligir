@@ -29,6 +29,7 @@ export const queryKeys = {
    *  directory is shared across checkouts and is not the vault — so the
    *  surfaces that need progress poll this family while it is on screen. */
   voiceStatus: ["voice", "status"] as const,
+  noteIntelligence: ["note-intelligence"] as const,
   /** The agent's memory files. Nothing on the ws bus announces the memory
    *  directory changing — it is machine-global, not the vault, and the agent
    *  writes it with its shell rather than through the app — so the settings

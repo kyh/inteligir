@@ -21,6 +21,8 @@ import { afterEach, describe, expect, it } from "vitest";
 import { createApp } from "../../app";
 import { createConnectorsService } from "../../connectors/connectors-service";
 import { createConnectorsStore } from "../../connectors/connectors-store";
+import { createNoteIntelligence } from "../../note-intelligence/note-intelligence";
+import { createNoteIntelligenceSettingsStore } from "../../note-intelligence/settings-store";
 import { createKnowledgeRuntime } from "../../knowledge/knowledge-runtime";
 import { unavailableTurnDriver } from "../../threads/turn-driver";
 import { WsBus, type BusSocket } from "../../ws-bus";
@@ -64,6 +66,11 @@ async function bootVaultApp() {
   const { app } = createApp({
     agent: { mode: "off", runtime: "off", detail: null },
     connectors: createConnectorsService(createConnectorsStore(dataDir)),
+    noteIntelligence: createNoteIntelligence({
+      infer: () => Promise.resolve(null),
+      settings: createNoteIntelligenceSettingsStore(dataDir),
+      vault: vault.service,
+    }),
     bus,
     createTurnDriver: () => unavailableTurnDriver,
     db,

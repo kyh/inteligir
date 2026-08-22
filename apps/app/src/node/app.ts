@@ -31,7 +31,9 @@ import {
 } from "./cloud/sync-runtime";
 import type { AppConfig } from "./config";
 import type { ConnectorsService } from "./connectors/connectors-service";
+import type { NoteIntelligence } from "./note-intelligence/note-intelligence";
 import { registerConnectorRoutes } from "./connectors/routes";
+import { registerNoteIntelligenceRoutes } from "./note-intelligence/routes";
 import { buildContentSecurityPolicy } from "./csp";
 import { CLI_SKILL_MD } from "./guide/cli-skill";
 import { proveIdentity } from "./instance-identity";
@@ -95,6 +97,7 @@ export interface CreateAppArgs {
   /** Tests: drive `codex mcp` without a codex on the machine. */
   /** The app-owned MCP registry (issue #591); routes edit what sessions get. */
   connectors: ConnectorsService;
+  noteIntelligence: NoteIntelligence;
   config: AppConfig;
   /** The provider seam (agent-driver.ts resolves which driver boots). */
   createTurnDriver: CreateTurnDriver;
@@ -228,6 +231,7 @@ export function createApp(args: CreateAppArgs) {
   );
 
   registerConnectorRoutes(registrars, args.connectors);
+  registerNoteIntelligenceRoutes(registrars, args.noteIntelligence);
 
   // Detect + guide: harness CLI/credential facts for Settings (issue #588).
   registerAgentRoutes(registrars);

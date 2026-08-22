@@ -5,7 +5,7 @@
 // catalog lookup.
 
 import { z } from "zod";
-import { permissionModeSchema, reasoningLevelSchema } from "./shared-types";
+import { reasoningLevelSchema } from "./shared-types";
 
 const modelReasoningEffortSchema = z.object({
   reasoningEffort: reasoningLevelSchema,
@@ -22,8 +22,3 @@ const availableModelSchema = z.object({
   isDefault: z.boolean(),
 });
 export type AvailableModel = z.infer<typeof availableModelSchema>;
-
-const providerCapabilitiesSchema = z.object({
-  supportsUserQuestion: z.boolean(),
-  supportedPermissionModes: z.array(permissionModeSchema).min(1),
-});

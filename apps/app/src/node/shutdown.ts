@@ -60,6 +60,9 @@ export const TEARDOWN_BUDGETS_MS = {
    *  has not landed. */
   cloud: DEFAULT_STEP_TIMEOUT_MS,
   agent: DEFAULT_STEP_TIMEOUT_MS,
+  /** Note Intelligence only clears its debounce timer; an inference child in
+   *  flight is a one-shot `claude -p` that dies with the process. */
+  intelligence: DEFAULT_STEP_TIMEOUT_MS,
   knowledge: DEFAULT_STEP_TIMEOUT_MS,
   /** The final commit is a git subprocess over the whole dirty tree, which a
    *  large vault can make slow — and this is the step the entire ordering

@@ -12,6 +12,12 @@ import { z } from "zod";
 import { resolveAgentDriver } from "./agent/agent-driver";
 import type { AcpMcpServerConfig } from "@repo/agent-runtime/acp/acp-runtime";
 import { createConnectorsService } from "./connectors/connectors-service";
+import { createCliInferenceRunner } from "./note-intelligence/infer";
+import {
+  createNoteIntelligence,
+  type NoteIntelligence,
+} from "./note-intelligence/note-intelligence";
+import { createNoteIntelligenceSettingsStore } from "./note-intelligence/settings-store";
 import { createConnectorsStore } from "./connectors/connectors-store";
 import { buildAgentShellEnv, resolveCliBinDir, type AgentShellEnv } from "./agent/agent-shell-env";
 import { createApp, type AppFallback, type StartFetchOptions } from "./app";
@@ -169,12 +175,16 @@ async function boot(): Promise<{ serverUrl: string }> {
   // the hook late-binds; changes before it exists are covered by the boot
   // reconcile the first pass always runs.
   let knowledgeRef: KnowledgeRuntime | null = null;
+  let noteIntelligenceRef: NoteIntelligence | null = null;
   const vaultArgs: VaultRuntimeArgs = {
     vaultDir: config.vaultDir,
     vaultRemote: config.vaultRemote,
     dataDir: config.dataDir,
     notifier: bus,
-    onFilesChanged: (change) => knowledgeRef?.noteVaultChange(change),
+    onFilesChanged: (change) => {
+      knowledgeRef?.noteVaultChange(change);
+      noteIntelligenceRef?.noteVaultChange();
+    },
   };
   if (config.vaultSyncIntervalMs !== undefined) {
     vaultArgs.syncIntervalMs = config.vaultSyncIntervalMs;
@@ -198,6 +208,21 @@ async function boot(): Promise<{ serverUrl: string }> {
   // routes edit it, session launch composes its enabled rows into every
   // harness's mcpServers.
   const connectors = createConnectorsService(createConnectorsStore(config.dataDir));
+  // Note Intelligence (issue #590): OFF until the Settings toggle turns it
+  // on; the files-changed hook below only ever schedules, never spawns, while
+  // disabled.
+  const noteIntelligence = createNoteIntelligence({
+    infer: createCliInferenceRunner({ cwd: config.dataDir }),
+    settings: createNoteIntelligenceSettingsStore(config.dataDir),
+    vault: vault.service,
+    onLog: (message) => {
+      console.error(message);
+    },
+  });
+  registerTeardown("intelligence", async () => {
+    noteIntelligence.dispose();
+  });
+  noteIntelligenceRef = noteIntelligence;
 
   const agentDriver = resolveAgentDriver({
     config,
@@ -240,6 +265,7 @@ async function boot(): Promise<{ serverUrl: string }> {
 
   const { app, cloud, injectWebSocket, voice, voiceStreamHub } = createApp({
     connectors,
+    noteIntelligence,
     agent: agentDriver.status,
     bus,
     // The real dial, injected because it cannot be imported from `app.ts` —
