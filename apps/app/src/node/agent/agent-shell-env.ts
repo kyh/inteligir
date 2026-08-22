@@ -30,7 +30,14 @@ export function resolveSkillsDir(): string | null {
     const require = createRequire(import.meta.url);
     const manifest = require.resolve("@repo/agent-skills/package.json");
     const skills = join(dirname(manifest), "skills");
-    return statSync(skills).isDirectory() ? skills : null;
+    if (statSync(skills).isDirectory()) return skills;
+  } catch {
+    // Workspace resolution is the dev path; the packaged layout stages the
+    // content beside the app bundle instead (launcher build.mjs).
+  }
+  try {
+    const staged = join(dirname(fileURLToPath(import.meta.url)), "..", "skills");
+    return statSync(staged).isDirectory() ? staged : null;
   } catch {
     return null;
   }

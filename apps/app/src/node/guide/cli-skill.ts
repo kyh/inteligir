@@ -103,12 +103,18 @@ editing files directly).
 - \`inteligir comment remove <path> <id>\` — delete a thread's entries; the
   answer names the marker ids you still owe the note body.
 
-## Connectors — the MCP servers Codex offers you
+## Connectors — the MCP servers every session gets
 
-- \`inteligir connectors list\` — the MCP servers Codex is configured with, and
-  whether each is enabled and logged in. Read-only on purpose: an MCP server is
-  code the agent then talks to, so adding or removing one is a person's own act
-  in the app's Settings → Connectors, not a command.
+The registry is this app's own; enabled rows reach every agent session's
+launch, Claude Code and Codex alike.
+
+- \`inteligir connectors list\` — the configured servers, each with its target
+  and whether it is enabled and authenticated.
+- \`inteligir connectors add <name> --url <https://…> [--header NAME=VALUE]\` —
+  add a remote server (the header carries its API key). For a local command
+  server: \`--command <program> [--arg <a> …]\`.
+- \`inteligir connectors remove <name>\` — remove one; sessions stop getting it
+  from their next launch.
 
 ## Interactions — approvals the agent is waiting on
 

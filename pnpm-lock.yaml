@@ -413,6 +413,12 @@ importers:
       '@parcel/watcher':
         specifier: 'catalog:'
         version: 2.6.0
+      '@zed-industries/claude-code-acp':
+        specifier: 0.16.2
+        version: 0.16.2(zod@4.4.3)
+      '@zed-industries/codex-acp':
+        specifier: 0.16.0
+        version: 0.16.0
       better-sqlite3:
         specifier: 'catalog:'
         version: 13.0.3
@@ -12865,9 +12871,7 @@ snapshots:
       metro-runtime: 0.84.4
     transitivePeerDependencies:
       - '@babel/core'
-      - bufferutil
       - supports-color
-      - utf-8-validate
 
   '@react-native/normalize-colors@0.86.0': {}
 

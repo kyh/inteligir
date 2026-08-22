@@ -13,6 +13,7 @@ import type { AgentStatus } from "@repo/server-contract/routes";
 import type { CreateTurnDriver } from "../threads/turn-driver";
 import { createUnavailableTurnDriver } from "../threads/turn-driver";
 import type { CaptureTurnProposals } from "./agent-commits";
+import type { AcpMcpServerConfig } from "@repo/agent-runtime/acp/acp-runtime";
 import type { AppConfig } from "../config";
 import type { VaultRuntime } from "../vault/vault-runtime";
 import { createBoundedAgentLog } from "./agent-log";
@@ -21,6 +22,8 @@ import { createScriptedTurnDriverFactory, type ScriptedDriverDeps } from "./scri
 
 export interface ResolveAgentDriverArgs {
   config: Pick<AppConfig, "agent" | "agentModel" | "vaultDir">;
+  /** The enabled connector rows every session gets (issue #591). */
+  mcpServers?: () => AcpMcpServerConfig[];
   db: DbConnection;
   notifier: DbNotifier;
   vault: VaultRuntime;
@@ -124,6 +127,7 @@ export function resolveAgentDriver(args: ResolveAgentDriverArgs): ResolvedAgentD
     onDebug,
   };
   codex.defaultProviderId = claudeBinary === null ? "codex" : "claude";
+  if (args.mcpServers !== undefined) codex.mcpServers = args.mcpServers;
   if (args.shellEnv !== undefined) codex.shellEnv = args.shellEnv;
   if (args.cliBinDir !== undefined) codex.cliBinDir = args.cliBinDir;
   if (args.captureProposals !== undefined) codex.captureProposals = args.captureProposals;

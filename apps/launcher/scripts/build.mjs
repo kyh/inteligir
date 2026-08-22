@@ -86,6 +86,16 @@ await writeFile(
   `${JSON.stringify({ name: "inteligir-app", private: true, type: "module", version }, null, 2)}\n`,
 );
 
+// The dialect skills (@repo/agent-skills): CONTENT the agent reads with its
+// shell, staged beside the app bundle so the packaged layout's fallback probe
+// (resolveSkillsDir walks dist-node/../skills) finds them — the workspace
+// package cannot be a published dependency.
+await cp(
+  join(packageRoot, "..", "..", "packages", "agent-skills", "skills"),
+  join(stagedApp, "skills"),
+  { recursive: true },
+);
+
 // The CLI: its own bundle plus the `inteligir` shim two different callers
 // resolve — npm's `inteligir-cli` bin, and the PATH entry the server injects
 // into agent shells.

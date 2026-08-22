@@ -28,6 +28,7 @@ import {
   type RequestPermissionRequest,
   type RequestPermissionResponse,
   type SessionNotification,
+  type McpServer,
 } from "@zed-industries/agent-client-protocol";
 import type { PendingInteractionResolution } from "@repo/domain/pending-interactions";
 import type {
@@ -69,9 +70,18 @@ export interface AcpSpawnedAdapter {
   child: ChildProcess;
 }
 
+/** One MCP server for a session, in the runtime's own vocabulary — mapped to
+ * the ACP lib's wire shape at session creation. A GETTER on the options so
+ * registry edits reach the NEXT session without rebuilding the runtime. */
+export type AcpMcpServerConfig =
+  | { name: string; kind: "stdio"; command: string; args: string[] }
+  | { name: string; kind: "http"; url: string; headers?: Record<string, string> };
+
 export interface AcpAgentRuntimeOptions extends AgentRuntimeOptions {
   /** Model override routed into every adapter child, each harness's own way. */
   model?: string;
+  /** The enabled connector rows every session gets (issue #591). */
+  mcpServers?: () => AcpMcpServerConfig[];
   /** Test seam: replace the child spawn with an in-memory adapter. */
   spawnAdapter?: (harness: HarnessDefinition, env: Record<string, string>) => AcpSpawnedAdapter;
 }
@@ -300,6 +310,21 @@ export function createAcpAgentRuntime(options: AcpAgentRuntimeOptions): AgentRun
     return session;
   }
 
+  function sessionMcpServers(): McpServer[] {
+    const rows = options.mcpServers?.() ?? [];
+    return rows.map((row): McpServer => {
+      if (row.kind === "stdio") {
+        return { args: row.args, command: row.command, env: [], name: row.name };
+      }
+      return {
+        headers: Object.entries(row.headers ?? {}).map(([name, value]) => ({ name, value })),
+        name: row.name,
+        type: "http",
+        url: row.url,
+      };
+    });
+  }
+
   const runtime: AgentRuntime = {
     async ensureProvider(_args: EnsureProviderArgs): Promise<void> {
       // Sessions are per-thread children; there is no provider-scoped
@@ -310,7 +335,7 @@ export function createAcpAgentRuntime(options: AcpAgentRuntimeOptions): AgentRun
       const session = await openSession(args.threadId, args.providerId);
       const response = await session.connection.newSession({
         cwd: options.workspacePath,
-        mcpServers: [],
+        mcpServers: sessionMcpServers(),
       });
       session.providerThreadId = response.sessionId;
       return { providerThreadId: response.sessionId };
@@ -326,7 +351,7 @@ export function createAcpAgentRuntime(options: AcpAgentRuntimeOptions): AgentRun
         try {
           await session.connection.loadSession({
             cwd: options.workspacePath,
-            mcpServers: [],
+            mcpServers: sessionMcpServers(),
             sessionId: args.providerThreadId,
           });
           session.providerThreadId = args.providerThreadId;
@@ -340,7 +365,7 @@ export function createAcpAgentRuntime(options: AcpAgentRuntimeOptions): AgentRun
       }
       const response = await session.connection.newSession({
         cwd: options.workspacePath,
-        mcpServers: [],
+        mcpServers: sessionMcpServers(),
       });
       session.providerThreadId = response.sessionId;
       return { providerThreadId: response.sessionId };

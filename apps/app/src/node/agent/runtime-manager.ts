@@ -35,6 +35,7 @@
 import {
   createAcpAgentRuntime,
   type AcpAgentRuntimeOptions,
+  type AcpMcpServerConfig,
 } from "@repo/agent-runtime/acp/acp-runtime";
 import type {
   AgentRuntime,
@@ -133,6 +134,8 @@ export interface CodexRuntimeManagerDeps {
   /** Tests: replace the adapter child spawn (the fake ACP agent). */
   spawnAdapter?: AcpAgentRuntimeOptions["spawnAdapter"];
   /** Tests: observe/replace runtime construction (the shellEnv wiring test). */
+  /** The enabled connector rows every session gets (issue #591). */
+  mcpServers?: () => AcpMcpServerConfig[];
   createRuntime?: typeof createAcpAgentRuntime;
   /** Review mode's seam: where a turn's write set goes when the thread asks
    *  for proposals instead of writes. Omitted, every turn writes directly. */
@@ -291,6 +294,7 @@ class CodexTurnDriver implements TurnDriver {
     };
     if (this.deps.shellEnv !== undefined) runtimeOptions.shellEnv = this.deps.shellEnv();
     if (this.deps.model !== null) runtimeOptions.model = this.deps.model;
+    if (this.deps.mcpServers !== undefined) runtimeOptions.mcpServers = this.deps.mcpServers;
     if (this.deps.spawnAdapter !== undefined) runtimeOptions.spawnAdapter = this.deps.spawnAdapter;
     const runtime = createRuntime(runtimeOptions);
     this.runtime = runtime;

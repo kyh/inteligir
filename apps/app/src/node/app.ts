@@ -30,8 +30,7 @@ import {
   type CloudTransport,
 } from "./cloud/sync-runtime";
 import type { AppConfig } from "./config";
-import { systemCodexMcpRunner, type CodexMcpRunner } from "./connectors/codex-mcp";
-import { createConnectorsService } from "./connectors/connectors-service";
+import type { ConnectorsService } from "./connectors/connectors-service";
 import { registerConnectorRoutes } from "./connectors/routes";
 import { buildContentSecurityPolicy } from "./csp";
 import { CLI_SKILL_MD } from "./guide/cli-skill";
@@ -94,7 +93,8 @@ export interface CreateAppArgs {
    *  someone pairs, since an install with no credential opens nothing. */
   cloudTransport?: CloudTransport;
   /** Tests: drive `codex mcp` without a codex on the machine. */
-  codexMcpRunner?: CodexMcpRunner;
+  /** The app-owned MCP registry (issue #591); routes edit what sessions get. */
+  connectors: ConnectorsService;
   config: AppConfig;
   /** The provider seam (agent-driver.ts resolves which driver boots). */
   createTurnDriver: CreateTurnDriver;
@@ -227,10 +227,7 @@ export function createApp(args: CreateAppArgs) {
     createCommentsService(args.vault.service, () => Math.floor(Date.now() / 1000)),
   );
 
-  registerConnectorRoutes(
-    registrars,
-    createConnectorsService(args.codexMcpRunner ?? systemCodexMcpRunner),
-  );
+  registerConnectorRoutes(registrars, args.connectors);
 
   // Detect + guide: harness CLI/credential facts for Settings (issue #588).
   registerAgentRoutes(registrars);
