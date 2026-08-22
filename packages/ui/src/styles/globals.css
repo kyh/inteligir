@@ -250,7 +250,7 @@
   --overlay: 0 0 0;
   --hover: rgb(var(--overlay) / 0.04);
   --active: rgb(var(--overlay) / 0.07);
-  --focus-ring: #6b97ff;
+  --focus-ring: var(--ring);
 
   /* ── Surface and ink ROLES ────────────────────────────────────────────────
      A vocabulary of PLACES and WEIGHTS over the palette above, so a component
@@ -366,7 +366,7 @@
   --overlay: 255 255 255;
   --hover: rgb(var(--overlay) / 0.06);
   --active: rgb(var(--overlay) / 0.1);
-  --focus-ring: #6b97ff;
+  --focus-ring: var(--ring);
 }
 
 @layer base {

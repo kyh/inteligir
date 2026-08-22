@@ -57,6 +57,13 @@
       "when": 1787374498965,
       "tag": "0007_noisy_victor_mancha",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1787378400000,
+      "tag": "0008_repair_schema_version",
+      "breakpoints": true
     }
   ]
 }

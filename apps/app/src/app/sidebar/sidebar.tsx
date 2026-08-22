@@ -140,10 +140,16 @@ export function SidebarRailContent({
               event.currentTarget.blur();
               onOpenSearch();
             }}
+            // preventDefault keeps the gesture's focus off the field (it
+            // also cancels the compatibility click, so click can't be the
+            // opener); the open waits for pointerup so the palette dialog
+            // mounts after the gesture — a dialog mounted mid-gesture reads
+            // that same gesture's release as an outside press and dismisses
+            // itself.
             onPointerDown={(event) => {
               event.preventDefault();
-              onOpenSearch();
             }}
+            onPointerUp={onOpenSearch}
           />
           <kbd className="pointer-events-none absolute top-1/2 right-2 -translate-y-1/2 text-[10px] text-muted-foreground">
             {modifier === "meta" ? "⌘" : "Ctrl-"}P

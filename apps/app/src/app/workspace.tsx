@@ -304,7 +304,9 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
   const sortedFilePaths = useMemo(
     () =>
       treeEntries
-        .filter((entry) => entry.kind === "file")
+        // Notes only: the tree also holds comment sidecars and assets, and the
+        // palette's fallback must answer the same question the index does.
+        .filter((entry) => entry.kind === "file" && entry.path.endsWith(".md"))
         .map((entry) => entry.path)
         .toSorted(),
     [treeEntries],
