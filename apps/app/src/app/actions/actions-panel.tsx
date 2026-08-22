@@ -23,19 +23,23 @@ import {
 } from "../chat/chat-model";
 import { sendToThread } from "../chat/chat-service";
 import { useThreadDetail, useThreads, useThreadTimeline } from "../chat/thread-hooks";
+import { CommentsTab } from "./comments-tab";
 import { TimelineRowView } from "../chat/timeline-rows";
 import { useWorkspace } from "../workspace-context";
 
 export interface ActionsPanelProps {
   /** The open note — its actions list first. */
   docPath: string | null;
+  /** A clicked tinted range: switch to Comments and highlight these roots.
+   * The nonce distinguishes two clicks on the same range. */
+  commentFocus: { ids: readonly string[]; nonce: number } | null;
   /** The action a launch or a palette pick selected; null shows the list. */
   selectedThreadId: string | null;
   onSelectThread: (threadId: string | null) => void;
   onOpenDoc: (path: string) => void;
 }
 
-type PanelTab = "actions" | "properties";
+type PanelTab = "actions" | "comments" | "properties";
 
 function ActionRow({ thread, onSelect }: { thread: Thread; onSelect: (threadId: string) => void }) {
   const activity = threadActivity(thread, {
@@ -208,11 +212,17 @@ function ActionDetail({
 
 export function ActionsPanel({
   docPath,
+  commentFocus,
   selectedThreadId,
   onSelectThread,
   onOpenDoc,
 }: ActionsPanelProps) {
   const [tab, setTab] = useState<PanelTab>("actions");
+  useEffect(() => {
+    if (commentFocus !== null) {
+      setTab("comments");
+    }
+  }, [commentFocus]);
   const threadsQuery = useThreads();
   const threads = threadsQuery.data?.threads ?? [];
 
@@ -226,7 +236,7 @@ export function ActionsPanel({
         aria-label="Panel tabs"
         className="flex gap-1 border-b border-line px-2 py-1.5"
       >
-        {(["actions", "properties"] satisfies PanelTab[]).map((name) => (
+        {(["actions", "comments", "properties"] satisfies PanelTab[]).map((name) => (
           <button
             key={name}
             role="tab"
@@ -247,7 +257,9 @@ export function ActionsPanel({
         ))}
       </div>
 
-      {tab === "properties" ? (
+      {tab === "comments" ? (
+        <CommentsTab docPath={docPath} focusIds={commentFocus?.ids ?? []} />
+      ) : tab === "properties" ? (
         docPath === null ? (
           <p className="p-3 text-sm text-muted-foreground">No note open.</p>
         ) : (

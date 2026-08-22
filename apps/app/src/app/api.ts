@@ -51,6 +51,11 @@ export const queryKeys = {
   threads: ["threads", "list"] as const,
   threadDetail: (threadId: string) => ["threads", "detail", threadId] as const,
   threadsByDoc: (docPath: string) => ["threads", "by-doc", docPath] as const,
+  /** The whole comments family. Sidecars are vault files, so the vault's own
+   *  files-changed sweep is what invalidates them — no comments change kind
+   *  exists or is needed. */
+  commentsRoot: ["comments"] as const,
+  comments: (docPath: string) => ["comments", docPath] as const,
   /** The whole proposal family — what a ws `proposals-changed` sweeps. */
   proposalsRoot: ["proposals"] as const,
   proposalsByDoc: (docPath: string) => ["proposals", "by-doc", docPath] as const,

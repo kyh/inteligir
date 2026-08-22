@@ -12,8 +12,9 @@ import type { VaultEntry } from "@repo/server-contract/vault";
 import { ConfirmDialogHost, confirm } from "@repo/ui/components/confirm-dialog";
 import { Toaster, toast } from "@repo/ui/components/sonner";
 import { useQueryClient } from "@tanstack/react-query";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { queryKeys, refusalMessage, unwrap } from "./api";
+import { setCommentActions } from "@repo/editor/comments/comment-store";
 import { ActionComposer } from "./actions/action-composer";
 import { ActionsPanel } from "./actions/actions-panel";
 import { useThreads } from "./chat/thread-hooks";
@@ -76,6 +77,37 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
   const openThread = useCallback((threadId: string | null): void => {
     setPanelThreadId(threadId);
   }, []);
+
+  // The editor's comment surface: create persists the note FIRST (the route
+  // derives `anchored` from disk), then writes the sidecar entry; a clicked
+  // range focuses its thread in the panel's Comments tab.
+  const [commentFocus, setCommentFocus] = useState<{
+    ids: readonly string[];
+    nonce: number;
+  } | null>(null);
+  useEffect(() => {
+    setCommentActions({
+      create: async (id, text) => {
+        const path = openNote;
+        if (path === null) {
+          return false;
+        }
+        await flushOpenNote();
+        const response = await api.comments.add.$post({ json: { id, path, text } });
+        if (response.ok) {
+          void queryClient.invalidateQueries({ queryKey: queryKeys.commentsRoot });
+          return true;
+        }
+        return false;
+      },
+      open: (ids) => {
+        setCommentFocus({ ids, nonce: Date.now() });
+      },
+    });
+    return () => {
+      setCommentActions(null);
+    };
+  }, [api, openNote, queryClient]);
 
   // What the user is looking at, pulled at submit: the open note's buffer via
   // the store the editor publishes into. Selection offsets return with the
@@ -353,6 +385,7 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
         <aside className="w-80 shrink-0 border-l border-line bg-surface-inset">
           <ActionsPanel
             docPath={openNote}
+            commentFocus={commentFocus}
             selectedThreadId={panelThreadId}
             onSelectThread={setPanelThreadId}
             onOpenDoc={setOpenNote}

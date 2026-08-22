@@ -64,7 +64,11 @@ describe("a vault change", () => {
       paths: ["a.md", "b.md"],
     });
 
-    expect(applied.invalidated).toEqual([[...queryKeys.vaultTree], [...queryKeys.knowledgeRoot]]);
+    expect(applied.invalidated).toEqual([
+      [...queryKeys.vaultTree],
+      [...queryKeys.knowledgeRoot],
+      [...queryKeys.commentsRoot],
+    ]);
     expect(applied.docs).toEqual(["a.md", "b.md"]);
   });
 

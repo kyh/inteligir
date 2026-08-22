@@ -1,4 +1,4 @@
-/* Inter Variable + the theme tokens both come from @repo/ui/globals.css. */
+/* Geist + the theme tokens both come from @repo/ui/globals.css. */
 @import "@repo/ui/globals.css";
 
 :root {
@@ -12,7 +12,7 @@
      through to the `-apple-system` stack baked into the editor theme, which put
      two typefaces on one screen — Inter in the sidebar and the composer, the
      system UI face in the document. */
-  --editor-font: var(--font-inter);
+  --editor-font: var(--font-geist);
   --editor-mono: var(--font-geist-mono);
   --editor-size: 1rem;
   --editor-line-height: 1.75;

@@ -104,7 +104,11 @@ export const editorConstructsBrowser: Scenario = {
       expectEq(onDisk, DOC, "opening the note changed its bytes");
 
       ctx.log("an edit keeps every construct on disk");
-      await agentBrowser(["find", "text", "Prose with", "click"]);
+      // The bottom toolbar floats over the note's lower half, so a text-target
+      // click can land under it; clicking the editable surface itself always
+      // hits, and the caret lands wherever — the edit below types at Home.
+      await agentBrowser(["click", EDITOR]);
+      await agentBrowser(["press", "Meta+Home"]);
       await agentBrowser(["press", "End"]);
       await agentBrowser(["type", EDITOR, " Edited."]);
       const deadline = Date.now() + 15_000;

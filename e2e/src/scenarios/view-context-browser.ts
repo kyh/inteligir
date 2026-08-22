@@ -30,7 +30,7 @@ ${PARAGRAPH}
 const MESSAGE = "make this shorter";
 const TURN_DEADLINE_MS = 30_000;
 /** The composer's textarea — the dock's own input, by its accessible name. */
-const COMPOSER = 'textarea[aria-label="Message the agent"]';
+const COMPOSER = 'textarea[aria-label="Ask the agent"]';
 const EDITOR = '[data-slate-editor="true"]';
 
 function sha256Hex(content: string): string {
@@ -59,9 +59,11 @@ export const viewContextBrowser: Scenario = {
       const opened = await agentBrowser(["get", "text", EDITOR]);
       expect(opened.includes(PARAGRAPH), `the browser did not open ${DOC_PATH} — got: ${opened}`);
 
-      ctx.log("typing into the dock and sending");
+      ctx.log("opening the action composer (⌘K) and sending");
+      await agentBrowser(["press", process.platform === "darwin" ? "Meta+k" : "Control+k"]);
+      await agentBrowser(["wait", COMPOSER], 30_000);
       await agentBrowser(["fill", COMPOSER, MESSAGE]);
-      await agentBrowser(["press", "Enter"]);
+      await agentBrowser(["press", process.platform === "darwin" ? "Meta+Enter" : "Control+Enter"]);
 
       // `idle` alone does not mean the turn RAN: the dock creates the thread on
       // submit, and a row exists (idle, empty) for a beat before the turn

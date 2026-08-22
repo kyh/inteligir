@@ -34,7 +34,7 @@ const CHROME_MEDIA_ARGS = [
   "--use-fake-device-for-media-stream",
 ].join(",");
 
-const COMPOSER = 'textarea[aria-label="Message the agent"]';
+const COMPOSER = 'textarea[aria-label="Ask the agent"]';
 const MIC = 'button[aria-label="Dictate"]';
 const MIC_RECORDING = 'button[aria-label="Stop dictating"]';
 const PREVIEW = "[data-dictation-preview]";
@@ -51,6 +51,8 @@ export const dictationBrowser: Scenario = {
       ctx.log(`opening ${app.baseUrl}/ with a fake microphone`);
       await agentBrowser(["--args", CHROME_MEDIA_ARGS, "open", `${app.baseUrl}/`], 60_000);
       await agentBrowser(["wait", '[data-slate-editor="true"]'], MOUNT_DEADLINE_MS);
+      // The composer floats behind ⌘K now — open it before anything waits on it.
+      await agentBrowser(["press", process.platform === "darwin" ? "Meta+k" : "Control+k"]);
       await agentBrowser(["wait", COMPOSER], MOUNT_DEADLINE_MS);
 
       // The button reads its own status off /voice/status, so waiting for the

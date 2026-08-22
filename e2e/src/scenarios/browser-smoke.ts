@@ -25,7 +25,7 @@ const SAVE_SETTLE_MS = 2_500;
 const PALETTE_INPUT = 'input[placeholder^="Search notes"]';
 /** agent-browser drives a browser on THIS machine, so the running platform is
  *  the one the page sees — and the app claims ⌘ there, Ctrl elsewhere. */
-const PALETTE_CHORD = process.platform === "darwin" ? "Meta+k" : "Control+k";
+const PALETTE_CHORD = process.platform === "darwin" ? "Meta+p" : "Control+p";
 
 function pageIsMounted(bodyText: string): boolean {
   // The seeded welcome note's content only reaches the page through a
