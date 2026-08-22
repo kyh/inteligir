@@ -14,6 +14,7 @@
     "./formulas/format-result": "./src/formulas/format-result.ts",
     "./formulas/formula-meta": "./src/formulas/formula-meta.ts",
     "./formulas/resolve-graph": "./src/formulas/resolve-graph.ts",
+    "./import/import-moss-doc": "./src/import/import-moss-doc.ts",
     "./knowledge/doc-file": "./src/knowledge/doc-file.ts",
     "./knowledge/knowledge-index": "./src/knowledge/knowledge-index.ts",
     "./knowledge/knowledge-store": "./src/knowledge/knowledge-store.ts",

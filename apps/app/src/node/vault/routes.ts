@@ -12,6 +12,8 @@ import {
 } from "@repo/server-contract/vault";
 import type { TypedRoutesRegistrars } from "@repo/typed-routes/typed-routes";
 import { VaultPathError } from "@repo/notes/knowledge/vault-path";
+import { runMossImport } from "./import-moss";
+import { listTrash, purgeTrashedNote, restoreNote, trashNote } from "./trash";
 import type { VaultRuntime } from "./vault-runtime";
 import {
   VaultServiceError,
@@ -252,6 +254,65 @@ export function registerVaultRoutes(
     }
   });
 
+  get(apiRoutes.vault.trashList, async (c) => c.json({ entries: await listTrash(vault.service) }));
+
+  post(apiRoutes.vault.trash, async (c, body) => {
+    try {
+      return c.json(await trashNote(vault.service, body.path));
+    } catch (error) {
+      const refusal = classifyVaultError(error);
+      switch (refusal?.code) {
+        case "invalid_path":
+          return c.json(refusal.body, API_ERROR_STATUS.invalid_path);
+        case "not_found":
+          return c.json(refusal.body, API_ERROR_STATUS.not_found);
+        case "conflict":
+          return c.json(refusal.body, API_ERROR_STATUS.conflict);
+        case "too_large":
+        case undefined:
+          throw error;
+      }
+    }
+  });
+
+  post(apiRoutes.vault.trashRestore, async (c, body) => {
+    try {
+      return c.json(await restoreNote(vault.service, body.path));
+    } catch (error) {
+      const refusal = classifyVaultError(error);
+      switch (refusal?.code) {
+        case "invalid_path":
+          return c.json(refusal.body, API_ERROR_STATUS.invalid_path);
+        case "not_found":
+          return c.json(refusal.body, API_ERROR_STATUS.not_found);
+        case "conflict":
+          return c.json(refusal.body, API_ERROR_STATUS.conflict);
+        case "too_large":
+        case undefined:
+          throw error;
+      }
+    }
+  });
+
+  post(apiRoutes.vault.trashPurge, async (c, body) => {
+    try {
+      await purgeTrashedNote(vault.service, body.path);
+      return c.json({ ok: true });
+    } catch (error) {
+      const refusal = classifyVaultError(error);
+      switch (refusal?.code) {
+        case "invalid_path":
+          return c.json(refusal.body, API_ERROR_STATUS.invalid_path);
+        case "not_found":
+          return c.json(refusal.body, API_ERROR_STATUS.not_found);
+        case "conflict":
+        case "too_large":
+        case undefined:
+          throw error;
+      }
+    }
+  });
+
   post(apiRoutes.vault.remove, async (c, body) => {
     try {
       await vault.service.remove(body.path);
@@ -270,6 +331,10 @@ export function registerVaultRoutes(
       }
     }
   });
+
+  post(apiRoutes.vault.importMoss, async (c, body) =>
+    c.json(await runMossImport(vault.service, body.dryRun)),
+  );
 
   get(apiRoutes.vault.status, async (c) => c.json(await vault.status()));
 

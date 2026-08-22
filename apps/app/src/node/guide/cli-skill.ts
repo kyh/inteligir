@@ -45,6 +45,10 @@ output; without it the output is compact human text.
   it are rewritten and the old name is recorded as an alias.
 - \`inteligir vault delete <path>\` — delete a file or folder.
 - \`inteligir vault mkdir <path>\` — create a folder.
+- \`inteligir trash list\` — notes in the trash (30-day retention).
+- \`inteligir trash put <path>\` — move a note into the trash, restorably.
+- \`inteligir trash restore <Trash/path>\` — move a trashed note back.
+- \`inteligir trash purge <Trash/path>\` — delete a trashed note for good.
 - \`inteligir vault status\` — git sync state (remote, dirty, conflicts).
 - \`inteligir vault sync\` — run a sync against the configured remote now.
 
@@ -151,6 +155,10 @@ it would throw away.
 
 - \`inteligir status\` — server version, data dir, agent runtime state, and
   the current thread context.
+- \`inteligir import-moss\` — one-shot migration of legacy Moss syntax across
+  the vault: \`{%c:id%}\` comment ranges become \`%%m:id:start/end%%\`, comment
+  footers fold into the \`.comments.json\` sidecar, whitespace-lax marker and
+  tab spellings normalize. Idempotent. \`--dry-run\` reports without writing.
 - \`inteligir guide\` — print this manual.
 
 ## Exit codes and failure output
