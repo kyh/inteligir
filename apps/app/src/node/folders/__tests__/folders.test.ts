@@ -1,11 +1,11 @@
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { delimiter, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { withConnectedDirs, type AgentShellEnv } from "../../agent/agent-shell-env";
 import { createFoldersService, FolderRefusedError } from "../folders-service";
 import { createFoldersStore, FoldersStoreError } from "../folders-store";
+import { makeTempDir } from "../../__tests__/temp-dir";
 
 let root: string;
 let dataDir: string;
@@ -15,7 +15,7 @@ let refDir: string;
 beforeEach(() => {
   // realpath'd up front: mkdtemp under macOS's /var symlink would otherwise
   // make every containment comparison a symlink-vs-target mismatch.
-  root = realpathSync(mkdtempSync(join(tmpdir(), "folders-test-")));
+  root = makeTempDir("folders-test-", { realpath: true });
   dataDir = join(root, "data");
   vaultDir = join(root, "vault");
   refDir = join(root, "reference");
@@ -24,9 +24,7 @@ beforeEach(() => {
   mkdirSync(refDir, { recursive: true });
 });
 
-afterEach(() => {
-  rmSync(root, { force: true, recursive: true });
-});
+afterEach(() => {});
 
 function service() {
   return createFoldersService({ store: createFoldersStore(dataDir), dataDir, vaultDir });

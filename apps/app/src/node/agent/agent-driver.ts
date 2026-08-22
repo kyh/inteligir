@@ -5,8 +5,6 @@
 // so an absent codex fails the send synchronously with an actionable
 // message instead of wedging a thread on an async spawn failure.
 
-import { accessSync, constants, statSync } from "node:fs";
-import { delimiter, join } from "node:path";
 import type { DbConnection } from "@repo/db/connection";
 import type { DbNotifier } from "@repo/domain/notifier";
 import type { AgentStatus } from "@repo/server-contract/routes";
@@ -17,26 +15,27 @@ import type { AcpMcpServerConfig } from "@repo/agent-runtime/acp/acp-runtime";
 import type { AppConfig } from "../config";
 import type { VaultRuntime } from "../vault/vault-runtime";
 import { createBoundedAgentLog } from "./agent-log";
-import { createCodexRuntimeManager, type CodexRuntimeManagerDeps } from "./runtime-manager";
+import { binaryOnPath } from "./binary-on-path";
+import { createAcpRuntimeManager, type AcpRuntimeManagerDeps } from "./runtime-manager";
 import { createScriptedTurnDriverFactory, type ScriptedDriverDeps } from "./scripted-driver";
 
 export interface ResolveAgentDriverArgs {
   config: Pick<AppConfig, "agent" | "agentModel" | "vaultDir">;
   /** The enabled connector rows every session gets (issue #591). */
-  mcpServers?: () => AcpMcpServerConfig[] | Promise<AcpMcpServerConfig[]>;
+  mcpServers: () => AcpMcpServerConfig[] | Promise<AcpMcpServerConfig[]>;
   db: DbConnection;
   notifier: DbNotifier;
   vault: VaultRuntime;
   /** Env injected into the agent's shell (the server URL and a PATH that
    *  reaches the CLI); a getter because the bound port exists only after
    *  listen. */
-  shellEnv?: () => Record<string, string>;
+  shellEnv: () => Record<string, string>;
   /** Where `inteligir` lives, or null when none ships — decides whether the
    *  session instructions may promise the command. */
-  cliBinDir?: string | null;
+  cliBinDir: string | null;
   /** Connected Folders (issue #601), read fresh per session open so a
    *  Settings edit reaches the next session without a reboot. */
-  connectedDirs?: () => readonly string[];
+  connectedDirs: () => readonly string[];
   /** Where a review-mode turn's write set goes (issue #560). Both drivers
    *  take it, so the mode is a property of the THREAD rather than of which
    *  provider happens to be running. */
@@ -48,30 +47,6 @@ export interface ResolvedAgentDriver {
   status: AgentStatus;
   createTurnDriver: CreateTurnDriver;
   dispose(): Promise<void>;
-}
-
-export function codexBinaryOnPath(env: NodeJS.ProcessEnv): string | null {
-  return harnessBinaryOnPath("codex", env);
-}
-
-function harnessBinaryOnPath(name: string, env: NodeJS.ProcessEnv): string | null {
-  const pathValue = env.PATH ?? "";
-  for (const dir of pathValue.split(delimiter)) {
-    if (dir.length === 0) {
-      continue;
-    }
-    const candidate = join(dir, name);
-    try {
-      if (!statSync(candidate).isFile()) {
-        continue;
-      }
-      accessSync(candidate, constants.X_OK);
-      return candidate;
-    } catch {
-      continue;
-    }
-  }
-  return null;
 }
 
 const noDispose = async (): Promise<void> => {};
@@ -109,8 +84,8 @@ export function resolveAgentDriver(args: ResolveAgentDriverArgs): ResolvedAgentD
   // the current models response); codex stays selectable and heals on the
   // next adapter release — flip the default back then.
   const env = args.env ?? process.env;
-  const claudeBinary = harnessBinaryOnPath("claude", env);
-  const codexBinary = harnessBinaryOnPath("codex", env);
+  const claudeBinary = binaryOnPath("claude", env);
+  const codexBinary = binaryOnPath("codex", env);
   if (claudeBinary === null && codexBinary === null) {
     const detail =
       "No agent CLI was found on PATH — install Claude Code or the Codex CLI, or set INTELIGIR_AGENT=scripted";
@@ -121,21 +96,21 @@ export function resolveAgentDriver(args: ResolveAgentDriverArgs): ResolvedAgentD
     };
   }
 
-  const codex: CodexRuntimeManagerDeps = {
+  const codex: AcpRuntimeManagerDeps = {
     db: args.db,
     notifier: args.notifier,
     vaultDir: args.config.vaultDir,
     git: args.vault.git,
     model: args.config.agentModel,
+    mcpServers: args.mcpServers,
+    shellEnv: args.shellEnv,
+    cliBinDir: args.cliBinDir,
+    connectedDirs: args.connectedDirs,
+    defaultProviderId: claudeBinary === null ? "codex" : "claude",
     onDebug,
   };
-  codex.defaultProviderId = claudeBinary === null ? "codex" : "claude";
-  if (args.mcpServers !== undefined) codex.mcpServers = args.mcpServers;
-  if (args.shellEnv !== undefined) codex.shellEnv = args.shellEnv;
-  if (args.cliBinDir !== undefined) codex.cliBinDir = args.cliBinDir;
-  if (args.connectedDirs !== undefined) codex.connectedDirs = args.connectedDirs;
   if (args.captureProposals !== undefined) codex.captureProposals = args.captureProposals;
-  const manager = createCodexRuntimeManager(codex);
+  const manager = createAcpRuntimeManager(codex);
   return {
     status: { mode, runtime: "acp", detail: null },
     createTurnDriver: manager.createTurnDriver,

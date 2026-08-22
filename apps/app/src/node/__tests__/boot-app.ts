@@ -45,9 +45,8 @@ export interface BootTestAppOptions {
   /** Omitted, the cloud runtime boots with the real transport — which does
    *  nothing at all, because a scratch data dir holds no device credential. */
   cloudTransport?: CloudTransport;
-  /** Omitted, the connector routes drive whatever `codex` this machine has —
-   *  so a suite asserting on them injects a fake and never touches the
-   *  developer's own `~/.codex/config.toml`. */
+  /** Omitted, no SPA is served (`kind: "none"`) — route suites talk to
+   *  /api/v1 directly. */
   fallback?: AppFallback;
   /** Omitted, a pairing would reach the real opener — so any suite that begins
    *  one has to supply this, or `pnpm test` pops a browser window. */
@@ -136,9 +135,6 @@ export async function bootTestApp(options: BootTestAppOptions = {}): Promise<Boo
       // shared the machine's real model cache could delete a model a developer
       // downloaded, and `remove` is one of the routes under test.
       modelDir: join(instanceDir, "models"),
-      // Under the instance dir, disjoint from the vault: `remove` is a route
-      // under test, and a suite that shared the machine's real memory dir could
-      // delete a fact a developer's own agent recorded. "memory"),
       // Never `auto` in a suite: the real runtime dlopens a native binding and
       // would make every route test a claim about this machine's platform.
       voice: options.voice ?? "scripted",

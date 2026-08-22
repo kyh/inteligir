@@ -5,17 +5,17 @@
 // write would erase what the bytes held), and the session view carrying the
 // full rows the redacted view must not.
 
-import { mkdtempSync, readFileSync, statSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { connectorsResponseSchema } from "@repo/server-contract/connectors";
 import { describe, expect, it } from "vitest";
 import { ConnectorConflictError, createConnectorsService } from "../connectors-service";
 import { ConnectorsStoreError, createConnectorsStore } from "../connectors-store";
 import { bootTestApp } from "../../__tests__/boot-app";
+import { makeTempDir } from "../../__tests__/temp-dir";
 
 function tempService() {
-  const dir = mkdtempSync(join(tmpdir(), "inteligir-connectors-"));
+  const dir = makeTempDir("inteligir-connectors-");
   return { dir, service: createConnectorsService(createConnectorsStore(dir)) };
 }
 

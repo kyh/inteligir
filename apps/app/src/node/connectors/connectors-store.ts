@@ -7,8 +7,9 @@
 // rows a person edits, the whole value is read on every session launch, and
 // the db's migration machinery would be weight with no query to earn it.
 
-import { chmodSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { readFileSync } from "node:fs";
+import { stagedWriteFileSync } from "../staged-write";
+import { join } from "node:path";
 import { z } from "zod";
 
 import { connectorNameSchema, connectorUrlSchema } from "@repo/server-contract/connectors";
@@ -112,13 +113,7 @@ export function createConnectorsStore(dataDir: string): ConnectorsStore {
     },
 
     write(servers: StoredConnector[]): void {
-      mkdirSync(dirname(path), { recursive: true });
-      const staged = `${path}.tmp-${String(process.pid)}`;
-      writeFileSync(staged, `${JSON.stringify({ servers }, null, 2)}\n`, { mode: 0o600 });
-      // chmod after write too: writeFileSync's mode applies only on CREATE,
-      // and a staged file inheriting a loose umask must not carry keys.
-      chmodSync(staged, 0o600);
-      renameSync(staged, path);
+      stagedWriteFileSync(path, `${JSON.stringify({ servers }, null, 2)}\n`, { mode: 0o600 });
     },
   };
 }

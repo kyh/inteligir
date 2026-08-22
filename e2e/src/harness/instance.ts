@@ -65,9 +65,6 @@ export interface AppInstance {
   baseUrl: string;
   dataDir: string;
   vaultDir: string;
-  /** This instance's agent-memory dir — a hermetic sibling of the data dir, so
-   *  a scenario can seed a fact without touching the developer's real
-   *  ~/.inteligir/memory (which the default would otherwise resolve to). */
   port: number;
   name: string;
   /** The child's interleaved stdout+stderr tail, for failure transcripts. */
@@ -85,9 +82,6 @@ const HARNESS_OWNED_ENV_KEYS = new Set([
   "INTELIGIR_HMR_PORT",
   "NODE_ENV",
 ]);
-
-/** The hermetic memory dir for an instance: a sibling of its data dir, so it
- *  is disjoint from the vault and never the developer's real ~/.inteligir. */
 
 function buildChildEnv(
   args: LaunchAppArgs,

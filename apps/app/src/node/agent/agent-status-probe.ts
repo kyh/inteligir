@@ -4,9 +4,10 @@
 // "unknown" rather than guessing, and nothing here installs anything — the
 // adapters ship with the app, the vendor CLIs are the user's.
 
-import { accessSync, constants, statSync } from "node:fs";
+import { statSync } from "node:fs";
 import { homedir } from "node:os";
-import { delimiter, join } from "node:path";
+import { join } from "node:path";
+import { binaryOnPath } from "./binary-on-path";
 import { execFile } from "node:child_process";
 import {
   HARNESSES,
@@ -22,21 +23,6 @@ export interface HarnessProbe {
   cliPath: string | null;
   credentials: CredentialPresence;
   loginCommand: string;
-}
-
-function binaryOnPath(name: string, env: NodeJS.ProcessEnv): string | null {
-  for (const dir of (env.PATH ?? "").split(delimiter)) {
-    if (dir.length === 0) continue;
-    const candidate = join(dir, name);
-    try {
-      if (!statSync(candidate).isFile()) continue;
-      accessSync(candidate, constants.X_OK);
-      return candidate;
-    } catch {
-      continue;
-    }
-  }
-  return null;
 }
 
 function keychainHasEntry(service: string): Promise<boolean> {

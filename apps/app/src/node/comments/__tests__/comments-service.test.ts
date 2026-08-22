@@ -9,13 +9,14 @@ import { describe, expect, it } from "vitest";
 import { makeTempDir } from "../../__tests__/temp-dir";
 import { createVaultService } from "../../vault/vault-service";
 import { createCommentsService, sidecarPathFor } from "../comments-service";
+import { identityLock } from "../../__tests__/identity-lock";
 
 const AT = 1_707_900_000;
 
 function boot() {
   const root = join(makeTempDir("inteligir-comments-"), "vault");
   mkdirSync(root, { recursive: true });
-  const vault = createVaultService({ root, notifier: noopNotifier });
+  const vault = createVaultService({ lock: identityLock, notifier: noopNotifier, root });
   let tick = 0;
   const comments = createCommentsService(vault, () => AT + tick++);
   return { root, vault, comments };

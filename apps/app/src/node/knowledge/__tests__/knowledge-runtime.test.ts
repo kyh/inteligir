@@ -12,6 +12,7 @@ import { makeTempDir } from "../../__tests__/temp-dir";
 import { createVaultService, type VaultService } from "../../vault/vault-service";
 import { createKnowledgeRuntime, type KnowledgeRuntime } from "../knowledge-runtime";
 import { createSqliteDriver } from "../sqlite-driver";
+import { identityLock } from "../../__tests__/identity-lock";
 
 const cleanups: Array<() => void | Promise<void>> = [];
 
@@ -34,6 +35,7 @@ function boot(dirs: ReturnType<typeof makeDirs>) {
   let sink: KnowledgeRuntime | null = null;
   const service = createVaultService({
     root: dirs.root,
+    lock: identityLock,
     notifier: noopNotifier,
     onMutated: (paths) => sink?.noteVaultChange({ kind: "paths", paths }),
   });
@@ -111,7 +113,11 @@ describe("the knowledge runtime", () => {
 
   it("indexes an announced batch by STATTING it, never by listing the vault", async () => {
     const dirs = makeDirs();
-    const service = createVaultService({ root: dirs.root, notifier: noopNotifier });
+    const service = createVaultService({
+      lock: identityLock,
+      notifier: noopNotifier,
+      root: dirs.root,
+    });
     let listTreeCalls = 0;
     const counted: Pick<VaultService, "listTree" | "statEntry" | "listFilesUnder" | "readBytes"> = {
       listTree: () => {
@@ -260,7 +266,11 @@ describe("the knowledge runtime", () => {
   it("rebuilds before answering the query whose pass failed", async () => {
     const dirs = makeDirs();
     writeFileSync(join(dirs.root, "a.md"), "# A\n\nIbis notes.\n");
-    const service = createVaultService({ root: dirs.root, notifier: noopNotifier });
+    const service = createVaultService({
+      lock: identityLock,
+      notifier: noopNotifier,
+      root: dirs.root,
+    });
     let failNextRead = false;
     const flaky: Pick<VaultService, "listTree" | "statEntry" | "listFilesUnder" | "readBytes"> = {
       listTree: () => service.listTree(),

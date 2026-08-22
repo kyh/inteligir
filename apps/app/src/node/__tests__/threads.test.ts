@@ -1,8 +1,5 @@
-import { mkdirSync } from "node:fs";
-import { join } from "node:path";
 import { serve } from "@hono/node-server";
-import { createConnection, type DbConnection } from "@repo/db/connection";
-import { runMigrations } from "@repo/db/migrate";
+import type { DbConnection } from "@repo/db/connection";
 import { noopNotifier } from "@repo/domain/notifier";
 import { createPendingInteraction, getPendingInteraction } from "@repo/db/pending-interactions";
 import { listQueuedThreadMessages } from "@repo/db/queued-messages";
@@ -22,23 +19,13 @@ import {
 import { applyTimelineDelta, type TimelineRow } from "@repo/server-contract/thread-timeline";
 import { afterEach, describe, expect, it } from "vitest";
 import { z } from "zod";
-import { createApp, type CreateAppArgs } from "../app";
-import { createConnectorsService } from "../connectors/connectors-service";
-import { createFoldersService } from "../folders/folders-service";
-import { createFoldersStore } from "../folders/folders-store";
-import { createConnectorsStore } from "../connectors/connectors-store";
-import { createConnectorOauthFlow } from "../connectors/oauth-flow";
-import { createNoteIntelligence } from "../note-intelligence/note-intelligence";
-import { createNoteIntelligenceSettingsStore } from "../note-intelligence/settings-store";
-import { createKnowledgeRuntime } from "../knowledge/knowledge-runtime";
+import { createApp } from "../app";
 import { ThreadEventThreadIdMismatchError, ThreadService } from "../threads/service";
-import { unavailableTurnDriver, type CreateTurnDriver } from "../threads/turn-driver";
-import { hermeticGitEnv } from "../vault/__tests__/git-test-env";
-import { createVaultRuntime } from "../vault/vault-runtime";
+import { unavailableTurnDriver } from "../threads/turn-driver";
 import { WsBus } from "../ws-bus";
+import { bootTestApp } from "./boot-app";
 import { boundAddressSchema } from "./bound-address";
 import { FakeTurnDriver, type FakeTurnDriverOptions } from "./fake-turn-driver";
-import { makeTempDir } from "./temp-dir";
 
 const cleanups: Array<() => void | Promise<void>> = [];
 
@@ -72,86 +59,28 @@ interface ThreadsHarness {
 async function bootThreadsApp(
   driverOptions: FakeTurnDriverOptions | null,
 ): Promise<ThreadsHarness> {
-  const instanceDir = makeTempDir("inteligir-threads-test-");
-  const dataDir = join(instanceDir, "data");
-  const vaultDir = join(instanceDir, "vault");
-  mkdirSync(dataDir, { recursive: true });
-  const databasePath = join(dataDir, "inteligir.db");
-  const db = createConnection(databasePath);
-  runMigrations(db);
-
+  // Per-boot closure: two tests boot two harnesses concurrently, so the
+  // captured driver must be this call's, never a module-level slot.
   let driver: FakeTurnDriver | null = null;
-  const createTurnDriver: CreateTurnDriver =
+  const harness = await bootTestApp(
     driverOptions === null
-      ? () => unavailableTurnDriver
-      : (sink) => {
-          driver = new FakeTurnDriver(sink, driverOptions);
-          return driver;
-        };
-
-  const bus = new WsBus({ version: "0.1.0-test" });
-  const vault = await createVaultRuntime({
-    vaultDir,
-    vaultRemote: null,
-    dataDir,
-    notifier: bus,
-    watch: false,
-    syncIntervalMs: null,
-    gitEnv: hermeticGitEnv(),
-  });
-  cleanups.push(() => vault.dispose());
-  const knowledge = createKnowledgeRuntime({
-    dataDir,
-    vault: vault.service,
-    vaultRoot: vaultDir,
-  });
-  cleanups.push(() => knowledge.dispose());
-  const args: CreateAppArgs = {
-    agent: { mode: "off", runtime: "off", detail: null },
-    connectors: createConnectorsService(createConnectorsStore(dataDir)),
-    connectorsOauth: createConnectorOauthFlow(createConnectorsStore(dataDir)),
-    folders: createFoldersService({
-      store: createFoldersStore(dataDir),
-      vaultDir,
-      dataDir,
-    }),
-    noteIntelligence: createNoteIntelligence({
-      infer: () => Promise.resolve(null),
-      settings: createNoteIntelligenceSettingsStore(dataDir),
-      vault: vault.service,
-    }),
-    bus,
-    config: {
-      databasePath,
-      dataDir,
-      dataDirSource: "env",
-      devHmrPort: 0,
-      mode: "dev",
-      port: 0,
-      portSource: "env",
-      vaultDir,
-      vaultRemote: null,
-      modelDir: join(dataDir, "models"),
-      voice: "scripted",
-      agent: "off",
-      agentModel: null,
-      cloudUrl: "https://cloud.test",
-    },
-    createTurnDriver,
-    db,
-    fallback: { kind: "none" },
-    instanceSecret: "test-instance-secret",
-    knowledge,
-    schemaVersion: 2,
-    startedAt: Date.now(),
-    vault,
-    version: "0.1.0-test",
+      ? {}
+      : {
+          makeDriver: () => ({
+            createTurnDriver: (sink) => {
+              driver = new FakeTurnDriver(sink, driverOptions);
+              return driver;
+            },
+          }),
+        },
+  );
+  return {
+    bus: harness.bus,
+    client: harness.client,
+    composed: harness.composed,
+    db: harness.db,
+    driver,
   };
-  const composed = createApp(args);
-  const client = createApiClient("http://threads.test", {
-    fetch: async (input, init) => composed.app.request(input, init),
-  });
-  return { bus, client, composed, db, driver };
 }
 
 async function createThread(client: ApiClient): Promise<string> {

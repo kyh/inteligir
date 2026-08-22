@@ -34,7 +34,7 @@
 // — except a credential the cloud has refused, which is the one failure a
 // retry cannot fix.
 
-import { randomBytes, timingSafeEqual } from "node:crypto";
+import { randomBytes } from "node:crypto";
 import { hostname } from "node:os";
 import { CLAIM_DEFAULT_LIMIT } from "@repo/cloud-contract/captures";
 import type { CloudErrorCode } from "@repo/cloud-contract/errors";
@@ -83,6 +83,7 @@ import {
 } from "./credential-store";
 import { ackPushBatch, enqueueThreadEvents, takePushBatch } from "./outbox";
 import { messageOf } from "../knowledge/message-of";
+import { constantTimeEqual } from "../constant-time-equal";
 
 /** The fallback cadence. The socket is what makes sync feel immediate; this is
  *  what makes it CORRECT when the socket is down, so it is deliberately slow. */
@@ -269,15 +270,6 @@ interface PassContext {
 function defaultDeviceName(): string {
   const name = hostname().trim().slice(0, DEVICE_NAME_MAX_LENGTH);
   return name.length === 0 ? "this device" : name;
-}
-
-/** Constant-time, and length-checked first because `timingSafeEqual` throws on
- *  a length mismatch. The state is a secret a caller is guessing at, so it is
- *  compared the way a secret is. */
-function sameState(supplied: string, expected: string): boolean {
-  const a = Buffer.from(supplied, "utf8");
-  const b = Buffer.from(expected, "utf8");
-  return a.length === b.length && timingSafeEqual(a, b);
 }
 
 export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
@@ -918,7 +910,7 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
         pendingPair = null;
         return { kind: "expired" };
       }
-      if (!sameState(request.state, pending.state)) {
+      if (!constantTimeEqual(request.state, pending.state)) {
         // NOT consumed: a wrong state is somebody else's traffic, and throwing
         // the slot away for it would let any local page cancel a pairing the
         // user is halfway through.

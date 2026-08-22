@@ -12,7 +12,7 @@ import { describe, expect, it } from "vitest";
 import { delimiter } from "node:path";
 import { CLI_POINTER_INSTRUCTIONS } from "../agent-instructions";
 import { buildAgentShellEnv } from "../agent-shell-env";
-import { createCodexRuntimeManager } from "../runtime-manager";
+import { createAcpRuntimeManager } from "../runtime-manager";
 import { bootTestApp } from "../../__tests__/boot-app";
 import { createThread, waitFor } from "./agent-test-harness";
 
@@ -58,12 +58,14 @@ describe("codex runtime shell env wiring", () => {
     const harness = await bootTestApp({
       agent: { mode: "codex", runtime: "acp", detail: null },
       makeDriver: ({ db, bus, vault, vaultDir }) => {
-        const manager = createCodexRuntimeManager({
+        const manager = createAcpRuntimeManager({
           db,
           notifier: bus,
           vaultDir,
           git: vault.git,
           model: null,
+          mcpServers: () => [],
+          connectedDirs: () => [],
           cliBinDir: "/repo/apps/cli/bin",
           shellEnv: () => ({ ...shellEnv }),
           createRuntime: recordingCreateRuntime(recorded),

@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { makeTempDir } from "../../__tests__/temp-dir";
 import { createVaultService } from "../../vault/vault-service";
 import { createKnowledgeRuntime } from "../knowledge-runtime";
+import { identityLock } from "../../__tests__/identity-lock";
 
 const FILE_COUNT = 300;
 
@@ -35,7 +36,7 @@ describe("a 300-file vault", () => {
       );
     }
 
-    const service = createVaultService({ root, notifier: noopNotifier });
+    const service = createVaultService({ lock: identityLock, notifier: noopNotifier, root });
     const knowledge = createKnowledgeRuntime({ dataDir, vault: service, vaultRoot: root });
     cleanups.push(() => knowledge.dispose());
 

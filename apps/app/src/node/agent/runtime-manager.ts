@@ -1,9 +1,10 @@
-// ONE agent runtime over the vault dir; codex app-server processes are its
-// children, lazily started on the first turn and reaped after idle. This is
+// ONE agent runtime over the vault dir; the ACP adapter processes
+// (claude-code-acp, codex-acp) are its children, lazily started on the first
+// turn and reaped after idle. This is
 // the CreateTurnDriver implementation bridging runtime→ThreadService:
 //
 // - TURN IDENTITY: the service mints the host turn id and hands it to
-//   startTurn; codex mints its own turn ids in its events. The manager owns
+//   startTurn; the provider mints its own turn ids in its events. The manager owns
 //   the binding — the first turn/started for a dispatched turn binds the
 //   provider's turn id to the host's, every turn-scoped event is rewritten
 //   through that binding, and a turn-scoped event naming any OTHER provider
@@ -108,7 +109,7 @@ const INTERACTION_TIMEOUT_MS = 30 * 60_000;
  */
 const DEFAULT_TURN_IDLE_TIMEOUT_MS = 10 * 60_000;
 
-export interface CodexRuntimeManagerDeps {
+export interface AcpRuntimeManagerDeps {
   db: DbConnection;
   notifier: DbNotifier;
   vaultDir: string;
@@ -122,30 +123,26 @@ export interface CodexRuntimeManagerDeps {
    * (the bound port) exists only after listen, while this manager is
    * constructed before; it is read at runtime construction, on the first turn.
    */
-  shellEnv?: () => AgentRuntimeShellEnvironment;
+  shellEnv: () => AgentRuntimeShellEnvironment;
   /**
    * Where the `inteligir` binary lives, or null when this deployment ships
    * none. The instructions only PROMISE the CLI when the shell env can
    * really reach it — see agent-shell-env.ts.
    */
-  cliBinDir?: string | null;
+  cliBinDir: string | null;
   /** Connected Folders, read at session open (issue #601). */
-  connectedDirs?: () => readonly string[];
+  connectedDirs: () => readonly string[];
   /** The harness a NEW thread runs on; a resumed thread keeps its own. */
   defaultProviderId?: string;
   /** Tests: replace the adapter child spawn (the fake ACP agent). */
   spawnAdapter?: AcpAgentRuntimeOptions["spawnAdapter"];
   /** Tests: observe/replace runtime construction (the shellEnv wiring test). */
   /** The enabled connector rows every session gets (issue #591). */
-  mcpServers?: () => AcpMcpServerConfig[] | Promise<AcpMcpServerConfig[]>;
+  mcpServers: () => AcpMcpServerConfig[] | Promise<AcpMcpServerConfig[]>;
   createRuntime?: typeof createAcpAgentRuntime;
   /** Review mode's seam: where a turn's write set goes when the thread asks
    *  for proposals instead of writes. Omitted, every turn writes directly. */
   captureProposals?: CaptureTurnProposals;
-  /** The agent's memory index for this turn, read fresh each dispatch (issue
-   *  #575) — undefined when there is none, which keeps the provider input
-   *  byte-identical to a turn with no memory. Omitted, no memory is injected. */
-  readMemoryIndex?: () => string | undefined;
   /** null disables the reap interval (tests drive reaping directly). */
   reapIntervalMs?: number | null;
   /** The idle budget a dispatched turn gets; null disables the watchdog. */
@@ -153,7 +150,7 @@ export interface CodexRuntimeManagerDeps {
   onDebug?: (message: string) => void;
 }
 
-export interface CodexRuntimeManager {
+export interface AcpRuntimeManager {
   createTurnDriver: CreateTurnDriver;
   dispose(): Promise<void>;
 }
@@ -197,7 +194,7 @@ function executionOptionsFor(model: string | null): AgentRuntimeExecutionOptions
 
 class CodexTurnDriver implements TurnDriver {
   private readonly sink: ProviderEventSink;
-  private readonly deps: CodexRuntimeManagerDeps;
+  private readonly deps: AcpRuntimeManagerDeps;
   private readonly options: AgentRuntimeExecutionOptions;
   private readonly resolveVaultPath: VaultPathResolver;
   private runtime: AgentRuntime | null = null;
@@ -212,7 +209,7 @@ class CodexTurnDriver implements TurnDriver {
   private readonly waitersByInteractionId = new Map<string, InteractionWaiter>();
   private disposed = false;
 
-  constructor(sink: ProviderEventSink, deps: CodexRuntimeManagerDeps) {
+  constructor(sink: ProviderEventSink, deps: AcpRuntimeManagerDeps) {
     this.sink = sink;
     this.deps = deps;
     this.options = executionOptionsFor(deps.model);
@@ -262,7 +259,7 @@ class CodexTurnDriver implements TurnDriver {
       workspacePath: this.deps.vaultDir,
       onEvent: (event) => this.onRuntimeEvent(event),
       onInteractiveRequest: (request) => this.onInteractiveRequest(request),
-      onStderr: (line) => this.debug(`codex: ${line}`),
+      onStderr: (line) => this.debug(`agent: ${line}`),
       onProcessExit: (info) => {
         for (const thread of info.threads) {
           const generationAtExit = this.exitGenerationByThreadId.get(thread.threadId) ?? 0;
@@ -288,15 +285,15 @@ class CodexTurnDriver implements TurnDriver {
           this.failTurn(
             thread.threadId,
             new Error(
-              `The codex process exited mid-turn${info.stderr !== null ? `: ${info.stderr}` : ""}`,
+              `The ${info.providerId} process exited mid-turn${info.stderr !== null ? `: ${info.stderr}` : ""}`,
             ),
           );
         }
       },
     };
-    if (this.deps.shellEnv !== undefined) runtimeOptions.shellEnv = this.deps.shellEnv();
+    runtimeOptions.shellEnv = this.deps.shellEnv();
     if (this.deps.model !== null) runtimeOptions.model = this.deps.model;
-    if (this.deps.mcpServers !== undefined) runtimeOptions.mcpServers = this.deps.mcpServers;
+    runtimeOptions.mcpServers = this.deps.mcpServers;
     if (this.deps.spawnAdapter !== undefined) runtimeOptions.spawnAdapter = this.deps.spawnAdapter;
     const runtime = createRuntime(runtimeOptions);
     this.runtime = runtime;
@@ -311,7 +308,7 @@ class CodexTurnDriver implements TurnDriver {
             });
             for (const reaped of result.reapedSessions) {
               this.debug(
-                `reaped idle codex session for thread ${reaped.threadId} after ${reaped.idleForMs}ms`,
+                `reaped idle agent session for thread ${reaped.threadId} after ${reaped.idleForMs}ms`,
               );
             }
           } catch (error) {
@@ -405,7 +402,7 @@ class CodexTurnDriver implements TurnDriver {
     }
     await runtime.runTurn({
       threadId: args.threadId,
-      input: turnPromptInput(args.text, args.viewContext, this.deps.readMemoryIndex?.()),
+      input: turnPromptInput(args.text, args.viewContext),
       options: this.options,
     });
   }
@@ -488,7 +485,7 @@ class CodexTurnDriver implements TurnDriver {
         const result = await runtime.steerTurn({
           threadId: args.threadId,
           expectedTurnId,
-          input: turnPromptInput(args.text, args.viewContext, this.deps.readMemoryIndex?.()),
+          input: turnPromptInput(args.text, args.viewContext),
           options: this.options,
         });
         if (result.status === "stale") {
@@ -751,7 +748,7 @@ class CodexTurnDriver implements TurnDriver {
   }
 }
 
-export function createCodexRuntimeManager(deps: CodexRuntimeManagerDeps): CodexRuntimeManager {
+export function createAcpRuntimeManager(deps: AcpRuntimeManagerDeps): AcpRuntimeManager {
   let driver: CodexTurnDriver | null = null;
   return {
     createTurnDriver: (sink) => {

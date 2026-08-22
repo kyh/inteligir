@@ -5,13 +5,12 @@
 
 import { fork } from "node:child_process";
 import { once } from "node:events";
-import { mkdtempSync, rmSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 import { childToParentMessageSchema, type ChildToParentMessage } from "../watcher/messages";
+import { makeTempDir } from "../../__tests__/temp-dir";
 
 const cleanups: Array<() => void> = [];
 
@@ -30,8 +29,7 @@ describe("the forked watcher child", () => {
     "round-trips subscribe → external write → events over real IPC",
     { timeout: 20_000 },
     async (ctx) => {
-      const watchRoot = mkdtempSync(join(tmpdir(), "inteligir-fork-watch-"));
-      cleanups.push(() => rmSync(watchRoot, { recursive: true, force: true }));
+      const watchRoot = makeTempDir("inteligir-fork-watch-");
 
       const child = fork(childEntry, [], {
         cwd: appDir,

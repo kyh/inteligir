@@ -137,8 +137,11 @@ export interface VaultServiceArgs {
   /** Absolute vault root; must already exist. */
   root: string;
   notifier: DbNotifier;
-  /** Serializes every MUTATION (the git engine's repo lock in production). */
-  lock?: <T>(work: () => Promise<T>) => Promise<T>;
+  /** Serializes every MUTATION (the git engine's repo lock in production;
+   *  tests pass `identityLock`). Required: the CAS guard is only a guard when
+   *  every caller runs mutations under ONE lock — an optional default let a
+   *  forgotten arg silently drop the serialization. */
+  lock: <T>(work: () => Promise<T>) => Promise<T>;
   /** Fired after every applied mutation with the vault-relative paths it
    *  touched; the runtime schedules a commit and arms echo suppression here. */
   onMutated?: (paths: readonly string[]) => void;
@@ -220,7 +223,7 @@ export function createVaultService(args: VaultServiceArgs): VaultService {
   // this, and the configured root may itself be spelled through a symlink
   // (macOS /var → /private/var).
   const rootReal = realpathSync(resolve(args.root));
-  const lock = args.lock ?? (<T>(work: () => Promise<T>) => work());
+  const lock = args.lock;
 
   /**
    * Physically verify the path's ancestry: the deepest EXISTING ancestor of

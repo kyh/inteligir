@@ -1,6 +1,3 @@
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { VaultPathError } from "@repo/notes/knowledge/vault-path";
 import {
@@ -13,6 +10,8 @@ import {
 } from "../trash";
 import { createVaultService } from "../vault-service";
 import { createNotifierRecorder } from "./notifier-recorder";
+import { identityLock } from "../../__tests__/identity-lock";
+import { makeTempDir } from "../../__tests__/temp-dir";
 
 const cleanups: Array<() => void> = [];
 
@@ -23,9 +22,12 @@ afterEach(() => {
 });
 
 function bootService() {
-  const root = mkdtempSync(join(tmpdir(), "inteligir-trash-test-"));
-  cleanups.push(() => rmSync(root, { recursive: true, force: true }));
-  const service = createVaultService({ notifier: createNotifierRecorder(), root });
+  const root = makeTempDir("inteligir-trash-test-");
+  const service = createVaultService({
+    lock: identityLock,
+    notifier: createNotifierRecorder(),
+    root,
+  });
   return { root, service };
 }
 

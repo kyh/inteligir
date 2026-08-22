@@ -13,6 +13,7 @@ import { parseInferenceOutput } from "../infer";
 import type { InferenceRunner, InferredFields } from "../infer";
 import { createNoteIntelligence } from "../note-intelligence";
 import { createNoteIntelligenceSettingsStore } from "../settings-store";
+import { identityLock } from "../../__tests__/identity-lock";
 
 const INFERRED: InferredFields = {
   description: "A test note about inference.",
@@ -24,7 +25,7 @@ function boot(infer: InferenceRunner) {
   const dir = makeTempDir("inteligir-noteintel-");
   const root = join(dir, "vault");
   mkdirSync(root, { recursive: true });
-  const vault = createVaultService({ root, notifier: noopNotifier });
+  const vault = createVaultService({ lock: identityLock, notifier: noopNotifier, root });
   const settings = createNoteIntelligenceSettingsStore(join(dir, "data"));
   const service = createNoteIntelligence({ infer, settings, vault });
   return { root, service, settings, vault };

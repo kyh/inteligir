@@ -1,9 +1,8 @@
 // The vault API surface over the composed app: contract row → handler →
 // service → disk, plus the ws invalidation a mutation must produce.
 
-import { mkdirSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
+import { mkdirSync, realpathSync } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createConnection } from "@repo/db/connection";
 import { getSchemaVersion } from "@repo/db/meta";
@@ -32,6 +31,7 @@ import { WsBus, type BusSocket } from "../../ws-bus";
 import { createVaultRuntime } from "../vault-runtime";
 import { contentHashHex } from "@repo/server-contract/vault";
 import { hermeticGitEnv } from "./git-test-env";
+import { makeTempDir } from "../../__tests__/temp-dir";
 
 const cleanups: Array<() => void | Promise<void>> = [];
 
@@ -42,8 +42,7 @@ afterEach(async () => {
 });
 
 async function bootVaultApp() {
-  const instanceDir = mkdtempSync(join(tmpdir(), "inteligir-vault-routes-"));
-  cleanups.push(() => rmSync(instanceDir, { recursive: true, force: true }));
+  const instanceDir = makeTempDir("inteligir-vault-routes-");
   const dataDir = join(instanceDir, "data");
   const vaultDir = join(instanceDir, "vault");
   mkdirSync(dataDir, { recursive: true });
@@ -191,8 +190,7 @@ describe("the vault routes", () => {
   });
 
   it("refuses a vault nested in the data dir at composition time", async () => {
-    const instanceDir = mkdtempSync(join(tmpdir(), "inteligir-vault-routes-"));
-    cleanups.push(() => rmSync(instanceDir, { recursive: true, force: true }));
+    const instanceDir = makeTempDir("inteligir-vault-routes-");
     await expect(
       createVaultRuntime({
         vaultDir: join(instanceDir, "vault"),

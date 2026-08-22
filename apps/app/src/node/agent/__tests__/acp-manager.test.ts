@@ -19,7 +19,7 @@ import {
 import { getThread } from "@repo/db/threads";
 import { describe, expect, it } from "vitest";
 import { hermeticGitEnv } from "../../vault/__tests__/git-test-env";
-import { createCodexRuntimeManager, type CodexRuntimeManagerDeps } from "../runtime-manager";
+import { createAcpRuntimeManager, type AcpRuntimeManagerDeps } from "../runtime-manager";
 import { bootTestApp, type BootedTestApp } from "../../__tests__/boot-app";
 import {
   createThread,
@@ -63,19 +63,23 @@ async function bootWithManager(
   return bootTestApp({
     agent: { mode: "codex", runtime: "acp", detail: null },
     makeDriver: ({ db, bus, vault, vaultDir }) => {
-      const deps: CodexRuntimeManagerDeps = {
+      const deps: AcpRuntimeManagerDeps = {
         db,
         notifier: bus,
         vaultDir,
         git: vault.git,
         model: null,
+        mcpServers: () => [],
+        shellEnv: () => ({}),
+        cliBinDir: null,
+        connectedDirs: () => [],
         spawnAdapter: fakeSpawn(mode, options),
         reapIntervalMs: null,
       };
       if (options.turnIdleTimeoutMs !== undefined) {
         deps.turnIdleTimeoutMs = options.turnIdleTimeoutMs;
       }
-      const manager = createCodexRuntimeManager(deps);
+      const manager = createAcpRuntimeManager(deps);
       return {
         createTurnDriver: manager.createTurnDriver,
         dispose: () => manager.dispose(),

@@ -5,6 +5,7 @@
 
 import type { ThreadEventTurnStatus } from "@repo/domain/provider-event";
 import { turnScope } from "@repo/domain/thread-event-scope";
+import { agentMessageEvents } from "../agent/agent-message-events";
 import type {
   ProviderEventSink,
   TurnDriver,
@@ -56,35 +57,10 @@ export class FakeTurnDriver implements TurnDriver {
 
     const itemId = `item_${args.turnId}`;
     const text = `Echo: ${args.text}`;
-    const midpoint = Math.ceil(text.length / 2);
-    this.sink.ingestProviderEvents(args.threadId, [
-      {
-        type: "item/started",
-        threadId: args.threadId,
-        item: { type: "agentMessage", id: itemId, text: "" },
-        scope,
-      },
-      {
-        type: "item/agentMessage/delta",
-        threadId: args.threadId,
-        itemId,
-        delta: text.slice(0, midpoint),
-        scope,
-      },
-      {
-        type: "item/agentMessage/delta",
-        threadId: args.threadId,
-        itemId,
-        delta: text.slice(midpoint),
-        scope,
-      },
-      {
-        type: "item/completed",
-        threadId: args.threadId,
-        item: { type: "agentMessage", id: itemId, text },
-        scope,
-      },
-    ]);
+    this.sink.ingestProviderEvents(
+      args.threadId,
+      agentMessageEvents({ threadId: args.threadId, itemId, text, scope }),
+    );
     this.sink.ingestProviderEvents(args.threadId, [
       { type: "turn/completed", threadId: args.threadId, status: "completed", scope },
     ]);

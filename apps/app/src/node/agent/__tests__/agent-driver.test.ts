@@ -4,16 +4,12 @@
 
 import { systemStatusResponseSchema } from "@repo/server-contract/routes";
 import { describe, expect, it } from "vitest";
-import { codexBinaryOnPath, resolveAgentDriver } from "../agent-driver";
+import { resolveAgentDriver } from "../agent-driver";
 import { bootTestApp } from "../../__tests__/boot-app";
 import { createThread } from "./agent-test-harness";
 import { apiErrorResponseSchema } from "@repo/server-contract/errors";
 
 describe("agent driver resolution", () => {
-  it("finds no codex on an empty PATH", () => {
-    expect(codexBinaryOnPath({ PATH: "/nonexistent-dir" })).toBeNull();
-  });
-
   it("binary-absent boot surfaces unavailable and 503s a send, without crashing", async () => {
     let resolvedDetail: string | null = null;
     const harness = await bootTestApp({
@@ -24,6 +20,10 @@ describe("agent driver resolution", () => {
           db,
           notifier: bus,
           vault,
+          mcpServers: () => [],
+          shellEnv: () => ({}),
+          cliBinDir: null,
+          connectedDirs: () => [],
           env: { PATH: "/nonexistent-dir" },
         });
         expect(resolved.status.runtime).toBe("unavailable");
@@ -52,6 +52,10 @@ describe("agent driver resolution", () => {
           db,
           notifier: bus,
           vault,
+          mcpServers: () => [],
+          shellEnv: () => ({}),
+          cliBinDir: null,
+          connectedDirs: () => [],
         });
         return { createTurnDriver: resolved.createTurnDriver, dispose: resolved.dispose };
       },

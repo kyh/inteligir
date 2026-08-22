@@ -30,6 +30,11 @@ import {
 import { describeCloudFailure } from "./cloud-client";
 import type { CloudRuntime, PairCompletion } from "./sync-runtime";
 import { loopbackRequestOrigin } from "../browser-request-guard";
+import {
+  INERT_CALLBACK_HEADERS,
+  type InertCallbackPage,
+  renderInertCallbackPage,
+} from "../inert-callback-page";
 
 /**
  * The callback URL for a request that reached this app on its own loopback
@@ -58,16 +63,10 @@ export function pairCallbackUrlFor(host: string | undefined): string | null {
   return pairRedirectUrlSchema.safeParse(candidate).success ? candidate : null;
 }
 
-interface CallbackPage {
-  status: 200 | 400;
-  title: string;
-  detail: string;
-}
-
 /** What the browser is told, per outcome — every refusal its own sentence,
  *  because "nothing was waiting for this" and "that took too long" are
  *  different things to have done wrong. */
-function pairCallbackPage(completion: PairCompletion): CallbackPage {
+function pairCallbackPage(completion: PairCompletion): InertCallbackPage {
   switch (completion.kind) {
     case "paired":
       return {
@@ -105,43 +104,6 @@ function pairCallbackPage(completion: PairCompletion): CallbackPage {
   }
 }
 
-const HTML_ESCAPES = new Map([
-  ["&", "&amp;"],
-  ["<", "&lt;"],
-  [">", "&gt;"],
-  ['"', "&quot;"],
-  ["'", "&#39;"],
-]);
-
-/** Everything interpolated below is this process's own text today, and the
- *  cloud's refusal sentence is the one piece that is not — escaped anyway,
- *  because "the source is trusted" is the assumption that stops being true
- *  without anyone editing this file. */
-function escapeHtml(value: string): string {
-  return value.replaceAll(/[&<>"']/gu, (character) => HTML_ESCAPES.get(character) ?? character);
-}
-
-function renderPage(page: CallbackPage): string {
-  return `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${escapeHtml(page.title)} — inteligir</title>
-<style>
-  :root { color-scheme: light dark; }
-  body { margin: 0; display: grid; place-items: center; min-height: 100vh;
-         font: 15px/1.5 system-ui, sans-serif; }
-  main { max-width: 28rem; padding: 2rem; }
-  h1 { font-size: 1.125rem; font-weight: 600; margin: 0 0 0.5rem; }
-  p { margin: 0; opacity: 0.75; }
-</style>
-</head>
-<body><main><h1>${escapeHtml(page.title)}</h1><p>${escapeHtml(page.detail)}</p></main></body>
-</html>
-`;
-}
-
 /**
  * The whole browser-facing half: consume the state, redeem, answer a page.
  *
@@ -162,17 +124,7 @@ export async function handlePairCallback(
   const page = pairCallbackPage(completion);
   return {
     status: page.status,
-    body: renderPage(page),
-    headers: {
-      "content-type": "text/html; charset=utf-8",
-      // The URL that reached here carries a pairing code, and this page links
-      // nowhere — but a policy is cheaper than reasoning about who might add a
-      // link later.
-      "cache-control": "no-store",
-      "content-security-policy":
-        "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'",
-      "referrer-policy": "no-referrer",
-      "x-content-type-options": "nosniff",
-    },
+    body: renderInertCallbackPage(page),
+    headers: INERT_CALLBACK_HEADERS,
   };
 }

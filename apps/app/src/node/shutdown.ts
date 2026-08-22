@@ -3,7 +3,8 @@
 //
 // ORDER IS THE CONTRACT, and it is one rule: every writer stops before the
 // durable flush, and the flush happens before the handles close. So the steps
-// run listener → voice → cloud → agent → knowledge → vault → db. The vault's dispose
+// run listener → voice → cloud → agent → intelligence → knowledge → vault →
+// db. The vault's dispose
 // is the flush — it commits whatever the debounce was still holding — which is
 // why nothing that can write a vault file may run after it.
 //

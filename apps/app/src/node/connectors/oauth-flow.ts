@@ -8,12 +8,13 @@
 // reachable by anything on the machine, and state + PKCE are what make that
 // an open port instead of a hole.
 
-import { randomBytes, timingSafeEqual } from "node:crypto";
+import { randomBytes } from "node:crypto";
 import { generatePkceVerifier, pkceChallengeS256 } from "@repo/cloud-contract/pairing";
 import { z } from "zod";
 
 import type { ConnectorsStore, StoredOauthTokens } from "./connectors-store";
 import { ConnectorConflictError } from "./connectors-service";
+import { constantTimeEqual } from "../constant-time-equal";
 
 const STATE_BYTES = 16;
 const PENDING_TTL_MS = 10 * 60 * 1000;
@@ -59,14 +60,6 @@ export interface ConnectorOauthFlow {
   /** Drop tokens; the row survives, back at needs-auth. */
   disconnect(name: string): void;
   dispose(): void;
-}
-
-/** Constant-time, length-checked first because `timingSafeEqual` throws on
- *  unequal lengths — the pairing spelling. */
-function constantTimeEqual(a: string, b: string): boolean {
-  const left = Buffer.from(a, "utf8");
-  const right = Buffer.from(b, "utf8");
-  return left.length === right.length && timingSafeEqual(left, right);
 }
 
 type OauthRow = Extract<

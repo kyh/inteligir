@@ -50,6 +50,10 @@ async function bootReviewApp(): Promise<BootedTestApp> {
           git: vault.git,
           vault: vault.service,
         }),
+        mcpServers: () => [],
+        shellEnv: () => ({}),
+        cliBinDir: null,
+        connectedDirs: () => [],
       });
       return { createTurnDriver: resolved.createTurnDriver, dispose: resolved.dispose };
     },

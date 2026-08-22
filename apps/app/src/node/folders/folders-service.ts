@@ -28,8 +28,6 @@ export interface FoldersService {
   list(): string[];
   add(path: string): string[];
   remove(path: string): string[];
-  /** The rows session composition reads; today identical to list(). */
-  forSessions(): string[];
 }
 
 export interface CreateFoldersServiceArgs {
@@ -124,9 +122,6 @@ export function createFoldersService(args: CreateFoldersServiceArgs): FoldersSer
       const next = folders.filter((folder) => folder !== target);
       args.store.write(next);
       return next;
-    },
-    forSessions(): string[] {
-      return args.store.read();
     },
   };
 }

@@ -6,8 +6,9 @@
 // list: an empty list is a claim, and the next write would erase whatever the
 // unparseable bytes held.
 
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { readFileSync } from "node:fs";
+import { stagedWriteFileSync } from "../staged-write";
+import { join } from "node:path";
 import { z } from "zod";
 
 import { connectedFolderPathSchema } from "@repo/server-contract/folders";
@@ -50,10 +51,8 @@ export function createFoldersStore(dataDir: string): FoldersStore {
       return verdict.data.folders;
     },
     write(folders: readonly string[]): void {
-      mkdirSync(dirname(path), { recursive: true });
-      const tmp = `${path}.tmp`;
-      writeFileSync(tmp, `${JSON.stringify({ folders }, null, 2)}\n`, "utf8");
-      renameSync(tmp, path);
+      // Deliberately modeless: paths are not secrets.
+      stagedWriteFileSync(path, `${JSON.stringify({ folders }, null, 2)}\n`);
     },
   };
 }

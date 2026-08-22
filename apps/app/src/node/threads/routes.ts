@@ -9,14 +9,10 @@ import type { ThreadService } from "./service";
 
 const NOT_FOUND: ApiErrorResponse = { error: "not_found", message: "Thread not found" };
 
-export interface RegisterThreadRoutesArgs {
-  routes: Pick<TypedRoutesRegistrars, "get" | "post">;
-  service: ThreadService;
-}
-
-export function registerThreadRoutes(args: RegisterThreadRoutesArgs): void {
-  const { routes, service } = args;
-
+export function registerThreadRoutes(
+  routes: Pick<TypedRoutesRegistrars, "get" | "post">,
+  service: ThreadService,
+): void {
   routes.get(threadRoutes.list, (c) => c.json({ threads: service.list() }));
 
   routes.get(threadRoutes.get, (c, query) => {

@@ -10,9 +10,9 @@ import { getSchemaVersion } from "@repo/db/meta";
 import { runMigrations } from "@repo/db/migrate";
 import { z } from "zod";
 import { resolveAgentDriver } from "./agent/agent-driver";
-import type { AcpMcpServerConfig } from "@repo/agent-runtime/acp/acp-runtime";
 import { createConnectorsService } from "./connectors/connectors-service";
 import { createConnectorOauthFlow } from "./connectors/oauth-flow";
+import { composeSessionMcpServers } from "./connectors/session-servers";
 import { createCliInferenceRunner } from "./note-intelligence/infer";
 import {
   createNoteIntelligence,
@@ -141,9 +141,11 @@ async function createProdFallback(): Promise<AppFallback> {
  * The teardown, accumulated AS THE BOOT PROCEEDS.
  *
  * `unshift` rather than `push`, and the two orders coincide on purpose:
- * resources come up db → vault → knowledge → agent → cloud → voice → listener,
+ * resources come up db → vault → knowledge → intelligence → agent → cloud →
+ * voice → listener,
  * so reversing creation yields exactly the teardown order shutdown.ts states
- * (listener → voice → cloud → agent → knowledge → vault → db). Registering each step
+ * (listener → voice → cloud → agent → intelligence → knowledge → vault → db).
+ * Registering each step
  * the moment its resource exists is also what makes a FAILED boot survivable:
  * a listen that
  * throws EADDRINUSE still has a vault watcher forked and a database open, and
@@ -249,44 +251,7 @@ async function boot(): Promise<{ serverUrl: string }> {
     notifier: bus,
     vault,
     cliBinDir,
-    mcpServers: async () => {
-      const servers: AcpMcpServerConfig[] = [];
-      for (const row of connectors.enabledForSessions()) {
-        if (row.transport.kind === "stdio") {
-          servers.push({
-            args: row.transport.args,
-            command: row.transport.command,
-            kind: "stdio",
-            name: row.name,
-          });
-          continue;
-        }
-        if (row.transport.kind === "oauth") {
-          // A row that cannot present a live token is EXCLUDED, not injected
-          // to 401 on every call — Settings shows needs-reauth in its place.
-          const accessToken = await connectorsOauth.freshAccessToken(row.name);
-          if (accessToken !== null) {
-            servers.push({
-              headers: { Authorization: `Bearer ${accessToken}` },
-              kind: "http",
-              name: row.name,
-              url: row.transport.url,
-            });
-          }
-          continue;
-        }
-        const server: AcpMcpServerConfig = {
-          kind: "http",
-          name: row.name,
-          url: row.transport.url,
-        };
-        if (row.transport.headers !== undefined) {
-          server.headers = row.transport.headers;
-        }
-        servers.push(server);
-      }
-      return servers;
-    },
+    mcpServers: () => composeSessionMcpServers(connectors, connectorsOauth),
     captureProposals: createTurnProposalCapture({
       db,
       notifier: bus,
@@ -296,8 +261,8 @@ async function boot(): Promise<{ serverUrl: string }> {
         console.error(`proposals: ${message}`);
       },
     }),
-    shellEnv: () => ({ ...withConnectedDirs(agentShellEnv, folders.forSessions()) }),
-    connectedDirs: () => folders.forSessions(),
+    shellEnv: () => ({ ...withConnectedDirs(agentShellEnv, folders.list()) }),
+    connectedDirs: () => folders.list(),
   });
   registerTeardown("agent", () => {
     // The oauth flow serves agent sessions; it stops when they do — a

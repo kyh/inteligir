@@ -1,8 +1,8 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { CLI_POINTER_INSTRUCTIONS, loadAgentInstructions } from "../agent-instructions";
+import { makeTempDir } from "../../__tests__/temp-dir";
 
 const cleanups: Array<() => void> = [];
 
@@ -15,8 +15,7 @@ afterEach(() => {
 const CLI_BIN_DIR = "/repo/apps/cli/bin";
 
 function makeVaultDir(): string {
-  const dir = mkdtempSync(join(tmpdir(), "inteligir-instructions-test-"));
-  cleanups.push(() => rmSync(dir, { recursive: true, force: true }));
+  const dir = makeTempDir("inteligir-instructions-test-");
   return dir;
 }
 

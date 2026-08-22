@@ -11,6 +11,7 @@ import { makeTempDir } from "../../__tests__/temp-dir";
 import { createVaultService, type VaultService } from "../../vault/vault-service";
 import { createKnowledgeRuntime, type KnowledgeRuntime } from "../knowledge-runtime";
 import { renameNoteWithLinkRewrite } from "../rename";
+import { identityLock } from "../../__tests__/identity-lock";
 
 const cleanups: Array<() => void | Promise<void>> = [];
 
@@ -27,6 +28,7 @@ function boot() {
   let sink: KnowledgeRuntime | null = null;
   const service = createVaultService({
     root,
+    lock: identityLock,
     notifier: noopNotifier,
     onMutated: (paths) => sink?.noteVaultChange({ kind: "paths", paths }),
   });

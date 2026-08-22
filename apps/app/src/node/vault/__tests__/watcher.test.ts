@@ -3,13 +3,12 @@
 // and by running the app). Skips gracefully when the platform watcher is
 // unavailable in a sandboxed environment.
 
-import { mkdtempSync, rmSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import parcelWatcher from "@parcel/watcher";
 import { afterEach, describe, expect, it } from "vitest";
 import { createVaultWatcher, type VaultWatcher } from "../watcher";
+import { makeTempDir } from "../../__tests__/temp-dir";
 
 const cleanups: Array<() => void | Promise<void>> = [];
 
@@ -39,8 +38,7 @@ describe("the vault watcher over the real backend", () => {
       timeout: 20_000,
     },
     async (ctx) => {
-      const root = mkdtempSync(join(tmpdir(), "inteligir-watch-test-"));
-      cleanups.push(() => rmSync(root, { recursive: true, force: true }));
+      const root = makeTempDir("inteligir-watch-test-");
       await mkdir(join(root, ".git"), { recursive: true });
 
       const batches: string[][] = [];

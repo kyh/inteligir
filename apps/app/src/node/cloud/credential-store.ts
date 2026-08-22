@@ -19,8 +19,8 @@
 // trust). The mitigations are the server's — revocation bites on the next
 // request, and the plaintext is stored nowhere but here.
 
-import { randomBytes } from "node:crypto";
-import { chmodSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { readFileSync, rmSync } from "node:fs";
+import { stagedWriteFileSync } from "../staged-write";
 import { join } from "node:path";
 import { DEVICE_CREDENTIAL_PATTERN } from "@repo/cloud-contract/pairing";
 import { z } from "zod";
@@ -86,22 +86,7 @@ export function readDeviceCredential(dataDir: string): DeviceCredential | null {
  */
 export function writeDeviceCredential(dataDir: string, credential: DeviceCredential): void {
   const path = deviceCredentialPath(dataDir);
-  mkdirSync(dataDir, { recursive: true });
-  const staging = `${path}.${randomBytes(6).toString("hex")}.tmp`;
-  try {
-    writeFileSync(staging, `${JSON.stringify(credential)}\n`, {
-      encoding: "utf8",
-      mode: CREDENTIAL_FILE_MODE,
-    });
-    // Applied explicitly for the same reason `instance-secret` does it: the
-    // mode argument is advisory against the umask, and this file may not be
-    // group- or world-readable for even the instant before the rename.
-    chmodSync(staging, CREDENTIAL_FILE_MODE);
-    renameSync(staging, path);
-  } catch (error) {
-    rmSync(staging, { force: true });
-    throw error;
-  }
+  stagedWriteFileSync(path, `${JSON.stringify(credential)}\n`, { mode: CREDENTIAL_FILE_MODE });
 }
 
 export function clearDeviceCredential(dataDir: string): void {

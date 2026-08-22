@@ -63,24 +63,12 @@ export function composeViewContextBlock(context: ViewContext): string {
 type TurnPromptText = Extract<PromptInput, { type: "text" }>;
 
 /**
- * A turn's prompt, in order: the memory index first (the standing facts about
- * the user), then the view-context block (what the user was looking at), then
- * the user's own text always, as its own element. Both leading blocks are
- * omitted when their source is empty — `memoryIndex` undefined and `context`
- * undefined together yield exactly `[{text}]`, which is why a turn with no
- * memory and no view context is byte-identical to what this produced before
- * memory existed. `memoryIndex` is the ALREADY-COMPOSED block (see
- * `memory-prompt.ts`); it rides here as text so this stays a pure assembler.
+ * A turn's prompt, in order: the view-context block (what the user was
+ * looking at) when there is one, then the user's own text always, as its own
+ * element — `context` undefined yields exactly `[{text}]`.
  */
-export function turnPromptInput(
-  text: string,
-  context: ViewContext | undefined,
-  memoryIndex: string | undefined,
-): TurnPromptText[] {
+export function turnPromptInput(text: string, context: ViewContext | undefined): TurnPromptText[] {
   const blocks: TurnPromptText[] = [];
-  if (memoryIndex !== undefined) {
-    blocks.push({ type: "text", text: memoryIndex });
-  }
   if (context !== undefined) {
     blocks.push({ type: "text", text: composeViewContextBlock(context) });
   }

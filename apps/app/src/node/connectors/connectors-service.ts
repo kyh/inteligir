@@ -3,7 +3,7 @@
 //
 // - EVERY READ IS REDACTED. Header values reduce to `hasAuth`; the full rows
 //   leave this module only through `enabledForSessions()`, whose one caller
-//   is session launch.
+//   is session launch's composition (session-servers.ts).
 // - ADD REFUSES A NAME THAT EXISTS (409) and UPDATE/REMOVE/TOGGLE REFUSE ONE
 //   THAT DOES NOT (404) — the same two guards the codex driver stated, now
 //   genuinely this app's.

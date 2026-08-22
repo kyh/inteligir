@@ -1,6 +1,5 @@
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
@@ -11,6 +10,7 @@ import {
   type GitEngineArgs,
 } from "../git";
 import { hermeticGitEnv } from "./git-test-env";
+import { makeTempDir } from "../../__tests__/temp-dir";
 
 const cleanups: Array<() => void | Promise<void>> = [];
 
@@ -23,8 +23,7 @@ afterEach(async () => {
 const env = hermeticGitEnv();
 
 function scratchDir(prefix: string): string {
-  const dir = mkdtempSync(join(tmpdir(), prefix));
-  cleanups.push(() => rmSync(dir, { recursive: true, force: true }));
+  const dir = makeTempDir(prefix);
   return dir;
 }
 

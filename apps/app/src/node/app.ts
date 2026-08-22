@@ -96,11 +96,10 @@ export interface CreateAppArgs {
   /** What the boot-time driver resolution decided; served on /system/status. */
   agent: AgentStatus;
   bus: WsBus;
-  /** Tests: drive the whole sync loop without a network. Absent in the
-   *  shipping boot, where the transport is the real one — and irrelevant until
-   *  someone pairs, since an install with no credential opens nothing. */
+  /** The sync loop's wire. main.ts supplies the real dial; injectable so a
+   *  suite drives the whole loop without a network — and inert either way
+   *  until someone pairs, since an install with no credential opens nothing. */
   cloudTransport?: CloudTransport;
-  /** Tests: drive `codex mcp` without a codex on the machine. */
   /** The app-owned MCP registry (issue #591); routes edit what sessions get. */
   connectors: ConnectorsService;
   /** The OAuth dance for hosted rows (issue #602); the callback route's owner. */
@@ -292,7 +291,7 @@ export function createApp(args: CreateAppArgs) {
   });
   cloud.attach(threads);
   registerCloudRoutes(registrars, cloud);
-  registerThreadRoutes({ routes: { get, post }, service: threads });
+  registerThreadRoutes(registrars, threads);
 
   // Unmatched API paths answer JSON here — an API caller must never receive
   // the SPA shell or a Vite page from the fallthrough below.

@@ -1,11 +1,11 @@
-import { mkdtempSync, rmSync } from "node:fs";
 import { mkdir, readdir, readFile, stat, symlink, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { VaultPathError, VAULT_TMP_PREFIX } from "@repo/notes/knowledge/vault-path";
 import { createVaultService, sweepStaleTmpFiles, VaultServiceError } from "../vault-service";
 import { createNotifierRecorder } from "./notifier-recorder";
+import { identityLock } from "../../__tests__/identity-lock";
+import { makeTempDir } from "../../__tests__/temp-dir";
 
 const cleanups: Array<() => void> = [];
 
@@ -24,12 +24,12 @@ function deferred() {
 }
 
 function bootService() {
-  const root = mkdtempSync(join(tmpdir(), "inteligir-vault-test-"));
-  cleanups.push(() => rmSync(root, { recursive: true, force: true }));
+  const root = makeTempDir("inteligir-vault-test-");
   const notifier = createNotifierRecorder();
   let mutations = 0;
   const service = createVaultService({
     root,
+    lock: identityLock,
     notifier,
     onMutated: () => {
       mutations += 1;
@@ -134,8 +134,7 @@ describe("vault CRUD", () => {
   });
 
   it("runs every mutation through the injected lock, serialized", async () => {
-    const root = mkdtempSync(join(tmpdir(), "inteligir-vault-test-"));
-    cleanups.push(() => rmSync(root, { recursive: true, force: true }));
+    const root = makeTempDir("inteligir-vault-test-");
     // The same promise-chain lock shape the git engine hands the runtime.
     let chain: Promise<unknown> = Promise.resolve();
     const lock = <T>(work: () => Promise<T>): Promise<T> => {
@@ -261,15 +260,9 @@ describe("atomic writes and crash artifacts", () => {
 });
 
 describe("physical containment (symlinks)", () => {
-  function outsideDir(): string {
-    const dir = mkdtempSync(join(tmpdir(), "inteligir-outside-"));
-    cleanups.push(() => rmSync(dir, { recursive: true, force: true }));
-    return dir;
-  }
-
   it("refuses a symlink LEAF on every surface — a pulled link must never read outside bytes", async () => {
     const { root, service } = bootService();
-    const outside = outsideDir();
+    const outside = makeTempDir("inteligir-outside-");
     await writeFile(join(outside, "id_ed25519"), "SECRET KEY MATERIAL");
     // Created externally, exactly as a git pull would materialize it.
     await symlink(join(outside, "id_ed25519"), join(root, "notes.md"));
@@ -283,7 +276,7 @@ describe("physical containment (symlinks)", () => {
 
   it("refuses operating THROUGH a symlinked folder — nothing lands or reads outside", async () => {
     const { root, service } = bootService();
-    const outside = outsideDir();
+    const outside = makeTempDir("inteligir-outside-");
     await writeFile(join(outside, "readable.txt"), "outside content");
     await symlink(outside, join(root, "evil"), "dir");
 
@@ -299,7 +292,7 @@ describe("physical containment (symlinks)", () => {
 
   it("keeps symlinks out of the listing entirely", async () => {
     const { root, service } = bootService();
-    const outside = outsideDir();
+    const outside = makeTempDir("inteligir-outside-");
     await writeFile(join(outside, "secret.txt"), "s");
     await symlink(join(outside, "secret.txt"), join(root, "file-link.md"));
     await symlink(outside, join(root, "dir-link"), "dir");

@@ -6,14 +6,12 @@
 
 import { createHash } from "node:crypto";
 import { createServer, type Server } from "node:http";
-import { mkdtempSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { createConnectorsService } from "../connectors-service";
 import { createConnectorsStore, type ConnectorsStore } from "../connectors-store";
 import { createConnectorOauthFlow } from "../oauth-flow";
+import { makeTempDir } from "../../__tests__/temp-dir";
 
 const REDIRECT_URI = "http://127.0.0.1:4664/connectors/oauth/callback";
 
@@ -73,7 +71,7 @@ async function startFakeProvider(): Promise<FakeProvider> {
 }
 
 function storeWithOauthRow(tokenEndpoint: string): ConnectorsStore {
-  const dir = mkdtempSync(join(tmpdir(), "inteligir-oauth-"));
+  const dir = makeTempDir("inteligir-oauth-");
   const store = createConnectorsStore(dir);
   const service = createConnectorsService(store);
   service.add({

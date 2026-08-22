@@ -21,6 +21,7 @@ import type {
   TurnDriverStartArgs,
 } from "../threads/turn-driver";
 import { beginAgentTurnWrites, type CaptureTurnProposals } from "./agent-commits";
+import { agentMessageEvents } from "./agent-message-events";
 import { turnPromptInput } from "./view-context-prompt";
 
 export interface ScriptedDriverDeps {
@@ -28,9 +29,6 @@ export interface ScriptedDriverDeps {
   git: GitEngine;
   /** Review mode's seam, same as the codex manager's. */
   captureProposals?: CaptureTurnProposals;
-  /** The memory index for this turn, same as the codex manager's — read fresh
-   *  each turn so a fact written between turns is carried into the next. */
-  readMemoryIndex?: () => string | undefined;
   onError?: (message: string) => void;
 }
 
@@ -52,39 +50,13 @@ class ScriptedTurnDriver implements TurnDriver {
   startTurn(args: TurnDriverStartArgs): void {
     const scope = turnScope(args.turnId);
     const itemId = `item_${args.turnId}_message`;
-    const prompt = turnPromptInput(args.text, args.viewContext, this.deps.readMemoryIndex?.())
+    const prompt = turnPromptInput(args.text, args.viewContext)
       .map((part) => part.text)
       .join("\n\n");
     const text = `Noted: ${prompt}`;
-    const midpoint = Math.ceil(text.length / 2);
     this.sink.ingestProviderEvents(args.threadId, [
       { type: "turn/started", threadId: args.threadId, scope },
-      {
-        type: "item/started",
-        threadId: args.threadId,
-        item: { type: "agentMessage", id: itemId, text: "" },
-        scope,
-      },
-      {
-        type: "item/agentMessage/delta",
-        threadId: args.threadId,
-        itemId,
-        delta: text.slice(0, midpoint),
-        scope,
-      },
-      {
-        type: "item/agentMessage/delta",
-        threadId: args.threadId,
-        itemId,
-        delta: text.slice(midpoint),
-        scope,
-      },
-      {
-        type: "item/completed",
-        threadId: args.threadId,
-        item: { type: "agentMessage", id: itemId, text },
-        scope,
-      },
+      ...agentMessageEvents({ threadId: args.threadId, itemId, text, scope }),
     ]);
     this.lastTurn = this.runFileHalf(args, scope);
   }

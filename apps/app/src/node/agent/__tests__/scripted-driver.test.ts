@@ -46,6 +46,10 @@ describe("the scripted driver over real HTTP", () => {
           db,
           notifier: bus,
           vault,
+          mcpServers: () => [],
+          shellEnv: () => ({}),
+          cliBinDir: null,
+          connectedDirs: () => [],
         });
         expect(resolved.status).toEqual({ mode: "scripted", runtime: "scripted", detail: null });
         return { createTurnDriver: resolved.createTurnDriver, dispose: resolved.dispose };
