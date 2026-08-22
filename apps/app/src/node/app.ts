@@ -42,7 +42,6 @@ import { createCommentsService } from "./comments/comments-service";
 import { registerCommentsRoutes } from "./comments/routes";
 import { registerKnowledgeRoutes } from "./knowledge/routes";
 import { registerAgentRoutes } from "./agent/agent-routes";
-import { registerMemoryRoutes } from "./memory/routes";
 import { ProposalService } from "./proposals/proposal-service";
 import { registerProposalRoutes } from "./proposals/routes";
 import { registerThreadRoutes } from "./threads/routes";
@@ -233,10 +232,6 @@ export function createApp(args: CreateAppArgs) {
     createConnectorsService(args.codexMcpRunner ?? systemCodexMcpRunner),
   );
 
-  // Human-facing only: the agent reads and writes memory files with its own
-  // shell (issue #575), so these routes serve the settings surface's list and
-  // delete, never an agent write.
-  registerMemoryRoutes(registrars, args.config.memoryDir);
   // Detect + guide: harness CLI/credential facts for Settings (issue #588).
   registerAgentRoutes(registrars);
 

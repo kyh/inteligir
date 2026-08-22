@@ -80,7 +80,6 @@ describe("codex runtime shell env wiring", () => {
         serverUrl: "http://127.0.0.1:21999",
         env: { PATH: "/usr/bin" },
         cliBinDir: "/repo/apps/cli/bin",
-        memoryDir: "/home/user/.inteligir/memory",
       }),
     );
 
@@ -93,7 +92,6 @@ describe("codex runtime shell env wiring", () => {
     const options = await waitFor(() => recorded.options[0], "the runtime to be constructed");
     expect(options.shellEnv).toEqual({
       INTELIGIR_SERVER_URL: "http://127.0.0.1:21999",
-      INTELIGIR_MEMORY_DIR: "/home/user/.inteligir/memory",
       PATH: `/repo/apps/cli/bin${delimiter}/usr/bin`,
     });
     expect(options.workspacePath).toBe(harness.vaultDir);

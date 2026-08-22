@@ -20,7 +20,7 @@ describe("agent driver resolution", () => {
       agent: { mode: "codex", runtime: "unavailable", detail: "placeholder" },
       makeDriver: ({ db, bus, vault, vaultDir }) => {
         const resolved = resolveAgentDriver({
-          config: { agent: "codex", agentModel: null, vaultDir, memoryDir: `${vaultDir}-memory` },
+          config: { agent: "codex", agentModel: null, vaultDir },
           db,
           notifier: bus,
           vault,
@@ -40,7 +40,7 @@ describe("agent driver resolution", () => {
     expect(send.status).toBe(503);
     const body = apiErrorResponseSchema.parse(await send.json());
     expect(body.error).toBe("provider_unavailable");
-    expect(body.message).toContain("codex binary was not found");
+    expect(body.message).toContain("No agent CLI was found on PATH");
   });
 
   it("the off mode reads as off on /system/status", async () => {
@@ -48,7 +48,7 @@ describe("agent driver resolution", () => {
       agent: { mode: "off", runtime: "off", detail: "The agent is disabled (INTELIGIR_AGENT=off)" },
       makeDriver: ({ db, bus, vault, vaultDir }) => {
         const resolved = resolveAgentDriver({
-          config: { agent: "off", agentModel: null, vaultDir, memoryDir: `${vaultDir}-memory` },
+          config: { agent: "off", agentModel: null, vaultDir },
           db,
           notifier: bus,
           vault,

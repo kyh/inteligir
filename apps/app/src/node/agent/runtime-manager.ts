@@ -79,6 +79,7 @@ import {
   type VaultPathResolver,
 } from "./agent-commits";
 import { loadAgentInstructions } from "./agent-instructions";
+import { resolveSkillsDir } from "./agent-shell-env";
 import { ProviderEventCoalescer } from "./event-coalescer";
 import { mapProviderEvent } from "./event-mapping";
 import { turnPromptInput } from "./view-context-prompt";
@@ -404,7 +405,11 @@ class CodexTurnDriver implements TurnDriver {
   }
 
   private async openThreadSession(runtime: AgentRuntime, threadId: string): Promise<void> {
-    const instructions = loadAgentInstructions(this.deps.vaultDir, this.deps.cliBinDir ?? null);
+    const instructions = loadAgentInstructions(
+      this.deps.vaultDir,
+      this.deps.cliBinDir ?? null,
+      resolveSkillsDir(),
+    );
     const row = getThread(this.deps.db, threadId);
     const persisted = row?.providerThreadId ?? null;
     // A thread that ever ran keeps its harness; a new one adopts the default.

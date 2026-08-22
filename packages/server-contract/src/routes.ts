@@ -14,7 +14,6 @@ import type { ApiErrorResponse } from "./errors";
 import { commentRoutes } from "./comments";
 import { knowledgeRoutes } from "./knowledge";
 import { agentsRoutes } from "./agents";
-import { memoryRoutes } from "./memory";
 import { proposalRoutes } from "./proposals";
 import { threadRoutes } from "./threads";
 import { vaultRoutes } from "./vault";
@@ -156,7 +155,6 @@ export const apiRoutes = {
   comments: commentRoutes,
   knowledge: knowledgeRoutes,
   agents: agentsRoutes,
-  memory: memoryRoutes,
   proposals: proposalRoutes,
   threads: threadRoutes,
   vault: vaultRoutes,

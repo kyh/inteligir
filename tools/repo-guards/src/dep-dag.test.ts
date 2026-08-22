@@ -169,6 +169,10 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
  */
 const DECLARED_ARTIFACT_EDGES = new Map<string, Record<string, string>>(
   Object.entries({
+    "@repo/app": {
+      "@repo/agent-skills":
+        "the vendored Moss dialect skills are CONTENT the agent reads with its shell — agent-shell-env.ts resolves the package's skills/ directory via createRequire and hands the path to agent sessions as INTELIGIR_SKILLS_DIR; no module import exists or should",
+    },
     "@repo/desktop": {
       inteligir:
         "the shell PACKS the published artifact into the .app and spawns its server entry as a CHILD PROCESS — src/main/server-paths.ts resolves it as a path under node_modules rather than importing it, and the packaged smoke reaches its staged-layout module from scripts/, which is not shipped source either",

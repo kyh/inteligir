@@ -42,7 +42,6 @@ describe("the scripted driver over real HTTP", () => {
             agent: "scripted",
             agentModel: null,
             vaultDir,
-            memoryDir: `${vaultDir}-memory`,
           },
           db,
           notifier: bus,

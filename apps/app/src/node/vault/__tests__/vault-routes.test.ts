@@ -75,7 +75,6 @@ async function bootVaultApp() {
       vaultDir,
       vaultRemote: null,
       modelDir: join(dataDir, "models"),
-      memoryDir: join(dataDir, "memory"),
       voice: "scripted",
       agent: "off",
       agentModel: null,

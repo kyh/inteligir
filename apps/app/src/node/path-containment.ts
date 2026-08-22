@@ -71,20 +71,3 @@ export function assertModelDirOutsideVault(modelDir: string, vaultDir: string): 
     );
   }
 }
-
-/**
- * Agent memory must not sit inside the vault. Same reason the model dir and the
- * data dir may not: the vault is a git repo the sync loop pushes, and memory —
- * the agent's model of the USER — under it would be committed and pushed with
- * the notes. It is machine-global (about the user, not a vault) and shared
- * across checkouts, so only the vault is checked. Both arguments must already
- * be resolved.
- */
-export function assertMemoryDirOutsideVault(memoryDir: string, vaultDir: string): void {
-  if (pathContains(vaultDir, memoryDir) || pathContains(memoryDir, vaultDir)) {
-    throw new Error(
-      `The memory directory must be outside the vault, but memory dir "${memoryDir}" and vault "${vaultDir}" nest. ` +
-        `Memory under the vault would be committed and pushed. Set INTELIGIR_MEMORY_DIR to a folder outside the vault.`,
-    );
-  }
-}

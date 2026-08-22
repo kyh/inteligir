@@ -10,7 +10,7 @@ import { getSchemaVersion } from "@repo/db/meta";
 import { runMigrations } from "@repo/db/migrate";
 import { z } from "zod";
 import { resolveAgentDriver } from "./agent/agent-driver";
-import { buildAgentShellEnv, resolveCliBinDir } from "./agent/agent-shell-env";
+import { buildAgentShellEnv, resolveCliBinDir, type AgentShellEnv } from "./agent/agent-shell-env";
 import { createApp, type AppFallback, type StartFetchOptions } from "./app";
 import { openCloudSocket } from "./cloud/cloud-socket";
 import { resolveAppConfig } from "./config";
@@ -189,7 +189,7 @@ async function boot(): Promise<{ serverUrl: string }> {
 
   // Filled in after listen (the bound port may be a probed one); read lazily by
   // the codex runtime on the first turn, which an HTTP request precedes.
-  let agentShellEnv: Record<string, string> = {};
+  let agentShellEnv: AgentShellEnv = { INTELIGIR_SERVER_URL: "" };
   const cliBinDir = resolveCliBinDir();
   const agentDriver = resolveAgentDriver({
     config,
@@ -264,7 +264,6 @@ async function boot(): Promise<{ serverUrl: string }> {
     serverUrl: `http://127.0.0.1:${port}`,
     env: process.env,
     cliBinDir,
-    memoryDir: config.memoryDir,
   });
   console.log(
     `inteligir ${version} (${config.mode}) listening on http://127.0.0.1:${port} — data: ${config.dataDir} — vault: ${config.vaultDir}${config.vaultRemote === null ? "" : ` ⇄ ${redactRemoteUrl(config.vaultRemote)}`}`,

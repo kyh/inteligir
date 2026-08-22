@@ -16,12 +16,11 @@ import type { CaptureTurnProposals } from "./agent-commits";
 import type { AppConfig } from "../config";
 import type { VaultRuntime } from "../vault/vault-runtime";
 import { createBoundedAgentLog } from "./agent-log";
-import { readMemoryPromptBlock } from "./memory-prompt";
 import { createCodexRuntimeManager, type CodexRuntimeManagerDeps } from "./runtime-manager";
 import { createScriptedTurnDriverFactory, type ScriptedDriverDeps } from "./scripted-driver";
 
 export interface ResolveAgentDriverArgs {
-  config: Pick<AppConfig, "agent" | "agentModel" | "vaultDir" | "memoryDir">;
+  config: Pick<AppConfig, "agent" | "agentModel" | "vaultDir">;
   db: DbConnection;
   notifier: DbNotifier;
   vault: VaultRuntime;
@@ -84,16 +83,10 @@ export function resolveAgentDriver(args: ResolveAgentDriverArgs): ResolvedAgentD
   // The bounded log keeps a chatty provider VISIBLE without flooding: first
   // occurrence per stripped-id key logs in full, repeats log a count.
   const onDebug = createBoundedAgentLog();
-  // The per-turn memory read, shared by both drivers: memory is the agent's
-  // model of the user, not of which provider happens to run, so the injection
-  // is a property of the turn rather than of the driver. Read fresh each turn
-  // (issue #575), so a fact written between turns is carried into the next.
-  const readMemoryIndex = (): string | undefined => readMemoryPromptBlock(args.config.memoryDir);
   if (mode === "scripted") {
     const scripted: ScriptedDriverDeps = {
       vault: args.vault.service,
       git: args.vault.git,
-      readMemoryIndex,
       onError: onDebug,
     };
     if (args.captureProposals !== undefined) scripted.captureProposals = args.captureProposals;
@@ -128,7 +121,6 @@ export function resolveAgentDriver(args: ResolveAgentDriverArgs): ResolvedAgentD
     vaultDir: args.config.vaultDir,
     git: args.vault.git,
     model: args.config.agentModel,
-    readMemoryIndex,
     onDebug,
   };
   codex.defaultProviderId = claudeBinary === null ? "codex" : "claude";

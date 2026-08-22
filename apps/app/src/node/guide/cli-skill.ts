@@ -110,40 +110,6 @@ editing files directly).
   code the agent then talks to, so adding or removing one is a person's own act
   in the app's Settings → Connectors, not a command.
 
-## Memory — what you remember about the user
-
-Durable facts about the USER — who they are, and how they want you to work —
-live as flat markdown files in the directory named by \`$INTELIGIR_MEMORY_DIR\`.
-This is NOT the vault (the user's notes) and NOT the thread history (which
-already records what was said). It is your own model of the user, and you keep
-it with your shell: there is no CLI command and no tool for it, because you can
-already read and write these files directly.
-
-- One fact per file. Each file is YAML frontmatter — \`name\`, \`description\`,
-  \`type\` — then the full note as the body:
-
-  \`\`\`md
-  ---
-  name: Prefers concise commits
-  description: Short, imperative commit messages; no filler.
-  type: preference
-  ---
-  Confirmed twice while reviewing PRs — sacrifice grammar for concision.
-  \`\`\`
-
-- \`type\` is exactly one of \`user\` (who they are: role, projects, expertise,
-  standing facts) or \`preference\` (how they want you to work; corrections they
-  have made). Do not invent other types, and do NOT keep a running transcript
-  of the conversation here — the thread history already does that.
-- READ a fact with \`cat "$INTELIGIR_MEMORY_DIR/<file>.md"\`, or \`rg\` across the
-  directory. REMEMBER something by writing a new \`.md\` file there. FORGET it by
-  deleting the file. Nothing else is needed — the app reads these files live.
-- The \`description\` is what you are shown at the start of each turn (a compact
-  index of everything you remember), so keep it short and specific; the body
-  holds the detail you read on demand.
-- The user sees and deletes these in the app's Settings → Memory, so record
-  only what you would be comfortable showing them.
-
 ## Interactions — approvals the agent is waiting on
 
 - \`inteligir interactions list [--thread <id>]\` — pending approval requests;
