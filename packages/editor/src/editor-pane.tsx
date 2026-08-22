@@ -8,6 +8,7 @@ import { EditorBottomToolbar } from "@repo/editor/editor-bottom-toolbar";
 import { MarkdownEditor } from "@repo/editor/markdown-editor";
 import { openDocPath } from "@repo/editor/note/open-doc";
 import { useOpenNote } from "@repo/editor/note/open-note-store";
+import { registerNoteTitleFocus } from "@repo/editor/note-title-focus";
 import { useConnectionsPanel, useVaultActions } from "@repo/editor/host";
 import { checkNoteName, noteNameErrorMessage } from "@repo/notes/knowledge/note-name";
 import { basenamePath } from "@repo/notes/knowledge/vault-path";
@@ -75,6 +76,16 @@ function NotePane({ path, showRich }: { path: string; showRich: boolean }) {
   useEffect(() => {
     if (titleRef.current) titleRef.current.textContent = displayName;
   }, [displayName]);
+
+  // ⌘T (editor-shortcuts) reaches the title through the single-slot registry.
+  useEffect(
+    () =>
+      registerNoteTitleFocus(() => {
+        titleRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+        titleRef.current?.focus();
+      }),
+    [],
+  );
 
   const ext = dot > 0 ? fileName.slice(dot) : "";
   const slash = path.lastIndexOf("/");

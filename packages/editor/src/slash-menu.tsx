@@ -60,7 +60,7 @@ import {
 import { insertHorizontalRule } from "@repo/editor/kits/basic-blocks-kit";
 import { insertMermaid } from "@repo/editor/kits/code-block-kit";
 import { insertColumnGroup } from "@repo/editor/kits/column-kit";
-import { insertDate } from "@repo/editor/kits/date-kit";
+import { insertDate, insertMonthDate } from "@repo/editor/kits/date-kit";
 import { insertEquation, insertInlineEquation } from "@repo/editor/kits/math-kit";
 import { insertToggle } from "@repo/editor/kits/toggle-kit";
 
@@ -268,6 +268,22 @@ const GROUPS: { group: string; items: SlashItem[] }[] = [
         description: "Inline date chip (today).",
         keywords: ["date", "today", "calendar", "@"],
         onSelect: (editor) => insertDate(editor),
+      },
+      {
+        icon: <CalendarIcon />,
+        label: "Day",
+        value: "day",
+        description: "Today as a date chip.",
+        keywords: ["day", "today", "date"],
+        onSelect: (editor) => insertDate(editor),
+      },
+      {
+        icon: <CalendarIcon />,
+        label: "Month",
+        value: "month",
+        description: "This month as a date chip (its first day).",
+        keywords: ["month", "date"],
+        onSelect: (editor) => insertMonthDate(editor),
       },
       {
         icon: <SigmaIcon />,

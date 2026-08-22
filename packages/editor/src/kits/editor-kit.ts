@@ -27,7 +27,10 @@ import { OpaqueKit } from "@repo/editor/kits/opaque-kit";
 import { TableKit } from "@repo/editor/kits/table-kit";
 import { TagChipKit } from "@repo/editor/kits/tag-chip-kit";
 import { ToggleKit } from "@repo/editor/kits/toggle-kit";
+import { CommentGutterKit } from "@repo/editor/comments/comment-gutter";
 import { CommentKit } from "@repo/editor/comments/comment-kit";
+import { EditorShortcutsKit } from "@repo/editor/editor-shortcuts";
+import { FindBarKit } from "@repo/editor/find-bar";
 import { MossBlocksKit } from "@repo/editor/kits/moss-blocks-kit";
 import { MossInlineKit } from "@repo/editor/kits/moss-inline-kit";
 import { TabsKit } from "@repo/editor/kits/tabs-kit";
@@ -58,6 +61,7 @@ export const EDITOR_KIT = [
   ...MossInlineKit,
   ...MossBlocksKit,
   ...CommentKit,
+  ...CommentGutterKit,
   ...TabsKit,
   ...HeadingCollapseKit,
   ...ColorPillKit,
@@ -68,6 +72,8 @@ export const EDITOR_KIT = [
   ...TagChipKit,
   ...EmojiKit,
   ...SlashKit,
+  ...EditorShortcutsKit,
+  ...FindBarKit,
   ...DragKit,
   ...BlockMenuKit,
   ...FloatingToolbarKit,
