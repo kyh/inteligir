@@ -1,0 +1,4 @@
+interface:
+  display_name: "Moss Notes"
+  short_description: "Create and edit Moss notes with canonical Moss markdown"
+  default_prompt: "Use $moss-notes to create or update a Moss note under ~/Moss/Notes/ using canonical Moss note syntax and file rules."

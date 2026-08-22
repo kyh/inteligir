@@ -28,6 +28,7 @@
     "./markdown/md-plugins": "./src/markdown/md-plugins.ts",
     "./markdown/parse": "./src/markdown/parse.ts",
     "./markdown/remark-mdx-agnostic": "./src/markdown/remark-mdx-agnostic.ts",
+    "./markdown/remark-moss-inline": "./src/markdown/remark-moss-inline.ts",
     "./markdown/remark-opaque": "./src/markdown/remark-opaque.ts",
     "./markdown/remark-wiki-link": "./src/markdown/remark-wiki-link.ts",
     "./markdown/thread-anchor": "./src/markdown/thread-anchor.ts",

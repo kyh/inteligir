@@ -40,6 +40,7 @@
     "./kits/list-kit": "./src/kits/list-kit.tsx",
     "./kits/markdown-kit": "./src/kits/markdown-kit.ts",
     "./kits/math-kit": "./src/kits/math-kit.tsx",
+    "./kits/moss-inline-kit": "./src/kits/moss-inline-kit.tsx",
     "./kits/opaque-kit": "./src/kits/opaque-kit.tsx",
     "./kits/table-kit": "./src/kits/table-kit.tsx",
     "./kits/tag-chip-kit": "./src/kits/tag-chip-kit.tsx",

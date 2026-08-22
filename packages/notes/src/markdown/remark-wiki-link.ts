@@ -200,7 +200,10 @@ export type WikiBodyRange = WikiBody & { targetRange?: { start: number; end: num
 /** Split a raw wiki body into target / #anchor / |alias, tracking where the
  * target sits inside the body (for byte-surgical rewrites). */
 export function parseWikiBodyRange(body: string): WikiBodyRange {
-  const pipe = body.indexOf("|");
+  // The LAST pipe starts the alias (Moss dialect): a title containing `|` is
+  // legal when paired with a resolved-UUID suffix, so the split must keep the
+  // whole title intact rather than truncating at its first pipe.
+  const pipe = body.lastIndexOf("|");
   const head = pipe === -1 ? body : body.slice(0, pipe);
   const alias = pipe === -1 ? undefined : body.slice(pipe + 1).trim();
   const hash = head.indexOf("#");

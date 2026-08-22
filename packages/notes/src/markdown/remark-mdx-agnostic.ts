@@ -48,6 +48,7 @@ declare module "unified" {
 declare module "micromark-util-types" {
   interface TokenTypeMap {
     mdxJsxTagStartProbe: "mdxJsxTagStartProbe";
+    mossFormulaStartProbe: "mossFormulaStartProbe";
   }
 }
 
@@ -176,6 +177,61 @@ function soleConstruct(record: ConstructRecord | undefined, code: number, what: 
   return construct;
 }
 
+// `{{` opens a Moss formula pill (remark-moss-inline), never an MDX
+// expression — a doubled brace is the one spelling the two grammars contest,
+// and the dialect gives it to Moss. The probe consumes the first `{` and
+// answers by the SECOND character alone: another `{` refuses the expression
+// construct (the text flows through to the mdast transform); anything else
+// lets mdx-expression run exactly as before, so single-brace expressions keep
+// their opaque preservation.
+const doubleBraceProbe: Construct = {
+  name: "mossFormulaStartProbe",
+  partial: true,
+  tokenize(effects, ok, nok) {
+    return start;
+
+    function start(code: Code) {
+      effects.enter("mossFormulaStartProbe");
+      effects.consume(code); // `{`
+      return afterBrace;
+    }
+
+    function afterBrace(code: Code) {
+      effects.exit("mossFormulaStartProbe");
+      return code === LEFT_BRACE ? ok(code) : nok(code);
+    }
+  },
+};
+
+function notMossFormula(construct: Construct): Construct {
+  return {
+    ...construct,
+    // Both braces of a `{{` must decline: the probe covers the FIRST (its
+    // successor is `{`), and this hook covers the SECOND (its predecessor
+    // is `{`) — otherwise the inner brace starts an expression of its own
+    // one character later.
+    previous(code) {
+      if (code === LEFT_BRACE) return false;
+      return construct.previous === undefined ? true : construct.previous.call(this, code);
+    },
+    tokenize(effects, ok, nok) {
+      return effects.check(doubleBraceProbe, nok, effects.attempt(construct, ok, nok));
+    },
+  };
+}
+
+function guardedMdxExpression(): Extension {
+  const expression = mdxExpression();
+  return {
+    flow: {
+      [LEFT_BRACE]: notMossFormula(soleConstruct(expression.flow, LEFT_BRACE, "expression")),
+    },
+    text: {
+      [LEFT_BRACE]: notMossFormula(soleConstruct(expression.text, LEFT_BRACE, "expression")),
+    },
+  };
+}
+
 function guardedMdxJsx(): Extension {
   const jsx = mdxJsx();
   return {
@@ -188,7 +244,7 @@ function guardedMdxJsx(): Extension {
 // the processor as `this` by contract — unified invokes them with .call().
 export const remarkMdxAgnostic: Plugin = function (this: Processor): undefined {
   const data = this.data();
-  (data.micromarkExtensions ??= []).push(mdxExpression(), guardedMdxJsx(), {
+  (data.micromarkExtensions ??= []).push(guardedMdxExpression(), guardedMdxJsx(), {
     disable: { null: ["codeIndented", "htmlFlow"] },
   });
   (data.fromMarkdownExtensions ??= []).push(mdxFromMarkdown());

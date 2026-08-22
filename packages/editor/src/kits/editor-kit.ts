@@ -27,6 +27,7 @@ import { OpaqueKit } from "@repo/editor/kits/opaque-kit";
 import { TableKit } from "@repo/editor/kits/table-kit";
 import { TagChipKit } from "@repo/editor/kits/tag-chip-kit";
 import { ToggleKit } from "@repo/editor/kits/toggle-kit";
+import { MossInlineKit } from "@repo/editor/kits/moss-inline-kit";
 import { WikiLinkKit } from "@repo/editor/kits/wiki-link-kit";
 import { SlashKit } from "@repo/editor/slash-menu";
 import { WikiAutocompleteKit } from "@repo/editor/wiki-autocomplete";
@@ -48,6 +49,7 @@ export const EDITOR_KIT = [
   ...OpaqueKit,
   ...FrontmatterKit,
   ...WikiLinkKit,
+  ...MossInlineKit,
   ...WikiAutocompleteKit,
   // Render-only inline `#tag` chips. No BASE_KIT twin on purpose — a leaf
   // decoration never reaches the value, so there is nothing to serialize.

@@ -38,6 +38,9 @@ import {
 const DECLARED_EDGES = new Map<string, readonly string[]>(
   Object.entries({
     // Leaves. Nothing in this repo may be below them.
+    // agent-skills is CONTENT (the vendored Moss dialect spec, issue #581) —
+    // markdown served to agents, importing nothing and imported as files.
+    "@repo/agent-skills": [],
     "@repo/cloud-contract": [],
     "@repo/domain": [],
     "@repo/notes": [],

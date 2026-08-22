@@ -1,0 +1,4 @@
+interface:
+  display_name: "Moss Frontmatter"
+  short_description: "Edit searchable YAML metadata at the top of Moss notes"
+  default_prompt: "Use $moss-frontmatter to add or update Moss note frontmatter with useful YAML metadata while keeping duplicated metadata out of the body."

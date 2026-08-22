@@ -1,0 +1,4 @@
+interface:
+  display_name: "Moss Canvas"
+  short_description: "Create moss-canvas diagrams, wireframes, flows, and rough spatial layouts"
+  default_prompt: "Use $moss-canvas to add a rough diagram, wireframe, flow, or spatial layout to a Moss note as a moss-canvas block."

@@ -20,6 +20,7 @@ import { MathBaseKit } from "@repo/editor/kits/math-kit";
 import { OpaqueBaseKit } from "@repo/editor/kits/opaque-kit";
 import { TableBaseKit } from "@repo/editor/kits/table-kit";
 import { ToggleBaseKit } from "@repo/editor/kits/toggle-kit";
+import { MossInlineBaseKit } from "@repo/editor/kits/moss-inline-kit";
 import { WikiLinkBaseKit } from "@repo/editor/kits/wiki-link-kit";
 
 export const BASE_KIT = [
@@ -39,5 +40,6 @@ export const BASE_KIT = [
   ...OpaqueBaseKit,
   ...FrontmatterBaseKit,
   ...WikiLinkBaseKit,
+  ...MossInlineBaseKit,
   ...MarkdownKit,
 ];

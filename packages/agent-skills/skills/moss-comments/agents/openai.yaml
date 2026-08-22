@@ -1,0 +1,4 @@
+interface:
+  display_name: "Moss Comments"
+  short_description: "Add and maintain Moss note comments and sidecar metadata"
+  default_prompt: "Use $moss-comments to add, preserve, or update Moss note comments using body markers and matching comments.json metadata."

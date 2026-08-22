@@ -31,6 +31,11 @@ import {
 
 import { MD_STRINGIFY } from "@repo/notes/markdown/md-plugins";
 import type { OpaqueBlock, OpaqueInline } from "@repo/notes/markdown/remark-opaque";
+import {
+  parseFormulaRaw,
+  type MossCommentMarker,
+  type MossFormula,
+} from "@repo/notes/markdown/remark-moss-inline";
 import type { WikiEmbed, WikiLink } from "@repo/notes/markdown/remark-wiki-link";
 
 // Fail fast if a @platejs/markdown bump reshapes defaultRules — the alert rule
@@ -354,6 +359,36 @@ export const MD_RULES: MdRules = {
     serialize: (node: TElement): WikiEmbed => ({
       body: typeof node.body === "string" ? node.body : "",
       type: "wikiEmbed",
+    }),
+  },
+
+  // Moss inline constructs; inner text stays verbatim both directions (the
+  // remark plugin's toMarkdown handlers emit the actual bytes).
+  mossFormula: {
+    deserialize: (node: MossFormula): TElement => ({
+      children: [{ text: "" }],
+      display: node.display,
+      meta: node.meta ?? "",
+      raw: node.raw,
+      source: node.source,
+      type: "mossFormula",
+    }),
+    serialize: (node: TElement): MossFormula => {
+      const raw = typeof node.raw === "string" ? node.raw : "";
+      return { raw, type: "mossFormula", ...parseFormulaRaw(raw) };
+    },
+  },
+  mossCommentMarker: {
+    deserialize: (node: MossCommentMarker): TElement => ({
+      children: [{ text: "" }],
+      edge: node.edge,
+      ids: node.ids,
+      type: "mossCommentMarker",
+    }),
+    serialize: (node: TElement): MossCommentMarker => ({
+      edge: node.edge === "end" ? "end" : "start",
+      ids: typeof node.ids === "string" ? node.ids : "",
+      type: "mossCommentMarker",
     }),
   },
 

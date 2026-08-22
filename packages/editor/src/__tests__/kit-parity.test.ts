@@ -39,6 +39,8 @@ const VOCABULARY_PLUGIN_KEYS = [
   "frontmatter",
   "wikiLink",
   "wikiEmbed",
+  "mossFormula",
+  "mossCommentMarker",
   "opaqueBlock",
   "opaqueInline",
 ];

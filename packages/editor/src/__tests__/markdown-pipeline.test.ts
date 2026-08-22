@@ -260,8 +260,12 @@ describe("parseWikiBody (display-time helper)", () => {
     expect(parseWikiBody("a#|x")).toEqual({ alias: "x", target: "a" });
   });
 
-  it("only the first pipe splits the alias", () => {
-    expect(parseWikiBody("a|b|c")).toEqual({ alias: "b|c", target: "a" });
+  it("the LAST pipe splits the alias (Moss dialect: a piped title keeps its pipes)", () => {
+    expect(parseWikiBody("a|b|c")).toEqual({ alias: "c", target: "a|b" });
+    expect(parseWikiBody("Status | Draft|9e64c3df-c1e2-4a4d-8c07-91528f422413")).toEqual({
+      alias: "9e64c3df-c1e2-4a4d-8c07-91528f422413",
+      target: "Status | Draft",
+    });
   });
 });
 
