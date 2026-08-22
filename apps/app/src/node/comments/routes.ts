@@ -6,31 +6,29 @@
 
 import { commentRoutes } from "@repo/server-contract/comments";
 import { API_ERROR_STATUS, type ApiErrorResponse } from "@repo/server-contract/errors";
+import { VaultPathError } from "@repo/notes/knowledge/vault-path";
 import type { TypedRoutesRegistrars } from "@repo/typed-routes/typed-routes";
 
 import { VaultServiceError } from "../vault/vault-service";
 import { CommentRefusedError, SidecarInvalidError, type CommentsService } from "./comments-service";
 
-type Refusal = { body: ApiErrorResponse; status: 400 | 404 | 409 } | null;
+type Refusal =
+  | { kind: "invalid"; body: ApiErrorResponse }
+  | { kind: "missing"; body: ApiErrorResponse }
+  | { kind: "conflict"; body: ApiErrorResponse };
 
-function classify(error: unknown): Refusal {
-  if (error instanceof SidecarInvalidError) {
-    return {
-      body: { error: "conflict", message: error.message },
-      status: API_ERROR_STATUS.conflict,
-    };
+function classify(cause: unknown): Refusal | null {
+  if (cause instanceof SidecarInvalidError) {
+    return { kind: "conflict", body: { error: "conflict", message: cause.message } };
   }
-  if (error instanceof CommentRefusedError) {
-    return {
-      body: { error: "invalid_request", message: error.message },
-      status: API_ERROR_STATUS.invalid_request,
-    };
+  if (cause instanceof CommentRefusedError) {
+    return { kind: "invalid", body: { error: "invalid_request", message: cause.message } };
   }
-  if (error instanceof VaultServiceError && error.code === "not_found") {
-    return { body: { error: "not_found", message: error.message }, status: 404 };
+  if (cause instanceof VaultServiceError && cause.code === "not_found") {
+    return { kind: "missing", body: { error: "not_found", message: cause.message } };
   }
-  if (error instanceof VaultServiceError && error.code === "invalid_path") {
-    return { body: { error: "invalid_path", message: error.message }, status: 400 };
+  if (cause instanceof VaultPathError) {
+    return { kind: "invalid", body: { error: "invalid_path", message: cause.message } };
   }
   return null;
 }
@@ -43,14 +41,19 @@ export function registerCommentsRoutes(
 
   // A list against a missing note still answers its sidecar (a thread can
   // outlive its note through an external delete): the service folds with
-  // unknown markers rather than refusing.
+  // unknown markers rather than refusing, so `missing` cannot reach here.
   get(commentRoutes.list, async (c, query) => {
     try {
       return c.json(await comments.list(query.path));
     } catch (error) {
       const refusal = classify(error);
-      if (refusal !== null) return c.json(refusal.body, refusal.status);
-      throw error;
+      if (refusal === null || refusal.kind === "missing") throw error;
+      switch (refusal.kind) {
+        case "invalid":
+          return c.json(refusal.body, API_ERROR_STATUS.invalid_request);
+        case "conflict":
+          return c.json(refusal.body, API_ERROR_STATUS.conflict);
+      }
     }
   });
 
@@ -59,8 +62,15 @@ export function registerCommentsRoutes(
       return c.json(await comments.add(body));
     } catch (error) {
       const refusal = classify(error);
-      if (refusal !== null) return c.json(refusal.body, refusal.status);
-      throw error;
+      if (refusal === null) throw error;
+      switch (refusal.kind) {
+        case "invalid":
+          return c.json(refusal.body, API_ERROR_STATUS.invalid_request);
+        case "missing":
+          return c.json(refusal.body, API_ERROR_STATUS.not_found);
+        case "conflict":
+          return c.json(refusal.body, API_ERROR_STATUS.conflict);
+      }
     }
   });
 
@@ -69,8 +79,15 @@ export function registerCommentsRoutes(
       return c.json(await comments.reply(body));
     } catch (error) {
       const refusal = classify(error);
-      if (refusal !== null) return c.json(refusal.body, refusal.status);
-      throw error;
+      if (refusal === null) throw error;
+      switch (refusal.kind) {
+        case "invalid":
+          return c.json(refusal.body, API_ERROR_STATUS.invalid_request);
+        case "missing":
+          return c.json(refusal.body, API_ERROR_STATUS.not_found);
+        case "conflict":
+          return c.json(refusal.body, API_ERROR_STATUS.conflict);
+      }
     }
   });
 
@@ -79,8 +96,15 @@ export function registerCommentsRoutes(
       return c.json(await comments.resolve(body));
     } catch (error) {
       const refusal = classify(error);
-      if (refusal !== null) return c.json(refusal.body, refusal.status);
-      throw error;
+      if (refusal === null) throw error;
+      switch (refusal.kind) {
+        case "invalid":
+          return c.json(refusal.body, API_ERROR_STATUS.invalid_request);
+        case "missing":
+          return c.json(refusal.body, API_ERROR_STATUS.not_found);
+        case "conflict":
+          return c.json(refusal.body, API_ERROR_STATUS.conflict);
+      }
     }
   });
 
@@ -89,8 +113,15 @@ export function registerCommentsRoutes(
       return c.json(await comments.remove(body));
     } catch (error) {
       const refusal = classify(error);
-      if (refusal !== null) return c.json(refusal.body, refusal.status);
-      throw error;
+      if (refusal === null) throw error;
+      switch (refusal.kind) {
+        case "invalid":
+          return c.json(refusal.body, API_ERROR_STATUS.invalid_request);
+        case "missing":
+          return c.json(refusal.body, API_ERROR_STATUS.not_found);
+        case "conflict":
+          return c.json(refusal.body, API_ERROR_STATUS.conflict);
+      }
     }
   });
 }
