@@ -5,7 +5,6 @@
 // display-only — changing it rides INTELIGIR_VAULT_REMOTE / config.json until
 // a config route exists.
 
-import type { AgentWriteMode } from "@repo/domain/agent-write-mode";
 import { Button } from "@repo/ui/components/button";
 import {
   Dialog,
@@ -25,7 +24,6 @@ import {
   EDITOR_SIZES,
   useAppearance,
 } from "../appearance";
-import { readDelegationWriteMode, writeDelegationWriteMode } from "../prefs";
 import {
   canSyncNow,
   syncBlockedReason,
@@ -45,17 +43,6 @@ const THEMES: readonly { value: Theme; label: string }[] = [
   { value: "system", label: "System" },
   { value: "light", label: "Light" },
   { value: "dark", label: "Dark" },
-];
-
-/** The default a delegation gets when the surface that created it did not
- *  name a mode — the checkbox fast path, and anything the CLI starts. */
-const WRITE_MODES: readonly { value: AgentWriteMode; label: string; hint: string }[] = [
-  { value: "direct", label: "Apply directly", hint: "Edits land in the vault as the agent works." },
-  {
-    value: "propose",
-    label: "Suggest first",
-    hint: "Edits are held for you to accept or reject, hunk by hunk.",
-  },
 ];
 
 export interface SettingsDialogProps {
@@ -90,11 +77,6 @@ function SettingsBody({ onSyncNow }: { onSyncNow: () => void }) {
   const systemQuery = useSystemStatus();
   const { theme, setTheme } = useTheme();
   const { appearance, setAppearance } = useAppearance();
-  const [writeMode, setWriteModeState] = useState<AgentWriteMode>(readDelegationWriteMode);
-  const setWriteMode = (next: AgentWriteMode): void => {
-    writeDelegationWriteMode(next);
-    setWriteModeState(next);
-  };
 
   const status = statusQuery.data;
   const system = systemQuery.data;
@@ -156,17 +138,6 @@ function SettingsBody({ onSyncNow }: { onSyncNow: () => void }) {
               <span className="text-xs text-muted-foreground">{system.agent.detail}</span>
             </Row>
           ) : null}
-          <Row label="Edits">
-            <ChoiceRow
-              label="What a delegation does with its edits"
-              options={WRITE_MODES}
-              value={writeMode}
-              onChange={setWriteMode}
-            />
-            <span className="mt-1 block text-xs text-muted-foreground">
-              {WRITE_MODES.find((mode) => mode.value === writeMode)?.hint}
-            </span>
-          </Row>
         </dl>
       </section>
       <Separator />
