@@ -12,7 +12,11 @@
 
 import { useEffect, useLayoutEffect, useRef } from "react";
 
-export type GlobalShortcutAction = "open-action-composer" | "open-palette" | "open-daily-note";
+export type GlobalShortcutAction =
+  | "open-action-composer"
+  | "open-palette"
+  | "open-daily-note"
+  | "toggle-zen";
 
 export interface GlobalShortcut {
   /** The letter, lowercase, held with the platform modifier and nothing else. */
@@ -26,6 +30,7 @@ export const GLOBAL_SHORTCUTS: readonly GlobalShortcut[] = [
   { key: "k", action: "open-action-composer", label: "the action composer" },
   { key: "p", action: "open-palette", label: "the command palette" },
   { key: "d", action: "open-daily-note", label: "the daily note" },
+  { key: "\\", action: "toggle-zen", label: "zen mode" },
 ];
 
 export type ShortcutModifier = "meta" | "ctrl";

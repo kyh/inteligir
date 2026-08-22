@@ -34,6 +34,7 @@ import {
   useVaultStatus,
   useVaultTree,
 } from "../vault-hooks";
+import { AgentsSection } from "./agents-section";
 import { ConnectorsSection } from "./connectors-section";
 import { MemorySection } from "./memory-section";
 import { ChoiceRow, Row, SectionHeading } from "./settings-chrome";
@@ -169,6 +170,8 @@ function SettingsBody({ onSyncNow }: { onSyncNow: () => void }) {
         </dl>
       </section>
       <Separator />
+      <AgentsSection />
+
       <ConnectorsSection />
       <Separator />
       <MemorySection />

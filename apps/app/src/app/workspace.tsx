@@ -10,6 +10,7 @@ import type { ViewContextSource } from "./chat/chat-model";
 import type { Thread } from "@repo/server-contract/threads";
 import type { VaultEntry } from "@repo/server-contract/vault";
 import { ConfirmDialogHost, confirm } from "@repo/ui/components/confirm-dialog";
+import { cn } from "@repo/ui/lib/utils";
 import { Toaster, toast } from "@repo/ui/components/sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -72,6 +73,8 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
   // so no agent interaction can remount the editor.
   const threadsQuery = useThreads();
   const [composerOpen, setComposerOpen] = useState(false);
+  // Zen (⌘\): just the document — both rails fold away, nothing unmounts.
+  const [zen, setZen] = useState(false);
   const [panelThreadId, setPanelThreadId] = useState<string | null>(null);
 
   const openThread = useCallback((threadId: string | null): void => {
@@ -281,6 +284,9 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
       case "open-daily-note":
         openDailyNote();
         break;
+      case "toggle-zen":
+        setZen((current) => !current);
+        break;
     }
   });
 
@@ -382,7 +388,9 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
             onLaunched={openThread}
           />
         </main>
-        <aside className="w-80 shrink-0 border-l border-line bg-surface-inset">
+        <aside
+          className={cn("w-80 shrink-0 border-l border-line bg-surface-inset", zen && "hidden")}
+        >
           <ActionsPanel
             docPath={openNote}
             commentFocus={commentFocus}
