@@ -23,6 +23,9 @@ import {
   MessagesSquareIcon,
   RefreshCwIcon,
   SettingsIcon,
+  Trash2Icon,
+  PrinterIcon,
+  ColumnsIcon,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { NO_ACTIVITY_COUNTS, threadActivity, THREAD_ACTIVITY_LABELS } from "../chat/chat-model";
@@ -35,6 +38,13 @@ export interface PaletteActions {
   openThread: (threadId: string) => void;
   syncNow: () => void;
   openSettings: () => void;
+  openTrash: () => void;
+  /** Open a picked note in the split pane (#595). */
+  openInSplit: (path: string) => void;
+  /** Null while no split is open. */
+  closeSplit: (() => void) | null;
+  /** Null while no note is open — the row only exists with a document. */
+  exportPdf: (() => void) | null;
 }
 
 export interface CommandPaletteProps {
@@ -55,7 +65,7 @@ export interface CommandPaletteProps {
   actions: PaletteActions;
 }
 
-type Page = "root" | "new-note-folder" | "threads";
+type Page = "root" | "new-note-folder" | "threads" | "split-note";
 
 function threadRowLabel(thread: Thread): string {
   return thread.title ?? "Action";
@@ -163,6 +173,36 @@ export function CommandPalette({
       icon: <CalendarIcon />,
       run: () => actions.openDailyNote(),
     },
+    ...(actions.exportPdf !== null
+      ? [
+          {
+            id: "export-pdf",
+            label: "Export as PDF",
+            icon: <PrinterIcon />,
+            run: () => actions.exportPdf?.(),
+          },
+        ]
+      : []),
+    {
+      id: "open-in-split",
+      label: "Open in split view…",
+      icon: <ColumnsIcon />,
+      keepOpen: true,
+      run: () => {
+        setQuery("");
+        setPage("split-note");
+      },
+    },
+    ...(actions.closeSplit !== null
+      ? [
+          {
+            id: "close-split",
+            label: "Close split view",
+            icon: <ColumnsIcon />,
+            run: () => actions.closeSplit?.(),
+          },
+        ]
+      : []),
     {
       id: "threads",
       label: "Actions",
@@ -183,6 +223,12 @@ export function CommandPalette({
           },
         ]
       : []),
+    {
+      id: "open-trash",
+      label: "Open trash",
+      icon: <Trash2Icon />,
+      run: () => actions.openTrash(),
+    },
     {
       id: "settings",
       label: "Settings",
@@ -221,6 +267,38 @@ export function CommandPalette({
                 <span className="ml-auto truncate pl-3 text-xs text-muted-foreground">
                   {threadRowDetail(thread)}
                 </span>
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        </CommandList>
+      </CommandDialog>
+    );
+  }
+
+  if (page === "split-note") {
+    const docs = entries
+      .filter((entry) => entry.kind === "file" && entry.path.endsWith(".md"))
+      .filter((entry) => matchesQuery(entry.path, query))
+      .slice(0, 30);
+    return (
+      <CommandDialog
+        open={open}
+        onOpenChange={onOpenChange}
+        title="Open in split view"
+        description="Pick the note for the split pane"
+        shouldFilter={false}
+      >
+        <CommandInput placeholder="Split with…" value={query} onValueChange={setQuery} />
+        <CommandList>
+          <CommandEmpty>No notes match.</CommandEmpty>
+          <CommandGroup heading="Notes">
+            {docs.map((entry) => (
+              <CommandItem
+                key={entry.path}
+                onSelect={() => run(() => actions.openInSplit(entry.path))}
+              >
+                <ColumnsIcon />
+                <span className="truncate">{entry.path}</span>
               </CommandItem>
             ))}
           </CommandGroup>

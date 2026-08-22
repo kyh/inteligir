@@ -8,6 +8,7 @@ import { APPEARANCE_DEFAULTS, appearanceSchema, type Appearance } from "./appear
 const KEYS = {
   sidebarWidth: "inteligir.sidebar-width",
   lastOpenNote: "inteligir.last-open-note",
+  splitNote: "inteligir.split-note",
   theme: "inteligir.theme",
   delegationWriteMode: "inteligir.delegation-write-mode",
   appearance: "inteligir.appearance",
@@ -67,6 +68,16 @@ export function writeLastOpenNote(path: string | null): void {
  * Defaults to open — it sits below the document, so it costs nothing until
  * the reader is already at the end of one.
  */
+/** The split pane's note (#595) — view state, session-persistent like the
+ * primary's last-open note. */
+export function readSplitNote(): string | null {
+  return read(KEYS.splitNote);
+}
+
+export function writeSplitNote(path: string | null): void {
+  write(KEYS.splitNote, path);
+}
+
 export function readBacklinksOpen(): boolean {
   return read(KEYS.backlinksOpen) !== "false";
 }

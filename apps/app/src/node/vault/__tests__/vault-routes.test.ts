@@ -21,6 +21,9 @@ import { afterEach, describe, expect, it } from "vitest";
 import { createApp } from "../../app";
 import { createConnectorsService } from "../../connectors/connectors-service";
 import { createConnectorsStore } from "../../connectors/connectors-store";
+import { createConnectorOauthFlow } from "../../connectors/oauth-flow";
+import { createFoldersService } from "../../folders/folders-service";
+import { createFoldersStore } from "../../folders/folders-store";
 import { createNoteIntelligence } from "../../note-intelligence/note-intelligence";
 import { createNoteIntelligenceSettingsStore } from "../../note-intelligence/settings-store";
 import { createKnowledgeRuntime } from "../../knowledge/knowledge-runtime";
@@ -66,6 +69,8 @@ async function bootVaultApp() {
   const { app } = createApp({
     agent: { mode: "off", runtime: "off", detail: null },
     connectors: createConnectorsService(createConnectorsStore(dataDir)),
+    connectorsOauth: createConnectorOauthFlow(createConnectorsStore(dataDir)),
+    folders: createFoldersService({ store: createFoldersStore(dataDir), vaultDir, dataDir }),
     noteIntelligence: createNoteIntelligence({
       infer: () => Promise.resolve(null),
       settings: createNoteIntelligenceSettingsStore(dataDir),

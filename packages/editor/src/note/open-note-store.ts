@@ -16,7 +16,7 @@
 // a controlled textarea's value updates in the same event flush as the
 // keystroke (an effect-time mirror would let React "restore" the input first).
 
-import { create } from "zustand";
+import { createStore, type StoreApi } from "zustand/vanilla";
 
 import { toast } from "@repo/ui/components/sonner";
 
@@ -97,140 +97,36 @@ function capped(stack: readonly string[]): string[] {
   return stack.length > HISTORY_DEPTH ? stack.slice(stack.length - HISTORY_DEPTH) : [...stack];
 }
 
-/** Subscribe to a slice of the open-note state: `useOpenNote((s) => s.mode)`.
- * A consumer re-renders only when ITS selected value changes — the seam that
- * keeps a keystroke from re-rendering the whole app. */
-export const useOpenNote = create<OpenNoteState>()(() => INITIAL_STATE);
-
 /**
- * Drop everything belonging to the account whose session just ended.
- *
- * REPLACES rather than merges: every field here is the previous account's — the
- * buffer, the gate verdict, the back/forward stacks — and a merge would leave
- * whichever ones a later shape adds. `flush` goes with it, so the fail-closed
- * privacy read (./open-note-flush) sees no live session until one mounts.
+ * One open note's state machine, INSTANCE-scoped so a split view can hold two
+ * (#595). Everything below closes over this instance's zustand store and its
+ * own pending-analysis token; nothing is module state, so two live panes
+ * cannot cross-publish. React consumers reach an instance through
+ * ./open-note-context (`useOpenNote(selector)`); non-React callers hold the
+ * object the provider created.
  */
-export function resetOpenNote(): void {
-  useOpenNote.setState(INITIAL_STATE, true);
-}
-
-/** Imperative live read for action-time consumers (e.g. the palette's
- * private-toggle reads `editor.content` at click time instead of subscribing
- * to every keystroke). Always the CURRENT value — never capture the result
- * across awaits. */
-export function openNoteState(): OpenNoteState {
-  return useOpenNote.getState();
-}
-
-/** Merge a partial update and recompute the derived fields in the same set,
- * keeping `openDoc` referentially stable when none of its inputs changed, so
- * a consumer selecting it doesn't re-render on unrelated updates. */
-function apply(
-  partial: Partial<Pick<OpenNoteState, "openPath" | "editor" | "analyzed" | "mode">>,
-): void {
-  useOpenNote.setState((s) => {
-    const merged = { ...s, ...partial };
-    const sameDocInputs =
-      merged.openPath === s.openPath &&
-      merged.editor.path === s.editor.path &&
-      merged.editor.content === s.editor.content &&
-      merged.analyzed.rawReason === s.analyzed.rawReason &&
-      merged.mode === s.mode;
-    merged.openDoc = sameDocInputs
-      ? s.openDoc
-      : deriveOpenDoc({
-          openPath: merged.openPath,
-          loadedPath: merged.editor.path,
-          content: merged.editor.content,
-          rawReason: merged.analyzed.rawReason,
-          chosenMode: merged.mode,
-        });
-    return merged;
-  });
-}
-
-// Pending deferred same-path analysis target — the microtask's identity check
-// (superseded by newer content or cancelled by a path change, both
-// replace/null this).
-let pendingAnalysis: { path: string | null; content: string } | null = null;
-
-/**
- * Publish a controller emission (provider-only). Runs the gate-analysis state
- * machine — timing is SPLIT by what's at stake:
- * - Path change: analyzed synchronously WITH the editor update (one setState),
- *   so the gate and the content can never disagree — a freshly opened
- *   Raw-only file must never mount the rich editor against unparseable bytes.
- *   The mode (raw/rich) is the user's choice, picked once per file open — a
- *   post-save flush (dirty→false, content unchanged) and an external/agent
- *   reload of the same file must not yank the user out of the surface they
- *   picked. (deriveOpenDoc shows rich only while the gate is clear, so a file
- *   that turns unparseable out from under us still falls back to raw.)
- * - Same-path content change (every 600ms autosave settle): deferred to a
- *   microtask (bounded latency; analyzeMarkdown is a full Slate construct +
- *   remark parse + serialize, up to 3 passes — running it synchronously
- *   blocks every autosave commit). The accepted window is one frame at most:
- *   the note is ALREADY rendered with the prior verdict for the same path.
- *   The microtask rechecks path+content against the LIVE store state before
- *   applying and drops itself when superseded or cancelled.
- * While the buffer is dirty (mid-typing, pre-autosave) the last analysis is
- * intentionally retained — one analysis pass per SAVED content change.
- */
-export function publishEditor(editor: VaultEditorState): void {
-  const s = useOpenNote.getState();
-  const isMarkdownOpen = editor.path !== null && isMarkdownPath(editor.path);
-  const pathChanged = s.analyzed.path !== editor.path;
-  if ((pathChanged || s.analyzed.content !== editor.content) && !editor.dirty) {
-    if (pathChanged) {
-      pendingAnalysis = null; // cancel any deferred same-path pass
-      const rawReason =
-        isMarkdownOpen && editor.content.trim() !== "" ? safeGateReason(editor.content) : null;
-      apply({
-        editor,
-        analyzed: { rawReason, content: editor.content, path: editor.path },
-        mode: isMarkdownOpen && rawReason === null ? "rich" : "raw",
-      });
-      return;
-    }
-    const pending = pendingAnalysis;
-    if (pending === null || pending.path !== editor.path || pending.content !== editor.content) {
-      const target = { path: editor.path, content: editor.content };
-      pendingAnalysis = target;
-      queueMicrotask(() => {
-        // Identity check: superseded by newer content or cancelled by a path
-        // change (both replace/null pendingAnalysis) → this pass is stale.
-        if (pendingAnalysis !== target) return;
-        pendingAnalysis = null;
-        // LIVE store read — never the snapshot captured at schedule time.
-        const live = useOpenNote.getState();
-        if (
-          live.editor.path !== target.path ||
-          live.editor.content !== target.content ||
-          live.editor.dirty
-        ) {
-          return;
-        }
-        const markdownOpen = target.path !== null && isMarkdownPath(target.path);
-        const rawReason =
-          markdownOpen && target.content.trim() !== "" ? safeGateReason(target.content) : null;
-        // A mid-session Rich→Raw flip (post-save re-analysis caught a
-        // serializer bug, or an external reload landed unrepresentable
-        // content) swaps Plate for the textarea under the user's cursor —
-        // explain the yank once. Fresh opens (the path-change branch above)
-        // don't toast: the badge covers them.
-        if (
-          live.analyzed.path === target.path &&
-          live.analyzed.rawReason === null &&
-          rawReason !== null &&
-          live.mode === "rich"
-        ) {
-          toast.warning(`Switched to Raw editing — ${describeGateReason(rawReason)}`);
-        }
-        apply({ analyzed: { rawReason, content: target.content, path: target.path } });
-      });
-    }
-  }
-  apply({ editor });
-}
+export type OpenNoteStore = {
+  /** The raw store, for `useStore(store, selector)` subscriptions. */
+  readonly store: StoreApi<OpenNoteState>;
+  /** Imperative live read for action-time consumers. Always the CURRENT
+   * value — never capture the result across awaits. */
+  state: () => OpenNoteState;
+  publishEditor: (editor: VaultEditorState) => void;
+  publishOpenPath: (path: string | null, change?: OpenPathChange) => void;
+  /** The user's raw/rich pick for a rich-capable markdown note. */
+  setMode: (mode: "raw" | "rich") => void;
+  /** Wire (or clear, with null) the live session's flush. The session owns
+   * the only implementation. */
+  setFlush: (flush: (() => Promise<boolean>) | null) => void;
+  /**
+   * Drop everything belonging to the session that just ended. REPLACES rather
+   * than merges: every field is the previous session's, and a merge would
+   * leave whichever ones a later shape adds. `flush` goes with it, so the
+   * fail-closed read (./open-note-flush) sees no live session until one
+   * mounts.
+   */
+  reset: () => void;
+};
 
 /**
  * How the open path moved, for history's sake.
@@ -242,6 +138,159 @@ export function publishEditor(editor: VaultEditorState): void {
  *   path the rename deleted.
  */
 export type OpenPathChange = "navigate" | "carry";
+
+export function createOpenNoteStore(): OpenNoteStore {
+  const store = createStore<OpenNoteState>()(() => INITIAL_STATE);
+
+  /** Merge a partial update and recompute the derived fields in the same set,
+   * keeping `openDoc` referentially stable when none of its inputs changed, so
+   * a consumer selecting it doesn't re-render on unrelated updates. */
+  function apply(
+    partial: Partial<Pick<OpenNoteState, "openPath" | "editor" | "analyzed" | "mode">>,
+  ): void {
+    store.setState((s) => {
+      const merged = { ...s, ...partial };
+      const sameDocInputs =
+        merged.openPath === s.openPath &&
+        merged.editor.path === s.editor.path &&
+        merged.editor.content === s.editor.content &&
+        merged.analyzed.rawReason === s.analyzed.rawReason &&
+        merged.mode === s.mode;
+      merged.openDoc = sameDocInputs
+        ? s.openDoc
+        : deriveOpenDoc({
+            openPath: merged.openPath,
+            loadedPath: merged.editor.path,
+            content: merged.editor.content,
+            rawReason: merged.analyzed.rawReason,
+            chosenMode: merged.mode,
+          });
+      return merged;
+    });
+  }
+
+  // Pending deferred same-path analysis target — the microtask's identity check
+  // (superseded by newer content or cancelled by a path change, both
+  // replace/null this).
+  let pendingAnalysis: { path: string | null; content: string } | null = null;
+
+  /**
+   * Publish a controller emission (provider-only). Runs the gate-analysis state
+   * machine — timing is SPLIT by what's at stake:
+   * - Path change: analyzed synchronously WITH the editor update (one setState),
+   *   so the gate and the content can never disagree — a freshly opened
+   *   Raw-only file must never mount the rich editor against unparseable bytes.
+   *   The mode (raw/rich) is the user's choice, picked once per file open — a
+   *   post-save flush (dirty→false, content unchanged) and an external/agent
+   *   reload of the same file must not yank the user out of the surface they
+   *   picked. (deriveOpenDoc shows rich only while the gate is clear, so a file
+   *   that turns unparseable out from under us still falls back to raw.)
+   * - Same-path content change (every 600ms autosave settle): deferred to a
+   *   microtask (bounded latency; analyzeMarkdown is a full Slate construct +
+   *   remark parse + serialize, up to 3 passes — running it synchronously
+   *   blocks every autosave commit). The accepted window is one frame at most:
+   *   the note is ALREADY rendered with the prior verdict for the same path.
+   *   The microtask rechecks path+content against the LIVE store state before
+   *   applying and drops itself when superseded or cancelled.
+   * While the buffer is dirty (mid-typing, pre-autosave) the last analysis is
+   * intentionally retained — one analysis pass per SAVED content change.
+   */
+  function publishEditor(editor: VaultEditorState): void {
+    const s = store.getState();
+    const isMarkdownOpen = editor.path !== null && isMarkdownPath(editor.path);
+    const pathChanged = s.analyzed.path !== editor.path;
+    if ((pathChanged || s.analyzed.content !== editor.content) && !editor.dirty) {
+      if (pathChanged) {
+        pendingAnalysis = null; // cancel any deferred same-path pass
+        const rawReason =
+          isMarkdownOpen && editor.content.trim() !== "" ? safeGateReason(editor.content) : null;
+        apply({
+          editor,
+          analyzed: { rawReason, content: editor.content, path: editor.path },
+          mode: isMarkdownOpen && rawReason === null ? "rich" : "raw",
+        });
+        return;
+      }
+      const pending = pendingAnalysis;
+      if (pending === null || pending.path !== editor.path || pending.content !== editor.content) {
+        const target = { path: editor.path, content: editor.content };
+        pendingAnalysis = target;
+        queueMicrotask(() => {
+          // Identity check: superseded by newer content or cancelled by a path
+          // change (both replace/null pendingAnalysis) → this pass is stale.
+          if (pendingAnalysis !== target) return;
+          pendingAnalysis = null;
+          // LIVE store read — never the snapshot captured at schedule time.
+          const live = store.getState();
+          if (
+            live.editor.path !== target.path ||
+            live.editor.content !== target.content ||
+            live.editor.dirty
+          ) {
+            return;
+          }
+          const markdownOpen = target.path !== null && isMarkdownPath(target.path);
+          const rawReason =
+            markdownOpen && target.content.trim() !== "" ? safeGateReason(target.content) : null;
+          // A mid-session Rich→Raw flip (post-save re-analysis caught a
+          // serializer bug, or an external reload landed unrepresentable
+          // content) swaps Plate for the textarea under the user's cursor —
+          // explain the yank once. Fresh opens (the path-change branch above)
+          // don't toast: the badge covers them.
+          if (
+            live.analyzed.path === target.path &&
+            live.analyzed.rawReason === null &&
+            rawReason !== null &&
+            live.mode === "rich"
+          ) {
+            toast.warning(`Switched to Raw editing — ${describeGateReason(rawReason)}`);
+          }
+          apply({ analyzed: { rawReason, content: target.content, path: target.path } });
+        });
+      }
+    }
+    apply({ editor });
+  }
+
+  /** Publish the intent path (provider-only, from applyOpenPath). Closing (null)
+   * also resets the editor snapshot through the analysis machine so analyzed/mode
+   * clear exactly as they did when the NO_NOTE state flowed through the
+   * provider's render. */
+  function publishOpenPath(path: string | null, change: OpenPathChange = "navigate"): void {
+    const state = store.getState();
+    const prev = state.openPath;
+    if (prev !== path) {
+      store.setState(
+        change === "carry"
+          ? {
+              back: state.back.map((entry) => (entry === prev && path !== null ? path : entry)),
+              forward: state.forward.map((entry) =>
+                entry === prev && path !== null ? path : entry,
+              ),
+            }
+          : movedHistory(state, prev, path),
+      );
+    }
+    apply({ openPath: path });
+    if (path === null) publishEditor(NO_NOTE_STATE);
+  }
+
+  return {
+    store,
+    state: () => store.getState(),
+    publishEditor,
+    publishOpenPath,
+    setMode: (mode) => {
+      apply({ mode });
+    },
+    setFlush: (flush) => {
+      store.setState({ flush });
+    },
+    reset: () => {
+      store.setState(INITIAL_STATE, true);
+    },
+  };
+}
 
 /** The stacks after a navigation from `prev` to `next`.
  *
@@ -267,27 +316,6 @@ function movedHistory(
   return { back: capped(carriedBack), forward: [] };
 }
 
-/** Publish the intent path (provider-only, from applyOpenPath). Closing (null)
- * also resets the editor snapshot through the analysis machine so analyzed/mode
- * clear exactly as they did when the NO_NOTE state flowed through the
- * provider's render. */
-export function publishOpenPath(path: string | null, change: OpenPathChange = "navigate"): void {
-  const state = useOpenNote.getState();
-  const prev = state.openPath;
-  if (prev !== path) {
-    useOpenNote.setState(
-      change === "carry"
-        ? {
-            back: state.back.map((entry) => (entry === prev && path !== null ? path : entry)),
-            forward: state.forward.map((entry) => (entry === prev && path !== null ? path : entry)),
-          }
-        : movedHistory(state, prev, path),
-    );
-  }
-  apply({ openPath: path });
-  if (path === null) publishEditor(NO_NOTE_STATE);
-}
-
 /** The note Back would open, or null when there is nowhere to go. Forward's
  * twin is `forward.at(-1)`. Both are plain reads — the MOVE is the ordinary
  * `openFile` on that path, which publishes and lets `movedHistory` recognize
@@ -298,9 +326,4 @@ export function backTarget(state: OpenNoteState): string | null {
 
 export function forwardTarget(state: OpenNoteState): string | null {
   return state.forward.at(-1) ?? null;
-}
-
-/** The user's raw/rich pick for a rich-capable markdown note (header toggle). */
-export function setOpenNoteMode(mode: "raw" | "rich"): void {
-  apply({ mode });
 }

@@ -129,13 +129,15 @@ export interface CodexRuntimeManagerDeps {
    * really reach it — see agent-shell-env.ts.
    */
   cliBinDir?: string | null;
+  /** Connected Folders, read at session open (issue #601). */
+  connectedDirs?: () => readonly string[];
   /** The harness a NEW thread runs on; a resumed thread keeps its own. */
   defaultProviderId?: string;
   /** Tests: replace the adapter child spawn (the fake ACP agent). */
   spawnAdapter?: AcpAgentRuntimeOptions["spawnAdapter"];
   /** Tests: observe/replace runtime construction (the shellEnv wiring test). */
   /** The enabled connector rows every session gets (issue #591). */
-  mcpServers?: () => AcpMcpServerConfig[];
+  mcpServers?: () => AcpMcpServerConfig[] | Promise<AcpMcpServerConfig[]>;
   createRuntime?: typeof createAcpAgentRuntime;
   /** Review mode's seam: where a turn's write set goes when the thread asks
    *  for proposals instead of writes. Omitted, every turn writes directly. */
@@ -413,6 +415,7 @@ class CodexTurnDriver implements TurnDriver {
       this.deps.vaultDir,
       this.deps.cliBinDir ?? null,
       resolveSkillsDir(),
+      this.deps.connectedDirs?.(),
     );
     const row = getThread(this.deps.db, threadId);
     const persisted = row?.providerThreadId ?? null;

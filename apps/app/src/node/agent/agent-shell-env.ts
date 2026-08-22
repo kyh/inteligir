@@ -85,6 +85,16 @@ export interface AgentShellEnvArgs {
   cliBinDir: string | null;
 }
 
+/** The Connected Folders rows composed onto a built env. A separate step
+ *  because the list is Settings-mutable while the rest of the env is fixed at
+ *  listen — the shellEnv thunk calls this with a fresh read. */
+export function withConnectedDirs(env: AgentShellEnv, dirs: readonly string[]): AgentShellEnv {
+  if (dirs.length === 0) {
+    return env;
+  }
+  return { ...env, INTELIGIR_CONNECTED_DIRS: dirs.join(delimiter) };
+}
+
 /**
  * The env the runtime injects into the agent's shell. PATH is PREPENDED, not
  * replaced: the agent still needs git, node and everything else it inherits —
@@ -95,6 +105,10 @@ export interface AgentShellEnv {
   INTELIGIR_SERVER_URL: string;
   /** Present when the vendored dialect skills resolved on this layout. */
   INTELIGIR_SKILLS_DIR?: string;
+  /** Present when Connected Folders are configured: os-delimited absolute
+   *  dirs the user offers as read-only reference context (issue #601). Not a
+   *  grant — the shell could already read them; this only names them. */
+  INTELIGIR_CONNECTED_DIRS?: string;
   /** Present when the CLI's bin dir resolved — the PATH that reaches it. */
   PATH?: string;
 }

@@ -141,3 +141,16 @@ export function normalizeVaultPath(raw: string): string {
 export function isIgnoredEntryName(name: string): boolean {
   return name.toLowerCase() === ".git" || name.startsWith(VAULT_TMP_PREFIX);
 }
+
+/** The vault's trash folder (Moss's shape): deleted notes move here and keep
+ * their relative path. A real, synced directory — the file tree may show it —
+ * but the knowledge layer must never index it, or every trashed note keeps
+ * resolving links and haunting search. */
+export const VAULT_TRASH_DIR = "Trash";
+
+/** Is `path` the trash folder or anything inside it? Case-sensitive on
+ * purpose: the trash is app-minted with this exact spelling, and a user's own
+ * `trash/` folder is their content. */
+export function isTrashedPath(path: string): boolean {
+  return path === VAULT_TRASH_DIR || path.startsWith(`${VAULT_TRASH_DIR}/`);
+}

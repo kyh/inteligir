@@ -33,6 +33,7 @@ import {
 } from "../vault-hooks";
 import { AgentsSection } from "./agents-section";
 import { ConnectorsSection } from "./connectors-section";
+import { FoldersSection } from "./folders-section";
 import { NoteIntelligenceSection } from "./note-intelligence-section";
 import { ChoiceRow, Row, SectionHeading } from "./settings-chrome";
 import { SyncSection } from "./sync-section";
@@ -143,6 +144,8 @@ function SettingsBody({ onSyncNow }: { onSyncNow: () => void }) {
       <AgentsSection />
 
       <ConnectorsSection />
+      <Separator />
+      <FoldersSection />
       <Separator />
       <Separator />
       <VoiceSection />

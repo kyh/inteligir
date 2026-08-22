@@ -10,6 +10,7 @@
     "./cloud": "./src/cloud.ts",
     "./comments": "./src/comments.ts",
     "./connectors": "./src/connectors.ts",
+    "./folders": "./src/folders.ts",
     "./errors": "./src/errors.ts",
     "./knowledge": "./src/knowledge.ts",
     "./note-intelligence": "./src/note-intelligence.ts",

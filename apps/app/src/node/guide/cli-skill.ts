@@ -45,6 +45,10 @@ output; without it the output is compact human text.
   it are rewritten and the old name is recorded as an alias.
 - \`inteligir vault delete <path>\` — delete a file or folder.
 - \`inteligir vault mkdir <path>\` — create a folder.
+- \`inteligir trash list\` — notes in the trash (30-day retention).
+- \`inteligir trash put <path>\` — move a note into the trash, restorably.
+- \`inteligir trash restore <Trash/path>\` — move a trashed note back.
+- \`inteligir trash purge <Trash/path>\` — delete a trashed note for good.
 - \`inteligir vault status\` — git sync state (remote, dirty, conflicts).
 - \`inteligir vault sync\` — run a sync against the configured remote now.
 
@@ -116,6 +120,16 @@ launch, Claude Code and Codex alike.
 - \`inteligir connectors remove <name>\` — remove one; sessions stop getting it
   from their next launch.
 
+## Connected folders — reference context you are pointed at
+
+Directories the user offers as read-only reference (also in
+\`$INTELIGIR_CONNECTED_DIRS\`). Read them freely with your own shell; treat
+them as read-only — do not modify them.
+
+- \`inteligir folders list\` — the connected folders.
+- \`inteligir folders add <absolute-path>\` — connect one.
+- \`inteligir folders remove <path>\` — disconnect one.
+
 ## Interactions — approvals the agent is waiting on
 
 - \`inteligir interactions list [--thread <id>]\` — pending approval requests;
@@ -151,6 +165,10 @@ it would throw away.
 
 - \`inteligir status\` — server version, data dir, agent runtime state, and
   the current thread context.
+- \`inteligir import-moss\` — one-shot migration of legacy Moss syntax across
+  the vault: \`{%c:id%}\` comment ranges become \`%%m:id:start/end%%\`, comment
+  footers fold into the \`.comments.json\` sidecar, whitespace-lax marker and
+  tab spellings normalize. Idempotent. \`--dry-run\` reports without writing.
 - \`inteligir guide\` — print this manual.
 
 ## Exit codes and failure output

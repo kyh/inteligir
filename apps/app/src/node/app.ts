@@ -20,6 +20,7 @@ import { WS_PATH } from "@repo/server-contract/notifications";
 import { typedRoutes } from "@repo/typed-routes/typed-routes";
 import { Hono, type Context, type MiddlewareHandler, type Next } from "hono";
 import { PAIR_CALLBACK_PATH } from "@repo/cloud-contract/pairing";
+import { CONNECTOR_OAUTH_CALLBACK_PATH } from "@repo/server-contract/connectors";
 import { browserRequestProblem, buildLocalAppOrigins } from "./browser-request-guard";
 import type { OpenExternalUrl } from "./cloud/browser-opener";
 import { handlePairCallback } from "./cloud/pair-callback";
@@ -31,8 +32,13 @@ import {
 } from "./cloud/sync-runtime";
 import type { AppConfig } from "./config";
 import type { ConnectorsService } from "./connectors/connectors-service";
+import { handleConnectorOauthCallback } from "./connectors/oauth-callback";
+import type { ConnectorOauthFlow } from "./connectors/oauth-flow";
+import { systemOpenExternalUrl } from "./cloud/browser-opener";
+import type { FoldersService } from "./folders/folders-service";
 import type { NoteIntelligence } from "./note-intelligence/note-intelligence";
 import { registerConnectorRoutes } from "./connectors/routes";
+import { registerFolderRoutes } from "./folders/routes";
 import { registerNoteIntelligenceRoutes } from "./note-intelligence/routes";
 import { buildContentSecurityPolicy } from "./csp";
 import { CLI_SKILL_MD } from "./guide/cli-skill";
@@ -97,6 +103,10 @@ export interface CreateAppArgs {
   /** Tests: drive `codex mcp` without a codex on the machine. */
   /** The app-owned MCP registry (issue #591); routes edit what sessions get. */
   connectors: ConnectorsService;
+  /** The OAuth dance for hosted rows (issue #602); the callback route's owner. */
+  connectorsOauth: ConnectorOauthFlow;
+  /** Connected folders (issue #601): reference dirs sessions are told about. */
+  folders: FoldersService;
   noteIntelligence: NoteIntelligence;
   config: AppConfig;
   /** The provider seam (agent-driver.ts resolves which driver boots). */
@@ -230,7 +240,13 @@ export function createApp(args: CreateAppArgs) {
     createCommentsService(args.vault.service, () => Math.floor(Date.now() / 1000)),
   );
 
-  registerConnectorRoutes(registrars, args.connectors);
+  registerConnectorRoutes(
+    registrars,
+    args.connectors,
+    args.connectorsOauth,
+    args.openExternalUrl ?? systemOpenExternalUrl,
+  );
+  registerFolderRoutes(registrars, args.folders);
   registerNoteIntelligenceRoutes(registrars, args.noteIntelligence);
 
   // Detect + guide: harness CLI/credential facts for Settings (issue #588).
@@ -333,6 +349,13 @@ export function createApp(args: CreateAppArgs) {
   // `cloud/pair-callback.ts` states the whole argument.
   app.get(PAIR_CALLBACK_PATH, async (c) => {
     const answer = await handlePairCallback(cloud, new URL(c.req.url));
+    return c.body(answer.body, answer.status, answer.headers);
+  });
+
+  // The connectors' own browser landing (issue #602) — same argument, same
+  // shape, a different provider on the far side (`connectors/oauth-callback.ts`).
+  app.get(CONNECTOR_OAUTH_CALLBACK_PATH, async (c) => {
+    const answer = await handleConnectorOauthCallback(args.connectorsOauth, new URL(c.req.url));
     return c.body(answer.body, answer.status, answer.headers);
   });
 

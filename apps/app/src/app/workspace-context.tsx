@@ -67,6 +67,7 @@ export function applyChangedMessage(
     case "vault":
       if (message.changes.includes("files-changed")) {
         void queryClient.invalidateQueries({ queryKey: queryKeys.vaultTree });
+        void queryClient.invalidateQueries({ queryKey: queryKeys.vaultTrash });
         void queryClient.invalidateQueries({ queryKey: queryKeys.knowledgeRoot });
         void queryClient.invalidateQueries({ queryKey: queryKeys.commentsRoot });
         // A NAMED change reaches only the notes it names; an unnamed one

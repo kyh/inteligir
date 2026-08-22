@@ -37,8 +37,25 @@ vi.mock("@repo/ui/components/sonner", () => ({
 }));
 
 const { toast } = await import("@repo/ui/components/sonner");
-const { publishEditor, publishOpenPath, setOpenNoteMode, useOpenNote } =
-  await import("@repo/editor/note/open-note-store");
+const { createOpenNoteStore } = await import("@repo/editor/note/open-note-store");
+
+// A fresh instance per test (beforeEach below): the factory replaced the
+// module singleton (#595), so the machine under test is one pane's.
+let pane = createOpenNoteStore();
+const publishEditor: (typeof pane)["publishEditor"] = (editor) => pane.publishEditor(editor);
+const publishOpenPath: (typeof pane)["publishOpenPath"] = (path, change) =>
+  pane.publishOpenPath(path, change);
+const setOpenNoteMode: (typeof pane)["setMode"] = (mode) => pane.setMode(mode);
+const useOpenNote = {
+  getState: () => pane.state(),
+  getInitialState: () => pane.store.getInitialState(),
+  setState: (partial: Partial<OpenNoteState>, replace?: boolean) =>
+    replace === true
+      ? pane.store.setState(pane.store.getInitialState(), true)
+      : pane.store.setState(partial),
+  subscribe: (listener: (state: OpenNoteState) => void) =>
+    pane.store.subscribe((state) => listener(state)),
+};
 
 const ROOT = "/vault";
 const RICH_PATH = "notes/a.md";
@@ -141,6 +158,7 @@ function richSnapshotsFor(seen: readonly OpenNoteState[], path: string): OpenNot
 
 describe("open-note-store publishEditor", () => {
   beforeEach(() => {
+    pane = createOpenNoteStore();
     vi.clearAllMocks();
   });
 

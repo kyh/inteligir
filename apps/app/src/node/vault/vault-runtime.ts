@@ -16,11 +16,15 @@ import {
   type GitEngine,
   type GitEngineArgs,
 } from "./git";
+import { sweepExpiredTrash } from "./trash";
 import { createVaultService, sweepStaleTmpFiles, type VaultService } from "./vault-service";
 import { createVaultWatcher, type VaultWatcher, type VaultWatcherArgs } from "./watcher";
 import type { ParcelWatcherBackend } from "./watcher/parcel-backend";
 
 const DEFAULT_SYNC_INTERVAL_MS = 60_000;
+
+/** Retention is 30 days, so a daily sweep bounds overshoot at ~3%. */
+const TRASH_SWEEP_INTERVAL_MS = 24 * 60 * 60 * 1000;
 
 /** How long a service-written path suppresses its own watcher echo. */
 const SELF_WRITE_ECHO_WINDOW_MS = 2_000;
@@ -175,6 +179,17 @@ export async function createVaultRuntime(args: VaultRuntimeArgs): Promise<VaultR
   // leaves the tree dirty with no event to trigger one — sweep it now.
   git.scheduleCommit();
 
+  // Trash retention, off the critical path like the tmp sweep; each purge is
+  // an ordinary service mutation, so it announces and stages its own paths.
+  const sweepTrash = (): void => {
+    void sweepExpiredTrash(service).catch((cause: unknown) => {
+      console.error(`vault: trash retention sweep failed: ${String(cause)}`);
+    });
+  };
+  sweepTrash();
+  const trashSweepTimer = setInterval(sweepTrash, TRASH_SWEEP_INTERVAL_MS);
+  trashSweepTimer.unref();
+
   const syncIntervalMs =
     args.syncIntervalMs === undefined ? DEFAULT_SYNC_INTERVAL_MS : args.syncIntervalMs;
   if (args.vaultRemote !== null && syncIntervalMs !== null) {
@@ -188,6 +203,7 @@ export async function createVaultRuntime(args: VaultRuntimeArgs): Promise<VaultR
     status: () => git.status(),
     syncNow: () => git.syncNow(),
     async dispose() {
+      clearInterval(trashSweepTimer);
       await watcher?.dispose();
       await git.dispose();
     },

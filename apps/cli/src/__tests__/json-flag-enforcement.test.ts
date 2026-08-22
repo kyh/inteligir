@@ -45,6 +45,7 @@ afterEach(async () => {
 function seedFixture(state: FixtureState): void {
   state.vault.clear();
   state.vault.set("notes/hello.md", "# Hello\n");
+  state.vault.set("Trash/notes/hello.md", "# Trashed\n");
   state.searchResults = [{ path: "notes/hello.md", title: "hello", snippet: "hi", score: 1 }];
   state.tags = [{ tag: "project", count: 2 }];
   state.backlinks = [

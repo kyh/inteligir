@@ -74,6 +74,30 @@ describe("the knowledge runtime", () => {
     expect(await knowledge.backlinks("beta.md")).toEqual([]);
   });
 
+  it("never indexes Trash/ — a trashed note stops answering, a restored one resumes", async () => {
+    const { service, knowledge } = boot(makeDirs());
+
+    await service.write("hub.md", "See [[gamma]].\n");
+    await service.write("gamma.md", "# Gamma\n\nAxolotl notes.\n");
+    expect((await knowledge.search({ query: "axolotl", limit: 10 })).map((h) => h.path)).toEqual([
+      "gamma.md",
+    ]);
+
+    // The move a trash performs: the old path vanishes, the Trash/ path is
+    // announced as a created file — and must not enter the index.
+    await service.rename("gamma.md", "Trash/gamma.md");
+    expect(await knowledge.search({ query: "axolotl", limit: 10 })).toEqual([]);
+    expect(await knowledge.backlinks("gamma.md")).toEqual([]);
+    expect((await knowledge.wikiTargets()).some((target) => target.path.startsWith("Trash/"))).toBe(
+      false,
+    );
+
+    await service.rename("Trash/gamma.md", "gamma.md");
+    expect((await knowledge.search({ query: "axolotl", limit: 10 })).map((h) => h.path)).toEqual([
+      "gamma.md",
+    ]);
+  });
+
   it("re-indexes a directory rename from its announced paths", async () => {
     const { service, knowledge } = boot(makeDirs());
     await service.write("notes/one.md", "# One\n\nWombat facts.\n");

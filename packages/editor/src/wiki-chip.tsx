@@ -8,7 +8,7 @@
 // eager import from the kit file — which base-kit composes — would close an
 // import cycle around the kit files. Same seam as block-list → todo-delegation.
 
-import { useEffect, useRef, useState, type MouseEvent } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, type MouseEvent } from "react";
 import { FilePlusIcon } from "lucide-react";
 
 import { Popover, PopoverContent } from "@repo/ui/components/popover";
@@ -16,6 +16,7 @@ import { cn } from "@repo/ui/lib/utils";
 
 import { useVaultActions, useVaultListing } from "@repo/editor/host";
 import { getEditorHostIo } from "@repo/editor/host-io";
+import { splitViewActions, subscribeSplitViewActions } from "@repo/editor/split-request";
 import { notePreviewHead } from "@repo/editor/note-preview";
 import { isUuidWikiAlias, parseWikiBody } from "@repo/notes/markdown/remark-wiki-link";
 
@@ -44,6 +45,9 @@ export default function WikiChip({ body }: { body: string }) {
   const { resolveWikiTarget } = useVaultListing();
   const { openFile, createFile } = useVaultActions();
   const [createOpen, setCreateOpen] = useState(false);
+  // Right-click menu (one item): position, or null while closed.
+  const [menuAt, setMenuAt] = useState<{ x: number; y: number } | null>(null);
+  const split = useSyncExternalStore(subscribeSplitViewActions, splitViewActions, () => null);
   const [preview, setPreview] = useState<PreviewState | null>(null);
   const chipRef = useRef<HTMLButtonElement>(null);
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -117,6 +121,16 @@ export default function WikiChip({ body }: { body: string }) {
     setCreateOpen(true);
   };
 
+  // Moss's split affordance: right-click a resolved chip → open in the split
+  // pane. Offered only while the shell registered the action AND the target
+  // resolves — an unresolved chip's menu would only duplicate click-to-create.
+  const onContextMenu = (e: MouseEvent) => {
+    if (split === null || resolved === null) return;
+    e.preventDefault();
+    closePreview();
+    setMenuAt({ x: e.clientX, y: e.clientY });
+  };
+
   return (
     <>
       <button
@@ -129,12 +143,42 @@ export default function WikiChip({ body }: { body: string }) {
             : (resolved ?? `${parsed.target} — not created yet (click to create)`)
         }
         onClick={onClick}
+        onContextMenu={onContextMenu}
         onMouseEnter={onMouseEnter}
         onMouseLeave={closePreview}
         className={cn(resolved !== null ? RESOLVED_CHIP_CLASS : UNRESOLVED_CHIP_CLASS)}
       >
         {label}
       </button>
+      {menuAt !== null && resolved !== null && (
+        <>
+          <div
+            className="fixed inset-0 z-50"
+            onClick={() => {
+              setMenuAt(null);
+            }}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              setMenuAt(null);
+            }}
+          />
+          <div
+            className="fixed z-50 min-w-40 rounded-lg border border-border bg-popover p-1 text-sm text-popover-foreground shadow-md"
+            style={{ left: menuAt.x, top: menuAt.y }}
+          >
+            <button
+              type="button"
+              className="w-full rounded-md px-2 py-1 text-left hover:bg-muted"
+              onClick={() => {
+                setMenuAt(null);
+                split?.openInSplit(resolved);
+              }}
+            >
+              Open in split
+            </button>
+          </div>
+        </>
+      )}
       {preview !== null && (
         <div
           className="pointer-events-none fixed z-50 max-h-72 w-80 overflow-hidden rounded-lg border border-border bg-popover p-3 text-xs whitespace-pre-wrap text-popover-foreground shadow-md"

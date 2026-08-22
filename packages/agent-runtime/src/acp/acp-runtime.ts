@@ -80,8 +80,9 @@ export type AcpMcpServerConfig =
 export interface AcpAgentRuntimeOptions extends AgentRuntimeOptions {
   /** Model override routed into every adapter child, each harness's own way. */
   model?: string;
-  /** The enabled connector rows every session gets (issue #591). */
-  mcpServers?: () => AcpMcpServerConfig[];
+  /** The enabled connector rows every session gets (issue #591). Async so an
+   *  OAuth row can refresh its token at compose time (issue #602). */
+  mcpServers?: () => AcpMcpServerConfig[] | Promise<AcpMcpServerConfig[]>;
   /** Test seam: replace the child spawn with an in-memory adapter. */
   spawnAdapter?: (harness: HarnessDefinition, env: Record<string, string>) => AcpSpawnedAdapter;
 }
@@ -310,8 +311,8 @@ export function createAcpAgentRuntime(options: AcpAgentRuntimeOptions): AgentRun
     return session;
   }
 
-  function sessionMcpServers(): McpServer[] {
-    const rows = options.mcpServers?.() ?? [];
+  async function sessionMcpServers(): Promise<McpServer[]> {
+    const rows = (await options.mcpServers?.()) ?? [];
     return rows.map((row): McpServer => {
       if (row.kind === "stdio") {
         return { args: row.args, command: row.command, env: [], name: row.name };
@@ -335,7 +336,7 @@ export function createAcpAgentRuntime(options: AcpAgentRuntimeOptions): AgentRun
       const session = await openSession(args.threadId, args.providerId);
       const response = await session.connection.newSession({
         cwd: options.workspacePath,
-        mcpServers: sessionMcpServers(),
+        mcpServers: await sessionMcpServers(),
       });
       session.providerThreadId = response.sessionId;
       return { providerThreadId: response.sessionId };
@@ -351,7 +352,7 @@ export function createAcpAgentRuntime(options: AcpAgentRuntimeOptions): AgentRun
         try {
           await session.connection.loadSession({
             cwd: options.workspacePath,
-            mcpServers: sessionMcpServers(),
+            mcpServers: await sessionMcpServers(),
             sessionId: args.providerThreadId,
           });
           session.providerThreadId = args.providerThreadId;
@@ -365,7 +366,7 @@ export function createAcpAgentRuntime(options: AcpAgentRuntimeOptions): AgentRun
       }
       const response = await session.connection.newSession({
         cwd: options.workspacePath,
-        mcpServers: sessionMcpServers(),
+        mcpServers: await sessionMcpServers(),
       });
       session.providerThreadId = response.sessionId;
       return { providerThreadId: response.sessionId };

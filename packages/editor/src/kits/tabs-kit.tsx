@@ -124,12 +124,24 @@ function TabPanelElement(props: PlateElementProps) {
   const active = useContext(ActiveTabContext);
   const path = usePath();
   const index = path === undefined ? 0 : (path.at(-1) ?? 0);
+  const label =
+    "label" in props.element && typeof props.element.label === "string"
+      ? props.element.label
+      : "Tab";
   return (
     <PlateElement
       {...props}
-      className={cn("px-3 py-2", index === active ? "" : "hidden")}
+      // Print stacks every panel (hidden ones included), each captioned with
+      // its own label — paper has no tab strip to switch with.
+      className={cn("px-3 py-2 print:block", index === active ? "" : "hidden")}
       attributes={{ ...props.attributes, "data-tab-panel": "" }}
     >
+      <div
+        contentEditable={false}
+        className="mb-1 hidden text-xs font-semibold text-muted-foreground print:block"
+      >
+        {label}
+      </div>
       {props.children}
     </PlateElement>
   );

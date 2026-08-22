@@ -113,7 +113,7 @@ export function TableOfContents() {
   };
 
   return (
-    <div className="pointer-events-none fixed top-1/2 right-2 z-40 -translate-y-1/2">
+    <div className="pointer-events-none fixed top-1/2 right-2 z-40 -translate-y-1/2 print:hidden">
       <div className="group pointer-events-auto flex flex-col items-end py-2">
         {/* Collapsed: dash ticks, one per heading, capped so a long doc's
             rail stays a glanceable minimap (fade out on hover). */}

@@ -47,6 +47,8 @@ function CommentRangeLeaf(props: PlateLeafProps) {
           : resolved
             ? "bg-emerald-500/[0.06]"
             : "bg-amber-300/20 hover:bg-amber-300/30",
+        // Review markup is not content: the tint stays on screen only.
+        "print:bg-transparent print:no-underline",
       )}
       attributes={{
         ...props.attributes,

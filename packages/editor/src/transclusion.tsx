@@ -49,7 +49,7 @@ import {
   type TransclusionScope,
 } from "@repo/editor/transclusion-guard";
 import WikiChip, { wikiChipLabel } from "@repo/editor/wiki-chip";
-import { useOpenNote } from "@repo/editor/note/open-note-store";
+import { useOpenNote } from "@repo/editor/note/open-note-context";
 import { useVaultActions, useVaultListing } from "@repo/editor/host";
 import { parseWikiBody } from "@repo/notes/markdown/remark-wiki-link";
 

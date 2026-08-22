@@ -49,6 +49,15 @@ export function headCapUtf8(text: string, maxBytes: number): string {
   return decoded.endsWith("�") ? decoded.slice(0, -1) : decoded;
 }
 
+/** One sentence, not a manifest: the paths are in $INTELIGIR_CONNECTED_DIRS
+ *  too, and the phrasing states the USER'S INTENT (read-only reference) —
+ *  nothing here can enforce it, so it must not claim to. */
+function connectedFoldersInstructions(dirs: readonly string[]): string {
+  return `The user connected these folders as reference context: \
+${dirs.join(", ")} (also in $INTELIGIR_CONNECTED_DIRS). Treat them as \
+read-only reference material — read freely, do not modify them.`;
+}
+
 function loadVaultInstructions(vaultDir: string): string | undefined {
   let raw: string;
   try {
@@ -75,6 +84,7 @@ export function loadAgentInstructions(
   vaultDir: string,
   cliBinDir: string | null,
   skillsDir?: string | null,
+  connectedDirs?: readonly string[],
 ): string | undefined {
   const vaultInstructions = loadVaultInstructions(vaultDir);
   const parts: string[] = [];
@@ -83,6 +93,9 @@ export function loadAgentInstructions(
   }
   if (skillsDir !== undefined && skillsDir !== null) {
     parts.push(SKILLS_POINTER_INSTRUCTIONS);
+  }
+  if (connectedDirs !== undefined && connectedDirs.length > 0) {
+    parts.push(connectedFoldersInstructions(connectedDirs));
   }
   if (vaultInstructions !== undefined) {
     parts.push(vaultInstructions);

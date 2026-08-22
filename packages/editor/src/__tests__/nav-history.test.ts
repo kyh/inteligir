@@ -1,28 +1,27 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
-import {
-  backTarget,
-  forwardTarget,
-  openNoteState,
-  publishOpenPath,
-  useOpenNote,
-} from "@repo/editor/note/open-note-store";
+import { backTarget, createOpenNoteStore, forwardTarget } from "@repo/editor/note/open-note-store";
+
+// One pane's history machine — the factory replaced the singleton (#595).
+let pane = createOpenNoteStore();
+const publishOpenPath: (typeof pane)["publishOpenPath"] = (path, change) =>
+  pane.publishOpenPath(path, change);
 
 /** The back/forward stacks, as the buttons read them. */
 function stacks() {
-  const state = openNoteState();
+  const state = pane.state();
   return { back: state.back, forward: state.forward, open: state.openPath };
 }
 
 describe("open-note navigation history", () => {
   beforeEach(() => {
-    useOpenNote.setState({ openPath: null, back: [], forward: [] });
+    pane = createOpenNoteStore();
   });
 
   it("records nothing for the first open — there is nowhere to go back to", () => {
     publishOpenPath("a.md");
     expect(stacks()).toEqual({ back: [], forward: [], open: "a.md" });
-    expect(backTarget(openNoteState())).toBeNull();
+    expect(backTarget(pane.state())).toBeNull();
   });
 
   it("pushes the note you left onto back", () => {
@@ -30,33 +29,33 @@ describe("open-note navigation history", () => {
     publishOpenPath("b.md");
     publishOpenPath("c.md");
     expect(stacks().back).toEqual(["a.md", "b.md"]);
-    expect(backTarget(openNoteState())).toBe("b.md");
+    expect(backTarget(pane.state())).toBe("b.md");
   });
 
   it("recognizes a Back move by VALUE, so no caller has to flag it", () => {
     publishOpenPath("a.md");
     publishOpenPath("b.md");
     // What the Back button does: open the remembered path, nothing more.
-    publishOpenPath(backTarget(openNoteState()));
+    publishOpenPath(backTarget(pane.state()));
     expect(stacks()).toEqual({ back: [], forward: ["b.md"], open: "a.md" });
-    expect(forwardTarget(openNoteState())).toBe("b.md");
+    expect(forwardTarget(pane.state())).toBe("b.md");
   });
 
   it("walks back and forward over the same trail", () => {
     publishOpenPath("a.md");
     publishOpenPath("b.md");
     publishOpenPath("c.md");
-    publishOpenPath(backTarget(openNoteState()));
-    publishOpenPath(backTarget(openNoteState()));
+    publishOpenPath(backTarget(pane.state()));
+    publishOpenPath(backTarget(pane.state()));
     expect(stacks()).toEqual({ back: [], forward: ["c.md", "b.md"], open: "a.md" });
-    publishOpenPath(forwardTarget(openNoteState()));
+    publishOpenPath(forwardTarget(pane.state()));
     expect(stacks()).toEqual({ back: ["a.md"], forward: ["c.md"], open: "b.md" });
   });
 
   it("drops the forward trail when a fresh navigation branches off it", () => {
     publishOpenPath("a.md");
     publishOpenPath("b.md");
-    publishOpenPath(backTarget(openNoteState()));
+    publishOpenPath(backTarget(pane.state()));
     publishOpenPath("z.md");
     expect(stacks()).toEqual({ back: ["a.md"], forward: [], open: "z.md" });
   });
@@ -83,6 +82,6 @@ describe("open-note navigation history", () => {
   it("remembers the note a close left, so Back reopens it", () => {
     publishOpenPath("a.md");
     publishOpenPath(null);
-    expect(backTarget(openNoteState())).toBe("a.md");
+    expect(backTarget(pane.state())).toBe("a.md");
   });
 });

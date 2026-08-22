@@ -12,6 +12,7 @@ import { z } from "zod";
 import { resolveAgentDriver } from "./agent/agent-driver";
 import type { AcpMcpServerConfig } from "@repo/agent-runtime/acp/acp-runtime";
 import { createConnectorsService } from "./connectors/connectors-service";
+import { createConnectorOauthFlow } from "./connectors/oauth-flow";
 import { createCliInferenceRunner } from "./note-intelligence/infer";
 import {
   createNoteIntelligence,
@@ -19,7 +20,14 @@ import {
 } from "./note-intelligence/note-intelligence";
 import { createNoteIntelligenceSettingsStore } from "./note-intelligence/settings-store";
 import { createConnectorsStore } from "./connectors/connectors-store";
-import { buildAgentShellEnv, resolveCliBinDir, type AgentShellEnv } from "./agent/agent-shell-env";
+import { createFoldersService } from "./folders/folders-service";
+import { createFoldersStore } from "./folders/folders-store";
+import {
+  buildAgentShellEnv,
+  resolveCliBinDir,
+  withConnectedDirs,
+  type AgentShellEnv,
+} from "./agent/agent-shell-env";
 import { createApp, type AppFallback, type StartFetchOptions } from "./app";
 import { openCloudSocket } from "./cloud/cloud-socket";
 import { resolveAppConfig } from "./config";
@@ -207,7 +215,18 @@ async function boot(): Promise<{ serverUrl: string }> {
   // The connectors registry (issue #591): ONE service, consumed twice — the
   // routes edit it, session launch composes its enabled rows into every
   // harness's mcpServers.
-  const connectors = createConnectorsService(createConnectorsStore(config.dataDir));
+  const connectorsStore = createConnectorsStore(config.dataDir);
+  const connectors = createConnectorsService(connectorsStore);
+  // The OAuth dance for hosted rows (issue #602): the pairing discipline over
+  // the same store — one pending slot, tokens landing beside the row.
+  const connectorsOauth = createConnectorOauthFlow(connectorsStore);
+  // Connected Folders (issue #601): reference dirs sessions are told about —
+  // an affordance and an instructions line, never a permission grant.
+  const folders = createFoldersService({
+    store: createFoldersStore(config.dataDir),
+    vaultDir: config.vaultDir,
+    dataDir: config.dataDir,
+  });
   // Note Intelligence (issue #590): OFF until the Settings toggle turns it
   // on; the files-changed hook below only ever schedules, never spawns, while
   // disabled.
@@ -230,15 +249,31 @@ async function boot(): Promise<{ serverUrl: string }> {
     notifier: bus,
     vault,
     cliBinDir,
-    mcpServers: () =>
-      connectors.enabledForSessions().map((row) => {
+    mcpServers: async () => {
+      const servers: AcpMcpServerConfig[] = [];
+      for (const row of connectors.enabledForSessions()) {
         if (row.transport.kind === "stdio") {
-          return {
+          servers.push({
             args: row.transport.args,
             command: row.transport.command,
-            kind: "stdio" as const,
+            kind: "stdio",
             name: row.name,
-          };
+          });
+          continue;
+        }
+        if (row.transport.kind === "oauth") {
+          // A row that cannot present a live token is EXCLUDED, not injected
+          // to 401 on every call — Settings shows needs-reauth in its place.
+          const accessToken = await connectorsOauth.freshAccessToken(row.name);
+          if (accessToken !== null) {
+            servers.push({
+              headers: { Authorization: `Bearer ${accessToken}` },
+              kind: "http",
+              name: row.name,
+              url: row.transport.url,
+            });
+          }
+          continue;
         }
         const server: AcpMcpServerConfig = {
           kind: "http",
@@ -248,8 +283,10 @@ async function boot(): Promise<{ serverUrl: string }> {
         if (row.transport.headers !== undefined) {
           server.headers = row.transport.headers;
         }
-        return server;
-      }),
+        servers.push(server);
+      }
+      return servers;
+    },
     captureProposals: createTurnProposalCapture({
       db,
       notifier: bus,
@@ -259,12 +296,20 @@ async function boot(): Promise<{ serverUrl: string }> {
         console.error(`proposals: ${message}`);
       },
     }),
-    shellEnv: () => ({ ...agentShellEnv }),
+    shellEnv: () => ({ ...withConnectedDirs(agentShellEnv, folders.forSessions()) }),
+    connectedDirs: () => folders.forSessions(),
   });
-  registerTeardown("agent", () => agentDriver.dispose());
+  registerTeardown("agent", () => {
+    // The oauth flow serves agent sessions; it stops when they do — a
+    // callback landing after this exchanges nothing and writes nothing.
+    connectorsOauth.dispose();
+    return agentDriver.dispose();
+  });
 
   const { app, cloud, injectWebSocket, voice, voiceStreamHub } = createApp({
     connectors,
+    connectorsOauth,
+    folders,
     noteIntelligence,
     agent: agentDriver.status,
     bus,

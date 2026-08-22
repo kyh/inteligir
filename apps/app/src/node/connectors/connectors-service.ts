@@ -57,6 +57,26 @@ function toView(row: StoredConnector): ConnectorView {
       transport: { args: row.transport.args, command: row.transport.command, kind: "stdio" },
     };
   }
+  if (row.transport.kind === "oauth") {
+    return {
+      enabled: row.enabled,
+      name: row.name,
+      transport: {
+        authorizationEndpoint: row.transport.authorizationEndpoint,
+        clientId: row.transport.clientId,
+        kind: "oauth",
+        scopes: row.transport.scopes,
+        status:
+          row.transport.needsReauth === true
+            ? "needs-reauth"
+            : row.transport.tokens === undefined
+              ? "needs-auth"
+              : "connected",
+        tokenEndpoint: row.transport.tokenEndpoint,
+        url: row.transport.url,
+      },
+    };
+  }
   return {
     enabled: row.enabled,
     name: row.name,
@@ -74,6 +94,28 @@ function toStoredTransport(
 ): StoredTransport {
   if (input.kind === "stdio") {
     return { args: input.args, command: input.command, kind: "stdio" };
+  }
+  if (input.kind === "oauth") {
+    const next: StoredTransport = {
+      authorizationEndpoint: input.authorizationEndpoint,
+      clientId: input.clientId,
+      kind: "oauth",
+      scopes: input.scopes,
+      tokenEndpoint: input.tokenEndpoint,
+      url: input.url,
+    };
+    // An endpoint edit keeps the stored tokens (no client round-trips a
+    // secret, and no edit forces a re-consent) — if the edit made them wrong,
+    // the next refresh fails into needs-reauth rather than guessing here.
+    if (previous !== undefined && previous.kind === "oauth") {
+      if (previous.tokens !== undefined) {
+        next.tokens = previous.tokens;
+      }
+      if (previous.needsReauth === true) {
+        next.needsReauth = true;
+      }
+    }
+    return next;
   }
   const kept =
     input.headers ??

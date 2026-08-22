@@ -20,7 +20,7 @@ import { splitFrontmatter } from "@repo/notes/markdown/frontmatter";
 import { getLiveEditor } from "@repo/editor/live-editor";
 import { PropertiesPanel } from "@repo/editor/properties/properties-panel";
 import { getEditorHostIo } from "@repo/editor/host-io";
-import { useOpenNote } from "@repo/editor/note/open-note-store";
+import { useOpenNote } from "@repo/editor/note/open-note-context";
 
 /** `file: null` is a note that could not be stat'd — never saved, or moved out
  * from under us. */

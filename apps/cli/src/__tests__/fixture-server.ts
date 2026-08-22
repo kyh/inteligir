@@ -8,6 +8,7 @@
 import { serve } from "@hono/node-server";
 import type { CloudStatusResponse } from "@repo/server-contract/cloud";
 import type { ConnectorsResponse } from "@repo/server-contract/connectors";
+import type { ConnectedFoldersResponse } from "@repo/server-contract/folders";
 import type { ApiErrorCode, ApiErrorResponse } from "@repo/server-contract/errors";
 import type { AgentStatus, SystemStatusResponse } from "@repo/server-contract/routes";
 import { apiRoutes, API_BASE_PATH } from "@repo/server-contract/routes";
@@ -58,6 +59,7 @@ export interface FixtureState {
   backlinks: BacklinkEntryWire[];
   related: RelatedNoteWire[];
   connectors: ConnectorsResponse;
+  folders: ConnectedFoldersResponse;
   cloud: CloudStatusResponse;
   threads: FixtureThread[];
   proposals: Proposal[];
@@ -125,6 +127,7 @@ export function makeFixtureState(): FixtureState {
     backlinks: [],
     related: [],
     connectors: { servers: [] },
+    folders: { folders: [] },
     cloud: { state: "off", cloudUrl: FIXTURE_CLOUD_URL },
     threads: [],
     proposals: [],
@@ -251,6 +254,55 @@ function createFixtureApp(state: FixtureState): Hono {
     return c.json({ ok: true });
   });
   post(apiRoutes.vault.mkdir, (c, body) => c.json({ path: body.path }));
+  get(apiRoutes.vault.trashList, (c) =>
+    c.json({
+      entries: [...state.vault.keys()]
+        .filter((path) => path.startsWith("Trash/") && path.endsWith(".md"))
+        .map((path) => ({ path, trashedAt: null, trashedFrom: null })),
+    }),
+  );
+  post(apiRoutes.vault.trash, (c, body) => {
+    const content = state.vault.get(body.path);
+    if (content === undefined) {
+      return c.json({ error: "not_found", message: `No file at ${body.path}` }, 404);
+    }
+    state.vault.delete(body.path);
+    const target = `Trash/${body.path}`;
+    state.vault.set(target, content);
+    return c.json({ path: target });
+  });
+  post(apiRoutes.vault.trashRestore, (c, body) => {
+    const content = state.vault.get(body.path);
+    if (content === undefined) {
+      return c.json({ error: "not_found", message: `No file at ${body.path}` }, 404);
+    }
+    state.vault.delete(body.path);
+    const target = body.path.replace(/^Trash\//, "");
+    state.vault.set(target, content);
+    return c.json({ path: target });
+  });
+  post(apiRoutes.vault.trashPurge, (c, body) => {
+    if (!state.vault.delete(body.path)) {
+      return c.json({ error: "not_found", message: `No file at ${body.path}` }, 404);
+    }
+    return c.json({ ok: true });
+  });
+  post(apiRoutes.vault.importMoss, (c, body) =>
+    c.json({
+      dryRun: body.dryRun,
+      scanned: 2,
+      changed: 1,
+      files: [
+        {
+          path: "notes/hello.md",
+          bodyChanged: true,
+          sidecarChanged: false,
+          notes: ["1 legacy comment range(s) modernized"],
+        },
+      ],
+      warnings: [],
+    }),
+  );
   get(apiRoutes.vault.status, (c) => c.json(state.vaultStatus));
   post(apiRoutes.vault.syncNow, (c) => c.json(state.vaultStatus));
 
@@ -313,6 +365,23 @@ function createFixtureApp(state: FixtureState): Hono {
     return c.json({ ...commentsBody(body.path), removedIds: [body.id] });
   });
 
+  get(apiRoutes.folders.list, (c) => c.json(state.folders));
+  post(apiRoutes.folders.add, (c, body) => {
+    if (state.folders.folders.includes(body.path)) {
+      return c.json({ error: "already_exists", message: `"${body.path}" is connected` }, 409);
+    }
+    state.folders.folders.push(body.path);
+    return c.json(state.folders);
+  });
+  post(apiRoutes.folders.remove, (c, body) => {
+    const before = state.folders.folders.length;
+    state.folders.folders = state.folders.folders.filter((row) => row !== body.path);
+    if (state.folders.folders.length === before) {
+      return c.json({ error: "not_found", message: `not connected: ${body.path}` }, 404);
+    }
+    return c.json(state.folders);
+  });
+
   get(apiRoutes.connectors.list, (c) => c.json(state.connectors));
   post(apiRoutes.connectors.add, (c, body) => {
     if (state.connectors.servers.some((row) => row.name === body.name)) {
@@ -324,11 +393,21 @@ function createFixtureApp(state: FixtureState): Hono {
       transport:
         body.transport.kind === "stdio"
           ? { args: body.transport.args, command: body.transport.command, kind: "stdio" }
-          : {
-              hasAuth: Object.keys(body.transport.headers ?? {}).length > 0,
-              kind: "http",
-              url: body.transport.url,
-            },
+          : body.transport.kind === "oauth"
+            ? {
+                authorizationEndpoint: body.transport.authorizationEndpoint,
+                clientId: body.transport.clientId,
+                kind: "oauth",
+                scopes: body.transport.scopes,
+                status: "needs-auth",
+                tokenEndpoint: body.transport.tokenEndpoint,
+                url: body.transport.url,
+              }
+            : {
+                hasAuth: Object.keys(body.transport.headers ?? {}).length > 0,
+                kind: "http",
+                url: body.transport.url,
+              },
     });
     return c.json(state.connectors);
   });

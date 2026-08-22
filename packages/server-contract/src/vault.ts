@@ -241,6 +241,33 @@ export type VaultMkdirRequest = z.infer<typeof vaultMkdirRequestSchema>;
 export const vaultMkdirResponseSchema = z.object({ path: z.string().min(1) }).strict();
 export type VaultMkdirResponse = z.infer<typeof vaultMkdirResponseSchema>;
 
+/** One trashed note, as the trash listing reports it. `trashedFrom` /
+ * `trashedAt` come from the frontmatter stamp the move writes; null covers a
+ * note whose yaml refused the stamp or a file a user dropped into Trash/ by
+ * hand — listed, restorable (the Trash-relative path is the fallback
+ * destination), but never auto-purged, because an undated entry cannot age. */
+export const vaultTrashEntrySchema = z
+  .object({
+    path: z.string().min(1),
+    trashedFrom: z.string().min(1).nullable(),
+    trashedAt: z.string().min(1).nullable(),
+  })
+  .strict();
+export type VaultTrashEntry = z.infer<typeof vaultTrashEntrySchema>;
+
+export const vaultTrashListResponseSchema = z
+  .object({ entries: z.array(vaultTrashEntrySchema) })
+  .strict();
+export type VaultTrashListResponse = z.infer<typeof vaultTrashListResponseSchema>;
+
+export const vaultTrashRequestSchema = z.object({ path: vaultPathSchema }).strict();
+export type VaultTrashRequest = z.infer<typeof vaultTrashRequestSchema>;
+
+/** The note's new path: under Trash/ after a move, back outside it after a
+ * restore. */
+export const vaultTrashMoveResponseSchema = z.object({ path: z.string().min(1) }).strict();
+export type VaultTrashMoveResponse = z.infer<typeof vaultTrashMoveResponseSchema>;
+
 export const vaultDeleteRequestSchema = z.object({ path: vaultPathSchema }).strict();
 export type VaultDeleteRequest = z.infer<typeof vaultDeleteRequestSchema>;
 
@@ -332,6 +359,37 @@ export const vaultStatusResponseSchema = z.discriminatedUnion("state", [
 ]);
 export type VaultStatusResponse = z.infer<typeof vaultStatusResponseSchema>;
 
+// ---------------------------------------------------------------------------
+// Moss legacy import (one-shot vault pass)
+// ---------------------------------------------------------------------------
+
+export const vaultImportMossRequestSchema = z.object({ dryRun: z.boolean() }).strict();
+export type VaultImportMossRequest = z.infer<typeof vaultImportMossRequestSchema>;
+
+/** One note's outcome, only present when the pass changed (or would change)
+ * something about it — a clean vault answers an empty list. */
+export const vaultImportMossFileSchema = z
+  .object({
+    path: z.string().min(1),
+    bodyChanged: z.boolean(),
+    sidecarChanged: z.boolean(),
+    /** Human-readable change/warning lines from the doc pass. */
+    notes: z.array(z.string()),
+  })
+  .strict();
+export type VaultImportMossFile = z.infer<typeof vaultImportMossFileSchema>;
+
+export const vaultImportMossResponseSchema = z
+  .object({
+    dryRun: z.boolean(),
+    scanned: z.number().int().nonnegative(),
+    changed: z.number().int().nonnegative(),
+    files: z.array(vaultImportMossFileSchema),
+    warnings: z.array(z.string()),
+  })
+  .strict();
+export type VaultImportMossResponse = z.infer<typeof vaultImportMossResponseSchema>;
+
 export const vaultRoutes = {
   tree: defineRoute({
     path: "/vault/tree",
@@ -411,6 +469,44 @@ export const vaultRoutes = {
       jsonResponse<ApiErrorResponse>({ status: 409 }),
     ],
   }),
+  trashList: defineRoute({
+    path: "/vault/trash",
+    method: "get",
+    request: noRequest(),
+    response: jsonResponse<VaultTrashListResponse>(),
+  }),
+  trash: defineRoute({
+    path: "/vault/trash",
+    method: "post",
+    request: jsonRequest<EmptyInput, VaultTrashRequest>(vaultTrashRequestSchema),
+    response: [
+      jsonResponse<VaultTrashMoveResponse>(),
+      jsonResponse<ApiErrorResponse>({ status: 400 }),
+      jsonResponse<ApiErrorResponse>({ status: 404 }),
+      jsonResponse<ApiErrorResponse>({ status: 409 }),
+    ],
+  }),
+  trashRestore: defineRoute({
+    path: "/vault/trash/restore",
+    method: "post",
+    request: jsonRequest<EmptyInput, VaultTrashRequest>(vaultTrashRequestSchema),
+    response: [
+      jsonResponse<VaultTrashMoveResponse>(),
+      jsonResponse<ApiErrorResponse>({ status: 400 }),
+      jsonResponse<ApiErrorResponse>({ status: 404 }),
+      jsonResponse<ApiErrorResponse>({ status: 409 }),
+    ],
+  }),
+  trashPurge: defineRoute({
+    path: "/vault/trash/purge",
+    method: "post",
+    request: jsonRequest<EmptyInput, VaultTrashRequest>(vaultTrashRequestSchema),
+    response: [
+      jsonResponse<VaultDeleteResponse>(),
+      jsonResponse<ApiErrorResponse>({ status: 400 }),
+      jsonResponse<ApiErrorResponse>({ status: 404 }),
+    ],
+  }),
   remove: defineRoute({
     path: "/vault/delete",
     method: "post",
@@ -420,6 +516,12 @@ export const vaultRoutes = {
       jsonResponse<ApiErrorResponse>({ status: 400 }),
       jsonResponse<ApiErrorResponse>({ status: 404 }),
     ],
+  }),
+  importMoss: defineRoute({
+    path: "/vault/import-moss",
+    method: "post",
+    request: jsonRequest<EmptyInput, VaultImportMossRequest>(vaultImportMossRequestSchema),
+    response: jsonResponse<VaultImportMossResponse>(),
   }),
   status: defineRoute({
     path: "/vault/status",

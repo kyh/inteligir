@@ -20,6 +20,7 @@ export const queryKeys = {
    *  toml` moving, so this family is swept by its own mutations and re-read
    *  whenever the settings dialog mounts. */
   connectors: ["connectors"] as const,
+  folders: ["folders"] as const,
   /** This install's pairing with an account. Nothing on the ws bus announces a
    *  sync pass — the bus carries vault, doc and thread invalidations only — so
    *  the settings section polls this family while it is on screen. */
@@ -37,6 +38,9 @@ export const queryKeys = {
   memory: ["memory"] as const,
   vaultTree: ["vault", "tree"] as const,
   vaultStatus: ["vault", "status"] as const,
+  /** The trash listing — swept with the tree, since a trash entry only moves
+   *  when files do. */
+  vaultTrash: ["vault", "trash"] as const,
   /** The whole knowledge family — what any content or file change sweeps.
    *  Every member is derived from bytes OTHER than the note it is asked
    *  about: a link into a note lives in someone else's (or, for a self-link,
