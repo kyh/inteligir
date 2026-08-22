@@ -34,6 +34,25 @@ function latestSchemaVersion(migrationsFolder: string): number {
  */
 export function runMigrations(db: DbConnection, migrationsFolder?: string): number {
   const folder = migrationsFolder ?? SOURCE_MIGRATIONS_FOLDER;
-  migrate(db, { migrationsFolder: folder });
+  // FK enforcement is suspended for the WINDOW, not the migration: drizzle
+  // wraps each migration in a transaction, where a `PRAGMA foreign_keys=OFF`
+  // statement is a silent no-op — so a table-rebuild migration's DROP of a
+  // parent would run the implicit delete and CASCADE-WIPE its children (0007
+  // rebuilds `threads`; the children are the entire event log). Turning the
+  // pragma off out here, where it takes effect, is SQLite's own documented
+  // alter recipe; the integrity check afterwards is what makes it safe —
+  // a violated reference refuses the boot rather than opening a corrupt db.
+  db.$client.pragma("foreign_keys = OFF");
+  try {
+    migrate(db, { migrationsFolder: folder });
+  } finally {
+    db.$client.pragma("foreign_keys = ON");
+  }
+  const violations = db.$client.pragma("foreign_key_check");
+  if (Array.isArray(violations) && violations.length > 0) {
+    throw new Error(
+      `migrations left ${violations.length} foreign-key violation(s) — refusing to open the database`,
+    );
+  }
   return latestSchemaVersion(folder);
 }

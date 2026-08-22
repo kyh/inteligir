@@ -77,12 +77,13 @@ export const createThreadRequestSchema = z
   })
   .strict()
   .superRefine((value, ctx) => {
-    // Both-or-neither: a delegation binds to an anchored block, never half a
-    // doc; the db CHECK is the storage-level twin of this refine.
-    if ((value.originAnchor === undefined) !== (value.originDocPath === undefined)) {
+    // An anchor names a marker inside its doc, so it cannot exist without one;
+    // a doc ALONE is a marker-less attachment (an action composed over the
+    // note, #587). The db CHECK is the storage-level twin of this refine.
+    if (value.originAnchor !== undefined && value.originDocPath === undefined) {
       ctx.addIssue({
         code: "custom",
-        message: "originDocPath and originAnchor must be provided together",
+        message: "originAnchor requires originDocPath",
         path: [value.originAnchor === undefined ? "originAnchor" : "originDocPath"],
       });
     }

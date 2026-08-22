@@ -11,6 +11,7 @@ import { z } from "zod";
 import { cloudRoutes } from "./cloud";
 import { connectorRoutes } from "./connectors";
 import type { ApiErrorResponse } from "./errors";
+import { commentRoutes } from "./comments";
 import { knowledgeRoutes } from "./knowledge";
 import { memoryRoutes } from "./memory";
 import { proposalRoutes } from "./proposals";
@@ -151,6 +152,7 @@ export const apiRoutes = {
   }),
   cloud: cloudRoutes,
   connectors: connectorRoutes,
+  comments: commentRoutes,
   knowledge: knowledgeRoutes,
   memory: memoryRoutes,
   proposals: proposalRoutes,

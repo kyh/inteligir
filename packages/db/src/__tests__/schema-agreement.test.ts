@@ -94,7 +94,14 @@ function topLevelMembers(body: string): string[] {
  *  above. Anything that is not a table (an index) keeps its text as written,
  *  because column order inside an index IS the index. */
 function normalize(type: string, sql: string): string {
-  const flat = sql.replaceAll(/\s+/g, " ").trim();
+  // Identifier quoting is style, not schema: SQLite's own RENAME (the tail of
+  // every table-REBUILD migration) rewrites the stored CREATE with
+  // double-quoted names where drizzle writes backticks. Fold both to one form
+  // so a rebuild compares by structure.
+  const flat = sql
+    .replaceAll(/"([A-Za-z_][A-Za-z0-9_]*)"/g, "`$1`")
+    .replaceAll(/\s+/g, " ")
+    .trim();
   if (type !== "table") return flat;
   const open = flat.indexOf("(");
   const close = flat.lastIndexOf(")");

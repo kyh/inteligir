@@ -38,6 +38,8 @@ import { CLI_SKILL_MD } from "./guide/cli-skill";
 import { proveIdentity } from "./instance-identity";
 import type { KnowledgeRuntime } from "./knowledge/knowledge-runtime";
 import { renameNoteWithLinkRewrite } from "./knowledge/rename";
+import { createCommentsService } from "./comments/comments-service";
+import { registerCommentsRoutes } from "./comments/routes";
 import { registerKnowledgeRoutes } from "./knowledge/routes";
 import { registerMemoryRoutes } from "./memory/routes";
 import { ProposalService } from "./proposals/proposal-service";
@@ -216,6 +218,14 @@ export function createApp(args: CreateAppArgs) {
     }),
   );
   registerKnowledgeRoutes(registrars, args.knowledge);
+
+  // The sidecar rides the vault service, so containment, the watcher ping,
+  // auto-commit and sync come with it; timestamps are unix seconds minted at
+  // this boundary (issue #583).
+  registerCommentsRoutes(
+    registrars,
+    createCommentsService(args.vault.service, () => Math.floor(Date.now() / 1000)),
+  );
 
   registerConnectorRoutes(
     registrars,
