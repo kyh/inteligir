@@ -34,11 +34,11 @@ The agent provider is selected by `INTELIGIR_AGENT` (`auto` · `codex` ·
 unavailable driver whose reason `/api/v1/system/status` states under `agent`).
 **`INTELIGIR_AGENT=scripted` is the login-free e2e mode**: an in-process
 deterministic driver over the REAL ingest/timeline/vault/commit paths — send a
-thread message, watch the turn stream, find the note in the vault with an
+action message, watch the turn stream, find the note in the vault with an
 agent-attributed commit. `INTELIGIR_AGENT_MODEL` passes a model through.
 
 **The `inteligir` CLI drives a running instance from the shell** — often
-faster than the browser for vault/search/thread checks:
+faster than the browser for vault/search/action checks:
 
 ```sh
 pnpm cli status            # discovers the per-checkout instance and probes it

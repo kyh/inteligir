@@ -45,7 +45,7 @@ Read them together.
 
 **thread** — the durable conversation, a row in this app's own SQLite
 (`threads` in `@repo/db/schema`, id `thr_…`). It survives process restarts,
-owns its title, status, `activeTurnId` and — for a delegation — the doc path
+owns its title, status, `activeTurnId` and — for a doc-attached action — the path
 and anchor it was spawned from. Everything the user can reopen lives here.
 
 **turn** — one request-to-settle exchange inside a thread. It names no table:
@@ -85,11 +85,11 @@ bytes hashed to, and the selection, taken at submit and consumed by that turn's
 prompt. It is EPHEMERAL and it is a statement about the PAST — the screen the
 message left from, which is what "this" and "here" in it refer to — so nothing
 has to reconcile it when the user navigates away. A **thread origin**
-(`threads.originDocPath` / `originAnchor`) is the DURABLE binding a delegation
+(`threads.originDocPath`, anchor-less for an action) is the DURABLE binding an action
 makes: one anchor, spliced into the file as a marker, rebound when the file is
 renamed, and the thing a doc chip resolves. A message can carry a view context
-into a thread with no origin, and usually does — the bottom composer's chat
-thread has none.
+into a thread with no origin — a composer send with the note chip detached
+has none.
 
 **lane** — a CLOUD word, not a local one: `"any" | "desktop"` on a synced
 thread's metadata row (`@repo/cloud-contract/sync`). It is what makes the sync
