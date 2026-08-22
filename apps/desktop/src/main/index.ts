@@ -27,6 +27,8 @@ import {
   systemIdentityResponseSchema,
   type SystemIdentityResponse,
 } from "@repo/server-contract/routes";
+import { BROWSER_ACCELERATOR } from "./browser-panel";
+import { showBrowserWindow } from "./browser-window";
 import {
   classifyNavigation,
   classifyPermission,
@@ -337,7 +339,20 @@ function configureApplicationMenu(target: ServerTarget): void {
         { role: "quit" },
       ],
     },
-    { label: "File", submenu: [{ role: "close" }] },
+    {
+      label: "File",
+      submenu: [
+        {
+          // The in-app browser (issue #598) — a SEPARATE shell-owned window
+          // (browser-window.ts), so this window's origin pin is untouched.
+          label: "Browser",
+          accelerator: BROWSER_ACCELERATOR,
+          click: () => showBrowserWindow(target.origin),
+        },
+        { type: "separator" },
+        { role: "close" },
+      ],
+    },
     { role: "editMenu" },
     { role: "viewMenu" },
     { role: "windowMenu" },
