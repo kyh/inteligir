@@ -13,6 +13,7 @@ import { z } from "zod";
 import { type PlateElementProps, PlateElement } from "platejs/react";
 import { useState } from "react";
 
+import { ChartGridEditor, emitChartPayload } from "./chart-grid";
 import { DegradedPayloadView, MossBlockCard, PayloadEditor } from "./moss-block-chrome";
 import { setBlockValue } from "./moss-block-value";
 
@@ -288,7 +289,10 @@ function ChartSvg({ chart }: { chart: ChartPayload }) {
 }
 
 export function ChartElement(props: PlateElementProps) {
-  const [editing, setEditing] = useState(false);
+  // View state only; the payload bytes live on the node. The grid is the edit
+  // surface for a payload it can represent; raw JSON is the escape hatch and
+  // the only surface for a payload the grid cannot hold.
+  const [mode, setMode] = useState<"view" | "grid" | "raw">("view");
   const value = typeof props.element.value === "string" ? props.element.value : "";
   const parsed = parseChartPayload(value);
 
@@ -297,18 +301,30 @@ export function ChartElement(props: PlateElementProps) {
       <MossBlockCard
         label={parsed.ok ? (parsed.chart.title ?? "chart") : "chart"}
         actions={
-          <button
-            type="button"
-            className="text-xs text-muted-foreground hover:text-foreground"
-            onClick={() => {
-              setEditing(true);
-            }}
-          >
-            Edit data
-          </button>
+          mode === "view" ? (
+            <button
+              type="button"
+              className="text-xs text-muted-foreground hover:text-foreground"
+              onClick={() => {
+                setMode(parsed.ok ? "grid" : "raw");
+              }}
+            >
+              Edit data
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="text-xs text-muted-foreground hover:text-foreground"
+              onClick={() => {
+                setMode("view");
+              }}
+            >
+              Done
+            </button>
+          )
         }
       >
-        {editing ? (
+        {mode === "raw" ? (
           <PayloadEditor
             initial={value}
             validate={(next) => {
@@ -316,13 +332,30 @@ export function ChartElement(props: PlateElementProps) {
               return verdict.ok ? null : verdict.reason;
             }}
             onCancel={() => {
-              setEditing(false);
+              setMode("view");
             }}
             onSave={(next) => {
               setBlockValue(props.editor, props.element, next);
-              setEditing(false);
+              setMode("view");
             }}
           />
+        ) : mode === "grid" && parsed.ok ? (
+          <>
+            <div className="px-2 py-1">
+              <ChartSvg chart={parsed.chart} />
+            </div>
+            <div className="border-t border-border/60">
+              <ChartGridEditor
+                chart={parsed.chart}
+                onCommit={(next) => {
+                  setBlockValue(props.editor, props.element, emitChartPayload(next));
+                }}
+                onRawEdit={() => {
+                  setMode("raw");
+                }}
+              />
+            </div>
+          </>
         ) : parsed.ok ? (
           <div className="px-2 py-1">
             <ChartSvg chart={parsed.chart} />

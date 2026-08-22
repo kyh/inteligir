@@ -72,7 +72,7 @@ export function EditorBottomToolbar({ path }: { path: string }) {
   };
 
   return (
-    <div className="pointer-events-none sticky bottom-4 z-10 flex justify-center">
+    <div className="pointer-events-none sticky bottom-4 z-10 flex justify-center print:hidden">
       <div
         className="pointer-events-auto flex items-center gap-0.5 rounded-full border border-border bg-background/95 px-2 py-1 shadow-md backdrop-blur"
         onMouseDown={keepSelection}

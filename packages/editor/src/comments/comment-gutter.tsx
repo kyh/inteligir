@@ -43,7 +43,7 @@ function CommentGutterBlock(props: PlateElementProps) {
         onClick={() => {
           actions?.open(ids);
         }}
-        className="absolute top-[0.35em] -left-6 flex size-4 cursor-pointer items-center justify-center rounded-sm select-none hover:bg-accent"
+        className="absolute top-[0.35em] -left-6 flex size-4 cursor-pointer items-center justify-center rounded-sm select-none hover:bg-accent print:hidden"
       >
         <span
           className={cn(

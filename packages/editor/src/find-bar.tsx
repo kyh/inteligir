@@ -162,7 +162,7 @@ function FindBar() {
       : matches.findIndex((match) => snap.active !== null && sameLocation(match, snap.active));
 
   return (
-    <div className="fixed top-16 right-6 z-40 flex items-center gap-1.5 rounded-md border border-border bg-popover px-2 py-1 shadow-md">
+    <div className="fixed top-16 right-6 z-40 flex items-center gap-1.5 rounded-md border border-border bg-popover px-2 py-1 shadow-md print:hidden">
       <SearchIcon className="size-3.5 shrink-0 text-muted-foreground" />
       <input
         ref={inputRef}

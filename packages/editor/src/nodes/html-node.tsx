@@ -90,13 +90,20 @@ export function HtmlElement(props: PlateElementProps) {
         ) : mode === "source" ? (
           <SourceView value={value} />
         ) : (
-          <iframe
-            key={mode}
-            title="moss-html preview"
-            srcDoc={value}
-            sandbox={mode === "run" ? "allow-scripts" : ""}
-            className="h-96 w-full border-0 bg-white"
-          />
+          <>
+            <iframe
+              key={mode}
+              title="moss-html preview"
+              srcDoc={value}
+              sandbox={mode === "run" ? "allow-scripts" : ""}
+              className="h-96 w-full border-0 bg-white print:hidden"
+            />
+            {/* A sandboxed srcdoc frame prints blank on some engines; paper
+                gets the source, which is the block's honest byte content. */}
+            <div className="hidden print:block">
+              <SourceView value={value} />
+            </div>
+          </>
         )}
       </MossBlockCard>
       {props.children}

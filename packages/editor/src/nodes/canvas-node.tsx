@@ -1,16 +1,24 @@
-// moss-canvas: Moss's rough spatial surface, rendered READ-ONLY. The payload
-// (vendored moss-canvas skill): line 1 `[moss:grid:v2]`, an optional
-// single-line `[moss:labels:<JSON array>]`, then up to 60 grid rows of up to
-// 120 chars where `.`/space are empty and anything else is ink. Sketch
-// EDITING is deliberately out — this block presents cleanly and round-trips
-// untouched; the raw-payload editor is the honest interim authoring surface.
-// Legacy `moss-sketch` fences keep their name (the skill's own rule) and land
-// here too.
+// moss-canvas: Moss's rough spatial surface. The payload (vendored
+// moss-canvas skill): line 1 `[moss:grid:v2]`, an optional single-line
+// `[moss:labels:<JSON array>]`, then up to 60 grid rows of up to 120 chars
+// where `.`/space are empty and anything else is ink. Sketching edits CELLS,
+// not the whole grid — a stroke commits once on pointer-up through the one
+// writer, and untouched cells keep their original characters. Legacy
+// `moss-sketch` fences keep their name (the skill's own rule) and land here
+// too.
 
 import { z } from "zod";
 import { type PlateElementProps, PlateElement } from "platejs/react";
-import { useState } from "react";
+import { useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 
+import { cn } from "@repo/ui/lib/utils";
+
+import {
+  type CanvasCell,
+  clearCanvasGrid,
+  paintCanvasCells,
+  strokeSegmentCells,
+} from "./canvas-sketch";
 import { DegradedPayloadView, MossBlockCard, PayloadEditor } from "./moss-block-chrome";
 import { setBlockValue } from "./moss-block-value";
 
@@ -75,10 +83,14 @@ export function parseCanvasPayload(value: string): CanvasParse {
   return { grid, labels, ok: true };
 }
 
-function CanvasSvg({ grid, labels }: { grid: boolean[][]; labels: z.infer<typeof labelSchema>[] }) {
+function usedRowsOf(grid: boolean[][], labels: z.infer<typeof labelSchema>[]): number {
   // The viewBox crops to used rows (plus margin) so a small sketch is not a
   // sea of empty grid; columns stay full-width for stable label geometry.
-  const usedRows = Math.max(8, grid.length, ...labels.map((label) => label.row + 2));
+  return Math.max(8, grid.length, ...labels.map((label) => label.row + 2));
+}
+
+function CanvasSvg({ grid, labels }: { grid: boolean[][]; labels: z.infer<typeof labelSchema>[] }) {
+  const usedRows = usedRowsOf(grid, labels);
   return (
     <svg
       viewBox={`0 0 ${String(COLS * CELL)} ${String(usedRows * CELL)}`}
@@ -128,8 +140,155 @@ function CanvasSvg({ grid, labels }: { grid: boolean[][]; labels: z.infer<typeof
   );
 }
 
+type SketchTool = "pencil" | "eraser";
+
+/**
+ * The drawing surface: the same geometry as the read view plus a live overlay
+ * of the stroke in progress. The stroke accumulates locally and commits ONCE
+ * on pointer-up — one editor transaction, one undo step per stroke.
+ */
+function SketchSurface({
+  grid,
+  labels,
+  onStroke,
+  tool,
+}: {
+  grid: boolean[][];
+  labels: z.infer<typeof labelSchema>[];
+  onStroke: (cells: CanvasCell[], ink: boolean) => void;
+  tool: SketchTool;
+}) {
+  // Room below the sketch to grow into, without presenting all 60 rows.
+  const rowsShown = Math.min(ROWS, Math.max(24, usedRowsOf(grid, labels) + 6));
+  const [pending, setPending] = useState<ReadonlyMap<string, CanvasCell>>(new Map());
+  const lastCell = useRef<CanvasCell | null>(null);
+
+  const cellAt = (event: ReactPointerEvent<SVGSVGElement>): CanvasCell => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    return {
+      col: Math.floor(((event.clientX - rect.left) / rect.width) * COLS),
+      row: Math.floor(((event.clientY - rect.top) / rect.height) * rowsShown),
+    };
+  };
+
+  const extend = (to: CanvasCell): void => {
+    const from = lastCell.current ?? to;
+    lastCell.current = to;
+    setPending((prior) => {
+      const next = new Map(prior);
+      for (const cell of strokeSegmentCells(from, to)) {
+        next.set(`${String(cell.col)},${String(cell.row)}`, cell);
+      }
+      return next;
+    });
+  };
+
+  const erasing = tool === "eraser";
+  return (
+    <svg
+      viewBox={`0 0 ${String(COLS * CELL)} ${String(rowsShown * CELL)}`}
+      role="img"
+      aria-label="canvas sketch surface"
+      className={cn("w-full touch-none", erasing ? "cursor-cell" : "cursor-crosshair")}
+      onPointerDown={(event) => {
+        event.currentTarget.setPointerCapture(event.pointerId);
+        lastCell.current = null;
+        extend(cellAt(event));
+      }}
+      onPointerMove={(event) => {
+        if (lastCell.current !== null) extend(cellAt(event));
+      }}
+      onPointerUp={() => {
+        if (pending.size > 0) onStroke([...pending.values()], !erasing);
+        setPending(new Map());
+        lastCell.current = null;
+      }}
+      onPointerCancel={() => {
+        setPending(new Map());
+        lastCell.current = null;
+      }}
+    >
+      <defs>
+        <pattern
+          id="moss-canvas-sketch-dots"
+          width={CELL * 4}
+          height={CELL * 4}
+          patternUnits="userSpaceOnUse"
+        >
+          <circle cx={1} cy={1} r={0.7} fill="var(--border)" />
+        </pattern>
+      </defs>
+      <rect width="100%" height="100%" fill="url(#moss-canvas-sketch-dots)" />
+      {grid.flatMap((row, rowIndex) =>
+        row.flatMap((filled, colIndex) =>
+          filled && !(erasing && pending.has(`${String(colIndex)},${String(rowIndex)}`))
+            ? [
+                <rect
+                  key={`${String(rowIndex)}-${String(colIndex)}`}
+                  x={colIndex * CELL}
+                  y={rowIndex * CELL}
+                  width={CELL}
+                  height={CELL}
+                  fill="var(--muted-foreground)"
+                  opacity={0.8}
+                />,
+              ]
+            : [],
+        ),
+      )}
+      {erasing
+        ? null
+        : [...pending.values()].map((cell) => (
+            <rect
+              key={`p${String(cell.row)}-${String(cell.col)}`}
+              x={cell.col * CELL}
+              y={cell.row * CELL}
+              width={CELL}
+              height={CELL}
+              fill="var(--foreground)"
+              opacity={0.7}
+            />
+          ))}
+      {labels.map((label) => (
+        <g
+          key={label.id}
+          transform={`translate(${String(label.col * CELL)}, ${String(label.row * CELL)})`}
+        >
+          <text fontSize={CELL * 1.8} dominantBaseline="hanging" className="fill-foreground">
+            {label.text}
+          </text>
+        </g>
+      ))}
+    </svg>
+  );
+}
+
+function SketchToolButton({
+  active,
+  label,
+  onClick,
+}: {
+  active: boolean;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={cn(
+        "rounded-sm px-1.5 py-0.5 text-xs",
+        active ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground",
+      )}
+      onClick={onClick}
+    >
+      {label}
+    </button>
+  );
+}
+
 export function CanvasElement(props: PlateElementProps) {
-  const [editing, setEditing] = useState(false);
+  const [mode, setMode] = useState<"view" | "sketch" | "raw">("view");
+  const [tool, setTool] = useState<SketchTool>("pencil");
   const value = typeof props.element.value === "string" ? props.element.value : "";
   const parsed = parseCanvasPayload(value);
 
@@ -138,18 +297,43 @@ export function CanvasElement(props: PlateElementProps) {
       <MossBlockCard
         label="canvas"
         actions={
-          <button
-            type="button"
-            className="text-xs text-muted-foreground hover:text-foreground"
-            onClick={() => {
-              setEditing(true);
-            }}
-          >
-            Edit payload
-          </button>
+          mode === "view" ? (
+            <span className="flex items-center gap-1">
+              {parsed.ok ? (
+                <button
+                  type="button"
+                  className="text-xs text-muted-foreground hover:text-foreground"
+                  onClick={() => {
+                    setMode("sketch");
+                  }}
+                >
+                  Sketch
+                </button>
+              ) : null}
+              <button
+                type="button"
+                className="text-xs text-muted-foreground hover:text-foreground"
+                onClick={() => {
+                  setMode("raw");
+                }}
+              >
+                Edit payload
+              </button>
+            </span>
+          ) : mode === "sketch" ? (
+            <button
+              type="button"
+              className="text-xs text-muted-foreground hover:text-foreground"
+              onClick={() => {
+                setMode("view");
+              }}
+            >
+              Done
+            </button>
+          ) : null
         }
       >
-        {editing ? (
+        {mode === "raw" ? (
           <PayloadEditor
             initial={value}
             validate={(next) => {
@@ -157,13 +341,48 @@ export function CanvasElement(props: PlateElementProps) {
               return verdict.ok ? null : verdict.reason;
             }}
             onCancel={() => {
-              setEditing(false);
+              setMode("view");
             }}
             onSave={(next) => {
               setBlockValue(props.editor, props.element, next);
-              setEditing(false);
+              setMode("view");
             }}
           />
+        ) : mode === "sketch" && parsed.ok ? (
+          <div className="px-2 py-1">
+            <div className="flex items-center gap-1 pb-1">
+              <SketchToolButton
+                active={tool === "pencil"}
+                label="Pencil"
+                onClick={() => {
+                  setTool("pencil");
+                }}
+              />
+              <SketchToolButton
+                active={tool === "eraser"}
+                label="Eraser"
+                onClick={() => {
+                  setTool("eraser");
+                }}
+              />
+              <span className="flex-1" />
+              <SketchToolButton
+                active={false}
+                label="Clear"
+                onClick={() => {
+                  setBlockValue(props.editor, props.element, clearCanvasGrid(value));
+                }}
+              />
+            </div>
+            <SketchSurface
+              grid={parsed.grid}
+              labels={parsed.labels}
+              tool={tool}
+              onStroke={(cells, ink) => {
+                setBlockValue(props.editor, props.element, paintCanvasCells(value, cells, ink));
+              }}
+            />
+          </div>
         ) : parsed.ok ? (
           <div className="px-2 py-1">
             <CanvasSvg grid={parsed.grid} labels={parsed.labels} />

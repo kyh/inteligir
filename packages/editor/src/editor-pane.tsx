@@ -170,7 +170,7 @@ function NotePane({ path, showRich }: { path: string; showRich: boolean }) {
   // owns only the vertical padding — pb-72 is the breathing room below the
   // last block (spec §4.1).
   return (
-    <div ref={paneRef} className="flex w-full flex-1 cursor-text flex-col pt-10 pb-72">
+    <div ref={paneRef} className="flex w-full flex-1 cursor-text flex-col pt-10 pb-72 print:pb-0">
       <h1
         ref={titleRef}
         contentEditable
@@ -218,7 +218,7 @@ function NotePane({ path, showRich }: { path: string; showRich: boolean }) {
         />
       )}
       {/* Linked mentions live in the same centered column, below the doc. */}
-      <div className={EDITOR_COLUMN_PX}>
+      <div className={cn(EDITOR_COLUMN_PX, "print:hidden")}>
         <ConnectionsPanel path={path} />
       </div>
       {showRich ? <EditorBottomToolbar path={path} /> : null}

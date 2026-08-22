@@ -75,6 +75,8 @@
     "./nodes/calendar": "./src/nodes/calendar.tsx",
     "./nodes/callout-node": "./src/nodes/callout-node.tsx",
     "./nodes/canvas-node": "./src/nodes/canvas-node.tsx",
+    "./nodes/canvas-sketch": "./src/nodes/canvas-sketch.ts",
+    "./nodes/chart-grid": "./src/nodes/chart-grid.tsx",
     "./nodes/chart-node": "./src/nodes/chart-node.tsx",
     "./nodes/code-block-mermaid": "./src/nodes/code-block-mermaid.tsx",
     "./nodes/column-node": "./src/nodes/column-node.tsx",
