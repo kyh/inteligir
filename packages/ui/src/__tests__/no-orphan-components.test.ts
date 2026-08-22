@@ -51,7 +51,6 @@ const CARRIED_FOR_V3 = new Set([
   "message-scroller",
   "native-select",
   "popover",
-  "sidebar",
   "sonner",
   "spinner",
   "switch",

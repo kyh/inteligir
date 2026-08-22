@@ -57,3 +57,8 @@ upstream's (`vendored`) or upstream's shape with the bodies rewritten
 | `src/lib/utils.ts`                 | `registry/default/lib/utils.ts`                 | adapted |
 | `src/hooks/use-proximity-hover.ts` | `registry/default/hooks/use-proximity-hover.ts` | adapted |
 | `src/hooks/use-merge-split.tsx`    | `registry/default/hooks/use-merge-split.tsx`    | adapted |
+| `src/components/sidebar.tsx`       | `registry/base/sidebar.tsx`                     | adapted |
+| `src/components/sidebar-core.tsx`  | `registry/default/sidebar-core.tsx`             | adapted |
+| `src/components/sidebar-menu.tsx`  | `registry/default/sidebar-menu.tsx`             | adapted |
+| `src/components/scroll-area.tsx`   | `registry/base/scroll-area.tsx`                 | adapted |
+| `src/hooks/use-touch-primary.tsx`  | `registry/default/hooks/use-touch-primary.tsx`  | adapted |

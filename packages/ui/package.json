@@ -14,6 +14,7 @@
     "./lib/*": "./src/lib/*.ts",
     "./components/*": "./src/components/*.tsx",
     "./hooks/use-merge-split": "./src/hooks/use-merge-split.tsx",
+    "./hooks/use-touch-primary": "./src/hooks/use-touch-primary.tsx",
     "./hooks/*": "./src/hooks/*.ts"
   },
   "scripts": {

@@ -36,8 +36,8 @@ function write(key: string, value: string | null): void {
 }
 
 const SIDEBAR_WIDTH_DEFAULT = 260;
-export const SIDEBAR_WIDTH_MIN = 180;
-export const SIDEBAR_WIDTH_MAX = 480;
+const SIDEBAR_WIDTH_MIN = 180;
+const SIDEBAR_WIDTH_MAX = 480;
 
 export function readSidebarWidth(): number {
   const raw = read(KEYS.sidebarWidth);

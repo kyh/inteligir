@@ -251,6 +251,29 @@
       "rules": {
         "anti-slop/no-shape-in-symbol-names": "off"
       }
+    },
+    {
+      // The Fluid Functionalism sidebar (vendored — see packages/ui/
+      // PROVENANCE.md): its slot system does render/asChild polymorphism over
+      // structurally-typed props, and its menu scope walks live DOM rows.
+      // Like the ProseMark vendor block above, a Ref or a slot template is a
+      // function-or-object union with no named parse boundary — the `typeof`
+      // discrimination IS the boundary check, and the Record-typed prop bags
+      // are upstream's own contract. Kept close to upstream for re-vendor
+      // diffability; only the rules that idiom trips relax, and only here.
+      "files": [
+        "packages/ui/src/components/sidebar.tsx",
+        "packages/ui/src/components/sidebar-core.tsx",
+        "packages/ui/src/components/sidebar-menu.tsx"
+      ],
+      "rules": {
+        "anti-slop/no-runtime-typeof": "off",
+        "anti-slop/no-unknown-parameters": "off",
+        "anti-slop/no-unsafe-dictionary-type": "off",
+        "anti-slop/no-known-value-widening": "off",
+        "anti-slop/require-safety-comment-for-type-assertion": "off",
+        "typescript/no-base-to-string": "off"
+      }
     }
   ]
 }
