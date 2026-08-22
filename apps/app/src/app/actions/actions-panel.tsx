@@ -10,7 +10,7 @@ import { Button } from "@repo/ui/components/button";
 import { Textarea } from "@repo/ui/components/textarea";
 import { toast } from "@repo/ui/components/sonner";
 import { cn } from "@repo/ui/lib/utils";
-import { ArchiveIcon, ArrowLeftIcon } from "lucide-react";
+import { ArchiveIcon, ArrowLeftIcon, Share2Icon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -25,6 +25,7 @@ import { sendToThread } from "../chat/chat-service";
 import { useThreadDetail, useThreads, useThreadTimeline } from "../chat/thread-hooks";
 import { useNoteComments } from "./comment-hooks";
 import { CommentsTab } from "./comments-tab";
+import { shareWithAgentText } from "./share-with-agent";
 import { TimelineRowView } from "../chat/timeline-rows";
 import { useWorkspace } from "../workspace-context";
 
@@ -260,6 +261,22 @@ export function ActionsPanel({
             {name}
           </button>
         ))}
+        {docPath !== null ? (
+          <button
+            type="button"
+            aria-label="Share with agent"
+            title="Copy this note's path and vault-editing instructions for an external agent"
+            className="ml-auto rounded-md px-1.5 py-0.5 text-muted-foreground hover:text-foreground"
+            onClick={() => {
+              navigator.clipboard.writeText(shareWithAgentText(docPath)).then(
+                () => toast.success("Copied for an external agent"),
+                () => toast.error("Could not copy"),
+              );
+            }}
+          >
+            <Share2Icon className="size-3.5" />
+          </button>
+        ) : null}
       </div>
 
       {tab === "comments" ? (

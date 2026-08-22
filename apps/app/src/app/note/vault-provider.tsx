@@ -358,14 +358,12 @@ export function VaultProvider({
       // returns with #587's right panel, with its route.
       getVaultFileFacts: () => Promise.resolve(null),
       listWikiTargets: () =>
-        // exactOptionalPropertyTypes: the wire's optional aliases must drop
+        // exactOptionalPropertyTypes: the wire's optional members must drop
         // the explicit-undefined member to satisfy the notes type.
         Promise.resolve(
-          wikiTargetsRef.current.map(({ aliases, ...target }) => {
-            if (aliases !== undefined) {
-              return Object.assign(target, { aliases });
-            }
-            return target;
+          wikiTargetsRef.current.map(({ aliases, pinned, ...target }) => {
+            const withAliases = aliases === undefined ? target : Object.assign(target, { aliases });
+            return pinned === undefined ? withAliases : Object.assign(withAliases, { pinned });
           }),
         ),
       getBacklinks: async ({ path }) => {

@@ -18,6 +18,10 @@ function actionTitle(prompt: string): string {
 
 export interface CreateActionArgs {
   prompt: string;
+  /** Vault paths the user @-mentioned. They ride the send as a leading
+   * context line — the agent reads the files itself, nothing is inlined —
+   * and stay out of the title, which is the user's own words. */
+  contextPaths?: string[];
   /** The note this action is about; null composes an unattached action. */
   docPath: string | null;
   viewContext: ViewContext | null;
@@ -41,9 +45,14 @@ export async function createAction(
     throw new Error("Could not create the action");
   }
   const { thread } = await created.json();
+  const contextPaths = args.contextPaths ?? [];
+  const text =
+    contextPaths.length === 0
+      ? args.prompt
+      : `Context notes: ${contextPaths.join(", ")}\n\n${args.prompt}`;
   const sendArgs: Parameters<typeof sendToThread>[1] = {
     activeTurnId: null,
-    text: args.prompt,
+    text,
     threadId: thread.id,
   };
   if (args.viewContext !== null) {

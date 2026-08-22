@@ -46,7 +46,7 @@ export interface CommandPaletteProps {
   onOpenChange: (open: boolean) => void;
   /** Folder listing for the new-note-in-folder page. */
   entries: readonly VaultEntry[];
-  /** Recent chats and delegations, list order (live first, newest first). */
+  /** Recent actions, list order (live first, newest first). */
   threads: readonly Thread[];
   searchSource: NoteSearchSource;
   /** Hidden when the vault has no remote — a command that cannot run is
@@ -58,7 +58,7 @@ export interface CommandPaletteProps {
 type Page = "root" | "new-note-folder" | "threads";
 
 function threadRowLabel(thread: Thread): string {
-  return thread.title ?? (thread.originDocPath === null ? "Chat" : "Delegation");
+  return thread.title ?? "Action";
 }
 
 function threadRowDetail(thread: Thread): string {
@@ -165,7 +165,7 @@ export function CommandPalette({
     },
     {
       id: "threads",
-      label: "Chats & delegations",
+      label: "Actions",
       icon: <MessagesSquareIcon />,
       keepOpen: true,
       run: () => {
@@ -203,17 +203,13 @@ export function CommandPalette({
       <CommandDialog
         open={open}
         onOpenChange={onOpenChange}
-        title="Chats & delegations"
-        description="Open a recent thread in the chat panel"
+        title="Actions"
+        description="Open a recent action in the panel"
         shouldFilter={false}
       >
-        <CommandInput
-          placeholder="Find a chat or delegation…"
-          value={query}
-          onValueChange={setQuery}
-        />
+        <CommandInput placeholder="Find an action…" value={query} onValueChange={setQuery} />
         <CommandList>
-          <CommandEmpty>No threads yet.</CommandEmpty>
+          <CommandEmpty>No actions yet.</CommandEmpty>
           <CommandGroup heading="Recent">
             {visibleThreads.map((thread) => (
               <CommandItem

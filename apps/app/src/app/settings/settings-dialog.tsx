@@ -1,7 +1,7 @@
 // Minimal settings: what the server already answers (vault location, git
 // remote, sync state, the agent block of /system/status, the connectors codex
 // itself manages, the About block) plus the client-side preferences that exist
-// today (theme, and what a delegation does with its writes). The remote is
+// today (theme, and what an action does with its writes). The remote is
 // display-only — changing it rides INTELIGIR_VAULT_REMOTE / config.json until
 // a config route exists.
 
@@ -14,7 +14,6 @@ import {
   DialogTitle,
 } from "@repo/ui/components/dialog";
 import { Separator } from "@repo/ui/components/separator";
-import { useState } from "react";
 import { useTheme, type Theme } from "@repo/ui/lib/theme";
 import {
   EDITOR_ACCENTS,

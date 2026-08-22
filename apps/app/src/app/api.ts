@@ -45,6 +45,7 @@ export const queryKeys = {
    *  and the family is swept at the prefix rather than one root per query —
    *  the next derived read inherits the sweep instead of needing its own. */
   knowledgeRoot: ["knowledge"] as const,
+  wikiTargets: ["knowledge", "wiki-targets"] as const,
   backlinks: (docPath: string) => ["knowledge", "backlinks", docPath] as const,
   related: (docPath: string) => ["knowledge", "related", docPath] as const,
   /** The whole thread family — what a ws thread invalidation sweeps. */

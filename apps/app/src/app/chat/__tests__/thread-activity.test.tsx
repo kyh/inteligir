@@ -100,7 +100,7 @@ describe("the palette renders that answer and no other", () => {
         }}
       />,
     );
-    fireEvent.click(screen.getByText("Chats & delegations"));
+    fireEvent.click(screen.getByText("Actions"));
     expect(
       screen.getByText(THREAD_ACTIVITY_LABELS[threadActivity(subject, NO_ACTIVITY_COUNTS)]),
     ).toBeDefined();
