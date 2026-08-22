@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./agent-request": "./src/agent-request.ts",
     "./block-context-menu": "./src/block-context-menu.tsx",
     "./block-draggable": "./src/block-draggable.tsx",
     "./block-list": "./src/block-list.tsx",

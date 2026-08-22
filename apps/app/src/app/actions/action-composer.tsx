@@ -20,6 +20,8 @@ import { createAction } from "./action-service";
 export interface ActionComposerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Text the opener wants pre-filled (a quoted selection); applied per OPEN. */
+  seed: string | null;
   /** The note under the composer, offered as the action's attachment. */
   docPath: string | null;
   /** What the user is looking at, pulled at submit. */
@@ -31,6 +33,7 @@ export interface ActionComposerProps {
 export function ActionComposer({
   open,
   onOpenChange,
+  seed,
   docPath,
   readViewContext,
   onLaunched,
@@ -48,10 +51,20 @@ export function ActionComposer({
   useEffect(() => {
     if (open) {
       setAttached(true);
-      requestAnimationFrame(() => fieldRef.current?.focus());
+      if (seed !== null) {
+        setText(seed);
+      }
+      requestAnimationFrame(() => {
+        const field = fieldRef.current;
+        field?.focus();
+        field?.setSelectionRange(field.value.length, field.value.length);
+      });
     } else {
       setDictationPartial(null);
     }
+    // Seed applies at the moment of OPENING; a seed change mid-open must not
+    // clobber typing.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   if (!open) {

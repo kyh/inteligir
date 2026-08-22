@@ -1,3 +1,4 @@
+import { useSyncExternalStore } from "react";
 import {
   useMemo,
   useRef,
@@ -21,6 +22,7 @@ import {
   ItalicIcon,
   Link2Icon,
   StrikethroughIcon,
+  SparklesIcon,
 } from "lucide-react";
 import { KEYS } from "platejs";
 import {
@@ -30,9 +32,12 @@ import {
   useMarkToolbarButton,
   useMarkToolbarButtonState,
   usePluginOption,
+  type PlateEditor,
 } from "platejs/react";
 
 import { cn } from "@repo/ui/lib/utils";
+
+import { agentRequestActions, subscribeAgentRequestActions } from "@repo/editor/agent-request";
 import { Button } from "@repo/ui/components/button";
 import {
   DropdownMenu,
@@ -55,6 +60,33 @@ import { BarButton } from "@repo/editor/toolbar-button";
 // runs once on mount.
 const BAR_CLASS =
   "z-50 flex items-center gap-0.5 rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-surface-4 animate-in fade-in-0 zoom-in-95";
+
+// "Ask agent" appears only while the app registered an agent surface — the
+// module-store discipline agent-request.ts states. preventDefault keeps the
+// editor selection alive through the click; the SELECTION TEXT travels, so
+// the composer opens already quoting what the user was pointing at.
+function AskAgentButton({ editor }: { editor: PlateEditor }) {
+  const actions = useSyncExternalStore(subscribeAgentRequestActions, agentRequestActions);
+  if (actions === null) return null;
+  return (
+    <>
+      <button
+        type="button"
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={() => {
+          const selection = editor.selection;
+          const text = selection ? editor.api.string(selection) : "";
+          if (text.trim() !== "") actions.askAboutSelection(text);
+        }}
+        className="flex h-7 items-center gap-1 rounded-md px-2 text-xs font-medium text-primary transition-colors hover:bg-accent [&_svg]:size-3.5"
+      >
+        <SparklesIcon />
+        Ask agent
+      </button>
+      <Sep />
+    </>
+  );
+}
 
 function Sep() {
   return <div className="mx-0.5 h-5 w-px shrink-0 bg-border" />;
@@ -257,6 +289,7 @@ export function SelectionToolbar() {
           />
         ) : (
           <>
+            <AskAgentButton editor={editor} />
             <DropdownMenu
               open={openMenu === "turn"}
               onOpenChange={(o) => {

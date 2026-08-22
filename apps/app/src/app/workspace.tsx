@@ -20,6 +20,7 @@ import { ActionComposer } from "./actions/action-composer";
 import { ActionsPanel } from "./actions/actions-panel";
 import { useThreads } from "./chat/thread-hooks";
 import { platformShortcutModifier, useGlobalShortcuts } from "./global-shortcuts";
+import { setAgentRequestActions } from "@repo/editor/agent-request";
 import { EditorPane } from "@repo/editor/editor-pane";
 import { flushOpenNote } from "@repo/editor/note/open-note-flush";
 import { openNoteState } from "@repo/editor/note/open-note-store";
@@ -73,6 +74,7 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
   // so no agent interaction can remount the editor.
   const threadsQuery = useThreads();
   const [composerOpen, setComposerOpen] = useState(false);
+  const [composerSeed, setComposerSeed] = useState<string | null>(null);
   // Zen (⌘\): just the document — both rails fold away, nothing unmounts.
   const [zen, setZen] = useState(false);
   const [panelThreadId, setPanelThreadId] = useState<string | null>(null);
@@ -272,9 +274,28 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
     setSettingsOpen(true);
   }, []);
 
+  // The selection toolbar's "Ask agent": the selection arrives quoted, the
+  // composer opens over the same note. Registered for the workspace's life.
+  useEffect(() => {
+    setAgentRequestActions({
+      askAboutSelection: (selectionText) => {
+        const quoted = selectionText
+          .split("\n")
+          .map((line) => `> ${line}`)
+          .join("\n");
+        setComposerSeed(`${quoted}\n\n`);
+        setComposerOpen(true);
+      },
+    });
+    return () => {
+      setAgentRequestActions(null);
+    };
+  }, []);
+
   useGlobalShortcuts(shortcutModifier, (action) => {
     switch (action) {
       case "open-action-composer":
+        setComposerSeed(null);
         setComposerOpen((current) => !current);
         break;
       case "open-palette":
@@ -383,6 +404,7 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
           <ActionComposer
             open={composerOpen}
             onOpenChange={setComposerOpen}
+            seed={composerSeed}
             docPath={openNote}
             readViewContext={readViewContext}
             onLaunched={openThread}
