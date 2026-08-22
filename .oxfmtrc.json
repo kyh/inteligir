@@ -11,7 +11,7 @@
     "out",
     "routeTree.gen.ts",
     "worker-configuration.d.ts",
-    "packages/editor/src/vendor",
-    "packages/agent-runtime/src/codex/generated"
+    "packages/agent-runtime/src/codex/generated",
+    "packages/editor/src/__tests__/fixtures"
   ]
 }

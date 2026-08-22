@@ -1,0 +1,1 @@
+before <!-- inline comment --> after

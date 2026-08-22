@@ -1,0 +1,74 @@
+// THE shared MarkdownPlugin instance — the single configure call both editors
+// (headless mirror via base-kit, live editor) consume, so the serialization
+// brain is shared by construction. The kit-parity test asserts both editors'
+// getOptions(MarkdownPlugin) resolve to these same objects.
+//
+// It also owns the PASTE parse. MarkdownPlugin ships a `parser` whose
+// `deserialize` calls `deserializeMd` — the function markdown-doc.ts and
+// @repo/notes/markdown/parse.ts both declare banned in app code, because its
+// regex `htmlToJsx` pre-pass is fence-unaware: pasting a fenced block that
+// contains HTML rewrites `class`→`className` and `<!-- -->`→`{/* */}` INSIDE
+// the fence, and the autosave then writes those bytes to the vault. Leaving
+// the stock parser in place would make the ban partial. See the parser
+// override below for how it is replaced.
+
+import { KEYS } from "platejs";
+import { MarkdownPlugin, getMergedOptionsDeserialize, mdastToSlate } from "@platejs/markdown";
+
+import { MD_REMARK_PLUGINS } from "@repo/notes/markdown/md-plugins";
+import { parseMdast } from "@repo/notes/markdown/parse";
+import { MD_RULES } from "@repo/editor/markdown/md-rules";
+import { WIKI_INPUT_KEY } from "@repo/editor/wiki-input-key";
+
+export const MarkdownKit = [
+  MarkdownPlugin.configure({
+    options: {
+      // Transient nodes never serialize: the combobox trigger elements (`/`,
+      // `:`, and `[[` inputs are UI state — an autosave firing mid-combobox
+      // must skip them structurally, never hit the serializer's "Unreachable
+      // code" fallback).
+      disallowedNodes: [KEYS.slashInput, KEYS.emojiInput, WIKI_INPUT_KEY],
+      remarkPlugins: MD_REMARK_PLUGINS,
+      rules: MD_RULES,
+    },
+  })
+    // `parser` is a TOP-LEVEL SlatePlugin field, not an option, and the stock
+    // one is installed by a deferred `.extend(fn)` inside @platejs/markdown —
+    // so it can only be overridden by another deferred extension (a plain
+    // object merges immediately and would be clobbered when the plugin
+    // resolves). Merging `{ parser: { deserialize } }` keeps the stock
+    // `format`/`query` (text/plain only, and only when the clipboard carries
+    // no text/html and the data isn't a bare URL): this replaces the parse,
+    // not the trigger.
+    //
+    // The replacement is the owned pipeline — the same two primitives the
+    // file-open path runs (parseMdast → mdastToSlate), assembled HERE rather
+    // than imported from markdown-doc.ts because that
+    // module eagerly imports BASE_KIT, and a kit importing it back would close
+    // exactly the eager cycle `editor-import-cycles.test.ts` forbids. The
+    // usual escape hatch doesn't apply either: `parser.deserialize` is
+    // synchronous, so it cannot `await import(...)`. Deserializing against the
+    // LIVE editor is in any case the more correct context for a paste than
+    // markdown-doc's headless mirror.
+    //
+    // A parse error returns undefined and Plate falls through to its plain-text
+    // insert. Constructs the editor has no node for are not a refusal — the
+    // parse hands them back as opaque nodes, so pasted HTML or unknown JSX
+    // arrives intact rather than mangled.
+    .extend(() => ({
+      parser: {
+        deserialize: ({ data, editor }) => {
+          const parsed = parseMdast(data);
+          if (!parsed.ok) return undefined;
+          try {
+            return mdastToSlate(parsed.root, getMergedOptionsDeserialize(editor));
+          } catch {
+            // mdast→Slate overflows the stack on pathological nesting (see
+            // markdown-doc's DEPTH_REASON). A paste must never take the
+            // editor down — fall through to plain text.
+            return undefined;
+          }
+        },
+      },
+    })),
+];

@@ -1,15 +1,16 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    // ES2023 is the repo floor and the ceiling (see packages/ui/tsconfig.json:
-    // Vite transforms syntax, never stdlib). This package renders into a real
-    // DOM everywhere it runs, so the DOM lib is correct here.
+    // Same ES2023 floor-and-ceiling as @repo/ui, and for the same reason: this
+    // package is bundled into apps/web at Vite's `baseline-widely-available`
+    // target, which transforms syntax but never stdlib.
     "lib": ["ES2023", "dom", "dom.iterable"],
     "jsx": "react-jsx",
-    "types": [],
+    // node: the roundtrip fixture matrix is read off disk by the markdown tests.
+    "types": ["node"],
     "paths": {
       "@repo/editor/*": ["./src/*"]
     }
   },
-  "include": ["src", "dev", "vitest.config.ts"]
+  "include": ["src", "vitest.config.ts"]
 }
