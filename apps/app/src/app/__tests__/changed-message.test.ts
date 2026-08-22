@@ -66,6 +66,7 @@ describe("a vault change", () => {
 
     expect(applied.invalidated).toEqual([
       [...queryKeys.vaultTree],
+      [...queryKeys.vaultTrash],
       [...queryKeys.knowledgeRoot],
       [...queryKeys.commentsRoot],
     ]);

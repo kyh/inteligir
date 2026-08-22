@@ -38,7 +38,7 @@ import {
   type SqlKnowledgeStore,
 } from "@repo/notes/knowledge/sql-knowledge-store";
 import type { TagCount } from "@repo/notes/knowledge/tag-index";
-import { normalizePath } from "@repo/notes/knowledge/vault-path";
+import { isTrashedPath, normalizePath } from "@repo/notes/knowledge/vault-path";
 import { searchVaultNotes } from "@repo/notes/knowledge/vault-search";
 import { contentHashBytesHex, type VaultEntry } from "@repo/server-contract/vault";
 import { mapWithConcurrency } from "../concurrency";
@@ -359,7 +359,13 @@ export function createKnowledgeRuntime(args: KnowledgeRuntimeArgs): KnowledgeRun
 
   async function listFiles(): Promise<string[]> {
     const { entries } = await args.vault.listTree();
-    return entries.filter((entry: VaultEntry) => entry.kind === "file").map((entry) => entry.path);
+    return (
+      entries
+        // Trash/ is a real synced folder the tree may show, but indexing it
+        // would keep every trashed note resolving links and answering search.
+        .filter((entry: VaultEntry) => entry.kind === "file" && !isTrashedPath(entry.path))
+        .map((entry) => entry.path)
+    );
   }
 
   /** Diff the vault's current files against what each projection recorded. */
@@ -396,11 +402,20 @@ export function createKnowledgeRuntime(args: KnowledgeRuntimeArgs): KnowledgeRun
       const path = paths[index];
       if (path === undefined) continue;
       if (kind === "file") {
+        // A move INTO Trash/ announces the trash path as a created file; it
+        // must not enter the index, and anything indexed there must drop (a
+        // restore announces the same path as missing, which the null branch
+        // already handles).
+        if (isTrashedPath(path)) {
+          removeIndexed(path);
+          continue;
+        }
         files.push(path);
         continue;
       }
       if (kind === "dir") {
-        files.push(...(await args.vault.listFilesUnder(path)));
+        const under = await args.vault.listFilesUnder(path);
+        files.push(...under.filter((filePath) => !isTrashedPath(filePath)));
         continue;
       }
       const prefix = `${path}/`;

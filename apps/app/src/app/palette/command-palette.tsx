@@ -23,6 +23,8 @@ import {
   MessagesSquareIcon,
   RefreshCwIcon,
   SettingsIcon,
+  Trash2Icon,
+  PrinterIcon,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { NO_ACTIVITY_COUNTS, threadActivity, THREAD_ACTIVITY_LABELS } from "../chat/chat-model";
@@ -35,6 +37,9 @@ export interface PaletteActions {
   openThread: (threadId: string) => void;
   syncNow: () => void;
   openSettings: () => void;
+  openTrash: () => void;
+  /** Null while no note is open — the row only exists with a document. */
+  exportPdf: (() => void) | null;
 }
 
 export interface CommandPaletteProps {
@@ -163,6 +168,16 @@ export function CommandPalette({
       icon: <CalendarIcon />,
       run: () => actions.openDailyNote(),
     },
+    ...(actions.exportPdf !== null
+      ? [
+          {
+            id: "export-pdf",
+            label: "Export as PDF",
+            icon: <PrinterIcon />,
+            run: () => actions.exportPdf?.(),
+          },
+        ]
+      : []),
     {
       id: "threads",
       label: "Actions",
@@ -183,6 +198,12 @@ export function CommandPalette({
           },
         ]
       : []),
+    {
+      id: "open-trash",
+      label: "Open trash",
+      icon: <Trash2Icon />,
+      run: () => actions.openTrash(),
+    },
     {
       id: "settings",
       label: "Settings",

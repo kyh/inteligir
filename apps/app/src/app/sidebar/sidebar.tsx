@@ -15,7 +15,13 @@ import {
   SidebarMenuItem,
 } from "@repo/ui/components/sidebar";
 import { cn } from "@repo/ui/lib/utils";
-import { FilePlusIcon, FolderPlusIcon, FolderTreeIcon, SettingsIcon } from "lucide-react";
+import {
+  FilePlusIcon,
+  FolderPlusIcon,
+  FolderTreeIcon,
+  SettingsIcon,
+  Trash2Icon,
+} from "lucide-react";
 import { useState } from "react";
 import { platformShortcutModifier } from "../global-shortcuts";
 import {
@@ -73,6 +79,7 @@ export interface SidebarRailContentProps {
   ops: TreeOps;
   onSyncNow: () => void;
   onOpenSettings: () => void;
+  onOpenTrash: () => void;
   onOpenSearch: () => void;
 }
 
@@ -82,6 +89,7 @@ export function SidebarRailContent({
   ops,
   onSyncNow,
   onOpenSettings,
+  onOpenTrash,
   onOpenSearch,
 }: SidebarRailContentProps) {
   const treeQuery = useVaultTree();
@@ -191,9 +199,14 @@ export function SidebarRailContent({
       </SidebarContent>
       <SidebarFooter className="flex-row items-center justify-between">
         <SyncStatusRow onSyncNow={onSyncNow} />
-        <Button variant="ghost" size="icon-sm" aria-label="Settings" onClick={onOpenSettings}>
-          <SettingsIcon className="size-4 text-muted-foreground" />
-        </Button>
+        <div className="flex items-center">
+          <Button variant="ghost" size="icon-sm" aria-label="Trash" onClick={onOpenTrash}>
+            <Trash2Icon className="size-4 text-muted-foreground" />
+          </Button>
+          <Button variant="ghost" size="icon-sm" aria-label="Settings" onClick={onOpenSettings}>
+            <SettingsIcon className="size-4 text-muted-foreground" />
+          </Button>
+        </div>
       </SidebarFooter>
     </>
   );

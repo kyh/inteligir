@@ -1,5 +1,10 @@
 /* Geist + the theme tokens both come from @repo/ui/globals.css. */
 @import "@repo/ui/globals.css";
+@import "./print.css";
+/* The editor package renders inside this app but is outside its scan root,
+   so its classes only exist when named here — an editor-only utility (the
+   drag gutter's -left-11, print:block) otherwise silently never generates. */
+@source "../../../../packages/editor/src/**/*.{ts,tsx}";
 
 :root {
   /* The editor's appearance, in the tokens `@repo/editor`'s theme already

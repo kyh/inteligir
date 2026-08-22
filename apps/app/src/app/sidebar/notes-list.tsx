@@ -20,7 +20,7 @@ import { useWorkspace } from "../workspace-context";
 type FileEntry = Extract<VaultTreeResponse["entries"][number], { kind: "file" }>;
 
 /** "Just now" → minutes → hours → days → a date. One vocabulary, sidebar-wide. */
-function relativeTimeLabel(modifiedMs: number, now: number): string {
+export function relativeTimeLabel(modifiedMs: number, now: number): string {
   const elapsed = now - modifiedMs;
   if (elapsed < 60_000) return "Just now";
   if (elapsed < 3_600_000) return `${String(Math.floor(elapsed / 60_000))}m ago`;

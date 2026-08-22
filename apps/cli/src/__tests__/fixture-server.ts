@@ -251,6 +251,55 @@ function createFixtureApp(state: FixtureState): Hono {
     return c.json({ ok: true });
   });
   post(apiRoutes.vault.mkdir, (c, body) => c.json({ path: body.path }));
+  get(apiRoutes.vault.trashList, (c) =>
+    c.json({
+      entries: [...state.vault.keys()]
+        .filter((path) => path.startsWith("Trash/") && path.endsWith(".md"))
+        .map((path) => ({ path, trashedAt: null, trashedFrom: null })),
+    }),
+  );
+  post(apiRoutes.vault.trash, (c, body) => {
+    const content = state.vault.get(body.path);
+    if (content === undefined) {
+      return c.json({ error: "not_found", message: `No file at ${body.path}` }, 404);
+    }
+    state.vault.delete(body.path);
+    const target = `Trash/${body.path}`;
+    state.vault.set(target, content);
+    return c.json({ path: target });
+  });
+  post(apiRoutes.vault.trashRestore, (c, body) => {
+    const content = state.vault.get(body.path);
+    if (content === undefined) {
+      return c.json({ error: "not_found", message: `No file at ${body.path}` }, 404);
+    }
+    state.vault.delete(body.path);
+    const target = body.path.replace(/^Trash\//, "");
+    state.vault.set(target, content);
+    return c.json({ path: target });
+  });
+  post(apiRoutes.vault.trashPurge, (c, body) => {
+    if (!state.vault.delete(body.path)) {
+      return c.json({ error: "not_found", message: `No file at ${body.path}` }, 404);
+    }
+    return c.json({ ok: true });
+  });
+  post(apiRoutes.vault.importMoss, (c, body) =>
+    c.json({
+      dryRun: body.dryRun,
+      scanned: 2,
+      changed: 1,
+      files: [
+        {
+          path: "notes/hello.md",
+          bodyChanged: true,
+          sidecarChanged: false,
+          notes: ["1 legacy comment range(s) modernized"],
+        },
+      ],
+      warnings: [],
+    }),
+  );
   get(apiRoutes.vault.status, (c) => c.json(state.vaultStatus));
   post(apiRoutes.vault.syncNow, (c) => c.json(state.vaultStatus));
 

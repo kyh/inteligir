@@ -28,6 +28,10 @@ export const LEAF_INVOCATIONS = new Map<string, readonly string[]>([
   ["vault rename", ["vault", "rename", "notes/hello.md", "notes/renamed.md"]],
   ["vault delete", ["vault", "delete", "notes/hello.md"]],
   ["vault mkdir", ["vault", "mkdir", "projects"]],
+  ["trash list", ["trash", "list"]],
+  ["trash put", ["trash", "put", "notes/hello.md"]],
+  ["trash restore", ["trash", "restore", "Trash/notes/hello.md"]],
+  ["trash purge", ["trash", "purge", "Trash/notes/hello.md"]],
   ["vault status", ["vault", "status"]],
   ["vault sync", ["vault", "sync"]],
   ["search", ["search", "hello"]],
@@ -53,6 +57,7 @@ export const LEAF_INVOCATIONS = new Map<string, readonly string[]>([
   ["sync status", ["sync", "status"]],
   ["sync pair", ["sync", "pair"]],
   ["sync push", ["sync", "push"]],
+  ["import-moss", ["import-moss", "--dry-run"]],
   ["status", ["status"]],
   ["guide", ["guide"]],
 ]);

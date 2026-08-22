@@ -177,6 +177,19 @@ export function VaultProvider({
     };
 
     const remove = async (path: string): Promise<DeleteVaultEntryResult> => {
+      // A note deletes into the vault's Trash/ (Moss's shape — restorable for
+      // 30 days); anything else, and anything already in the trash, deletes
+      // for real. The port answers "trashed" either way: the session only
+      // needs to know the row is gone from the listing.
+      const isNote = path.toLowerCase().endsWith(".md");
+      const inTrash = path === "Trash" || path.startsWith("Trash/");
+      if (isNote && !inTrash) {
+        const response = await api.vault.trash.$post({ json: { path } });
+        if (response.ok) return { outcome: "trashed" };
+        if (response.status === 404) return { outcome: "absent" };
+        const body = await response.json();
+        throw new Error(`trash ${path}: ${body.error}`);
+      }
       const response = await api.vault.delete.$post({ json: { path } });
       if (response.ok) return { outcome: "trashed" };
       if (response.status === 404) return { outcome: "absent" };

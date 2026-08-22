@@ -37,6 +37,9 @@ export const queryKeys = {
   memory: ["memory"] as const,
   vaultTree: ["vault", "tree"] as const,
   vaultStatus: ["vault", "status"] as const,
+  /** The trash listing — swept with the tree, since a trash entry only moves
+   *  when files do. */
+  vaultTrash: ["vault", "trash"] as const,
   /** The whole knowledge family — what any content or file change sweeps.
    *  Every member is derived from bytes OTHER than the note it is asked
    *  about: a link into a note lives in someone else's (or, for a self-link,

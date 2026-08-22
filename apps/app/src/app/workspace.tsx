@@ -24,6 +24,7 @@ import { setAgentRequestActions } from "@repo/editor/agent-request";
 import { EditorPane } from "@repo/editor/editor-pane";
 import { flushOpenNote } from "@repo/editor/note/open-note-flush";
 import { openNoteState } from "@repo/editor/note/open-note-store";
+import { exportNoteAsPdf, printTitleForPath } from "./note/export-pdf";
 import type { VaultActions } from "@repo/editor/host";
 import { dailyNotePath, dailyNoteTemplate } from "./note/daily";
 import { readNoteViewContext } from "./note/note-view-context";
@@ -35,6 +36,7 @@ import {
   type NoteSearchSource,
 } from "./palette/note-search";
 import { SettingsDialog } from "./settings/settings-dialog";
+import { TrashDialog } from "./sidebar/trash-dialog";
 import {
   Sidebar,
   SidebarInset,
@@ -74,6 +76,7 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
   // `#tag` chip click sets it to that tag's `tag:` term.
   const [paletteQuery, setPaletteQuery] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [trashOpen, setTrashOpen] = useState(false);
   // Read once: the platform does not change under a running window.
   const [shortcutModifier] = useState(platformShortcutModifier);
 
@@ -234,7 +237,7 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
             body:
               kind === "dir"
                 ? "Everything inside it is deleted with it."
-                : "The note is removed from the vault.",
+                : "It moves to Trash and is kept for 30 days.",
             confirmLabel: "Delete",
             destructive: true,
           });
@@ -351,8 +354,15 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
       openThread,
       syncNow,
       openSettings: onOpenSettings,
+      openTrash: () => setTrashOpen(true),
+      exportPdf:
+        openNote === null
+          ? null
+          : () => {
+              exportNoteAsPdf(printTitleForPath(openNote));
+            },
     }),
-    [setOpenNote, newUntitledNote, openDailyNote, openThread, syncNow, onOpenSettings],
+    [setOpenNote, newUntitledNote, openDailyNote, openThread, syncNow, onOpenSettings, openNote],
   );
 
   const threads = threadsQuery.data?.threads ?? EMPTY_THREADS;
@@ -360,7 +370,7 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
   return (
     <VaultProvider initialPath={openNote} onOpenPath={onOpenNote} actionsRef={actionsRef}>
       <SidebarProvider
-        className="h-dvh overflow-hidden bg-surface text-ink"
+        className="h-dvh overflow-hidden bg-surface text-ink print:h-auto print:overflow-visible"
         open={railOpen && !zen}
         onOpenChange={(nextOpen) => {
           if (nextOpen) {
@@ -373,13 +383,16 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
         width={initialSidebarWidth}
       >
         <SidebarWidthPersistence />
-        <Sidebar variant="floating">
+        <Sidebar variant="floating" className="print:hidden">
           <SidebarRailContent
             openPath={openNote}
             onOpenFile={setOpenNote}
             ops={treeOps}
             onSyncNow={syncNow}
             onOpenSettings={onOpenSettings}
+            onOpenTrash={() => {
+              setTrashOpen(true);
+            }}
             onOpenSearch={() => {
               setPaletteQuery("");
               setPaletteOpen(true);
@@ -387,10 +400,10 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
           />
         </Sidebar>
         <SidebarInset className="relative bg-surface">
-          <div className="absolute top-2 left-2 z-10">
+          <div className="absolute top-2 left-2 z-10 print:hidden">
             <SidebarTrigger />
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto">
+          <div className="min-h-0 flex-1 overflow-y-auto print:overflow-visible">
             <EditorPane />
           </div>
           <ActionComposer
@@ -403,7 +416,10 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
           />
         </SidebarInset>
         <aside
-          className={cn("w-80 shrink-0 border-l border-line bg-surface-inset", zen && "hidden")}
+          className={cn(
+            "w-80 shrink-0 border-l border-line bg-surface-inset print:hidden",
+            zen && "hidden",
+          )}
         >
           <ActionsPanel
             docPath={openNote}
@@ -424,6 +440,7 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
           actions={paletteActions}
         />
         <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} onSyncNow={syncNow} />
+        <TrashDialog open={trashOpen} onOpenChange={setTrashOpen} onOpenNote={setOpenNote} />
         <ConfirmDialogHost />
         <Toaster position="bottom-right" />
       </SidebarProvider>
