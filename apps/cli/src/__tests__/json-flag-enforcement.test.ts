@@ -54,13 +54,11 @@ function seedFixture(state: FixtureState): void {
     { path: "notes/nearby.md", title: "Nearby", score: 3, reasons: ["shares #project"] },
   ];
   state.connectors = {
-    state: "ready",
     servers: [
       {
         name: "context7",
         enabled: true,
-        transport: { kind: "http", url: "https://mcp.context7.com/mcp" },
-        authStatus: "not_logged_in",
+        transport: { kind: "http", url: "https://mcp.context7.com/mcp", hasAuth: true },
       },
     ],
   };

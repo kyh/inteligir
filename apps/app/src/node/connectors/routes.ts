@@ -1,48 +1,16 @@
 // The connector routes, registered against the contract rows. The service
-// decides; this layer only says which refusal class each of its throws answers
-// with.
-//
-// Both writes switch EXHAUSTIVELY over the refusal set — including the class
-// their own row does not declare, which rethrows into the API's generic 500.
-// That is the point: `add` can never refuse "no such connector" and `remove`
-// can never refuse "already configured", and a fourth class arriving is a
-// compile error at both, which is where "what does THIS route answer for it"
-// has to be decided.
+// decides; this layer only says which refusal class each throw answers with.
+// Each write switches EXHAUSTIVELY over the refusal set — including the class
+// its own row does not declare, which rethrows into the API's generic 500, so
+// a new class arriving is decided per route rather than defaulted.
 
 import { connectorRoutes } from "@repo/server-contract/connectors";
-import { API_ERROR_STATUS, type ApiErrorResponse } from "@repo/server-contract/errors";
+import { API_ERROR_STATUS } from "@repo/server-contract/errors";
 import type { TypedRoutesRegistrars } from "@repo/typed-routes/typed-routes";
-import { CodexMcpError } from "./codex-mcp";
-import {
-  ConnectorConflictError,
-  ConnectorsUnavailableError,
-  type ConnectorsService,
-} from "./connectors-service";
+import { ConnectorConflictError, type ConnectorsService } from "./connectors-service";
 
-/**
- * Why a write refused, or null when the error is not one this layer owns.
- * `CodexMcpError` folds into `unavailable` alongside a missing binary
- * deliberately: from the caller's side "codex is not installed" and "codex
- * refused to run" are the same unusable capability, and the message is what
- * tells them apart.
- */
-type WriteRefusal =
-  | { kind: "already-exists"; message: string }
-  | { kind: "not-found"; message: string }
-  | { kind: "unavailable"; message: string };
-
-function refusalFor(cause: unknown): WriteRefusal | null {
-  if (cause instanceof ConnectorConflictError) {
-    return { kind: cause.kind, message: cause.message };
-  }
-  if (cause instanceof ConnectorsUnavailableError || cause instanceof CodexMcpError) {
-    return { kind: "unavailable", message: cause.message };
-  }
-  return null;
-}
-
-function unavailableBody(message: string): ApiErrorResponse {
-  return { error: "provider_unavailable", message };
+function refusalFor(cause: unknown): ConnectorConflictError | null {
+  return cause instanceof ConnectorConflictError ? cause : null;
 }
 
 export function registerConnectorRoutes(
@@ -51,11 +19,11 @@ export function registerConnectorRoutes(
 ): void {
   const { get, post } = registrars;
 
-  get(connectorRoutes.list, async (c) => c.json(await service.list()));
+  get(connectorRoutes.list, (c) => c.json({ servers: service.list() }));
 
-  post(connectorRoutes.add, async (c, body) => {
+  post(connectorRoutes.add, (c, body) => {
     try {
-      return c.json({ servers: await service.add(body) });
+      return c.json({ servers: service.add(body) });
     } catch (error) {
       const refusal = refusalFor(error);
       switch (refusal?.kind) {
@@ -64,8 +32,6 @@ export function registerConnectorRoutes(
             { error: "already_exists", message: refusal.message },
             API_ERROR_STATUS.already_exists,
           );
-        case "unavailable":
-          return c.json(unavailableBody(refusal.message), API_ERROR_STATUS.provider_unavailable);
         case "not-found":
         case undefined:
           throw error;
@@ -73,9 +39,9 @@ export function registerConnectorRoutes(
     }
   });
 
-  post(connectorRoutes.remove, async (c, body) => {
+  post(connectorRoutes.update, (c, body) => {
     try {
-      return c.json({ servers: await service.remove(body.name) });
+      return c.json({ servers: service.update(body) });
     } catch (error) {
       const refusal = refusalFor(error);
       switch (refusal?.kind) {
@@ -84,8 +50,42 @@ export function registerConnectorRoutes(
             { error: "not_found", message: refusal.message },
             API_ERROR_STATUS.not_found,
           );
-        case "unavailable":
-          return c.json(unavailableBody(refusal.message), API_ERROR_STATUS.provider_unavailable);
+        case "already-exists":
+        case undefined:
+          throw error;
+      }
+    }
+  });
+
+  post(connectorRoutes.remove, (c, body) => {
+    try {
+      return c.json({ servers: service.remove(body.name) });
+    } catch (error) {
+      const refusal = refusalFor(error);
+      switch (refusal?.kind) {
+        case "not-found":
+          return c.json(
+            { error: "not_found", message: refusal.message },
+            API_ERROR_STATUS.not_found,
+          );
+        case "already-exists":
+        case undefined:
+          throw error;
+      }
+    }
+  });
+
+  post(connectorRoutes.toggle, (c, body) => {
+    try {
+      return c.json({ servers: service.toggle(body.name, body.enabled) });
+    } catch (error) {
+      const refusal = refusalFor(error);
+      switch (refusal?.kind) {
+        case "not-found":
+          return c.json(
+            { error: "not_found", message: refusal.message },
+            API_ERROR_STATUS.not_found,
+          );
         case "already-exists":
         case undefined:
           throw error;

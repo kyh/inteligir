@@ -124,7 +124,7 @@ export function makeFixtureState(): FixtureState {
     tags: [],
     backlinks: [],
     related: [],
-    connectors: { state: "ready", servers: [] },
+    connectors: { servers: [] },
     cloud: { state: "off", cloudUrl: FIXTURE_CLOUD_URL },
     threads: [],
     proposals: [],
@@ -314,6 +314,47 @@ function createFixtureApp(state: FixtureState): Hono {
   });
 
   get(apiRoutes.connectors.list, (c) => c.json(state.connectors));
+  post(apiRoutes.connectors.add, (c, body) => {
+    if (state.connectors.servers.some((row) => row.name === body.name)) {
+      return c.json({ error: "already_exists", message: `"${body.name}" exists` }, 409);
+    }
+    state.connectors.servers.push({
+      enabled: true,
+      name: body.name,
+      transport:
+        body.transport.kind === "stdio"
+          ? { args: body.transport.args, command: body.transport.command, kind: "stdio" }
+          : {
+              hasAuth: Object.keys(body.transport.headers ?? {}).length > 0,
+              kind: "http",
+              url: body.transport.url,
+            },
+    });
+    return c.json(state.connectors);
+  });
+  post(apiRoutes.connectors.remove, (c, body) => {
+    const before = state.connectors.servers.length;
+    state.connectors.servers = state.connectors.servers.filter((row) => row.name !== body.name);
+    if (state.connectors.servers.length === before) {
+      return c.json({ error: "not_found", message: `no connector ${body.name}` }, 404);
+    }
+    return c.json(state.connectors);
+  });
+  post(apiRoutes.connectors.update, (c, body) => {
+    const row = state.connectors.servers.find((candidate) => candidate.name === body.name);
+    if (row === undefined) {
+      return c.json({ error: "not_found", message: `no connector ${body.name}` }, 404);
+    }
+    return c.json(state.connectors);
+  });
+  post(apiRoutes.connectors.toggle, (c, body) => {
+    const row = state.connectors.servers.find((candidate) => candidate.name === body.name);
+    if (row === undefined) {
+      return c.json({ error: "not_found", message: `no connector ${body.name}` }, 404);
+    }
+    row.enabled = body.enabled;
+    return c.json(state.connectors);
+  });
 
   get(apiRoutes.cloud.status, (c) => c.json(state.cloud));
   // The real route opens a browser; this one never can, so `opened` mirrors

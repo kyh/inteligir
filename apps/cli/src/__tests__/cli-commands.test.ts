@@ -280,22 +280,19 @@ describe("knowledge commands", () => {
 });
 
 describe("connectors", () => {
-  it("names each server, what it runs, and codex's own state words", async () => {
+  it("names each server, what it runs, and its auth state", async () => {
     const state = seededState();
     state.connectors = {
-      state: "ready",
       servers: [
         {
           name: "files",
           enabled: true,
           transport: { kind: "stdio", command: "npx", args: ["-y", "server-files"] },
-          authStatus: null,
         },
         {
           name: "context7",
           enabled: false,
-          transport: { kind: "http", url: "https://mcp.context7.com/mcp" },
-          authStatus: "not_logged_in",
+          transport: { kind: "http", url: "https://mcp.context7.com/mcp", hasAuth: true },
         },
       ],
     };
@@ -305,19 +302,40 @@ describe("connectors", () => {
 
     expect(listed.stdout).toBe(
       "files  npx -y server-files  [enabled]\n" +
-        "context7  https://mcp.context7.com/mcp  [disabled not_logged_in]\n",
+        "context7  https://mcp.context7.com/mcp  [disabled authenticated]\n",
     );
   });
 
-  it("states why there is nothing to list rather than printing an empty one", async () => {
-    const state = seededState();
-    state.connectors = { state: "unavailable", detail: "The codex binary was not found on PATH" };
-    const server = await boot(state);
+  it("adds and removes through the registry routes", async () => {
+    const server = await boot(seededState());
 
-    const listed = await runCliForTest({ argv: ["connectors", "list"], baseUrl: server.baseUrl });
+    const added = await runCliForTest({
+      argv: [
+        "connectors",
+        "add",
+        "exa",
+        "--url",
+        "https://mcp.exa.ai/mcp",
+        "--header",
+        "x-api-key=sk-test",
+        "--json",
+      ],
+      baseUrl: server.baseUrl,
+    });
+    expect(added.code).toBe(0);
+    expect(added.stdout).not.toContain("sk-test");
 
-    expect(listed.code).toBe(0);
-    expect(listed.stdout).toContain("The codex binary was not found on PATH");
+    const removed = await runCliForTest({
+      argv: ["connectors", "remove", "exa", "--json"],
+      baseUrl: server.baseUrl,
+    });
+    expect(removed.code).toBe(0);
+
+    const ghost = await runCliForTest({
+      argv: ["connectors", "remove", "exa", "--json"],
+      baseUrl: server.baseUrl,
+    });
+    expect(ghost.code).toBe(1);
   });
 });
 

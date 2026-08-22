@@ -56,7 +56,21 @@ export const slashMenuBrowser: Scenario = {
 
       ctx.log("putting the caret at the end of the paragraph and opening a fresh block");
       await agentBrowser(["find", "text", PARAGRAPH, "click"]);
-      await agentBrowser(["press", "End"]);
+      // The click parks the caret mid-text and End can race focus settling;
+      // an Enter from mid-paragraph SPLITS it and the block transform then
+      // eats the tail. Press End until the selection really sits at the
+      // paragraph's end before opening the fresh block.
+      const CARET_AT_END =
+        "String((() => { const sel = window.getSelection(); if (!sel || sel.rangeCount === 0) return false; const r = sel.getRangeAt(0); return r.collapsed && r.endContainer.textContent !== null && r.endOffset === r.endContainer.textContent.length; })())";
+      const caretDeadline = Date.now() + 15_000;
+      for (;;) {
+        await agentBrowser(["press", "End"]);
+        await delay(100);
+        if (parseEval(await agentBrowser(["eval", CARET_AT_END]), z.string()) === "true") {
+          break;
+        }
+        expect(Date.now() < caretDeadline, "the caret never reached the paragraph's end");
+      }
       await agentBrowser(["press", "Enter"]);
 
       ctx.log("typing the slash");
@@ -76,18 +90,25 @@ export const slashMenuBrowser: Scenario = {
       ctx.log("narrowing to one row by its query");
       await agentBrowser(["press", "h"]);
       await agentBrowser(["press", "2"]);
-      await delay(250);
-      const rows = parseEval(
-        await agentBrowser([
-          "eval",
-          "JSON.stringify([...document.querySelectorAll('[role=option]')].map((n) => n.textContent))",
-        ]),
-        z.array(z.string()),
-      );
-      expect(
-        rows.length === 1 && (rows[0] ?? "").startsWith("Heading 2"),
-        `the query left ${JSON.stringify(rows)}`,
-      );
+      // Narrowing re-renders the portal'd rows; under full-suite load one
+      // settle tick is not a bound, so poll to the same deadline the open
+      // does.
+      const narrowDeadline = Date.now() + 15_000;
+      let rows: string[] = [];
+      for (;;) {
+        rows = parseEval(
+          await agentBrowser([
+            "eval",
+            "JSON.stringify([...document.querySelectorAll('[role=option]')].map((n) => n.textContent))",
+          ]),
+          z.array(z.string()),
+        );
+        if (rows.length === 1 && (rows[0] ?? "").startsWith("Heading 2")) {
+          break;
+        }
+        expect(Date.now() < narrowDeadline, `the query left ${JSON.stringify(rows)}`);
+        await delay(250);
+      }
 
       ctx.log("Enter applies it, and typing lands inside the new heading");
       await agentBrowser(["press", "Enter"]);

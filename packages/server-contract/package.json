@@ -12,7 +12,6 @@
     "./connectors": "./src/connectors.ts",
     "./errors": "./src/errors.ts",
     "./knowledge": "./src/knowledge.ts",
-    "./memory": "./src/memory.ts",
     "./notifications": "./src/notifications.ts",
     "./proposals": "./src/proposals.ts",
     "./routes": "./src/routes.ts",

@@ -14,7 +14,7 @@ import {
   type HarnessDefinition,
 } from "@repo/agent-runtime/acp/harness-registry";
 
-export type CredentialPresence = "present" | "absent" | "unknown";
+type CredentialPresence = "present" | "absent" | "unknown";
 
 export interface HarnessProbe {
   id: string;

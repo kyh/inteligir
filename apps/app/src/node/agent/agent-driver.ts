@@ -51,7 +51,7 @@ export function codexBinaryOnPath(env: NodeJS.ProcessEnv): string | null {
   return harnessBinaryOnPath("codex", env);
 }
 
-export function harnessBinaryOnPath(name: string, env: NodeJS.ProcessEnv): string | null {
+function harnessBinaryOnPath(name: string, env: NodeJS.ProcessEnv): string | null {
   const pathValue = env.PATH ?? "";
   for (const dir of pathValue.split(delimiter)) {
     if (dir.length === 0) {

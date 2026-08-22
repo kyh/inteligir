@@ -1,33 +1,27 @@
-// The policy over `codex mcp` (codex-mcp.ts is the process seam). Three
-// decisions live here and nowhere else:
+// The registry's policy over the store (issue #591). Three decisions live
+// here and nowhere else:
 //
-// - THE READ NEVER REFUSES. A missing codex, or a codex that could not be
-//   driven, is an ANSWER — `{ state: "unavailable", detail }` — because
-//   "which connectors are configured" is a question with a true answer in
-//   both cases. A write has no such answer and throws.
-// - ADD REFUSES A NAME THAT EXISTS. `codex mcp add` overwrites silently and
-//   exits 0, so without a read-then-refuse a user re-using a name would
-//   replace a server they configured and be told it worked. The check is not
-//   atomic and cannot be (the CLI has no such flag); what it buys is that the
-//   ordinary mistake is refused rather than applied.
-// - REMOVE REFUSES A NAME THAT DOES NOT EXIST. `codex mcp remove` prints
-//   "No MCP server named …" and exits 0, so a typo would otherwise read as a
-//   successful removal.
+// - EVERY READ IS REDACTED. Header values reduce to `hasAuth`; the full rows
+//   leave this module only through `enabledForSessions()`, whose one caller
+//   is session launch.
+// - ADD REFUSES A NAME THAT EXISTS (409) and UPDATE/REMOVE/TOGGLE REFUSE ONE
+//   THAT DOES NOT (404) — the same two guards the codex driver stated, now
+//   genuinely this app's.
+// - AN UPDATE THAT OMITS HEADERS KEEPS THE STORED ONES, so editing a URL
+//   never forces re-pasting a key and no client round-trips a secret.
 
 import type {
-  Connector,
   ConnectorAddRequest,
-  ConnectorsResponse,
+  ConnectorTransportInput,
+  ConnectorUpdateRequest,
+  ConnectorView,
 } from "@repo/server-contract/connectors";
-import { codexMcpArgs, CodexMcpError, parseCodexMcpList, type CodexMcpRunner } from "./codex-mcp";
 
-/** The sentence a caller sees when codex is not installed. Shaped like the
- *  agent driver's own, because it is the same fact about the same machine. */
-const NO_CODEX_DETAIL =
-  "The codex binary was not found on PATH — connectors are the MCP servers Codex manages, so installing the Codex CLI is what adds them";
-
-/** Raised by a WRITE when codex cannot be driven; the read answers instead. */
-export class ConnectorsUnavailableError extends Error {}
+import {
+  type ConnectorsStore,
+  type StoredConnector,
+  type StoredTransport,
+} from "./connectors-store";
 
 /** A write refused because of what is (or is not) already configured. */
 export class ConnectorConflictError extends Error {
@@ -39,66 +33,117 @@ export class ConnectorConflictError extends Error {
   }
 }
 
-export interface ConnectorsService {
-  list(): Promise<ConnectorsResponse>;
-  add(request: ConnectorAddRequest): Promise<Connector[]>;
-  remove(name: string): Promise<Connector[]>;
+/** One MCP server as session launch consumes it — full headers, enabled only. */
+interface SessionMcpServer {
+  name: string;
+  transport: StoredTransport;
 }
 
-export function createConnectorsService(runner: CodexMcpRunner): ConnectorsService {
-  /** The listing, or a thrown reason — the shared half of every operation. */
-  const readServers = async (binary: string): Promise<Connector[]> =>
-    parseCodexMcpList(await runner.run(binary, codexMcpArgs.list()));
+export interface ConnectorsService {
+  list(): ConnectorView[];
+  add(request: ConnectorAddRequest): ConnectorView[];
+  update(request: ConnectorUpdateRequest): ConnectorView[];
+  remove(name: string): ConnectorView[];
+  toggle(name: string, enabled: boolean): ConnectorView[];
+  /** The UNREDACTED enabled rows, for composing a session's mcpServers. */
+  enabledForSessions(): SessionMcpServer[];
+}
 
-  const requireBinary = (): string => {
-    const binary = runner.binaryPath();
-    if (binary === null) {
-      throw new ConnectorsUnavailableError(NO_CODEX_DETAIL);
+function toView(row: StoredConnector): ConnectorView {
+  if (row.transport.kind === "stdio") {
+    return {
+      enabled: row.enabled,
+      name: row.name,
+      transport: { args: row.transport.args, command: row.transport.command, kind: "stdio" },
+    };
+  }
+  return {
+    enabled: row.enabled,
+    name: row.name,
+    transport: {
+      hasAuth: Object.keys(row.transport.headers ?? {}).length > 0,
+      kind: "http",
+      url: row.transport.url,
+    },
+  };
+}
+
+function toStoredTransport(
+  input: ConnectorTransportInput,
+  previous: StoredTransport | undefined,
+): StoredTransport {
+  if (input.kind === "stdio") {
+    return { args: input.args, command: input.command, kind: "stdio" };
+  }
+  const kept =
+    input.headers ??
+    (previous !== undefined && previous.kind === "http" ? previous.headers : undefined);
+  const next: StoredTransport = { kind: "http", url: input.url };
+  if (kept !== undefined && Object.keys(kept).length > 0) {
+    next.headers = kept;
+  }
+  return next;
+}
+
+export function createConnectorsService(store: ConnectorsStore): ConnectorsService {
+  const requireRow = (servers: StoredConnector[], name: string): StoredConnector => {
+    const row = servers.find((candidate) => candidate.name === name);
+    if (row === undefined) {
+      throw new ConnectorConflictError("not-found", `No connector named "${name}" is configured`);
     }
-    return binary;
+    return row;
   };
 
   return {
-    async list() {
-      const binary = runner.binaryPath();
-      if (binary === null) {
-        return { state: "unavailable", detail: NO_CODEX_DETAIL };
-      }
-      try {
-        return { state: "ready", servers: await readServers(binary) };
-      } catch (error) {
-        if (error instanceof CodexMcpError) {
-          return { state: "unavailable", detail: error.message };
-        }
-        throw error;
-      }
+    list(): ConnectorView[] {
+      return store.read().map(toView);
     },
 
-    async add(request) {
-      const binary = requireBinary();
-      const existing = await readServers(binary);
-      if (existing.some((server) => server.name === request.name)) {
+    add(request: ConnectorAddRequest): ConnectorView[] {
+      const servers = store.read();
+      if (servers.some((row) => row.name === request.name)) {
         throw new ConnectorConflictError(
           "already-exists",
-          `A connector named "${request.name}" is already configured.`,
+          `A connector named "${request.name}" already exists — remove it first, or pick another name`,
         );
       }
-      const args =
-        request.transport.kind === "stdio"
-          ? codexMcpArgs.addStdio(request.name, request.transport.command, request.transport.args)
-          : codexMcpArgs.addHttp(request.name, request.transport.url);
-      await runner.run(binary, args);
-      return readServers(binary);
+      servers.push({
+        enabled: true,
+        name: request.name,
+        transport: toStoredTransport(request.transport, undefined),
+      });
+      store.write(servers);
+      return servers.map(toView);
     },
 
-    async remove(name) {
-      const binary = requireBinary();
-      const existing = await readServers(binary);
-      if (!existing.some((server) => server.name === name)) {
-        throw new ConnectorConflictError("not-found", `No connector named "${name}".`);
-      }
-      await runner.run(binary, codexMcpArgs.remove(name));
-      return readServers(binary);
+    update(request: ConnectorUpdateRequest): ConnectorView[] {
+      const servers = store.read();
+      const row = requireRow(servers, request.name);
+      row.transport = toStoredTransport(request.transport, row.transport);
+      store.write(servers);
+      return servers.map(toView);
+    },
+
+    remove(name: string): ConnectorView[] {
+      const servers = store.read();
+      requireRow(servers, name);
+      const remaining = servers.filter((row) => row.name !== name);
+      store.write(remaining);
+      return remaining.map(toView);
+    },
+
+    toggle(name: string, enabled: boolean): ConnectorView[] {
+      const servers = store.read();
+      requireRow(servers, name).enabled = enabled;
+      store.write(servers);
+      return servers.map(toView);
+    },
+
+    enabledForSessions(): SessionMcpServer[] {
+      return store
+        .read()
+        .filter((row) => row.enabled)
+        .map((row) => ({ name: row.name, transport: row.transport }));
     },
   };
 }

@@ -48,6 +48,8 @@ export const LEAF_INVOCATIONS = new Map<string, readonly string[]>([
   ["interactions list", ["interactions", "list"]],
   ["interactions answer", ["interactions", "answer", "int_1", "allow_once"]],
   ["connectors list", ["connectors", "list"]],
+  ["connectors add", ["connectors", "add", "exa2", "--url", "https://mcp.exa.ai/mcp"]],
+  ["connectors remove", ["connectors", "remove", "context7"]],
   ["sync status", ["sync", "status"]],
   ["sync pair", ["sync", "pair"]],
   ["sync push", ["sync", "push"]],

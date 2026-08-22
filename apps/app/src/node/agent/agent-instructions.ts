@@ -23,7 +23,7 @@ command takes \`--json\`.`;
 /** Appended when the vendored dialect skills resolved: notes here persist the
  *  Moss dialect, and the skills are its first-party spec — three sentences of
  *  pointer, never the spec itself (the per-turn cost rule above). */
-export const SKILLS_POINTER_INSTRUCTIONS = `Notes in this vault use the Moss markdown dialect \
+const SKILLS_POINTER_INSTRUCTIONS = `Notes in this vault use the Moss markdown dialect \
 (wiki links, {{formula}} pills, %%m:id%% comment anchors, moss-* fenced blocks). \
 The dialect's own skills live in $INTELIGIR_SKILLS_DIR — read the relevant \
 SKILL.md there (moss-notes first) before authoring or editing constructs, and \
