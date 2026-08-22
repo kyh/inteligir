@@ -34,6 +34,11 @@ import {
   type WorkspaceBoot,
 } from "@repo/editor/note/vault-session";
 import { useVaultActions } from "@repo/editor/host";
+import {
+  collectFormulas,
+  noteIdOf,
+  type CollectedFormula,
+} from "@repo/notes/formulas/collect-formulas";
 import { buildResolver } from "@repo/notes/knowledge/link-resolve";
 import { diff3 } from "@repo/notes/text/diff3";
 import type { KnowledgeWikiTargetsResponse } from "@repo/server-contract/knowledge";
@@ -114,6 +119,11 @@ export function VaultProvider({
   // outside render, so a ref keeps them honest without re-subscribing.
   const rootRef = useRef("");
   const entriesRef = useRef<VaultEntry[]>([]);
+  // The bound-ref scan cache (readNoteFormulas below); dropped whole on any
+  // vault change.
+  const formulaScanRef = useRef<Promise<
+    Map<string, { path: string; formulas: CollectedFormula[] }>
+  > | null>(null);
 
   // Alias-carrying wiki targets from the knowledge index — the same alias
   // source backlinks resolve with, so chips and the picker agree. Refreshed on
@@ -259,6 +269,7 @@ export function VaultProvider({
   useEffect(
     () =>
       docEvents.subscribe((docId) => {
+        formulaScanRef.current = null;
         session.handleVaultChanged({
           root: rootRef.current,
           changed: docId === null ? null : { upserted: [docId], removed: [] },
@@ -369,6 +380,30 @@ export function VaultProvider({
           }
           return row;
         });
+      },
+      // Bound-reference resolution: which note carries frontmatter id X, and
+      // what formulas it holds. Lazily scans the vault's docs ONCE (bound
+      // refs are rare), caches by note id, and drops the cache whole on any
+      // files-changed ping — correctness over cleverness, stated cost.
+      readNoteFormulas: async ({ noteId }) => {
+        let scan = formulaScanRef.current;
+        if (scan === null) {
+          scan = (async () => {
+            const byId = new Map<string, { path: string; formulas: CollectedFormula[] }>();
+            for (const entry of entriesRef.current) {
+              if (entry.kind !== "doc") continue;
+              const content = await readFile(api, entry.path).catch(() => null);
+              if (content === null) continue;
+              const id = noteIdOf(content);
+              if (id !== null && !byId.has(id)) {
+                byId.set(id, { formulas: collectFormulas(content), path: entry.path });
+              }
+            }
+            return byId;
+          })();
+          formulaScanRef.current = scan;
+        }
+        return (await scan).get(noteId) ?? null;
       },
       // Outgoing links are on screen in the document (decision) — nothing
       // mounted asks for them.

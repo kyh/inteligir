@@ -1,3 +1,4 @@
+import type { CollectedFormula } from "@repo/notes/formulas/collect-formulas";
 import type {
   BacklinkEntry,
   ForwardLinkEntry,
@@ -108,6 +109,12 @@ export type EditorHostIo = {
    * then attachments. */
   listWikiTargets(): Promise<WikiTarget[]>;
   getBacklinks(payload: { path: string }): Promise<BacklinkEntry[]>;
+  /** A note's collected formulas by its frontmatter id (bound-reference
+   * resolution) — null when no note carries that id. */
+  readNoteFormulas(payload: { noteId: string }): Promise<{
+    path: string;
+    formulas: CollectedFormula[];
+  } | null>;
   getForwardLinks(payload: { path: string }): Promise<ForwardLinkEntry[]>;
   onVaultChanged(listener: (event: VaultChangedEvent) => void): () => void;
   onKnowledgeUpdated(listener: () => void): () => void;

@@ -3,17 +3,35 @@
 // owns (that file states the round-trip contract; the vendored moss-skills
 // state the grammar).
 //
-//   {{source|display|meta}}  → mossFormula   — a computed pill; shows the
-//     display half (the persisted result), falling back to the source.
-//     Evaluation, editing and the typeahead land with the formulas engine
-//     (#585) — until then the pill is faithful, read-only rendering.
+//   {{source|display|meta}}  → mossFormula   — a computed pill: display half
+//     first (the persisted result), source as the fallback. Click edits over
+//     the entry grammar; Backspace on a selected pill converts it back to
+//     text; typing `{{…}}` completes a pill (the wiki `]]` rule's sibling);
+//     `stale=1` metadata renders an amber hint. Evaluation itself lives in
+//     formulas/formula-recompute.ts.
 //   %%m:ids:start/end%%      → mossCommentMarker — an anchored-comment
 //     boundary. Renders nothing visible: the marker is plumbing for the
 //     comment surface (#583), and drawing brackets in prose would put the
 //     mechanism where the annotation belongs. The bytes stay exact.
 
-import { createSlatePlugin } from "platejs";
+import { useState } from "react";
+import {
+  KEYS,
+  createSlatePlugin,
+  NodeApi,
+  TextApi,
+  type SlateEditor,
+  type TElement,
+} from "platejs";
 import { PlateElement, type PlateElementProps } from "platejs/react";
+
+import { parseFormulaRaw } from "@repo/notes/markdown/remark-moss-inline";
+import { parseFormulaMeta } from "@repo/notes/formulas/formula-meta";
+import { cn } from "@repo/ui/lib/utils";
+
+import { insertVoidAndEscape } from "@repo/editor/insert-void";
+import { convertFormulaToText, FormulaEditPopover } from "@repo/editor/formulas/formula-edit";
+import { formulaPropsFromEntry, formulaNodeFrom } from "@repo/editor/formulas/formula-entry";
 
 const mossFormulaBasePlugin = createSlatePlugin({
   key: "mossFormula",
@@ -34,14 +52,43 @@ function formulaLabel(element: PlateElementProps["element"]): string {
 }
 
 function MossFormulaElement(props: PlateElementProps) {
+  const [editing, setEditing] = useState(false);
+  const meta = parseFormulaMeta(
+    typeof props.element.meta === "string" && props.element.meta !== ""
+      ? props.element.meta
+      : undefined,
+  );
   return (
-    <PlateElement {...props} as="span" className="inline-block">
+    <PlateElement {...props} as="span" className="relative inline-block">
       <span
         contentEditable={false}
-        className="cursor-default rounded-sm bg-accent px-1 font-medium text-accent-foreground tabular-nums"
+        role="button"
+        tabIndex={-1}
+        title={
+          meta.stale
+            ? "Stale: a referenced variable is missing or cyclic"
+            : typeof props.element.source === "string"
+              ? props.element.source
+              : ""
+        }
+        className={cn(
+          "cursor-pointer rounded-sm bg-accent px-1 font-medium text-accent-foreground tabular-nums",
+          meta.stale && "underline decoration-amber-500 decoration-dotted underline-offset-2",
+        )}
+        onClick={() => {
+          setEditing(true);
+        }}
       >
         {formulaLabel(props.element)}
       </span>
+      {editing ? (
+        <FormulaEditPopover
+          element={props.element}
+          onClose={() => {
+            setEditing(false);
+          }}
+        />
+      ) : null}
       {props.children}
     </PlateElement>
   );
@@ -56,7 +103,76 @@ function MossCommentMarkerElement(props: PlateElementProps) {
   );
 }
 
+// This keystroke's `}` completes `{{body}}` (the buffer already holds
+// `{{body}`). A body carrying pipes is the PERSISTED grammar and completes
+// verbatim; a pipeless body runs the entry grammar — and a non-executable
+// anonymous entry stays literal text, exactly as typed.
+const FORMULA_COMPLETION_RE = /\{\{([^{}\n]+)\}$/u;
+
+function completeFormulaPill(editor: SlateEditor): boolean {
+  if (!editor.selection || !editor.api.isCollapsed()) return false;
+  if (editor.api.some({ match: { type: [editor.getType(KEYS.codeBlock)] } })) return false;
+  const { anchor } = editor.selection;
+  const leaf = NodeApi.get(editor, anchor.path);
+  if (!leaf || !TextApi.isText(leaf)) return false;
+  const match = FORMULA_COMPLETION_RE.exec(leaf.text.slice(0, anchor.offset));
+  if (!match) return false;
+  const [full, body] = match;
+  if (body === undefined || body === "") return false;
+  const props = body.includes("|")
+    ? { ...parseFormulaRaw(body), raw: body }
+    : formulaPropsFromEntry(body);
+  if (props === null) return false;
+  editor.tf.withoutNormalizing(() => {
+    editor.tf.delete({
+      at: {
+        anchor: { offset: anchor.offset - full.length, path: anchor.path },
+        focus: anchor,
+      },
+    });
+  });
+  insertVoidAndEscape(
+    editor,
+    formulaNodeFrom({
+      display: props.display,
+      meta: "meta" in props ? (props.meta ?? "") : "",
+      raw: props.raw,
+      source: props.source,
+    }),
+  );
+  return true;
+}
+
+/** The pill the caret sits inside (Slate parks a selected inline void's caret
+ * in its empty text child), or null. */
+function selectedFormula(editor: SlateEditor) {
+  if (!editor.selection || !editor.api.isCollapsed()) return null;
+  const entry = editor.api.above<TElement>({
+    at: editor.selection,
+    match: (node) => NodeApi.isNode(node) && "type" in node && node.type === "mossFormula",
+  });
+  return entry ?? null;
+}
+
 export const MossInlineKit = [
-  mossFormulaBasePlugin.withComponent(MossFormulaElement),
+  mossFormulaBasePlugin
+    .withComponent(MossFormulaElement)
+    .overrideEditor(({ editor, tf: { insertText, deleteBackward } }) => ({
+      transforms: {
+        deleteBackward(unit) {
+          const entry = selectedFormula(editor);
+          const node = entry?.[0];
+          if (node !== undefined && "type" in node && node.type === "mossFormula") {
+            convertFormulaToText(editor, node);
+            return;
+          }
+          deleteBackward(unit);
+        },
+        insertText(text, options) {
+          if (text === "}" && completeFormulaPill(editor)) return;
+          insertText(text, options);
+        },
+      },
+    })),
   mossCommentMarkerBasePlugin.withComponent(MossCommentMarkerElement),
 ];

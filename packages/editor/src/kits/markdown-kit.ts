@@ -18,6 +18,7 @@ import { MarkdownPlugin, getMergedOptionsDeserialize, mdastToSlate } from "@plat
 import { MD_REMARK_PLUGINS } from "@repo/notes/markdown/md-plugins";
 import { parseMdast } from "@repo/notes/markdown/parse";
 import { MD_RULES } from "@repo/editor/markdown/md-rules";
+import { FORMULA_INPUT_KEY } from "@repo/editor/formula-input-key";
 import { WIKI_INPUT_KEY } from "@repo/editor/wiki-input-key";
 
 export const MarkdownKit = [
@@ -27,7 +28,7 @@ export const MarkdownKit = [
       // `:`, and `[[` inputs are UI state — an autosave firing mid-combobox
       // must skip them structurally, never hit the serializer's "Unreachable
       // code" fallback).
-      disallowedNodes: [KEYS.slashInput, KEYS.emojiInput, WIKI_INPUT_KEY],
+      disallowedNodes: [KEYS.slashInput, KEYS.emojiInput, WIKI_INPUT_KEY, FORMULA_INPUT_KEY],
       remarkPlugins: MD_REMARK_PLUGINS,
       rules: MD_RULES,
     },

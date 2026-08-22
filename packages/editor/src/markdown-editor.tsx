@@ -21,6 +21,11 @@ import { WRITE_PLACEHOLDER } from "@repo/editor/kits/block-placeholder-kit";
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
 import { MD_STRINGIFY, parseMarkdown } from "@repo/editor/markdown/markdown-doc";
 import { createDebouncer } from "@repo/editor/lib/debounce";
+import {
+  cancelFormulaRecompute,
+  scheduleFormulaRecompute,
+} from "@repo/editor/formulas/formula-recompute";
+import { getEditorHostIo } from "@repo/editor/host-io";
 import { TableOfContents } from "@repo/editor/toc";
 
 /** How long after the last qualifying change the whole-document serialize
@@ -93,6 +98,9 @@ export function MarkdownEditor({ path, value, onChange, onRegisterSerializeFlush
     seeded.current = null;
     lastValueProp.current = md;
     onChangeRef.current(md);
+    // Behind the settle, never per keystroke — a changed display re-enters
+    // this same path as an ordinary edit.
+    scheduleFormulaRecompute(editor);
   }, [editor]);
   const doSerializeRef = useRef(doSerialize);
   useLayoutEffect(() => {
@@ -134,6 +142,26 @@ export function MarkdownEditor({ path, value, onChange, onRegisterSerializeFlush
   // a pending serialize so the keystroke isn't lost. onChange routes by this
   // editor's `path`, so it no-ops if the open note already changed.
   useEffect(() => () => scheduler.flush(), [scheduler]);
+
+  // Formula recompute: once on open, and again when the vault under the note
+  // moves (a referenced variable in ANOTHER note may have changed). The host
+  // seam is absent in headless tests — a mount without it simply computes
+  // nothing until the app installs one.
+  useEffect(() => {
+    scheduleFormulaRecompute(editor);
+    let unsubscribe = (): void => {};
+    try {
+      unsubscribe = getEditorHostIo().onVaultChanged(() => {
+        scheduleFormulaRecompute(editor);
+      });
+    } catch {
+      // no host installed (unit tests) — open-note recompute already ran
+    }
+    return () => {
+      unsubscribe();
+      cancelFormulaRecompute(editor);
+    };
+  }, [editor]);
 
   // Expose this editor to chrome outside the Plate tree — the header's
   // "Page details" popover edits the frontmatter node through it, so property

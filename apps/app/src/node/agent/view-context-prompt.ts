@@ -22,7 +22,7 @@
 // cannot be made honest. Revisit only for a surface whose content is not a file
 // the agent can read.
 
-import type { PromptInput } from "@repo/agent-runtime/provider-adapter";
+import type { PromptInput } from "@repo/agent-runtime/types";
 import { VIEW_CONTEXT_EXCERPT_MAX_BYTES, type ViewContext } from "@repo/domain/view-context";
 import { headCapUtf8 } from "./agent-instructions";
 

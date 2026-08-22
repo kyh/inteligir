@@ -7,7 +7,7 @@
 // between, which no type forces because the field is optional.
 
 import type { AgentRuntime } from "@repo/agent-runtime/types";
-import type { createAgentRuntimeWithAdapters } from "@repo/agent-runtime/runtime";
+import type { createAcpAgentRuntime } from "@repo/agent-runtime/acp/acp-runtime";
 import { describe, expect, it } from "vitest";
 import { delimiter } from "node:path";
 import { CLI_POINTER_INSTRUCTIONS } from "../agent-instructions";
@@ -16,7 +16,7 @@ import { createCodexRuntimeManager } from "../runtime-manager";
 import { bootTestApp } from "../../__tests__/boot-app";
 import { createThread, waitFor } from "./agent-test-harness";
 
-type RuntimeOptions = Parameters<typeof createAgentRuntimeWithAdapters>[0];
+type RuntimeOptions = Parameters<typeof createAcpAgentRuntime>[0];
 type StartThreadArgs = Parameters<AgentRuntime["startThread"]>[0];
 
 interface Recorded {
@@ -24,7 +24,7 @@ interface Recorded {
   startThreads: StartThreadArgs[];
 }
 
-function recordingCreateRuntime(recorded: Recorded): typeof createAgentRuntimeWithAdapters {
+function recordingCreateRuntime(recorded: Recorded): typeof createAcpAgentRuntime {
   return (options) => {
     recorded.options.push(options);
     const runtime: AgentRuntime = {

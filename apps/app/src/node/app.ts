@@ -41,6 +41,7 @@ import { renameNoteWithLinkRewrite } from "./knowledge/rename";
 import { createCommentsService } from "./comments/comments-service";
 import { registerCommentsRoutes } from "./comments/routes";
 import { registerKnowledgeRoutes } from "./knowledge/routes";
+import { registerAgentRoutes } from "./agent/agent-routes";
 import { registerMemoryRoutes } from "./memory/routes";
 import { ProposalService } from "./proposals/proposal-service";
 import { registerProposalRoutes } from "./proposals/routes";
@@ -236,6 +237,8 @@ export function createApp(args: CreateAppArgs) {
   // shell (issue #575), so these routes serve the settings surface's list and
   // delete, never an agent write.
   registerMemoryRoutes(registrars, args.config.memoryDir);
+  // Detect + guide: harness CLI/credential facts for Settings (issue #588).
+  registerAgentRoutes(registrars);
 
   // `scripted` is selected by INTELIGIR_VOICE and is the whole reason the
   // scenario suite can drive a microphone: it answers `ready` with no model on

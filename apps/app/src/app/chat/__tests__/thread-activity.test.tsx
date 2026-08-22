@@ -18,6 +18,7 @@ const thread = (over: Partial<Thread> = {}): Thread => ({
   activeTurnId: null,
   originDocPath: null,
   originAnchor: null,
+  providerId: null,
   writeMode: "direct",
   archivedAt: null,
   createdAt: 0,

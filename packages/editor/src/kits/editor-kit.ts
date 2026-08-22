@@ -34,6 +34,7 @@ import { HeadingCollapseKit } from "@repo/editor/heading-collapse";
 import { ColorPillKit } from "@repo/editor/kits/color-pill-kit";
 import { WikiLinkKit } from "@repo/editor/kits/wiki-link-kit";
 import { SlashKit } from "@repo/editor/slash-menu";
+import { FormulaAutocompleteKit } from "@repo/editor/formula-autocomplete";
 import { WikiAutocompleteKit } from "@repo/editor/wiki-autocomplete";
 
 export const EDITOR_KIT = [
@@ -59,6 +60,7 @@ export const EDITOR_KIT = [
   ...HeadingCollapseKit,
   ...ColorPillKit,
   ...WikiAutocompleteKit,
+  ...FormulaAutocompleteKit,
   // Render-only inline `#tag` chips. No BASE_KIT twin on purpose — a leaf
   // decoration never reaches the value, so there is nothing to serialize.
   ...TagChipKit,

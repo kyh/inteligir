@@ -15,8 +15,8 @@
 // micromark reads everything else. It must run BEFORE remark-opaque (which
 // walks the finished tree) and after the parse-order plugins.
 
-import type { Node, Parent, PhrasingContent, Root, Text } from "mdast";
-import type { Options as ToMarkdownExtension } from "mdast-util-to-markdown";
+import type { Node, Parent, Parents, PhrasingContent, Root, Text } from "mdast";
+import type { Options as ToMarkdownExtension, State } from "mdast-util-to-markdown";
 import type { Plugin, Processor, Transformer } from "unified";
 
 export interface MossFormula extends Node {
@@ -133,9 +133,18 @@ function walk(parent: Parent): void {
 
 const mossToMarkdown: ToMarkdownExtension = {
   handlers: {
-    mossFormula: Object.assign((node: MossFormula) => `{{${node.raw}}}`, {
-      peek: () => "{",
-    }),
+    // Inside a GFM table cell the pill's own pipes must leave as `\|` or the
+    // next parse reads them as cell delimiters — the same in-cell test
+    // mdast-util-gfm-table's own inlineCode handler uses. Its fromMarkdown
+    // unescapes them before the transform sees text, so the round trip is
+    // byte-exact in both directions.
+    mossFormula: Object.assign(
+      (node: MossFormula, _parent: Parents | undefined, state: State) => {
+        const raw = `{{${node.raw}}}`;
+        return state.stack.includes("tableCell") ? raw.replaceAll("|", "\\|") : raw;
+      },
+      { peek: () => "{" },
+    ),
     mossCommentMarker: Object.assign(
       (node: MossCommentMarker) => `%%m:${node.ids}:${node.edge}%%`,
       { peek: () => "%" },

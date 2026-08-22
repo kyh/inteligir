@@ -9,7 +9,7 @@ import { cn } from "@repo/ui/lib/utils";
 type FileEntry = Extract<VaultTreeResponse["entries"][number], { kind: "file" }>;
 
 /** "Just now" → minutes → hours → days → a date. One vocabulary, sidebar-wide. */
-export function relativeTimeLabel(modifiedMs: number, now: number): string {
+function relativeTimeLabel(modifiedMs: number, now: number): string {
   const elapsed = now - modifiedMs;
   if (elapsed < 60_000) return "Just now";
   if (elapsed < 3_600_000) return `${String(Math.floor(elapsed / 60_000))}m ago`;
