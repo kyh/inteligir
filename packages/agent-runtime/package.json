@@ -5,14 +5,14 @@
   "description": "Agent provider runtime vendored from bb, trimmed to the codex app-server adapter: newline JSON-RPC over stdio, provider process lifecycle, dual-id thread stamping, event translation into the runtime's provider grammar, and interactive (approval) requests. Consumers say \"start a thread, run a turn, give me events\" — they never touch processes or wire formats.",
   "type": "module",
   "exports": {
-    "./runtime": "./src/runtime.ts",
+    "./acp/acp-event-mapping": "./src/acp/acp-event-mapping.ts",
+    "./acp/acp-permission-mapping": "./src/acp/acp-permission-mapping.ts",
+    "./acp/acp-runtime": "./src/acp/acp-runtime.ts",
+    "./acp/harness-registry": "./src/acp/harness-registry.ts",
     "./types": "./src/types.ts",
-    "./provider-adapter": "./src/provider-adapter.ts",
-    "./runtime-json-rpc": "./src/runtime-json-rpc.ts",
-    "./codex-adapter": "./src/codex/adapter.ts",
     "./vocabulary/provider-event": "./src/vocabulary/provider-event.ts",
     "./vocabulary/shared-types": "./src/vocabulary/shared-types.ts",
-    "./test-support/fake-codex-adapter": "./src/test-support/fake-codex-adapter.ts"
+    "./test-support/fake-acp-agent": "./src/test-support/fake-acp-agent.mjs"
   },
   "scripts": {
     "clean": "git clean -xdf .cache .turbo dist node_modules",
@@ -21,6 +21,9 @@
   },
   "dependencies": {
     "@repo/domain": "workspace:*",
+    "@zed-industries/agent-client-protocol": "0.4.5",
+    "@zed-industries/claude-code-acp": "0.16.2",
+    "@zed-industries/codex-acp": "0.16.0",
     "zod": "catalog:"
   },
   "devDependencies": {

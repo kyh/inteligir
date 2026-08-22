@@ -58,6 +58,13 @@ function ensureBlocks(children: Descendant[]): Descendant[] {
   return children.length > 0 ? children : [{ children: [{ text: "" }], type: "p" }];
 }
 
+const MOSS_FENCE_TYPES = new Map([
+  ["moss-canvas", "moss_canvas"],
+  ["moss-chart", "moss_chart"],
+  ["moss-html", "moss_html"],
+  ["moss-sketch", "moss_canvas"],
+]);
+
 const PRIORITY_LEVELS = new Set(["low", "medium", "high", "critical"]);
 
 const defaultCodeBlock = defaultRules.code_block;
@@ -427,8 +434,41 @@ export const MD_RULES: MdRules = {
           ...(hasLevel ? { level: payload[1]?.trim() ?? "" } : {}),
         };
       }
+      const richBlock = MOSS_FENCE_TYPES.get(node.lang ?? "");
+      if (richBlock !== undefined) {
+        const block: TElement = { children: [{ text: "" }], type: richBlock, value: node.value };
+        if (node.lang === "moss-sketch") {
+          block.legacySketch = true;
+        }
+        return block;
+      }
       return defaultCodeBlockDeserialize(node, deco, options);
     },
+  },
+
+  // Rich Moss fence blocks (#586): the payload is VERBATIM on the node, so
+  // serialization is the identity fence. moss_canvas remembers a legacy
+  // moss-sketch spelling on the node (the skill: never rename incidentally).
+  moss_chart: {
+    serialize: (node: TElement): MdCode => ({
+      lang: "moss-chart",
+      type: "code",
+      value: typeof node.value === "string" ? node.value : "",
+    }),
+  },
+  moss_canvas: {
+    serialize: (node: TElement): MdCode => ({
+      lang: node.legacySketch === true ? "moss-sketch" : "moss-canvas",
+      type: "code",
+      value: typeof node.value === "string" ? node.value : "",
+    }),
+  },
+  moss_html: {
+    serialize: (node: TElement): MdCode => ({
+      lang: "moss-html",
+      type: "code",
+      value: typeof node.value === "string" ? node.value : "",
+    }),
   },
 
   // Moss tab groups: mossTabs/mossTabPanel (remark-moss-tabs owns the line

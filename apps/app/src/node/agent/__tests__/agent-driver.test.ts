@@ -31,7 +31,7 @@ describe("agent driver resolution", () => {
         return { createTurnDriver: resolved.createTurnDriver, dispose: resolved.dispose };
       },
     });
-    expect(resolvedDetail).toContain("codex binary was not found");
+    expect(resolvedDetail).toContain("No agent CLI was found on PATH");
 
     const threadId = await createThread(harness.client);
     const send = await harness.client.threads.send.$post({

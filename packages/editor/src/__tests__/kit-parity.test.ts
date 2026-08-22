@@ -43,6 +43,9 @@ const VOCABULARY_PLUGIN_KEYS = [
   "mossCommentMarker",
   "tab_group",
   "tab_panel",
+  "moss_chart",
+  "moss_canvas",
+  "moss_html",
   "opaqueBlock",
   "opaqueInline",
 ];

@@ -10,9 +10,12 @@ import type {
 } from "@repo/domain/pending-interactions";
 import type { ProviderEvent } from "./vocabulary/provider-event.js";
 import type { AvailableModel } from "./vocabulary/provider-types.js";
-import type { PromptInput } from "./provider-adapter.js";
+import type { ProviderEventUserContent } from "./vocabulary/provider-event.js";
 
 export type AgentRuntimeShellEnvironment = Record<string, string>;
+
+/** What a turn's prompt is made of; bb's PromptInput, mentions dropped. */
+export type PromptInput = ProviderEventUserContent;
 
 export type AgentRuntimeExecutionOptions = RuntimeThreadExecutionOptions;
 

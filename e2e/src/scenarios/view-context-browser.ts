@@ -39,7 +39,7 @@ function sha256Hex(content: string): string {
 
 export const viewContextBrowser: Scenario = {
   name: "view-context-browser",
-  description: "send from the dock, and the agent is told the path and the revision",
+  description: "send from the composer, and the agent is told the path and the revision",
   async run(ctx) {
     const app = await ctx.boot({
       name: "solo",
@@ -76,8 +76,10 @@ export const viewContextBrowser: Scenario = {
       for (;;) {
         const listed = await app.api.threads.list.$get();
         expect(listed.status === 200, `threads list answered ${listed.status}`);
+        // The composer attaches the open note by default, so the action's
+        // originDocPath IS the doc — which is itself worth asserting.
         const chat = (await listed.json()).threads.find(
-          (thread) => thread.originDocPath === null && thread.archivedAt === null,
+          (thread) => thread.originDocPath === DOC_PATH && thread.archivedAt === null,
         );
         if (chat !== undefined && chat.status === "idle") {
           const timeline = await app.api.threads.timeline.$get({ query: { threadId: chat.id } });

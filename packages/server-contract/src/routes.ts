@@ -13,6 +13,7 @@ import { connectorRoutes } from "./connectors";
 import type { ApiErrorResponse } from "./errors";
 import { commentRoutes } from "./comments";
 import { knowledgeRoutes } from "./knowledge";
+import { agentsRoutes } from "./agents";
 import { memoryRoutes } from "./memory";
 import { proposalRoutes } from "./proposals";
 import { threadRoutes } from "./threads";
@@ -154,6 +155,7 @@ export const apiRoutes = {
   connectors: connectorRoutes,
   comments: commentRoutes,
   knowledge: knowledgeRoutes,
+  agents: agentsRoutes,
   memory: memoryRoutes,
   proposals: proposalRoutes,
   threads: threadRoutes,

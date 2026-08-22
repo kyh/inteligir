@@ -28,6 +28,7 @@ import { TableKit } from "@repo/editor/kits/table-kit";
 import { TagChipKit } from "@repo/editor/kits/tag-chip-kit";
 import { ToggleKit } from "@repo/editor/kits/toggle-kit";
 import { CommentKit } from "@repo/editor/comments/comment-kit";
+import { MossBlocksKit } from "@repo/editor/kits/moss-blocks-kit";
 import { MossInlineKit } from "@repo/editor/kits/moss-inline-kit";
 import { TabsKit } from "@repo/editor/kits/tabs-kit";
 import { HeadingCollapseKit } from "@repo/editor/heading-collapse";
@@ -55,6 +56,7 @@ export const EDITOR_KIT = [
   ...FrontmatterKit,
   ...WikiLinkKit,
   ...MossInlineKit,
+  ...MossBlocksKit,
   ...CommentKit,
   ...TabsKit,
   ...HeadingCollapseKit,

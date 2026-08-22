@@ -5,6 +5,7 @@
   "description": "The wire contract between the local server and its clients. `routes` is THE route table (one defineRoute row per endpoint, payload schemas beside it), `client` derives the typed hc client from it, and `notifications` is the ws invalidation protocol — subscription targets, per-entity change kinds, strict outbound / lenient inbound message pairs.",
   "type": "module",
   "exports": {
+    "./agents": "./src/agents.ts",
     "./client": "./src/client.ts",
     "./cloud": "./src/cloud.ts",
     "./comments": "./src/comments.ts",

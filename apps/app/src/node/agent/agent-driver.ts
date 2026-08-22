@@ -46,12 +46,16 @@ export interface ResolvedAgentDriver {
 }
 
 export function codexBinaryOnPath(env: NodeJS.ProcessEnv): string | null {
+  return harnessBinaryOnPath("codex", env);
+}
+
+export function harnessBinaryOnPath(name: string, env: NodeJS.ProcessEnv): string | null {
   const pathValue = env.PATH ?? "";
   for (const dir of pathValue.split(delimiter)) {
     if (dir.length === 0) {
       continue;
     }
-    const candidate = join(dir, "codex");
+    const candidate = join(dir, name);
     try {
       if (!statSync(candidate).isFile()) {
         continue;
@@ -100,10 +104,17 @@ export function resolveAgentDriver(args: ResolveAgentDriverArgs): ResolvedAgentD
     };
   }
 
-  const binary = codexBinaryOnPath(args.env ?? process.env);
-  if (binary === null) {
+  // EITHER harness CLI on PATH boots the runtime; per-thread absence is the
+  // registry's detect+guide to explain. The default harness is claude while
+  // codex-acp 0.16.0 is live-broken upstream (its bundled core cannot parse
+  // the current models response); codex stays selectable and heals on the
+  // next adapter release — flip the default back then.
+  const env = args.env ?? process.env;
+  const claudeBinary = harnessBinaryOnPath("claude", env);
+  const codexBinary = harnessBinaryOnPath("codex", env);
+  if (claudeBinary === null && codexBinary === null) {
     const detail =
-      "The codex binary was not found on PATH — install the Codex CLI, or set INTELIGIR_AGENT=scripted";
+      "No agent CLI was found on PATH — install Claude Code or the Codex CLI, or set INTELIGIR_AGENT=scripted";
     return {
       status: { mode, runtime: "unavailable", detail },
       createTurnDriver: () => createUnavailableTurnDriver(detail),
@@ -120,6 +131,7 @@ export function resolveAgentDriver(args: ResolveAgentDriverArgs): ResolvedAgentD
     readMemoryIndex,
     onDebug,
   };
+  codex.defaultProviderId = claudeBinary === null ? "codex" : "claude";
   if (args.shellEnv !== undefined) codex.shellEnv = args.shellEnv;
   if (args.cliBinDir !== undefined) codex.cliBinDir = args.cliBinDir;
   if (args.captureProposals !== undefined) codex.captureProposals = args.captureProposals;

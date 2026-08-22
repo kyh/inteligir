@@ -11,6 +11,9 @@
 import { SlashInputPlugin, SlashPlugin } from "@platejs/slash-command/react";
 import { insertTable } from "@platejs/table";
 import {
+  PencilRulerIcon,
+  BarChart3Icon,
+  AppWindowIcon,
   CalendarIcon,
   ChevronRightIcon,
   Code2Icon,
@@ -38,6 +41,11 @@ import type { PlateEditor, PlateElementProps } from "platejs/react";
 import { PlateElement, createPlatePlugin } from "platejs/react";
 
 import { TURN_INTO, turnIntoSelection } from "@repo/editor/block-transforms";
+import {
+  insertCanvasBlock,
+  insertChartBlock,
+  insertHtmlBlock,
+} from "@repo/editor/kits/moss-blocks-kit";
 import { insertTabGroup } from "@repo/editor/kits/tabs-kit";
 import { EmbedUrlDialogHost, openEmbedUrlDialog } from "@repo/editor/embed-url-dialog";
 import {
@@ -192,6 +200,36 @@ const GROUPS: { group: string; items: SlashItem[] }[] = [
         keywords: ["tabs", "tab", "panels", "switch"],
         onSelect: (editor) => {
           insertTabGroup(editor);
+        },
+      },
+      {
+        icon: <BarChart3Icon />,
+        label: "Chart",
+        value: "chart",
+        description: "Bar, line, area or stacked-bar over labeled values.",
+        keywords: ["chart", "graph", "bar", "line", "area", "plot", "data"],
+        onSelect: (editor) => {
+          insertChartBlock(editor);
+        },
+      },
+      {
+        icon: <PencilRulerIcon />,
+        label: "Canvas",
+        value: "canvas",
+        description: "A rough spatial sketch with labels.",
+        keywords: ["canvas", "sketch", "draw", "wireframe", "spatial"],
+        onSelect: (editor) => {
+          insertCanvasBlock(editor);
+        },
+      },
+      {
+        icon: <AppWindowIcon />,
+        label: "HTML",
+        value: "html",
+        description: "A sandboxed interactive HTML artifact.",
+        keywords: ["html", "prototype", "interactive", "embed", "artifact"],
+        onSelect: (editor) => {
+          insertHtmlBlock(editor);
         },
       },
       {
