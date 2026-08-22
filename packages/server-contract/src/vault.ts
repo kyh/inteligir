@@ -50,6 +50,9 @@ export const vaultEntrySchema = z.discriminatedUnion("kind", [
     .object({
       kind: z.literal("file"),
       path: z.string().min(1),
+      /** mtime for the sidebar's recency ordering; absent when the walk's
+       *  stat failed (the row still lists). */
+      modifiedMs: z.number().optional(),
     })
     .strict(),
 ]);

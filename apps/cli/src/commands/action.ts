@@ -1,4 +1,4 @@
-// `inteligir thread …` — the agent surface: create/send, the compact
+// `inteligir action …` — the agent surface: create/send, the compact
 // timeline, and the poll-until-settled `wait` whose exit code is the outcome
 // (0 idle, 1 error, 2 timeout) so a shell script can branch on it.
 
@@ -42,12 +42,12 @@ function describeSendOutcome(outcome: SendOutcome): string {
   }
 }
 
-export function threadCommand(deps: CliDeps) {
+export function actionCommand(deps: CliDeps) {
   return defineCommand({
-    meta: { name: "thread", description: "Agent threads" },
+    meta: { name: "action", description: "Agent actions — threads attached to notes" },
     subCommands: {
       list: defineCommand({
-        meta: { name: "list", description: "All threads with status" },
+        meta: { name: "list", description: "All actions with status" },
         args: { ...jsonArg },
         run: async ({ args }) => {
           const api = await apiFor(deps);
@@ -62,25 +62,18 @@ export function threadCommand(deps: CliDeps) {
       new: defineCommand({
         meta: {
           name: "new",
-          description: "Create a thread (optionally bound to a doc anchor) and send the first turn",
+          description: "Start an action (optionally attached to a note) and send the first turn",
         },
         args: {
           prompt: { type: "positional", required: true, description: "The first turn's text" },
-          doc: { type: "string", description: "Bind the thread to this doc (requires --anchor)" },
-          anchor: { type: "string", description: "The block anchor inside --doc" },
+          doc: { type: "string", description: "Attach the action to this note" },
           ...jsonArg,
         },
         run: async ({ args }) => {
-          if ((args.doc === undefined) !== (args.anchor === undefined)) {
-            throw invalidUsage("--doc and --anchor must be provided together");
-          }
           const api = await apiFor(deps);
           const created = await requireOk(
             await api.threads.create.$post({
-              json:
-                args.doc === undefined || args.anchor === undefined
-                  ? {}
-                  : { originDocPath: args.doc, originAnchor: args.anchor },
+              json: args.doc === undefined ? {} : { originDocPath: args.doc },
             }),
           );
           const { thread: createdThread } = await created.json();
@@ -98,15 +91,15 @@ export function threadCommand(deps: CliDeps) {
             // learned its id.
             const detail = error instanceof CliExitError ? error.message : String(error);
             throw new CliExitError(
-              `Thread ${createdThread.id} was created but its first turn failed: ${detail}. ` +
-                `Retry with \`inteligir thread send ${createdThread.id} …\` or archive it.`,
+              `Action ${createdThread.id} was created but its first turn failed: ${detail}. ` +
+                `Retry with \`inteligir action send ${createdThread.id} …\` or archive it.`,
               { code: error instanceof CliExitError ? error.code : "send_failed" },
             );
           }
           if (outputJson(args, { thread: createdThread, send: outcome })) {
             return;
           }
-          writeLines([`Thread ${createdThread.id}`]);
+          writeLines([`Action ${createdThread.id}`]);
           out.success(describeSendOutcome(outcome));
         },
       }),
@@ -145,7 +138,7 @@ export function threadCommand(deps: CliDeps) {
       }),
 
       show: defineCommand({
-        meta: { name: "show", description: "Thread detail plus the compact timeline" },
+        meta: { name: "show", description: "Action detail plus the compact timeline" },
         args: {
           id: { type: "positional", required: true, description: "The thread id" },
           ...jsonArg,

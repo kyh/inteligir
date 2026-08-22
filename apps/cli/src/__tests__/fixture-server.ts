@@ -17,6 +17,7 @@ import type {
   SearchResultWire,
   TagCountWire,
 } from "@repo/server-contract/knowledge";
+import type { CommentThreadWire } from "@repo/server-contract/comments";
 import type { Proposal } from "@repo/server-contract/proposals";
 import type {
   PendingInteraction,
@@ -60,6 +61,8 @@ export interface FixtureState {
   cloud: CloudStatusResponse;
   threads: FixtureThread[];
   proposals: Proposal[];
+  /** Comment threads per note path, in the wire shape the routes answer. */
+  comments: Map<string, CommentThreadWire[]>;
   guideMarkdown: string;
   agent: AgentStatus;
   vaultStatus: VaultStatusResponse;
@@ -124,6 +127,7 @@ export function makeFixtureState(): FixtureState {
     cloud: { state: "off", cloudUrl: FIXTURE_CLOUD_URL },
     threads: [],
     proposals: [],
+    comments: new Map(),
     guideMarkdown: "# Fixture guide\n\nBe kind to the vault.\n",
     agent: { mode: "auto", runtime: "codex", detail: null },
     vaultStatus: { state: "no-remote", lastSyncAt: null, lastError: null },
@@ -260,6 +264,53 @@ function createFixtureApp(state: FixtureState): Hono {
   );
   get(apiRoutes.knowledge.tags, (c) => c.json({ tags: state.tags, total: state.tags.length }));
   get(apiRoutes.knowledge.renameCandidates, (c) => c.json({ candidates: [], total: 0 }));
+
+  const commentsBody = (path: string) => {
+    const threads = state.comments.get(path) ?? [];
+    return { path, threads, total: threads.length, orphanMarkers: [], strayIds: [] };
+  };
+  get(apiRoutes.comments.list, (c, query) => c.json(commentsBody(query.path)));
+  post(apiRoutes.comments.add, (c, body) => {
+    const threads = state.comments.get(body.path) ?? [];
+    threads.push({
+      anchored: false,
+      replies: [],
+      resolved: false,
+      root: { createdAt: 1, source: "user", text: body.text, updatedAt: 1 },
+      rootId: body.id,
+    });
+    state.comments.set(body.path, threads);
+    return c.json(commentsBody(body.path));
+  });
+  post(apiRoutes.comments.reply, (c, body) => {
+    const threads = state.comments.get(body.path) ?? [];
+    const thread = threads.find((row) => row.rootId === body.parentId);
+    if (thread === undefined) {
+      return c.json({ error: "not_found", message: `no thread ${body.parentId}` }, 404);
+    }
+    thread.replies.push({
+      entry: { createdAt: 2, source: "user", text: body.text, updatedAt: 2 },
+      id: body.id,
+    });
+    return c.json(commentsBody(body.path));
+  });
+  post(apiRoutes.comments.resolve, (c, body) => {
+    const thread = (state.comments.get(body.path) ?? []).find((row) => row.rootId === body.id);
+    if (thread === undefined) {
+      return c.json({ error: "not_found", message: `no thread ${body.id}` }, 404);
+    }
+    thread.resolved = body.resolved;
+    return c.json(commentsBody(body.path));
+  });
+  post(apiRoutes.comments.remove, (c, body) => {
+    const threads = state.comments.get(body.path) ?? [];
+    const remaining = threads.filter((row) => row.rootId !== body.id);
+    if (remaining.length === threads.length) {
+      return c.json({ error: "not_found", message: `no thread ${body.id}` }, 404);
+    }
+    state.comments.set(body.path, remaining);
+    return c.json({ ...commentsBody(body.path), removedIds: [body.id] });
+  });
 
   get(apiRoutes.connectors.list, (c) => c.json(state.connectors));
 

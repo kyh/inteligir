@@ -67,6 +67,15 @@ function seedFixture(state: FixtureState): void {
   state.proposals.length = 0;
   state.proposals.push(makeProposal({ id: "prp_1" }));
   state.threads.length = 0;
+  state.comments.set("notes/hello.md", [
+    {
+      anchored: false,
+      replies: [],
+      resolved: false,
+      root: { createdAt: 1, source: "user", text: "seeded", updatedAt: 1 },
+      rootId: "c1",
+    },
+  ]);
   state.threads.push({
     thread: makeThread({ id: "thr_1", status: "idle" }),
     pendingInteractions: [

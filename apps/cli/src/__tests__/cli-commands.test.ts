@@ -321,7 +321,7 @@ describe("connectors", () => {
   });
 });
 
-describe("thread commands", () => {
+describe("action commands", () => {
   it("lists threads and shows one with the compact timeline", async () => {
     const state = seededState();
     state.threads.push({
@@ -331,11 +331,11 @@ describe("thread commands", () => {
     });
     const server = await boot(state);
 
-    const list = await runCliForTest({ argv: ["thread", "list"], baseUrl: server.baseUrl });
+    const list = await runCliForTest({ argv: ["action", "list"], baseUrl: server.baseUrl });
     expect(list.stdout).toBe("thr_1  idle  Note writing\n");
 
     const show = await runCliForTest({
-      argv: ["thread", "show", "thr_1"],
+      argv: ["action", "show", "thr_1"],
       baseUrl: server.baseUrl,
     });
     expect(show.code).toBe(0);
@@ -361,18 +361,17 @@ describe("thread commands", () => {
     const state = seededState();
     const server = await boot(state);
     const result = await runCliForTest({
-      argv: ["thread", "new", "Summarize my inbox"],
+      argv: ["action", "new", "Summarize my inbox"],
       baseUrl: server.baseUrl,
     });
     expect(result.code).toBe(0);
-    expect(result.stdout).toBe("Thread thr_created_1\n✔ Turn turn_for_thr_created_1 started\n");
+    expect(result.stdout).toBe("Action thr_created_1\n✔ Turn turn_for_thr_created_1 started\n");
 
-    const half = await runCliForTest({
-      argv: ["thread", "new", "x", "--doc", "notes/hello.md"],
+    const attached = await runCliForTest({
+      argv: ["action", "new", "x", "--doc", "notes/hello.md"],
       baseUrl: server.baseUrl,
     });
-    expect(half.code).toBe(1);
-    expect(half.stderr).toContain("--doc and --anchor must be provided together");
+    expect(attached.code).toBe(0);
   });
 
   it("sends follow-ups and archives", async () => {
@@ -384,13 +383,13 @@ describe("thread commands", () => {
     });
     const server = await boot(state);
     const send = await runCliForTest({
-      argv: ["thread", "send", "thr_1", "and then?"],
+      argv: ["action", "send", "thr_1", "and then?"],
       baseUrl: server.baseUrl,
     });
     expect(send.stdout).toBe("✔ Turn turn_for_thr_1 started\n");
 
     const archive = await runCliForTest({
-      argv: ["thread", "archive", "thr_1"],
+      argv: ["action", "archive", "thr_1"],
       baseUrl: server.baseUrl,
     });
     expect(archive.stdout).toBe("✔ Archived thr_1\n");
@@ -556,7 +555,7 @@ describe("vault write reads stdin as BYTES", () => {
   });
 });
 
-describe("thread new never orphans a thread silently", () => {
+describe("action new never orphans a thread silently", () => {
   it("names the created thread when its first turn fails", async () => {
     const state = seededState();
     const server = await boot(state);
@@ -564,13 +563,13 @@ describe("thread new never orphans a thread silently", () => {
     // the id would otherwise be lost.
     state.refuseSend = { error: "provider_unavailable", message: "no agent" };
     const result = await runCliForTest({
-      argv: ["thread", "new", "do a thing"],
+      argv: ["action", "new", "do a thing"],
       baseUrl: server.baseUrl,
     });
     expect(result.code).toBe(1);
     expect(result.stderr).toContain("thr_created_1");
     expect(result.stderr).toContain("was created but its first turn failed");
-    expect(result.stderr).toContain("inteligir thread send thr_created_1");
+    expect(result.stderr).toContain("inteligir action send thr_created_1");
   });
 });
 
@@ -635,13 +634,13 @@ describe("--json failures", () => {
   it("reports a local usage refusal with a CLI-side class", async () => {
     const server = await boot(seededState());
     const result = await runCliForTest({
-      argv: ["thread", "new", "x", "--doc", "a.md", "--json"],
+      argv: ["action", "wait", "thr_1", "--timeout", "nope", "--json"],
       baseUrl: server.baseUrl,
     });
     expect(result.code).toBe(1);
     expect(JSON.parse(result.stderr)).toEqual({
       error: "invalid_usage",
-      message: "--doc and --anchor must be provided together",
+      message: '--timeout must be a positive number (got "nope")',
     });
   });
 });

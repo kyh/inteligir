@@ -1,10 +1,11 @@
-// The workspace's left rail: vault name + create actions on top, the file
-// tree, and the sync status pill at the bottom. Width is a localStorage pref
-// dragged at the right edge; the workspace owns the value.
+// The workspace's left rail (Moss's IA): vault name + create actions on top,
+// the recency-ordered NOTES LIST as the default view with the file tree one
+// toggle away, and the sync status pill at the bottom. Width is a
+// localStorage pref dragged at the right edge; the workspace owns the value.
 
 import { Button } from "@repo/ui/components/button";
 import { cn } from "@repo/ui/lib/utils";
-import { FilePlusIcon, FolderPlusIcon, SettingsIcon } from "lucide-react";
+import { FilePlusIcon, FolderPlusIcon, FolderTreeIcon, SettingsIcon } from "lucide-react";
 import { useState } from "react";
 import {
   canSyncNow,
@@ -15,6 +16,7 @@ import {
   useVaultTree,
 } from "../vault-hooks";
 import { FileTree, type TreeLoadState, type TreeOps } from "./file-tree";
+import { NotesList } from "./notes-list";
 
 /** A failed listing renders as "The vault could not be read", never as the
  *  empty vault it is indistinguishable from once the entries default to []. */
@@ -68,6 +70,10 @@ export function Sidebar({ openPath, onOpenFile, ops, onSyncNow, onOpenSettings }
     kind: "file" | "dir";
     parentDir: string;
   } | null>(null);
+  // The default view is the notes list; the tree is a mode, not a page, so
+  // flipping it loses nothing. Creating a folder needs the tree — the create
+  // buttons switch it in.
+  const [showTree, setShowTree] = useState(false);
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -79,7 +85,10 @@ export function Sidebar({ openPath, onOpenFile, ops, onSyncNow, onOpenSettings }
           variant="ghost"
           size="icon-sm"
           aria-label="New note"
-          onClick={() => setPendingCreate({ kind: "file", parentDir: "" })}
+          onClick={() => {
+            setShowTree(true);
+            setPendingCreate({ kind: "file", parentDir: "" });
+          }}
         >
           <FilePlusIcon className="size-4 text-muted-foreground" />
         </Button>
@@ -87,22 +96,46 @@ export function Sidebar({ openPath, onOpenFile, ops, onSyncNow, onOpenSettings }
           variant="ghost"
           size="icon-sm"
           aria-label="New folder"
-          onClick={() => setPendingCreate({ kind: "dir", parentDir: "" })}
+          onClick={() => {
+            setShowTree(true);
+            setPendingCreate({ kind: "dir", parentDir: "" });
+          }}
         >
           <FolderPlusIcon className="size-4 text-muted-foreground" />
         </Button>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label={showTree ? "Show notes list" : "Show file tree"}
+          aria-pressed={showTree}
+          onClick={() => {
+            setShowTree((current) => !current);
+          }}
+        >
+          <FolderTreeIcon
+            className={cn("size-4", showTree ? "text-ink" : "text-muted-foreground")}
+          />
+        </Button>
       </header>
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <FileTree
-          entries={treeQuery.data?.entries ?? []}
-          loadState={treeLoadState(treeQuery)}
-          onRetry={() => void treeQuery.refetch()}
-          openPath={openPath}
-          onOpenFile={onOpenFile}
-          ops={ops}
-          pendingCreate={pendingCreate}
-          onPendingCreateHandled={() => setPendingCreate(null)}
-        />
+        {showTree ? (
+          <FileTree
+            entries={treeQuery.data?.entries ?? []}
+            loadState={treeLoadState(treeQuery)}
+            onRetry={() => void treeQuery.refetch()}
+            openPath={openPath}
+            onOpenFile={onOpenFile}
+            ops={ops}
+            pendingCreate={pendingCreate}
+            onPendingCreateHandled={() => setPendingCreate(null)}
+          />
+        ) : (
+          <NotesList
+            entries={treeQuery.data?.entries ?? []}
+            openPath={openPath}
+            onOpenFile={onOpenFile}
+          />
+        )}
       </div>
       <footer className="flex items-center justify-between border-t border-line px-2 py-1.5">
         <SyncStatusPill onSyncNow={onSyncNow} />

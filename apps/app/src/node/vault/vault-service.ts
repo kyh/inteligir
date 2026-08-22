@@ -98,9 +98,10 @@ async function walk(absDir: string, relDir: string, entries: VaultEntry[]): Prom
     }
     // withFileTypes has lstat semantics: a symlink is NEITHER isDirectory
     // nor isFile here, so links (to files and folders alike) fall through —
-    // the listing never follows one out of the vault. It is also the whole
-    // answer: an entry's kind and path are all a row carries, so the walk owes
-    // the filesystem one readdir per directory and no stat at all.
+    // the listing never follows one out of the vault. File rows also carry
+    // mtime (one lstat per file, batched per directory): the sidebar's
+    // notes-list orders by recency, and a second recency channel beside the
+    // listing would be two answers to one question.
     if (dirent.isDirectory()) {
       dirs.push(dirent.name);
       continue;
@@ -116,8 +117,19 @@ async function walk(absDir: string, relDir: string, entries: VaultEntry[]): Prom
     entries.push({ kind: "dir", path: relPath });
     await walk(join(absDir, dir), relPath, entries);
   }
-  for (const name of files) {
-    entries.push({ kind: "file", path: relDir === "" ? name : `${relDir}/${name}` });
+  const statted = await Promise.all(
+    files.map(async (name) => {
+      const stats = await lstat(join(absDir, name)).catch(() => null);
+      return { modifiedMs: stats === null ? null : Math.trunc(stats.mtimeMs), name };
+    }),
+  );
+  for (const { name, modifiedMs } of statted) {
+    const path = relDir === "" ? name : `${relDir}/${name}`;
+    if (modifiedMs === null) {
+      entries.push({ kind: "file", path });
+    } else {
+      entries.push({ kind: "file", modifiedMs, path });
+    }
   }
 }
 
