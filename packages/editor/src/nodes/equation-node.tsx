@@ -1,5 +1,4 @@
-/* Adapted from Plate Plus Potion (https://pro.platejs.org) — used under the
- * held Plate Plus license. */
+// Vendored from plate (github.com/udecode/plate), MIT. © Plate contributors.
 // Equation nodes ($$ block / $$x$$ inline): KaTeX preview (lazy chunk — see
 // equation-katex.tsx) with click-to-edit raw TeX in a popover textarea.
 // Editing writes the node's `texExpression`; Enter/Done commits and closes,

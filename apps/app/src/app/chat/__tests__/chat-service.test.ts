@@ -5,9 +5,8 @@
 
 import { noopNotifier } from "@repo/domain/notifier";
 import { createPendingInteraction } from "@repo/db/pending-interactions";
-import { threadMarkerText } from "@repo/notes/markdown/thread-marker";
 import { describe, expect, it } from "vitest";
-import { createChatThreadResolver, createDelegation, sendToThread } from "../chat-service";
+import { createChatThreadResolver, sendToThread } from "../chat-service";
 import { bootChatHarness } from "./chat-harness";
 
 describe("sendToThread", () => {
@@ -220,133 +219,6 @@ describe("the chat thread resolver", () => {
     const chat = await createChatThreadResolver(client)();
     expect(chat.originDocPath).toBeNull();
   });
-});
-
-describe("createDelegation", () => {
-  it("anchors BEFORE the thread exists, then sends the composed first message", async () => {
-    const { client, driver } = await bootChatHarness({ mode: "manual" });
-    const events: string[] = [];
-    const created = await createDelegation(client, {
-      intent: "do",
-      writeMode: "direct",
-      docPath: "Notes/Plans.md",
-      selectionText: "First paragraph.",
-      prompt: "Rewrite this",
-      anchor: async (anchor) => {
-        // The ordering, asserted from inside: no thread is bound to this doc
-        // at the moment the anchor is being made durable.
-        const byDoc = await client.threads["by-doc"].$get({
-          query: { docPath: "Notes/Plans.md" },
-        });
-        if (!byDoc.ok) {
-          throw new Error("by-doc refused");
-        }
-        expect((await byDoc.json()).threads).toHaveLength(0);
-        events.push(`anchored:${anchor}`);
-        return { ok: true };
-      },
-    });
-    if (created.kind !== "created") {
-      throw new Error(`expected created, got ${created.kind}`);
-    }
-    expect(events).toEqual([`anchored:${created.anchor}`]);
-    expect(created.send.kind).toBe("started");
-
-    const detail = await client.threads.get.$get({ query: { threadId: created.threadId } });
-    if (!detail.ok) {
-      throw new Error("thread detail refused");
-    }
-    const { thread } = await detail.json();
-    expect(thread.originDocPath).toBe("Notes/Plans.md");
-    expect(thread.originAnchor).toBe(created.anchor);
-    expect(thread.title).toBe("Rewrite this");
-
-    const sent = driver.startedTurns[0]?.text ?? "";
-    expect(sent).toContain("Rewrite this");
-    expect(sent).toContain("> First paragraph.");
-    expect(sent).toContain(threadMarkerText(created.anchor));
-    expect(sent).toContain("Notes/Plans.md");
-  });
-
-  it("an ask keeps the doc out of the instruction and says so", async () => {
-    const { client, driver } = await bootChatHarness({ mode: "manual" });
-    await createDelegation(client, {
-      intent: "ask",
-      writeMode: "direct",
-      docPath: "Notes/Plans.md",
-      selectionText: "First paragraph.",
-      prompt: "What does this mean?",
-      anchor: () => Promise.resolve({ ok: true }),
-    });
-    const sent = driver.startedTurns[0]?.text ?? "";
-    expect(sent).toContain("do not modify any files");
-    expect(sent).toContain("Question: What does this mean?");
-  });
-
-  it("a propose delegation records the mode and tells the agent its edits are held", async () => {
-    const { client, driver } = await bootChatHarness({ mode: "manual" });
-    const created = await createDelegation(client, {
-      intent: "do",
-      writeMode: "propose",
-      docPath: "Notes/Plans.md",
-      selectionText: "First paragraph.",
-      prompt: "Rewrite this",
-      anchor: () => Promise.resolve({ ok: true }),
-    });
-    if (created.kind !== "created") {
-      throw new Error(`expected created, got ${created.kind}`);
-    }
-    const detail = await client.threads.get.$get({ query: { threadId: created.threadId } });
-    if (!detail.ok) {
-      throw new Error("thread detail refused");
-    }
-    expect((await detail.json()).thread.writeMode).toBe("propose");
-    // Orientation, not instruction: the agent edits the vault exactly as
-    // always, and without this it would report changes the user cannot see.
-    expect(driver.startedTurns[0]?.text ?? "").toContain("held as a suggestion");
-  });
-
-  it("an ask is created direct whatever the mode was, because it writes nothing", async () => {
-    const { client } = await bootChatHarness({ mode: "manual" });
-    const created = await createDelegation(client, {
-      intent: "ask",
-      writeMode: "propose",
-      docPath: "Notes/Plans.md",
-      selectionText: "First paragraph.",
-      prompt: "What does this mean?",
-      anchor: () => Promise.resolve({ ok: true }),
-    });
-    if (created.kind !== "created") {
-      throw new Error(`expected created, got ${created.kind}`);
-    }
-    const detail = await client.threads.get.$get({ query: { threadId: created.threadId } });
-    if (!detail.ok) {
-      throw new Error("thread detail refused");
-    }
-    expect((await detail.json()).thread.writeMode).toBe("direct");
-  });
-
-  for (const reason of ["block-gone", "no-editor", "save-failed"] as const) {
-    it(`creates NO thread when the anchor fails: ${reason}`, async () => {
-      const { client, driver } = await bootChatHarness({ mode: "manual" });
-      const created = await createDelegation(client, {
-        intent: "do",
-        writeMode: "direct",
-        docPath: "Notes/Plans.md",
-        selectionText: "First paragraph.",
-        prompt: "Rewrite this",
-        anchor: () => Promise.resolve({ ok: false, reason }),
-      });
-      expect(created).toEqual({ kind: "not-anchored", reason });
-      // No orphan thread, and no turn was ever dispatched.
-      const listed = await client.threads.list.$get();
-      if (!listed.ok) {
-        throw new Error("list refused");
-      }
-      expect((await listed.json()).threads).toHaveLength(0);
-      expect(driver.startedTurns).toHaveLength(0);
-    });
-  }
 });
 
 describe("the inline approval card's answer", () => {

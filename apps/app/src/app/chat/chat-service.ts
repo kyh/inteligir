@@ -10,20 +10,11 @@
 // The suites here drive the REAL ThreadService over an in-process app, so the
 // whole matrix is proven against the server's own transitions.
 
-import type { AgentWriteMode } from "@repo/domain/agent-write-mode";
 import type { ViewContext } from "@repo/domain/view-context";
 import type { ApiClient } from "@repo/server-contract/client";
 import { apiErrorResponseSchema } from "@repo/server-contract/errors";
 import type { SendMessageRequest, Thread } from "@repo/server-contract/threads";
-import {
-  composeDelegationMessage,
-  delegationTitle,
-  initialChatThread,
-  newAnchorToken,
-  type AnchorFailure,
-  type AnchorOutcome,
-  type DelegationIntent,
-} from "./chat-model";
+import { initialChatThread } from "./chat-model";
 
 export type ComposerSendOutcome =
   | { kind: "started"; turnId: string }
@@ -170,67 +161,4 @@ export function createChatThreadResolver(api: ApiClient): () => Promise<Thread> 
     });
     return attempt;
   };
-}
-
-export interface CreateDelegationArgs {
-  intent: DelegationIntent;
-  writeMode: AgentWriteMode;
-  docPath: string;
-  selectionText: string;
-  prompt: string;
-  /** Splices the marker AND makes it durable; see DelegationDraft.anchor. */
-  anchor: (anchor: string) => Promise<AnchorOutcome>;
-}
-
-export type CreateDelegationResult =
-  | { kind: "created"; threadId: string; anchor: string; send: ComposerSendOutcome }
-  | { kind: "not-anchored"; reason: AnchorFailure };
-
-/**
- * THE ORDER IS THE CONTRACT: anchor and flush FIRST, create the thread only
- * once those bytes are durable, and start the turn last.
- *
- * Creating first is what the obvious reading of "mint a thread, then mark the
- * doc" gives you, and it is wrong twice over. The agent materializes the vault
- * from disk, so a turn started before the flush can read the doc WITHOUT the
- * anchor it is told to work at. And an anchor that never lands — the save 409s,
- * the tab closes, the user hits undo — leaves a thread bound to a doc nothing
- * marks: a delegation with no chip, invisible except in the thread list.
- */
-export async function createDelegation(
-  api: ApiClient,
-  args: CreateDelegationArgs,
-): Promise<CreateDelegationResult> {
-  const anchor = newAnchorToken();
-  const anchored = await args.anchor(anchor);
-  if (!anchored.ok) {
-    return { kind: "not-anchored", reason: anchored.reason };
-  }
-  const created = await api.threads.create.$post({
-    json: {
-      title: delegationTitle(args.prompt),
-      originDocPath: args.docPath,
-      originAnchor: anchor,
-      // `ask` never writes, so it is created `direct` and the mode stays
-      // meaningless there rather than becoming a second thing to reason about.
-      writeMode: args.intent === "ask" ? "direct" : args.writeMode,
-    },
-  });
-  if (!created.ok) {
-    throw new Error("Could not create the delegation thread");
-  }
-  const { thread } = await created.json();
-  const send = await sendToThread(api, {
-    threadId: thread.id,
-    text: composeDelegationMessage({
-      intent: args.intent,
-      writeMode: args.writeMode,
-      docPath: args.docPath,
-      anchor,
-      selectionText: args.selectionText,
-      prompt: args.prompt,
-    }),
-    activeTurnId: null,
-  });
-  return { kind: "created", threadId: thread.id, anchor, send };
 }

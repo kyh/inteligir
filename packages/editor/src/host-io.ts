@@ -75,6 +75,23 @@ export function vaultChangeTouches(event: VaultChangedEvent, path: string): bool
 }
 
 /**
+ * The sentence a held deletion is reported with — one phrasing, so the refusal
+ * reads the same in a toast, in an agent tool's failure and in a log. It names
+ * the recourse that EXISTS: the count is a rolling window, and it drains.
+ */
+export function heldDeletionMessage(held: HeldDeletions): string {
+  const named = held.sample.map((path) => `"${path}"`).join(", ");
+  const more = held.sample.length < held.deletions ? ", …" : "";
+  return (
+    `Held: this would make ${held.deletions} deletions inside ` +
+    `${Math.round(held.windowMs / 60_000)} minutes, past the limit of ` +
+    `${Math.round(held.limit)} for a vault of ${held.liveCount} files. ` +
+    `Nothing was deleted (${named}${more}). The count is a rolling window that drains on ` +
+    `its own — wait for it to clear, then delete again.`
+  );
+}
+
+/**
  * Everything the editor calls on the app. Subscriptions return their
  * unsubscribe.
  */

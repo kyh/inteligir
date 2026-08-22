@@ -214,6 +214,24 @@ export const vaultRenameResponseSchema = z
   .strict();
 export type VaultRenameResponse = z.infer<typeof vaultRenameResponseSchema>;
 
+/** An attachment write: bytes land under `dir` with a name derived from
+ * `baseName` (the host picks a collision-free one). Base64 in JSON because the
+ * caller is the editor's paste handler and the payload is one image; the cap
+ * below bounds it. */
+export const VAULT_ASSET_WRITE_MAX_BYTES = 16 * 1024 * 1024;
+
+export const vaultAssetWriteRequestSchema = z
+  .object({
+    dir: z.string().min(1),
+    baseName: z.string().min(1),
+    bytesBase64: z.string().min(1),
+  })
+  .strict();
+export type VaultAssetWriteRequest = z.infer<typeof vaultAssetWriteRequestSchema>;
+
+export const vaultAssetWriteResponseSchema = z.object({ path: z.string().min(1) }).strict();
+export type VaultAssetWriteResponse = z.infer<typeof vaultAssetWriteResponseSchema>;
+
 export const vaultMkdirRequestSchema = z.object({ path: vaultPathSchema }).strict();
 export type VaultMkdirRequest = z.infer<typeof vaultMkdirRequestSchema>;
 
@@ -357,6 +375,16 @@ export const vaultRoutes = {
       jsonResponse<VaultWriteResponse>(),
       jsonResponse<ApiErrorResponse>({ status: 400 }),
       jsonResponse<VaultWriteConflict>({ status: 409 }),
+    ],
+  }),
+  assetWrite: defineRoute({
+    path: "/vault/asset",
+    method: "post",
+    request: jsonRequest<EmptyInput, VaultAssetWriteRequest>(vaultAssetWriteRequestSchema),
+    response: [
+      jsonResponse<VaultAssetWriteResponse>(),
+      jsonResponse<ApiErrorResponse>({ status: 400 }),
+      jsonResponse<ApiErrorResponse, 413>({ status: 413 }),
     ],
   }),
   rename: defineRoute({

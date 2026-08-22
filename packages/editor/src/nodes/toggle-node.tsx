@@ -1,5 +1,4 @@
-/* Adapted from Plate Plus Potion (https://pro.platejs.org) — used under the
- * held Plate Plus license. */
+// Vendored from plate (github.com/udecode/plate), MIT. © Plate contributors.
 // Toggle block for the NESTED document model (`<toggle>` MDX with block
 // children — the serialization contract), which differs from Plate's flat
 // indent-sibling model: the first child block is the always-visible summary

@@ -44,7 +44,10 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
     "@repo/typed-routes": [],
     "@repo/ui": [],
 
-    "@repo/editor": ["@repo/notes"],
+    // The Plate editor draws with the shared component kit — the same
+    // shadcn-on-Base-UI vocabulary the app's chrome uses — so the edge is a
+    // rendering dependency, not a domain one. @repo/ui stays a leaf below it.
+    "@repo/editor": ["@repo/notes", "@repo/ui"],
     // The @repo/notes edge is two grammars the contract validates against —
     // the delegation anchor's token (`markdown/thread-anchor`) and the vault
     // path (`knowledge/vault-path`) — and it is narrow ON PURPOSE: both modules

@@ -70,7 +70,7 @@ export function deriveOpenDoc(args: {
   /** The user's per-open raw/rich pick (honored only when rich is available). */
   chosenMode: "raw" | "rich";
 }): OpenDoc {
-  const { openPath, loadedPath, content, rawReason, chosenMode } = args;
+  const { openPath, loadedPath, rawReason, chosenMode } = args;
   if (openPath === null) return { kind: "none" };
   if (loadedPath === null) return { kind: "loading", path: openPath };
   if (!isMarkdownPath(loadedPath)) return { kind: "non-markdown", path: loadedPath };

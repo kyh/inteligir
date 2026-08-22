@@ -7,12 +7,10 @@ const sourceOf = (relative: string): string => readFileSync(join(REPO_ROOT, rela
 
 const TOKEN = "--editor-width";
 
-/** Every column that has to line up on the measure. */
-const CONSUMERS = [
-  "apps/app/src/app/note/note-view.tsx",
-  "apps/app/src/app/chat/chat-dock.tsx",
-  "packages/editor/src/editor-theme.ts",
-];
+/** Every column that has to line up on the measure. The editor column now
+ * centers itself (editor-chrome's EDITOR_COLUMN_PX); aligning the dock to it
+ * is the skin pass's work (#593). */
+const CONSUMERS = ["apps/app/src/app/chat/chat-dock.tsx"];
 
 describe("the editor measure", () => {
   it("is DEFINED, once, on the one ancestor all three columns share", () => {

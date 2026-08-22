@@ -1,5 +1,4 @@
-/* Adapted from Plate Plus Potion (https://pro.platejs.org) — used under the
- * held Plate Plus license. */
+// Vendored from plate (github.com/udecode/plate), MIT. © Plate contributors.
 // `video` node (URL-only, no uploads/resize/captions): youtube renders through
 // react-lite-youtube-embed (thumbnail-first, no iframe until click); every
 // other provider parseVideoUrl understands (vimeo/dailymotion/coub/youku)
@@ -25,7 +24,7 @@ const LiteYouTubeEmbed = lazy(() =>
   ]).then(([mod]) => ({ default: mod.default })),
 );
 
-// Aspect paddings mirror potion's per-provider ratios.
+// Per-provider aspect ratios.
 const PROVIDER_ASPECT: Record<string, string> = {
   coub: "pb-[51.25%]",
   dailymotion: "pb-[56.0417%]",

@@ -1,10 +1,8 @@
 // The bottom chat dock, pinned under the editor column and living BESIDE the
 // note (its state never wraps the editor, so nothing here can remount it).
-// One surface for both mechanisms: plain chat sends into the held chat thread
-// (minted lazily, single-flight, on the first send), and a delegation draft —
-// armed by the editor's selection affordance — turns the same composer into
-// that delegation's prompt input. Collapsed shows the last exchange; expanded
-// is a scrollable timeline with approvals answerable inline.
+// Plain chat sends into the held chat thread (minted lazily, single-flight,
+// on the first send). Collapsed shows the last exchange; expanded is a
+// scrollable timeline with approvals answerable inline.
 
 import type { TimelineRow } from "@repo/server-contract/thread-timeline";
 import { Button } from "@repo/ui/components/button";
@@ -12,11 +10,9 @@ import { Textarea } from "@repo/ui/components/textarea";
 import { toast } from "@repo/ui/components/sonner";
 import { cn } from "@repo/ui/lib/utils";
 import { useQueryClient } from "@tanstack/react-query";
-import { ArchiveIcon, ArrowUpIcon, ChevronDownIcon, PenLineIcon, XIcon } from "lucide-react";
+import { ArchiveIcon, ArrowUpIcon, ChevronDownIcon, PenLineIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { queryKeys, unwrap } from "../api";
-import { ProposalSummary } from "../proposals/proposal-summary";
-import { useProposalActions, useThreadProposals } from "../proposals/proposal-hooks";
 import { useVoiceStatus } from "../voice-hooks";
 import { useWorkspace } from "../workspace-context";
 import { ApprovalCard } from "./approval-card";
@@ -26,7 +22,6 @@ import {
   initialChatThread,
   threadActivity,
   THREAD_ACTIVITY_DOT_CLASSES,
-  type DelegationDraft,
   type ViewContextSource,
 } from "./chat-model";
 import { createChatThreadResolver, sendToThread, type SendToThreadArgs } from "./chat-service";
@@ -39,10 +34,6 @@ export interface ChatDockProps {
   onViewThread: (threadId: string | null) => void;
   expanded: boolean;
   onExpandedChange: (expanded: boolean) => void;
-  draft: DelegationDraft | null;
-  onCancelDraft: () => void;
-  /** Runs the delegation create for the armed draft; resolves when sent. */
-  onSubmitDelegation: (prompt: string) => Promise<void>;
   onOpenDoc: (path: string) => void;
   /** What the user is looking at, pulled at submit. */
   readViewContext: ViewContextSource;
@@ -63,9 +54,6 @@ export function ChatDock({
   onViewThread,
   expanded,
   onExpandedChange,
-  draft,
-  onCancelDraft,
-  onSubmitDelegation,
   onOpenDoc,
   readViewContext,
 }: ChatDockProps) {
@@ -99,7 +87,6 @@ export function ChatDock({
   // A delegation's suggestions belong in the thread that made them, not only
   // in the doc — a thread whose turn "finished" while its edits sit unapplied
   // is the state this dock has to be able to explain.
-  const proposals = useThreadProposals(viewingId).data ?? [];
 
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
@@ -129,23 +116,13 @@ export function ChatDock({
     });
   };
 
-  // A freshly armed draft moves the user's next keystrokes here.
-  useEffect(() => {
-    if (draft !== null) {
-      composerRef.current?.focus();
-    }
-  }, [draft]);
-
   const rowCount = timeline?.rows.length ?? 0;
-  // Suggestions are counted alongside the rows because they land at the BOTTOM
-  // of the same scroller, after the turn's last message — a card that arrives
-  // without moving the scroll is a card nobody sees.
   useEffect(() => {
     const scroller = scrollRef.current;
     if (scroller !== null) {
       scroller.scrollTop = scroller.scrollHeight;
     }
-  }, [rowCount, proposals.length, expanded]);
+  }, [rowCount, expanded]);
 
   const invalidateThreads = (): void => {
     void queryClient.invalidateQueries({ queryKey: queryKeys.threadsRoot });
@@ -159,13 +136,6 @@ export function ChatDock({
     setSending(true);
     void (async () => {
       try {
-        if (draft !== null) {
-          // A delegation already names its doc and quotes its block in the
-          // message it composes; a view context would say it a second time.
-          await onSubmitDelegation(trimmed);
-          setText("");
-          return;
-        }
         // BEFORE the send, and before the thread is even resolved: producing
         // the context flushes the open note, so the bytes its revision names
         // are the ones the agent will read.
@@ -240,9 +210,6 @@ export function ChatDock({
   const pending = detailQuery.data?.pendingInteractions ?? [];
   const queued = detailQuery.data?.queuedMessages ?? [];
   const needsApproval = pending.length > 0;
-  const proposalActions = useProposalActions((message) => {
-    toast.error(message);
-  });
   const dotClass =
     thread === null
       ? null
@@ -250,7 +217,7 @@ export function ChatDock({
           threadActivity(thread, {
             openInteractionCount: pending.length,
             queuedCount: queued.length,
-            pendingProposalCount: proposals.length,
+            pendingProposalCount: 0,
           })
         ];
   const exchange = timeline === null ? null : lastExchange(timeline.rows);
@@ -320,14 +287,6 @@ export function ChatDock({
                   onAnswer={answerInteraction}
                 />
               ))}
-              {proposals.map((proposal) => (
-                <ProposalSummary
-                  key={proposal.id}
-                  proposal={proposal}
-                  actions={proposalActions}
-                  onOpenDoc={onOpenDoc}
-                />
-              ))}
               {queued.map((message) => (
                 <div key={message.id} className="flex justify-end">
                   <div className="max-w-[85%] rounded-2xl bg-surface-raised/60 px-3 py-1.5 text-sm whitespace-pre-wrap text-ink-3 shadow-surface-1">
@@ -350,37 +309,9 @@ export function ChatDock({
             <span className="truncate">
               {needsApproval
                 ? "The agent needs an approval"
-                : proposals.length > 0
-                  ? `The agent suggested edits to ${proposals.length} file(s)`
-                  : (exchange?.text ?? "No messages yet")}
+                : (exchange?.text ?? "No messages yet")}
             </span>
           </button>
-        ) : null}
-
-        {draft !== null ? (
-          <div className="mb-2 flex items-start gap-2 rounded-lg border border-line bg-surface-raised px-3 py-2 text-xs shadow-surface-1">
-            <div className="min-w-0 flex-1">
-              <div className="font-medium">
-                {draft.intent === "ask"
-                  ? "Ask about this"
-                  : draft.writeMode === "propose"
-                    ? "Propose an edit"
-                    : "Delegate to the agent"}
-                <span className="ml-2 font-normal text-muted-foreground">{draft.docPath}</span>
-              </div>
-              <div className="mt-0.5 truncate text-muted-foreground">
-                {draft.selectionText.split("\n", 1)[0]}
-              </div>
-            </div>
-            <Button
-              size="icon-xs"
-              variant="ghost"
-              aria-label="Cancel delegation"
-              onClick={onCancelDraft}
-            >
-              <XIcon />
-            </Button>
-          </div>
         ) : null}
 
         {dictationPartial !== null ? (
@@ -397,13 +328,7 @@ export function ChatDock({
           <Textarea
             ref={composerRef}
             aria-label="Message the agent"
-            placeholder={
-              draft !== null
-                ? draft.intent === "do"
-                  ? "What should the agent do with this?"
-                  : "What do you want to know?"
-                : "Message the agent…"
-            }
+            placeholder="Message the agent…"
             value={text}
             rows={1}
             className="max-h-40 min-h-9 flex-1 resize-none"
@@ -412,10 +337,6 @@ export function ChatDock({
               if (event.key === "Enter" && !event.shiftKey) {
                 event.preventDefault();
                 submit();
-              }
-              if (event.key === "Escape" && draft !== null) {
-                event.preventDefault();
-                onCancelDraft();
               }
             }}
           />

@@ -61,8 +61,6 @@
   },
   "devDependencies": {
     "@types/mdast": "catalog:",
-    "mdast-util-from-markdown": "^2.0.3",
-    "micromark-util-types": "^2.0.2",
     "remark-stringify": "^11.0.0",
     "typescript": "catalog:",
     "vitest": "catalog:"

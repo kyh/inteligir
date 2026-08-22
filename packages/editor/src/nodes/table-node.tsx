@@ -1,5 +1,5 @@
 // Plate models a table as table > tr > (td|th); the rows need a <tbody> wrapper
-// for valid HTML (mirrors Potion's table renderer). GFM tables round-trip.
+// for valid HTML. GFM tables round-trip.
 // The non-editable hover affordances add a row at the bottom / column at the
 // right (Tab/Shift-Tab cell navigation is handled natively by the table
 // plugin). The per-table Base UI menu is independent of the block menu.

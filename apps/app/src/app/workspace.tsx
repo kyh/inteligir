@@ -6,24 +6,24 @@
 
 import { parseSearchQuery } from "@repo/notes/knowledge/vault-search";
 import type { ViewContext } from "@repo/domain/view-context";
+import type { ViewContextSource } from "./chat/chat-model";
 import type { Thread } from "@repo/server-contract/threads";
 import type { VaultEntry } from "@repo/server-contract/vault";
 import { ConfirmDialogHost, confirm } from "@repo/ui/components/confirm-dialog";
 import { Toaster, toast } from "@repo/ui/components/sonner";
 import { useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ApiError, queryKeys, refusalMessage, unwrap } from "./api";
+import { useCallback, useMemo, useRef, useState } from "react";
+import { queryKeys, refusalMessage, unwrap } from "./api";
 import { ChatDock } from "./chat/chat-dock";
-import {
-  ANCHOR_FAILURE_MESSAGES,
-  type DelegationDraft,
-  type ViewContextSource,
-} from "./chat/chat-model";
-import { createDelegation } from "./chat/chat-service";
 import { useThreads } from "./chat/thread-hooks";
 import { platformShortcutModifier, useGlobalShortcuts } from "./global-shortcuts";
+import { EditorPane } from "@repo/editor/editor-pane";
+import { flushOpenNote } from "@repo/editor/note/open-note-flush";
+import { openNoteState } from "@repo/editor/note/open-note-store";
+import type { VaultActions } from "@repo/editor/host";
 import { dailyNotePath, dailyNoteTemplate } from "./note/daily";
-import { NoteView, type NoteDelegation } from "./note/note-view";
+import { readNoteViewContext } from "./note/note-view-context";
+import { VaultProvider } from "./note/vault-provider";
 import { CommandPalette } from "./palette/command-palette";
 import {
   NOTE_SEARCH_LIMIT,
@@ -36,21 +36,12 @@ import type { TreeOps } from "./sidebar/file-tree";
 import {
   canSyncNow,
   filePathsLowercased,
-  firstRootDoc,
-  renameVaultEntry,
   syncNowNotice,
   untitledNotePath,
   useVaultStatus,
   useVaultTree,
 } from "./vault-hooks";
-import {
-  readLastOpenNote,
-  readSidebarWidth,
-  SIDEBAR_WIDTH_MAX,
-  SIDEBAR_WIDTH_MIN,
-  writeLastOpenNote,
-  writeSidebarWidth,
-} from "./prefs";
+import { readSidebarWidth, SIDEBAR_WIDTH_MAX, SIDEBAR_WIDTH_MIN, writeSidebarWidth } from "./prefs";
 import { useWorkspace } from "./workspace-context";
 
 export interface WorkspaceProps {
@@ -75,142 +66,50 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
   // Read once: the platform does not change under a running window.
   const [shortcutModifier] = useState(platformShortcutModifier);
 
-  const onSearchTag = useCallback((tag: string): void => {
-    setPaletteQuery(`tag:${tag}`);
-    setPaletteOpen(true);
-  }, []);
-
   // The chat dock's state lives HERE, beside the note — never above it, so
   // no chat interaction can remount the editor.
   const threadsQuery = useThreads();
   const [chatExpanded, setChatExpanded] = useState(false);
   const [chatThreadId, setChatThreadId] = useState<string | null>(null);
-  const [delegationDraft, setDelegationDraft] = useState<DelegationDraft | null>(null);
 
   const openThread = useCallback((threadId: string | null): void => {
     setChatThreadId(threadId);
     setChatExpanded(true);
   }, []);
 
-  // ONE slot for what the user is looking at: the main column's surface fills
-  // it while it is mounted, the dock pulls from it at submit. A ref rather
-  // than state — registering a getter must not re-render the editor.
-  const viewContextRef = useRef<ViewContextSource | null>(null);
-  const registerViewContext = useCallback((source: ViewContextSource | null): void => {
-    viewContextRef.current = source;
-  }, []);
-  const readViewContext = useCallback(
-    async (): Promise<ViewContext | null> => (await viewContextRef.current?.()) ?? null,
-    [],
-  );
-
-  const runDelegation = useCallback(
-    async (draft: DelegationDraft, prompt: string): Promise<void> => {
-      try {
-        const created = await createDelegation(api, {
-          intent: draft.intent,
-          writeMode: draft.writeMode,
-          docPath: draft.docPath,
-          selectionText: draft.selectionText,
-          prompt,
-          anchor: draft.anchor,
-        });
-        // An anchor that did not land means NO thread was created — say which
-        // failure it was rather than leaving the user with a silent no-op.
-        if (created.kind === "not-anchored") {
-          toast.error(ANCHOR_FAILURE_MESSAGES[created.reason]);
-          return;
-        }
-        if (created.send.kind === "refused") {
-          toast.error(`The delegation could not start: ${created.send.message}`);
-        }
-        openThread(created.threadId);
-      } catch {
-        toast.error("Could not create the delegation.");
-      } finally {
-        void queryClient.invalidateQueries({ queryKey: queryKeys.threadsRoot });
-      }
-    },
-    [api, queryClient, openThread],
-  );
-
-  const noteDelegation = useMemo<NoteDelegation>(
-    () => ({
-      onDraft: setDelegationDraft,
-      onRunTask: (draft, prompt) => {
-        void runDelegation(draft, prompt);
-      },
-      onOpenThread: openThread,
-    }),
-    [runDelegation, openThread],
-  );
-
-  // Cancelling drops the editor's tracked position too — an abandoned draft
-  // must not leave one armed for the next delegation to inherit.
-  const onCancelDraft = useCallback((): void => {
-    setDelegationDraft((current) => {
-      current?.cancel();
+  // What the user is looking at, pulled at submit: the open note's buffer via
+  // the store the editor publishes into. Selection offsets return with the
+  // composer surface (#587) — until then the context names the note whole.
+  const readViewContext = useCallback<ViewContextSource>(async (): Promise<ViewContext | null> => {
+    const { editor } = openNoteState();
+    if (editor.path === null) {
       return null;
+    }
+    const path = editor.path;
+    return readNoteViewContext(path, {
+      flush: async () => {
+        await flushOpenNote();
+      },
+      read: () => {
+        const { editor: current } = openNoteState();
+        return { content: current.path === path ? current.content : "", from: 0, to: 0 };
+      },
     });
   }, []);
 
-  const onSubmitDelegation = useCallback(
-    async (prompt: string): Promise<void> => {
-      const draft = delegationDraft;
-      setDelegationDraft(null);
-      if (draft !== null) {
-        await runDelegation(draft, prompt);
-      }
-    },
-    [delegationDraft, runDelegation],
-  );
-
-  // Every deliberate open/close goes through here, which is what keeps the
-  // localStorage mirror honest; the boot restore below bypasses it on purpose.
+  // Deliberate opens go through the vault session (flush-then-switch); the
+  // session's publishOpenPath mirrors back into the route + localStorage.
+  const actionsRef = useRef<VaultActions | null>(null);
   const setOpenNote = useCallback(
     (path: string | null): void => {
-      writeLastOpenNote(path);
-      onOpenNote(path);
+      if (path === null) {
+        onOpenNote(null);
+        return;
+      }
+      actionsRef.current?.openFile(path);
     },
     [onOpenNote],
   );
-
-  // Boot restore, one outcome ref: null until the restore ran; "none" while a
-  // virgin boot still waits on the tree; "done" once a note was opened (URL,
-  // localStorage, or the virgin fallback below).
-  const restoreOutcomeRef = useRef<"done" | "none" | null>(null);
-  useEffect(() => {
-    if (restoreOutcomeRef.current !== null) {
-      return;
-    }
-    if (openNote !== null) {
-      restoreOutcomeRef.current = "done";
-      return;
-    }
-    const last = readLastOpenNote();
-    if (last !== null) {
-      restoreOutcomeRef.current = "done";
-      onOpenNote(last);
-      return;
-    }
-    restoreOutcomeRef.current = "none";
-  }, [openNote, onOpenNote]);
-
-  // Virgin boot (nothing restored): open the first note in the vault root so
-  // the app never lands on an empty pane. Waits for the tree, runs once.
-  useEffect(() => {
-    if (restoreOutcomeRef.current !== "none" || openNote !== null) {
-      return;
-    }
-    if (treeQuery.data === undefined) {
-      return;
-    }
-    restoreOutcomeRef.current = "done";
-    const firstNote = firstRootDoc(treeQuery.data);
-    if (firstNote !== null) {
-      setOpenNote(firstNote);
-    }
-  }, [openNote, treeQuery.data, setOpenNote]);
 
   // During the drag the width goes straight onto the aside's style — a move
   // per frame must not re-render the whole workspace; ONE setState lands the
@@ -242,22 +141,11 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
     }
   };
 
-  const createNote = useCallback(
-    async (path: string, content = ""): Promise<void> => {
-      try {
-        // Create-exclusive: an existing note is OPENED, never overwritten.
-        await unwrap(await api.vault.file.$put({ json: { path, content, ifAbsent: true } }));
-        setOpenNote(path);
-      } catch (error) {
-        if (error instanceof ApiError && error.code === "already_exists") {
-          setOpenNote(path);
-          return;
-        }
-        toast.error(refusalMessage(error, `Could not create ${path}.`));
-      }
-    },
-    [api, setOpenNote],
-  );
+  // Open-or-create through the session: an existing note is OPENED, never
+  // overwritten (createFile seeds only a genuinely new file).
+  const createNote = useCallback(async (path: string, content = ""): Promise<void> => {
+    await actionsRef.current?.createFile(path, content);
+  }, []);
 
   const newUntitledNote = useCallback(
     (parentDir: string): void => {
@@ -304,15 +192,17 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
         })();
       },
       renameEntry: (fromPath, toPath) => {
+        // The session flushes first, carries the open note, and toasts its own
+        // refusals. A rename of the open note's ANCESTOR folder still goes
+        // through the api (the session tracks files, not folders).
         void (async () => {
-          const outcome = await renameVaultEntry(api, fromPath, toPath);
-          if (!outcome.ok) {
-            toast.error(outcome.message);
-            return;
-          }
-          if (openNote === fromPath) {
-            setOpenNote(toPath);
-          } else if (openNote !== null && openNote.startsWith(`${fromPath}/`)) {
+          const moved = await actionsRef.current?.renameEntry(fromPath, toPath);
+          if (
+            moved === true &&
+            openNote !== null &&
+            openNote !== fromPath &&
+            openNote.startsWith(`${fromPath}/`)
+          ) {
             setOpenNote(`${toPath}/${openNote.slice(fromPath.length + 1)}`);
           }
         })();
@@ -331,28 +221,21 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
           if (!confirmed) {
             return;
           }
-          try {
-            await unwrap(await api.vault.delete.$post({ json: { path } }));
-            if (openNote !== null && (openNote === path || openNote.startsWith(`${path}/`))) {
-              setOpenNote(null);
-            }
-          } catch (error) {
-            toast.error(refusalMessage(error, `Could not delete ${path}.`));
+          await actionsRef.current?.deleteEntry(path);
+          if (openNote !== null && openNote !== path && openNote.startsWith(`${path}/`)) {
+            // A folder delete swallowing the open note: the session only
+            // tracks the file itself; drop the stale selection.
+            onOpenNote(null);
           }
         })();
       },
     }),
-    [api, createNote, openNote, setOpenNote],
+    [api, createNote, openNote, setOpenNote, onOpenNote],
   );
 
   const onOpenSettings = useCallback((): void => {
     setSettingsOpen(true);
   }, []);
-
-  const onNoteVanished = useCallback((): void => {
-    toast.info("The open note was deleted on disk.");
-    setOpenNote(null);
-  }, [setOpenNote]);
 
   useGlobalShortcuts(shortcutModifier, (action) => {
     switch (action) {
@@ -428,75 +311,57 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
   const threads = threadsQuery.data?.threads ?? EMPTY_THREADS;
 
   return (
-    <div className="flex h-dvh overflow-hidden bg-surface text-ink">
-      <aside
-        ref={asideRef}
-        style={{ width: sidebarWidth }}
-        className="shrink-0 border-r border-line bg-sidebar text-sidebar-foreground"
-      >
-        <Sidebar
-          openPath={openNote}
-          onOpenFile={setOpenNote}
-          ops={treeOps}
-          onSyncNow={syncNow}
-          onOpenSettings={onOpenSettings}
+    <VaultProvider onOpenPath={onOpenNote} actionsRef={actionsRef}>
+      <div className="flex h-dvh overflow-hidden bg-surface text-ink">
+        <aside
+          ref={asideRef}
+          style={{ width: sidebarWidth }}
+          className="shrink-0 border-r border-line bg-sidebar text-sidebar-foreground"
+        >
+          <Sidebar
+            openPath={openNote}
+            onOpenFile={setOpenNote}
+            ops={treeOps}
+            onSyncNow={syncNow}
+            onOpenSettings={onOpenSettings}
+          />
+        </aside>
+        <div
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize sidebar"
+          className="w-1 shrink-0 cursor-col-resize hover:bg-line-strong active:bg-line-strong"
+          onPointerDown={onResizePointerDown}
+          onPointerMove={onResizePointerMove}
+          onPointerUp={onResizePointerUp}
         />
-      </aside>
-      <div
-        role="separator"
-        aria-orientation="vertical"
-        aria-label="Resize sidebar"
-        className="w-1 shrink-0 cursor-col-resize hover:bg-line-strong active:bg-line-strong"
-        onPointerDown={onResizePointerDown}
-        onPointerMove={onResizePointerMove}
-        onPointerUp={onResizePointerUp}
-      />
-      <main className="flex min-w-0 flex-1 flex-col">
-        <div className="min-h-0 flex-1">
-          {openNote === null ? (
-            <div className="flex h-full items-center justify-center">
-              <p className="text-sm text-ink-3">
-                Open a note from the sidebar, or press{" "}
-                <kbd className="rounded border border-line px-1 font-mono text-xs">⌘K</kbd>
-              </p>
-            </div>
-          ) : (
-            <NoteView
-              path={openNote}
-              delegation={noteDelegation}
-              onRename={setOpenNote}
-              onVanished={onNoteVanished}
-              onSearchTag={onSearchTag}
-              onOpenNote={setOpenNote}
-              onViewContextSource={registerViewContext}
-            />
-          )}
-        </div>
-        <ChatDock
-          viewThreadId={chatThreadId}
-          onViewThread={setChatThreadId}
-          expanded={chatExpanded}
-          onExpandedChange={setChatExpanded}
-          draft={delegationDraft}
-          onCancelDraft={onCancelDraft}
-          onSubmitDelegation={onSubmitDelegation}
-          onOpenDoc={setOpenNote}
-          readViewContext={readViewContext}
+        <main className="flex min-w-0 flex-1 flex-col">
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <EditorPane />
+          </div>
+          <ChatDock
+            viewThreadId={chatThreadId}
+            onViewThread={setChatThreadId}
+            expanded={chatExpanded}
+            onExpandedChange={setChatExpanded}
+            onOpenDoc={setOpenNote}
+            readViewContext={readViewContext}
+          />
+        </main>
+        <CommandPalette
+          open={paletteOpen}
+          initialQuery={paletteQuery}
+          onOpenChange={setPaletteOpen}
+          entries={treeEntries}
+          threads={threads}
+          searchSource={searchSource}
+          canSync={canSync}
+          actions={paletteActions}
         />
-      </main>
-      <CommandPalette
-        open={paletteOpen}
-        initialQuery={paletteQuery}
-        onOpenChange={setPaletteOpen}
-        entries={treeEntries}
-        threads={threads}
-        searchSource={searchSource}
-        canSync={canSync}
-        actions={paletteActions}
-      />
-      <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} onSyncNow={syncNow} />
-      <ConfirmDialogHost />
-      <Toaster position="bottom-right" />
-    </div>
+        <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} onSyncNow={syncNow} />
+        <ConfirmDialogHost />
+        <Toaster position="bottom-right" />
+      </div>
+    </VaultProvider>
   );
 }

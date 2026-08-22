@@ -116,14 +116,12 @@ describe("only one module reads a thread's lifecycle", () => {
   // must not carry one at all, being a package with no domain to have it in.
   const LIFECYCLE = /["'](?:starting|stopping)["']/u;
 
-  it.each([
-    "apps/app/src/app/chat/chat-dock.tsx",
-    "apps/app/src/app/palette/command-palette.tsx",
-    "apps/app/src/app/note/note-view.tsx",
-    "packages/editor/src/thread-chip.ts",
-  ])("%s derives none of its own", (relative) => {
-    expect(sourceOf(relative)).not.toMatch(LIFECYCLE);
-  });
+  it.each(["apps/app/src/app/chat/chat-dock.tsx", "apps/app/src/app/palette/command-palette.tsx"])(
+    "%s derives none of its own",
+    (relative) => {
+      expect(sourceOf(relative)).not.toMatch(LIFECYCLE);
+    },
+  );
 
   it("names chat-model.ts as the one that does", () => {
     expect(sourceOf("apps/app/src/app/chat/chat-model.ts")).toMatch(LIFECYCLE);

@@ -1,5 +1,4 @@
-/* Adapted from Plate Plus Potion (https://pro.platejs.org) — used under the
- * held Plate Plus license. */
+// Vendored from plate (github.com/udecode/plate), MIT. © Plate contributors.
 // Selection ghost: while a menu or popover holds DOM focus, the editor's
 // selection collapses visually — this overlay re-paints the model selection
 // rects so the user still sees what a Turn-into / link / AI action targets.

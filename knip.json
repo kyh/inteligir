@@ -113,13 +113,8 @@
     // components: those exports are the UPSTREAM surface, and trimming them
     // makes the next re-vendor a conflict. dev/ is the human-eyes vite demo.
     "packages/editor": {
-      "entry": [
-        "src/**/__tests__/**/*.test.ts",
-        "src/vendor/prosemark/lib/**/*.ts",
-        "src/vendor/prosemark/tests/*.test.ts",
-        "dev/main.ts"
-      ],
-      "project": ["src/**/*.{ts,tsx}", "dev/**/*.ts"]
+      "entry": ["src/**/__tests__/**/*.test.ts", "src/**/*.test.{ts,tsx}"],
+      "project": ["src/**/*.{ts,tsx}"]
     },
     "packages/typed-routes": {
       "entry": ["src/**/__tests__/**/*.test.ts"],

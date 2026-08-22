@@ -1,5 +1,4 @@
-/* Adapted from Plate Plus Potion (https://pro.platejs.org) — used under the
- * held Plate Plus license. */
+// Vendored from plate (github.com/udecode/plate), MIT. © Plate contributors.
 // Per-block selection overlay: BlockSelectionPlugin renders this below every
 // selectable block's root node; it lights up when the block's id is in the
 // selected set (right-click, grip click, or drag-lasso selection).

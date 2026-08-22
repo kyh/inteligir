@@ -167,6 +167,11 @@ export interface VaultService {
    *  the bytes are COPIED into an ArrayBuffer of their own, because a Buffer
    *  is a view into a pooled allocation that hono's body types refuse. */
   readBytes(path: string): Promise<{ path: string; bytes: ArrayBuffer; etag: string }>;
+  /** Write attachment bytes under `dir`, picking a collision-free name from
+   *  `baseName`; answers the vault-relative path they landed at. Only
+   *  extensions the asset READ serves are accepted — bytes nothing can render
+   *  have no reason to enter the vault this way. */
+  writeAsset(dir: string, baseName: string, bytes: Uint8Array): Promise<{ path: string }>;
   write(path: string, content: string): Promise<{ path: string }>;
   /** Write `content` only if the file still holds exactly `expected`, with the
    *  read and the write inside ONE turn of the mutation lock — the rename
@@ -254,7 +259,7 @@ export function createVaultService(args: VaultServiceArgs): VaultService {
   async function performAtomicWrite(
     relPath: string,
     absPath: string,
-    content: string,
+    content: string | Uint8Array,
     created: boolean,
   ): Promise<void> {
     try {
@@ -269,7 +274,11 @@ export function createVaultService(args: VaultServiceArgs): VaultService {
     try {
       const handle = await open(tmpPath, "w");
       try {
-        await handle.writeFile(content, "utf8");
+        if (content instanceof Uint8Array) {
+          await handle.writeFile(content);
+        } else {
+          await handle.writeFile(content, "utf8");
+        }
         await handle.sync();
       } finally {
         await handle.close();
@@ -385,6 +394,27 @@ export function createVaultService(args: VaultServiceArgs): VaultService {
         bytes: bytes.buffer,
         etag: `"${stats.size.toString(16)}-${Math.trunc(stats.mtimeMs).toString(16)}"`,
       };
+    },
+
+    writeAsset(dir, baseName, bytes) {
+      return lock(async () => {
+        const dot = baseName.lastIndexOf(".");
+        const ext = dot > 0 ? baseName.slice(dot).toLowerCase() : "";
+        const stem = (dot > 0 ? baseName.slice(0, dot) : baseName)
+          .replace(/[^\p{L}\p{N}._ -]+/gu, "-")
+          .replace(/^[.\s-]+|[.\s-]+$/g, "");
+        const safeStem = stem === "" ? "asset" : stem;
+        for (let attempt = 0; attempt < 1000; attempt++) {
+          const name = attempt === 0 ? `${safeStem}${ext}` : `${safeStem}-${attempt + 1}${ext}`;
+          const { relPath, absPath } = resolveVaultPath(rootReal, `${dir}/${name}`);
+          await assertAncestryInsideVault(absPath);
+          const existing = await lstatRefusingSymlink(absPath, relPath);
+          if (existing !== null) continue;
+          await performAtomicWrite(relPath, absPath, bytes, true);
+          return { path: relPath };
+        }
+        throw new VaultServiceError("conflict", `no free name for ${baseName} under ${dir}`);
+      });
     },
 
     write(path, content) {

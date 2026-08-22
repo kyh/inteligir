@@ -1,6 +1,6 @@
 // react-day-picker v9 restyled with the app's tokens (no rdp stylesheet —
-// fully classNames-driven, adapting potion's v8 map to the v9 API: classNames
-// keys overhauled, `components.Chevron` replaces IconLeft/IconRight).
+// fully classNames-driven, in the shadcn calendar idiom on the v9 API:
+// `components.Chevron` replaces IconLeft/IconRight).
 // Loaded lazily by date-node.tsx so rdp stays out of the initial chunk.
 
 import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";

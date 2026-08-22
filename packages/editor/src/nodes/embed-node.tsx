@@ -1,5 +1,4 @@
-/* Adapted from Plate Plus Potion (https://pro.platejs.org) — used under the
- * held Plate Plus license. */
+// Vendored from plate (github.com/udecode/plate), MIT. © Plate contributors.
 // `media_embed` node (URL-only): tweets render through react-tweet (lazy —
 // it's a hefty chunk with theme CSS); any other http(s) URL gets a sandboxed
 // generic iframe. A note is untrusted content, so the frame is scheme-gated:

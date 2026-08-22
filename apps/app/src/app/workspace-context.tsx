@@ -22,7 +22,7 @@ import { readTheme, writeTheme } from "./prefs";
  *  paths); the open note re-checks its own file either way. */
 type DocListener = (docId: string | null) => void;
 
-export interface DocEvents {
+interface DocEvents {
   subscribe: (listener: DocListener) => () => void;
 }
 

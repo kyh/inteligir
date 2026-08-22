@@ -4,11 +4,7 @@
 // so its hook holds it and refreshes off threadEvents directly.
 
 import type { ThreadChangeKind } from "@repo/domain/change-kinds";
-import type {
-  GetThreadResponse,
-  ListDocThreadsResponse,
-  ListThreadsResponse,
-} from "@repo/server-contract/threads";
+import type { GetThreadResponse, ListThreadsResponse } from "@repo/server-contract/threads";
 import { applyTimelineDelta, type ThreadTimeline } from "@repo/server-contract/thread-timeline";
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
@@ -34,14 +30,6 @@ export function useThreadDetail(threadId: string | null): UseQueryResult<GetThre
       return unwrap(await api.threads.get.$get({ query: { threadId } }));
     },
     enabled: threadId !== null,
-  });
-}
-
-export function useDocThreads(docPath: string): UseQueryResult<ListDocThreadsResponse> {
-  const { api } = useWorkspace();
-  return useQuery({
-    queryKey: queryKeys.threadsByDoc(docPath),
-    queryFn: async () => unwrap(await api.threads["by-doc"].$get({ query: { docPath } })),
   });
 }
 

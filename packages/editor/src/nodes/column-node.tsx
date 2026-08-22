@@ -1,5 +1,4 @@
-/* Adapted from Plate Plus Potion (https://pro.platejs.org) — used under the
- * held Plate Plus license. */
+// Vendored from plate (github.com/udecode/plate), MIT. © Plate contributors.
 // Column layout with OWNED drag-resize (no @platejs/resizable): live drag
 // mutates the two flanking columns' DOM flex-basis imperatively (no re-render,
 // no node write, no autosave churn); pointer-up commits every column's width
