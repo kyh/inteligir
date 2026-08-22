@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useTheme } from "@repo/ui/lib/theme";
 
-import { GeometricOrb } from "@repo/ui/components/geometric-orb";
+import { GeometricOrb } from "./geometric-orb";
 
 export function HeroOrb() {
   const { resolved } = useTheme();

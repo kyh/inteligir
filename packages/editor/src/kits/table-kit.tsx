@@ -26,7 +26,7 @@ export const TableBaseKit = [
 ];
 
 // The bordered grid itself lives in @repo/ui globals (`.typeset table` rules,
-// shared by every typeset surface incl. chat); min-w is the editor-only
+// shared by every typeset surface); min-w is the editor-only
 // affordance keeping empty cells clickable. Shared with the transclusion
 // card's read-only static render (transclusion.tsx).
 export const TABLE_CELL_CLASS = "min-w-24";

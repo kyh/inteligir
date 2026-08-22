@@ -6,7 +6,7 @@ Shared UI components (web-only): **vendored stock shadcn** on **Base UI**
 **vendored from the Fluid Functionalism registry**
 (fluidfunctionalism.com, MIT) together with its system layer (`lib/` springs,
 surface/shape/size/icon contexts; `hooks/` proximity-hover, merge-split), plus
-two shared custom pieces (`confirm-dialog`, the Three.js `geometric-orb`).
+one shared custom piece (`confirm-dialog`).
 
 ## Why it exists
 
@@ -21,13 +21,11 @@ here.
 
 ```
 src/
-  components/        the vendored shadcn primitives (button, dialog,
-                     dropdown-menu, sidebar, command, message/bubble/attachment
-                     chat blocks, …) plus custom: confirm-dialog, geometric-orb
+  components/        the vendored primitives (fluid + stock shadcn: button,
+                     dialog, dropdown-menu, sidebar, command, …) plus custom:
+                     confirm-dialog
                      (components.provenance.json is the count of record —
                      `provenance:check` prints it)
-                     (r3f orb; DisplayStatus = idle | busy | error | starting |
-                     listening | speaking)
   hooks/
     use-mobile.ts    viewport breakpoint hook (used by sidebar)
   lib/
@@ -39,7 +37,7 @@ src/
     globals.css      Tailwind entry — shadcn theme tokens, Inter/Geist Mono
                      fonts, shadow ladder, bloom menu motion (CSS port of
                      joshpuckett/bloom), typeset presets, @source
-    typeset.css      typeset-docs / typeset-chat document typography
+    typeset.css      typeset-docs document typography
   __tests__/
     no-orphan-components.test.ts    see Testing
     components-provenance.test.ts   see Testing
@@ -88,9 +86,7 @@ Exports are path-based (`package.json` `exports`):
   `preserve`** — a deliberate deviation, keep it through a template re-sync.
   All three consumers are `react-jsx` and all three pull these sources into
   their own programs via the `@repo/ui/*` paths mapping, so `preserve`
-  typechecks the same files twice under two JSX resolution rules, and it breaks
-  `@react-three/fiber`'s own `declare module "react"` intrinsics — forcing
-  `geometric-orb.tsx` back onto a hand-written global JSX shim.
+  typechecks the same files twice under two JSX resolution rules.
 - **`lib` stays at ES2023** (the repo-wide floor is also the ceiling here).
   These components ship in client bundles at Vite's default
   `baseline-widely-available` target; Vite transforms syntax, never stdlib, so
@@ -103,7 +99,7 @@ Exports are path-based (`package.json` `exports`):
 came from — a shadcn registry item (`origin: "registry"` + the upstream `item`
 name), a Fluid Functionalism item (`origin: "fluid"` + its `item`; the `fluid`
 block pins the upstream repo, commit and license), or written here
-(`origin: "local"`, today `confirm-dialog` and `geometric-orb`) — plus a
+(`origin: "local"`, today `confirm-dialog`) — plus a
 sha256 of the bytes last accepted for it. The registry block mirrors
 `components.json` (the config the CLI reads) and carries the preset id, which
 lives nowhere else. The fluid system layer under `src/lib` and `src/hooks` is

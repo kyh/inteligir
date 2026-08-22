@@ -109,20 +109,19 @@
     // "mdast"` augmentation, which knip cannot follow at all.
     //
     // Everything left is a per-export `@public` tag carrying its own reason.
-    // Today that is exactly three, all genuinely carried ahead of a v3 consumer
-    // (issue #542): `parseWikiBody`, `typeNewProperty`, `PropertyType`. A
-    // FOURTH one appearing fails this gate, which is the point.
+    // Today that is exactly zero — every export earned a consumer — and any
+    // `@public` appearing needs its own stated reason, which is the point.
     "packages/notes": {
       "entry": ["src/**/__tests__/**/*.test.ts"],
       "project": ["src/**/*.ts"],
       "includeEntryExports": true,
       "ignoreExportsUsedInFile": true
     },
-    // Same trade as packages/notes: built ahead of its v3 consumers (issue
-    // #550), so entry exports are trusted as API. Every vendored ProseMark
-    // module is an entry for the same reason packages/ui trusts its vendored
-    // components: those exports are the UPSTREAM surface, and trimming them
-    // makes the next re-vendor a conflict. dev/ is the human-eyes vite demo.
+    // Same trade as packages/notes: every subpath is an entry the app and the
+    // headless mirror import piecemeal. The Plate kit/registry adaptations
+    // (PROVENANCE.md's rows) keep their upstream-shaped exports for the same
+    // reason packages/ui trusts its vendored components: trimming them makes
+    // the next re-vendor a conflict.
     "packages/editor": {
       "entry": ["src/**/__tests__/**/*.test.ts", "src/**/*.test.{ts,tsx}"],
       "project": ["src/**/*.{ts,tsx}"]

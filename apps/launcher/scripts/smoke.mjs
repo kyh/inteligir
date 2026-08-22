@@ -100,8 +100,8 @@ const baseUrl = `http://127.0.0.1:${port}`;
 let server = null;
 
 try {
-  // `pnpm pack`, never `npm pack`: the catalog: protocol on the two native
-  // dependencies is a pnpm workspace fact, and only pnpm rewrites it to real
+  // `pnpm pack`, never `npm pack`: the catalog: protocol on the runtime
+  // dependencies (the native pair and the ACP adapters) is a pnpm workspace fact, and only pnpm rewrites it to real
   // ranges on the way out. An npm-packed tarball installs with
   // EUNSUPPORTEDPROTOCOL — which is also what publishing with npm would do.
   process.stdout.write(`smoke: packing ${packageRoot}\n`);

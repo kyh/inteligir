@@ -22,7 +22,7 @@ import { VOICE_SAMPLE_RATE } from "@repo/server-contract/voice";
 
 /**
  * What the mic button is doing. `recording` carries the level the meter draws;
- * the live partial transcript is the dock's to render, not this state's — a
+ * the live partial transcript is the composer preview's to render, not this state's — a
  * partial that updated here would re-render the button on every frame.
  */
 export type DictationState =

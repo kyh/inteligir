@@ -1,11 +1,8 @@
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { createConnection } from "../connection";
 import type { ThreadChangeKind } from "@repo/domain/change-kinds";
-import { afterEach, describe, expect, it } from "vitest";
-import { createConnection, type DbConnection } from "../connection";
-import { runMigrations } from "../migrate";
+import { describe, expect, it } from "vitest";
 import { noopNotifier, type DbNotifier } from "@repo/domain/notifier";
+import { openTempDb } from "./open-temp-db";
 import {
   applyThreadLifecycleEvent,
   archiveThread,
@@ -15,22 +12,6 @@ import {
   listThreadsByOriginDoc,
   rebindThreadOrigins,
 } from "../threads";
-
-const tempDirs: string[] = [];
-
-function openTempDb(): DbConnection {
-  const dir = mkdtempSync(join(tmpdir(), "inteligir-db-test-"));
-  tempDirs.push(dir);
-  const db = createConnection(join(dir, "test.db"));
-  runMigrations(db);
-  return db;
-}
-
-afterEach(() => {
-  for (const dir of tempDirs.splice(0)) {
-    rmSync(dir, { recursive: true, force: true });
-  }
-});
 
 interface RecordedThreadChange {
   threadId: string;

@@ -27,6 +27,7 @@ import {
   type VaultEntry,
 } from "@repo/editor/host-io";
 import { createDebouncer } from "@repo/editor/lib/debounce";
+import { useWikiTargets } from "../vault-hooks";
 import type { VaultIO } from "@repo/editor/vault-editor";
 import { registerOpenNoteStore } from "@repo/editor/note/open-note-flush";
 import { OpenNoteStoreProvider } from "@repo/editor/note/open-note-context";
@@ -156,12 +157,21 @@ export function VaultProvider({
   > | null>(null);
 
   // Alias-carrying wiki targets from the knowledge index — the same alias
-  // source backlinks resolve with, so chips and the picker agree. Refreshed on
-  // the files-changed sweep (the index lags saves ~100-300ms; a just-added
-  // alias resolves slightly late, same as the backlinks panel). JSON-compared
-  // so an identical payload keeps its reference and the resolver stands.
-  const [wikiTargets, setWikiTargets] = useState<KnowledgeWikiTargetsResponse["targets"]>([]);
+  // source backlinks resolve with, so chips and the picker agree. The shared
+  // query rides the knowledge family's sweeps (the index lags saves
+  // ~100-300ms; a just-added alias resolves slightly late, same as the
+  // backlinks panel); structural sharing keeps the reference stable when the
+  // payload is unchanged, so the resolver memo stands. The ref mirrors it for
+  // the non-React EditorHostIo singleton.
+  const wikiTargetsQuery = useWikiTargets();
+  const wikiTargets = useMemo<KnowledgeWikiTargetsResponse["targets"]>(
+    () => wikiTargetsQuery.data?.targets ?? [],
+    [wikiTargetsQuery.data],
+  );
   const wikiTargetsRef = useRef<KnowledgeWikiTargetsResponse["targets"]>([]);
+  useEffect(() => {
+    wikiTargetsRef.current = wikiTargets;
+  }, [wikiTargets]);
 
   // The mirror callback identity must not rebuild the session.
   const onOpenPathRef = useRef(onOpenPath);
@@ -304,29 +314,6 @@ export function VaultProvider({
       }),
     [docEvents, session],
   );
-
-  useEffect(() => {
-    let live = true;
-    const refresh = createDebouncer(() => {
-      void (async () => {
-        const response = await api.knowledge["wiki-targets"].$get().catch(() => null);
-        if (response === null || !response.ok || !live) return;
-        const { targets } = await response.json();
-        setWikiTargets((prev) => {
-          const next = JSON.stringify(prev) === JSON.stringify(targets) ? prev : targets;
-          wikiTargetsRef.current = next;
-          return next;
-        });
-      })();
-    }, FOCUS_REFRESH_DEBOUNCE_MS);
-    refresh.schedule();
-    const unsubscribe = docEvents.subscribe(() => refresh.schedule());
-    return () => {
-      live = false;
-      unsubscribe();
-      refresh.cancel();
-    };
-  }, [api, docEvents]);
 
   // Repairs a MISSED broadcast: a socket that dropped while the agent wrote
   // comes back to a listing nobody re-announced. One debounced re-list per

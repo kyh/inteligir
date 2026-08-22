@@ -1,46 +1,16 @@
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { createConnection } from "../connection";
 import type { ThreadEvent } from "@repo/domain/provider-event";
 import { threadScope, turnScope } from "@repo/domain/thread-event-scope";
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { createConnection, type DbConnection } from "../connection";
+import { describe, expect, it, vi } from "vitest";
 import {
   appendEvents,
   getMaxSequence,
   listStoredThreadEvents,
   MissingTurnStartedError,
 } from "../events";
-import { runMigrations } from "../migrate";
 import { noopNotifier } from "@repo/domain/notifier";
 import { createThread } from "../threads";
-
-const tempDirs: string[] = [];
-
-function openTempDir(): string {
-  const dir = mkdtempSync(join(tmpdir(), "inteligir-db-test-"));
-  tempDirs.push(dir);
-  return dir;
-}
-
-/** A migrated database in a scratch directory, and where it lives. */
-interface TempDb {
-  db: DbConnection;
-  databasePath: string;
-}
-
-function openTempDb(): TempDb {
-  const databasePath = join(openTempDir(), "test.db");
-  const db = createConnection(databasePath);
-  runMigrations(db);
-  return { db, databasePath };
-}
-
-afterEach(() => {
-  for (const dir of tempDirs.splice(0)) {
-    rmSync(dir, { recursive: true, force: true });
-  }
-});
+import { openTempDbWithPath } from "./open-temp-db";
 
 function turnStarted(threadId: string, turnId: string): ThreadEvent {
   return { type: "turn/started", threadId, scope: turnScope(turnId) };
@@ -58,7 +28,7 @@ function agentDelta(threadId: string, turnId: string, delta: string): ThreadEven
 
 describe("appendEvents", () => {
   it("assigns contiguous per-thread sequences across batches", () => {
-    const { db } = openTempDb();
+    const { db } = openTempDbWithPath();
     const thread = createThread(db, noopNotifier, {});
     const other = createThread(db, noopNotifier, {});
 
@@ -76,7 +46,7 @@ describe("appendEvents", () => {
   });
 
   it("never duplicates (threadId, sequence) under interleaved writers", () => {
-    const { db, databasePath } = openTempDb();
+    const { db, databasePath } = openTempDbWithPath();
     const thread = createThread(db, noopNotifier, {});
     appendEvents(db, noopNotifier, [turnStarted(thread.id, "turn_1")]);
 
@@ -96,7 +66,7 @@ describe("appendEvents", () => {
   });
 
   it("refuses turn content before its turn/started is stored", () => {
-    const { db } = openTempDb();
+    const { db } = openTempDbWithPath();
     const thread = createThread(db, noopNotifier, {});
     expect(() =>
       appendEvents(db, noopNotifier, [agentDelta(thread.id, "turn_ghost", "x")]),
@@ -106,7 +76,7 @@ describe("appendEvents", () => {
   });
 
   it("round-trips events through the stored JSON", () => {
-    const { db } = openTempDb();
+    const { db } = openTempDbWithPath();
     const thread = createThread(db, noopNotifier, {});
     const request: ThreadEvent = {
       type: "client/turn/requested",
@@ -122,7 +92,7 @@ describe("appendEvents", () => {
   });
 
   it("enforces the scope CHECK at the database, not only at parse", () => {
-    const { db } = openTempDb();
+    const { db } = openTempDbWithPath();
     const thread = createThread(db, noopNotifier, {});
     expect(() =>
       db.$client
@@ -137,7 +107,7 @@ describe("appendEvents", () => {
 
 describe("scope policy at the write", () => {
   it("refuses a thread-scoped turn/started at the write, persisting nothing", () => {
-    const { db } = openTempDb();
+    const { db } = openTempDbWithPath();
     const thread = createThread(db, noopNotifier, {});
     // The static type admits any (event, scope) pairing; the write-side parse
     // is what refuses it — before the SQL CHECK ever sees a row.
@@ -151,7 +121,7 @@ describe("scope policy at the write", () => {
   });
 
   it("refuses a batch atomically: a bad tail rolls back the good head", () => {
-    const { db } = openTempDb();
+    const { db } = openTempDbWithPath();
     const thread = createThread(db, noopNotifier, {});
     const invalid: ThreadEvent = {
       type: "turn/started",
@@ -170,7 +140,7 @@ describe("scope policy at the write", () => {
 // the burst — and a streaming turn is nothing but bursts.
 describe("the cost of a burst", () => {
   it("prepares two SELECTs and one INSERT, whatever the burst carries", () => {
-    const { db } = openTempDb();
+    const { db } = openTempDbWithPath();
     const thread = createThread(db, noopNotifier, {});
     appendEvents(db, noopNotifier, [turnStarted(thread.id, "turn_1")]);
 

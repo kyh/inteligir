@@ -22,8 +22,8 @@
   "dependencies": {
     "@repo/domain": "workspace:*",
     "@zed-industries/agent-client-protocol": "0.4.5",
-    "@zed-industries/claude-code-acp": "0.16.2",
-    "@zed-industries/codex-acp": "0.16.0",
+    "@zed-industries/claude-code-acp": "catalog:",
+    "@zed-industries/codex-acp": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

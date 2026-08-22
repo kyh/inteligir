@@ -1,9 +1,5 @@
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
-import { createConnection, type DbConnection } from "../connection";
-import { runMigrations } from "../migrate";
+import { createConnection } from "../connection";
+import { describe, expect, it } from "vitest";
 import { noopNotifier } from "@repo/domain/notifier";
 import {
   createPendingInteraction,
@@ -18,22 +14,7 @@ import {
   releaseQueuedMessageClaim,
 } from "../queued-messages";
 import { createThread } from "../threads";
-
-const tempDirs: string[] = [];
-
-function openTempDb(): DbConnection {
-  const dir = mkdtempSync(join(tmpdir(), "inteligir-db-test-"));
-  tempDirs.push(dir);
-  const db = createConnection(join(dir, "test.db"));
-  runMigrations(db);
-  return db;
-}
-
-afterEach(() => {
-  for (const dir of tempDirs.splice(0)) {
-    rmSync(dir, { recursive: true, force: true });
-  }
-});
+import { openTempDb } from "./open-temp-db";
 
 describe("queued thread messages", () => {
   it("claims in arrival order, one holder per message", () => {

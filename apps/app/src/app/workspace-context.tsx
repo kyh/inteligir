@@ -89,9 +89,9 @@ export function applyChangedMessage(
       // are two kinds. The note's bytes are not query state (the buffer IS the
       // file), so `content-changed` goes to the open note's own reader and
       // invalidates no read of those bytes — a `vaultFile` query alongside it
-      // bought a second read of the same ones. A suggestion IS query state,
-      // and the file did not move, so `proposals-changed` sweeps that family
-      // and must not make the note re-read itself to learn about a row.
+      // bought a second read of the same ones. (`proposals-changed` still
+      // arrives on the wire but no query family consumes it; the kind dies
+      // whole with the retired proposals pipeline.)
       //
       // Knowledge is the other kind of derived state a doc's OWN bytes move:
       // the links this doc holds are someone else's backlinks, and which
@@ -104,17 +104,11 @@ export function applyChangedMessage(
         notifyDoc(message.id);
         void queryClient.invalidateQueries({ queryKey: queryKeys.knowledgeRoot });
       }
-      if (message.changes.includes("proposals-changed")) {
-        void queryClient.invalidateQueries({ queryKey: queryKeys.proposalsRoot });
-      }
       break;
     case "thread":
-      // One sweep for the whole family (list, detail, by-doc); the timeline
-      // is not query-cached — its hook listens on threadEvents instead.
+      // One sweep for the whole family (list, detail); the timeline is not
+      // query-cached — its hook listens on threadEvents instead.
       void queryClient.invalidateQueries({ queryKey: queryKeys.threadsRoot });
-      if (message.changes.includes("proposals-changed")) {
-        void queryClient.invalidateQueries({ queryKey: queryKeys.proposalsRoot });
-      }
       notifyThread(message);
       break;
   }
@@ -209,11 +203,10 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       // reason: a socket that dropped most likely means the server restarted,
       // which changes every field on it.
       onReconnected: () => {
-        void runtime.queryClient.invalidateQueries({ queryKey: ["vault"] });
+        void runtime.queryClient.invalidateQueries({ queryKey: queryKeys.vaultRoot });
         void runtime.queryClient.invalidateQueries({ queryKey: queryKeys.knowledgeRoot });
         void runtime.queryClient.invalidateQueries({ queryKey: queryKeys.systemStatus });
         void runtime.queryClient.invalidateQueries({ queryKey: queryKeys.threadsRoot });
-        void runtime.queryClient.invalidateQueries({ queryKey: queryKeys.proposalsRoot });
         runtime.notifyDoc(null);
         runtime.notifyThread(THREAD_RECONNECT_SWEEP);
       },

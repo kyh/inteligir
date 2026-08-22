@@ -11,7 +11,7 @@
 //
 //   WHOLE DIRECTORY — the record has no `## Files` manifest, so every
 //   attributable file under it must carry the notice. Adding a module to the
-//   copy needs no edit here. `packages/agent-runtime` and the prosemark tree.
+//   copy needs no edit here. `packages/agent-runtime` and `packages/agent-skills`.
 //
 //   PER FILE — the record has a `## Files` manifest, because the package holds
 //   vendored files among house-authored ones. The manifest IS the boundary:

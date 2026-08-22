@@ -33,29 +33,6 @@ function isSkippedDir(name: string): boolean {
   return name.startsWith(".") || SKIP_DIR_NAMES.has(name);
 }
 
-// Carried ahead of their v3 consumers (issue #542): the package rides through
-// the rewrite whole, so these components have no importer YET. Strike a name
-// off as a v3 surface consumes it; a component that v3 never picks up gets
-// deleted with this list's last entry. Names not on this list are still
-// guarded.
-const CARRIED_FOR_V3 = new Set([
-  "attachment",
-  "badge",
-  "breadcrumb",
-  "bubble",
-  "checkbox",
-  "command",
-  "confirm-dialog",
-  "dropdown-menu",
-  "message",
-  "message-scroller",
-  "native-select",
-  "popover",
-  "sonner",
-  "spinner",
-  "switch",
-]);
-
 /** Every source file in the repo that could import a component, excluding the
  * component files themselves (a component importing a sibling keeps it alive,
  * so those ARE included — see `intraPackage` below). */
@@ -75,8 +52,7 @@ describe("no orphan components", () => {
     const components = fs
       .readdirSync(COMPONENTS_DIR, { withFileTypes: true })
       .filter((entry) => entry.isFile() && entry.name.endsWith(".tsx"))
-      .map((entry) => entry.name.replace(/\.tsx$/, ""))
-      .filter((name) => !CARRIED_FOR_V3.has(name));
+      .map((entry) => entry.name.replace(/\.tsx$/, ""));
 
     // The WHOLE repo, not a list of workspace groups. This carried
     // `["apps", "packages"]` and had already fallen behind `tools/` and `e2e`,

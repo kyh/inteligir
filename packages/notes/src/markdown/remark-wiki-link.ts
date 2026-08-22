@@ -261,9 +261,8 @@ export function parseWikiBodyRange(body: string): WikiBodyRange {
 /** Split a raw wiki body into target / #anchor / |alias for display.
  *
  * The rename path wants the range and calls `parseWikiBodyRange` directly; this
- * drops it for a renderer that only shows the parts. No such renderer is built
- * yet, so knip is told the export is deliberate.
- * @public */
+ * drops it for the renderers that only show the parts (wiki chips, the
+ * autocomplete). */
 export function parseWikiBody(body: string): WikiBody {
   const { targetRange: _range, ...display } = parseWikiBodyRange(body);
   return display;

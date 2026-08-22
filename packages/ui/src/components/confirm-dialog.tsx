@@ -3,8 +3,7 @@
 // Promise-based confirm on the alert-dialog primitives — the styled
 // replacement for the browser-native confirm. Call `confirm({ ... })` from any event
 // handler and await the user's answer; render <ConfirmDialogHost /> once at
-// the app root. Generalizes the delegation dock's restore dialog (local
-// state + AlertDialog* composition) into a single shared affordance.
+// the app root — one shared affordance over AlertDialog* composition.
 //
 // Keyboard contract: the confirm button takes initial focus so Enter
 // confirms; Base UI's alert dialog traps focus, cancels on Escape, and

@@ -1,7 +1,7 @@
 // List kit. Lists are modeled as indented blocks (not a dedicated node): the
 // indent + list plugins inject listStyleType/indent props into the INDENTABLE
 // block types. The React half adds the BlockList wrapper (markers + todo
-// checkboxes + the Delegate affordance) and the list autoformat rules
+// checkboxes) and the list autoformat rules
 // (`- `/`* `, `1. `/`1) `, `[] `/`[x] `).
 
 import { KEYS } from "platejs";

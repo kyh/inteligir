@@ -1,4 +1,3 @@
-import { useSyncExternalStore } from "react";
 import {
   useMemo,
   useRef,
@@ -37,7 +36,7 @@ import {
 
 import { cn } from "@repo/ui/lib/utils";
 
-import { agentRequestActions, subscribeAgentRequestActions } from "@repo/editor/agent-request";
+import { useAgentRequestActions } from "@repo/editor/agent-request";
 import { Button } from "@repo/ui/components/button";
 import {
   DropdownMenu,
@@ -66,7 +65,7 @@ const BAR_CLASS =
 // editor selection alive through the click; the SELECTION TEXT travels, so
 // the composer opens already quoting what the user was pointing at.
 function AskAgentButton({ editor }: { editor: PlateEditor }) {
-  const actions = useSyncExternalStore(subscribeAgentRequestActions, agentRequestActions);
+  const actions = useAgentRequestActions((state) => state.actions);
   if (actions === null) return null;
   return (
     <>

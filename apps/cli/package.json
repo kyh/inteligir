@@ -26,7 +26,7 @@
     "@hono/node-server": "catalog:",
     "@repo/typed-routes": "workspace:*",
     "@types/node": "catalog:",
-    "esbuild": "^0.28.1",
+    "esbuild": "catalog:",
     "hono": "catalog:",
     "tsx": "catalog:",
     "typescript": "catalog:",

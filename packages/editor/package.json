@@ -112,7 +112,6 @@
     "./selection-toolbar": "./src/selection-toolbar.tsx",
     "./slash-menu": "./src/slash-menu.tsx",
     "./toc": "./src/toc.tsx",
-    "./todo-item": "./src/todo-item.ts",
     "./toolbar-button": "./src/toolbar-button.tsx",
     "./split-request": "./src/split-request.ts",
     "./transclusion": "./src/transclusion.tsx",
@@ -165,14 +164,14 @@
     "zustand": "^5.0.14"
   },
   "devDependencies": {
-    "@testing-library/dom": "^10.4.1",
-    "@testing-library/react": "^16.3.2",
+    "@testing-library/dom": "catalog:",
+    "@testing-library/react": "catalog:",
     "@types/mdast": "catalog:",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "@vitejs/plugin-react": "catalog:",
-    "jsdom": "^29.1.1",
+    "jsdom": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   },

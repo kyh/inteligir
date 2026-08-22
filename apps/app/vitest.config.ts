@@ -7,7 +7,8 @@ export default defineConfig({
     environment: "node",
     include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
     setupFiles: ["src/app/__tests__/jsdom-stubs.ts"],
-    // Monorepo worker budget (see packages/notes/vitest.config.ts).
+    // Budgeted against the rest of the monorepo's suites, which turbo runs in
+    // parallel: uncapped pools exhaust the machine and kill workers mid-run.
     maxWorkers: 2,
   },
 });

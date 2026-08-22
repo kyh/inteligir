@@ -5,9 +5,7 @@
 @import "@fontsource-variable/geist-mono";
 @import "./typeset.css";
 
-/* Typeset presets — one per markdown-rendering surface. `typeset-docs` is the
-   document surface (the note editor); `typeset-chat` is the compact AI chat /
-   delegation transcript scale. */
+/* Typeset preset — the document surface (the note editor). */
 .typeset-docs {
   --typeset-font-body: var(--font-geist);
   --typeset-font-heading: var(--font-geist);
@@ -17,16 +15,7 @@
   --typeset-flow: 1.25em;
 }
 
-.typeset-chat {
-  --typeset-font-body: var(--font-geist);
-  --typeset-font-heading: var(--font-geist);
-  --typeset-font-mono: var(--font-geist-mono);
-  --typeset-size: 12px;
-  --typeset-leading: 1.6;
-  --typeset-flow: 1em;
-}
-
-/* Bordered-grid tables on EVERY typeset surface (editor, chat, transclusion) —
+/* Bordered-grid tables on EVERY typeset surface (editor, transclusion) —
    Kyh's call over typeset's docs-style row separators. Plain class selectors
    out-specify typeset's zero-specificity :where() rules; fonts and sizes still
    come from typeset. */

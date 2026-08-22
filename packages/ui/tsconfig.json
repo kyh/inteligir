@@ -12,9 +12,7 @@
     // react-jsx, not the init template's `preserve`: both consumers are
     // react-jsx and both pull these sources into their own programs via the
     // `@repo/ui/*` paths, so `preserve` checks the same files twice under two
-    // JSX resolution rules — and breaks @react-three/fiber's own
-    // `declare module "react"` intrinsics, forcing geometric-orb.tsx onto a
-    // hand-written global JSX shim.
+    // JSX resolution rules.
     "jsx": "react-jsx",
     // node: the orphan-component guard walks the repo from src/__tests__.
     "types": ["node"],

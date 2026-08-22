@@ -1,6 +1,6 @@
-// The workspace frame: sidebar (file tree + sync pill) | single-document
-// editor column, with the command palette (⌘K), the daily note (⌘D) and the
-// settings dialog hung off it. The open note is the route's `note` search
+// The workspace frame: the notes rail | editor column (splittable) | actions
+// panel, with the action composer (⌘K), the command palette (⌘P), the daily
+// note (⌘D) and the settings dialog hung off it. The open note is the route's `note` search
 // param — deep-linkable, back/forward works — mirrored to localStorage so a
 // fresh boot reopens where the user left off.
 
@@ -32,6 +32,7 @@ import { NoteTopbar } from "./note-topbar";
 import { useThreads } from "./chat/thread-hooks";
 import { platformShortcutModifier, useGlobalShortcuts } from "./global-shortcuts";
 import { setAgentRequestActions } from "@repo/editor/agent-request";
+import { consumeSearchRequest, useSearchRequest } from "@repo/editor/search-request";
 import { EditorPane } from "@repo/editor/editor-pane";
 import { flushOpenNote } from "@repo/editor/note/open-note-flush";
 import { exportNoteAsPdf, printTitleForPath } from "./note/export-pdf";
@@ -84,7 +85,7 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
   const statusQuery = useVaultStatus();
 
   const [paletteOpen, setPaletteOpen] = useState(false);
-  // What the palette's box is seeded with on the next open. ⌘K clears it; a
+  // What the palette's box is seeded with on the next open. ⌘P clears it; a
   // `#tag` chip click sets it to that tag's `tag:` term.
   const [paletteQuery, setPaletteQuery] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -395,6 +396,18 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
     };
   }, []);
 
+  // The `#tag` chips' (and deep links') "open the palette on this query"
+  // seam: adopt-then-consume, so a later ⌘P opens on an empty box. Idempotent
+  // under StrictMode — consuming clears the store, and the paletteOpen guard
+  // keeps a re-fire from clobbering a box the user is already typing in.
+  const searchRequest = useSearchRequest((state) => state.query);
+  useEffect(() => {
+    if (searchRequest === null || paletteOpen) return;
+    setPaletteQuery(searchRequest);
+    setPaletteOpen(true);
+    consumeSearchRequest();
+  }, [searchRequest, paletteOpen]);
+
   useGlobalShortcuts(shortcutModifier, (action) => {
     switch (action) {
       case "open-action-composer":
@@ -583,6 +596,7 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
               )}
               <div className="flex min-h-0 flex-1 print:block" ref={paneRowRef}>
                 <div
+                  data-editor-scroller=""
                   className={cn(
                     "min-h-0 min-w-0 overflow-y-auto print:overflow-visible",
                     splitPath === null ? "flex-1" : "print:w-full",
@@ -620,7 +634,10 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
                           <XIcon />
                         </Button>
                       </div>
-                      <div className="min-h-0 flex-1 overflow-y-auto print:overflow-visible">
+                      <div
+                        data-editor-scroller=""
+                        className="min-h-0 flex-1 overflow-y-auto print:overflow-visible"
+                      >
                         <EditorPane />
                       </div>
                     </SplitPane>

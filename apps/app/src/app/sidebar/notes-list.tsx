@@ -6,7 +6,6 @@
 // working on", not "where does it live".
 
 import type { VaultTreeResponse } from "@repo/server-contract/vault";
-import { useQuery } from "@tanstack/react-query";
 import {
   SidebarGroup,
   SidebarGroupLabel,
@@ -14,8 +13,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@repo/ui/components/sidebar";
-import { queryKeys, unwrap } from "../api";
-import { useWorkspace } from "../workspace-context";
+import { useWikiTargets } from "../vault-hooks";
 
 type FileEntry = Extract<VaultTreeResponse["entries"][number], { kind: "file" }>;
 
@@ -47,11 +45,7 @@ function topFolder(path: string): string {
  * editing `pinned:` frontmatter moves the note without a dedicated channel.
  */
 function usePinnedPaths(): ReadonlySet<string> {
-  const { api } = useWorkspace();
-  const query = useQuery({
-    queryKey: queryKeys.wikiTargets,
-    queryFn: async () => unwrap(await api.knowledge["wiki-targets"].$get()),
-  });
+  const query = useWikiTargets();
   const targets = query.data?.targets ?? [];
   return new Set(targets.filter((target) => target.pinned === true).map((target) => target.path));
 }

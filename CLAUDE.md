@@ -78,7 +78,15 @@ apps/
                  capture inbox + ws invalidation), the flag-gated Artifacts
                  mint. src/worker/ is its own tsconfig program (no DOM —
                  workerd's globals must win).
+  mobile/        @repo/mobile — the Expo RN client (#576): a sync-only
+                 thread/capture surface over the cloud contract; reaches
+                 nothing but cloud-contract + domain.
 packages/
+  domain/        @repo/domain — zod-only leaf vocabulary (view context, ids,
+                 provider events), vendored-from-bb shapes; every package may
+                 reach it, it reaches nothing.
+  thread-view/   @repo/thread-view — pure timeline projection; the app's
+                 panel and the CLI render the same rows through it.
   cloud-contract/ @repo/cloud-contract — the cloud wire contract (zod only):
                  pairing, device auth, sync push/pull, captures, the ws ping
                  frames, the typed error envelope, and the paths all three
@@ -706,10 +714,11 @@ export` over `src/worker/db/schema.ts`. A second deployer or a destructive
   it opts into.** A `PROVENANCE.md` names the upstream, a 40-hex commit pin and
   the license, with that license's own text beside it — MIT names a copyright
   holder no per-file notice carries. With no `## Files` manifest it governs its
-  WHOLE directory (`packages/agent-runtime`, the prosemark tree); with one it
-  governs exactly the files listed, which is what a package that is only partly
-  vendored needs (`apps/app`, `apps/cli`, `packages/db`, `packages/domain`,
-  `packages/server-contract`, `packages/typed-routes`). Each row names its
+  WHOLE directory (`packages/agent-runtime`, `packages/agent-skills`); with one
+  it governs exactly the files listed, which is what a package that is only
+  partly vendored needs (`apps/app`, `apps/cli`, `packages/db`,
+  `packages/domain`, `packages/server-contract`, `packages/typed-routes`,
+  `packages/editor`, `packages/ui`). Each row names its
   upstream path and whether the code is upstream's or upstream's shape with the
   bodies rewritten, so a re-vendor knows which files will diff. **"Vendored
   from" is the CLAIM** — the phrase `vendor-provenance.test.ts` sweeps for. A

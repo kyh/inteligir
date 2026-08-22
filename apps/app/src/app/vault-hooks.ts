@@ -9,7 +9,7 @@ import { DEFAULT_DOC_EXTENSION, isDocPath } from "@repo/notes/knowledge/doc-file
 import type { ApiClient } from "@repo/server-contract/client";
 import type { VaultStatusResponse, VaultTreeResponse } from "@repo/server-contract/vault";
 import type { SystemStatusResponse } from "@repo/server-contract/routes";
-import { ApiError, unwrap } from "./api";
+import { refusalMessage, unwrap } from "./api";
 import { queryKeys } from "./api";
 import { useWorkspace } from "./workspace-context";
 
@@ -18,6 +18,19 @@ export function useVaultTree() {
   return useQuery<VaultTreeResponse>({
     queryKey: queryKeys.vaultTree,
     queryFn: async () => unwrap(await api.vault.tree.$get()),
+  });
+}
+
+/** The knowledge index's alias-carrying wiki targets — ONE query for the
+ *  picker, the pinned section, the composer's @-mentions and the provider's
+ *  resolver. Lives in the `knowledge` family, so the files-changed /
+ *  content-changed sweeps invalidate it; react-query's structural sharing
+ *  keeps the reference stable when the payload is unchanged. */
+export function useWikiTargets() {
+  const { api } = useWorkspace();
+  return useQuery({
+    queryKey: queryKeys.wikiTargets,
+    queryFn: async () => unwrap(await api.knowledge["wiki-targets"].$get()),
   });
 }
 
@@ -211,11 +224,9 @@ export async function renameVaultEntry(
     await unwrap(await api.vault.rename.$post({ json: { from, to } }));
     return { ok: true };
   } catch (error) {
-    // A failure with no contract body (a dropped connection) has no message
-    // of the server's to render.
     return {
       ok: false,
-      message: error instanceof ApiError ? error.message : `Could not rename ${from}.`,
+      message: refusalMessage(error, `Could not rename ${from}.`),
     };
   }
 }

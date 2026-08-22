@@ -6,9 +6,9 @@
 // Loaded via React.lazy from wiki-link-kit: this module reaches into
 // vault-context (and through it the markdown pipeline and base-kit), so an
 // eager import from the kit file — which base-kit composes — would close an
-// import cycle around the kit files. Same seam as block-list → todo-delegation.
+// import cycle around the kit files.
 
-import { useEffect, useRef, useState, useSyncExternalStore, type MouseEvent } from "react";
+import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { FilePlusIcon } from "lucide-react";
 
 import { Popover, PopoverContent } from "@repo/ui/components/popover";
@@ -16,7 +16,7 @@ import { cn } from "@repo/ui/lib/utils";
 
 import { useVaultActions, useVaultListing } from "@repo/editor/host";
 import { getEditorHostIo } from "@repo/editor/host-io";
-import { splitViewActions, subscribeSplitViewActions } from "@repo/editor/split-request";
+import { useSplitViewActions } from "@repo/editor/split-request";
 import { notePreviewHead } from "@repo/editor/note-preview";
 import { isUuidWikiAlias, parseWikiBody } from "@repo/notes/markdown/remark-wiki-link";
 
@@ -47,7 +47,7 @@ export default function WikiChip({ body }: { body: string }) {
   const [createOpen, setCreateOpen] = useState(false);
   // Right-click menu (one item): position, or null while closed.
   const [menuAt, setMenuAt] = useState<{ x: number; y: number } | null>(null);
-  const split = useSyncExternalStore(subscribeSplitViewActions, splitViewActions, () => null);
+  const split = useSplitViewActions((state) => state.actions);
   const [preview, setPreview] = useState<PreviewState | null>(null);
   const chipRef = useRef<HTMLButtonElement>(null);
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);

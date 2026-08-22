@@ -67,7 +67,7 @@
     "remark-parse": "catalog:",
     "stemmer": "^2.0.1",
     "unified": "catalog:",
-    "yaml": "^2.9.0",
+    "yaml": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

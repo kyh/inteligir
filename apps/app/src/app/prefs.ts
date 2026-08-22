@@ -11,7 +11,6 @@ const KEYS = {
   splitNote: "inteligir.split-note",
   panelOpen: "inteligir.panel-open",
   theme: "inteligir.theme",
-  delegationWriteMode: "inteligir.delegation-write-mode",
   appearance: "inteligir.appearance",
   backlinksOpen: "inteligir.backlinks-open",
   relatedOpen: "inteligir.related-open",
@@ -62,13 +61,6 @@ export function writeLastOpenNote(path: string | null): void {
   write(KEYS.lastOpenNote, path);
 }
 
-/**
- * Whether the backlinks section under the document is expanded. Sticky across
- * notes on purpose: it is a reading MODE, not a property of a note, and a
- * section that re-collapses on every open is one a reader stops using.
- * Defaults to open — it sits below the document, so it costs nothing until
- * the reader is already at the end of one.
- */
 /** The split pane's note (#595) — view state, session-persistent like the
  * primary's last-open note. */
 export function readSplitNote(): string | null {
@@ -87,6 +79,13 @@ export function writePanelOpen(open: boolean): void {
   write(KEYS.panelOpen, open ? "true" : "false");
 }
 
+/**
+ * Whether the backlinks section under the document is expanded. Sticky across
+ * notes on purpose: it is a reading MODE, not a property of a note, and a
+ * section that re-collapses on every open is one a reader stops using.
+ * Defaults to open — it sits below the document, so it costs nothing until
+ * the reader is already at the end of one.
+ */
 export function readBacklinksOpen(): boolean {
   return read(KEYS.backlinksOpen) !== "false";
 }

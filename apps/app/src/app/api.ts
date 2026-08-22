@@ -16,9 +16,9 @@ export function createWorkspaceApiClient(): ApiClient {
 
 export const queryKeys = {
   systemStatus: ["system", "status"] as const,
-  /** Codex's MCP servers. Nothing on the ws bus announces `~/.codex/config.
-   *  toml` moving, so this family is swept by its own mutations and re-read
-   *  whenever the settings dialog mounts. */
+  /** The app-owned connector registry. Nothing on the ws bus announces the
+   *  registry store changing, so this family is swept by its own mutations
+   *  and re-read whenever the settings dialog mounts. */
   connectors: ["connectors"] as const,
   folders: ["folders"] as const,
   /** This install's pairing with an account. Nothing on the ws bus announces a
@@ -31,11 +31,8 @@ export const queryKeys = {
    *  surfaces that need progress poll this family while it is on screen. */
   voiceStatus: ["voice", "status"] as const,
   noteIntelligence: ["note-intelligence"] as const,
-  /** The agent's memory files. Nothing on the ws bus announces the memory
-   *  directory changing — it is machine-global, not the vault, and the agent
-   *  writes it with its shell rather than through the app — so the settings
-   *  section re-reads whenever it mounts and after its own deletes. */
-  memory: ["memory"] as const,
+  /** The whole vault family — what a reconnect sweeps in one call. */
+  vaultRoot: ["vault"] as const,
   vaultTree: ["vault", "tree"] as const,
   vaultStatus: ["vault", "status"] as const,
   /** The trash listing — swept with the tree, since a trash entry only moves
@@ -56,19 +53,14 @@ export const queryKeys = {
   threadsRoot: ["threads"] as const,
   threads: ["threads", "list"] as const,
   threadDetail: (threadId: string) => ["threads", "detail", threadId] as const,
-  threadsByDoc: (docPath: string) => ["threads", "by-doc", docPath] as const,
   /** The whole comments family. Sidecars are vault files, so the vault's own
    *  files-changed sweep is what invalidates them — no comments change kind
    *  exists or is needed. */
   commentsRoot: ["comments"] as const,
   comments: (docPath: string) => ["comments", docPath] as const,
-  /** The whole proposal family — what a ws `proposals-changed` sweeps. */
-  proposalsRoot: ["proposals"] as const,
-  proposalsByDoc: (docPath: string) => ["proposals", "by-doc", docPath] as const,
-  proposalsByThread: (threadId: string) => ["proposals", "by-thread", threadId] as const,
 };
 
-export class ApiError extends Error {
+class ApiError extends Error {
   readonly status: number;
   /** The contract's refusal class — an enum, so a switch on it is exhaustive. */
   readonly code: ApiErrorCode;

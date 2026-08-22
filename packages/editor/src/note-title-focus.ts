@@ -1,6 +1,8 @@
 // ⌘T's target: the note title is pane chrome OUTSIDE the Plate tree, so the
-// shortcut plugin reaches it through this single-slot registry (the
-// agent-request shape; one pane mounts at a time).
+// shortcut plugin reaches it through this single-slot registry. Deliberately
+// NOT a subscribable store: nothing renders from it, and the CAS-guarded
+// unregister (only the registering pane may clear itself) is what keeps two
+// mounted panes from clobbering each other under split view.
 
 let installed: (() => void) | null = null;
 

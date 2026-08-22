@@ -19,25 +19,10 @@
       "item": "alert-dialog",
       "sha256": "0d1690e61edf659c1924b342e2c382e7f8afe0ebf02f16fdd251128270e644b2"
     },
-    "attachment": {
-      "origin": "registry",
-      "item": "attachment",
-      "sha256": "cae82de6d926c57cdc718450c82576b01e9561dd7ad22297a35d085616e8abca"
-    },
     "badge": {
       "origin": "fluid",
       "item": "badge",
       "sha256": "855439e92d0755432b0c75dbf834392694868184940481330b7ab08bf382b0ef"
-    },
-    "breadcrumb": {
-      "origin": "registry",
-      "item": "breadcrumb",
-      "sha256": "22b8d8e41dc03fff8c6b33c3a69b42aa3b86b3d3c6dbe129e1621e92c77f7202"
-    },
-    "bubble": {
-      "origin": "registry",
-      "item": "bubble",
-      "sha256": "bf068ca55fc81f1aa1b1c5a814bc8e9be8274c4c19f43797f9e7ccc4355fbaea"
     },
     "button": {
       "origin": "fluid",
@@ -61,7 +46,7 @@
     },
     "confirm-dialog": {
       "origin": "local",
-      "sha256": "d85e943f410c75421d450fcee3b62a56d74a2855a1d2c5c0e6a304f44a625a85"
+      "sha256": "73c517d5695bf8111eff48dd68f980d13e1cbe6ea77ca8d7e0b27bee9f014942"
     },
     "dialog": {
       "origin": "fluid",
@@ -72,10 +57,6 @@
       "origin": "fluid",
       "item": "dropdown",
       "sha256": "c316ce9a4a7031a3ab8ccb58e7254aea7b04744eef4ca0cef7c1445098d62786"
-    },
-    "geometric-orb": {
-      "origin": "local",
-      "sha256": "3f735241ba81c29ae652240c1f9d2f5f98936af43fa403755ed58191251a58e0"
     },
     "input": {
       "origin": "registry",
@@ -90,7 +71,7 @@
     "input-message": {
       "origin": "registry",
       "item": "input-message",
-      "sha256": "dc1d8fb594011fa561225b7c8bc95d5f1ce178808b8f78348907d1f68bbc3cc6"
+      "sha256": "823d31786b9bdec1deb00cc022bf75e0017fbeb1910e074abebca2ca8d196812"
     },
     "label": {
       "origin": "registry",
@@ -101,21 +82,6 @@
       "origin": "fluid",
       "item": "dropdown",
       "sha256": "6fc2bc4a23e07d479b9a5c80d41229372faa06dc65ed293ae4e944320b4aeeb6"
-    },
-    "message": {
-      "origin": "registry",
-      "item": "message",
-      "sha256": "79b8c6e0f910fe4b29a862241eaabe40604a2f22b98426e8a4827746bdc537e3"
-    },
-    "message-scroller": {
-      "origin": "registry",
-      "item": "message-scroller",
-      "sha256": "dfa9f035a35352b9f29d76bee9f4a7025daf171b8faf95eb8e191e6e5bf4e92c"
-    },
-    "native-select": {
-      "origin": "registry",
-      "item": "native-select",
-      "sha256": "96e8b0d26e74fdf82222de74234b0b1d19b40a50d7d33f05984a9ec86a8ae1b0"
     },
     "popover": {
       "origin": "registry",
@@ -165,7 +131,7 @@
     "switch": {
       "origin": "fluid",
       "item": "switch",
-      "sha256": "d9b93a1b7f66a93b5ecb2c635d7db7551d111530522d41f7bf353bd25c5af963"
+      "sha256": "b4540cfe51a819cf94bbd6958eefa46d014e20b43e2776f5d5d171efd7b2e607"
     },
     "tabs-subtle": {
       "origin": "registry",

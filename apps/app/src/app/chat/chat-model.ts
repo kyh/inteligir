@@ -1,22 +1,22 @@
-// Framework-free chat/delegation vocabulary: which thread the bottom
-// composer addresses, what status a doc chip shows, and the bytes a
-// delegation's first message is composed from. Pure functions so the
-// composer, the checkbox fast path and the tests share one answer.
+// Framework-free action vocabulary: which unattached thread a send reuses,
+// what activity an actions-panel row shows, and the view-context source
+// shape. Pure functions so the composer, the panel and the tests share one
+// answer.
 
 import type { ViewContext } from "@repo/domain/view-context";
 import type { Thread } from "@repo/server-contract/threads";
 
 /**
- * Which chat thread a fresh session OPENS ON: the newest unarchived thread
- * with no doc origin (`listThreads` orders live threads newest-updated first,
- * so the first match is it).
+ * Which unattached thread a send REUSES: the newest unarchived thread with
+ * no doc origin (`listThreads` orders live threads newest-updated first, so
+ * the first match is it).
  *
- * This chooses an INITIAL target and nothing more — the dock holds the id from
- * then on. Re-deriving would make the surface the user is typing into a
- * function of `updatedAt`, which every lifecycle event on every thread moves:
- * a background delegation settling would silently swap the visible
- * conversation AND redirect the next send. A conversation ends because the
- * user ended it, never because another thread was touched.
+ * This chooses an INITIAL target and nothing more — the caller holds the id
+ * from then on. Re-deriving would make the thread a send lands in a function
+ * of `updatedAt`, which every lifecycle event on every thread moves: a
+ * background action settling would silently redirect the next send. A
+ * conversation ends because the user ended it, never because another thread
+ * was touched.
  */
 export function initialChatThread(threads: readonly Thread[]): Thread | null {
   return (
@@ -31,8 +31,8 @@ export function initialChatThread(threads: readonly Thread[]): Thread | null {
  * columns at all but counts of rows in other tables.
  *
  * ONE derivation, because the alternative is visible: the same thread read
- * "running" in the palette while the dock painted it amber and the doc chip
- * said "queued", and every new surface added a fourth vocabulary.
+ * "running" in the palette while the actions panel painted it amber, and
+ * every new surface added another vocabulary.
  */
 export type ThreadActivity =
   | "queued"

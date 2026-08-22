@@ -24,7 +24,7 @@
     "@types/node": "catalog:",
     "electron": "^43.2.0",
     "electron-builder": "^26.15.3",
-    "esbuild": "^0.28.1",
+    "esbuild": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

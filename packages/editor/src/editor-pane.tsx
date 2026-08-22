@@ -25,18 +25,9 @@ export function EditorPane() {
   // only the NotePane below.
   const kind = useOpenNote((s) => s.openDoc.kind);
   const docPath = useOpenNote((s) => openDocPath(s.openDoc));
-  const loadedPath = useOpenNote((s) => s.editor.path);
   const showRich = useOpenNote(
     (s) => s.openDoc.kind === "markdown" && s.openDoc.surface.mode === "rich",
   );
-
-  // Opening a different note starts reading from the top (the workspace
-  // <main> is the scroll container and survives the swap, so it must be
-  // reset explicitly).
-  useLayoutEffect(() => {
-    const scroller = document.querySelector("main");
-    if (scroller) scroller.scrollTop = 0;
-  }, [loadedPath]);
 
   if (kind === "none") {
     return (
@@ -72,6 +63,15 @@ function NotePane({ path, showRich }: { path: string; showRich: boolean }) {
   // the browser owns it while editing.
   const titleRef = useRef<HTMLHeadingElement>(null);
   const paneRef = useRef<HTMLDivElement>(null);
+
+  // A fresh pane (keyed by path) starts reading from the top: the stamped
+  // scroller ancestor survives the swap, so it must be reset explicitly —
+  // and closest() keeps the reset inside THIS pane's scroller under split
+  // view, where document-wide queries grab whichever pane rendered first.
+  useLayoutEffect(() => {
+    const scroller = paneRef.current?.closest("[data-editor-scroller]");
+    if (scroller) scroller.scrollTop = 0;
+  }, []);
   useEffect(() => {
     if (titleRef.current) titleRef.current.textContent = displayName;
   }, [displayName]);

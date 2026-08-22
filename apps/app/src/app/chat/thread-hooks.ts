@@ -50,9 +50,9 @@ const MOVES_THE_TIMELINE = {
   "queue-changed": false,
   "interactions-changed": false,
   "origin-changed": false,
-  // A proposal is not a thread event: it lives in its own table, and the
-  // surfaces that show one (the dock card, the doc bar) are query-cached, so
-  // the sweep beside this subscriber already refetches them.
+  // A proposal is not a thread event: it lives in its own table, and no
+  // timeline row renders one — the kind dies whole with the retired
+  // proposals pipeline.
   "proposals-changed": false,
 } satisfies Record<ThreadChangeKind, boolean>;
 

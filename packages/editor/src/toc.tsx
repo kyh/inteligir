@@ -4,7 +4,7 @@
 // heading nodes — no @platejs/toc, so it stays decoupled from Plate's scroll-ref
 // (our scroll container is the workspace <main>, not a PlateContainer).
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { KEYS, NodeApi, type TElement } from "platejs";
 import { useEditorRef, useEditorSelector } from "platejs/react";
 
@@ -67,9 +67,11 @@ export function TableOfContents() {
 
   // Scrollspy: the last heading scrolled above the header line is "active". A
   // scroll listener rather than an IntersectionObserver, which never fires
-  // against this scroller as a custom root.
+  // against this scroller as a custom root. closest() from the TOC's own node
+  // finds THIS pane's stamped scroller, so split view spies per pane.
+  const rootRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    const scroller = document.querySelector("main");
+    const scroller = rootRef.current?.closest("[data-editor-scroller]");
     if (!scroller || headings.length === 0) return;
     const onScroll = () => {
       const scannerY = scroller.getBoundingClientRect().top + HEADER_OFFSET + 8;
@@ -91,7 +93,7 @@ export function TableOfContents() {
   // target, leaving room for the sticky header.
   const scrollTo = (index: number) => {
     const el = editorHeadingEls(editor)[index];
-    const scroller = document.querySelector("main");
+    const scroller = rootRef.current?.closest("[data-editor-scroller]");
     if (el && scroller) {
       const from = scroller.scrollTop;
       const to =
@@ -113,7 +115,10 @@ export function TableOfContents() {
   };
 
   return (
-    <div className="pointer-events-none fixed top-1/2 right-2 z-40 -translate-y-1/2 print:hidden">
+    <div
+      ref={rootRef}
+      className="pointer-events-none fixed top-1/2 right-2 z-40 -translate-y-1/2 print:hidden"
+    >
       <div className="group pointer-events-auto flex flex-col items-end py-2">
         {/* Collapsed: dash ticks, one per heading, capped so a long doc's
             rail stays a glanceable minimap (fade out on hover). */}
@@ -129,8 +134,6 @@ export function TableOfContents() {
             />
           ))}
         </div>
-        {/* Expanded: the full outline, revealed on hover. max-h-96 keeps the
-            panel clear of the bottom composer and the delegation dock. */}
         <nav
           aria-label="Table of contents"
           className="absolute top-0 right-0 max-h-96 w-56 translate-x-2 overflow-auto rounded-2xl border border-border bg-popover p-2 text-popover-foreground opacity-0 shadow-surface-4 transition-all duration-300 group-hover:pointer-events-auto group-hover:translate-x-0 group-hover:opacity-100"

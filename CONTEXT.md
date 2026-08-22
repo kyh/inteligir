@@ -86,8 +86,8 @@ prompt. It is EPHEMERAL and it is a statement about the PAST — the screen the
 message left from, which is what "this" and "here" in it refer to — so nothing
 has to reconcile it when the user navigates away. A **thread origin**
 (`threads.originDocPath`, anchor-less for an action) is the DURABLE binding an action
-makes: one anchor, spliced into the file as a marker, rebound when the file is
-renamed, and the thing a doc chip resolves. A message can carry a view context
+makes: the note it was composed over, surviving renames, and the thing the
+panel's note-first ordering resolves. A message can carry a view context
 into a thread with no origin — a composer send with the note chip detached
 has none.
 

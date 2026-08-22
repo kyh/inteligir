@@ -25,9 +25,9 @@ server with it — [`apps/desktop`](./apps/desktop/README.md). It is built
 unsigned from this repo (`pnpm package:desktop`); there is no download and no
 update feed yet.
 
-The agent is [Codex](https://developers.openai.com/codex/cli): install the
-`codex` CLI and sign in, and chat and delegation work. Without it the app is a
-notes editor and says so in Settings.
+The agent speaks ACP: install the [Claude Code](https://claude.com/claude-code)
+or [Codex](https://developers.openai.com/codex/cli) CLI and sign in, and
+actions work. Without one the app is a notes editor and says so in Settings.
 
 From a checkout instead:
 
@@ -54,9 +54,9 @@ apps/
 packages/
   notes/             @repo/notes — pure platform-neutral domain: markdown
                      pipeline, knowledge engine (links, tags, tasks, search)
-  editor/            @repo/editor — CodeMirror 6 markdown live-preview:
-                     marks, headings, lists, quotes, fences, tables, math,
-                     mermaid, images, callouts, tag chips
+  editor/            @repo/editor — the Plate.js WYSIWYG over the fixpoint
+                     serializer: kits/nodes for every dialect construct,
+                     wiki chips, formula pills, comments, tag chips
   ui/                @repo/ui — vendored shadcn components
   domain/            @repo/domain — the thread grammar and lifecycle, zod-only
   server-contract/   @repo/server-contract — THE route table + ws schemas

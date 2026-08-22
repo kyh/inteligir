@@ -237,7 +237,7 @@ const PURITY_RULES = new Map<string, PurityRule>(
     },
     "@repo/editor": {
       forbidden: ["node", "electron"],
-      why: "browser-only: CodeMirror in the page, never in the Node process",
+      why: "browser-only: Plate/Slate in the page, never in the Node process",
     },
     "@repo/ui": {
       forbidden: ["node", "electron"],

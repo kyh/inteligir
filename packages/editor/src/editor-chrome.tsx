@@ -10,8 +10,9 @@
 // editable's padding box and survives its overflow-x-hidden clip. The
 // filename-title <h1>, the Raw textarea, and the backlinks section apply the
 // same constant so all four surfaces share byte-exact column geometry (the
-// pane wrapper owns only the vertical padding). The workspace <main> is the
-// scroll container (toc.tsx depends on that), so the container deliberately
+// pane wrapper owns only the vertical padding). The workspace's stamped
+// [data-editor-scroller] ancestor is the scroll container (toc.tsx and the
+// pane's open-reset depend on the stamp), so the container deliberately
 // adds no overflow-y-auto.
 
 import type { HTMLAttributes } from "react";

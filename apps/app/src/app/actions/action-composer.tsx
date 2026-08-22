@@ -7,7 +7,6 @@
 // context line; its transcript lives in the Actions panel.
 
 import type { WikiTargetWire } from "@repo/server-contract/knowledge";
-import { useQuery } from "@tanstack/react-query";
 import { Badge } from "@repo/ui/components/badge";
 import { InputMessage } from "@repo/ui/components/input-message";
 import { cn } from "@repo/ui/lib/utils";
@@ -15,12 +14,12 @@ import { toast } from "@repo/ui/components/sonner";
 import { FileTextIcon, XIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-import { queryKeys, unwrap } from "../api";
 import { useWorkspace } from "../workspace-context";
 import type { ViewContextSource } from "../chat/chat-model";
 import { spliceIntoComposer } from "../chat/dictation";
 import { MicButton } from "../chat/mic-button";
 import { useVoiceStatus } from "../voice-hooks";
+import { useWikiTargets } from "../vault-hooks";
 import { createAction } from "./action-service";
 import {
   activeMentionAt,
@@ -64,11 +63,7 @@ export function ActionComposer({
   const [dictationPartial, setDictationPartial] = useState<string | null>(null);
   const fieldRef = useRef<HTMLTextAreaElement | null>(null);
   const voiceStatus = useVoiceStatus().data;
-  const wikiTargets = useQuery({
-    queryKey: queryKeys.wikiTargets,
-    queryFn: async () => unwrap(await api.knowledge["wiki-targets"].$get()),
-    enabled: open,
-  });
+  const wikiTargets = useWikiTargets();
 
   useEffect(() => {
     if (open) {
