@@ -18,7 +18,6 @@
     "./comments/comment-ranges": "./src/comments/comment-ranges.ts",
     "./comments/comment-store": "./src/comments/comment-store.ts",
     "./cursor-overlay": "./src/cursor-overlay.tsx",
-    "./editor-bottom-toolbar": "./src/editor-bottom-toolbar.tsx",
     "./editor-chrome": "./src/editor-chrome.tsx",
     "./editor-pane": "./src/editor-pane.tsx",
     "./editor-shortcuts": "./src/editor-shortcuts.ts",

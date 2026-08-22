@@ -1,16 +1,18 @@
-// The right panel (Moss's three-pane IA): Actions | Properties tabs over the
-// open note. Actions = the note's own threads first, then the rest, each row
-// expandable into its live timeline with approvals answerable inline —
-// the transcript surface the chat dock used to be. Properties = the
-// frontmatter panel the editor package already carries.
+// The right panel (Moss's three-pane IA): Actions | Comments tabs over the
+// open note, with the frontmatter properties inlined above them. Actions =
+// the note's own threads first, then the rest, each row expandable into its
+// live timeline with approvals answerable inline — the transcript surface
+// the chat dock used to be. The tab is CONTROLLED by the workspace so the
+// top bar's comment button can aim the panel.
 
-import { PageDetails } from "@repo/editor/properties/page-details";
+import { getLiveEditor } from "@repo/editor/live-editor";
+import { PropertiesPanel } from "@repo/editor/properties/properties-panel";
 import type { Thread } from "@repo/server-contract/threads";
 import { Button } from "@repo/ui/components/button";
 import { Textarea } from "@repo/ui/components/textarea";
 import { toast } from "@repo/ui/components/sonner";
 import { cn } from "@repo/ui/lib/utils";
-import { ArchiveIcon, ArrowLeftIcon, Share2Icon } from "lucide-react";
+import { ArchiveIcon, ArrowLeftIcon, ChevronRightIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -25,13 +27,16 @@ import { sendToThread } from "../chat/chat-service";
 import { useThreadDetail, useThreads, useThreadTimeline } from "../chat/thread-hooks";
 import { useNoteComments } from "./comment-hooks";
 import { CommentsTab } from "./comments-tab";
-import { shareWithAgentText } from "./share-with-agent";
 import { TimelineRowView } from "../chat/timeline-rows";
 import { useWorkspace } from "../workspace-context";
+
+export type PanelTab = "actions" | "comments";
 
 export interface ActionsPanelProps {
   /** The open note — its actions list first. */
   docPath: string | null;
+  tab: PanelTab;
+  onTabChange: (tab: PanelTab) => void;
   /** A clicked tinted range: switch to Comments and highlight these roots.
    * The nonce distinguishes two clicks on the same range. */
   commentFocus: { ids: readonly string[]; nonce: number } | null;
@@ -41,7 +46,41 @@ export interface ActionsPanelProps {
   onOpenDoc: (path: string) => void;
 }
 
-type PanelTab = "actions" | "comments" | "properties";
+function InlineProperties({
+  docPath,
+  open,
+  onOpenChange,
+}: {
+  docPath: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const editor = open ? getLiveEditor(docPath) : null;
+  return (
+    <div className="shrink-0 border-b border-line">
+      <button
+        type="button"
+        aria-expanded={open}
+        className="flex w-full items-center gap-1 px-3 py-1.5 text-[11px] font-medium text-muted-foreground uppercase hover:text-foreground"
+        onClick={() => {
+          onOpenChange(!open);
+        }}
+      >
+        <ChevronRightIcon className={cn("size-3 transition-transform", open && "rotate-90")} />
+        Properties
+      </button>
+      {open ? (
+        <div className="max-h-56 overflow-y-auto px-3 pb-2">
+          {editor !== null ? (
+            <PropertiesPanel editor={editor} />
+          ) : (
+            <p className="pb-1 text-xs text-muted-foreground">Open the note to edit properties.</p>
+          )}
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 function ActionRow({ thread, onSelect }: { thread: Thread; onSelect: (threadId: string) => void }) {
   const activity = threadActivity(thread, {
@@ -214,21 +253,18 @@ function ActionDetail({
 
 export function ActionsPanel({
   docPath,
+  tab,
+  onTabChange,
   commentFocus,
   selectedThreadId,
   onSelectThread,
   onOpenDoc,
 }: ActionsPanelProps) {
-  const [tab, setTab] = useState<PanelTab>("actions");
   // Mounted HERE rather than in the Comments tab: this hook is what pushes
   // the sidecar's id sets into the editor's comment store, and the range
   // tint must be true with any tab selected.
   useNoteComments(docPath);
-  useEffect(() => {
-    if (commentFocus !== null) {
-      setTab("comments");
-    }
-  }, [commentFocus]);
+  const [propertiesOpen, setPropertiesOpen] = useState(true);
   const threadsQuery = useThreads();
   const threads = threadsQuery.data?.threads ?? [];
 
@@ -242,7 +278,7 @@ export function ActionsPanel({
         aria-label="Panel tabs"
         className="flex gap-1 border-b border-line px-2 py-1.5"
       >
-        {(["actions", "comments", "properties"] satisfies PanelTab[]).map((name) => (
+        {(["actions", "comments"] satisfies PanelTab[]).map((name) => (
           <button
             key={name}
             role="tab"
@@ -255,40 +291,24 @@ export function ActionsPanel({
                 : "text-muted-foreground hover:text-foreground",
             )}
             onClick={() => {
-              setTab(name);
+              onTabChange(name);
             }}
           >
             {name}
           </button>
         ))}
-        {docPath !== null ? (
-          <button
-            type="button"
-            aria-label="Share with agent"
-            title="Copy this note's path and vault-editing instructions for an external agent"
-            className="ml-auto rounded-md px-1.5 py-0.5 text-muted-foreground hover:text-foreground"
-            onClick={() => {
-              navigator.clipboard.writeText(shareWithAgentText(docPath)).then(
-                () => toast.success("Copied for an external agent"),
-                () => toast.error("Could not copy"),
-              );
-            }}
-          >
-            <Share2Icon className="size-3.5" />
-          </button>
-        ) : null}
       </div>
+
+      {docPath !== null ? (
+        <InlineProperties
+          docPath={docPath}
+          open={propertiesOpen}
+          onOpenChange={setPropertiesOpen}
+        />
+      ) : null}
 
       {tab === "comments" ? (
         <CommentsTab docPath={docPath} focusIds={commentFocus?.ids ?? []} />
-      ) : tab === "properties" ? (
-        docPath === null ? (
-          <p className="p-3 text-sm text-muted-foreground">No note open.</p>
-        ) : (
-          <div className="min-h-0 flex-1 overflow-y-auto">
-            <PageDetails path={docPath} open onOpenChange={() => {}} />
-          </div>
-        )
       ) : selectedThreadId !== null ? (
         <ActionDetail
           threadId={selectedThreadId}

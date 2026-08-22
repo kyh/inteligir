@@ -9,6 +9,7 @@ const KEYS = {
   sidebarWidth: "inteligir.sidebar-width",
   lastOpenNote: "inteligir.last-open-note",
   splitNote: "inteligir.split-note",
+  panelOpen: "inteligir.panel-open",
   theme: "inteligir.theme",
   delegationWriteMode: "inteligir.delegation-write-mode",
   appearance: "inteligir.appearance",
@@ -76,6 +77,14 @@ export function readSplitNote(): string | null {
 
 export function writeSplitNote(path: string | null): void {
   write(KEYS.splitNote, path);
+}
+
+export function readPanelOpen(): boolean {
+  return read(KEYS.panelOpen) !== "false";
+}
+
+export function writePanelOpen(open: boolean): void {
+  write(KEYS.panelOpen, open ? "true" : "false");
 }
 
 export function readBacklinksOpen(): boolean {

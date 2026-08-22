@@ -26,7 +26,9 @@ import {
 import { queryKeys, refusalMessage, unwrap } from "./api";
 import { setCommentActions } from "@repo/editor/comments/comment-store";
 import { ActionComposer } from "./actions/action-composer";
-import { ActionsPanel } from "./actions/actions-panel";
+import { ActionsPanel, type PanelTab } from "./actions/actions-panel";
+import { useNoteComments } from "./actions/comment-hooks";
+import { NoteTopbar } from "./note-topbar";
 import { useThreads } from "./chat/thread-hooks";
 import { platformShortcutModifier, useGlobalShortcuts } from "./global-shortcuts";
 import { setAgentRequestActions } from "@repo/editor/agent-request";
@@ -46,13 +48,7 @@ import {
 } from "./palette/note-search";
 import { SettingsDialog } from "./settings/settings-dialog";
 import { TrashDialog } from "./sidebar/trash-dialog";
-import {
-  Sidebar,
-  SidebarInset,
-  SidebarProvider,
-  SidebarTrigger,
-  useSidebar,
-} from "@repo/ui/components/sidebar";
+import { Sidebar, SidebarInset, SidebarProvider, useSidebar } from "@repo/ui/components/sidebar";
 import { SidebarRailContent } from "./sidebar/sidebar";
 import type { TreeOps } from "./sidebar/file-tree";
 import {
@@ -63,7 +59,14 @@ import {
   useVaultStatus,
   useVaultTree,
 } from "./vault-hooks";
-import { readSidebarWidth, writeSidebarWidth, readSplitNote, writeSplitNote } from "./prefs";
+import {
+  readSidebarWidth,
+  writeSidebarWidth,
+  readSplitNote,
+  writeSplitNote,
+  readPanelOpen,
+  writePanelOpen,
+} from "./prefs";
 import { useWorkspace } from "./workspace-context";
 
 export interface WorkspaceProps {
@@ -149,6 +152,42 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
   );
   const [panelThreadId, setPanelThreadId] = useState<string | null>(null);
 
+  // The right panel: fluid sidebar state (persisted) + the lifted tab, so the
+  // top bar's comment button can aim the panel.
+  const [panelOpen, setPanelOpen] = useState<boolean>(() => readPanelOpen());
+  const [panelTab, setPanelTab] = useState<PanelTab>("actions");
+  const setPanelOpenPersisted = useCallback((open: boolean): void => {
+    setPanelOpen(open);
+    writePanelOpen(open);
+  }, []);
+  // Mounted here, not in the panel: the hook also publishes the comment-tint
+  // meta, and a collapsed panel must not take the tints down with it. The
+  // panel's own call shares this query.
+  const commentsQuery = useNoteComments(focusedPath);
+  const openCommentCount = (commentsQuery.data?.threads ?? []).filter(
+    (thread) => !thread.resolved,
+  ).length;
+
+  // Back/forward over opened notes (the top bar's arrows) — session state.
+  const historyRef = useRef<{ stack: string[]; index: number }>({ stack: [], index: -1 });
+  const historyNavRef = useRef(false);
+  const [historyVersion, setHistoryVersion] = useState(0);
+  useEffect(() => {
+    if (openNote === null) return;
+    if (historyNavRef.current) {
+      historyNavRef.current = false;
+      return;
+    }
+    const history = historyRef.current;
+    if (history.stack[history.index] === openNote) return;
+    history.stack = [...history.stack.slice(0, history.index + 1), openNote];
+    history.index = history.stack.length - 1;
+    setHistoryVersion((version) => version + 1);
+  }, [openNote]);
+  void historyVersion;
+  const canBack = historyRef.current.index > 0;
+  const canForward = historyRef.current.index < historyRef.current.stack.length - 1;
+
   const openThread = useCallback((threadId: string | null): void => {
     setPanelThreadId(threadId);
   }, []);
@@ -178,6 +217,8 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
         return false;
       },
       open: (ids) => {
+        setPanelOpen(true);
+        setPanelTab("comments");
         setCommentFocus({ ids, nonce: Date.now() });
       },
     });
@@ -221,6 +262,18 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
     },
     [onOpenNote],
   );
+
+  // Back/forward drive the SESSION (flush-then-switch), not the route: the
+  // route mirrors back from publishOpenPath like every other open.
+  const historyGo = useCallback((delta: -1 | 1): void => {
+    const history = historyRef.current;
+    const next = history.stack[history.index + delta];
+    if (next === undefined) return;
+    history.index += delta;
+    historyNavRef.current = true;
+    actionsRef.current?.openFile(next);
+    setHistoryVersion((version) => version + 1);
+  }, []);
 
   // The fluid sidebar owns collapse and drag-resize; the workspace owns what
   // they mean here: zen forces the rail shut without losing the user's own
@@ -485,78 +538,117 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
           />
         </Sidebar>
         <SidebarInset className="relative bg-surface">
-          <div className="absolute top-2 left-2 z-10 print:hidden">
-            <SidebarTrigger />
-          </div>
-          <div className="flex min-h-0 flex-1 print:block" ref={paneRowRef}>
-            <div
-              className={cn(
-                "min-h-0 min-w-0 overflow-y-auto print:overflow-visible",
-                splitPath === null ? "flex-1" : "print:w-full",
-                splitPath !== null && focusedPane === "split" && "print:hidden",
+          <SidebarProvider
+            className="min-h-0 h-full flex-1"
+            open={panelOpen && !zen}
+            onOpenChange={(nextOpen) => {
+              if (nextOpen) {
+                setZen(false);
+              }
+              setPanelOpenPersisted(nextOpen);
+            }}
+            persist={false}
+            width="20rem"
+          >
+            <SidebarInset className="relative bg-surface">
+              {zen ? null : (
+                <NoteTopbar
+                  path={focusedPath}
+                  canBack={canBack}
+                  canForward={canForward}
+                  onBack={() => {
+                    historyGo(-1);
+                  }}
+                  onForward={() => {
+                    historyGo(1);
+                  }}
+                  onOpenSearch={() => {
+                    setPaletteQuery("");
+                    setPaletteOpen(true);
+                  }}
+                  commentCount={openCommentCount}
+                  onOpenComments={() => {
+                    setPanelOpenPersisted(true);
+                    setPanelTab("comments");
+                  }}
+                  onOpenInSplit={() => {
+                    const path = focusedPathRef.current;
+                    if (path !== null) openInSplit(path);
+                  }}
+                  onExportPdf={() => {
+                    const path = focusedPathRef.current;
+                    if (path !== null) exportNoteAsPdf(printTitleForPath(path));
+                  }}
+                />
               )}
-              style={splitPath === null ? undefined : { width: `${String(splitRatio * 100)}%` }}
-              onPointerDownCapture={() => panesRef.current?.focus("primary")}
-            >
-              <EditorPane />
-            </div>
-            {splitPath !== null ? (
-              <div
-                role="separator"
-                aria-orientation="vertical"
-                className="w-1 shrink-0 cursor-col-resize bg-line hover:bg-border print:hidden"
-                onPointerDown={onDividerPointerDown}
-              />
-            ) : null}
-            {splitPath !== null ? (
-              <div
-                className={cn(
-                  "flex min-h-0 min-w-0 flex-1 flex-col",
-                  focusedPane === "primary" && "print:hidden",
-                )}
-                onPointerDownCapture={() => panesRef.current?.focus("split")}
-              >
-                <SplitPane path={splitPath} onOpenPath={onSplitOpenPath}>
-                  <div className="flex items-center justify-end border-b border-line px-2 py-1 print:hidden">
-                    <Button
-                      variant="ghost"
-                      size="icon-xs"
-                      aria-label="Close split"
-                      onClick={closeSplit}
-                    >
-                      <XIcon />
-                    </Button>
+              <div className="flex min-h-0 flex-1 print:block" ref={paneRowRef}>
+                <div
+                  className={cn(
+                    "min-h-0 min-w-0 overflow-y-auto print:overflow-visible",
+                    splitPath === null ? "flex-1" : "print:w-full",
+                    splitPath !== null && focusedPane === "split" && "print:hidden",
+                  )}
+                  style={splitPath === null ? undefined : { width: `${String(splitRatio * 100)}%` }}
+                  onPointerDownCapture={() => panesRef.current?.focus("primary")}
+                >
+                  <EditorPane />
+                </div>
+                {splitPath !== null ? (
+                  <div
+                    role="separator"
+                    aria-orientation="vertical"
+                    className="w-1 shrink-0 cursor-col-resize bg-line hover:bg-border print:hidden"
+                    onPointerDown={onDividerPointerDown}
+                  />
+                ) : null}
+                {splitPath !== null ? (
+                  <div
+                    className={cn(
+                      "flex min-h-0 min-w-0 flex-1 flex-col",
+                      focusedPane === "primary" && "print:hidden",
+                    )}
+                    onPointerDownCapture={() => panesRef.current?.focus("split")}
+                  >
+                    <SplitPane path={splitPath} onOpenPath={onSplitOpenPath}>
+                      <div className="flex items-center justify-end border-b border-line px-2 py-1 print:hidden">
+                        <Button
+                          variant="ghost"
+                          size="icon-xs"
+                          aria-label="Close split"
+                          onClick={closeSplit}
+                        >
+                          <XIcon />
+                        </Button>
+                      </div>
+                      <div className="min-h-0 flex-1 overflow-y-auto print:overflow-visible">
+                        <EditorPane />
+                      </div>
+                    </SplitPane>
                   </div>
-                  <div className="min-h-0 flex-1 overflow-y-auto print:overflow-visible">
-                    <EditorPane />
-                  </div>
-                </SplitPane>
+                ) : null}
               </div>
-            ) : null}
-          </div>
-          <ActionComposer
-            open={composerOpen}
-            onOpenChange={setComposerOpen}
-            seed={composerSeed}
-            docPath={focusedPath}
-            readViewContext={readViewContext}
-            onLaunched={openThread}
-          />
+              <ActionComposer
+                open={composerOpen}
+                onOpenChange={setComposerOpen}
+                seed={composerSeed}
+                docPath={focusedPath}
+                readViewContext={readViewContext}
+                onLaunched={openThread}
+              />
+            </SidebarInset>
+            <Sidebar side="right" className="print:hidden">
+              <ActionsPanel
+                docPath={focusedPath}
+                tab={panelTab}
+                onTabChange={setPanelTab}
+                commentFocus={commentFocus}
+                selectedThreadId={panelThreadId}
+                onSelectThread={setPanelThreadId}
+                onOpenDoc={setOpenNote}
+              />
+            </Sidebar>
+          </SidebarProvider>
         </SidebarInset>
-        <aside
-          className={cn(
-            "w-80 shrink-0 border-l border-line bg-surface-inset print:hidden",
-            zen && "hidden",
-          )}
-        >
-          <ActionsPanel
-            docPath={focusedPath}
-            commentFocus={commentFocus}
-            selectedThreadId={panelThreadId}
-            onSelectThread={setPanelThreadId}
-            onOpenDoc={setOpenNote}
-          />
-        </aside>
         <CommandPalette
           open={paletteOpen}
           initialQuery={paletteQuery}

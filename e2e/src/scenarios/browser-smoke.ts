@@ -90,7 +90,7 @@ export const browserSmoke: Scenario = {
       await agentBrowser(["open", `${app.baseUrl}/`], 60_000);
 
       ctx.log("waiting for the SPA to mount");
-      await agentBrowser(["wait", "aside"], 90_000);
+      await agentBrowser(["wait", '[data-slot="sidebar-wrapper"]'], 90_000);
 
       ctx.log("waiting for the virgin-boot note to open in the editor");
       await agentBrowser(["wait", '[data-slate-editor="true"]'], 90_000);
