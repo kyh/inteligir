@@ -235,6 +235,22 @@
         "unicorn/no-instanceof-builtins": "off",
         "unicorn/prefer-add-event-listener": "off"
       }
+    },
+    {
+      // The Fluid Functionalism border-radius system (vendored into
+      // packages/ui, mounted at the app roots) names its domain "shape" —
+      // ShapeProvider, useShape, ShapeVariant: pill vs rounded corner
+      // geometry. There the word IS the domain role the rule asks for, not a
+      // structure description, and renaming a vendored API breaks re-pull
+      // diffability.
+      "files": [
+        "packages/ui/src/**",
+        "apps/app/src/app/workspace-context.tsx",
+        "apps/web/src/routes/__root.tsx"
+      ],
+      "rules": {
+        "anti-slop/no-shape-in-symbol-names": "off"
+      }
     }
   ]
 }

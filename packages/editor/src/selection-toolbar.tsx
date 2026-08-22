@@ -308,8 +308,6 @@ export function SelectionToolbar() {
                 align="start"
                 className="ignore-click-outside/toolbar"
               >
-                {/* The Group is required, not cosmetic: Base UI's GroupLabel
-                    reads MenuGroupContext and throws without a Group ancestor. */}
                 <DropdownMenuGroup>
                   <DropdownMenuLabel>Turn into</DropdownMenuLabel>
                   {TURN_INTO.map((opt) => (

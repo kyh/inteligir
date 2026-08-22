@@ -1,6 +1,6 @@
 // Provenance baseline for `src/components`: where each vendored file came from
-// (shadcn registry item vs hand-written here) and the bytes we last accepted
-// for it. Without it there is no record of what was copied, so a re-pull's
+// (shadcn registry item, Fluid Functionalism registry item, or hand-written
+// here) and the bytes we last accepted for it. Without it there is no record of what was copied, so a re-pull's
 // damage — a clobbered local extension — is invisible until someone notices
 // the behavior it carried is gone.
 //
@@ -31,6 +31,17 @@ const CONFIG_PATH = path.join(PACKAGE_ROOT, "components.json");
 
 const REGISTRY_URL = "https://ui.shadcn.com";
 
+// The second registry this package pulls from: the Fluid Functionalism system
+// components (origin "fluid"). The commit pins the upstream revision the
+// current copies were taken from; the url is the shadcn-CLI registry template
+// components.json names as "@fluid" (the test asserts they agree).
+const FLUID_REGISTRY = {
+  url: "https://www.fluidfunctionalism.com/r/{name}.json",
+  repo: "https://github.com/mickadesign/fluid-functionalism",
+  commit: "ec595cd3c65125efb9fb87140b28b3ccfc920473",
+  license: "MIT",
+};
+
 function readJson(file) {
   return JSON.parse(fs.readFileSync(file, "utf8"));
 }
@@ -54,10 +65,11 @@ function readManifest() {
 }
 
 // Origin and the upstream item name are HAND-CURATED — nothing on disk can
-// tell a registry copy from a file written here — so a regenerate carries them
-// forward untouched and only refreshes hashes. New files default to registry
-// origin (the common case) and are announced, because a hand-written component
-// silently recorded as vendored is the one wrong answer that never gets caught.
+// tell a shadcn copy from a fluid copy from a file written here — so a
+// regenerate carries them forward untouched and only refreshes hashes. New
+// files default to registry origin (the common case) and are announced,
+// because a hand-written component silently recorded as vendored is the one
+// wrong answer that never gets caught.
 function build(previous) {
   const config = readJson(CONFIG_PATH);
   const components = {};
@@ -70,7 +82,9 @@ function build(previous) {
     components[name] =
       before?.origin === "local"
         ? { origin: "local", sha256 }
-        : { origin: "registry", item: before?.item ?? name, sha256 };
+        : before?.origin === "fluid"
+          ? { origin: "fluid", item: before?.item ?? name, sha256 }
+          : { origin: "registry", item: before?.item ?? name, sha256 };
   }
 
   const preset = previous?.registry?.preset;
@@ -87,6 +101,7 @@ function build(previous) {
     manifest: {
       generatedBy: "pnpm --filter @repo/ui provenance",
       registry,
+      fluid: FLUID_REGISTRY,
       hash: "sha256",
       components,
     },

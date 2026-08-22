@@ -90,7 +90,7 @@ export function EditorBottomToolbar({ path }: { path: string }) {
             <HeadingIcon />
             <ChevronUpIcon className="!size-3" />
           </DropdownMenuTrigger>
-          <DropdownMenuContent side="top" align="center" className="min-w-[150px]">
+          <DropdownMenuContent side="top" align="center">
             {["Text", "Heading 1", "Heading 2", "Heading 3"].map((label) => (
               <DropdownMenuItem
                 key={label}
@@ -158,7 +158,7 @@ export function EditorBottomToolbar({ path }: { path: string }) {
           <DropdownMenuTrigger className={BUTTON_CLASS} aria-label="Insert block">
             <PlusIcon />
           </DropdownMenuTrigger>
-          <DropdownMenuContent side="top" align="center" className="min-w-[150px]">
+          <DropdownMenuContent side="top" align="center">
             <DropdownMenuItem
               onClick={() => {
                 apply("Callout");

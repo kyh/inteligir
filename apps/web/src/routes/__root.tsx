@@ -1,6 +1,8 @@
 import { useEffect } from "react";
 import { createRootRoute, HeadContent, Outlet, Scripts } from "@tanstack/react-router";
 import { noFlashThemeScript } from "@repo/ui/lib/theme";
+import { ShapeProvider } from "@repo/ui/lib/shape-context";
+import { SizeProvider } from "@repo/ui/lib/size-context";
 
 import { siteConfig } from "@/lib/site-config";
 import { THEME_FALLBACK, THEME_STORAGE_KEY } from "@/components/theme-provider";
@@ -70,7 +72,11 @@ function NotFound() {
 function RootComponent() {
   return (
     <RootDocument>
-      <Outlet />
+      <ShapeProvider defaultShape="rounded">
+        <SizeProvider defaultSize="compact">
+          <Outlet />
+        </SizeProvider>
+      </ShapeProvider>
     </RootDocument>
   );
 }

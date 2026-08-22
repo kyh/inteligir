@@ -1,49 +1,137 @@
-import { mergeProps } from "@base-ui/react/merge-props";
-import { useRender } from "@base-ui/react/use-render";
+"use client";
+// Vendored from Fluid Functionalism (github.com/mickadesign/fluid-functionalism), MIT.
+
+import { forwardRef, type HTMLAttributes } from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 
+import { useShape } from "@repo/ui/lib/shape-context";
+import { useSizeVariant } from "@repo/ui/lib/size-context";
 import { cn } from "@repo/ui/lib/utils";
 
-const badgeVariants = cva(
-  "group/badge inline-flex h-5 w-fit shrink-0 items-center justify-center gap-1 overflow-hidden rounded-2xl border border-transparent px-2 py-0.5 text-xs font-medium whitespace-nowrap transition-all focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&>svg]:pointer-events-none [&>svg]:size-3!",
-  {
-    variants: {
-      variant: {
-        default: "bg-primary text-primary-foreground [a]:hover:bg-primary/80",
-        secondary: "bg-secondary text-secondary-foreground [a]:hover:bg-secondary/80",
-        destructive:
-          "bg-destructive/10 text-destructive focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:focus-visible:ring-destructive/40 [a]:hover:bg-destructive/20",
-        outline: "border-border text-foreground [a]:hover:bg-muted [a]:hover:text-muted-foreground",
-        ghost: "hover:bg-muted hover:text-muted-foreground dark:hover:bg-muted/50",
-        link: "text-primary underline-offset-4 hover:underline",
-      },
+const badgeColors = {
+  gray: "#a3a3a3",
+  red: "#ef4444",
+  orange: "#f97316",
+  amber: "#f59e0b",
+  yellow: "#eab308",
+  lime: "#84cc16",
+  green: "#22c55e",
+  emerald: "#10b981",
+  teal: "#14b8a6",
+  cyan: "#06b6d4",
+  blue: "#3b82f6",
+  indigo: "#6366f1",
+  violet: "#8b5cf6",
+  purple: "#a855f7",
+  fuchsia: "#d946ef",
+  pink: "#ec4899",
+  rose: "#f43f5e",
+};
+
+type BadgeColor = keyof typeof badgeColors;
+
+const badgeVariants = cva("inline-flex items-center font-medium whitespace-nowrap", {
+  variants: {
+    variant: {
+      solid: "",
+      dot: "border border-border text-foreground",
+      // Local addition to fluid's solid/dot vocabulary: dot's chrome without
+      // the marker, for label-only tag chips.
+      outline: "border border-border text-foreground",
     },
-    defaultVariants: {
-      variant: "default",
+    size: {
+      default: "h-6 px-2.5 text-[12px] gap-1.5",
+      compact: "h-5 px-2 text-[11px] gap-1",
     },
+  },
+  defaultVariants: {
+    variant: "solid",
+    size: "default",
+  },
+});
+
+type BadgeSizeCanonical = "default" | "compact";
+
+/** Canonical two-size scale plus the pre-sizes-system aliases
+ *  (sm → compact; md/lg → default), kept so call sites keep compiling. */
+type BadgeSize = BadgeSizeCanonical | "sm" | "md" | "lg";
+
+const canonicalSize = {
+  default: "default",
+  compact: "compact",
+  sm: "compact",
+  md: "default",
+  lg: "default",
+} satisfies Record<BadgeSize, BadgeSizeCanonical>;
+
+// text-box needs a block container — the badge root is a flex container, so
+// the label gets its own span. Height is fixed (h-*), so trimming only
+// recenters the letterforms.
+const labelClassName = "[text-box:trim-both_cap_alphabetic]";
+
+interface BadgeProps
+  extends
+    Omit<HTMLAttributes<HTMLSpanElement>, "color">,
+    Omit<VariantProps<typeof badgeVariants>, "size"> {
+  color?: BadgeColor;
+  /** Omitted, the badge follows the surrounding SizeProvider. Legacy
+   *  sm/md/lg values still resolve. */
+  size?: BadgeSize;
+}
+
+const Badge = forwardRef<HTMLSpanElement, BadgeProps>(
+  (
+    { className, variant = "solid", size: sizeProp, color = "gray", children, style, ...props },
+    ref,
+  ) => {
+    const shape = useShape();
+    // Resolve the size: explicit prop > surrounding SizeProvider > default.
+    const contextSize = useSizeVariant();
+    const size: BadgeSizeCanonical = sizeProp
+      ? canonicalSize[sizeProp]
+      : contextSize === "compact"
+        ? "compact"
+        : "default";
+    const colorValue = badgeColors[color];
+    const showDot = variant === "dot";
+    const dotSize = size === "compact" ? 6 : 7;
+
+    const colorStyle =
+      variant === "solid"
+        ? color === "gray"
+          ? { backgroundColor: "var(--accent)", color: "var(--foreground)" }
+          : {
+              color: "var(--foreground)",
+              backgroundColor: `color-mix(in srgb, ${colorValue} 15%, var(--background))`,
+            }
+        : {};
+
+    const dotColor = color === "gray" ? "var(--muted-foreground)" : colorValue;
+
+    return (
+      <span
+        ref={ref}
+        className={cn(badgeVariants({ variant, size }), shape.item, className)}
+        style={{ ...colorStyle, ...style }}
+        {...props}
+      >
+        {showDot && (
+          <span
+            className="shrink-0 rounded-full"
+            style={{
+              width: dotSize,
+              height: dotSize,
+              backgroundColor: dotColor,
+            }}
+          />
+        )}
+        <span className={labelClassName}>{children}</span>
+      </span>
+    );
   },
 );
 
-function Badge({
-  className,
-  variant = "default",
-  render,
-  ...props
-}: useRender.ComponentProps<"span"> & VariantProps<typeof badgeVariants>) {
-  return useRender({
-    defaultTagName: "span",
-    props: mergeProps<"span">(
-      {
-        className: cn(badgeVariants({ variant }), className),
-      },
-      props,
-    ),
-    render,
-    state: {
-      slot: "badge",
-      variant,
-    },
-  });
-}
+Badge.displayName = "Badge";
 
-export { Badge, badgeVariants };
+export { Badge, badgeVariants, badgeColors };
+export type { BadgeProps, BadgeColor, BadgeSize };

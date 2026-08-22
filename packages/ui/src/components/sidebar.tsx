@@ -19,7 +19,7 @@ import {
   SheetTitle,
 } from "@repo/ui/components/sheet";
 import { Skeleton } from "@repo/ui/components/skeleton";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@repo/ui/components/tooltip";
+import { Tooltip } from "@repo/ui/components/tooltip";
 import { PanelLeftIcon } from "lucide-react";
 
 const SIDEBAR_COOKIE_NAME = "sidebar_state";
@@ -482,7 +482,7 @@ function SidebarMenuButton({
 }: useRender.ComponentProps<"button"> &
   React.ComponentProps<"button"> & {
     isActive?: boolean;
-    tooltip?: string | React.ComponentProps<typeof TooltipContent>;
+    tooltip?: string | Omit<React.ComponentProps<typeof Tooltip>, "children">;
   } & VariantProps<typeof sidebarMenuButtonVariants>) {
   const { isMobile, state } = useSidebar();
   const comp = useRender({
@@ -493,7 +493,7 @@ function SidebarMenuButton({
       },
       props,
     ),
-    render: !tooltip ? render : <TooltipTrigger render={render} />,
+    render,
     state: {
       slot: "sidebar-menu-button",
       sidebar: "menu-button",
@@ -508,19 +508,17 @@ function SidebarMenuButton({
 
   if (!(tooltip instanceof Object)) {
     tooltip = {
-      children: tooltip,
+      content: tooltip,
     };
   }
 
   return (
-    <Tooltip>
+    <Tooltip
+      side="right"
+      forceOpen={state !== "collapsed" || isMobile ? false : undefined}
+      {...tooltip}
+    >
       {comp}
-      <TooltipContent
-        side="right"
-        align="center"
-        hidden={state !== "collapsed" || isMobile}
-        {...tooltip}
-      />
     </Tooltip>
   );
 }
