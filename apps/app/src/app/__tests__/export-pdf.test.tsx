@@ -83,6 +83,8 @@ describe("the palette's Export as PDF row", () => {
     syncNow: vi.fn(),
     openSettings: vi.fn(),
     openTrash: vi.fn(),
+    openInSplit: vi.fn(),
+    closeSplit: null,
   };
 
   function mount(exportPdf: (() => void) | null) {

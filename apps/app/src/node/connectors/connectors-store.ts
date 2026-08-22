@@ -15,6 +15,19 @@ import { connectorNameSchema, connectorUrlSchema } from "@repo/server-contract/c
 
 const CONNECTORS_FILE = "connectors.json";
 
+/** Tokens live ON the row rather than in a second file: two files that must
+ *  agree are two files that can disagree, and this one already carries header
+ *  secrets under the same 0600 discipline. `expiresAt` is epoch seconds, null
+ *  when the provider named no lifetime. */
+const storedOauthTokensSchema = z
+  .object({
+    accessToken: z.string().min(1),
+    refreshToken: z.string().min(1).optional(),
+    expiresAt: z.number().int().nullable(),
+  })
+  .strict();
+export type StoredOauthTokens = z.infer<typeof storedOauthTokensSchema>;
+
 /** The stored row: the INPUT transport shape, headers included verbatim. */
 const storedTransportSchema = z.discriminatedUnion("kind", [
   z
@@ -29,6 +42,19 @@ const storedTransportSchema = z.discriminatedUnion("kind", [
       kind: z.literal("http"),
       url: connectorUrlSchema,
       headers: z.record(z.string().min(1), z.string().min(1)).optional(),
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal("oauth"),
+      url: connectorUrlSchema,
+      authorizationEndpoint: connectorUrlSchema,
+      tokenEndpoint: connectorUrlSchema,
+      clientId: z.string().min(1),
+      scopes: z.array(z.string().min(1)),
+      tokens: storedOauthTokensSchema.optional(),
+      /** Set when a refresh was refused; cleared by the next authorize. */
+      needsReauth: z.boolean().optional(),
     })
     .strict(),
 ]);

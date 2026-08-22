@@ -20,6 +20,7 @@ export const queryKeys = {
    *  toml` moving, so this family is swept by its own mutations and re-read
    *  whenever the settings dialog mounts. */
   connectors: ["connectors"] as const,
+  folders: ["folders"] as const,
   /** This install's pairing with an account. Nothing on the ws bus announces a
    *  sync pass — the bus carries vault, doc and thread invalidations only — so
    *  the settings section polls this family while it is on screen. */

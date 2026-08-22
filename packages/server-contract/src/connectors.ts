@@ -57,6 +57,8 @@ export const connectorUrlSchema = z
  * What a caller may WRITE. Http headers are the auth channel (a bearer or an
  * api key header); omitted on update, the stored ones survive.
  */
+export const CONNECTOR_SCOPES_MAX = 32;
+
 export const connectorTransportInputSchema = z.discriminatedUnion("kind", [
   z
     .object({
@@ -77,6 +79,19 @@ export const connectorTransportInputSchema = z.discriminatedUnion("kind", [
         .optional(),
     })
     .strict(),
+  // An OAuth row carries the provider's coordinates only. Tokens are never
+  // part of the input — they arrive through the authorize flow's callback and
+  // live in the store, and the view reduces them to a status.
+  z
+    .object({
+      kind: z.literal("oauth"),
+      url: connectorUrlSchema,
+      authorizationEndpoint: connectorUrlSchema,
+      tokenEndpoint: connectorUrlSchema,
+      clientId: z.string().min(1),
+      scopes: z.array(z.string().min(1)).max(CONNECTOR_SCOPES_MAX),
+    })
+    .strict(),
 ]);
 export type ConnectorTransportInput = z.infer<typeof connectorTransportInputSchema>;
 
@@ -84,6 +99,11 @@ export type ConnectorTransportInput = z.infer<typeof connectorTransportInputSche
  * What a caller ever READS. Header values are reduced to `hasAuth` — the row
  * can say "authenticated" without a response ever carrying a key.
  */
+/** Where an OAuth row stands: no tokens yet, tokens held, or a refresh the
+ *  provider refused — the row's Connect button reads this, nothing else does. */
+export const connectorOauthStatusSchema = z.enum(["needs-auth", "connected", "needs-reauth"]);
+export type ConnectorOauthStatus = z.infer<typeof connectorOauthStatusSchema>;
+
 export const connectorTransportViewSchema = z.discriminatedUnion("kind", [
   z
     .object({
@@ -93,6 +113,17 @@ export const connectorTransportViewSchema = z.discriminatedUnion("kind", [
     })
     .strict(),
   z.object({ kind: z.literal("http"), url: z.string().min(1), hasAuth: z.boolean() }).strict(),
+  z
+    .object({
+      kind: z.literal("oauth"),
+      url: z.string().min(1),
+      authorizationEndpoint: z.string().min(1),
+      tokenEndpoint: z.string().min(1),
+      clientId: z.string().min(1),
+      scopes: z.array(z.string()),
+      status: connectorOauthStatusSchema,
+    })
+    .strict(),
 ]);
 export type ConnectorTransportView = z.infer<typeof connectorTransportViewSchema>;
 
@@ -112,6 +143,7 @@ export function connectorTarget(transport: ConnectorTransportView): string {
     case "stdio":
       return [transport.command, ...transport.args].join(" ");
     case "http":
+    case "oauth":
       return transport.url;
   }
 }
@@ -138,6 +170,30 @@ export const connectorToggleRequestSchema = z
   .object({ name: connectorNameSchema, enabled: z.boolean() })
   .strict();
 export type ConnectorToggleRequest = z.infer<typeof connectorToggleRequestSchema>;
+
+/** The browser lands here after the provider's consent page; outside the
+ *  contract table for pair-callback's own reason (a browser wants a page). */
+export const CONNECTOR_OAUTH_CALLBACK_PATH = "/connectors/oauth/callback";
+
+export const connectorOauthBeginRequestSchema = z
+  .object({
+    name: connectorNameSchema,
+    // Required, not defaulted: the caller that must say false is exactly the
+    // one a default would let forget (the pairing precedent).
+    open: z.boolean(),
+  })
+  .strict();
+export type ConnectorOauthBeginRequest = z.infer<typeof connectorOauthBeginRequestSchema>;
+
+export const connectorOauthBeginResponseSchema = z
+  .object({ url: z.string().min(1), opened: z.boolean() })
+  .strict();
+export type ConnectorOauthBeginResponse = z.infer<typeof connectorOauthBeginResponseSchema>;
+
+export const connectorOauthDisconnectRequestSchema = z
+  .object({ name: connectorNameSchema })
+  .strict();
+export type ConnectorOauthDisconnectRequest = z.infer<typeof connectorOauthDisconnectRequestSchema>;
 
 export const connectorRoutes = {
   list: defineRoute({
@@ -180,6 +236,28 @@ export const connectorRoutes = {
     path: "/connectors/toggle",
     method: "post",
     request: jsonRequest<EmptyInput, ConnectorToggleRequest>(connectorToggleRequestSchema),
+    response: [
+      jsonResponse<ConnectorsResponse>(),
+      jsonResponse<ApiErrorResponse>({ status: 400 }),
+      jsonResponse<ApiErrorResponse>({ status: 404 }),
+    ] as const,
+  }),
+  oauthBegin: defineRoute({
+    path: "/connectors/oauth/begin",
+    method: "post",
+    request: jsonRequest<EmptyInput, ConnectorOauthBeginRequest>(connectorOauthBeginRequestSchema),
+    response: [
+      jsonResponse<ConnectorOauthBeginResponse>(),
+      jsonResponse<ApiErrorResponse>({ status: 400 }),
+      jsonResponse<ApiErrorResponse>({ status: 404 }),
+    ] as const,
+  }),
+  oauthDisconnect: defineRoute({
+    path: "/connectors/oauth/disconnect",
+    method: "post",
+    request: jsonRequest<EmptyInput, ConnectorOauthDisconnectRequest>(
+      connectorOauthDisconnectRequestSchema,
+    ),
     response: [
       jsonResponse<ConnectorsResponse>(),
       jsonResponse<ApiErrorResponse>({ status: 400 }),

@@ -21,6 +21,15 @@ function makeVaultDir(): string {
 }
 
 describe("loadAgentInstructions", () => {
+  it("names connected folders as read-only reference, only when some exist", () => {
+    const vaultDir = makeVaultDir();
+    expect(loadAgentInstructions(vaultDir, null, null, [])).toBeUndefined();
+    const withDirs = loadAgentInstructions(vaultDir, null, null, ["/ref/a", "/ref/b"]);
+    expect(withDirs).toContain("/ref/a, /ref/b");
+    expect(withDirs).toContain("read-only");
+    expect(withDirs).toContain("$INTELIGIR_CONNECTED_DIRS");
+  });
+
   it("is the CLI pointer alone when the vault has no AGENTS.md", () => {
     expect(loadAgentInstructions(makeVaultDir(), CLI_BIN_DIR)).toBe(CLI_POINTER_INSTRUCTIONS);
   });

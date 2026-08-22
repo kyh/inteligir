@@ -10,6 +10,7 @@ import {
 import { z } from "zod";
 import { cloudRoutes } from "./cloud";
 import { connectorRoutes } from "./connectors";
+import { folderRoutes } from "./folders";
 import { noteIntelligenceRoutes } from "./note-intelligence";
 import type { ApiErrorResponse } from "./errors";
 import { commentRoutes } from "./comments";
@@ -153,6 +154,7 @@ export const apiRoutes = {
   }),
   cloud: cloudRoutes,
   connectors: connectorRoutes,
+  folders: folderRoutes,
   noteIntelligence: noteIntelligenceRoutes,
   comments: commentRoutes,
   knowledge: knowledgeRoutes,

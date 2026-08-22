@@ -24,7 +24,10 @@ import { afterEach, describe, expect, it } from "vitest";
 import { z } from "zod";
 import { createApp, type CreateAppArgs } from "../app";
 import { createConnectorsService } from "../connectors/connectors-service";
+import { createFoldersService } from "../folders/folders-service";
+import { createFoldersStore } from "../folders/folders-store";
 import { createConnectorsStore } from "../connectors/connectors-store";
+import { createConnectorOauthFlow } from "../connectors/oauth-flow";
 import { createNoteIntelligence } from "../note-intelligence/note-intelligence";
 import { createNoteIntelligenceSettingsStore } from "../note-intelligence/settings-store";
 import { createKnowledgeRuntime } from "../knowledge/knowledge-runtime";
@@ -106,6 +109,12 @@ async function bootThreadsApp(
   const args: CreateAppArgs = {
     agent: { mode: "off", runtime: "off", detail: null },
     connectors: createConnectorsService(createConnectorsStore(dataDir)),
+    connectorsOauth: createConnectorOauthFlow(createConnectorsStore(dataDir)),
+    folders: createFoldersService({
+      store: createFoldersStore(dataDir),
+      vaultDir,
+      dataDir,
+    }),
     noteIntelligence: createNoteIntelligence({
       infer: () => Promise.resolve(null),
       settings: createNoteIntelligenceSettingsStore(dataDir),

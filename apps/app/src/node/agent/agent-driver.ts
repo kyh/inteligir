@@ -23,7 +23,7 @@ import { createScriptedTurnDriverFactory, type ScriptedDriverDeps } from "./scri
 export interface ResolveAgentDriverArgs {
   config: Pick<AppConfig, "agent" | "agentModel" | "vaultDir">;
   /** The enabled connector rows every session gets (issue #591). */
-  mcpServers?: () => AcpMcpServerConfig[];
+  mcpServers?: () => AcpMcpServerConfig[] | Promise<AcpMcpServerConfig[]>;
   db: DbConnection;
   notifier: DbNotifier;
   vault: VaultRuntime;
@@ -34,6 +34,9 @@ export interface ResolveAgentDriverArgs {
   /** Where `inteligir` lives, or null when none ships — decides whether the
    *  session instructions may promise the command. */
   cliBinDir?: string | null;
+  /** Connected Folders (issue #601), read fresh per session open so a
+   *  Settings edit reaches the next session without a reboot. */
+  connectedDirs?: () => readonly string[];
   /** Where a review-mode turn's write set goes (issue #560). Both drivers
    *  take it, so the mode is a property of the THREAD rather than of which
    *  provider happens to be running. */
@@ -130,6 +133,7 @@ export function resolveAgentDriver(args: ResolveAgentDriverArgs): ResolvedAgentD
   if (args.mcpServers !== undefined) codex.mcpServers = args.mcpServers;
   if (args.shellEnv !== undefined) codex.shellEnv = args.shellEnv;
   if (args.cliBinDir !== undefined) codex.cliBinDir = args.cliBinDir;
+  if (args.connectedDirs !== undefined) codex.connectedDirs = args.connectedDirs;
   if (args.captureProposals !== undefined) codex.captureProposals = args.captureProposals;
   const manager = createCodexRuntimeManager(codex);
   return {

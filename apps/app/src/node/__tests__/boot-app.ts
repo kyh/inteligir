@@ -15,7 +15,10 @@ import type { AgentStatus } from "@repo/server-contract/routes";
 import { afterEach } from "vitest";
 import { createApp, type AppFallback, type CreateAppArgs } from "../app";
 import { createConnectorsService } from "../connectors/connectors-service";
+import { createFoldersService } from "../folders/folders-service";
+import { createFoldersStore } from "../folders/folders-store";
 import { createConnectorsStore } from "../connectors/connectors-store";
+import { createConnectorOauthFlow } from "../connectors/oauth-flow";
 import { createNoteIntelligence } from "../note-intelligence/note-intelligence";
 import { createNoteIntelligenceSettingsStore } from "../note-intelligence/settings-store";
 import type { OpenExternalUrl } from "../cloud/browser-opener";
@@ -108,6 +111,12 @@ export async function bootTestApp(options: BootTestAppOptions = {}): Promise<Boo
     agent,
     bus,
     connectors: createConnectorsService(createConnectorsStore(dataDir)),
+    connectorsOauth: createConnectorOauthFlow(createConnectorsStore(dataDir)),
+    folders: createFoldersService({
+      store: createFoldersStore(dataDir),
+      vaultDir,
+      dataDir,
+    }),
     noteIntelligence: createNoteIntelligence({
       infer: () => Promise.resolve(null),
       settings: createNoteIntelligenceSettingsStore(dataDir),

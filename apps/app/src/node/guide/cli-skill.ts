@@ -120,6 +120,16 @@ launch, Claude Code and Codex alike.
 - \`inteligir connectors remove <name>\` — remove one; sessions stop getting it
   from their next launch.
 
+## Connected folders — reference context you are pointed at
+
+Directories the user offers as read-only reference (also in
+\`$INTELIGIR_CONNECTED_DIRS\`). Read them freely with your own shell; treat
+them as read-only — do not modify them.
+
+- \`inteligir folders list\` — the connected folders.
+- \`inteligir folders add <absolute-path>\` — connect one.
+- \`inteligir folders remove <path>\` — disconnect one.
+
 ## Interactions — approvals the agent is waiting on
 
 - \`inteligir interactions list [--thread <id>]\` — pending approval requests;

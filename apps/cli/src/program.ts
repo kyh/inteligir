@@ -21,6 +21,7 @@ import { z } from "zod";
 import { CliExitError, EXIT_ERROR, getErrorMessage, invalidUsage } from "./cli-error";
 import { argsOf, assertKnownFlags, resolveCommandPath } from "./command-tree";
 import { connectorsCommand } from "./commands/connectors";
+import { foldersCommand } from "./commands/folders";
 import { guideCommand } from "./commands/guide";
 import { importMossCommand } from "./commands/import-moss";
 import { interactionsCommand } from "./commands/interactions";
@@ -77,6 +78,7 @@ export function buildProgram(deps: CliDeps): CommandDef {
       comment: commentCommand(deps),
       interactions: interactionsCommand(deps),
       connectors: connectorsCommand(deps),
+      folders: foldersCommand(deps),
       trash: trashCommand(deps),
       sync: syncCommand(deps),
       "import-moss": importMossCommand(deps),

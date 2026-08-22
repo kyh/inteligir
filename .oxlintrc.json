@@ -172,6 +172,20 @@
       }
     },
     {
+      // The desktop shell's IPC handlers are a real process boundary: Electron
+      // hands `unknown` across it (both directions — the preload checks answers
+      // too) and the shell carries no schema library, so the typeof narrowing IS
+      // the boundary parse. Exactly these two files.
+      "files": [
+        "apps/desktop/src/main/browser-window.ts",
+        "apps/desktop/src/main/browser-preload.ts"
+      ],
+      "rules": {
+        "anti-slop/no-runtime-typeof": "off",
+        "anti-slop/no-unknown-parameters": "off"
+      }
+    },
+    {
       // The Plate editor's component tests stub platejs/react and the host-io
       // singleton at module scope — the same wire-shape exemption the general
       // test override states, extended to module mocks for a package whose

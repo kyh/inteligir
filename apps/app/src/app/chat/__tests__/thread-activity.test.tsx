@@ -98,6 +98,8 @@ describe("the palette renders that answer and no other", () => {
           syncNow: vi.fn(),
           openSettings: vi.fn(),
           openTrash: vi.fn(),
+          openInSplit: vi.fn(),
+          closeSplit: null,
           exportPdf: null,
         }}
       />,
