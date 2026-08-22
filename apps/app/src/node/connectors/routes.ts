@@ -19,7 +19,7 @@ function refusalFor(cause: unknown): ConnectorConflictError | null {
 /** The callback URL for a request that reached this app's own loopback origin
  *  — the pair-callback rule: the PORT is the caller's own Host header's fact,
  *  never the configured guess. */
-export function oauthCallbackUrlFor(host: string | undefined): string | null {
+function oauthCallbackUrlFor(host: string | undefined): string | null {
   const origin = loopbackRequestOrigin(host);
   return origin === null ? null : `${origin}${CONNECTOR_OAUTH_CALLBACK_PATH}`;
 }

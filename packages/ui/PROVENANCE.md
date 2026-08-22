@@ -24,6 +24,16 @@ Every row is `adapted`: the bodies are upstream's, re-pointed at
 replaces a component that carried them (dropdown's `anchor` passthrough and
 `modal=false` default; button's shadcn variant/size alias maps).
 
+Composer-specific adaptations, beyond the standard re-pointing:
+`input-message.tsx` does not carry upstream's FileThumbnail (its PDF preview
+is the whole pdfjs-dist dependency) — images preview via an object URL and
+other files show a filename card; its `textareaProps` additionally accepts
+`onKeyDown`, run before the composer's own key handling and honored via
+`preventDefault`, so a consumer combobox can intercept keys the composer
+would treat as submit/history/suggestions; and it exposes the underlying
+textarea element via a textareaRef prop (the forwarded ref is the
+container's), which caret surgery like the dictation splice needs.
+
 ## Attribution
 
 ```text
@@ -43,8 +53,10 @@ upstream's (`vendored`) or upstream's shape with the bodies rewritten
 | `src/components/checkbox.tsx`      | `registry/base/checkbox-group.tsx`              | adapted |
 | `src/components/dialog.tsx`        | `registry/base/dialog.tsx`                      | adapted |
 | `src/components/dropdown-menu.tsx` | `registry/base/dropdown.tsx`                    | adapted |
+| `src/components/input-message.tsx` | `registry/default/input-message.tsx`            | adapted |
 | `src/components/menu-item.tsx`     | `registry/default/menu-item.tsx`                | adapted |
 | `src/components/switch.tsx`        | `registry/base/switch.tsx`                      | adapted |
+| `src/components/tabs-subtle.tsx`   | `registry/base/tabs-subtle.tsx`                 | adapted |
 | `src/components/tooltip.tsx`       | `registry/base/tooltip.tsx`                     | adapted |
 | `src/lib/springs.ts`               | `registry/default/lib/springs.ts`               | adapted |
 | `src/lib/font-weight.ts`           | `registry/default/lib/font-weight.ts`           | adapted |

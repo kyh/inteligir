@@ -278,7 +278,9 @@
       "files": [
         "packages/ui/src/components/sidebar.tsx",
         "packages/ui/src/components/sidebar-core.tsx",
-        "packages/ui/src/components/sidebar-menu.tsx"
+        "packages/ui/src/components/sidebar-menu.tsx",
+        "packages/ui/src/components/input-message.tsx",
+        "packages/ui/src/components/tabs-subtle.tsx"
       ],
       "rules": {
         "anti-slop/no-runtime-typeof": "off",
@@ -286,7 +288,9 @@
         "anti-slop/no-unsafe-dictionary-type": "off",
         "anti-slop/no-known-value-widening": "off",
         "anti-slop/require-safety-comment-for-type-assertion": "off",
-        "typescript/no-base-to-string": "off"
+        "typescript/no-base-to-string": "off",
+        "react/jsx-no-constructed-context-values": "off",
+        "react/no-array-index-key": "off"
       }
     }
   ]

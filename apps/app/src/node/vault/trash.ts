@@ -23,8 +23,8 @@ import { isTrashedPath, VAULT_TRASH_DIR, VaultPathError } from "@repo/notes/know
 import type { VaultTrashEntry } from "@repo/server-contract/vault";
 import { VaultServiceError, type VaultService } from "./vault-service";
 
-export const TRASHED_FROM_KEY = "trashed-from";
-export const TRASHED_AT_KEY = "trashed-at";
+const TRASHED_FROM_KEY = "trashed-from";
+const TRASHED_AT_KEY = "trashed-at";
 
 /** Moss keeps trashed notes for 30 days; so do we. */
 export const TRASH_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;

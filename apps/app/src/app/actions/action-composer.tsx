@@ -1,4 +1,5 @@
-// The ⌘K Action Composer — a floating card over the note (Moss's model): a
+// The ⌘K Action Composer — fluid's ask-AI input floating over the note
+// (Moss's model): a
 // prompt field with the open note attached as a removable context chip, more
 // notes @-mentionable into chips beside it, the mic riding along, send
 // starting the action. The action ATTACHES to the note
@@ -7,8 +8,8 @@
 
 import type { WikiTargetWire } from "@repo/server-contract/knowledge";
 import { useQuery } from "@tanstack/react-query";
-import { Button } from "@repo/ui/components/button";
-import { Textarea } from "@repo/ui/components/textarea";
+import { Badge } from "@repo/ui/components/badge";
+import { InputMessage } from "@repo/ui/components/input-message";
 import { cn } from "@repo/ui/lib/utils";
 import { toast } from "@repo/ui/components/sonner";
 import { FileTextIcon, XIcon } from "lucide-react";
@@ -172,163 +173,171 @@ export function ActionComposer({
   };
 
   return (
-    <div
-      className="absolute inset-x-0 bottom-10 z-40 flex justify-center px-6"
-      onKeyDown={(event) => {
-        if (event.key === "Escape") {
-          event.preventDefault();
-          onOpenChange(false);
-        }
-      }}
-    >
+    <>
+      {/* Scrim: invisible, but a click anywhere off the composer dismisses it
+          — the pre-rework wrapper's behavior, kept without dimming the note. */}
       <div
-        role="dialog"
-        aria-label="Action composer"
-        className="w-full max-w-xl rounded-xl border border-line bg-surface-raised p-3 shadow-surface-2"
+        className="absolute inset-0 z-30"
+        onPointerDown={() => {
+          onOpenChange(false);
+        }}
+      />
+      <div
+        className="absolute inset-x-0 bottom-10 z-40 flex justify-center px-6"
+        onKeyDown={(event) => {
+          if (event.key === "Escape") {
+            event.preventDefault();
+            onOpenChange(false);
+          }
+        }}
       >
-        {docPath !== null || mentions.length > 0 ? (
-          <div className="mb-2 flex flex-wrap gap-1.5">
-            {docPath !== null ? (
-              <span
-                className={cn(
-                  "inline-flex items-center gap-1 rounded-md border border-line px-1.5 py-0.5 text-xs",
-                  attached ? "text-foreground" : "text-muted-foreground line-through",
-                )}
-              >
-                <FileTextIcon className="size-3" />
-                {docPath}
-                {attached ? (
-                  <button
-                    type="button"
-                    aria-label="Detach note"
-                    className="text-muted-foreground hover:text-foreground"
-                    onClick={() => {
-                      setAttached(false);
-                    }}
-                  >
-                    <XIcon className="size-3" />
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    className="text-muted-foreground hover:text-foreground"
-                    onClick={() => {
-                      setAttached(true);
-                    }}
-                  >
-                    attach
-                  </button>
-                )}
-              </span>
-            ) : null}
-            {mentions.map((path) => (
-              <span
-                key={path}
-                className="inline-flex items-center gap-1 rounded-md border border-line px-1.5 py-0.5 text-xs text-foreground"
-              >
-                <FileTextIcon className="size-3" />
-                {path}
-                <button
-                  type="button"
-                  aria-label={`Remove ${path}`}
-                  className="text-muted-foreground hover:text-foreground"
-                  onClick={() => {
-                    setMentions((prior) => prior.filter((kept) => kept !== path));
-                  }}
-                >
-                  <XIcon className="size-3" />
-                </button>
-              </span>
-            ))}
-          </div>
-        ) : null}
+        <div role="dialog" aria-label="Action composer" className="w-full max-w-xl">
+          {dictationPartial !== null ? (
+            <div
+              data-dictation-preview=""
+              aria-live="polite"
+              className="mb-2 rounded-lg border border-line bg-surface px-3 py-2 text-xs text-muted-foreground"
+            >
+              {dictationPartial === "" ? "Listening…" : dictationPartial}
+            </div>
+          ) : null}
 
-        {dictationPartial !== null ? (
-          <div
-            data-dictation-preview=""
-            aria-live="polite"
-            className="mb-2 rounded-lg border border-line bg-surface px-3 py-2 text-xs text-muted-foreground"
-          >
-            {dictationPartial === "" ? "Listening…" : dictationPartial}
-          </div>
-        ) : null}
-
-        <div className="flex items-end gap-2">
-          <div className="relative flex-1">
+          <div className="relative">
             <MentionCombobox
               options={mentionOptions}
               activeIndex={mentionIndex}
               onHover={setMentionIndex}
               onPick={pickMention}
             />
-            <Textarea
-              ref={fieldRef}
-              aria-label="Ask the agent"
-              placeholder="Ask the agent… @ mentions a note"
+            <InputMessage
+              topSlot={
+                docPath !== null || mentions.length > 0 ? (
+                  <>
+                    {docPath !== null ? (
+                      <Badge
+                        variant="outline"
+                        className={cn(
+                          "gap-1 bg-surface-raised",
+                          !attached && "text-muted-foreground line-through",
+                        )}
+                      >
+                        <FileTextIcon className="size-3" />
+                        {docPath}
+                        {attached ? (
+                          <button
+                            type="button"
+                            aria-label="Detach note"
+                            className="text-muted-foreground hover:text-foreground"
+                            onClick={() => {
+                              setAttached(false);
+                            }}
+                          >
+                            <XIcon className="size-3" />
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            className="text-muted-foreground hover:text-foreground"
+                            onClick={() => {
+                              setAttached(true);
+                            }}
+                          >
+                            attach
+                          </button>
+                        )}
+                      </Badge>
+                    ) : null}
+                    {mentions.map((path) => (
+                      <Badge key={path} variant="outline" className="gap-1 bg-surface-raised">
+                        <FileTextIcon className="size-3" />
+                        {path}
+                        <button
+                          type="button"
+                          aria-label={`Remove ${path}`}
+                          className="text-muted-foreground hover:text-foreground"
+                          onClick={() => {
+                            setMentions((prior) => prior.filter((kept) => kept !== path));
+                          }}
+                        >
+                          <XIcon className="size-3" />
+                        </button>
+                      </Badge>
+                    ))}
+                  </>
+                ) : null
+              }
               value={text}
-              rows={2}
-              className="max-h-48 min-h-14 resize-none"
-              onChange={(event) => {
-                setText(event.target.value);
-                syncMention(event.target.value, event.target.selectionStart);
+              onValueChange={(value) => {
+                setText(value);
+                const field = fieldRef.current;
+                if (field !== null) syncMention(value, field.selectionStart);
               }}
-              onSelect={(event) => {
-                syncMention(event.currentTarget.value, event.currentTarget.selectionStart);
+              onSend={() => {
+                submit();
               }}
-              onBlur={() => {
-                setMention(null);
-              }}
-              onKeyDown={(event) => {
-                if (mention !== null && mentionOptions.length > 0) {
-                  if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-                    event.preventDefault();
-                    const step = event.key === "ArrowDown" ? 1 : -1;
-                    setMentionIndex((prior) =>
-                      Math.min(Math.max(prior + step, 0), mentionOptions.length - 1),
-                    );
-                    return;
-                  }
-                  if (event.key === "Enter" && !event.metaKey && !event.ctrlKey) {
-                    event.preventDefault();
-                    const active =
-                      mentionOptions[Math.min(mentionIndex, mentionOptions.length - 1)];
-                    if (active !== undefined) {
-                      pickMention(active);
+              placeholder="Ask the agent… @ mentions a note"
+              minRows={2}
+              maxRows={8}
+              sendLabel="Send"
+              disabled={sending}
+              textareaRef={fieldRef}
+              rightSlot={
+                <MicButton
+                  status={voiceStatus}
+                  onTranscript={acceptTranscript}
+                  onPartial={setDictationPartial}
+                  disabled={sending}
+                />
+              }
+              textareaProps={{
+                "aria-label": "Ask the agent",
+                onBlur: () => {
+                  setMention(null);
+                },
+                onSelect: (event) => {
+                  syncMention(event.currentTarget.value, event.currentTarget.selectionStart);
+                },
+                // Runs BEFORE InputMessage's own keys (submit/history), winning
+                // by preventDefault — the combobox owns arrows/Enter/Escape
+                // while an @-span is live.
+                onKeyDown: (event) => {
+                  if (mention !== null && mentionOptions.length > 0) {
+                    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+                      event.preventDefault();
+                      const step = event.key === "ArrowDown" ? 1 : -1;
+                      setMentionIndex((prior) =>
+                        Math.min(Math.max(prior + step, 0), mentionOptions.length - 1),
+                      );
+                      return;
                     }
-                    return;
+                    if (event.key === "Enter" && !event.metaKey && !event.ctrlKey) {
+                      event.preventDefault();
+                      const active =
+                        mentionOptions[Math.min(mentionIndex, mentionOptions.length - 1)];
+                      if (active !== undefined) {
+                        pickMention(active);
+                      }
+                      return;
+                    }
+                    if (event.key === "Escape") {
+                      // Only the combobox closes; the composer's own Escape
+                      // handler sits on the wrapper above.
+                      event.preventDefault();
+                      event.stopPropagation();
+                      setMention(null);
+                      return;
+                    }
                   }
-                  if (event.key === "Escape") {
-                    // Only the combobox closes; the composer's own Escape
-                    // handler sits on the wrapper above.
+                  if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
                     event.preventDefault();
-                    event.stopPropagation();
-                    setMention(null);
-                    return;
+                    submit();
                   }
-                }
-                if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
-                  event.preventDefault();
-                  submit();
-                }
+                },
               }}
             />
           </div>
-          <MicButton
-            status={voiceStatus}
-            onTranscript={acceptTranscript}
-            onPartial={setDictationPartial}
-            disabled={sending}
-          />
-          <Button
-            size="sm"
-            aria-label="Send"
-            disabled={sending || text.trim() === ""}
-            onClick={submit}
-          >
-            Send ⌘⏎
-          </Button>
         </div>
       </div>
-    </div>
+    </>
   );
 }

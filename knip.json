@@ -44,7 +44,12 @@
     // imports that package's `staged-layout.mjs` instead of re-typing the
     // tree, which is what makes the dependency visible here.
     "apps/desktop": {
-      "entry": ["scripts/*.{mjs,cjs}", "src/main/index.ts", "src/**/__tests__/**/*.test.ts"],
+      "entry": [
+        "scripts/*.{mjs,cjs}",
+        "src/main/index.ts",
+        "src/main/browser-preload.ts",
+        "src/**/__tests__/**/*.test.ts"
+      ],
       "project": ["src/**/*.ts", "scripts/*.{mjs,cjs}"]
     },
     // The published artifact. Its `bin` points at a build output, so the real

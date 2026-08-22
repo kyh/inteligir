@@ -4,18 +4,18 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./components/*": "./src/components/*.tsx",
     "./globals.css": "./src/styles/globals.css",
-    "./lib/theme": "./src/lib/theme.tsx",
+    "./hooks/*": "./src/hooks/*.ts",
+    "./hooks/use-merge-split": "./src/hooks/use-merge-split.tsx",
+    "./hooks/use-touch-primary": "./src/hooks/use-touch-primary.tsx",
+    "./lib/*": "./src/lib/*.ts",
     "./lib/elevated": "./src/lib/elevated.tsx",
     "./lib/icon-context": "./src/lib/icon-context.tsx",
     "./lib/shape-context": "./src/lib/shape-context.tsx",
     "./lib/size-context": "./src/lib/size-context.tsx",
     "./lib/surface-context": "./src/lib/surface-context.tsx",
-    "./lib/*": "./src/lib/*.ts",
-    "./components/*": "./src/components/*.tsx",
-    "./hooks/use-merge-split": "./src/hooks/use-merge-split.tsx",
-    "./hooks/use-touch-primary": "./src/hooks/use-touch-primary.tsx",
-    "./hooks/*": "./src/hooks/*.ts"
+    "./lib/theme": "./src/lib/theme.tsx"
   },
   "scripts": {
     "clean": "git clean -xdf .cache .turbo dist node_modules",

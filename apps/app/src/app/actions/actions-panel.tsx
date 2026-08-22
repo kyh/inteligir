@@ -6,6 +6,7 @@
 // top bar's comment button can aim the panel.
 
 import { getLiveEditor } from "@repo/editor/live-editor";
+import { TabsSubtle, TabsSubtleItem } from "@repo/ui/components/tabs-subtle";
 import { PropertiesPanel } from "@repo/editor/properties/properties-panel";
 import type { Thread } from "@repo/server-contract/threads";
 import { Button } from "@repo/ui/components/button";
@@ -31,6 +32,12 @@ import { TimelineRowView } from "../chat/timeline-rows";
 import { useWorkspace } from "../workspace-context";
 
 export type PanelTab = "actions" | "comments";
+
+const PANEL_TABS: readonly PanelTab[] = ["actions", "comments"];
+const PANEL_TAB_LABELS = {
+  actions: "Actions",
+  comments: "Comments",
+} satisfies Record<PanelTab, string>;
 
 export interface ActionsPanelProps {
   /** The open note — its actions list first. */
@@ -273,30 +280,20 @@ export function ActionsPanel({
 
   return (
     <div className="flex h-full flex-col">
-      <div
-        role="tablist"
-        aria-label="Panel tabs"
-        className="flex gap-1 border-b border-line px-2 py-1.5"
-      >
-        {(["actions", "comments"] satisfies PanelTab[]).map((name) => (
-          <button
-            key={name}
-            role="tab"
-            type="button"
-            aria-selected={tab === name}
-            className={cn(
-              "rounded-md px-2 py-0.5 text-xs font-medium capitalize",
-              tab === name
-                ? "bg-surface-raised text-foreground"
-                : "text-muted-foreground hover:text-foreground",
-            )}
-            onClick={() => {
-              onTabChange(name);
-            }}
-          >
-            {name}
-          </button>
-        ))}
+      <div className="border-b border-line px-1.5 py-1">
+        <TabsSubtle
+          aria-label="Panel tabs"
+          size="compact"
+          selectedIndex={PANEL_TABS.indexOf(tab)}
+          onSelect={(index) => {
+            const next = PANEL_TABS[index];
+            if (next !== undefined) onTabChange(next);
+          }}
+        >
+          {PANEL_TABS.map((name, index) => (
+            <TabsSubtleItem key={name} index={index} label={PANEL_TAB_LABELS[name]} />
+          ))}
+        </TabsSubtle>
       </div>
 
       {docPath !== null ? (
