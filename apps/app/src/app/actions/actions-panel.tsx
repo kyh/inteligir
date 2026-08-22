@@ -23,6 +23,7 @@ import {
 } from "../chat/chat-model";
 import { sendToThread } from "../chat/chat-service";
 import { useThreadDetail, useThreads, useThreadTimeline } from "../chat/thread-hooks";
+import { useNoteComments } from "./comment-hooks";
 import { CommentsTab } from "./comments-tab";
 import { TimelineRowView } from "../chat/timeline-rows";
 import { useWorkspace } from "../workspace-context";
@@ -218,6 +219,10 @@ export function ActionsPanel({
   onOpenDoc,
 }: ActionsPanelProps) {
   const [tab, setTab] = useState<PanelTab>("actions");
+  // Mounted HERE rather than in the Comments tab: this hook is what pushes
+  // the sidecar's id sets into the editor's comment store, and the range
+  // tint must be true with any tab selected.
+  useNoteComments(docPath);
   useEffect(() => {
     if (commentFocus !== null) {
       setTab("comments");

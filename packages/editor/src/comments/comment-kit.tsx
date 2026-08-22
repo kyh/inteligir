@@ -5,7 +5,15 @@
 // pairs — and the pixels over them.
 
 import { useEffect, useRef, useState } from "react";
-import { ElementApi, isHotkey, KEYS, type DecoratedRange, type SlateEditor } from "platejs";
+import {
+  ElementApi,
+  isHotkey,
+  KEYS,
+  NodeApi,
+  TextApi,
+  type DecoratedRange,
+  type SlateEditor,
+} from "platejs";
 import { PlateLeaf, createPlatePlugin, useEditorRef, type PlateLeafProps } from "platejs/react";
 
 import { cn } from "@repo/ui/lib/utils";
@@ -166,33 +174,53 @@ export const CommentKit = [
   createPlatePlugin({
     key: "commentRange",
     node: { isLeaf: true },
+    // TEXT-level, the tag-chip precedent: Plate applies a decoration only to
+    // the node it was returned FOR, so a block-level range never reaches the
+    // leaves. Each text run asks its parent block's scan and keeps the slice
+    // of any comment range that covers it (markers split texts at the exact
+    // selection edges, so interior runs are covered whole).
     decorate: ({ editor, entry }) => {
       const [node, path] = entry;
-      if (!ElementApi.isElement(node) || !holdsCommentMarkers(node)) return undefined;
-      const scan = scanBlockComments(editor, [node, path]);
+      if (!TextApi.isText(node)) return undefined;
+      const parentPath = path.slice(0, -1);
+      const parent = NodeApi.get(editor, parentPath);
+      if (!ElementApi.isElement(parent) || !holdsCommentMarkers(parent)) return undefined;
+      const scan = scanBlockComments(editor, [parent, parentPath]);
+      const index = path[path.length - 1];
+      if (index === undefined) return undefined;
       const decorations: DecoratedRange[] = [];
-      for (const range of scan.ranges) {
-        const decorated: DecoratedRange & { commentIds: string } = {
-          anchor: range.anchor,
-          commentIds: range.ids.join(","),
-          focus: range.focus,
+      const clip = (
+        anchor: { path: number[]; offset: number },
+        focus: { path: number[]; offset: number },
+        ids: readonly string[],
+        orphan: boolean,
+      ): void => {
+        const from = anchor.path[anchor.path.length - 1];
+        const to = focus.path[focus.path.length - 1];
+        if (from === undefined || to === undefined || index < from || index > to) return;
+        const startOffset = index === from ? anchor.offset : 0;
+        const endOffset = index === to ? focus.offset : node.text.length;
+        if (startOffset >= endOffset) return;
+        const decorated: DecoratedRange & {
+          commentIds: string;
+          commentRange: true;
+          commentOrphan?: true;
+        } = {
+          anchor: { offset: startOffset, path },
+          commentIds: ids.join(","),
+          commentRange: true,
+          focus: { offset: endOffset, path },
         };
+        if (orphan) decorated.commentOrphan = true;
         decorations.push(decorated);
+      };
+      for (const range of scan.ranges) {
+        clip(range.anchor, range.focus, range.ids, false);
       }
-      // An unterminated span tints from its lone edge to the block boundary —
-      // the honest picture of what the marker currently claims.
       if (scan.unpairedIds.length > 0) {
-        const start = editor.api.start(path);
-        const end = editor.api.end(path);
-        if (start && end) {
-          const decorated: DecoratedRange & { commentIds: string; commentOrphan: true } = {
-            anchor: start,
-            commentIds: scan.unpairedIds.join(","),
-            commentOrphan: true,
-            focus: end,
-          };
-          decorations.push(decorated);
-        }
+        const start = editor.api.start(parentPath);
+        const end = editor.api.end(parentPath);
+        if (start && end) clip(start, end, scan.unpairedIds, true);
       }
       return decorations.length > 0 ? decorations : undefined;
     },
