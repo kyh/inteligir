@@ -232,7 +232,11 @@ command is `db:push:local`.
   WITH the current content, and the client merges (diff3) and retries. Creation
   uses `ifAbsent` instead. Without this, an agent write landing between a
   client's read and its save is silently overwritten — the failure mode is
-  invisible, so the guard has to be in the protocol, not the UI.
+  invisible, so the guard has to be in the protocol, not the UI. This
+  DELIBERATELY diverges from Moss's activeUserWins rebase, which discards
+  concurrent disk body edits wholesale; diff3 merging non-overlapping regions
+  is strictly less lossy, so the two produce different disk bytes on conflict
+  and ours is not to be "fixed" toward Moss's (#603).
 - **Containment is PHYSICAL, not lexical.** The vault realpaths the deepest
   existing ancestor and refuses symlinked leaves. A lexical check passes
   `notes.md` when that name is a symlink to `~/.ssh/id_ed25519`, and a `git
