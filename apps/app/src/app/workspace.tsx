@@ -14,7 +14,8 @@ import { Toaster, toast } from "@repo/ui/components/sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { queryKeys, refusalMessage, unwrap } from "./api";
-import { ChatDock } from "./chat/chat-dock";
+import { ActionComposer } from "./actions/action-composer";
+import { ActionsPanel } from "./actions/actions-panel";
 import { useThreads } from "./chat/thread-hooks";
 import { platformShortcutModifier, useGlobalShortcuts } from "./global-shortcuts";
 import { EditorPane } from "@repo/editor/editor-pane";
@@ -66,15 +67,14 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
   // Read once: the platform does not change under a running window.
   const [shortcutModifier] = useState(platformShortcutModifier);
 
-  // The chat dock's state lives HERE, beside the note — never above it, so
-  // no chat interaction can remount the editor.
+  // The action surface's state lives HERE, beside the note — never above it,
+  // so no agent interaction can remount the editor.
   const threadsQuery = useThreads();
-  const [chatExpanded, setChatExpanded] = useState(false);
-  const [chatThreadId, setChatThreadId] = useState<string | null>(null);
+  const [composerOpen, setComposerOpen] = useState(false);
+  const [panelThreadId, setPanelThreadId] = useState<string | null>(null);
 
   const openThread = useCallback((threadId: string | null): void => {
-    setChatThreadId(threadId);
-    setChatExpanded(true);
+    setPanelThreadId(threadId);
   }, []);
 
   // What the user is looking at, pulled at submit: the open note's buffer via
@@ -239,6 +239,9 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
 
   useGlobalShortcuts(shortcutModifier, (action) => {
     switch (action) {
+      case "open-action-composer":
+        setComposerOpen((current) => !current);
+        break;
       case "open-palette":
         setPaletteQuery("");
         setPaletteOpen((current) => !current);
@@ -335,19 +338,26 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
           onPointerMove={onResizePointerMove}
           onPointerUp={onResizePointerUp}
         />
-        <main className="flex min-w-0 flex-1 flex-col">
+        <main className="relative flex min-w-0 flex-1 flex-col">
           <div className="min-h-0 flex-1 overflow-y-auto">
             <EditorPane />
           </div>
-          <ChatDock
-            viewThreadId={chatThreadId}
-            onViewThread={setChatThreadId}
-            expanded={chatExpanded}
-            onExpandedChange={setChatExpanded}
-            onOpenDoc={setOpenNote}
+          <ActionComposer
+            open={composerOpen}
+            onOpenChange={setComposerOpen}
+            docPath={openNote}
             readViewContext={readViewContext}
+            onLaunched={openThread}
           />
         </main>
+        <aside className="w-80 shrink-0 border-l border-line bg-surface-inset">
+          <ActionsPanel
+            docPath={openNote}
+            selectedThreadId={panelThreadId}
+            onSelectThread={setPanelThreadId}
+            onOpenDoc={setOpenNote}
+          />
+        </aside>
         <CommandPalette
           open={paletteOpen}
           initialQuery={paletteQuery}

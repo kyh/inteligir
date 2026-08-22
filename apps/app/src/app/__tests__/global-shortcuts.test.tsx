@@ -39,7 +39,7 @@ describe("the window listener", () => {
   it("fires the table's action for a claimed key", () => {
     const fired = mountListener("ctrl");
     fireEvent.keyDown(window, { key: "k", ctrlKey: true });
-    expect(fired).toEqual(["open-palette"]);
+    expect(fired).toEqual(["open-action-composer"]);
   });
 
   it("ignores the other modifier", () => {
@@ -63,9 +63,13 @@ describe("the matcher", () => {
   });
 
   it("claims exactly one modifier", () => {
-    expect(globalShortcutFor(keydown({ metaKey: true }), "meta")?.action).toBe("open-palette");
+    expect(globalShortcutFor(keydown({ metaKey: true }), "meta")?.action).toBe(
+      "open-action-composer",
+    );
     expect(globalShortcutFor(keydown({ ctrlKey: true }), "meta")).toBeNull();
-    expect(globalShortcutFor(keydown({ ctrlKey: true }), "ctrl")?.action).toBe("open-palette");
+    expect(globalShortcutFor(keydown({ ctrlKey: true }), "ctrl")?.action).toBe(
+      "open-action-composer",
+    );
     expect(globalShortcutFor(keydown({ metaKey: true }), "ctrl")).toBeNull();
   });
 
