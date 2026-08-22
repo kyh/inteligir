@@ -35,7 +35,14 @@ import {
   type NoteSearchSource,
 } from "./palette/note-search";
 import { SettingsDialog } from "./settings/settings-dialog";
-import { Sidebar } from "./sidebar/sidebar";
+import {
+  Sidebar,
+  SidebarInset,
+  SidebarProvider,
+  SidebarTrigger,
+  useSidebar,
+} from "@repo/ui/components/sidebar";
+import { SidebarRailContent } from "./sidebar/sidebar";
 import type { TreeOps } from "./sidebar/file-tree";
 import {
   canSyncNow,
@@ -45,7 +52,7 @@ import {
   useVaultStatus,
   useVaultTree,
 } from "./vault-hooks";
-import { readSidebarWidth, SIDEBAR_WIDTH_MAX, SIDEBAR_WIDTH_MIN, writeSidebarWidth } from "./prefs";
+import { readSidebarWidth, writeSidebarWidth } from "./prefs";
 import { useWorkspace } from "./workspace-context";
 
 export interface WorkspaceProps {
@@ -148,35 +155,11 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
     [onOpenNote],
   );
 
-  // During the drag the width goes straight onto the aside's style — a move
-  // per frame must not re-render the whole workspace; ONE setState lands the
-  // final width on release.
-  const [sidebarWidth, setSidebarWidth] = useState(readSidebarWidth);
-  const asideRef = useRef<HTMLElement | null>(null);
-  const resizingRef = useRef(false);
-  const dragWidthRef = useRef(0);
-  const onResizePointerDown = (event: React.PointerEvent<HTMLDivElement>): void => {
-    resizingRef.current = true;
-    dragWidthRef.current = sidebarWidth;
-    event.currentTarget.setPointerCapture(event.pointerId);
-  };
-  const onResizePointerMove = (event: React.PointerEvent<HTMLDivElement>): void => {
-    if (!resizingRef.current) {
-      return;
-    }
-    const width = Math.min(SIDEBAR_WIDTH_MAX, Math.max(SIDEBAR_WIDTH_MIN, event.clientX));
-    dragWidthRef.current = width;
-    if (asideRef.current !== null) {
-      asideRef.current.style.width = `${width}px`;
-    }
-  };
-  const onResizePointerUp = (): void => {
-    if (resizingRef.current) {
-      resizingRef.current = false;
-      writeSidebarWidth(dragWidthRef.current);
-      setSidebarWidth(dragWidthRef.current);
-    }
-  };
+  // The fluid sidebar owns collapse and drag-resize; the workspace owns what
+  // they mean here: zen forces the rail shut without losing the user's own
+  // open state, and re-opening the rail is an exit from zen.
+  const [railOpen, setRailOpen] = useState(true);
+  const [initialSidebarWidth] = useState(() => `${String(readSidebarWidth())}px`);
 
   // Open-or-create through the session: an existing note is OPENED, never
   // overwritten (createFile seeds only a genuinely new file).
@@ -321,7 +304,9 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
   const sortedFilePaths = useMemo(
     () =>
       treeEntries
-        .filter((entry) => entry.kind === "file")
+        // Notes only: the tree also holds comment sidecars and assets, and the
+        // palette's fallback must answer the same question the index does.
+        .filter((entry) => entry.kind === "file" && entry.path.endsWith(".md"))
         .map((entry) => entry.path)
         .toSorted(),
     [treeEntries],
@@ -374,30 +359,37 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
 
   return (
     <VaultProvider initialPath={openNote} onOpenPath={onOpenNote} actionsRef={actionsRef}>
-      <div className="flex h-dvh overflow-hidden bg-surface text-ink">
-        <aside
-          ref={asideRef}
-          style={{ width: sidebarWidth }}
-          className="shrink-0 border-r border-line bg-sidebar text-sidebar-foreground"
-        >
-          <Sidebar
+      <SidebarProvider
+        className="h-dvh overflow-hidden bg-surface text-ink"
+        open={railOpen && !zen}
+        onOpenChange={(nextOpen) => {
+          if (nextOpen) {
+            setZen(false);
+          }
+          setRailOpen(nextOpen);
+        }}
+        persist={false}
+        peek="click"
+        width={initialSidebarWidth}
+      >
+        <SidebarWidthPersistence />
+        <Sidebar variant="floating">
+          <SidebarRailContent
             openPath={openNote}
             onOpenFile={setOpenNote}
             ops={treeOps}
             onSyncNow={syncNow}
             onOpenSettings={onOpenSettings}
+            onOpenSearch={() => {
+              setPaletteQuery("");
+              setPaletteOpen(true);
+            }}
           />
-        </aside>
-        <div
-          role="separator"
-          aria-orientation="vertical"
-          aria-label="Resize sidebar"
-          className="w-1 shrink-0 cursor-col-resize hover:bg-line-strong active:bg-line-strong"
-          onPointerDown={onResizePointerDown}
-          onPointerMove={onResizePointerMove}
-          onPointerUp={onResizePointerUp}
-        />
-        <main className="relative flex min-w-0 flex-1 flex-col">
+        </Sidebar>
+        <SidebarInset className="relative bg-surface">
+          <div className="absolute top-2 left-2 z-10">
+            <SidebarTrigger />
+          </div>
           <div className="min-h-0 flex-1 overflow-y-auto">
             <EditorPane />
           </div>
@@ -409,7 +401,7 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
             readViewContext={readViewContext}
             onLaunched={openThread}
           />
-        </main>
+        </SidebarInset>
         <aside
           className={cn("w-80 shrink-0 border-l border-line bg-surface-inset", zen && "hidden")}
         >
@@ -434,7 +426,21 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
         <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} onSyncNow={syncNow} />
         <ConfirmDialogHost />
         <Toaster position="bottom-right" />
-      </div>
+      </SidebarProvider>
     </VaultProvider>
   );
+}
+
+/** Mirrors the rail's drag-resized width back into the localStorage pref the
+ *  provider is seeded from, so the width survives a reload. Rendered inside
+ *  SidebarProvider — the width lives in its context. */
+function SidebarWidthPersistence() {
+  const { width } = useSidebar();
+  useEffect(() => {
+    const px = Number.parseInt(width, 10);
+    if (Number.isFinite(px)) {
+      writeSidebarWidth(px);
+    }
+  }, [width]);
+  return null;
 }

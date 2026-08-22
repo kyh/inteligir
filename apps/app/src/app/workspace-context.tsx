@@ -7,6 +7,8 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { THREAD_CHANGE_KINDS } from "@repo/domain/change-kinds";
 import { ThemeProvider, useTheme, type Theme } from "@repo/ui/lib/theme";
+import { ShapeProvider } from "@repo/ui/lib/shape-context";
+import { SizeProvider } from "@repo/ui/lib/size-context";
 import type { ChangedMessage, ThreadChangedMessage } from "@repo/server-contract/notifications";
 import { createContext, useContext, useEffect, useState } from "react";
 import { AppearanceProvider } from "./appearance";
@@ -232,11 +234,15 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   return (
     <ThemeProvider theme={theme} setTheme={setTheme}>
       <EditorThemeCarrier />
-      <AppearanceProvider>
-        <QueryClientProvider client={runtime.queryClient}>
-          <WorkspaceContext value={runtime.contextValue}>{children}</WorkspaceContext>
-        </QueryClientProvider>
-      </AppearanceProvider>
+      <ShapeProvider defaultShape="rounded">
+        <SizeProvider defaultSize="compact">
+          <AppearanceProvider>
+            <QueryClientProvider client={runtime.queryClient}>
+              <WorkspaceContext value={runtime.contextValue}>{children}</WorkspaceContext>
+            </QueryClientProvider>
+          </AppearanceProvider>
+        </SizeProvider>
+      </ShapeProvider>
     </ThemeProvider>
   );
 }

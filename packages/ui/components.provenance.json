@@ -6,6 +6,12 @@
     "baseColor": "zinc",
     "preset": "beqC8BzG"
   },
+  "fluid": {
+    "url": "https://www.fluidfunctionalism.com/r/{name}.json",
+    "repo": "https://github.com/mickadesign/fluid-functionalism",
+    "commit": "ec595cd3c65125efb9fb87140b28b3ccfc920473",
+    "license": "MIT"
+  },
   "hash": "sha256",
   "components": {
     "alert-dialog": {
@@ -19,9 +25,9 @@
       "sha256": "cae82de6d926c57cdc718450c82576b01e9561dd7ad22297a35d085616e8abca"
     },
     "badge": {
-      "origin": "registry",
+      "origin": "fluid",
       "item": "badge",
-      "sha256": "ea3dfcdb062f90b234f3e20f7adc96435e8b7c2a34784a11c29c8b62ea3ed95a"
+      "sha256": "855439e92d0755432b0c75dbf834392694868184940481330b7ab08bf382b0ef"
     },
     "breadcrumb": {
       "origin": "registry",
@@ -34,14 +40,14 @@
       "sha256": "bf068ca55fc81f1aa1b1c5a814bc8e9be8274c4c19f43797f9e7ccc4355fbaea"
     },
     "button": {
-      "origin": "registry",
+      "origin": "fluid",
       "item": "button",
-      "sha256": "0e9bde4c939142adff4f8ca5605d31876c5814aeec7aadef43dcba024d086a88"
+      "sha256": "7c137fe5b8ae8901d8faabc6f4bb5b7f37fd8f43c02810e9e4f6a96c0aa57a4a"
     },
     "checkbox": {
-      "origin": "registry",
-      "item": "checkbox",
-      "sha256": "395facccfbb5a3c3f8cc6c03d38e1e57ef530b4a79855e0197c91b10cf0cf605"
+      "origin": "fluid",
+      "item": "checkbox-group",
+      "sha256": "f1276e349eb78954fab8ac2a717ca4bc037ba02464c32820a4b1c5df55f78339"
     },
     "collapsible": {
       "origin": "registry",
@@ -58,18 +64,18 @@
       "sha256": "d85e943f410c75421d450fcee3b62a56d74a2855a1d2c5c0e6a304f44a625a85"
     },
     "dialog": {
-      "origin": "registry",
+      "origin": "fluid",
       "item": "dialog",
-      "sha256": "f3131d895f99d565b9dc0895a2c7949a2f011df5525ad214df6b8c8451b2562c"
+      "sha256": "e0ab6d0f7018e8053f9b6365fdf68f5cf35d228f79ac5d6d6a1f5335bcc66c60"
     },
     "dropdown-menu": {
-      "origin": "registry",
-      "item": "dropdown-menu",
-      "sha256": "b664dce696cb75f58e747f459f36480316ccb269363da40436ea5391ade65b1a"
+      "origin": "fluid",
+      "item": "dropdown",
+      "sha256": "c316ce9a4a7031a3ab8ccb58e7254aea7b04744eef4ca0cef7c1445098d62786"
     },
     "geometric-orb": {
       "origin": "local",
-      "sha256": "cdb22e3e3467f771d4e62f3f020616307fcce4b025af4ca256772547b5ef3e23"
+      "sha256": "3f735241ba81c29ae652240c1f9d2f5f98936af43fa403755ed58191251a58e0"
     },
     "input": {
       "origin": "registry",
@@ -85,6 +91,11 @@
       "origin": "registry",
       "item": "label",
       "sha256": "f63065c68988ade6786d4984d4e96050de2cac400972ea0379e884f65200df21"
+    },
+    "menu-item": {
+      "origin": "fluid",
+      "item": "dropdown",
+      "sha256": "6fc2bc4a23e07d479b9a5c80d41229372faa06dc65ed293ae4e944320b4aeeb6"
     },
     "message": {
       "origin": "registry",
@@ -106,6 +117,11 @@
       "item": "popover",
       "sha256": "530f117f2b1538b7b2548b01c57334b2f486948b5a8279e2561df8291b86247e"
     },
+    "scroll-area": {
+      "origin": "fluid",
+      "item": "scroll-area",
+      "sha256": "efd73bf0feb2f0d1b1c399817bc71f96b567cf6ec5209c93e643b47d5c0b4c89"
+    },
     "separator": {
       "origin": "registry",
       "item": "separator",
@@ -117,14 +133,19 @@
       "sha256": "9201266008396999ea05547a125c5a8ebcdc336e6ba4b3d3540e3fd980b656ec"
     },
     "sidebar": {
-      "origin": "registry",
+      "origin": "fluid",
       "item": "sidebar",
-      "sha256": "8c66c2360996b618fbfd4332040105215d433dd36bf2e64aded42063da3142df"
+      "sha256": "551edff9fac359c87263678d703a254ba52ac28a22788d9bb88172a5d8b854e4"
     },
-    "skeleton": {
-      "origin": "registry",
-      "item": "skeleton",
-      "sha256": "1fd4363f2ea8a5e57d6800a05540a5c4519349b4ede7b0bff25cd095d7ec698a"
+    "sidebar-core": {
+      "origin": "fluid",
+      "item": "sidebar-core",
+      "sha256": "49dc1634f490990fe51f80352e3fd673b50a9ab040489d23b7192e9fc07f440a"
+    },
+    "sidebar-menu": {
+      "origin": "fluid",
+      "item": "sidebar-menu",
+      "sha256": "cd15a04ff7be7c36c5a4b38c506c40df80e2ce58c14321b63c524258804dcbe7"
     },
     "sonner": {
       "origin": "registry",
@@ -137,9 +158,9 @@
       "sha256": "e3c765a22a4aef5fa0238cac4a15049198ffbf9056e9221f09d4d1e2b68930ee"
     },
     "switch": {
-      "origin": "registry",
+      "origin": "fluid",
       "item": "switch",
-      "sha256": "a846104435ba79406c1ab6a4bf742e199eac3eacf8686d3dc2b60d530f481fd8"
+      "sha256": "d9b93a1b7f66a93b5ecb2c635d7db7551d111530522d41f7bf353bd25c5af963"
     },
     "textarea": {
       "origin": "registry",
@@ -147,9 +168,9 @@
       "sha256": "8d767f048df18576c5c8073a52061f720505f041534d792b1c27b26dff641e2a"
     },
     "tooltip": {
-      "origin": "registry",
+      "origin": "fluid",
       "item": "tooltip",
-      "sha256": "2b060c9bf229a9b877320dffb3bc451bafa4c81e63af25368593bb3f18c59e65"
+      "sha256": "bd8f23ab6149a93600153d0f1ece3d25a50915b9b4e49145b209c5b5e9edaccc"
     }
   }
 }

@@ -26,6 +26,7 @@ const CONFIG_PATH = path.join(PACKAGE_ROOT, "components.json");
 
 type ProvenanceEntry =
   | { origin: "registry"; item: string; sha256: string }
+  | { origin: "fluid"; item: string; sha256: string }
   | { origin: "local"; sha256: string };
 
 /** Which registry preset the components were pulled from. */
@@ -36,6 +37,9 @@ interface RegistryIdentity {
 
 type Provenance = {
   registry: RegistryIdentity;
+  /** The fluid registry's url template — mirrored from components.json's
+   * "@fluid" registry, which is what the shadcn CLI actually resolves. */
+  fluidUrl: string;
   components: Record<string, ProvenanceEntry>;
 };
 
@@ -51,8 +55,11 @@ function parseEntry(name: string, value: JsonValue | undefined): ProvenanceEntry
   if (origin === "registry" && isText(item)) {
     return { origin: "registry", item, sha256 };
   }
+  if (origin === "fluid" && isText(item)) {
+    return { origin: "fluid", item, sha256 };
+  }
   throw new Error(
-    `components.provenance.json: "${name}" needs origin "local", or "registry" with an "item".`,
+    `components.provenance.json: "${name}" needs origin "local", or "registry"/"fluid" with an "item".`,
   );
 }
 
@@ -61,19 +68,34 @@ function parseEntry(name: string, value: JsonValue | undefined): ProvenanceEntry
 function parseProvenance(raw: string): Provenance {
   const value = asMapping(parseJsonSource(raw));
   const registry = asMapping(value?.["registry"]);
+  const fluid = asMapping(value?.["fluid"]);
   const componentsSource = asMapping(value?.["components"]);
-  if (!registry || !componentsSource) {
-    throw new Error("components.provenance.json: expected { registry, components }");
+  if (!registry || !fluid || !componentsSource) {
+    throw new Error("components.provenance.json: expected { registry, fluid, components }");
   }
   const { style, baseColor } = registry;
   if (!isText(style) || !isText(baseColor)) {
     throw new Error("components.provenance.json: registry needs a string style and baseColor");
   }
+  const fluidUrl = fluid["url"];
+  if (!isText(fluidUrl)) {
+    throw new Error("components.provenance.json: fluid needs a string url");
+  }
   const components: Record<string, ProvenanceEntry> = {};
   for (const [name, entry] of Object.entries(componentsSource)) {
     components[name] = parseEntry(name, entry);
   }
-  return { registry: { style, baseColor }, components };
+  return { registry: { style, baseColor }, fluidUrl, components };
+}
+
+function parseFluidRegistryUrl(raw: string): string {
+  const value = asMapping(parseJsonSource(raw));
+  const registries = asMapping(value?.["registries"]);
+  const url = registries?.["@fluid"];
+  if (!isText(url)) {
+    throw new Error('components.json: expected registries["@fluid"] url template');
+  }
+  return url;
 }
 
 function parseShadcnConfig(raw: string): RegistryIdentity {
@@ -119,6 +141,12 @@ describe("component provenance", () => {
     const stale = Object.keys(provenance.components).filter((name) => !names.has(name));
 
     expect(stale, `Provenance records for deleted components. ${REGENERATE}`).toEqual([]);
+  });
+
+  it("agrees with components.json on the fluid registry url", () => {
+    // Same mirror rule as the shadcn block below: components.json is what the
+    // CLI resolves "@fluid/..." against, the manifest only records it.
+    expect(provenance.fluidUrl).toBe(parseFluidRegistryUrl(fs.readFileSync(CONFIG_PATH, "utf8")));
   });
 
   it("agrees with components.json on the registry style", () => {

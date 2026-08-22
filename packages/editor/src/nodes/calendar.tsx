@@ -29,7 +29,9 @@ export function Calendar({ className, classNames, ...props }: DayPickerProps) {
         day: "p-0 text-center text-sm",
         day_button: cn(
           buttonVariants({ variant: "ghost", size: "icon" }),
-          "rounded-md font-normal hover:bg-hover dark:hover:bg-hover",
+          // size-8 pins the fluid 36px icon button back to the w-8 weekday
+          // column so day cells stay aligned with their headers.
+          "size-8 rounded-md font-normal hover:bg-hover dark:hover:bg-hover",
         ),
         disabled: "text-muted-foreground opacity-50",
         hidden: "invisible",

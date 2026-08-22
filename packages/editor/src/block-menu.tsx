@@ -54,12 +54,7 @@ export function BlockMenu() {
         if (!open) api.blockMenu.hide();
       }}
     >
-      <DropdownMenuContent
-        anchor={anchor}
-        side="bottom"
-        align="start"
-        className="max-h-[70vh] min-w-[200px]"
-      >
+      <DropdownMenuContent anchor={anchor} side="bottom" align="start" className="max-h-[70vh]">
         <DropdownMenuItem onClick={() => blockTf.duplicate()}>
           <CopyIcon />
           Duplicate
@@ -77,9 +72,6 @@ export function BlockMenu() {
           Delete
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        {/* The Group is required, not cosmetic: Base UI's GroupLabel reads
-            MenuGroupContext and throws without a Group ancestor, which took the
-            whole renderer down on right-click. */}
         <DropdownMenuGroup>
           <DropdownMenuLabel>Turn into</DropdownMenuLabel>
           {TURN_INTO.map((opt) => (

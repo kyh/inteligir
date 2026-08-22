@@ -1,12 +1,23 @@
-// The workspace's left rail (Moss's IA): vault name + create actions on top,
-// the recency-ordered NOTES LIST as the default view with the file tree one
-// toggle away, and the sync status pill at the bottom. Width is a
-// localStorage pref dragged at the right edge; the workspace owns the value.
+// The workspace's left rail (Moss's IA) on the fluid sidebar anatomy: search
+// + create actions on top, the recency-ordered NOTES LIST as the default view
+// with the file tree one toggle away, and the sync status row at the bottom.
+// The fluid provider owns width/collapse (workspace.tsx mounts it); this file
+// owns only what fills the rail.
 
 import { Button } from "@repo/ui/components/button";
+import {
+  SidebarContent,
+  SidebarFooter,
+  SidebarHeader,
+  SidebarInput,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+} from "@repo/ui/components/sidebar";
 import { cn } from "@repo/ui/lib/utils";
 import { FilePlusIcon, FolderPlusIcon, FolderTreeIcon, SettingsIcon } from "lucide-react";
 import { useState } from "react";
+import { platformShortcutModifier } from "../global-shortcuts";
 import {
   canSyncNow,
   syncBlockedReason,
@@ -27,7 +38,7 @@ function treeLoadState(query: ReturnType<typeof useVaultTree>): TreeLoadState {
   return query.data === undefined ? "loading" : "loaded";
 }
 
-function SyncStatusPill({ onSyncNow }: { onSyncNow: () => void }) {
+function SyncStatusRow({ onSyncNow }: { onSyncNow: () => void }) {
   const statusQuery = useVaultStatus();
   const status = statusQuery.data;
   if (status === undefined) {
@@ -46,8 +57,8 @@ function SyncStatusPill({ onSyncNow }: { onSyncNow: () => void }) {
       className={cn(
         // Hover steps an ink TIER rather than lighting a pill: a status line
         // that gains a background reads as a button it is only sometimes.
-        "flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs text-ink-3",
-        canSync && "hover:text-ink-2",
+        "flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs text-muted-foreground",
+        canSync && "hover:text-foreground",
       )}
     >
       <span className={cn("size-1.5 rounded-full", syncStateDotClass(status))} />
@@ -56,15 +67,23 @@ function SyncStatusPill({ onSyncNow }: { onSyncNow: () => void }) {
   );
 }
 
-export interface SidebarProps {
+export interface SidebarRailContentProps {
   openPath: string | null;
   onOpenFile: (path: string) => void;
   ops: TreeOps;
   onSyncNow: () => void;
   onOpenSettings: () => void;
+  onOpenSearch: () => void;
 }
 
-export function Sidebar({ openPath, onOpenFile, ops, onSyncNow, onOpenSettings }: SidebarProps) {
+export function SidebarRailContent({
+  openPath,
+  onOpenFile,
+  ops,
+  onSyncNow,
+  onOpenSettings,
+  onOpenSearch,
+}: SidebarRailContentProps) {
   const treeQuery = useVaultTree();
   const [pendingCreate, setPendingCreate] = useState<{
     kind: "file" | "dir";
@@ -74,50 +93,83 @@ export function Sidebar({ openPath, onOpenFile, ops, onSyncNow, onOpenSettings }
   // flipping it loses nothing. Creating a folder needs the tree — the create
   // buttons switch it in.
   const [showTree, setShowTree] = useState(false);
+  const modifier = platformShortcutModifier();
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <header className="flex items-center gap-1 px-3 pt-3 pb-2">
-        <h2 className="min-w-0 flex-1 truncate text-sm font-medium">
-          {treeQuery.data?.name ?? "Vault"}
-        </h2>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          aria-label="New note"
-          onClick={() => {
-            setShowTree(true);
-            setPendingCreate({ kind: "file", parentDir: "" });
-          }}
-        >
-          <FilePlusIcon className="size-4 text-muted-foreground" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          aria-label="New folder"
-          onClick={() => {
-            setShowTree(true);
-            setPendingCreate({ kind: "dir", parentDir: "" });
-          }}
-        >
-          <FolderPlusIcon className="size-4 text-muted-foreground" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          aria-label={showTree ? "Show notes list" : "Show file tree"}
-          aria-pressed={showTree}
-          onClick={() => {
-            setShowTree((current) => !current);
-          }}
-        >
-          <FolderTreeIcon
-            className={cn("size-4", showTree ? "text-ink" : "text-muted-foreground")}
+    <>
+      <SidebarHeader className="gap-2">
+        <div className="flex items-center gap-1">
+          <h2 className="min-w-0 flex-1 truncate px-1 text-sm font-medium">
+            {treeQuery.data?.name ?? "Vault"}
+          </h2>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label="New folder"
+            onClick={() => {
+              setShowTree(true);
+              setPendingCreate({ kind: "dir", parentDir: "" });
+            }}
+          >
+            <FolderPlusIcon className="size-4 text-muted-foreground" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={showTree ? "Show notes list" : "Show file tree"}
+            aria-pressed={showTree}
+            onClick={() => {
+              setShowTree((current) => !current);
+            }}
+          >
+            <FolderTreeIcon
+              className={cn("size-4", showTree ? "text-foreground" : "text-muted-foreground")}
+            />
+          </Button>
+        </div>
+        {/* The palette IS the search surface (⌘P); the input is its rail
+            affordance, so it opens the palette instead of growing a second
+            search UI. readOnly keeps the caret out of a field that never
+            holds text. */}
+        <div className="relative">
+          <SidebarInput
+            readOnly
+            placeholder="Search…"
+            aria-label="Search notes"
+            onFocus={(event) => {
+              event.currentTarget.blur();
+              onOpenSearch();
+            }}
+            // preventDefault keeps the gesture's focus off the field (it
+            // also cancels the compatibility click, so click can't be the
+            // opener); the open waits for pointerup so the palette dialog
+            // mounts after the gesture — a dialog mounted mid-gesture reads
+            // that same gesture's release as an outside press and dismisses
+            // itself.
+            onPointerDown={(event) => {
+              event.preventDefault();
+            }}
+            onPointerUp={onOpenSearch}
           />
-        </Button>
-      </header>
-      <div className="min-h-0 flex-1 overflow-y-auto">
+          <kbd className="pointer-events-none absolute top-1/2 right-2 -translate-y-1/2 text-[10px] text-muted-foreground">
+            {modifier === "meta" ? "⌘" : "Ctrl-"}P
+          </kbd>
+        </div>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              icon={FilePlusIcon}
+              onClick={() => {
+                setShowTree(true);
+                setPendingCreate({ kind: "file", parentDir: "" });
+              }}
+            >
+              New note
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarHeader>
+      <SidebarContent>
         {showTree ? (
           <FileTree
             entries={treeQuery.data?.entries ?? []}
@@ -136,13 +188,13 @@ export function Sidebar({ openPath, onOpenFile, ops, onSyncNow, onOpenSettings }
             onOpenFile={onOpenFile}
           />
         )}
-      </div>
-      <footer className="flex items-center justify-between border-t border-line px-2 py-1.5">
-        <SyncStatusPill onSyncNow={onSyncNow} />
+      </SidebarContent>
+      <SidebarFooter className="flex-row items-center justify-between">
+        <SyncStatusRow onSyncNow={onSyncNow} />
         <Button variant="ghost" size="icon-sm" aria-label="Settings" onClick={onOpenSettings}>
           <SettingsIcon className="size-4 text-muted-foreground" />
         </Button>
-      </footer>
-    </div>
+      </SidebarFooter>
+    </>
   );
 }

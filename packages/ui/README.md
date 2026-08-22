@@ -1,8 +1,12 @@
 # @repo/ui
 
 Shared UI components (web-only): **vendored stock shadcn** on **Base UI**
-(`@base-ui/react`), styled with Tailwind 4, plus two shared custom pieces
-(`confirm-dialog`, the Three.js `geometric-orb`).
+(`@base-ui/react`), styled with Tailwind 4, with the interactive core
+(**button, dialog, dropdown-menu/menu-item, checkbox, switch, badge, tooltip**)
+**vendored from the Fluid Functionalism registry**
+(fluidfunctionalism.com, MIT) together with its system layer (`lib/` springs,
+surface/shape/size/icon contexts; `hooks/` proximity-hover, merge-split), plus
+two shared custom pieces (`confirm-dialog`, the Three.js `geometric-orb`).
 
 ## Why it exists
 
@@ -51,8 +55,11 @@ Exports are path-based (`package.json` `exports`):
 
 ## Invariants
 
-- **Near-stock vendored** (registry preset `beqC8BzG`). Keep re-pulls cheap;
-  deliberate local extensions to re-apply after a re-pull:
+- **Near-stock vendored, from two registries**: shadcn (preset `beqC8BzG`)
+  and Fluid Functionalism (`components.json` names it `@fluid`; upstream repo,
+  commit pin and license live in `components.provenance.json`'s `fluid`
+  block). Keep re-pulls cheap; deliberate local extensions to re-apply after a
+  re-pull:
   - `dropdown-menu` — `anchor` passthrough on Content; `modal={false}`
     default (editor menus must not scroll-lock the document)
   - `popover` — `anchor` passthrough on Content
@@ -69,8 +76,11 @@ Exports are path-based (`package.json` `exports`):
   check), `pnpm dlx shadcn@latest add <component>`, remove the stub. Patch to
   the repo's strict rules (no `any`/`as`/`!`; memoized context values), never
   add lint overrides.
-- The `./lib/*` export glob matches `.ts` only — a new `.tsx` lib module
-  needs its own explicit entry (see `./lib/theme`).
+- The `./lib/*` / `./hooks/*` export globs match `.ts` only — a `.tsx` module
+  needs its own explicit entry (see `./lib/theme` and the fluid context rows).
+  An `[.ts, .tsx]` fallback array is NOT a substitute: tsc resolves through it
+  but Node and Vite take the first pattern and fail on the missing file, so
+  the divergence only surfaces at runtime.
 - `globals.css` declares one `@source "../**/*.{ts,tsx}"` covering THIS
   package (Tailwind's auto-detection skips node_modules); each app's own
   class usage is auto-detected by `@tailwindcss/vite`.
@@ -91,10 +101,14 @@ Exports are path-based (`package.json` `exports`):
 
 `components.provenance.json` records, per file under `src/components`, where it
 came from — a shadcn registry item (`origin: "registry"` + the upstream `item`
-name) or written here (`origin: "local"`, today `confirm-dialog` and
-`geometric-orb`) — plus a sha256 of the bytes last accepted for it. The
-registry block mirrors `components.json` (the config the CLI reads) and carries
-the preset id, which lives nowhere else.
+name), a Fluid Functionalism item (`origin: "fluid"` + its `item`; the `fluid`
+block pins the upstream repo, commit and license), or written here
+(`origin: "local"`, today `confirm-dialog` and `geometric-orb`) — plus a
+sha256 of the bytes last accepted for it. The registry block mirrors
+`components.json` (the config the CLI reads) and carries the preset id, which
+lives nowhere else. The fluid system layer under `src/lib` and `src/hooks` is
+outside the manifest's walk (it covers `src/components` only) — those files'
+provenance is this README plus the manifest's `fluid` block.
 
 ```bash
 pnpm --filter @repo/ui provenance          # regenerate (rewrites hashes)
