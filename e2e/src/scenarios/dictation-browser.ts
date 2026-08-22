@@ -50,7 +50,7 @@ export const dictationBrowser: Scenario = {
 
       ctx.log(`opening ${app.baseUrl}/ with a fake microphone`);
       await agentBrowser(["--args", CHROME_MEDIA_ARGS, "open", `${app.baseUrl}/`], 60_000);
-      await agentBrowser(["wait", ".cm-content"], MOUNT_DEADLINE_MS);
+      await agentBrowser(["wait", '[data-slate-editor="true"]'], MOUNT_DEADLINE_MS);
       await agentBrowser(["wait", COMPOSER], MOUNT_DEADLINE_MS);
 
       // The button reads its own status off /voice/status, so waiting for the

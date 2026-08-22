@@ -36,6 +36,7 @@ import {
 import { useVaultActions } from "@repo/editor/host";
 import { buildResolver } from "@repo/notes/knowledge/link-resolve";
 import { diff3 } from "@repo/notes/text/diff3";
+import type { KnowledgeWikiTargetsResponse } from "@repo/server-contract/knowledge";
 import { contentHashHex, type VaultTreeResponse } from "@repo/server-contract/vault";
 import { toast } from "@repo/ui/components/sonner";
 import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
@@ -86,6 +87,9 @@ function ConnectionsPanel({ path }: { path: string }) {
 
 export interface VaultProviderProps {
   children: ReactNode;
+  /** A deep link's note (the route's `note` search param), consulted once at
+   * boot ahead of the localStorage restore. */
+  initialPath: string | null;
   /** Mirror of the open path for the shell (sidebar highlight, palette). */
   onOpenPath: (path: string | null) => void;
   /** The session's actions, handed to the shell's own callbacks (tree ops,
@@ -93,7 +97,15 @@ export interface VaultProviderProps {
   actionsRef: RefObject<VaultActions | null>;
 }
 
-export function VaultProvider({ children, onOpenPath, actionsRef }: VaultProviderProps) {
+export function VaultProvider({
+  children,
+  initialPath,
+  onOpenPath,
+  actionsRef,
+}: VaultProviderProps) {
+  // Captured once: the param mirrors back through onOpenPath after boot, and
+  // a later navigation must not re-run the boot preference.
+  const [bootPath] = useState(initialPath);
   const { api, docEvents } = useWorkspace();
 
   const [entries, setEntries] = useState<VaultEntry[]>([]);
@@ -102,6 +114,14 @@ export function VaultProvider({ children, onOpenPath, actionsRef }: VaultProvide
   // outside render, so a ref keeps them honest without re-subscribing.
   const rootRef = useRef("");
   const entriesRef = useRef<VaultEntry[]>([]);
+
+  // Alias-carrying wiki targets from the knowledge index — the same alias
+  // source backlinks resolve with, so chips and the picker agree. Refreshed on
+  // the files-changed sweep (the index lags saves ~100-300ms; a just-added
+  // alias resolves slightly late, same as the backlinks panel). JSON-compared
+  // so an identical payload keeps its reference and the resolver stands.
+  const [wikiTargets, setWikiTargets] = useState<KnowledgeWikiTargetsResponse["targets"]>([]);
+  const wikiTargetsRef = useRef<KnowledgeWikiTargetsResponse["targets"]>([]);
 
   // The mirror callback identity must not rebuild the session.
   const onOpenPathRef = useRef(onOpenPath);
@@ -164,14 +184,16 @@ export function VaultProvider({ children, onOpenPath, actionsRef }: VaultProvide
       const tree = await fetchTree();
       setVaultName(tree.name);
       const flat = listingEntries(tree);
-      // Last-open note, else the first root doc — the app never lands on an
-      // empty pane when the vault has notes.
-      const last = readLastOpenNote();
+      // The deep link wins, then the last-open note, then the first doc — the
+      // app never lands on an empty pane when the vault has notes.
       const known = (path: string | null): path is string =>
         path !== null && flat.some((entry) => entry.path === path && entry.kind === "doc");
-      const target = known(last)
-        ? last
-        : (flat.find((entry) => entry.kind === "doc")?.path ?? null);
+      const last = readLastOpenNote();
+      const target = known(bootPath)
+        ? bootPath
+        : known(last)
+          ? last
+          : (flat.find((entry) => entry.kind === "doc")?.path ?? null);
       let openNote: WorkspaceBoot["openNote"] = null;
       if (target !== null) {
         const content = await read(target).catch(() => null);
@@ -217,7 +239,7 @@ export function VaultProvider({ children, onOpenPath, actionsRef }: VaultProvide
         else toast.warning(message);
       },
     });
-  }, [api]);
+  }, [api, bootPath]);
 
   useEffect(() => {
     actionsRef.current = session.actions;
@@ -244,6 +266,29 @@ export function VaultProvider({ children, onOpenPath, actionsRef }: VaultProvide
       }),
     [docEvents, session],
   );
+
+  useEffect(() => {
+    let live = true;
+    const refresh = createDebouncer(() => {
+      void (async () => {
+        const response = await api.knowledge["wiki-targets"].$get().catch(() => null);
+        if (response === null || !response.ok || !live) return;
+        const { targets } = await response.json();
+        setWikiTargets((prev) => {
+          const next = JSON.stringify(prev) === JSON.stringify(targets) ? prev : targets;
+          wikiTargetsRef.current = next;
+          return next;
+        });
+      })();
+    }, FOCUS_REFRESH_DEBOUNCE_MS);
+    refresh.schedule();
+    const unsubscribe = docEvents.subscribe(() => refresh.schedule());
+    return () => {
+      live = false;
+      unsubscribe();
+      refresh.cancel();
+    };
+  }, [api, docEvents]);
 
   // Repairs a MISSED broadcast: a socket that dropped while the agent wrote
   // comes back to a listing nobody re-announced. One debounced re-list per
@@ -301,20 +346,16 @@ export function VaultProvider({ children, onOpenPath, actionsRef }: VaultProvide
       // The listing carries no stat facts; the properties surface that asks
       // returns with #587's right panel, with its route.
       getVaultFileFacts: () => Promise.resolve(null),
-      // Path-tier targets until the knowledge index serves aliases (#582).
       listWikiTargets: () =>
+        // exactOptionalPropertyTypes: the wire's optional aliases must drop
+        // the explicit-undefined member to satisfy the notes type.
         Promise.resolve(
-          entriesRef.current.flatMap((entry) =>
-            entry.kind === "doc"
-              ? [
-                  {
-                    path: entry.path,
-                    title: entry.name.replace(/\.md$/, ""),
-                    type: "doc" as const,
-                  },
-                ]
-              : [],
-          ),
+          wikiTargetsRef.current.map(({ aliases, ...target }) => {
+            if (aliases !== undefined) {
+              return Object.assign(target, { aliases });
+            }
+            return target;
+          }),
         ),
       getBacklinks: async ({ path }) => {
         const response = await api.knowledge.backlinks.$get({ query: { path } });
@@ -352,16 +393,20 @@ export function VaultProvider({ children, onOpenPath, actionsRef }: VaultProvide
   // The wiki resolver over the live listing — path tiers now, aliases with the
   // knowledge-served targets (#582).
   const listing = useMemo<VaultListing>(() => {
+    const aliasEntries: Array<readonly [string, string]> = [];
+    for (const target of wikiTargets) {
+      for (const alias of target.aliases ?? []) aliasEntries.push([alias, target.path]);
+    }
     const resolver = buildResolver(
       entries.map((entry) => entry.path),
-      [],
+      aliasEntries,
     );
     return {
       entries,
       folderName: vaultName,
       resolveWikiTarget: (target) => resolver.resolveWiki(target),
     };
-  }, [entries, vaultName]);
+  }, [entries, vaultName, wikiTargets]);
 
   const host = useMemo<EditorHost>(
     () => ({ actions: session.actions, listing, ConnectionsPanel }),

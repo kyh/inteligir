@@ -13,7 +13,6 @@ import { killAllLiveGroups, type AppInstance, type BootMode } from "./harness/in
 import { createScenarioContext, type Scenario } from "./harness/scenario";
 import { browserSmoke } from "./scenarios/browser-smoke";
 import { cliDrive } from "./scenarios/cli-drive";
-import { delegationChipBrowser } from "./scenarios/delegation-chip-browser";
 import { delegationScripted } from "./scenarios/delegation-scripted";
 import { dictationBrowser } from "./scenarios/dictation-browser";
 import { editorConstructsBrowser } from "./scenarios/editor-constructs-browser";
@@ -35,7 +34,6 @@ const SCENARIOS: readonly Scenario[] = [
   proposalReview,
   cliDrive,
   browserSmoke,
-  delegationChipBrowser,
   editorConstructsBrowser,
   slashMenuBrowser,
   externalEditBrowser,

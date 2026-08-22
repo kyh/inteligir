@@ -311,7 +311,7 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
   const threads = threadsQuery.data?.threads ?? EMPTY_THREADS;
 
   return (
-    <VaultProvider onOpenPath={onOpenNote} actionsRef={actionsRef}>
+    <VaultProvider initialPath={openNote} onOpenPath={onOpenNote} actionsRef={actionsRef}>
       <div className="flex h-dvh overflow-hidden bg-surface text-ink">
         <aside
           ref={asideRef}

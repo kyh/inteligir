@@ -1,7 +1,9 @@
 // Drives a real headless browser over the agent-browser CLI. The invariants:
 // the page loads, the SPA mounts (sidebar + editor), the virgin boot opens
 // the seeded welcome note, the page reaches the API, the palette shortcut
-// does not edit the note under it, and the console stays clean.
+// does not edit the note under it, and the console stays clean. The editor is
+// the Plate surface (`[data-slate-editor]`); a caret move alone must not
+// serialize, so the chord check's byte-identity oracle still holds.
 
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -90,7 +92,7 @@ export const browserSmoke: Scenario = {
       await agentBrowser(["wait", "aside"], 90_000);
 
       ctx.log("waiting for the virgin-boot note to open in the editor");
-      await agentBrowser(["wait", ".cm-content"], 90_000);
+      await agentBrowser(["wait", '[data-slate-editor="true"]'], 90_000);
 
       const title = await agentBrowser(["get", "title"]);
       expect(title === "inteligir", `document title is ${JSON.stringify(title)}`);
@@ -117,7 +119,7 @@ export const browserSmoke: Scenario = {
       ctx.log("the palette chord opens the palette without editing the note under it");
       const welcomeFile = join(app.vaultDir, "Welcome.md");
       const beforeChord = await readFile(welcomeFile, "utf8");
-      await agentBrowser(["click", ".cm-content"]);
+      await agentBrowser(["click", '[data-slate-editor="true"]']);
       await agentBrowser(["press", "End"]);
       await agentBrowser(["press", PALETTE_CHORD]);
       await agentBrowser(["wait", PALETTE_INPUT], 30_000);
