@@ -53,7 +53,7 @@ The marketing/auth Worker is separate:
 
 ```sh
 cp apps/web/.dev.vars.example apps/web/.dev.vars   # set BETTER_AUTH_SECRET
-pnpm dev:site        # → the real Worker on miniflare, http://localhost:5174
+pnpm dev:web        # → the real Worker on miniflare, http://localhost:5174
 ```
 
 `.dev.vars` must exist first: `BETTER_AUTH_SECRET` is what makes `/api/auth/*`
@@ -64,7 +64,7 @@ answer at all. Any value works locally.
 This repo ships no seed script and no test account. To get one locally:
 
 ```sh
-pnpm dev:site                                       # vite dev on :5174
+pnpm dev:web                                       # vite dev on :5174
 
 # The local D1 file is materialized lazily, on the first request that touches
 # the binding — `dev` alone does not create it. So hit one, THEN push:
@@ -108,7 +108,7 @@ Runtime — drive the running site with
 
 ```sh
 npm i -g agent-browser && agent-browser install   # once, if missing
-pnpm dev:site
+pnpm dev:web
 agent-browser open http://localhost:5174/
 ```
 
@@ -147,11 +147,11 @@ packages/server-contract The wire contract: route table + ws proto   @repo/serve
 packages/db              drizzle + better-sqlite3, migrations,
                          DbNotifier, ids                             @repo/db
 packages/agent-runtime   bb's provider runtime, codex slice:
-                         JSON-RPC/stdio + adapter (PROVENANCE.md)    @repo/agent-runtime
+                         JSON-RPC/stdio + adapter                   @repo/agent-runtime
 packages/notes           Pure domain — knowledge + markdown          @repo/notes
 packages/ui              Shared components (vendored shadcn)         @repo/ui
 tools/repo-guards        Fitness tests over the repo: the dep DAG,
-                         ws change kinds, vendored provenance        @repo/repo-guards
+                         ws change kinds, install layout             @repo/repo-guards
 ```
 
 - `CLAUDE.md` — architecture and § Decisions.

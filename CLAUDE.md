@@ -119,13 +119,13 @@ packages/
                  speaks Zed's agent-client-protocol to claude-code-acp and
                  codex-acp children; harnesses are data rows; the
                  provider-event vocabulary is the one internal grammar.
-  agent-skills/  @repo/agent-skills — vendored moss-skills (MIT): the
+  agent-skills/  @repo/agent-skills — product skill files: the
                  dialect's first-party spec, served to agents as files.
   ui/            @repo/ui — vendored stock shadcn on Base UI; leaf.
 tools/
   repo-guards/   @repo/repo-guards — derived fitness tests over the REPO: the
-                 package dependency DAG + its platform-purity rules, ws
-                 change-kind reachability, vendored-code provenance. The
+                 package dependency DAG + its platform-purity rules and ws
+                 change-kind reachability. The
                  invariants that span workspaces and belong to none of them.
 ```
 
@@ -141,10 +141,10 @@ tools/
 ```bash
 pnpm dev              # THE PRODUCT (apps/app) — the local server, per-checkout port
 pnpm dev:desktop      # The Electron shell over it (CDP on 9222)
-pnpm dev:site         # apps/web: vite + miniflare on :5174 (pinned, strictPort)
-pnpm package:app      # The npm artifact (apps/launcher) — `npx inteligir`
+pnpm dev:web         # apps/web: vite + miniflare on :5174 (pinned, strictPort)
+pnpm package:launcher      # The npm artifact (apps/launcher) — `npx inteligir`
 pnpm package:desktop  # An UNSIGNED macOS arm64 dmg
-pnpm smoke:package    # Pack, install into a scratch prefix, boot, probe, stop
+pnpm smoke:launcher    # Pack, install into a scratch prefix, boot, probe, stop
 pnpm smoke:desktop    # Package the .app, boot its server, drive it, SIGTERM (macOS only)
 pnpm build            # Build all
 pnpm typecheck        # Type check all
@@ -202,31 +202,21 @@ command is `db:push:local`.
   stated per fixture; a file the pipeline cannot round-trip safely opens RAW.
   The fixtures are formatter-exempt — their bytes ARE the assertion.
 
-- **NOTES SPEAK THE INTELIGIR DIALECT, and Moss's spellings still parse**
+- **NOTES SPEAK THE INTELIGIR DIALECT**
   (#581, renamed 2026-08-22 — the product is inteligir, so the format carries
   its name): `[[Title]]` / `[[Title#H]]` / `[[Title|alias]]` / `[[Title|uuid]]`
   wiki links (the LAST pipe starts the alias), `{{source|display|meta}}`
   formula pills, `%%i:id:start/end%%` comment anchors, and `inteligir-callout`
   / `inteligir-chart` / `inteligir-canvas` / `inteligir-html` / `:::tabs`
-  blocks — all valid markdown, all round-tripping through the fixpoint.
-  **LEGACY SPELLINGS PARSE FOREVER, and only ours is ever WRITTEN**: `moss-*`
-  fences, `%%m:` anchors and the `[moss:grid:v2]` canvas header all still read,
-  so a Moss-written vault opens unchanged and CANONICALIZES on its first save
-  — churn fixtures (`legacy-moss-fences`, `legacy-moss-markers`) pin exactly
-  that, and a legacy note must never open RAW. The one asymmetry is deliberate:
-  a rich block's payload is verbatim by contract, so the canvas grid header
-  canonicalizes through the sketch WRITER (`nodes/canvas-sketch.ts`), never
-  through serialization — opening a note may not rewrite bytes. The spellings
-  live in ONE place each (`@repo/notes/markdown/fence-langs`,
+  blocks — all valid markdown, all round-tripping through the fixpoint. The
+  spellings live in ONE place each (`@repo/notes/markdown/fence-langs`,
   `@repo/editor/nodes/canvas-header`) because the editor's rule table and the
   knowledge scan both read them and a drift would silently stop indexing links
-  inside callouts. `@repo/notes/import` stays named for Moss — converting
-  _Moss's_ files is its whole job. The FILE LAYOUT stays plain nested `.md`:
+  inside callouts. The FILE LAYOUT stays plain nested `.md`:
   no note bundles, no meta.json/layout.json; frontmatter remains the only
   property store, and a note's UUID is frontmatter `id:`. `{{` is reserved
   from MDX expressions by a tokenizer guard on BOTH braces. Comments' thread
-  bodies live in a `<note>.comments.json` sidecar beside the note (stated
-  interop residual: anchors read Moss's spelling, sidecar location is ours).
+  bodies live in a `<note>.comments.json` sidecar beside the note.
 
 - **A turn row's `sourceSeqEnd` names its own contributors**, not every
   turn-scoped event. A streaming assistant message is turn-scoped but lands as
@@ -252,10 +242,9 @@ command is `db:push:local`.
   uses `ifAbsent` instead. Without this, an agent write landing between a
   client's read and its save is silently overwritten — the failure mode is
   invisible, so the guard has to be in the protocol, not the UI. This
-  DELIBERATELY diverges from Moss's activeUserWins rebase, which discards
-  concurrent disk body edits wholesale; diff3 merging non-overlapping regions
-  is strictly less lossy, so the two produce different disk bytes on conflict
-  and ours is not to be "fixed" toward Moss's (#603).
+  uses diff3 instead of an active-user-wins rebase that discards concurrent
+  disk body edits wholesale. Merging non-overlapping regions is less lossy
+  (#603).
 - **Containment is PHYSICAL, not lexical.** The vault realpaths the deepest
   existing ancestor and refuses symlinked leaves. A lexical check passes
   `notes.md` when that name is a symlink to `~/.ssh/id_ed25519`, and a `git
@@ -272,8 +261,8 @@ pull` from a hostile remote is enough to plant one.
   events, under a counted commit hold that defers the vault's debounce and
   blocks a sync from starting. Committing the whole dirty tree attributes a
   concurrent turn's writes — and the user's — to whoever settles first.
-- **THE AGENT SURFACE IS THE ⌘K ACTION COMPOSER AND THE RIGHT PANEL** (#587,
-  the Moss model — retiring the chat dock, the delegation checkbox/selection
+- **THE AGENT SURFACE IS THE ⌘K ACTION COMPOSER AND THE RIGHT PANEL** (#587 —
+  retiring the chat dock, the delegation checkbox/selection
   affordances, thread-chip markers, and #560's proposals pipeline whole). An
   ACTION is an ordinary thread ATTACHED to the note it was composed over
   (`threads.originDocPath` alone; an anchor still cannot exist without its
@@ -369,8 +358,8 @@ body_stems` at the same bm25 weights, and `@repo/notes/knowledge/search-query`
   dir and are REDACTED in every read.
 
 - **AGENT MEMORY IS REMOVED** (#589, reversing #575 — deliberately). Claude
-  Code and Codex carry their own memory systems, and the Moss model ships
-  none; a third memory beside theirs was two answers to one question. What
+  Code and Codex carry their own memory systems; a third memory beside theirs
+  was two answers to one question. What
   DID survive the removal is the pattern: content the agent consumes lives in
   FILES read with its own shell — the vendored dialect skills ride
   `INTELIGIR_SKILLS_DIR` (resolved from `@repo/agent-skills`, staged beside
@@ -620,7 +609,7 @@ body_stems` at the same bm25 weights, and `@repo/notes/knowledge/search-query`
   and was false in both directions.
 - **THE PLATE SLASH MENU AND BOTTOM TOOLBAR ARE THE INSERTION SURFACES.**
   Slash items are grouped data in `packages/editor/src/slash-menu.tsx`; the
-  bottom-center toolbar (Moss's chrome) acts through the live-editor registry
+  bottom-center toolbar acts through the live-editor registry
   and is deliberately selection-stateless. Every insertable row's markdown
   must re-parse to a modeled construct — the kit-parity vocabulary pins the
   set. Legacy `<!-- inteligir:thread anc_… -->` markers in existing vaults
@@ -661,7 +650,7 @@ body_stems` at the same bm25 weights, and `@repo/notes/knowledge/search-query`
   render, so a hash allowlist blocks the app the moment it hydrates (measured,
   not assumed). `style-src` keeps `'unsafe-inline'` for runtime-injected component styles —
   the one stated residual. `frame-src` is `'self'` for exactly one frame:
-  moss-html's sandboxed srcdoc preview (never allow-same-origin). The directive that earns the
+  inteligir-html's sandboxed srcdoc preview (never allow-same-origin). The directive that earns the
   most here is `connect-src`: a script that cannot reach a third-party origin
   cannot exfiltrate the vault.
 - **Better Auth's `baseURL` is derived per-request from the request origin**,
@@ -700,11 +689,11 @@ export` over `src/worker/db/schema.ts`. A second deployer or a destructive
   typing rules can't represent is preserved byte-exactly, never coerced.
 - **No coverage tooling, on purpose.** This repo enforces targeted invariants
   structurally rather than via a global percentage: the dependency DAG and its
-  platform rules, ws change-kind reachability and vendored provenance
+  platform rules and ws change-kind reachability
   (`tools/repo-guards`), route-table completeness
   (`apps/app/src/node/__tests__/route-table.test.ts`), migration↔schema
   agreement (`packages/db/src/__tests__/schema-agreement.test.ts`),
-  no-orphan-components, component provenance, the CLI guide and its `--json`
+  no-orphan-components, the CLI guide and its `--json`
   flags, the editor's buffer invariant. A test that fails when a THIRD dispatch
   path appears is worth more than a percentage a suite asserting nothing can
   satisfy. If coverage is ever added: `coverage.include` is MANDATORY in
@@ -713,23 +702,8 @@ export` over `src/worker/db/schema.ts`. A second deployer or a destructive
   derives every value it compares. No hardcoded counts, no hand-copied lists —
   the one exception is `dep-dag.test.ts`'s `DECLARED_EDGES`, which IS the pin
   rather than a copy of one.
-- **Vendored code carries a RECORD, and the record's own shape says which rule
-  it opts into.** A `PROVENANCE.md` names the upstream, a 40-hex commit pin and
-  the license, with that license's own text beside it — MIT names a copyright
-  holder no per-file notice carries. With no `## Files` manifest it governs its
-  WHOLE directory (`packages/agent-runtime`, `packages/agent-skills`); with one
-  it governs exactly the files listed, which is what a package that is only
-  partly vendored needs (`apps/app`, `apps/cli`, `packages/db`,
-  `packages/domain`, `packages/server-contract`, `packages/typed-routes`,
-  `packages/editor`, `packages/ui`). Each row names its
-  upstream path and whether the code is upstream's or upstream's shape with the
-  bodies rewritten, so a re-vendor knows which files will diff. **"Vendored
-  from" is the CLAIM** — the phrase `vendor-provenance.test.ts` sweeps for. A
-  header saying a file's shape FOLLOWS an upstream's is citing an influence and
-  owes nothing; keep the two spellings apart, and do not put the claim over
-  code that only borrows an idiom. What no walk can catch is a copy that
-  arrives with no notice at all, so whether one is owed is decided when the
-  code is copied, not by a green suite.
+- **Vendored source keeps its attribution header.** Third-party license texts
+  live under `tools/licenses` and ship with the published artifact.
 - **`packages/ui/components.json` declares `rsc: true` and it is deliberately
   inert** — the `"use client"` directives it produces are ignored by every
   consumer, all plain Vite builds with no RSC bundler in the graph.

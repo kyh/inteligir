@@ -82,7 +82,7 @@ const ROOT_SMOKE_PREFIX = "smoke";
  */
 const MANUAL_SMOKES = new Map<string, string>([
   [
-    "smoke:package",
+    "smoke:launcher",
     "it packs the publishable tarball, installs it into a scratch prefix and binds a port — minutes of work per run to prove a thing that only changes when the artifact's shape does, and nothing about it is a PR-sized risk",
   ],
   [
@@ -304,7 +304,7 @@ describe("CI does not drift from `pnpm verify`", () => {
       violations.push(
         `UNREACHABLE SMOKE  ${workspace.dir}/package.json declares "${SMOKE_SCRIPT}"\n` +
           `  rule: every smoke has a root script that runs it — one reachable only through \`pnpm --filter ${workspace.name} ${SMOKE_SCRIPT}\` is one nobody runs, and neither \`verify\` nor CI can be held against a command that has no name\n` +
-          `  fix: add a root script (beside "smoke:package" in ${ROOT_MANIFEST}) that runs it, and give it a row in MANUAL_SMOKES or a step in a gate workflow`,
+          `  fix: add a root script (beside "smoke:launcher" in ${ROOT_MANIFEST}) that runs it, and give it a row in MANUAL_SMOKES or a step in a gate workflow`,
       );
     }
     expect(violations, `\n${violations.join("\n\n")}\n`).toEqual([]);

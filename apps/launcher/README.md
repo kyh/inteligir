@@ -73,8 +73,8 @@ This package is built, not written by hand beyond `src/`: `scripts/build.mjs`
 bundles the launcher and stages the app and CLI trees from their workspaces.
 
 ```bash
-pnpm package:app      # turbo run build --filter=inteligir
-pnpm smoke:package    # pack, install into a scratch prefix, boot, probe, stop
+pnpm package:launcher      # turbo run build --filter=inteligir
+pnpm smoke:launcher    # pack, install into a scratch prefix, boot, probe, stop
 ```
 
 The smoke uses `pnpm pack`, never `npm pack`: the `catalog:` protocol on the two

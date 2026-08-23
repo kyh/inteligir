@@ -258,15 +258,10 @@ export class ParakeetVoiceService implements VoiceService {
   }
 
   async transcribe(pcm: ArrayBuffer): Promise<string> {
-    const problem = await this.#probe();
-    if (problem !== null) {
-      throw new VoiceUnavailableError(problem);
-    }
-    if (!(await isModelInstalled(this.#modelDir, VOICE_MODEL))) {
-      throw new VoiceUnavailableError(
-        `Dictation needs the ${VOICE_MODEL.label} model. Turn on voice input in Settings to download it.`,
-      );
-    }
+    // The slot is claimed BEFORE any await: a check that awaits between reading
+    // the flag and setting it is not a guard at all, and two dictations issued
+    // in the same tick both passed it — each spawning a worker, against the
+    // one-worker rule this class exists to keep.
     if (this.#preparing) {
       throw new VoiceBusyError("The speech model is still being prepared.");
     }
@@ -275,6 +270,15 @@ export class ParakeetVoiceService implements VoiceService {
     }
     this.#transcribing = true;
     try {
+      const problem = await this.#probe();
+      if (problem !== null) {
+        throw new VoiceUnavailableError(problem);
+      }
+      if (!(await isModelInstalled(this.#modelDir, VOICE_MODEL))) {
+        throw new VoiceUnavailableError(
+          `Dictation needs the ${VOICE_MODEL.label} model. Turn on voice input in Settings to download it.`,
+        );
+      }
       const answer = await this.#runWorker({
         kind: "transcribe",
         model: resolveModelFiles(this.#modelDir, VOICE_MODEL),

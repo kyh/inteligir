@@ -8,7 +8,7 @@
 // under test too: an omitted entry fails here instead of on someone's machine.
 //
 // Deliberately outside `pnpm verify` (it builds, installs and binds a port);
-// run it with `pnpm smoke:package`.
+// run it with `pnpm smoke:launcher`.
 
 import { spawn } from "node:child_process";
 import { mkdtemp, readdir, rm } from "node:fs/promises";
@@ -20,6 +20,7 @@ import {
   CLI_BIN_NAME,
   appBundleDir,
   appServerEntry,
+  appSkillsDir,
   cliBinDirFromAppBundle,
   installRootIn,
 } from "./staged-layout.mjs";
@@ -135,6 +136,10 @@ try {
   const bundleDir = appBundleDir(installRoot);
   if (!existsSync(appServerEntry(installRoot))) {
     fail(`the packaged app bundle is missing at ${bundleDir}`);
+  }
+  const notesSkill = join(appSkillsDir(installRoot), "inteligir-notes", "SKILL.md");
+  if (!existsSync(notesSkill)) {
+    fail(`the packaged app carries no product skills at ${notesSkill}`);
   }
   const cliBin = join(cliBinDirFromAppBundle(bundleDir), CLI_BIN_NAME);
   if (!existsSync(cliBin)) {

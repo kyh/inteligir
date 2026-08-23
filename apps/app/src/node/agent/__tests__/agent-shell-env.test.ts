@@ -85,8 +85,10 @@ describe("buildAgentShellEnv", () => {
       env: { PATH: "/usr/bin" },
       cliBinDir: null,
     });
-    expect(env).toEqual({
-      INTELIGIR_SERVER_URL: "http://127.0.0.1:1",
-    });
+    // The claim is about PATH, not the whole env: whether the vendored skills
+    // resolve is a property of the layout the test runs in, and asserting the
+    // object whole made this fail the day they started resolving.
+    expect(env.PATH).toBeUndefined();
+    expect(env.INTELIGIR_SERVER_URL).toBe("http://127.0.0.1:1");
   });
 });

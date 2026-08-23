@@ -84,12 +84,12 @@ conventions, and the durable decisions; `CONTEXT.md` is the domain glossary.
 
 ```bash
 pnpm dev              # the product — local server + UI
-pnpm dev:site         # the marketing + auth Worker (localhost:5174)
+pnpm dev:web         # the marketing + auth Worker (localhost:5174)
 pnpm cli              # the CLI against a running instance
 pnpm e2e              # scenario suite against real instances
 pnpm verify           # typecheck, lint, knip, format, test, build — CI's order
-pnpm package:app      # build the npx package
-pnpm smoke:package    # pack it, install it, boot it, kill it
+pnpm package:launcher      # build the npx package
+pnpm smoke:launcher    # pack it, install it, boot it, kill it
 pnpm package:desktop  # build the unsigned desktop app
 ```
 

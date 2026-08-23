@@ -92,14 +92,19 @@ describe("codex runtime shell env wiring", () => {
     expect(send.status).toBe(200);
 
     const options = await waitFor(() => recorded.options[0], "the runtime to be constructed");
-    expect(options.shellEnv).toEqual({
-      INTELIGIR_SERVER_URL: "http://127.0.0.1:21999",
-      PATH: `/repo/apps/cli/bin${delimiter}/usr/bin`,
-    });
+    // The two values this wiring owns — the listen-time server URL and the
+    // PREPENDED cli path. Skills resolve from the layout, not from here, so
+    // asserting the object whole would make an unrelated resolution failure
+    // read as a wiring bug (and did, once they started resolving).
+    if (options.shellEnv === undefined) throw new Error("runtime has no shell env");
+    expect(options.shellEnv.INTELIGIR_SERVER_URL).toBe("http://127.0.0.1:21999");
+    expect(options.shellEnv.PATH).toBe(`/repo/apps/cli/bin${delimiter}/usr/bin`);
     expect(options.workspacePath).toBe(harness.vaultDir);
 
     const started = await waitFor(() => recorded.startThreads[0], "the session to start");
-    expect(started.instructions).toBe(CLI_POINTER_INSTRUCTIONS);
+    // Contains, not equals: the instructions block is a JOIN of the pointers
+    // that apply, and the dialect skills add their own when they resolve.
+    expect(started.instructions).toContain(CLI_POINTER_INSTRUCTIONS);
     expect(started.instructions).toContain("inteligir guide");
   });
 });

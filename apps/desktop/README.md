@@ -109,7 +109,7 @@ pnpm dev:desktop      # builds the launcher + the main bundle, then `electron .`
 In a checkout the shell runs the server with **your** `node`, because the
 workspace's native modules are built for it. It resolves the server entry
 through `node_modules/inteligir` — pnpm's link to `apps/launcher` — so
-`pnpm package:app` (or any `turbo run build`) has to have run at least once;
+`pnpm package:launcher` (or any `turbo run build`) has to have run at least once;
 `pnpm dev:desktop` does it for you.
 
 The window exposes CDP on 9222, so it is drivable like any page:
@@ -161,7 +161,7 @@ spawned from inside an archive and a `.node` binary cannot be loaded from one.
 
 1. Bump `apps/launcher/package.json` and `apps/desktop/package.json` together —
    the shell reports its own version and ships the launcher's tree.
-2. `pnpm format:fix && pnpm verify && pnpm smoke:package`.
+2. `pnpm format:fix && pnpm verify && pnpm smoke:launcher`.
 3. Sign and notarize: set `CSC_LINK`/`CSC_KEY_PASSWORD` and an Apple API key,
    flip `mac.identity`, `mac.hardenedRuntime` and `mac.notarize` in
    `electron-builder.yml`, then re-run `pnpm package:desktop`.

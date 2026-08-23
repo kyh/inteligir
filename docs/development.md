@@ -8,7 +8,7 @@ the runnable quickstart for coding agents.
 
 - Node ≥ 24, pnpm 10 (`corepack enable`)
 - `pnpm install` at the repo root (workspace-wide)
-- For `dev:site` only: `cp apps/web/.dev.vars.example apps/web/.dev.vars`,
+- For `dev:web` only: `cp apps/web/.dev.vars.example apps/web/.dev.vars`,
   then set `BETTER_AUTH_SECRET` to anything. Without it every `/api/auth/*`
   request fails.
 
@@ -16,7 +16,7 @@ the runnable quickstart for coding agents.
 
 ```bash
 pnpm dev             # THE PRODUCT (apps/app) — prints its URL on boot
-pnpm dev:site        # vite + miniflare — the marketing/auth Worker, :5174
+pnpm dev:web        # vite + miniflare — the marketing/auth Worker, :5174
 ```
 
 `pnpm dev` boots the local server: config → SQLite open + migrate →
@@ -44,19 +44,19 @@ The prod path is `pnpm -F @repo/app build && pnpm -F @repo/app start`:
 (`dist-node/main.js`, migrations copied beside it); `start` runs plain
 `node`, port 4664.
 
-`pnpm dev:site` runs the marketing site and `/api/auth/*` over a local D1
+`pnpm dev:web` runs the marketing site and `/api/auth/*` over a local D1
 file. Sign-up is invite-only and there is no seeded account — `AGENTS.md`
 § "There is no seeded login" has the exact commands.
 
 ## Where state lives
 
-| What                                 | Where                                             |
-| ------------------------------------ | ------------------------------------------------- |
-| The product (`pnpm dev`)             | derived port 21000–28999 (hash of checkout path)  |
-| Its vite HMR socket                  | derived port 31000–38999 (same hash)              |
-| The product's SQLite + config.json   | `~/.inteligir-dev/<hash>/` (prod: `~/.inteligir`) |
-| Site + auth Worker (`pnpm dev:site`) | 5174 (pinned — `strictPort`)                      |
-| Accounts, sessions, invites          | D1 (local file under `apps/web/.wrangler`)        |
+| What                                | Where                                             |
+| ----------------------------------- | ------------------------------------------------- |
+| The product (`pnpm dev`)            | derived port 21000–28999 (hash of checkout path)  |
+| Its vite HMR socket                 | derived port 31000–38999 (same hash)              |
+| The product's SQLite + config.json  | `~/.inteligir-dev/<hash>/` (prod: `~/.inteligir`) |
+| Site + auth Worker (`pnpm dev:web`) | 5174 (pinned — `strictPort`)                      |
+| Accounts, sessions, invites         | D1 (local file under `apps/web/.wrangler`)        |
 
 ## Quality gates
 
@@ -85,7 +85,7 @@ red format cannot hide test regressions behind it.
   parse/opaque-nodes/frontmatter.
 - `pnpm --filter @repo/web test` — the Worker, against real in-process
   miniflare (D1 + Better Auth): the invite gate and the password-reset flow.
-- `pnpm --filter @repo/ui test` — component provenance + no-orphan-components.
+- `pnpm --filter @repo/ui test` — no-orphan-components.
 
 End-to-end: `pnpm e2e` boots real app instances on scratch dirs (fixture
 vaults, scratch git remotes, a headless browser) and is deliberately outside
