@@ -34,25 +34,22 @@ const ROOTS = [
   { dir: "ai", subpath: "ai" },
 ] as const;
 
-/**
- * Vendored files landed ahead of the consumer that will import them. Each entry
- * is `<dir>/<name>`, and the whole list is expected to be EMPTY again once the
- * AI surface is wired up — delete the entry with the wiring, not later.
- *
- * The allowance is per file rather than per directory on purpose: a blanket
- * exemption for `src/ai` would let the next unwired component in silently,
- * which is the accumulation this guard exists to stop.
- */
-const AWAITING_CONSUMER = new Set([
-  "ai/approval-card",
-  "ai/loading-state",
-  "ai/streaming-text",
-  "ai/task-rows",
-  "ai/thinking",
-  "ai/tool-chips",
-]);
-
 const SKIP_DIR_NAMES = new Set(["node_modules", "dist", "dist-node", "coverage"]);
+
+/**
+ * The component gallery (`/gallery`) imports EVERY component by design, so
+ * counting it as a consumer would answer this guard's question before it was
+ * asked — every component would look wired forever, which is exactly the
+ * silence that let 31 orphans accumulate.
+ *
+ * A gallery proves a component RENDERS, not that the product NEEDS it. Those
+ * are different claims and only the second one keeps a component alive.
+ */
+const NON_CONSUMER_DIRS = [path.join(REPO_ROOT, "apps", "app", "src", "app", "gallery")];
+
+function isNonConsumer(file: string): boolean {
+  return NON_CONSUMER_DIRS.some((dir) => file.startsWith(dir + path.sep));
+}
 
 /** Dot-directories are skipped wholesale: they hold tooling state, ignored
  * sidecars, and agent worktrees — whole checkouts of this repo, which a walk
@@ -75,6 +72,32 @@ function sourceFiles(dir: string, out: string[]): void {
   }
 }
 
+/**
+ * The Beautiful UI set was vendored WHOLE at the owner's request ("make sure
+ * we have all the components"), and fourteen of them have no product surface
+ * yet — only the gallery, which this guard deliberately does not count.
+ *
+ * Named per file rather than by directory, so the fifteenth unwired component
+ * still fails. Delete an entry the moment its component is wired; the test
+ * below fails if an entry outlives its file, so this cannot rot silently.
+ */
+const AWAITING_CONSUMER = new Set([
+  "packages/ui/src/ai/chat.tsx",
+  "packages/ui/src/ai/code-block.tsx",
+  "packages/ui/src/ai/context-cards.tsx",
+  "packages/ui/src/ai/diff-table.tsx",
+  "packages/ui/src/ai/filter-table.tsx",
+  "packages/ui/src/ai/fine-tune-card.tsx",
+  "packages/ui/src/ai/flowchart.tsx",
+  "packages/ui/src/ai/insight-cards.tsx",
+  "packages/ui/src/ai/prompt-bar.tsx",
+  "packages/ui/src/ai/recommendation-card.tsx",
+  "packages/ui/src/ai/records-table.tsx",
+  "packages/ui/src/ai/search.tsx",
+  "packages/ui/src/ai/selection-actions.tsx",
+  "packages/ui/src/ai/sidebar-nav.tsx",
+]);
+
 describe("no orphan components", () => {
   it("every src/components and src/ai file has at least one consumer", () => {
     // The WHOLE repo, not a list of workspace groups. This carried
@@ -84,7 +107,11 @@ describe("no orphan components", () => {
     // to absent is "delete the component".
     const files: string[] = [];
     sourceFiles(REPO_ROOT, files);
-    const contents = new Map(files.map((file) => [file, fs.readFileSync(file, "utf8")]));
+    const contents = new Map(
+      files
+        .filter((file) => !isNonConsumer(file))
+        .map((file) => [file, fs.readFileSync(file, "utf8")]),
+    );
 
     const orphans: string[] = [];
     for (const root of ROOTS) {
@@ -96,7 +123,6 @@ describe("no orphan components", () => {
         .map((entry) => entry.name.replace(/\.tsx$/, ""));
 
       for (const name of names) {
-        if (AWAITING_CONSUMER.has(`${root.dir}/${name}`)) continue;
         const selfPath = path.join(rootDir, `${name}.tsx`);
         let used = false;
         for (const [file, content] of contents) {
@@ -113,7 +139,8 @@ describe("no orphan components", () => {
             break;
           }
         }
-        if (!used) orphans.push(`packages/ui/src/${root.dir}/${name}.tsx`);
+        const relative = `packages/ui/src/${root.dir}/${name}.tsx`;
+        if (!used && !AWAITING_CONSUMER.has(relative)) orphans.push(relative);
       }
     }
 
@@ -121,26 +148,23 @@ describe("no orphan components", () => {
       orphans,
       `Unused @repo/ui components (no importer anywhere in the repo).\n` +
         `Every file under src/components and src/ai must be reachable from a consumer.\n` +
+        `The component gallery does NOT count as one — it imports everything by design,\n` +
+        `and rendering in a gallery is not the same claim as the product needing it.\n` +
         `Delete them — a vendored set records its upstream in the PROVENANCE.md beside it,\n` +
         `and shadcn re-adds a stock component in one command — or wire them up:\n` +
         orphans.map((file) => `  ${file}`).join("\n"),
     ).toEqual([]);
   });
-
-  it("every awaiting-consumer allowance still names an unwired file", () => {
-    // The allowance is temporary by construction: once the wiring fork lands a
-    // consumer, its entry here is dead weight that would hide the NEXT orphan.
-    const stale: string[] = [];
-    for (const entry of AWAITING_CONSUMER) {
-      if (!fs.existsSync(path.join(PACKAGE_ROOT, "src", `${entry}.tsx`))) {
-        stale.push(`${entry} — no such file`);
-      }
-    }
+  it("no AWAITING_CONSUMER entry outlives its file", () => {
+    // The allowance is a promise to wire these, not a place to hide a deleted
+    // path. An entry naming a file that no longer exists means the list was
+    // not maintained, which is how an allowance becomes permanent.
+    const missing = [...AWAITING_CONSUMER].filter(
+      (relative) => !fs.existsSync(path.join(REPO_ROOT, relative)),
+    );
     expect(
-      stale,
-      `Stale AWAITING_CONSUMER entries in this guard.\n` +
-        `Delete them:\n` +
-        stale.map((entry) => `  ${entry}`).join("\n"),
+      missing,
+      `AWAITING_CONSUMER names files that do not exist:\n${missing.map((file) => `  ${file}`).join("\n")}`,
     ).toEqual([]);
   });
 });
