@@ -1,0 +1,16 @@
+{
+  "seed-open-thread": {
+    "text": "An open thread: reply or resolve it from the Comments tab.",
+    "createdAt": 1787788800,
+    "updatedAt": 1787788800,
+    "source": "user"
+  },
+  "seed-resolved-thread": {
+    "text": "A resolved thread keeps its history.",
+    "createdAt": 1787788800,
+    "updatedAt": 1787788800,
+    "source": "agent",
+    "resolvedAt": 1787792400,
+    "resolvedBy": "user"
+  }
+}

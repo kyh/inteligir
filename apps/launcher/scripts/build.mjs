@@ -96,6 +96,11 @@ await cp(
   { recursive: true },
 );
 
+// The virgin-boot vault seed (apps/app/seed): CONTENT the vault copies on
+// first run, staged beside the app bundle so resolveSeedDir's packaged probe
+// (dist-node/../seed) finds it — same shelf, same reason as the skills.
+await cp(join(packageRoot, "..", "app", "seed"), join(stagedApp, "seed"), { recursive: true });
+
 // The CLI: its own bundle plus the `inteligir` shim two different callers
 // resolve — npm's `inteligir-cli` bin, and the PATH entry the server injects
 // into agent shells.

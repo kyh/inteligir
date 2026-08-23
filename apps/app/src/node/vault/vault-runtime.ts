@@ -4,8 +4,7 @@
 // can never interleave a rebase; the watcher's fan-out is suppressed while a
 // sync holds that lock and replaced by ONE consolidated notification after.
 
-import { writeFile } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { resolve } from "node:path";
 import type { DbNotifier } from "@repo/domain/notifier";
 import type { VaultStatusResponse } from "@repo/server-contract/vault";
 import { assertVaultAndDataDirDisjoint } from "../path-containment";
@@ -16,6 +15,7 @@ import {
   type GitEngine,
   type GitEngineArgs,
 } from "./git";
+import { seedVault } from "./seed-vault";
 import { sweepExpiredTrash } from "./trash";
 import { createVaultService, sweepStaleTmpFiles, type VaultService } from "./vault-service";
 import { createVaultWatcher, type VaultWatcher, type VaultWatcherArgs } from "./watcher";
@@ -28,13 +28,6 @@ const TRASH_SWEEP_INTERVAL_MS = 24 * 60 * 60 * 1000;
 
 /** How long a service-written path suppresses its own watcher echo. */
 const SELF_WRITE_ECHO_WINDOW_MS = 2_000;
-
-const WELCOME_FILE_NAME = "Welcome.md";
-const WELCOME_CONTENT = `# Welcome to inteligir
-
-This folder is your vault: plain markdown files that belong to you, versioned
-with git. Edit them here or with any other tool — changes show up either way.
-`;
 
 /** What a file-level change announcement can say: the vault-relative paths
  * that moved, or "unknown" when a set of changes has no path list (the
@@ -80,7 +73,7 @@ export async function createVaultRuntime(args: VaultRuntimeArgs): Promise<VaultR
 
   const ensureArgs: EnsureVaultRepoArgs = {
     root,
-    seed: (vaultRoot) => writeFile(join(vaultRoot, WELCOME_FILE_NAME), WELCOME_CONTENT, "utf8"),
+    seed: (vaultRoot) => seedVault(vaultRoot),
   };
   if (args.gitEnv) ensureArgs.env = args.gitEnv;
   await ensureVaultRepo(ensureArgs);

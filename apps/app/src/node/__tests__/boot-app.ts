@@ -77,6 +77,9 @@ export async function bootTestApp(options: BootTestAppOptions = {}): Promise<Boo
   const instanceDir = makeTempDir("inteligir-app-test-");
   const dataDir = join(instanceDir, "data");
   const vaultDir = join(instanceDir, "vault");
+  // Pre-created = not a virgin boot: harness vaults stay empty of the
+  // starter seed so listing/knowledge expectations see only their own docs.
+  mkdirSync(vaultDir, { recursive: true });
   mkdirSync(dataDir, { recursive: true });
   const databasePath = join(dataDir, "inteligir.db");
   const db = createConnection(databasePath);

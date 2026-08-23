@@ -46,6 +46,9 @@ async function bootVaultApp() {
   const dataDir = join(instanceDir, "data");
   const vaultDir = join(instanceDir, "vault");
   mkdirSync(dataDir, { recursive: true });
+  // Pre-created = not a virgin boot, so the starter seed stays out of the
+  // listing expectations (an existing dir is the user-pointed-folder path).
+  mkdirSync(vaultDir, { recursive: true });
   const db = createConnection(join(dataDir, "inteligir.db"));
   const knownSchemaVersion = runMigrations(db);
   const bus = new WsBus({ version: "0.1.0-test" });
@@ -137,7 +140,6 @@ describe("the vault routes", () => {
     expect(parsedTree.entries).toEqual([
       { kind: "dir", path: "notes" },
       { kind: "file", modifiedMs: expect.any(Number), path: "notes/api.md" },
-      { kind: "file", modifiedMs: expect.any(Number), path: "Welcome.md" },
     ]);
 
     const read = await app.request("/api/v1/vault/file?path=notes%2Fapi.md");

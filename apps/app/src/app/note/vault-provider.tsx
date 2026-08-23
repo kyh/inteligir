@@ -209,11 +209,15 @@ export function VaultProvider({
       const known = (path: string | null): path is string =>
         path !== null && flat.some((entry) => entry.path === path && entry.kind === "doc");
       const last = readLastOpenNote();
+      // Among the virgin-boot seeds, Welcome is the front door — plain
+      // listing order would land on "Getting Started with Moss" first.
       const target = known(bootPath)
         ? bootPath
         : known(last)
           ? last
-          : (flat.find((entry) => entry.kind === "doc")?.path ?? null);
+          : known("Welcome.md")
+            ? "Welcome.md"
+            : (flat.find((entry) => entry.kind === "doc")?.path ?? null);
       let openNote: WorkspaceBoot["openNote"] = null;
       if (target !== null) {
         const content = await io.read(target).catch(() => null);

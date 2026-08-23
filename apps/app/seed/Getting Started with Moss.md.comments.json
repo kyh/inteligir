@@ -1,0 +1,26 @@
+{
+  "onboarding-block-chart-comment": {
+    "text": "Block-node comment: this anchors to the entire chart, not just a text selection.",
+    "createdAt": 1779916380,
+    "updatedAt": 1779916380,
+    "source": "agent"
+  },
+  "onboarding-external-comment": {
+    "text": "A coding agent can write review notes back into Moss.",
+    "createdAt": 1779916320,
+    "updatedAt": 1779916320,
+    "source": "external"
+  },
+  "onboarding-moss-comment": {
+    "text": "The in-app Moss Agent can leave feedback directly in this note.",
+    "createdAt": 1779916260,
+    "updatedAt": 1779916260,
+    "source": "agent"
+  },
+  "onboarding-user-comment": {
+    "text": "User comment: leave yourself a quick note while reviewing a draft.",
+    "createdAt": 1779916200,
+    "updatedAt": 1779916200,
+    "source": "user"
+  }
+}
