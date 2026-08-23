@@ -11,7 +11,7 @@ import {
   DropdownMenuTrigger,
 } from "@repo/ui/components/dropdown-menu";
 import { toast } from "@repo/ui/components/sonner";
-import { SidebarTrigger, useSidebar } from "@repo/ui/components/sidebar";
+import { useSidebar } from "@repo/ui/components/sidebar";
 import {
   ArrowLeftIcon,
   ArrowRightIcon,
@@ -20,6 +20,7 @@ import {
   LinkIcon,
   MessageSquareTextIcon,
   MoreVerticalIcon,
+  PanelLeftIcon,
   PanelRightIcon,
   SearchIcon,
   Share2Icon,
@@ -30,6 +31,11 @@ import { shareWithAgentText } from "./actions/share-with-agent";
 export interface NoteTopbarProps {
   /** The focused note, or null when nothing is open. */
   path: string | null;
+  /** The LEFT rail's state and toggle, passed explicitly: this bar renders
+   *  inside the right panel's provider, so `useSidebar()` here resolves to the
+   *  right one — which is how both buttons ended up collapsing the same side. */
+  railOpen: boolean;
+  onToggleRail: () => void;
   canBack: boolean;
   canForward: boolean;
   onBack: () => void;
@@ -68,6 +74,8 @@ function PanelToggle() {
 
 export function NoteTopbar({
   path,
+  railOpen,
+  onToggleRail,
   canBack,
   canForward,
   onBack,
@@ -97,7 +105,15 @@ export function NoteTopbar({
 
   return (
     <header className="flex h-10 shrink-0 items-center gap-0.5 border-b border-line px-1.5 print:hidden">
-      <SidebarTrigger />
+      <Button
+        variant="ghost"
+        size="icon-xs"
+        aria-label={railOpen ? "Collapse the sidebar" : "Expand the sidebar"}
+        aria-expanded={railOpen}
+        onClick={onToggleRail}
+      >
+        <PanelLeftIcon />
+      </Button>
       <Button variant="ghost" size="icon-xs" aria-label="Back" disabled={!canBack} onClick={onBack}>
         <ArrowLeftIcon />
       </Button>

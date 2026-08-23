@@ -554,6 +554,11 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
               {zen ? null : (
                 <NoteTopbar
                   path={focusedPath}
+                  railOpen={railOpen && !zen}
+                  onToggleRail={() => {
+                    setZen(false);
+                    setRailOpen((open) => !open);
+                  }}
                   canBack={canBack}
                   canForward={canForward}
                   onBack={() => {
