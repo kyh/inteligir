@@ -1,124 +1,290 @@
 "use client";
 // Vendored from Beautiful UI (beautifului.dev), MIT.
 
-import { useState } from "react";
+import {
+  createContext,
+  forwardRef,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type HTMLAttributes,
+  type InputHTMLAttributes,
+  type ReactNode,
+} from "react";
 
 import { cn } from "@repo/ui/lib/utils";
 
 /* ─────────────────────────────────────────────────────────
  * APPROVAL CARD (human-in-the-loop)
- * One question at a time; elongated pills show progress;
- * the circular arrow up top advances (↑ sends on the last).
  *
- * Upstream's questions are a module fixture and the card owns
- * the answers. Here QUESTIONS ARE THE INPUT and `onSubmit`
- * hands the answers back — the caller owns what an answer
- * means, since ours settle a live turn rather than a demo.
+ * The agent asks; the human answers inside the transcript.
+ * Single-choice questions commit on pick — the answer IS the
+ * decision, so a second confirmation would be ceremony.
+ *
+ * Upstream drives a module fixture through a one-at-a-time
+ * stepper. Here the QUESTIONS ARE CHILDREN, which a stepper
+ * cannot count, so they stack instead: composition and a step
+ * index only the parent could compute are incompatible, and
+ * stacking is the composable equivalent. What survives is the
+ * answer collection, commit-on-pick, and the sent state.
  * ───────────────────────────────────────────────────────── */
 
-export interface ApprovalOption {
-  id: string;
-  label: string;
-}
-
-export interface ApprovalQuestion {
-  id: string;
-  prompt: string;
-  /** radio auto-advances on pick; check waits for the arrow. */
-  kind: "radio" | "check";
-  options: readonly ApprovalOption[];
-  /** Offer the free-text row under the options. */
-  allowCustom?: boolean;
-}
-
-/** Per question: the option ids picked, plus any typed text. */
 export interface ApprovalAnswer {
   questionId: string;
   optionIds: string[];
   custom?: string;
 }
 
-export interface ApprovalCardProps {
-  questions: readonly ApprovalQuestion[];
-  onSubmit: (answers: ApprovalAnswer[]) => void;
-  /** Absent hides the dismiss affordance — some approvals must be answered. */
-  onDismiss?: () => void;
-  /** Replaces the card once answered; the caller usually re-renders instead. */
-  sentLabel?: string;
-  className?: string;
+interface ApprovalCardContextValue {
+  register: (questionId: string) => void;
+  answer: (questionId: string, optionIds: string[], custom: string) => void;
+  picked: Record<string, string[]>;
+  custom: Record<string, string>;
+  submit: () => void;
+  hasAnswer: boolean;
 }
 
-export function ApprovalCard({
-  questions,
-  onSubmit,
-  onDismiss,
-  sentLabel = "Answers sent",
-  className,
-}: ApprovalCardProps) {
-  const [index, setIndex] = useState(0);
-  const [picked, setPicked] = useState<Record<string, string[]>>({});
-  const [custom, setCustom] = useState<Record<string, string>>({});
-  const [sent, setSent] = useState(false);
+const ApprovalCardContext = createContext<ApprovalCardContextValue | null>(null);
 
-  const question = questions[index];
-  if (question === undefined) return null;
+function useApprovalCard(): ApprovalCardContextValue {
+  const value = useContext(ApprovalCardContext);
+  if (value === null) {
+    throw new Error("Approval parts must render inside <ApprovalCard>");
+  }
+  return value;
+}
 
-  const last = index === questions.length - 1;
-  const selected = picked[question.id] ?? [];
-  const typed = custom[question.id] ?? "";
-  const hasAnswer = selected.length > 0 || typed.trim().length > 0;
+interface ApprovalQuestionContextValue {
+  questionId: string;
+  kind: "radio" | "check";
+  selected: string[];
+  toggle: (optionId: string) => void;
+}
 
-  const collect = (
-    nextPicked: Record<string, string[]>,
-    nextCustom: Record<string, string>,
-  ): ApprovalAnswer[] =>
-    questions.map((entry) => {
-      const text = (nextCustom[entry.id] ?? "").trim();
-      const answer: ApprovalAnswer = {
-        questionId: entry.id,
-        optionIds: nextPicked[entry.id] ?? [],
-      };
-      return text.length > 0 ? { ...answer, custom: text } : answer;
-    });
+const ApprovalQuestionContext = createContext<ApprovalQuestionContextValue | null>(null);
 
-  const submit = (
-    nextPicked: Record<string, string[]>,
-    nextCustom: Record<string, string>,
-  ): void => {
-    setSent(true);
-    onSubmit(collect(nextPicked, nextCustom));
-  };
+function useApprovalQuestion(): ApprovalQuestionContextValue {
+  const value = useContext(ApprovalQuestionContext);
+  if (value === null) {
+    throw new Error("<ApprovalOption> must render inside <ApprovalQuestion>");
+  }
+  return value;
+}
 
-  const toggle = (optionId: string): void => {
-    const current = picked[question.id] ?? [];
-    const next =
-      question.kind === "radio"
-        ? [optionId]
-        : current.includes(optionId)
-          ? current.filter((entry) => entry !== optionId)
-          : [...current, optionId];
-    const nextPicked = { ...picked, [question.id]: next };
-    setPicked(nextPicked);
-    if (question.kind !== "radio") return;
-    // Single-choice commits itself: picking IS the answer, so the arrow would
-    // be a second confirmation of a decision already made.
-    const nextCustom = { ...custom, [question.id]: "" };
-    setCustom(nextCustom);
-    if (last) submit(nextPicked, nextCustom);
-    else setIndex((value) => Math.min(questions.length - 1, value + 1));
-  };
+export interface ApprovalCardProps extends Omit<HTMLAttributes<HTMLDivElement>, "onSubmit"> {
+  onSubmit: (answers: ApprovalAnswer[]) => void;
+  /** Replaces the card once answered; the caller usually re-renders instead. */
+  sentLabel?: string;
+}
 
-  if (sent) {
+const ApprovalCard = forwardRef<HTMLDivElement, ApprovalCardProps>(
+  ({ onSubmit, sentLabel = "Answers sent", className, children, ...props }, ref) => {
+    const [order, setOrder] = useState<readonly string[]>([]);
+    const [picked, setPicked] = useState<Record<string, string[]>>({});
+    const [custom, setCustom] = useState<Record<string, string>>({});
+    const [sent, setSent] = useState(false);
+    /** A commit-on-pick answer must reach the caller AFTER the state that
+     *  produced it, so a pick raises this and the effect below sends. */
+    const [sending, setSending] = useState(false);
+
+    useEffect(() => {
+      if (!sending) {
+        return;
+      }
+      setSending(false);
+      setSent(true);
+      onSubmit(
+        order.map((questionId) => {
+          const text = (custom[questionId] ?? "").trim();
+          const entry: ApprovalAnswer = { questionId, optionIds: picked[questionId] ?? [] };
+          return text.length > 0 ? { ...entry, custom: text } : entry;
+        }),
+      );
+    }, [sending, order, picked, custom, onSubmit]);
+
+    const answered = order.filter(
+      (id) => (picked[id] ?? []).length > 0 || (custom[id] ?? "").trim().length > 0,
+    );
+
+    const register = useCallback((questionId: string) => {
+      setOrder((current) => (current.includes(questionId) ? current : [...current, questionId]));
+    }, []);
+    const answer = useCallback((questionId: string, optionIds: string[], nextCustom: string) => {
+      setPicked((current) => ({ ...current, [questionId]: optionIds }));
+      setCustom((current) => ({ ...current, [questionId]: nextCustom }));
+    }, []);
+    const submit = useCallback(() => setSending(true), []);
+    const hasAnswer = order.length > 0 && answered.length === order.length;
+    const value = useMemo<ApprovalCardContextValue>(
+      () => ({ register, answer, picked, custom, submit, hasAnswer }),
+      [register, answer, picked, custom, submit, hasAnswer],
+    );
+
+    if (sent) {
+      return (
+        <div
+          ref={ref}
+          data-slot="approval-card"
+          data-sent=""
+          className={cn("flex w-full items-center gap-3 animate-in fade-in zoom-in-95", className)}
+          {...props}
+        >
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-surface-inset py-1 pr-2.5 pl-1 text-[12.5px] font-medium text-ink">
+            <span className="flex size-4.5 items-center justify-center rounded-full bg-ink text-background">
+              <svg
+                aria-hidden
+                width="11"
+                height="11"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="3"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M20 6L9 17l-5-5" />
+              </svg>
+            </span>
+            {sentLabel}
+          </span>
+        </div>
+      );
+    }
+
     return (
-      <div
-        className={cn("flex w-full items-center gap-3 animate-in fade-in zoom-in-95", className)}
+      <ApprovalCardContext.Provider value={value}>
+        <div
+          ref={ref}
+          data-slot="approval-card"
+          className={cn(
+            "w-full overflow-hidden rounded-xl bg-surface-raised shadow-surface-2",
+            className,
+          )}
+          {...props}
+        >
+          {children}
+        </div>
+      </ApprovalCardContext.Provider>
+    );
+  },
+);
+ApprovalCard.displayName = "ApprovalCard";
+
+export interface ApprovalQuestionProps extends HTMLAttributes<HTMLDivElement> {
+  /** Stable id — the key this question's answer comes back under. */
+  questionId: string;
+  prompt: string;
+  /** A second, quieter line under the prompt — the reason a caller was asked.
+   *  Local extension: upstream's questions are one line. */
+  detail?: string;
+  kind?: "radio" | "check";
+  /** Rendered beside the prompt — a dismiss control, usually. */
+  action?: ReactNode;
+}
+
+const ApprovalQuestion = forwardRef<HTMLDivElement, ApprovalQuestionProps>(
+  ({ questionId, prompt, detail, kind = "radio", action, className, children, ...props }, ref) => {
+    const card = useApprovalCard();
+    const { register } = card;
+    useEffect(() => {
+      register(questionId);
+    }, [register, questionId]);
+
+    const selected = card.picked[questionId] ?? [];
+
+    const toggle = (optionId: string): void => {
+      const next =
+        kind === "radio"
+          ? [optionId]
+          : selected.includes(optionId)
+            ? selected.filter((entry) => entry !== optionId)
+            : [...selected, optionId];
+      card.answer(questionId, next, kind === "radio" ? "" : (card.custom[questionId] ?? ""));
+      // Single-choice commits itself: picking IS the answer, so a confirm
+      // button would ask again about a decision already made.
+      if (kind === "radio") {
+        card.submit();
+      }
+    };
+
+    const context = useMemo(
+      () => ({ questionId, kind, selected, toggle }),
+      // `toggle` closes over the card's current answers, so it is rebuilt with
+      // them rather than memoized into staleness.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      [questionId, kind, selected, toggle],
+    );
+
+    return (
+      <ApprovalQuestionContext.Provider value={context}>
+        <div
+          ref={ref}
+          data-slot="approval-question"
+          className={cn("animate-in fade-in slide-in-from-bottom-1 p-3", className)}
+          {...props}
+        >
+          <div className="flex items-start justify-between gap-3">
+            <span className="flex min-w-0 flex-col gap-1">
+              <span className="text-[13px] font-medium text-ink">{prompt}</span>
+              {detail === undefined ? null : (
+                <span className="text-[12.5px] text-ink-2">{detail}</span>
+              )}
+            </span>
+            {action}
+          </div>
+          <div className="mt-2 flex flex-col gap-0.5">{children}</div>
+        </div>
+      </ApprovalQuestionContext.Provider>
+    );
+  },
+);
+ApprovalQuestion.displayName = "ApprovalQuestion";
+
+export interface ApprovalOptionProps extends HTMLAttributes<HTMLButtonElement> {
+  /** The id this option answers with. */
+  optionId: string;
+}
+
+const ApprovalOption = forwardRef<HTMLButtonElement, ApprovalOptionProps>(
+  ({ optionId, className, children, ...props }, ref) => {
+    const { kind, selected, toggle } = useApprovalQuestion();
+    const on = selected.includes(optionId);
+    return (
+      <button
+        ref={ref}
+        type="button"
+        aria-pressed={on}
+        onClick={() => toggle(optionId)}
+        data-slot="approval-option"
+        className={cn(
+          "-mx-1.5 flex items-center gap-2 rounded-md px-1.5 py-1 text-left transition-colors duration-100 hover:bg-hover",
+          className,
+        )}
+        {...props}
       >
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-surface-inset py-1 pr-2.5 pl-1 text-[12.5px] font-medium text-ink">
-          <span className="flex size-4.5 items-center justify-center rounded-full bg-ink text-background">
+        <span
+          className={cn(
+            "flex size-4 shrink-0 items-center justify-center transition-colors duration-200",
+            kind === "radio" ? "rounded-full" : "rounded-[5px]",
+            on
+              ? "bg-ink text-background"
+              : "text-transparent shadow-[inset_0_0_0_1.5px_var(--line-strong)]",
+          )}
+        >
+          {kind === "radio" ? (
+            <span
+              className={cn(
+                "size-1.5 rounded-full bg-background transition-transform duration-200",
+                on ? "scale-100" : "scale-0",
+              )}
+            />
+          ) : (
             <svg
               aria-hidden
-              width="11"
-              height="11"
+              width="12"
+              height="12"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
@@ -128,213 +294,99 @@ export function ApprovalCard({
             >
               <path d="M20 6L9 17l-5-5" />
             </svg>
-          </span>
-          {sentLabel}
+          )}
         </span>
+        <span
+          className={cn(
+            "text-[13px] transition-colors duration-200",
+            on ? "text-ink" : "text-ink-2",
+          )}
+        >
+          {children}
+        </span>
+      </button>
+    );
+  },
+);
+ApprovalOption.displayName = "ApprovalOption";
+
+/** A free-text answer beside the options. */
+const ApprovalCustomAnswer = forwardRef<
+  HTMLInputElement,
+  Omit<InputHTMLAttributes<HTMLInputElement>, "value" | "onChange">
+>(({ className, ...props }, ref) => {
+  const card = useApprovalCard();
+  const { questionId, kind, selected } = useApprovalQuestion();
+  const typed = card.custom[questionId] ?? "";
+  return (
+    <label className="-mx-1.5 flex items-center gap-2 rounded-md px-1.5 py-1 transition-colors duration-100 focus-within:bg-hover hover:bg-hover">
+      <span aria-hidden className="size-4 shrink-0" />
+      <input
+        ref={ref}
+        value={typed}
+        onChange={(event) => {
+          // Typing replaces a single-choice pick: they answer the same slot,
+          // and leaving both set would send two answers for one question.
+          card.answer(questionId, kind === "radio" ? [] : selected, event.target.value);
+        }}
+        placeholder="Type something…"
+        aria-label="Custom answer"
+        data-slot="approval-custom-answer"
+        className={cn(
+          "min-w-0 flex-1 bg-transparent text-[13px] text-ink outline-none placeholder:text-ink-3",
+          className,
+        )}
+        {...props}
+      />
+    </label>
+  );
+});
+ApprovalCustomAnswer.displayName = "ApprovalCustomAnswer";
+
+/** The card's footer. Only multi-answer cards need it — a single-choice
+ *  question has already committed by the time this could be pressed. */
+const ApprovalActions = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
+  ({ className, children, ...props }, ref) => {
+    const { hasAnswer, submit } = useApprovalCard();
+    return (
+      <div
+        ref={ref}
+        data-slot="approval-actions"
+        className={cn(
+          "flex items-center justify-between border-t border-line px-3 py-2",
+          className,
+        )}
+        {...props}
+      >
+        <span className="min-w-0">{children}</span>
+        <button
+          type="button"
+          aria-label="Send answers"
+          disabled={!hasAnswer}
+          onClick={submit}
+          className={cn(
+            "-mr-0.5 flex size-7 items-center justify-center rounded-[8px] transition-[background-color,color,transform] duration-200 enabled:active:scale-[0.96]",
+            hasAnswer ? "bg-ink text-background" : "bg-muted text-ink-3",
+          )}
+        >
+          <svg
+            aria-hidden
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M12 19V5M5 12l7-7 7 7" />
+          </svg>
+        </button>
       </div>
     );
-  }
+  },
+);
+ApprovalActions.displayName = "ApprovalActions";
 
-  return (
-    <div className={cn("flex w-full flex-col items-stretch", className)}>
-      <div className="w-full overflow-hidden rounded-xl bg-surface-raised shadow-surface-2">
-        <div key={question.id} className="animate-in fade-in slide-in-from-bottom-1 p-3">
-          <div className="flex items-start justify-between gap-3">
-            <span className="text-[13px] font-medium text-ink">{question.prompt}</span>
-            {onDismiss !== undefined ? (
-              <button
-                type="button"
-                aria-label="Dismiss"
-                onClick={onDismiss}
-                className="flex size-6 shrink-0 items-center justify-center rounded-md text-ink-3 transition-colors duration-100 hover:bg-hover hover:text-ink"
-              >
-                <svg
-                  aria-hidden
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.2"
-                  strokeLinecap="round"
-                >
-                  <path d="M18 6L6 18M6 6l12 12" />
-                </svg>
-              </button>
-            ) : null}
-          </div>
-
-          <div className="mt-2 flex flex-col gap-0.5">
-            {question.options.map((option) => {
-              const on = selected.includes(option.id);
-              return (
-                <button
-                  key={option.id}
-                  type="button"
-                  aria-pressed={on}
-                  onClick={() => toggle(option.id)}
-                  className="-mx-1.5 flex items-center gap-2 rounded-md px-1.5 py-1 text-left transition-colors duration-100 hover:bg-hover"
-                >
-                  <span
-                    className={cn(
-                      "flex size-4 shrink-0 items-center justify-center transition-colors duration-200",
-                      question.kind === "radio" ? "rounded-full" : "rounded-[5px]",
-                      on
-                        ? "bg-ink text-background"
-                        : "text-transparent shadow-[inset_0_0_0_1.5px_var(--line-strong)]",
-                    )}
-                  >
-                    {question.kind === "radio" ? (
-                      <span
-                        className={cn(
-                          "size-1.5 rounded-full bg-background transition-transform duration-200",
-                          on ? "scale-100" : "scale-0",
-                        )}
-                      />
-                    ) : (
-                      <svg
-                        aria-hidden
-                        width="12"
-                        height="12"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="3"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <path d="M20 6L9 17l-5-5" />
-                      </svg>
-                    )}
-                  </span>
-                  <span
-                    className={cn(
-                      "text-[13px] transition-colors duration-200",
-                      on ? "text-ink" : "text-ink-2",
-                    )}
-                  >
-                    {option.label}
-                  </span>
-                </button>
-              );
-            })}
-
-            {question.allowCustom === true ? (
-              <label className="-mx-1.5 flex items-center gap-2 rounded-md px-1.5 py-1 transition-colors duration-100 focus-within:bg-hover hover:bg-hover">
-                <span aria-hidden className="size-4 shrink-0" />
-                <input
-                  value={typed}
-                  onChange={(event) => {
-                    setCustom({ ...custom, [question.id]: event.target.value });
-                    if (question.kind === "radio") setPicked({ ...picked, [question.id]: [] });
-                  }}
-                  placeholder="Type something…"
-                  aria-label="Custom answer"
-                  className="min-w-0 flex-1 bg-transparent text-[13px] text-ink outline-none placeholder:text-ink-3"
-                />
-              </label>
-            ) : null}
-          </div>
-        </div>
-
-        <div className="flex items-center justify-between border-t border-line px-3 py-2">
-          {questions.length > 1 ? (
-            <span className="flex items-center gap-2">
-              <button
-                type="button"
-                aria-label="Previous"
-                disabled={index === 0}
-                onClick={() => setIndex((value) => Math.max(0, value - 1))}
-                className="flex size-6 items-center justify-center rounded-[5px] text-ink-3 transition-colors duration-100 enabled:hover:bg-hover enabled:hover:text-ink-2 disabled:opacity-35"
-              >
-                <svg
-                  aria-hidden
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M15 18l-6-6 6-6" />
-                </svg>
-              </button>
-              <span className="flex items-center gap-1">
-                {questions.map((entry, dot) => (
-                  <button
-                    key={entry.id}
-                    type="button"
-                    aria-label={`Go to question ${String(dot + 1)}`}
-                    aria-current={dot === index ? "step" : undefined}
-                    onClick={() => setIndex(dot)}
-                    className="rounded-full transition-[width,height,background-color,border-color,border-width] duration-300"
-                    style={
-                      dot === index
-                        ? { width: 9, height: 9, border: "2.5px solid var(--ink)" }
-                        : dot < index
-                          ? { width: 7, height: 7, background: "var(--ink-3)" }
-                          : { width: 7, height: 7, border: "1.5px solid var(--ink-3)" }
-                    }
-                  />
-                ))}
-              </span>
-              <button
-                type="button"
-                aria-label="Next"
-                disabled={last}
-                onClick={() => setIndex((value) => Math.min(questions.length - 1, value + 1))}
-                className="flex size-6 items-center justify-center rounded-[5px] text-ink-3 transition-colors duration-100 enabled:hover:bg-hover enabled:hover:text-ink-2 disabled:opacity-35"
-              >
-                <svg
-                  aria-hidden
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M9 6l6 6-6 6" />
-                </svg>
-              </button>
-            </span>
-          ) : (
-            <span />
-          )}
-
-          <button
-            type="button"
-            aria-label={last ? "Send answers" : "Next question"}
-            disabled={!hasAnswer}
-            onClick={() => {
-              if (last) submit(picked, custom);
-              else setIndex((value) => value + 1);
-            }}
-            className={cn(
-              "-mr-0.5 flex size-7 items-center justify-center rounded-[8px] transition-[background-color,color,transform] duration-200 enabled:active:scale-[0.96]",
-              hasAnswer ? "bg-ink text-background" : "bg-muted text-ink-3",
-            )}
-          >
-            <svg
-              aria-hidden
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M12 19V5M5 12l7-7 7 7" />
-            </svg>
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
+export { ApprovalCard, ApprovalQuestion, ApprovalOption, ApprovalCustomAnswer, ApprovalActions };

@@ -1,7 +1,17 @@
 "use client";
 // Vendored from Beautiful UI (beautifului.dev), MIT.
 
-import { useState, type ReactNode } from "react";
+import {
+  Children,
+  createContext,
+  forwardRef,
+  useContext,
+  useMemo,
+  useState,
+  type HTMLAttributes,
+  type ReactNode,
+} from "react";
+import { cva, type VariantProps } from "class-variance-authority";
 
 import { cn } from "@repo/ui/lib/utils";
 
@@ -17,8 +27,6 @@ import { cn } from "@repo/ui/lib/utils";
  * product's timeline does not carry, so they would be a
  * hover surface with nothing behind it.
  * ───────────────────────────────────────────────────────── */
-
-export type ToolIcon = "think" | "write" | "run" | "read";
 
 const ICONS = {
   think: <path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8z" />,
@@ -58,15 +66,78 @@ const ICONS = {
   ),
 } satisfies Record<ToolIcon, ReactNode>;
 
-export interface ToolDetailLine {
-  text: string;
-  /** An added line renders in the diff-add ink. */
-  tone?: "add";
+const toolChipVariants = cva(
+  "group/row -mx-[3px] flex h-7 w-[calc(100%+6px)] min-w-0 items-center gap-2 rounded-md px-[3px] text-left transition-colors duration-100 enabled:hover:bg-hover",
+  {
+    variants: {
+      icon: { think: "", write: "", run: "", read: "" },
+    },
+    defaultVariants: { icon: "think" },
+  },
+);
+
+export type ToolIcon = NonNullable<VariantProps<typeof toolChipVariants>["icon"]>;
+
+interface ToolChipContextValue {
+  open: boolean;
+  mono: boolean;
 }
 
-export interface ToolChipRow {
-  id: string;
-  icon: ToolIcon;
+const ToolChipContext = createContext<ToolChipContextValue>({ open: false, mono: false });
+
+export interface ToolChipListProps extends HTMLAttributes<HTMLDivElement> {
+  /** The run header — "4 tool calls, 2 messages". */
+  summary: string;
+  defaultExpanded?: boolean;
+}
+
+const ToolChipList = forwardRef<HTMLDivElement, ToolChipListProps>(
+  ({ summary, defaultExpanded = true, className, children, ...props }, ref) => {
+    const [open, setOpen] = useState(defaultExpanded);
+    return (
+      <div ref={ref} data-slot="tool-chip-list" className={cn("w-full pb-1", className)} {...props}>
+        <button
+          type="button"
+          aria-expanded={open}
+          onClick={() => setOpen(!open)}
+          data-slot="tool-chip-list-trigger"
+          className="-mx-1.5 flex w-fit items-center gap-1.5 rounded-md px-1.5 py-1 text-[12.5px] text-ink-2 transition-colors duration-100 hover:bg-hover"
+        >
+          <svg
+            aria-hidden
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className={cn("transition-transform duration-200", !open && "-rotate-90")}
+          >
+            <path d="M6 9l6 6 6-6" />
+          </svg>
+          <span className="tabular-nums">{summary}</span>
+        </button>
+
+        <div
+          className="grid transition-[grid-template-rows,opacity] duration-300"
+          style={{ gridTemplateRows: open ? "1fr" : "0fr", opacity: open ? 1 : 0 }}
+        >
+          {/* -mx-1 + px-1.5 keeps content at the same x while giving the row
+              hover pills room inside this overflow-hidden clip box. */}
+          <div className="-mx-1 overflow-hidden px-1.5 pb-1">
+            <div className="mt-1.5 flex flex-col gap-1">{children}</div>
+          </div>
+        </div>
+      </div>
+    );
+  },
+);
+ToolChipList.displayName = "ToolChipList";
+
+export interface ToolChipProps
+  extends HTMLAttributes<HTMLDivElement>, VariantProps<typeof toolChipVariants> {
   /** "Write 204 lines", "Rebuild and verify". */
   label: string;
   /** The call's target — a path, a command, a one-line summary. */
@@ -75,152 +146,134 @@ export interface ToolChipRow {
   mono?: boolean;
   /** Render the detail lines in the mono face. */
   detailMono?: boolean;
-  detail?: readonly ToolDetailLine[];
 }
 
-export interface ToolChipsProps {
-  rows: readonly ToolChipRow[];
-  /** The run header — "4 tool calls, 2 messages". */
-  summary: string;
-  defaultExpanded?: boolean;
-  className?: string;
-}
-
-export function ToolChips({ rows, summary, defaultExpanded = true, className }: ToolChipsProps) {
-  const [open, setOpen] = useState(defaultExpanded);
-  const [openRows, setOpenRows] = useState<ReadonlySet<string>>(new Set());
-
-  const toggleRow = (id: string): void => {
-    const next = new Set(openRows);
-    if (next.has(id)) next.delete(id);
-    else next.add(id);
-    setOpenRows(next);
-  };
-
-  return (
-    <div className={cn("w-full pb-1", className)}>
-      <button
-        type="button"
-        aria-expanded={open}
-        onClick={() => setOpen(!open)}
-        className="-mx-1.5 flex w-fit items-center gap-1.5 rounded-md px-1.5 py-1 text-[12.5px] text-ink-2 transition-colors duration-100 hover:bg-hover"
-      >
-        <svg
-          aria-hidden
-          width="12"
-          height="12"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2.2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          className={cn("transition-transform duration-200", !open && "-rotate-90")}
-        >
-          <path d="M6 9l6 6 6-6" />
-        </svg>
-        <span className="tabular-nums">{summary}</span>
-      </button>
-
+/** Children are the chip's detail lines: a chip with none is not expandable,
+ *  which is the same rule upstream applied to an empty detail array. */
+const ToolChip = forwardRef<HTMLDivElement, ToolChipProps>(
+  (
+    {
+      icon = "think",
+      label,
+      chip,
+      mono = false,
+      detailMono = false,
+      className,
+      children,
+      ...props
+    },
+    ref,
+  ) => {
+    const [open, setOpen] = useState(false);
+    const expandable = Children.count(children) > 0;
+    const chipIcon = icon ?? "think";
+    const detailContext = useMemo(() => ({ open, mono: detailMono }), [open, detailMono]);
+    return (
       <div
-        className="grid transition-[grid-template-rows,opacity] duration-300"
-        style={{ gridTemplateRows: open ? "1fr" : "0fr", opacity: open ? 1 : 0 }}
+        ref={ref}
+        data-slot="tool-chip"
+        className={cn("animate-in fade-in slide-in-from-bottom-1", className)}
+        {...props}
       >
-        {/* -mx-1 + px-1.5 keeps content at the same x while giving the row
-            hover pills room inside this overflow-hidden clip box. */}
-        <div className="-mx-1 overflow-hidden px-1.5 pb-1">
-          <div className="mt-1.5 flex flex-col gap-1">
-            {rows.map((row) => {
-              const rowOpen = openRows.has(row.id);
-              const expandable = row.detail !== undefined && row.detail.length > 0;
-              return (
-                <div key={row.id} className="animate-in fade-in slide-in-from-bottom-1">
-                  <button
-                    type="button"
-                    aria-expanded={expandable ? rowOpen : undefined}
-                    disabled={!expandable}
-                    onClick={() => toggleRow(row.id)}
-                    className="group/row -mx-[3px] flex h-7 w-[calc(100%+6px)] min-w-0 items-center gap-2 rounded-md px-[3px] text-left transition-colors duration-100 enabled:hover:bg-hover"
-                  >
-                    <span className="relative flex size-4 shrink-0 items-center justify-center text-ink-3">
-                      <svg
-                        aria-hidden
-                        width="13"
-                        height="13"
-                        viewBox="0 0 24 24"
-                        fill={row.icon === "think" ? "currentColor" : "none"}
-                        stroke="currentColor"
-                        className={cn(
-                          "transition-opacity duration-100",
-                          expandable && "group-hover/row:opacity-0",
-                          rowOpen && "opacity-0",
-                        )}
-                      >
-                        {ICONS[row.icon]}
-                      </svg>
-                      {expandable ? (
-                        <svg
-                          aria-hidden
-                          width="12"
-                          height="12"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2.2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          className={cn(
-                            "absolute transition-[opacity,transform] duration-150 group-hover/row:opacity-100",
-                            rowOpen ? "rotate-0 opacity-100" : "-rotate-90 opacity-0",
-                          )}
-                        >
-                          <path d="M6 9l6 6 6-6" />
-                        </svg>
-                      ) : null}
-                    </span>
-                    <span className="shrink-0 text-[12.5px] font-medium text-ink">{row.label}</span>
-                    <span
-                      className={cn(
-                        "inline-flex h-5.5 min-w-0 flex-1 items-center truncate rounded-md bg-muted px-1.5 text-[11.5px] text-ink-2",
-                        row.mono === true && "font-mono",
-                      )}
-                    >
-                      {row.chip}
-                    </span>
-                  </button>
+        <button
+          type="button"
+          aria-expanded={expandable ? open : undefined}
+          disabled={!expandable}
+          onClick={() => setOpen(!open)}
+          className={toolChipVariants({ icon: chipIcon })}
+        >
+          <span className="relative flex size-4 shrink-0 items-center justify-center text-ink-3">
+            <svg
+              aria-hidden
+              width="13"
+              height="13"
+              viewBox="0 0 24 24"
+              fill={chipIcon === "think" ? "currentColor" : "none"}
+              stroke="currentColor"
+              className={cn(
+                "transition-opacity duration-100",
+                expandable && "group-hover/row:opacity-0",
+                open && "opacity-0",
+              )}
+            >
+              {ICONS[chipIcon]}
+            </svg>
+            {expandable ? (
+              <svg
+                aria-hidden
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className={cn(
+                  "absolute transition-[opacity,transform] duration-150 group-hover/row:opacity-100",
+                  open ? "rotate-0 opacity-100" : "-rotate-90 opacity-0",
+                )}
+              >
+                <path d="M6 9l6 6 6-6" />
+              </svg>
+            ) : null}
+          </span>
+          <span className="shrink-0 text-[12.5px] font-medium text-ink">{label}</span>
+          <span
+            className={cn(
+              "inline-flex h-5.5 min-w-0 flex-1 items-center truncate rounded-md bg-muted px-1.5 text-[11.5px] text-ink-2",
+              mono && "font-mono",
+            )}
+          >
+            {chip}
+          </span>
+        </button>
 
-                  {expandable ? (
-                    <div
-                      className="grid transition-[grid-template-rows,opacity] duration-300 ease-[cubic-bezier(0.23,1,0.32,1)]"
-                      style={{
-                        gridTemplateRows: rowOpen ? "1fr" : "0fr",
-                        opacity: rowOpen ? 1 : 0,
-                      }}
-                    >
-                      <div className="min-h-0 overflow-hidden">
-                        <div className="mt-0.5 mb-1 ml-2 flex flex-col gap-0.5 border-l border-line py-0.5 pl-3.5">
-                          {(row.detail ?? []).map((line, index) => (
-                            <span
-                              key={`${row.id}:${String(index)}`}
-                              className={cn(
-                                "truncate text-[11.5px] leading-[1.6]",
-                                row.detailMono === true && "font-mono",
-                                line.tone === "add" ? "text-emerald-500" : "text-ink-2",
-                              )}
-                            >
-                              {line.text}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  ) : null}
+        {expandable ? (
+          <div
+            className="grid transition-[grid-template-rows,opacity] duration-300 ease-[cubic-bezier(0.23,1,0.32,1)]"
+            style={{ gridTemplateRows: open ? "1fr" : "0fr", opacity: open ? 1 : 0 }}
+          >
+            <div className="min-h-0 overflow-hidden">
+              <ToolChipContext.Provider value={detailContext}>
+                <div className="mt-0.5 mb-1 ml-2 flex flex-col gap-0.5 border-l border-line py-0.5 pl-3.5">
+                  {children}
                 </div>
-              );
-            })}
+              </ToolChipContext.Provider>
+            </div>
           </div>
-        </div>
+        ) : null}
       </div>
-    </div>
-  );
+    );
+  },
+);
+ToolChip.displayName = "ToolChip";
+
+export interface ToolChipDetailProps extends HTMLAttributes<HTMLSpanElement> {
+  /** An added line renders in the diff-add ink. */
+  tone?: "add";
 }
+
+const ToolChipDetail = forwardRef<HTMLSpanElement, ToolChipDetailProps>(
+  ({ tone, className, children, ...props }, ref) => {
+    const { mono } = useContext(ToolChipContext);
+    return (
+      <span
+        ref={ref}
+        data-slot="tool-chip-detail"
+        className={cn(
+          "truncate text-[11.5px] leading-[1.6]",
+          mono && "font-mono",
+          tone === "add" ? "text-emerald-500" : "text-ink-2",
+          className,
+        )}
+        {...props}
+      >
+        {children}
+      </span>
+    );
+  },
+);
+ToolChipDetail.displayName = "ToolChipDetail";
+
+export { ToolChipList, ToolChip, ToolChipDetail, toolChipVariants };

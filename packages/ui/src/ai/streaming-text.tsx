@@ -1,7 +1,7 @@
 "use client";
 // Vendored from Beautiful UI (beautifului.dev), MIT.
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { forwardRef, useEffect, useRef, useState, type HTMLAttributes } from "react";
 
 import { cn } from "@repo/ui/lib/utils";
 
@@ -24,7 +24,7 @@ function splitWords(text: string): string[] {
   return text.length === 0 ? [] : text.split(/(\s+)/u).filter((part) => part.length > 0);
 }
 
-export interface StreamingTextProps {
+export interface StreamingTextProps extends HTMLAttributes<HTMLDivElement> {
   /** The message so far. Growing it reveals the new words; shrinking resets. */
   text: string;
   /** True while more text may still arrive — draws the caret. */
@@ -34,79 +34,81 @@ export interface StreamingTextProps {
    * history, where a replayed typing animation is a lie about what is live.
    */
   animate?: boolean;
-  /** Rendered under the text once nothing more is arriving. */
-  actions?: ReactNode;
-  className?: string;
 }
 
-export function StreamingText({
-  text,
-  streaming = false,
-  animate = true,
-  actions,
-  className,
-}: StreamingTextProps) {
-  const words = splitWords(text);
-  const [revealed, setRevealed] = useState(() => (animate ? 0 : words.length));
-  // Revealing is a queue, not a subscription: the effect steps one word per
-  // tick toward the current length instead of restarting on every prop change.
-  const targetRef = useRef(words.length);
-  targetRef.current = words.length;
+const StreamingText = forwardRef<HTMLDivElement, StreamingTextProps>(
+  ({ text, streaming = false, animate = true, className, children, ...props }, ref) => {
+    const words = splitWords(text);
+    const [revealed, setRevealed] = useState(() => (animate ? 0 : words.length));
+    // Revealing is a queue, not a subscription: the effect steps one word per
+    // tick toward the current length instead of restarting on every prop change.
+    const targetRef = useRef(words.length);
+    targetRef.current = words.length;
 
-  useEffect(() => {
-    if (!animate) {
-      setRevealed(targetRef.current);
-      return;
-    }
-    // A shorter text is a different message (a retry, a switched thread);
-    // clamping down keeps the reveal from reading past the end.
-    setRevealed((current) => Math.min(current, targetRef.current));
-    const timer = setInterval(() => {
-      setRevealed((current) => (current >= targetRef.current ? current : current + 1));
-    }, WORD_MS);
-    return () => clearInterval(timer);
-  }, [animate, text]);
+    useEffect(() => {
+      if (!animate) {
+        setRevealed(targetRef.current);
+        return;
+      }
+      // A shorter text is a different message (a retry, a switched thread);
+      // clamping down keeps the reveal from reading past the end.
+      setRevealed((current) => Math.min(current, targetRef.current));
+      const timer = setInterval(() => {
+        setRevealed((current) => (current >= targetRef.current ? current : current + 1));
+      }, WORD_MS);
+      return () => clearInterval(timer);
+    }, [animate, text]);
 
-  const shown = animate ? words.slice(0, revealed).join("") : text;
-  const caret = streaming || revealed < words.length;
+    const shown = animate ? words.slice(0, revealed).join("") : text;
+    const caret = streaming || revealed < words.length;
 
-  return (
-    <div className={cn("w-full", className)}>
-      <p className="text-[13px] leading-relaxed whitespace-pre-wrap text-ink">
-        {shown}
-        {caret ? (
-          <span
-            aria-hidden
-            className="ml-0.5 inline-block h-3 w-0.5 translate-y-0.5 animate-pulse rounded-full bg-ink"
-          />
+    return (
+      <div ref={ref} data-slot="streaming-text" className={cn("w-full", className)} {...props}>
+        <p className="text-[13px] leading-relaxed whitespace-pre-wrap text-ink">
+          {shown}
+          {caret ? (
+            <span
+              aria-hidden
+              className="ml-0.5 inline-block h-3 w-0.5 translate-y-0.5 animate-pulse rounded-full bg-ink"
+            />
+          ) : null}
+        </p>
+
+        {/* Actions compose as children and wait for the text to settle: an
+            action offered mid-stream acts on a message that is still moving. */}
+        {children !== undefined && !caret ? (
+          <div data-slot="streaming-text-actions" className="mt-2 flex items-center gap-0.5">
+            {children}
+          </div>
         ) : null}
-      </p>
+      </div>
+    );
+  },
+);
+StreamingText.displayName = "StreamingText";
 
-      {actions !== undefined && !caret ? (
-        <div className="mt-2 flex items-center gap-0.5">{actions}</div>
-      ) : null}
-    </div>
-  );
-}
-
-export interface StreamingActionProps {
+export interface StreamingActionProps extends HTMLAttributes<HTMLButtonElement> {
   label: string;
-  onClick: () => void;
-  children: ReactNode;
 }
 
-/** The message-action affordance upstream draws beside a finished answer.
- *  Exported bare so a consumer supplies only the actions it can honour. */
-export function StreamingAction({ label, onClick, children }: StreamingActionProps) {
-  return (
+const StreamingAction = forwardRef<HTMLButtonElement, StreamingActionProps>(
+  ({ label, className, children, ...props }, ref) => (
     <button
+      ref={ref}
       type="button"
       aria-label={label}
       title={label}
-      onClick={onClick}
-      className="flex size-6 items-center justify-center rounded-[6px] text-ink-3 transition-colors duration-100 hover:bg-hover hover:text-ink-2"
+      data-slot="streaming-action"
+      className={cn(
+        "flex size-7 items-center justify-center rounded-md text-ink-3 transition-colors duration-100 hover:bg-hover hover:text-ink",
+        className,
+      )}
+      {...props}
     >
       {children}
     </button>
-  );
-}
+  ),
+);
+StreamingAction.displayName = "StreamingAction";
+
+export { StreamingText, StreamingAction };

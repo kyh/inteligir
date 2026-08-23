@@ -1,7 +1,8 @@
 "use client";
 // Vendored from Beautiful UI (beautifului.dev), MIT.
 
-import { useEffect, useState } from "react";
+import { forwardRef, useEffect, useState, type HTMLAttributes } from "react";
+import { cva, type VariantProps } from "class-variance-authority";
 
 import { cn } from "@repo/ui/lib/utils";
 
@@ -43,7 +44,7 @@ const ORBIT_CELLS = grid((row, column) => {
   return step === -1 ? null : step * 110;
 });
 
-export type LoadingVariant = "drive" | "dots" | "orbit";
+type LoadingVariant = "drive" | "dots" | "orbit";
 
 const PATTERNS = {
   drive: { cells: CHEVRON_CELLS, durationMs: 650, round: false },
@@ -92,10 +93,23 @@ function useElapsedLabel(startedAt: number | undefined): string {
   return `${String(Math.floor(seconds / 60))}m ${(seconds % 60).toFixed(1)}s`;
 }
 
-export interface LoadingStateProps {
+/** The variant is a cva variant so consumers get the union for free; the
+ *  pattern table below is keyed by the same names. */
+const loadingStateVariants = cva("flex w-fit items-center gap-2.5", {
+  variants: {
+    variant: {
+      drive: "",
+      dots: "",
+      orbit: "",
+    },
+  },
+  defaultVariants: { variant: "drive" },
+});
+
+export interface LoadingStateProps
+  extends HTMLAttributes<HTMLDivElement>, VariantProps<typeof loadingStateVariants> {
   /** What is being waited on — "Thinking", "Reading the vault", … */
   label: string;
-  variant?: LoadingVariant;
   /**
    * Epoch ms the work began. Elapsed counts from HERE rather than from mount,
    * so a panel opened onto an already-running turn shows its real age.
@@ -103,24 +117,28 @@ export interface LoadingStateProps {
   startedAt?: number;
   /** Hide the timer where the surface already shows one. */
   showElapsed?: boolean;
-  className?: string;
 }
 
-export function LoadingState({
-  label,
-  variant = "drive",
-  startedAt,
-  showElapsed = true,
-  className,
-}: LoadingStateProps) {
-  const elapsed = useElapsedLabel(startedAt);
-  return (
-    <div role="status" className={cn("flex w-fit items-center gap-2.5", className)}>
-      <LoaderGrid variant={variant} />
-      <span className="bui-shimmer-text text-[13px] font-medium">{label}</span>
-      {showElapsed ? (
-        <span className="font-mono text-[12px] text-ink-3 tabular-nums">{elapsed}</span>
-      ) : null}
-    </div>
-  );
-}
+const LoadingState = forwardRef<HTMLDivElement, LoadingStateProps>(
+  ({ label, variant, startedAt, showElapsed = true, className, ...props }, ref) => {
+    const elapsed = useElapsedLabel(startedAt);
+    return (
+      <div
+        ref={ref}
+        role="status"
+        data-slot="loading-state"
+        className={cn(loadingStateVariants({ variant }), className)}
+        {...props}
+      >
+        <LoaderGrid variant={variant ?? "drive"} />
+        <span className="bui-shimmer-text text-[13px] font-medium">{label}</span>
+        {showElapsed ? (
+          <span className="font-mono text-[12px] text-ink-3 tabular-nums">{elapsed}</span>
+        ) : null}
+      </div>
+    );
+  },
+);
+LoadingState.displayName = "LoadingState";
+
+export { LoadingState, loadingStateVariants };
