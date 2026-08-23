@@ -154,18 +154,31 @@ export class ParakeetVoiceService implements VoiceService {
   }
 
   async install(): Promise<VoiceStatusResponse> {
-    const problem = await this.#probe();
-    if (problem !== null) {
-      throw new VoiceUnavailableError(problem);
-    }
+    // The slot is claimed BEFORE any await, for the reason `transcribe` states:
+    // a check that awaits before it sets the flag lets two calls in one tick
+    // both pass, and here that means two 100 MB downloads writing the same
+    // model files. The claim is released below if the checks then refuse.
     if (this.#download !== null) {
       throw new VoiceBusyError("The model is already downloading.");
     }
-    if (await isModelInstalled(this.#modelDir, VOICE_MODEL)) {
-      throw new VoiceBusyError("The model is already installed.");
-    }
     const inFlight: DownloadInFlight = { controller: new AbortController(), receivedBytes: 0 };
     this.#download = inFlight;
+    try {
+      const problem = await this.#probe();
+      if (problem !== null) {
+        throw new VoiceUnavailableError(problem);
+      }
+      if (await isModelInstalled(this.#modelDir, VOICE_MODEL)) {
+        throw new VoiceBusyError("The model is already installed.");
+      }
+    } catch (error) {
+      // Only this call's own claim: a `remove` racing the checks already
+      // cleared it, and clearing it again would cancel whatever replaced it.
+      if (this.#download === inFlight) {
+        this.#download = null;
+      }
+      throw error;
+    }
     this.#lastError = null;
     // Deliberately not awaited: the route answers the status this moved to and
     // the surface polls for `receivedBytes` — a 100 MB fetch outlives any

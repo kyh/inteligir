@@ -156,6 +156,29 @@ describe("ParakeetVoiceService", () => {
     await expect(service.install()).rejects.toBeInstanceOf(VoiceBusyError);
   });
 
+  it("refuses a second install issued in the SAME TICK — one download, not two", async () => {
+    // The guard has to hold without an await between reading the slot and
+    // claiming it: two installs racing meant two 100 MB downloads writing the
+    // same model files. Both calls are made before either is awaited, which is
+    // the only ordering that can catch it.
+    let downloads = 0;
+    const service = new ParakeetVoiceService({
+      modelDir: makeTempDir("inteligir-voice-"),
+      runWorker: workerOk,
+      fetchImpl: async () => {
+        downloads += 1;
+        return new Response("nope", { status: 500 });
+      },
+    });
+    const [first, second] = await Promise.allSettled([service.install(), service.install()]);
+    expect(first?.status).toBe("fulfilled");
+    expect(second?.status).toBe("rejected");
+    if (second?.status === "rejected") {
+      expect(second.reason).toBeInstanceOf(VoiceBusyError);
+    }
+    expect(downloads).toBeLessThanOrEqual(1);
+  });
+
   it("refuses a second dictation while one is in flight", async () => {
     const modelDir = makeTempDir("inteligir-voice-");
     await installFakeModel(modelDir);
