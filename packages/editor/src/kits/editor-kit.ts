@@ -31,8 +31,8 @@ import { CommentGutterKit } from "@repo/editor/comments/comment-gutter";
 import { CommentKit } from "@repo/editor/comments/comment-kit";
 import { EditorShortcutsKit } from "@repo/editor/editor-shortcuts";
 import { FindBarKit } from "@repo/editor/find-bar";
-import { MossBlocksKit } from "@repo/editor/kits/moss-blocks-kit";
-import { MossInlineKit } from "@repo/editor/kits/moss-inline-kit";
+import { RichBlocksKit } from "@repo/editor/kits/rich-blocks-kit";
+import { InlineConstructsKit } from "@repo/editor/kits/inline-constructs-kit";
 import { TabsKit } from "@repo/editor/kits/tabs-kit";
 import { HeadingCollapseKit } from "@repo/editor/heading-collapse";
 import { ColorPillKit } from "@repo/editor/kits/color-pill-kit";
@@ -58,8 +58,8 @@ export const EDITOR_KIT = [
   ...OpaqueKit,
   ...FrontmatterKit,
   ...WikiLinkKit,
-  ...MossInlineKit,
-  ...MossBlocksKit,
+  ...InlineConstructsKit,
+  ...RichBlocksKit,
   ...CommentKit,
   ...CommentGutterKit,
   ...TabsKit,

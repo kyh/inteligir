@@ -9,7 +9,7 @@ status: reference
 
 # Kitchen Sink
 
-Every construct the editor models, in one place. Open [[Welcome]] for the front door, or [[Getting Started with Moss|the tour]] for the long version.
+Every construct the editor models, in one place. Open [[Welcome]] for the front door, or [[Getting Started|the tour]] for the long version.
 
 A link to a note that does not exist yet renders dashed: [[Field Notes]].
 
@@ -90,17 +90,17 @@ Review-->Ship;
 
 ## Callouts
 
-```moss-callout
+```inteligir-callout
 info
 An informational callout with a {{2+2|4}} pill inside.
 ```
 
-```moss-callout
+```inteligir-callout
 warning
 A warning callout.
 ```
 
-```moss-callout
+```inteligir-callout
 priority
 high
 A priority callout carrying its level.
@@ -122,24 +122,24 @@ const answer = 42;
 
 ## Chart
 
-```moss-chart
+```inteligir-chart
 {"type":"bar","title":"Requests","data":[{"label":"Mon","value":12},{"label":"Tue","value":18},{"label":"Wed","value":9}]}
 ```
 
-```moss-chart
+```inteligir-chart
 {"type":"line","title":"Latency (ms)","series":[{"name":"p50","data":[{"label":"Mon","value":41},{"label":"Tue","value":38},{"label":"Wed","value":44}]},{"name":"p95","data":[{"label":"Mon","value":120},{"label":"Tue","value":98},{"label":"Wed","value":131}]}]}
 ```
 
 ## Canvas
 
-```moss-canvas
+```inteligir-canvas
 [moss:grid:v2]
 {"items":[]}
 ```
 
 ## HTML
 
-```moss-html
+```inteligir-html
 <div style="padding:12px;border:1px solid #ddd;border-radius:8px;font-family:sans-serif">
   A sandboxed prototype — press Run to render it.
 </div>
@@ -152,9 +152,9 @@ const answer = 42;
 
 ## Comments
 
-This %%m:seed-open-thread:start%%sentence carries an open comment thread%%m:seed-open-thread:end%% for the panel.
+This %%i:seed-open-thread:start%%sentence carries an open comment thread%%i:seed-open-thread:end%% for the panel.
 
-This %%m:seed-resolved-thread:start%%one carries a resolved thread%%m:seed-resolved-thread:end%% that keeps its history.
+This %%i:seed-resolved-thread:start%%one carries a resolved thread%%i:seed-resolved-thread:end%% that keeps its history.
 
 ## Embeds
 
@@ -162,4 +162,4 @@ A note transclusion: ![[Welcome]]
 
 An image from the vault's assets:
 
-![The settings panel](assets/settings-panel.png)
+![A sample image](assets/sample-image.png)

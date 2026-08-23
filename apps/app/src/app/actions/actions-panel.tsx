@@ -1,4 +1,4 @@
-// The right panel (Moss's three-pane IA): Actions | Comments tabs over the
+// The right panel: Actions | Comments tabs over the
 // open note, with the frontmatter properties inlined above them. Actions =
 // the note's own threads first, then the rest, each row expandable into its
 // live timeline with approvals answerable inline — the transcript surface
@@ -6,6 +6,14 @@
 // top bar's comment button can aim the panel.
 
 import { getLiveEditor } from "@repo/editor/live-editor";
+import {
+  TaskItem,
+  TaskItemLabel,
+  TaskItemRow,
+  TaskList,
+  TaskStatusLabel,
+  type TaskStatus,
+} from "@repo/ui/ai/task-rows";
 import { TabsSubtle, TabsSubtleItem } from "@repo/ui/components/tabs-subtle";
 import { PropertiesPanel } from "@repo/editor/properties/properties-panel";
 import type { Thread } from "@repo/server-contract/threads";
@@ -19,11 +27,7 @@ import { useQueryClient } from "@tanstack/react-query";
 
 import { queryKeys, unwrap } from "../api";
 import { ApprovalCard } from "../chat/approval-card";
-import {
-  THREAD_ACTIVITY_DOT_CLASSES,
-  THREAD_ACTIVITY_LABELS,
-  threadActivity,
-} from "../chat/chat-model";
+import { THREAD_ACTIVITY_LABELS, threadActivity, type ThreadActivity } from "../chat/chat-model";
 import { sendToThread } from "../chat/chat-service";
 import { useThreadDetail, useThreads, useThreadTimeline } from "../chat/thread-hooks";
 import { useNoteComments } from "./comment-hooks";
@@ -90,6 +94,20 @@ function InlineProperties({
   );
 }
 
+/** Our seven activities onto the card's four-state visual vocabulary. The
+ *  WORDING stays THREAD_ACTIVITY_LABELS — this only picks the badge. An
+ *  archived action reads as settled, which is what it is; its pill carries
+ *  the difference. */
+const ACTIVITY_TASK_STATUS = {
+  queued: "pending",
+  running: "running",
+  "needs-approval": "pending",
+  "needs-review": "pending",
+  done: "done",
+  failed: "failed",
+  archived: "done",
+} satisfies Record<ThreadActivity, TaskStatus>;
+
 function ActionRow({ thread, onSelect }: { thread: Thread; onSelect: (threadId: string) => void }) {
   const activity = threadActivity(thread, {
     openInteractionCount: 0,
@@ -97,21 +115,17 @@ function ActionRow({ thread, onSelect }: { thread: Thread; onSelect: (threadId: 
     queuedCount: 0,
   });
   return (
-    <button
-      type="button"
-      className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-surface-raised"
-      onClick={() => {
-        onSelect(thread.id);
-      }}
-    >
-      <span
-        className={cn("size-1.5 shrink-0 rounded-full", THREAD_ACTIVITY_DOT_CLASSES[activity])}
-      />
-      <span className="min-w-0 flex-1 truncate">{thread.title ?? "Action"}</span>
-      <span className="shrink-0 text-xs text-muted-foreground">
-        {THREAD_ACTIVITY_LABELS[activity]}
-      </span>
-    </button>
+    <TaskItem>
+      <TaskItemRow
+        status={ACTIVITY_TASK_STATUS[activity]}
+        onSelect={() => {
+          onSelect(thread.id);
+        }}
+      >
+        <TaskItemLabel>{thread.title ?? "Untitled action"}</TaskItemLabel>
+        <TaskStatusLabel>{THREAD_ACTIVITY_LABELS[activity]}</TaskStatusLabel>
+      </TaskItemRow>
+    </TaskItem>
   );
 }
 
@@ -323,9 +337,11 @@ export function ActionsPanel({
               <p className="px-2 pt-1 pb-0.5 text-[11px] font-medium text-muted-foreground uppercase">
                 This note
               </p>
-              {noteActions.map((thread) => (
-                <ActionRow key={thread.id} thread={thread} onSelect={onSelectThread} />
-              ))}
+              <TaskList variant="list">
+                {noteActions.map((thread) => (
+                  <ActionRow key={thread.id} thread={thread} onSelect={onSelectThread} />
+                ))}
+              </TaskList>
             </>
           ) : null}
           {otherActions.length > 0 ? (
@@ -333,9 +349,11 @@ export function ActionsPanel({
               <p className="px-2 pt-2 pb-0.5 text-[11px] font-medium text-muted-foreground uppercase">
                 Recent
               </p>
-              {otherActions.map((thread) => (
-                <ActionRow key={thread.id} thread={thread} onSelect={onSelectThread} />
-              ))}
+              <TaskList variant="list">
+                {otherActions.map((thread) => (
+                  <ActionRow key={thread.id} thread={thread} onSelect={onSelectThread} />
+                ))}
+              </TaskList>
             </>
           ) : null}
           {threads.length === 0 ? (

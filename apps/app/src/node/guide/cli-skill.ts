@@ -94,7 +94,7 @@ inteligir action wait "$id" && inteligir action show "$id"
 
 Anchored comments live in a \`<note>.comments.json\` sidecar beside the note;
 the \`%%m:id:start%%…%%m:id:end%%\` body markers wrap the ranges they are
-about (the vendored moss-comments skill states the grammar — follow it when
+about (the inteligir-comments skill states the grammar — follow it when
 editing files directly).
 
 - \`inteligir comment list <path>\` — a note's comment threads, replies and

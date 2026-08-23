@@ -1,4 +1,4 @@
-```moss-callout
+```inteligir-callout
 info
 <column_group>
   <column>

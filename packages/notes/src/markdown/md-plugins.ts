@@ -19,8 +19,8 @@ import remarkMath from "remark-math";
 
 import { remarkMdxAgnostic } from "./remark-mdx-agnostic";
 import { remarkOpaque } from "./remark-opaque";
-import { remarkMossInline } from "./remark-moss-inline";
-import { remarkMossTabs } from "./remark-moss-tabs";
+import { remarkInlineConstructs } from "./remark-inline-constructs";
+import { remarkTabs } from "./remark-tabs";
 import { remarkWikiLink } from "./remark-wiki-link";
 
 // Single-dollar math is OFF (locked decision): "$5 and $6" in meeting notes
@@ -45,8 +45,8 @@ export const MD_REMARK_PLUGINS: Plugin[] = [
   remarkGfm,
   remarkMdxAgnostic, // ours — NOT Plate's remarkMdx (acorn)
   remarkWikiLink, // ours — [[target]] / [[target|alias]] / ![[embed]]
-  remarkMossInline, // ours — {{formula|display}} pills + %%m:id%% comment anchors
-  remarkMossTabs, // ours — :::tabs / === Label / ::: panel containers
+  remarkInlineConstructs, // ours — {{formula|display}} pills + %%i:id%% comment anchors
+  remarkTabs, // ours — :::tabs / === Label / ::: panel containers
   remarkOpaqueCanonical, // ours — everything the editor cannot model, held verbatim
 ];
 

@@ -108,6 +108,6 @@ export function formulaNodeFrom(props: FormulaNodeProps): TElement {
     meta: props.meta,
     raw: props.raw,
     source: props.source,
-    type: "mossFormula",
+    type: "formulaPill",
   };
 }

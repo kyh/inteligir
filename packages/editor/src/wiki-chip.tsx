@@ -22,7 +22,7 @@ import { isUuidWikiAlias, parseWikiBody } from "@repo/notes/markdown/remark-wiki
 
 const HOVER_PREVIEW_DELAY_MS = 350;
 
-/** Shared chip label: alias wins — unless it is Moss's resolved-link uuid,
+/** Shared chip label: alias wins — unless it is the resolved-link uuid,
  * which is identity plumbing, not display text — else target(+anchor). */
 export function wikiChipLabel(body: string): string {
   const parsed = parseWikiBody(body);
@@ -121,7 +121,7 @@ export default function WikiChip({ body }: { body: string }) {
     setCreateOpen(true);
   };
 
-  // Moss's split affordance: right-click a resolved chip → open in the split
+  // The split affordance: right-click a resolved chip → open in the split
   // pane. Offered only while the shell registered the action AND the target
   // resolves — an unresolved chip's menu would only duplicate click-to-create.
   const onContextMenu = (e: MouseEvent) => {

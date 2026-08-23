@@ -1,4 +1,0 @@
-interface:
-  display_name: "Moss Formulas and Variables"
-  short_description: "Create Moss formulas and variables with editable anchors and derived values"
-  default_prompt: "Use $moss-formulas-variables to add editable anchors and derived values to a Moss note as inline formula and variable pills."

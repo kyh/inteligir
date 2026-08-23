@@ -1,6 +1,6 @@
 // Which comment roots the note's BODY anchors. Extraction runs the same parse
-// the editor's pipeline runs (remark-moss-inline's nodes), so a marker inside
-// a code fence or a `moss-*` payload stays literal here exactly as it renders
+// the editor's pipeline runs (remark-inline-constructs' nodes), so a marker inside
+// a code fence or a rich-block payload stays literal here exactly as it renders
 // there — a raw regex over the source would count what the dialect says is
 // not a marker.
 
@@ -18,7 +18,7 @@ export function markerRootIds(source: string): Set<string> | null {
   if (!parsed.ok) return null;
   const ids = new Set<string>();
   walk(parsed.root, (node) => {
-    if (node.type !== "mossCommentMarker") return;
+    if (node.type !== "commentMarker") return;
     for (const id of node.ids.split(",")) {
       if (id !== "") ids.add(id);
     }

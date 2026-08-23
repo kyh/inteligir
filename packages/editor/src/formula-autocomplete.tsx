@@ -34,7 +34,7 @@ import {
   rebuildRaw,
 } from "@repo/editor/formulas/formula-entry";
 import { parseFormulaMeta } from "@repo/notes/formulas/formula-meta";
-import { parseFormulaRaw } from "@repo/notes/markdown/remark-moss-inline";
+import { parseFormulaRaw } from "@repo/notes/markdown/remark-inline-constructs";
 
 type NamedVariable = {
   name: string;
@@ -51,7 +51,7 @@ function collectNamedVariables(editorChildren: readonly TElement[]): NamedVariab
   const walk = (nodes: readonly unknown[]): void => {
     for (const node of nodes) {
       if (!NodeApi.isNode(node)) continue;
-      if ("type" in node && node.type === "mossFormula") {
+      if ("type" in node && node.type === "formulaPill") {
         const meta = typeof node.meta === "string" ? node.meta : "";
         const parsed = parseFormulaMeta(meta === "" ? undefined : meta);
         const source = typeof node.source === "string" ? node.source : "";

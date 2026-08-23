@@ -1,4 +1,4 @@
-````moss-callout
+````inteligir-callout
 info
 some text
 

@@ -1,17 +1,32 @@
-// Compact renderers for the projection's row model: conversation rows as
-// the chat surface, a turn's work rows (reasoning, commands, file changes,
-// plans, tools) as quiet one-liners that expand on demand via <details> —
-// no per-row state to manage, and closed is the restrained default.
+// The projection's row model rendered through the vendored AI surface
+// (@repo/ui/ai): a turn's quiet work splits by what a reader is asking of it —
+// reasoning and plans compose a THINKING trace, commands, tools and file
+// changes compose TOOL CHIPS — while conversation rows stay the chat surface
+// and a turn still in flight carries the loader.
 
 import type { ViewContext } from "@repo/domain/view-context";
 import type {
+  TimelineFileChange,
   TimelineRow,
   TimelineTurnRow,
   TimelineWorkRow,
 } from "@repo/server-contract/thread-timeline";
-import { Spinner } from "@repo/ui/components/spinner";
+import { LoadingState } from "@repo/ui/ai/loading-state";
+import { StreamingText } from "@repo/ui/ai/streaming-text";
+import { Thinking, ThinkingReasoning, ThinkingStep } from "@repo/ui/ai/thinking";
+import { ToolChip, ToolChipDetail, ToolChipList } from "@repo/ui/ai/tool-chips";
 import { cn } from "@repo/ui/lib/utils";
-import { memo } from "react";
+import { memo, type ReactNode } from "react";
+
+/** A command's output is a transcript, not a document: the chip carries the
+ *  head of it so a long build log cannot push the turn off screen. */
+const COMMAND_OUTPUT_LINES = 40;
+
+const CHANGE_MARKS = {
+  add: "+",
+  delete: "−",
+  update: "±",
+} satisfies Record<TimelineFileChange["kind"], string>;
 
 function firstLine(text: string): string {
   return text.split("\n", 1)[0] ?? "";
@@ -33,81 +48,139 @@ function ViewContextAttribution({ context }: { context: ViewContext }) {
   );
 }
 
-function WorkRowView({ row }: { row: TimelineWorkRow }) {
+function isThought(row: TimelineRow): boolean {
+  return row.kind === "work" && (row.workKind === "reasoning" || row.workKind === "plan");
+}
+
+function isAction(row: TimelineRow): boolean {
+  return (
+    row.kind === "work" &&
+    (row.workKind === "command" || row.workKind === "file-change" || row.workKind === "tool")
+  );
+}
+
+/** Reasoning and plans: what the agent was working out. */
+function thoughtRow(row: TimelineWorkRow): ReactNode {
+  if (row.workKind === "reasoning") {
+    return row.text.trim() === "" ? null : (
+      <ThinkingReasoning key={row.id} pending={row.status === "pending"}>
+        {firstLine(row.text)}
+      </ThinkingReasoning>
+    );
+  }
+  if (row.workKind === "plan") {
+    return row.text.trim() === "" ? null : (
+      <ThinkingStep key={row.id} pending={row.status === "pending"}>
+        Plan: {firstLine(row.text)}
+      </ThinkingStep>
+    );
+  }
+  return null;
+}
+
+/** Commands, tools and file changes: what the agent DID. */
+function actionChip(row: TimelineWorkRow): ReactNode {
   switch (row.workKind) {
-    case "reasoning":
-      if (row.text.trim() === "") {
-        return null;
-      }
+    case "command": {
+      const failed = row.exitCode !== null && row.exitCode !== 0;
+      const output =
+        row.output.trim() === "" ? [] : row.output.split("\n").slice(0, COMMAND_OUTPUT_LINES);
       return (
-        <details className="text-xs text-muted-foreground">
-          <summary className="cursor-pointer select-none truncate italic">
-            {firstLine(row.text)}
-          </summary>
-          <div className="mt-1 whitespace-pre-wrap pl-3">{row.text}</div>
-        </details>
-      );
-    case "command":
-      return (
-        <details className="text-xs text-muted-foreground">
-          <summary className="cursor-pointer select-none truncate font-mono">
-            $ {firstLine(row.command)}
-            {row.exitCode !== null && row.exitCode !== 0 ? (
-              <span className="ml-2 text-destructive">exit {row.exitCode}</span>
-            ) : null}
-          </summary>
-          {row.output.trim() !== "" ? (
-            <pre className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap pl-3 font-mono">
-              {row.output}
-            </pre>
-          ) : null}
-        </details>
-      );
-    case "file-change":
-      return (
-        <div className="text-xs text-muted-foreground">
-          {row.changes.map((change) => (
-            <div key={`${change.kind}:${change.path}`} className="truncate font-mono">
-              {change.kind === "delete" ? "−" : change.kind === "add" ? "+" : "±"} {change.path}
-              {change.movePath !== null ? ` → ${change.movePath}` : ""}
-            </div>
+        <ToolChip
+          key={row.id}
+          icon="run"
+          label={failed ? `Ran a command — exit ${String(row.exitCode)}` : "Ran a command"}
+          chip={firstLine(row.command)}
+          mono
+          detailMono
+        >
+          {output.map((line, index) => (
+            <ToolChipDetail key={`${row.id}:${String(index)}`}>{line}</ToolChipDetail>
           ))}
-        </div>
+        </ToolChip>
       );
-    case "plan":
-      if (row.text.trim() === "") {
-        return null;
-      }
+    }
+    case "file-change": {
+      const [first] = row.changes;
       return (
-        <details className="text-xs text-muted-foreground">
-          <summary className="cursor-pointer select-none truncate">
-            Plan: {firstLine(row.text)}
-          </summary>
-          <div className="mt-1 whitespace-pre-wrap pl-3">{row.text}</div>
-        </details>
+        <ToolChip
+          key={row.id}
+          icon="write"
+          label={
+            row.changes.length > 1 ? `Edited ${String(row.changes.length)} files` : "Edited a file"
+          }
+          chip={first === undefined ? "no changes" : first.path}
+          mono
+          detailMono
+        >
+          {row.changes.map((change) => (
+            <ToolChipDetail
+              key={`${change.kind}:${change.path}`}
+              {...(change.kind === "add" ? { tone: "add" as const } : {})}
+            >
+              {CHANGE_MARKS[change.kind]} {change.path}
+              {change.movePath === null ? "" : ` → ${change.movePath}`}
+            </ToolChipDetail>
+          ))}
+        </ToolChip>
       );
+    }
     case "tool":
       return (
-        <div className="truncate font-mono text-xs text-muted-foreground">
-          {row.toolName}
-          {row.error !== null ? <span className="ml-2 text-destructive">{row.error}</span> : null}
-        </div>
+        <ToolChip
+          key={row.id}
+          icon={row.error === null ? "think" : "read"}
+          label={row.error === null ? "Called a tool" : "Tool failed"}
+          chip={row.toolName}
+          mono
+        >
+          {row.error === null ? null : <ToolChipDetail>{row.error}</ToolChipDetail>}
+        </ToolChip>
       );
+    case "reasoning":
+    case "plan":
+      return null;
   }
 }
 
+function countLabel(count: number, one: string, many: string): string {
+  return count === 1 ? `1 ${one}` : `${String(count)} ${many}`;
+}
+
 function TurnRowView({ row }: { row: TimelineTurnRow }) {
+  const thoughts = row.children.filter(isThought);
+  const actions = row.children.filter(isAction);
+  const errors = row.children.filter((child) => child.kind === "error");
+  const working = row.status === "pending";
+
   return (
     <div
       className={cn(
-        "flex flex-col gap-1 border-l border-border/60 pl-3",
+        "flex flex-col gap-2 border-l border-border/60 pl-3",
         row.status === "error" && "border-destructive/40",
       )}
     >
-      {row.children.map((child) => (
+      {thoughts.length === 0 ? null : (
+        <Thinking working={working} doneLabel={countLabel(thoughts.length, "thought", "thoughts")}>
+          {thoughts.map((child) => (child.kind === "work" ? thoughtRow(child) : null))}
+        </Thinking>
+      )}
+      {actions.length === 0 ? null : (
+        <ToolChipList
+          summary={countLabel(actions.length, "tool call", "tool calls")}
+          defaultExpanded={false}
+        >
+          {actions.map((child) => (child.kind === "work" ? actionChip(child) : null))}
+        </ToolChipList>
+      )}
+      {errors.map((child) => (
         <TimelineRowView key={child.id} row={child} />
       ))}
-      {row.status === "pending" ? <Spinner className="size-3 text-muted-foreground" /> : null}
+      {working ? (
+        // The turn's own createdAt, so a panel opened onto a running turn
+        // shows its true age rather than restarting the clock at mount.
+        <LoadingState label="Working" startedAt={row.createdAt} />
+      ) : null}
       {row.status === "interrupted" ? (
         <div className="text-xs text-muted-foreground">Interrupted</div>
       ) : null}
@@ -134,7 +207,11 @@ export const TimelineRowView = memo(function TimelineRowView({ row }: { row: Tim
           </div>
         );
       }
-      return <div className="whitespace-pre-wrap text-sm">{row.text}</div>;
+      // `animate` stays OFF: our text is ALREADY live — the projection grows
+      // this row per provider delta — so the component's 55ms-per-word reveal
+      // would lag a real stream and keep trailing after the turn finished.
+      // The turn's own loader is the "still working" signal.
+      return <StreamingText text={row.text} animate={false} />;
     case "error":
       return (
         <div className="text-xs text-destructive">
@@ -145,6 +222,8 @@ export const TimelineRowView = memo(function TimelineRowView({ row }: { row: Tim
     case "turn":
       return <TurnRowView row={row} />;
     case "work":
-      return <WorkRowView row={row} />;
+      // Work rows render INSIDE their turn, composed into the thinking trace
+      // or the tool chips; a stray one (its turn never started) has no surface.
+      return null;
   }
 });

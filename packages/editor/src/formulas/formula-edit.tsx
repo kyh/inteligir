@@ -20,7 +20,7 @@ function formulaEntriesById(editor: SlateEditor, id: string): NodeEntry<TElement
   const out: NodeEntry<TElement>[] = [];
   for (const entry of editor.api.nodes<TElement>({
     at: [],
-    match: (node) => NodeApi.isNode(node) && "type" in node && node.type === "mossFormula",
+    match: (node) => NodeApi.isNode(node) && "type" in node && node.type === "formulaPill",
   })) {
     const meta = parseFormulaMeta(
       typeof entry[0].meta === "string" && entry[0].meta !== "" ? entry[0].meta : undefined,

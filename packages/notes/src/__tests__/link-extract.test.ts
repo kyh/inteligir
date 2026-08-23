@@ -358,9 +358,9 @@ describe("titleFromPath", () => {
   });
 });
 
-describe("moss-callout fence bodies (editor ⊆ vault)", () => {
+describe("callout fence bodies (editor ⊆ vault)", () => {
   it("indexes wiki links inside a callout body with outer-source spans", () => {
-    const source = "# T\n\n```moss-callout\ninfo\nSee [[Target Note]] here.\n```\n";
+    const source = "# T\n\n```inteligir-callout\ninfo\nSee [[Target Note]] here.\n```\n";
     const scan = scanDoc(source);
     const link = scan.links.find((row) => row.target === "Target Note");
     expect(link).toBeDefined();
@@ -369,7 +369,7 @@ describe("moss-callout fence bodies (editor ⊆ vault)", () => {
   });
 
   it("skips the priority level header line in span math", () => {
-    const source = "```moss-callout\npriority\nhigh\n[[Deep Link]]\n```\n";
+    const source = "```inteligir-callout\npriority\nhigh\n[[Deep Link]]\n```\n";
     const scan = scanDoc(source);
     const link = scan.links.find((row) => row.target === "Deep Link");
     expect(link).toBeDefined();
@@ -378,9 +378,15 @@ describe("moss-callout fence bodies (editor ⊆ vault)", () => {
   });
 
   it("refuses an indented fence rather than mis-indexing it", () => {
-    const source = "- item\n\n  ```moss-callout\n  info\n  [[Hidden]]\n  ```\n";
+    const source = "- item\n\n  ```inteligir-callout\n  info\n  [[Hidden]]\n  ```\n";
     const scan = scanDoc(source);
     expect(scan.links.find((row) => row.target === "Hidden")).toBeUndefined();
+  });
+
+  it("indexes a Moss-written callout too — the legacy spelling still parses", () => {
+    const source = "```moss-callout\ninfo\nSee [[Target Note]] here.\n```\n";
+    const scan = scanDoc(source);
+    expect(scan.links.find((row) => row.target === "Target Note")).toBeDefined();
   });
 
   it("plain code fences stay unindexed", () => {

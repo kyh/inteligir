@@ -1,9 +1,9 @@
-```moss-callout
+```inteligir-callout
 info
 single quotes
 ```
 
-```moss-callout
+```inteligir-callout
 info
 entity attr
 ```
@@ -20,7 +20,7 @@ entity attr
   </column>
 </column_group>
 
-```moss-callout
+```inteligir-callout
 info
 attrs on lines
 ```

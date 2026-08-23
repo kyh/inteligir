@@ -1,9 +1,9 @@
-```moss-callout
+```inteligir-callout
 info
 first callout
 ```
 
-```moss-callout
+```inteligir-callout
 warning
 second callout
 ```

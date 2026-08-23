@@ -39,7 +39,7 @@ function formulaEntries(editor: SlateEditor): FormulaEntryInDoc[] {
   const out: FormulaEntryInDoc[] = [];
   for (const entry of editor.api.nodes<TElement>({
     at: [],
-    match: (node) => NodeApi.isNode(node) && "type" in node && node.type === "mossFormula",
+    match: (node) => NodeApi.isNode(node) && "type" in node && node.type === "formulaPill",
   })) {
     const [node] = entry;
     const source = typeof node.source === "string" ? node.source : "";

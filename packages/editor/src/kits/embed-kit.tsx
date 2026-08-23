@@ -54,7 +54,7 @@ export function insertEmbedFromUrl(editor: PlateEditor, url: string): void {
 // embed the dialog would have made — same node, same bytes. ONLY those two:
 // pdf/iframe stay text (later an autolink), because a generic URL turning
 // into an iframe on paste is a surprise, while a video/tweet pill is the
-// expectation Moss set.
+// expectation a modern editor sets.
 
 const BARE_URL_RE = /^https?:\/\/\S+$/i;
 

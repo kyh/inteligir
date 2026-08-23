@@ -138,23 +138,24 @@ describe("chart transforms preserve what the grid does not show", () => {
 });
 
 describe("paintCanvasCells", () => {
-  const base = '[moss:grid:v2]\n[moss:labels:[{"id":"l","text":"L","col":2,"row":0}]]\nab.\n.x.';
+  const base =
+    '[inteligir:grid:v2]\n[inteligir:labels:[{"id":"l","text":"L","col":2,"row":0}]]\nab.\n.x.';
 
   it("paints # and preserves every untouched character and the labels line", () => {
     expect(paintCanvasCells(base, [{ col: 2, row: 0 }], true)).toBe(
-      '[moss:grid:v2]\n[moss:labels:[{"id":"l","text":"L","col":2,"row":0}]]\nab#\n.x.',
+      '[inteligir:grid:v2]\n[inteligir:labels:[{"id":"l","text":"L","col":2,"row":0}]]\nab#\n.x.',
     );
   });
 
   it("erases to . without normalizing neighbors", () => {
     expect(paintCanvasCells(base, [{ col: 1, row: 1 }], false)).toBe(
-      '[moss:grid:v2]\n[moss:labels:[{"id":"l","text":"L","col":2,"row":0}]]\nab.\n...',
+      '[inteligir:grid:v2]\n[inteligir:labels:[{"id":"l","text":"L","col":2,"row":0}]]\nab.\n...',
     );
   });
 
   it("pads short rows and adds rows only as far as a painted cell requires", () => {
-    expect(paintCanvasCells("[moss:grid:v2]\nab", [{ col: 4, row: 2 }], true)).toBe(
-      "[moss:grid:v2]\nab\n\n....#",
+    expect(paintCanvasCells("[inteligir:grid:v2]\nab", [{ col: 4, row: 2 }], true)).toBe(
+      "[inteligir:grid:v2]\nab\n\n....#",
     );
   });
 
@@ -171,10 +172,10 @@ describe("paintCanvasCells", () => {
 
 describe("clearCanvasGrid", () => {
   it("drops rows, keeps header and labels verbatim", () => {
-    expect(clearCanvasGrid("[moss:grid:v2]\n[moss:labels:[]]\n##\n##")).toBe(
-      "[moss:grid:v2]\n[moss:labels:[]]",
+    expect(clearCanvasGrid("[inteligir:grid:v2]\n[inteligir:labels:[]]\n##\n##")).toBe(
+      "[inteligir:grid:v2]\n[inteligir:labels:[]]",
     );
-    expect(clearCanvasGrid("[moss:grid:v2]\n##")).toBe("[moss:grid:v2]");
+    expect(clearCanvasGrid("[inteligir:grid:v2]\n##")).toBe("[inteligir:grid:v2]");
   });
 });
 
@@ -194,9 +195,24 @@ describe("strokeSegmentCells", () => {
 });
 
 describe("untouched blocks stay byte-exact through the pipeline", () => {
-  it("moss-chart and moss-canvas fences round-trip unchanged", () => {
+  it("a Moss-written payload canonicalizes its header on the first edit", () => {
+    // The one write path is where a legacy canvas becomes ours; serialization
+    // leaves payloads verbatim by contract, so nothing else can do it.
+    const legacy = '[moss:grid:v2]\n[moss:labels:[{"id":"l","text":"L","col":0,"row":0}]]\n..\n..';
+    const painted = paintCanvasCells(legacy, [{ col: 1, row: 1 }], true);
+    expect(painted).toBe(
+      '[inteligir:grid:v2]\n[inteligir:labels:[{"id":"l","text":"L","col":0,"row":0}]]\n..\n.#',
+    );
+    // Idempotent thereafter: a second edit changes only the cell it touches.
+    expect(paintCanvasCells(painted, [{ col: 0, row: 0 }], true)).toBe(
+      '[inteligir:grid:v2]\n[inteligir:labels:[{"id":"l","text":"L","col":0,"row":0}]]\n#.\n.#',
+    );
+    expect(clearCanvasGrid("[moss:grid:v2]\n##")).toBe("[inteligir:grid:v2]");
+  });
+
+  it("chart and canvas fences round-trip unchanged", () => {
     const md =
-      '```moss-chart\n{"type":"bar","data":[{"label":"Mon","value":12}]}\n```\n\n```moss-canvas\n[moss:grid:v2]\nab.\n.x.\n```\n';
+      '```inteligir-chart\n{"type":"bar","data":[{"label":"Mon","value":12}]}\n```\n\n```inteligir-canvas\n[inteligir:grid:v2]\nab.\n.x.\n```\n';
     expect(roundTrip(md)).toBe(md);
   });
 });

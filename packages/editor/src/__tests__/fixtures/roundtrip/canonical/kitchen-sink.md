@@ -2,7 +2,7 @@
 
 Intro paragraph with [[Some Note]] and an alias [[Other|friendly]] plus ![[embed.png]] inline.
 
-```moss-callout
+```inteligir-callout
 info
 Callout body with **bold** and $$E=mc^2$$ inline.
 ```

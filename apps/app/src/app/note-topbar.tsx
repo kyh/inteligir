@@ -1,4 +1,4 @@
-// The pane's top bar (Moss's shape): note navigation on the left, the note's
+// The pane's top bar: note navigation on the left, the note's
 // utility cluster on the right. Share-with-agent and export live in the
 // overflow menu rather than as bar buttons — the bar carries only what a
 // reader touches constantly.

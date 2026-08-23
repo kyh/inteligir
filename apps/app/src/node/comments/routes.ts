@@ -1,6 +1,6 @@
 // The comments routes, registered against the contract rows. The editor is
 // the caller and owns the body markers; these routes own the sidecar (the
-// division the moss-comments skill states), so every answer is the fresh
+// division the inteligir-comments skill states), so every answer is the fresh
 // folded listing and `remove` also names the ids whose markers the editor
 // must strip.
 

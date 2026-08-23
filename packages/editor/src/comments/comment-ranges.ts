@@ -40,7 +40,7 @@ export function scanBlockComments(editor: SlateEditor, entry: [TElement, Path]):
   const unpaired = new Set<string>();
 
   element.children.forEach((child, index) => {
-    if (!ElementApi.isElement(child) || child.type !== "mossCommentMarker") return;
+    if (!ElementApi.isElement(child) || child.type !== "commentMarker") return;
     const ids = markerIds(child);
     if (ids.length === 0) return;
     const key = ids.join(",");
@@ -70,6 +70,6 @@ export function scanBlockComments(editor: SlateEditor, entry: [TElement, Path]):
  * path. */
 export function holdsCommentMarkers(element: TElement): boolean {
   return element.children.some(
-    (child) => ElementApi.isElement(child) && child.type === "mossCommentMarker",
+    (child) => ElementApi.isElement(child) && child.type === "commentMarker",
   );
 }

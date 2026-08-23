@@ -14,7 +14,7 @@ export function mintCommentId(): string {
 }
 
 function marker(id: string, edge: "start" | "end"): TElement {
-  return { children: [{ text: "" }], edge, ids: id, type: "mossCommentMarker" };
+  return { children: [{ text: "" }], edge, ids: id, type: "commentMarker" };
 }
 
 /**
@@ -45,7 +45,7 @@ export function removeCommentMarkers(editor: SlateEditor, ids: readonly string[]
   const entries = [
     ...editor.api.nodes<TElement>({
       at: [],
-      match: (node) => ElementApi.isElement(node) && node.type === "mossCommentMarker",
+      match: (node) => ElementApi.isElement(node) && node.type === "commentMarker",
     }),
   ];
   editor.tf.withoutNormalizing(() => {
@@ -67,7 +67,7 @@ export function removeCommentMarkers(editor: SlateEditor, ids: readonly string[]
 export function findCommentMarker(editor: SlateEditor, id: string) {
   for (const entry of editor.api.nodes<TElement>({
     at: [],
-    match: (node) => ElementApi.isElement(node) && node.type === "mossCommentMarker",
+    match: (node) => ElementApi.isElement(node) && node.type === "commentMarker",
   })) {
     const raw = typeof entry[0].ids === "string" ? entry[0].ids : "";
     if (raw.split(",").includes(id)) return entry;

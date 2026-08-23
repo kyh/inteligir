@@ -34,7 +34,7 @@ describe("comment markers", () => {
       focus: { offset: 18, path: [0, 0] },
     };
     expect(insertCommentMarkers(editor, "c1")).toBe(true);
-    expect(bytes(editor)).toBe("The %%m:c1:start%%current layout%%m:c1:end%% needs review.\n");
+    expect(bytes(editor)).toBe("The %%i:c1:start%%current layout%%i:c1:end%% needs review.\n");
   });
 
   it("refuses a collapsed selection", () => {
@@ -49,10 +49,10 @@ describe("comment markers", () => {
 
   it("strips a single-id pair whole and trims one id from a shared pair", () => {
     const editor = editorWith(
-      "A %%m:a,b:start%%shared range%%m:a,b:end%% and %%m:solo:start%%one%%m:solo:end%%.\n",
+      "A %%i:a,b:start%%shared range%%i:a,b:end%% and %%i:solo:start%%one%%i:solo:end%%.\n",
     );
     removeCommentMarkers(editor, ["a", "solo"]);
-    expect(bytes(editor)).toBe("A %%m:b:start%%shared range%%m:b:end%% and one.\n");
+    expect(bytes(editor)).toBe("A %%i:b:start%%shared range%%i:b:end%% and one.\n");
   });
 
   it("mints ids in the marker alphabet", () => {
@@ -72,20 +72,20 @@ describe("comment range pairing", () => {
   }
 
   it("pairs a range and reads its ids", () => {
-    const scan = scanFirstBlock("x %%m:c1:start%%mid%%m:c1:end%% y\n");
+    const scan = scanFirstBlock("x %%i:c1:start%%mid%%i:c1:end%% y\n");
     expect(scan.unpairedIds).toEqual([]);
     expect(scan.ranges).toHaveLength(1);
     expect(scan.ranges[0]?.ids).toEqual(["c1"]);
   });
 
   it("pairs a multi-root marker once", () => {
-    const scan = scanFirstBlock("x %%m:a,b:start%%mid%%m:a,b:end%% y\n");
+    const scan = scanFirstBlock("x %%i:a,b:start%%mid%%i:a,b:end%% y\n");
     expect(scan.ranges).toHaveLength(1);
     expect(scan.ranges[0]?.ids).toEqual(["a", "b"]);
   });
 
   it("surfaces a lone edge as unpaired", () => {
-    const scan = scanFirstBlock("x %%m:c1:start%%never closed\n");
+    const scan = scanFirstBlock("x %%i:c1:start%%never closed\n");
     expect(scan.ranges).toEqual([]);
     expect(scan.unpairedIds).toEqual(["c1"]);
   });

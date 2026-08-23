@@ -20,6 +20,7 @@ import { type Descendant, type Value, createSlateEditor } from "platejs";
 import { getMergedOptionsDeserialize, mdastToSlate, serializeMd } from "@platejs/markdown";
 
 import { MD_STRINGIFY } from "@repo/notes/markdown/md-plugins";
+import { normalizeLegacySpellings } from "@repo/notes/markdown/fence-langs";
 import { parseMdast } from "@repo/notes/markdown/parse";
 
 import { BASE_KIT } from "@repo/editor/kits/base-kit";
@@ -193,8 +194,11 @@ export function analyzeMarkdown(md: string): DocAnalysis {
     // Rich mode saves pass-1 bytes and each later save advances the chain, so
     // rich is only safe when the whole chain preserves the letters of `md`.
     const canonical = out.trimEnd() === md.trimEnd() && fixpoint.at === out;
-    const richSafe =
-      canonical || (letters(md) === letters(out) && letters(md) === letters(fixpoint.at));
+    // Compare against the legacy spellings NORMALIZED: renaming a fence or a
+    // marker changes letters while losing nothing, and treating that as
+    // content loss would open every imported note raw.
+    const source = letters(normalizeLegacySpellings(md));
+    const richSafe = canonical || (source === letters(out) && source === letters(fixpoint.at));
     return { canonical, rawReason: null, richSafe };
   }
   return { canonical: true, rawReason: null, richSafe: true };

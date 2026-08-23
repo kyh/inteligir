@@ -1,184 +1,108 @@
 ---
 id: f2745aa0-f394-4469-963d-438f2dd9fd5a
+description: Five workflows to try inteligir on real work.
+tags:
+  - guide
+status: reference
 ---
 
 # Use Cases
 
-Use this note when you want to try Moss on real work, not just explore features. Each workflow shows what to create, how to start, where the Moss Agent helps, and when to hand off to an external coding agent.
+Five shapes of work that fit a vault with an agent in it. Each one says what to make, where to start, and what to hand to the agent.
 
-You can use Moss in two complementary ways:
+For the mechanics of any construct mentioned here, see [[Getting Started|a618c388-0d20-4ebe-bcbd-55b9d59094ec]].
 
-| Path                       | Use it when                                                                                                                                | How to start                                                                                           |
-| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------ |
-| **Moss Agent**             | You want in-app help drafting, researching, reorganizing, or analyzing. Moss Agent is powered by Claude Code.                              | Press `⌘K` in a note, write a focused request, and press `⌘Enter`.                                     |
-| **External coding agents** | You want Claude Code, Codex, Cursor, or another agent to work with Moss notes as a knowledge base, usually as part of implementation work. | Click **Share with Agent** in the top nav and paste the generated instructions into your coding agent. |
-
-> For mechanics, examples, and syntax for specific features, see [[Getting Started with Moss|a618c388-0d20-4ebe-bcbd-55b9d59094ec]]. For the full visual feature inventory, use [mossnotes.app/features](https://mossnotes.app/features).
+```inteligir-callout
+info
+Two ways to reach an agent, and they share the same vault. `⌘K` runs an action inside the app, attached to the note you are reading. A coding agent in your terminal edits the same files directly — the vault is a git repo, so both are just writing markdown.
+```
 
 ---
 
-## 1️⃣ Interactive Product Specs
+## Product Specs
 
-Use Moss when an idea needs to become a structured product spec with context, decisions, acceptance criteria, and a lightweight prototype beside the written explanation.
+A spec is worth writing here when the argument and the artifact belong together.
 
-1. **Start in Moss**
+**Start with** the problem, who it is for, the goals and non-goals, and the open questions you already know about.
 
-Create a feature note. Add the problem, audience, goals, non-goals, user stories, open questions, acceptance criteria, target behavior, and states to test.
+**Ask the agent:**
 
-2. **Use the Moss Agent**
+> Turn these notes into a spec: goals, non-goals, user stories, acceptance\
+> criteria. Leave a comment wherever a requirement is ambiguous rather than\
+> guessing.
 
-Ask the Moss Agent to turn rough notes into a spec and prototype plan:
+**Then add** a checklist for readiness, a table for requirements and owners, an `/html` block when a behaviour is easier to click than to describe, and tabs when one spec covers several states.
 
-> Draft an interactive product spec from these notes. Add goals, non-goals, user stories, acceptance criteria, open questions, and a small embedded HTML prototype for the core interaction. Leave comments where requirements are ambiguous.
-
-Review the comments and reply in place. Type `@` in Actions or comments to reference notes, folders, or connected files. Upload images when the agent should use a screenshot or visual reference.
-
-3. **Add useful artifacts**
-
-- A [[Getting Started with Moss#Lists and Checklists|checklist]] for launch or implementation readiness.
-- A [[Getting Started with Moss#Tables|table]] for requirements, owners, states, and status.
-- [[Getting Started with Moss#Embedded HTML|Embedded HTML]] for a focused prototype if behavior is easier to show than describe.
-- [[Getting Started with Moss#Color Codes & Color Picker|Color previews]], [[Getting Started with Moss#Formulas and Variables|variables]], or a [[Getting Started with Moss#Canvas|canvas]] when design, sizing, pricing, timing, or interaction details matter.
-- [Tabs](https://mossnotes.app/features#tabs) for variants, states, or permissions that belong in one product spec.
-- [[Getting Started with Moss#Comments|Comments]] for questions you want product, design, engineering, or an agent to resolve.
-
-![Live Moss screenshot of the Interactive Product Specs workflow in the Use Cases note.](assets/interactive-spec-prototype-visual-walkthrough.png)
-
-4. **Use a coding agent**
-
-When the spec and prototype are ready for implementation, click **Share with Agent**. Ask your coding agent to read the note, implement against the acceptance criteria, and use the embedded HTML as behavior reference unless you explicitly want it copied exactly.
+**Hand off** by pointing your coding agent at the note. It reads the acceptance criteria, implements against them, and answers your comments in place.
 
 ---
 
-## 2️⃣ Research Lifecycle
+## Research
 
-Use Moss when you need to collect evidence, compare options, and turn research into a recommendation.
+Research goes stale when the findings and the evidence drift apart. Keep them in one note and link outward.
 
-1. **Start in Moss**
+**Start with** a question stated in one sentence, then collect sources as you go.
 
-Create a research note with the decision at the top. Add sections for findings, evidence, tradeoffs, and the recommendation.
+**Ask the agent:**
 
-2. **Use the Moss Agent**
+> Read the linked notes and summarise where they agree and where they conflict.\
+> Put the conflicts in a table with the source for each side.
 
-Ask the Moss Agent for structured research:
+**Then add** wiki links to every source note — the **Related** panel starts surfacing connections you did not make deliberately — and a chart when a number moves over time.
 
-> Research three onboarding analytics tools for a B2B SaaS product. Compare pricing, setup effort, collaboration features, and risks. Summarize the recommendation in a decision table.
-
-This pattern also works for trip planning, vendor research, school research, or any decision with multiple options.
-
-3. **Add useful artifacts**
-
-- A comparison table for options and tradeoffs.
-- Comments on claims that need verification, or work for the Moss agent to do.
-- Links to supporting notes or sources.
-- Tabs for alternate audiences, options, or evidence sets that share the same context.
-- A chart if the decision depends on numbers.
-
-![Live Moss screenshot of the Research Lifecycle workflow in the Use Cases note.](assets/research-plan-synthesis-visual-walkthrough.png)
-
-4. **Use a coding agent**
-
-When research depends on many files, exported data, or code, share the Moss note. Ask the coding agent to analyze the source material and write findings back into the same note or a linked follow-up note.
+**Hand off** when the research turns into a decision: ask for a memo that leads with the recommendation.
 
 ---
 
-## 3️⃣ Decision-making & Analysis
+## Decisions
 
-Use Moss when a decision depends on assumptions, calculations, comparisons, scenarios, or tradeoffs that need to stay visible.
+A decision note earns its keep months later, when someone asks why.
 
-1. **Start in Moss**
+**Start with** the decision itself in the first paragraph. Options and tradeoffs come after.
 
-Write the decision question first. For example: “Which pricing tier should we test?” or “What changes if token sizes increase by 2px?”
+**Ask the agent:**
 
-2. **Use the Moss Agent**
+> Draft the tradeoff table for these options, then argue the strongest case\
+> against the one I picked.
 
-Ask the Moss Agent to set up the model:
+**Then add** a priority callout for what happens if the decision is wrong, and formula pills for the numbers that drove it — named, so a changed assumption moves everything downstream.
 
-> Build a pricing analysis for three SaaS tiers. Define the assumptions, create variables for conversion and user volume, calculate projected revenue, and add a chart comparing scenarios.
-
-3. **Add useful artifacts**
-
-- Variables for assumptions you expect to change.
-- Formulas that reference those variables so the model updates together.
-- Tables for scenarios.
-- Tabs for base, optimistic, and conservative cases.
-- Charts for comparisons.
-- Comments for assumptions that need validation.
-
-![Live Moss screenshot of the Decision-making and Analysis workflow in the Use Cases note.](assets/analysis-visual-walkthrough.png)
-
-Use the same pattern for product pricing, budget planning, launch forecasting, feature scoring, design-token systems, or any decision where one input should update downstream values.
-
-4. **Use a coding agent**
-
-When analysis depends on exported data, scripts, logs, or code, share the note. Ask the coding agent to compute the results and write the explanation, tables, and charts back into Moss.
+**Hand off** the note as context whenever the implementation raises the question again.
 
 ---
 
-## 4️⃣ Design & Codebase Docs
+## Docs That Track Code
 
-Use Moss when you need documentation that combines rationale, examples, tokens, codebase context, and visual references.
+Documentation rots when it lives away from the thing it describes. A vault in a repo does not have that problem.
 
-1. **Start in Moss**
+**Start with** one note per subsystem: what it does, what it owns, what it refuses to do.
 
-Create a note for the component, pattern, or foundation. Put the decision and usage guidance before detailed tokens or implementation notes.
+**Ask the agent:**
 
-2. **Use the Moss Agent**
+> Read the module and update this note to match. Comment on anything the code\
+> does that the note does not explain.
 
-Ask the Moss Agent for a structured documentation page:
+**Then add** ASCII diagrams in plain fences (they diff cleanly), tables for configuration, and links between subsystem notes.
 
-> Draft design and codebase documentation for our button component. Include when to use it, variants, states, accessibility notes, token references, implementation notes, and examples.
-
-3. **Add useful artifacts**
-
-- Color previews with swatches for token values.
-- Variables for token values that should move as a system.
-- Tables for variants, states, and usage rules.
-- Tabs for component variants, states, or platform examples.
-- Small embedded HTML examples for visual previews.
-- Canvas blocks for flows or composition sketches.
-- Wiki Links to related foundation, component, or pattern notes.
-
-![Live Moss screenshot of the Design and Codebase Docs workflow in the Use Cases note.](assets/design-system-documentation-visual-walkthrough.png)
-
-4. **Use a coding agent**
-
-When the documentation must stay aligned with a codebase, share the note. Ask the coding agent to compare it with component files, design-token files, or tests, then update the note with mismatches and suggested fixes.
+**Hand off** continuously — a coding agent that just changed a module can update its note in the same turn.
 
 ---
 
-## 5️⃣ Launch & Release Review
+## Release Review
 
-Use Moss when a draft, release, or handoff needs structured review before it becomes public or shipped.
+**Start with** what is shipping, what is risky, and what the rollback is.
 
-1. **Start in Moss**
+**Ask the agent:**
 
-Create a launch or review note with a short summary, decision owner, checklist, risks, and open questions.
+> Review this against the linked spec and comment on anything that changed\
+> without being written down.
 
-2. **Use the Moss Agent**
+**Then add** a checklist for the gates, a chart for whatever you are watching after the release, and a warning callout for the failure you would most regret forgetting.
 
-Ask the Moss Agent for a critique:
-
-> Review this launch plan. Leave comments where the audience, risks, rollout steps, or success metrics are unclear.
-
-Work through the comments in the right gutter.
-
-3. **Add useful artifacts**
-
-- Checklists for launch readiness.
-- Comments for required decisions.
-- Tables for owners, dates, and status.
-- Wiki Links to specs, research, release notes, and design docs.
-- Charts or formulas if you are tracking metrics or thresholds.
-
-![Live Moss screenshot of the Launch and Release Review workflow in the Use Cases note.](assets/launch-review-workflow-visual-walkthrough.png)
-
-4. **Use a coding agent**
-
-When the review touches implementation, release notes, QA, or docs, share the note. Ask the coding agent to update the relevant files and summarize what changed back in Moss.
+**Hand off** the note as the running record: reviewers answer comments, and the resolved threads become the history of what was checked.
 
 ---
 
-## Combine Workflows
+## Combining Them
 
-Most real work uses more than one pattern. A product idea might start as research, become a spec with an embedded prototype, feed a coding agent for implementation, and turn into a launch checklist. Use this note to pick the workflow shape, then use [[Getting Started with Moss|a618c388-0d20-4ebe-bcbd-55b9d59094ec]] when you need mechanics for a specific Moss feature.
+These are not separate modes. Research becomes a decision, the decision becomes a spec, the spec becomes docs, and the links between them are what make the vault worth more than the sum of its notes. Start one note, link the next, and let **Related** show you the shape you have been building.

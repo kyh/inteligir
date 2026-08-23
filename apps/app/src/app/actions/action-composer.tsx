@@ -1,5 +1,5 @@
 // The ⌘K Action Composer — fluid's ask-AI input floating over the note
-// (Moss's model): a
+// a
 // prompt field with the open note attached as a removable context chip, more
 // notes @-mentionable into chips beside it, the mic riding along, send
 // starting the action. The action ATTACHES to the note

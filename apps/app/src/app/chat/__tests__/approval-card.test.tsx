@@ -4,7 +4,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import type { ApprovalPendingInteractionPayload } from "@repo/domain/pending-interactions";
 import type { PendingInteraction } from "@repo/server-contract/threads";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ApprovalCard } from "../approval-card";
+import { ApprovalCard, approvalOffer, decisionFromAnswers } from "../approval-card";
 
 afterEach(cleanup);
 
@@ -71,5 +71,26 @@ describe("ApprovalCard", () => {
     );
     fireEvent.click(screen.getByText("Deny"));
     expect(onAnswer).not.toHaveBeenCalled();
+  });
+
+  it("maps the payload onto the card's one radio question", () => {
+    const offer = approvalOffer(interactionWith(commandPayload));
+    expect(offer.summary).toBe("$ rm -rf node_modules");
+    expect(offer.reason).toBe("The command deletes files.");
+    // Deny is appended once, last, and never duplicated when offered.
+    expect(offer.decisions).toEqual(["allow_once", "deny"]);
+    expect(approvalOffer(interactionWith(null)).decisions).toEqual(["deny"]);
+  });
+
+  it("takes the picked option id as the resolution verb, and nothing else", () => {
+    expect(decisionFromAnswers([{ questionId: "pint_1", optionIds: ["allow_once"] }])).toBe(
+      "allow_once",
+    );
+    // A custom answer is not a decision this route can take.
+    expect(
+      decisionFromAnswers([{ questionId: "pint_1", optionIds: [], custom: "maybe" }]),
+    ).toBeNull();
+    expect(decisionFromAnswers([{ questionId: "pint_1", optionIds: ["nonsense"] }])).toBeNull();
+    expect(decisionFromAnswers([])).toBeNull();
   });
 });

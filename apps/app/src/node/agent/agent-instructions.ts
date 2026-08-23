@@ -21,12 +21,12 @@ are set in your environment. Run \`inteligir guide\` for the manual; every \
 command takes \`--json\`.`;
 
 /** Appended when the vendored dialect skills resolved: notes here persist the
- *  Moss dialect, and the skills are its first-party spec — three sentences of
+ *  inteligir dialect, and the skills are its spec — three sentences of
  *  pointer, never the spec itself (the per-turn cost rule above). */
-const SKILLS_POINTER_INSTRUCTIONS = `Notes in this vault use the Moss markdown dialect \
-(wiki links, {{formula}} pills, %%m:id%% comment anchors, moss-* fenced blocks). \
+const SKILLS_POINTER_INSTRUCTIONS = `Notes in this vault use the inteligir markdown dialect \
+(wiki links, {{formula}} pills, %%i:id%% comment anchors, inteligir-* fenced blocks). \
 The dialect's own skills live in $INTELIGIR_SKILLS_DIR — read the relevant \
-SKILL.md there (moss-notes first) before authoring or editing constructs, and \
+SKILL.md there (inteligir-notes first) before authoring or editing constructs, and \
 follow it exactly; the app parses what it specifies.`;
 
 /**

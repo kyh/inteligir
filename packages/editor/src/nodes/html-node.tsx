@@ -1,5 +1,4 @@
-// moss-html: a self-contained interactive HTML artifact (vendored moss-html
-// skill). Renders as a source card by default; "Preview" mounts a sandboxed
+// The html block: a self-contained interactive HTML artifact. Renders as a source card by default; "Preview" mounts a sandboxed
 // srcdoc iframe with NO permissions, and "Run" re-mounts it with
 // allow-scripts — a user-initiated escalation, never the default. There is no
 // allow-same-origin under any mode: with scripts on, same-origin would hand
@@ -14,8 +13,8 @@
 import { type PlateElementProps, PlateElement } from "platejs/react";
 import { useState } from "react";
 
-import { DegradedPayloadView, MossBlockCard, PayloadEditor } from "./moss-block-chrome";
-import { setBlockValue } from "./moss-block-value";
+import { DegradedPayloadView, RichBlockCard, PayloadEditor } from "./rich-block-chrome";
+import { setBlockValue } from "./rich-block-value";
 
 type HtmlMode = "source" | "preview" | "run";
 
@@ -54,7 +53,7 @@ export function HtmlElement(props: PlateElementProps) {
 
   return (
     <PlateElement {...props}>
-      <MossBlockCard
+      <RichBlockCard
         label="html"
         actions={
           <span className="flex items-center gap-2">
@@ -93,7 +92,7 @@ export function HtmlElement(props: PlateElementProps) {
           <>
             <iframe
               key={mode}
-              title="moss-html preview"
+              title="HTML preview"
               srcDoc={value}
               sandbox={mode === "run" ? "allow-scripts" : ""}
               className="h-96 w-full border-0 bg-white print:hidden"
@@ -105,7 +104,7 @@ export function HtmlElement(props: PlateElementProps) {
             </div>
           </>
         )}
-      </MossBlockCard>
+      </RichBlockCard>
       {props.children}
     </PlateElement>
   );

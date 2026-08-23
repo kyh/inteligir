@@ -1,5 +1,5 @@
 // The virgin-boot vault content: a starter set of notes (Welcome, the two
-// Moss onboarding docs, a kitchen sink) with their comment sidecars and
+// onboarding docs, a kitchen sink) with their comment sidecars and
 // referenced assets, shipped as FILES under apps/app/seed and staged beside
 // the app bundle in the packaged layout (the skills-dir pattern — content the
 // product reads, not code it imports). Every seed .md is byte-canonical

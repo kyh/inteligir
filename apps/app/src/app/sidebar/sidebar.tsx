@@ -1,4 +1,4 @@
-// The workspace's left rail (Moss's IA) on the fluid sidebar anatomy: search
+// The workspace's left rail on the fluid sidebar anatomy: search
 // + create actions on top, the recency-ordered NOTES LIST as the default view
 // with the file tree one toggle away, and the sync status row at the bottom.
 // The fluid provider owns width/collapse (workspace.tsx mounts it); this file

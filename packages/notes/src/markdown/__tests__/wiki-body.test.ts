@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { isUuidWikiAlias, parseWikiBodyRange } from "../remark-wiki-link";
 
-describe("parseWikiBodyRange — Moss escapes and tight-# anchors", () => {
+describe("parseWikiBodyRange — escapes and tight-# anchors", () => {
   it("splits a tight # into the anchor", () => {
     expect(parseWikiBodyRange("Note#Heading")).toEqual({
       target: "Note",
@@ -53,7 +53,7 @@ describe("parseWikiBodyRange — Moss escapes and tight-# anchors", () => {
 });
 
 describe("isUuidWikiAlias", () => {
-  it("matches Moss's resolved-link uuid, either case", () => {
+  it("matches the resolved-link uuid, either case", () => {
     expect(isUuidWikiAlias("9e64c3df-c1e2-4a4d-8c07-91528f422413")).toBe(true);
     expect(isUuidWikiAlias("9E64C3DF-C1E2-4A4D-8C07-91528F422413")).toBe(true);
   });

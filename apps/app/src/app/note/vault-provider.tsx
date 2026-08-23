@@ -210,7 +210,7 @@ export function VaultProvider({
         path !== null && flat.some((entry) => entry.path === path && entry.kind === "doc");
       const last = readLastOpenNote();
       // Among the virgin-boot seeds, Welcome is the front door — plain
-      // listing order would land on "Getting Started with Moss" first.
+      // listing order would land on "Getting Started" first.
       const target = known(bootPath)
         ? bootPath
         : known(last)
@@ -501,7 +501,7 @@ function createGuardedVaultIo(api: Api): VaultIO {
   };
 
   const remove = async (path: string): Promise<DeleteVaultEntryResult> => {
-    // A note deletes into the vault's Trash/ (Moss's shape — restorable for
+    // A note deletes into the vault's Trash/ (restorable for
     // 30 days); anything else, and anything already in the trash, deletes
     // for real. The port answers "trashed" either way: the session only
     // needs to know the row is gone from the listing.

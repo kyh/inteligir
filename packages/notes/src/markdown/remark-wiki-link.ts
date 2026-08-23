@@ -199,7 +199,7 @@ export type WikiBody = {
  * text, so span verification fails closed and such a link is never rewritten. */
 export type WikiBodyRange = WikiBody & { targetRange?: { start: number; end: number } };
 
-/** Moss's resolved-link form puts the target note's uuid after the pipe; a
+/** The resolved-link form puts the target note's uuid after the pipe; a
  * uuid-shaped alias is identity plumbing, never display text. */
 const UUID_ALIAS_RE = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 
@@ -213,13 +213,13 @@ function isEscapedAt(text: string, index: number): boolean {
   return backslashes % 2 === 1;
 }
 
-// Only Moss's two escapes unescape; any other backslash is title text.
+// Only the dialect's two escapes unescape; any other backslash is title text.
 function unescapeWikiText(text: string): string {
   return text.replace(/\\([\\#])/g, "$1");
 }
 
 /** The first `#` that starts an anchor: unescaped, and TIGHT — at position 0
- * or with non-whitespace on both sides (Moss's rule, so `[[C# Notes]]` and
+ * or with non-whitespace on both sides (so `[[C# Notes]]` and
  * `[[A # B]]` stay titles while `[[Note#Heading]]` splits). */
 function anchorIndex(head: string): number {
   for (let i = 0; i < head.length; i++) {
@@ -237,7 +237,7 @@ function anchorIndex(head: string): number {
 /** Split a raw wiki body into target / #anchor / |alias, tracking where the
  * target sits inside the body (for byte-surgical rewrites). */
 export function parseWikiBodyRange(body: string): WikiBodyRange {
-  // The LAST pipe starts the alias (Moss dialect): a title containing `|` is
+  // The LAST pipe starts the alias: a title containing `|` is
   // legal when paired with a resolved-UUID suffix, so the split must keep the
   // whole title intact rather than truncating at its first pipe.
   const pipe = body.lastIndexOf("|");

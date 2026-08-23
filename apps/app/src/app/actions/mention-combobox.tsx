@@ -1,4 +1,4 @@
-// The composer's @-mention picker (Moss's context mentions): a small
+// The composer's @-mention picker: a small
 // combobox over the vault's notes, fed by the knowledge wiki-targets the
 // `[[` picker already answers from. Pure helpers own the two decisions —
 // where an @-mention IS (word-boundary `@`, no whitespace before the caret)

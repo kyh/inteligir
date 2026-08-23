@@ -1,11 +1,12 @@
-// moss-canvas: Moss's rough spatial surface. The payload (vendored
-// moss-canvas skill): line 1 `[moss:grid:v2]`, an optional single-line
-// `[moss:labels:<JSON array>]`, then up to 60 grid rows of up to 120 chars
-// where `.`/space are empty and anything else is ink. Sketching edits CELLS,
-// not the whole grid — a stroke commits once on pointer-up through the one
-// writer, and untouched cells keep their original characters. Legacy
-// `moss-sketch` fences keep their name (the skill's own rule) and land here
-// too.
+// The canvas: a rough spatial surface. The payload is line 1
+// `[inteligir:grid:v2]`, an optional single-line
+// `[inteligir:labels:<JSON array>]`, then up to 60 grid rows of up to 120
+// chars where `.`/space are empty and anything else is ink. Sketching edits
+// CELLS, not the whole grid — a stroke commits once on pointer-up through the
+// one writer, and untouched cells keep their original characters.
+//
+// Moss's `[moss:…]` header spellings PARSE too, so a converted note opens
+// unchanged; the one writer always emits ours, which canonicalizes it.
 
 import { z } from "zod";
 import { type PlateElementProps, PlateElement } from "platejs/react";
@@ -19,8 +20,9 @@ import {
   paintCanvasCells,
   strokeSegmentCells,
 } from "./canvas-sketch";
-import { DegradedPayloadView, MossBlockCard, PayloadEditor } from "./moss-block-chrome";
-import { setBlockValue } from "./moss-block-value";
+import { DegradedPayloadView, RichBlockCard, PayloadEditor } from "./rich-block-chrome";
+import { setBlockValue } from "./rich-block-value";
+import { GRID_HEADER, isGridHeader, labelLinePrefix } from "@repo/editor/nodes/canvas-header";
 
 const COLS = 120;
 const ROWS = 60;
@@ -49,17 +51,18 @@ export type CanvasParse =
 
 export function parseCanvasPayload(value: string): CanvasParse {
   const lines = value.split("\n");
-  if (lines[0]?.trim() !== "[moss:grid:v2]") {
-    return { ok: false, reason: "The payload does not begin with [moss:grid:v2]." };
+  if (!isGridHeader(lines[0])) {
+    return { ok: false, reason: `The payload does not begin with ${GRID_HEADER}.` };
   }
   let rowStart = 1;
   let labels: z.infer<typeof labelSchema>[] = [];
   const labelLine = lines[1];
-  if (labelLine !== undefined && labelLine.startsWith("[moss:labels:")) {
+  const labelPrefix = labelLinePrefix(labelLine);
+  if (labelLine !== undefined && labelPrefix !== null) {
     if (!labelLine.endsWith("]]")) {
       return { ok: false, reason: "The labels line does not close." };
     }
-    const raw = labelLine.slice("[moss:labels:".length, -1);
+    const raw = labelLine.slice(labelPrefix.length, -1);
     let json: unknown;
     try {
       json = JSON.parse(raw);
@@ -99,16 +102,11 @@ function CanvasSvg({ grid, labels }: { grid: boolean[][]; labels: z.infer<typeof
       className="w-full"
     >
       <defs>
-        <pattern
-          id="moss-canvas-dots"
-          width={CELL * 4}
-          height={CELL * 4}
-          patternUnits="userSpaceOnUse"
-        >
+        <pattern id="canvas-dots" width={CELL * 4} height={CELL * 4} patternUnits="userSpaceOnUse">
           <circle cx={1} cy={1} r={0.7} fill="var(--border)" />
         </pattern>
       </defs>
-      <rect width="100%" height="100%" fill="url(#moss-canvas-dots)" />
+      <rect width="100%" height="100%" fill="url(#canvas-dots)" />
       {grid.flatMap((row, rowIndex) =>
         row.flatMap((filled, colIndex) =>
           filled
@@ -210,7 +208,7 @@ function SketchSurface({
     >
       <defs>
         <pattern
-          id="moss-canvas-sketch-dots"
+          id="canvas-sketch-dots"
           width={CELL * 4}
           height={CELL * 4}
           patternUnits="userSpaceOnUse"
@@ -218,7 +216,7 @@ function SketchSurface({
           <circle cx={1} cy={1} r={0.7} fill="var(--border)" />
         </pattern>
       </defs>
-      <rect width="100%" height="100%" fill="url(#moss-canvas-sketch-dots)" />
+      <rect width="100%" height="100%" fill="url(#canvas-sketch-dots)" />
       {grid.flatMap((row, rowIndex) =>
         row.flatMap((filled, colIndex) =>
           filled && !(erasing && pending.has(`${String(colIndex)},${String(rowIndex)}`))
@@ -294,7 +292,7 @@ export function CanvasElement(props: PlateElementProps) {
 
   return (
     <PlateElement {...props}>
-      <MossBlockCard
+      <RichBlockCard
         label="canvas"
         actions={
           mode === "view" ? (
@@ -390,7 +388,7 @@ export function CanvasElement(props: PlateElementProps) {
         ) : (
           <DegradedPayloadView reason={parsed.reason} value={value} />
         )}
-      </MossBlockCard>
+      </RichBlockCard>
       {props.children}
     </PlateElement>
   );

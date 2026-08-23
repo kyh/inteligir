@@ -36,6 +36,8 @@ import { describe, expect, it } from "vitest";
 import { REPO_ROOT, isSkippedDir, workspaces } from "./repo";
 
 const PROVENANCE_FILE = "PROVENANCE.md";
+/** How a record points at a shared text: `licenses/<upstream>.LICENSE`. */
+const SHARED_LICENSE_REFERENCE = /`(licenses\/[^`]+)`/;
 /** Everything a copyright notice can ride in. Data files (LICENSE, .json,
  *  fixtures) carry no comment syntax, so they are not asked for one. */
 const ATTRIBUTABLE = /\.(?:tsx?|mts|cts|mjs|cjs|jsx?|css)$/;
@@ -294,16 +296,28 @@ describe("vendored provenance", () => {
     // with the copy, and that text names a copyright holder no notice line
     // carries. A PROVENANCE.md naming "MIT" while the tree holds no license
     // file is the exact gap this asserts away.
+    // The text may sit beside the record, or in the repo-root `licenses/`
+    // directory when several records share one upstream — seven byte-identical
+    // copies of bb's MIT text was duplication, not diligence. Every workspace
+    // here is `private: true` except the published launcher, so the license
+    // travels with the artifact that ships, not with a package nobody
+    // installs. A record naming a license whose text exists NOWHERE is still
+    // the gap this asserts away.
     const violations: string[] = [];
     for (const entry of vendored) {
-      const found = fs
+      const beside = fs
         .readdirSync(path.join(REPO_ROOT, entry.dir))
         .some((name) => /^licen[cs]e/i.test(name));
-      if (found) continue;
+      // A shared text counts only when the record NAMES it: "a license exists
+      // somewhere in licenses/" would let an Apache record pass on an MIT
+      // file, which is the confusion this whole guard exists to prevent.
+      const named = SHARED_LICENSE_REFERENCE.exec(readFile(`${entry.dir}/${PROVENANCE_FILE}`));
+      const shared = named !== null && fs.existsSync(path.join(REPO_ROOT, named[1] ?? ""));
+      if (beside || shared) continue;
       violations.push(
         `MISSING LICENSE  ${entry.dir}\n` +
-          `  rule: a directory vendoring ${entry.license} code carries that license's own text\n` +
-          `  fix: copy the license file from ${entry.upstream} at ${entry.commit} into ${entry.dir}/`,
+          `  rule: ${entry.license} code carries that license's own text — beside the record, or in licenses/ when records share an upstream\n` +
+          `  fix: copy the license file from ${entry.upstream} at ${entry.commit} into ${entry.dir}/ or licenses/`,
       );
     }
     expect(violations, `\n${violations.join("\n\n")}\n`).toEqual([]);

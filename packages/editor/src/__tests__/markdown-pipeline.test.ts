@@ -142,7 +142,7 @@ describe("opaque nodes (constructs with no editor node)", () => {
 
   it("leaves the app's own components modelled, never opaque", () => {
     const md = [
-      "```moss-callout",
+      "```inteligir-callout",
       "info",
       "x",
       "```",
@@ -178,9 +178,9 @@ describe("opaque nodes (constructs with no editor node)", () => {
     // The value is RE-SERIALIZED, never sliced out of the source: a slice would
     // capture the `> ` markers and the stringifier would add a second set.
     expectOpaque("> <Steps>\n>   quoted\n> </Steps>\n", ["<Steps>\n  quoted\n</Steps>"]);
-    // Inside a moss-callout fence the body re-parses as markdown, so a JSX
+    // Inside a callout fence the body re-parses as markdown, so a JSX
     // construct there is opaque WITHIN the callout's children.
-    expectOpaque("```moss-callout\ninfo\n<Steps>\n  nested\n</Steps>\n```\n", [
+    expectOpaque("```inteligir-callout\ninfo\n<Steps>\n  nested\n</Steps>\n```\n", [
       "<Steps>\n  nested\n</Steps>",
     ]);
   });
@@ -344,7 +344,7 @@ describe("serialize rules (probe1 §5 / probe5 translations)", () => {
       ],
     });
     expect(out).not.toContain("id=");
-    expect(out).toContain("```moss-callout");
+    expect(out).toContain("```inteligir-callout");
     expect(out).toContain('<video src="https://y.tb/1" />');
     expect(out).toContain('<file src="https://e.com/a.pdf" />');
     expect(out).toContain("<toggle>");
@@ -502,32 +502,32 @@ const variantsOf = (md: string): string => {
   return JSON.stringify(parsed.value);
 };
 
-describe("moss-callout payload forms (Moss `type:`/`level:` + unknown kinds)", () => {
+describe("callout payload forms (prefixed `type:`/`level:` + unknown kinds)", () => {
   it("round-trips the prefixed spellings byte-exact", () => {
     for (const md of [
-      "```moss-callout\ntype: warning\nCareful.\n```\n",
-      "```moss-callout\ntype: priority\nlevel: high\nShip it.\n```\n",
+      "```inteligir-callout\ntype: warning\nCareful.\n```\n",
+      "```inteligir-callout\ntype: priority\nlevel: high\nShip it.\n```\n",
     ]) {
       expect(roundTrip(md)).toBe(md);
     }
   });
 
   it("prefixed and bare forms parse to the same callout variant", () => {
-    const bare = variantsOf("```moss-callout\nwarning\nCareful.\n```\n");
-    const prefixed = variantsOf("```moss-callout\ntype: warning\nCareful.\n```\n");
+    const bare = variantsOf("```inteligir-callout\nwarning\nCareful.\n```\n");
+    const prefixed = variantsOf("```inteligir-callout\ntype: warning\nCareful.\n```\n");
     expect(bare).toContain('"variant":"warning"');
     expect(prefixed).toContain('"variant":"warning"');
   });
 
   it("an unknown kind stays a plain code block, byte-stable", () => {
-    const md = "```moss-callout\nshiny\nbody\n```\n";
+    const md = "```inteligir-callout\nshiny\nbody\n```\n";
     expect(roundTrip(md)).toBe(md);
     expect(variantsOf(md)).not.toContain('"type":"callout"');
   });
 
   it("a priority level line under a non-priority kind is body text", () => {
-    expect(roundTrip("```moss-callout\ntype: info\nlevel: high\n```\n")).toBe(
-      "```moss-callout\ntype: info\nlevel: high\n```\n",
+    expect(roundTrip("```inteligir-callout\ntype: info\nlevel: high\n```\n")).toBe(
+      "```inteligir-callout\ntype: info\nlevel: high\n```\n",
     );
   });
 });

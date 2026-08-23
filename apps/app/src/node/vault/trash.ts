@@ -1,4 +1,4 @@
-// Trash over the vault service (Moss's shape): deleting a note MOVES it into
+// Trash over the vault service: deleting a note MOVES it into
 // the vault's own `Trash/` folder, keeping its relative path, its bytes and
 // its comments sidecar; restore moves it back. The original path and the
 // deletion time ride the note's OWN frontmatter (`trashed-from`/`trashed-at`)
@@ -26,7 +26,7 @@ import { VaultServiceError, type VaultService } from "./vault-service";
 const TRASHED_FROM_KEY = "trashed-from";
 const TRASHED_AT_KEY = "trashed-at";
 
-/** Moss keeps trashed notes for 30 days; so do we. */
+/** Trashed notes are kept for 30 days. */
 export const TRASH_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 
 const COLLISION_ATTEMPTS = 1000;

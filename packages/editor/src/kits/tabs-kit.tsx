@@ -1,4 +1,4 @@
-// Tab-group kit: the Moss `:::tabs` container as editable Plate elements.
+// Tab-group kit: the `:::tabs` container as editable Plate elements.
 // tab_group > tab_panel(label) > any blocks. One panel shows at a time; the
 // rest stay MOUNTED but hidden (display:none), so Slate's model — and any
 // pending edit inside a hidden panel — survives switching. The active index

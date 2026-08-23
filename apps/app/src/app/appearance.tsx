@@ -17,7 +17,7 @@ type EditorFont = "sans" | "serif" | "mono";
 type EditorSize = "small" | "normal" | "large";
 type EditorLeading = "tight" | "normal" | "relaxed";
 type EditorMeasure = "narrow" | "normal" | "wide";
-type EditorAccent = "default" | "sky" | "violet" | "moss" | "clay";
+type EditorAccent = "default" | "sky" | "violet" | "sage" | "clay";
 
 interface Option<Value extends string, Css> {
   readonly value: Value;
@@ -73,8 +73,8 @@ export const EDITOR_ACCENTS: readonly Option<EditorAccent, AccentCss>[] = [
     css: { light: "oklch(53% 0.13 292)", dark: "oklch(76% 0.1 292)" },
   },
   {
-    value: "moss",
-    label: "Moss",
+    value: "sage",
+    label: "Sage",
     css: { light: "oklch(50% 0.09 156)", dark: "oklch(74% 0.08 156)" },
   },
   {

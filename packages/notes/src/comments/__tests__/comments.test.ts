@@ -37,7 +37,7 @@ describe("sidecar schema", () => {
   it("round-trips unknown fields and insertion order", () => {
     const raw = `${JSON.stringify(
       {
-        z: { text: "t", createdAt: AT, updatedAt: AT, mossOnly: { deep: true } },
+        z: { text: "t", createdAt: AT, updatedAt: AT, foreignOnly: { deep: true } },
         a: { text: "u", createdAt: AT, updatedAt: AT, imageUrl: "assets/legacy.png" },
       },
       null,

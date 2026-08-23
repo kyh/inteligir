@@ -45,7 +45,7 @@ import {
   insertCanvasBlock,
   insertChartBlock,
   insertHtmlBlock,
-} from "@repo/editor/kits/moss-blocks-kit";
+} from "@repo/editor/kits/rich-blocks-kit";
 import { insertTabGroup } from "@repo/editor/kits/tabs-kit";
 import { EmbedUrlDialogHost, openEmbedUrlDialog } from "@repo/editor/embed-url-dialog";
 import {

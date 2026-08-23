@@ -85,7 +85,7 @@ describe("the unfolded list", () => {
 
 describe("linked-mention previews", () => {
   it("renders the linking sentence as prose, not dialect bytes", () => {
-    expect(plainSnippet("- A [[Getting Started with Moss#Lists|the tour]] mention")).toBe(
+    expect(plainSnippet("- A [[Getting Started#Lists|the tour]] mention")).toBe(
       "A the tour mention",
     );
     expect(plainSnippet("> Cost is {{2*3|6}} today")).toBe("Cost is 6 today");

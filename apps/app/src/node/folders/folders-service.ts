@@ -1,4 +1,4 @@
-// Connected Folders policy (issue #601, Moss parity): the directories agent
+// Connected Folders policy: the directories agent
 // sessions are TOLD ABOUT as read-only reference context. Not a permission
 // grant — the harness's shell can already read whatever the OS lets this user
 // read — so validation here is about keeping the LIST honest, not about

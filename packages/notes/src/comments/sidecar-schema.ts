@@ -1,7 +1,6 @@
-// The comments sidecar (`<note>.md.comments.json`), in Moss's row shape — the
-// vendored moss-comments skill is the contract. One JSON object keyed by
+// The comments sidecar (`<note>.md.comments.json`). One JSON object keyed by
 // comment id; entries validate the fields this app reads and PASS THROUGH
-// everything else, because an external writer (Moss itself included) may hold
+// everything else, because an external writer may hold
 // fields this version has never heard of and a rewrite must not eat them.
 
 import { z } from "zod";
@@ -54,7 +53,7 @@ export function parseSidecar(raw: string): SidecarParse {
 }
 
 /** Serialize with 2-space indent and a trailing newline — a diffable file a
- * human (or Moss) edits by hand. Insertion order is preserved, so an external
+ * human edits by hand. Insertion order is preserved, so an external
  * writer's ordering survives a rewrite. */
 export function serializeSidecar(sidecar: CommentSidecar): string {
   return `${JSON.stringify(sidecar, null, 2)}\n`;

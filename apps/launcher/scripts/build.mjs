@@ -23,7 +23,7 @@
 // importer is what tools/repo-guards/src/dep-dag.test.ts refuses. The build
 // ORDER that leaves is turbo.json's business.
 
-import { chmod, cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { chmod, cp, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
@@ -43,6 +43,7 @@ import {
 } from "./staged-layout.mjs";
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const repoRoot = resolve(packageRoot, "..", "..");
 const distDir = installDistDir(packageRoot);
 const appSource = resolve(packageRoot, "..", APP_DIR);
 const cliSource = resolve(packageRoot, "..", CLI_DIR);
@@ -100,6 +101,33 @@ await cp(
 // first run, staged beside the app bundle so resolveSeedDir's packaged probe
 // (dist-node/../seed) finds it — same shelf, same reason as the skills.
 await cp(join(packageRoot, "..", "app", "seed"), join(stagedApp, "seed"), { recursive: true });
+
+// Third-party license texts. This is the ONLY published workspace — every
+// other package is `private: true` — so the notices MIT and Apache require to
+// travel with a copy have to travel with THIS artifact, not with a package
+// nobody installs. Collected rather than listed: a new vendored upstream adds
+// its text and ships automatically, where a hand-kept list would go stale
+// exactly when a license was added.
+const licenseSources = [
+  join(repoRoot, "licenses"),
+  ...["packages/ui", "packages/ui/src/ai", "packages/editor", "packages/agent-skills"].map((dir) =>
+    join(repoRoot, dir),
+  ),
+];
+const stagedLicenses = join(distDir, "licenses");
+await mkdir(stagedLicenses, { recursive: true });
+for (const source of licenseSources) {
+  let names = [];
+  try {
+    names = await readdir(source);
+  } catch {
+    // A directory whose vendored code was removed takes its licenses with it.
+    continue;
+  }
+  for (const name of names.filter((entry) => /licen[cs]e/i.test(entry))) {
+    await cp(join(source, name), join(stagedLicenses, name), { recursive: true });
+  }
+}
 
 // The CLI: its own bundle plus the `inteligir` shim two different callers
 // resolve — npm's `inteligir-cli` bin, and the PATH entry the server injects

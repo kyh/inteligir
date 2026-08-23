@@ -19,7 +19,7 @@ import { fileURLToPath } from "node:url";
 const CLI_BIN_NAME = "inteligir";
 
 /**
- * The vendored Moss dialect skills (@repo/agent-skills), resolved from wherever
+ * The dialect skills (@repo/agent-skills), resolved from wherever
  * this build's module graph put them — the agent reads them with its own shell
  * (`cat`, `rg`), the memory pattern's sibling. Null when the package cannot be
  * resolved (a packaged layout that did not stage the content), and the

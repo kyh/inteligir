@@ -2,7 +2,7 @@
   "name": "@repo/agent-skills",
   "version": "0.1.0",
   "private": true,
-  "description": "Vendored moss-skills: the Moss dialect's first-party spec, served to agents",
+  "description": "The inteligir dialect's spec, served to agents as files",
   "exports": {
     "./skills/*": "./skills/*"
   }

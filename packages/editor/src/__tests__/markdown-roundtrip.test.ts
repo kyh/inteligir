@@ -76,8 +76,14 @@ describe("raw fixtures (throw-or-Raw, never mangled)", () => {
 //   mailto-resource — `[a@b.cd](mailto:a@b.cd)` collapses to the bare literal
 //                     (same link on re-parse, but the "mailto" letters vanish)
 //   jsx-callout     — the legacy `<callout variant="x">` JSX converts to the
-//                     moss-callout fence; the "variant" attribute NAME vanishes
+//                     callout fence; the "variant" attribute NAME vanishes
 //                     (mechanism, not content — the kind itself survives)
+//
+// The legacy-moss-* fixtures are deliberately NOT here: a Moss-written note
+// canonicalizes to our spelling, which changes letters while losing nothing,
+// and `normalizeLegacySpellings` is what keeps the safety check from reading
+// that rename as content loss. If they ever land in this set again, every
+// imported vault opens raw — that is the regression this absence guards.
 const CHURN_NOT_RICH_SAFE = new Set([
   "math-meta",
   "entities",

@@ -43,7 +43,7 @@ describe("the entry grammar", () => {
         display: "5,000",
         meta: "id=abc;name=budget",
         source: "5000",
-        type: "mossFormula",
+        type: "formulaPill",
       }),
     ).toBe("budget=5000");
     expect(
@@ -52,7 +52,7 @@ describe("the entry grammar", () => {
         display: "9am",
         meta: "id=abc",
         source: "time",
-        type: "mossFormula",
+        type: "formulaPill",
       }),
     ).toBe("time=9am");
     expect(
@@ -61,7 +61,7 @@ describe("the entry grammar", () => {
         display: "4",
         meta: "",
         source: "2+2",
-        type: "mossFormula",
+        type: "formulaPill",
       }),
     ).toBe("2+2");
   });

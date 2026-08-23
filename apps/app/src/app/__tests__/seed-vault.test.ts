@@ -20,7 +20,7 @@ const sidecars = entries.filter((name) => name.endsWith(".comments.json"));
 describe("seed vault", () => {
   it("ships the starter set", () => {
     expect(docs.toSorted()).toEqual([
-      "Getting Started with Moss.md",
+      "Getting Started.md",
       "Kitchen Sink.md",
       "Use Cases.md",
       "Welcome.md",

@@ -2,7 +2,7 @@
 
 - **Upstream**: https://github.com/get-bb/bb, `apps/cli`
 - **Commit**: `8e6fc83582881509077ce67ac5e4b59784d83121`
-- **License**: MIT — `LICENSE.bb` in this directory is upstream's own text,
+- **License**: MIT — `licenses/bb.LICENSE` at the repo root is upstream's own text,
   copied verbatim. The per-file notice below is not a substitute for it: MIT
   requires the license itself to travel with the copy, and it names a
   copyright holder no notice line carries.

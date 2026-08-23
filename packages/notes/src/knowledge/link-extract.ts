@@ -17,6 +17,7 @@
 
 import type { Nodes } from "mdast";
 
+import { isCalloutLang } from "../markdown/fence-langs";
 import { parseProperties, type ParsedProperties } from "../markdown/frontmatter";
 import { parseWikiBodyRange } from "../markdown/remark-wiki-link";
 import { parseScan } from "../markdown/scan-parse";
@@ -69,7 +70,7 @@ export type DocScan = {
    * here because frontmatter is the only property store and this scan is its
    * one parse; anything but a literal boolean true is false. */
   pinned: boolean;
-  /** Frontmatter `id:` — the note's Moss identity, which `[[Title|uuid]]`
+  /** Frontmatter `id:` — the note's stable identity, which `[[Title|uuid]]`
    * links resolve through. Null when absent or not a plain string. */
   noteId: string | null;
 };
@@ -132,7 +133,7 @@ export function scanDoc(source: string): DocScan {
         return;
       }
       case "code": {
-        if (node.lang === "moss-callout") scanCalloutBody(source, node, scan);
+        if (isCalloutLang(node.lang)) scanCalloutBody(source, node, scan);
         return;
       }
       default:
@@ -142,7 +143,7 @@ export function scanDoc(source: string): DocScan {
 }
 
 /**
- * A moss-callout fence's body is MARKDOWN (the editor models and renders it,
+ * A callout fence's body is MARKDOWN (the editor models and renders it,
  * wiki links included), so the scan must count what the editor draws —
  * editor ⊆ vault is the containment direction the knowledge index owes. The
  * body is re-scanned and every link's span is shifted into the OUTER source,

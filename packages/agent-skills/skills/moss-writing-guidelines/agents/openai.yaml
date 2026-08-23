@@ -1,4 +1,0 @@
-interface:
-  display_name: "Moss Writing Guidelines"
-  short_description: "Structure Moss notes for scannability with reader-first writing and the right nodes"
-  default_prompt: "Use $moss-writing-guidelines to structure a Moss note for scannability: lead with the takeaway, order sections by importance, and choose the right node for each piece of content."

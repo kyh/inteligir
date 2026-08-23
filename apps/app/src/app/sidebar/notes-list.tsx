@@ -1,4 +1,4 @@
-// The sidebar's default view (Moss's IA): pinned notes first (frontmatter
+// The sidebar's default view: pinned notes first (frontmatter
 // `pinned: true`, read off the knowledge projection — frontmatter is the only
 // property store), then notes ordered by recency with relative timestamps,
 // grouped by top-level folder with counts. The file TREE stays one toggle

@@ -1,4 +1,0 @@
-interface:
-  display_name: "Moss HTML"
-  short_description: "Embed self-contained moss-html previews, embedded HTML, and prototypes in Moss notes"
-  default_prompt: "Use $moss-html to create a focused moss-html preview or interactive prototype inside a Moss note."

@@ -48,7 +48,7 @@ declare module "unified" {
 declare module "micromark-util-types" {
   interface TokenTypeMap {
     mdxJsxTagStartProbe: "mdxJsxTagStartProbe";
-    mossFormulaStartProbe: "mossFormulaStartProbe";
+    formulaPillStartProbe: "formulaPillStartProbe";
   }
 }
 
@@ -177,33 +177,33 @@ function soleConstruct(record: ConstructRecord | undefined, code: number, what: 
   return construct;
 }
 
-// `{{` opens a Moss formula pill (remark-moss-inline), never an MDX
+// `{{` opens a formula pill (remark-inline-constructs), never an MDX
 // expression — a doubled brace is the one spelling the two grammars contest,
-// and the dialect gives it to Moss. The probe consumes the first `{` and
+// and the dialect gives it to the pill. The probe consumes the first `{` and
 // answers by the SECOND character alone: another `{` refuses the expression
 // construct (the text flows through to the mdast transform); anything else
 // lets mdx-expression run exactly as before, so single-brace expressions keep
 // their opaque preservation.
 const doubleBraceProbe: Construct = {
-  name: "mossFormulaStartProbe",
+  name: "formulaPillStartProbe",
   partial: true,
   tokenize(effects, ok, nok) {
     return start;
 
     function start(code: Code) {
-      effects.enter("mossFormulaStartProbe");
+      effects.enter("formulaPillStartProbe");
       effects.consume(code); // `{`
       return afterBrace;
     }
 
     function afterBrace(code: Code) {
-      effects.exit("mossFormulaStartProbe");
+      effects.exit("formulaPillStartProbe");
       return code === LEFT_BRACE ? ok(code) : nok(code);
     }
   },
 };
 
-function notMossFormula(construct: Construct): Construct {
+function notFormulaPill(construct: Construct): Construct {
   return {
     ...construct,
     // Both braces of a `{{` must decline: the probe covers the FIRST (its
@@ -224,10 +224,10 @@ function guardedMdxExpression(): Extension {
   const expression = mdxExpression();
   return {
     flow: {
-      [LEFT_BRACE]: notMossFormula(soleConstruct(expression.flow, LEFT_BRACE, "expression")),
+      [LEFT_BRACE]: notFormulaPill(soleConstruct(expression.flow, LEFT_BRACE, "expression")),
     },
     text: {
-      [LEFT_BRACE]: notMossFormula(soleConstruct(expression.text, LEFT_BRACE, "expression")),
+      [LEFT_BRACE]: notFormulaPill(soleConstruct(expression.text, LEFT_BRACE, "expression")),
     },
   };
 }

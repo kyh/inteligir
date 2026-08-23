@@ -1,5 +1,5 @@
 // Collecting a doc's formulas: the SAME parse the editor and the scan run
-// (remark-moss-inline's nodes), never a regex over raw text — a pill inside a
+// (remark-inline-constructs' nodes), never a regex over raw text — a pill inside a
 // code fence is literal there, and it must be literal here. The collector is
 // what the cross-note resolver reads, so its answer is identity-shaped:
 // which (id, name) holds which source, and what the note calls itself
@@ -34,7 +34,7 @@ const formulaNodeSchema = z.object({
   display: z.string(),
   meta: z.string().optional(),
   source: z.string(),
-  type: z.literal("mossFormula"),
+  type: z.literal("formulaPill"),
 });
 
 function isParent(node: Node): node is Parent {

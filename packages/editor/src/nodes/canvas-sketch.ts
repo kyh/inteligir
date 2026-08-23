@@ -1,9 +1,16 @@
-// Cell-wise edits over the moss-canvas text grid. A stroke rewrites ONLY the
+// Cell-wise edits over the canvas text grid. A stroke rewrites ONLY the
 // cells it touched: untouched cells keep their exact original characters
 // (existing payloads draw with arbitrary ink glyphs), the header and the
 // labels line pass through verbatim, and short rows are padded with `.` only
 // as far as a painted cell requires. `#` is the ink the vendored skill's own
 // example writes.
+
+import {
+  GRID_HEADER,
+  isGridHeader,
+  LABELS_PREFIX,
+  labelLinePrefix,
+} from "@repo/editor/nodes/canvas-header";
 
 export const CANVAS_COLS = 120;
 export const CANVAS_ROWS = 60;
@@ -20,10 +27,19 @@ interface SplitPayload {
 
 function splitPayload(value: string): SplitPayload | null {
   const lines = value.split("\n");
-  if (lines[0]?.trim() !== "[moss:grid:v2]") return null;
-  const hasLabels = lines[1]?.startsWith("[moss:labels:") === true;
-  const gridStart = hasLabels ? 2 : 1;
-  return { head: lines.slice(0, gridStart), rows: lines.slice(gridStart) };
+  if (!isGridHeader(lines[0])) return null;
+  const labelPrefix = labelLinePrefix(lines[1]);
+  const gridStart = labelPrefix === null ? 1 : 2;
+  // The head is REWRITTEN to our spelling rather than carried verbatim: this
+  // is the only path that edits a payload, so it is where a Moss-written
+  // canvas canonicalizes. Serialization cannot do it — a rich block's payload
+  // is verbatim by contract, and opening a note must never rewrite bytes.
+  const labelLine = lines[1];
+  const head =
+    labelPrefix === null || labelLine === undefined
+      ? [GRID_HEADER]
+      : [GRID_HEADER, LABELS_PREFIX + labelLine.slice(labelPrefix.length)];
+  return { head, rows: lines.slice(gridStart) };
 }
 
 /**

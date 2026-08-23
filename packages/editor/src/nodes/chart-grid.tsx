@@ -1,4 +1,4 @@
-// The chart block's inline data grid (Moss's affordance): labels down, one
+// The chart block's inline data grid: labels down, one
 // value column per series, editing whole cells and committing each change as
 // one editor transaction through the block's one writer. Every transform here
 // is a pure ChartPayload -> ChartPayload map that PRESERVES what the grid does

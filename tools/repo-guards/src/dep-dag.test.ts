@@ -38,7 +38,7 @@ import {
 const DECLARED_EDGES = new Map<string, readonly string[]>(
   Object.entries({
     // Leaves. Nothing in this repo may be below them.
-    // agent-skills is CONTENT (the vendored Moss dialect spec, issue #581) —
+    // agent-skills is CONTENT (the dialect spec, issue #581) —
     // markdown served to agents, importing nothing and imported as files.
     "@repo/agent-skills": [],
     "@repo/cloud-contract": [],
@@ -171,7 +171,7 @@ const DECLARED_ARTIFACT_EDGES = new Map<string, Record<string, string>>(
   Object.entries({
     "@repo/app": {
       "@repo/agent-skills":
-        "the vendored Moss dialect skills are CONTENT the agent reads with its shell — agent-shell-env.ts resolves the package's skills/ directory via createRequire and hands the path to agent sessions as INTELIGIR_SKILLS_DIR; no module import exists or should",
+        "the dialect skills are CONTENT the agent reads with its shell — agent-shell-env.ts resolves the package's skills/ directory via createRequire and hands the path to agent sessions as INTELIGIR_SKILLS_DIR; no module import exists or should",
     },
     "@repo/desktop": {
       inteligir:

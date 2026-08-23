@@ -6,7 +6,8 @@
 const PREVIEW_MAX_LINES = 20;
 
 const FRONTMATTER_RE = /^---\n[\s\S]*?\n---\n?/;
-const COMMENT_MARKER_RE = /%%m:[^%]*%%/g;
+// Both sigils: a legacy note still holds Moss's `m`.
+const COMMENT_MARKER_RE = /%%[im]:[^%]*%%/g;
 const WIKI_LINK_RE = /\[\[([^\]]*)\]\]/g;
 const MD_LINK_RE = /!?\[([^\]]*)\]\([^)]*\)/g;
 const FORMULA_RE = /\{\{[^}]*\}\}/g;

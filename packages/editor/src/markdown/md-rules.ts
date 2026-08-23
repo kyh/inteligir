@@ -35,10 +35,18 @@ import { parseMdast } from "@repo/notes/markdown/parse";
 import type { OpaqueBlock, OpaqueInline } from "@repo/notes/markdown/remark-opaque";
 import {
   parseFormulaRaw,
-  type MossCommentMarker,
-  type MossFormula,
-} from "@repo/notes/markdown/remark-moss-inline";
-import type { MossTabPanel, MossTabs } from "@repo/notes/markdown/remark-moss-tabs";
+  type CommentMarker,
+  type FormulaPill,
+} from "@repo/notes/markdown/remark-inline-constructs";
+import type { TabPanel, TabGroup } from "@repo/notes/markdown/remark-tabs";
+import {
+  CALLOUT_LANG,
+  CANVAS_LANG,
+  CHART_LANG,
+  HTML_LANG,
+  isCalloutLang,
+  RICH_FENCE_LANGS,
+} from "@repo/notes/markdown/fence-langs";
 import type { WikiEmbed, WikiLink } from "@repo/notes/markdown/remark-wiki-link";
 
 // Fail fast if a @platejs/markdown bump reshapes defaultRules — the alert rule
@@ -48,9 +56,9 @@ import type { WikiEmbed, WikiLink } from "@repo/notes/markdown/remark-wiki-link"
  * conversion can only produce root-level mdast, so this narrows by exclusion
  * the same way the remark transform does. */
 function isPanelContent(
-  node: MossTabPanel["children"][number] | { type: string },
-): node is MossTabPanel["children"][number] {
-  return node.type !== "yaml" && node.type !== "mossTabs" && node.type !== "mossTabPanel";
+  node: TabPanel["children"][number] | { type: string },
+): node is TabPanel["children"][number] {
+  return node.type !== "yaml" && node.type !== "tabGroup" && node.type !== "tabPanel";
 }
 
 /** A tab panel's children must be blocks; an empty panel gets one empty p. */
@@ -58,19 +66,12 @@ function ensureBlocks(children: Descendant[]): Descendant[] {
   return children.length > 0 ? children : [{ children: [{ text: "" }], type: "p" }];
 }
 
-const MOSS_FENCE_TYPES = new Map([
-  ["moss-canvas", "moss_canvas"],
-  ["moss-chart", "moss_chart"],
-  ["moss-html", "moss_html"],
-  ["moss-sketch", "moss_canvas"],
-]);
-
 const PRIORITY_LEVELS = new Set(["low", "medium", "high", "critical"]);
 
-// The kinds a moss-callout payload may open with: Moss's three plus the
+// The kinds a callout payload may open with: the dialect's three plus the
 // legacy variants callout-node still accents (a converted note must keep
 // reading as a callout). Anything else falls back to a plain code block —
-// Moss's own unknown-type behavior — instead of a bogus-variant callout.
+// the same unknown-type behavior — instead of a bogus-variant callout.
 const CALLOUT_VARIANTS = new Set([
   "caution",
   "error",
@@ -81,7 +82,7 @@ const CALLOUT_VARIANTS = new Set([
   "warning",
 ]);
 
-// Moss also writes the payload lines as `type: warning` / `level: high`; the
+// A payload line may also arrive prefixed (`type: warning` / `level: high`); the
 // prefixed spelling is remembered on the node so re-serializing is byte-exact.
 const TYPE_PREFIX_RE = /^type\s*:/i;
 const LEVEL_PREFIX_RE = /^level\s*:/i;
@@ -353,12 +354,12 @@ export const MD_RULES: MdRules = {
     },
   },
 
-  // Moss callout: a ```moss-callout fence whose payload is a kind line
+  // Callout: an ```inteligir-callout fence whose payload is a kind line
   // (info | warning | priority), an optional priority level line, then the
   // body as markdown. The body round-trips through the SAME pipeline
   // (nested serializeMd / convertChildrenDeserialize), so marks, wiki links
   // and pills inside a callout survive byte-exact. The fence form is the
-  // dialect's (vendored moss-skills); the old <callout> JSX form now parses
+  // the dialect's; the old <callout> JSX form now parses
   // as opaque MDX and is preserved verbatim rather than converted.
   callout: {
     serialize: (node: TElement, options: SerializeMdOptions): MdCode => {
@@ -378,7 +379,7 @@ export const MD_RULES: MdRules = {
               value: children,
             }).replace(/\n$/, "");
       return {
-        lang: "moss-callout",
+        lang: CALLOUT_LANG,
         type: "code",
         value: [typeLine, ...level, ...(body === "" ? [] : [body])].join("\n"),
       };
@@ -441,7 +442,7 @@ export const MD_RULES: MdRules = {
 
   code_block: {
     deserialize: (node: MdCode, deco, options): TElement => {
-      if (node.lang === "moss-callout") {
+      if (isCalloutLang(node.lang)) {
         const payload = node.value.split("\n");
         const rawKind = payload[0]?.trim() ?? "";
         const typePrefixed = TYPE_PREFIX_RE.test(rawKind);
@@ -466,48 +467,46 @@ export const MD_RULES: MdRules = {
           ...(hasLevel ? { level, ...(levelPrefixed ? { levelPrefixed: true } : {}) } : {}),
         };
       }
-      const richBlock = MOSS_FENCE_TYPES.get(node.lang ?? "");
+      const richBlock = RICH_FENCE_LANGS.get(node.lang ?? "");
       if (richBlock !== undefined) {
-        const block: TElement = { children: [{ text: "" }], type: richBlock, value: node.value };
-        if (node.lang === "moss-sketch") {
-          block.legacySketch = true;
-        }
-        return block;
+        // A legacy spelling lands on the same node and re-emits as ours, so
+        // the note canonicalizes on its first save (churn fixtures pin it).
+        return { children: [{ text: "" }], type: richBlock, value: node.value };
       }
       return defaultCodeBlockDeserialize(node, deco, options);
     },
   },
 
-  // Rich Moss fence blocks (#586): the payload is VERBATIM on the node, so
-  // serialization is the identity fence. moss_canvas remembers a legacy
-  // moss-sketch spelling on the node (the skill: never rename incidentally).
-  moss_chart: {
+  // Rich fence blocks (#586): the payload is VERBATIM on the node, so
+  // serialization is the identity fence — always in OUR spelling, which is
+  // what canonicalizes a legacy note on its first save.
+  chart_block: {
     serialize: (node: TElement): MdCode => ({
-      lang: "moss-chart",
+      lang: CHART_LANG,
       type: "code",
       value: typeof node.value === "string" ? node.value : "",
     }),
   },
-  moss_canvas: {
+  canvas_block: {
     serialize: (node: TElement): MdCode => ({
-      lang: node.legacySketch === true ? "moss-sketch" : "moss-canvas",
+      lang: CANVAS_LANG,
       type: "code",
       value: typeof node.value === "string" ? node.value : "",
     }),
   },
-  moss_html: {
+  html_block: {
     serialize: (node: TElement): MdCode => ({
-      lang: "moss-html",
+      lang: HTML_LANG,
       type: "code",
       value: typeof node.value === "string" ? node.value : "",
     }),
   },
 
-  // Moss tab groups: mossTabs/mossTabPanel (remark-moss-tabs owns the line
+  // Tab groups: tabGroup/tabPanel (remark-tabs owns the line
   // grammar) ↔ tab_group/tab_panel elements. Panel children ride the shared
   // conversion both ways, so anything a note can hold survives inside a tab.
-  mossTabs: {
-    deserialize: (node: MossTabs, deco, options): TElement => ({
+  tabGroup: {
+    deserialize: (node: TabGroup, deco, options): TElement => ({
       children: node.children.map(
         (panel): TElement => ({
           children: ensureBlocks(convertChildrenDeserialize(panel.children, deco, options)),
@@ -519,54 +518,54 @@ export const MD_RULES: MdRules = {
     }),
   },
   tab_group: {
-    serialize: (node: TElement, options: SerializeMdOptions): MossTabs => ({
-      children: node.children.flatMap((panel): MossTabPanel[] => {
+    serialize: (node: TElement, options: SerializeMdOptions): TabGroup => ({
+      children: node.children.flatMap((panel): TabPanel[] => {
         if (typeof panel !== "object" || !("type" in panel) || panel.type !== "tab_panel") {
           return [];
         }
         const children: Descendant[] = Array.isArray(panel.children) ? panel.children : [];
         const panelChildren = convertNodesSerialize(children, options).flatMap(
-          (child): MossTabPanel["children"] => (isPanelContent(child) ? [child] : []),
+          (child): TabPanel["children"] => (isPanelContent(child) ? [child] : []),
         );
         return [
           {
             children: panelChildren,
             label: typeof panel.label === "string" ? panel.label : "Tab",
-            type: "mossTabPanel",
+            type: "tabPanel",
           },
         ];
       }),
-      type: "mossTabs",
+      type: "tabGroup",
     }),
   },
 
-  // Moss inline constructs; inner text stays verbatim both directions (the
+  // Inline constructs; inner text stays verbatim both directions (the
   // remark plugin's toMarkdown handlers emit the actual bytes).
-  mossFormula: {
-    deserialize: (node: MossFormula): TElement => ({
+  formulaPill: {
+    deserialize: (node: FormulaPill): TElement => ({
       children: [{ text: "" }],
       display: node.display,
       meta: node.meta ?? "",
       raw: node.raw,
       source: node.source,
-      type: "mossFormula",
+      type: "formulaPill",
     }),
-    serialize: (node: TElement): MossFormula => {
+    serialize: (node: TElement): FormulaPill => {
       const raw = typeof node.raw === "string" ? node.raw : "";
-      return { raw, type: "mossFormula", ...parseFormulaRaw(raw) };
+      return { raw, type: "formulaPill", ...parseFormulaRaw(raw) };
     },
   },
-  mossCommentMarker: {
-    deserialize: (node: MossCommentMarker): TElement => ({
+  commentMarker: {
+    deserialize: (node: CommentMarker): TElement => ({
       children: [{ text: "" }],
       edge: node.edge,
       ids: node.ids,
-      type: "mossCommentMarker",
+      type: "commentMarker",
     }),
-    serialize: (node: TElement): MossCommentMarker => ({
+    serialize: (node: TElement): CommentMarker => ({
       edge: node.edge === "end" ? "end" : "start",
       ids: typeof node.ids === "string" ? node.ids : "",
-      type: "mossCommentMarker",
+      type: "commentMarker",
     }),
   },
 

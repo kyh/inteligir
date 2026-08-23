@@ -95,17 +95,6 @@ export const THREAD_ACTIVITY_LABELS = {
   archived: "archived",
 } satisfies Record<ThreadActivity, string>;
 
-/** The status dot beside a thread, in the chrome Tailwind paints. */
-export const THREAD_ACTIVITY_DOT_CLASSES = {
-  queued: "bg-muted-foreground/40",
-  running: "bg-sky-500 animate-pulse",
-  "needs-approval": "bg-amber-500",
-  "needs-review": "bg-emerald-500",
-  done: "bg-muted-foreground/40",
-  failed: "bg-destructive",
-  archived: "bg-muted-foreground/40",
-} satisfies Record<ThreadActivity, string>;
-
 /**
  * How the composer learns what the user is looking at: ONE slot the workspace
  * holds, filled by whichever surface is open and PULLED at submit.

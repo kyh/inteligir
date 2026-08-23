@@ -1,5 +1,5 @@
-// moss-chart: a fenced JSON payload rendered as an inline-SVG chart. The
-// dialect is the vendored moss-notes skill's: types bar | line | area |
+// The chart: a fenced JSON payload rendered as an inline-SVG chart. The
+// payload grammar: types bar | line | area |
 // stacked-bar; single-series {type,title?,data} or multi-series
 // {type,series:[{name,data}]} (stacked-bar takes ONE data array and refuses
 // `series`); points are {label, value} with optional colors; options carry
@@ -14,8 +14,8 @@ import { type PlateElementProps, PlateElement } from "platejs/react";
 import { useState } from "react";
 
 import { ChartGridEditor, emitChartPayload } from "./chart-grid";
-import { DegradedPayloadView, MossBlockCard, PayloadEditor } from "./moss-block-chrome";
-import { setBlockValue } from "./moss-block-value";
+import { DegradedPayloadView, RichBlockCard, PayloadEditor } from "./rich-block-chrome";
+import { setBlockValue } from "./rich-block-value";
 
 const NAMED_COLORS = new Set([
   "black",
@@ -298,7 +298,7 @@ export function ChartElement(props: PlateElementProps) {
 
   return (
     <PlateElement {...props}>
-      <MossBlockCard
+      <RichBlockCard
         label={parsed.ok ? (parsed.chart.title ?? "chart") : "chart"}
         actions={
           mode === "view" ? (
@@ -363,7 +363,7 @@ export function ChartElement(props: PlateElementProps) {
         ) : (
           <DegradedPayloadView reason={parsed.reason} value={value} />
         )}
-      </MossBlockCard>
+      </RichBlockCard>
       {props.children}
     </PlateElement>
   );

@@ -106,8 +106,8 @@ packages/
   notes/         @repo/notes — PURE platform-neutral domain: the knowledge
                  engine (link graph, FTS5 search over an injected SqlDriver,
                  tags, tasks, rename byte-surgery) over ONE markdown scan
-                 (scan-parse + wiki-links), frontmatter, the Moss dialect's
-                 own modules (markdown/remark-moss-*, comments/, formulas/),
+                 (scan-parse + wiki-links), frontmatter, the dialect's own
+                 modules (markdown/remark-*, comments/, formulas/, import/),
                  and `text/` — ONE Myers diff under diff3. No node/react/ui
                  imports — lint-enforced.
   editor/        @repo/editor — the Plate.js WYSIWYG (resurrected, #580):
@@ -202,20 +202,31 @@ command is `db:push:local`.
   stated per fixture; a file the pipeline cannot round-trip safely opens RAW.
   The fixtures are formatter-exempt — their bytes ARE the assertion.
 
-- **NOTES SPEAK THE MOSS DIALECT, byte-compatibly** (#581; the vendored
-  `@repo/agent-skills` is the first-party spec and the syntax must not drift
-  from it): `[[Title]]` / `[[Title#H]]` / `[[Title|alias]]` / `[[Title|uuid]]`
+- **NOTES SPEAK THE INTELIGIR DIALECT, and Moss's spellings still parse**
+  (#581, renamed 2026-08-22 — the product is inteligir, so the format carries
+  its name): `[[Title]]` / `[[Title#H]]` / `[[Title|alias]]` / `[[Title|uuid]]`
   wiki links (the LAST pipe starts the alias), `{{source|display|meta}}`
-  formula pills, `%%m:id:start/end%%` comment anchors, and `moss-callout` /
-  `moss-chart` / `moss-canvas` / `moss-html` / `:::tabs` blocks — all valid
-  markdown, all round-tripping through the fixpoint. The FILE LAYOUT stays
-  plain nested `.md` (Moss's external-note mode): no note bundles, no
-  meta.json/layout.json; frontmatter remains the only property store, and a
-  note's UUID is frontmatter `id:`. `{{` is reserved from MDX expressions by
-  a tokenizer guard on BOTH braces. Comments' thread bodies live in a
-  `<note>.comments.json` sidecar beside the note — a per-note name because
-  Moss's own folder-level sidecar exists only for bundle notes (stated
-  interop residual: anchors are Moss-compatible, sidecar location is ours).
+  formula pills, `%%i:id:start/end%%` comment anchors, and `inteligir-callout`
+  / `inteligir-chart` / `inteligir-canvas` / `inteligir-html` / `:::tabs`
+  blocks — all valid markdown, all round-tripping through the fixpoint.
+  **LEGACY SPELLINGS PARSE FOREVER, and only ours is ever WRITTEN**: `moss-*`
+  fences, `%%m:` anchors and the `[moss:grid:v2]` canvas header all still read,
+  so a Moss-written vault opens unchanged and CANONICALIZES on its first save
+  — churn fixtures (`legacy-moss-fences`, `legacy-moss-markers`) pin exactly
+  that, and a legacy note must never open RAW. The one asymmetry is deliberate:
+  a rich block's payload is verbatim by contract, so the canvas grid header
+  canonicalizes through the sketch WRITER (`nodes/canvas-sketch.ts`), never
+  through serialization — opening a note may not rewrite bytes. The spellings
+  live in ONE place each (`@repo/notes/markdown/fence-langs`,
+  `@repo/editor/nodes/canvas-header`) because the editor's rule table and the
+  knowledge scan both read them and a drift would silently stop indexing links
+  inside callouts. `@repo/notes/import` stays named for Moss — converting
+  _Moss's_ files is its whole job. The FILE LAYOUT stays plain nested `.md`:
+  no note bundles, no meta.json/layout.json; frontmatter remains the only
+  property store, and a note's UUID is frontmatter `id:`. `{{` is reserved
+  from MDX expressions by a tokenizer guard on BOTH braces. Comments' thread
+  bodies live in a `<note>.comments.json` sidecar beside the note (stated
+  interop residual: anchors read Moss's spelling, sidecar location is ours).
 
 - **A turn row's `sourceSeqEnd` names its own contributors**, not every
   turn-scoped event. A streaming assistant message is turn-scoped but lands as

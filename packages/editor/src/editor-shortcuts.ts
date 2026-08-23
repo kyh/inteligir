@@ -1,4 +1,4 @@
-// The Moss keyboard batch: ⌘E inline code, ⌘⇧C to-do item, ⌘L bulleted list,
+// The keyboard batch: ⌘E inline code, ⌘⇧C to-do item, ⌘L bulleted list,
 // ⌘⇧L numbered list, ⌘T note title. Editor-local on purpose — the app's
 // global shortcut table stays untouched — bound the way the comment kit binds
 // ⌘⇧A. In a plain browser tab ⌘T (new tab) and sometimes ⌘L (address bar)

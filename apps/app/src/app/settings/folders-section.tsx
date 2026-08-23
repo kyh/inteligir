@@ -1,4 +1,4 @@
-// Settings → Connected folders (issue #601, Moss parity): directories agent
+// Settings → Connected folders: directories agent
 // sessions are TOLD ABOUT as read-only reference context. Deliberately not
 // described as granting anything — the agent's shell can already read what
 // this user can; these rows only name what the user wants treated as
