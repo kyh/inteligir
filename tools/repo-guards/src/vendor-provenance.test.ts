@@ -41,8 +41,8 @@ const PROVENANCE_FILE = "PROVENANCE.md";
 const ATTRIBUTABLE = /\.(?:tsx?|mts|cts|mjs|cjs|jsx?|css)$/;
 
 /**
- * Where a copy can live: the top-level directory of every workspace, so the
- * group folders and the standalone ones (`e2e`) are both covered. Derived
+ * Where a copy can live: the top-level directory of every workspace, so a
+ * group folder and a standalone workspace are both covered. Derived
  * rather than listed — a new workspace group would otherwise be swept by
  * nothing, and the failure would be silence.
  */

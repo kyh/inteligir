@@ -2,7 +2,6 @@ packages:
   - apps/*
   - packages/*
   - tools/*
-  - e2e
 
 catalog:
   "@base-ui/react": ^1.6.0

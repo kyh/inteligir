@@ -58,7 +58,7 @@ const DECLARED_CI_EXTRAS = new Map<string, string>([
   ],
   [
     "ci.yml:E2E (dev)",
-    "boots real instances and drives them over the wire — `pnpm e2e` is deliberately outside `verify`'s test task (e2e/package.json), because every unit passes while the composition fails",
+    "boots real instances and drives them over the wire — `pnpm e2e` is deliberately outside `verify`'s test task (tools/e2e/package.json), because every unit passes while the composition fails",
   ],
   [
     "ci.yml:E2E (prod)",

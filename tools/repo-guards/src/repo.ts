@@ -67,7 +67,7 @@ function parseManifest(file: string): Manifest {
 export interface WorkspaceGlobs {
   /** `apps/*` → `apps`: every child directory of it is a candidate workspace. */
   groups: string[];
-  /** `e2e` → `e2e`: the directory IS the workspace. */
+  /** A bare `docs` → `docs`: the directory IS the workspace. */
   standalone: string[];
 }
 

@@ -67,7 +67,7 @@ packages/
   agent-runtime/     @repo/agent-runtime — the codex app-server adapter
 tools/
   repo-guards/       structural invariant tests over the repo itself
-e2e/                 scenario harness driving a real instance
+  e2e/               scenario harness driving a real instance
 ```
 
 Boundaries are enforced, not documented: `tools/repo-guards` derives the

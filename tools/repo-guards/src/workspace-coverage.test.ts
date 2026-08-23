@@ -44,22 +44,39 @@ function manifestsOnDisk(): string[] {
   return found.toSorted();
 }
 
+/** How many globs the manifest declares, counted from its raw text rather
+ *  than from the reader under test — the cross-check that no entry was parsed
+ *  into neither arm. Negated globs are pnpm's exclusions, not workspaces. */
+function declaredGlobCount(): number {
+  const raw = fs.readFileSync(path.join(REPO_ROOT, WORKSPACE_MANIFEST), "utf8");
+  const packages = raw.match(/^packages:\n(?:[ \t]+-.*\n)+/m);
+  if (packages === null) throw new Error(`${WORKSPACE_MANIFEST}: no "packages" list`);
+  return packages[0]
+    .split("\n")
+    .filter((line) => /^\s+-\s*\S/.test(line))
+    .filter((line) => !line.includes('"!') && !/-\s*!/.test(line)).length;
+}
+
 describe("the guards' tree walk", () => {
   const globs = workspaceGlobs();
 
   it("reads its globs from pnpm's manifest, not from a copy", () => {
     // A reader that silently returned nothing would satisfy every assertion
-    // below by covering nothing, so pin that both shapes came back populated
-    // and that the guards' own home is among them — `tools/` is the group a
-    // hand-copied list in this repo had already lost.
+    // below by covering nothing, so pin that it came back populated and that
+    // the guards' own home is among them — `tools/` is the group a
+    // hand-copied list in this repo had already lost. The arms are checked by
+    // COUNT rather than by requiring a member of each: every layout here is a
+    // `<dir>/*` group today, so demanding a standalone workspace would pin a
+    // shape the repo does not have, while the sum still fails the moment an
+    // entry lands in neither arm.
     expect(globs.groups.length, `${WORKSPACE_MANIFEST} declares no "<dir>/*" glob`).toBeGreaterThan(
       0,
     );
     expect(globs.groups).toContain("tools");
     expect(
-      globs.standalone.length,
-      `${WORKSPACE_MANIFEST} declares no standalone workspace`,
-    ).toBeGreaterThan(0);
+      globs.groups.length + globs.standalone.length,
+      `${WORKSPACE_MANIFEST}: an entry landed in neither arm of workspaceGlobs()`,
+    ).toBe(declaredGlobCount());
   });
 
   it("every workspace pnpm's globs reach is discovered", () => {

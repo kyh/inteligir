@@ -89,4 +89,4 @@ red format cannot hide test regressions behind it.
 
 End-to-end: `pnpm e2e` boots real app instances on scratch dirs (fixture
 vaults, scratch git remotes, a headless browser) and is deliberately outside
-`pnpm verify` — `e2e/README.md` is the one-pager.
+`pnpm verify` — `tools/e2e/README.md` is the one-pager.

@@ -205,7 +205,7 @@ async function main(): Promise<number> {
   }
   installSignalCleanup();
   const selected = selectScenarios(options);
-  const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
+  const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
   const scratchRoot = await mkdtemp(join(tmpdir(), "inteligir-e2e-"));
   console.log(`e2e: ${selected.length} scenario(s), mode=${options.mode}, scratch=${scratchRoot}`);
 
