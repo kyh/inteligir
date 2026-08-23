@@ -8,7 +8,7 @@ import { MarkdownEditor } from "@repo/editor/markdown-editor";
 import { openDocPath } from "@repo/editor/note/open-doc";
 import { useOpenNote } from "@repo/editor/note/open-note-context";
 import { registerNoteTitleFocus } from "@repo/editor/note-title-focus";
-import { useConnectionsPanel, useVaultActions } from "@repo/editor/host";
+import { useVaultActions } from "@repo/editor/host";
 import { checkNoteName, noteNameErrorMessage } from "@repo/notes/knowledge/note-name";
 import { basenamePath } from "@repo/notes/knowledge/vault-path";
 
@@ -51,7 +51,6 @@ function NotePane({ path, showRich }: { path: string; showRich: boolean }) {
   // keystroke (Raw) / serialize settle (Rich).
   const content = useOpenNote((s) => s.editor.content);
   const { editNote, registerNoteSerializeFlush, renameEntry } = useVaultActions();
-  const ConnectionsPanel = useConnectionsPanel();
 
   const fileName = basenamePath(path);
   const dot = fileName.lastIndexOf(".");
@@ -217,9 +216,7 @@ function NotePane({ path, showRich }: { path: string; showRich: boolean }) {
         />
       )}
       {/* Linked mentions live in the same centered column, below the doc. */}
-      <div className={cn(EDITOR_COLUMN_PX, "print:hidden")}>
-        <ConnectionsPanel path={path} />
-      </div>
+      <div className={cn(EDITOR_COLUMN_PX, "print:hidden")}></div>
     </div>
   );
 }

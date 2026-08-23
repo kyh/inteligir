@@ -122,7 +122,7 @@ describe("naming a sync state", () => {
   // Two tables over eight states drift, and the drift is invisible until one
   // vault answers two sentences in two pieces of the same window — which a
   // reader cannot tell from two different states.
-  it.each(["src/app/sidebar/sidebar.tsx", "src/app/settings/settings-dialog.tsx"])(
+  it.each(["src/app/sidebar/sidebar.tsx", "src/app/settings/settings-page.tsx"])(
     "%s writes none of the sentences itself",
     (relative) => {
       const source = readFileSync(join(REPO_ROOT, "apps/app", relative), "utf8");

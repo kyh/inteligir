@@ -5,6 +5,7 @@
 // away for anyone who thinks in folders; this list answers "what was I
 // working on", not "where does it live".
 
+import { isTrashedPath } from "@repo/notes/knowledge/vault-path";
 import type { VaultTreeResponse } from "@repo/server-contract/vault";
 import {
   SidebarGroup,
@@ -80,7 +81,12 @@ export function NotesList({ entries, openPath, onOpenFile }: NotesListProps) {
   const pinnedPaths = usePinnedPaths();
   const now = Date.now();
   const notes = entries
-    .filter((entry): entry is FileEntry => entry.kind === "file" && entry.path.endsWith(".md"))
+    // Trashed notes are restorable, not gone — but the notes LIST is the
+    // living vault; Trash/ shows only in the file tree and the trash dialog.
+    .filter(
+      (entry): entry is FileEntry =>
+        entry.kind === "file" && entry.path.endsWith(".md") && !isTrashedPath(entry.path),
+    )
     .toSorted((a, b) => (b.modifiedMs ?? 0) - (a.modifiedMs ?? 0));
 
   if (notes.length === 0) {

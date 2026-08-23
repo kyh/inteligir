@@ -27,6 +27,7 @@ import {
 import { sendToThread } from "../chat/chat-service";
 import { useThreadDetail, useThreads, useThreadTimeline } from "../chat/thread-hooks";
 import { useNoteComments } from "./comment-hooks";
+import { RelatedInline } from "./related-section";
 import { CommentsTab } from "./comments-tab";
 import { TimelineRowView } from "../chat/timeline-rows";
 import { useWorkspace } from "../workspace-context";
@@ -303,6 +304,7 @@ export function ActionsPanel({
           onOpenChange={setPropertiesOpen}
         />
       ) : null}
+      {docPath !== null ? <RelatedInline docPath={docPath} onOpenDoc={onOpenDoc} /> : null}
 
       {tab === "comments" ? (
         <CommentsTab docPath={docPath} focusIds={commentFocus?.ids ?? []} />

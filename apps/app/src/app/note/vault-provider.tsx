@@ -13,7 +13,6 @@
 
 import {
   EditorHostProvider,
-  useConnectionsPanel,
   useVaultListing,
   type EditorHost,
   type VaultActions,
@@ -39,7 +38,6 @@ import {
   type VaultSessionPorts,
   type WorkspaceBoot,
 } from "@repo/editor/note/vault-session";
-import { useVaultActions } from "@repo/editor/host";
 import {
   collectFormulas,
   noteIdOf,
@@ -68,8 +66,6 @@ import {
   type VaultPanesHandle,
 } from "./split-view";
 import { useWorkspace, type WorkspaceRuntime } from "../workspace-context";
-import { BacklinksSection } from "./backlinks-panel";
-import { RelatedSection } from "./related-panel";
 
 const FOCUS_REFRESH_DEBOUNCE_MS = 400;
 
@@ -96,18 +92,6 @@ async function readFile(api: Api, path: string): Promise<string> {
   if (!response.ok) throw new Error(`read ${path}: ${String(response.status)}`);
   const body = await response.json();
   return body.content;
-}
-
-/** The knowledge panels under the document — the same placement decision as
- * before: under the note, inside its measure. */
-function ConnectionsPanel({ path }: { path: string }) {
-  const { openFile } = useVaultActions();
-  return (
-    <>
-      <BacklinksSection path={path} onOpen={openFile} />
-      <RelatedSection path={path} onOpen={openFile} />
-    </>
-  );
 }
 
 export interface VaultProviderProps {
@@ -458,7 +442,7 @@ export function VaultProvider({
   }, [entries, vaultName, wikiTargets]);
 
   const host = useMemo<EditorHost>(
-    () => ({ actions: guardedActions, listing, ConnectionsPanel }),
+    () => ({ actions: guardedActions, listing }),
     [guardedActions, listing],
   );
 
@@ -605,7 +589,6 @@ export function SplitPane({
   const coordinator = useContext(PaneInfraContext);
   if (coordinator === null) throw new Error("SplitPane used outside <VaultProvider>");
   const outerListing = useVaultListing();
-  const connections = useConnectionsPanel();
   const store = useMemo(() => createOpenNoteStore(), []);
   const [bootTarget] = useState(path);
   const rootRef = useRef("");
@@ -685,9 +668,8 @@ export function SplitPane({
         },
       },
       listing: outerListing,
-      ConnectionsPanel: connections,
     }),
-    [session, outerListing, connections],
+    [session, outerListing],
   );
 
   return (

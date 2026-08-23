@@ -296,35 +296,27 @@ pull` from a hostile remote is enough to plant one.
   drain is minutes later, and storing a context for later gives away the exact
   property that makes it immune to rot.
 
-- **Backlinks live UNDER the document, and no graph view is coming.** The
-  editor column is the product's centre of gravity, so the notes linking into
-  the open one are a collapsible section at the foot of it, inside the note's
-  own measure (`apps/app/src/app/note/backlinks-panel.tsx`) — not a rail that
-  takes width from the writing surface permanently, and not a palette command
-  alone, which asks a reader to already suspect a backlink exists. OUTGOING
-  links are deliberately absent: they are on screen in the document as
-  wiki-links, unresolved ones dashed, so listing them below would be the same
-  information twice with one copy stale. The refresh rides the EXISTING change
-  kinds — vault `files-changed` and doc `content-changed` both sweep the
-  `knowledgeRoot` family WHOLE, because a link into a note lives in another
-  note's bytes (or, for a self-link, in its own), so a path-scoped
-  invalidation is not expressible. No `knowledge` change kind exists or is
-  needed; every knowledge query settles the index first.
-
-- **Related notes sit BESIDE backlinks, and start closed because they are
-  INFERRED.** Same placement, same measure, same whole-family refresh off the
-  same two change kinds (`apps/app/src/app/note/related-panel.tsx`) — the
-  difference is epistemic. A backlink is COUNTED: it either exists in another
-  note's bytes or it does not. Relatedness is a blend of shared link targets,
-  co-citation, shared tags and lexical similarity, so it is offered rather
-  than presented, and every row carries the scorer's own REASONS, because the
-  failure mode of an inferred list is a plausible-looking row that is there by
-  accident and a bare list of filenames is a claim no reader can check. The
-  route follows `search` rather than `backlinks` — a `limit`, no `total` —
-  since a ranked top-N has no honest count of "the rest". The scorer excludes
-  direct neighbours by construction, so the two sections never name the same
-  note twice. Stage 5 of issue #570; it takes a semantic signal later without
-  changing shape.
+- **RELATED IS ONE PANEL SECTION — linked mentions and the scorer's
+  suggestions merged in the right sidebar** (owner's call 2026-08-22,
+  reversing the under-document foot sections; the editor's ConnectionsPanel
+  slot died with them). One list below Properties in the actions panel
+  (`apps/app/src/app/actions/related-section.tsx`): backlinks lead because
+  they are COUNTED — each row carries "Links here" plus the linking sentence,
+  and the fold's summary keeps the honest truncation clause — and the
+  scorer's rows follow with their own REASONS, because the failure mode of an
+  inferred list is a plausible-looking row that is there by accident. No
+  dedup between the halves: the scorer excludes direct neighbours by
+  construction. What survives from the old placement decisions: OUTGOING
+  links stay deliberately absent (they are on screen in the document as
+  wiki-links, unresolved ones dashed — listing them would be the same
+  information twice with one copy stale); no graph view is coming; the
+  related route stays search-shaped (a `limit`, no `total` — a ranked top-N
+  has no honest count of the rest); suggestions are fetched only while the
+  section is unfolded (that read settles the index and runs a lexical probe
+  per title token); and the refresh rides the EXISTING change kinds — vault
+  `files-changed` and doc `content-changed` sweep the `knowledgeRoot` family
+  WHOLE, because a link into a note lives in another note's bytes, so a
+  path-scoped invalidation is not expressible.
 
 - **Stemming is a SHADOW of the indexed text, never a rewrite of it.**
   `search_fts` carries `title/headings/body` AND `title_stems/heading_stems/

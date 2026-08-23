@@ -6,8 +6,6 @@
 // asked the shell to do. Every action records its call and answers with the
 // benign result its type promises, so a case names only the parts it is about.
 
-import type { ComponentType } from "react";
-
 import type { VaultEntry } from "@repo/editor/host-io";
 import type { EditorHost, VaultActions } from "@repo/editor/host";
 
@@ -21,7 +19,6 @@ export type FakeEditorHostOptions = {
   readonly entries?: VaultEntry[];
   readonly folderName?: string;
   /** The shell's panel under the editor column. Default: renders nothing. */
-  readonly ConnectionsPanel?: ComponentType<{ path: string }>;
 };
 
 export function fakeEditorHost(options: FakeEditorHostOptions = {}): {
@@ -60,7 +57,6 @@ export function fakeEditorHost(options: FakeEditorHostOptions = {}): {
         folderName: options.folderName ?? "vault",
         resolveWikiTarget: options.resolveWikiTarget ?? (() => null),
       },
-      ConnectionsPanel: options.ConnectionsPanel ?? (() => null),
     },
   };
 }

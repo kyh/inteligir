@@ -34,11 +34,6 @@
       "item": "checkbox-group",
       "sha256": "f1276e349eb78954fab8ac2a717ca4bc037ba02464c32820a4b1c5df55f78339"
     },
-    "collapsible": {
-      "origin": "registry",
-      "item": "collapsible",
-      "sha256": "1251b05bdf0f9d8118139c3ed7bb0ea60466ee664c2d58e710be9b39032c6f6c"
-    },
     "command": {
       "origin": "registry",
       "item": "command",

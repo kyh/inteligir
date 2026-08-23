@@ -4,7 +4,9 @@
 // every vault mutation is announced on the bus by the server, which is the
 // one invalidation path a second client gets too.
 
-import { useQuery } from "@tanstack/react-query";
+import { useCallback } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "@repo/ui/components/sonner";
 import { DEFAULT_DOC_EXTENSION, isDocPath } from "@repo/notes/knowledge/doc-file";
 import type { ApiClient } from "@repo/server-contract/client";
 import type { VaultStatusResponse, VaultTreeResponse } from "@repo/server-contract/vault";
@@ -156,7 +158,7 @@ export function canSyncNow(status: VaultStatusResponse | undefined): boolean {
 }
 
 /** A toast the "Sync now" command owes the user, with the tone it carries. */
-export interface SyncNowNotice {
+interface SyncNowNotice {
   tone: "info" | "warning" | "error";
   message: string;
 }
@@ -168,7 +170,31 @@ export interface SyncNowNotice {
  * from a sync that worked, so a ninth state must be made to answer here rather
  * than defaulting into nothing.
  */
-export function syncNowNotice(status: VaultStatusResponse): SyncNowNotice | null {
+/**
+ * The one "Sync now" verb, shared by the workspace's palette command and the
+ * settings page — two callers, one spelling of the mutation, the optimistic
+ * status write and the notice policy.
+ */
+export function useSyncNow(): () => void {
+  const { api } = useWorkspace();
+  const queryClient = useQueryClient();
+  return useCallback((): void => {
+    void (async () => {
+      try {
+        const status = await unwrap(await api.vault.sync.$post());
+        queryClient.setQueryData(queryKeys.vaultStatus, status);
+        const notice = syncNowNotice(status);
+        if (notice !== null) {
+          toast[notice.tone](notice.message);
+        }
+      } catch {
+        toast.error("Sync failed.");
+      }
+    })();
+  }, [api, queryClient]);
+}
+
+function syncNowNotice(status: VaultStatusResponse): SyncNowNotice | null {
   const blocked = syncBlockedReason(status);
   if (blocked !== null) {
     return { tone: "info", message: `${blocked}.` };

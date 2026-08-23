@@ -1,5 +1,5 @@
 import type { VaultEntry } from "@repo/editor/host-io";
-import { createContext, useContext, type ComponentType, type ReactNode } from "react";
+import { createContext, useContext, type ReactNode } from "react";
 
 // ---------------------------------------------------------------------------
 // The editor's view of the app around it.
@@ -76,10 +76,6 @@ export type VaultListing = {
 export type EditorHost = {
   actions: VaultActions;
   listing: VaultListing;
-  /** The shell's backlinks panel, rendered under the editor column. A slot
-   * rather than an import: it reads the knowledge index and navigates, both of
-   * which are shell concerns. */
-  ConnectionsPanel: ComponentType<{ path: string }>;
 };
 
 // Split like the shell's own contexts: `actions` identity is fixed for the
@@ -87,14 +83,11 @@ export type EditorHost = {
 // carrying both would re-render every action-only consumer on each refresh.
 const ActionsContext = createContext<VaultActions | null>(null);
 const ListingContext = createContext<VaultListing | null>(null);
-const SlotsContext = createContext<Pick<EditorHost, "ConnectionsPanel"> | null>(null);
 
 export function EditorHostProvider({ host, children }: { host: EditorHost; children: ReactNode }) {
   return (
     <ActionsContext.Provider value={host.actions}>
-      <ListingContext.Provider value={host.listing}>
-        <SlotsContext.Provider value={host}>{children}</SlotsContext.Provider>
-      </ListingContext.Provider>
+      <ListingContext.Provider value={host.listing}>{children}</ListingContext.Provider>
     </ActionsContext.Provider>
   );
 }
@@ -112,8 +105,4 @@ export function useVaultActions(): VaultActions {
 
 export function useVaultListing(): VaultListing {
   return required(useContext(ListingContext), "useVaultListing");
-}
-
-export function useConnectionsPanel(): ComponentType<{ path: string }> {
-  return required(useContext(SlotsContext), "useConnectionsPanel").ConnectionsPanel;
 }

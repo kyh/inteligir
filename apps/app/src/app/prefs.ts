@@ -12,7 +12,6 @@ const KEYS = {
   panelOpen: "inteligir.panel-open",
   theme: "inteligir.theme",
   appearance: "inteligir.appearance",
-  backlinksOpen: "inteligir.backlinks-open",
   relatedOpen: "inteligir.related-open",
 };
 
@@ -86,14 +85,6 @@ export function writePanelOpen(open: boolean): void {
  * Defaults to open — it sits below the document, so it costs nothing until
  * the reader is already at the end of one.
  */
-export function readBacklinksOpen(): boolean {
-  return read(KEYS.backlinksOpen) !== "false";
-}
-
-export function writeBacklinksOpen(open: boolean): void {
-  write(KEYS.backlinksOpen, open ? "true" : "false");
-}
-
 /**
  * Whether the related section under the backlinks one is expanded. Its own key
  * rather than sharing the backlinks one: the two answer different questions,
@@ -102,8 +93,10 @@ export function writeBacklinksOpen(open: boolean): void {
  * from backlinks — this list is inferred rather than counted, so it is offered
  * rather than presented.
  */
+/** The merged Related section (panel): default OPEN — linked mentions lead
+ *  the list and are counted, so the fold hides facts, not guesses. */
 export function readRelatedOpen(): boolean {
-  return read(KEYS.relatedOpen) === "true";
+  return read(KEYS.relatedOpen) !== "false";
 }
 
 export function writeRelatedOpen(open: boolean): void {

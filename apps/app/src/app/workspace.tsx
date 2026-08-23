@@ -47,15 +47,15 @@ import {
   searchNotesByFilename,
   type NoteSearchSource,
 } from "./palette/note-search";
-import { SettingsDialog } from "./settings/settings-dialog";
 import { TrashDialog } from "./sidebar/trash-dialog";
 import { Sidebar, SidebarInset, SidebarProvider, useSidebar } from "@repo/ui/components/sidebar";
 import { SidebarRailContent } from "./sidebar/sidebar";
+import { useNavigate } from "@tanstack/react-router";
 import type { TreeOps } from "./sidebar/file-tree";
 import {
   canSyncNow,
   filePathsLowercased,
-  syncNowNotice,
+  useSyncNow,
   untitledNotePath,
   useVaultStatus,
   useVaultTree,
@@ -88,7 +88,6 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
   // What the palette's box is seeded with on the next open. ⌘P clears it; a
   // `#tag` chip click sets it to that tag's `tag:` term.
   const [paletteQuery, setPaletteQuery] = useState("");
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [trashOpen, setTrashOpen] = useState(false);
   // Read once: the platform does not change under a running window.
   const [shortcutModifier] = useState(platformShortcutModifier);
@@ -303,20 +302,7 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
     void createNote(dailyNotePath(now), dailyNoteTemplate(now));
   }, [createNote]);
 
-  const syncNow = useCallback((): void => {
-    void (async () => {
-      try {
-        const status = await unwrap(await api.vault.sync.$post());
-        queryClient.setQueryData(queryKeys.vaultStatus, status);
-        const notice = syncNowNotice(status);
-        if (notice !== null) {
-          toast[notice.tone](notice.message);
-        }
-      } catch {
-        toast.error("Sync failed.");
-      }
-    })();
-  }, [api, queryClient]);
+  const syncNow = useSyncNow();
 
   const treeOps = useMemo<TreeOps>(
     () => ({
@@ -374,9 +360,10 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
     [api, createNote, openNote, setOpenNote, onOpenNote],
   );
 
+  const navigate = useNavigate();
   const onOpenSettings = useCallback((): void => {
-    setSettingsOpen(true);
-  }, []);
+    void navigate({ to: "/settings" });
+  }, [navigate]);
 
   // The selection toolbar's "Ask agent": the selection arrives quoted, the
   // composer opens over the same note. Registered for the workspace's life.
@@ -676,7 +663,6 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
           canSync={canSync}
           actions={paletteActions}
         />
-        <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} onSyncNow={syncNow} />
         <TrashDialog open={trashOpen} onOpenChange={setTrashOpen} onOpenNote={setOpenNote} />
         <ConfirmDialogHost />
         <Toaster position="bottom-right" />
