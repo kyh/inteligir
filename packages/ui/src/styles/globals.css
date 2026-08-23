@@ -414,6 +414,54 @@
   }
 }
 
+/* Beautiful UI's pixel-grid loader and shimmering label (packages/ui/src/ai).
+   The animation lives in the CLASS, not inline, so the per-cell delay stays
+   data on the element while reduced-motion can switch the whole thing off —
+   an inline `animation` shorthand could only be overridden with !important. */
+@keyframes pixel-on {
+  0%,
+  100% {
+    opacity: 0.15;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes shimmer-text {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+.bui-pixel {
+  animation-name: pixel-on;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+
+.bui-shimmer-text {
+  background-image: linear-gradient(90deg, var(--ink-3) 35%, var(--ink) 50%, var(--ink-3) 65%);
+  background-size: 200% 100%;
+  background-clip: text;
+  color: transparent;
+  animation: shimmer-text 1.4s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* The grid freezes at its dim rest state and the label goes solid; the
+     elapsed timer keeps ticking, since that is information, not decoration. */
+  .bui-pixel {
+    animation: none;
+  }
+
+  .bui-shimmer-text {
+    background-image: none;
+    color: var(--ink);
+    animation: none;
+  }
+}
+
 /* Pseudo-determinate progress fill for setup when we don't have real percent
    data yet. Grows from 0 to 92% on an ease-out curve over ~14s — matching
    the typical cold-start window — then holds. As soon as a real percent
