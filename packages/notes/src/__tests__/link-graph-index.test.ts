@@ -43,7 +43,7 @@ describe("LinkGraphIndex — aliases", () => {
   });
 });
 
-// Moss's resolved-link form: [[Title|uuid]] resolves through frontmatter
+// Inteligir's resolved-link form: [[Title|uuid]] resolves through frontmatter
 // `id:` FIRST, surviving a title the writer never updated; the title tiers
 // stay the fallback when no doc owns the id.
 describe("LinkGraphIndex — [[Title|uuid]] id tier", () => {

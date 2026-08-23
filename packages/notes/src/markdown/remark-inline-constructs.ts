@@ -8,10 +8,6 @@
 // TEXT verbatim (`raw` / `ids`) and re-emit it wrapped — byte-exact both
 // directions, the same discipline remark-wiki-link states.
 //
-// Comment anchors ALSO parse Moss's `%%m:` spelling and re-emit ours, so a
-// vault written by Moss opens unchanged and canonicalizes on its first save
-// (the churn fixtures pin that). Nothing else about the construct differs.
-//
 // An mdast TRANSFORM rather than a micromark tokenizer, deliberately: neither
 // construct nests, spans line breaks, or interacts with delimiter runs, so
 // splitting finished text leaves is equivalent — and it cannot disturb how
@@ -55,10 +51,8 @@ declare module "mdast" {
 // No pipes or braces inside source/display (the dialect has no escape form);
 // the optional metadata tail may hold anything but braces.
 const FORMULA_RE = /\{\{([^|{}\n]+)(?:\|([^|{}\n]*))?(?:\|([^{}\n]*))?\}\}/g;
-/** The comment-anchor grammar, exported as the ONE spelling comments tooling
- * shares (marker extraction must never drift from what parses here). The
- * sigil group accepts Moss's `m` beside our `i`; only `i` is ever written. */
-export const MARKER_RE = /%%[im]:([A-Za-z0-9_-]+(?:,[A-Za-z0-9_-]+)*):(start|end)%%/g;
+/** The comment-anchor grammar shared with comments tooling. */
+export const MARKER_RE = /%%i:([A-Za-z0-9_-]+(?:,[A-Za-z0-9_-]+)*):(start|end)%%/g;
 
 /** Parse one formula body (the text between braces) into its halves. */
 export function parseFormulaRaw(raw: string): Pick<FormulaPill, "source" | "display" | "meta"> {

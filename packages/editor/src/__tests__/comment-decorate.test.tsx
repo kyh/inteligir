@@ -24,7 +24,7 @@ function Harness({ value }: { value: Value }) {
 
 describe("comment range decoration", () => {
   it("tints the text between a marker pair and leaves the tail plain", () => {
-    const parsed = parseMarkdown("%%m:abc:start%%tinted words%%m:abc:end%% and plain tail\n");
+    const parsed = parseMarkdown("%%i:abc:start%%tinted words%%i:abc:end%% and plain tail\n");
     expect(parsed.ok).toBe(true);
     if (!parsed.ok) return;
     const view = render(<Harness value={parsed.value} />);

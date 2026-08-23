@@ -89,7 +89,7 @@ describe("linked-mention previews", () => {
       "A the tour mention",
     );
     expect(plainSnippet("> Cost is {{2*3|6}} today")).toBe("Cost is 6 today");
-    expect(plainSnippet("%%m:abc:start%%Reviewed%%m:abc:end%%")).toBe("Reviewed");
+    expect(plainSnippet("%%i:abc:start%%Reviewed%%i:abc:end%%")).toBe("Reviewed");
     // A uuid alias is identity, so the title stands in for it.
     expect(plainSnippet("see [[Use Cases|f2745aa0-f394-4469-963d-438f2dd9fd5a]] first")).toBe(
       "see Use Cases first",

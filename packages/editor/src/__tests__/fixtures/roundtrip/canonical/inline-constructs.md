@@ -1,4 +1,4 @@
-# Moss inline constructs
+# Inteligir inline constructs
 
 A one-off formula {{2+2|4}} and a symbolic one {{time|9am|id=6ff0a3b9-16b8-4394-bc11-bc9c1ba2d3f8}}.
 

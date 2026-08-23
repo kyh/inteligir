@@ -65,10 +65,10 @@ describe("sidecar schema", () => {
 describe("markerRootIds", () => {
   it("collects comma-shared ids and ignores fences", () => {
     const source = [
-      "A %%m:c1:start%%range%%m:c1:end%% and %%m:a,b:start%%shared%%m:a,b:end%%.",
+      "A %%i:c1:start%%range%%i:c1:end%% and %%i:a,b:start%%shared%%i:a,b:end%%.",
       "",
       "```",
-      "%%m:fenced:start%% literal %%m:fenced:end%%",
+      "%%i:fenced:start%% literal %%i:fenced:end%%",
       "```",
       "",
     ].join("\n");

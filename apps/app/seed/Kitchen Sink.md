@@ -133,7 +133,7 @@ const answer = 42;
 ## Canvas
 
 ```inteligir-canvas
-[moss:grid:v2]
+[inteligir:grid:v2]
 {"items":[]}
 ```
 

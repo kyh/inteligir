@@ -28,6 +28,7 @@ import {
   CLI_BIN_NAME,
   appBundleDir,
   appServerEntry,
+  appSkillsDir,
   cliBinDirFromAppBundle,
   installRootIn,
 } from "inteligir/scripts/staged-layout.mjs";
@@ -104,6 +105,10 @@ if (!existsSync(electronBinary)) {
 }
 if (!existsSync(serverEntry)) {
   fail(`the packaged app carries no server entry at ${serverEntry}`);
+}
+const notesSkill = join(appSkillsDir(runtimeRoot), "inteligir-notes", "SKILL.md");
+if (!existsSync(notesSkill)) {
+  fail(`the packaged app carries no product skills at ${notesSkill}`);
 }
 
 // The agent's PATH resolver walks up from the running bundle

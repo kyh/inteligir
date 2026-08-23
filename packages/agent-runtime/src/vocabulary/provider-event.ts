@@ -10,7 +10,7 @@
 //
 // Trimmed families: background tasks, goals, rate limits, model fallback,
 // context-window clearing, turn/input/accepted correlation and the system/*
-// events — none has a kept producer (see PROVENANCE.md). Never invent a
+// events — none has a kept producer. Never invent a
 // divergent shape for an event bb already names; re-vendor it instead.
 
 import type {

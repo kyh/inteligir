@@ -1,5 +1,5 @@
 // The connected-folders wire contract: extra directories agent sessions are
-// TOLD ABOUT as read-only reference context (Moss's Connected Folders).
+// TOLD ABOUT as read-only reference context (Connected Folders).
 //
 // Deliberately not a permission grant: the agent's shell can already read
 // anything the OS lets this user read — the vault containment decisions guard

@@ -32,9 +32,6 @@ its own line above and below the block.
 
 Markers inside a code fence are inert, like everything else in code.
 
-Legacy `%%m:` markers from imported vaults still parse; leave them, and write
-`%%i:` in anything new.
-
 ## The Sidecar
 
 `<note>.md.comments.json` sits beside the note — `Roadmap.md` pairs with

@@ -119,7 +119,7 @@ const PREDICATES: Predicate[] = [
 
 /** This file, which spells every shape it searches for and would otherwise
  *  always find itself. Derived, so moving this guard cannot silently stop the
- *  exclusion — the same reason vendor-provenance.test.ts does it this way. */
+ *  exclusion — otherwise the guard would always find itself. */
 const SELF = path.relative(REPO_ROOT, import.meta.filename);
 
 /** Every source file in the repo, shipped and test alike. A containment bug in

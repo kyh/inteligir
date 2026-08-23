@@ -37,7 +37,7 @@ export function insertCommentMarkers(editor: SlateEditor, id: string): boolean {
 
 /**
  * Strip every marker naming any of `ids`. A multi-root marker
- * (`%%m:a,b:…%%`) keeps its other ids — the shared range survives the death
+ * (`%%i:a,b:…%%`) keeps its other ids — the shared range survives the death
  * of one thread — and is removed only when the last id dies.
  */
 export function removeCommentMarkers(editor: SlateEditor, ids: readonly string[]): void {

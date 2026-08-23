@@ -38,7 +38,7 @@ describe("the executable grammar (the skill's own examples)", () => {
     expect(evaluate("2b")).toBe(2_000_000_000);
   });
 
-  it("accepts Moss's uppercase suffixes and suffix-percent composition", () => {
+  it("accepts uppercase suffixes and suffix-percent composition", () => {
     expect(evaluate("5K")).toBe(5000);
     expect(evaluate("1.5M")).toBe(1_500_000);
     expect(evaluate("5k%")).toBe(50);
@@ -82,7 +82,7 @@ describe("metadata", () => {
     const meta = parseFormulaMeta("id=abc;name=budget;stale=1");
     expect(meta).toEqual({ id: "abc", name: "budget", stale: true, unknown: [] });
     expect(serializeFormulaMeta(meta)).toBe("id=abc;name=budget;stale=1");
-    // Moss writes both spellings; `1` is the one we emit.
+    // Both spellings parse; `1` is the one we emit.
     expect(parseFormulaMeta("stale=true").stale).toBe(true);
   });
 

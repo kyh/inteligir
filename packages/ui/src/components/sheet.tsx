@@ -1,4 +1,5 @@
 "use client";
+// Vendored from shadcn/ui (github.com/shadcn-ui/ui), MIT.
 
 import * as React from "react";
 import { Dialog as SheetPrimitive } from "@base-ui/react/dialog";

@@ -22,8 +22,7 @@
 // (`/voice/transcribe`) STAYS for a whole-clip caller (scripted mode, any
 // non-interactive path): it travels BASE64 IN A JSON BODY, not as a binary
 // request, because `@repo/typed-routes` is vendored and carries no binary
-// request descriptor and adding one would put house code inside files whose
-// provenance record says `vendored`. Both feed the same engine — the batch path
+// request descriptor. Both feed the same engine — the batch path
 // pushes the whole clip through a stream and reads its final.
 
 import type { EmptyInput } from "@repo/typed-routes/endpoint";

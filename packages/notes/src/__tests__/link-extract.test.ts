@@ -383,12 +383,6 @@ describe("callout fence bodies (editor ⊆ vault)", () => {
     expect(scan.links.find((row) => row.target === "Hidden")).toBeUndefined();
   });
 
-  it("indexes a Moss-written callout too — the legacy spelling still parses", () => {
-    const source = "```moss-callout\ninfo\nSee [[Target Note]] here.\n```\n";
-    const scan = scanDoc(source);
-    expect(scan.links.find((row) => row.target === "Target Note")).toBeDefined();
-  });
-
   it("plain code fences stay unindexed", () => {
     const scan = scanDoc("```\n[[Not A Link]]\n```\n");
     expect(scan.links).toEqual([]);

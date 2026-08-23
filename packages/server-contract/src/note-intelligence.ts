@@ -1,4 +1,4 @@
-// Note Intelligence (issue #590, Moss's model): the app infers a CLOSED set
+// Note Intelligence (issue #590): the app infers a CLOSED set
 // of frontmatter fields — description, tags, status — for notes that lack
 // them, so structure emerges without manual tagging. Inference only ever ADDS
 // absent fields (a user-set value is never rewritten), which is also what

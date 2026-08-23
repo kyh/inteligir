@@ -1,8 +1,8 @@
-// Moss leaves a formula pill's pipes RAW inside GFM table cells (its cell
-// splitter is formula-aware); our parse is stock GFM, so `| {{5|5}} |` would
+// Inteligir leaves a formula pill's pipes raw inside GFM table cells; stock
+// GFM would split `| {{5|5}} |`
 // split the pill across two cells. This pre-parse pass escapes pipes that sit
 // inside `{{…}}` spans on table-shaped lines to `\|` — the form the GFM cell
-// reader unescapes and our serializer already emits — so Moss-written bytes
+// reader unescapes and our serializer already emits — so existing bytes
 // parse to the same tree ours do. Idempotent over canonical output (already-
 // escaped pipes are left alone), which keeps the fixpoint a fixpoint.
 //

@@ -1,4 +1,4 @@
-# Rich Moss blocks
+# Rich Inteligir blocks
 
 ```inteligir-chart
 {"type":"line","series":[{"name":"Desktop","data":[{"label":"Mon","value":12},{"label":"Tue","value":18}]},{"name":"Web","data":[{"label":"Mon","value":8},{"label":"Tue","value":11}]}]}

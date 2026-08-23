@@ -23,7 +23,6 @@ import { argsOf, assertKnownFlags, resolveCommandPath } from "./command-tree";
 import { connectorsCommand } from "./commands/connectors";
 import { foldersCommand } from "./commands/folders";
 import { guideCommand } from "./commands/guide";
-import { importMossCommand } from "./commands/import-moss";
 import { interactionsCommand } from "./commands/interactions";
 import { backlinksCommand, relatedCommand, searchCommand, tagsCommand } from "./commands/knowledge";
 import { statusCommand } from "./commands/status";
@@ -81,7 +80,6 @@ export function buildProgram(deps: CliDeps): CommandDef {
       folders: foldersCommand(deps),
       trash: trashCommand(deps),
       sync: syncCommand(deps),
-      "import-moss": importMossCommand(deps),
       status: statusCommand(deps),
       guide: guideCommand(deps),
     },

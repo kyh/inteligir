@@ -164,14 +164,6 @@ example of any syntax on this page.
 Raw HTML beyond `<mark>`, `<u>`, and an existing preserved `<blockquote>`
 belongs in an `inteligir-html` fence.
 
-## Legacy Input
-
-Vaults imported from other tools may hold `moss-callout`, `moss-chart`,
-`moss-canvas`, `moss-html` fences and `%%m:id:start%%` comment markers. These
-still parse, so leave them alone unless the task is a conversion. Never write
-them into new content: the app emits the `inteligir-` spelling and `%%i:`
-markers, and mixing the two in one note makes a diff nobody asked for.
-
 ## Focused Contracts
 
 - Structure and readability: `inteligir-writing`

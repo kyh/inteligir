@@ -7,8 +7,7 @@
 // reason: in dev this module runs from source and its sibling is the `.ts`
 // entry, in a build it is inside `dist-node/main.js` and the sibling is the
 // separately-bundled `.mjs`. The two resolvers are deliberately not shared —
-// `fork-channel.ts` is vendored, and folding a house helper into it would make
-// its provenance row a lie for the sake of fifteen lines.
+// `fork-channel.ts` is vendored; keep house helpers out of it.
 //
 // EVERY EXIT PATH TERMINATES THE WORKER. A native decode that wedges would
 // otherwise hold a thread and the model's memory for the life of the process —

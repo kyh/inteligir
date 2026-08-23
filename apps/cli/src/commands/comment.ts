@@ -1,6 +1,6 @@
 // Anchored-comment verbs over the sidecar routes (#583/#592): list, add,
 // reply, resolve, remove. The BODY MARKERS are the editor's (and the agent's
-// own shell's, per the vendored moss-comments skill) — these verbs touch only
+// own shell's, per the inteligir-comments skill) — these verbs touch only
 // the sidecar, so `add` from here starts an UNANCHORED thread the panel
 // surfaces as such, and `remove` answers which marker ids the caller still
 // owes the note.
@@ -145,7 +145,7 @@ export function commentCommand(deps: CliDeps) {
           writeLines([
             `Thread ${args.id} removed.`,
             ...(body.removedIds.length > 0
-              ? [`Strip its markers from the note: %%m:${body.removedIds.join(",")}:start/end%%`]
+              ? [`Strip its markers from the note: %%i:${body.removedIds.join(",")}:start/end%%`]
               : []),
           ]);
         },

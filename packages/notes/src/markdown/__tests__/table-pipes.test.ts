@@ -24,17 +24,19 @@ function formulasIn(md: string): Array<{ raw: string }> {
   return out;
 }
 
-const MOSS_TABLE = "| a | b |\n| - | - |\n| {{5|5}} | x |\n";
+const RAW_PILL_TABLE = "| a | b |\n| - | - |\n| {{5|5}} | x |\n";
 
 describe("escapePillPipesInTables", () => {
   it("escapes a raw pill pipe on a table-shaped line", () => {
-    expect(escapePillPipesInTables(MOSS_TABLE)).toBe("| a | b |\n| - | - |\n| {{5\\|5}} | x |\n");
+    expect(escapePillPipesInTables(RAW_PILL_TABLE)).toBe(
+      "| a | b |\n| - | - |\n| {{5\\|5}} | x |\n",
+    );
   });
 
   it("is idempotent — canonical (already-escaped) bytes are untouched", () => {
     const canonical = "| a | b |\n| - | - |\n| {{5\\|5}} | x |\n";
     expect(escapePillPipesInTables(canonical)).toBe(canonical);
-    const once = escapePillPipesInTables(MOSS_TABLE);
+    const once = escapePillPipesInTables(RAW_PILL_TABLE);
     expect(escapePillPipesInTables(once)).toBe(once);
   });
 
@@ -63,8 +65,8 @@ describe("escapePillPipesInTables", () => {
     expect(escapePillPipesInTables(md)).toBe(md);
   });
 
-  it("Moss-raw pill in a table cell parses as ONE pill", () => {
-    expect(formulasIn(MOSS_TABLE)).toEqual([{ raw: "5|5" }]);
+  it("raw pill in a table cell parses as ONE pill", () => {
+    expect(formulasIn(RAW_PILL_TABLE)).toEqual([{ raw: "5|5" }]);
   });
 
   it("our escaped form parses identically", () => {

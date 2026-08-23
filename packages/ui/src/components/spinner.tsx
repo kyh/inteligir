@@ -1,3 +1,4 @@
+// Vendored from shadcn/ui (github.com/shadcn-ui/ui), MIT.
 import { cn } from "@repo/ui/lib/utils";
 import { Loader2Icon } from "lucide-react";
 

@@ -31,9 +31,6 @@ block.
 ````
 
 In order: the grid marker, an optional single-line labels array, then grid rows.
-(Write `[inteligir:…]`. A vault imported from Moss may hold `[moss:…]` markers;
-those still parse, so leave them alone — the canvas rewrites its own header the
-next time it is edited.)
 
 The grid is 120 columns by 60 rows. Missing cells pad empty, extra cells
 truncate, and a saved canvas normalizes to the full size.

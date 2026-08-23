@@ -1,4 +1,4 @@
-# Moss tabs
+# Inteligir tabs
 
 :::tabs
 === Option A

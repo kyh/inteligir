@@ -1,4 +1,4 @@
-# Moss callouts
+# Inteligir callouts
 
 ```inteligir-callout
 info

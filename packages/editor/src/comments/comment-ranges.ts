@@ -1,11 +1,11 @@
-// Pairing the body's %%m:ids:start/end%% markers into decorated ranges, one
+// Pairing the body's %%i:ids:start/end%% markers into decorated ranges, one
 // block element at a time. Markers are inline-void nodes (the dialect's), so
 // a range's anchor is the point AFTER its start marker and its focus the
 // point BEFORE its end marker — the tint covers exactly the annotated text
 // and never the plumbing. Pairing is per-element on purpose: the skill wraps
 // an inline range inside one block, and a pair that straddles blocks (the
 // block-marker form) surfaces as two unpaired edges rather than a guessed
-// span. Multi-id markers (`%%m:a,b:start%%`) pair by their whole id set and
+// span. Multi-id markers (`%%i:a,b:start%%`) pair by their whole id set and
 // tint once.
 
 import { ElementApi, type Path, type Point, type SlateEditor, type TElement } from "platejs";

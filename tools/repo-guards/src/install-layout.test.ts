@@ -45,6 +45,7 @@ import {
   CLI_DIR,
   DIST_DIR,
   RUNTIME_PACKAGE,
+  SKILLS_DIR,
   appServerEntryFromDist,
   publishedBinMap,
 } from "../../../apps/launcher/scripts/staged-layout.mjs";
@@ -105,6 +106,12 @@ const ENCODERS: Encoder[] = [
       "the walk from the running app bundle up to the CLI's bin, which is what puts `inteligir` on the agent's PATH",
     why: "apps/app may not depend on the package that packages it",
     segments: ["..", "..", CLI_DIR, CLI_BIN_DIR],
+  },
+  {
+    file: "apps/app/src/node/agent/agent-shell-env.ts",
+    encodes: "the packaged product skills staged beside the app bundle",
+    why: "apps/app may not depend on the package that packages it",
+    segments: ["..", SKILLS_DIR],
   },
   {
     file: "apps/desktop/src/main/server-paths.ts",

@@ -287,22 +287,6 @@ function createFixtureApp(state: FixtureState): Hono {
     }
     return c.json({ ok: true });
   });
-  post(apiRoutes.vault.importMoss, (c, body) =>
-    c.json({
-      dryRun: body.dryRun,
-      scanned: 2,
-      changed: 1,
-      files: [
-        {
-          path: "notes/hello.md",
-          bodyChanged: true,
-          sidecarChanged: false,
-          notes: ["1 legacy comment range(s) modernized"],
-        },
-      ],
-      warnings: [],
-    }),
-  );
   get(apiRoutes.vault.status, (c) => c.json(state.vaultStatus));
   post(apiRoutes.vault.syncNow, (c) => c.json(state.vaultStatus));
 

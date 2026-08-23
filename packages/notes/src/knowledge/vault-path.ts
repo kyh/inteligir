@@ -142,7 +142,7 @@ export function isIgnoredEntryName(name: string): boolean {
   return name.toLowerCase() === ".git" || name.startsWith(VAULT_TMP_PREFIX);
 }
 
-/** The vault's trash folder (Moss's shape): deleted notes move here and keep
+/** The vault's trash folder: deleted notes move here and keep
  * their relative path. A real, synced directory — the file tree may show it —
  * but the knowledge layer must never index it, or every trashed note keeps
  * resolving links and haunting search. */

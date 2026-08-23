@@ -12,7 +12,6 @@ import {
 } from "@repo/server-contract/vault";
 import type { TypedRoutesRegistrars } from "@repo/typed-routes/typed-routes";
 import { VaultPathError } from "@repo/notes/knowledge/vault-path";
-import { runMossImport } from "./import-moss";
 import { listTrash, purgeTrashedNote, restoreNote, trashNote } from "./trash";
 import type { VaultRuntime } from "./vault-runtime";
 import {
@@ -331,10 +330,6 @@ export function registerVaultRoutes(
       }
     }
   });
-
-  post(apiRoutes.vault.importMoss, async (c, body) =>
-    c.json(await runMossImport(vault.service, body.dryRun)),
-  );
 
   get(apiRoutes.vault.status, async (c) => c.json(await vault.status()));
 

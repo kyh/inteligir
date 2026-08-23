@@ -8,7 +8,7 @@
 //     text; typing `{{…}}` completes a pill (the wiki `]]` rule's sibling);
 //     `stale=1` metadata renders an amber hint. Evaluation itself lives in
 //     formulas/formula-recompute.ts.
-//   %%m:ids:start/end%%      → commentMarker — an anchored-comment
+//   %%i:ids:start/end%%      → commentMarker — an anchored-comment
 //     boundary. Renders nothing visible: the marker is plumbing for the
 //     comment surface (#583), and drawing brackets in prose would put the
 //     mechanism where the annotation belongs. The bytes stay exact.

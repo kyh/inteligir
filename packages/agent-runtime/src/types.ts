@@ -1,7 +1,7 @@
 // Vendored from bb (github.com/get-bb/bb), MIT. © bb contributors.
 // Trimmed runtime surface: no skills, no fork/rewind, no goals, no dynamic
 // tools / tool calls, no archive/rename, no background-work reporting, no
-// ACP — see PROVENANCE.md for what each trim cost.
+// ACP.
 
 import type { RuntimeThreadExecutionOptions } from "./vocabulary/shared-types.js";
 import type {

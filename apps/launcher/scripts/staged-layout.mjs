@@ -45,6 +45,8 @@ export const APP_BUNDLE_DIR = "dist-node";
 export const APP_SERVER_ENTRY = "main.js";
 /** The built SPA the prod fallback serves, staged beside the bundle. */
 export const APP_CLIENT_DIR = "dist";
+/** Agent-readable product skills staged beside the app bundle. */
+export const SKILLS_DIR = "skills";
 
 /** The CLI's shim: the file npm's `inteligir-cli` bin points at, and the one
  *  the server puts on the agent's PATH. Both want this exact name. */
@@ -100,6 +102,15 @@ export function appBundleDir(installRoot) {
  */
 export function appServerEntry(installRoot) {
   return join(appBundleDir(installRoot), APP_SERVER_ENTRY);
+}
+
+/**
+ * Agent-readable product skills in an installed app.
+ * @param {string} installRoot
+ * @returns {string}
+ */
+export function appSkillsDir(installRoot) {
+  return join(stagedAppDir(installRoot), SKILLS_DIR);
 }
 
 /**

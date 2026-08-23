@@ -60,7 +60,6 @@ export const LEAF_INVOCATIONS = new Map<string, readonly string[]>([
   ["sync status", ["sync", "status"]],
   ["sync pair", ["sync", "pair"]],
   ["sync push", ["sync", "push"]],
-  ["import-moss", ["import-moss", "--dry-run"]],
   ["status", ["status"]],
   ["guide", ["guide"]],
 ]);

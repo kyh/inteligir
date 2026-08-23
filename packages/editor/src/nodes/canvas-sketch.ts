@@ -30,10 +30,8 @@ function splitPayload(value: string): SplitPayload | null {
   if (!isGridHeader(lines[0])) return null;
   const labelPrefix = labelLinePrefix(lines[1]);
   const gridStart = labelPrefix === null ? 1 : 2;
-  // The head is REWRITTEN to our spelling rather than carried verbatim: this
-  // is the only path that edits a payload, so it is where a Moss-written
-  // canvas canonicalizes. Serialization cannot do it — a rich block's payload
-  // is verbatim by contract, and opening a note must never rewrite bytes.
+  // The head is rewritten through the shared constants. Serialization keeps a
+  // rich block's payload verbatim.
   const labelLine = lines[1];
   const head =
     labelPrefix === null || labelLine === undefined

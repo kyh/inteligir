@@ -11,7 +11,7 @@ How to edit this vault:
 - The vault is a git repo of plain markdown files; edit this note's file directly — the file is the source of truth.
 - Frontmatter (YAML between --- fences) is the only property store; preserve keys you do not understand byte-exactly.
 - Notes use the inteligir markdown dialect: [[wiki links]], {{formula}} pills, %%i:id%% comment anchors, and inteligir-* fenced blocks.
-- Keep %%m:id%% anchors and HTML comment markers byte-exact; never reflow or strip them.
+- Keep %%i:id%% anchors and HTML comment markers byte-exact; never reflow or strip them.
 - Wiki links resolve by note title or alias; renaming a note breaks inbound [[links]] unless they are rewritten too.
 - Unsure about a dialect construct? Write plain CommonMark instead of guessing.
 - The dialect's full spec ships with the inteligir app as agent skills (inteligir-notes first); read them before authoring dialect constructs if you can reach an install.

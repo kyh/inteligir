@@ -15,8 +15,7 @@
 // kit-parity, pi-quarantine): assert the architectural rule as a failing test.
 //
 // Adding a component you have not wired up yet? Wire it up, or delete it and
-// re-pull it — for shadcn that is one command, and the vendored sets record
-// their upstream in a PROVENANCE.md beside them.
+// re-pull it — for shadcn that is one command.
 // ---------------------------------------------------------------------------
 
 import { describe, expect, it } from "vitest";
@@ -150,8 +149,7 @@ describe("no orphan components", () => {
         `Every file under src/components and src/ai must be reachable from a consumer.\n` +
         `The component gallery does NOT count as one — it imports everything by design,\n` +
         `and rendering in a gallery is not the same claim as the product needing it.\n` +
-        `Delete them — a vendored set records its upstream in the PROVENANCE.md beside it,\n` +
-        `and shadcn re-adds a stock component in one command — or wire them up:\n` +
+        `Delete them — shadcn re-adds a stock component in one command — or wire them up:\n` +
         orphans.map((file) => `  ${file}`).join("\n"),
     ).toEqual([]);
   });

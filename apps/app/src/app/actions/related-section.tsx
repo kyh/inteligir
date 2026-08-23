@@ -43,7 +43,7 @@ export function plainSnippet(snippet: string): string {
       return label.split("#")[0] ?? label;
     })
     .replace(/\{\{([^{}]*)\}\}/gu, (_match, body: string) => body.split("|")[1] ?? "")
-    .replace(/%%m:[^%]*%%/gu, "")
+    .replace(/%%i:[^%]*%%/gu, "")
     .replace(/^[\s>#*-]+/u, "")
     .replace(/\s+/gu, " ")
     .trim();

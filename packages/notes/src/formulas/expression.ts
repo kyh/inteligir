@@ -26,7 +26,7 @@ export type ExpressionNode =
 
 const REF_RE = /^@\(([A-Za-z][A-Za-z0-9_-]*)#([^#()\s]+)#([^#()\s]+)\)/u;
 // Optional $, digits with optional well-formed thousands groups, optional
-// decimals, then an optional magnitude suffix (either case — Moss writes
+// decimals, then an optional magnitude suffix in either case (`5k` and
 // `5K`) and an optional trailing `%` that composes with it (`5k%`). A
 // malformed comma run is not a number, which makes the whole expression
 // symbolic rather than half-parsed.

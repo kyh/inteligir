@@ -2,7 +2,7 @@
 // Trimmed to what the codex adapter consumes: the reasoning ladder, the
 // runtime permission policy, the instruction mode and the per-thread
 // execution options. bb's serviceTier / claude-code / workflows / memory /
-// subagents knobs are not carried — see PROVENANCE.md.
+// subagents knobs are not carried.
 
 import { z } from "zod";
 

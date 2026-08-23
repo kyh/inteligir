@@ -359,37 +359,6 @@ export const vaultStatusResponseSchema = z.discriminatedUnion("state", [
 ]);
 export type VaultStatusResponse = z.infer<typeof vaultStatusResponseSchema>;
 
-// ---------------------------------------------------------------------------
-// Moss legacy import (one-shot vault pass)
-// ---------------------------------------------------------------------------
-
-export const vaultImportMossRequestSchema = z.object({ dryRun: z.boolean() }).strict();
-export type VaultImportMossRequest = z.infer<typeof vaultImportMossRequestSchema>;
-
-/** One note's outcome, only present when the pass changed (or would change)
- * something about it — a clean vault answers an empty list. */
-export const vaultImportMossFileSchema = z
-  .object({
-    path: z.string().min(1),
-    bodyChanged: z.boolean(),
-    sidecarChanged: z.boolean(),
-    /** Human-readable change/warning lines from the doc pass. */
-    notes: z.array(z.string()),
-  })
-  .strict();
-export type VaultImportMossFile = z.infer<typeof vaultImportMossFileSchema>;
-
-export const vaultImportMossResponseSchema = z
-  .object({
-    dryRun: z.boolean(),
-    scanned: z.number().int().nonnegative(),
-    changed: z.number().int().nonnegative(),
-    files: z.array(vaultImportMossFileSchema),
-    warnings: z.array(z.string()),
-  })
-  .strict();
-export type VaultImportMossResponse = z.infer<typeof vaultImportMossResponseSchema>;
-
 export const vaultRoutes = {
   tree: defineRoute({
     path: "/vault/tree",
@@ -516,12 +485,6 @@ export const vaultRoutes = {
       jsonResponse<ApiErrorResponse>({ status: 400 }),
       jsonResponse<ApiErrorResponse>({ status: 404 }),
     ],
-  }),
-  importMoss: defineRoute({
-    path: "/vault/import-moss",
-    method: "post",
-    request: jsonRequest<EmptyInput, VaultImportMossRequest>(vaultImportMossRequestSchema),
-    response: jsonResponse<VaultImportMossResponse>(),
   }),
   status: defineRoute({
     path: "/vault/status",

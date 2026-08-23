@@ -1,4 +1,4 @@
-# Moss fenced constructs
+# Inteligir fenced constructs
 
 ```inteligir-chart
 {"type":"bar","title":"Requests","data":[{"label":"Mon","value":12},{"label":"Tue","value":18}]}

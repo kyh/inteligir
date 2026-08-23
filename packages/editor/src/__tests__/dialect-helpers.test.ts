@@ -1,4 +1,4 @@
-// Pure halves of the Moss-parity batch: the /month chip's first-day ISO, the
+// Pure halves of the Inteligir dialect: the /month chip's first-day ISO, the
 // hover preview's markdown strip, and the swatch picker's lossless respell.
 
 import { describe, expect, it } from "vitest";

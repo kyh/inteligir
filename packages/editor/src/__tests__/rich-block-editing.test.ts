@@ -195,21 +195,6 @@ describe("strokeSegmentCells", () => {
 });
 
 describe("untouched blocks stay byte-exact through the pipeline", () => {
-  it("a Moss-written payload canonicalizes its header on the first edit", () => {
-    // The one write path is where a legacy canvas becomes ours; serialization
-    // leaves payloads verbatim by contract, so nothing else can do it.
-    const legacy = '[moss:grid:v2]\n[moss:labels:[{"id":"l","text":"L","col":0,"row":0}]]\n..\n..';
-    const painted = paintCanvasCells(legacy, [{ col: 1, row: 1 }], true);
-    expect(painted).toBe(
-      '[inteligir:grid:v2]\n[inteligir:labels:[{"id":"l","text":"L","col":0,"row":0}]]\n..\n.#',
-    );
-    // Idempotent thereafter: a second edit changes only the cell it touches.
-    expect(paintCanvasCells(painted, [{ col: 0, row: 0 }], true)).toBe(
-      '[inteligir:grid:v2]\n[inteligir:labels:[{"id":"l","text":"L","col":0,"row":0}]]\n#.\n.#',
-    );
-    expect(clearCanvasGrid("[moss:grid:v2]\n##")).toBe("[inteligir:grid:v2]");
-  });
-
   it("chart and canvas fences round-trip unchanged", () => {
     const md =
       '```inteligir-chart\n{"type":"bar","data":[{"label":"Mon","value":12}]}\n```\n\n```inteligir-canvas\n[inteligir:grid:v2]\nab.\n.x.\n```\n';

@@ -93,7 +93,7 @@ inteligir action wait "$id" && inteligir action show "$id"
 ## Comments — the review channel
 
 Anchored comments live in a \`<note>.comments.json\` sidecar beside the note;
-the \`%%m:id:start%%…%%m:id:end%%\` body markers wrap the ranges they are
+the \`%%i:id:start%%…%%i:id:end%%\` body markers wrap the ranges they are
 about (the inteligir-comments skill states the grammar — follow it when
 editing files directly).
 
@@ -165,10 +165,6 @@ it would throw away.
 
 - \`inteligir status\` — server version, data dir, agent runtime state, and
   the current thread context.
-- \`inteligir import-moss\` — one-shot migration of legacy Moss syntax across
-  the vault: \`{%c:id%}\` comment ranges become \`%%m:id:start/end%%\`, comment
-  footers fold into the \`.comments.json\` sidecar, whitespace-lax marker and
-  tab spellings normalize. Idempotent. \`--dry-run\` reports without writing.
 - \`inteligir guide\` — print this manual.
 
 ## Exit codes and failure output

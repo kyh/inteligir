@@ -114,7 +114,7 @@
     },
     // Same trade as packages/notes: every subpath is an entry the app and the
     // headless mirror import piecemeal. The Plate kit/registry adaptations
-    // (PROVENANCE.md's rows) keep their upstream-shaped exports for the same
+    // keep their upstream-shaped exports for the same
     // reason packages/ui trusts its vendored components: trimming them makes
     // the next re-vendor a conflict.
     "packages/editor": {
@@ -184,11 +184,11 @@
     },
     // The ONE package that keeps knip's default `includeEntryExports: false`,
     // and the reason is the package rather than the findings. `src/components`
-    // is VENDORED shadcn: each file is copied from the registry, recorded in
-    // components.provenance.json, and re-pullable with one command — so its
+    // is VENDORED shadcn: each file is copied from the registry and
+    // re-pullable with the shadcn CLI — so its
     // exports are the UPSTREAM component's surface, not this repo's. Deleting
     // `DialogClose` because nothing calls it today makes the next re-pull a
-    // conflict and the provenance record a lie.
+    // conflict.
     //
     // The invariant that actually has teeth here is coarser and lives as a
     // test: src/__tests__/no-orphan-components.test.ts fails when a whole

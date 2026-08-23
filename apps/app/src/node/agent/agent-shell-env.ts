@@ -28,8 +28,8 @@ const CLI_BIN_NAME = "inteligir";
 export function resolveSkillsDir(): string | null {
   try {
     const require = createRequire(import.meta.url);
-    const manifest = require.resolve("@repo/agent-skills/package.json");
-    const skills = join(dirname(manifest), "skills");
+    const entry = require.resolve("@repo/agent-skills/skills/inteligir-notes/SKILL.md");
+    const skills = dirname(dirname(entry));
     if (statSync(skills).isDirectory()) return skills;
   } catch {
     // Workspace resolution is the dev path; the packaged layout stages the

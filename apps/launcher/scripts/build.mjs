@@ -38,6 +38,7 @@ import {
   cliBinDir,
   distDir as installDistDir,
   launcherEntry,
+  appSkillsDir,
   stagedAppDir,
   stagedCliDir,
 } from "./staged-layout.mjs";
@@ -93,7 +94,7 @@ await writeFile(
 // package cannot be a published dependency.
 await cp(
   join(packageRoot, "..", "..", "packages", "agent-skills", "skills"),
-  join(stagedApp, "skills"),
+  appSkillsDir(packageRoot),
   { recursive: true },
 );
 
@@ -105,29 +106,13 @@ await cp(join(packageRoot, "..", "app", "seed"), join(stagedApp, "seed"), { recu
 // Third-party license texts. This is the ONLY published workspace — every
 // other package is `private: true` — so the notices MIT and Apache require to
 // travel with a copy have to travel with THIS artifact, not with a package
-// nobody installs. Collected rather than listed: a new vendored upstream adds
-// its text and ships automatically, where a hand-kept list would go stale
-// exactly when a license was added.
-const licenseSources = [
-  join(repoRoot, "licenses"),
-  ...["packages/ui", "packages/ui/src/ai", "packages/editor", "packages/agent-skills"].map((dir) =>
-    join(repoRoot, dir),
-  ),
-];
+// nobody installs. Centralized under tools/licenses and collected from there.
 const stagedLicenses = join(distDir, "licenses");
 await mkdir(stagedLicenses, { recursive: true });
-for (const source of licenseSources) {
-  let names = [];
-  try {
-    names = await readdir(source);
-  } catch {
-    // A directory whose vendored code was removed takes its licenses with it.
-    continue;
-  }
-  for (const name of names.filter((entry) => /licen[cs]e/i.test(entry))) {
-    await cp(join(source, name), join(stagedLicenses, name), { recursive: true });
-  }
+for (const name of await readdir(join(repoRoot, "tools", "licenses"))) {
+  await cp(join(repoRoot, "tools", "licenses", name), join(stagedLicenses, name));
 }
+await cp(join(repoRoot, "LICENSE"), join(stagedLicenses, "LICENSE.inteligir"));
 
 // The CLI: its own bundle plus the `inteligir` shim two different callers
 // resolve — npm's `inteligir-cli` bin, and the PATH entry the server injects

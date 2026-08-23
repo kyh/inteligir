@@ -263,7 +263,7 @@ describe("parseWikiBody (display-time helper)", () => {
     expect(parseWikiBody("a#|x")).toEqual({ alias: "x", target: "a#" });
   });
 
-  it("the LAST pipe splits the alias (Moss dialect: a piped title keeps its pipes)", () => {
+  it("the LAST pipe splits the alias (a piped title keeps its pipes)", () => {
     expect(parseWikiBody("a|b|c")).toEqual({ alias: "c", target: "a|b" });
     expect(parseWikiBody("Status | Draft|9e64c3df-c1e2-4a4d-8c07-91528f422413")).toEqual({
       alias: "9e64c3df-c1e2-4a4d-8c07-91528f422413",
@@ -492,9 +492,9 @@ describe("gate API", () => {
   });
 });
 
-// Moss also writes the payload lines prefixed (`type: warning` / `level:
+// Inteligir also accepts payload lines prefixed (`type: warning` / `level:
 // high`); the spelling is remembered on the node, so the round trip is
-// byte-exact — and an unknown kind is a plain code block, as in Moss.
+// byte-exact — and an unknown kind is a plain code block.
 const variantsOf = (md: string): string => {
   const parsed = parseMarkdown(md);
   expect(parsed.ok).toBe(true);

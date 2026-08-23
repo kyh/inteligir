@@ -4,9 +4,6 @@
 // chars where `.`/space are empty and anything else is ink. Sketching edits
 // CELLS, not the whole grid — a stroke commits once on pointer-up through the
 // one writer, and untouched cells keep their original characters.
-//
-// Moss's `[moss:…]` header spellings PARSE too, so a converted note opens
-// unchanged; the one writer always emits ours, which canonicalizes it.
 
 import { z } from "zod";
 import { type PlateElementProps, PlateElement } from "platejs/react";

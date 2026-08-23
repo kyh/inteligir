@@ -83,7 +83,7 @@ function pushChromeState(handle: BrowserWindowHandle): void {
  * "Send page to agent": read {url, title, selection} off the content view —
  * the shell driving its own content, never the reverse — and create an action
  * carrying it through the SAME typed routes every client uses. The send
- * starts the agent on the page, which is the Moss semantic.
+ * starts the agent on the page, which is the Inteligir semantic.
  */
 async function sendPageToAgent(
   handle: BrowserWindowHandle,

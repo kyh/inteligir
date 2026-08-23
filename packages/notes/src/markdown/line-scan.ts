@@ -1,5 +1,5 @@
 // Line-level scanning shared by the pre-parse passes (table-pipe escaping,
-// the Moss import migrations): which lines are ACTIVE text — outside the
+// import migrations): which lines are ACTIVE text — outside the
 // frontmatter block and code fences, whose bytes are verbatim by contract —
 // and which columns of a line sit inside CommonMark code spans.
 

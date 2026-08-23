@@ -1,4 +1,5 @@
 "use client";
+// Vendored from shadcn/ui (github.com/shadcn-ui/ui), MIT.
 
 import { Toaster as Sonner, toast, type ToasterProps } from "sonner";
 import {

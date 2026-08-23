@@ -1,5 +1,5 @@
 // The metadata tail of a formula pill — `id=…;name=…;stale=1` — parsed and
-// re-emitted in one spelling. The vendored moss-formulas-variables skill is
+// re-emitted in one spelling. The inteligir-formulas skill is
 // the contract: `id` is identity within the note, `name` names an executable
 // variable, `stale=1` is app-maintained recompute state, and legacy
 // `format=…` keys are accepted but dropped when the pill is rewritten.
@@ -22,7 +22,7 @@ export function parseFormulaMeta(meta: string | undefined): FormulaMeta {
     const value = eq === -1 ? "" : pair.slice(eq + 1).trim();
     if (key === "id") parsed.id = value;
     else if (key === "name") parsed.name = value;
-    // Moss writes both spellings; serializeFormulaMeta re-emits the `1` form.
+    // Both spellings parse; serializeFormulaMeta re-emits the `1` form.
     else if (key === "stale") parsed.stale = value === "1" || value === "true";
     else if (key === "format")
       continue; // legacy — accepted, ignored, dropped on rewrite

@@ -386,7 +386,7 @@ export class LinkGraphIndex {
     }));
   }
 
-  /** Moss's resolved-link tier first: a uuid-shaped alias names the target by
+  /** Inteligir's resolved-link tier first: a uuid-shaped alias names the target by
    * frontmatter `id:`, surviving a title the writer never updated. The title
    * tiers remain the fallback so an id nothing owns still resolves as text. */
   private resolveWikiLink(

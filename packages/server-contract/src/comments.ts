@@ -1,13 +1,13 @@
 // The anchored-comments wire contract (issue #583). The SIDECAR is the source
-// of truth (`<note>.md.comments.json`, Moss's row shape — the vendored
-// moss-comments skill); these routes serve the HUMAN surface the editor
+// of truth (`<note>.md.comments.json`, the inteligir-comments skill); these
+// routes serve the HUMAN surface the editor
 // drives. The division of labour is the skill's own: the EDITOR owns the body
-// markers (it writes `%%m:id%%` pairs on add and strips them on delete), the
+// markers (it writes `%%i:id%%` pairs on add and strips them on delete), the
 // routes own only the sidecar — so `remove` answers which root ids died and
 // the editor strips their markers.
 //
 // The wire entry is a strict PROJECTION of the sidecar row: the file may hold
-// fields Moss wrote that this version has never heard of, and those survive
+// fields older versions wrote that this version has never heard of, and those survive
 // every rewrite — but they do not transit, because a strict wire is what lets
 // the route tests catch an undeclared field. `anchored` is DERIVED per answer
 // by re-reading the note's markers, never stored: a claim column would be
