@@ -48,7 +48,10 @@ export const externalEditBrowser: Scenario = {
       await probeHeadlessOrSkip(agentBrowser, ctx.log);
 
       ctx.log(`opening ${app.baseUrl}/`);
-      await agentBrowser(["open", `${app.baseUrl}/`], 60_000);
+      // Name the note in the deep link rather than relying on listing order:
+      // the seeded vault's front door (Welcome) outranks "first doc", and this
+      // scenario is about external edits, not the boot pick.
+      await agentBrowser(["open", `${app.baseUrl}/?note=${encodeURIComponent(notePath)}`], 60_000);
       await agentBrowser(["wait", EDITOR], 90_000);
       const opened = await agentBrowser(["get", "text", EDITOR]);
       expect(

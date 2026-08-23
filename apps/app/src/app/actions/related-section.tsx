@@ -9,6 +9,7 @@
 // cannot check. No dedup is needed between the halves — the scorer excludes
 // direct neighbours by construction, so the same note never appears twice.
 
+import { isUuidWikiAlias } from "@repo/notes/markdown/remark-wiki-link";
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "@repo/ui/lib/utils";
 import { ChevronRightIcon } from "lucide-react";
@@ -28,6 +29,53 @@ export interface RelatedRow {
 
 /** The stem a reader recognises — the file's own name, without the folder or
  *  the extension, with the full path as the row's title. */
+/** A backlink SNIPPET is the linking sentence verbatim, so it still carries
+ *  the dialect's own syntax. The panel wants prose: render what a reader sees
+ *  in the source note, not the bytes that produce it. */
+export function plainSnippet(snippet: string): string {
+  return snippet
+    .replace(/!?\[\[([^\]]+)\]\]/gu, (_match, body: string) => {
+      const parts = body.split("|");
+      const target = parts[0] ?? body;
+      const alias = parts.length > 1 ? parts.at(-1) : undefined;
+      // A uuid alias is IDENTITY, not a label — the same rule the chip reads.
+      const label = alias !== undefined && !isUuidWikiAlias(alias) ? alias : target;
+      return label.split("#")[0] ?? label;
+    })
+    .replace(/\{\{([^{}]*)\}\}/gu, (_match, body: string) => body.split("|")[1] ?? "")
+    .replace(/%%m:[^%]*%%/gu, "")
+    .replace(/^[\s>#*-]+/u, "")
+    .replace(/\s+/gu, " ")
+    .trim();
+}
+
+interface BacklinkGroup {
+  sourcePath: string;
+  snippet: string;
+  count: number;
+}
+
+/** One row per LINKING NOTE, not per mention: five links from one note are one
+ *  fact about that note, and five identical rows crowd out every other. */
+export function groupBacklinks(
+  backlinks: readonly { sourcePath: string; snippet: string }[],
+): BacklinkGroup[] {
+  const groups = new Map<string, BacklinkGroup>();
+  for (const backlink of backlinks) {
+    const existing = groups.get(backlink.sourcePath);
+    if (existing === undefined) {
+      groups.set(backlink.sourcePath, {
+        sourcePath: backlink.sourcePath,
+        snippet: backlink.snippet,
+        count: 1,
+      });
+      continue;
+    }
+    existing.count += 1;
+  }
+  return [...groups.values()];
+}
+
 export function relatedRowLabel(sourcePath: string): string {
   const name = sourcePath.slice(sourcePath.lastIndexOf("/") + 1);
   const dot = name.lastIndexOf(".");
@@ -83,10 +131,13 @@ export function RelatedInline({
   const related = relatedQuery.data?.related ?? [];
 
   const rows: RelatedRow[] = [
-    ...backlinks.map((backlink) => ({
-      path: backlink.sourcePath,
-      label: relatedRowLabel(backlink.sourcePath),
-      detail: `Links here · ${backlink.snippet}`,
+    ...groupBacklinks(backlinks).map((group) => ({
+      path: group.sourcePath,
+      label: relatedRowLabel(group.sourcePath),
+      detail:
+        group.count === 1
+          ? `Links here · ${plainSnippet(group.snippet)}`
+          : `Links here ${String(group.count)}× · ${plainSnippet(group.snippet)}`,
     })),
     ...related.map((entry) => ({
       path: entry.path,

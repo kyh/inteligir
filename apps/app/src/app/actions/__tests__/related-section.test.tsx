@@ -13,6 +13,8 @@ import {
   linkedMentionsSummary,
   relatedRowLabel,
   type RelatedRow,
+  groupBacklinks,
+  plainSnippet,
 } from "../related-section";
 
 afterEach(cleanup);
@@ -78,5 +80,31 @@ describe("the unfolded list", () => {
     );
     expect(screen.getByText("Roadmap")).toBeTruthy();
     expect(screen.getByText("Could not read suggestions just now.")).toBeTruthy();
+  });
+});
+
+describe("linked-mention previews", () => {
+  it("renders the linking sentence as prose, not dialect bytes", () => {
+    expect(plainSnippet("- A [[Getting Started with Moss#Lists|the tour]] mention")).toBe(
+      "A the tour mention",
+    );
+    expect(plainSnippet("> Cost is {{2*3|6}} today")).toBe("Cost is 6 today");
+    expect(plainSnippet("%%m:abc:start%%Reviewed%%m:abc:end%%")).toBe("Reviewed");
+    // A uuid alias is identity, so the title stands in for it.
+    expect(plainSnippet("see [[Use Cases|f2745aa0-f394-4469-963d-438f2dd9fd5a]] first")).toBe(
+      "see Use Cases first",
+    );
+  });
+
+  it("groups mentions by their source note", () => {
+    const grouped = groupBacklinks([
+      { snippet: "first", sourcePath: "a.md" },
+      { snippet: "second", sourcePath: "a.md" },
+      { snippet: "only", sourcePath: "b.md" },
+    ]);
+    expect(grouped.map((group) => [group.sourcePath, group.count])).toEqual([
+      ["a.md", 2],
+      ["b.md", 1],
+    ]);
   });
 });
