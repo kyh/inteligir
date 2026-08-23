@@ -75,13 +75,13 @@ Review-->Ship;
 <toggle>
   Hidden until opened.
 
-- details live here
+  - details live here
 </toggle>
 
 <column_group>
-<column>
-Left column.
-</column>
+  <column>
+    Left column.
+  </column>
 
   <column>
     Right column.
@@ -118,7 +118,6 @@ A fence inside a panel:
 ```ts
 const answer = 42;
 ```
-
 :::
 
 ## Chart
