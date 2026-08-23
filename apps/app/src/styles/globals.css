@@ -22,6 +22,20 @@
   --editor-size: 1rem;
   --editor-line-height: 1.75;
 
+  /* THE header band. The pane's top bar and the right panel's tab row are the
+     two headers that start at the shell's top edge, and their bottom borders
+     read as one rule across the window — but they live in different stacking
+     contexts (an inset and a positioned sidebar), so no ancestor can size them
+     together and no grid can span them. Same reasoning as the measure below:
+     one name here, or two paddings that agree until someone edits one. The
+     left rail is deliberately NOT on this token — it is a floating card inset
+     from the edge, so its first row lands on the band by its own inset math.
+
+     Grid/subgrid is the right tool when the things to align are siblings in
+     one formatting context; across a positioned sidebar boundary it is not,
+     and reaching for it would mean rewriting the vendored sidebar's layout. */
+  --app-header-h: 2.5rem;
+
   /* THE measure. Three columns have to line up on it — the page title, the
      editor's own content, and the composer under them — and they sit in
      different stacking contexts, so :root is the only ancestor all three

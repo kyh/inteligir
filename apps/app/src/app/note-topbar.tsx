@@ -104,7 +104,7 @@ export function NoteTopbar({
   };
 
   return (
-    <header className="flex h-10 shrink-0 items-center gap-0.5 border-b border-line px-1.5 print:hidden">
+    <header className="flex h-[var(--app-header-h)] shrink-0 items-center gap-0.5 border-b border-line px-1.5 print:hidden">
       <Button
         variant="ghost"
         size="icon-xs"

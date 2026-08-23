@@ -295,7 +295,7 @@ export function ActionsPanel({
 
   return (
     <div className="flex h-full flex-col">
-      <div className="border-b border-line px-1.5 py-1">
+      <div className="flex h-[var(--app-header-h)] shrink-0 items-center border-b border-line px-1.5">
         <TabsSubtle
           aria-label="Panel tabs"
           size="compact"
