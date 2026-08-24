@@ -4,13 +4,19 @@
 
 **inteligir** — an AI-native notes app (Obsidian-with-an-agent), local-first.
 The vault is markdown files in a git repo the user owns; one local Node process
-serves the workspace, owns the vault, indexes it, and drives a coding agent
-that edits those same files. The only hosted piece is a Cloudflare Worker
-carrying the marketing site, accounts, and cross-device thread sync.
+owns that vault, indexes it, answers one API, and drives a coding agent that
+edits those same files. The only hosted piece is a Cloudflare Worker carrying
+the marketing site, accounts, and cross-device thread sync.
 
-**The architecture's decision record is GitHub issue
-[#542](https://github.com/kyh/inteligir/issues/542)** — what was chosen, and
-what was rejected and why.
+**TWO PROGRAMS.** `apps/desktop` is the shipped product — the window, and the
+SPA inside it. `apps/cli` is the `inteligir` binary: `serve` IS that local
+server, and every other verb is a client of a running one.
+
+**The architecture's decision record is GitHub issues
+[#542](https://github.com/kyh/inteligir/issues/542) and
+[#611](https://github.com/kyh/inteligir/issues/611)** — what was chosen, and
+what was rejected and why. #611 is the v4 consolidation, and it REVERSES four
+of #542's lines deliberately; where the two disagree, #611 wins.
 
 Turborepo + pnpm monorepo.
 
@@ -18,58 +24,48 @@ Turborepo + pnpm monorepo.
 
 ```
 apps/
-  app/           @repo/app — THE PRODUCT (issue #545): one local Node process.
-                 TanStack Start SPA (UI) served by a custom entry (src/node/,
-                 its own tsconfig program) that owns /api/v1 (the contract
-                 table on Hono), the /ws invalidation bus, and the db. Dev
-                 mounts Vite middlewareMode in-process; prod serves
-                 dist/client + the Start server entry's fetch. src/node/cloud/
-                 is the sync CLIENT (issue #572): the credential at rest, the
-                 frozen-body outbox, the pull/apply loop and the local
-                 /cloud/* routes Settings and `inteligir sync` drive.
-                 src/node/voice/ is dictation (issue #578): the pinned model
-                 cache under ~/.inteligir/models/, and streaming Parakeet
-                 (sherpa-onnx) on a persistent session worker per hold, over a
-                 dedicated /voice/stream websocket. src/node/comments/ serves the
-                 anchored-comment sidecars through the vault (#583). Agent
-                 memory was REMOVED (#589 reversed #575) — the harnesses
-                 carry their own.
-  cli/           @repo/cli — the `inteligir` CLI (issue #553): citty over
-                 the typed hc client, consola for the human path (raw writes
-                 for anything verbatim — consola rewrites `backtick` spans).
-                 Every leaf takes --json and is EXECUTED
-                 by the fitness test against 400/500; `requireOk` is the one
-                 status gate, returning hono's success member so a refusal
-                 cannot be printed as an answer. Discovery reuses
-                 @repo/app/node/config, then requires the responder's
-                 /system/status dataDir to match this checkout's (a
-                 neighbouring dev server is refused, never adopted). The app
-                 serves the agent manual on GET /api/v1/guide, and the codex
-                 runtime injects INTELIGIR_SERVER_URL + a PATH carrying the
-                 CLI's bin dir into agent shells, so a model drives the
-                 product by typing `inteligir …` in bash. The staged layout
-                 itself is `apps/launcher/scripts/staged-layout.mjs` — the
-                 build and both smokes import it, and the encoders that
-                 cannot (apps/app, the shell, the published `bin` map) are
-                 held against it by
-                 tools/repo-guards/src/install-layout.test.ts.
-  launcher/      inteligir — THE PUBLISHED ARTIFACT (issue #555). `npx
-                 inteligir` boots the product IN THIS PROCESS: parse the
-                 command line, hand it to the app's own boot as environment,
-                 import it. Its build stages the app and CLI into
-                 `dist/apps/{app,cli}` — the shape both of the app's runtime
-                 resolvers already walk, so a packaged install keeps its
-                 migrations, its SPA and the agent's CLI-on-PATH with no third
-                 code path. better-sqlite3 and @parcel/watcher stay runtime
-                 deps (native); everything else is inlined.
-  desktop/       @repo/desktop — the Electron shell (issue #555): one window on
-                 the local server, supervising it as a CHILD process. The whole
+  desktop/       @repo/desktop — THE SHIPPED PRODUCT (issue #611). THREE
+                 bundles under electron-vite: src/main/ (the window, the
+                 inteligir:// protocol handler, the forked server),
+                 src/preload/ (ONE string — the loopback ws origin, because a
+                 browser WebSocket cannot be proxied and window.location.origin
+                 no longer names a server), and src/renderer/ (the SPA:
+                 TanStack Router file routes over @repo/api/local). The whole
                  security surface is the ORIGIN PIN (src/main/origin-pin.ts,
                  pure + unit-tested): one origin, top-level navigation away
                  goes to the system browser, window.open denied
-                 unconditionally, no preload and no IPC. A server already
-                 listening is ADOPTED, not fought, and only a child the shell
-                 started is killed on quit.
+                 unconditionally, permissions denied except origin-scoped
+                 media. utilityProcess forks `inteligir serve`; a server
+                 already listening is ADOPTED once it answers this instance's
+                 token, and only a child the shell started is killed on quit.
+  cli/           inteligir — THE PUBLISHED BINARY, and THE SERVER (issues #553,
+                 #611). `serve` is the whole local process — src/server/ owns
+                 the vault, the knowledge index, the agent runtime, the oRPC
+                 handler at /rpc, the /ws invalidation bus and the db; every
+                 other verb is a citty leaf that is a CLIENT of a running one,
+                 with consola for the human path (raw writes for anything
+                 verbatim — consola rewrites `backtick` spans). Every leaf
+                 takes --json and is EXECUTED by the fitness test against the
+                 refusal path. src/server/cloud/ is the sync CLIENT (issue
+                 #572): the credential at rest, the frozen-body outbox, the
+                 pull/apply loop and the local cloud procedures Settings and
+                 `inteligir sync` drive. src/server/voice/ is dictation (issue
+                 #578): the pinned model cache under ~/.inteligir/models/, and
+                 streaming Parakeet (sherpa-onnx) on a persistent session
+                 worker per hold, over a dedicated /voice/stream websocket.
+                 src/server/comments/ serves the anchored-comment sidecars
+                 through the vault (#583). Agent memory was REMOVED (#589
+                 reversed #575) — the harnesses carry their own. Discovery is
+                 ONE FILE: `<dataDir>/server.json` carries the bound port and
+                 the bearer together, so the address and the credential cannot
+                 disagree and nothing probes. The server serves the agent
+                 manual, and the ACP runtime injects INTELIGIR_DATA_DIR + a
+                 PATH carrying this bin dir into agent shells, so a model
+                 drives the product by typing `inteligir …` in bash. The build
+                 inlines every workspace package (they export TS source) and
+                 stages three trees as CONTENT: the migrations, the dialect
+                 skills, and the desktop renderer's bundle as dist/ui, which
+                 `serve --open` answers over plain HTTP.
   web/           @repo/web — ONE Cloudflare Worker: the TanStack Start
                  marketing site, the auth pages, Better Auth on D1
                  (invite-gated sign-up), and the v3 cloud (issue #554):
@@ -79,27 +75,28 @@ apps/
                  mint. src/worker/ is its own tsconfig program (no DOM —
                  workerd's globals must win).
   mobile/        @repo/mobile — the Expo RN client (#576): a sync-only
-                 thread/capture surface over the cloud contract; reaches
-                 nothing but cloud-contract + domain.
+                 thread/capture surface over @repo/api/cloud; reaches nothing
+                 but that and domain.
 packages/
   domain/        @repo/domain — zod-only leaf vocabulary (view context, ids,
                  provider events), vendored-from-bb shapes; every package may
                  reach it, it reaches nothing.
   thread-view/   @repo/thread-view — pure timeline projection; the app's
                  panel and the CLI render the same rows through it.
-  cloud-contract/ @repo/cloud-contract — the cloud wire contract (zod only):
+  api/           @repo/api — ONE contract package, TWO entry points (#611).
+                 `./local/*` is the oRPC contract the renderer and the CLI
+                 compile against and `inteligir serve` implements: twelve
+                 domains, each a `<domain>-contract.ts` + `<domain>-schema.ts`
+                 folder, plus the ws notification protocol and the paths that
+                 are NOT procedures. `./cloud/*` is the cloud wire (zod only):
                  pairing, device auth, sync push/pull, captures, the ws ping
-                 frames, the typed error envelope, and the paths all three
-                 spell. TWO implementations: apps/web serves every row and
-                 apps/app's sync client (src/node/cloud/, issue #572) consumes
-                 them.
-  typed-routes/  @repo/typed-routes — contract-first Hono route machinery,
-                 vendored from bb (MIT): defineRoute rows, compile-time
-                 handler enforcement, the hc client schema derivation.
-  server-contract/ @repo/server-contract — the wire contract: THE route
-                 table + payload schemas, the typed hc client, and the ws
-                 notification protocol (subscription targets, per-entity
-                 change kinds, strict outbound / lenient inbound).
+                 frames and the typed error envelope, with TWO implementations
+                 — apps/web serves every row and the CLI's sync client
+                 consumes them. Two entries rather than one router because
+                 their compatibility obligations are OPPOSITE: /local's ends
+                 ship in one bundle and may break freely, /cloud is a deployed
+                 Worker answering installs that may be months stale and may
+                 never break. A dep-dag row pins apps/web to /cloud alone.
   db/            @repo/db — drizzle + better-sqlite3 (WAL, sync=NORMAL),
                  committed SQL migrations applied on boot, the DbNotifier
                  seam, prefixed-nanoid ids.
@@ -139,19 +136,19 @@ tools/
 ## Common Commands
 
 ```bash
-pnpm dev              # THE PRODUCT (apps/app) — the local server, per-checkout port
-pnpm dev:desktop      # The Electron shell over it (CDP on 9222)
-pnpm dev:web         # apps/web: vite + miniflare on :5174 (pinned, strictPort)
-pnpm package:launcher      # The npm artifact (apps/launcher) — `npx inteligir`
+pnpm dev              # THE PRODUCT — the shell over its own server
+pnpm cli serve        # The server ALONE, from source; a shell adopts it
+pnpm dev:web          # apps/web: vite + miniflare on :5174 (pinned, strictPort)
+pnpm package:cli      # The npm artifact (apps/cli) — `npx inteligir serve`
 pnpm package:desktop  # An UNSIGNED macOS arm64 dmg
-pnpm smoke:launcher    # Pack, install into a scratch prefix, boot, probe, stop
+pnpm smoke:cli        # Pack, install into a scratch prefix, boot, probe, stop
 pnpm smoke:desktop    # Package the .app, boot its server, drive it, SIGTERM (macOS only)
 pnpm build            # Build all
 pnpm typecheck        # Type check all
 pnpm lint             # Lint all   (oxlint)
 pnpm format:fix       # Format     (oxfmt) — run BEFORE gates, never after
 pnpm verify           # The static gate (CI adds the e2e suite on top)
-pnpm e2e              # The scenario suite; --prod for the built shell
+pnpm e2e              # The scenario suite (one mode — the SPA is a static build)
 ```
 
 `apps/web/README.md` is the product Worker's own guide — routes, auth, the
@@ -300,7 +297,7 @@ pull` from a hostile remote is enough to plant one.
   suggestions merged in the right sidebar** (owner's call 2026-08-22,
   reversing the under-document foot sections; the editor's ConnectionsPanel
   slot died with them). One list below Properties in the actions panel
-  (`apps/app/src/app/actions/related-section.tsx`): backlinks lead because
+  (`apps/desktop/src/renderer/app/actions/related-section.tsx`): backlinks lead because
   they are COUNTED — each row carries "Links here" plus the linking sentence,
   and the fold's summary keeps the honest truncation clause — and the
   scorer's rows follow with their own REASONS, because the failure mode of an
@@ -442,7 +439,7 @@ body_stems` at the same bm25 weights, and `@repo/notes/knowledge/search-query`
   residual is stated: English only, and the final's rough text is the accepted
   cost of the streaming feel.
 - **THE DEVICE CREDENTIAL IS THE SYNC SWITCH, and it lives in the data dir.**
-  `<dataDir>/device-credential` at 0600, beside `instance-secret` and for the
+  `<dataDir>/device-credential` at 0600, beside `server.json` and for the
   same reason — and the two places it must NOT go are what fix the location:
   not `inteligir.db`, which is the thread log this credential exists to upload,
   and not the vault, which is a git repo pushed to a remote the user chose.
@@ -470,7 +467,7 @@ body_stems` at the same bm25 weights, and `@repo/notes/knowledge/search-query`
   loopback, and a browser that can do that can complete the redirect (an ssh
   user's port-forward carries both).
   **THE REDIRECT ALLOWLIST IS CONTRACT, not handler code**
-  (`@repo/cloud-contract/pairing`): the approve page refuses a target at PARSE,
+  (`@repo/api/cloud/pairing/pairing-schema`): the approve page refuses a target at PARSE,
   and the local app validates its OWN composition through the same schema, so
   there is one gate rather than two that can disagree. It is judged on `URL`
   FIELDS — `hostname`, `protocol`, `pathname`, and `username`/`password` required
@@ -517,7 +514,7 @@ body_stems` at the same bm25 weights, and `@repo/notes/knowledge/search-query`
   real pairing). The verifier never leaves the app, so an intercepted code alone
   cannot be spent — which is what makes the deliberately-open port a non-issue
   rather than a hole: the port stays open BECAUSE the code is bound. The S256
-  transform is ONE spelling in `@repo/cloud-contract/pairing`
+  transform is ONE spelling in `@repo/api/cloud/pairing/pairing-schema`
   (`pkceChallengeS256`), computed the same way at begin and at redeem. The mint
   refuses a plain or absent challenge — `S256` is the only method — because a
   challenge equal to its verifier binds nothing an interceptor could not also
@@ -616,23 +613,36 @@ body_stems` at the same bm25 weights, and `@repo/notes/knowledge/search-query`
   parse as opaque comments and are preserved verbatim; nothing writes new
   ones.
 
-- **The launcher boots in-process; the desktop shell supervises a child.**
-  Opposite answers because the failure differs: `npx` wants one exit code and
-  a `^C` that reaches the vault's owner, while the shell must not share its
-  compositor's event loop with better-sqlite3, a watcher fork and `git`. The
-  shell adopts an already-listening server rather than fighting it, and only
-  kills the child it started.
-- **A LOOPBACK PORT IDENTIFIES NOTHING, so adoption is earned.** Any local
-  process can hold 4664 and answer `/health` 200; adopting on that alone hands
-  a squatter the trusted window and the origin's storage. Every boot mints a
-  secret into `<dataDir>/instance-secret` at 0600 and answers a nonce challenge
-  with an HMAC over it (`/api/v1/system/identity`), and a client adopts only
-  when the answer verifies against the secret in the data dir IT resolved and
-  the responder names that same dir. The bound is honest: it proves the
-  responder can READ that data directory, not that it is this code — which is
-  exactly the line between "the program that owns this vault" and "the program
-  that got to the port first". `/system/status`'s dataDir is a CLAIM; this is
-  the proof.
+- **ONE BINARY, TWO MODES: `inteligir serve` IS the server, and `npx` is a
+  VERB rather than a package** (#611, reversing the launcher-boots-in-process
+  line). `npx inteligir serve --open` keeps the zero-install path for free —
+  one exit code, a `^C` that reaches the vault's owner — and there is no third
+  package staging the other two, so `staged-layout.mjs`'s six-way contract has
+  nothing left to hold together. The desktop shell still forks a CHILD, and
+  that reason is unchanged: it must not share its compositor's event loop with
+  better-sqlite3, a watcher fork and `git`. What changed is who supervises —
+  `utilityProcess` IS a managed Node child with an owned lifecycle, so the
+  health poll, the restart ladder and the signal plumbing are the runtime's.
+  The shell adopts an already-listening server rather than fighting it, and
+  only kills the child it started.
+- **THE CREDENTIAL IS A FILE, NOT A CHALLENGE** (#611, reversing the
+  loopback-adoption-is-earned line — its premise, that a client had no channel
+  to the server but the port, is what died). On boot the server writes
+  `<dataDir>/server.json` at 0600 — `{port, token, vaultDir, pid}` — and
+  removes it on ordered shutdown; every caller reads it and sends
+  `Authorization: Bearer <token>`. That kills three problems at once. There is
+  no probing and no neighbouring-checkout ambiguity, because the FILE names the
+  port that answered rather than the port the derivation predicted. There is no
+  adoption ceremony, because a squatter on 4664 cannot have written the file
+  and so fails the token instead of being adopted. And there is no
+  browser-origin guard left on the HTTP surface, because a hostile page can
+  POST to loopback but cannot read the data dir. The bound is the same honest
+  one the nonce challenge had — it proves the caller can READ that data
+  directory, not that it is this code — which is exactly the line between "the
+  program that owns this vault" and "the program that got to the port first".
+  The browser is the one client that cannot set a header, so the document
+  carries the same token as an HttpOnly SameSite=Strict cookie: one token, two
+  carriers, never a second secret.
 - **Shutdown is ORDERED, per-step TIME-BOXED, and its exit code is the truth.**
   Writers stop, then the vault's pending commit flushes, then the handles
   close. Each step has its own budget because a single budget for the whole
@@ -644,15 +654,37 @@ body_stems` at the same bm25 weights, and `@repo/notes/knowledge/search-query`
   it — one open browser tab stalled the entire teardown at step one, exited 0,
   and left the database un-closed. A step that fails or times out exits
   non-zero and says which.
-- **The prod document carries a nonce CSP with `'strict-dynamic'`, not a hash
-  list.** The built shell's one inline script hashes cleanly, but the Start
-  router INJECTS further inline scripts at runtime whose content varies per
-  render, so a hash allowlist blocks the app the moment it hydrates (measured,
-  not assumed). `style-src` keeps `'unsafe-inline'` for runtime-injected component styles —
-  the one stated residual. `frame-src` is `'self'` for exactly one frame:
-  inteligir-html's sandboxed srcdoc preview (never allow-same-origin). The directive that earns the
-  most here is `connect-src`: a script that cannot reach a third-party origin
-  cannot exfiltrate the vault.
+- **THE CSP IS STATIC, and deleting TanStack Start is what bought that**
+  (#611, reversing the nonce-CSP decision). The nonce apparatus existed because
+  the Start router INJECTED inline scripts at runtime whose content varied per
+  render, so neither a hash list nor a fixed policy could admit them (measured,
+  not assumed). A plain Vite SPA injects none, so `script-src` is `'self'` and
+  the whole policy is a fixed header — served identically by the protocol
+  handler to the window and by the server to a browser, because two spellings
+  of one policy is one policy that can rot. `style-src` keeps `'unsafe-inline'`
+  for runtime-injected component styles — the one stated residual. `frame-src`
+  is `'self'` for exactly one frame: inteligir-html's sandboxed srcdoc preview
+  (never allow-same-origin). The directive that earns the most here is
+  `connect-src`: a script that cannot reach a third-party origin cannot
+  exfiltrate the vault.
+- **THE RENDERER'S ONLY DOOR IS `inteligir://app`** (#611). Serving the
+  workspace from a custom scheme makes the loopback server cross-origin to it,
+  and the answer is NOT CORS on that server: the protocol handler carries the
+  bundle, `/rpc/*` and `/vault/asset` alike, attaching the bearer in MAIN. So
+  the page is same-origin with its own API, there is no CORS anywhere, and THE
+  RENDERER NEVER HOLDS THE TOKEN — which is what keeps an `<img src>` inside a
+  note working, since an image tag cannot carry an `Authorization` header. The
+  scheme is registered `standard` (Chromium then gives it a real origin, which
+  the pin depends on), `secure`, `supportFetchAPI` and `stream`. Websockets are
+  the ONE exception and need deliberate work: a browser `WebSocket` cannot be
+  proxied by a protocol handler, so the bus and the dictation stream dial
+  loopback directly, main attaches the bearer to those upgrades with
+  `onBeforeSendHeaders`, and the single preload hands the renderer that origin
+  as `window.desktopBridge.socketOrigin` — `window.location.origin` no longer
+  names a server. **The pin cannot use `URL.origin`**: Node's parser answers
+  the opaque string `"null"` for any non-special scheme, so `inteligir://app`
+  and `inteligir://evil` would compare EQUAL. Scheme and host are compared as
+  fields.
 - **Better Auth's `baseURL` is derived per-request from the request origin**,
   never configured or allowlisted. Every hostname that reaches this Worker is
   one the deployment owns, and Cloudflare routes by hostname, so a spoofed
@@ -691,7 +723,7 @@ export` over `src/worker/db/schema.ts`. A second deployer or a destructive
   structurally rather than via a global percentage: the dependency DAG and its
   platform rules and ws change-kind reachability
   (`tools/repo-guards`), route-table completeness
-  (`apps/app/src/node/__tests__/route-table.test.ts`), migration↔schema
+  (`apps/cli/src/server/__tests__/http-surface.test.ts`), migration↔schema
   agreement (`packages/db/src/__tests__/schema-agreement.test.ts`),
   no-orphan-components, the CLI guide and its `--json`
   flags, the editor's buffer invariant. A test that fails when a THIRD dispatch

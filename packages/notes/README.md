@@ -67,7 +67,7 @@ src/
 ## Seams
 
 - `SqlDriver` (`knowledge/sql-knowledge-store.ts`): the host binds it —
-  better-sqlite3 in `apps/app/src/node/knowledge/sqlite-driver.ts`.
+  better-sqlite3 in `apps/cli/src/server/knowledge/sqlite-driver.ts`.
 
 ## Testing
 

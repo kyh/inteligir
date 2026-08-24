@@ -5,7 +5,7 @@ system helpers, Beautiful UI AI surfaces, and a small local layer.
 
 ## Consumers
 
-- `apps/app` — product UI
+- `apps/desktop` — the product's renderer
 - `packages/editor` — note editor
 - `apps/web` — marketing/auth site
 
@@ -51,7 +51,7 @@ local.
 
 `ThemeProvider` is controlled. Apps own persistence and pass `theme` plus
 `setTheme`. Current binders are `apps/web/src/components/theme-provider.tsx`
-and `apps/app/src/app/workspace-context.tsx`. Do not nest a third provider; its
+and `apps/desktop/src/renderer/app/workspace-context.tsx`. Do not nest a third provider; its
 document-class effect races the others.
 
 ## Verification

@@ -1,6 +1,6 @@
 // The registry's bytes: `<dataDir>/connectors.json`, parsed at the boundary
 // and written atomically at 0600 — it can carry API keys, so it lives beside
-// `instance-secret` under the same file-mode discipline, and NOT in the vault
+// `server.json` under the same file-mode discipline, and NOT in the vault
 // (a git repo pushed to a remote the user chose) or the thread db (synced).
 //
 // A JSON file rather than a db table on purpose: connectors are a handful of

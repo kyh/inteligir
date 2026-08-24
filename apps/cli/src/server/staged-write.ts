@@ -2,8 +2,7 @@
 // pid+random name in the TARGET's own directory (rename is only atomic
 // within one filesystem), then rename over the destination. A failed write
 // removes its staging file and rethrows the ORIGINAL error, so a
-// secret-bearing tmp is never stranded beside the store. Deliberately not
-// used by instance-identity.ts — that file is write-once in place by design.
+// secret-bearing tmp is never stranded beside the store.
 
 import { chmodSync, mkdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";

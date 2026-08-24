@@ -8,7 +8,7 @@
 // NOT the vault. The vault is a git repo the sync loop pushes to a remote the
 // user chose, so a secret in it is a secret in someone's GitHub.
 //
-// So it lives beside `instance-secret` in the data dir, at the same 0600 and
+// So it lives beside `server.json` in the data dir, at the same 0600 and
 // for the same reason — and, like that file, the mode is re-applied on every
 // write, because `writeFileSync`'s `mode` is ignored for a file that already
 // exists and a credential inherited from a laxer umask would keep it forever.

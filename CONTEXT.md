@@ -18,7 +18,7 @@ not belong here.
 "Doc" is a CLASSIFICATION, not a shape: it decides what the index projects and
 what a rename rewrites links in. It is deliberately WIDER than what the client
 writes — every note the UI creates or retitles is `.md`
-(`apps/app/src/app/vault-hooks.ts`, `app/note/note-title.tsx`), so a `.txt` in
+(`apps/desktop/src/renderer/app/vault-hooks.ts`, `renderer/app/note/note-title.tsx`), so a `.txt` in
 the vault is indexed and linkable but never minted here.
 
 **note** — a doc as a user and the knowledge surfaces address it: the filename
@@ -64,7 +64,7 @@ signed-in user's row in D1 — which shares only the word.
 distinction is load-bearing. The service mints the host id (`turn_…`) and hands
 it to `startTurn`; codex mints its own and puts it in its events. The first
 `turn/started` BINDS the two, and
-`apps/app/src/node/agent/runtime-manager.ts` rewrites every turn-scoped event
+`apps/cli/src/server/agent/runtime-manager.ts` rewrites every turn-scoped event
 through that binding — so an event naming any other provider turn (a resume
 replay) is dropped rather than persisted. Everything stored, subscribed to or
 shown is the HOST id; the provider id is only ever spoken to the provider,
@@ -94,7 +94,7 @@ has none.
 **lane** — a CLOUD word, not a local one: `"any" | "desktop"` on a synced
 thread's metadata row (`@repo/cloud-contract/sync`). It is what makes the sync
 log double as a dispatch mailbox — a `desktop`-lane thread pokes the desktop
-sockets, an `any`-lane one only bumps sync. There is no lane in `apps/app`;
+sockets, an `any`-lane one only bumps sync. There is no lane in the local server;
 locally a thread is just a thread.
 
 ## "event" means four things
@@ -110,7 +110,7 @@ state.
   is allowed to produce (`@repo/agent-runtime/domain/provider-event`). The two
   grammars are near-twins with the same file name and are not the same set —
   the runtime constructs its events and never parses them, and
-  `apps/app/src/node/agent/event-mapping.ts` is the one place that narrows onto
+  `apps/cli/src/server/agent/event-mapping.ts` is the one place that narrows onto
   the persisted grammar. A provider event with no persisted counterpart is
   logged and dropped, never invented into a divergent shape.
 - **sync event** — the cloud's unit of transfer (`@repo/cloud-contract/sync`,
@@ -118,12 +118,12 @@ state.
   merges, dedupes and orders these WITHOUT parsing them. A sync event carries a
   thread event; it is not one.
 - **filesystem event** — what the vault watcher reports
-  (`apps/app/src/node/vault/watcher`). Related but distinct: `fileChange` is a
+  (`apps/cli/src/server/vault/watcher`). Related but distinct: `fileChange` is a
   thread event ITEM type, the agent's own report of what it wrote, which is
   what an agent commit stages.
 
 The local realtime bus is deliberately NOT in this list. It carries **change
 kinds** — `events-appended`, `content-changed`, `status-changed`
-(`@repo/server-contract/notifications`) — which are invalidation pings naming a
+(`@repo/api/local/notifications`) — which are invalidation pings naming a
 subscription target, never payloads. A client told "events-appended" refetches;
 it is never handed the event.

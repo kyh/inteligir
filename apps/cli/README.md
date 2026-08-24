@@ -1,57 +1,79 @@
-# @repo/cli — the `inteligir` CLI
+# inteligir — the binary
 
-Drives a running local app over the typed API client (`@repo/server-contract`).
-Agent-facing by design: every leaf command takes `--json`, the app serves the
-manual (`GET /api/v1/guide`, printed by `inteligir guide`), and the agent
-runtime injects `INTELIGIR_SERVER_URL` + `INTELIGIR_THREAD_ID` into codex
-shells so the model can drive the product through bash.
+One program, two modes.
+
+**`inteligir serve` IS the product's server**: it opens the vault (a git repo
+of markdown), builds and maintains the knowledge index, drives the agent, and
+answers one oRPC API plus the invalidation and dictation sockets. Nothing else
+in the repo runs a server.
+
+**Every other verb is a CLIENT** of a running one, over that same contract
+(`@repo/api/local`). Agent-facing by design: every leaf takes `--json`, the
+server serves the manual (`inteligir guide`), and the agent runtime prepends
+this bin directory to the PATH of the shells it spawns — so a model drives the
+product by typing `inteligir …` in bash.
 
 ## Running it
 
 ```sh
-pnpm cli status                          # root convenience script
-apps/cli/bin/inteligir --help            # the bin itself
+inteligir serve --open      # zero-install: `npx inteligir serve --open`
+pnpm cli status             # in a checkout, against this checkout's instance
+apps/cli/bin/inteligir --help
 ```
 
+`serve` takes `--port`, `--data-dir`, `--vault` and `--open`; each resolves to
+the same `INTELIGIR_*` variable the config layer reads, so a flag can never
+mean something the environment cannot.
+
 The bin (`bin/inteligir`) runs the source under tsx inside a checkout and the
-esbuild bundle (`pnpm --filter @repo/cli build` → `dist/index.js`) when
-packaged, so dev edits are never shadowed by a stale build.
+esbuild bundle (`pnpm package:cli` → `dist/index.js`) when packaged, so dev
+edits are never shadowed by a stale build. It follows `$0` through its
+symlinks first, because an installed package is reached through
+`node_modules/.bin/inteligir` and the directory holding that link has no
+`dist/` beside it.
 
-## Server discovery
+## Which server, and may I talk to it
 
-`INTELIGIR_SERVER_URL` wins, trusted without a probe — you named it, you own
-it (`inteligir status` prints the data dir and vault it bound to, and says
-`explicit`). Otherwise the CLI REUSES the app's own config module
-(`@repo/app/node/config` — node builtins + zod only, no server machinery) to
-derive candidates exactly the way the app derives its listen port: a
-configured `INTELIGIR_PORT`/managed-config port is dialed exactly; a derived
-dev port is probed across the same upward range the server may have bound
-(`DEV_PORT_PROBE_LIMIT`), then the installed prod default.
+Both answers come out of ONE file. On boot the server writes
+`<dataDir>/server.json` at `0600` — `{ port, token, vaultDir, pid }` — and
+removes it on ordered shutdown. A client reads it and sends
+`Authorization: Bearer <token>`.
 
-A probed candidate must clear two gates, not one: `/api/v1/health` answering
-the contract body, AND `/api/v1/system/status` reporting the same `dataDir`
-this checkout's config resolution derived. The second is what stops a
-NEIGHBOURING checkout's dev server — a real inteligir answering an earlier
-port in the probe range — from being adopted, which would write notes into
-someone else's vault. A foreign responder is skipped; exhausting the range
-exits 3 naming the conflict.
+There is no probing. A derived dev port may have been probed upward at bind, so
+a client that dialled the derived value could reach a NEIGHBOURING checkout's
+server, and writing a note into someone else's vault is a silent, destructive
+wrong answer. The file names the port that actually answered, so the ambiguity
+has nowhere to live — and a squatter holding the port cannot have written the
+file, so a wrong responder is refused rather than adopted.
+
+WHICH data dir is still the client's own question, and it reuses the server's
+resolution (`src/server/config.ts`) rather than re-deriving it: env →
+`<dataDir>/config.json` → the per-checkout default, where the checkout is
+walked up to from wherever the command started. That last part is what lets
+`pnpm dev` (which runs from `apps/desktop`) and `pnpm cli …` (run from wherever
+you stand) name the same instance.
+
+There is deliberately NO "point the CLI at a URL" escape hatch. Under a bearer
+model, naming a URL is naming somewhere to SEND A CREDENTIAL — and the token
+would still have to come from a local data dir, so the two halves could
+disagree. `INTELIGIR_DATA_DIR` names the instance instead, which is also what
+agent shells are given.
 
 ## Command surface
 
-`vault list|read|write|rename|delete|mkdir|status|sync` ·
+`serve` · `vault list|read|write|rename|delete|mkdir|status|sync` ·
 `search` (`tag:` terms pass through) · `backlinks` · `related` · `tags` ·
-`thread list|new|send|show|wait|archive` · `interactions list|answer` ·
-`proposals list|show|accept|reject` · `status` · `guide`.
+`action list|new|send|show|wait|archive` · `comment` · `interactions
+list|answer` · `connectors` · `folders` · `trash` · `sync` · `status` ·
+`guide`.
 
-Exit codes: 0 success · 1 error (incl. a thread settling in error) ·
-2 `thread wait` timeout · 3 no server reachable.
+Exit codes: 0 success · 1 error (including an action settling in error) ·
+2 `action wait` timeout · 3 no server reachable.
 
-**Every command checks the HTTP status before printing** — `requireOk`
-(`src/output.ts`) is the only way a body is reached, and it returns the
-SUCCESS member of hono's response union, so a command cannot call `.json()`
-on a refusal. Failures go to stderr with stdout left empty; under `--json`
-the failure itself is `{"error","message"}` JSON on stderr, carrying the
-server's own error class where there is one.
+**A refusal can never be printed as an answer.** The oRPC client throws on a
+typed error, and `src/program.ts` turns that into a failure on stderr with the
+server's own error code — stdout is left empty. Under `--json` the failure
+itself is `{"error","message"}` JSON on stderr.
 
 ## Output
 
@@ -61,9 +83,9 @@ file bytes, snippets, diffs, timelines, the manual — is written raw
 (`writeOut`/`writeLines`), because consola's reporter rewrites `backtick` and
 `_underscore_` spans in every message it formats and a note's own text carries
 both. Prose the CLI wrote itself goes through consola (`out.success`,
-`out.info`, `out.box`, `out.error`). `--json` uses neither: `outputJson`
-writes the document and returns, so stdout stays one JSON value without any
-command having to remember it.
+`out.info`, `out.box`, `out.error`). `--json` uses neither: `outputJson` writes
+the document and returns, so stdout stays one JSON value without any command
+having to remember it.
 
 The consola instance pins its reporter, its level and its throttle rather than
 letting consola derive them, because all three differ under `NODE_ENV=test` —
@@ -73,34 +95,60 @@ bytes no user ever sees.
 
 ## Agent reachability
 
-The agent runs `inteligir` as a BARE command, so the app resolves the CLI's
-bin directory (`apps/app/src/node/agent/agent-shell-env.ts`) and PREPENDS it
-to the PATH the codex runtime injects into the agent's shell, alongside
-`INTELIGIR_SERVER_URL`. If no binary resolves, the PATH entry is omitted AND
-the session instructions drop the CLI pointer — instructions never promise a
-command the shell cannot run. The e2e `cli-drive` scenario invokes the bare
-name through that same composed env.
+The agent runs `inteligir` as a BARE command, so the server resolves this bin
+directory (`src/server/agent/agent-shell-env.ts`) and PREPENDS it to the PATH
+it injects into the agent's shell, alongside `INTELIGIR_DATA_DIR` (which names
+the instance without handing a child the credential) and
+`INTELIGIR_THREAD_ID`. The directory is CHECKED for an executable rather than
+assumed: npm strips the execute bit from a packed file it does not name in
+`bin`, and the failure mode is the command silently disappearing from a
+model's PATH. If nothing resolves, the PATH entry is omitted AND the session
+instructions drop the CLI pointer — instructions never promise a command the
+shell cannot run. The e2e `cli-drive` scenario invokes the bare name through
+that same composed env.
 
 ## Doc-sync discipline
 
-The served manual (`apps/app/src/node/guide/cli-skill.ts`) must name every
-leaf command AND every flag those leaves accept —
-`src/__tests__/guide-covers-commands.test.ts` walks the real citty tree
-against the guide's rendered bytes (not its source: a comment used to satisfy
-it). `json-flag-enforcement.test.ts` (bb's pattern, MIT) walks the same tree
-and EXECUTES every leaf: JSON on stdout under `--json`, and non-zero exits
-with empty stdout when the server answers 400 or 500.
+The served manual (`src/server/guide/cli-skill.ts`) must name every leaf
+command AND every flag those leaves accept —
+`src/__tests__/guide-covers-commands.test.ts` walks the real citty tree against
+the guide's rendered bytes (not its source: a comment used to satisfy it).
+`json-flag-enforcement.test.ts` (bb's pattern, MIT) walks the same tree and
+EXECUTES every leaf: JSON on stdout under `--json`, and non-zero exits with
+empty stdout when the server refuses.
 
 Both read the tree through `src/command-tree.ts`, which is shipped rather than
 test-only: `--help` resolves the deepest command through the same walk, and so
-does the gate that refuses a flag the command never declared. citty parses
-with node's `parseArgs` in NON-strict mode, so without that gate `vault write
+does the gate that refuses a flag the command never declared. citty parses with
+node's `parseArgs` in NON-strict mode, so without that gate `vault write
 notes/a.md --contentt x` would silently read stdin and exit 0.
+
+## What ships
+
+`dist/index.js` is the whole program, bundled by esbuild — every workspace
+package is inlined, because they export TypeScript source a published install
+cannot resolve. What stays external is what a bundler cannot swallow: the three
+NATIVE modules (`better-sqlite3`, `@parcel/watcher`, `sherpa-onnx-node`, all
+N-API prebuilds) and the two ACP adapters, which are resolved at runtime with
+`require.resolve` and spawned as children.
+
+Two bundles cannot ride inside the entry and each says why beside itself: the
+vault watcher is a forked CHILD PROCESS and the transcriber is a WORKER THREAD,
+so both need a real file on disk resolved as a sibling of the running entry.
+
+Three trees are staged as CONTENT rather than code: the committed SQL
+migrations, the dialect skills the agent reads with its own shell, and the
+workspace UI — the desktop renderer's build — which `serve` answers over plain
+HTTP so `--open` lands a browser in the product.
+
+`pnpm smoke:cli` proves all of it against a real `npm install` of the packed
+tarball: the layout, the execute bit, a boot, the three native modules, a
+graceful SIGTERM.
 
 ## Tests
 
-Unit suites run the real program object against an in-process server that
-implements the SAME contract table (`typedRoutes` over `apiRoutes`, so the
-fixture cannot drift) — output goldens, `thread wait` exit codes, discovery
-resolution. The real-server integration lives in `e2e` (`cli-drive`): the
-built bundle drives a booted instance under the scripted agent.
+Unit suites run the real program object against an in-process server built from
+the SAME contract (so the fixture cannot drift) — output goldens, `action wait`
+exit codes, discovery resolution. The server's own suites sit under
+`src/server/__tests__/`. The real-server integration lives in `e2e`
+(`cli-drive`): the CLI drives a booted instance under the scripted agent.
