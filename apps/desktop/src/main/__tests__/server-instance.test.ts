@@ -12,6 +12,7 @@ import {
   serverOrigin,
   verifyServer,
   serverEntryPath,
+  serverPackageDir,
   sessionPartition,
   type ProbeStatus,
 } from "../server-instance";
@@ -255,10 +256,10 @@ describe("planServerStart", () => {
   });
 });
 
-describe("serverEntryPath", () => {
-  it("resolves the published bundle under a checkout's node_modules", () => {
-    expect(serverEntryPath("/repo/apps/desktop")).toBe(
-      "/repo/apps/desktop/node_modules/inteligir/dist/index.js",
+describe("the server entry", () => {
+  it("resolves the CLI package under a checkout's node_modules", () => {
+    expect(serverPackageDir("/repo/apps/desktop")).toBe(
+      "/repo/apps/desktop/node_modules/inteligir",
     );
   });
 
@@ -267,9 +268,17 @@ describe("serverEntryPath", () => {
     // has to name the unpacked tree — and doing it twice must not produce
     // `app.asar.unpacked.unpacked`.
     const packed = "/Applications/Inteligir.app/Contents/Resources/app.asar";
-    const once = serverEntryPath(packed);
-    expect(once).toContain("app.asar.unpacked/node_modules/inteligir/dist/index.js");
-    expect(serverEntryPath(once.replace("/node_modules/inteligir/dist/index.js", ""))).toBe(once);
+    const once = serverPackageDir(packed);
+    expect(once).toContain("app.asar.unpacked/node_modules/inteligir");
+    expect(serverPackageDir(`${packed}.unpacked`)).toBe(once);
+  });
+
+  it("names the bundle, in a checkout as in a packaged install", () => {
+    // utilityProcess gives its child no loader thread, so there is no arm that
+    // runs src/ — the dev task keeps the bundle current instead.
+    expect(serverEntryPath("/repo/apps/desktop")).toBe(
+      "/repo/apps/desktop/node_modules/inteligir/dist/index.js",
+    );
   });
 });
 

@@ -37,7 +37,7 @@ import {
 } from "./agent/agent-shell-env";
 import { createApp, type AppUi } from "./app";
 import { openCloudSocket } from "./cloud/cloud-socket";
-import { resolveAppConfig } from "./config";
+import { resolveAppConfig, resolveCheckoutRoot } from "./config";
 import { ensureDevDataDirOwnership } from "./data-dir";
 import { createKnowledgeRuntime, type KnowledgeRuntime } from "./knowledge/knowledge-runtime";
 import { closeServer, listenWithRetry, type UpgradedSockets } from "./listen";
@@ -84,7 +84,7 @@ function registerTeardown(name: TeardownStepName, run: () => Promise<void>): voi
 }
 
 async function boot(version: string): Promise<ServeResult> {
-  const checkoutPath = process.cwd();
+  const checkoutPath = resolveCheckoutRoot();
   const config = resolveAppConfig({ checkoutPath, env: process.env });
   mkdirSync(config.dataDir, { recursive: true });
   if (config.mode === "dev" && config.dataDirSource === "default") {

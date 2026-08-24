@@ -73,6 +73,12 @@ export default defineConfig({
   },
   renderer: {
     root: resolve(here, "src/renderer"),
+    // Well clear of `pnpm dev:web`'s PINNED 5174: Vite's own search starts at
+    // 5173 and would walk onto it, so a second worktree's shell would surface
+    // as the marketing Worker refusing to start. Searching upward from here is
+    // deliberate — nothing needs this port to be stable, main is handed the URL
+    // as ELECTRON_RENDERER_URL.
+    server: { port: 31_000 },
     plugins: [
       tanstackRouter({
         target: "react",

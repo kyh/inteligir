@@ -19,6 +19,11 @@
     "dev": {
       "cache": false,
       "persistent": true,
+      // The shell FORKS the CLI's bundle, so a stale `dist/` is a shell running
+      // last week's server with no error anywhere. esbuild rebuilds it in
+      // milliseconds; iterating on the server itself is `pnpm cli serve` in its
+      // own terminal, which this shell adopts.
+      "dependsOn": ["inteligir#build"],
       // turbo runs in strict env mode and strips anything unnamed. The shell
       // resolves its target through the server's own `resolveAppConfig`, so the
       // set it needs is that module's whole table and not the port alone —

@@ -1,9 +1,9 @@
 // Vendored from bb (github.com/get-bb/bb), MIT. © bb contributors.
 
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
-import { isAbsolute, join, resolve } from "node:path";
+import { dirname, isAbsolute, join, resolve } from "node:path";
 import { z } from "zod";
 import { errnoCode } from "./errno";
 import { assertModelDirOutsideVault, assertVaultAndDataDirDisjoint } from "./path-containment";
@@ -308,6 +308,37 @@ function createCheckoutHash(checkoutPath: string): string {
  * (`listen.ts`), bounded; env/managed-config ports are never probed — a
  * configured port that is busy is an error the user asked to see.
  */
+/** What makes a directory THE checkout: the file the workspace is defined by. */
+const CHECKOUT_MARKER = "pnpm-workspace.yaml";
+
+/**
+ * The checkout the running process belongs to — the top of the tree, never the
+ * directory a script happened to start in.
+ *
+ * Every caller of the derivation above goes through this, because the two ends
+ * start from different places: `pnpm dev` runs the shell from `apps/desktop`
+ * and `pnpm cli …` runs from wherever the developer stands, and hashing those
+ * raw would give the CLI a different instance than the server it is looking
+ * for. Realpath'd for the same reason — a symlinked path hashes differently
+ * from the one it points at. A tree with no marker (a packaged install) has no
+ * checkout, and the value is unused there: it feeds the DEV derivation only.
+ */
+export function resolveCheckoutRoot(startDir: string = process.cwd()): string {
+  let current: string;
+  try {
+    current = realpathSync(startDir);
+  } catch {
+    current = startDir;
+  }
+  const anchor = current;
+  for (;;) {
+    if (existsSync(join(current, CHECKOUT_MARKER))) return current;
+    const parent = dirname(current);
+    if (parent === current) return anchor;
+    current = parent;
+  }
+}
+
 export function resolveDevInstanceId(checkoutPath: string): string {
   return createCheckoutHash(checkoutPath).slice(0, DEV_HASH_LENGTH);
 }

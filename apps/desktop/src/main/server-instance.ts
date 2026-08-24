@@ -36,7 +36,11 @@ import type { ContractRouterClient } from "@orpc/contract";
 import type { LocalContract } from "@repo/api/local";
 import { RPC_PREFIX } from "@repo/api/local/routes";
 import type { SystemStatusResponse } from "@repo/api/local/system/system-schema";
-import { resolveAppConfig, type ResolveAppConfigArgs } from "inteligir/server/config";
+import {
+  resolveAppConfig,
+  resolveCheckoutRoot,
+  type ResolveAppConfigArgs,
+} from "inteligir/server/config";
 import { authorizationHeader, readServerFile } from "inteligir/server/server-file";
 
 /** Loopback, never `localhost`: the name resolves to ::1 or 127.0.0.1
@@ -70,11 +74,11 @@ export interface ResolveServerTargetArgs {
 export function resolveServerTarget(args: ResolveServerTargetArgs): ServerTargetResult {
   try {
     const configArgs: ResolveAppConfigArgs = {
-      // The per-checkout dev derivation hashes the server's own cwd, and a
-      // spawned child inherits this process's — so hashing the same value here
-      // is what makes the two agree. A packaged resolution derives nothing
-      // from it.
-      checkoutPath: process.cwd(),
+      // The dev derivation hashes THE CHECKOUT, walked up to from wherever
+      // this process started — which is what lets `pnpm dev` (started in
+      // apps/desktop) and `pnpm cli …` (started wherever the developer stands)
+      // name the same instance. A packaged resolution derives nothing from it.
+      checkoutPath: resolveCheckoutRoot(),
       // `app.isPackaged` decides the mode, never the ambient NODE_ENV: a
       // packaged install IS the production one and a checkout is not, and
       // neither is something the launching environment may reinterpret. A
@@ -204,7 +208,7 @@ export function serverProcessEnv(target: ServerTarget) {
 }
 
 /**
- * The published CLI bundle to fork, derived from Electron's `app.getAppPath()`.
+ * The CLI package to fork, derived from Electron's `app.getAppPath()`.
  *
  * ONE derivation serves both layouts. In a checkout, `node_modules/inteligir`
  * is pnpm's link to `apps/cli`; in a packaged app the same relative path lives
@@ -214,9 +218,22 @@ export function serverProcessEnv(target: ServerTarget) {
  * appPath that already names the unpacked tree is left alone rather than turned
  * into `app.asar.unpacked.unpacked`.
  */
-export function serverEntryPath(appPath: string): string {
+export function serverPackageDir(appPath: string): string {
   const unpacked = appPath.replace(/app\.asar(?!\.unpacked)/u, "app.asar.unpacked");
-  return join(unpacked, "node_modules", "inteligir", "dist", "index.js");
+  return join(unpacked, "node_modules", "inteligir");
+}
+
+/**
+ * The BUNDLE, in both layouts, and never the TypeScript source: Electron's
+ * `utilityProcess` gives its child no module-customization loader thread, so
+ * `--import tsx` registers nothing there and the first extensionless relative
+ * import fails. `@repo/desktop#dev` therefore depends on `inteligir#build`, so
+ * a checkout's bundle is current whenever the shell starts one — and a server
+ * iterated on save is `pnpm cli serve` in its own terminal, which this shell
+ * ADOPTS rather than fights.
+ */
+export function serverEntryPath(appPath: string): string {
+  return join(serverPackageDir(appPath), "dist", "index.js");
 }
 
 /**

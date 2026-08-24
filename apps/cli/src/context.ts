@@ -3,10 +3,10 @@
 // is context only — commands take explicit ids; the variable tells an agent
 // WHICH thread it is running in (the runtime injects it into agent shells).
 
-import { realpathSync } from "node:fs";
 import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
 import type { ContractRouterClient } from "@orpc/contract";
+import { resolveCheckoutRoot } from "./server/config";
 import { authorizationHeader } from "./server/server-file";
 import type { LocalContract } from "@repo/api/local";
 import { RPC_PREFIX } from "@repo/api/local/routes";
@@ -25,27 +25,12 @@ export interface CliDeps {
   resolveServer(): ResolvedServer;
 }
 
-/**
- * What the per-checkout data dir derivation hashes: the SERVER's cwd. The
- * server and the CLI are one program now, so a client invocation resolves the
- * same instance a `serve` in this checkout would bind — provided it is run from
- * the same place, which is what `INTELIGIR_DATA_DIR` overrides when it is not.
- * realpath'd because the server hashes its (real) cwd.
- */
-function defaultCheckoutDir(): string {
-  try {
-    return realpathSync(process.cwd());
-  } catch {
-    return process.cwd();
-  }
-}
-
 export function createCliDeps(env: NodeJS.ProcessEnv = process.env): CliDeps {
   let cached: ResolvedServer | null = null;
   return {
     env,
     resolveServer() {
-      cached ??= resolveServer({ env, checkoutPath: defaultCheckoutDir() });
+      cached ??= resolveServer({ env, checkoutPath: resolveCheckoutRoot() });
       return cached;
     },
   };
