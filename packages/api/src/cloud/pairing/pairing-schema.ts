@@ -197,8 +197,8 @@ export type RevokeDeviceResponse = z.infer<typeof revokeDeviceResponseSchema>;
 // redirect handing live pairing codes to whoever asked for them.
 // ---------------------------------------------------------------------------
 
-/** Where the LOCAL app answers the approved redirect. Outside its `/api/v1`
- *  contract table, because what arrives there is a browser expecting HTML. */
+/** Where the LOCAL app answers the approved redirect. A plain route rather
+ *  than a procedure, because what arrives there is a browser expecting HTML. */
 export const PAIR_CALLBACK_PATH = "/pair/callback";
 
 /** What the approve page appends to the redirect. */

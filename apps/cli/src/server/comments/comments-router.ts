@@ -4,23 +4,22 @@
 // the ids whose markers the editor must strip.
 //
 // ONE TRANSLATION, not one per handler. Every refusal these procedures can
-// raise is a `SidecarInvalidError`, a `CommentRefusedError`, or the vault's own
-// `VaultServiceError`/`VaultPathError`, and `asWireError` below is the single
-// place "what does the wire call this?" is answered. WHICH classes a given
-// procedure can raise is still declared per row — in the contract, where the
-// client reads it.
+// raise is a `SidecarInvalidError`, a `CommentRefusedError`, or one the VAULT
+// raised — the sidecar is a file in it — and the vault's half is deferred to
+// `vault-refusals.ts` rather than restated here. Restating it is what made a
+// sidecar `conflict` answer 500 while `vault.write` answered 409 for the same
+// error. WHICH classes a given procedure can raise is still declared per row —
+// in the contract, where the client reads it.
 
-import { VaultPathError } from "@repo/notes/knowledge/vault-path";
 import { ORPCError } from "@orpc/server";
 
-import { base } from "../orpc";
+import { base, refusals } from "../orpc";
+import { vaultWireError } from "../vault/vault-refusals";
 import { VaultServiceError } from "../vault/vault-service";
 import { CommentRefusedError, SidecarInvalidError } from "./comments-service";
 
-/** A comments refusal as the wire class, or null for anything this layer has
- *  no name for — which is a 500, and should be. A `VaultServiceError` that is
- *  not `not_found` falls through deliberately: no row here declares a class
- *  for one. */
+/** A comments refusal as the wire class, or null for anything neither this
+ *  layer nor the vault has a name for — which is a 500, and should be. */
 function asWireError(cause: unknown) {
   if (cause instanceof SidecarInvalidError) {
     return new ORPCError("CONFLICT", { message: cause.message });
@@ -28,23 +27,10 @@ function asWireError(cause: unknown) {
   if (cause instanceof CommentRefusedError) {
     return new ORPCError("BAD_REQUEST", { message: cause.message });
   }
-  if (cause instanceof VaultServiceError && cause.code === "not_found") {
-    return new ORPCError("NOT_FOUND", { message: cause.message });
-  }
-  if (cause instanceof VaultPathError) {
-    return new ORPCError("INVALID_PATH", { message: cause.message });
-  }
-  return null;
+  return vaultWireError(cause);
 }
 
-/** Runs `work`, re-raising a domain refusal as the class the contract declares. */
-async function refusing<T>(work: () => Promise<T>): Promise<T> {
-  try {
-    return await work();
-  } catch (cause) {
-    throw asWireError(cause) ?? cause;
-  }
-}
+const refusing = refusals(asWireError);
 
 const list = base.comments.list.handler(async ({ context, input }) => {
   try {

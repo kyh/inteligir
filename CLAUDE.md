@@ -168,10 +168,10 @@ gate, in one command so no caller can drift from it. It is check-only on
 purpose: `format:fix` runs FIRST.
 
 CI runs those six and then a few more that `verify` cannot: it installs
-agent-browser and runs the scenario suite in BOTH modes (`pnpm e2e` and
-`pnpm e2e --prod`). Both, because they serve different code — dev runs Vite's
-middleware and no CSP, prod serves the built shell under the real policy. So a
-green `verify` is not a green CI; run `pnpm e2e` too before claiming one.
+agent-browser and runs the scenario suite. ONE run, because there is one
+build — the workspace is a plain SPA served as files, so the suite drives the
+same bytes and the same policy a user gets. So a green `verify` is not a green
+CI; run `pnpm e2e` too before claiming one.
 
 That "plus a few more" is a CLAIM, and
 `tools/repo-guards/src/ci-verify-parity.test.ts` is what keeps it one: every
@@ -411,7 +411,7 @@ body_stems` at the same bm25 weights, and `@repo/notes/knowledge/search-query`
   `worker-src 'none'` on purpose (the same directive that refused transformers.js
   in #574). ScriptProcessorNode is deprecated but loads no module, so it is the
   one raw-frame source the policy admits — proven under the real policy by
-  `pnpm e2e --prod`. Partials render in a PREVIEW OUTSIDE the composer field and
+  `pnpm e2e`, which serves the built bundle and its header. Partials render in a PREVIEW OUTSIDE the composer field and
   only the final splices in (`spliceIntoComposer`, the #574 live-base/live-caret
   fix), so a partial rewriting mid-hold can never eat text the user typed.
 - **THE SESSION IS BOUNDED.** Parakeet streams incrementally, so there is no

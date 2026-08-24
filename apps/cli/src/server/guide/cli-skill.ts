@@ -1,4 +1,4 @@
-// The built-in agent guide, served at GET /api/v1/guide and printed by
+// The built-in agent guide, served at system.guide and printed by
 // `inteligir guide`. SKILL.md-shaped so an agent harness can ingest it as a
 // skill verbatim. DOC-SYNC: this manual must name every CLI leaf command AND
 // every flag those leaves accept —

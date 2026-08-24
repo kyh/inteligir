@@ -163,8 +163,9 @@ export const connectorToggleRequestSchema = z
   .strict();
 export type ConnectorToggleRequest = z.infer<typeof connectorToggleRequestSchema>;
 
-/** The browser lands here after the provider's consent page; outside the
- *  contract table for pair-callback's own reason (a browser wants a page). */
+/** The browser lands here after the provider's consent page; a plain route
+ *  rather than a procedure, for pair-callback's own reason (a browser wants a
+ *  page, and no typed client has any use for the row). */
 export const CONNECTOR_OAUTH_CALLBACK_PATH = "/connectors/oauth/callback";
 
 export const connectorOauthBeginRequestSchema = z

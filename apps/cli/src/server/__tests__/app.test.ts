@@ -25,7 +25,6 @@ import {
 } from "@repo/api/local/voice/voice-schema";
 import { afterEach, describe, expect, it } from "vitest";
 import { z } from "zod";
-import { type AppUi } from "../app";
 import { closeServer } from "../listen";
 import { localRouter } from "../root-router";
 import { authorizationHeader, SERVER_TOKEN_COOKIE, serverTokenCookie } from "../server-file";
@@ -57,7 +56,7 @@ afterEach(async () => {
 function makeUi() {
   const clientDir = makeTempDir("inteligir-client-test-");
   writeFileSync(join(clientDir, "index.html"), SHELL_HTML);
-  return { clientDir, ui: { kind: "bundle", clientDir } satisfies AppUi };
+  return { clientDir };
 }
 
 const SHELL_HTML = "<!doctype html><html><head><title>inteligir</title></head><body></body></html>";
@@ -101,7 +100,7 @@ describe("the API over the in-process app", () => {
   });
 
   it("404s an unknown /rpc path, never the SPA shell", async () => {
-    const { composed, request } = await bootTestApp({ ui: makeUi().ui });
+    const { composed, request } = await bootTestApp({ clientDir: makeUi().clientDir });
 
     const rpcMiss = await request(`${RPC_PREFIX}/nope`, {
       headers: { accept: "text/html" },
@@ -129,10 +128,10 @@ describe("the API over the in-process app", () => {
 
 describe("the workspace UI this server ships", () => {
   it("serves hashed assets immutable and 404s an asset miss, never the shell", async () => {
-    const { clientDir, ui } = makeUi();
+    const { clientDir } = makeUi();
     mkdirSync(join(clientDir, "assets"));
     writeFileSync(join(clientDir, "assets", "app-abc123.js"), "console.log(1)\n");
-    const { composed } = await bootTestApp({ ui });
+    const { composed } = await bootTestApp({ clientDir });
 
     const hit = await composed.app.request("/assets/app-abc123.js");
     expect(hit.status).toBe(200);
@@ -148,9 +147,9 @@ describe("the workspace UI this server ships", () => {
   });
 
   it("serves non-asset files no-store and answers every other path with the shell", async () => {
-    const { clientDir, ui } = makeUi();
+    const { clientDir } = makeUi();
     writeFileSync(join(clientDir, "favicon.svg"), "<svg/>");
-    const { composed } = await bootTestApp({ ui });
+    const { composed } = await bootTestApp({ clientDir });
 
     const file = await composed.app.request("/favicon.svg");
     expect(file.status).toBe(200);
@@ -170,10 +169,10 @@ describe("the workspace UI this server ships", () => {
   });
 
   it("stamps the document's security headers, and only on the document", async () => {
-    const { clientDir, ui } = makeUi();
+    const { clientDir } = makeUi();
     mkdirSync(join(clientDir, "assets"));
     writeFileSync(join(clientDir, "assets", "app-abc123.js"), "console.log(1)\n");
-    const { composed } = await bootTestApp({ ui });
+    const { composed } = await bootTestApp({ clientDir });
 
     const document = await composed.app.request("/", { headers: { accept: "text/html" } });
     // A FIXED policy: the built shell carries one module script and injects
@@ -189,8 +188,8 @@ describe("the workspace UI this server ships", () => {
   });
 
   it("refuses traversal out of the client dir", async () => {
-    const { ui } = makeUi();
-    const { composed } = await bootTestApp({ ui });
+    const { clientDir } = makeUi();
+    const { composed } = await bootTestApp({ clientDir });
     const traversal = await composed.app.request("/assets/..%2f..%2fetc%2fpasswd");
     expect(traversal.status).toBe(404);
   });
@@ -238,8 +237,8 @@ describe("the device token", () => {
   });
 
   it("hands the browser its credential on the document, HttpOnly and SameSite=Strict", async () => {
-    const { ui } = makeUi();
-    const { composed } = await bootTestApp({ ui });
+    const { clientDir } = makeUi();
+    const { composed } = await bootTestApp({ clientDir });
     const document = await composed.app.request("/", { headers: { accept: "text/html" } });
     expect(document.headers.get("set-cookie")).toBe(serverTokenCookie(TEST_SERVER_TOKEN));
   });

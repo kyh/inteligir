@@ -15,12 +15,10 @@ import {
   WebContentsView,
   type IpcMainInvokeEvent,
 } from "electron";
-import { createORPCClient } from "@orpc/client";
-import { RPCLink } from "@orpc/client/fetch";
 import type { ContractRouterClient } from "@orpc/contract";
-import { authorizationHeader } from "inteligir/server/server-file";
+import { createLocalClient } from "inteligir/server/local-client";
 import type { LocalContract } from "@repo/api/local";
-import { RPC_PREFIX } from "@repo/api/local/routes";
+import { toErrorMessage } from "../types";
 import { browserChromePage, browserChromePreloadScript } from "./bundle-paths";
 import type { LiveServer } from "./server-instance";
 import {
@@ -120,19 +118,23 @@ async function sendPageToAgent(
   } catch (error) {
     // A refusal THROWS, so both halves land here — and the chrome bar shows
     // whichever sentence the server sent rather than a status number.
-    return { ok: false, detail: error instanceof Error ? error.message : String(error) };
+    return { ok: false, detail: toErrorMessage(error) };
   }
 }
+
+/** A ceiling on the capture call. Without one a wedged server leaves the
+ *  chrome bar's IPC handler pending forever and the button spinning. */
+const CAPTURE_TIMEOUT_MS = 30_000;
 
 /** The typed client against the local server, carrying this instance's device
  *  token. "Send to agent" is a MAIN-process call — the browser view has no
  *  preload and never sees the credential. */
 function apiClientFor(server: LiveServer): ContractRouterClient<LocalContract> {
-  const link = new RPCLink({
-    url: `${server.origin}${RPC_PREFIX}`,
-    headers: () => ({ authorization: authorizationHeader(server.token) }),
+  return createLocalClient({
+    origin: server.origin,
+    token: server.token,
+    timeoutMs: CAPTURE_TIMEOUT_MS,
   });
-  return createORPCClient(link);
 }
 
 /** One registration for the process; each handler re-resolves the live handle

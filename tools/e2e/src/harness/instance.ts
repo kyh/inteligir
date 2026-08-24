@@ -1,12 +1,10 @@
 // Boots ONE real server on a scratch instance dir (data/ and vault/ as
 // siblings — the app refuses nesting) and hands back the typed client.
 //
-// ONE MODE, and that is what deleting the document server bought. There used
-// to be two — a dev entry that mounted Vite in the server process and a built
-// bundle that answered documents from a Start entry — and they served
-// different code, so the scenario suite had to run twice. The workspace is now
-// a plain SPA built once and served as files, so `serve` answers the same
-// bytes either way and the suite runs against the same program a user gets.
+// ONE MODE, because there is one build: the workspace is a plain SPA built
+// once and served as files, so the suite drives the same bytes and the same
+// policy a user gets. A dev entry that mounted Vite in the server process
+// would serve different code and force a second run.
 
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";

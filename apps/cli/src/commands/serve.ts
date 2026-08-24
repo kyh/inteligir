@@ -13,8 +13,8 @@ import { isAbsolute, resolve } from "node:path";
 import { defineCommand } from "citty";
 import { invalidUsage } from "../cli-error";
 import { readCliVersion } from "../paths";
-import { systemOpenExternalUrl } from "../server/cloud/browser-opener";
-import { runServe } from "../server/serve";
+import { parsePortValue } from "../server/config";
+import type { ServeOverrides } from "../server/serve";
 import { out, writeOut } from "../output";
 
 /**
@@ -33,12 +33,15 @@ function resolvePathFlag(value: string, cwd: string): string {
   return isAbsolute(value) ? value : resolve(cwd, value);
 }
 
+/** The env variable's own predicate, re-raised as a USAGE error: the flag
+ *  resolves to `INTELIGIR_PORT`, so it must accept exactly what that accepts —
+ *  but a bad flag is a bad command line, not a bad environment. */
 function parsePort(raw: string): number {
-  const port = Number(raw);
-  if (String(port) !== raw || !Number.isInteger(port) || port < 1 || port > 65_535) {
+  try {
+    return parsePortValue("--port", raw);
+  } catch {
     throw invalidUsage(`--port must be a valid TCP port (got "${raw}")`);
   }
-  return port;
 }
 
 export function serveCommand() {
@@ -64,18 +67,25 @@ export function serveCommand() {
     },
     run: async ({ args }) => {
       const cwd = process.cwd();
-      // Assigned BEFORE the boot: the config layer reads the environment as it
-      // resolves, so a value set afterwards would be read by nothing. An option
-      // left unset contributes no key, so the app's own layering still decides.
-      if (args.port !== undefined) process.env.INTELIGIR_PORT = String(parsePort(args.port));
+      // An overlay, never a write to `process.env`: the config layer reads an
+      // environment it is HANDED, and a global write would be inherited by
+      // every child this server spawns. An option left unset contributes no
+      // key, so the app's own layering still decides.
+      const overrides: ServeOverrides = {};
+      if (args.port !== undefined) overrides.INTELIGIR_PORT = String(parsePort(args.port));
       if (args["data-dir"] !== undefined) {
-        process.env.INTELIGIR_DATA_DIR = resolvePathFlag(args["data-dir"], cwd);
+        overrides.INTELIGIR_DATA_DIR = resolvePathFlag(args["data-dir"], cwd);
       }
       if (args.vault !== undefined) {
-        process.env.INTELIGIR_VAULT_DIR = resolvePathFlag(args.vault, cwd);
+        overrides.INTELIGIR_VAULT_DIR = resolvePathFlag(args.vault, cwd);
       }
 
-      const { serverUrl, uiUrl } = await runServe(readCliVersion());
+      // IMPORTED HERE, not at the top: this is the only verb that needs the
+      // server, and a static import would make every CLIENT verb evaluate
+      // hono, drizzle, the vault runtime and the agent runtime before it read
+      // argv — ~60ms on every `inteligir …` an agent types.
+      const { runServe } = await import("../server/serve");
+      const { serverUrl, uiUrl } = await runServe(readCliVersion(), overrides);
       writeOut(`\n  inteligir is running — ${uiUrl ?? serverUrl}\n\n`);
       if (args.open !== true) {
         return;
@@ -86,6 +96,7 @@ export function serveCommand() {
       }
       // Best-effort, and deliberately not fatal: a machine with no browser must
       // not take the server down with it — the URL is already printed.
+      const { systemOpenExternalUrl } = await import("../server/cloud/browser-opener");
       await systemOpenExternalUrl(uiUrl);
     },
   });

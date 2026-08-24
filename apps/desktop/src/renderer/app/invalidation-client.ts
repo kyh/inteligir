@@ -10,7 +10,6 @@ import {
   type ChangedMessage,
   type RealtimeSubscriptionTarget,
 } from "@repo/api/local/notifications";
-import { WS_PATH } from "@repo/api/local/routes";
 import { z } from "zod";
 
 /** The slice of the WebSocket surface this client drives; the browser's
@@ -179,10 +178,6 @@ export class InvalidationClient {
     socket.onClose = null;
     socket.close();
   }
-}
-
-export function workspaceSocketUrl(origin: string): string {
-  return `${origin.replace(/^http/u, "ws")}${WS_PATH}`;
 }
 
 /** The browser boundary: adapts a real WebSocket to InvalidationSocket (the

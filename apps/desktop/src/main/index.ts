@@ -3,10 +3,11 @@
 // One window on the workspace, and nothing else: no vault, no agent and no
 // index of its own. The window's whole security surface is the ORIGIN PIN
 // (origin-pin.ts) — it loads exactly one origin, top-level navigation away
-// goes to the system browser, and `window.open` is denied unconditionally.
-// Everything imperative here delegates its decisions to that module and to
-// server-instance.ts / protocol.ts, all of which are pure or unit-tested; this
-// file is wiring.
+// goes to the system browser, and `window.open` is denied unconditionally. Two
+// rules sit beside it and are tested the same way: WHERE the device token goes
+// and which files the bundle may answer with (credential-scope.ts). Everything
+// imperative here delegates to those and to server-instance.ts; this file is
+// wiring.
 
 import { existsSync } from "node:fs";
 import { join } from "node:path";
@@ -24,6 +25,7 @@ import {
   type MenuItemConstructorOptions,
 } from "electron";
 import { rendererDir, appPreloadScript } from "./bundle-paths";
+import { socketCredentialFilter } from "./credential-scope";
 import { BROWSER_ACCELERATOR } from "./browser-panel";
 import { showBrowserWindow } from "./browser-window";
 import {
@@ -45,6 +47,7 @@ import {
   type LiveServer,
   type ServerTarget,
 } from "./server-instance";
+import { authorizationHeader } from "inteligir/server/server-file";
 import { IPC_CHANNELS, toErrorMessage } from "../types";
 
 const APP_DISPLAY_NAME = app.isPackaged ? "Inteligir" : "Inteligir (Dev)";
@@ -162,10 +165,13 @@ function lockDownSession(partition: string): Electron.Session {
  * origin, so nothing else the window ever reaches sees a credential.
  */
 function attachSocketCredential(windowSession: Electron.Session, server: LiveServer): void {
-  const urls = [`ws://${new URL(server.origin).host}/*`];
+  const urls = socketCredentialFilter(server.origin);
   windowSession.webRequest.onBeforeSendHeaders({ urls }, (details, callback) => {
     callback({
-      requestHeaders: { ...details.requestHeaders, Authorization: `Bearer ${server.token}` },
+      requestHeaders: {
+        ...details.requestHeaders,
+        Authorization: authorizationHeader(server.token),
+      },
     });
   });
 }

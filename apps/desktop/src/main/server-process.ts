@@ -28,7 +28,11 @@ const STOP_GRACE_MS = SHUTDOWN_TIMEOUT_MS + STOP_GRACE_HEADROOM_MS;
 
 /** How long a fresh child gets to publish itself before it counts as failed. */
 const READY_TIMEOUT_MS = 45_000;
-const READY_POLL_INTERVAL_MS = 250;
+/** A warm boot answers in under 200ms, so the poll starts far below that and
+ *  backs off — a fixed quarter-second grid is coarser than the whole boot, and
+ *  the window would wait for the grid rather than for the server. */
+const READY_POLL_MIN_MS = 25;
+const READY_POLL_MAX_MS = 250;
 
 export interface ServerProcessArgs {
   /** The CLI bundle to fork. `serve` is its only argument — every other verb
@@ -74,15 +78,17 @@ export function createServerProcess(args: ServerProcessArgs): ServerProcess {
         args.log(`server exited (code ${String(code)})`);
       });
 
-      const attempts = Math.ceil(READY_TIMEOUT_MS / READY_POLL_INTERVAL_MS);
-      for (let attempt = 0; attempt < attempts; attempt += 1) {
+      const deadline = Date.now() + READY_TIMEOUT_MS;
+      let interval = READY_POLL_MIN_MS;
+      while (Date.now() < deadline) {
         if (exited) {
           throw new Error("the server exited before it was ready");
         }
         if (await args.isReady()) {
           return;
         }
-        await delay(READY_POLL_INTERVAL_MS);
+        await delay(interval);
+        interval = Math.min(interval * 2, READY_POLL_MAX_MS);
       }
       spawned.kill();
       throw new Error(`the server did not become ready within ${READY_TIMEOUT_MS}ms`);

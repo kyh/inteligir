@@ -2,7 +2,7 @@
   "name": "@repo/thread-view",
   "version": "0.1.0",
   "private": true,
-  "description": "Pure, isomorphic projection of a thread's event log into the timeline read model: buildThreadTimeline folds stored ThreadEvents into typed rows (conversation, work, turn grouping, errors) that @repo/server-contract's delta helpers diff and apply. No DOM, no server imports — the same code projects on the server and in any client.",
+  "description": "Pure, isomorphic projection of a thread's event log into the timeline read model: buildThreadTimeline folds stored ThreadEvents into typed rows (conversation, work, turn grouping, errors) that @repo/api's delta helpers diff and apply. No DOM, no server imports — the same code projects on the server and in any client.",
   "type": "module",
   "exports": {
     "./build-thread-timeline": "./src/build-thread-timeline.ts",

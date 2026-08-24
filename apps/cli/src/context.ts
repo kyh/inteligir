@@ -3,18 +3,14 @@
 // is context only — commands take explicit ids; the variable tells an agent
 // WHICH thread it is running in (the runtime injects it into agent shells).
 
-import { createORPCClient } from "@orpc/client";
-import { RPCLink } from "@orpc/client/fetch";
 import type { ContractRouterClient } from "@orpc/contract";
-import { resolveCheckoutRoot } from "./server/config";
-import { authorizationHeader } from "./server/server-file";
 import type { LocalContract } from "@repo/api/local";
-import { RPC_PREFIX } from "@repo/api/local/routes";
+import { resolveCheckoutRoot } from "./server/config";
+import { createLocalClient } from "./server/local-client";
 import { DATA_DIR_ENV_VAR, resolveServer, type ResolvedServer } from "./server-discovery";
 
 /** The typed surface every command drives. A refusal is a THROWN error, so
- *  there is no success-or-refusal value a command could print by mistake —
- *  which is the invariant a status-checking helper used to have to enforce. */
+ *  there is no success-or-refusal value a command could print by mistake. */
 export type Api = ContractRouterClient<LocalContract>;
 
 const THREAD_ID_ENV_VAR = "INTELIGIR_THREAD_ID";
@@ -36,17 +32,19 @@ export function createCliDeps(env: NodeJS.ProcessEnv = process.env): CliDeps {
   };
 }
 
-/**
- * The typed client, carrying this instance's bearer on every request. The
- * header thunk is the ONE place that knows the CLI holds a credential at all.
- */
+/** A ceiling on ONE verb. Generous, because `action wait` and a first-boot
+ *  vault scan are legitimately slow; the point is that a WEDGED server ends
+ *  the command rather than leaving a shell — an agent's shell — hanging. */
+const CALL_TIMEOUT_MS = 120_000;
+
+/** The typed client, carrying this instance's bearer on every request. */
 export function apiFor(deps: CliDeps): Api {
   const server = deps.resolveServer();
-  const link = new RPCLink({
-    url: `${server.baseUrl}${RPC_PREFIX}`,
-    headers: () => ({ authorization: authorizationHeader(server.token) }),
+  return createLocalClient({
+    origin: server.baseUrl,
+    token: server.token,
+    timeoutMs: CALL_TIMEOUT_MS,
   });
-  return createORPCClient(link);
 }
 
 export function contextThreadId(env: NodeJS.ProcessEnv): string | undefined {

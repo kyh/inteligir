@@ -106,11 +106,6 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
     // engine): the settled shape is that the agent and the vault stay on the
     // desktop.
     "@repo/mobile": ["@repo/api", "@repo/domain"],
-    // Drives a RUNNING app over the typed client; the @repo/app edge is the
-    // discovery config (which port/dataDir this checkout means), not the server.
-    // It reaches no runtime — an approval it prints is domain grammar, and a
-    // client that could not print one without the package that spawns provider
-    // processes would be carrying a process tree to format a string.
     // The Cloudflare Worker. Only the two packages it can survive on workerd —
     // see the workerd rule below for what enforces that beyond this row.
     "@repo/web": ["@repo/api", "@repo/ui"],
@@ -133,6 +128,9 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
       "inteligir",
     ],
 
+    // Boots a REAL server and drives it over the typed client; the `inteligir`
+    // edge is the binary it spawns and the config resolution that says which
+    // instance this checkout means.
     "@repo/e2e": ["@repo/api", "@repo/notes", "inteligir"],
     "@repo/repo-guards": [],
   }),

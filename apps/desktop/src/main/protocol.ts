@@ -18,11 +18,11 @@
 
 import { net, protocol, type Session } from "electron";
 import { pathToFileURL } from "node:url";
-import { join, normalize, resolve } from "node:path";
-import { RPC_PREFIX, VAULT_ASSET_PATH } from "@repo/api/local/routes";
-import { pathContains } from "inteligir/server/path-containment";
+import { join } from "node:path";
+import { websocketOrigin } from "@repo/api/local/routes";
+import { bundleFile, isProxiedPath } from "./credential-scope";
 import { authorizationHeader } from "inteligir/server/server-file";
-import { buildContentSecurityPolicy } from "inteligir/server/csp";
+import { documentSecurityHeaders } from "inteligir/server/csp";
 
 const APP_SCHEME = "inteligir";
 
@@ -52,32 +52,15 @@ export interface AppProtocolArgs {
   renderer: { kind: "files"; dir: string } | { kind: "dev"; origin: string };
 }
 
-/** Paths the handler forwards to the local server rather than answering from
- *  the bundle. Everything else is the SPA. */
-function isProxied(pathname: string): boolean {
-  return pathname.startsWith(`${RPC_PREFIX}/`) || pathname === VAULT_ASSET_PATH;
-}
-
-/**
- * A bundle path as a file inside `dir`, or null for anything that climbs out
- * of it. Containment is checked on the RESOLVED path rather than on the URL,
- * because `%2e%2e` is a `..` the moment the URL parser has decoded it.
- */
-function bundleFile(dir: string, pathname: string): string | null {
-  const root = resolve(dir);
-  const candidate = resolve(join(root, normalize(decodeURIComponent(pathname))));
-  return pathContains(root, candidate) ? candidate : null;
-}
-
 export function registerAppProtocol(args: AppProtocolArgs): void {
-  const policy = buildContentSecurityPolicy({
-    wsOrigin: args.serverOrigin.replace(/^http/u, "ws"),
+  const documentHeaders = documentSecurityHeaders({
+    wsOrigin: websocketOrigin(args.serverOrigin),
   });
 
   args.session.protocol.handle(APP_SCHEME, async (request) => {
     const { pathname, search } = new URL(request.url);
 
-    if (isProxied(pathname)) {
+    if (isProxiedPath(pathname)) {
       const headers = new Headers(request.headers);
       headers.set("authorization", authorizationHeader(args.token));
       // The body is READ rather than forwarded as a stream: Electron's
@@ -101,7 +84,7 @@ export function registerAppProtocol(args: AppProtocolArgs): void {
     }
     const response = await net.fetch(pathToFileURL(file).toString()).catch(() => null);
     if (response !== null && response.ok) {
-      return withDocumentPolicy(response, policy);
+      return withDocumentPolicy(response, documentHeaders);
     }
     // Every path the router owns is the SPA shell; only a MISSING asset is a
     // 404, because answering one with HTML hands the module loader a document
@@ -110,7 +93,7 @@ export function registerAppProtocol(args: AppProtocolArgs): void {
       return new Response("Not found", { status: 404 });
     }
     const shell = await net.fetch(pathToFileURL(join(args.renderer.dir, "index.html")).toString());
-    return withDocumentPolicy(shell, policy);
+    return withDocumentPolicy(shell, documentHeaders);
   });
 }
 
@@ -118,13 +101,13 @@ export function registerAppProtocol(args: AppProtocolArgs): void {
  *  that can execute anything. Headers are rebuilt rather than mutated: a
  *  streamed Response may carry immutable ones, and a set that silently no-ops
  *  would ship a document with no policy on it. */
-function withDocumentPolicy(response: Response, policy: string): Response {
+function withDocumentPolicy(response: Response, documentHeaders: Record<string, string>): Response {
   if (!(response.headers.get("content-type") ?? "").includes("text/html")) {
     return response;
   }
   const headers = new Headers(response.headers);
-  headers.set("content-security-policy", policy);
-  headers.set("x-content-type-options", "nosniff");
-  headers.set("referrer-policy", "no-referrer");
+  for (const [name, value] of Object.entries(documentHeaders)) {
+    headers.set(name, value);
+  }
   return new Response(response.body, { status: response.status, headers });
 }

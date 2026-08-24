@@ -18,7 +18,8 @@ import { MicIcon, MicOffIcon, SquareIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { socketOrigin } from "../socket-origin";
 import { downloadPercent } from "../voice-hooks";
-import { browserDictationSocket, DictationStreamClient, voiceStreamUrl } from "./dictation-stream";
+import { voiceStreamUrl } from "@repo/api/local/routes";
+import { browserDictationSocket, DictationStreamClient } from "./dictation-stream";
 import {
   microphoneProblem,
   startStreamingCapture,

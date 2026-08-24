@@ -35,7 +35,7 @@ import {
   withConnectedDirs,
   type AgentShellEnv,
 } from "./agent/agent-shell-env";
-import { createApp, type AppUi } from "./app";
+import { createApp } from "./app";
 import { openCloudSocket } from "./cloud/cloud-socket";
 import { resolveAppConfig, resolveCheckoutRoot } from "./config";
 import { ensureDevDataDirOwnership } from "./data-dir";
@@ -56,20 +56,18 @@ import { createVaultRuntime, type VaultRuntimeArgs } from "./vault/vault-runtime
 import { WsBus } from "./ws-bus";
 
 /**
- * The teardown, accumulated AS THE BOOT PROCEEDS.
- *
- * `unshift` rather than `push`, and the two orders coincide on purpose:
- * resources come up db → vault → knowledge → intelligence → agent → cloud →
- * voice → listener,
- * so reversing creation yields exactly the teardown order shutdown.ts states
- * (listener → voice → cloud → agent → intelligence → knowledge → vault → db).
- * Registering each step
- * the moment its resource exists is also what makes a FAILED boot survivable:
- * a listen that
- * throws EADDRINUSE still has a vault watcher forked and a database open, and
- * without this the process would sit there holding both, alive on the
- * watcher's IPC channel and listening to nothing.
+ * What `serve`'s own flags override, as the ENVIRONMENT the config layer
+ * already reads. A flag is passed in rather than written to `process.env`,
+ * because a global write is inherited by every child this server spawns — an
+ * agent shell, the watcher fork — where a `--vault` flag would then be
+ * indistinguishable from the user's own setting.
  */
+export interface ServeOverrides {
+  INTELIGIR_PORT?: string;
+  INTELIGIR_DATA_DIR?: string;
+  INTELIGIR_VAULT_DIR?: string;
+}
+
 export interface ServeResult {
   serverUrl: string;
   /** Where a browser should be sent, or null when this install ships no UI —
@@ -78,14 +76,29 @@ export interface ServeResult {
   uiUrl: string | null;
 }
 
+/**
+ * The teardown, accumulated AS THE BOOT PROCEEDS.
+ *
+ * `unshift` rather than `push`, and the two orders coincide on purpose:
+ * resources come up db → vault → knowledge → intelligence → agent → cloud →
+ * voice → listener, so reversing creation yields exactly the teardown order
+ * shutdown.ts states (listener → voice → cloud → agent → intelligence →
+ * knowledge → vault → db).
+ *
+ * Registering each step the moment its resource exists is also what makes a
+ * FAILED boot survivable: a listen that throws EADDRINUSE still has a vault
+ * watcher forked and a database open, and without this the process would sit
+ * there holding both, alive on the watcher's IPC channel and listening to
+ * nothing.
+ */
 const teardownSteps: ShutdownStep[] = [];
 function registerTeardown(name: TeardownStepName, run: () => Promise<void>): void {
   teardownSteps.unshift({ name, timeoutMs: TEARDOWN_BUDGETS_MS[name], run });
 }
 
-async function boot(version: string): Promise<ServeResult> {
+async function boot(version: string, env: NodeJS.ProcessEnv): Promise<ServeResult> {
   const checkoutPath = resolveCheckoutRoot();
-  const config = resolveAppConfig({ checkoutPath, env: process.env });
+  const config = resolveAppConfig({ checkoutPath, env });
   mkdirSync(config.dataDir, { recursive: true });
   if (config.mode === "dev" && config.dataDirSource === "default") {
     ensureDevDataDirOwnership(config.dataDir, checkoutPath);
@@ -128,8 +141,7 @@ async function boot(version: string): Promise<ServeResult> {
   });
   registerTeardown("knowledge", () => knowledge.dispose());
   knowledgeRef = knowledge;
-  const uiDir = resolveUiDir();
-  const ui: AppUi = uiDir === null ? { kind: "none" } : { kind: "bundle", clientDir: uiDir };
+  const clientDir = resolveUiDir();
 
   // Rebuilt after listen, when the CLI bin dir and the skills dir have been
   // resolved; read lazily by the agent runtime on the first turn, which an
@@ -207,7 +219,7 @@ async function boot(version: string): Promise<ServeResult> {
     config,
     createTurnDriver: agentDriver.createTurnDriver,
     db,
-    ui,
+    clientDir,
     serverToken,
     knowledge,
     schemaVersion,
@@ -275,7 +287,7 @@ async function boot(version: string): Promise<ServeResult> {
     `agent: ${agentDriver.status.runtime}${agentDriver.status.detail === null ? "" : ` — ${agentDriver.status.detail}`}`,
   );
   const serverUrl = `http://127.0.0.1:${port}`;
-  return { serverUrl, uiUrl: ui.kind === "bundle" ? `${serverUrl}/` : null };
+  return { serverUrl, uiUrl: clientDir === null ? null : `${serverUrl}/` };
 }
 
 /**
@@ -287,7 +299,10 @@ async function boot(version: string): Promise<ServeResult> {
  * BEFORE the boot, so a ^C during a slow first boot (a cold vault reconcile, a
  * clone) tears down what exists instead of being ignored.
  */
-export async function runServe(version: string): Promise<ServeResult> {
+export async function runServe(
+  version: string,
+  overrides: ServeOverrides = {},
+): Promise<ServeResult> {
   const shutdown = createGracefulShutdown({
     steps: teardownSteps,
     onStepFailed: (name, error) => {
@@ -297,6 +312,8 @@ export async function runServe(version: string): Promise<ServeResult> {
       console.error(`shutdown: still running after ${deadlineMs}ms — exiting anyway`);
     },
   });
+
+  const env = { ...process.env, ...overrides };
 
   installShutdownSignals({
     shutdown,
@@ -310,7 +327,7 @@ export async function runServe(version: string): Promise<ServeResult> {
     },
   });
 
-  const booted = await boot(version).catch(async (cause: unknown) => {
+  const booted = await boot(version, env).catch(async (cause: unknown) => {
     console.error(
       `inteligir failed to start: ${cause instanceof Error ? (cause.stack ?? cause.message) : String(cause)}`,
     );

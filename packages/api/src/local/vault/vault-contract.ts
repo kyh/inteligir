@@ -1,7 +1,6 @@
 // The vault's procedures. One row per operation, each naming its input, its
-// output and the classes it can refuse with — the same three claims the route
-// table made, minus a path and a method, because the RPC transport addresses a
-// procedure by its position in the router.
+// output and the classes it can refuse with. There is no path and no method:
+// the RPC transport addresses a procedure by its position in the router.
 //
 // `GET /vault/asset` is deliberately NOT here. Its body is BYTES with an ETag
 // and a sandbox CSP, revalidated with `if-none-match`, and none of that

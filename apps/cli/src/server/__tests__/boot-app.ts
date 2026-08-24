@@ -13,7 +13,7 @@ import { runMigrations } from "@repo/db/migrate";
 import type { AgentStatus } from "@repo/api/local/system/system-schema";
 import { createRouterClient, type RouterClient } from "@orpc/server";
 import { afterEach } from "vitest";
-import { createApp, type AppUi, type CreateAppArgs } from "../app";
+import { createApp, type CreateAppArgs } from "../app";
 import { localRouter } from "../root-router";
 import { createConnectorsService } from "../connectors/connectors-service";
 import { createFoldersService } from "../folders/folders-service";
@@ -57,7 +57,7 @@ export interface BootTestAppOptions {
    *  nothing at all, because a scratch data dir holds no device credential. */
   cloudTransport?: CloudTransport;
   /** Omitted, no UI is served (`kind: "none"`) — a suite drives procedures. */
-  ui?: AppUi;
+  clientDir?: string;
   /** Omitted, a pairing would reach the real opener — so any suite that begins
    *  one has to supply this, or `pnpm test` pops a browser window. */
   openExternalUrl?: OpenExternalUrl;
@@ -161,7 +161,7 @@ export async function bootTestApp(options: BootTestAppOptions = {}): Promise<Boo
     },
     createTurnDriver: driver?.createTurnDriver ?? (() => unavailableTurnDriver),
     db,
-    ui: options.ui ?? { kind: "none" },
+    clientDir: options.clientDir ?? null,
     serverToken: TEST_SERVER_TOKEN,
     knowledge,
     schemaVersion: getSchemaVersion(db, knownSchemaVersion),

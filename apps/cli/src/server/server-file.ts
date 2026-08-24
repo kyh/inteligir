@@ -13,17 +13,14 @@
 // worth drawing here, because it separates "the program that owns this vault"
 // from "the program that got to the port first".
 //
-// WHAT THE FILE BUYS THAT A CHALLENGE DID NOT. The challenge authenticated the
-// SERVER to a client and nothing else: the API itself had no credential at
-// all, only an Origin heuristic that every non-browser caller passed. A token
-// answers both directions — a squatter on the port cannot produce it, so a
-// client fails closed instead of writing into a stranger's vault, and a
+// IT ANSWERS BOTH DIRECTIONS. A squatter on the port cannot produce the token,
+// so a client fails closed instead of writing into a stranger's vault; and a
 // hostile page cannot read the data dir, so it cannot drive the API either.
 //
-// AND WHAT IT COSTS, also stated: a token is SENT, so anything that can read
-// the wire or a request log can capture it, and it does not expire per-call
-// the way an HMAC over a fresh nonce did. On loopback, with the file at 0600,
-// the reader who could do either could read the file anyway.
+// AND WHAT IT COSTS, stated: a token is SENT, so anything that can read the
+// wire or a request log can capture it, and it does not expire per call. On
+// loopback, with the file at 0600, a reader who could do either could read the
+// file anyway.
 //
 // The file is REMOVED on ordered shutdown, so a stale row never sends the next
 // caller at a port nothing holds. A crash leaves it behind on purpose: the

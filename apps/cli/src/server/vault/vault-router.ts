@@ -1,68 +1,26 @@
 // The vault's handlers. Each one calls its service and answers the contract's
-// output; a domain refusal becomes the wire class ONE table decides.
-//
-// THE TABLE IS THE POINT. Every refusal the vault can raise is a
-// `VaultServiceError` code or a `VaultPathError`, and `VAULT_REFUSALS` below is
-// TOTAL over both — `satisfies` makes a new class a compile error there, which
-// is the one place "what does the wire call this?" has to be answered. Thirteen
-// handlers deciding it separately is thirteen answers that can disagree, and a
-// class nobody answered for becomes a silent 500. WHICH classes a given
-// procedure can raise is still declared per row — in the contract, where the
-// client reads it.
+// output; a domain refusal becomes the wire class `vault-refusals.ts` decides,
+// which is also what the comments procedures and the asset route answer with.
 
-import { VaultPathError } from "@repo/notes/knowledge/vault-path";
 import {
   VAULT_ASSET_MEDIA_TYPES,
   VAULT_ASSET_WRITE_MAX_BYTES,
   type VaultRenameResponse,
 } from "@repo/api/local/vault/vault-schema";
-import { ORPCError } from "@orpc/server";
-import { base } from "../orpc";
+import { base, refusals } from "../orpc";
+import { vaultWireError } from "./vault-refusals";
 import { listTrash, purgeTrashedNote, restoreNote, trashNote } from "./trash";
-import {
-  VaultServiceError,
-  type GuardedWriteGuard,
-  type VaultServiceErrorCode,
-} from "./vault-service";
+import type { GuardedWriteGuard } from "./vault-service";
 
 /** The composed rename (the link rewrite riding the service's rename); refusals
  *  surface as the same VaultPathError/VaultServiceError the service throws. */
 export type RenameNote = (from: string, to: string) => Promise<VaultRenameResponse>;
 
-/**
- * Every class the vault can refuse with, and the wire class it is. `@repo/notes`
- * sits BELOW the contract and cannot name one, so translating `VaultPathError`
- * is this layer's job.
- */
-const VAULT_REFUSALS = {
-  not_found: "NOT_FOUND",
-  conflict: "CONFLICT",
-  too_large: "PAYLOAD_TOO_LARGE",
-  invalid_path: "INVALID_PATH",
-} as const satisfies Record<VaultServiceErrorCode | "invalid_path", string>;
-
-/** A vault refusal as the wire class, or null for anything this layer has no
- *  name for — which is a 500, and should be. */
-function asWireError(cause: unknown) {
-  if (cause instanceof VaultPathError) {
-    return new ORPCError(VAULT_REFUSALS.invalid_path, { message: cause.message });
-  }
-  if (cause instanceof VaultServiceError) {
-    return new ORPCError(VAULT_REFUSALS[cause.code], { message: cause.message });
-  }
-  return null;
-}
-
-/** Runs `work`, re-raising a domain refusal as the class the contract declares.
- *  One wrapper rather than a try/catch per handler: the mapping is the table
- *  above, and repeating it is what made it drift. */
-async function refusing<T>(work: () => Promise<T>): Promise<T> {
-  try {
-    return await work();
-  } catch (cause) {
-    throw asWireError(cause) ?? cause;
-  }
-}
+/** Runs `work`, re-raising a vault refusal as the class the contract declares
+ *  (`vault-refusals.ts` owns which). One wrapper rather than a try/catch per
+ *  handler: thirteen handlers deciding it separately is thirteen answers that
+ *  can disagree. */
+const refusing = refusals(vaultWireError);
 
 /** The media type this extension is served as, or null for anything outside
  *  the allowlist. Lowercased, because a vault carries `.PNG` too. */

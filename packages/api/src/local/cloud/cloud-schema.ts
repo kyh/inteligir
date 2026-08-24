@@ -2,9 +2,9 @@
 // about this install's relationship with an account, and the verbs that change
 // it.
 //
-// It is deliberately not a mirror of `@repo/cloud-contract`. That package is
-// the wire between this machine and the Worker; this one is the wire between
-// the browser tab and the Node process that owns the credential — and the
+// It is deliberately not a mirror of this package's own `./cloud` entry. That
+// half is the wire between this machine and the Worker; this one is the wire
+// between the renderer and the Node process that owns the credential — and the
 // credential itself must never cross it. Nothing here carries the bearer, and
 // `deviceId` is the only identity a client is shown: it is what the account's
 // dashboard lists, so it is what a user needs to recognise this machine among

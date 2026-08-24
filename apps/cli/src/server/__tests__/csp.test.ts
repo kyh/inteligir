@@ -1,6 +1,6 @@
 // The policy STRING only. What the document actually carries is asserted where
 // a fresh build is guaranteed: `app.test.ts` reads the served headers, and
-// `pnpm e2e --prod`'s browser-smoke reads the real built document. Nothing here
+// `pnpm e2e`'s browser-smoke reads the real built document. Nothing here
 // may read `dist/` — `pnpm verify` runs the tests BEFORE the build, so such a
 // test asserts over the PREVIOUS build's output and either skips on a clean
 // checkout or fails on a stale one.

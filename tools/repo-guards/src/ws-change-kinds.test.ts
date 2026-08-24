@@ -80,7 +80,6 @@ function producers(): Producer[] {
       // The vocabulary and the seam that types it declare every kind and fire
       // none; the contract that serializes them names them too.
       if (file.startsWith("packages/domain/")) continue;
-      if (file.startsWith("packages/server-contract/")) continue;
       const source = sourceOf(file);
       for (const { entity, notifier } of ENTITIES) {
         for (const args of callArguments(source, notifier)) {

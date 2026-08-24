@@ -1,10 +1,10 @@
 // The workspace document's Content-Security-Policy.
 //
-// A FIXED HEADER, not a per-request nonce, and that is what a plain SPA buys:
-// the built shell carries exactly one module script and injects none at
-// runtime, so `'self'` admits it and nothing else. A document server that
-// injected further inline scripts per render is what forced a nonce with
-// `'strict-dynamic'` — measured, not assumed, against the build that did it.
+// A FIXED HEADER, and that is what a plain SPA buys: the built shell carries
+// exactly one module script and injects none at runtime, so `'self'` admits it
+// and nothing else. A document server that injects per-render inline scripts
+// cannot have this policy — it needs a nonce with `'strict-dynamic'` — which is
+// why deleting one was the price of the header.
 //
 // WHAT THE BUNDLE FORCES, stated rather than discovered later:
 //   - `style-src` needs 'unsafe-inline'. CodeMirror injects its theme as a
@@ -59,4 +59,25 @@ export function buildContentSecurityPolicy(args: ContentSecurityPolicyArgs): str
     "frame-src 'self'",
     "worker-src 'none'",
   ].join("; ");
+}
+
+/**
+ * The whole header set a DOCUMENT carries — the policy plus the two headers
+ * that would be pointless without it.
+ *
+ * One table because there are two stampers: this server answers a browser, and
+ * the desktop's protocol handler answers the window. Sharing only the policy
+ * STRING left the headers around it free to diverge, which is the same rot
+ * with a smaller blast radius.
+ *
+ * The token cookie is deliberately NOT here: it is the browser's credential and
+ * the window never needs one, so it belongs to the caller that has a token to
+ * hand out rather than to the shape of a secured document.
+ */
+export function documentSecurityHeaders(args: ContentSecurityPolicyArgs) {
+  return {
+    "content-security-policy": buildContentSecurityPolicy(args),
+    "x-content-type-options": "nosniff",
+    "referrer-policy": "no-referrer",
+  } satisfies Record<string, string>;
 }

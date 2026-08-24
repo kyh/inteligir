@@ -309,7 +309,7 @@ export function createKnowledgeRuntime(args: KnowledgeRuntimeArgs): KnowledgeRun
 
   async function readFileVerdict(path: string): Promise<FileVerdict> {
     if (!isDocPath(path)) return { kind: "other" };
-    let bytes: ArrayBuffer;
+    let bytes: Uint8Array<ArrayBuffer>;
     try {
       bytes = (await args.vault.readBytes(path)).bytes;
     } catch (err) {

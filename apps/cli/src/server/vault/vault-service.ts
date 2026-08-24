@@ -171,12 +171,16 @@ export interface VaultService {
    *  announced subtree. An empty result covers a missing or empty folder. */
   listFilesUnder(path: string): Promise<string[]>;
   read(path: string): Promise<{ path: string; content: string }>;
-  /** A file's raw BYTES, under exactly the containment rules `read` applies —
-   *  the asset route's read. `etag` is derived from size and mtime, which is
-   *  what lets an `<img>` that re-mounts revalidate instead of re-downloading;
-   *  the bytes are COPIED into an ArrayBuffer of their own, because a Buffer
-   *  is a view into a pooled allocation that hono's body types refuse. */
-  readBytes(path: string): Promise<{ path: string; bytes: ArrayBuffer; etag: string }>;
+  /** A file's validator ALONE, under exactly the containment rules `read`
+   *  applies. `etag` is derived from size and mtime, so answering a
+   *  revalidation costs one lstat — every `<img>` that re-mounts asks, and
+   *  reading the bytes to then discard them is the whole file per re-mount. */
+  statAsset(path: string): Promise<{ path: string; etag: string }>;
+  /** A file's raw BYTES, for a revalidation that MISSED. Copied into an array
+   *  of their own rather than handed out as the read's Buffer, whose backing
+   *  store is a shared pool that neither `crypto.subtle` nor a Response body
+   *  will take. */
+  readBytes(path: string): Promise<{ path: string; bytes: Uint8Array<ArrayBuffer>; etag: string }>;
   /** Write attachment bytes under `dir`, picking a collision-free name from
    *  `baseName`; answers the vault-relative path they landed at. Only
    *  extensions the asset READ serves are accepted — bytes nothing can render
@@ -306,6 +310,25 @@ export function createVaultService(args: VaultServiceArgs): VaultService {
     args.onMutated?.([relPath]);
   }
 
+  /** The asset prologue both reads share: containment, the symlink refusal,
+   *  the size cap, and the validator the two answer with. */
+  async function resolveAsset(path: string) {
+    const { relPath, absPath } = resolveVaultPath(rootReal, path);
+    await assertAncestryInsideVault(absPath);
+    const stats = await lstatRefusingSymlink(absPath, relPath);
+    if (stats === null || stats.isDirectory()) {
+      throw notFound(relPath);
+    }
+    if (stats.size > VAULT_MAX_CONTENT_LENGTH) {
+      throw new VaultServiceError(
+        "too_large",
+        `${relPath} is ${stats.size} bytes; the read cap is ${VAULT_MAX_CONTENT_LENGTH}`,
+      );
+    }
+    const etag = `"${stats.size.toString(16)}-${Math.trunc(stats.mtimeMs).toString(16)}"`;
+    return { relPath, absPath, etag };
+  }
+
   return {
     async listTree() {
       const entries: VaultEntry[] = [];
@@ -377,19 +400,13 @@ export function createVaultService(args: VaultServiceArgs): VaultService {
       return { path: relPath, content };
     },
 
+    async statAsset(path) {
+      const { relPath, etag } = await resolveAsset(path);
+      return { path: relPath, etag };
+    },
+
     async readBytes(path) {
-      const { relPath, absPath } = resolveVaultPath(rootReal, path);
-      await assertAncestryInsideVault(absPath);
-      const stats = await lstatRefusingSymlink(absPath, relPath);
-      if (stats === null || stats.isDirectory()) {
-        throw notFound(relPath);
-      }
-      if (stats.size > VAULT_MAX_CONTENT_LENGTH) {
-        throw new VaultServiceError(
-          "too_large",
-          `${relPath} is ${stats.size} bytes; the read cap is ${VAULT_MAX_CONTENT_LENGTH}`,
-        );
-      }
+      const { relPath, absPath, etag } = await resolveAsset(path);
       const buffer = await readFile(absPath).catch((cause: unknown) => {
         const code = errnoCode(cause);
         if (code === "ENOENT" || code === "ENOTDIR" || code === "EISDIR") {
@@ -399,11 +416,7 @@ export function createVaultService(args: VaultServiceArgs): VaultService {
       });
       const bytes = new Uint8Array(buffer.byteLength);
       bytes.set(buffer);
-      return {
-        path: relPath,
-        bytes: bytes.buffer,
-        etag: `"${stats.size.toString(16)}-${Math.trunc(stats.mtimeMs).toString(16)}"`,
-      };
+      return { path: relPath, bytes, etag };
     },
 
     writeAsset(dir, baseName, bytes) {

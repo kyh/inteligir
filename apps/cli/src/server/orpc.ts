@@ -1,9 +1,8 @@
 // The implementer, and the context every handler reaches its services through.
 //
-// SERVICES ARRIVE IN THE CONTEXT, not in a closure. `createApp` used to pass
-// each service positionally into a `register*` call, which made the wiring a
-// twelve-argument fan-out and made a handler's dependencies invisible from the
-// handler. One typed context says what a handler may reach, in one place.
+// SERVICES ARRIVE IN THE CONTEXT, not in a closure: one typed context says
+// what a handler may reach, in one place, instead of each handler's
+// dependencies being visible only at the call site that wired it.
 //
 // THERE IS NO PROCEDURE LADDER, and that is deliberate rather than an
 // omission. The two things a ladder would guard are already guarded, each by
@@ -20,7 +19,7 @@
 
 import { localContract } from "@repo/api/local";
 import type { AgentStatus } from "@repo/api/local/system/system-schema";
-import { implement } from "@orpc/server";
+import { implement, ORPCError } from "@orpc/server";
 import type { CommentsService } from "./comments/comments-service";
 import type { CloudRuntime } from "./cloud/sync-runtime";
 import type { ConnectorsService } from "./connectors/connectors-service";
@@ -78,11 +77,25 @@ export interface AppContext {
   voice: VoiceService;
 }
 
-/**
- * The base implementer. Every domain router builds on it, and
- * `base.router({...})` at the root is the type-check point: a procedure that
- * drifts from the contract — or one nobody implemented — fails to compile.
- * That is what replaces the vendored route table, and the completeness guard
- * that had to be a test beside it.
- */
+/** The base implementer. Every domain router builds on it; `root-router.ts`
+ *  is where the composition is checked. */
 export const base = implement(localContract).$context<AppContext>();
+
+/**
+ * ONE wrapper, per-domain table. `translate` is the domain's own answer to
+ * "what does the wire call this?"; this is only the try/catch around it, which
+ * every router had its own byte-identical copy of.
+ *
+ * A refusal the table has no name for is rethrown as it came — a 500, and it
+ * should be: the alternative is inventing a class the contract row does not
+ * declare and the client cannot narrow on.
+ */
+export function refusals(translate: (cause: unknown) => ORPCError<string, unknown> | null) {
+  return async <T>(work: () => T | Promise<T>): Promise<T> => {
+    try {
+      return await work();
+    } catch (cause) {
+      throw translate(cause) ?? cause;
+    }
+  };
+}

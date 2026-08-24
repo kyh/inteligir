@@ -6,7 +6,7 @@
 // a model download, a second cache) is only worth its cost if the RESIDUE
 // justifies it. Run it and read the report:
 //
-//   pnpm --filter @repo/app vitest run src/node/knowledge/__tests__/search-eval
+//   pnpm --filter inteligir exec vitest run src/server/knowledge/__tests__/search-eval
 //
 // It scores the labelled corpus in search-eval-vault.ts three times — under
 // the AND-every-token expression this repo shipped before stage 1, under the

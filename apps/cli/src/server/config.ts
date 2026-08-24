@@ -156,7 +156,10 @@ function parseNonEmptyValue(name: string, rawValue: string): string {
   return trimmed;
 }
 
-function parsePortValue(name: string, rawPort: string): number {
+/** Exported because `serve`'s `--port` must accept exactly what
+ *  `INTELIGIR_PORT` does — the flag resolves to that variable, so two
+ *  predicates would be a value the flag takes and the boot then refuses. */
+export function parsePortValue(name: string, rawPort: string): number {
   const port = Number(rawPort);
   if (String(port) !== rawPort || !Number.isInteger(port) || port < 1 || port > 65_535) {
     throw new Error(`${name} must be a valid TCP port`);

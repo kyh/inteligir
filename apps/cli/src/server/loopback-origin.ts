@@ -13,11 +13,10 @@ const LOCAL_HOSTS = ["127.0.0.1", "localhost"] as const;
  * to name the port this process is really on (`cloud/pair-callback.ts`,
  * `connectors/oauth-callback.ts`). One reading of a Host header, not two.
  *
- * This is all that survives of the origin heuristic that used to guard the
- * API. That guard passed every caller sending no Origin, which is every
- * non-browser caller — so it authenticated nothing and only narrowed which
- * PAGES could drive the server. The device token (`server-file.ts`) answers
- * the whole question instead, for browsers and non-browsers alike.
+ * This answers WHICH ADDRESS, never WHO — an Origin or Host header
+ * authenticates nothing, since every non-browser caller chooses its own. The
+ * device token (`server-file.ts`) is what guards the API, for browsers and
+ * non-browsers alike.
  */
 export function loopbackRequestOrigin(host: string | undefined): string | null {
   if (host === undefined || host.length === 0) {

@@ -30,18 +30,15 @@
 
 import { createHash } from "node:crypto";
 import { join } from "node:path";
-import { createORPCClient } from "@orpc/client";
-import { RPCLink } from "@orpc/client/fetch";
-import type { ContractRouterClient } from "@orpc/contract";
-import type { LocalContract } from "@repo/api/local";
-import { RPC_PREFIX } from "@repo/api/local/routes";
 import type { SystemStatusResponse } from "@repo/api/local/system/system-schema";
 import {
   resolveAppConfig,
   resolveCheckoutRoot,
   type ResolveAppConfigArgs,
 } from "inteligir/server/config";
-import { authorizationHeader, readServerFile } from "inteligir/server/server-file";
+import { toErrorMessage } from "../types";
+import { createLocalClient } from "inteligir/server/local-client";
+import { readServerFile } from "inteligir/server/server-file";
 
 /** Loopback, never `localhost`: the name resolves to ::1 or 127.0.0.1
  *  depending on the machine, and the two are different ORIGINS to the pin. */
@@ -99,7 +96,7 @@ export function resolveServerTarget(args: ResolveServerTargetArgs): ServerTarget
       },
     };
   } catch (error) {
-    return { kind: "refused", error: error instanceof Error ? error.message : String(error) };
+    return { kind: "refused", error: toErrorMessage(error) };
   }
 }
 
@@ -109,7 +106,6 @@ export function resolveServerTarget(args: ResolveServerTargetArgs): ServerTarget
  *  would be pinned to nothing. */
 export interface LiveServer {
   origin: string;
-  port: number;
   token: string;
 }
 
@@ -130,12 +126,11 @@ const PROBE_TIMEOUT_MS = 2_000;
 export type ProbeStatus = (server: LiveServer) => Promise<SystemStatusResponse | null>;
 
 const probeStatusOverRpc: ProbeStatus = async (server) => {
-  const link = new RPCLink({
-    url: `${server.origin}${RPC_PREFIX}`,
-    headers: () => ({ authorization: authorizationHeader(server.token) }),
-    fetch: (request) => fetch(request, { signal: AbortSignal.timeout(PROBE_TIMEOUT_MS) }),
+  const client = createLocalClient({
+    origin: server.origin,
+    token: server.token,
+    timeoutMs: PROBE_TIMEOUT_MS,
   });
-  const client: ContractRouterClient<LocalContract> = createORPCClient(link);
   try {
     return await client.system.status();
   } catch {
@@ -160,7 +155,7 @@ export async function verifyServer(
   if (file === null) {
     return { kind: "no-server" };
   }
-  const live: LiveServer = { origin: serverOrigin(file.port), port: file.port, token: file.token };
+  const live: LiveServer = { origin: serverOrigin(file.port), token: file.token };
   const status = await probeStatus(live);
   if (status === null) {
     return { kind: "unreachable", origin: live.origin };

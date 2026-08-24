@@ -47,3 +47,21 @@ export const vaultAssetQuerySchema = z.object({ path: z.string().min(1) }).stric
 export function vaultAssetUrl(origin: string, path: string): string {
   return `${origin}${VAULT_ASSET_PATH}?path=${encodeURIComponent(path)}`;
 }
+
+/**
+ * The websocket origin for an `http(s)` one. Here rather than at each dial
+ * because the two ends must agree exactly: the server names this value in the
+ * document's `connect-src`, and every client dials it — so a policy computed
+ * one way and a URL computed another is a socket the browser refuses.
+ */
+export function websocketOrigin(httpOrigin: string): string {
+  return httpOrigin.replace(/^http/u, "ws");
+}
+
+export function workspaceSocketUrl(httpOrigin: string): string {
+  return `${websocketOrigin(httpOrigin)}${WS_PATH}`;
+}
+
+export function voiceStreamUrl(httpOrigin: string): string {
+  return `${websocketOrigin(httpOrigin)}${VOICE_STREAM_PATH}`;
+}

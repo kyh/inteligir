@@ -11,14 +11,11 @@ import { ShapeProvider } from "@repo/ui/lib/shape-context";
 import { SizeProvider } from "@repo/ui/lib/size-context";
 import type { ChangedMessage, ThreadChangedMessage } from "@repo/api/local/notifications";
 import { createContext, useContext, useEffect, useState } from "react";
+import { workspaceSocketUrl } from "@repo/api/local/routes";
 import { AppearanceProvider } from "./appearance";
 import { client, orpc } from "./api";
 import { socketOrigin } from "./socket-origin";
-import {
-  browserInvalidationSocket,
-  InvalidationClient,
-  workspaceSocketUrl,
-} from "./invalidation-client";
+import { browserInvalidationSocket, InvalidationClient } from "./invalidation-client";
 import { readTheme, writeTheme } from "./prefs";
 
 /** null = an unnamed vault change (the filesystem watcher does not attribute

@@ -6,7 +6,7 @@
 // workspace UI as static files. Everything but /health and the landings is
 // behind the device token (server-file.ts).
 
-import { readFile } from "node:fs/promises";
+import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { createNodeWebSocket } from "@hono/node-ws";
 import { serveStatic } from "@hono/node-server/serve-static";
@@ -39,7 +39,9 @@ import type { ConnectorOauthFlow } from "./connectors/oauth-flow";
 import { systemOpenExternalUrl } from "./cloud/browser-opener";
 import type { FoldersService } from "./folders/folders-service";
 import type { NoteIntelligence } from "./note-intelligence/note-intelligence";
-import { buildContentSecurityPolicy } from "./csp";
+import { websocketOrigin } from "@repo/api/local/routes";
+import { documentSecurityHeaders } from "./csp";
+import { loopbackRequestOrigin } from "./loopback-origin";
 import { presentedToken, serverTokenCookie, tokenAccepted } from "./server-file";
 import type { KnowledgeRuntime } from "./knowledge/knowledge-runtime";
 import { renameNoteWithLinkRewrite } from "./knowledge/rename";
@@ -58,16 +60,6 @@ import {
 } from "./voice/voice-service";
 import { VoiceStreamHub, type VoiceStreamConnection } from "./voice/voice-stream-hub";
 import type { WsBus } from "./ws-bus";
-
-/**
- * The workspace UI this server answers, if any.
- *
- * `bundle` is the DESKTOP renderer's build, staged beside this program at build
- * time — the same files the shell serves over its own protocol, offered here so
- * `inteligir serve --open` lands a browser in the product. `none` is a checkout
- * that has not built one, and every route suite.
- */
-export type AppUi = { kind: "bundle"; clientDir: string } | { kind: "none" };
 
 export interface CreateAppArgs {
   /** What the boot-time driver resolution decided; served on system.status. */
@@ -90,7 +82,11 @@ export interface CreateAppArgs {
   createTurnDriver: CreateTurnDriver;
   /** The thread procedures' store; system.status reads nothing from it. */
   db: DbConnection;
-  ui: AppUi;
+  /** The workspace UI this server answers, or null when it has none. The
+   *  bundle is the DESKTOP renderer's build, staged beside this program so
+   *  `inteligir serve --open` lands a browser in the product; null is a
+   *  checkout that has not built one, and every route suite. */
+  clientDir: string | null;
   /** This boot's bearer (server-file.ts). Every privileged surface requires
    *  it; the data dir it was written into is what makes holding it meaningful. */
   serverToken: string;
@@ -315,10 +311,22 @@ export function createApp(args: CreateAppArgs) {
     return c.body(answer.body, answer.status, answer.headers);
   });
 
-  if (args.ui.kind === "bundle") {
-    const clientDir = resolve(args.ui.clientDir);
-    const wsOrigin = `ws://127.0.0.1:${args.config.port}`;
-    const policy = buildContentSecurityPolicy({ wsOrigin });
+  if (args.clientDir !== null) {
+    const clientDir = resolve(args.clientDir);
+    /** The document's policy names the socket origin the CALLER reached, taken
+     *  from its own Host header rather than the configured port — a dev port
+     *  may have been probed upward at bind, and `connect-src` naming the value
+     *  that was asked for rather than the one that answered is a policy that
+     *  refuses this app's own invalidation socket. Falls back to the configured
+     *  port for a request that names no loopback host. */
+    // Read ONCE: the bundle is staged at build time and immutable for this
+    // process's life, so re-reading it is a disk hit per deep link.
+    const shellDocument = readFileSync(join(clientDir, "index.html"), "utf8");
+    const configuredOrigin = `http://127.0.0.1:${String(args.config.port)}`;
+    const documentHeadersFor = (host: string | undefined): Record<string, string> =>
+      documentSecurityHeaders({
+        wsOrigin: websocketOrigin(loopbackRequestOrigin(host) ?? configuredOrigin),
+      });
     const serveClientFile = serveStatic<AppEnv>({
       root: clientDir,
       onFound: (path, c) => {
@@ -343,9 +351,9 @@ export function createApp(args: CreateAppArgs) {
         return;
       }
       c.res.headers.set("cache-control", STATIC_NO_STORE_CACHE_CONTROL);
-      c.res.headers.set("content-security-policy", policy);
-      c.res.headers.set("x-content-type-options", "nosniff");
-      c.res.headers.set("referrer-policy", "no-referrer");
+      for (const [name, value] of Object.entries(documentHeadersFor(c.req.header("host")))) {
+        c.res.headers.set(name, value);
+      }
       c.res.headers.set("set-cookie", serverTokenCookie(args.serverToken));
     };
 
@@ -360,17 +368,15 @@ export function createApp(args: CreateAppArgs) {
       (c) => c.text("Not found", 404),
     );
 
-    // ONE answer per URL and it is a FILE, which is what deleting the document
-    // server bought: a plain Vite build injects no per-render script, so the
-    // policy above is a fixed header rather than a nonce a renderer has to be
-    // threaded. The router reads the URL client-side.
+    // ONE answer per URL and it is a FILE: the router reads the URL
+    // client-side, so every deep link is the same document.
     app.on(
       ["GET", "HEAD"],
       "*",
       documentHeaders,
       staticCacheControl(STATIC_NO_STORE_CACHE_CONTROL),
       serveClientFile,
-      async (c) => c.html(await readFile(join(clientDir, "index.html"), "utf8")),
+      (c) => c.html(shellDocument),
     );
   }
 

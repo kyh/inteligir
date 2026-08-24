@@ -1,7 +1,7 @@
-// THE composed router. `base.router({...})` is the type-check point: a handler
-// that drifts from its contract row — or a procedure nobody implemented —
-// fails to compile HERE, which is what replaces the vendored route table and
-// the completeness guard that had to be a test beside it.
+// THE composed router, and the completeness check. `base.router({...})` is the
+// type-check point: a handler that drifts from its contract row — or a
+// procedure nobody implemented — fails to compile HERE, so the contract's
+// coverage needs no test beside it.
 
 import { agentsRouter } from "./agent/agents-router";
 import { cloudRouter } from "./cloud/cloud-router";

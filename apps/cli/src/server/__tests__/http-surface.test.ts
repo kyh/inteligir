@@ -27,8 +27,11 @@ import {
 } from "@repo/api/local/routes";
 import { PAIR_CALLBACK_PATH } from "@repo/api/cloud/pairing/pairing-schema";
 import { CONNECTOR_OAUTH_CALLBACK_PATH } from "@repo/api/local/connectors/connectors-schema";
+import { mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { bootTestApp } from "./boot-app";
+import { makeTempDir } from "./temp-dir";
 
 /** `GET /health` — method and path together, because one path can carry two
  *  methods and either can go missing alone. */
@@ -65,29 +68,65 @@ const DECLARED_ROUTES = new Map<string, string>([
   ],
 ]);
 
-describe("the hand-mounted HTTP surface", () => {
+/**
+ * The two the BUNDLE mode adds — the broadest surface this server has, and the
+ * reason the assertion runs in both modes rather than filtering wildcards out.
+ * They are declared per method because `serveStatic` mounts each separately.
+ */
+const DECLARED_BUNDLE_ROUTES = new Map<string, string>(
+  ["GET", "HEAD"].flatMap((method) => [
+    [
+      key(method, "/assets/*"),
+      "the built bundle's hashed files, the only ones that may be immutable — and a miss must 404 rather than answer the shell, which would hand the module loader HTML",
+    ] as const,
+    [
+      key(method, "/*"),
+      "ONE answer per URL and it is the shell: the router reads the URL client-side, so every deep link is the same document",
+    ] as const,
+  ]),
+);
+
+/** A staged bundle, so the routes above are actually mounted. */
+function stagedBundle(): string {
+  const clientDir = makeTempDir("inteligir-http-surface-");
+  mkdirSync(join(clientDir, "assets"), { recursive: true });
+  writeFileSync(join(clientDir, "index.html"), "<!doctype html><title>inteligir</title>");
+  return clientDir;
+}
+
+/** Middleware registers as `ALL` on the same path it guards; a route is what a
+ *  caller can reach. Wildcards are NOT filtered out — the bundle's two are the
+ *  broadest surface here, and skipping them is how a guard claims more than it
+ *  checks. */
+function mountedRoutes(routes: readonly { method: string; path: string }[]): Set<string> {
+  return new Set(
+    routes
+      .filter((route) => route.method !== "ALL" || route.path === `${RPC_PREFIX}/*`)
+      .map((route) => key(route.method, route.path)),
+  );
+}
+
+describe.each([
+  { mode: "without a bundle", staged: false, extra: new Map<string, string>() },
+  { mode: "serving the bundle", staged: true, extra: DECLARED_BUNDLE_ROUTES },
+])("the hand-mounted HTTP surface, $mode", ({ staged, extra }) => {
+  const declared = new Map([...DECLARED_ROUTES, ...extra]);
+
   it("is exactly what the table declares, both directions", async () => {
-    const { composed } = await bootTestApp();
-    // Middleware registers as `ALL` on the same path it guards, and a wildcard
-    // is a mount rather than a route — the RPC prefix is the one of those that
-    // IS the surface, so it is declared and the rest are skipped.
-    const mounted = new Set(
-      composed.app.routes
-        .filter((route) => route.method !== "ALL" || route.path === `${RPC_PREFIX}/*`)
-        .filter((route) => !route.path.includes("*") || route.path === `${RPC_PREFIX}/*`)
-        .map((route) => key(route.method, route.path)),
-    );
+    const options = staged ? { clientDir: stagedBundle() } : {};
+    const { composed } = await bootTestApp(options);
+    const mounted = mountedRoutes(composed.app.routes);
 
     const violations: string[] = [];
     for (const route of mounted) {
-      if (DECLARED_ROUTES.has(route)) continue;
+      if (declared.has(route)) continue;
       violations.push(
         `UNDECLARED ROUTE  ${route}\n` +
           `  rule: a route mounted beside the RPC handler is a deliberate exception to "everything is a procedure"\n` +
           `  fix: add it to DECLARED_ROUTES with the reason it cannot be one — or make it one`,
       );
     }
-    for (const [route, why] of DECLARED_ROUTES) {
+    for (const [route, why] of declared) {
       if (mounted.has(route)) continue;
       violations.push(
         `UNMOUNTED ROUTE  ${route}\n` +

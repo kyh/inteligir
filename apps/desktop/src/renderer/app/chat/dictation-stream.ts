@@ -9,7 +9,6 @@
 // flushed on open, and a `finalize` that races the open is held behind them so
 // the server sees every frame before it is asked for the final.
 
-import { VOICE_STREAM_PATH } from "@repo/api/local/routes";
 import { voiceStreamDownMessageSchema } from "@repo/api/local/voice/voice-schema";
 import { z } from "zod";
 
@@ -175,10 +174,6 @@ export class DictationStreamClient {
     socket.onError = null;
     socket.close();
   }
-}
-
-export function voiceStreamUrl(origin: string): string {
-  return `${origin.replace(/^http/u, "ws")}${VOICE_STREAM_PATH}`;
 }
 
 /** The browser boundary: adapts a real WebSocket to `DictationSocket`, with a

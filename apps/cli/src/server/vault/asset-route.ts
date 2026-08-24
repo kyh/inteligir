@@ -4,11 +4,11 @@
 // answers nothing is exactly what makes a re-mounted image cost a round trip
 // instead of a re-download.
 
-import { VaultPathError } from "@repo/notes/knowledge/vault-path";
 import { vaultAssetQuerySchema } from "@repo/api/local/routes";
 import type { Context } from "hono";
+import { vaultRefusalStatus } from "./vault-refusals";
 import { assetMediaType } from "./vault-router";
-import { VaultServiceError, type VaultService } from "./vault-service";
+import type { VaultService } from "./vault-service";
 
 // An asset is bytes from a vault a git remote can write into, served from the
 // app's own origin. `nosniff` pins the declared type, and the sandbox CSP is
@@ -22,22 +22,6 @@ const ASSET_HEADERS = {
   "x-content-type-options": "nosniff",
 };
 
-/** The status a vault refusal answers here. This route is outside the typed
- *  contract, so it states them itself — the same three the contract's `read`
- *  declares, since it reaches the same service. */
-function refusalStatus(cause: unknown): 400 | 404 | 413 | null {
-  if (cause instanceof VaultPathError) return 400;
-  if (!(cause instanceof VaultServiceError)) return null;
-  switch (cause.code) {
-    case "not_found":
-      return 404;
-    case "too_large":
-      return 413;
-    case "conflict":
-      return null;
-  }
-}
-
 export async function handleVaultAsset(c: Context, vault: VaultService): Promise<Response> {
   const query = vaultAssetQuerySchema.safeParse(
     Object.fromEntries(new URL(c.req.url).searchParams),
@@ -50,17 +34,23 @@ export async function handleVaultAsset(c: Context, vault: VaultService): Promise
     return c.text(`${query.data.path} is not an image type this vault serves`, 400);
   }
   try {
-    const asset = await vault.readBytes(query.data.path);
-    if (c.req.header("if-none-match") === asset.etag) {
-      return c.body(null, 304, { ...ASSET_HEADERS, etag: asset.etag });
+    // The VALIDATOR first, and the bytes only on a miss: `cache-control:
+    // no-cache` means every `<img>` that re-mounts revalidates, so reading the
+    // file to then answer 304 is the whole image re-read per mount.
+    const { etag } = await vault.statAsset(query.data.path);
+    if (c.req.header("if-none-match") === etag) {
+      return c.body(null, 304, { ...ASSET_HEADERS, etag });
     }
-    return c.body(asset.bytes, 200, {
-      ...ASSET_HEADERS,
-      "content-type": mediaType,
-      etag: asset.etag,
+    const asset = await vault.readBytes(query.data.path);
+    return new Response(asset.bytes, {
+      status: 200,
+      headers: { ...ASSET_HEADERS, "content-type": mediaType, etag: asset.etag },
     });
   } catch (cause) {
-    const status = refusalStatus(cause);
+    // The status comes from the SAME table the procedures answer classes from
+    // (`vault-refusals.ts`): this route is outside the contract, not outside
+    // the vault's own vocabulary.
+    const status = vaultRefusalStatus(cause);
     if (status === null) {
       throw cause;
     }

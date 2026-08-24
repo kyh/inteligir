@@ -17,7 +17,14 @@
 
 import { ORPCError } from "@orpc/client";
 import { runCommand, defineCommand, renderUsage, type CommandDef } from "citty";
-import { CliExitError, EXIT_ERROR, getErrorMessage, invalidUsage } from "./cli-error";
+import {
+  CliExitError,
+  EXIT_ERROR,
+  EXIT_UNREACHABLE,
+  getErrorMessage,
+  invalidUsage,
+  isUnreachable,
+} from "./cli-error";
 import { argsOf, assertKnownFlags, resolveCommandPath } from "./command-tree";
 import { connectorsCommand } from "./commands/connectors";
 import { foldersCommand } from "./commands/folders";
@@ -157,5 +164,16 @@ function asFailure(cause: unknown): Failure {
     const local = invalidUsage(cause.message);
     return { code: local.code, message: local.message, exitCode: local.exitCode };
   }
-  return { code: "UNEXPECTED", message: getErrorMessage(cause), exitCode: EXIT_ERROR };
+  const message = getErrorMessage(cause);
+  if (isUnreachable(cause)) {
+    // Discovery answers this class when there is no `server.json`; a stale one
+    // (a crash skips the ordered shutdown that removes it) reaches the dial
+    // instead, and the class has to mean the same thing either way.
+    return {
+      code: "SERVER_UNREACHABLE",
+      message: `${message} — no inteligir server answered. Start one with \`inteligir serve\`.`,
+      exitCode: EXIT_UNREACHABLE,
+    };
+  }
+  return { code: "UNEXPECTED", message, exitCode: EXIT_ERROR };
 }

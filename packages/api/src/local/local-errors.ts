@@ -3,11 +3,10 @@
 // vocabulary, so putting it there makes a value cycle that resolves to
 // undefined at module-eval time.
 //
-// oRPC's typed errors replace the JSON envelope this used to be. The shape of
-// the guarantee is unchanged and the mechanism is better: a row declares the
-// classes it can raise, `safe()` narrows on the error branch, and there is no
-// `data` to print when a call refused — so "a refusal must never be printed as
-// an answer" stops being something a helper enforces and becomes something the
+// A row declares the classes it can raise, `safe()` narrows on the error
+// branch, and there is no `data` to read when a call refused — so "a refusal
+// must never be printed as an answer" is not something a helper enforces but
+// something the
 // types do not offer.
 //
 // A CODE IS A CLASS, AND ITS STATUS IS A PROPERTY OF THE CLASS. `NOT_FOUND` is

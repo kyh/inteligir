@@ -35,6 +35,7 @@
     "./server/agent-shell-env": "./src/server/agent/agent-shell-env.ts",
     "./server/config": "./src/server/config.ts",
     "./server/csp": "./src/server/csp.ts",
+    "./server/local-client": "./src/server/local-client.ts",
     "./server/path-containment": "./src/server/path-containment.ts",
     "./server/server-file": "./src/server/server-file.ts",
     "./server/shutdown": "./src/server/shutdown.ts",

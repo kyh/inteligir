@@ -3,6 +3,8 @@
 // the error CLASSES are this CLI's own and are documented in the served
 // guide (cli-skill.ts).
 
+import { z } from "zod";
+
 export const EXIT_ERROR = 1;
 export const EXIT_WAIT_TIMEOUT = 2;
 export const EXIT_UNREACHABLE = 3;
@@ -29,6 +31,47 @@ export class CliExitError extends Error {
 /** Local refusal: bad flags, contradictory arguments, oversized input. */
 export function invalidUsage(message: string): CliExitError {
   return new CliExitError(message, { code: "INVALID_USAGE" });
+}
+
+/** The errno codes a dial gets when nothing is listening, or when whatever is
+ *  listening drops the connection. Read through a schema rather than off the
+ *  object: `code` is not part of `Error`, and a node errno is exactly the kind
+ *  of untyped shape this repo parses at its boundary. */
+const UNREACHABLE_ERRNOS = ["ECONNREFUSED", "ECONNRESET", "ENOTFOUND", "EHOSTUNREACH"];
+const errnoSchema = z.object({ code: z.enum(UNREACHABLE_ERRNOS) });
+
+/**
+ * Did this failure happen because no server answered?
+ *
+ * `SERVER_UNREACHABLE`/exit 3 is a class the served guide teaches agents to
+ * branch on, and discovery alone cannot decide it: `server.json` is left
+ * behind by a crash ON PURPOSE, so the ORDINARY way a server stops being
+ * reachable is a stale file and a refused dial — which without this reads as
+ * `UNEXPECTED`/exit 1 and a raw `ECONNREFUSED`.
+ */
+export function isUnreachable(cause: unknown): boolean {
+  if (!(cause instanceof Error)) {
+    return false;
+  }
+  const seen = new Set<Error>();
+  const pending: Error[] = [cause];
+  while (pending.length > 0) {
+    const current = pending.pop();
+    if (current === undefined || seen.has(current)) {
+      continue;
+    }
+    seen.add(current);
+    if (errnoSchema.safeParse(current).success) {
+      return true;
+    }
+    if (current.cause instanceof Error) {
+      pending.push(current.cause);
+    }
+    if (current instanceof AggregateError) {
+      pending.push(...current.errors.filter((nested): nested is Error => nested instanceof Error));
+    }
+  }
+  return false;
 }
 
 /**

@@ -8,12 +8,8 @@
 // sentence still true later. The same reason `connectors/codex-mcp.ts` drives
 // codex with an argv list.
 //
-// SEPARATE from `apps/launcher/src/open-browser.ts`, which cannot be imported
-// from here: the launcher is a standalone bundle with no workspace
-// dependencies, and it wants the opposite behaviour — detached, unref'd, never
-// waited on, because it has already printed the URL. This one is AWAITED,
-// because its caller answers `opened` over the wire and a claim nobody checked
-// is worse than no claim.
+// The open is AWAITED, because its caller answers `opened` over the wire and a
+// claim nobody checked is worse than no claim.
 
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";

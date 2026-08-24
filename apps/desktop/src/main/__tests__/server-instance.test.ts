@@ -180,7 +180,7 @@ describe("verifyServer", () => {
     const dataDir = dataDirWithServer(4700);
     await expect(verifyServer(dataDir, respondingServer(dataDir))).resolves.toEqual({
       kind: "verified",
-      live: { origin: "http://127.0.0.1:4700", port: 4700, token: TOKEN },
+      live: { origin: "http://127.0.0.1:4700", token: TOKEN },
     });
   });
 
