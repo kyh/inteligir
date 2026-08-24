@@ -5,8 +5,8 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { DEV_DATA_ROOT_DIR, PROD_DATA_DIR_NAME, resolveDevInstanceId } from "@repo/app/node/config";
-import { SERVER_FILE_NAME, type ServerFile } from "@repo/app/node/server-file";
+import { DEV_DATA_ROOT_DIR, PROD_DATA_DIR_NAME, resolveDevInstanceId } from "../server/config";
+import { SERVER_FILE_NAME, type ServerFile } from "../server/server-file";
 import { afterEach, describe, expect, it } from "vitest";
 import { CliExitError, EXIT_UNREACHABLE } from "../cli-error";
 import { DATA_DIR_ENV_VAR, resolveDataDir, resolveServer } from "../server-discovery";
@@ -32,7 +32,7 @@ function writeServerRow(dataDir: string, row: Partial<ServerFile>): void {
   writeFileSync(join(dataDir, SERVER_FILE_NAME), JSON.stringify(row), "utf8");
 }
 
-const APP_CHECKOUT = "/repo/apps/app";
+const CHECKOUT = "/repo";
 
 /** The CliExitError `work` throws — narrowed by a predicate rather than an
  *  assertion, so a different failure fails the test instead of being cast. */
@@ -51,17 +51,15 @@ function captureExit(work: () => void): CliExitError {
 describe("resolveDataDir", () => {
   it("is the per-checkout dev instance by default — the same one the app derives", () => {
     const homeDir = scratch();
-    const dataDir = resolveDataDir({ env: {}, appCheckoutDir: APP_CHECKOUT, homeDir });
-    expect(dataDir).toBe(
-      join(homeDir, DEV_DATA_ROOT_DIR, resolveDevInstanceId(APP_CHECKOUT), "data"),
-    );
+    const dataDir = resolveDataDir({ env: {}, checkoutPath: CHECKOUT, homeDir });
+    expect(dataDir).toBe(join(homeDir, DEV_DATA_ROOT_DIR, resolveDevInstanceId(CHECKOUT), "data"));
   });
 
   it("is the installed data dir under NODE_ENV=production", () => {
     const homeDir = scratch();
     const dataDir = resolveDataDir({
       env: { NODE_ENV: "production" },
-      appCheckoutDir: APP_CHECKOUT,
+      checkoutPath: CHECKOUT,
       homeDir,
     });
     expect(dataDir).toBe(join(homeDir, PROD_DATA_DIR_NAME));
@@ -73,7 +71,7 @@ describe("resolveDataDir", () => {
     expect(
       resolveDataDir({
         env: { [DATA_DIR_ENV_VAR]: named },
-        appCheckoutDir: APP_CHECKOUT,
+        checkoutPath: CHECKOUT,
         homeDir,
       }),
     ).toBe(named);
@@ -93,7 +91,7 @@ describe("resolveServer", () => {
     expect(
       resolveServer({
         env: { [DATA_DIR_ENV_VAR]: dataDir },
-        appCheckoutDir: APP_CHECKOUT,
+        checkoutPath: CHECKOUT,
         homeDir,
       }),
     ).toEqual({
@@ -111,7 +109,7 @@ describe("resolveServer", () => {
     const failure = captureExit(() =>
       resolveServer({
         env: { [DATA_DIR_ENV_VAR]: dataDir },
-        appCheckoutDir: APP_CHECKOUT,
+        checkoutPath: CHECKOUT,
         homeDir,
       }),
     );
@@ -130,7 +128,7 @@ describe("resolveServer", () => {
     expect(() =>
       resolveServer({
         env: { [DATA_DIR_ENV_VAR]: dataDir },
-        appCheckoutDir: APP_CHECKOUT,
+        checkoutPath: CHECKOUT,
         homeDir,
       }),
     ).toThrow(/No inteligir server is running/u);

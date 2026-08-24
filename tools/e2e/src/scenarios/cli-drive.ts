@@ -9,8 +9,7 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
-import { pathToFileURL } from "node:url";
-import { buildAgentShellEnv, resolveCliBinDir } from "@repo/app/node/agent/agent-shell-env";
+import { buildAgentShellEnv, resolveCliBinDir } from "inteligir/server/agent-shell-env";
 import { z } from "zod";
 import { expect, expectEq } from "../harness/assert";
 import { exec, hermeticProcessEnv, type ExecResult } from "../harness/exec";
@@ -45,11 +44,9 @@ export const cliDrive: Scenario = {
       extraEnv: { INTELIGIR_AGENT: "scripted" },
     });
 
-    // The env a codex shell gets, composed by the app's own resolver against
-    // this checkout — so a broken PATH or a missing bin fails HERE.
-    const cliBinDir = resolveCliBinDir(
-      pathToFileURL(join(ctx.repoRoot, "apps", "app", "src", "node", "agent", "x.ts")).href,
-    );
+    // The env an agent's shell gets, composed by the server's own resolver
+    // against this checkout — so a broken PATH or a missing bin fails HERE.
+    const cliBinDir = resolveCliBinDir(join(ctx.repoRoot, "apps", "cli", "bin"));
     expect(cliBinDir !== null, "the app resolves a CLI bin directory for the agent's PATH");
     const agentShellEnv = buildAgentShellEnv({
       dataDir: app.dataDir,

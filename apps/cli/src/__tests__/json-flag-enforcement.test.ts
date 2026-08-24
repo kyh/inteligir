@@ -32,8 +32,18 @@ import {
 } from "./fixture-server";
 import { runCliForTest } from "./run-cli";
 
-// Commands intentionally excluded from the --json requirement.
-const EXCLUDED_COMMANDS = new Set<string>();
+/**
+ * Commands deliberately outside this whole suite, each with the reason it is
+ * not a client. An empty set is the healthy state for everything that dials a
+ * server: `--json` is what makes a leaf drivable by a model, and the honest-exit
+ * passes below prove it never prints a refusal as an answer.
+ */
+const EXCLUDED_COMMANDS = new Map<string, string>([
+  [
+    "serve",
+    "it IS the server rather than a caller of one — it answers no document, it never returns while it is working, and the fixture it would be run against is the very thing it replaces",
+  ],
+]);
 
 const cleanups: Array<() => Promise<void>> = [];
 
@@ -110,8 +120,10 @@ async function boot(state: FixtureState): Promise<FixtureServer> {
   return server;
 }
 
+/** Every leaf that DIALS a server — the surface this suite is about. The
+ *  excluded rows are drained below, so an exemption cannot outlive its reason. */
 function leaves(): LeafCommand[] {
-  return collectLeafCommands(testProgram());
+  return collectLeafCommands(testProgram()).filter((leaf) => !EXCLUDED_COMMANDS.has(leaf.path));
 }
 
 function invocationFor(path: string): readonly string[] {
@@ -129,14 +141,19 @@ describe("CLI --json flag enforcement", () => {
 
     const missing: string[] = [];
     for (const { path, command } of commands) {
-      if (EXCLUDED_COMMANDS.has(path)) {
-        continue;
-      }
       if (argsOf(command).json?.type !== "boolean") {
         missing.push(path);
       }
     }
     expect(missing).toEqual([]);
+  });
+
+  it("no exclusion outlives its reason", () => {
+    const walked = new Set(collectLeafCommands(testProgram()).map((leaf) => leaf.path));
+    const stale = [...EXCLUDED_COMMANDS]
+      .filter(([path]) => !walked.has(path))
+      .map(([path, why]) => `STALE EXCLUSION  ${path}\n  the reason was: ${why}`);
+    expect(stale, `\n${stale.join("\n\n")}\n`).toEqual([]);
   });
 
   it("every leaf command has a registered invocation — the table cannot fall behind", () => {

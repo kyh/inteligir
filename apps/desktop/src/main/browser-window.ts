@@ -7,7 +7,6 @@
 // ORDINARY typed routes over loopback — the app window gains no IPC and the
 // server gains no new surface.
 
-import { join } from "node:path";
 import {
   BaseWindow,
   ipcMain,
@@ -19,10 +18,11 @@ import {
 import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
 import type { ContractRouterClient } from "@orpc/contract";
-import { authorizationHeader } from "@repo/app/node/server-file";
+import { authorizationHeader } from "inteligir/server/server-file";
 import type { LocalContract } from "@repo/api/local";
 import { RPC_PREFIX } from "@repo/api/local/routes";
-import type { LiveServer } from "./server-target";
+import { browserChromePage, browserChromePreloadScript } from "./bundle-paths";
+import type { LiveServer } from "./server-instance";
 import {
   BROWSER_CHROME_HEIGHT,
   BROWSER_HOME_URL,
@@ -203,7 +203,7 @@ function createBrowserWindow(server: LiveServer): BrowserWindowHandle {
   });
 
   const chrome = new WebContentsView({
-    webPreferences: chromeViewWebPreferences(join(__dirname, "browser-preload.cjs")),
+    webPreferences: chromeViewWebPreferences(browserChromePreloadScript()),
   });
   const content = new WebContentsView({
     webPreferences: contentViewWebPreferences(),
@@ -239,7 +239,7 @@ function createBrowserWindow(server: LiveServer): BrowserWindowHandle {
     }
   });
 
-  void chrome.webContents.loadFile(join(__dirname, "browser-chrome.html"));
+  void chrome.webContents.loadFile(browserChromePage());
   void contents.loadURL(BROWSER_HOME_URL);
   return handle;
 }

@@ -13,8 +13,8 @@
     "@orpc/client": "catalog:",
     "@orpc/contract": "catalog:",
     "@repo/api": "workspace:*",
-    "@repo/app": "workspace:*",
-    "@repo/notes": "workspace:*"
+    "@repo/notes": "workspace:*",
+    "inteligir": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "catalog:",

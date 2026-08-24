@@ -11,7 +11,7 @@
 // being adopted.
 //
 // WHICH data dir is still this CLI's own question, and it reuses the app's
-// resolution rather than re-deriving it — `@repo/app/node/config` drags only
+// resolution rather than re-deriving it — `./server/config` drags only
 // node builtins and zod, so importing it is cheaper than a second, divergent
 // copy of the layering (env → `<dataDir>/config.json` → per-checkout default).
 //
@@ -22,8 +22,8 @@
 // `INTELIGIR_DATA_DIR` names the instance instead; the runtime injects it into
 // agent shells for the same reason.
 
-import { resolveAppConfig, type ResolveAppConfigArgs } from "@repo/app/node/config";
-import { readServerFile } from "@repo/app/node/server-file";
+import { resolveAppConfig, type ResolveAppConfigArgs } from "./server/config";
+import { readServerFile } from "./server/server-file";
 import { CliExitError, EXIT_UNREACHABLE } from "./cli-error";
 
 export const DATA_DIR_ENV_VAR = "INTELIGIR_DATA_DIR";
@@ -41,16 +41,15 @@ export interface ResolvedServer {
 
 export interface ResolveServerArgs {
   env: NodeJS.ProcessEnv;
-  /** The sibling apps/app checkout — what the server hashes as its cwd for the
-   *  per-checkout dev instance. */
-  appCheckoutDir: string;
+  /** What the per-checkout dev-instance derivation hashes — the server's cwd. */
+  checkoutPath: string;
   homeDir?: string;
 }
 
 /** The data dir this invocation means, by the app's own layering. */
 export function resolveDataDir(args: ResolveServerArgs): string {
   const configArgs: ResolveAppConfigArgs = {
-    checkoutPath: args.appCheckoutDir,
+    checkoutPath: args.checkoutPath,
     env: args.env,
   };
   if (args.homeDir !== undefined) {

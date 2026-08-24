@@ -1,35 +1,92 @@
 {
-  "name": "@repo/cli",
+  "name": "inteligir",
   "version": "0.1.0",
-  "private": true,
-  "description": "The `inteligir` CLI: drives a running local app over the typed API client — vault CRUD, knowledge search, agent threads, approvals. Agent-facing by design: every leaf takes --json, the server serves the manual (GET /api/v1/guide), and agent shells get INTELIGIR_SERVER_URL/INTELIGIR_THREAD_ID injected.",
+  "description": "The `inteligir` binary: `serve` runs the whole local server — vault, index, agent, API — and every other verb is an oRPC client against a running one. Agent-facing by design: every leaf takes --json, the server serves the manual, and agent shells get INTELIGIR_DATA_DIR/INTELIGIR_THREAD_ID injected.",
+  "keywords": [
+    "agent",
+    "local-first",
+    "markdown",
+    "notes",
+    "obsidian",
+    "vault"
+  ],
+  "homepage": "https://github.com/kyh/inteligir#readme",
+  "bugs": {
+    "url": "https://github.com/kyh/inteligir/issues"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kyh/inteligir.git",
+    "directory": "apps/cli"
+  },
   "bin": {
     "inteligir": "./bin/inteligir"
   },
+  "files": [
+    "bin",
+    "dist",
+    "seed",
+    "README.md",
+    "!dist/**/*.map"
+  ],
   "type": "module",
+  "exports": {
+    "./server/agent-shell-env": "./src/server/agent/agent-shell-env.ts",
+    "./server/config": "./src/server/config.ts",
+    "./server/csp": "./src/server/csp.ts",
+    "./server/path-containment": "./src/server/path-containment.ts",
+    "./server/server-file": "./src/server/server-file.ts",
+    "./server/shutdown": "./src/server/shutdown.ts",
+    "./server/testing": "./src/server/__tests__/boot-app.ts",
+    "./server/vault/seed-vault": "./src/server/vault/seed-vault.ts"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "node scripts/build.mjs",
     "clean": "git clean -xdf .cache .turbo dist node_modules",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "smoke": "node scripts/smoke.mjs"
   },
   "dependencies": {
-    "@orpc/client": "catalog:",
-    "@orpc/contract": "catalog:",
-    "@repo/api": "workspace:*",
-    "@repo/app": "workspace:*",
-    "@repo/domain": "workspace:*",
-    "@repo/thread-view": "workspace:*",
-    "citty": "catalog:",
-    "consola": "catalog:",
-    "zod": "catalog:"
+    "@parcel/watcher": "catalog:",
+    "@zed-industries/claude-code-acp": "catalog:",
+    "@zed-industries/codex-acp": "catalog:",
+    "better-sqlite3": "catalog:",
+    "sherpa-onnx-node": "catalog:"
   },
   "devDependencies": {
+    "@hono/node-server": "catalog:",
+    "@hono/node-ws": "catalog:",
+    "@orpc/client": "catalog:",
+    "@orpc/contract": "catalog:",
     "@orpc/server": "catalog:",
+    "@repo/agent-runtime": "workspace:*",
+    "@repo/agent-skills": "workspace:*",
+    "@repo/api": "workspace:*",
+    "@repo/cloud-contract": "workspace:*",
+    "@repo/db": "workspace:*",
+    "@repo/domain": "workspace:*",
+    "@repo/notes": "workspace:*",
+    "@repo/thread-view": "workspace:*",
+    "@types/better-sqlite3": "catalog:",
     "@types/node": "catalog:",
+    "@types/unbzip2-stream": "^1.4.3",
+    "citty": "catalog:",
+    "consola": "catalog:",
     "esbuild": "catalog:",
+    "hono": "catalog:",
+    "tar": "catalog:",
     "tsx": "catalog:",
     "typescript": "catalog:",
-    "vitest": "catalog:"
+    "unbzip2-stream": "catalog:",
+    "vitest": "catalog:",
+    "zod": "catalog:"
+  },
+  "engines": {
+    "node": ">=24"
   }
 }

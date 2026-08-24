@@ -49,12 +49,12 @@ const GUARDED_PATHS = [VOICE_STREAM_PATH, VAULT_ASSET_PATH, HEALTH_PATH, RPC_PRE
  */
 const ELSEWHERE = new Map<string, string>([
   [
-    "apps/launcher/scripts/smoke.mjs",
+    "apps/cli/scripts/smoke.mjs",
     "a plain .mjs script run by `node` against a PACKED tarball in a scratch prefix — it has no bundler, no TypeScript and no workspace link to import the contract through, and giving it one would mean shipping the contract inside the published artifact to satisfy a test",
   ],
   [
     "apps/desktop/scripts/smoke-packaged.mjs",
-    "the same, one layer further out: it drives the packaged .app's own Electron binary as a bare node process, so the only module it can import is the one the artifact itself publishes (inteligir/scripts/staged-layout.mjs)",
+    "the same, one layer further out: it drives the packaged .app's own Electron binary as a bare node process, with no module resolution into this workspace at all",
   ],
 ]);
 
@@ -102,7 +102,7 @@ describe("one spelling per non-procedure route path", () => {
     expect(
       files,
       "the sweep does not reach scripts/, which is where the smokes that spell paths live",
-    ).toContain("apps/launcher/scripts/smoke.mjs");
+    ).toContain("apps/cli/scripts/smoke.mjs");
     expect(spellings(sourceOf(HOME)).length, `${HOME} no longer spells a route path`).toBe(1);
   });
 

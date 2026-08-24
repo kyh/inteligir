@@ -11,9 +11,9 @@
   },
   "devDependencies": {
     "@repo/api": "workspace:*",
-    "@repo/app": "workspace:*",
     "@repo/domain": "workspace:*",
     "@types/node": "catalog:",
+    "inteligir": "workspace:*",
     "typescript": "catalog:",
     "vitest": "catalog:",
     "yaml": "catalog:",

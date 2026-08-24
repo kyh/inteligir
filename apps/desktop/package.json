@@ -5,15 +5,15 @@
   "description": "The Inteligir desktop shell: one Electron window pinned to the local server's origin, supervising that server as a child process.",
   "author": "kyh",
   "type": "module",
-  "main": "./dist/main.cjs",
+  "main": "./.output/app/main/index.js",
   "scripts": {
-    "build": "node scripts/build.mjs",
+    "build": "electron-vite build",
     "clean": "git clean -xdf .cache .output .turbo dist node_modules",
-    "dev": "pnpm run build && electron . --remote-debugging-port=9222",
-    "package": "pnpm run build && electron-builder --mac --arm64 --publish never",
+    "dev": "electron-vite dev",
+    "package": "electron-builder --mac --arm64 --publish never",
     "smoke": "node scripts/smoke-packaged.mjs",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit && tsc --noEmit -p src/renderer"
   },
   "dependencies": {
     "inteligir": "workspace:*"
@@ -21,13 +21,34 @@
   "devDependencies": {
     "@orpc/client": "catalog:",
     "@orpc/contract": "catalog:",
+    "@orpc/tanstack-query": "catalog:",
     "@repo/api": "workspace:*",
-    "@repo/app": "workspace:*",
+    "@repo/db": "workspace:*",
+    "@repo/domain": "workspace:*",
+    "@repo/editor": "workspace:*",
+    "@repo/notes": "workspace:*",
+    "@repo/ui": "workspace:*",
+    "@tailwindcss/vite": "catalog:",
+    "@tanstack/react-query": "^5.90.2",
+    "@tanstack/react-router": "catalog:",
+    "@tanstack/router-plugin": "catalog:",
+    "@testing-library/dom": "catalog:",
+    "@testing-library/react": "catalog:",
     "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@vitejs/plugin-react": "catalog:",
     "electron": "^43.2.0",
     "electron-builder": "^26.15.3",
-    "esbuild": "catalog:",
+    "electron-vite": "^5.0.0",
+    "jsdom": "catalog:",
+    "lucide-react": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "tailwindcss": "catalog:",
     "typescript": "catalog:",
-    "vitest": "catalog:"
+    "vite": "catalog:",
+    "vitest": "catalog:",
+    "zod": "catalog:"
   }
 }

@@ -166,7 +166,7 @@ describe("ws change-kind reachability", () => {
         (producer) =>
           producer.entity === "vault" &&
           producer.kind === "files-changed" &&
-          producer.file.startsWith("apps/app/"),
+          producer.file.startsWith("apps/cli/"),
       ),
     ).toBe(true);
     expect(

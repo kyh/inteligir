@@ -1,12 +1,21 @@
 // THE ORIGIN PIN — the whole security surface of this process.
 //
 // The shell owns no vault, no agent and no index: the product runs at the
-// local server this window points at, and everything here is the OS
+// local server the renderer talks to, and everything here is the OS
 // affordances a browser tab cannot give it. What the shell must never become
 // is a browser. The window loads exactly ONE origin and stays on it, and no
 // popup is ever granted — a shell that can be navigated anywhere is a browser
 // carrying the user's session, wearing the product's chrome, and every link a
 // note or an agent can write is a phishing surface inside it.
+//
+// THE PINNED ORIGIN IS A CUSTOM SCHEME, and that is why the comparison below
+// cannot be `new URL(x).origin`. Node's WHATWG parser answers the opaque string
+// "null" for `.origin` on any non-special scheme — so `inteligir://app` and
+// `inteligir://evil` would compare EQUAL, collapsing the pin to nothing.
+// Chromium's own parser knows better (the scheme is registered `standard`), but
+// this module runs in Node. So the scheme and host are compared explicitly, and
+// the http path is kept beside it because the shell's second window — the
+// in-app browser — is pinned to real http origins.
 //
 // No `electron` import: index.ts owns the webContents wiring (preventDefault,
 // shell.openExternal, the window-open deny) and delegates every DECISION here,
@@ -25,23 +34,43 @@ export function isHttpUrl(value: string): boolean {
 }
 
 /**
+ * The comparable identity of a URL: its scheme and its host, and its PORT only
+ * where the scheme has one. Null for anything unparseable.
+ *
+ * `URL.origin` is not usable here — see the header. Ports are part of the
+ * identity for http(s), where two ports on one host are two origins; a custom
+ * scheme registered `standard` carries none.
+ */
+function comparableOrigin(value: string): string | null {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return null;
+  }
+  if (url.protocol === "http:" || url.protocol === "https:") {
+    return url.origin === "null" ? null : url.origin;
+  }
+  // `username`/`password` are refused rather than ignored:
+  // `inteligir://app@evil/…` parses to host `evil`, and every host check that
+  // ever fell for that was reading the wrong field.
+  if (url.username.length > 0 || url.password.length > 0 || url.hostname.length === 0) {
+    return null;
+  }
+  return `${url.protocol}//${url.hostname}`;
+}
+
+/**
  * Does `targetUrl` stay on the window's own origin?
  *
- * Compares true URL ORIGINS. A `startsWith` on `http://127.0.0.1:4664` would
- * also match `http://127.0.0.1:46640`, and one on a hostname would match
- * `…evil.com`. An empty `appOrigin` (a misconfigured shell) and unparseable
- * URLs are never same-origin: a window that can navigate nowhere is the safe
- * failure.
+ * A `startsWith` on `http://127.0.0.1:4664` would also match
+ * `http://127.0.0.1:46640`, and one on a hostname would match `…evil.com`. An
+ * empty `appOrigin` (a misconfigured shell) and unparseable URLs are never
+ * same-origin: a window that can navigate nowhere is the safe failure.
  */
 export function isSameOriginNavigation(targetUrl: string, appOrigin: string): boolean {
-  if (appOrigin.length === 0) {
-    return false;
-  }
-  try {
-    return new URL(targetUrl).origin === new URL(appOrigin).origin;
-  } catch {
-    return false;
-  }
+  const pinned = comparableOrigin(appOrigin);
+  return pinned !== null && comparableOrigin(targetUrl) === pinned;
 }
 
 /** Verdict for a top-level navigation (`will-navigate`, `will-redirect`):

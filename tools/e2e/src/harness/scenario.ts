@@ -4,7 +4,7 @@
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { exec, hermeticProcessEnv } from "./exec";
-import { launchApp, type AppInstance, type BootMode, type LaunchAppArgs } from "./instance";
+import { launchApp, type AppInstance, type LaunchAppArgs } from "./instance";
 
 interface BootOptions {
   /** Short label, unique within the scenario ("a", "b", "solo"). */
@@ -17,7 +17,6 @@ interface BootOptions {
 }
 
 export interface ScenarioContext {
-  mode: BootMode;
   repoRoot: string;
   /** This scenario's own scratch dir; removed by the runner unless --keep. */
   scratchDir: string;
@@ -34,7 +33,6 @@ export interface Scenario {
 }
 
 export interface CreateScenarioContextArgs {
-  mode: BootMode;
   repoRoot: string;
   scratchDir: string;
   log: (message: string) => void;
@@ -44,7 +42,6 @@ export interface CreateScenarioContextArgs {
 
 export function createScenarioContext(args: CreateScenarioContextArgs): ScenarioContext {
   return {
-    mode: args.mode,
     repoRoot: args.repoRoot,
     scratchDir: args.scratchDir,
     log: args.log,
@@ -56,7 +53,6 @@ export function createScenarioContext(args: CreateScenarioContextArgs): Scenario
         await options.seedVault(vaultDir);
       }
       const launchArgs: LaunchAppArgs = {
-        mode: args.mode,
         name: options.name,
         instanceDir,
         repoRoot: args.repoRoot,

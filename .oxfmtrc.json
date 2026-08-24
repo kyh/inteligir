@@ -13,6 +13,6 @@
     "worker-configuration.d.ts",
     "packages/agent-runtime/src/codex/generated",
     "packages/editor/src/__tests__/fixtures",
-    "apps/app/seed"
+    "apps/cli/seed"
   ]
 }

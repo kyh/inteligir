@@ -4,7 +4,20 @@
     // `dom` for the `fetch`/`URL`/`AbortSignal` the main process uses; Electron
     // ships Chromium's globals in it.
     "lib": ["ES2023", "dom"],
-    "types": ["node"]
+    "types": ["node"],
+    "tsBuildInfoFile": "${configDir}/.cache/tsbuildinfo.main.json"
   },
-  "include": ["src", "vitest.config.ts"]
+  "include": [
+    "src/main",
+    "src/preload",
+    "src/types.ts",
+    "electron.vite.config.ts",
+    "vitest.config.ts"
+  ],
+  // `src/renderer` is its OWN program (src/renderer/tsconfig.json): it is the
+  // page, and it type-checks against the DOM and React rather than
+  // @types/node. Keeping the two halves in separate directories is what lets
+  // every tool that resolves a file's config by walking up (tsc, the editor,
+  // oxlint's type-aware pass) find the right one. `pnpm typecheck` runs both.
+  "exclude": ["node_modules", ".output", "src/renderer"]
 }

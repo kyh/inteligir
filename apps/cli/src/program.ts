@@ -15,10 +15,8 @@
 // half of it that returns rather than exits, so the loop below is `runMain`'s
 // shape — builtin flags, dispatch, one catch — with the code as its value.
 
-import { readFileSync } from "node:fs";
 import { ORPCError } from "@orpc/client";
 import { runCommand, defineCommand, renderUsage, type CommandDef } from "citty";
-import { z } from "zod";
 import { CliExitError, EXIT_ERROR, getErrorMessage, invalidUsage } from "./cli-error";
 import { argsOf, assertKnownFlags, resolveCommandPath } from "./command-tree";
 import { connectorsCommand } from "./commands/connectors";
@@ -31,27 +29,11 @@ import { syncCommand } from "./commands/sync";
 import { trashCommand } from "./commands/trash";
 import { actionCommand } from "./commands/action";
 import { commentCommand } from "./commands/comment";
+import { serveCommand } from "./commands/serve";
 import { vaultCommand } from "./commands/vault";
 import { describeContext, type CliDeps } from "./context";
+import { readCliVersion } from "./paths";
 import { out, wantsJsonOutput, writeOut } from "./output";
-
-const manifestSchema = z.looseObject({ version: z.string() });
-
-/** package.json sits one level above this module in src/ AND in the dist/
- *  bundle, so one relative read serves both layouts. */
-function readCliVersion(): string {
-  try {
-    const manifest = manifestSchema.safeParse(
-      JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")),
-    );
-    if (manifest.success) {
-      return manifest.data.version;
-    }
-  } catch {
-    // Fall through to the placeholder.
-  }
-  return "0.0.0";
-}
 
 /**
  * The command factories deliberately declare no return type. `CommandDef<T>`
@@ -66,9 +48,10 @@ export function buildProgram(deps: CliDeps): CommandDef {
     meta: {
       name: "inteligir",
       version: readCliVersion(),
-      description: "Drive the local inteligir notes app — vault, search, agent actions",
+      description: "Run the local inteligir notes app, and drive it — vault, search, agent actions",
     },
     subCommands: {
+      serve: serveCommand(),
       vault: vaultCommand(deps),
       search: searchCommand(deps),
       backlinks: backlinksCommand(deps),

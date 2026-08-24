@@ -2,13 +2,7 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "lib": ["ES2023"],
-    "types": ["node"],
-    // The install-layout guard imports apps/launcher's `staged-layout.mjs` —
-    // plain ESM because the build scripts and smokes that also import it are
-    // run by `node` with no compile step. `allowJs` is what lets tsc read its
-    // JSDoc types instead of refusing the module; `checkJs` stays off, since
-    // that file is typechecked by the package that owns it, not by this one.
-    "allowJs": true
+    "types": ["node"]
   },
   "include": ["src", "vitest.config.ts"]
 }

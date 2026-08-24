@@ -1,12 +1,13 @@
 import { defineConfig } from "vitest/config";
 
-// The shell is main-process only: the pure policy modules (the origin pin, the
-// server target, the path layouts) and the supervisor over a fake child, all
-// driven with no Electron environment at all.
 export default defineConfig({
   test: {
+    // node by default (the main-process policy suites); the renderer's
+    // component tests opt into jsdom per file via an @vitest-environment
+    // docblock.
     environment: "node",
-    include: ["src/**/*.test.ts"],
+    include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
+    setupFiles: ["src/renderer/app/__tests__/jsdom-stubs.ts"],
     // Budgeted against the rest of the monorepo's suites, which turbo runs in
     // parallel: uncapped pools exhaust the machine and kill workers mid-run.
     maxWorkers: 2,

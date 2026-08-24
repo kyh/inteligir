@@ -4,12 +4,10 @@
 // WHICH thread it is running in (the runtime injects it into agent shells).
 
 import { realpathSync } from "node:fs";
-import { resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
 import type { ContractRouterClient } from "@orpc/contract";
-import { authorizationHeader } from "@repo/app/node/server-file";
+import { authorizationHeader } from "./server/server-file";
 import type { LocalContract } from "@repo/api/local";
 import { RPC_PREFIX } from "@repo/api/local/routes";
 import { DATA_DIR_ENV_VAR, resolveServer, type ResolvedServer } from "./server-discovery";
@@ -28,19 +26,17 @@ export interface CliDeps {
 }
 
 /**
- * The sibling apps/app checkout, which is what the server hashes as its cwd
- * for the per-checkout data dir derivation. Structural: the CLI and the app
- * ship in one checkout, and this module sits one level under the CLI package
- * root both in src/ and in the dist/ bundle. realpath'd because the server
- * hashes its (real) cwd.
+ * What the per-checkout data dir derivation hashes: the SERVER's cwd. The
+ * server and the CLI are one program now, so a client invocation resolves the
+ * same instance a `serve` in this checkout would bind — provided it is run from
+ * the same place, which is what `INTELIGIR_DATA_DIR` overrides when it is not.
+ * realpath'd because the server hashes its (real) cwd.
  */
-function defaultAppCheckoutDir(): string {
-  const cliPackageDir = fileURLToPath(new URL("..", import.meta.url));
-  const appDir = resolve(cliPackageDir, "..", "app");
+function defaultCheckoutDir(): string {
   try {
-    return realpathSync(appDir);
+    return realpathSync(process.cwd());
   } catch {
-    return appDir;
+    return process.cwd();
   }
 }
 
@@ -49,7 +45,7 @@ export function createCliDeps(env: NodeJS.ProcessEnv = process.env): CliDeps {
   return {
     env,
     resolveServer() {
-      cached ??= resolveServer({ env, appCheckoutDir: defaultAppCheckoutDir() });
+      cached ??= resolveServer({ env, checkoutPath: defaultCheckoutDir() });
       return cached;
     },
   };

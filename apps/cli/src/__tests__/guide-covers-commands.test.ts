@@ -11,7 +11,7 @@
 // receives from GET /api/v1/guide — and the inventory comes from the citty
 // tree.
 
-import { CLI_SKILL_MD } from "@repo/app/node/guide/cli-skill";
+import { CLI_SKILL_MD } from "../server/guide/cli-skill";
 import { describe, expect, it } from "vitest";
 import { argsOf, collectLeafCommands } from "../command-tree";
 import { testProgram } from "./command-tree";

@@ -2,7 +2,19 @@
 # In a checkout, always run the SOURCE under tsx — a previously-built dist/
 # must never shadow fresh edits during dev. The built bundle is what a
 # packaged install runs, where src/ does not ship.
-SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+#
+# `$0` is followed through its symlinks first: an installed package is reached
+# through `node_modules/.bin/inteligir`, which is a link, and the directory
+# holding the link has no dist/ beside it.
+entry=$0
+while [ -L "$entry" ]; do
+  link=$(readlink "$entry")
+  case $link in
+    /*) entry=$link ;;
+    *) entry=$(dirname -- "$entry")/$link ;;
+  esac
+done
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$entry")" && pwd)
 SRC_ENTRY="$SCRIPT_DIR/../src/index.ts"
 TSX_BIN="$SCRIPT_DIR/../node_modules/.bin/tsx"
 if [ -f "$SRC_ENTRY" ] && [ -x "$TSX_BIN" ]; then

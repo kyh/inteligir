@@ -1,8 +1,8 @@
 // The packaged-app smoke: everything the shipped .app does EXCEPT open a
 // window.
 //
-// It boots the packaged server the way the supervisor does — the app's own
-// Electron binary with ELECTRON_RUN_AS_NODE=1 — and checks the parts a build
+// It boots the packaged server the way the shell does — the app's own Electron
+// binary with ELECTRON_RUN_AS_NODE=1 — and checks the parts a build
 // can silently get wrong: that the native modules load under Electron's
 // runtime, that the SPA and API are served, that the bundled CLI is reachable
 // and executable where the agent's PATH resolver looks for it, and that
@@ -24,25 +24,17 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import {
-  CLI_BIN_NAME,
-  appBundleDir,
-  appServerEntry,
-  appSkillsDir,
-  cliBinDirFromAppBundle,
-  installRootIn,
-} from "inteligir/scripts/staged-layout.mjs";
+const CLI_BIN_NAME = "inteligir";
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const appDir = join(packageRoot, ".output", "bin", "mac-arm64", "Inteligir.app");
 const electronBinary = join(appDir, "Contents", "MacOS", "Inteligir");
+// The packaged server is an ORDINARY dependency in an ordinary node_modules —
+// electron-builder unpacks the tree npm laid down, so the walk below is the one
+// src/main/server-instance.ts::serverEntryPath does at runtime.
 const unpacked = join(appDir, "Contents", "Resources", "app.asar.unpacked");
-// The layout is the launcher's, imported rather than re-typed: this file used
-// to spell `dist/apps/app/dist-node/main.js` out again, which meant a flatten
-// on the producing side left this smoke passing against a path that no longer
-// described the tree it was checking.
-const runtimeRoot = installRootIn(unpacked);
-const serverEntry = appServerEntry(runtimeRoot);
+const runtimeRoot = join(unpacked, "node_modules", CLI_BIN_NAME);
+const serverEntry = join(runtimeRoot, "dist", "index.js");
 const BOOT_TIMEOUT_MS = 60_000;
 const EXIT_TIMEOUT_MS = 20_000;
 
@@ -106,16 +98,16 @@ if (!existsSync(electronBinary)) {
 if (!existsSync(serverEntry)) {
   fail(`the packaged app carries no server entry at ${serverEntry}`);
 }
-const notesSkill = join(appSkillsDir(runtimeRoot), "inteligir-notes", "SKILL.md");
+const notesSkill = join(runtimeRoot, "dist", "skills", "inteligir-notes", "SKILL.md");
 if (!existsSync(notesSkill)) {
-  fail(`the packaged app carries no product skills at ${notesSkill}`);
+  fail(`the packaged app carries no dialect skills at ${notesSkill}`);
 }
 
-// The agent's PATH resolver walks up from the running bundle
-// (apps/app/src/node/agent/agent-shell-env.ts::resolveCliBinDir), so the same
-// walk is done here — and the execute bit is checked, because the resolver
-// refuses a file without one and the capability then disappears silently.
-const cliBin = join(cliBinDirFromAppBundle(appBundleDir(runtimeRoot)), CLI_BIN_NAME);
+// The agent's PATH resolver looks for the bin beside the running bundle
+// (apps/cli/src/server/agent/agent-shell-env.ts::resolveCliBinDir), and the
+// execute bit is checked because the resolver refuses a file without one —
+// which is the capability disappearing with no error anywhere.
+const cliBin = join(runtimeRoot, "bin", CLI_BIN_NAME);
 if (!existsSync(cliBin)) {
   fail(`the packaged CLI is missing at ${cliBin}`);
 }
@@ -160,12 +152,14 @@ let server = null;
 
 try {
   process.stdout.write(`smoke: booting the packaged server on ${baseUrl}\n`);
-  server = spawn(electronBinary, [serverEntry], {
+  // `serve` is the argument the shell passes too: the entry is the CLI, and
+  // every other verb is a client against a server this one IS.
+  server = spawn(electronBinary, [serverEntry, "serve"], {
     detached: true,
     stdio: ["ignore", "inherit", "inherit"],
     env: {
       ...process.env,
-      // Exactly what src/main/server-paths.ts composes for the packaged
+      // Exactly what src/main/server-instance.ts composes for the packaged
       // runtime.
       ELECTRON_RUN_AS_NODE: "1",
       NODE_ENV: "production",
@@ -229,7 +223,6 @@ try {
   }
   // Only the leader, never the group: `kill(-pid)` would take the forked
   // watcher with it and turn the graceful-exit assertion into a tautology.
-  // POSIX-only, like the group check in apps/launcher's smoke.
   process.stdout.write(`smoke: SIGTERM ${pid} (the server alone)\n`);
   process.kill(pid, "SIGTERM");
   const exit = await Promise.race([

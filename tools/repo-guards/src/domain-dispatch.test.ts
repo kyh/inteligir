@@ -103,9 +103,9 @@ const VOCABULARIES: Vocabulary[] = [
     members: syncStates,
     declaredIn: "packages/api/src/local/vault/vault-schema.ts",
     dispatchedIn: {
-      "apps/app/src/node/vault/git.ts":
+      "apps/cli/src/server/vault/git.ts":
         "the PRODUCER — `statusSnapshot` is the state machine that decides which state the vault is in; naming them all is what it is for",
-      "apps/app/src/app/vault-hooks.ts":
+      "apps/desktop/src/renderer/app/vault-hooks.ts":
         "the ONE client answer, four tables deliberately side by side so a ninth state cannot be answered in one and forgotten in another: `syncStateLabel` (the word), `syncStateDotClass` (the colour), `syncBlockedReason` (why a pass would not run — which `canSyncNow` reads as a boolean) and `syncNowNotice` (what the command owes the user afterwards)",
     },
   },
@@ -116,9 +116,9 @@ const VOCABULARIES: Vocabulary[] = [
     dispatchedIn: {
       "packages/domain/src/thread-lifecycle.ts":
         "the FSM — which transition each status permits, and the only table that may say so",
-      "apps/app/src/node/threads/service.ts":
+      "apps/cli/src/server/threads/service.ts":
         "server POLICY — what a send does in each status (start, steer, queue, refuse), which is a different question from what the status is called",
-      "apps/app/src/app/chat/chat-model.ts":
+      "apps/desktop/src/renderer/app/chat/chat-model.ts":
         "the client's ONE derivation into `ThreadActivity`; every React surface reads its labels, dots and tones from there rather than from the lifecycle word",
     },
   },
@@ -142,7 +142,7 @@ const VOCABULARIES: Vocabulary[] = [
     members: THREAD_CHANGE_KINDS,
     declaredIn: "packages/domain/src/change-kinds.ts",
     dispatchedIn: {
-      "apps/app/src/app/chat/thread-hooks.ts":
+      "apps/desktop/src/renderer/app/chat/thread-hooks.ts":
         "which kinds move the TIMELINE, and therefore earn a delta fetch — the one thread surface the query sweep does not cover, so a kind nobody weighed here is a row the user never sees; a table rather than a list, because the answer for a new kind is a decision and not a default",
     },
   },
