@@ -8,7 +8,7 @@
 // gate a rename takes before the file moves.
 
 import type { ViewContext } from "@repo/domain/view-context";
-import { contentHashHex } from "@repo/server-contract/vault";
+import { contentHashHex } from "@repo/api/local/vault/vault-schema";
 
 export interface OpenNoteView {
   /** Make the buffer durable. Rejection is the caller's own toast, not this

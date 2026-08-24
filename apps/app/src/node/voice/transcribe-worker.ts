@@ -32,7 +32,7 @@
 /// <reference path="./sherpa-onnx-node.d.ts" />
 
 import { parentPort, workerData } from "node:worker_threads";
-import { VOICE_SAMPLE_RATE } from "@repo/server-contract/voice";
+import { VOICE_SAMPLE_RATE } from "@repo/api/local/voice/voice-schema";
 import { z } from "zod";
 import type {
   VoiceModelFiles,

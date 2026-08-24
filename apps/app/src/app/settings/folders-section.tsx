@@ -6,22 +6,17 @@
 // directory picker worth the name, and the desktop shell ships no IPC to add
 // one (its whole security story is having none).
 
-import type { ConnectedFoldersResponse } from "@repo/server-contract/folders";
+import type { ConnectedFoldersResponse } from "@repo/api/local/folders/folders-schema";
 import { Button } from "@repo/ui/components/button";
 import { Input } from "@repo/ui/components/input";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { queryKeys, unwrap } from "../api";
+import { isDefinedError, orpc, safe } from "../api";
 import { useWorkspace } from "../workspace-context";
 import { failed, SectionHeading } from "./settings-chrome";
 
 function useConnectedFolders() {
-  const { api } = useWorkspace();
-  return useQuery<ConnectedFoldersResponse>({
-    queryKey: queryKeys.folders,
-    queryFn: async () => unwrap(await api.folders.$get()),
-    staleTime: 0,
-  });
+  return useQuery({ ...orpc.folders.list.queryOptions(), staleTime: 0 });
 }
 
 export function FoldersSection() {
@@ -33,7 +28,7 @@ export function FoldersSection() {
   const [busy, setBusy] = useState(false);
 
   const refresh = (response: ConnectedFoldersResponse): void => {
-    queryClient.setQueryData(queryKeys.folders, response);
+    queryClient.setQueryData(orpc.folders.list.queryKey(), response);
   };
 
   const add = async (): Promise<void> => {
@@ -44,13 +39,18 @@ export function FoldersSection() {
     setBusy(true);
     setError(null);
     try {
-      const response = await api.folders.add.$post({ json: { path } });
-      if (!response.ok) {
-        const body = await response.json();
-        setError(body.message);
-        return;
+      const { error: refusal, data } = await safe(api.folders.add({ path }));
+      if (refusal !== null) {
+        // A refusal the contract DECLARES is a judgement about this path, so it
+        // belongs beside the field that holds it; anything else is about the
+        // connection and gets the section's toast.
+        if (isDefinedError(refusal)) {
+          setError(refusal.message);
+          return;
+        }
+        throw refusal;
       }
-      refresh(await response.json());
+      refresh(data);
       setDraft("");
     } catch (cause) {
       failed(cause, "Could not add the folder.");
@@ -63,13 +63,15 @@ export function FoldersSection() {
     setBusy(true);
     setError(null);
     try {
-      const response = await api.folders.remove.$post({ json: { path } });
-      if (!response.ok) {
-        const body = await response.json();
-        setError(body.message);
-        return;
+      const { error: refusal, data } = await safe(api.folders.remove({ path }));
+      if (refusal !== null) {
+        if (isDefinedError(refusal)) {
+          setError(refusal.message);
+          return;
+        }
+        throw refusal;
       }
-      refresh(await response.json());
+      refresh(data);
     } catch (cause) {
       failed(cause, "Could not remove the folder.");
     } finally {

@@ -4,21 +4,18 @@
 // so the tint and the panel read one truth.
 
 import { setCommentMeta } from "@repo/editor/comments/comment-store";
-import type { CommentsResponse } from "@repo/server-contract/comments";
+import type { CommentsResponse } from "@repo/api/local/comments/comments-schema";
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { useEffect } from "react";
 
-import { queryKeys, unwrap } from "../api";
-import { useWorkspace } from "../workspace-context";
+import { orpc } from "../api";
 
 const EMPTY: ReadonlySet<string> = new Set();
 
 export function useNoteComments(path: string | null): UseQueryResult<CommentsResponse> {
-  const { api } = useWorkspace();
-  const query = useQuery<CommentsResponse>({
+  const query = useQuery({
+    ...orpc.comments.list.queryOptions({ input: { path: path ?? "" } }),
     enabled: path !== null,
-    queryFn: async () => unwrap(await api.comments.$get({ query: { path: path ?? "" } })),
-    queryKey: queryKeys.comments(path ?? "none"),
   });
 
   const data = query.data;

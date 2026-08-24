@@ -27,7 +27,7 @@ export type VoiceWorkerRequest =
    * and the process pays nothing.
    */
   | { kind: "probe" }
-  /** A whole clip. `pcm` is the format `@repo/server-contract/voice` names:
+  /** A whole clip. `pcm` is the format `@repo/api/local/voice/voice-schema` names:
    *  little-endian Int16 samples, mono, 16 kHz. Fed through a stream in one
    *  shot; the answer is that stream's final. */
   | { kind: "transcribe"; model: VoiceModelFiles; pcm: ArrayBuffer };

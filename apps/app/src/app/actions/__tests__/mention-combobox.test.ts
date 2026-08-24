@@ -1,4 +1,4 @@
-import type { WikiTargetWire } from "@repo/server-contract/knowledge";
+import type { WikiTargetWire } from "@repo/api/local/knowledge/knowledge-schema";
 import { describe, expect, it } from "vitest";
 import { activeMentionAt, filterMentionTargets, MENTION_MAX_ROWS } from "../mention-combobox";
 

@@ -11,7 +11,9 @@ import { execFile } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { promisify } from "node:util";
-import { contentHashHex } from "@repo/server-contract/vault";
+import { isDefinedError, safe } from "@orpc/client";
+import type { Proposal } from "@repo/api/local/proposals/proposals-schema";
+import { contentHashHex } from "@repo/api/local/vault/vault-schema";
 import { describe, expect, it } from "vitest";
 import { resolveAgentDriver } from "../../agent/agent-driver";
 import {
@@ -83,15 +85,9 @@ async function runReviewTurn(
   return { threadId, notePath };
 }
 
-async function listProposals(app: BootedTestApp, docPath?: string) {
-  const response = await app.client.proposals.list.$get(
-    docPath === undefined ? {} : { query: { docPath } },
-  );
-  expect(response.status).toBe(200);
-  if (!response.ok) {
-    throw new Error("the proposal list refused");
-  }
-  return (await response.json()).proposals;
+async function listProposals(app: BootedTestApp, docPath?: string): Promise<Proposal[]> {
+  const { proposals } = await app.client.proposals.list(docPath === undefined ? {} : { docPath });
+  return proposals;
 }
 
 describe("a review-mode turn", () => {
@@ -152,10 +148,10 @@ describe("accepting", () => {
     expect(proposal).toBeDefined();
     if (proposal === undefined) return;
 
-    const accepted = await app.client.proposals.accept.$post({
-      json: { proposalId: proposal.id, expectedRevision: proposal.revision },
+    await app.client.proposals.accept({
+      proposalId: proposal.id,
+      expectedRevision: proposal.revision,
     });
-    expect(accepted.status).toBe(200);
 
     expect(readFileSync(join(app.vaultDir, notePath), "utf8")).toBe(proposal.proposedContent);
     expect(await listProposals(app, notePath)).toEqual([]);
@@ -163,12 +159,7 @@ describe("accepting", () => {
     // The knowledge index is driven by the vault's change announcement, which
     // only an ordinary service write makes — so finding the note here is the
     // assertion that the accept did not take a side door.
-    const search = await app.client.knowledge.search.$get({
-      query: { q: "xyzzy", limit: 10 },
-    });
-    expect(search.status).toBe(200);
-    if (!search.ok) return;
-    const results = (await search.json()).results;
+    const { results } = await app.client.knowledge.search({ q: "xyzzy", limit: 10 });
     expect(results.map((result) => result.path)).toContain(notePath);
   });
 
@@ -186,13 +177,13 @@ describe("accepting", () => {
     const meanwhile = "# Agent note\n\nthe user rewrote this\n";
     await app.vault.service.write(notePath, meanwhile);
 
-    const refused = await app.client.proposals.accept.$post({
-      json: { proposalId: proposal.id, expectedRevision: proposal.revision },
-    });
-    expect(refused.status).toBe(409);
-    if (refused.ok) return;
-    const body = await refused.json();
-    expect(body).toMatchObject({ error: "cas_mismatch" });
+    const [refused] = await safe(
+      app.client.proposals.accept({
+        proposalId: proposal.id,
+        expectedRevision: proposal.revision,
+      }),
+    );
+    expect(isDefinedError(refused) && refused.code).toBe("CAS_MISMATCH");
     // The user's bytes stand.
     expect(readFileSync(join(app.vaultDir, notePath), "utf8")).toBe(meanwhile);
   });
@@ -204,12 +195,13 @@ describe("accepting", () => {
     expect(proposal).toBeDefined();
     if (proposal === undefined) return;
 
-    const refused = await app.client.proposals.accept.$post({
-      json: { proposalId: proposal.id, expectedRevision: proposal.revision + 1 },
-    });
-    expect(refused.status).toBe(409);
-    if (refused.ok) return;
-    expect(await refused.json()).toMatchObject({ error: "conflict" });
+    const [refused] = await safe(
+      app.client.proposals.accept({
+        proposalId: proposal.id,
+        expectedRevision: proposal.revision + 1,
+      }),
+    );
+    expect(isDefinedError(refused) && refused.code).toBe("CONFLICT");
   });
 
   it("applies ONE hunk and keeps the rest pending", async () => {
@@ -223,26 +215,31 @@ describe("accepting", () => {
     if (proposal === undefined) return;
     expect(proposal.hunks).toHaveLength(1);
 
-    const accepted = await app.client.proposals.accept.$post({
-      json: { proposalId: proposal.id, expectedRevision: proposal.revision, hunkIndex: 0 },
+    await app.client.proposals.accept({
+      proposalId: proposal.id,
+      expectedRevision: proposal.revision,
+      hunkIndex: 0,
     });
-    expect(accepted.status).toBe(200);
     // One hunk WAS the whole proposal, so it is finished and on disk.
     expect(readFileSync(join(app.vaultDir, notePath), "utf8")).toBe(proposal.proposedContent);
     expect(await listProposals(app, notePath)).toEqual([]);
   });
 
-  it("400s a hunk index the proposal does not carry", async () => {
+  it("refuses a hunk index the proposal does not carry", async () => {
     const app = await bootReviewApp();
     const { notePath } = await runReviewTurn(app, "one hunk only");
     const proposal = (await listProposals(app, notePath))[0];
     expect(proposal).toBeDefined();
     if (proposal === undefined) return;
 
-    const refused = await app.client.proposals.accept.$post({
-      json: { proposalId: proposal.id, expectedRevision: proposal.revision, hunkIndex: 99 },
-    });
-    expect(refused.status).toBe(400);
+    const [refused] = await safe(
+      app.client.proposals.accept({
+        proposalId: proposal.id,
+        expectedRevision: proposal.revision,
+        hunkIndex: 99,
+      }),
+    );
+    expect(isDefinedError(refused) && refused.code).toBe("BAD_REQUEST");
   });
 });
 
@@ -255,19 +252,15 @@ describe("rejecting", () => {
     expect(proposal).toBeDefined();
     if (proposal === undefined) return;
 
-    const rejected = await app.client.proposals.reject.$post({
-      json: { proposalId: proposal.id, expectedRevision: proposal.revision },
+    await app.client.proposals.reject({
+      proposalId: proposal.id,
+      expectedRevision: proposal.revision,
     });
-    expect(rejected.status).toBe(200);
     expect(readFileSync(join(app.vaultDir, notePath), "utf8")).toBe(before);
     expect(await listProposals(app, notePath)).toEqual([]);
 
-    const history = await app.client.proposals.list.$get({
-      query: { docPath: notePath, includeResolved: "true" },
-    });
-    expect(history.status).toBe(200);
-    if (!history.ok) return;
-    expect((await history.json()).proposals[0]?.status).toBe("rejected");
+    const history = await app.client.proposals.list({ docPath: notePath, includeResolved: true });
+    expect(history.proposals[0]?.status).toBe("rejected");
   });
 });
 

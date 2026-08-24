@@ -8,7 +8,7 @@ import type {
   TimelineConversationRow,
   TimelineRow,
   TimelineTurnRow,
-} from "@repo/server-contract/thread-timeline";
+} from "@repo/api/local/thread-timeline";
 import { cleanup, render } from "@testing-library/react";
 import { afterEach, expect, it } from "vitest";
 import { TimelineRowView } from "../timeline-rows";

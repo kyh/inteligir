@@ -8,7 +8,7 @@ import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
 import { appendFile, mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { VaultConflict, VaultStatusResponse } from "@repo/server-contract/vault";
+import type { VaultConflict, VaultStatusResponse } from "@repo/api/local/vault/vault-schema";
 import { VAULT_TMP_PREFIX } from "@repo/notes/knowledge/vault-path";
 import { createDebouncedCallbackScheduler } from "./watcher/debounce";
 

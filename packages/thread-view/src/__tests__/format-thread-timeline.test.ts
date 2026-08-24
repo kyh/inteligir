@@ -1,8 +1,4 @@
-import type {
-  ThreadTimeline,
-  TimelineRow,
-  TimelineRowBase,
-} from "@repo/server-contract/thread-timeline";
+import type { ThreadTimeline, TimelineRow, TimelineRowBase } from "@repo/api/local/thread-timeline";
 import { describe, expect, it } from "vitest";
 import { formatThreadTimeline } from "../format-thread-timeline";
 

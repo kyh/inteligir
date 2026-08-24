@@ -5,6 +5,7 @@
 
 import { noopNotifier } from "@repo/domain/notifier";
 import { createPendingInteraction } from "@repo/db/pending-interactions";
+import { isDefinedError, safe } from "@orpc/client";
 import { describe, expect, it } from "vitest";
 import { createChatThreadResolver, sendToThread } from "../chat-service";
 import { bootChatHarness } from "./chat-harness";
@@ -92,7 +93,7 @@ describe("sendToThread", () => {
   it("surfaces an archived thread as a refusal", async () => {
     const { client } = await bootChatHarness({ mode: "manual" });
     const thread = await createChatThreadResolver(client)();
-    await client.threads.archive.$post({ json: { threadId: thread.id } });
+    await client.threads.archive({ threadId: thread.id });
     const outcome = await sendToThread(client, {
       threadId: thread.id,
       text: "hello?",
@@ -170,10 +171,10 @@ describe("the steer guard", () => {
 
     // A raw unguarded steer — what a second window believing the thread idle
     // would send — is refused by the server rather than joining the turn.
-    const blind = await client.threads.send.$post({
-      json: { threadId: thread.id, text: "blind", mode: "steer-if-active" },
-    });
-    expect(blind.status).toBe(409);
+    const [blind] = await safe(
+      client.threads.send({ threadId: thread.id, text: "blind", mode: "steer-if-active" }),
+    );
+    expect(isDefinedError(blind) && blind.code).toBe("STALE_TURN");
     expect(driver.steeredTurns).toHaveLength(0);
 
     // The client's own path recovers from exactly that refusal.
@@ -203,19 +204,13 @@ describe("the chat thread resolver", () => {
     const [first, second, third] = await Promise.all([resolve(), resolve(), resolve()]);
     expect(second.id).toBe(first.id);
     expect(third.id).toBe(first.id);
-    const listed = await client.threads.list.$get();
-    if (!listed.ok) {
-      throw new Error("list refused");
-    }
-    const { threads } = await listed.json();
+    const { threads } = await client.threads.list();
     expect(threads.filter((thread) => thread.originDocPath === null)).toHaveLength(1);
   });
 
   it("does not adopt a delegation thread as the chat", async () => {
     const { client } = await bootChatHarness({ mode: "manual" });
-    await client.threads.create.$post({
-      json: { originDocPath: "Doc.md", originAnchor: "anc_0123456789ab" },
-    });
+    await client.threads.create({ originDocPath: "Doc.md", originAnchor: "anc_0123456789ab" });
     const chat = await createChatThreadResolver(client)();
     expect(chat.originDocPath).toBeNull();
   });
@@ -244,36 +239,29 @@ describe("the inline approval card's answer", () => {
       }),
     });
 
-    const detail = await client.threads.get.$get({ query: { threadId: thread.id } });
-    if (!detail.ok) {
-      throw new Error("thread detail refused");
-    }
-    expect((await detail.json()).pendingInteractions.map((row) => row.id)).toEqual([
-      interaction.id,
-    ]);
+    const detail = await client.threads.get({ threadId: thread.id });
+    expect(detail.pendingInteractions.map((row) => row.id)).toEqual([interaction.id]);
 
     // A decision the card would never render is refused server-side, which is
     // what keeps the card's availableDecisions filter honest rather than
     // decorative.
-    const unoffered = await client.threads.interaction.answer.$post({
-      json: {
+    const [unoffered] = await safe(
+      client.threads.answerInteraction({
         threadId: thread.id,
         interactionId: interaction.id,
         resolution: "allow_for_session",
-      },
-    });
-    expect(unoffered.status).toBe(400);
+      }),
+    );
+    expect(isDefinedError(unoffered) && unoffered.code).toBe("INVALID_RESOLUTION");
 
-    const answered = await client.threads.interaction.answer.$post({
-      json: { threadId: thread.id, interactionId: interaction.id, resolution: "allow_once" },
+    await client.threads.answerInteraction({
+      threadId: thread.id,
+      interactionId: interaction.id,
+      resolution: "allow_once",
     });
-    expect(answered.status).toBe(200);
 
     // Answered rows leave the open list, so the card stops rendering.
-    const after = await client.threads.get.$get({ query: { threadId: thread.id } });
-    if (!after.ok) {
-      throw new Error("thread detail refused");
-    }
-    expect((await after.json()).pendingInteractions).toEqual([]);
+    const after = await client.threads.get({ threadId: thread.id });
+    expect(after.pendingInteractions).toEqual([]);
   });
 });

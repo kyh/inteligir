@@ -4,9 +4,9 @@
 // the thread, per the view-context decision.
 
 import type { ViewContext } from "@repo/domain/view-context";
-import type { ApiClient } from "@repo/server-contract/client";
-import type { CreateThreadRequest } from "@repo/server-contract/threads";
+import type { CreateThreadRequest } from "@repo/api/local/threads/threads-schema";
 
+import type { client } from "../api";
 import { sendToThread, type ComposerSendOutcome } from "../chat/chat-service";
 
 /** First line of the prompt, trimmed to a title-sized span. */
@@ -33,18 +33,14 @@ export interface CreateActionResult {
 }
 
 export async function createAction(
-  api: ApiClient,
+  api: typeof client,
   args: CreateActionArgs,
 ): Promise<CreateActionResult> {
   const createBody: CreateThreadRequest = { title: actionTitle(args.prompt) };
   if (args.docPath !== null) {
     createBody.originDocPath = args.docPath;
   }
-  const created = await api.threads.create.$post({ json: createBody });
-  if (!created.ok) {
-    throw new Error("Could not create the action");
-  }
-  const { thread } = await created.json();
+  const { thread } = await api.threads.create(createBody);
   const contextPaths = args.contextPaths ?? [];
   const text =
     contextPaths.length === 0

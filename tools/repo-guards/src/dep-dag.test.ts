@@ -44,13 +44,18 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
     "@repo/cloud-contract": [],
     "@repo/domain": [],
     "@repo/notes": [],
-    "@repo/typed-routes": [],
     "@repo/ui": [],
 
     // The Plate editor draws with the shared component kit — the same
     // shadcn-on-Base-UI vocabulary the app's chrome uses — so the edge is a
     // rendering dependency, not a domain one. @repo/ui stays a leaf below it.
     "@repo/editor": ["@repo/notes", "@repo/ui"],
+    // ONE contract package, TWO entry points, and the split is the point: its
+    // `/local` half is the desktop renderer and the CLI talking to the local
+    // server, whose two ends ship in one bundle and may break freely; its
+    // `/cloud` half is a deployed Worker answering installs that may be months
+    // stale, and may never break.
+    //
     // The @repo/notes edge is two grammars the contract validates against —
     // the delegation anchor's token (`markdown/thread-anchor`) and the vault
     // path (`knowledge/vault-path`) — and it is narrow ON PURPOSE: both modules
@@ -58,18 +63,13 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
     // remark into every client bundle. Widening this edge to a remark-carrying
     // module is the regression to catch.
     // The @repo/cloud-contract edge is ONE fact, and it is a wire fact: the
-    // device name `/cloud/pair/begin` accepts is the name the cloud's own
+    // device name `cloud.pairBegin` accepts is the name the cloud's own
     // `/v1/device/redeem` will eventually be sent, so the ceiling it validates
     // against has to be that route's. A hand-copied number here is a value this
     // end accepts and the cloud then refuses, arriving as a shape error long
     // after the click that caused it. Both packages are zod-only leaves, so the
     // edge costs a client bundle nothing but the schemas it already parses.
-    "@repo/server-contract": [
-      "@repo/cloud-contract",
-      "@repo/domain",
-      "@repo/notes",
-      "@repo/typed-routes",
-    ],
+    "@repo/api": ["@repo/cloud-contract", "@repo/domain", "@repo/notes"],
     "@repo/agent-runtime": ["@repo/domain"],
     // Persistence sits BELOW the wire: the store announces its writes through
     // @repo/domain's `DbNotifier`, whose change-kind vocabulary the contract
@@ -77,7 +77,7 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
     // the contract's own @repo/notes edge into the build graph of a package that
     // only writes rows.
     "@repo/db": ["@repo/domain"],
-    "@repo/thread-view": ["@repo/domain", "@repo/server-contract"],
+    "@repo/thread-view": ["@repo/api", "@repo/domain"],
 
     // The product: the one workspace that composes everything.
     "@repo/app": [
@@ -93,9 +93,8 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
       "@repo/domain",
       "@repo/editor",
       "@repo/notes",
-      "@repo/server-contract",
+      "@repo/api",
       "@repo/thread-view",
-      "@repo/typed-routes",
       "@repo/ui",
     ],
     // The mobile companion (issue #576). It is the THIRD implementation of the
@@ -115,7 +114,7 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
     // It reaches no runtime — an approval it prints is domain grammar, and a
     // client that could not print one without the package that spawns provider
     // processes would be carrying a process tree to format a string.
-    "@repo/cli": ["@repo/app", "@repo/domain", "@repo/server-contract", "@repo/thread-view"],
+    "@repo/cli": ["@repo/api", "@repo/app", "@repo/domain", "@repo/thread-view"],
     // The Cloudflare Worker. Only the two zod-only/browser-only packages it can
     // survive on workerd — see the workerd rule below for what enforces that
     // beyond this row.
@@ -142,9 +141,9 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
     // it needs the identity row's path and the schema that responder's answer is
     // held against. A shell narrowing that body for itself is a second, weaker
     // reading of the one message a squatter gets to compose.
-    "@repo/desktop": ["@repo/app", "@repo/server-contract"],
+    "@repo/desktop": ["@repo/api", "@repo/app"],
 
-    "@repo/e2e": ["@repo/app", "@repo/notes", "@repo/server-contract"],
+    "@repo/e2e": ["@repo/api", "@repo/app", "@repo/notes"],
     "@repo/repo-guards": [],
   }),
 );
@@ -215,17 +214,13 @@ const PURITY_RULES = new Map<string, PurityRule>(
       forbidden: ["node", "react", "electron"],
       why: "a zod-only leaf: the thread grammar is parsed on both sides of every wire",
     },
-    "@repo/server-contract": {
+    "@repo/api": {
       forbidden: ["node", "react", "electron"],
-      why: "a zod-only leaf: the same table builds the server's routes and the browser's client",
+      why: "the contract both ends compile against: it loads in the Electron renderer, on node, on workerd and in React Native, so a platform import there is a package that stops loading somewhere",
     },
     "@repo/cloud-contract": {
       forbidden: ["node", "react", "electron"],
       why: "a zod-only leaf: the cloud wire runs on workerd, where node builtins do not exist, and the local app parses the same frames",
-    },
-    "@repo/typed-routes": {
-      forbidden: ["node", "react", "electron"],
-      why: "@repo/server-contract derives from it and ships to the browser, so this rides along into every client bundle",
     },
     "@repo/thread-view": {
       forbidden: ["node", "react", "electron"],
@@ -246,9 +241,9 @@ const PURITY_RULES = new Map<string, PurityRule>(
   }),
 );
 
-/** zod-only means zod-only. `@repo/server-contract` and `@repo/typed-routes`
- *  are NOT on this list: both carry hono, which is isomorphic and therefore
- *  does not cost the leaves' portability. */
+/** zod-only means zod-only. `@repo/api` is NOT on this list: it carries
+ *  `@orpc/contract`, which is isomorphic and therefore does not cost the
+ *  leaves' portability. */
 const ZOD_ONLY_LEAVES = ["@repo/domain"];
 
 function edgesFrom(workspace: Workspace, files: readonly string[]): Map<string, string[]> {

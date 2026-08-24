@@ -34,7 +34,10 @@ import { isDocPath } from "@repo/notes/knowledge/doc-file";
 import { titleFromPath } from "@repo/notes/knowledge/link-extract";
 import { computeRenameEdits } from "@repo/notes/knowledge/rename-links";
 import { addFrontmatterAlias } from "@repo/notes/markdown/frontmatter";
-import type { VaultRenameResponse, VaultRenameSkipReason } from "@repo/server-contract/vault";
+import type {
+  VaultRenameResponse,
+  VaultRenameSkipReason,
+} from "@repo/api/local/vault/vault-schema";
 import { mapWithConcurrency } from "../concurrency";
 import { normalizeVaultPath } from "@repo/notes/knowledge/vault-path";
 import type { VaultService } from "../vault/vault-service";

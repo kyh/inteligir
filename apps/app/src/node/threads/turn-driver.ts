@@ -1,7 +1,7 @@
 import type { AgentWriteMode } from "@repo/domain/agent-write-mode";
 import type { ThreadEvent } from "@repo/domain/provider-event";
 import type { ViewContext } from "@repo/domain/view-context";
-import type { PendingInteraction } from "@repo/server-contract/threads";
+import type { PendingInteraction } from "@repo/api/local/threads/threads-schema";
 
 /**
  * The provider seam. A driver ACCEPTS work synchronously and reports

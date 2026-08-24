@@ -19,8 +19,7 @@ import {
   connectorTarget,
   type ConnectorTransportInput,
   type ConnectorView,
-  type ConnectorsResponse,
-} from "@repo/server-contract/connectors";
+} from "@repo/api/local/connectors/connectors-schema";
 import { Button } from "@repo/ui/components/button";
 import { confirm } from "@repo/ui/components/confirm-dialog";
 import { Input } from "@repo/ui/components/input";
@@ -28,17 +27,12 @@ import { Label } from "@repo/ui/components/label";
 import { Textarea } from "@repo/ui/components/textarea";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useId, useState } from "react";
-import { queryKeys, unwrap } from "../api";
+import { orpc } from "../api";
 import { useWorkspace } from "../workspace-context";
 import { ChoiceRow, failed, SectionHeading } from "./settings-chrome";
 
 function useConnectors() {
-  const { api } = useWorkspace();
-  return useQuery<ConnectorsResponse>({
-    queryKey: queryKeys.connectors,
-    queryFn: async () => unwrap(await api.connectors.$get()),
-    staleTime: 0,
-  });
+  return useQuery({ ...orpc.connectors.list.queryOptions(), staleTime: 0 });
 }
 
 /** One argument per line; blank lines are spacing, not empty arguments. */
@@ -245,9 +239,7 @@ function ConnectorRow({
     setAuthorizeUrl(null);
     void (async () => {
       try {
-        const body = await unwrap(
-          await api.connectors.oauth.begin.$post({ json: { name: server.name, open: true } }),
-        );
+        const body = await api.connectors.oauthBegin({ name: server.name, open: true });
         if (!body.opened) {
           setAuthorizeUrl(body.url);
         }
@@ -263,9 +255,7 @@ function ConnectorRow({
     setBusy(true);
     void (async () => {
       try {
-        const body = await unwrap(
-          await api.connectors.oauth.disconnect.$post({ json: { name: server.name } }),
-        );
+        const body = await api.connectors.oauthDisconnect({ name: server.name });
         onChanged(body.servers);
       } catch (cause) {
         failed(cause, `Could not disconnect ${server.name}.`);
@@ -279,12 +269,8 @@ function ConnectorRow({
     setBusy(true);
     void (async () => {
       try {
-        const body = unwrap(
-          await api.connectors.toggle.$post({
-            json: { enabled: !server.enabled, name: server.name },
-          }),
-        );
-        onChanged((await body).servers);
+        const body = await api.connectors.toggle({ enabled: !server.enabled, name: server.name });
+        onChanged(body.servers);
       } catch (cause) {
         failed(cause, `Could not toggle ${server.name}.`);
       } finally {
@@ -306,8 +292,8 @@ function ConnectorRow({
       }
       setBusy(true);
       try {
-        const body = unwrap(await api.connectors.remove.$post({ json: { name: server.name } }));
-        onChanged((await body).servers);
+        const body = await api.connectors.remove({ name: server.name });
+        onChanged(body.servers);
       } catch (cause) {
         failed(cause, `Could not remove ${server.name}.`);
       } finally {
@@ -382,7 +368,7 @@ export function ConnectorsSection() {
 
   const servers = query.data?.servers ?? [];
   const setServers = (next: ConnectorView[]): void => {
-    queryClient.setQueryData<ConnectorsResponse>(queryKeys.connectors, { servers: next });
+    queryClient.setQueryData(orpc.connectors.list.queryKey(), { servers: next });
   };
 
   const verdict = draftToRequest(draft);
@@ -394,12 +380,8 @@ export function ConnectorsSection() {
     setAdding(true);
     void (async () => {
       try {
-        const body = unwrap(
-          await api.connectors.add.$post({
-            json: { name: draft.name, transport: verdict.transport },
-          }),
-        );
-        setServers((await body).servers);
+        const body = await api.connectors.add({ name: draft.name, transport: verdict.transport });
+        setServers(body.servers);
         setDraft(EMPTY_DRAFT);
       } catch (cause) {
         failed(cause, `Could not add ${draft.name}.`);

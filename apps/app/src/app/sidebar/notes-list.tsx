@@ -6,7 +6,7 @@
 // working on", not "where does it live".
 
 import { isTrashedPath } from "@repo/notes/knowledge/vault-path";
-import type { VaultTreeResponse } from "@repo/server-contract/vault";
+import type { VaultTreeResponse } from "@repo/api/local/vault/vault-schema";
 import {
   SidebarGroup,
   SidebarGroupLabel,

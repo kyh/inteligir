@@ -12,7 +12,7 @@ import {
 } from "@repo/ui/components/dialog";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "@repo/ui/components/sonner";
-import { queryKeys, refusalMessage, unwrap } from "../api";
+import { orpc, refusalMessage } from "../api";
 import { useWorkspace } from "../workspace-context";
 import { relativeTimeLabel } from "./notes-list";
 
@@ -31,19 +31,14 @@ function noteTitle(path: string): string {
 export function TrashDialog({ open, onOpenChange, onOpenNote }: TrashDialogProps) {
   const { api } = useWorkspace();
   const queryClient = useQueryClient();
-  const trashQuery = useQuery({
-    enabled: open,
-    queryFn: async () => unwrap(await api.vault.trash.$get()),
-    queryKey: queryKeys.vaultTrash,
-  });
+  const trashQuery = useQuery({ ...orpc.vault.trashList.queryOptions(), enabled: open });
 
   const invalidate = (): void => {
-    void queryClient.invalidateQueries({ queryKey: queryKeys.vaultTrash });
+    void queryClient.invalidateQueries({ queryKey: orpc.vault.trashList.key() });
   };
 
   const restore = useMutation({
-    mutationFn: async (path: string) =>
-      unwrap(await api.vault.trash.restore.$post({ json: { path } })),
+    mutationFn: async (path: string) => api.vault.trashRestore({ path }),
     onError: (error, path) => {
       toast.error(refusalMessage(error, `Could not restore ${path}.`));
     },
@@ -55,8 +50,7 @@ export function TrashDialog({ open, onOpenChange, onOpenNote }: TrashDialogProps
   });
 
   const purge = useMutation({
-    mutationFn: async (path: string) =>
-      unwrap(await api.vault.trash.purge.$post({ json: { path } })),
+    mutationFn: async (path: string) => api.vault.trashPurge({ path }),
     onError: (error, path) => {
       toast.error(refusalMessage(error, `Could not delete ${path}.`));
     },

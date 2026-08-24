@@ -19,7 +19,7 @@
 // `STREAM_MAX_SAMPLES`, so a microphone left running cannot grow this session's
 // memory — or the recognizer's internal state — without limit.
 
-import { VOICE_MAX_AUDIO_SECONDS, VOICE_SAMPLE_RATE } from "@repo/server-contract/voice";
+import { VOICE_MAX_AUDIO_SECONDS, VOICE_SAMPLE_RATE } from "@repo/api/local/voice/voice-schema";
 import type { VoiceModelFiles } from "./worker-protocol";
 import type { VoiceStreamWorkerCallbacks, VoiceStreamWorkerHandle } from "./voice-worker-host";
 

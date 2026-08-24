@@ -3,7 +3,7 @@
 import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { threadStatusValues } from "@repo/domain/thread-status";
-import type { Thread } from "@repo/server-contract/threads";
+import type { Thread } from "@repo/api/local/threads/threads-schema";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CommandPalette } from "../../palette/command-palette";

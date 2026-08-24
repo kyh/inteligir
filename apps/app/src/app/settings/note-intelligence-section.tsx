@@ -7,11 +7,11 @@
 // touches.
 
 import { Switch } from "@repo/ui/components/switch";
-import type { NoteIntelligenceStatus } from "@repo/server-contract/note-intelligence";
+import type { NoteIntelligenceStatus } from "@repo/api/local/note-intelligence/note-intelligence-schema";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
-import { queryKeys, unwrap } from "../api";
+import { orpc } from "../api";
 import { useWorkspace } from "../workspace-context";
 import { failed, Row, SectionHeading } from "./settings-chrome";
 
@@ -26,20 +26,15 @@ export function NoteIntelligenceSection() {
   const { api } = useWorkspace();
   const queryClient = useQueryClient();
   const [pending, setPending] = useState(false);
-  const statusQuery = useQuery<NoteIntelligenceStatus>({
-    queryKey: queryKeys.noteIntelligence,
-    queryFn: async () => unwrap(await api["note-intelligence"].$get()),
-  });
+  const statusQuery = useQuery(orpc.noteIntelligence.status.queryOptions());
   const status = statusQuery.data;
 
   const setEnabled = (enabled: boolean): void => {
     void (async () => {
       setPending(true);
       try {
-        const next = await unwrap(
-          await api["note-intelligence"].toggle.$post({ json: { enabled } }),
-        );
-        queryClient.setQueryData<NoteIntelligenceStatus>(queryKeys.noteIntelligence, () => next);
+        const next = await api.noteIntelligence.toggle({ enabled });
+        queryClient.setQueryData(orpc.noteIntelligence.status.queryKey(), next);
       } catch (cause) {
         failed(cause, "Could not change note intelligence.");
       } finally {

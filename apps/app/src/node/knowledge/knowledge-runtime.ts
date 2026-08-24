@@ -40,7 +40,7 @@ import {
 import type { TagCount } from "@repo/notes/knowledge/tag-index";
 import { isTrashedPath, normalizePath } from "@repo/notes/knowledge/vault-path";
 import { searchVaultNotes } from "@repo/notes/knowledge/vault-search";
-import { contentHashBytesHex, type VaultEntry } from "@repo/server-contract/vault";
+import { contentHashBytesHex, type VaultEntry } from "@repo/api/local/vault/vault-schema";
 import { mapWithConcurrency } from "../concurrency";
 import { VaultServiceError, type VaultService } from "../vault/vault-service";
 import type { VaultFilesChange } from "../vault/vault-runtime";

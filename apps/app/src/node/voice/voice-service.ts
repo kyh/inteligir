@@ -22,7 +22,7 @@ import {
   VOICE_SAMPLE_RATE,
   type VoiceModel,
   type VoiceStatusResponse,
-} from "@repo/server-contract/voice";
+} from "@repo/api/local/voice/voice-schema";
 import { SCRIPTED_VOICE_MODEL, VOICE_MODEL, type VoiceModelSpec } from "./model-catalog";
 import {
   downloadModel,

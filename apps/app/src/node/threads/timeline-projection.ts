@@ -22,7 +22,7 @@
 
 import type { DbConnection } from "@repo/db/connection";
 import { listStoredThreadEvents, type StoredThreadEvent } from "@repo/db/events";
-import type { ThreadTimeline } from "@repo/server-contract/thread-timeline";
+import type { ThreadTimeline } from "@repo/api/local/thread-timeline";
 import { buildThreadTimeline } from "@repo/thread-view/build-thread-timeline";
 
 /** Threads whose parsed log is kept resident. */

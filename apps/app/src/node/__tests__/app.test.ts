@@ -4,32 +4,46 @@ import { join } from "node:path";
 import { serve } from "@hono/node-server";
 import { createConnection } from "@repo/db/connection";
 import { getSchemaVersion } from "@repo/db/meta";
-import { apiErrorResponseSchema } from "@repo/server-contract/errors";
+import { createORPCClient } from "@orpc/client";
+import { RPCLink } from "@orpc/client/fetch";
+import type { RouterClient } from "@orpc/server";
+import {
+  HEALTH_PATH,
+  healthResponseSchema,
+  RPC_PREFIX,
+  VOICE_STREAM_PATH,
+  WS_PATH,
+} from "@repo/api/local/routes";
 import {
   guideResponseSchema,
-  healthResponseSchema,
   systemStatusResponseSchema,
-} from "@repo/server-contract/routes";
-import { createApiClient } from "@repo/server-contract/client";
+} from "@repo/api/local/system/system-schema";
+import { serverMessageLenientSchema, type ServerMessage } from "@repo/api/local/notifications";
 import {
-  serverMessageLenientSchema,
-  type ServerMessage,
-} from "@repo/server-contract/notifications";
-import {
-  VOICE_STREAM_PATH,
   voiceStreamDownMessageSchema,
   type VoiceStreamDownMessage,
-} from "@repo/server-contract/voice";
+} from "@repo/api/local/voice/voice-schema";
 import { afterEach, describe, expect, it } from "vitest";
 import { z } from "zod";
 import { type AppFallback } from "../app";
 import { closeServer } from "../listen";
+import { localRouter } from "../root-router";
 import { authorizationHeader, SERVER_TOKEN_COOKIE, serverTokenCookie } from "../server-file";
 import { bootTestApp, TEST_SERVER_TOKEN } from "./boot-app";
 import { boundAddressSchema } from "./bound-address";
 import { makeTempDir } from "./temp-dir";
 
 const cleanups: Array<() => void | Promise<void>> = [];
+
+/** A procedure behind the gate, spelled as the wire call the handler answers —
+ *  what the token tests present a credential (or none) to. POST, because the
+ *  RPC handler refuses GET for a procedure whose route does not declare one. */
+const STATUS_RPC_PATH = `${RPC_PREFIX}/system/status`;
+const statusRpcRequest = (headers: Record<string, string>): RequestInit => ({
+  method: "POST",
+  headers: { "content-type": "application/json", ...headers },
+  body: JSON.stringify({ json: {} }),
+});
 
 afterEach(async () => {
   // LIFO: the ws client must close before the server that holds it.
@@ -67,20 +81,18 @@ function policyNonce(response: Response): string {
 }
 
 describe("the API over the in-process app", () => {
-  it("answers /api/v1/health per the contract", async () => {
+  it("answers /health per the contract", async () => {
     const { composed } = await bootTestApp();
-    const response = await composed.app.request("/api/v1/health");
+    const response = await composed.app.request(HEALTH_PATH);
     expect(response.status).toBe(200);
     expect(healthResponseSchema.parse(await response.json())).toEqual({
       ok: true,
     });
   });
 
-  it("answers /api/v1/system/status from the migrated database", async () => {
-    const { args, request } = await bootTestApp();
-    const response = await request("/api/v1/system/status");
-    expect(response.status).toBe(200);
-    const status = systemStatusResponseSchema.parse(await response.json());
+  it("answers system.status from the migrated database", async () => {
+    const { args, client } = await bootTestApp();
+    const status = systemStatusResponseSchema.parse(await client.system.status());
     expect(status.version).toBe("0.1.0-test");
     expect(status.dataDir).toBe(args.config.dataDir);
     // The instance IDENTITY the CLI's discovery compares against.
@@ -93,11 +105,9 @@ describe("the API over the in-process app", () => {
     expect(status.uptimeMs).toBeGreaterThanOrEqual(0);
   });
 
-  it("serves the CLI manual on /api/v1/guide per the contract", async () => {
-    const { request } = await bootTestApp();
-    const response = await request("/api/v1/guide");
-    expect(response.status).toBe(200);
-    const guide = guideResponseSchema.parse(await response.json());
+  it("serves the CLI manual on system.guide per the contract", async () => {
+    const { client } = await bootTestApp();
+    const guide = guideResponseSchema.parse(await client.system.guide());
     expect(guide.markdown).toContain("# The inteligir CLI");
     expect(guide.markdown).toContain("inteligir action wait");
   });
@@ -108,15 +118,14 @@ describe("the API over the in-process app", () => {
     expect(response.status).toBe(404);
   });
 
-  it("answers unmatched /api/v1 paths with JSON 404, never the SPA document", async () => {
+  it("404s an unknown /rpc path, never the SPA document", async () => {
     const { composed, request } = await bootTestApp({ fallback: makeProdFallback().fallback });
 
-    const apiMiss = await request("/api/v1/nope", {
+    const rpcMiss = await request(`${RPC_PREFIX}/nope`, {
       headers: { accept: "text/html" },
     });
-    expect(apiMiss.status).toBe(404);
-    expect(apiMiss.headers.get("content-type")).toContain("application/json");
-    expect(apiErrorResponseSchema.parse(await apiMiss.json()).error).toBe("not_found");
+    expect(rpcMiss.status).toBe(404);
+    expect(await rpcMiss.text()).not.toContain("start");
 
     const spaMiss = await composed.app.request("/some/spa/route", {
       headers: { accept: "text/html" },
@@ -170,9 +179,9 @@ describe("the prod static layer", () => {
     expect(document.headers.get("cache-control")).toBe("no-store");
     expect(await document.text()).toContain("start");
 
-    // ONE answer per URL, whatever the caller says it accepts. The Accept
-    // header used to pick between a prerendered file and the Start entry, so
-    // curl and a browser were handed different documents for the same path.
+    // ONE answer per URL, whatever the caller says it accepts. An Accept header
+    // that picks between a prerendered file and the Start entry hands curl and
+    // a browser different documents for the same path.
     const nonHtml = await composed.app.request("/some/spa/route");
     expect(nonHtml.status).toBe(200);
     expect(nonHtml.headers.get("cache-control")).toBe("no-store");
@@ -224,35 +233,40 @@ describe("the prod static layer", () => {
 describe("the device token", () => {
   it("refuses an API request that carries none", async () => {
     const { composed } = await bootTestApp();
-    const response = await composed.app.request("/api/v1/system/status");
+    const response = await composed.app.request(STATUS_RPC_PATH, statusRpcRequest({}));
     expect(response.status).toBe(401);
-    expect(apiErrorResponseSchema.parse(await response.json()).error).toBe("unauthorized");
+    // The gate answers before the handler, so what comes back is its own
+    // sentence rather than a procedure's refusal.
+    expect(await response.text()).toContain("device token");
   });
 
   it("refuses a WRONG token, and accepts the right one in either carrier", async () => {
     const { composed } = await bootTestApp();
 
-    const wrong = await composed.app.request("/api/v1/system/status", {
-      headers: { authorization: authorizationHeader("not-the-token") },
-    });
+    const wrong = await composed.app.request(
+      STATUS_RPC_PATH,
+      statusRpcRequest({ authorization: authorizationHeader("not-the-token") }),
+    );
     expect(wrong.status).toBe(401);
 
-    const bearer = await composed.app.request("/api/v1/system/status", {
-      headers: { authorization: authorizationHeader(TEST_SERVER_TOKEN) },
-    });
+    const bearer = await composed.app.request(
+      STATUS_RPC_PATH,
+      statusRpcRequest({ authorization: authorizationHeader(TEST_SERVER_TOKEN) }),
+    );
     expect(bearer.status).toBe(200);
 
     // The browser's carrier: a document navigation, an `<img src>` and a
     // `new WebSocket()` can none of them set a header.
-    const cookie = await composed.app.request("/api/v1/system/status", {
-      headers: { cookie: `${SERVER_TOKEN_COOKIE}=${TEST_SERVER_TOKEN}` },
-    });
+    const cookie = await composed.app.request(
+      STATUS_RPC_PATH,
+      statusRpcRequest({ cookie: `${SERVER_TOKEN_COOKIE}=${TEST_SERVER_TOKEN}` }),
+    );
     expect(cookie.status).toBe(200);
   });
 
   it("leaves /health outside the gate — it is a spawn probe", async () => {
     const { composed } = await bootTestApp();
-    const response = await composed.app.request("/api/v1/health");
+    const response = await composed.app.request(HEALTH_PATH);
     expect(response.status).toBe(200);
     expect(healthResponseSchema.parse(await response.json())).toEqual({ ok: true });
   });
@@ -267,7 +281,7 @@ describe("the device token", () => {
   it("gates both websocket upgrades", async () => {
     const { composed } = await bootTestApp();
 
-    for (const path of ["/ws", VOICE_STREAM_PATH]) {
+    for (const path of [WS_PATH, VOICE_STREAM_PATH]) {
       const bare = await composed.app.request(path, { headers: { upgrade: "websocket" } });
       expect(bare.status).toBe(401);
 
@@ -308,7 +322,7 @@ describe("the device token", () => {
       const request = httpRequest({
         host: "127.0.0.1",
         port: address.port,
-        path: "/ws",
+        path: WS_PATH,
         headers: {
           connection: "Upgrade",
           upgrade: "websocket",
@@ -355,23 +369,19 @@ describe("the real socket upgrade", () => {
       await new Promise<void>((resolve) => server.once("listening", resolve));
     }
     const address = boundAddressSchema.parse(server.address());
-    const baseUrl = `http://127.0.0.1:${address.port}`;
 
-    // The typed hc client against the live server — contract → handler → client.
-    const client = createApiClient(baseUrl, {
-      fetch: (input, init) => {
-        const headers = new Headers(init?.headers);
-        headers.set("authorization", authorizationHeader(TEST_SERVER_TOKEN));
-        return fetch(input, { ...init, headers });
-      },
+    // The typed client against the live server — contract → handler → wire →
+    // client, which the in-process client cannot prove.
+    const link = new RPCLink({
+      url: `http://127.0.0.1:${address.port}${RPC_PREFIX}`,
+      headers: { authorization: authorizationHeader(TEST_SERVER_TOKEN) },
     });
-    const healthResponse = await client.health.$get();
-    expect(healthResponse.status).toBe(200);
-    expect(healthResponseSchema.parse(await healthResponse.json())).toEqual({
-      ok: true,
-    });
+    const wireClient: RouterClient<typeof localRouter> = createORPCClient(link);
+    const status = await wireClient.system.status();
+    expect(status.version).toBe("0.1.0-test");
+    expect(status.dataDir).toBe(args.config.dataDir);
 
-    const socket = new WebSocket(`ws://127.0.0.1:${address.port}/ws`, {
+    const socket = new WebSocket(`ws://127.0.0.1:${address.port}${WS_PATH}`, {
       headers: { authorization: authorizationHeader(TEST_SERVER_TOKEN) },
     });
     cleanups.push(() => socket.close());

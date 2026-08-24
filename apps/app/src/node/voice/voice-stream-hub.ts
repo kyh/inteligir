@@ -27,7 +27,7 @@ import {
   VOICE_STREAM_FRAME_MAX_BYTES,
   voiceStreamUpMessageSchema,
   type VoiceStreamDownMessage,
-} from "@repo/server-contract/voice";
+} from "@repo/api/local/voice/voice-schema";
 import { z } from "zod";
 import type { UpgradedSockets } from "../listen";
 import { terminateTransport } from "../ws-bus";

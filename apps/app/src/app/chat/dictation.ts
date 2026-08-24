@@ -18,7 +18,7 @@
 // context is opened AT 16 kHz so its resampler does the work; the linear
 // fallback below only runs if a browser ignores that hint.
 
-import { VOICE_SAMPLE_RATE } from "@repo/server-contract/voice";
+import { VOICE_SAMPLE_RATE } from "@repo/api/local/voice/voice-schema";
 
 /**
  * What the mic button is doing. `recording` carries the level the meter draws;

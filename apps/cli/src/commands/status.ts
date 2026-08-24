@@ -5,7 +5,7 @@
 
 import { defineCommand } from "citty";
 import { apiFor, contextThreadId, type CliDeps } from "../context";
-import { jsonArg, out, outputJson, requireOk } from "../output";
+import { jsonArg, out, outputJson } from "../output";
 
 export function statusCommand(deps: CliDeps) {
   return defineCommand({
@@ -17,7 +17,7 @@ export function statusCommand(deps: CliDeps) {
     run: async ({ args }) => {
       const server = deps.resolveServer();
       const api = apiFor(deps);
-      const body = await (await requireOk(await api.system.status.$get())).json();
+      const body = await api.system.status();
       const threadId = contextThreadId(deps.env) ?? null;
       if (
         outputJson(args, {

@@ -4,7 +4,7 @@
 // answer.
 
 import type { ViewContext } from "@repo/domain/view-context";
-import type { Thread } from "@repo/server-contract/threads";
+import type { Thread } from "@repo/api/local/threads/threads-schema";
 
 /**
  * Which unattached thread a send REUSES: the newest unarchived thread with

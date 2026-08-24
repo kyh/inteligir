@@ -16,7 +16,7 @@ import {
 import type {
   NoteIntelligenceStatus,
   NoteIntelligenceSweep,
-} from "@repo/server-contract/note-intelligence";
+} from "@repo/api/local/note-intelligence/note-intelligence-schema";
 
 import { headCapUtf8 } from "../agent/agent-instructions";
 import type { VaultService } from "../vault/vault-service";

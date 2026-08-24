@@ -115,13 +115,8 @@ export const dictationBrowser: Scenario = {
         stillThere === composed,
         `the composer changed after the transcript landed: ${JSON.stringify(stillThere)}`,
       );
-      const threads = await app.api.threads.list.$get({ query: {} });
-      expect(threads.status === 200, `GET threads answered ${threads.status}`);
-      const listed = await threads.json();
-      expect(
-        "threads" in listed && listed.threads.length === 0,
-        `dictation created a thread: ${JSON.stringify(listed)}`,
-      );
+      const listed = await app.api.threads.list();
+      expect(listed.threads.length === 0, `dictation created a thread: ${JSON.stringify(listed)}`);
 
       // Typing after a dictation must continue from the caret the insertion
       // left, not from the start of the box.

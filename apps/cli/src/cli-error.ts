@@ -10,8 +10,9 @@ export const EXIT_UNREACHABLE = 3;
 /**
  * A machine-readable failure class, so `--json` callers can branch without
  * parsing prose. Server refusals pass the SERVER's own class through
- * (`not_found`, `invalid_request`, …) rather than being flattened into one
- * CLI code.
+ * (`NOT_FOUND`, `BAD_REQUEST`, …) rather than being flattened into one CLI
+ * code — which is why the CLI's own classes are spelled the same way. One
+ * vocabulary, one casing, whichever side raised it.
  */
 export class CliExitError extends Error {
   readonly exitCode: number;
@@ -27,7 +28,7 @@ export class CliExitError extends Error {
 
 /** Local refusal: bad flags, contradictory arguments, oversized input. */
 export function invalidUsage(message: string): CliExitError {
-  return new CliExitError(message, { code: "invalid_usage" });
+  return new CliExitError(message, { code: "INVALID_USAGE" });
 }
 
 /**

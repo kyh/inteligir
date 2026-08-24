@@ -11,9 +11,8 @@
 // whole matrix is proven against the server's own transitions.
 
 import type { ViewContext } from "@repo/domain/view-context";
-import type { ApiClient } from "@repo/server-contract/client";
-import { apiErrorResponseSchema } from "@repo/server-contract/errors";
-import type { SendMessageRequest, Thread } from "@repo/server-contract/threads";
+import type { SendMessageRequest, Thread } from "@repo/api/local/threads/threads-schema";
+import { isDefinedError, refusalMessage, safe, type client } from "../api";
 import { initialChatThread } from "./chat-model";
 
 export type ComposerSendOutcome =
@@ -33,26 +32,9 @@ export interface SendToThreadArgs {
   viewContext?: ViewContext;
 }
 
-/** Any response the client can hand back: the body is parsed against the error
- *  envelope, so its declared type is whatever that caller's route returns. */
-async function refusalMessage<Body>(response: { json(): Promise<Body> }): Promise<string> {
-  try {
-    const parsed = apiErrorResponseSchema.safeParse(await response.json());
-    return parsed.success ? parsed.data.message : "The send was refused.";
-  } catch {
-    return "The send was refused.";
-  }
-}
+/** The sentence shown when the refusal carried none of its own. */
+const SEND_REFUSED = "The send was refused.";
 
-/**
- * Steer when a turn is running, start when idle, queue when the thread can
- * take neither (starting/stopping, or a provider that refuses the steer).
- *
- * The stale-turn branch is the recovery for the guard above: the view's belief
- * was wrong, so re-read the thread and act on what is actually open. The retry
- * is bounded to one — it re-reads once and then queues rather than racing a
- * thread that keeps moving.
- */
 /** One send, in the mode named, guarding the turn named. `expectedTurnId` and
  *  the view context are omitted rather than sent empty: the server reads an
  *  absent guard as "this client believes the thread is idle". */
@@ -71,56 +53,58 @@ function sendRequest(
   return request;
 }
 
+/** The fallback for a thread that can take neither a steer nor a start: the
+ *  message waits for the running turn to settle rather than being lost. */
+async function queueSend(api: typeof client, args: SendToThreadArgs): Promise<ComposerSendOutcome> {
+  const [error, queued] = await safe(api.threads.send(sendRequest(args, "queue-if-active", null)));
+  if (queued !== undefined) {
+    return queued;
+  }
+  return { kind: "refused", message: refusalMessage(error, SEND_REFUSED) };
+}
+
+/**
+ * Steer when a turn is running, start when idle, queue when the thread can
+ * take neither (starting/stopping, or a provider that refuses the steer).
+ *
+ * The stale-turn branch is the recovery for the guard above: the view's belief
+ * was wrong, so re-read the thread and act on what is actually open. The retry
+ * is bounded to one — it re-reads once and then queues rather than racing a
+ * thread that keeps moving.
+ */
 export async function sendToThread(
-  api: ApiClient,
+  api: typeof client,
   args: SendToThreadArgs,
 ): Promise<ComposerSendOutcome> {
-  const steer = sendRequest(args, "steer-if-active", args.activeTurnId);
-  const first = await api.threads.send.$post({ json: steer });
-  if (first.ok) {
-    return first.json();
+  const [error, sent] = await safe(
+    api.threads.send(sendRequest(args, "steer-if-active", args.activeTurnId)),
+  );
+  if (sent !== undefined) {
+    return sent;
   }
-  if (first.status !== 409) {
-    return { kind: "refused", message: await refusalMessage(first) };
+  if (isDefinedError(error) && error.code === "NOT_STEERABLE") {
+    return queueSend(api, args);
   }
-  const refusal = apiErrorResponseSchema.safeParse(await first.json());
-  const errorClass = refusal.success ? refusal.data.error : "conflict";
-  if (errorClass === "not_steerable") {
-    const queued = await api.threads.send.$post({
-      json: sendRequest(args, "queue-if-active", null),
-    });
-    if (queued.ok) {
-      return queued.json();
+  if (isDefinedError(error) && error.code === "STALE_TURN") {
+    const [detailError, detail] = await safe(api.threads.get({ threadId: args.threadId }));
+    if (detail === undefined) {
+      return { kind: "refused", message: refusalMessage(detailError, SEND_REFUSED) };
     }
-    return { kind: "refused", message: await refusalMessage(queued) };
+    const [retryError, retried] = await safe(
+      api.threads.send(sendRequest(args, "steer-if-active", detail.thread.activeTurnId)),
+    );
+    if (retried !== undefined) {
+      return retried;
+    }
+    if (
+      isDefinedError(retryError) &&
+      (retryError.code === "STALE_TURN" || retryError.code === "NOT_STEERABLE")
+    ) {
+      return queueSend(api, args);
+    }
+    return { kind: "refused", message: refusalMessage(retryError, SEND_REFUSED) };
   }
-  if (errorClass === "stale_turn") {
-    const detail = await api.threads.get.$get({ query: { threadId: args.threadId } });
-    if (!detail.ok) {
-      return { kind: "refused", message: await refusalMessage(detail) };
-    }
-    const { thread } = await detail.json();
-    const retry = await api.threads.send.$post({
-      json: sendRequest(args, "steer-if-active", thread.activeTurnId),
-    });
-    if (retry.ok) {
-      return retry.json();
-    }
-    if (retry.status === 409) {
-      const queued = await api.threads.send.$post({
-        json: sendRequest(args, "queue-if-active", null),
-      });
-      if (queued.ok) {
-        return queued.json();
-      }
-      return { kind: "refused", message: await refusalMessage(queued) };
-    }
-    return { kind: "refused", message: await refusalMessage(retry) };
-  }
-  return {
-    kind: "refused",
-    message: refusal.success ? refusal.data.message : "The send was refused.",
-  };
+  return { kind: "refused", message: refusalMessage(error, SEND_REFUSED) };
 }
 
 /**
@@ -131,26 +115,25 @@ export async function sendToThread(
  * user is typing into out from under them. One in-flight promise per session
  * makes the second caller await the first's answer instead of racing it.
  */
-export function createChatThreadResolver(api: ApiClient): () => Promise<Thread> {
+export function createChatThreadResolver(api: typeof client): () => Promise<Thread> {
   let inFlight: Promise<Thread> | null = null;
   return () => {
     if (inFlight !== null) {
       return inFlight;
     }
     const attempt = (async () => {
-      const listed = await api.threads.list.$get();
-      if (listed.ok) {
-        const { threads } = await listed.json();
-        const designated = initialChatThread(threads);
+      const [, listed] = await safe(api.threads.list());
+      if (listed !== undefined) {
+        const designated = initialChatThread(listed.threads);
         if (designated !== null) {
           return designated;
         }
       }
-      const created = await api.threads.create.$post({ json: {} });
-      if (!created.ok) {
+      const [, created] = await safe(api.threads.create({}));
+      if (created === undefined) {
         throw new Error("Could not create the chat thread");
       }
-      return (await created.json()).thread;
+      return created.thread;
     })();
     inFlight = attempt;
     // A FAILED attempt must not be cached: the next send retries.

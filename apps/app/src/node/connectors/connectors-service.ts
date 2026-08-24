@@ -15,7 +15,7 @@ import type {
   ConnectorTransportInput,
   ConnectorUpdateRequest,
   ConnectorView,
-} from "@repo/server-contract/connectors";
+} from "@repo/api/local/connectors/connectors-schema";
 
 import {
   type ConnectorsStore,

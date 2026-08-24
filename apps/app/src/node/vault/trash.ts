@@ -20,7 +20,7 @@
 import { splitFrontmatter, type SplitDoc } from "@repo/notes/markdown/frontmatter";
 import { z } from "zod";
 import { isTrashedPath, VAULT_TRASH_DIR, VaultPathError } from "@repo/notes/knowledge/vault-path";
-import type { VaultTrashEntry } from "@repo/server-contract/vault";
+import type { VaultTrashEntry } from "@repo/api/local/vault/vault-schema";
 import { VaultServiceError, type VaultService } from "./vault-service";
 
 const TRASHED_FROM_KEY = "trashed-from";

@@ -13,9 +13,9 @@
 import { Switch } from "@repo/ui/components/switch";
 import { confirm } from "@repo/ui/components/confirm-dialog";
 import { useQueryClient } from "@tanstack/react-query";
-import type { VoiceStatusResponse } from "@repo/server-contract/voice";
+import type { VoiceStatusResponse } from "@repo/api/local/voice/voice-schema";
 import { useState } from "react";
-import { queryKeys, unwrap } from "../api";
+import { orpc } from "../api";
 import { downloadPercent, useVoiceStatus } from "../voice-hooks";
 import { useWorkspace } from "../workspace-context";
 import { failed, Row, SectionHeading } from "./settings-chrome";
@@ -47,7 +47,7 @@ export function VoiceSection() {
   const status = statusQuery.data;
 
   const applyStatus = (next: VoiceStatusResponse): void => {
-    queryClient.setQueryData<VoiceStatusResponse>(queryKeys.voiceStatus, () => next);
+    queryClient.setQueryData(orpc.voice.status.queryKey(), next);
   };
 
   const setEnabled = (enabled: boolean): void => {
@@ -65,11 +65,7 @@ export function VoiceSection() {
       }
       setPending(true);
       try {
-        applyStatus(
-          await unwrap(
-            enabled ? await api.voice.model.install.$post() : await api.voice.model.remove.$post(),
-          ),
-        );
+        applyStatus(enabled ? await api.voice.install() : await api.voice.remove());
       } catch (error) {
         failed(error, enabled ? "Could not start the download." : "Could not delete the model.");
       } finally {

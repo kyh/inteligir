@@ -21,7 +21,7 @@ import type {
   TimelineRowStatus,
   TimelineTurnRow,
   TimelineWorkRow,
-} from "@repo/server-contract/thread-timeline";
+} from "@repo/api/local/thread-timeline";
 
 /** A stored event with the server-assigned metadata rows are ordered and
  *  keyed by. Matches @repo/db/events' StoredThreadEvent structurally — this

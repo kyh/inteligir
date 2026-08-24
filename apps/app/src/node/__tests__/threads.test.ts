@@ -1,30 +1,22 @@
 import { serve } from "@hono/node-server";
+import { createORPCClient, isDefinedError, ORPCError, safe } from "@orpc/client";
+import { RPCLink } from "@orpc/client/fetch";
 import type { DbConnection } from "@repo/db/connection";
 import { noopNotifier } from "@repo/domain/notifier";
 import { createPendingInteraction, getPendingInteraction } from "@repo/db/pending-interactions";
 import { listQueuedThreadMessages } from "@repo/db/queued-messages";
 import { applyThreadLifecycleEvent } from "@repo/db/threads";
-import { createApiClient, type ApiClient } from "@repo/server-contract/client";
-import {
-  serverMessageLenientSchema,
-  type ServerMessage,
-} from "@repo/server-contract/notifications";
-import { apiErrorResponseSchema } from "@repo/server-contract/errors";
-import {
-  pendingInteractionSchema,
-  threadSchema,
-  timelineResponseSchema,
-  type TimelineResponse,
-} from "@repo/server-contract/threads";
-import { applyTimelineDelta, type TimelineRow } from "@repo/server-contract/thread-timeline";
+import { serverMessageLenientSchema, type ServerMessage } from "@repo/api/local/notifications";
+import { RPC_PREFIX, WS_PATH } from "@repo/api/local/routes";
+import type { TimelineResponse } from "@repo/api/local/threads/threads-schema";
+import { applyTimelineDelta, type TimelineRow } from "@repo/api/local/thread-timeline";
 import { afterEach, describe, expect, it } from "vitest";
 import { z } from "zod";
-import { createApp } from "../app";
 import { ThreadEventThreadIdMismatchError, ThreadService } from "../threads/service";
 import { unavailableTurnDriver } from "../threads/turn-driver";
 import { WsBus } from "../ws-bus";
 import { authorizationHeader } from "../server-file";
-import { bootTestApp, TEST_SERVER_TOKEN } from "./boot-app";
+import { bootTestApp, TEST_SERVER_TOKEN, type BootedTestApp } from "./boot-app";
 import { boundAddressSchema } from "./bound-address";
 import { FakeTurnDriver, type FakeTurnDriverOptions } from "./fake-turn-driver";
 
@@ -37,22 +29,14 @@ afterEach(async () => {
   }
 });
 
-const sendResponseSchema = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("started"), turnId: z.string().min(1) }),
-  z.object({ kind: z.literal("steered"), turnId: z.string().min(1) }),
-  z.object({ kind: z.literal("queued"), queuedMessageId: z.string().min(1) }),
-]);
-
-const threadEnvelopeSchema = z.object({ thread: threadSchema });
-const threadDetailSchema = z.object({
-  thread: threadSchema,
-  pendingInteractions: z.array(pendingInteractionSchema),
-});
+/** The router's client type, shared by the in-process caller and the one
+ *  speaking to a real socket — the same procedures either way. */
+type ThreadsClient = BootedTestApp["client"];
 
 interface ThreadsHarness {
   bus: WsBus;
-  client: ApiClient;
-  composed: ReturnType<typeof createApp>;
+  client: ThreadsClient;
+  composed: BootedTestApp["composed"];
   db: DbConnection;
   driver: FakeTurnDriver | null;
 }
@@ -84,22 +68,18 @@ async function bootThreadsApp(
   };
 }
 
-async function createThread(client: ApiClient): Promise<string> {
-  const response = await client.threads.create.$post({ json: {} });
-  expect(response.status).toBe(201);
-  return threadEnvelopeSchema.parse(await response.json()).thread.id;
+async function createThread(client: ThreadsClient): Promise<string> {
+  const { thread } = await client.threads.create({});
+  return thread.id;
 }
 
-async function getThreadStatus(client: ApiClient, threadId: string): Promise<string> {
-  const response = await client.threads.get.$get({ query: { threadId } });
-  expect(response.status).toBe(200);
-  return threadDetailSchema.parse(await response.json()).thread.status;
+async function getThreadStatus(client: ThreadsClient, threadId: string): Promise<string> {
+  const detail = await client.threads.get({ threadId });
+  return detail.thread.status;
 }
 
-async function fetchTimeline(client: ApiClient, threadId: string): Promise<TimelineResponse> {
-  const response = await client.threads.timeline.$get({ query: { threadId } });
-  expect(response.status).toBe(200);
-  return timelineResponseSchema.parse(await response.json());
+function fetchTimeline(client: ThreadsClient, threadId: string): Promise<TimelineResponse> {
+  return client.threads.timeline({ threadId });
 }
 
 function timelineRows(response: TimelineResponse): TimelineRow[] {
@@ -113,57 +93,53 @@ describe("the send-mode matrix", () => {
   it("starts a turn when idle, in either mode", async () => {
     const { client } = await bootThreadsApp({ mode: "manual" });
     const first = await createThread(client);
-    const steerStart = await client.threads.send.$post({
-      json: { threadId: first, text: "hello", mode: "steer-if-active" },
+    const steerStart = await client.threads.send({
+      threadId: first,
+      text: "hello",
+      mode: "steer-if-active",
     });
-    expect(steerStart.status).toBe(200);
-    expect(sendResponseSchema.parse(await steerStart.json()).kind).toBe("started");
+    expect(steerStart.kind).toBe("started");
     expect(await getThreadStatus(client, first)).toBe("active");
 
     const second = await createThread(client);
-    const queueStart = await client.threads.send.$post({
-      json: { threadId: second, text: "hello", mode: "queue-if-active" },
+    const queueStart = await client.threads.send({
+      threadId: second,
+      text: "hello",
+      mode: "queue-if-active",
     });
-    expect(sendResponseSchema.parse(await queueStart.json()).kind).toBe("started");
+    expect(queueStart.kind).toBe("started");
   });
 
   it("steers the active turn, guarded by expectedTurnId", async () => {
     const { client, driver } = await bootThreadsApp({ mode: "manual" });
     const threadId = await createThread(client);
-    const started = sendResponseSchema.parse(
-      await (
-        await client.threads.send.$post({
-          json: { threadId, text: "start", mode: "steer-if-active" },
-        })
-      ).json(),
-    );
+    const started = await client.threads.send({
+      threadId,
+      text: "start",
+      mode: "steer-if-active",
+    });
     if (started.kind !== "started") {
       throw new Error("expected a started turn");
     }
 
-    const steered = await client.threads.send.$post({
-      json: {
-        threadId,
-        text: "also this",
-        mode: "steer-if-active",
-        expectedTurnId: started.turnId,
-      },
+    const steered = await client.threads.send({
+      threadId,
+      text: "also this",
+      mode: "steer-if-active",
+      expectedTurnId: started.turnId,
     });
-    expect(steered.status).toBe(200);
-    const steeredBody = sendResponseSchema.parse(await steered.json());
-    expect(steeredBody).toEqual({ kind: "steered", turnId: started.turnId });
+    expect(steered).toEqual({ kind: "steered", turnId: started.turnId });
     expect(driver?.steeredTurns.map((steer) => steer.text)).toEqual(["also this"]);
 
-    const stale = await client.threads.send.$post({
-      json: {
+    const [stale] = await safe(
+      client.threads.send({
         threadId,
         text: "too late",
         mode: "steer-if-active",
         expectedTurnId: "turn_stale",
-      },
-    });
-    expect(stale.status).toBe(409);
-    expect(apiErrorResponseSchema.parse(await stale.json()).error).toBe("stale_turn");
+      }),
+    );
+    expect(isDefinedError(stale) && stale.code).toBe("STALE_TURN");
 
     // Both user messages are in the log; the steer never became a new turn.
     const rows = timelineRows(await fetchTimeline(client, threadId));
@@ -176,100 +152,110 @@ describe("the send-mode matrix", () => {
   it("refuses a stale expectedTurnId once the turn settled", async () => {
     const { client, driver } = await bootThreadsApp({ mode: "manual" });
     const threadId = await createThread(client);
-    const started = sendResponseSchema.parse(
-      await (
-        await client.threads.send.$post({
-          json: { threadId, text: "start", mode: "steer-if-active" },
-        })
-      ).json(),
-    );
+    const started = await client.threads.send({
+      threadId,
+      text: "start",
+      mode: "steer-if-active",
+    });
     if (started.kind !== "started") {
       throw new Error("expected a started turn");
     }
     driver?.completeTurn(threadId, started.turnId, "completed");
     expect(await getThreadStatus(client, threadId)).toBe("idle");
 
-    const stale = await client.threads.send.$post({
-      json: {
+    const [stale] = await safe(
+      client.threads.send({
         threadId,
         text: "steer the finished turn",
         mode: "steer-if-active",
         expectedTurnId: started.turnId,
-      },
-    });
-    expect(stale.status).toBe(409);
-    expect(apiErrorResponseSchema.parse(await stale.json()).error).toBe("stale_turn");
+      }),
+    );
+    expect(isDefinedError(stale) && stale.code).toBe("STALE_TURN");
   });
 
-  it("queues while active, starting and stopping; steering those is a 409", async () => {
+  it("queues while active, starting and stopping; steering those is refused", async () => {
     const activeHarness = await bootThreadsApp({ mode: "manual" });
     const activeThread = await createThread(activeHarness.client);
-    await activeHarness.client.threads.send.$post({
-      json: { threadId: activeThread, text: "start", mode: "steer-if-active" },
+    await activeHarness.client.threads.send({
+      threadId: activeThread,
+      text: "start",
+      mode: "steer-if-active",
     });
-    const queuedWhileActive = await activeHarness.client.threads.send.$post({
-      json: { threadId: activeThread, text: "later", mode: "queue-if-active" },
+    const queuedWhileActive = await activeHarness.client.threads.send({
+      threadId: activeThread,
+      text: "later",
+      mode: "queue-if-active",
     });
-    expect(sendResponseSchema.parse(await queuedWhileActive.json()).kind).toBe("queued");
+    expect(queuedWhileActive.kind).toBe("queued");
 
     applyThreadLifecycleEvent(activeHarness.db, noopNotifier, {
       threadId: activeThread,
       event: { type: "stop.requested" },
     });
     expect(await getThreadStatus(activeHarness.client, activeThread)).toBe("stopping");
-    const queuedWhileStopping = await activeHarness.client.threads.send.$post({
-      json: { threadId: activeThread, text: "after the stop", mode: "queue-if-active" },
+    const queuedWhileStopping = await activeHarness.client.threads.send({
+      threadId: activeThread,
+      text: "after the stop",
+      mode: "queue-if-active",
     });
-    expect(sendResponseSchema.parse(await queuedWhileStopping.json()).kind).toBe("queued");
-    const steerWhileStopping = await activeHarness.client.threads.send.$post({
-      json: { threadId: activeThread, text: "nope", mode: "steer-if-active" },
-    });
-    expect(steerWhileStopping.status).toBe(409);
-    expect(apiErrorResponseSchema.parse(await steerWhileStopping.json()).error).toBe(
-      "not_steerable",
+    expect(queuedWhileStopping.kind).toBe("queued");
+    const [steerWhileStopping] = await safe(
+      activeHarness.client.threads.send({
+        threadId: activeThread,
+        text: "nope",
+        mode: "steer-if-active",
+      }),
     );
+    expect(isDefinedError(steerWhileStopping) && steerWhileStopping.code).toBe("NOT_STEERABLE");
 
     const inertHarness = await bootThreadsApp({ mode: "inert" });
     const startingThread = await createThread(inertHarness.client);
-    await inertHarness.client.threads.send.$post({
-      json: { threadId: startingThread, text: "start", mode: "steer-if-active" },
+    await inertHarness.client.threads.send({
+      threadId: startingThread,
+      text: "start",
+      mode: "steer-if-active",
     });
     expect(await getThreadStatus(inertHarness.client, startingThread)).toBe("starting");
-    const steerWhileStarting = await inertHarness.client.threads.send.$post({
-      json: { threadId: startingThread, text: "nope", mode: "steer-if-active" },
+    const [steerWhileStarting] = await safe(
+      inertHarness.client.threads.send({
+        threadId: startingThread,
+        text: "nope",
+        mode: "steer-if-active",
+      }),
+    );
+    expect(isDefinedError(steerWhileStarting) && steerWhileStarting.code).toBe("NOT_STEERABLE");
+    const queueWhileStarting = await inertHarness.client.threads.send({
+      threadId: startingThread,
+      text: "later",
+      mode: "queue-if-active",
     });
-    expect(steerWhileStarting.status).toBe(409);
-    const queueWhileStarting = await inertHarness.client.threads.send.$post({
-      json: { threadId: startingThread, text: "later", mode: "queue-if-active" },
-    });
-    expect(sendResponseSchema.parse(await queueWhileStarting.json()).kind).toBe("queued");
+    expect(queueWhileStarting.kind).toBe("queued");
   });
 
   it("refuses unknown and archived threads", async () => {
     const { client } = await bootThreadsApp({ mode: "manual" });
-    const missing = await client.threads.send.$post({
-      json: { threadId: "thr_missing", text: "hi", mode: "steer-if-active" },
-    });
-    expect(missing.status).toBe(404);
+    const [missing] = await safe(
+      client.threads.send({ threadId: "thr_missing", text: "hi", mode: "steer-if-active" }),
+    );
+    expect(isDefinedError(missing) && missing.code).toBe("NOT_FOUND");
 
     const threadId = await createThread(client);
-    const archived = await client.threads.archive.$post({ json: { threadId } });
-    expect(archived.status).toBe(200);
-    const send = await client.threads.send.$post({
-      json: { threadId, text: "hi", mode: "steer-if-active" },
-    });
-    expect(send.status).toBe(409);
-    expect(apiErrorResponseSchema.parse(await send.json()).error).toBe("archived");
+    const archived = await client.threads.archive({ threadId });
+    expect(archived.thread.archivedAt).not.toBeNull();
+    const [send] = await safe(
+      client.threads.send({ threadId, text: "hi", mode: "steer-if-active" }),
+    );
+    expect(isDefinedError(send) && send.code).toBe("ARCHIVED");
   });
 
-  it("answers 503 and lands the thread in error when no provider is configured", async () => {
+  it("refuses PROVIDER_UNAVAILABLE and lands the thread in error when none is configured", async () => {
     const { client } = await bootThreadsApp(null);
     const threadId = await createThread(client);
-    const send = await client.threads.send.$post({
-      json: { threadId, text: "hi", mode: "steer-if-active" },
-    });
-    expect(send.status).toBe(503);
-    expect(apiErrorResponseSchema.parse(await send.json()).error).toBe("provider_unavailable");
+    const [send] = await safe(
+      client.threads.send({ threadId, text: "hi", mode: "steer-if-active" }),
+    );
+    expect(isDefinedError(send) && send.code).toBe("PROVIDER_UNAVAILABLE");
     expect(await getThreadStatus(client, threadId)).toBe("error");
   });
 });
@@ -285,15 +271,13 @@ describe("the view context a message carries", () => {
   it("reaches the driver, is recorded beside the text, and never becomes the text", async () => {
     const { client, driver } = await bootThreadsApp({ mode: "manual" });
     const threadId = await createThread(client);
-    const send = await client.threads.send.$post({
-      json: {
-        threadId,
-        text: "make this shorter",
-        mode: "steer-if-active",
-        viewContext: VIEW_CONTEXT,
-      },
+    const send = await client.threads.send({
+      threadId,
+      text: "make this shorter",
+      mode: "steer-if-active",
+      viewContext: VIEW_CONTEXT,
     });
-    expect(send.status).toBe(200);
+    expect(send.kind).toBe("started");
     expect(driver?.startedTurns[0]?.viewContext).toEqual(VIEW_CONTEXT);
 
     const row = timelineRows(await fetchTimeline(client, threadId)).find(
@@ -311,26 +295,22 @@ describe("the view context a message carries", () => {
   it("rides a steer too — a steer is its own statement about the past", async () => {
     const { client, driver } = await bootThreadsApp({ mode: "manual" });
     const threadId = await createThread(client);
-    const started = sendResponseSchema.parse(
-      await (
-        await client.threads.send.$post({
-          json: { threadId, text: "start", mode: "steer-if-active" },
-        })
-      ).json(),
-    );
+    const started = await client.threads.send({
+      threadId,
+      text: "start",
+      mode: "steer-if-active",
+    });
     if (started.kind !== "started") {
       throw new Error("expected a started turn");
     }
-    const steered = await client.threads.send.$post({
-      json: {
-        threadId,
-        text: "and this bit",
-        mode: "steer-if-active",
-        expectedTurnId: started.turnId,
-        viewContext: VIEW_CONTEXT,
-      },
+    const steered = await client.threads.send({
+      threadId,
+      text: "and this bit",
+      mode: "steer-if-active",
+      expectedTurnId: started.turnId,
+      viewContext: VIEW_CONTEXT,
     });
-    expect(steered.status).toBe(200);
+    expect(steered.kind).toBe("steered");
     expect(driver?.steeredTurns[0]?.viewContext).toEqual(VIEW_CONTEXT);
   });
 
@@ -340,20 +320,21 @@ describe("the view context a message carries", () => {
       throw new Error("expected the fake driver");
     }
     const threadId = await createThread(client);
-    const started = sendResponseSchema.parse(
-      await (
-        await client.threads.send.$post({
-          json: { threadId, text: "first", mode: "steer-if-active" },
-        })
-      ).json(),
-    );
+    const started = await client.threads.send({
+      threadId,
+      text: "first",
+      mode: "steer-if-active",
+    });
     if (started.kind !== "started") {
       throw new Error("expected a started turn");
     }
-    const queued = await client.threads.send.$post({
-      json: { threadId, text: "for later", mode: "queue-if-active", viewContext: VIEW_CONTEXT },
+    const queued = await client.threads.send({
+      threadId,
+      text: "for later",
+      mode: "queue-if-active",
+      viewContext: VIEW_CONTEXT,
     });
-    expect(sendResponseSchema.parse(await queued.json()).kind).toBe("queued");
+    expect(queued.kind).toBe("queued");
 
     driver.completeTurn(threadId, started.turnId, "completed");
     expect(driver.startedTurns[1]?.text).toBe("for later");
@@ -371,15 +352,17 @@ describe("the view context a message carries", () => {
   it("refuses a resource that is not a vault path", async () => {
     const { client } = await bootThreadsApp({ mode: "manual" });
     const threadId = await createThread(client);
-    const send = await client.threads.send.$post({
-      json: {
+    const [error] = await safe(
+      client.threads.send({
         threadId,
         text: "hi",
         mode: "steer-if-active",
         viewContext: { ...VIEW_CONTEXT, resource: "../outside.md" },
-      },
-    });
-    expect(send.status).toBe(400);
+      }),
+    );
+    // The path grammar rides the input schema, so its refusal is oRPC's own
+    // validation class rather than one this domain declares.
+    expect(error instanceof ORPCError && error.code).toBe("BAD_REQUEST");
   });
 });
 
@@ -390,21 +373,17 @@ describe("the queue drain", () => {
       throw new Error("expected the fake driver");
     }
     const threadId = await createThread(client);
-    const started = sendResponseSchema.parse(
-      await (
-        await client.threads.send.$post({
-          json: { threadId, text: "first", mode: "steer-if-active" },
-        })
-      ).json(),
-    );
+    const started = await client.threads.send({
+      threadId,
+      text: "first",
+      mode: "steer-if-active",
+    });
     if (started.kind !== "started") {
       throw new Error("expected a started turn");
     }
     for (const text of ["q1", "q2"]) {
-      const queued = await client.threads.send.$post({
-        json: { threadId, text, mode: "queue-if-active" },
-      });
-      expect(sendResponseSchema.parse(await queued.json()).kind).toBe("queued");
+      const queued = await client.threads.send({ threadId, text, mode: "queue-if-active" });
+      expect(queued.kind).toBe("queued");
     }
     expect(listQueuedThreadMessages(db, threadId)).toHaveLength(2);
 
@@ -442,19 +421,15 @@ describe("the queue drain", () => {
       throw new Error("expected the fake driver");
     }
     const threadId = await createThread(client);
-    const started = sendResponseSchema.parse(
-      await (
-        await client.threads.send.$post({
-          json: { threadId, text: "first", mode: "steer-if-active" },
-        })
-      ).json(),
-    );
+    const started = await client.threads.send({
+      threadId,
+      text: "first",
+      mode: "steer-if-active",
+    });
     if (started.kind !== "started") {
       throw new Error("expected a started turn");
     }
-    await client.threads.send.$post({
-      json: { threadId, text: "queued", mode: "queue-if-active" },
-    });
+    await client.threads.send({ threadId, text: "queued", mode: "queue-if-active" });
 
     driver.failNextStart = new Error("boom");
     driver.completeTurn(threadId, started.turnId, "completed");
@@ -469,20 +444,16 @@ describe("the queue drain", () => {
       throw new Error("expected the fake driver");
     }
     const threadId = await createThread(client);
-    const started = sendResponseSchema.parse(
-      await (
-        await client.threads.send.$post({
-          json: { threadId, text: "first", mode: "steer-if-active" },
-        })
-      ).json(),
-    );
+    const started = await client.threads.send({
+      threadId,
+      text: "first",
+      mode: "steer-if-active",
+    });
     if (started.kind !== "started") {
       throw new Error("expected a started turn");
     }
-    await client.threads.send.$post({
-      json: { threadId, text: "queued", mode: "queue-if-active" },
-    });
-    await client.threads.archive.$post({ json: { threadId } });
+    await client.threads.send({ threadId, text: "queued", mode: "queue-if-active" });
+    await client.threads.archive({ threadId });
 
     driver.completeTurn(threadId, started.turnId, "completed");
     // The settle still lands (archives never wedge a run), but the drain's
@@ -500,24 +471,12 @@ describe("turn identity and crash recovery", () => {
       throw new Error("expected the fake driver");
     }
     const threadId = await createThread(client);
-    const first = sendResponseSchema.parse(
-      await (
-        await client.threads.send.$post({
-          json: { threadId, text: "one", mode: "steer-if-active" },
-        })
-      ).json(),
-    );
+    const first = await client.threads.send({ threadId, text: "one", mode: "steer-if-active" });
     if (first.kind !== "started") {
       throw new Error("expected a started turn");
     }
     driver.completeTurn(threadId, first.turnId, "completed");
-    const second = sendResponseSchema.parse(
-      await (
-        await client.threads.send.$post({
-          json: { threadId, text: "two", mode: "steer-if-active" },
-        })
-      ).json(),
-    );
+    const second = await client.threads.send({ threadId, text: "two", mode: "steer-if-active" });
     if (second.kind !== "started") {
       throw new Error("expected a second started turn");
     }
@@ -525,9 +484,7 @@ describe("turn identity and crash recovery", () => {
 
     // The duplicate settle for the FIRST turn must not settle the second.
     driver.completeTurn(threadId, first.turnId, "completed");
-    const detail = threadDetailSchema.parse(
-      await (await client.threads.get.$get({ query: { threadId } })).json(),
-    );
+    const detail = await client.threads.get({ threadId });
     expect(detail.thread.status).toBe("active");
     expect(detail.thread.activeTurnId).toBe(second.turnId);
   });
@@ -558,9 +515,7 @@ describe("turn identity and crash recovery", () => {
   it("recovers threads a previous process left running", async () => {
     const { client, db } = await bootThreadsApp({ mode: "manual" });
     const threadId = await createThread(client);
-    await client.threads.send.$post({
-      json: { threadId, text: "start", mode: "steer-if-active" },
-    });
+    await client.threads.send({ threadId, text: "start", mode: "steer-if-active" });
     expect(await getThreadStatus(client, threadId)).toBe("active");
     // An approval the dead provider raised and nobody answered.
     const orphan = createPendingInteraction(db, noopNotifier, {
@@ -599,11 +554,10 @@ describe("turn identity and crash recovery", () => {
     }
     const threadId = await createThread(client);
     driver.failNextStart = new Error("adapter exploded");
-    const send = await client.threads.send.$post({
-      json: { threadId, text: "hi", mode: "steer-if-active" },
-    });
-    expect(send.status).toBe(503);
-    expect(apiErrorResponseSchema.parse(await send.json()).error).toBe("dispatch_failed");
+    const [send] = await safe(
+      client.threads.send({ threadId, text: "hi", mode: "steer-if-active" }),
+    );
+    expect(isDefinedError(send) && send.code).toBe("DISPATCH_FAILED");
     expect(await getThreadStatus(client, threadId)).toBe("error");
     const rows = timelineRows(await fetchTimeline(client, threadId));
     const errorRow = rows.find((row) => row.kind === "error");
@@ -622,56 +576,34 @@ describe("the by-doc query", () => {
     }
     const plainChat = await createThread(client);
     void plainChat;
-    const boundResponse = await client.threads.create.$post({
-      json: {
-        title: "Fix the intro",
-        originDocPath: "Notes/Plans.md",
-        originAnchor: "anc_00000000000a",
-      },
+    const { thread: bound } = await client.threads.create({
+      title: "Fix the intro",
+      originDocPath: "Notes/Plans.md",
+      originAnchor: "anc_00000000000a",
     });
-    expect(boundResponse.status).toBe(201);
-    const bound = threadEnvelopeSchema.parse(await boundResponse.json()).thread;
-    const otherDocResponse = await client.threads.create.$post({
-      json: { originDocPath: "Other.md", originAnchor: "anc_00000000000b" },
+    await client.threads.create({
+      originDocPath: "Other.md",
+      originAnchor: "anc_00000000000b",
     });
-    expect(otherDocResponse.status).toBe(201);
 
     // Activity the counts must surface: a running turn with a queued send
     // and an open approval.
-    const started = sendResponseSchema.parse(
-      await (
-        await client.threads.send.$post({
-          json: { threadId: bound.id, text: "go", mode: "steer-if-active" },
-        })
-      ).json(),
-    );
-    expect(started.kind).toBe("started");
-    await client.threads.send.$post({
-      json: { threadId: bound.id, text: "later", mode: "queue-if-active" },
+    const started = await client.threads.send({
+      threadId: bound.id,
+      text: "go",
+      mode: "steer-if-active",
     });
+    expect(started.kind).toBe("started");
+    await client.threads.send({ threadId: bound.id, text: "later", mode: "queue-if-active" });
     createPendingInteraction(db, bus, {
       threadId: bound.id,
       requestKey: "req-chip",
       payload: JSON.stringify({ kind: "approval" }),
     });
 
-    const byDoc = await client.threads["by-doc"].$get({
-      query: { docPath: "Notes/Plans.md" },
-    });
-    expect(byDoc.status).toBe(200);
-    const body = z
-      .object({
-        threads: z.array(
-          z.object({
-            thread: threadSchema,
-            openInteractionCount: z.number().int(),
-            queuedCount: z.number().int(),
-          }),
-        ),
-      })
-      .parse(await byDoc.json());
-    expect(body.threads).toHaveLength(1);
-    const activity = body.threads[0];
+    const byDoc = await client.threads.byDoc({ docPath: "Notes/Plans.md" });
+    expect(byDoc.threads).toHaveLength(1);
+    const activity = byDoc.threads[0];
     expect(activity?.thread.id).toBe(bound.id);
     expect(activity?.thread.originAnchor).toBe("anc_00000000000a");
     expect(activity?.openInteractionCount).toBe(1);
@@ -679,37 +611,18 @@ describe("the by-doc query", () => {
 
     // Archiving keeps the row in the answer — the chip's dismiss affordance
     // is keyed off exactly this.
-    await client.threads.archive.$post({ json: { threadId: bound.id } });
-    const afterArchive = await client.threads["by-doc"].$get({
-      query: { docPath: "Notes/Plans.md" },
-    });
-    const archivedBody = z
-      .object({ threads: z.array(z.object({ thread: threadSchema })) })
-      .loose()
-      .parse(await afterArchive.json());
-    expect(archivedBody.threads[0]?.thread.archivedAt).not.toBeNull();
+    await client.threads.archive({ threadId: bound.id });
+    const afterArchive = await client.threads.byDoc({ docPath: "Notes/Plans.md" });
+    expect(afterArchive.threads[0]?.thread.archivedAt).not.toBeNull();
   });
 
   it("thread detail carries the unclaimed queue for pending bubbles", async () => {
     const { client } = await bootThreadsApp({ mode: "manual" });
     const threadId = await createThread(client);
-    await client.threads.send.$post({
-      json: { threadId, text: "start", mode: "steer-if-active" },
-    });
-    await client.threads.send.$post({
-      json: { threadId, text: "bubble me", mode: "queue-if-active" },
-    });
-    const detail = await client.threads.get.$get({ query: { threadId } });
-    const body = z
-      .object({
-        thread: threadSchema,
-        pendingInteractions: z.array(pendingInteractionSchema),
-        queuedMessages: z.array(
-          z.object({ id: z.string().min(1), text: z.string(), createdAt: z.number() }),
-        ),
-      })
-      .parse(await detail.json());
-    expect(body.queuedMessages.map((message) => message.text)).toEqual(["bubble me"]);
+    await client.threads.send({ threadId, text: "start", mode: "steer-if-active" });
+    await client.threads.send({ threadId, text: "bubble me", mode: "queue-if-active" });
+    const detail = await client.threads.get({ threadId });
+    expect(detail.queuedMessages.map((message) => message.text)).toEqual(["bubble me"]);
   });
 });
 
@@ -736,25 +649,34 @@ describe("pending interactions over the API", () => {
       payload: JSON.stringify(payload),
     });
 
-    const detailResponse = await client.threads.get.$get({ query: { threadId } });
-    const detail = threadDetailSchema.parse(await detailResponse.json());
+    const detail = await client.threads.get({ threadId });
     expect(detail.pendingInteractions.map((row) => row.id)).toEqual([interaction.id]);
     expect(detail.pendingInteractions[0]?.payload).toEqual(payload);
 
-    const answered = await client.threads.interaction.answer.$post({
-      json: { threadId, interactionId: interaction.id, resolution: "allow_once" },
+    const answered = await client.threads.answerInteraction({
+      threadId,
+      interactionId: interaction.id,
+      resolution: "allow_once",
     });
-    expect(answered.status).toBe(200);
+    expect(answered.interaction.id).toBe(interaction.id);
 
-    const again = await client.threads.interaction.answer.$post({
-      json: { threadId, interactionId: interaction.id, resolution: "deny" },
-    });
-    expect(again.status).toBe(409);
+    const [again] = await safe(
+      client.threads.answerInteraction({
+        threadId,
+        interactionId: interaction.id,
+        resolution: "deny",
+      }),
+    );
+    expect(isDefinedError(again) && again.code).toBe("ALREADY_RESOLVED");
 
-    const unknown = await client.threads.interaction.answer.$post({
-      json: { threadId, interactionId: "pint_missing", resolution: "allow" },
-    });
-    expect(unknown.status).toBe(404);
+    const [unknown] = await safe(
+      client.threads.answerInteraction({
+        threadId,
+        interactionId: "pint_missing",
+        resolution: "allow",
+      }),
+    );
+    expect(isDefinedError(unknown) && unknown.code).toBe("NOT_FOUND");
   });
 });
 
@@ -780,16 +702,15 @@ describe("a fake-provider turn end-to-end", () => {
       await new Promise<void>((resolve) => server.once("listening", resolve));
     }
     const address = boundAddressSchema.parse(server.address());
-    const client = createApiClient(`http://127.0.0.1:${address.port}`, {
-      fetch: (input, init) => {
-        const headers = new Headers(init?.headers);
-        headers.set("authorization", authorizationHeader(TEST_SERVER_TOKEN));
-        return fetch(input, { ...init, headers });
-      },
-    });
+    const client: ThreadsClient = createORPCClient(
+      new RPCLink({
+        url: `http://127.0.0.1:${address.port}${RPC_PREFIX}`,
+        headers: { authorization: authorizationHeader(TEST_SERVER_TOKEN) },
+      }),
+    );
     const threadId = await createThread(client);
 
-    const socket = new WebSocket(`ws://127.0.0.1:${address.port}/ws`, {
+    const socket = new WebSocket(`ws://127.0.0.1:${address.port}${WS_PATH}`, {
       headers: { authorization: authorizationHeader(TEST_SERVER_TOKEN) },
     });
     cleanups.push(() => socket.close());
@@ -831,11 +752,12 @@ describe("a fake-provider turn end-to-end", () => {
       }
     }
 
-    const send = await client.threads.send.$post({
-      json: { threadId, text: "hello agent", mode: "steer-if-active" },
+    const send = await client.threads.send({
+      threadId,
+      text: "hello agent",
+      mode: "steer-if-active",
     });
-    expect(send.status).toBe(200);
-    expect(sendResponseSchema.parse(await send.json()).kind).toBe("started");
+    expect(send.kind).toBe("started");
 
     await waitForThreadChange("events-appended");
     await waitForThreadChange("status-changed");
@@ -859,17 +781,18 @@ describe("a fake-provider turn end-to-end", () => {
     // Second turn: the client holds its rows and maxSequence, learns of new
     // events from the socket, and catches up with one delta fetch.
     const held = full.timeline;
-    const secondSend = await client.threads.send.$post({
-      json: { threadId, text: "and again", mode: "steer-if-active" },
+    const secondSend = await client.threads.send({
+      threadId,
+      text: "and again",
+      mode: "steer-if-active",
     });
-    expect(secondSend.status).toBe(200);
+    expect(secondSend.kind).toBe("started");
     await waitForThreadChange("events-appended");
 
-    const deltaResponse = await client.threads.timeline.$get({
-      query: { threadId, afterSequence: held.maxSequence },
+    const delta = await client.threads.timeline({
+      threadId,
+      afterSequence: held.maxSequence,
     });
-    expect(deltaResponse.status).toBe(200);
-    const delta = timelineResponseSchema.parse(await deltaResponse.json());
     if (delta.kind !== "delta") {
       throw new Error("expected a delta timeline");
     }
@@ -886,17 +809,15 @@ describe("a fake-provider turn end-to-end", () => {
 
     // A delta against a base the client does NOT hold is refused client-side
     // and answered full server-side when the base is ahead of the log.
-    const staleDeltaResponse = await client.threads.timeline.$get({
-      query: { threadId, afterSequence: 1 },
-    });
-    const staleDelta = timelineResponseSchema.parse(await staleDeltaResponse.json());
+    const staleDelta = await client.threads.timeline({ threadId, afterSequence: 1 });
     if (staleDelta.kind !== "delta") {
       throw new Error("expected a delta timeline");
     }
     expect(applyTimelineDelta(rebuilt.timeline, staleDelta.delta)).toBeNull();
-    const aheadResponse = await client.threads.timeline.$get({
-      query: { threadId, afterSequence: rebuilt.timeline.maxSequence + 100 },
+    const ahead = await client.threads.timeline({
+      threadId,
+      afterSequence: rebuilt.timeline.maxSequence + 100,
     });
-    expect(timelineResponseSchema.parse(await aheadResponse.json()).kind).toBe("full");
+    expect(ahead.kind).toBe("full");
   });
 });

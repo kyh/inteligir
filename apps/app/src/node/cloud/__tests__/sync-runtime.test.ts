@@ -7,7 +7,7 @@ import { SYNC_API_PATHS } from "@repo/cloud-contract/sync";
 import { closeConnection, createConnection, type DbConnection } from "@repo/db/connection";
 import { runMigrations } from "@repo/db/migrate";
 import { countSyncOutbox, readSyncState, writeSyncCursor } from "@repo/db/sync-outbox";
-import type { CloudPairBeginResponse } from "@repo/server-contract/cloud";
+import type { CloudPairBeginResponse } from "@repo/api/local/cloud/cloud-schema";
 import type { ThreadEvent } from "@repo/domain/provider-event";
 import { threadScope } from "@repo/domain/thread-event-scope";
 import { join } from "node:path";

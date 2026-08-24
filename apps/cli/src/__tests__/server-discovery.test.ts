@@ -116,7 +116,7 @@ describe("resolveServer", () => {
       }),
     );
     expect(failure.exitCode).toBe(EXIT_UNREACHABLE);
-    expect(failure.code).toBe("server_unreachable");
+    expect(failure.code).toBe("SERVER_UNREACHABLE");
     expect(failure.message).toContain(dataDir);
     expect(failure.message).toContain(DATA_DIR_ENV_VAR);
   });

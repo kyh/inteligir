@@ -10,9 +10,11 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@orpc/client": "catalog:",
+    "@orpc/contract": "catalog:",
+    "@repo/api": "workspace:*",
     "@repo/app": "workspace:*",
-    "@repo/notes": "workspace:*",
-    "@repo/server-contract": "workspace:*"
+    "@repo/notes": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "catalog:",

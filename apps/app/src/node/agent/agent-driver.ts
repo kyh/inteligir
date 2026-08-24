@@ -7,7 +7,7 @@
 
 import type { DbConnection } from "@repo/db/connection";
 import type { DbNotifier } from "@repo/domain/notifier";
-import type { AgentStatus } from "@repo/server-contract/routes";
+import type { AgentStatus } from "@repo/api/local/system/system-schema";
 import type { CreateTurnDriver } from "../threads/turn-driver";
 import { createUnavailableTurnDriver } from "../threads/turn-driver";
 import type { CaptureTurnProposals } from "./agent-commits";

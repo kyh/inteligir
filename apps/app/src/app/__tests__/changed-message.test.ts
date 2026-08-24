@@ -9,7 +9,7 @@
 
 import { QueryClient } from "@tanstack/react-query";
 import { describe, expect, it, vi } from "vitest";
-import { queryKeys } from "../api";
+import { orpc } from "../api";
 import { applyChangedMessage } from "../workspace-context";
 
 interface Applied {
@@ -51,7 +51,7 @@ describe("a doc change", () => {
     // backlinks and somebody else's relatedness, and the prefix is swept
     // whole because which somebody is not knowable from here. Nothing that
     // would re-fetch the doc's own bytes.
-    expect(applied.invalidated).toEqual([[...queryKeys.knowledgeRoot]]);
+    expect(applied.invalidated).toEqual([[...orpc.knowledge.key()]]);
   });
 });
 
@@ -65,10 +65,10 @@ describe("a vault change", () => {
     });
 
     expect(applied.invalidated).toEqual([
-      [...queryKeys.vaultTree],
-      [...queryKeys.vaultTrash],
-      [...queryKeys.knowledgeRoot],
-      [...queryKeys.commentsRoot],
+      [...orpc.vault.tree.key()],
+      [...orpc.vault.trashList.key()],
+      [...orpc.knowledge.key()],
+      [...orpc.comments.key()],
     ]);
     expect(applied.docs).toEqual(["a.md", "b.md"]);
   });
@@ -86,7 +86,7 @@ describe("a vault change", () => {
       changes: ["sync-status-changed"],
     });
 
-    expect(applied.invalidated).toEqual([[...queryKeys.vaultStatus]]);
+    expect(applied.invalidated).toEqual([[...orpc.vault.status.key()]]);
     expect(applied.docs).toEqual([]);
   });
 });
@@ -99,7 +99,7 @@ describe("the other entities", () => {
       changes: ["events-appended"],
     });
 
-    expect(applied.invalidated).toEqual([[...queryKeys.threadsRoot]]);
+    expect(applied.invalidated).toEqual([[...orpc.threads.key()]]);
     expect(applied.threads).toBe(1);
   });
 });

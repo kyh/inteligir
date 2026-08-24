@@ -16,8 +16,12 @@ import {
   WebContentsView,
   type IpcMainInvokeEvent,
 } from "electron";
+import { createORPCClient } from "@orpc/client";
+import { RPCLink } from "@orpc/client/fetch";
+import type { ContractRouterClient } from "@orpc/contract";
 import { authorizationHeader } from "@repo/app/node/server-file";
-import { createApiClient, type ApiClient } from "@repo/server-contract/client";
+import type { LocalContract } from "@repo/api/local";
+import { RPC_PREFIX } from "@repo/api/local/routes";
 import type { LiveServer } from "./server-target";
 import {
   BROWSER_CHROME_HEIGHT,
@@ -106,25 +110,16 @@ async function sendPageToAgent(
   const capture = { url, title: contents.getTitle(), selection };
   try {
     const api = apiClientFor(server);
-    const created = await api.threads.create.$post({
-      json: { title: capturePageTitle(capture) },
+    const { thread } = await api.threads.create({ title: capturePageTitle(capture) });
+    await api.threads.send({
+      threadId: thread.id,
+      text: capturePageMessage(capture),
+      mode: "queue-if-active",
     });
-    if (!created.ok) {
-      return { ok: false, detail: `create answered ${created.status}` };
-    }
-    const { thread } = await created.json();
-    const sent = await api.threads.send.$post({
-      json: {
-        threadId: thread.id,
-        text: capturePageMessage(capture),
-        mode: "queue-if-active",
-      },
-    });
-    if (!sent.ok) {
-      return { ok: false, detail: `send answered ${sent.status}` };
-    }
     return { ok: true, detail: thread.id };
   } catch (error) {
+    // A refusal THROWS, so both halves land here — and the chrome bar shows
+    // whichever sentence the server sent rather than a status number.
     return { ok: false, detail: error instanceof Error ? error.message : String(error) };
   }
 }
@@ -132,14 +127,12 @@ async function sendPageToAgent(
 /** The typed client against the local server, carrying this instance's device
  *  token. "Send to agent" is a MAIN-process call — the browser view has no
  *  preload and never sees the credential. */
-function apiClientFor(server: LiveServer): ApiClient {
-  return createApiClient(server.origin, {
-    fetch: (input, init) => {
-      const headers = new Headers(init?.headers);
-      headers.set("authorization", authorizationHeader(server.token));
-      return fetch(input, { ...init, headers });
-    },
+function apiClientFor(server: LiveServer): ContractRouterClient<LocalContract> {
+  const link = new RPCLink({
+    url: `${server.origin}${RPC_PREFIX}`,
+    headers: () => ({ authorization: authorizationHeader(server.token) }),
   });
+  return createORPCClient(link);
 }
 
 /** One registration for the process; each handler re-resolves the live handle

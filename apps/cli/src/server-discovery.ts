@@ -66,7 +66,7 @@ export function resolveServer(args: ResolveServerArgs): ResolvedServer {
     throw new CliExitError(
       `No inteligir server is running for ${dataDir} (no readable server.json there).` +
         ` Start one with \`pnpm dev\`, or name another instance with ${DATA_DIR_ENV_VAR}.`,
-      { code: "server_unreachable", exitCode: EXIT_UNREACHABLE },
+      { code: "SERVER_UNREACHABLE", exitCode: EXIT_UNREACHABLE },
     );
   }
   return {

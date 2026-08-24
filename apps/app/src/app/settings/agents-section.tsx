@@ -3,10 +3,9 @@
 // in. Nothing here installs anything: the ACP adapters ship WITH the app, and
 // the vendor CLIs (and their logins) are the user's own.
 
-import type { AgentsStatusResponse, HarnessProbe } from "@repo/server-contract/agents";
+import type { HarnessProbe } from "@repo/api/local/agents/agents-schema";
 import { useQuery } from "@tanstack/react-query";
-import { unwrap } from "../api";
-import { useWorkspace } from "../workspace-context";
+import { orpc } from "../api";
 import { SectionHeading } from "./settings-chrome";
 
 function credentialSentence(probe: HarnessProbe): string {
@@ -48,10 +47,8 @@ function HarnessRow({ probe }: { probe: HarnessProbe }) {
 }
 
 export function AgentsSection() {
-  const { api } = useWorkspace();
-  const statusQuery = useQuery<AgentsStatusResponse>({
-    queryKey: ["agents-status"],
-    queryFn: async () => unwrap(await api.agents.status.$get()),
+  const statusQuery = useQuery({
+    ...orpc.agents.status.queryOptions(),
     // Login state changes outside this app; a dialog mount re-probes.
     staleTime: 0,
   });

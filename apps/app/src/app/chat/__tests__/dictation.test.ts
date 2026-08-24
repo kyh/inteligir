@@ -4,7 +4,7 @@
 // to this file, and an insertion that eats a space is a sentence nobody can
 // see was ever wrong.
 
-import { VOICE_SAMPLE_RATE } from "@repo/server-contract/voice";
+import { VOICE_SAMPLE_RATE } from "@repo/api/local/voice/voice-schema";
 import { describe, expect, it } from "vitest";
 import {
   insertTranscript,

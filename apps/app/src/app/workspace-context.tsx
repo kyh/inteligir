@@ -9,10 +9,10 @@ import { THREAD_CHANGE_KINDS } from "@repo/domain/change-kinds";
 import { ThemeProvider, useTheme, type Theme } from "@repo/ui/lib/theme";
 import { ShapeProvider } from "@repo/ui/lib/shape-context";
 import { SizeProvider } from "@repo/ui/lib/size-context";
-import type { ChangedMessage, ThreadChangedMessage } from "@repo/server-contract/notifications";
+import type { ChangedMessage, ThreadChangedMessage } from "@repo/api/local/notifications";
 import { createContext, useContext, useEffect, useState } from "react";
 import { AppearanceProvider } from "./appearance";
-import { createWorkspaceApiClient, queryKeys } from "./api";
+import { client, orpc } from "./api";
 import {
   browserInvalidationSocket,
   InvalidationClient,
@@ -37,7 +37,7 @@ interface ThreadEvents {
 }
 
 export interface WorkspaceRuntime {
-  api: ReturnType<typeof createWorkspaceApiClient>;
+  api: typeof client;
   docEvents: DocEvents;
   threadEvents: ThreadEvents;
 }
@@ -66,10 +66,10 @@ export function applyChangedMessage(
   switch (message.entity) {
     case "vault":
       if (message.changes.includes("files-changed")) {
-        void queryClient.invalidateQueries({ queryKey: queryKeys.vaultTree });
-        void queryClient.invalidateQueries({ queryKey: queryKeys.vaultTrash });
-        void queryClient.invalidateQueries({ queryKey: queryKeys.knowledgeRoot });
-        void queryClient.invalidateQueries({ queryKey: queryKeys.commentsRoot });
+        void queryClient.invalidateQueries({ queryKey: orpc.vault.tree.key() });
+        void queryClient.invalidateQueries({ queryKey: orpc.vault.trashList.key() });
+        void queryClient.invalidateQueries({ queryKey: orpc.knowledge.key() });
+        void queryClient.invalidateQueries({ queryKey: orpc.comments.key() });
         // A NAMED change reaches only the notes it names; an unnamed one
         // asserts nothing, so every open note re-checks its own file.
         if (message.paths === undefined) {
@@ -81,7 +81,7 @@ export function applyChangedMessage(
         }
       }
       if (message.changes.includes("sync-status-changed")) {
-        void queryClient.invalidateQueries({ queryKey: queryKeys.vaultStatus });
+        void queryClient.invalidateQueries({ queryKey: orpc.vault.status.key() });
       }
       break;
     case "doc":
@@ -102,13 +102,13 @@ export function applyChangedMessage(
       // every knowledge query settles the index before answering.
       if (message.changes.includes("content-changed")) {
         notifyDoc(message.id);
-        void queryClient.invalidateQueries({ queryKey: queryKeys.knowledgeRoot });
+        void queryClient.invalidateQueries({ queryKey: orpc.knowledge.key() });
       }
       break;
     case "thread":
       // One sweep for the whole family (list, detail); the timeline is not
       // query-cached — its hook listens on threadEvents instead.
-      void queryClient.invalidateQueries({ queryKey: queryKeys.threadsRoot });
+      void queryClient.invalidateQueries({ queryKey: orpc.threads.key() });
       notifyThread(message);
       break;
   }
@@ -181,7 +181,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       },
     };
     const contextValue: WorkspaceRuntime = {
-      api: createWorkspaceApiClient(),
+      api: client,
       docEvents,
       threadEvents,
     };
@@ -203,10 +203,10 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       // reason: a socket that dropped most likely means the server restarted,
       // which changes every field on it.
       onReconnected: () => {
-        void runtime.queryClient.invalidateQueries({ queryKey: queryKeys.vaultRoot });
-        void runtime.queryClient.invalidateQueries({ queryKey: queryKeys.knowledgeRoot });
-        void runtime.queryClient.invalidateQueries({ queryKey: queryKeys.systemStatus });
-        void runtime.queryClient.invalidateQueries({ queryKey: queryKeys.threadsRoot });
+        void runtime.queryClient.invalidateQueries({ queryKey: orpc.vault.key() });
+        void runtime.queryClient.invalidateQueries({ queryKey: orpc.knowledge.key() });
+        void runtime.queryClient.invalidateQueries({ queryKey: orpc.system.status.key() });
+        void runtime.queryClient.invalidateQueries({ queryKey: orpc.threads.key() });
         runtime.notifyDoc(null);
         runtime.notifyThread(THREAD_RECONNECT_SWEEP);
       },

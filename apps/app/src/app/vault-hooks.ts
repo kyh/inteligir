@@ -8,19 +8,12 @@ import { useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "@repo/ui/components/sonner";
 import { DEFAULT_DOC_EXTENSION, isDocPath } from "@repo/notes/knowledge/doc-file";
-import type { ApiClient } from "@repo/server-contract/client";
-import type { VaultStatusResponse, VaultTreeResponse } from "@repo/server-contract/vault";
-import type { SystemStatusResponse } from "@repo/server-contract/routes";
-import { refusalMessage, unwrap } from "./api";
-import { queryKeys } from "./api";
+import type { VaultStatusResponse, VaultTreeResponse } from "@repo/api/local/vault/vault-schema";
+import { orpc, refusalMessage } from "./api";
 import { useWorkspace } from "./workspace-context";
 
 export function useVaultTree() {
-  const { api } = useWorkspace();
-  return useQuery<VaultTreeResponse>({
-    queryKey: queryKeys.vaultTree,
-    queryFn: async () => unwrap(await api.vault.tree.$get()),
-  });
+  return useQuery(orpc.vault.tree.queryOptions());
 }
 
 /** The knowledge index's alias-carrying wiki targets — ONE query for the
@@ -29,31 +22,18 @@ export function useVaultTree() {
  *  content-changed sweeps invalidate it; react-query's structural sharing
  *  keeps the reference stable when the payload is unchanged. */
 export function useWikiTargets() {
-  const { api } = useWorkspace();
-  return useQuery({
-    queryKey: queryKeys.wikiTargets,
-    queryFn: async () => unwrap(await api.knowledge["wiki-targets"].$get()),
-  });
+  return useQuery(orpc.knowledge.wikiTargets.queryOptions());
 }
 
 export function useVaultStatus() {
-  const { api } = useWorkspace();
-  return useQuery<VaultStatusResponse>({
-    queryKey: queryKeys.vaultStatus,
-    queryFn: async () => unwrap(await api.vault.status.$get()),
-  });
+  return useQuery(orpc.vault.status.queryOptions());
 }
 
 /** The one query the ws bus does NOT sweep — no change message names it, and
  *  uptime moves on its own — so it opts out of the fresh-forever default and
  *  re-reads whenever a consumer mounts. */
 export function useSystemStatus() {
-  const { api } = useWorkspace();
-  return useQuery<SystemStatusResponse>({
-    queryKey: queryKeys.systemStatus,
-    queryFn: async () => unwrap(await api.system.status.$get()),
-    staleTime: 0,
-  });
+  return useQuery({ ...orpc.system.status.queryOptions(), staleTime: 0 });
 }
 
 /**
@@ -181,8 +161,8 @@ export function useSyncNow(): () => void {
   return useCallback((): void => {
     void (async () => {
       try {
-        const status = await unwrap(await api.vault.sync.$post());
-        queryClient.setQueryData(queryKeys.vaultStatus, status);
+        const status = await api.vault.syncNow();
+        queryClient.setQueryData(orpc.vault.status.queryKey(), status);
         const notice = syncNowNotice(status);
         if (notice !== null) {
           toast[notice.tone](notice.message);
@@ -230,6 +210,14 @@ function syncNowNotice(status: VaultStatusResponse): SyncNowNotice | null {
 /** A refused rename, with the sentence to show for it. */
 export type RenameOutcome = { ok: true } | { ok: false; message: string };
 
+/** The one procedure a rename reaches, structurally — so a caller (and a test)
+ *  hands over what this function uses rather than the whole client. */
+export interface RenameVaultApi {
+  vault: {
+    rename(input: { from: string; to: string }): Promise<{ path: string; rewritten: string[] }>;
+  };
+}
+
 /**
  * Rename a vault entry, reporting the SERVER'S refusal. Two surfaces rename
  * (the sidebar tree and the page-title H1), and copy each of them writes for
@@ -242,12 +230,12 @@ export type RenameOutcome = { ok: true } | { ok: false; message: string };
  * open note follows, the title re-arms) — only the words are shared.
  */
 export async function renameVaultEntry(
-  api: ApiClient,
+  api: RenameVaultApi,
   from: string,
   to: string,
 ): Promise<RenameOutcome> {
   try {
-    await unwrap(await api.vault.rename.$post({ json: { from, to } }));
+    await api.vault.rename({ from, to });
     return { ok: true };
   } catch (error) {
     return {

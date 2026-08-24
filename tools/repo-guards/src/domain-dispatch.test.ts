@@ -67,8 +67,7 @@ import {
 import { pendingInteractionStatusValues } from "@repo/domain/pending-interaction-status";
 import { PROPOSAL_STATUS_VALUES } from "@repo/domain/proposal-status";
 import { threadStatusValues } from "@repo/domain/thread-status";
-import { API_ERROR_CODES } from "@repo/server-contract/errors";
-import { vaultStatusResponseSchema } from "@repo/server-contract/vault";
+import { vaultStatusResponseSchema } from "@repo/api/local/vault/vault-schema";
 import { describe, expect, it } from "vitest";
 import { sourceOf, workspaceFiles, workspaces } from "./repo";
 
@@ -102,7 +101,7 @@ const VOCABULARIES: Vocabulary[] = [
   {
     name: "vault sync state",
     members: syncStates,
-    declaredIn: "packages/server-contract/src/vault.ts",
+    declaredIn: "packages/api/src/local/vault/vault-schema.ts",
     dispatchedIn: {
       "apps/app/src/node/vault/git.ts":
         "the PRODUCER — `statusSnapshot` is the state machine that decides which state the vault is in; naming them all is what it is for",
@@ -136,12 +135,6 @@ const VOCABULARIES: Vocabulary[] = [
     name: "proposal status",
     members: PROPOSAL_STATUS_VALUES,
     declaredIn: "packages/domain/src/proposal-status.ts",
-    dispatchedIn: {},
-  },
-  {
-    name: "API error class",
-    members: API_ERROR_CODES,
-    declaredIn: "packages/server-contract/src/errors.ts",
     dispatchedIn: {},
   },
   {

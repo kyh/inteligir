@@ -9,20 +9,17 @@
 // when someone presses a button, so the query is re-read on mount and left
 // alone.
 
-import type { VoiceStatusResponse } from "@repo/server-contract/voice";
+import type { VoiceStatusResponse } from "@repo/api/local/voice/voice-schema";
 import { useQuery } from "@tanstack/react-query";
-import { queryKeys, unwrap } from "./api";
-import { useWorkspace } from "./workspace-context";
+import { orpc } from "./api";
 
 /** Fast enough that a 32 MB download's bar moves, slow enough that the poll
  *  costs nothing beside the transfer itself. */
 const DOWNLOAD_POLL_MS = 500;
 
 export function useVoiceStatus() {
-  const { api } = useWorkspace();
   return useQuery<VoiceStatusResponse>({
-    queryKey: queryKeys.voiceStatus,
-    queryFn: async () => unwrap(await api.voice.status.$get()),
+    ...orpc.voice.status.queryOptions(),
     staleTime: 0,
     refetchInterval: (query) => {
       const state = query.state.data?.state;

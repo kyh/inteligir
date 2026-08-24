@@ -29,29 +29,24 @@ import {
   VaultPathError,
   VAULT_TMP_PREFIX,
 } from "@repo/notes/knowledge/vault-path";
-import type { ApiErrorCode } from "@repo/server-contract/errors";
 import {
   contentHashHex,
   VAULT_MAX_CONTENT_LENGTH,
   type VaultEntry,
   type VaultTreeResponse,
-} from "@repo/server-contract/vault";
+} from "@repo/api/local/vault/vault-schema";
 import { errnoCode } from "../errno";
 import { pathContains, relativeUnder } from "../path-containment";
 import { resolveVaultPath } from "./vault-paths";
 
 /**
- * The refusal classes the vault service itself raises — a SUBSET of the API's
- * vocabulary, held against it rather than restated. The service is below the
- * routes and answers no status, but the words it throws are the words the wire
- * carries, so a class the contract renames or retires must break HERE, at the
- * three throw sites, and not silently become a body no client can switch on.
+ * The refusal classes the vault service itself raises. The service sits below
+ * the wire and names no wire class of its own — `vault-router.ts`'s
+ * `VAULT_REFUSALS` is TOTAL over this union, so a class added here without a
+ * wire answer breaks THERE, which is where "what does the wire call this?" is
+ * decided. A code with no answer would otherwise become a silent 500.
  */
-const VAULT_SERVICE_ERROR_CODES = [
-  "not_found",
-  "conflict",
-  "too_large",
-] as const satisfies readonly ApiErrorCode[];
+const VAULT_SERVICE_ERROR_CODES = ["not_found", "conflict", "too_large"] as const;
 
 export type VaultServiceErrorCode = (typeof VAULT_SERVICE_ERROR_CODES)[number];
 

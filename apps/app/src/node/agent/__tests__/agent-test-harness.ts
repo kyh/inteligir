@@ -2,68 +2,54 @@
 // `bootTestApp` (../../__tests__/boot-app): create/send/poll/read against the
 // typed client, exactly as production serves it.
 
-import type { ApiClient } from "@repo/server-contract/client";
-import {
-  threadSchema,
-  pendingInteractionSchema,
-  timelineResponseSchema,
-  type CreateThreadRequest,
-  type PendingInteraction,
-  type TimelineResponse,
-} from "@repo/server-contract/threads";
-import type { TimelineRow } from "@repo/server-contract/thread-timeline";
-import { expect } from "vitest";
-import { z } from "zod";
+import type {
+  CreateThreadRequest,
+  PendingInteraction,
+} from "@repo/api/local/threads/threads-schema";
+import type { TimelineRow } from "@repo/api/local/thread-timeline";
+import type { BootedTestApp } from "../../__tests__/boot-app";
 
-const threadEnvelopeSchema = z.object({ thread: threadSchema });
-const threadDetailSchema = z.object({
-  thread: threadSchema,
-  pendingInteractions: z.array(pendingInteractionSchema),
-});
-const startedResponseSchema = z.object({ kind: z.literal("started"), turnId: z.string().min(1) });
+type ThreadClient = BootedTestApp["client"];
 
 export async function createThread(
-  client: ApiClient,
-  json: CreateThreadRequest = {},
+  client: ThreadClient,
+  input: CreateThreadRequest = {},
 ): Promise<string> {
-  const response = await client.threads.create.$post({ json });
-  expect(response.status).toBe(201);
-  return threadEnvelopeSchema.parse(await response.json()).thread.id;
+  const { thread } = await client.threads.create(input);
+  return thread.id;
 }
 
 export async function sendMessage(
-  client: ApiClient,
+  client: ThreadClient,
   threadId: string,
   text: string,
 ): Promise<string> {
-  const response = await client.threads.send.$post({
-    json: { threadId, text, mode: "steer-if-active" },
-  });
-  expect(response.status).toBe(200);
-  return startedResponseSchema.parse(await response.json()).turnId;
+  const outcome = await client.threads.send({ threadId, text, mode: "steer-if-active" });
+  // A steer or a queue answers with someone else's turn id — or none at all —
+  // so the caller's "this send started that turn" claim is checked here.
+  if (outcome.kind !== "started") {
+    throw new Error(`expected the send to start a turn, got ${outcome.kind}`);
+  }
+  return outcome.turnId;
 }
 
 export async function getThreadDetail(
-  client: ApiClient,
+  client: ThreadClient,
   threadId: string,
 ): Promise<{ status: string; pendingInteractions: PendingInteraction[] }> {
-  const response = await client.threads.get.$get({ query: { threadId } });
-  expect(response.status).toBe(200);
-  const detail = threadDetailSchema.parse(await response.json());
+  const detail = await client.threads.get({ threadId });
   return { status: detail.thread.status, pendingInteractions: detail.pendingInteractions };
 }
 
 export async function fetchTimelineRows(
-  client: ApiClient,
+  client: ThreadClient,
   threadId: string,
 ): Promise<TimelineRow[]> {
-  const response = await client.threads.timeline.$get({ query: { threadId } });
-  expect(response.status).toBe(200);
-  const parsed: TimelineResponse = timelineResponseSchema.parse(await response.json());
-  if (parsed.kind !== "full") {
+  const response = await client.threads.timeline({ threadId });
+  if (response.kind !== "full") {
     throw new Error("expected a full timeline");
   }
-  return parsed.timeline.rows;
+  return response.timeline.rows;
 }
 
 /** Work rows nest as children of their turn row; flatten for assertions. */

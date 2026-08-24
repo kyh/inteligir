@@ -13,37 +13,19 @@
 // with better-sqlite3 in it. So the two suites meet at the contract, which is
 // exactly what the contract is for.
 
+import { createRouterClient } from "@orpc/server";
 import { listStoredThreadEvents } from "@repo/db/events";
 import { NotificationBuffer } from "@repo/domain/notifier";
 import { describe, expect, it } from "vitest";
 import { bootTestApp, type BootedTestApp } from "../../__tests__/boot-app";
 import { FakeTurnDriver } from "../../__tests__/fake-turn-driver";
+import { localRouter } from "../../root-router";
 import { ThreadService } from "../../threads/service";
 import { unavailableTurnDriver } from "../../threads/turn-driver";
 import { FakeCloud } from "./fake-cloud";
 
-interface ResponseLike {
-  ok: boolean;
-  status: number;
-}
-
-function isOk<TResponse extends ResponseLike>(
-  response: TResponse,
-): response is Extract<TResponse, { ok: true }> {
-  return response.ok;
-}
-
-/** The typed client's union split at the status, so a `.json()` below is the
- *  200 body — the same gate `requireOk` is for the CLI. */
-function ok<TResponse extends ResponseLike>(response: TResponse): Extract<TResponse, { ok: true }> {
-  if (!isOk(response)) {
-    throw new Error(`expected a 2xx, got ${response.status}`);
-  }
-  return response;
-}
-
 /** An install with its own data dir, vault and database, wired to `cloud`.
- *  `pollIntervalMs: null` leaves `POST /cloud/sync` the only trigger, so the
+ *  `pollIntervalMs: null` leaves the sync procedure the only trigger, so the
  *  test says when a pass happens instead of racing one. */
 async function bootInstall(
   cloud: FakeCloud,
@@ -57,26 +39,30 @@ async function bootInstall(
 
 /**
  * Pair an install the way a user does (issue #573), through the composed app
- * rather than the runtime: `POST /cloud/pair/begin` over the typed client, then
- * the callback a browser would follow — a plain `GET` on the loopback route,
- * with the state read off the approve URL exactly as the approve page reads it.
+ * rather than the runtime: `cloud.pairBegin` over the typed client, then the
+ * callback a browser would follow — a plain `GET` on the loopback route, with
+ * the state read off the approve URL exactly as the approve page reads it.
  *
  * `openBrowser: false`, because a suite that popped a window on whoever ran it
  * would be the last thing anyone wants from `pnpm test`.
  */
 /** The loopback address these installs pretend to be reached on. The begin
- *  route reads the port back out of the request's own Host header, because
- *  `listen` may have probed past the configured one. */
+ *  procedure composes the callback from the request's own Host, because
+ *  `listen` may have probed past the configured port. */
 const LOOPBACK_HOST = "127.0.0.1:4664";
 
 async function pair(install: BootedTestApp, cloud: FakeCloud, code: string): Promise<void> {
-  const begun = ok(
-    await install.client.cloud.pair.begin.$post(
-      { json: { deviceName: `device-${code}`, openBrowser: false } },
-      { headers: { host: LOOPBACK_HOST } },
-    ),
-  );
-  const approve = new URL((await begun.json()).url);
+  // The harness's client carries no Host — nothing reached it over HTTP — and
+  // a pairing that names no callback address is refused, so this one call gets
+  // a client standing where a loopback caller would.
+  const fromLoopback = createRouterClient(localRouter, {
+    context: { ...install.composed.services, requestHost: LOOPBACK_HOST },
+  });
+  const begun = await fromLoopback.cloud.pairBegin({
+    deviceName: `device-${code}`,
+    openBrowser: false,
+  });
+  const approve = new URL(begun.url);
   const state = approve.searchParams.get("state") ?? "";
   // The approve page's mint, bound to the PKCE challenge begin put on the URL —
   // registered here because the app kept the verifier and only the hash travels.
@@ -90,11 +76,11 @@ async function pair(install: BootedTestApp, cloud: FakeCloud, code: string): Pro
   const landed = await install.composed.app.request(callback.toString());
   expect(landed.status).toBe(200);
   expect(await landed.text()).toContain("Paired");
-  expect((await ok(await install.client.cloud.status.$get()).json()).state).toBe("paired");
+  expect((await install.client.cloud.status()).state).toBe("paired");
 }
 
 async function syncNow(install: BootedTestApp): Promise<void> {
-  ok(await install.client.cloud.sync.$post());
+  await install.client.cloud.syncNow();
 }
 
 /** Every event this database holds for a thread, in its local order and
@@ -137,22 +123,21 @@ describe("two installs against one account", () => {
     await pair(a, cloud, "AAAA-AAAA");
     await pair(b, cloud, "BBBB-BBBB");
 
-    const created = ok(await a.client.threads.create.$post({ json: { title: "Shared" } }));
-    const { thread } = await created.json();
+    const { thread } = await a.client.threads.create({ title: "Shared" });
 
-    const sent = ok(
-      await a.client.threads.send.$post({
-        json: { threadId: thread.id, text: "hello from A", mode: "steer-if-active" },
-      }),
-    );
-    expect((await sent.json()).kind).toBe("started");
+    const sent = await a.client.threads.send({
+      threadId: thread.id,
+      text: "hello from A",
+      mode: "steer-if-active",
+    });
+    expect(sent.kind).toBe("started");
 
     await syncNow(a);
     await syncNow(b);
 
     // The thread exists on B with the id the ACCOUNT gave it, not one B minted.
-    const detail = ok(await b.client.threads.get.$get({ query: { threadId: thread.id } }));
-    expect((await detail.json()).thread.id).toBe(thread.id);
+    const detail = await b.client.threads.get({ threadId: thread.id });
+    expect(detail.thread.id).toBe(thread.id);
 
     // One writer, so one order — see the concurrent case below for what is
     // NOT claimed.
@@ -161,8 +146,7 @@ describe("two installs against one account", () => {
     expect(eventOrder(b, thread.id)).toEqual(order);
 
     // B's timeline renders the same conversation A's does.
-    const timeline = ok(await b.client.threads.timeline.$get({ query: { threadId: thread.id } }));
-    const body = await timeline.json();
+    const body = await b.client.threads.timeline({ threadId: thread.id });
     if (body.kind !== "full") throw new Error("expected a full timeline");
     expect(
       body.timeline.rows.some(
@@ -178,10 +162,11 @@ describe("two installs against one account", () => {
     await pair(a, cloud, "AAAA-AAAA");
     await pair(b, cloud, "BBBB-BBBB");
 
-    const created = ok(await a.client.threads.create.$post({ json: { title: "Idempotent" } }));
-    const { thread } = await created.json();
-    await a.client.threads.send.$post({
-      json: { threadId: thread.id, text: "once", mode: "steer-if-active" },
+    const { thread } = await a.client.threads.create({ title: "Idempotent" });
+    await a.client.threads.send({
+      threadId: thread.id,
+      text: "once",
+      mode: "steer-if-active",
     });
     await syncNow(a);
 
@@ -218,20 +203,25 @@ describe("two installs against one account", () => {
     await pair(a, cloud, "AAAA-AAAA");
     await pair(b, cloud, "BBBB-BBBB");
 
-    const created = ok(await a.client.threads.create.$post({ json: { title: "Concurrent" } }));
-    const { thread } = await created.json();
-    await a.client.threads.send.$post({
-      json: { threadId: thread.id, text: "seed", mode: "steer-if-active" },
+    const { thread } = await a.client.threads.create({ title: "Concurrent" });
+    await a.client.threads.send({
+      threadId: thread.id,
+      text: "seed",
+      mode: "steer-if-active",
     });
     await syncNow(a);
     await syncNow(b);
 
     // Both write before either syncs — genuinely concurrent.
-    await a.client.threads.send.$post({
-      json: { threadId: thread.id, text: "from A", mode: "steer-if-active" },
+    await a.client.threads.send({
+      threadId: thread.id,
+      text: "from A",
+      mode: "steer-if-active",
     });
-    await b.client.threads.send.$post({
-      json: { threadId: thread.id, text: "from B", mode: "steer-if-active" },
+    await b.client.threads.send({
+      threadId: thread.id,
+      text: "from B",
+      mode: "steer-if-active",
     });
     await syncNow(a);
     await syncNow(b);
@@ -256,10 +246,11 @@ describe("two installs against one account", () => {
     await pair(a, cloud, "AAAA-AAAA");
     await pair(b, cloud, "BBBB-BBBB");
 
-    const created = ok(await a.client.threads.create.$post({ json: { title: "Re-paired" } }));
-    const { thread } = await created.json();
-    await a.client.threads.send.$post({
-      json: { threadId: thread.id, text: "before the re-pair", mode: "steer-if-active" },
+    const { thread } = await a.client.threads.create({ title: "Re-paired" });
+    await a.client.threads.send({
+      threadId: thread.id,
+      text: "before the re-pair",
+      mode: "steer-if-active",
     });
     await syncNow(a);
     await syncNow(b);
@@ -269,7 +260,7 @@ describe("two installs against one account", () => {
     // Unpair forgets the cursor along with everything else the old credential
     // meant, so the next pairing pulls the log from its FIRST row — and every
     // one of those rows is already here.
-    ok(await b.client.cloud.unpair.$post());
+    await b.client.cloud.unpair();
     await pair(b, cloud, "CCCC-CCCC");
     await syncNow(b);
     await syncNow(b);
@@ -277,8 +268,8 @@ describe("two installs against one account", () => {
     expect(eventOrder(b, thread.id)).toEqual(before);
     // Still idle: a replayed `turn/started` projected again would have left the
     // thread running for a turn that finished long ago.
-    const detail = ok(await b.client.threads.get.$get({ query: { threadId: thread.id } }));
-    expect((await detail.json()).thread.status).toBe("idle");
+    const detail = await b.client.threads.get({ threadId: thread.id });
+    expect(detail.thread.status).toBe("idle");
   });
 
   it("leaves a turn running on another device alone across a reboot", async () => {
@@ -290,16 +281,17 @@ describe("two installs against one account", () => {
     await pair(a, cloud, "AAAA-AAAA");
     await pair(b, cloud, "BBBB-BBBB");
 
-    const created = ok(await a.client.threads.create.$post({ json: { title: "Long task" } }));
-    const { thread } = await created.json();
-    await a.client.threads.send.$post({
-      json: { threadId: thread.id, text: "run it", mode: "steer-if-active" },
+    const { thread } = await a.client.threads.create({ title: "Long task" });
+    await a.client.threads.send({
+      threadId: thread.id,
+      text: "run it",
+      mode: "steer-if-active",
     });
     await syncNow(a);
     await syncNow(b);
 
-    const pulled = ok(await b.client.threads.get.$get({ query: { threadId: thread.id } }));
-    expect((await pulled.json()).thread.status).toBe("active");
+    const pulled = await b.client.threads.get({ threadId: thread.id });
+    expect(pulled.thread.status).toBe("active");
 
     // A REBOOT of B: a second ThreadService over the same database runs
     // `recoverWedgedThreads` at construction. It must not declare a provider it
@@ -312,8 +304,8 @@ describe("two installs against one account", () => {
     });
     expect(rebooted.list().some((row) => row.id === thread.id)).toBe(true);
     expect(eventOrder(b, thread.id).some((row) => row.startsWith("provider/error"))).toBe(false);
-    const afterReboot = ok(await b.client.threads.get.$get({ query: { threadId: thread.id } }));
-    expect((await afterReboot.json()).thread.status).toBe("active");
+    const afterReboot = await b.client.threads.get({ threadId: thread.id });
+    expect(afterReboot.thread.status).toBe("active");
   });
 
   it("carries B's reply back to A, so the log is genuinely two-way", async () => {
@@ -323,16 +315,19 @@ describe("two installs against one account", () => {
     await pair(a, cloud, "AAAA-AAAA");
     await pair(b, cloud, "BBBB-BBBB");
 
-    const created = ok(await a.client.threads.create.$post({ json: { title: "Two-way" } }));
-    const { thread } = await created.json();
-    await a.client.threads.send.$post({
-      json: { threadId: thread.id, text: "from A", mode: "steer-if-active" },
+    const { thread } = await a.client.threads.create({ title: "Two-way" });
+    await a.client.threads.send({
+      threadId: thread.id,
+      text: "from A",
+      mode: "steer-if-active",
     });
     await syncNow(a);
     await syncNow(b);
 
-    await b.client.threads.send.$post({
-      json: { threadId: thread.id, text: "from B", mode: "steer-if-active" },
+    await b.client.threads.send({
+      threadId: thread.id,
+      text: "from B",
+      mode: "steer-if-active",
     });
     await syncNow(b);
     await syncNow(a);

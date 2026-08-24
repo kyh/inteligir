@@ -5,7 +5,7 @@
 
 import { defineCommand } from "citty";
 import { apiFor, type CliDeps } from "../context";
-import { jsonArg, out, outputJson, requireOk, writeLines } from "../output";
+import { jsonArg, out, outputJson, writeLines } from "../output";
 
 export function foldersCommand(deps: CliDeps) {
   return defineCommand({
@@ -19,7 +19,7 @@ export function foldersCommand(deps: CliDeps) {
         args: { ...jsonArg },
         run: async ({ args }) => {
           const api = apiFor(deps);
-          const body = await (await requireOk(await api.folders.$get())).json();
+          const body = await api.folders.list();
           if (outputJson(args, body)) {
             return;
           }
@@ -39,10 +39,7 @@ export function foldersCommand(deps: CliDeps) {
         },
         run: async ({ args }) => {
           const api = apiFor(deps);
-          const response = await requireOk(
-            await api.folders.add.$post({ json: { path: args.path } }),
-          );
-          const body = await response.json();
+          const body = await api.folders.add({ path: args.path });
           if (outputJson(args, body)) {
             return;
           }
@@ -58,10 +55,7 @@ export function foldersCommand(deps: CliDeps) {
         },
         run: async ({ args }) => {
           const api = apiFor(deps);
-          const response = await requireOk(
-            await api.folders.remove.$post({ json: { path: args.path } }),
-          );
-          const body = await response.json();
+          const body = await api.folders.remove({ path: args.path });
           if (outputJson(args, body)) {
             return;
           }

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import type { VaultEntry } from "@repo/server-contract/vault";
+import type { VaultEntry } from "@repo/api/local/vault/vault-schema";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CommandPalette, type PaletteActions } from "../command-palette";
 import { searchNotesByFilename, type NoteSearchSource } from "../note-search";

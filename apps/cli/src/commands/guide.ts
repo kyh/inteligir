@@ -3,7 +3,7 @@
 
 import { defineCommand } from "citty";
 import { apiFor, type CliDeps } from "../context";
-import { jsonArg, outputJson, requireOk, writeOut } from "../output";
+import { jsonArg, outputJson, writeOut } from "../output";
 
 export function guideCommand(deps: CliDeps) {
   return defineCommand({
@@ -11,7 +11,7 @@ export function guideCommand(deps: CliDeps) {
     args: { ...jsonArg },
     run: async ({ args }) => {
       const api = apiFor(deps);
-      const body = await (await requireOk(await api.guide.$get())).json();
+      const body = await api.system.guide();
       if (outputJson(args, body)) {
         return;
       }

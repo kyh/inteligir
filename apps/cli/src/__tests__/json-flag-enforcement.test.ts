@@ -13,7 +13,11 @@
 // (2) and (3) are the honest-exit invariant: a body read without a status
 // check prints the error envelope as if it were the answer.
 
-import { apiErrorResponseSchema } from "@repo/server-contract/errors";
+import { z } from "zod";
+
+/** The failure envelope every leaf owes a `--json` caller on stderr: the class
+ *  (the server's own, or one of the CLI's) and a sentence. */
+const cliErrorEnvelopeSchema = z.object({ error: z.string().min(1), message: z.string() });
 import { afterEach, describe, expect, it } from "vitest";
 import { argsOf, collectLeafCommands, type LeafCommand } from "../command-tree";
 import { LEAF_INVOCATIONS, testProgram } from "./command-tree";
@@ -173,8 +177,7 @@ describe("honest exits — no command may print a refusal as an answer", () => {
       const state = driveableState();
       const server = await boot(state);
       state.failWith = {
-        status,
-        error: status === 400 ? "invalid_request" : "internal",
+        code: status === 400 ? "BAD_REQUEST" : "INTERNAL_SERVER_ERROR",
         message: `fixture refusal ${status}`,
       };
       const broken: string[] = [];
@@ -199,8 +202,7 @@ describe("honest exits — no command may print a refusal as an answer", () => {
       const state = driveableState();
       const server = await boot(state);
       state.failWith = {
-        status,
-        error: status === 400 ? "invalid_request" : "internal",
+        code: status === 400 ? "BAD_REQUEST" : "INTERNAL_SERVER_ERROR",
         message: `fixture refusal ${status}`,
       };
       const broken: string[] = [];
@@ -216,7 +218,7 @@ describe("honest exits — no command may print a refusal as an answer", () => {
         if (result.stdout.length > 0) {
           broken.push(`${path}: wrote to stdout while failing`);
         }
-        const envelope = apiErrorResponseSchema.safeParse(JSON.parse(result.stderr));
+        const envelope = cliErrorEnvelopeSchema.safeParse(JSON.parse(result.stderr));
         if (!envelope.success) {
           broken.push(`${path}: stderr is not an {error,message} envelope (${result.stderr})`);
         }

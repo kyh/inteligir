@@ -60,7 +60,10 @@ import {
   writeSyncCursor,
 } from "@repo/db/sync-outbox";
 import { threadEventSchema, type ThreadEvent } from "@repo/domain/provider-event";
-import type { CloudPairBeginResponse, CloudStatusResponse } from "@repo/server-contract/cloud";
+import type {
+  CloudPairBeginResponse,
+  CloudStatusResponse,
+} from "@repo/api/local/cloud/cloud-schema";
 import { systemOpenExternalUrl, type OpenExternalUrl } from "./browser-opener";
 import { appendToInbox, APPLIED_CAPTURE_RETENTION_MS, type CaptureVault } from "./captures";
 import {

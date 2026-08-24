@@ -30,9 +30,14 @@
 // still name the data dir this resolution derived — a real inteligir server
 // for a DIFFERENT vault is exactly the wrong window.
 
+import { createORPCClient } from "@orpc/client";
+import { RPCLink } from "@orpc/client/fetch";
 import { resolveAppConfig, type ResolveAppConfigArgs } from "@repo/app/node/config";
 import { authorizationHeader, readServerFile } from "@repo/app/node/server-file";
-import { apiPath, apiRoutes, systemStatusResponseSchema } from "@repo/server-contract/routes";
+import type { LocalContract } from "@repo/api/local";
+import { RPC_PREFIX } from "@repo/api/local/routes";
+import type { SystemStatusResponse } from "@repo/api/local/system/system-schema";
+import type { ContractRouterClient } from "@orpc/contract";
 import { isHttpUrl } from "./origin-pin";
 
 /** Loopback, never `localhost`: the name resolves to ::1 or 127.0.0.1
@@ -111,50 +116,55 @@ export type ServerVerdict =
   /** A row exists but nothing usable answered on it. */
   | { kind: "unreachable"; origin: string }
   /** Something answered, holding the token, but serving somewhere else. */
-  | { kind: "wrong-data-dir"; origin: string; claimed: string }
-  /** Something answered and refused the token — not the process that wrote it. */
-  | { kind: "not-ours"; origin: string };
+  | { kind: "wrong-data-dir"; origin: string; claimed: string };
 
 const PROBE_TIMEOUT_MS = 2_000;
 
-export type ProbeFetch = (url: string, init: RequestInit) => Promise<Response>;
+/** Asks one responder what it is serving, or null when it did not answer or
+ *  refused the token. Injected so the verdicts below are drivable without a
+ *  process on a port. */
+export type ProbeStatus = (server: LiveServer) => Promise<SystemStatusResponse | null>;
+
+const probeStatusOverRpc: ProbeStatus = async (server) => {
+  const link = new RPCLink({
+    url: `${server.origin}${RPC_PREFIX}`,
+    headers: () => ({ authorization: authorizationHeader(server.token) }),
+    fetch: (request) => fetch(request, { signal: AbortSignal.timeout(PROBE_TIMEOUT_MS) }),
+  });
+  const client: ContractRouterClient<LocalContract> = createORPCClient(link);
+  try {
+    return await client.system.status();
+  } catch {
+    return null;
+  }
+};
 
 /**
  * Ask the data dir who is serving it, then make that answer prove itself.
  *
- * `/system/status` is the probe because it is behind the token AND names the
+ * `system.status` is the probe because it is behind the token AND names the
  * data dir: one round trip settles "can this responder read what I read" and
- * "is it serving what I mean".
+ * "is it serving what I mean". A responder that never answers and one that
+ * refuses the token are indistinguishable from here, and both are `not-ours`
+ * in the only sense that matters — the shell will not adopt either.
  */
 export async function verifyServer(
   dataDir: string,
-  fetchImpl: ProbeFetch = (url, init) => fetch(url, init),
+  probeStatus: ProbeStatus = probeStatusOverRpc,
 ): Promise<ServerVerdict> {
   const file = readServerFile(dataDir);
   if (file === null) {
     return { kind: "no-server" };
   }
-  const origin = serverOrigin(file.port);
-  let response: Response;
-  try {
-    response = await fetchImpl(`${origin}${apiPath(apiRoutes.system.status)}`, {
-      headers: { authorization: authorizationHeader(file.token) },
-      signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
-    });
-  } catch {
-    return { kind: "unreachable", origin };
+  const live: LiveServer = { origin: serverOrigin(file.port), port: file.port, token: file.token };
+  const status = await probeStatus(live);
+  if (status === null) {
+    return { kind: "unreachable", origin: live.origin };
   }
-  if (!response.ok) {
-    return { kind: "not-ours", origin };
+  if (status.dataDir !== dataDir) {
+    return { kind: "wrong-data-dir", origin: live.origin, claimed: status.dataDir };
   }
-  const status = systemStatusResponseSchema.safeParse(await response.json().catch(() => undefined));
-  if (!status.success) {
-    return { kind: "not-ours", origin };
-  }
-  if (status.data.dataDir !== dataDir) {
-    return { kind: "wrong-data-dir", origin, claimed: status.data.dataDir };
-  }
-  return { kind: "verified", live: { origin, port: file.port, token: file.token } };
+  return { kind: "verified", live };
 }
 
 /** One sentence per verdict, for the log line and the dialog. A refusal the
@@ -166,11 +176,9 @@ export function describeServerVerdict(verdict: ServerVerdict, dataDir: string): 
     case "no-server":
       return `no inteligir server has published itself for ${dataDir}`;
     case "unreachable":
-      return `${verdict.origin} did not answer — the row in ${dataDir} is stale`;
+      return `${verdict.origin} did not answer this instance's token — the row in ${dataDir} is stale, or something else holds the port`;
     case "wrong-data-dir":
       return `${verdict.origin} serves a different data directory (${verdict.claimed})`;
-    case "not-ours":
-      return `${verdict.origin} refused this instance's token — refusing to adopt it`;
   }
 }
 

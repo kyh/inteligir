@@ -7,8 +7,8 @@
 import { parseSearchQuery } from "@repo/notes/knowledge/vault-search";
 import type { ViewContext } from "@repo/domain/view-context";
 import type { ViewContextSource } from "./chat/chat-model";
-import type { Thread } from "@repo/server-contract/threads";
-import type { VaultEntry } from "@repo/server-contract/vault";
+import type { Thread } from "@repo/api/local/threads/threads-schema";
+import type { VaultEntry } from "@repo/api/local/vault/vault-schema";
 import { ConfirmDialogHost, confirm } from "@repo/ui/components/confirm-dialog";
 import { Button } from "@repo/ui/components/button";
 import { XIcon } from "lucide-react";
@@ -23,7 +23,7 @@ import {
   useState,
   type PointerEvent as ReactPointerEvent,
 } from "react";
-import { queryKeys, refusalMessage, unwrap } from "./api";
+import { orpc, refusalMessage } from "./api";
 import { setCommentActions } from "@repo/editor/comments/comment-store";
 import { ActionComposer } from "./actions/action-composer";
 import { ActionsPanel, type PanelTab } from "./actions/actions-panel";
@@ -209,12 +209,13 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
           return false;
         }
         await flushOpenNote();
-        const response = await api.comments.add.$post({ json: { id, path, text } });
-        if (response.ok) {
-          void queryClient.invalidateQueries({ queryKey: queryKeys.commentsRoot });
-          return true;
+        try {
+          await api.comments.add({ id, path, text });
+        } catch {
+          return false;
         }
-        return false;
+        void queryClient.invalidateQueries({ queryKey: orpc.comments.key() });
+        return true;
       },
       open: (ids) => {
         setPanelOpen(true);
@@ -312,7 +313,7 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
       createFolder: (path) => {
         void (async () => {
           try {
-            await unwrap(await api.vault.mkdir.$post({ json: { path } }));
+            await api.vault.mkdir({ path });
           } catch (error) {
             toast.error(refusalMessage(error, `Could not create ${path}.`));
           }
@@ -442,11 +443,9 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
         return byFilename();
       }
       try {
-        const response = await unwrap(
-          await api.knowledge.search.$get(
-            { query: { q: query, limit: NOTE_SEARCH_LIMIT } },
-            { init: { signal } },
-          ),
+        const response = await api.knowledge.search(
+          { q: query, limit: NOTE_SEARCH_LIMIT },
+          { signal },
         );
         if (response.results.length === 0) {
           return byFilename();

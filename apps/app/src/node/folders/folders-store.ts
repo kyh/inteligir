@@ -11,7 +11,7 @@ import { stagedWriteFileSync } from "../staged-write";
 import { join } from "node:path";
 import { z } from "zod";
 
-import { connectedFolderPathSchema } from "@repo/server-contract/folders";
+import { connectedFolderPathSchema } from "@repo/api/local/folders/folders-schema";
 
 const CONNECTED_FOLDERS_FILE = "connected-folders.json";
 

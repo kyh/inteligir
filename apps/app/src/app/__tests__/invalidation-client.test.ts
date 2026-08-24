@@ -4,7 +4,7 @@ import {
   type ChangedMessage,
   type ClientMessage,
   type RealtimeSubscriptionTarget,
-} from "@repo/server-contract/notifications";
+} from "@repo/api/local/notifications";
 import { InvalidationClient, type InvalidationSocket } from "../invalidation-client";
 
 /** A frame as it arrives off the wire: this client's own vocabulary, plus

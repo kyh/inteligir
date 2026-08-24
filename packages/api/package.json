@@ -1,0 +1,42 @@
+{
+  "name": "@repo/api",
+  "version": "0.1.0",
+  "private": true,
+  "description": "ONE contract package, TWO entry points. `./local` is the desktop renderer and the CLI talking to the local server; `./cloud` is the local server and mobile talking to the Worker. Separate routers because their compatibility obligations are opposite: /local's two ends ship in one bundle and may break freely, /cloud is a deployed Worker answering installs that may be months stale.",
+  "type": "module",
+  "exports": {
+    "./local": "./src/local/local-contract.ts",
+    "./local/agents/agents-schema": "./src/local/agents/agents-schema.ts",
+    "./local/cloud/cloud-schema": "./src/local/cloud/cloud-schema.ts",
+    "./local/comments/comments-schema": "./src/local/comments/comments-schema.ts",
+    "./local/connectors/connectors-schema": "./src/local/connectors/connectors-schema.ts",
+    "./local/errors": "./src/local/local-errors.ts",
+    "./local/folders/folders-schema": "./src/local/folders/folders-schema.ts",
+    "./local/knowledge/knowledge-schema": "./src/local/knowledge/knowledge-schema.ts",
+    "./local/note-intelligence/note-intelligence-schema": "./src/local/note-intelligence/note-intelligence-schema.ts",
+    "./local/notifications": "./src/local/notifications.ts",
+    "./local/proposals/proposals-schema": "./src/local/proposals/proposals-schema.ts",
+    "./local/routes": "./src/local/local-routes.ts",
+    "./local/system/system-schema": "./src/local/system/system-schema.ts",
+    "./local/thread-timeline": "./src/local/thread-timeline.ts",
+    "./local/threads/threads-schema": "./src/local/threads/threads-schema.ts",
+    "./local/vault/vault-schema": "./src/local/vault/vault-schema.ts",
+    "./local/voice/voice-schema": "./src/local/voice/voice-schema.ts"
+  },
+  "scripts": {
+    "clean": "git clean -xdf .cache .turbo dist node_modules",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit --emitDeclarationOnly false"
+  },
+  "dependencies": {
+    "@orpc/contract": "catalog:",
+    "@repo/cloud-contract": "workspace:*",
+    "@repo/domain": "workspace:*",
+    "@repo/notes": "workspace:*",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

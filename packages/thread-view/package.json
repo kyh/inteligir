@@ -14,8 +14,8 @@
     "typecheck": "tsc --noEmit --emitDeclarationOnly false"
   },
   "dependencies": {
-    "@repo/domain": "workspace:*",
-    "@repo/server-contract": "workspace:*"
+    "@repo/api": "workspace:*",
+    "@repo/domain": "workspace:*"
   },
   "devDependencies": {
     "typescript": "catalog:",

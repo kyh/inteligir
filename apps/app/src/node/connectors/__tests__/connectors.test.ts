@@ -1,13 +1,14 @@
 // The registry over a real temp store file. The facts worth pinning:
-// redaction (no read ever carries a header value), the two refusals (409 on a
-// duplicate add, 404 on an unknown name), header survival through an update
-// that omits them, the malformed-file refusal (never read as empty — the next
-// write would erase what the bytes held), and the session view carrying the
-// full rows the redacted view must not.
+// redaction (no read ever carries a header value), the two refusals
+// (ALREADY_EXISTS on a duplicate add, NOT_FOUND on an unknown name), header
+// survival through an update that omits them, the malformed-file refusal
+// (never read as empty — the next write would erase what the bytes held), and
+// the session view carrying the full rows the redacted view must not.
 
 import { readFileSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { connectorsResponseSchema } from "@repo/server-contract/connectors";
+import { ORPCError, safe } from "@orpc/client";
+import { connectorsResponseSchema } from "@repo/api/local/connectors/connectors-schema";
 import { describe, expect, it } from "vitest";
 import { ConnectorConflictError, createConnectorsService } from "../connectors-service";
 import { ConnectorsStoreError, createConnectorsStore } from "../connectors-store";
@@ -102,24 +103,29 @@ describe("the connectors registry", () => {
   });
 });
 
-describe("the connector routes", () => {
-  it("serves the registry with refusal statuses over the API", async () => {
+// Each route case asserts the refusal CLASS, never the bare fact of a throw:
+// `rejects.toThrow()` would pass for the wrong refusal, and for a crash.
+describe("the connector procedures", () => {
+  it("serves the registry with its refusal classes", async () => {
     const harness = await bootTestApp();
-    const added = await harness.client.connectors.add.$post({
-      json: { name: "srv", transport: { args: ["run"], command: "npx", kind: "stdio" } },
+    const added = await harness.client.connectors.add({
+      name: "srv",
+      transport: { args: ["run"], command: "npx", kind: "stdio" },
     });
-    expect(added.status).toBe(200);
-    const duplicate = await harness.client.connectors.add.$post({
-      json: { name: "srv", transport: { args: [], command: "x", kind: "stdio" } },
-    });
-    expect(duplicate.status).toBe(409);
+    expect(added.servers.map((row) => row.name)).toEqual(["srv"]);
 
-    const listed = await harness.client.connectors.$get();
-    expect(listed.status).toBe(200);
-    const body = connectorsResponseSchema.parse(await listed.json());
+    const [duplicate] = await safe(
+      harness.client.connectors.add({
+        name: "srv",
+        transport: { args: [], command: "x", kind: "stdio" },
+      }),
+    );
+    expect(duplicate instanceof ORPCError && duplicate.code).toBe("ALREADY_EXISTS");
+
+    const body = connectorsResponseSchema.parse(await harness.client.connectors.list());
     expect(body.servers.map((row) => row.name)).toEqual(["srv"]);
 
-    const missing = await harness.client.connectors.remove.$post({ json: { name: "ghost" } });
-    expect(missing.status).toBe(404);
+    const [missing] = await safe(harness.client.connectors.remove({ name: "ghost" }));
+    expect(missing instanceof ORPCError && missing.code).toBe("NOT_FOUND");
   });
 });

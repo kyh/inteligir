@@ -15,9 +15,8 @@ import { cn } from "@repo/ui/lib/utils";
 import { ChevronRightIcon } from "lucide-react";
 import { useState } from "react";
 
-import { queryKeys, unwrap } from "../api";
+import { orpc } from "../api";
 import { readRelatedOpen, writeRelatedOpen } from "../prefs";
-import { useWorkspace } from "../workspace-context";
 
 /** One row of the merged list, whichever half it came from. */
 export interface RelatedRow {
@@ -92,7 +91,7 @@ export function linkedMentionsSummary(shown: number, total: number): string {
 
 /**
  * Both halves ride the knowledge query family, so the existing
- * files-changed/content-changed sweep of `knowledgeRoot` refreshes them — the
+ * files-changed/content-changed sweep of `orpc.knowledge` refreshes them — the
  * queries moved surfaces, the invalidation story did not. Backlinks fetch
  * regardless of the fold (a graph lookup, and the count is part of the
  * section's claim); suggestions only while OPEN, because that read settles the
@@ -100,14 +99,11 @@ export function linkedMentionsSummary(shown: number, total: number): string {
  * every save for a list nobody is looking at.
  */
 function useRelatedRows(docPath: string, open: boolean) {
-  const { api } = useWorkspace();
-  const backlinksQuery = useQuery({
-    queryKey: queryKeys.backlinks(docPath),
-    queryFn: async () => unwrap(await api.knowledge.backlinks.$get({ query: { path: docPath } })),
-  });
+  const backlinksQuery = useQuery(
+    orpc.knowledge.backlinks.queryOptions({ input: { path: docPath } }),
+  );
   const relatedQuery = useQuery({
-    queryKey: queryKeys.related(docPath),
-    queryFn: async () => unwrap(await api.knowledge.related.$get({ query: { path: docPath } })),
+    ...orpc.knowledge.related.queryOptions({ input: { path: docPath } }),
     enabled: open,
   });
   return { backlinksQuery, relatedQuery };

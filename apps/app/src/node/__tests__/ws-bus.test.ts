@@ -4,7 +4,7 @@ import {
   serverMessageLenientSchema,
   serverMessageSchema,
   type ServerMessage,
-} from "@repo/server-contract/notifications";
+} from "@repo/api/local/notifications";
 import { WsBus, type BusSocket } from "../ws-bus";
 
 interface FakeSocket extends BusSocket {

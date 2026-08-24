@@ -6,9 +6,18 @@
 import { realpathSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { createORPCClient } from "@orpc/client";
+import { RPCLink } from "@orpc/client/fetch";
+import type { ContractRouterClient } from "@orpc/contract";
 import { authorizationHeader } from "@repo/app/node/server-file";
-import { createApiClient, type ApiClient } from "@repo/server-contract/client";
+import type { LocalContract } from "@repo/api/local";
+import { RPC_PREFIX } from "@repo/api/local/routes";
 import { DATA_DIR_ENV_VAR, resolveServer, type ResolvedServer } from "./server-discovery";
+
+/** The typed surface every command drives. A refusal is a THROWN error, so
+ *  there is no success-or-refusal value a command could print by mistake —
+ *  which is the invariant a status-checking helper used to have to enforce. */
+export type Api = ContractRouterClient<LocalContract>;
 
 const THREAD_ID_ENV_VAR = "INTELIGIR_THREAD_ID";
 
@@ -48,18 +57,15 @@ export function createCliDeps(env: NodeJS.ProcessEnv = process.env): CliDeps {
 
 /**
  * The typed client, carrying this instance's bearer on every request. The
- * header is attached HERE and nowhere else: one place that knows the CLI holds
- * a credential at all.
+ * header thunk is the ONE place that knows the CLI holds a credential at all.
  */
-export function apiFor(deps: CliDeps): ApiClient {
+export function apiFor(deps: CliDeps): Api {
   const server = deps.resolveServer();
-  return createApiClient(server.baseUrl, {
-    fetch: (input, init) => {
-      const headers = new Headers(init?.headers);
-      headers.set("authorization", authorizationHeader(server.token));
-      return fetch(input, { ...init, headers });
-    },
+  const link = new RPCLink({
+    url: `${server.baseUrl}${RPC_PREFIX}`,
+    headers: () => ({ authorization: authorizationHeader(server.token) }),
   });
+  return createORPCClient(link);
 }
 
 export function contextThreadId(env: NodeJS.ProcessEnv): string | undefined {

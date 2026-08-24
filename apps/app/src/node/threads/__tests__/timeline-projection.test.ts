@@ -9,7 +9,7 @@ import { runMigrations } from "@repo/db/migrate";
 import { noopNotifier } from "@repo/domain/notifier";
 import type { ThreadEvent } from "@repo/domain/provider-event";
 import { turnScope } from "@repo/domain/thread-event-scope";
-import { applyTimelineDelta, type ThreadTimeline } from "@repo/server-contract/thread-timeline";
+import { applyTimelineDelta, type ThreadTimeline } from "@repo/api/local/thread-timeline";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ThreadService } from "../service";
 import { unavailableTurnDriver } from "../turn-driver";

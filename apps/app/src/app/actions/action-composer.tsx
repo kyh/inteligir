@@ -6,7 +6,7 @@
 // (threads.originDocPath); mentioned notes ride the prompt as a leading
 // context line; its transcript lives in the Actions panel.
 
-import type { WikiTargetWire } from "@repo/server-contract/knowledge";
+import type { WikiTargetWire } from "@repo/api/local/knowledge/knowledge-schema";
 import { Badge } from "@repo/ui/components/badge";
 import { InputMessage } from "@repo/ui/components/input-message";
 import { cn } from "@repo/ui/lib/utils";

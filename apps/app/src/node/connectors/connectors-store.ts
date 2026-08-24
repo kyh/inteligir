@@ -12,7 +12,10 @@ import { stagedWriteFileSync } from "../staged-write";
 import { join } from "node:path";
 import { z } from "zod";
 
-import { connectorNameSchema, connectorUrlSchema } from "@repo/server-contract/connectors";
+import {
+  connectorNameSchema,
+  connectorUrlSchema,
+} from "@repo/api/local/connectors/connectors-schema";
 
 const CONNECTORS_FILE = "connectors.json";
 

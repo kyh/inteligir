@@ -13,8 +13,8 @@ import {
   CommandList,
   CommandShortcut,
 } from "@repo/ui/components/command";
-import type { Thread } from "@repo/server-contract/threads";
-import type { VaultEntry } from "@repo/server-contract/vault";
+import type { Thread } from "@repo/api/local/threads/threads-schema";
+import type { VaultEntry } from "@repo/api/local/vault/vault-schema";
 import {
   CalendarIcon,
   FilePlusIcon,

@@ -7,7 +7,7 @@ import { scrollToCommentMarker } from "@repo/editor/comments/comment-kit";
 import { removeCommentMarkers } from "@repo/editor/comments/comment-markers";
 import { getLiveEditor } from "@repo/editor/live-editor";
 import { flushOpenNote } from "@repo/editor/note/open-note-flush";
-import type { CommentEntryWire, CommentThreadWire } from "@repo/server-contract/comments";
+import type { CommentEntryWire, CommentThreadWire } from "@repo/api/local/comments/comments-schema";
 import { Button } from "@repo/ui/components/button";
 import { Textarea } from "@repo/ui/components/textarea";
 import { toast } from "@repo/ui/components/sonner";
@@ -16,7 +16,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { CheckIcon, Trash2Icon, Undo2Icon } from "lucide-react";
 import { useState } from "react";
 
-import { queryKeys, unwrap } from "../api";
+import { orpc } from "../api";
 import { useWorkspace, type WorkspaceRuntime } from "../workspace-context";
 import { useNoteComments } from "./comment-hooks";
 
@@ -87,30 +87,20 @@ function ThreadCard({
     if (trimmed === "") return;
     act(async () => {
       const id = `${thread.rootId}-r${String(Date.now() % 100_000)}`;
-      await unwrap(
-        await api.comments.reply.$post({
-          json: { id, parentId: thread.rootId, path: docPath, text: trimmed },
-        }),
-      );
+      await api.comments.reply({ id, parentId: thread.rootId, path: docPath, text: trimmed });
       setReply("");
     });
   };
 
   const setResolved = (resolved: boolean): void => {
     act(async () => {
-      await unwrap(
-        await api.comments.resolve.$post({
-          json: { id: thread.rootId, path: docPath, resolved },
-        }),
-      );
+      await api.comments.resolve({ id: thread.rootId, path: docPath, resolved });
     });
   };
 
   const remove = (): void => {
     act(async () => {
-      const response = await unwrap(
-        await api.comments.remove.$post({ json: { id: thread.rootId, path: docPath } }),
-      );
+      const response = await api.comments.remove({ id: thread.rootId, path: docPath });
       // The route owns the sidecar; the markers are the editor's to strip.
       const editor = getLiveEditor(docPath);
       if (editor !== null && response.removedIds.length > 0) {
@@ -216,7 +206,7 @@ export function CommentsTab({
   }
 
   const refresh = (): void => {
-    void queryClient.invalidateQueries({ queryKey: queryKeys.commentsRoot });
+    void queryClient.invalidateQueries({ queryKey: orpc.comments.key() });
   };
 
   const open = data.threads.filter((thread) => !thread.resolved);

@@ -3,7 +3,7 @@
 // rather than disappearing. This pins the sentence per state, and that a ready
 // runtime says nothing at all.
 
-import type { VoiceStatusResponse } from "@repo/server-contract/voice";
+import type { VoiceStatusResponse } from "@repo/api/local/voice/voice-schema";
 import { describe, expect, it } from "vitest";
 import { micBlockedReason } from "../mic-button";
 

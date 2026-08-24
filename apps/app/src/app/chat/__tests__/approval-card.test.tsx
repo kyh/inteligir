@@ -2,7 +2,7 @@
 
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import type { ApprovalPendingInteractionPayload } from "@repo/domain/pending-interactions";
-import type { PendingInteraction } from "@repo/server-contract/threads";
+import type { PendingInteraction } from "@repo/api/local/threads/threads-schema";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ApprovalCard, approvalOffer, decisionFromAnswers } from "../approval-card";
 

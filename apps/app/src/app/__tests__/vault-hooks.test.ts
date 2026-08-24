@@ -1,12 +1,11 @@
 import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { createApiClient, type ApiClient } from "@repo/server-contract/client";
-import type { ApiErrorResponse } from "@repo/server-contract/errors";
+import { ORPCError } from "@orpc/client";
 import {
   vaultStatusResponseSchema,
   type VaultStatusResponse,
   type VaultTreeResponse,
-} from "@repo/server-contract/vault";
+} from "@repo/api/local/vault/vault-schema";
 import { describe, expect, it } from "vitest";
 import {
   filePathsLowercased,
@@ -14,6 +13,7 @@ import {
   renameVaultEntry,
   syncStateLabel,
   untitledNotePath,
+  type RenameVaultApi,
 } from "../vault-hooks";
 
 const tree = (...paths: string[]): VaultTreeResponse => ({
@@ -22,7 +22,7 @@ const tree = (...paths: string[]): VaultTreeResponse => ({
   entries: paths.map((path) =>
     path.endsWith("/")
       ? { kind: "dir" as const, path: path.slice(0, -1) }
-      : { kind: "file" as const, path, size: 1 },
+      : { kind: "file" as const, path },
   ),
 });
 
@@ -48,23 +48,21 @@ describe("the note a virgin boot opens", () => {
   });
 });
 
-const renameApi = (response: () => Response): ApiClient =>
-  createApiClient("http://local.test", { fetch: () => Promise.resolve(response()) });
-
-/** The rename route's two answers, as these cases spell them: the fields the
- *  hook actually reads, and the server's refusal envelope. */
-type RenameBody = { from: string; to: string; rewritten: string[] } | ApiErrorResponse;
-
-const jsonResponse = (status: number, body: RenameBody): Response =>
-  new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+/** The port `renameVaultEntry` declares — one procedure, so a stub is a
+ *  function rather than a mocked client. */
+function renameApi(answer: () => Promise<{ path: string; rewritten: string[] }>): RenameVaultApi {
+  return { vault: { rename: answer } };
+}
 
 describe("renaming a vault entry", () => {
-  // A surface that words the 409 itself ("that name is already taken")
+  // A surface that words the refusal itself ("that name is already taken")
   // drops the half the user needs — WHICH target — and nothing the server
   // ever adds to that sentence reaches them.
   it("carries the server's refusal, verbatim", async () => {
     const api = renameApi(() =>
-      jsonResponse(409, { error: "conflict", message: "Target already exists: notes/plans.md" }),
+      Promise.reject(
+        new ORPCError("CONFLICT", { message: "Target already exists: notes/plans.md" }),
+      ),
     );
     const outcome = await renameVaultEntry(api, "notes/ideas.md", "notes/plans.md");
     expect(outcome).toEqual({
@@ -73,16 +71,14 @@ describe("renaming a vault entry", () => {
     });
   });
 
-  it("falls back only when the failure carries no contract body", async () => {
-    const api = createApiClient("http://local.test", {
-      fetch: () => Promise.reject(new Error("connection lost")),
-    });
+  it("falls back only when the failure carries no sentence of its own", async () => {
+    const api = renameApi(() => Promise.reject(new Error("")));
     const outcome = await renameVaultEntry(api, "notes/ideas.md", "notes/plans.md");
     expect(outcome).toEqual({ ok: false, message: "Could not rename notes/ideas.md." });
   });
 
   it("reports a rename that landed", async () => {
-    const api = renameApi(() => jsonResponse(200, { from: "a.md", to: "b.md", rewritten: [] }));
+    const api = renameApi(() => Promise.resolve({ path: "b.md", rewritten: [] }));
     await expect(renameVaultEntry(api, "a.md", "b.md")).resolves.toEqual({ ok: true });
   });
 });

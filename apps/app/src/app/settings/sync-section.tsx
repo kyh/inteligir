@@ -19,12 +19,15 @@
 // button because the auto-open is best-effort — a headless box or a machine
 // with no `xdg-open` still has a link a person can carry to another screen.
 
-import type { CloudPairBeginResponse, CloudStatusResponse } from "@repo/server-contract/cloud";
+import type {
+  CloudPairBeginResponse,
+  CloudStatusResponse,
+} from "@repo/api/local/cloud/cloud-schema";
 import { Button } from "@repo/ui/components/button";
 import { confirm } from "@repo/ui/components/confirm-dialog";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { queryKeys, unwrap } from "../api";
+import { orpc } from "../api";
 import { useWorkspace } from "../workspace-context";
 import { failed, Row, SectionHeading } from "./settings-chrome";
 
@@ -38,10 +41,8 @@ import { failed, Row, SectionHeading } from "./settings-chrome";
 const STATUS_POLL_MS = 5_000;
 
 function useCloudStatus() {
-  const { api } = useWorkspace();
-  return useQuery<CloudStatusResponse>({
-    queryKey: queryKeys.cloudStatus,
-    queryFn: async () => unwrap(await api.cloud.status.$get()),
+  return useQuery({
+    ...orpc.cloud.status.queryOptions(),
     staleTime: 0,
     refetchInterval: STATUS_POLL_MS,
   });
@@ -152,7 +153,7 @@ export function SyncSection() {
     void (async () => {
       try {
         const next = await call();
-        queryClient.setQueryData<CloudStatusResponse>(queryKeys.cloudStatus, () => next);
+        queryClient.setQueryData(orpc.cloud.status.queryKey(), () => next);
       } catch (error) {
         failed(error, fallback);
       } finally {
@@ -168,7 +169,7 @@ export function SyncSection() {
     setPending(true);
     void (async () => {
       try {
-        setBegun(await unwrap(await api.cloud.pair.begin.$post({ json: { openBrowser: true } })));
+        setBegun(await api.cloud.pairBegin({ openBrowser: true }));
       } catch (error) {
         failed(error, "Could not start pairing.");
       } finally {
@@ -191,12 +192,12 @@ export function SyncSection() {
         return;
       }
       setBegun(null);
-      perform("Could not unpair this device.", async () => unwrap(await api.cloud.unpair.$post()));
+      perform("Could not unpair this device.", async () => api.cloud.unpair());
     })();
   };
 
   const syncNow = (): void => {
-    perform("Could not run a sync.", async () => unwrap(await api.cloud.sync.$post()));
+    perform("Could not run a sync.", async () => api.cloud.syncNow());
   };
 
   const status = statusQuery.data;

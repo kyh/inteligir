@@ -2,7 +2,8 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DEV_DATA_ROOT_DIR, PROD_DATA_DIR_NAME, PROD_SERVER_PORT } from "@repo/app/node/config";
-import { SERVER_FILE_NAME, authorizationHeader } from "@repo/app/node/server-file";
+import { SERVER_FILE_NAME } from "@repo/app/node/server-file";
+import type { SystemStatusResponse } from "@repo/api/local/system/system-schema";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   describeServerVerdict,
@@ -11,6 +12,7 @@ import {
   serverOrigin,
   verifyServer,
   windowUrl,
+  type ProbeStatus,
 } from "../server-target";
 
 const scratchDirs: string[] = [];
@@ -146,24 +148,27 @@ function dataDirWithServer(port: number | null): string {
   return dir;
 }
 
-/** A responder that answers `/system/status` only for the right bearer. */
-function respondingServer(dataDir: string, options: { token?: string; status?: unknown } = {}) {
-  return (url: string, init: RequestInit): Promise<Response> => {
-    const headers = new Headers(init.headers);
-    if (headers.get("authorization") !== authorizationHeader(options.token ?? TOKEN)) {
-      return Promise.resolve(new Response("no", { status: 401 }));
-    }
-    const body = options.status ?? {
-      version: "0.1.0",
-      dataDir,
-      vaultDir: join(dataDir, "vault"),
-      schemaVersion: 1,
-      uptimeMs: 1,
-      agent: { mode: "off", runtime: "off", detail: null },
-    };
-    expect(url).toContain("/api/v1/system/status");
-    return Promise.resolve(Response.json(body));
+function systemStatus(dataDir: string): SystemStatusResponse {
+  return {
+    version: "0.1.0",
+    dataDir,
+    vaultDir: join(dataDir, "vault"),
+    schemaVersion: 1,
+    uptimeMs: 1,
+    agent: { mode: "off", runtime: "off", detail: null },
   };
+}
+
+/** A responder that names `dataDir`, and only for the right bearer — a wrong
+ *  one answers nothing, which is what a squatter looks like from here. */
+function respondingServer(
+  dataDir: string,
+  options: { token?: string; claims?: string } = {},
+): ProbeStatus {
+  return (server) =>
+    Promise.resolve(
+      server.token === (options.token ?? TOKEN) ? systemStatus(options.claims ?? dataDir) : null,
+    );
 }
 
 describe("serverOrigin", () => {
@@ -194,7 +199,7 @@ describe("verifyServer", () => {
   it("REFUSES a port squatter — it cannot hold a token it never wrote", async () => {
     const dataDir = dataDirWithServer(4700);
     const verdict = await verifyServer(dataDir, respondingServer(dataDir, { token: "other" }));
-    expect(verdict).toEqual({ kind: "not-ours", origin: "http://127.0.0.1:4700" });
+    expect(verdict).toEqual({ kind: "unreachable", origin: "http://127.0.0.1:4700" });
   });
 
   it("refuses a real server that serves a different vault", async () => {
@@ -203,16 +208,7 @@ describe("verifyServer", () => {
     const dataDir = dataDirWithServer(4700);
     const verdict = await verifyServer(
       dataDir,
-      respondingServer(dataDir, {
-        status: {
-          version: "0.1.0",
-          dataDir: "/elsewhere",
-          vaultDir: "/elsewhere/vault",
-          schemaVersion: 1,
-          uptimeMs: 1,
-          agent: { mode: "off", runtime: "off", detail: null },
-        },
-      }),
+      respondingServer(dataDir, { claims: "/elsewhere" }),
     );
     expect(verdict).toEqual({
       kind: "wrong-data-dir",
@@ -229,9 +225,10 @@ describe("verifyServer", () => {
 
   it("reports a stale row as unreachable, not as a stranger", async () => {
     const dataDir = dataDirWithServer(4700);
-    await expect(
-      verifyServer(dataDir, () => Promise.reject(new Error("ECONNREFUSED"))),
-    ).resolves.toEqual({ kind: "unreachable", origin: "http://127.0.0.1:4700" });
+    await expect(verifyServer(dataDir, () => Promise.resolve(null))).resolves.toEqual({
+      kind: "unreachable",
+      origin: "http://127.0.0.1:4700",
+    });
   });
 });
 
@@ -239,7 +236,6 @@ describe("describeServerVerdict", () => {
   it.each([
     [{ kind: "no-server" as const }],
     [{ kind: "unreachable" as const, origin: "http://127.0.0.1:4664" }],
-    [{ kind: "not-ours" as const, origin: "http://127.0.0.1:4664" }],
   ])("says something a human can act on for %o", (verdict) => {
     expect(describeServerVerdict(verdict, "/data").length).toBeGreaterThan(10);
   });

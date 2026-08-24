@@ -86,10 +86,12 @@ describe("codex runtime shell env wiring", () => {
     );
 
     const threadId = await createThread(harness.client);
-    const send = await harness.client.threads.send.$post({
-      json: { threadId, text: "drive the CLI", mode: "steer-if-active" },
+    const send = await harness.client.threads.send({
+      threadId,
+      text: "drive the CLI",
+      mode: "steer-if-active",
     });
-    expect(send.status).toBe(200);
+    expect(send.kind).toBe("started");
 
     const options = await waitFor(() => recorded.options[0], "the runtime to be constructed");
     // The two values this wiring owns — the instance's data dir and the

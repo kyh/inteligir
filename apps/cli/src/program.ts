@@ -16,6 +16,7 @@
 // shape — builtin flags, dispatch, one catch — with the code as its value.
 
 import { readFileSync } from "node:fs";
+import { ORPCError } from "@orpc/client";
 import { runCommand, defineCommand, renderUsage, type CommandDef } from "citty";
 import { z } from "zod";
 import { CliExitError, EXIT_ERROR, getErrorMessage, invalidUsage } from "./cli-error";
@@ -152,18 +153,26 @@ interface Failure {
 }
 
 /**
+ * THE one place a refusal becomes an exit. A server refusal arrives as a
+ * thrown `ORPCError` carrying the contract's own class, so it passes through
+ * with its class intact — and because it is thrown rather than returned, no
+ * command can reach a body that does not exist. That invariant used to need a
+ * status-checking chokepoint every command had to remember to call.
+ *
  * citty raises a missing argument, an unknown command and a bad enum as its
  * own `CLIError`, which it does not export — so the class is recognised by
- * name. Every one of them is the caller's own mistake, which is the class
- * commander reported for the same inputs.
+ * name. Every one of them is the caller's own mistake.
  */
 function asFailure(cause: unknown): Failure {
   if (cause instanceof CliExitError) {
     return { code: cause.code, message: cause.message, exitCode: cause.exitCode };
   }
+  if (cause instanceof ORPCError) {
+    return { code: cause.code, message: cause.message, exitCode: EXIT_ERROR };
+  }
   if (cause instanceof Error && cause.name === "CLIError") {
     const local = invalidUsage(cause.message);
     return { code: local.code, message: local.message, exitCode: local.exitCode };
   }
-  return { code: "unexpected", message: getErrorMessage(cause), exitCode: EXIT_ERROR };
+  return { code: "UNEXPECTED", message: getErrorMessage(cause), exitCode: EXIT_ERROR };
 }

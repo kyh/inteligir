@@ -7,10 +7,10 @@
 import {
   realtimeSubscriptionTargetKey,
   serverMessageLenientSchema,
-  WS_PATH,
   type ChangedMessage,
   type RealtimeSubscriptionTarget,
-} from "@repo/server-contract/notifications";
+} from "@repo/api/local/notifications";
+import { WS_PATH } from "@repo/api/local/routes";
 import { z } from "zod";
 
 /** The slice of the WebSocket surface this client drives; the browser's

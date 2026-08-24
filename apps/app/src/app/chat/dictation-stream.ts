@@ -9,7 +9,8 @@
 // flushed on open, and a `finalize` that races the open is held behind them so
 // the server sees every frame before it is asked for the final.
 
-import { VOICE_STREAM_PATH, voiceStreamDownMessageSchema } from "@repo/server-contract/voice";
+import { VOICE_STREAM_PATH } from "@repo/api/local/routes";
+import { voiceStreamDownMessageSchema } from "@repo/api/local/voice/voice-schema";
 import { z } from "zod";
 
 /** The slice of the WebSocket surface this client drives; the browser's

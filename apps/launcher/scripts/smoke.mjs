@@ -165,6 +165,23 @@ try {
     authorization: `Bearer ${JSON.parse(readFileSync(join(dataDir, "server.json"), "utf8")).token}`,
   });
 
+  /**
+   * ONE procedure call over the RPC protocol, hand-rolled because this script
+   * runs against a PACKED tarball with no bundler and no workspace link — the
+   * wire is `POST /rpc/<path>` with a JSON body and an answer under `json`.
+   */
+  const rpc = async (procedure) => {
+    const response = await fetch(`${baseUrl}/rpc/${procedure}`, {
+      method: "POST",
+      headers: { ...authHeaders(), "content-type": "application/json" },
+      body: "{}",
+    });
+    if (!response.ok) {
+      fail(`${procedure} answered ${response.status}`);
+    }
+    return (await response.json()).json;
+  };
+
   process.stdout.write(`smoke: booting on ${baseUrl}\n`);
   server = spawn(
     bin,
@@ -177,7 +194,7 @@ try {
     },
   );
 
-  const health = await waitForUrl(`${baseUrl}/api/v1/health`, BOOT_TIMEOUT_MS);
+  const health = await waitForUrl(`${baseUrl}/health`, BOOT_TIMEOUT_MS);
   if (health === null) {
     fail(`no health answer on ${baseUrl} within ${BOOT_TIMEOUT_MS}ms`);
   }
@@ -190,8 +207,8 @@ try {
   }
   process.stdout.write(`smoke: SPA shell -> ${shell.status} ${html.length} bytes\n`);
 
-  const vaultList = await fetch(`${baseUrl}/api/v1/vault/tree`, { headers: authHeaders() });
-  process.stdout.write(`smoke: vault tree -> ${vaultList.status}\n`);
+  const vaultList = await rpc("vault/tree");
+  process.stdout.write(`smoke: vault tree -> ${vaultList.entries.length} entries\n`);
 
   // Dictation's native binding is the ONE runtime dependency this smoke checks
   // by BEHAVIOUR rather than presence, and it is a real check because the
@@ -203,11 +220,7 @@ try {
   // REFUSED: this smoke runs on a platform the artifact ships a prebuild for,
   // so a runtime that will not load there is a packaging or ABI regression,
   // which is exactly the class a green smoke on `unavailable` would hide.
-  const voice = await fetch(`${baseUrl}/api/v1/voice/status`, { headers: authHeaders() });
-  if (!voice.ok) {
-    fail(`the voice status route answered ${voice.status}`);
-  }
-  const voiceStatus = await voice.json();
+  const voiceStatus = await rpc("voice/status");
   if (!["no-model", "ready"].includes(voiceStatus.state)) {
     fail(
       `voice status is ${JSON.stringify(voiceStatus)}; expected no-model or ready — ` +

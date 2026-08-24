@@ -14,20 +14,20 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@orpc/client": "catalog:",
+    "@orpc/contract": "catalog:",
+    "@repo/api": "workspace:*",
     "@repo/app": "workspace:*",
     "@repo/domain": "workspace:*",
-    "@repo/server-contract": "workspace:*",
     "@repo/thread-view": "workspace:*",
     "citty": "catalog:",
     "consola": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@hono/node-server": "catalog:",
-    "@repo/typed-routes": "workspace:*",
+    "@orpc/server": "catalog:",
     "@types/node": "catalog:",
     "esbuild": "catalog:",
-    "hono": "catalog:",
     "tsx": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"

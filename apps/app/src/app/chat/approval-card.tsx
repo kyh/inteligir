@@ -12,7 +12,7 @@ import type {
   ApprovalPendingInteractionPayload,
   PendingInteractionApprovalDecision,
 } from "@repo/domain/pending-interactions";
-import type { PendingInteraction } from "@repo/server-contract/threads";
+import type { PendingInteraction } from "@repo/api/local/threads/threads-schema";
 import {
   ApprovalCard as ApprovalCardView,
   ApprovalOption,

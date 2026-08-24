@@ -6,7 +6,7 @@
 // doing rather than implying a live connection it may not have.
 
 import { cleanup, render, screen } from "@testing-library/react";
-import type { CloudPairBeginResponse } from "@repo/server-contract/cloud";
+import type { CloudPairBeginResponse } from "@repo/api/local/cloud/cloud-schema";
 import { afterEach, describe, expect, it } from "vitest";
 import { describeBegun, PairPrompt, PairedDetails } from "../sync-section";
 

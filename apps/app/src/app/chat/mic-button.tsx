@@ -13,7 +13,7 @@ import { Button } from "@repo/ui/components/button";
 import { Spinner } from "@repo/ui/components/spinner";
 import { toast } from "@repo/ui/components/sonner";
 import { cn } from "@repo/ui/lib/utils";
-import type { VoiceStatusResponse } from "@repo/server-contract/voice";
+import type { VoiceStatusResponse } from "@repo/api/local/voice/voice-schema";
 import { MicIcon, MicOffIcon, SquareIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { downloadPercent } from "../voice-hooks";

@@ -3,8 +3,8 @@
 // error paths' exit codes. The timeline fixture exercises the shared
 // @repo/thread-view renderer end to end through `thread show`.
 
-import type { ThreadTimeline } from "@repo/server-contract/thread-timeline";
-import { VAULT_MAX_CONTENT_LENGTH } from "@repo/server-contract/vault";
+import type { ThreadTimeline } from "@repo/api/local/thread-timeline";
+import { VAULT_MAX_CONTENT_LENGTH } from "@repo/api/local/vault/vault-schema";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   makeFixtureState,
@@ -508,7 +508,7 @@ describe("argv the CLI refuses", () => {
     expect(result.stderr).toContain("unknown option: --contentt");
   });
 
-  it("reports an undeclared flag as invalid_usage under --json", async () => {
+  it("reports an undeclared flag as INVALID_USAGE under --json", async () => {
     const server = await boot(seededState());
     const result = await runCliForTest({
       argv: ["tags", "--nope", "--json"],
@@ -517,7 +517,7 @@ describe("argv the CLI refuses", () => {
     expect(result.code).toBe(1);
     expect(result.stdout).toBe("");
     expect(JSON.parse(result.stderr)).toEqual({
-      error: "invalid_usage",
+      error: "INVALID_USAGE",
       message: "unknown option: --nope",
     });
   });
@@ -579,7 +579,7 @@ describe("action new never orphans a thread silently", () => {
     const server = await boot(state);
     // The thread is created, THEN the send refuses — exactly the window where
     // the id would otherwise be lost.
-    state.refuseSend = { error: "provider_unavailable", message: "no agent" };
+    state.refuseSend = { code: "PROVIDER_UNAVAILABLE", message: "no agent" };
     const result = await runCliForTest({
       argv: ["action", "new", "do a thing"],
       baseUrl: server.baseUrl,
@@ -644,7 +644,7 @@ describe("--json failures", () => {
     expect(result.code).toBe(1);
     expect(result.stdout).toBe("");
     expect(JSON.parse(result.stderr)).toEqual({
-      error: "not_found",
+      error: "NOT_FOUND",
       message: "No file at nope.md",
     });
   });
@@ -657,7 +657,7 @@ describe("--json failures", () => {
     });
     expect(result.code).toBe(1);
     expect(JSON.parse(result.stderr)).toEqual({
-      error: "invalid_usage",
+      error: "INVALID_USAGE",
       message: '--timeout must be a positive number (got "nope")',
     });
   });

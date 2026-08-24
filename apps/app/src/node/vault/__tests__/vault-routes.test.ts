@@ -1,203 +1,70 @@
 // The vault API surface over the composed app: contract row → handler →
 // service → disk, plus the ws invalidation a mutation must produce.
 
-import { mkdirSync, realpathSync } from "node:fs";
+import { realpathSync } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { createConnection } from "@repo/db/connection";
-import { getSchemaVersion } from "@repo/db/meta";
-import { runMigrations } from "@repo/db/migrate";
-import { apiErrorResponseSchema } from "@repo/server-contract/errors";
-import { vaultChangedMessageSchema } from "@repo/server-contract/notifications";
-import {
-  VAULT_MAX_CONTENT_LENGTH,
-  vaultReadResponseSchema,
-  vaultStatusResponseSchema,
-  vaultTreeResponseSchema,
-  vaultWriteConflictSchema,
-} from "@repo/server-contract/vault";
-import { afterEach, describe, expect, it } from "vitest";
-import { createApp } from "../../app";
-import { authorizationHeader } from "../../server-file";
-import { TEST_SERVER_TOKEN } from "../../__tests__/boot-app";
-import { createConnectorsService } from "../../connectors/connectors-service";
-import { createConnectorsStore } from "../../connectors/connectors-store";
-import { createConnectorOauthFlow } from "../../connectors/oauth-flow";
-import { createFoldersService } from "../../folders/folders-service";
-import { createFoldersStore } from "../../folders/folders-store";
-import { createNoteIntelligence } from "../../note-intelligence/note-intelligence";
-import { createNoteIntelligenceSettingsStore } from "../../note-intelligence/settings-store";
-import { createKnowledgeRuntime } from "../../knowledge/knowledge-runtime";
-import { unavailableTurnDriver } from "../../threads/turn-driver";
+import { isDefinedError, safe, toORPCError } from "@orpc/client";
+import { vaultChangedMessageSchema } from "@repo/api/local/notifications";
+import { VAULT_ASSET_PATH } from "@repo/api/local/routes";
+import { VAULT_MAX_CONTENT_LENGTH, contentHashHex } from "@repo/api/local/vault/vault-schema";
+import { describe, expect, it } from "vitest";
+import { bootTestApp } from "../../__tests__/boot-app";
+import { makeTempDir } from "../../__tests__/temp-dir";
 import { WsBus, type BusSocket } from "../../ws-bus";
 import { createVaultRuntime } from "../vault-runtime";
-import { contentHashHex } from "@repo/server-contract/vault";
 import { hermeticGitEnv } from "./git-test-env";
-import { makeTempDir } from "../../__tests__/temp-dir";
-
-const cleanups: Array<() => void | Promise<void>> = [];
-
-afterEach(async () => {
-  for (const cleanup of cleanups.splice(0).toReversed()) {
-    await cleanup();
-  }
-});
-
-async function bootVaultApp() {
-  const instanceDir = makeTempDir("inteligir-vault-routes-");
-  const dataDir = join(instanceDir, "data");
-  const vaultDir = join(instanceDir, "vault");
-  mkdirSync(dataDir, { recursive: true });
-  // Pre-created = not a virgin boot, so the starter seed stays out of the
-  // listing expectations (an existing dir is the user-pointed-folder path).
-  mkdirSync(vaultDir, { recursive: true });
-  const db = createConnection(join(dataDir, "inteligir.db"));
-  const knownSchemaVersion = runMigrations(db);
-  const bus = new WsBus({ version: "0.1.0-test" });
-  const vault = await createVaultRuntime({
-    vaultDir,
-    vaultRemote: null,
-    dataDir,
-    notifier: bus,
-    watch: false,
-    syncIntervalMs: null,
-    gitEnv: hermeticGitEnv(),
-  });
-  cleanups.push(() => vault.dispose());
-  const knowledge = createKnowledgeRuntime({
-    dataDir,
-    vault: vault.service,
-    vaultRoot: vaultDir,
-  });
-  cleanups.push(() => knowledge.dispose());
-  const { app } = createApp({
-    agent: { mode: "off", runtime: "off", detail: null },
-    connectors: createConnectorsService(createConnectorsStore(dataDir)),
-    connectorsOauth: createConnectorOauthFlow(createConnectorsStore(dataDir)),
-    folders: createFoldersService({ store: createFoldersStore(dataDir), vaultDir, dataDir }),
-    noteIntelligence: createNoteIntelligence({
-      infer: () => Promise.resolve(null),
-      settings: createNoteIntelligenceSettingsStore(dataDir),
-      vault: vault.service,
-    }),
-    bus,
-    createTurnDriver: () => unavailableTurnDriver,
-    db,
-    config: {
-      databasePath: join(dataDir, "inteligir.db"),
-      dataDir,
-      dataDirSource: "env",
-      devHmrPort: 0,
-      mode: "dev",
-      port: 0,
-      portSource: "env",
-      vaultDir,
-      vaultRemote: null,
-      modelDir: join(dataDir, "models"),
-      voice: "scripted",
-      agent: "off",
-      agentModel: null,
-      cloudUrl: "https://cloud.test",
-    },
-    fallback: { kind: "none" },
-    serverToken: TEST_SERVER_TOKEN,
-    knowledge,
-    schemaVersion: getSchemaVersion(db, knownSchemaVersion),
-    startedAt: Date.now(),
-    vault,
-    version: "0.1.0-test",
-  });
-  // Every route here is behind the device token; the gate itself is covered in
-  // app.test.ts, so this suite presents the credential and tests the handlers.
-  const request = async (input: string, init?: RequestInit): Promise<Response> => {
-    const headers = new Headers(init?.headers);
-    headers.set("authorization", authorizationHeader(TEST_SERVER_TOKEN));
-    return app.request(input, { ...init, headers });
-  };
-  return { app: { request, raw: app }, bus, vaultDir };
-}
-
-/** Any JSON-encodable body, including the malformed ones the refusal cases
- *  send — this helper only serializes, the route decides what is admissible. */
-type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
-
-function jsonRequest(method: string, body: JsonValue): RequestInit {
-  return {
-    method,
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(body),
-  };
-}
 
 describe("the vault routes", () => {
   it("writes through the API onto disk, lists and reads it back", async () => {
-    const { app, vaultDir } = await bootVaultApp();
+    const { client, vaultDir } = await bootTestApp();
 
-    const write = await app.request(
-      "/api/v1/vault/file",
-      jsonRequest("PUT", { path: "notes/api.md", content: "# via API\n" }),
-    );
-    expect(write.status).toBe(200);
+    await client.vault.write({ path: "notes/api.md", content: "# via API\n" });
     expect(await readFile(join(vaultDir, "notes", "api.md"), "utf8")).toBe("# via API\n");
 
-    const tree = await app.request("/api/v1/vault/tree");
-    expect(tree.status).toBe(200);
-    const parsedTree = vaultTreeResponseSchema.parse(await tree.json());
+    const tree = await client.vault.tree();
     // The service reports its PHYSICAL root (symlinks resolved) — on macOS
     // tmpdir() itself is spelled through /var → /private/var.
-    expect(parsedTree.root).toBe(realpathSync(vaultDir));
-    expect(parsedTree.entries).toEqual([
+    expect(tree.root).toBe(realpathSync(vaultDir));
+    expect(tree.entries).toEqual([
       { kind: "dir", path: "notes" },
       { kind: "file", modifiedMs: expect.any(Number), path: "notes/api.md" },
     ]);
 
-    const read = await app.request("/api/v1/vault/file?path=notes%2Fapi.md");
-    expect(read.status).toBe(200);
-    expect(vaultReadResponseSchema.parse(await read.json())).toEqual({
+    expect(await client.vault.read({ path: "notes/api.md" })).toEqual({
       path: "notes/api.md",
       content: "# via API\n",
     });
   });
 
-  it("answers refusals with their declared statuses", async () => {
-    const { app } = await bootVaultApp();
+  it("answers refusals with their declared classes", async () => {
+    const { client } = await bootTestApp();
 
-    const miss = await app.request("/api/v1/vault/file?path=nope.md");
-    expect(miss.status).toBe(404);
-    expect(apiErrorResponseSchema.parse(await miss.json()).error).toBe("not_found");
+    const [missError] = await safe(client.vault.read({ path: "nope.md" }));
+    expect(isDefinedError(missError) && missError.code).toBe("NOT_FOUND");
 
     // The path grammar is on the request schema, so a traversal is refused by
     // the validator before a handler can be entered with it.
-    const traversal = await app.request("/api/v1/vault/file?path=..%2Fescape.md");
-    expect(traversal.status).toBe(400);
-    expect(apiErrorResponseSchema.parse(await traversal.json()).error).toBe("invalid_request");
+    const [traversalError] = await safe(client.vault.read({ path: "../escape.md" }));
+    expect(toORPCError(traversalError).code).toBe("BAD_REQUEST");
 
-    const gitReach = await app.request(
-      "/api/v1/vault/file",
-      jsonRequest("PUT", { path: ".git/config", content: "evil" }),
+    const [gitReachError] = await safe(
+      client.vault.write({ path: ".git/config", content: "evil" }),
     );
-    expect(gitReach.status).toBe(400);
+    expect(toORPCError(gitReachError).code).toBe("BAD_REQUEST");
 
-    await app.request("/api/v1/vault/file", jsonRequest("PUT", { path: "a.md", content: "a" }));
-    await app.request("/api/v1/vault/file", jsonRequest("PUT", { path: "b.md", content: "b" }));
-    const clobber = await app.request(
-      "/api/v1/vault/rename",
-      jsonRequest("POST", { from: "a.md", to: "b.md" }),
-    );
-    expect(clobber.status).toBe(409);
+    await client.vault.write({ path: "a.md", content: "a" });
+    await client.vault.write({ path: "b.md", content: "b" });
+    const [clobberError] = await safe(client.vault.rename({ from: "a.md", to: "b.md" }));
+    expect(isDefinedError(clobberError) && clobberError.code).toBe("CONFLICT");
 
-    const removeMiss = await app.request(
-      "/api/v1/vault/delete",
-      jsonRequest("POST", { path: "ghost.md" }),
-    );
-    expect(removeMiss.status).toBe(404);
+    const [removeMissError] = await safe(client.vault.remove({ path: "ghost.md" }));
+    expect(isDefinedError(removeMissError) && removeMissError.code).toBe("NOT_FOUND");
 
-    const oversized = await app.request(
-      "/api/v1/vault/file",
-      jsonRequest("PUT", { path: "big.md", content: "x".repeat(VAULT_MAX_CONTENT_LENGTH + 1) }),
+    const [oversizedError] = await safe(
+      client.vault.write({ path: "big.md", content: "x".repeat(VAULT_MAX_CONTENT_LENGTH + 1) }),
     );
-    expect(oversized.status).toBe(400);
-    expect(apiErrorResponseSchema.parse(await oversized.json()).error).toBe("invalid_request");
+    expect(toORPCError(oversizedError).code).toBe("BAD_REQUEST");
   });
 
   it("refuses a vault nested in the data dir at composition time", async () => {
@@ -216,122 +83,97 @@ describe("the vault routes", () => {
   });
 
   it("renames and deletes through the API", async () => {
-    const { app } = await bootVaultApp();
-    await app.request("/api/v1/vault/file", jsonRequest("PUT", { path: "old.md", content: "x" }));
+    const { client } = await bootTestApp();
+    await client.vault.write({ path: "old.md", content: "x" });
 
-    const rename = await app.request(
-      "/api/v1/vault/rename",
-      jsonRequest("POST", { from: "old.md", to: "nested/new.md" }),
-    );
-    expect(rename.status).toBe(200);
-    expect(await rename.json()).toEqual({ path: "nested/new.md", rewritten: [], skipped: [] });
+    expect(await client.vault.rename({ from: "old.md", to: "nested/new.md" })).toEqual({
+      path: "nested/new.md",
+      rewritten: [],
+      skipped: [],
+    });
 
-    const remove = await app.request(
-      "/api/v1/vault/delete",
-      jsonRequest("POST", { path: "nested/new.md" }),
-    );
-    expect(remove.status).toBe(200);
-    expect(await remove.json()).toEqual({ ok: true });
+    expect(await client.vault.remove({ path: "nested/new.md" })).toEqual({ ok: true });
   });
 
   it("applies a compare-and-swap write whose hash matches, refuses a stale one with current", async () => {
-    const { app } = await bootVaultApp();
-    await app.request("/api/v1/vault/file", jsonRequest("PUT", { path: "cas.md", content: "v1" }));
+    const { client } = await bootTestApp();
+    await client.vault.write({ path: "cas.md", content: "v1" });
     const v1Hash = await contentHashHex("v1");
 
-    const applied = await app.request(
-      "/api/v1/vault/file",
-      jsonRequest("PUT", { path: "cas.md", content: "v2", expectedHash: v1Hash }),
-    );
-    expect(applied.status).toBe(200);
+    expect(
+      await client.vault.write({ path: "cas.md", content: "v2", expectedHash: v1Hash }),
+    ).toEqual({ path: "cas.md" });
 
-    const stale = await app.request(
-      "/api/v1/vault/file",
-      jsonRequest("PUT", { path: "cas.md", content: "v3", expectedHash: v1Hash }),
+    const [staleError] = await safe(
+      client.vault.write({ path: "cas.md", content: "v3", expectedHash: v1Hash }),
     );
-    expect(stale.status).toBe(409);
-    const refused = vaultWriteConflictSchema.parse(await stale.json());
-    expect(refused.error).toBe("cas_mismatch");
-    expect(refused.current).toEqual({ content: "v2", hash: await contentHashHex("v2") });
+    expect(isDefinedError(staleError) && staleError.code).toBe("CAS_MISMATCH");
+    // The refusal carries what the file holds now, which is what the client
+    // merges (diff3) and retries against.
+    expect(
+      isDefinedError(staleError) && staleError.code === "CAS_MISMATCH" && staleError.data,
+    ).toEqual({ current: { content: "v2", hash: await contentHashHex("v2") } });
 
-    const missing = await app.request(
-      "/api/v1/vault/file",
-      jsonRequest("PUT", { path: "ghost.md", content: "x", expectedHash: v1Hash }),
+    const [ghostError] = await safe(
+      client.vault.write({ path: "ghost.md", content: "x", expectedHash: v1Hash }),
     );
-    expect(missing.status).toBe(409);
-    const ghostRefusal = vaultWriteConflictSchema.parse(await missing.json());
-    expect(ghostRefusal.error).toBe("cas_mismatch");
-    expect(ghostRefusal.current).toBeUndefined();
+    expect(isDefinedError(ghostError) && ghostError.code).toBe("CAS_MISMATCH");
+    // A file that no longer exists has nothing to merge against.
+    expect(
+      isDefinedError(ghostError) && ghostError.code === "CAS_MISMATCH" && ghostError.data,
+    ).toEqual({});
   });
 
   it("honors create-exclusive writes and refuses both guards together", async () => {
-    const { app } = await bootVaultApp();
-    const created = await app.request(
-      "/api/v1/vault/file",
-      jsonRequest("PUT", { path: "fresh.md", content: "new", ifAbsent: true }),
-    );
-    expect(created.status).toBe(200);
+    const { client } = await bootTestApp();
+    expect(await client.vault.write({ path: "fresh.md", content: "new", ifAbsent: true })).toEqual({
+      path: "fresh.md",
+    });
 
-    const exists = await app.request(
-      "/api/v1/vault/file",
-      jsonRequest("PUT", { path: "fresh.md", content: "clobber", ifAbsent: true }),
+    const [existsError] = await safe(
+      client.vault.write({ path: "fresh.md", content: "clobber", ifAbsent: true }),
     );
-    expect(exists.status).toBe(409);
-    expect(vaultWriteConflictSchema.parse(await exists.json()).error).toBe("already_exists");
+    expect(isDefinedError(existsError) && existsError.code).toBe("ALREADY_EXISTS");
 
-    const both = await app.request(
-      "/api/v1/vault/file",
-      jsonRequest("PUT", {
+    const [bothError] = await safe(
+      client.vault.write({
         path: "fresh.md",
         content: "x",
         ifAbsent: true,
         expectedHash: await contentHashHex("new"),
       }),
     );
-    expect(both.status).toBe(400);
+    expect(toORPCError(bothError).code).toBe("BAD_REQUEST");
   });
 
   it("creates folders through the API and refuses a file-shadowed one", async () => {
-    const { app } = await bootVaultApp();
+    const { client } = await bootTestApp();
 
-    const created = await app.request(
-      "/api/v1/vault/mkdir",
-      jsonRequest("POST", { path: "projects/ideas" }),
-    );
-    expect(created.status).toBe(200);
-    expect(await created.json()).toEqual({ path: "projects/ideas" });
+    expect(await client.vault.mkdir({ path: "projects/ideas" })).toEqual({
+      path: "projects/ideas",
+    });
 
-    const tree = await app.request("/api/v1/vault/tree");
-    const parsedTree = vaultTreeResponseSchema.parse(await tree.json());
-    expect(parsedTree.entries).toContainEqual({ kind: "dir", path: "projects/ideas" });
+    const tree = await client.vault.tree();
+    expect(tree.entries).toContainEqual({ kind: "dir", path: "projects/ideas" });
 
-    await app.request("/api/v1/vault/file", jsonRequest("PUT", { path: "note.md", content: "x" }));
-    const shadowed = await app.request(
-      "/api/v1/vault/mkdir",
-      jsonRequest("POST", { path: "note.md" }),
-    );
-    expect(shadowed.status).toBe(409);
-    expect(apiErrorResponseSchema.parse(await shadowed.json()).error).toBe("conflict");
+    await client.vault.write({ path: "note.md", content: "x" });
+    const [shadowedError] = await safe(client.vault.mkdir({ path: "note.md" }));
+    expect(isDefinedError(shadowedError) && shadowedError.code).toBe("CONFLICT");
   });
 
   it("answers status and sync-now as no-remote when no remote is configured", async () => {
-    const { app } = await bootVaultApp();
+    const { client } = await bootTestApp();
 
-    const status = await app.request("/api/v1/vault/status");
-    expect(status.status).toBe(200);
-    expect(vaultStatusResponseSchema.parse(await status.json()).state).toBe("no-remote");
-
-    const sync = await app.request("/api/v1/vault/sync", { method: "POST" });
-    expect(sync.status).toBe(200);
-    expect(vaultStatusResponseSchema.parse(await sync.json()).state).toBe("no-remote");
+    expect((await client.vault.status()).state).toBe("no-remote");
+    expect((await client.vault.syncNow()).state).toBe("no-remote");
   });
 
   it("serves an image asset with a pinned type, a sandbox CSP and an ETag", async () => {
-    const { app, vaultDir } = await bootVaultApp();
+    const { request, vaultDir } = await bootTestApp();
     const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="4" height="4"></svg>';
     await writeFile(join(vaultDir, "picture.svg"), svg, "utf8");
 
-    const asset = await app.request("/api/v1/vault/asset?path=picture.svg");
+    const asset = await request(`${VAULT_ASSET_PATH}?path=picture.svg`);
     expect(asset.status).toBe(200);
     expect(asset.headers.get("content-type")).toBe("image/svg+xml");
     expect(asset.headers.get("x-content-type-options")).toBe("nosniff");
@@ -342,36 +184,36 @@ describe("the vault routes", () => {
 
     const etag = asset.headers.get("etag");
     expect(etag).not.toBeNull();
-    const revalidated = await app.request("/api/v1/vault/asset?path=picture.svg", {
+    const revalidated = await request(`${VAULT_ASSET_PATH}?path=picture.svg`, {
       headers: { "if-none-match": etag ?? "" },
     });
     expect(revalidated.status).toBe(304);
   });
 
   it("refuses an asset whose extension is not an image type it serves", async () => {
-    const { app, vaultDir } = await bootVaultApp();
+    const { request, vaultDir } = await bootTestApp();
     await writeFile(join(vaultDir, "page.html"), "<script>alert(1)</script>", "utf8");
 
-    const refused = await app.request("/api/v1/vault/asset?path=page.html");
+    const refused = await request(`${VAULT_ASSET_PATH}?path=page.html`);
     expect(refused.status).toBe(400);
-    expect(apiErrorResponseSchema.parse(await refused.json()).error).toBe("invalid_path");
+    expect(await refused.text()).toContain("not an image type this vault serves");
 
-    const missing = await app.request("/api/v1/vault/asset?path=absent.png");
+    const missing = await request(`${VAULT_ASSET_PATH}?path=absent.png`);
     expect(missing.status).toBe(404);
   });
 
   it("refuses an asset request that carries no device token", async () => {
-    const { app, vaultDir } = await bootVaultApp();
+    const { composed, vaultDir } = await bootTestApp();
     await writeFile(join(vaultDir, "picture.png"), "not really a png", "utf8");
     // The bytes come from a vault a git remote can write into and are served
     // from this origin, so the asset route is behind the same gate as the rest
     // — a page that guessed the port cannot even learn that a path exists.
-    const anonymous = await app.raw.request("/api/v1/vault/asset?path=picture.png");
+    const anonymous = await composed.app.request(`${VAULT_ASSET_PATH}?path=picture.png`);
     expect(anonymous.status).toBe(401);
   });
 
   it("fans a mutation out to vault subscribers on the ws bus", async () => {
-    const { app, bus } = await bootVaultApp();
+    const { client, bus } = await bootTestApp();
     const frames: string[] = [];
     const socket: BusSocket = {
       close: () => {},
@@ -381,10 +223,7 @@ describe("the vault routes", () => {
     bus.registerClient(socket);
     bus.subscribe(socket, { kind: "vault" });
 
-    await app.request(
-      "/api/v1/vault/file",
-      jsonRequest("PUT", { path: "notify.md", content: "ping" }),
-    );
+    await client.vault.write({ path: "notify.md", content: "ping" });
     const sawVaultChange = frames.some(
       (frame) => vaultChangedMessageSchema.safeParse(JSON.parse(frame)).success,
     );

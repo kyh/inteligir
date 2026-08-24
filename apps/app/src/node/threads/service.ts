@@ -75,25 +75,18 @@ import type {
   Thread,
   TimelineQuery,
   TimelineResponse,
-} from "@repo/server-contract/threads";
-import type { ApiErrorCode } from "@repo/server-contract/errors";
-import { computeTimelineDelta } from "@repo/server-contract/thread-timeline";
+} from "@repo/api/local/threads/threads-schema";
+import { computeTimelineDelta } from "@repo/api/local/thread-timeline";
 import { ThreadTimelineProjector } from "./timeline-projection";
 import { TurnDriverUnavailableError, type CreateTurnDriver, type TurnDriver } from "./turn-driver";
 import type { ProviderEventSink, TurnDriverStartArgs, TurnDriverSteerArgs } from "./turn-driver";
 
 /**
- * Why a send can conflict — a SUBSET of the API's vocabulary, held against it
- * rather than restated. All three answer one status today, and the route reads
- * that status out of the contract's map by code, so the day one of them stops
- * agreeing the handler stops compiling instead of quietly answering the wrong
- * one.
+ * Why a send can conflict. `threads-router.ts` switches EXHAUSTIVELY over this
+ * union to pick the wire class each one answers, so a member added here breaks
+ * there — which is where the answer belongs — rather than becoming a 500.
  */
-const SEND_CONFLICT_CODES = [
-  "stale_turn",
-  "not_steerable",
-  "archived",
-] as const satisfies readonly ApiErrorCode[];
+const SEND_CONFLICT_CODES = ["stale_turn", "not_steerable", "archived"] as const;
 
 type SendConflictCode = (typeof SEND_CONFLICT_CODES)[number];
 

@@ -5,11 +5,15 @@
 // is this app's now, so a CLI write races nothing and hides nothing —
 // Settings shows the same rows the moment they change.
 
-import { connectorTarget, type ConnectorTransportInput } from "@repo/server-contract/connectors";
+import {
+  connectorTarget,
+  type ConnectorsResponse,
+  type ConnectorTransportInput,
+} from "@repo/api/local/connectors/connectors-schema";
 import { defineCommand } from "citty";
 import { invalidUsage } from "../cli-error";
 import { apiFor, type CliDeps } from "../context";
-import { jsonArg, out, outputJson, requireOk, writeLines } from "../output";
+import { jsonArg, out, outputJson, writeLines } from "../output";
 
 export function connectorsCommand(deps: CliDeps) {
   return defineCommand({
@@ -23,7 +27,7 @@ export function connectorsCommand(deps: CliDeps) {
         args: { ...jsonArg },
         run: async ({ args }) => {
           const api = apiFor(deps);
-          const body = await (await requireOk(await api.connectors.$get())).json();
+          const body: ConnectorsResponse = await api.connectors.list();
           if (outputJson(args, body)) {
             return;
           }
@@ -90,10 +94,7 @@ export function connectorsCommand(deps: CliDeps) {
             throw invalidUsage("provide exactly one of --url or --command");
           }
           const api = apiFor(deps);
-          const response = await requireOk(
-            await api.connectors.add.$post({ json: { name: args.name, transport } }),
-          );
-          const body = await response.json();
+          const body = await api.connectors.add({ name: args.name, transport });
           if (outputJson(args, body)) {
             return;
           }
@@ -109,10 +110,7 @@ export function connectorsCommand(deps: CliDeps) {
         },
         run: async ({ args }) => {
           const api = apiFor(deps);
-          const response = await requireOk(
-            await api.connectors.remove.$post({ json: { name: args.name } }),
-          );
-          const body = await response.json();
+          const body = await api.connectors.remove({ name: args.name });
           if (outputJson(args, body)) {
             return;
           }

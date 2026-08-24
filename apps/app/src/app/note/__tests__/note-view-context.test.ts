@@ -3,7 +3,7 @@
 // only ever existed in this browser — and every assertion about the path and
 // the selection would still pass while the claim underneath them was false.
 
-import { contentHashHex } from "@repo/server-contract/vault";
+import { contentHashHex } from "@repo/api/local/vault/vault-schema";
 import { describe, expect, it } from "vitest";
 import { readNoteViewContext, type OpenNoteView } from "../note-view-context";
 

@@ -4,31 +4,23 @@
 // so its hook holds it and refreshes off threadEvents directly.
 
 import type { ThreadChangeKind } from "@repo/domain/change-kinds";
-import type { GetThreadResponse, ListThreadsResponse } from "@repo/server-contract/threads";
-import { applyTimelineDelta, type ThreadTimeline } from "@repo/server-contract/thread-timeline";
+import type {
+  GetThreadResponse,
+  ListThreadsResponse,
+} from "@repo/api/local/threads/threads-schema";
+import { applyTimelineDelta, type ThreadTimeline } from "@repo/api/local/thread-timeline";
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { queryKeys, unwrap } from "../api";
+import { orpc } from "../api";
 import { useWorkspace } from "../workspace-context";
 
 export function useThreads(): UseQueryResult<ListThreadsResponse> {
-  const { api } = useWorkspace();
-  return useQuery({
-    queryKey: queryKeys.threads,
-    queryFn: async () => unwrap(await api.threads.list.$get()),
-  });
+  return useQuery(orpc.threads.list.queryOptions());
 }
 
 export function useThreadDetail(threadId: string | null): UseQueryResult<GetThreadResponse> {
-  const { api } = useWorkspace();
   return useQuery({
-    queryKey: queryKeys.threadDetail(threadId ?? "none"),
-    queryFn: async () => {
-      if (threadId === null) {
-        throw new Error("no thread");
-      }
-      return unwrap(await api.threads.get.$get({ query: { threadId } }));
-    },
+    ...orpc.threads.get.queryOptions({ input: { threadId: threadId ?? "none" } }),
     enabled: threadId !== null,
   });
 }
@@ -77,7 +69,7 @@ export function useThreadTimeline(threadId: string | null): ThreadTimeline | nul
     let rerun = false;
 
     const fetchFull = async (): Promise<ThreadTimeline | null> => {
-      const response = await unwrap(await api.threads.timeline.$get({ query: { threadId } }));
+      const response = await api.threads.timeline({ threadId });
       return response.kind === "full" ? response.timeline : null;
     };
 
@@ -94,11 +86,10 @@ export function useThreadTimeline(threadId: string | null): ThreadTimeline | nul
           if (held === null) {
             next = await fetchFull();
           } else {
-            const response = await unwrap(
-              await api.threads.timeline.$get({
-                query: { threadId, afterSequence: held.maxSequence },
-              }),
-            );
+            const response = await api.threads.timeline({
+              threadId,
+              afterSequence: held.maxSequence,
+            });
             next =
               response.kind === "full"
                 ? response.timeline

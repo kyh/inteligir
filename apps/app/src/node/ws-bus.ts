@@ -15,7 +15,7 @@ import {
   type HelloMessage,
   type RealtimeSubscriptionTarget,
   type VaultChangedMessage,
-} from "@repo/server-contract/notifications";
+} from "@repo/api/local/notifications";
 
 /** Structural on purpose: production passes hono/ws WSContext, tests a fake. */
 export interface BusSocket {

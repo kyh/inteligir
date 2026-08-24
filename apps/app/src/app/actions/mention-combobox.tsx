@@ -6,7 +6,7 @@
 // state. Picking is the CALLER's move: it splices the text and keeps the
 // chosen paths as chips.
 
-import type { WikiTargetWire } from "@repo/server-contract/knowledge";
+import type { WikiTargetWire } from "@repo/api/local/knowledge/knowledge-schema";
 import { cn } from "@repo/ui/lib/utils";
 import { FileTextIcon } from "lucide-react";
 

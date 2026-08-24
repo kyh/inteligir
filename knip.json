@@ -121,10 +121,6 @@
       "entry": ["src/**/__tests__/**/*.test.ts", "src/**/*.test.{ts,tsx}"],
       "project": ["src/**/*.{ts,tsx}"]
     },
-    "packages/typed-routes": {
-      "entry": ["src/**/__tests__/**/*.test.ts"],
-      "project": ["src/**/*.ts"]
-    },
     // Vendored-from-bb thread domain + projection (issue #548): the public
     // surface is the vendored bb API, wider than today's importers on
     // purpose — trimming it makes the next re-vendor a conflict.
@@ -156,8 +152,12 @@
       "entry": ["src/**/__tests__/**/*.test.ts"],
       "project": ["src/**/*.ts"]
     },
-    "packages/server-contract": {
-      "entry": ["src/**/__tests__/**/*.test.ts"],
+    // ONE contract package, TWO entry points — every subpath in its exports
+    // map is an entry, so its exports are trusted as API rather than reported.
+    // That is the right trade here: the contract is the surface, and a
+    // procedure with no caller yet is a promise, not dead weight.
+    "packages/api": {
+      "entry": ["src/**/__tests__/**/*.test.ts", "src/**/*.test.ts"],
       "project": ["src/**/*.ts"]
     },
     // Same trade as packages/domain: the cloud contract is built ahead of its

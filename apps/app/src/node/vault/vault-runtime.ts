@@ -6,7 +6,7 @@
 
 import { resolve } from "node:path";
 import type { DbNotifier } from "@repo/domain/notifier";
-import type { VaultStatusResponse } from "@repo/server-contract/vault";
+import type { VaultStatusResponse } from "@repo/api/local/vault/vault-schema";
 import { assertVaultAndDataDirDisjoint } from "../path-containment";
 import {
   createGitEngine,

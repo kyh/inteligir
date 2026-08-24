@@ -29,7 +29,7 @@ const PALETTE_CHORD = process.platform === "darwin" ? "Meta+p" : "Control+p";
 
 function pageIsMounted(bodyText: string): boolean {
   // The seeded welcome note's content only reaches the page through a
-  // successful /api/v1/vault/file round trip; the sync pill proves the status
+  // successful `vault.read` round trip; the sync pill proves the status
   // query ran. Together they prove the client bundle ran against this
   // instance's API. (The sidebar lists TITLES now — "Welcome", not
   // "Welcome.md" — so the content line is the sturdier witness.)

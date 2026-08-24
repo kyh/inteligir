@@ -15,7 +15,7 @@ import { cn } from "@repo/ui/lib/utils";
 import { DEFAULT_DOC_EXTENSION } from "@repo/notes/knowledge/doc-file";
 import { checkNoteName, noteNameErrorMessage } from "@repo/notes/knowledge/note-name";
 import { basenamePath, dirnamePath, extnamePath, joinPath } from "@repo/notes/knowledge/vault-path";
-import type { VaultEntry } from "@repo/server-contract/vault";
+import type { VaultEntry } from "@repo/api/local/vault/vault-schema";
 import { ChevronRightIcon, EllipsisIcon } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 

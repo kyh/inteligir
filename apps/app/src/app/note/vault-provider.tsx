@@ -4,8 +4,8 @@
 // EditorHostIo singleton.
 //
 // THE WRITE IS GUARDED HERE. The session's VaultIO.write carries no base, so
-// this port remembers the last content it READ per path and PUTs with that
-// base's hash; a CAS 409 answers with the disk's truth, which is three-way
+// this port remembers the last content it READ per path and writes with that
+// base's hash; a CAS refusal carries the disk's truth, which is three-way
 // merged (diff3, buffer preferred on overlap) and retried ONCE against the
 // disk content's own hash. The buffer converges through the runtime's normal
 // reload on the write's own files-changed broadcast — the user's bytes are in
@@ -45,8 +45,9 @@ import {
 } from "@repo/notes/formulas/collect-formulas";
 import { buildResolver } from "@repo/notes/knowledge/link-resolve";
 import { diff3 } from "@repo/notes/text/diff3";
-import type { KnowledgeWikiTargetsResponse } from "@repo/server-contract/knowledge";
-import { contentHashHex, type VaultTreeResponse } from "@repo/server-contract/vault";
+import type { KnowledgeWikiTargetsResponse } from "@repo/api/local/knowledge/knowledge-schema";
+import { vaultAssetUrl } from "@repo/api/local/routes";
+import { contentHashHex, type VaultTreeResponse } from "@repo/api/local/vault/vault-schema";
 import { toast } from "@repo/ui/components/sonner";
 import {
   useContext,
@@ -58,6 +59,7 @@ import {
   type RefObject,
 } from "react";
 
+import { isDefinedError, refusalMessage, safe } from "../api";
 import { readLastOpenNote, writeLastOpenNote } from "../prefs";
 import {
   createPaneCoordinator,
@@ -88,10 +90,8 @@ function listingEntries(tree: VaultTreeResponse): VaultEntry[] {
 }
 
 async function readFile(api: Api, path: string): Promise<string> {
-  const response = await api.vault.file.$get({ query: { path } });
-  if (!response.ok) throw new Error(`read ${path}: ${String(response.status)}`);
-  const body = await response.json();
-  return body.content;
+  const { content } = await api.vault.read({ path });
+  return content;
 }
 
 export interface VaultProviderProps {
@@ -201,7 +201,7 @@ export function VaultProvider({
   const session = useMemo<VaultSession>(() => {
     const io = createGuardedVaultIo(api);
     const boot = async (): Promise<WorkspaceBoot> => {
-      const tree = await fetchTree(api);
+      const tree = await api.vault.tree();
       setVaultName(tree.name);
       const flat = listingEntries(tree);
       // The deep link wins, then the last-open note, then the first doc — the
@@ -344,19 +344,17 @@ export function VaultProvider({
     };
     const io: EditorHostIo = {
       readVaultFile: ({ path }) => readFile(api, path),
+      // The read is a plain fetch, not a procedure: the bytes come back raw
+      // with an ETag and a sandbox CSP, none of which survives an RPC
+      // envelope, so `/vault/asset` is one of the routes that stays HTTP.
       readVaultAsset: async ({ path }) => {
-        const response = await api.vault.asset.$get({ query: { path } });
+        const response = await fetch(vaultAssetUrl(window.location.origin, path));
         if (!response.ok) return { ok: false, error: `asset ${String(response.status)}` };
         return { ok: true, bytesBase64: toBase64(new Uint8Array(await response.arrayBuffer())) };
       },
       writeVaultAsset: async ({ dir, baseName, file }) => {
         const bytesBase64 = toBase64(new Uint8Array(await file.arrayBuffer()));
-        const response = await api.vault.asset.$post({ json: { dir, baseName, bytesBase64 } });
-        if (!response.ok) {
-          const body = await response.json();
-          throw new Error(body.message);
-        }
-        return response.json();
+        return api.vault.assetWrite({ dir, baseName, bytesBase64 });
       },
       // The listing carries no stat facts; the properties surface that asks
       // returns with #587's right panel, with its route.
@@ -371,9 +369,8 @@ export function VaultProvider({
           }),
         ),
       getBacklinks: async ({ path }) => {
-        const response = await api.knowledge.backlinks.$get({ query: { path } });
-        if (!response.ok) return [];
-        const body = await response.json();
+        const body = await api.knowledge.backlinks({ path }).catch(() => null);
+        if (body === null) return [];
         // exactOptionalPropertyTypes: the wire's `alias?: string | undefined`
         // must drop the explicit-undefined member to satisfy the notes type.
         return body.backlinks.map(({ alias, ...row }) => {
@@ -475,29 +472,31 @@ function createGuardedVaultIo(api: Api): VaultIO {
   const write = async (path: string, content: string): Promise<void> => {
     const base = bases.get(path) ?? content;
     const expectedHash = await contentHashHex(base);
-    const response = await api.vault.file.$put({ json: { path, content, expectedHash } });
-    if (response.ok) {
+    const { error } = await safe(api.vault.write({ path, content, expectedHash }));
+    if (error === null) {
       bases.set(path, content);
       return;
     }
-    if (response.status === 409) {
-      const body = await response.json();
-      if (body.error === "cas_mismatch" && body.current !== undefined) {
-        const disk = body.current.content;
-        const { merged } = diff3(base, content, disk);
-        const retryHash = await contentHashHex(disk);
-        const retry = await api.vault.file.$put({
-          json: { path, content: merged, expectedHash: retryHash },
-        });
-        if (retry.ok) {
-          bases.set(path, merged);
-          return;
-        }
-        throw new Error(`write ${path}: conflict retry refused (${String(retry.status)})`);
+    // A CAS refusal with no `current` is a delete that raced the write: there
+    // is nothing on disk to merge against, so it refuses like any other.
+    if (
+      isDefinedError(error) &&
+      error.code === "CAS_MISMATCH" &&
+      error.data.current !== undefined
+    ) {
+      const disk = error.data.current.content;
+      const { merged } = diff3(base, content, disk);
+      const retryHash = await contentHashHex(disk);
+      const retry = await safe(api.vault.write({ path, content: merged, expectedHash: retryHash }));
+      if (retry.error === null) {
+        bases.set(path, merged);
+        return;
       }
-      throw new Error(`write ${path}: ${body.error}`);
+      throw new Error(
+        `write ${path}: conflict retry refused (${refusalMessage(retry.error, "no reason given")})`,
+      );
     }
-    throw new Error(`write ${path}: ${String(response.status)}`);
+    throw error;
   };
 
   const remove = async (path: string): Promise<DeleteVaultEntryResult> => {
@@ -507,27 +506,16 @@ function createGuardedVaultIo(api: Api): VaultIO {
     // needs to know the row is gone from the listing.
     const isNote = path.toLowerCase().endsWith(".md");
     const inTrash = path === "Trash" || path.startsWith("Trash/");
-    if (isNote && !inTrash) {
-      const response = await api.vault.trash.$post({ json: { path } });
-      if (response.ok) return { outcome: "trashed" };
-      if (response.status === 404) return { outcome: "absent" };
-      const body = await response.json();
-      throw new Error(`trash ${path}: ${body.error}`);
-    }
-    const response = await api.vault.delete.$post({ json: { path } });
-    if (response.ok) return { outcome: "trashed" };
-    if (response.status === 404) return { outcome: "absent" };
-    const body = await response.json();
-    throw new Error(`delete ${path}: ${body.error}`);
+    const { error } =
+      isNote && !inTrash
+        ? await safe(api.vault.trash({ path }))
+        : await safe(api.vault.remove({ path }));
+    if (error === null) return { outcome: "trashed" };
+    if (isDefinedError(error) && error.code === "NOT_FOUND") return { outcome: "absent" };
+    throw error;
   };
 
   return { read, write, remove };
-}
-
-async function fetchTree(api: Api): Promise<VaultTreeResponse> {
-  const response = await api.vault.tree.$get();
-  if (!response.ok) throw new Error("vault tree unavailable");
-  return response.json();
 }
 
 type PaneSessionConfig = {
@@ -546,19 +534,24 @@ function buildPaneSession(cfg: PaneSessionConfig): VaultSession {
   const { api, io } = cfg;
   return createVaultSession({
     boot: cfg.boot,
-    list: async () => listingEntries(await fetchTree(api)),
+    list: async () => listingEntries(await api.vault.tree()),
     // No host re-announce over HTTP — a refresh IS a re-list, published
     // through the same ordered path list() callers use.
     refresh: () => Promise.resolve(),
+    // Any refusal reads as "not there", and that is safe because of what the
+    // caller does next: open-or-create re-attempts the same path with a write,
+    // which reports its own failure rather than truncating anything.
     exists: async (path) => {
-      const response = await api.vault.file.$get({ query: { path } });
-      return response.ok;
+      const { error } = await safe(api.vault.read({ path }));
+      return error === null;
     },
     rename: async (from, to) => {
-      const response = await api.vault.rename.$post({ json: { from, to } });
-      if (response.ok) return { ok: true };
-      const body = await response.json();
-      return { ok: false, error: body.message };
+      try {
+        await api.vault.rename({ from, to });
+        return { ok: true };
+      } catch (error) {
+        return { ok: false, error: refusalMessage(error, `Could not rename ${from}.`) };
+      }
     },
     note: io,
     publishListing: cfg.publishListing,
@@ -608,7 +601,7 @@ export function SplitPane({
       api,
       io,
       boot: async () => {
-        const tree = await fetchTree(api);
+        const tree = await api.vault.tree();
         const content = await io.read(bootTarget).catch(() => null);
         return {
           root: tree.root,

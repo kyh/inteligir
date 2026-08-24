@@ -17,6 +17,7 @@ import {
   type PendingInteractionPayload,
 } from "@repo/domain/pending-interactions";
 import { getThread } from "@repo/db/threads";
+import { isDefinedError, safe } from "@orpc/client";
 import { describe, expect, it } from "vitest";
 import { hermeticGitEnv } from "../../vault/__tests__/git-test-env";
 import { createAcpRuntimeManager, type AcpRuntimeManagerDeps } from "../runtime-manager";
@@ -202,15 +203,20 @@ describe("the ACP runtime manager over real HTTP", () => {
 
     // The fake offered allow_once + reject_once only, so allow_for_session is
     // out-of-set and refused at the route.
-    const outOfSet = await harness.client.threads.interaction.answer.$post({
-      json: { threadId, interactionId: interaction.id, resolution: "allow_for_session" },
-    });
-    expect(outOfSet.status).toBe(400);
+    const [outOfSet] = await safe(
+      harness.client.threads.answerInteraction({
+        threadId,
+        interactionId: interaction.id,
+        resolution: "allow_for_session",
+      }),
+    );
+    expect(isDefinedError(outOfSet) && outOfSet.code).toBe("INVALID_RESOLUTION");
 
-    const answered = await harness.client.threads.interaction.answer.$post({
-      json: { threadId, interactionId: interaction.id, resolution: "allow_once" },
+    await harness.client.threads.answerInteraction({
+      threadId,
+      interactionId: interaction.id,
+      resolution: "allow_once",
     });
-    expect(answered.status).toBe(200);
 
     await awaitThreadStatus(harness, threadId, "idle");
     const rows = flattenTimelineRows(await fetchTimelineRows(harness.client, threadId));
@@ -234,15 +240,18 @@ describe("the ACP runtime manager over real HTTP", () => {
 
     // Queue B while A is parked on the approval; answering A completes it,
     // and the drain dispatches B onto the same session.
-    const queued = await harness.client.threads.send.$post({
-      json: { threadId, text: "second", mode: "queue-if-active" },
+    const queued = await harness.client.threads.send({
+      threadId,
+      text: "second",
+      mode: "queue-if-active",
     });
-    expect(queued.status).toBe(200);
+    expect(queued.kind).toBe("queued");
 
-    const answered = await harness.client.threads.interaction.answer.$post({
-      json: { threadId, interactionId: interaction.id, resolution: "allow_once" },
+    await harness.client.threads.answerInteraction({
+      threadId,
+      interactionId: interaction.id,
+      resolution: "allow_once",
     });
-    expect(answered.status).toBe(200);
 
     await waitFor(async () => {
       const rows = flattenTimelineRows(await fetchTimelineRows(harness.client, threadId));
@@ -266,9 +275,11 @@ describe("the ACP runtime manager over real HTTP", () => {
 
     // The per-thread state was released with it: the thread takes a new turn
     // rather than answering "already has a running turn".
-    const next = await harness.client.threads.send.$post({
-      json: { threadId, text: "again", mode: "steer-if-active" },
+    const next = await harness.client.threads.send({
+      threadId,
+      text: "again",
+      mode: "steer-if-active",
     });
-    expect(next.status).toBe(200);
+    expect(next.kind).toBe("started");
   });
 });

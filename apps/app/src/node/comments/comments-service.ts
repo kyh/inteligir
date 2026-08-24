@@ -25,8 +25,8 @@ import type {
   CommentEntryWire,
   CommentsRemoveResponse,
   CommentsResponse,
-} from "@repo/server-contract/comments";
-import { COMMENTS_THREADS_MAX } from "@repo/server-contract/comments";
+} from "@repo/api/local/comments/comments-schema";
+import { COMMENTS_THREADS_MAX } from "@repo/api/local/comments/comments-schema";
 
 import { VaultServiceError, type VaultService } from "../vault/vault-service";
 

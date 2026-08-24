@@ -11,7 +11,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { captureProposal } from "@repo/db/proposals";
 import { createThread } from "@repo/db/threads";
-import { contentHashHex, type VaultReadResponse } from "@repo/server-contract/vault";
+import { contentHashHex } from "@repo/api/local/vault/vault-schema";
+import { isDefinedError, safe } from "@orpc/client";
 import { describe, expect, it } from "vitest";
 import { bootTestApp, type BootedTestApp } from "../../__tests__/boot-app";
 
@@ -33,12 +34,8 @@ async function seedProposal(app: BootedTestApp): Promise<string> {
 }
 
 async function readProposal(app: BootedTestApp, proposalId: string) {
-  const response = await app.client.proposals.get.$get({ query: { proposalId } });
-  expect(response.status).toBe(200);
-  if (!response.ok) {
-    throw new Error("the proposal read refused");
-  }
-  return (await response.json()).proposal;
+  const { proposal } = await app.client.proposals.get({ proposalId });
+  return proposal;
 }
 
 function onDisk(app: BootedTestApp): string {
@@ -58,10 +55,11 @@ describe("per-hunk review", () => {
     const id = await seedProposal(app);
     const before = await readProposal(app, id);
 
-    const accepted = await app.client.proposals.accept.$post({
-      json: { proposalId: id, expectedRevision: before.revision, hunkIndex: 0 },
+    await app.client.proposals.accept({
+      proposalId: id,
+      expectedRevision: before.revision,
+      hunkIndex: 0,
     });
-    expect(accepted.status).toBe(200);
 
     expect(onDisk(app)).toBe(["# Notes", "", "ALPHA", "beta", "gamma"].join("\n"));
     const after = await readProposal(app, id);
@@ -79,10 +77,11 @@ describe("per-hunk review", () => {
     const id = await seedProposal(app);
     const before = await readProposal(app, id);
 
-    const rejected = await app.client.proposals.reject.$post({
-      json: { proposalId: id, expectedRevision: before.revision, hunkIndex: 1 },
+    await app.client.proposals.reject({
+      proposalId: id,
+      expectedRevision: before.revision,
+      hunkIndex: 1,
     });
-    expect(rejected.status).toBe(200);
 
     expect(onDisk(app)).toBe(BASE);
     const after = await readProposal(app, id);
@@ -96,10 +95,11 @@ describe("per-hunk review", () => {
     const id = await seedProposal(app);
     for (const hunkIndex of [0, 0]) {
       const current = await readProposal(app, id);
-      const response = await app.client.proposals.accept.$post({
-        json: { proposalId: id, expectedRevision: current.revision, hunkIndex },
+      await app.client.proposals.accept({
+        proposalId: id,
+        expectedRevision: current.revision,
+        hunkIndex,
       });
-      expect(response.status).toBe(200);
     }
     expect(onDisk(app)).toBe(PROPOSED);
     expect((await readProposal(app, id)).status).toBe("accepted");
@@ -110,10 +110,11 @@ describe("per-hunk review", () => {
     const id = await seedProposal(app);
     for (const hunkIndex of [0, 0]) {
       const current = await readProposal(app, id);
-      const response = await app.client.proposals.reject.$post({
-        json: { proposalId: id, expectedRevision: current.revision, hunkIndex },
+      await app.client.proposals.reject({
+        proposalId: id,
+        expectedRevision: current.revision,
+        hunkIndex,
       });
-      expect(response.status).toBe(200);
     }
     expect(onDisk(app)).toBe(BASE);
     expect((await readProposal(app, id)).status).toBe("rejected");
@@ -124,21 +125,17 @@ describe("per-hunk review", () => {
     const id = await seedProposal(app);
 
     const first = await readProposal(app, id);
-    expect(
-      (
-        await app.client.proposals.accept.$post({
-          json: { proposalId: id, expectedRevision: first.revision, hunkIndex: 0 },
-        })
-      ).status,
-    ).toBe(200);
+    await app.client.proposals.accept({
+      proposalId: id,
+      expectedRevision: first.revision,
+      hunkIndex: 0,
+    });
     const second = await readProposal(app, id);
-    expect(
-      (
-        await app.client.proposals.reject.$post({
-          json: { proposalId: id, expectedRevision: second.revision, hunkIndex: 0 },
-        })
-      ).status,
-    ).toBe(200);
+    await app.client.proposals.reject({
+      proposalId: id,
+      expectedRevision: second.revision,
+      hunkIndex: 0,
+    });
 
     expect(onDisk(app)).toBe(["# Notes", "", "ALPHA", "beta", "gamma"].join("\n"));
     // The LAST verb was a reject, and the outcome is still an acceptance:
@@ -153,16 +150,20 @@ describe("per-hunk review", () => {
     const app = await bootTestApp();
     const id = await seedProposal(app);
     const stale = await readProposal(app, id);
-    await app.client.proposals.accept.$post({
-      json: { proposalId: id, expectedRevision: stale.revision, hunkIndex: 0 },
+    await app.client.proposals.accept({
+      proposalId: id,
+      expectedRevision: stale.revision,
+      hunkIndex: 0,
     });
 
-    const refused = await app.client.proposals.accept.$post({
-      json: { proposalId: id, expectedRevision: stale.revision, hunkIndex: 1 },
-    });
-    expect(refused.status).toBe(409);
-    if (refused.ok) return;
-    expect(await refused.json()).toMatchObject({ error: "conflict" });
+    const [error] = await safe(
+      app.client.proposals.accept({
+        proposalId: id,
+        expectedRevision: stale.revision,
+        hunkIndex: 1,
+      }),
+    );
+    expect(isDefinedError(error) && error.code).toBe("CONFLICT");
   });
 
   it("refuses a per-hunk accept against changed disk, without touching the file", async () => {
@@ -172,12 +173,14 @@ describe("per-hunk review", () => {
     const meanwhile = ["# Notes", "", "the user rewrote all of this"].join("\n");
     await app.vault.service.write(DOC, meanwhile);
 
-    const refused = await app.client.proposals.accept.$post({
-      json: { proposalId: id, expectedRevision: proposal.revision, hunkIndex: 0 },
-    });
-    expect(refused.status).toBe(409);
-    if (refused.ok) return;
-    expect(await refused.json()).toMatchObject({ error: "cas_mismatch" });
+    const [error] = await safe(
+      app.client.proposals.accept({
+        proposalId: id,
+        expectedRevision: proposal.revision,
+        hunkIndex: 0,
+      }),
+    );
+    expect(isDefinedError(error) && error.code).toBe("CAS_MISMATCH");
     expect(onDisk(app)).toBe(meanwhile);
     // Still reviewable — and the read says why it cannot be applied.
     expect((await readProposal(app, id)).status).toBe("stale");
@@ -187,13 +190,8 @@ describe("per-hunk review", () => {
     const app = await bootTestApp();
     const id = await seedProposal(app);
     const proposal = await readProposal(app, id);
-    await app.client.proposals.accept.$post({
-      json: { proposalId: id, expectedRevision: proposal.revision },
-    });
-    const read = await app.client.vault.file.$get({ query: { path: DOC } });
-    expect(read.status).toBe(200);
-    if (!read.ok) return;
-    const body: VaultReadResponse = await read.json();
-    expect(body.content).toBe(PROPOSED);
+    await app.client.proposals.accept({ proposalId: id, expectedRevision: proposal.revision });
+    const read = await app.client.vault.read({ path: DOC });
+    expect(read.content).toBe(PROPOSED);
   });
 });

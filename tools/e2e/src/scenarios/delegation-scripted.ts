@@ -40,50 +40,44 @@ export const delegationScripted: Scenario = {
     });
 
     ctx.log("seed the doc over the wire");
-    const seeded = await app.api.vault.file.$put({
-      json: { path: DOC_PATH, content: DOC, ifAbsent: true },
-    });
-    expect(seeded.status === 200, `seed write answered ${seeded.status}`);
+    const seeded = await app.api.vault.write({ path: DOC_PATH, content: DOC, ifAbsent: true });
+    expectEq(seeded.path, DOC_PATH, "the seed write named the doc");
 
     ctx.log("anchor FIRST: splice the marker through the guarded CAS write");
     const withMarker = insertThreadMarker(DOC, DOC.indexOf("paragraph"), ANCHOR);
-    const guarded = await app.api.vault.file.$put({
-      json: { path: DOC_PATH, content: withMarker, expectedHash: sha256Hex(DOC) },
+    const guarded = await app.api.vault.write({
+      path: DOC_PATH,
+      content: withMarker,
+      expectedHash: sha256Hex(DOC),
     });
-    expect(guarded.status === 200, `guarded write answered ${guarded.status}`);
+    expectEq(guarded.path, DOC_PATH, "the guarded write named the doc");
     const onDisk = await readFile(join(app.vaultDir, DOC_PATH), "utf8");
     expectEq(onDisk, withMarker, "marker bytes on disk");
     expect(onDisk.includes(threadMarkerText(ANCHOR)), "the marker comment is in the file");
 
     // The ordering, asserted: the bytes are durable and NO thread is bound yet.
-    const beforeCreate = await app.api.threads["by-doc"].$get({ query: { docPath: DOC_PATH } });
-    expect(beforeCreate.status === 200, `by-doc answered ${beforeCreate.status}`);
-    expectEq((await beforeCreate.json()).threads.length, 0, "threads bound before the create");
+    const beforeCreate = await app.api.threads.byDoc({ docPath: DOC_PATH });
+    expectEq(beforeCreate.threads.length, 0, "threads bound before the create");
 
     ctx.log("create the bound thread");
-    const created = await app.api.threads.create.$post({
-      json: { title: PROMPT, originDocPath: DOC_PATH, originAnchor: ANCHOR },
+    const { thread } = await app.api.threads.create({
+      title: PROMPT,
+      originDocPath: DOC_PATH,
+      originAnchor: ANCHOR,
     });
-    expect(created.status === 201, `create answered ${created.status}`);
-    const { thread } = await created.json();
     expectEq(thread.originAnchor, ANCHOR, "originAnchor");
 
     ctx.log("send the composed first message");
-    const send = await app.api.threads.send.$post({
-      json: {
-        threadId: thread.id,
-        text: `Do the work directly in the vault.\n\n> First paragraph to delegate.\n\nTask: ${PROMPT}`,
-        mode: "steer-if-active",
-      },
+    await app.api.threads.send({
+      threadId: thread.id,
+      text: `Do the work directly in the vault.\n\n> First paragraph to delegate.\n\nTask: ${PROMPT}`,
+      mode: "steer-if-active",
     });
-    expect(send.status === 200, `send answered ${send.status}`);
 
     ctx.log("wait for the turn to settle");
     const deadline = Date.now() + TURN_DEADLINE_MS;
     for (;;) {
-      const detail = await app.api.threads.get.$get({ query: { threadId: thread.id } });
-      expect(detail.status === 200, `thread get answered ${detail.status}`);
-      const { thread: current } = await detail.json();
+      const { thread: current } = await app.api.threads.get({ threadId: thread.id });
       if (current.status === "idle") {
         break;
       }
@@ -97,9 +91,7 @@ export const delegationScripted: Scenario = {
     expect(agentNote.includes(PROMPT), "the agent note holds the sent text");
 
     ctx.log("by-doc answers the chip's data");
-    const byDoc = await app.api.threads["by-doc"].$get({ query: { docPath: DOC_PATH } });
-    expect(byDoc.status === 200, `by-doc answered ${byDoc.status}`);
-    const { threads } = await byDoc.json();
+    const { threads } = await app.api.threads.byDoc({ docPath: DOC_PATH });
     expectEq(threads.length, 1, "one bound thread");
     const activity = threads[0];
     expect(activity !== undefined, "the bound thread is present");
@@ -109,9 +101,7 @@ export const delegationScripted: Scenario = {
     expectEq(activity?.queuedCount, 0, "no queued sends");
 
     ctx.log("the timeline shows the turn and its file change");
-    const timeline = await app.api.threads.timeline.$get({ query: { threadId: thread.id } });
-    expect(timeline.status === 200, `timeline answered ${timeline.status}`);
-    const body = await timeline.json();
+    const body = await app.api.threads.timeline({ threadId: thread.id });
     expect(body.kind === "full", `expected the full timeline, got "${body.kind}"`);
     const rows = body.timeline.rows;
     const turnRow = rows.find((row) => row.kind === "turn");
@@ -141,20 +131,18 @@ export const delegationScripted: Scenario = {
       0,
       SECOND_ANCHOR,
     );
-    const secondWrite = await app.api.vault.file.$put({
-      json: { path: DOC_PATH, content: secondContent },
+    const secondWrite = await app.api.vault.write({ path: DOC_PATH, content: secondContent });
+    expectEq(secondWrite.path, DOC_PATH, "the second marker write named the doc");
+    const { thread: second } = await app.api.threads.create({
+      title: "Second",
+      originDocPath: DOC_PATH,
+      originAnchor: SECOND_ANCHOR,
     });
-    expect(secondWrite.status === 200, `second marker write answered ${secondWrite.status}`);
-    const secondThread = await app.api.threads.create.$post({
-      json: { title: "Second", originDocPath: DOC_PATH, originAnchor: SECOND_ANCHOR },
-    });
-    expect(secondThread.status === 201, `second create answered ${secondThread.status}`);
+    expectEq(second.originAnchor, SECOND_ANCHOR, "the second thread's originAnchor");
 
     ctx.log("renaming the doc FOLLOWS every delegation bound to it");
-    const renamed = await app.api.vault.rename.$post({
-      json: { from: DOC_PATH, to: RENAMED_PATH },
-    });
-    expect(renamed.status === 200, `rename answered ${renamed.status}`);
+    const renamed = await app.api.vault.rename({ from: DOC_PATH, to: RENAMED_PATH });
+    expectEq(renamed.path, RENAMED_PATH, "the rename named the new path");
 
     // The markers travelled with the bytes...
     const movedBytes = await readFile(join(app.vaultDir, RENAMED_PATH), "utf8");
@@ -165,13 +153,11 @@ export const delegationScripted: Scenario = {
     );
 
     // ...and so did both threads' origins, so every chip still resolves.
-    const oldPath = await app.api.threads["by-doc"].$get({ query: { docPath: DOC_PATH } });
-    expect(oldPath.status === 200, `by-doc(old) answered ${oldPath.status}`);
-    expectEq((await oldPath.json()).threads.length, 0, "threads still bound to the old path");
+    const oldPath = await app.api.threads.byDoc({ docPath: DOC_PATH });
+    expectEq(oldPath.threads.length, 0, "threads still bound to the old path");
 
-    const newPath = await app.api.threads["by-doc"].$get({ query: { docPath: RENAMED_PATH } });
-    expect(newPath.status === 200, `by-doc(new) answered ${newPath.status}`);
-    const rebound = (await newPath.json()).threads;
+    const newPath = await app.api.threads.byDoc({ docPath: RENAMED_PATH });
+    const rebound = newPath.threads;
     expectEq(rebound.length, 2, "threads rebound to the new path");
     const reboundAnchors = rebound
       .map((activity) => activity.thread.originAnchor)

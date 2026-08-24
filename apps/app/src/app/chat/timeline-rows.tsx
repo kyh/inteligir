@@ -10,7 +10,7 @@ import type {
   TimelineRow,
   TimelineTurnRow,
   TimelineWorkRow,
-} from "@repo/server-contract/thread-timeline";
+} from "@repo/api/local/thread-timeline";
 import { LoadingState } from "@repo/ui/ai/loading-state";
 import { StreamingText } from "@repo/ui/ai/streaming-text";
 import { Thinking, ThinkingReasoning, ThinkingStep } from "@repo/ui/ai/thinking";

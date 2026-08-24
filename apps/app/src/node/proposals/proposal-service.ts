@@ -31,8 +31,12 @@ import {
 } from "@repo/db/proposals";
 import type { DbNotifier } from "@repo/domain/notifier";
 import { contentHunks, mergeHunks } from "@repo/notes/text/hunk-merge";
-import type { ListProposalsQuery, Proposal, ProposalHunk } from "@repo/server-contract/proposals";
-import { contentHashHex } from "@repo/server-contract/vault";
+import type {
+  ListProposalsQuery,
+  Proposal,
+  ProposalHunk,
+} from "@repo/api/local/proposals/proposals-schema";
+import { contentHashHex } from "@repo/api/local/vault/vault-schema";
 import { VaultServiceError, type VaultService } from "../vault/vault-service";
 
 export interface ProposalServiceArgs {

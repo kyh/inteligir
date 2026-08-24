@@ -8,9 +8,12 @@ import { existsSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
+import { createORPCClient } from "@orpc/client";
+import { RPCLink } from "@orpc/client/fetch";
+import type { ContractRouterClient } from "@orpc/contract";
 import { authorizationHeader, readServerFile } from "@repo/app/node/server-file";
-import { createApiClient, type ApiClient } from "@repo/server-contract/client";
-import { apiPath, apiRoutes, healthResponseSchema } from "@repo/server-contract/routes";
+import type { LocalContract } from "@repo/api/local";
+import { HEALTH_PATH, healthResponseSchema, RPC_PREFIX } from "@repo/api/local/routes";
 import { hermeticProcessEnv } from "./exec";
 import { reserveFreePorts } from "./ports";
 
@@ -61,8 +64,12 @@ export interface LaunchAppArgs {
   register: (instance: AppInstance) => void;
 }
 
+/** The typed client every scenario drives. A refusal THROWS, so a scenario
+ *  that forgot to check one fails rather than asserting on a refusal body. */
+export type InstanceApi = ContractRouterClient<LocalContract>;
+
 export interface AppInstance {
-  api: ApiClient;
+  api: InstanceApi;
   baseUrl: string;
   dataDir: string;
   vaultDir: string;
@@ -175,8 +182,6 @@ async function pollGroupGone(pgid: number, graceMs: number): Promise<boolean> {
     await delay(KILL_POLL_INTERVAL_MS);
   }
 }
-
-const HEALTH_PATH = apiPath(apiRoutes.health);
 
 async function healthAnswered(baseUrl: string): Promise<boolean> {
   try {
@@ -301,20 +306,19 @@ function spawnAttempt(
     return stopPromise;
   }
 
+  // The device token is read from the instance's own data dir on every call
+  // rather than captured once: it is published after listen, and this client is
+  // built before the health wait.
+  const link = new RPCLink({
+    url: `${baseUrl}${RPC_PREFIX}`,
+    headers: () => {
+      const server = readServerFile(dataDir);
+      return server === null ? {} : { authorization: authorizationHeader(server.token) };
+    },
+  });
+
   const instance: AppInstance = {
-    // The device token is read from the instance's own data dir on every call
-    // rather than captured once: it is published after listen, and this client
-    // is built before the health wait.
-    api: createApiClient(baseUrl, {
-      fetch: (input, init) => {
-        const headers = new Headers(init?.headers);
-        const server = readServerFile(dataDir);
-        if (server !== null) {
-          headers.set("authorization", authorizationHeader(server.token));
-        }
-        return fetch(input, { ...init, headers });
-      },
-    }),
+    api: createORPCClient(link),
     baseUrl,
     dataDir,
     vaultDir,

@@ -16,7 +16,7 @@ import {
 } from "@repo/ui/ai/task-rows";
 import { TabsSubtle, TabsSubtleItem } from "@repo/ui/components/tabs-subtle";
 import { PropertiesPanel } from "@repo/editor/properties/properties-panel";
-import type { Thread } from "@repo/server-contract/threads";
+import type { Thread } from "@repo/api/local/threads/threads-schema";
 import { Button } from "@repo/ui/components/button";
 import { Textarea } from "@repo/ui/components/textarea";
 import { toast } from "@repo/ui/components/sonner";
@@ -25,7 +25,7 @@ import { ArchiveIcon, ArrowLeftIcon, ChevronRightIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
-import { queryKeys, unwrap } from "../api";
+import { orpc } from "../api";
 import { ApprovalCard } from "../chat/approval-card";
 import { THREAD_ACTIVITY_LABELS, threadActivity, type ThreadActivity } from "../chat/chat-model";
 import { sendToThread } from "../chat/chat-service";
@@ -158,7 +158,7 @@ function ActionDetail({
   }, [rowCount, pending.length]);
 
   const invalidate = (): void => {
-    void queryClient.invalidateQueries({ queryKey: queryKeys.threadsRoot });
+    void queryClient.invalidateQueries({ queryKey: orpc.threads.key() });
   };
 
   const submit = (): void => {
@@ -191,11 +191,7 @@ function ActionDetail({
   const answerInteraction = (interactionId: string, resolution: string): void => {
     void (async () => {
       try {
-        await unwrap(
-          await api.threads.interaction.answer.$post({
-            json: { interactionId, resolution, threadId },
-          }),
-        );
+        await api.threads.answerInteraction({ interactionId, resolution, threadId });
       } catch {
         toast.error("Could not answer the approval.");
       } finally {
@@ -207,7 +203,7 @@ function ActionDetail({
   const archive = (): void => {
     void (async () => {
       try {
-        await unwrap(await api.threads.archive.$post({ json: { threadId } }));
+        await api.threads.archive({ threadId });
         onBack();
       } catch {
         toast.error("Could not archive the action.");

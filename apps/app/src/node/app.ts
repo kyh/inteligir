@@ -1,10 +1,10 @@
 // Vendored from bb (github.com/get-bb/bb), MIT. © bb contributors.
 
-// One Hono root splitting /api/v1 (the contract table), GET /ws (the
-// invalidation bus), GET /voice/stream (dictation), the two browser landings,
-// and a fallback — vite middlewares in dev, static client + the Start server
-// entry's fetch in prod. Everything but /health and the landings is behind the
-// device token (server-file.ts).
+// One Hono root splitting /rpc (the oRPC handler), the four routes that are
+// deliberately not procedures (`@repo/api/local/routes` says why), the
+// two browser landings, and a fallback — vite middlewares in dev, static
+// client + the Start server entry's fetch in prod. Everything but /health and
+// the landings is behind the device token (server-file.ts).
 
 import { randomBytes } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
@@ -15,16 +15,21 @@ import { serveStatic } from "@hono/node-server/serve-static";
 import type { HttpBindings } from "@hono/node-server";
 import type { DbConnection } from "@repo/db/connection";
 import { rebindThreadOrigins } from "@repo/db/threads";
-import { API_ERROR_STATUS, type ApiErrorResponse } from "@repo/server-contract/errors";
-import { API_BASE_PATH, apiPath, apiRoutes, type AgentStatus } from "@repo/server-contract/routes";
-import { WS_PATH } from "@repo/server-contract/notifications";
-import { typedRoutes } from "@repo/typed-routes/typed-routes";
+import {
+  HEALTH_PATH,
+  RPC_PREFIX,
+  VAULT_ASSET_PATH,
+  VOICE_STREAM_PATH,
+  WS_PATH,
+} from "@repo/api/local/routes";
+import type { AgentStatus } from "@repo/api/local/system/system-schema";
+import { onError, ORPCError } from "@orpc/server";
+import { RPCHandler } from "@orpc/server/fetch";
 import { Hono, type Context, type MiddlewareHandler, type Next } from "hono";
 import { PAIR_CALLBACK_PATH } from "@repo/cloud-contract/pairing";
-import { CONNECTOR_OAUTH_CALLBACK_PATH } from "@repo/server-contract/connectors";
+import { CONNECTOR_OAUTH_CALLBACK_PATH } from "@repo/api/local/connectors/connectors-schema";
 import type { OpenExternalUrl } from "./cloud/browser-opener";
 import { handlePairCallback } from "./cloud/pair-callback";
-import { registerCloudRoutes } from "./cloud/routes";
 import {
   createCloudRuntime,
   type CloudRuntimeArgs,
@@ -37,37 +42,25 @@ import type { ConnectorOauthFlow } from "./connectors/oauth-flow";
 import { systemOpenExternalUrl } from "./cloud/browser-opener";
 import type { FoldersService } from "./folders/folders-service";
 import type { NoteIntelligence } from "./note-intelligence/note-intelligence";
-import { registerConnectorRoutes } from "./connectors/routes";
-import { registerFolderRoutes } from "./folders/routes";
-import { registerNoteIntelligenceRoutes } from "./note-intelligence/routes";
 import { buildContentSecurityPolicy } from "./csp";
-import { CLI_SKILL_MD } from "./guide/cli-skill";
 import { presentedToken, serverTokenCookie, tokenAccepted } from "./server-file";
 import type { KnowledgeRuntime } from "./knowledge/knowledge-runtime";
 import { renameNoteWithLinkRewrite } from "./knowledge/rename";
 import { createCommentsService } from "./comments/comments-service";
-import { registerCommentsRoutes } from "./comments/routes";
-import { registerKnowledgeRoutes } from "./knowledge/routes";
-import { registerAgentRoutes } from "./agent/agent-routes";
+import type { AppContext } from "./orpc";
 import { ProposalService } from "./proposals/proposal-service";
-import { registerProposalRoutes } from "./proposals/routes";
-import { registerThreadRoutes } from "./threads/routes";
+import { localRouter } from "./root-router";
 import { ThreadService } from "./threads/service";
 import type { CreateTurnDriver } from "./threads/turn-driver";
-import { registerVaultRoutes } from "./vault/routes";
+import { handleVaultAsset } from "./vault/asset-route";
 import type { VaultRuntime } from "./vault/vault-runtime";
-import { registerVoiceRoutes } from "./voice/routes";
 import {
   ScriptedVoiceService,
   ParakeetVoiceService,
   type VoiceService,
 } from "./voice/voice-service";
 import { VoiceStreamHub, type VoiceStreamConnection } from "./voice/voice-stream-hub";
-import { VOICE_STREAM_PATH } from "@repo/server-contract/voice";
 import type { WsBus } from "./ws-bus";
-
-/** Thrown by the typed-routes validation wrapper; everything else is a 500. */
-class ApiValidationError extends Error {}
 
 type NodeMiddleware = (
   req: IncomingMessage,
@@ -93,14 +86,15 @@ export type AppFallback =
   | { kind: "none" };
 
 export interface CreateAppArgs {
-  /** What the boot-time driver resolution decided; served on /system/status. */
+  /** What the boot-time driver resolution decided; served on system.status. */
   agent: AgentStatus;
   bus: WsBus;
   /** The sync loop's wire. main.ts supplies the real dial; injectable so a
    *  suite drives the whole loop without a network — and inert either way
    *  until someone pairs, since an install with no credential opens nothing. */
   cloudTransport?: CloudTransport;
-  /** The app-owned MCP registry (issue #591); routes edit what sessions get. */
+  /** The app-owned MCP registry (issue #591); the connectors procedures edit
+   *  what sessions get. */
   connectors: ConnectorsService;
   /** The OAuth dance for hosted rows (issue #602); the callback route's owner. */
   connectorsOauth: ConnectorOauthFlow;
@@ -110,7 +104,7 @@ export interface CreateAppArgs {
   config: AppConfig;
   /** The provider seam (agent-driver.ts resolves which driver boots). */
   createTurnDriver: CreateTurnDriver;
-  /** The thread routes' store; system/status reads nothing from it (schemaVersion below). */
+  /** The thread procedures' store; system.status reads nothing from it. */
   db: DbConnection;
   fallback: AppFallback;
   /** This boot's bearer (server-file.ts). Every privileged surface requires
@@ -146,6 +140,12 @@ const staticCacheControl =
     }
   };
 
+/** Below this, a refusal is normal control flow rather than a server fault: a
+ *  missing row, a rejected input, a conflict a client is expected to merge.
+ *  Logging those would be noise, and the log is the only place internals may
+ *  appear at all. */
+const SERVER_FAULT_STATUS = 500;
+
 export function createApp(args: CreateAppArgs) {
   const app = new Hono<AppEnv>();
   const nodeWebSocket = createNodeWebSocket({ app });
@@ -162,9 +162,9 @@ export function createApp(args: CreateAppArgs) {
   // discloses nothing a bound port does not.
   //
   // The two browser landings (`/pair/callback`, the connector OAuth callback)
-  // are outside it too, and cannot be inside it: what arrives is a
-  // cross-site top-level navigation carrying no credential by construction.
-  // Their single-use `state` stands in its place, which is the whole argument
+  // are outside it too, and cannot be inside it: what arrives is a cross-site
+  // top-level navigation carrying no credential by construction. Their
+  // single-use `state` stands in its place, which is the whole argument
   // `cloud/pair-callback.ts` states.
   const requireServerToken = async (c: Context, next: Next) => {
     if (
@@ -176,88 +176,11 @@ export function createApp(args: CreateAppArgs) {
         }),
       )
     ) {
-      const body: ApiErrorResponse = {
-        error: "unauthorized",
-        message: "this request carried no valid inteligir device token",
-      };
-      return c.json(body, API_ERROR_STATUS.unauthorized);
+      return c.text("This request carried no valid inteligir device token", 401);
     }
     await next();
     return undefined;
   };
-
-  const api = new Hono();
-  api.use("*", async (c, next) => {
-    if (c.req.path === apiPath(apiRoutes.health)) {
-      await next();
-      return undefined;
-    }
-    return requireServerToken(c, next);
-  });
-  api.onError((error, context) => {
-    if (error instanceof ApiValidationError) {
-      const body: ApiErrorResponse = {
-        error: "invalid_request",
-        message: error.message,
-      };
-      return context.json(body, API_ERROR_STATUS.invalid_request);
-    }
-    // Never echo internals: the full error goes to the server log only.
-    console.error(`api error on ${context.req.method} ${context.req.path}`, error);
-    const body: ApiErrorResponse = {
-      error: "internal",
-      message: "Internal server error",
-    };
-    return context.json(body, API_ERROR_STATUS.internal);
-  });
-  const registrars = typedRoutes(api, {
-    onValidationError: (message) => new ApiValidationError(message),
-  });
-  const { get, post } = registrars;
-
-  get(apiRoutes.health, (c) => c.json({ ok: true }));
-  get(apiRoutes.system.status, (c) =>
-    c.json({
-      version: args.version,
-      dataDir: args.config.dataDir,
-      vaultDir: args.config.vaultDir,
-      schemaVersion: args.schemaVersion,
-      uptimeMs: Date.now() - args.startedAt,
-      agent: args.agent,
-    }),
-  );
-  get(apiRoutes.guide, (c) => c.json({ markdown: CLI_SKILL_MD }));
-  registerVaultRoutes(registrars, args.vault, (from, to) =>
-    renameNoteWithLinkRewrite({
-      service: args.vault.service,
-      knowledge: args.knowledge,
-      rebindThreads: (movedFrom, movedTo) =>
-        rebindThreadOrigins(args.db, args.bus, { from: movedFrom, to: movedTo }),
-      from,
-      to,
-    }),
-  );
-  registerKnowledgeRoutes(registrars, args.knowledge);
-
-  // The sidecar rides the vault service, so containment, the watcher ping,
-  // auto-commit and sync come with it; timestamps are unix seconds minted at
-  // this boundary (issue #583).
-  registerCommentsRoutes(
-    registrars,
-    createCommentsService(args.vault.service, () => Math.floor(Date.now() / 1000)),
-  );
-
-  registerConnectorRoutes(
-    registrars,
-    args.connectors,
-    args.connectorsOauth,
-    args.openExternalUrl ?? systemOpenExternalUrl,
-  );
-  registerFolderRoutes(registrars, args.folders);
-  registerNoteIntelligenceRoutes(registrars, args.noteIntelligence);
-
-  // Detect + guide: harness CLI/credential facts for Settings (issue #588).
-  registerAgentRoutes(registrars);
 
   // `scripted` is selected by INTELIGIR_VOICE and is the whole reason the
   // scenario suite can drive a microphone: it answers `ready` with no model on
@@ -267,17 +190,7 @@ export function createApp(args: CreateAppArgs) {
     args.config.voice === "scripted"
       ? new ScriptedVoiceService()
       : new ParakeetVoiceService({ modelDir: args.config.modelDir });
-  registerVoiceRoutes(registrars, voice);
   const voiceStreamHub = new VoiceStreamHub(voice);
-
-  registerProposalRoutes({
-    routes: { get, post },
-    service: new ProposalService({
-      db: args.db,
-      notifier: args.bus,
-      vault: args.vault.service,
-    }),
-  });
 
   // Built BEFORE the thread service, which needs its outbox hook at
   // construction; the ingest sink goes back the other way once that service
@@ -298,17 +211,71 @@ export function createApp(args: CreateAppArgs) {
     sync: cloud,
   });
   cloud.attach(threads);
-  registerCloudRoutes(registrars, cloud);
-  registerThreadRoutes(registrars, threads);
 
-  // Unmatched API paths answer JSON here — an API caller must never receive
-  // the SPA shell or a Vite page from the fallthrough below.
-  api.all("*", (c) => {
-    const body: ApiErrorResponse = { error: "not_found", message: "Not found" };
-    return c.json(body, API_ERROR_STATUS.not_found);
+  // Everything a handler can reach, built once. The comments sidecar rides the
+  // vault service, so containment, the watcher ping, auto-commit and sync come
+  // with it; its timestamps are unix seconds minted at this boundary (#583).
+  const services = {
+    cloud,
+    comments: createCommentsService(args.vault.service, () => Math.floor(Date.now() / 1000)),
+    connectors: args.connectors,
+    connectorsOauth: args.connectorsOauth,
+    folders: args.folders,
+    knowledge: args.knowledge,
+    noteIntelligence: args.noteIntelligence,
+    openExternalUrl: args.openExternalUrl ?? systemOpenExternalUrl,
+    proposals: new ProposalService({
+      db: args.db,
+      notifier: args.bus,
+      vault: args.vault.service,
+    }),
+    renameNote: (from: string, to: string) =>
+      renameNoteWithLinkRewrite({
+        service: args.vault.service,
+        knowledge: args.knowledge,
+        rebindThreads: (movedFrom, movedTo) =>
+          rebindThreadOrigins(args.db, args.bus, { from: movedFrom, to: movedTo }),
+        from,
+        to,
+      }),
+    system: {
+      version: args.version,
+      dataDir: args.config.dataDir,
+      vaultDir: args.config.vaultDir,
+      schemaVersion: args.schemaVersion,
+      startedAt: args.startedAt,
+      agent: args.agent,
+    },
+    threads,
+    vault: args.vault,
+    voice,
+  } satisfies Omit<AppContext, "requestHost">;
+
+  const rpc = new RPCHandler(localRouter, {
+    interceptors: [
+      onError((cause: unknown) => {
+        // Never echo internals: the full error goes to the server log only,
+        // and only for the classes that are genuinely faults.
+        if (cause instanceof ORPCError && cause.status < SERVER_FAULT_STATUS) {
+          return;
+        }
+        console.error("rpc error", cause);
+      }),
+    ],
   });
 
-  app.route(API_BASE_PATH, api);
+  app.use(`${RPC_PREFIX}/*`, requireServerToken);
+  app.all(`${RPC_PREFIX}/*`, async (c) => {
+    const { response } = await rpc.handle(c.req.raw, {
+      prefix: RPC_PREFIX,
+      context: { ...services, requestHost: c.req.header("host") },
+    });
+    return response ?? c.text("Not found", 404);
+  });
+
+  app.get(HEALTH_PATH, (c) => c.json({ ok: true } as const));
+
+  app.get(VAULT_ASSET_PATH, requireServerToken, (c) => handleVaultAsset(c, args.vault.service));
 
   app.get(
     WS_PATH,
@@ -320,13 +287,11 @@ export function createApp(args: CreateAppArgs) {
     })),
   );
 
-  // Beside `/ws`, behind the SAME guard, but its OWN endpoint: a dictation
+  // Beside `/ws`, behind the SAME gate, but its OWN endpoint: a dictation
   // socket carries PCM16 frames UP and `partial`/`final`/`error` messages DOWN
   // (issue #578) — a PAYLOAD, which the invalidation bus carries none of by
-  // decision. Not a contract row for the reason `/ws` is not (a websocket is
-  // neither a request/response pair nor something the typed client reaches), so
-  // the route-table guard exempts it exactly as it exempts `/ws`. The hub tracks
-  // every connection so the listener teardown can close them by name.
+  // decision. The hub tracks every connection so the listener teardown can
+  // close them by name.
   app.get(
     VOICE_STREAM_PATH,
     requireServerToken,
@@ -347,13 +312,13 @@ export function createApp(args: CreateAppArgs) {
     }),
   );
 
-  // Beside the upgrade above and for the mirror-image reason: `/ws` is not a
-  // contract row because a websocket is not a request/response pair, and this
-  // one is not because what arrives is a BROWSER expecting a page. It carries
-  // no origin guard either — the redirect that reaches it IS a cross-site
-  // top-level navigation, which is exactly what that guard refuses — and the
-  // single-use `state` the runtime is holding stands in its place.
-  // `cloud/pair-callback.ts` states the whole argument.
+  // Beside the upgrades above and for the mirror-image reason: those are not
+  // procedures because a websocket is not a request/response pair, and this one
+  // is not because what arrives is a BROWSER expecting a page. It carries no
+  // token either — the redirect that reaches it IS a cross-site top-level
+  // navigation, which cannot carry one — and the single-use `state` the runtime
+  // is holding stands in its place. `cloud/pair-callback.ts` states the whole
+  // argument.
   app.get(PAIR_CALLBACK_PATH, async (c) => {
     const answer = await handlePairCallback(cloud, new URL(c.req.url));
     return c.body(answer.body, answer.status, answer.headers);
@@ -452,9 +417,12 @@ export function createApp(args: CreateAppArgs) {
     app.all("*", (c) => renderDocument(c.req.raw));
   }
 
-  // Last, so nothing dials the cloud until the routes it will announce
+  // Last, so nothing dials the cloud until the surfaces it will announce
   // invalidations through are mounted.
   cloud.start();
 
-  return { app, cloud, injectWebSocket, voice, voiceStreamHub };
+  // `services` is returned so a suite can call procedures IN-PROCESS through
+  // `createRouterClient` instead of over a socket — the same graph, minus the
+  // wire.
+  return { app, cloud, injectWebSocket, services, voice, voiceStreamHub };
 }

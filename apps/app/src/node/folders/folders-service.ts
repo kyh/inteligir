@@ -10,7 +10,7 @@
 import { realpathSync, statSync } from "node:fs";
 import { isAbsolute, resolve } from "node:path";
 
-import { CONNECTED_FOLDERS_MAX } from "@repo/server-contract/folders";
+import { CONNECTED_FOLDERS_MAX } from "@repo/api/local/folders/folders-schema";
 import { pathContains } from "../path-containment";
 import type { FoldersStore } from "./folders-store";
 

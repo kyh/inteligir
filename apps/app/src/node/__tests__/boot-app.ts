@@ -10,10 +10,11 @@ import { join } from "node:path";
 import { createConnection, type DbConnection } from "@repo/db/connection";
 import { getSchemaVersion } from "@repo/db/meta";
 import { runMigrations } from "@repo/db/migrate";
-import { createApiClient, type ApiClient } from "@repo/server-contract/client";
-import type { AgentStatus } from "@repo/server-contract/routes";
+import type { AgentStatus } from "@repo/api/local/system/system-schema";
+import { createRouterClient, type RouterClient } from "@orpc/server";
 import { afterEach } from "vitest";
 import { createApp, type AppFallback, type CreateAppArgs } from "../app";
+import { localRouter } from "../root-router";
 import { createConnectorsService } from "../connectors/connectors-service";
 import { createFoldersService } from "../folders/folders-service";
 import { createFoldersStore } from "../folders/folders-store";
@@ -70,8 +71,9 @@ export interface BootedTestApp {
   args: CreateAppArgs;
   composed: ReturnType<typeof createApp>;
   bus: WsBus;
-  /** The typed hc client, dialing the composed app in-process. */
-  client: ApiClient;
+  /** The typed client, calling procedures IN-PROCESS — no socket, no HTTP.
+   *  A refusal arrives as a thrown ORPCError, which is what `safe()` narrows. */
+  client: RouterClient<typeof localRouter>;
   /** One in-process request, carrying this boot's device token — what every
    *  privileged surface requires. Tests that are ABOUT the gate call
    *  `composed.app.request` directly and present whatever they mean to. */
@@ -168,11 +170,12 @@ export async function bootTestApp(options: BootTestAppOptions = {}): Promise<Boo
   if (options.openExternalUrl !== undefined) args.openExternalUrl = options.openExternalUrl;
   const composed = createApp(args);
   cleanups.push(() => composed.cloud.dispose());
-  const client = createApiClient("http://app.test", {
-    fetch: async (input, init) => {
-      const headers = new Headers(init?.headers);
-      headers.set("authorization", authorizationHeader(TEST_SERVER_TOKEN));
-      return composed.app.request(input, { ...init, headers });
+  const client = createRouterClient(localRouter, {
+    context: {
+      ...composed.services,
+      // No request reached this client, so nothing composed a callback URL
+      // from a Host header; the two procedures that need one refuse.
+      requestHost: undefined,
     },
   });
   const request = async (input: string, init?: RequestInit): Promise<Response> => {
