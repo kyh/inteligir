@@ -72,7 +72,7 @@ export function syncCommand(deps: CliDeps) {
         meta: { name: "status", description: "Whether this install is paired, and how far behind" },
         args: { ...jsonArg },
         run: async ({ args }) => {
-          const api = await apiFor(deps);
+          const api = apiFor(deps);
           const body = await (await requireOk(await api.cloud.status.$get())).json();
           if (outputJson(args, body)) {
             return;
@@ -94,7 +94,7 @@ export function syncCommand(deps: CliDeps) {
           ...jsonArg,
         },
         run: async ({ args }) => {
-          const api = await apiFor(deps);
+          const api = apiFor(deps);
           const json: CloudPairBeginRequest = { openBrowser: !args.json };
           if (args.name !== undefined) {
             json.deviceName = args.name;
@@ -114,7 +114,7 @@ export function syncCommand(deps: CliDeps) {
         },
         args: { ...jsonArg },
         run: async ({ args }) => {
-          const api = await apiFor(deps);
+          const api = apiFor(deps);
           const body = await (await requireOk(await api.cloud.sync.$post())).json();
           if (outputJson(args, body)) {
             return;

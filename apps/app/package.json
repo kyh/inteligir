@@ -7,7 +7,7 @@
     "./node/agent/agent-shell-env": "./src/node/agent/agent-shell-env.ts",
     "./node/config": "./src/node/config.ts",
     "./node/guide/cli-skill": "./src/node/guide/cli-skill.ts",
-    "./node/instance-identity": "./src/node/instance-identity.ts",
+    "./node/server-file": "./src/node/server-file.ts",
     "./node/shutdown": "./src/node/shutdown.ts"
   },
   "scripts": {

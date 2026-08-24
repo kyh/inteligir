@@ -8,6 +8,7 @@ import { existsSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
+import { authorizationHeader, readServerFile } from "@repo/app/node/server-file";
 import { createApiClient, type ApiClient } from "@repo/server-contract/client";
 import { apiPath, apiRoutes, healthResponseSchema } from "@repo/server-contract/routes";
 import { hermeticProcessEnv } from "./exec";
@@ -301,7 +302,19 @@ function spawnAttempt(
   }
 
   const instance: AppInstance = {
-    api: createApiClient(baseUrl),
+    // The device token is read from the instance's own data dir on every call
+    // rather than captured once: it is published after listen, and this client
+    // is built before the health wait.
+    api: createApiClient(baseUrl, {
+      fetch: (input, init) => {
+        const headers = new Headers(init?.headers);
+        const server = readServerFile(dataDir);
+        if (server !== null) {
+          headers.set("authorization", authorizationHeader(server.token));
+        }
+        return fetch(input, { ...init, headers });
+      },
+    }),
     baseUrl,
     dataDir,
     vaultDir,

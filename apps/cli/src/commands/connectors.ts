@@ -22,7 +22,7 @@ export function connectorsCommand(deps: CliDeps) {
         meta: { name: "list", description: "List the configured MCP servers" },
         args: { ...jsonArg },
         run: async ({ args }) => {
-          const api = await apiFor(deps);
+          const api = apiFor(deps);
           const body = await (await requireOk(await api.connectors.$get())).json();
           if (outputJson(args, body)) {
             return;
@@ -89,7 +89,7 @@ export function connectorsCommand(deps: CliDeps) {
           } else {
             throw invalidUsage("provide exactly one of --url or --command");
           }
-          const api = await apiFor(deps);
+          const api = apiFor(deps);
           const response = await requireOk(
             await api.connectors.add.$post({ json: { name: args.name, transport } }),
           );
@@ -108,7 +108,7 @@ export function connectorsCommand(deps: CliDeps) {
           ...jsonArg,
         },
         run: async ({ args }) => {
-          const api = await apiFor(deps);
+          const api = apiFor(deps);
           const response = await requireOk(
             await api.connectors.remove.$post({ json: { name: args.name } }),
           );

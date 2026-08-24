@@ -4,6 +4,7 @@
 import { Readable } from "node:stream";
 import { vi } from "vitest";
 import type { CliDeps } from "../context";
+import { FIXTURE_SERVER_TOKEN } from "./fixture-server";
 import { runCli } from "../program";
 
 /**
@@ -36,8 +37,13 @@ export interface RunArgs {
 
 export async function runCliForTest(args: RunArgs): Promise<CliRunResult> {
   const deps: CliDeps = {
-    env: { INTELIGIR_SERVER_URL: args.baseUrl, ...args.env },
-    resolveServer: async () => ({ baseUrl: args.baseUrl, source: "explicit" }),
+    env: { ...args.env },
+    resolveServer: () => ({
+      baseUrl: args.baseUrl,
+      token: FIXTURE_SERVER_TOKEN,
+      dataDir: "/fixture/data",
+      vaultDir: "/fixture/vault",
+    }),
   };
   let stdout = "";
   let stderr = "";

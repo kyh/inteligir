@@ -74,7 +74,7 @@ export function vaultCommand(deps: CliDeps) {
           ...jsonArg,
         },
         run: async ({ args }) => {
-          const api = await apiFor(deps);
+          const api = apiFor(deps);
           const tree = await (await requireOk(await api.vault.tree.$get())).json();
           const prefix = args.dir?.replace(/\/+$/u, "");
           const entries =
@@ -99,7 +99,7 @@ export function vaultCommand(deps: CliDeps) {
           ...jsonArg,
         },
         run: async ({ args }) => {
-          const api = await apiFor(deps);
+          const api = apiFor(deps);
           const body = await (
             await requireOk(await api.vault.file.$get({ query: { path: args.path } }))
           ).json();
@@ -131,7 +131,7 @@ export function vaultCommand(deps: CliDeps) {
             assertContentWithinBound(args.content);
             content = args.content;
           }
-          const api = await apiFor(deps);
+          const api = apiFor(deps);
           const written = await requireOk(
             await api.vault.file.$put({ json: { path: args.path, content } }),
           );
@@ -154,7 +154,7 @@ export function vaultCommand(deps: CliDeps) {
           ...jsonArg,
         },
         run: async ({ args }) => {
-          const api = await apiFor(deps);
+          const api = apiFor(deps);
           const renamed = await requireOk(
             await api.vault.rename.$post({ json: { from: args.from, to: args.to } }),
           );
@@ -177,7 +177,7 @@ export function vaultCommand(deps: CliDeps) {
           ...jsonArg,
         },
         run: async ({ args }) => {
-          const api = await apiFor(deps);
+          const api = apiFor(deps);
           const body = await (
             await requireOk(await api.vault.delete.$post({ json: { path: args.path } }))
           ).json();
@@ -195,7 +195,7 @@ export function vaultCommand(deps: CliDeps) {
           ...jsonArg,
         },
         run: async ({ args }) => {
-          const api = await apiFor(deps);
+          const api = apiFor(deps);
           const body = await (
             await requireOk(await api.vault.mkdir.$post({ json: { path: args.path } }))
           ).json();
@@ -210,7 +210,7 @@ export function vaultCommand(deps: CliDeps) {
         meta: { name: "status", description: "Git sync state (remote, dirty, conflicts)" },
         args: { ...jsonArg },
         run: async ({ args }) => {
-          const api = await apiFor(deps);
+          const api = apiFor(deps);
           const body = await (await requireOk(await api.vault.status.$get())).json();
           if (outputJson(args, body)) {
             return;
@@ -223,7 +223,7 @@ export function vaultCommand(deps: CliDeps) {
         meta: { name: "sync", description: "Sync against the configured remote now" },
         args: { ...jsonArg },
         run: async ({ args }) => {
-          const api = await apiFor(deps);
+          const api = apiFor(deps);
           const body = await (await requireOk(await api.vault.sync.$post())).json();
           if (outputJson(args, body)) {
             return;

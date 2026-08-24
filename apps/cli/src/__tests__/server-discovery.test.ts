@@ -1,266 +1,138 @@
-// Server discovery resolves against the app's OWN config module, so these
-// tests pin the layering (env url → configured port → derived range + prod
-// fallback), and — the part a health probe cannot give — that a responding
-// server must PROVE it is this checkout's instance before the CLI writes to
-// its vault.
+// Discovery is now a FILE READ, so what there is to pin is which data dir the
+// CLI decides it means, and that a missing or unreadable row fails closed with
+// a sentence a user can act on rather than dialing something.
 
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import {
-  DEV_PORT_PROBE_LIMIT,
-  PROD_SERVER_PORT,
-  resolveDevDefaultPort,
-  resolveDevInstanceId,
-} from "@repo/app/node/config";
-import type { HealthResponse, SystemStatusResponse } from "@repo/server-contract/routes";
+import { DEV_DATA_ROOT_DIR, PROD_DATA_DIR_NAME, resolveDevInstanceId } from "@repo/app/node/config";
+import { SERVER_FILE_NAME, type ServerFile } from "@repo/app/node/server-file";
 import { afterEach, describe, expect, it } from "vitest";
 import { CliExitError, EXIT_UNREACHABLE } from "../cli-error";
-import { deriveServerCandidates, resolveServer, type ProbeFetch } from "../server-discovery";
+import { DATA_DIR_ENV_VAR, resolveDataDir, resolveServer } from "../server-discovery";
 
-const cleanups: Array<() => void> = [];
+const scratchDirs: string[] = [];
 
 afterEach(() => {
-  for (const cleanup of cleanups.splice(0)) {
-    cleanup();
+  for (const dir of scratchDirs.splice(0)) {
+    rmSync(dir, { recursive: true, force: true });
   }
 });
 
-function makeTempDir(prefix: string): string {
-  const dir = mkdtempSync(join(tmpdir(), prefix));
-  cleanups.push(() => rmSync(dir, { recursive: true, force: true }));
+function scratch(): string {
+  const dir = mkdtempSync(join(tmpdir(), "inteligir-cli-discovery-"));
+  scratchDirs.push(dir);
   return dir;
 }
 
-interface Fixture {
-  homeDir: string;
-  appCheckoutDir: string;
+/** A row on disk, including the truncated shapes a reader must refuse — this
+ *  helper only serializes; `readServerFile` is what decides admissibility. */
+function writeServerRow(dataDir: string, row: Partial<ServerFile>): void {
+  mkdirSync(dataDir, { recursive: true });
+  writeFileSync(join(dataDir, SERVER_FILE_NAME), JSON.stringify(row), "utf8");
 }
 
-function fixture(): Fixture {
-  return {
-    homeDir: makeTempDir("inteligir-cli-home-"),
-    appCheckoutDir: makeTempDir("inteligir-cli-app-"),
-  };
-}
+const APP_CHECKOUT = "/repo/apps/app";
 
-function expectedDataDirOf(candidates: ReturnType<typeof deriveServerCandidates>): string {
-  if (candidates.kind !== "ports") {
-    throw new Error("expected derived port candidates");
+/** The CliExitError `work` throws — narrowed by a predicate rather than an
+ *  assertion, so a different failure fails the test instead of being cast. */
+function captureExit(work: () => void): CliExitError {
+  try {
+    work();
+  } catch (error) {
+    if (error instanceof CliExitError) {
+      return error;
+    }
+    throw error;
   }
-  return candidates.expectedDataDir;
+  throw new Error("expected a CliExitError, and nothing was thrown");
 }
 
-describe("deriveServerCandidates", () => {
-  it("takes INTELIGIR_SERVER_URL verbatim, trimmed of trailing slashes", () => {
-    const { homeDir, appCheckoutDir } = fixture();
+describe("resolveDataDir", () => {
+  it("is the per-checkout dev instance by default — the same one the app derives", () => {
+    const homeDir = scratch();
+    const dataDir = resolveDataDir({ env: {}, appCheckoutDir: APP_CHECKOUT, homeDir });
+    expect(dataDir).toBe(
+      join(homeDir, DEV_DATA_ROOT_DIR, resolveDevInstanceId(APP_CHECKOUT), "data"),
+    );
+  });
+
+  it("is the installed data dir under NODE_ENV=production", () => {
+    const homeDir = scratch();
+    const dataDir = resolveDataDir({
+      env: { NODE_ENV: "production" },
+      appCheckoutDir: APP_CHECKOUT,
+      homeDir,
+    });
+    expect(dataDir).toBe(join(homeDir, PROD_DATA_DIR_NAME));
+  });
+
+  it("takes INTELIGIR_DATA_DIR verbatim — that is how an agent shell names its instance", () => {
+    const homeDir = scratch();
+    const named = join(homeDir, "elsewhere");
     expect(
-      deriveServerCandidates({
-        env: { INTELIGIR_SERVER_URL: "http://127.0.0.1:9999/" },
-        appCheckoutDir,
+      resolveDataDir({
+        env: { [DATA_DIR_ENV_VAR]: named },
+        appCheckoutDir: APP_CHECKOUT,
         homeDir,
       }),
-    ).toEqual({ kind: "url", baseUrl: "http://127.0.0.1:9999" });
-  });
-
-  it("refuses a non-URL and a non-http scheme", () => {
-    const { homeDir, appCheckoutDir } = fixture();
-    for (const bad of ["not a url", "ftp://host:1"]) {
-      expect(() =>
-        deriveServerCandidates({
-          env: { INTELIGIR_SERVER_URL: bad },
-          appCheckoutDir,
-          homeDir,
-        }),
-      ).toThrow(CliExitError);
-    }
-  });
-
-  it("derives the dev probe range plus the prod fallback when nothing is configured", () => {
-    const { homeDir, appCheckoutDir } = fixture();
-    const derived = resolveDevDefaultPort(appCheckoutDir);
-    const candidates = deriveServerCandidates({ env: {}, appCheckoutDir, homeDir });
-    expect(candidates.kind).toBe("ports");
-    if (candidates.kind !== "ports") {
-      return;
-    }
-    expect(candidates.ports).toEqual([
-      ...Array.from({ length: DEV_PORT_PROBE_LIMIT }, (_, offset) => derived + offset),
-      PROD_SERVER_PORT,
-    ]);
-    expect(candidates.expectedDataDir).toContain(resolveDevInstanceId(appCheckoutDir));
-  });
-
-  it("honors INTELIGIR_PORT exactly — configured ports are never probed", () => {
-    const { homeDir, appCheckoutDir } = fixture();
-    const candidates = deriveServerCandidates({
-      env: { INTELIGIR_PORT: "5555" },
-      appCheckoutDir,
-      homeDir,
-    });
-    expect(candidates.kind === "ports" && candidates.ports).toEqual([5555]);
-  });
-
-  it("honors the managed config.json port exactly", () => {
-    const { homeDir, appCheckoutDir } = fixture();
-    const dataDir = join(homeDir, ".inteligir-dev", resolveDevInstanceId(appCheckoutDir), "data");
-    mkdirSync(dataDir, { recursive: true });
-    writeFileSync(join(dataDir, "config.json"), JSON.stringify({ port: 7777 }), "utf8");
-    const candidates = deriveServerCandidates({ env: {}, appCheckoutDir, homeDir });
-    expect(candidates.kind === "ports" && candidates.ports).toEqual([7777]);
-  });
-
-  it("dials only the prod port under NODE_ENV=production", () => {
-    const { homeDir, appCheckoutDir } = fixture();
-    const candidates = deriveServerCandidates({
-      env: { NODE_ENV: "production" },
-      appCheckoutDir,
-      homeDir,
-    });
-    expect(candidates.kind === "ports" && candidates.ports).toEqual([PROD_SERVER_PORT]);
+    ).toBe(named);
   });
 });
 
-function statusBody(dataDir: string): SystemStatusResponse {
-  return {
-    version: "0.0.0-test",
-    dataDir,
-    vaultDir: `${dataDir}-vault`,
-    schemaVersion: 3,
-    uptimeMs: 1,
-    agent: { mode: "off", runtime: "off", detail: null },
-  };
-}
-
-/** What a probed port answers with: this server's own envelopes, or the junk
- *  some other local service on the port returns. */
-type ProbeBody = HealthResponse | SystemStatusResponse | { ok?: string; hello?: string };
-
-function jsonResponse(body: ProbeBody): Response {
-  return new Response(JSON.stringify(body), {
-    status: 200,
-    headers: { "content-type": "application/json" },
-  });
-}
-
-/** A server on `port` that reports `dataDir` as its identity. */
-function serverOn(port: number, dataDir: string, healthBody: ProbeBody = { ok: true }): ProbeFetch {
-  return async (url) => {
-    const parsed = new URL(url);
-    if (parsed.port !== String(port)) {
-      throw new Error("ECONNREFUSED");
-    }
-    if (parsed.pathname.endsWith("/health")) {
-      return jsonResponse(healthBody);
-    }
-    return jsonResponse(statusBody(dataDir));
-  };
-}
-
 describe("resolveServer", () => {
-  it("returns the first candidate that answers health AND claims this instance", async () => {
-    const { homeDir, appCheckoutDir } = fixture();
-    const derived = resolveDevDefaultPort(appCheckoutDir);
-    const expected = expectedDataDirOf(
-      deriveServerCandidates({ env: {}, appCheckoutDir, homeDir }),
-    );
-    // The instance lost its derived port at bind and probed up two.
-    const resolved = await resolveServer({
-      env: {},
-      appCheckoutDir,
-      homeDir,
-      fetchImpl: serverOn(derived + 2, expected),
+  it("dials the BOUND port the row names and carries its token", () => {
+    const homeDir = scratch();
+    const dataDir = join(homeDir, "data");
+    writeServerRow(dataDir, {
+      port: 24911,
+      token: "abc",
+      vaultDir: join(homeDir, "vault"),
+      pid: 42,
     });
-    expect(resolved).toEqual({ baseUrl: `http://127.0.0.1:${derived + 2}`, source: "discovered" });
-  });
-
-  it("SKIPS a neighbouring checkout's server and keeps probing", async () => {
-    const { homeDir, appCheckoutDir } = fixture();
-    const derived = resolveDevDefaultPort(appCheckoutDir);
-    const expected = expectedDataDirOf(
-      deriveServerCandidates({ env: {}, appCheckoutDir, homeDir }),
-    );
-    const foreign = serverOn(derived, "/some/other/checkout/data");
-    const mine = serverOn(derived + 1, expected);
-    const resolved = await resolveServer({
-      env: {},
-      appCheckoutDir,
-      homeDir,
-      fetchImpl: async (url, init) => {
-        try {
-          return await foreign(url, init);
-        } catch {
-          return mine(url, init);
-        }
-      },
-    });
-    expect(resolved.baseUrl).toBe(`http://127.0.0.1:${derived + 1}`);
-  });
-
-  it("exits 3 NAMING the conflict when only a foreign instance answers", async () => {
-    const { homeDir, appCheckoutDir } = fixture();
-    const derived = resolveDevDefaultPort(appCheckoutDir);
-    const failure = await resolveServer({
-      env: {},
-      appCheckoutDir,
-      homeDir,
-      fetchImpl: serverOn(derived, "/some/other/checkout/data"),
-    }).then(
-      () => undefined,
-      (cause: unknown) => cause,
-    );
-    expect(failure).toBeInstanceOf(CliExitError);
-    if (failure instanceof CliExitError) {
-      expect(failure.exitCode).toBe(EXIT_UNREACHABLE);
-      expect(failure.message).toContain("/some/other/checkout/data");
-      expect(failure.message).toContain("different instance");
-    }
-  });
-
-  it("rejects a port whose 200 is not the health body — another local service", async () => {
-    const { homeDir, appCheckoutDir } = fixture();
-    const derived = resolveDevDefaultPort(appCheckoutDir);
-    await expect(
+    expect(
       resolveServer({
-        env: { INTELIGIR_PORT: String(derived) },
-        appCheckoutDir,
+        env: { [DATA_DIR_ENV_VAR]: dataDir },
+        appCheckoutDir: APP_CHECKOUT,
         homeDir,
-        fetchImpl: serverOn(derived, "/anything", { hello: "grafana" }),
       }),
-    ).rejects.toThrow(CliExitError);
-  });
-
-  it("exits 3 naming the tried ports when nothing answers", async () => {
-    const { homeDir, appCheckoutDir } = fixture();
-    const failure = await resolveServer({
-      env: { INTELIGIR_PORT: "6042" },
-      appCheckoutDir,
-      homeDir,
-      fetchImpl: async () => {
-        throw new Error("ECONNREFUSED");
-      },
-    }).then(
-      () => undefined,
-      (cause: unknown) => cause,
-    );
-    expect(failure).toBeInstanceOf(CliExitError);
-    if (failure instanceof CliExitError) {
-      expect(failure.exitCode).toBe(EXIT_UNREACHABLE);
-      expect(failure.message).toContain("6042");
-      expect(failure.message).toContain("INTELIGIR_SERVER_URL");
-    }
-  });
-
-  it("trusts an explicit INTELIGIR_SERVER_URL without probing OR verifying identity", async () => {
-    const { homeDir, appCheckoutDir } = fixture();
-    const resolved = await resolveServer({
-      env: { INTELIGIR_SERVER_URL: "http://127.0.0.1:4040" },
-      appCheckoutDir,
-      homeDir,
-      fetchImpl: async () => {
-        throw new Error("must not probe an explicit URL");
-      },
+    ).toEqual({
+      baseUrl: "http://127.0.0.1:24911",
+      token: "abc",
+      dataDir,
+      vaultDir: join(homeDir, "vault"),
     });
-    expect(resolved).toEqual({ baseUrl: "http://127.0.0.1:4040", source: "explicit" });
+  });
+
+  it("fails CLOSED when nothing has published itself, naming the data dir", () => {
+    const homeDir = scratch();
+    const dataDir = join(homeDir, "data");
+    mkdirSync(dataDir, { recursive: true });
+    const failure = captureExit(() =>
+      resolveServer({
+        env: { [DATA_DIR_ENV_VAR]: dataDir },
+        appCheckoutDir: APP_CHECKOUT,
+        homeDir,
+      }),
+    );
+    expect(failure.exitCode).toBe(EXIT_UNREACHABLE);
+    expect(failure.code).toBe("server_unreachable");
+    expect(failure.message).toContain(dataDir);
+    expect(failure.message).toContain(DATA_DIR_ENV_VAR);
+  });
+
+  it("treats a row it cannot parse as no server at all", () => {
+    // A truncated write or a newer build's shape must fail closed rather than
+    // send a credential at whatever port happened to parse out of it.
+    const homeDir = scratch();
+    const dataDir = join(homeDir, "data");
+    writeServerRow(dataDir, { port: 24911 });
+    expect(() =>
+      resolveServer({
+        env: { [DATA_DIR_ENV_VAR]: dataDir },
+        appCheckoutDir: APP_CHECKOUT,
+        homeDir,
+      }),
+    ).toThrow(/No inteligir server is running/u);
   });
 });

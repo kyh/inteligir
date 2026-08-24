@@ -36,7 +36,7 @@ export function commentCommand(deps: CliDeps) {
           ...jsonArg,
         },
         run: async ({ args }) => {
-          const api = await apiFor(deps);
+          const api = apiFor(deps);
           const response = await requireOk(await api.comments.$get({ query: { path: args.path } }));
           const body = await response.json();
           if (outputJson(args, body)) {
@@ -62,7 +62,7 @@ export function commentCommand(deps: CliDeps) {
           ...jsonArg,
         },
         run: async ({ args }) => {
-          const api = await apiFor(deps);
+          const api = apiFor(deps);
           const id = mintCommentId();
           const response = await requireOk(
             await api.comments.add.$post({ json: { id, path: args.path, text: args.text } }),
@@ -84,7 +84,7 @@ export function commentCommand(deps: CliDeps) {
           ...jsonArg,
         },
         run: async ({ args }) => {
-          const api = await apiFor(deps);
+          const api = apiFor(deps);
           const id = mintCommentId();
           const response = await requireOk(
             await api.comments.reply.$post({
@@ -108,7 +108,7 @@ export function commentCommand(deps: CliDeps) {
           ...jsonArg,
         },
         run: async ({ args }) => {
-          const api = await apiFor(deps);
+          const api = apiFor(deps);
           const resolved = args.reopen !== true;
           const response = await requireOk(
             await api.comments.resolve.$post({
@@ -134,7 +134,7 @@ export function commentCommand(deps: CliDeps) {
           ...jsonArg,
         },
         run: async ({ args }) => {
-          const api = await apiFor(deps);
+          const api = apiFor(deps);
           const response = await requireOk(
             await api.comments.remove.$post({ json: { id: args.id, path: args.path } }),
           );

@@ -1,80 +1,54 @@
-// Where is the local server? INTELIGIR_SERVER_URL wins (it is injected into
-// agent shells); otherwise the CLI derives candidates the same way the app
-// derives its own listen port — by REUSING the app's config module, so the
-// two can never disagree on the scheme — and probes them. The altitude call,
-// stated: `@repo/app/node/config` is imported directly (it drags only node
-// builtins + zod, no server machinery) instead of duplicating the derivation
-// here or extracting a package for one shared file; candidate enumeration,
-// probing and IDENTITY are the only CLI-local logic.
+// WHICH SERVER, AND MAY I TALK TO IT? Both answers come out of ONE file, and
+// that is the point: `<dataDir>/server.json` carries the BOUND port and the
+// bearer together, so the address and the credential can never disagree.
 //
-// Identity is the part a health probe alone cannot give. A derived dev port
-// is probed upward, so the first responder on the range may be a NEIGHBOURING
+// There is no probing left. A derived dev port may have been probed upward at
+// bind, so a client that dialled the derived value could reach a NEIGHBOURING
 // checkout's server — and writing a note into someone else's vault is a
-// silent, destructive wrong answer. So a probed candidate must also AGREE
-// with the data dir this checkout's own config resolution derived. An
-// explicitly named server skips the check on purpose: you named it, you own
-// it — and `inteligir status` prints the data dir and vault it bound to.
+// silent, destructive wrong answer. The file names the port that answered, so
+// the ambiguity has nowhere to live; and a squatter holding the port cannot
+// have written the file, so a wrong responder refuses the token instead of
+// being adopted.
+//
+// WHICH data dir is still this CLI's own question, and it reuses the app's
+// resolution rather than re-deriving it — `@repo/app/node/config` drags only
+// node builtins and zod, so importing it is cheaper than a second, divergent
+// copy of the layering (env → `<dataDir>/config.json` → per-checkout default).
+//
+// There is deliberately NO "point the CLI at a URL" escape hatch. Under a
+// bearer model naming a URL is naming somewhere to SEND A CREDENTIAL, and the
+// token would still have to come from a local data dir — so the two halves
+// could disagree, which is the exact failure this file exists to remove.
+// `INTELIGIR_DATA_DIR` names the instance instead; the runtime injects it into
+// agent shells for the same reason.
 
-import {
-  DEV_PORT_PROBE_LIMIT,
-  PROD_SERVER_PORT,
-  resolveAppConfig,
-  type ResolveAppConfigArgs,
-} from "@repo/app/node/config";
-import {
-  apiPath,
-  apiRoutes,
-  healthResponseSchema,
-  systemStatusResponseSchema,
-} from "@repo/server-contract/routes";
+import { resolveAppConfig, type ResolveAppConfigArgs } from "@repo/app/node/config";
+import { readServerFile } from "@repo/app/node/server-file";
 import { CliExitError, EXIT_UNREACHABLE } from "./cli-error";
 
-export const SERVER_URL_ENV_VAR = "INTELIGIR_SERVER_URL";
-
-const PROBE_TIMEOUT_MS = 1_500;
-
-export type ServerCandidates =
-  | { kind: "url"; baseUrl: string }
-  | { kind: "ports"; ports: number[]; expectedDataDir: string };
+export const DATA_DIR_ENV_VAR = "INTELIGIR_DATA_DIR";
 
 export interface ResolvedServer {
   baseUrl: string;
-  /** How the CLI decided on it — printed by `status`, because "explicit" is
-   *  also a statement that no identity check ran. */
-  source: "explicit" | "discovered";
+  /** The bearer every request carries. Read from the data dir, never from the
+   *  environment — a credential in an env var is inherited by every child. */
+  token: string;
+  /** Which instance answered, for `status` to print. */
+  dataDir: string;
+  /** What that instance is about to write into. */
+  vaultDir: string;
 }
 
-function parseServerUrl(rawValue: string): string {
-  const trimmed = rawValue.trim().replace(/\/+$/u, "");
-  let url: URL;
-  try {
-    url = new URL(trimmed);
-  } catch {
-    throw new CliExitError(`${SERVER_URL_ENV_VAR} is not a valid URL (got "${rawValue}")`, {
-      code: "invalid_server_url",
-    });
-  }
-  if (url.protocol !== "http:" && url.protocol !== "https:") {
-    throw new CliExitError(`${SERVER_URL_ENV_VAR} must be an http(s) URL (got "${rawValue}")`, {
-      code: "invalid_server_url",
-    });
-  }
-  return trimmed;
-}
-
-export interface DeriveServerCandidatesArgs {
+export interface ResolveServerArgs {
   env: NodeJS.ProcessEnv;
-  /** The sibling apps/app checkout — what the server hashes as its cwd. */
+  /** The sibling apps/app checkout — what the server hashes as its cwd for the
+   *  per-checkout dev instance. */
   appCheckoutDir: string;
   homeDir?: string;
 }
 
-export function deriveServerCandidates(args: DeriveServerCandidatesArgs): ServerCandidates {
-  const explicitUrl = args.env[SERVER_URL_ENV_VAR];
-  if (explicitUrl !== undefined && explicitUrl.trim().length > 0) {
-    return { kind: "url", baseUrl: parseServerUrl(explicitUrl) };
-  }
-
+/** The data dir this invocation means, by the app's own layering. */
+export function resolveDataDir(args: ResolveServerArgs): string {
   const configArgs: ResolveAppConfigArgs = {
     checkoutPath: args.appCheckoutDir,
     env: args.env,
@@ -82,108 +56,23 @@ export function deriveServerCandidates(args: DeriveServerCandidatesArgs): Server
   if (args.homeDir !== undefined) {
     configArgs.homeDir = args.homeDir;
   }
-  const config = resolveAppConfig(configArgs);
-
-  // A configured port is exact — the server never probes off one, so neither
-  // does the CLI.
-  if (config.portSource !== "default") {
-    return { kind: "ports", ports: [config.port], expectedDataDir: config.dataDir };
-  }
-
-  // A derived dev port may have been probed upward at bind; try the same
-  // range, then the installed prod default — the CLI's own NODE_ENV says
-  // nothing about which mode the RUNNING server booted in.
-  const ports: number[] = [];
-  if (config.mode === "dev") {
-    for (let offset = 0; offset < DEV_PORT_PROBE_LIMIT; offset += 1) {
-      ports.push(config.port + offset);
-    }
-  }
-  if (!ports.includes(PROD_SERVER_PORT)) {
-    ports.push(PROD_SERVER_PORT);
-  }
-  return { kind: "ports", ports, expectedDataDir: config.dataDir };
+  return resolveAppConfig(configArgs).dataDir;
 }
 
-export type ProbeFetch = (url: string, init: { signal: AbortSignal }) => Promise<Response>;
-
-/** The probe's answer, or null when the port answered with a refusal. The BODY
- *  is left unread: each caller parses it against the schema it expects, because
- *  another local service can answer 200 with anything. */
-async function probe(url: string, fetchImpl: ProbeFetch): Promise<Response | null> {
-  const response = await fetchImpl(url, { signal: AbortSignal.timeout(PROBE_TIMEOUT_MS) });
-  return response.ok ? response : null;
-}
-
-async function probeBody(url: string, fetchImpl: ProbeFetch) {
-  const response = await probe(url, fetchImpl);
-  return response === null ? undefined : await response.json().catch(() => undefined);
-}
-
-type ProbeOutcome =
-  | { kind: "match" }
-  | { kind: "silent" }
-  /** A real inteligir server — someone else's. */
-  | { kind: "foreign"; dataDir: string };
-
-async function probeCandidate(
-  baseUrl: string,
-  expectedDataDir: string,
-  fetchImpl: ProbeFetch,
-): Promise<ProbeOutcome> {
-  try {
-    // The body shape, not just a 2xx: another local service on the port can
-    // answer 200 with anything.
-    const health = await probeBody(`${baseUrl}${apiPath(apiRoutes.health)}`, fetchImpl);
-    if (!healthResponseSchema.safeParse(health).success) {
-      return { kind: "silent" };
-    }
-    const status = systemStatusResponseSchema.safeParse(
-      await probeBody(`${baseUrl}${apiPath(apiRoutes.system.status)}`, fetchImpl),
+export function resolveServer(args: ResolveServerArgs): ResolvedServer {
+  const dataDir = resolveDataDir(args);
+  const server = readServerFile(dataDir);
+  if (server === null) {
+    throw new CliExitError(
+      `No inteligir server is running for ${dataDir} (no readable server.json there).` +
+        ` Start one with \`pnpm dev\`, or name another instance with ${DATA_DIR_ENV_VAR}.`,
+      { code: "server_unreachable", exitCode: EXIT_UNREACHABLE },
     );
-    if (!status.success) {
-      return { kind: "silent" };
-    }
-    return status.data.dataDir === expectedDataDir
-      ? { kind: "match" }
-      : { kind: "foreign", dataDir: status.data.dataDir };
-  } catch {
-    return { kind: "silent" };
   }
-}
-
-export interface ResolveServerArgs extends DeriveServerCandidatesArgs {
-  fetchImpl?: ProbeFetch;
-}
-
-export async function resolveServer(args: ResolveServerArgs): Promise<ResolvedServer> {
-  const candidates = deriveServerCandidates(args);
-  // An explicit URL is trusted without a probe: the first real request will
-  // say plainly when it is wrong, and probing it first would only double
-  // every call's latency.
-  if (candidates.kind === "url") {
-    return { baseUrl: candidates.baseUrl, source: "explicit" };
-  }
-  const fetchImpl: ProbeFetch = args.fetchImpl ?? ((url, init) => fetch(url, init));
-  const foreign: string[] = [];
-  for (const port of candidates.ports) {
-    const baseUrl = `http://127.0.0.1:${port}`;
-    const outcome = await probeCandidate(baseUrl, candidates.expectedDataDir, fetchImpl);
-    if (outcome.kind === "match") {
-      return { baseUrl, source: "discovered" };
-    }
-    if (outcome.kind === "foreign") {
-      foreign.push(`${baseUrl} serves ${outcome.dataDir}`);
-    }
-  }
-  const conflict =
-    foreign.length === 0
-      ? ""
-      : ` Another inteligir server answered but serves a different instance: ${foreign.join("; ")}.`;
-  throw new CliExitError(
-    `No inteligir server for ${candidates.expectedDataDir} found (tried 127.0.0.1 port` +
-      `${candidates.ports.length === 1 ? "" : "s"} ${candidates.ports.join(", ")}).${conflict}` +
-      ` Start one with \`pnpm dev\`, or point the CLI at it with ${SERVER_URL_ENV_VAR}.`,
-    { code: "server_unreachable", exitCode: EXIT_UNREACHABLE },
-  );
+  return {
+    baseUrl: `http://127.0.0.1:${String(server.port)}`,
+    token: server.token,
+    dataDir,
+    vaultDir: server.vaultDir,
+  };
 }

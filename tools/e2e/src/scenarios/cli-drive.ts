@@ -52,7 +52,7 @@ export const cliDrive: Scenario = {
     );
     expect(cliBinDir !== null, "the app resolves a CLI bin directory for the agent's PATH");
     const agentShellEnv = buildAgentShellEnv({
-      serverUrl: app.baseUrl,
+      dataDir: app.dataDir,
       env: hermeticProcessEnv(),
       cliBinDir,
     });

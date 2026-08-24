@@ -1,5 +1,5 @@
 // The CLI-driving seam: the manager must hand the runtime the shellEnv the
-// host resolved (INTELIGIR_SERVER_URL, known only after listen) and the
+// host resolved (INTELIGIR_DATA_DIR, the instance an agent's CLI dials) and the
 // session instructions must point the model at the CLI. The runtime's own
 // halves are covered elsewhere (buildThreadShellEnvironment adds
 // INTELIGIR_THREAD_ID; the codex adapter turns envVars into
@@ -79,7 +79,7 @@ describe("codex runtime shell env wiring", () => {
     Object.assign(
       shellEnv,
       buildAgentShellEnv({
-        serverUrl: "http://127.0.0.1:21999",
+        dataDir: "/instances/one/data",
         env: { PATH: "/usr/bin" },
         cliBinDir: "/repo/apps/cli/bin",
       }),
@@ -92,12 +92,12 @@ describe("codex runtime shell env wiring", () => {
     expect(send.status).toBe(200);
 
     const options = await waitFor(() => recorded.options[0], "the runtime to be constructed");
-    // The two values this wiring owns — the listen-time server URL and the
+    // The two values this wiring owns — the instance's data dir and the
     // PREPENDED cli path. Skills resolve from the layout, not from here, so
     // asserting the object whole would make an unrelated resolution failure
     // read as a wiring bug (and did, once they started resolving).
     if (options.shellEnv === undefined) throw new Error("runtime has no shell env");
-    expect(options.shellEnv.INTELIGIR_SERVER_URL).toBe("http://127.0.0.1:21999");
+    expect(options.shellEnv.INTELIGIR_DATA_DIR).toBe("/instances/one/data");
     expect(options.shellEnv.PATH).toBe(`/repo/apps/cli/bin${delimiter}/usr/bin`);
     expect(options.workspacePath).toBe(harness.vaultDir);
 

@@ -23,10 +23,6 @@ import {
   Tray,
   type MenuItemConstructorOptions,
 } from "electron";
-import {
-  systemIdentityResponseSchema,
-  type SystemIdentityResponse,
-} from "@repo/server-contract/routes";
 import { BROWSER_ACCELERATOR } from "./browser-panel";
 import { showBrowserWindow } from "./browser-window";
 import {
@@ -49,18 +45,16 @@ import {
   type SupervisorState,
 } from "./server-supervisor";
 import {
-  describeIdentityVerdict,
-  identityUrl,
-  newIdentityChallenge,
+  describeServerVerdict,
   planServerStart,
   resolveServerTarget,
-  verifyServerIdentity,
+  verifyServer,
   windowUrl,
+  type LiveServer,
   type ServerTarget,
 } from "./server-target";
 
 const APP_DISPLAY_NAME = app.isPackaged ? "Inteligir" : "Inteligir (Dev)";
-const HEALTH_TIMEOUT_MS = 2_000;
 
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
@@ -70,6 +64,16 @@ let supervisor: ReturnType<typeof createSupervisor> | null = null;
 /** The last real input the page saw, for the user-activation gate on
  *  page-initiated external opens (origin-pin.ts::decideExternalOpen). */
 let lastInputAt: number | null = null;
+/** What this launch settled on: the instance, and the origin that actually
+ *  answered for it. The configured port is only what a SPAWNED child is told
+ *  to bind; an ADOPTED server names its own, which may be a probed one. */
+interface Launch {
+  target: ServerTarget;
+  live: LiveServer;
+}
+
+let launch: Launch | null = null;
+let activeLive: LiveServer | null = null;
 
 process.on("uncaughtException", (error) => {
   console.error("[desktop] uncaught exception:", error);
@@ -88,37 +92,29 @@ process.on("unhandledRejection", (reason) => {
 // ---------------------------------------------------------------------------
 
 /**
- * IS THE SERVER ON THIS ORIGIN OURS? Health alone cannot say — a loopback port
- * is first-come-first-served — so every probe is an identity challenge, not a
- * liveness check. Used for the pre-flight AND as the supervisor's own
- * `probeHealth`, because a child that loses a race for the port would
- * otherwise leave the supervisor reporting "up" about a stranger.
+ * IS A SERVER SERVING THIS DATA DIR, AND IS IT OURS? Health alone cannot say —
+ * a loopback port is first-come-first-served — so every probe presents the
+ * token `<dataDir>/server.json` holds and requires the responder to name that
+ * same data dir back (server-target.ts states what that proves). Used for the
+ * pre-flight AND as the supervisor's own `probeHealth`, because a child that
+ * lost a race for the port would otherwise leave the supervisor reporting "up"
+ * about a stranger.
+ *
+ * The origin the window is pinned to comes from the same answer, so a dev
+ * instance that probed upward at bind is followed rather than guessed at.
  */
-async function verifiedServerAnswered(origin: string, dataDir: string): Promise<boolean> {
-  const challenge = newIdentityChallenge();
-  let answer: SystemIdentityResponse | null = null;
-  try {
-    const response = await fetch(identityUrl(origin, challenge), {
-      signal: AbortSignal.timeout(HEALTH_TIMEOUT_MS),
-    });
-    if (response.ok) {
-      const body: unknown = await response.json();
-      answer = systemIdentityResponseSchema.safeParse(body).data ?? null;
-    }
-  } catch {
-    answer = null;
+async function verifiedServerAnswered(target: ServerTarget): Promise<boolean> {
+  const verdict = await verifyServer(target.dataDir);
+  if (verdict.kind === "verified") {
+    activeLive = verdict.live;
+    return true;
   }
-  const verdict = verifyServerIdentity({ dataDir, challenge, answer });
-  if (
-    verdict.kind !== "verified" &&
-    verdict.kind !== "unreachable" &&
-    verdict.kind !== "no-secret"
-  ) {
+  if (verdict.kind !== "no-server") {
     // A responder that is REACHABLE but not ours is the case worth a log line:
     // something is on our port and it is not the vault we mean.
-    console.warn(`[desktop] ${describeIdentityVerdict(verdict, origin)}`);
+    console.warn(`[desktop] ${describeServerVerdict(verdict, target.dataDir)}`);
   }
-  return verdict.kind === "verified";
+  return false;
 }
 
 function spawnServerChild(entryPath: string, target: ServerTarget): SupervisedChild {
@@ -147,7 +143,7 @@ function spawnServerChild(entryPath: string, target: ServerTarget): SupervisedCh
 }
 
 async function startServer(target: ServerTarget): Promise<void> {
-  if (planServerStart(await verifiedServerAnswered(target.origin, target.dataDir)) === "adopt") {
+  if (planServerStart(await verifiedServerAnswered(target)) === "adopt") {
     console.log(`[desktop] adopting the server already serving ${target.dataDir}`);
     return;
   }
@@ -158,7 +154,7 @@ async function startServer(target: ServerTarget): Promise<void> {
   supervisor = createSupervisor(
     {
       spawnServer: () => spawnServerChild(entryPath, target),
-      probeHealth: () => verifiedServerAnswered(target.origin, target.dataDir),
+      probeHealth: () => verifiedServerAnswered(target),
       delay: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
       schedule: (intervalMs, tick) => {
         const timer = setInterval(tick, intervalMs);
@@ -184,9 +180,9 @@ function onServerStateChanged(state: SupervisorState): void {
 
 // The shell no longer asks the running server where its data lives. It used to,
 // because an adopted server was one the shell had not configured — but adoption
-// now REQUIRES the responder to name this shell's own data dir and prove it
-// (`verifyServerIdentity`), so the two can no longer differ, and `target` is
-// the answer without trusting a value off the wire.
+// now REQUIRES the responder to name this shell's own data dir and hold this
+// data dir's token (`verifyServer`), so the two can no longer differ, and
+// `target` is the answer without trusting a value off the wire.
 
 // ---------------------------------------------------------------------------
 // The window, menu and tray
@@ -228,9 +224,9 @@ function openExternalFromPage(url: string): void {
   void shell.openExternal(url);
 }
 
-function createWindow(target: ServerTarget): BrowserWindow {
+function createWindow({ target, live }: Launch): BrowserWindow {
   const partition = sessionPartition(target.dataDir);
-  lockDownSession(partition, target.origin);
+  lockDownSession(partition, live.origin);
   const window = new BrowserWindow({
     width: 1200,
     height: 800,
@@ -269,7 +265,7 @@ function createWindow(target: ServerTarget): BrowserWindow {
   });
 
   const guardNavigation = (event: Electron.Event, url: string): void => {
-    const verdict = classifyNavigation(url, target.origin);
+    const verdict = classifyNavigation(url, live.origin);
     if (verdict === "allow") {
       return;
     }
@@ -295,14 +291,14 @@ function createWindow(target: ServerTarget): BrowserWindow {
     }
   });
 
-  void window.loadURL(windowUrl(target.origin));
+  void window.loadURL(windowUrl(live.origin));
   return window;
 }
 
-function showMainWindow(target: ServerTarget): BrowserWindow {
+function showMainWindow(current: Launch): BrowserWindow {
   const existing = mainWindow;
   if (existing === null) {
-    mainWindow = createWindow(target);
+    mainWindow = createWindow(current);
     return mainWindow;
   }
   if (existing.isMinimized()) {
@@ -321,7 +317,7 @@ function openDataDir(target: ServerTarget): void {
   void shell.openPath(target.dataDir);
 }
 
-function configureApplicationMenu(target: ServerTarget): void {
+function configureApplicationMenu({ target, live }: Launch): void {
   const template: MenuItemConstructorOptions[] = [
     {
       label: app.name,
@@ -347,7 +343,7 @@ function configureApplicationMenu(target: ServerTarget): void {
           // (browser-window.ts), so this window's origin pin is untouched.
           label: "Browser",
           accelerator: BROWSER_ACCELERATOR,
-          click: () => showBrowserWindow(target.origin),
+          click: () => showBrowserWindow(live),
         },
         { type: "separator" },
         { role: "close" },
@@ -364,7 +360,7 @@ function configureApplicationMenu(target: ServerTarget): void {
           // A menu click IS the user gesture, so this goes straight out rather
           // than through the page-initiated activation gate.
           click: () => {
-            void shell.openExternal(windowUrl(target.origin));
+            void shell.openExternal(windowUrl(live.origin));
           },
         },
       ],
@@ -375,7 +371,7 @@ function configureApplicationMenu(target: ServerTarget): void {
 
 /** Tray icon, sized and marked as a template so macOS tints it for the menu
  *  bar rather than rendering the full-colour app icon. */
-function createTray(target: ServerTarget): Tray | null {
+function createTray(current: Launch): Tray | null {
   const icon = nativeImage
     .createFromPath(join(app.getAppPath(), "resources", "icon.png"))
     .resize({ width: 16, height: 16 });
@@ -388,15 +384,15 @@ function createTray(target: ServerTarget): Tray | null {
   created.setToolTip(APP_DISPLAY_NAME);
   created.setContextMenu(
     Menu.buildFromTemplate([
-      { label: `Show ${APP_DISPLAY_NAME}`, click: () => showMainWindow(target) },
+      { label: `Show ${APP_DISPLAY_NAME}`, click: () => showMainWindow(current) },
       { label: "Hide", click: () => mainWindow?.hide() },
       { type: "separator" },
-      { label: "Open Data Folder", click: () => openDataDir(target) },
+      { label: "Open Data Folder", click: () => openDataDir(current.target) },
       { type: "separator" },
       { role: "quit" },
     ]),
   );
-  created.on("click", () => showMainWindow(target));
+  created.on("click", () => showMainWindow(current));
   return created;
 }
 
@@ -410,10 +406,18 @@ async function onAppReady(target: ServerTarget): Promise<void> {
     applicationName: APP_DISPLAY_NAME,
     applicationVersion: app.getVersion(),
   });
-  configureApplicationMenu(target);
   await startServer(target);
-  tray = createTray(target);
-  mainWindow = createWindow(target);
+  // The menu, the tray and the window are built AFTER the server answered,
+  // because all three name the origin it answered on — `supervisor.start()`
+  // resolves only once a verified probe has filled this in.
+  if (activeLive === null) {
+    throw new Error("the server reported healthy without publishing its address");
+  }
+  const current: Launch = { target, live: activeLive };
+  launch = current;
+  configureApplicationMenu(current);
+  tray = createTray(current);
+  mainWindow = createWindow(current);
 }
 
 // Resolved before `whenReady`, so a bad INTELIGIR_PORT or a config.json that
@@ -431,7 +435,9 @@ if (target.kind === "refused") {
   const resolved = target.target;
 
   app.on("activate", () => {
-    showMainWindow(resolved);
+    if (launch !== null) {
+      showMainWindow(launch);
+    }
   });
 
   // The server is a child of this process, so quitting must take it with it —
@@ -458,7 +464,9 @@ if (target.kind === "refused") {
     app.quit();
   } else {
     app.on("second-instance", () => {
-      showMainWindow(resolved);
+      if (launch !== null) {
+        showMainWindow(launch);
+      }
     });
     app
       .whenReady()

@@ -32,9 +32,9 @@ import { createApp, type AppFallback, type StartFetchOptions } from "./app";
 import { openCloudSocket } from "./cloud/cloud-socket";
 import { resolveAppConfig } from "./config";
 import { ensureDevDataDirOwnership } from "./data-dir";
-import { ensureInstanceSecret } from "./instance-identity";
 import { createKnowledgeRuntime, type KnowledgeRuntime } from "./knowledge/knowledge-runtime";
 import { closeServer, listenWithRetry, type UpgradedSockets } from "./listen";
+import { mintServerToken, removeServerFile, writeServerFile } from "./server-file";
 import { createTurnProposalCapture } from "./proposals/turn-proposals";
 import {
   createGracefulShutdown,
@@ -177,9 +177,9 @@ async function boot(): Promise<{ serverUrl: string }> {
   const schemaVersion = getSchemaVersion(db, runMigrations(db, migrationsFolder));
 
   const version = readAppVersion();
-  // Written before the listener opens, so anything that can reach the health
-  // route can also be asked to prove it owns this data dir.
-  const instanceSecret = ensureInstanceSecret(config.dataDir);
+  // Minted before anything is served and published only once the port is
+  // BOUND (below), so a reader never learns an address before it answers.
+  const serverToken = mintServerToken();
   const bus = new WsBus({ version });
   // The knowledge runtime needs the vault service the runtime hands back, so
   // the hook late-binds; changes before it exists are covered by the boot
@@ -210,9 +210,11 @@ async function boot(): Promise<{ serverUrl: string }> {
   knowledgeRef = knowledge;
   const fallback = await fallbackPromise;
 
-  // Filled in after listen (the bound port may be a probed one); read lazily by
-  // the codex runtime on the first turn, which an HTTP request precedes.
-  let agentShellEnv: AgentShellEnv = { INTELIGIR_SERVER_URL: "" };
+  // Rebuilt after listen, when the CLI bin dir and the skills dir have been
+  // resolved; read lazily by the agent runtime on the first turn, which an
+  // HTTP request precedes. The data dir is known here, so a turn that somehow
+  // raced the rebuild still names the right instance.
+  let agentShellEnv: AgentShellEnv = { INTELIGIR_DATA_DIR: config.dataDir };
   const cliBinDir = resolveCliBinDir();
   // The connectors registry (issue #591): ONE service, consumed twice — the
   // routes edit it, session launch composes its enabled rows into every
@@ -285,7 +287,7 @@ async function boot(): Promise<{ serverUrl: string }> {
     createTurnDriver: agentDriver.createTurnDriver,
     db,
     fallback,
-    instanceSecret,
+    serverToken,
     knowledge,
     schemaVersion,
     startedAt: Date.now(),
@@ -315,7 +317,22 @@ async function boot(): Promise<{ serverUrl: string }> {
       voiceStreamHub.terminateAllClients();
     },
   };
-  registerTeardown("listener", () => closeServer(server, upgradedSockets));
+  // The file names this listener, so it dies with it — inside the step rather
+  // than as one of its own, because a row pointing at a port that is closing
+  // is worse than no row at all.
+  registerTeardown("listener", async () => {
+    removeServerFile(config.dataDir);
+    await closeServer(server, upgradedSockets);
+  });
+  // The BOUND port, never the configured one: a derived dev port may have been
+  // probed upward, and a caller that dialled the configured value would find
+  // whichever neighbour won the race.
+  writeServerFile(config.dataDir, {
+    port,
+    token: serverToken,
+    vaultDir: config.vaultDir,
+    pid: process.pid,
+  });
   injectWebSocket(server);
   // Nothing ever scheduled the boot pass, so the hydrate-and-reconcile landed
   // in front of whichever query settled first — the user's first ⌘K. Kicked
@@ -326,7 +343,7 @@ async function boot(): Promise<{ serverUrl: string }> {
     // needs it, and boot is not that query.
   });
   agentShellEnv = buildAgentShellEnv({
-    serverUrl: `http://127.0.0.1:${port}`,
+    dataDir: config.dataDir,
     env: process.env,
     cliBinDir,
   });

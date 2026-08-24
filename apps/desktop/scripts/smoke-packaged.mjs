@@ -19,7 +19,7 @@
 // packaged shell is something users install, and not before.
 
 import { spawn } from "node:child_process";
-import { accessSync, constants, existsSync } from "node:fs";
+import { accessSync, constants, existsSync, readFileSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -128,6 +128,15 @@ try {
 const scratch = await mkdtemp(join(tmpdir(), "inteligir-desktop-smoke-"));
 const port = 4_900 + Math.floor(Math.random() * 90);
 const baseUrl = `http://127.0.0.1:${port}`;
+const dataDir = join(scratch, "data");
+
+/** The device token the packaged server published for this scratch instance.
+ *  Every privileged route is behind it, so a smoke that skipped it would be
+ *  asserting 401s. */
+function authHeaders() {
+  const row = JSON.parse(readFileSync(join(dataDir, "server.json"), "utf8"));
+  return { authorization: `Bearer ${row.token}` };
+}
 let server = null;
 
 try {
@@ -142,7 +151,7 @@ try {
       ELECTRON_RUN_AS_NODE: "1",
       NODE_ENV: "production",
       INTELIGIR_PORT: String(port),
-      INTELIGIR_DATA_DIR: join(scratch, "data"),
+      INTELIGIR_DATA_DIR: dataDir,
       INTELIGIR_VAULT_DIR: join(scratch, "vault"),
       INTELIGIR_AGENT: "off",
       INTELIGIR_SYNC_INTERVAL_MS: "0",
@@ -164,7 +173,7 @@ try {
 
   // A vault listing exercises better-sqlite3, @parcel/watcher and the git repo
   // init — the parts that would fail first on an ABI mismatch.
-  const tree = await fetch(`${baseUrl}/api/v1/vault/tree`);
+  const tree = await fetch(`${baseUrl}/api/v1/vault/tree`, { headers: authHeaders() });
   process.stdout.write(`smoke: vault tree -> ${tree.status} ${(await tree.text()).length} bytes\n`);
 
   // The third native module, and the only one reached from a WORKER THREAD, so
@@ -176,7 +185,7 @@ try {
   // darwin-arm64 and ships that prebuild, so a runtime that will not load is a
   // staging or ABI regression — the very thing a green smoke on `unavailable`
   // (its old, false, "legitimate answer") would have hidden.
-  const voice = await fetch(`${baseUrl}/api/v1/voice/status`);
+  const voice = await fetch(`${baseUrl}/api/v1/voice/status`, { headers: authHeaders() });
   if (!voice.ok) {
     fail(`the packaged voice status route answered ${voice.status}`);
   }
@@ -189,8 +198,10 @@ try {
   }
   process.stdout.write(`smoke: voice -> ${voiceStatus.state}\n`);
 
+  // The packaged CLI is told WHICH instance, never where or with what: it
+  // reads the port and the token out of the same server.json this smoke does.
   const status = await run(cliBin, ["status", "--json"], {
-    env: { ...process.env, INTELIGIR_SERVER_URL: baseUrl },
+    env: { ...process.env, INTELIGIR_DATA_DIR: dataDir },
   });
   if (!status.includes(baseUrl)) {
     fail(`the packaged CLI did not reach the packaged server: ${status}`);

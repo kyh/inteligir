@@ -18,7 +18,7 @@ export function foldersCommand(deps: CliDeps) {
         meta: { name: "list", description: "List the connected folders" },
         args: { ...jsonArg },
         run: async ({ args }) => {
-          const api = await apiFor(deps);
+          const api = apiFor(deps);
           const body = await (await requireOk(await api.folders.$get())).json();
           if (outputJson(args, body)) {
             return;
@@ -38,7 +38,7 @@ export function foldersCommand(deps: CliDeps) {
           ...jsonArg,
         },
         run: async ({ args }) => {
-          const api = await apiFor(deps);
+          const api = apiFor(deps);
           const response = await requireOk(
             await api.folders.add.$post({ json: { path: args.path } }),
           );
@@ -57,7 +57,7 @@ export function foldersCommand(deps: CliDeps) {
           ...jsonArg,
         },
         run: async ({ args }) => {
-          const api = await apiFor(deps);
+          const api = apiFor(deps);
           const response = await requireOk(
             await api.folders.remove.$post({ json: { path: args.path } }),
           );

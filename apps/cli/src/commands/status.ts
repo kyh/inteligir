@@ -1,8 +1,7 @@
 // `inteligir status` — the server's system status plus this invocation's
-// context: which server was dialed, HOW it was chosen, and which vault that
-// server is about to write into. The last two matter most on the
-// explicit-trust path (INTELIGIR_SERVER_URL), where the CLI verifies no
-// identity and the user owns the choice.
+// context: which instance was dialed and which vault it is about to write
+// into. Both come from `<dataDir>/server.json`, so what is printed here is
+// what the next command will actually reach.
 
 import { defineCommand } from "citty";
 import { apiFor, contextThreadId, type CliDeps } from "../context";
@@ -16,14 +15,13 @@ export function statusCommand(deps: CliDeps) {
     },
     args: { ...jsonArg },
     run: async ({ args }) => {
-      const server = await deps.resolveServer();
-      const api = await apiFor(deps);
+      const server = deps.resolveServer();
+      const api = apiFor(deps);
       const body = await (await requireOk(await api.system.status.$get())).json();
       const threadId = contextThreadId(deps.env) ?? null;
       if (
         outputJson(args, {
           serverUrl: server.baseUrl,
-          serverSource: server.source,
           contextThreadId: threadId,
           ...body,
         })
@@ -36,7 +34,7 @@ export function statusCommand(deps: CliDeps) {
       // reads.
       out.box(
         [
-          `inteligir ${body.version} — ${server.baseUrl} (${server.source})`,
+          `inteligir ${body.version} — ${server.baseUrl}`,
           `Data dir: ${body.dataDir}`,
           `Vault: ${body.vaultDir}`,
           `Schema: v${body.schemaVersion} — uptime ${Math.round(body.uptimeMs / 1_000)}s`,

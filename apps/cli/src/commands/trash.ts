@@ -14,7 +14,7 @@ export function trashCommand(deps: CliDeps) {
         meta: { name: "list", description: "Notes currently in the trash" },
         args: { ...jsonArg },
         run: async ({ args }) => {
-          const api = await apiFor(deps);
+          const api = apiFor(deps);
           const body = await (await requireOk(await api.vault.trash.$get())).json();
           if (outputJson(args, body)) {
             return;
@@ -39,7 +39,7 @@ export function trashCommand(deps: CliDeps) {
           ...jsonArg,
         },
         run: async ({ args }) => {
-          const api = await apiFor(deps);
+          const api = apiFor(deps);
           const body = await (
             await requireOk(await api.vault.trash.$post({ json: { path: args.path } }))
           ).json();
@@ -57,7 +57,7 @@ export function trashCommand(deps: CliDeps) {
           ...jsonArg,
         },
         run: async ({ args }) => {
-          const api = await apiFor(deps);
+          const api = apiFor(deps);
           const body = await (
             await requireOk(await api.vault.trash.restore.$post({ json: { path: args.path } }))
           ).json();
@@ -75,7 +75,7 @@ export function trashCommand(deps: CliDeps) {
           ...jsonArg,
         },
         run: async ({ args }) => {
-          const api = await apiFor(deps);
+          const api = apiFor(deps);
           const body = await (
             await requireOk(await api.vault.trash.purge.$post({ json: { path: args.path } }))
           ).json();

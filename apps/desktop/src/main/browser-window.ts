@@ -16,7 +16,9 @@ import {
   WebContentsView,
   type IpcMainInvokeEvent,
 } from "electron";
-import { createApiClient } from "@repo/server-contract/client";
+import { authorizationHeader } from "@repo/app/node/server-file";
+import { createApiClient, type ApiClient } from "@repo/server-contract/client";
+import type { LiveServer } from "./server-target";
 import {
   BROWSER_CHROME_HEIGHT,
   BROWSER_HOME_URL,
@@ -87,7 +89,7 @@ function pushChromeState(handle: BrowserWindowHandle): void {
  */
 async function sendPageToAgent(
   handle: BrowserWindowHandle,
-  appOrigin: string,
+  server: LiveServer,
 ): Promise<{ ok: boolean; detail: string }> {
   const contents = handle.content.webContents;
   const url = contents.getURL();
@@ -103,7 +105,7 @@ async function sendPageToAgent(
   }
   const capture = { url, title: contents.getTitle(), selection };
   try {
-    const api = createApiClient(appOrigin);
+    const api = apiClientFor(server);
     const created = await api.threads.create.$post({
       json: { title: capturePageTitle(capture) },
     });
@@ -127,10 +129,23 @@ async function sendPageToAgent(
   }
 }
 
+/** The typed client against the local server, carrying this instance's device
+ *  token. "Send to agent" is a MAIN-process call — the browser view has no
+ *  preload and never sees the credential. */
+function apiClientFor(server: LiveServer): ApiClient {
+  return createApiClient(server.origin, {
+    fetch: (input, init) => {
+      const headers = new Headers(init?.headers);
+      headers.set("authorization", authorizationHeader(server.token));
+      return fetch(input, { ...init, headers });
+    },
+  });
+}
+
 /** One registration for the process; each handler re-resolves the live handle
  *  and refuses any sender that is not the shell's own chrome bar — the app
  *  window has no preload, but a guard that checks is one that cannot rot. */
-function registerBrowserIpc(appOrigin: string): void {
+function registerBrowserIpc(server: LiveServer): void {
   if (ipcRegistered) {
     return;
   }
@@ -167,7 +182,7 @@ function registerBrowserIpc(appOrigin: string): void {
     if (handle === null) {
       return { ok: false, detail: "not the browser chrome" };
     }
-    return sendPageToAgent(handle, appOrigin);
+    return sendPageToAgent(handle, server);
   });
 }
 
@@ -179,9 +194,9 @@ function guardContentNavigation(event: Electron.Event, url: string): void {
   }
 }
 
-function createBrowserWindow(appOrigin: string): BrowserWindowHandle {
+function createBrowserWindow(server: LiveServer): BrowserWindowHandle {
   lockDownBrowserSession();
-  registerBrowserIpc(appOrigin);
+  registerBrowserIpc(server);
 
   const window = new BaseWindow({
     width: 1100,
@@ -237,9 +252,9 @@ function createBrowserWindow(appOrigin: string): BrowserWindowHandle {
 }
 
 /** Open the browser window, or focus the one already open. */
-export function showBrowserWindow(appOrigin: string): void {
+export function showBrowserWindow(server: LiveServer): void {
   if (browserHandle === null) {
-    browserHandle = createBrowserWindow(appOrigin);
+    browserHandle = createBrowserWindow(server);
     return;
   }
   if (browserHandle.window.isMinimized()) {

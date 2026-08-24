@@ -18,6 +18,8 @@ import {
 } from "@repo/server-contract/vault";
 import { afterEach, describe, expect, it } from "vitest";
 import { createApp } from "../../app";
+import { authorizationHeader } from "../../server-file";
+import { TEST_SERVER_TOKEN } from "../../__tests__/boot-app";
 import { createConnectorsService } from "../../connectors/connectors-service";
 import { createConnectorsStore } from "../../connectors/connectors-store";
 import { createConnectorOauthFlow } from "../../connectors/oauth-flow";
@@ -98,14 +100,21 @@ async function bootVaultApp() {
       cloudUrl: "https://cloud.test",
     },
     fallback: { kind: "none" },
-    instanceSecret: "test-instance-secret",
+    serverToken: TEST_SERVER_TOKEN,
     knowledge,
     schemaVersion: getSchemaVersion(db, knownSchemaVersion),
     startedAt: Date.now(),
     vault,
     version: "0.1.0-test",
   });
-  return { app, bus, vaultDir };
+  // Every route here is behind the device token; the gate itself is covered in
+  // app.test.ts, so this suite presents the credential and tests the handlers.
+  const request = async (input: string, init?: RequestInit): Promise<Response> => {
+    const headers = new Headers(init?.headers);
+    headers.set("authorization", authorizationHeader(TEST_SERVER_TOKEN));
+    return app.request(input, { ...init, headers });
+  };
+  return { app: { request, raw: app }, bus, vaultDir };
 }
 
 /** Any JSON-encodable body, including the malformed ones the refusal cases
@@ -351,19 +360,14 @@ describe("the vault routes", () => {
     expect(missing.status).toBe(404);
   });
 
-  it("refuses a cross-site request outright, Origin or no Origin", async () => {
-    const { app } = await bootVaultApp();
-    // An `<img src>` carries no Origin, so the origin rule cannot see it; the
-    // browser's own Sec-Fetch-Site is what names the initiator.
-    const crossSite = await app.request("/api/v1/vault/tree", {
-      headers: { "sec-fetch-site": "cross-site" },
-    });
-    expect(crossSite.status).toBe(403);
-
-    const sameOrigin = await app.request("/api/v1/vault/tree", {
-      headers: { "sec-fetch-site": "same-origin" },
-    });
-    expect(sameOrigin.status).toBe(200);
+  it("refuses an asset request that carries no device token", async () => {
+    const { app, vaultDir } = await bootVaultApp();
+    await writeFile(join(vaultDir, "picture.png"), "not really a png", "utf8");
+    // The bytes come from a vault a git remote can write into and are served
+    // from this origin, so the asset route is behind the same gate as the rest
+    // — a page that guessed the port cannot even learn that a path exists.
+    const anonymous = await app.raw.request("/api/v1/vault/asset?path=picture.png");
+    expect(anonymous.status).toBe(401);
   });
 
   it("fans a mutation out to vault subscribers on the ws bus", async () => {

@@ -118,10 +118,10 @@ export interface AcpRuntimeManagerDeps {
   model: string | null;
   /**
    * Env injected into the agent's SHELL (the runtime adds INTELIGIR_THREAD_ID
-   * per thread) — the seam that hands codex INTELIGIR_SERVER_URL so it can
-   * drive the product through the CLI. A getter, because the value it carries
-   * (the bound port) exists only after listen, while this manager is
-   * constructed before; it is read at runtime construction, on the first turn.
+   * per thread) — the seam that names the instance so the harness can drive
+   * the product through the CLI. A getter, because the values it carries (the
+   * resolved CLI bin dir, the Connected Folders) settle after listen while
+   * this manager is constructed before; it is read on the first turn.
    */
   shellEnv: () => AgentRuntimeShellEnvironment;
   /**

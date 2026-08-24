@@ -50,7 +50,7 @@ export function actionCommand(deps: CliDeps) {
         meta: { name: "list", description: "All actions with status" },
         args: { ...jsonArg },
         run: async ({ args }) => {
-          const api = await apiFor(deps);
+          const api = apiFor(deps);
           const body = await (await requireOk(await api.threads.list.$get())).json();
           if (outputJson(args, body)) {
             return;
@@ -70,7 +70,7 @@ export function actionCommand(deps: CliDeps) {
           ...jsonArg,
         },
         run: async ({ args }) => {
-          const api = await apiFor(deps);
+          const api = apiFor(deps);
           const created = await requireOk(
             await api.threads.create.$post({
               json: args.doc === undefined ? {} : { originDocPath: args.doc },
@@ -119,7 +119,7 @@ export function actionCommand(deps: CliDeps) {
           ...jsonArg,
         },
         run: async ({ args }) => {
-          const api = await apiFor(deps);
+          const api = apiFor(deps);
           const sent = await requireOk(
             await api.threads.send.$post({
               json: {
@@ -144,7 +144,7 @@ export function actionCommand(deps: CliDeps) {
           ...jsonArg,
         },
         run: async ({ args }) => {
-          const api = await apiFor(deps);
+          const api = apiFor(deps);
           const detail = await (
             await requireOk(await api.threads.get.$get({ query: { threadId: args.id } }))
           ).json();
@@ -207,7 +207,7 @@ export function actionCommand(deps: CliDeps) {
             args["poll-interval"] === undefined
               ? DEFAULT_WAIT_POLL_INTERVAL_MS
               : parsePositiveNumber(args["poll-interval"], "--poll-interval");
-          const api = await apiFor(deps);
+          const api = apiFor(deps);
           const deadline = Date.now() + timeoutSeconds * 1_000;
           const expire = (): CliExitError =>
             new CliExitError(`Thread ${args.id} did not settle within ${timeoutSeconds}s`, {
@@ -262,7 +262,7 @@ export function actionCommand(deps: CliDeps) {
           ...jsonArg,
         },
         run: async ({ args }) => {
-          const api = await apiFor(deps);
+          const api = apiFor(deps);
           const archived = await requireOk(
             await api.threads.archive.$post({ json: { threadId: args.id } }),
           );

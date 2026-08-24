@@ -19,7 +19,7 @@ import { z } from "zod";
  *  - the last resort.
  */
 export const API_ERROR_CODES = [
-  "forbidden_origin",
+  "unauthorized",
   "invalid_request",
   "not_found",
 
@@ -63,7 +63,7 @@ export type ApiErrorCode = z.infer<typeof apiErrorCodeSchema>;
  * right condition for a branch that answers several codes at once.
  */
 export const API_ERROR_STATUS = {
-  forbidden_origin: 403,
+  unauthorized: 401,
   invalid_request: 400,
   not_found: 404,
 

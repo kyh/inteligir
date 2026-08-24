@@ -14,8 +14,8 @@ import { describe, expect, it } from "vitest";
 import { bootTestApp } from "../../__tests__/boot-app";
 
 async function bootApp() {
-  const { composed } = await bootTestApp();
-  return { app: composed.app };
+  const { request } = await bootTestApp();
+  return { app: { request } };
 }
 
 function putNote(path: string, content: string): RequestInit {

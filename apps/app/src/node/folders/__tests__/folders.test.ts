@@ -108,12 +108,12 @@ describe("folders service validation", () => {
 });
 
 describe("shell env composition", () => {
-  const base: AgentShellEnv = { INTELIGIR_SERVER_URL: "http://127.0.0.1:1" };
+  const base: AgentShellEnv = { INTELIGIR_DATA_DIR: "/instances/one/data" };
 
   it("is absent with no folders and os-delimited with some", () => {
     expect(withConnectedDirs(base, [])).toEqual(base);
     const composed = withConnectedDirs(base, ["/a", "/b"]);
     expect(composed.INTELIGIR_CONNECTED_DIRS).toBe(`/a${delimiter}/b`);
-    expect(composed.INTELIGIR_SERVER_URL).toBe(base.INTELIGIR_SERVER_URL);
+    expect(composed.INTELIGIR_DATA_DIR).toBe(base.INTELIGIR_DATA_DIR);
   });
 });

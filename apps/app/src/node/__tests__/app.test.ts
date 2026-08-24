@@ -8,7 +8,6 @@ import { apiErrorResponseSchema } from "@repo/server-contract/errors";
 import {
   guideResponseSchema,
   healthResponseSchema,
-  systemIdentityResponseSchema,
   systemStatusResponseSchema,
 } from "@repo/server-contract/routes";
 import { createApiClient } from "@repo/server-contract/client";
@@ -24,9 +23,9 @@ import {
 import { afterEach, describe, expect, it } from "vitest";
 import { z } from "zod";
 import { type AppFallback } from "../app";
-import { newIdentityChallenge, verifyIdentityProof } from "../instance-identity";
 import { closeServer } from "../listen";
-import { bootTestApp } from "./boot-app";
+import { authorizationHeader, SERVER_TOKEN_COOKIE, serverTokenCookie } from "../server-file";
+import { bootTestApp, TEST_SERVER_TOKEN } from "./boot-app";
 import { boundAddressSchema } from "./bound-address";
 import { makeTempDir } from "./temp-dir";
 
@@ -78,8 +77,8 @@ describe("the API over the in-process app", () => {
   });
 
   it("answers /api/v1/system/status from the migrated database", async () => {
-    const { args, composed } = await bootTestApp();
-    const response = await composed.app.request("/api/v1/system/status");
+    const { args, request } = await bootTestApp();
+    const response = await request("/api/v1/system/status");
     expect(response.status).toBe(200);
     const status = systemStatusResponseSchema.parse(await response.json());
     expect(status.version).toBe("0.1.0-test");
@@ -94,50 +93,9 @@ describe("the API over the in-process app", () => {
     expect(status.uptimeMs).toBeGreaterThanOrEqual(0);
   });
 
-  it("PROVES its identity on /api/v1/system/identity", async () => {
-    // status only CLAIMS a data dir; a port squatter can claim anything. This
-    // is the route a client uses to make the claim checkable.
-    const { args, composed } = await bootTestApp();
-    const challenge = newIdentityChallenge();
-    const response = await composed.app.request(`/api/v1/system/identity?challenge=${challenge}`);
-    expect(response.status).toBe(200);
-    const identity = systemIdentityResponseSchema.parse(await response.json());
-    expect(identity.dataDir).toBe(args.config.dataDir);
-    expect(verifyIdentityProof(args.instanceSecret, challenge, identity.proof)).toBe(true);
-    // And the proof is bound to THIS challenge.
-    expect(verifyIdentityProof(args.instanceSecret, newIdentityChallenge(), identity.proof)).toBe(
-      false,
-    );
-  });
-
-  it("answers a different proof for every challenge, and never leaks the secret", async () => {
-    const { args, composed } = await bootTestApp();
-    const [first, second] = await Promise.all(
-      [newIdentityChallenge(), newIdentityChallenge()].map(async (challenge) => {
-        const response = await composed.app.request(
-          `/api/v1/system/identity?challenge=${challenge}`,
-        );
-        return systemIdentityResponseSchema.parse(await response.json()).proof;
-      }),
-    );
-    expect(first).not.toBe(second);
-    expect(JSON.stringify({ first, second })).not.toContain(args.instanceSecret);
-  });
-
-  it.each(["", "not-hex", "abc", "A".repeat(64), "a".repeat(200)])(
-    "refuses the malformed identity challenge %o with a 400",
-    async (challenge) => {
-      const { composed } = await bootTestApp();
-      const response = await composed.app.request(
-        `/api/v1/system/identity?challenge=${encodeURIComponent(challenge)}`,
-      );
-      expect(response.status).toBe(400);
-    },
-  );
-
   it("serves the CLI manual on /api/v1/guide per the contract", async () => {
-    const { composed } = await bootTestApp();
-    const response = await composed.app.request("/api/v1/guide");
+    const { request } = await bootTestApp();
+    const response = await request("/api/v1/guide");
     expect(response.status).toBe(200);
     const guide = guideResponseSchema.parse(await response.json());
     expect(guide.markdown).toContain("# The inteligir CLI");
@@ -151,9 +109,9 @@ describe("the API over the in-process app", () => {
   });
 
   it("answers unmatched /api/v1 paths with JSON 404, never the SPA document", async () => {
-    const { composed } = await bootTestApp({ fallback: makeProdFallback().fallback });
+    const { composed, request } = await bootTestApp({ fallback: makeProdFallback().fallback });
 
-    const apiMiss = await composed.app.request("/api/v1/nope", {
+    const apiMiss = await request("/api/v1/nope", {
       headers: { accept: "text/html" },
     });
     expect(apiMiss.status).toBe(404);
@@ -263,77 +221,69 @@ describe("the prod static layer", () => {
   });
 });
 
-describe("the browser-origin guard", () => {
-  it("refuses a foreign Origin on the API", async () => {
+describe("the device token", () => {
+  it("refuses an API request that carries none", async () => {
     const { composed } = await bootTestApp();
-    const response = await composed.app.request("/api/v1/health", {
-      headers: { origin: "http://evil.example" },
-    });
-    expect(response.status).toBe(403);
-    expect(apiErrorResponseSchema.parse(await response.json()).error).toBe("forbidden_origin");
+    const response = await composed.app.request("/api/v1/system/status");
+    expect(response.status).toBe(401);
+    expect(apiErrorResponseSchema.parse(await response.json()).error).toBe("unauthorized");
   });
 
-  it("passes Origin-less callers and the app's own origins", async () => {
-    const { composed } = await bootTestApp({ port: 4664 });
+  it("refuses a WRONG token, and accepts the right one in either carrier", async () => {
+    const { composed } = await bootTestApp();
 
-    const originless = await composed.app.request("/api/v1/health");
-    expect(originless.status).toBe(200);
-
-    const configured = await composed.app.request("/api/v1/health", {
-      headers: { origin: "http://127.0.0.1:4664" },
+    const wrong = await composed.app.request("/api/v1/system/status", {
+      headers: { authorization: authorizationHeader("not-the-token") },
     });
-    expect(configured.status).toBe(200);
+    expect(wrong.status).toBe(401);
 
-    const localhostVariant = await composed.app.request("/api/v1/health", {
-      headers: { origin: "http://localhost:4664" },
+    const bearer = await composed.app.request("/api/v1/system/status", {
+      headers: { authorization: authorizationHeader(TEST_SERVER_TOKEN) },
     });
-    expect(localhostVariant.status).toBe(200);
+    expect(bearer.status).toBe(200);
 
-    // The server may bind a probed port: the origin matching the request's
-    // own loopback Host target is the app's own origin too.
-    const probedPort = await composed.app.request("/api/v1/health", {
-      headers: { host: "127.0.0.1:24911", origin: "http://127.0.0.1:24911" },
+    // The browser's carrier: a document navigation, an `<img src>` and a
+    // `new WebSocket()` can none of them set a header.
+    const cookie = await composed.app.request("/api/v1/system/status", {
+      headers: { cookie: `${SERVER_TOKEN_COOKIE}=${TEST_SERVER_TOKEN}` },
     });
-    expect(probedPort.status).toBe(200);
-
-    // A foreign Origin never rides in on a matching-looking Host.
-    const foreignHost = await composed.app.request("/api/v1/health", {
-      headers: { host: "evil.example:4664", origin: "http://evil.example:4664" },
-    });
-    expect(foreignHost.status).toBe(403);
+    expect(cookie.status).toBe(200);
   });
 
-  it("refuses the ws upgrade for a foreign Origin", async () => {
-    const { composed } = await bootTestApp({ port: 4664 });
-
-    const foreign = await composed.app.request("/ws", {
-      headers: { origin: "http://evil.example", upgrade: "websocket" },
-    });
-    expect(foreign.status).toBe(403);
-
-    // Own origin passes the guard and reaches the upgrade machinery (which
-    // cannot complete in-process — anything but a 403 is the guard passing).
-    const own = await composed.app.request("/ws", {
-      headers: { origin: "http://127.0.0.1:4664", upgrade: "websocket" },
-    });
-    expect(own.status).not.toBe(403);
+  it("leaves /health outside the gate — it is a spawn probe", async () => {
+    const { composed } = await bootTestApp();
+    const response = await composed.app.request("/api/v1/health");
+    expect(response.status).toBe(200);
+    expect(healthResponseSchema.parse(await response.json())).toEqual({ ok: true });
   });
 
-  it("guards the voice stream upgrade exactly like the ws upgrade", async () => {
-    const { composed } = await bootTestApp({ port: 4664 });
-
-    const foreign = await composed.app.request(VOICE_STREAM_PATH, {
-      headers: { origin: "http://evil.example", upgrade: "websocket" },
-    });
-    expect(foreign.status).toBe(403);
-
-    const own = await composed.app.request(VOICE_STREAM_PATH, {
-      headers: { origin: "http://127.0.0.1:4664", upgrade: "websocket" },
-    });
-    expect(own.status).not.toBe(403);
+  it("hands the browser its credential on the document, HttpOnly and SameSite=Strict", async () => {
+    const { fallback } = makeProdFallback();
+    const { composed } = await bootTestApp({ fallback });
+    const document = await composed.app.request("/", { headers: { accept: "text/html" } });
+    expect(document.headers.get("set-cookie")).toBe(serverTokenCookie(TEST_SERVER_TOKEN));
   });
 
-  it("refuses a real upgrade over the wire for a foreign Origin", async () => {
+  it("gates both websocket upgrades", async () => {
+    const { composed } = await bootTestApp();
+
+    for (const path of ["/ws", VOICE_STREAM_PATH]) {
+      const bare = await composed.app.request(path, { headers: { upgrade: "websocket" } });
+      expect(bare.status).toBe(401);
+
+      // Authenticated, the request reaches the upgrade machinery (which cannot
+      // complete in-process — anything but a 401 is the gate passing).
+      const authed = await composed.app.request(path, {
+        headers: {
+          upgrade: "websocket",
+          authorization: authorizationHeader(TEST_SERVER_TOKEN),
+        },
+      });
+      expect(authed.status).not.toBe(401);
+    }
+  });
+
+  it("refuses a real unauthenticated upgrade over the wire", async () => {
     const { composed } = await bootTestApp();
     const server = serve({ fetch: composed.app.fetch, hostname: "127.0.0.1", port: 0 });
     composed.injectWebSocket(server);
@@ -362,7 +312,6 @@ describe("the browser-origin guard", () => {
         headers: {
           connection: "Upgrade",
           upgrade: "websocket",
-          origin: "http://evil.example",
           "sec-websocket-key": "dGhlIHNhbXBsZSBub25jZQ==",
           "sec-websocket-version": "13",
         },
@@ -375,7 +324,7 @@ describe("the browser-origin guard", () => {
       request.on("error", reject);
       request.end();
     });
-    expect(status).toBe(403);
+    expect(status).toBe(401);
   });
 });
 
@@ -409,14 +358,22 @@ describe("the real socket upgrade", () => {
     const baseUrl = `http://127.0.0.1:${address.port}`;
 
     // The typed hc client against the live server — contract → handler → client.
-    const client = createApiClient(baseUrl);
+    const client = createApiClient(baseUrl, {
+      fetch: (input, init) => {
+        const headers = new Headers(init?.headers);
+        headers.set("authorization", authorizationHeader(TEST_SERVER_TOKEN));
+        return fetch(input, { ...init, headers });
+      },
+    });
     const healthResponse = await client.health.$get();
     expect(healthResponse.status).toBe(200);
     expect(healthResponseSchema.parse(await healthResponse.json())).toEqual({
       ok: true,
     });
 
-    const socket = new WebSocket(`ws://127.0.0.1:${address.port}/ws`);
+    const socket = new WebSocket(`ws://127.0.0.1:${address.port}/ws`, {
+      headers: { authorization: authorizationHeader(TEST_SERVER_TOKEN) },
+    });
     cleanups.push(() => socket.close());
 
     const frames: ServerMessage[] = [];
@@ -501,7 +458,9 @@ describe("the dictation stream socket", () => {
     const { server, port } = await serveVoiceApp();
     cleanups.push(() => closeServerOnce(server));
 
-    const socket = new WebSocket(`ws://127.0.0.1:${port}${VOICE_STREAM_PATH}`);
+    const socket = new WebSocket(`ws://127.0.0.1:${port}${VOICE_STREAM_PATH}`, {
+      headers: { authorization: authorizationHeader(TEST_SERVER_TOKEN) },
+    });
     socket.binaryType = "arraybuffer";
     const frames: VoiceStreamDownMessage[] = [];
     let announce: (() => void) | undefined;
@@ -541,7 +500,9 @@ describe("the dictation stream socket", () => {
   it("does not stall teardown while a dictation socket is open", async () => {
     const { booted, server, port } = await serveVoiceApp();
 
-    const socket = new WebSocket(`ws://127.0.0.1:${port}${VOICE_STREAM_PATH}`);
+    const socket = new WebSocket(`ws://127.0.0.1:${port}${VOICE_STREAM_PATH}`, {
+      headers: { authorization: authorizationHeader(TEST_SERVER_TOKEN) },
+    });
     await new Promise<void>((resolve, reject) => {
       socket.addEventListener("open", () => resolve());
       socket.addEventListener("error", () => reject(new Error("voice ws error")));

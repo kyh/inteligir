@@ -33,6 +33,11 @@ import { Hono } from "hono";
 
 const NOT_FOUND: ApiErrorResponse = { error: "not_found", message: "Not found" };
 
+/** The device token this fixture requires. The CLI attaches it from
+ *  `<dataDir>/server.json`; the gate is here so a command that somehow reached
+ *  the wire without one fails LOUDLY rather than passing. */
+export const FIXTURE_SERVER_TOKEN = "fixture-server-token";
+
 const FIXTURE_CLOUD_URL = "https://cloud.fixture";
 
 export interface FixtureThread {
@@ -198,6 +203,14 @@ function resolveFixtureProposal(
 
 function createFixtureApp(state: FixtureState): Hono {
   const api = new Hono();
+  api.use("*", async (c, next) => {
+    if (c.req.header("authorization") !== `Bearer ${FIXTURE_SERVER_TOKEN}`) {
+      const body: ApiErrorResponse = { error: "unauthorized", message: "no device token" };
+      return c.json(body, 401);
+    }
+    await next();
+    return undefined;
+  });
   // Flipped by a test to make every route refuse: what proves a command
   // CHECKS the status rather than printing whatever body arrives.
   api.use("*", async (c, next) => {

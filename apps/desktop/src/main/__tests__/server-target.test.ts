@@ -2,16 +2,14 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DEV_DATA_ROOT_DIR, PROD_DATA_DIR_NAME, PROD_SERVER_PORT } from "@repo/app/node/config";
-import { proveIdentity } from "@repo/app/node/instance-identity";
+import { SERVER_FILE_NAME, authorizationHeader } from "@repo/app/node/server-file";
 import { afterEach, describe, expect, it } from "vitest";
 import {
-  describeIdentityVerdict,
-  identityUrl,
-  newIdentityChallenge,
+  describeServerVerdict,
   planServerStart,
   resolveServerTarget,
   serverOrigin,
-  verifyServerIdentity,
+  verifyServer,
   windowUrl,
 } from "../server-target";
 
@@ -53,7 +51,6 @@ describe("resolveServerTarget", () => {
     expect(resolved).toEqual({
       kind: "resolved",
       target: {
-        origin: `http://127.0.0.1:${PROD_SERVER_PORT}`,
         port: PROD_SERVER_PORT,
         dataDir: join(homeDir, PROD_DATA_DIR_NAME),
         vaultDir: join(homeDir, "Inteligir"),
@@ -61,10 +58,9 @@ describe("resolveServerTarget", () => {
     });
   });
 
-  it("reads the port out of config.json, which is what the window is pinned to", () => {
-    // A shell that knows only INTELIGIR_PORT probes 4664, finds nothing, and
-    // spawns a child that binds 4700 instead — leaving the window pinned to a
-    // dead port while a second server runs against the same vault.
+  it("reads the port out of config.json, which is what a spawned child binds", () => {
+    // A shell that knows only INTELIGIR_PORT would hand its child 4664 while
+    // the app's own resolution says 4700 — two servers, one vault.
     const homeDir = scratchHome();
     writeManagedConfig(join(homeDir, PROD_DATA_DIR_NAME), { port: 4700 });
     const resolved = resolveServerTarget({
@@ -73,7 +69,7 @@ describe("resolveServerTarget", () => {
       env: {},
       homeDir,
     });
-    expect(resolved.kind === "resolved" && resolved.target.origin).toBe("http://127.0.0.1:4700");
+    expect(resolved.kind === "resolved" && resolved.target.port).toBe(4700);
   });
 
   it("carries config.json's vault dir down to the child", () => {
@@ -134,12 +130,41 @@ describe("resolveServerTarget", () => {
     });
   });
 });
-const DATA_DIR = "/Users/kyh/.inteligir";
-const SECRET = "a".repeat(64);
-const CHALLENGE = "b".repeat(64);
+const TOKEN = "device-token";
 
-/** The local data dir holds SECRET unless a case says otherwise. */
-const readSecret = () => SECRET;
+/** A data dir holding a `server.json` that names `port`, or nothing at all. */
+function dataDirWithServer(port: number | null): string {
+  const dir = mkdtempSync(join(tmpdir(), "inteligir-shell-data-"));
+  scratchDirs.push(dir);
+  if (port !== null) {
+    writeFileSync(
+      join(dir, SERVER_FILE_NAME),
+      JSON.stringify({ port, token: TOKEN, vaultDir: join(dir, "vault"), pid: 4242 }),
+      "utf8",
+    );
+  }
+  return dir;
+}
+
+/** A responder that answers `/system/status` only for the right bearer. */
+function respondingServer(dataDir: string, options: { token?: string; status?: unknown } = {}) {
+  return (url: string, init: RequestInit): Promise<Response> => {
+    const headers = new Headers(init.headers);
+    if (headers.get("authorization") !== authorizationHeader(options.token ?? TOKEN)) {
+      return Promise.resolve(new Response("no", { status: 401 }));
+    }
+    const body = options.status ?? {
+      version: "0.1.0",
+      dataDir,
+      vaultDir: join(dataDir, "vault"),
+      schemaVersion: 1,
+      uptimeMs: 1,
+      agent: { mode: "off", runtime: "off", detail: null },
+    };
+    expect(url).toContain("/api/v1/system/status");
+    return Promise.resolve(Response.json(body));
+  };
+}
 
 describe("serverOrigin", () => {
   it("is loopback by address, never by name", () => {
@@ -149,105 +174,81 @@ describe("serverOrigin", () => {
   });
 });
 
-describe("identityUrl", () => {
-  it("carries the challenge as an encoded query param", () => {
-    expect(identityUrl("http://127.0.0.1:4664", "ab12")).toBe(
-      "http://127.0.0.1:4664/api/v1/system/identity?challenge=ab12",
+describe("verifyServer", () => {
+  it("verifies a responder that holds this data dir's token and names it back", async () => {
+    const dataDir = dataDirWithServer(4700);
+    await expect(verifyServer(dataDir, respondingServer(dataDir))).resolves.toEqual({
+      kind: "verified",
+      live: { origin: "http://127.0.0.1:4700", port: 4700, token: TOKEN },
+    });
+  });
+
+  it("follows the BOUND port the file names, not the configured one", async () => {
+    // A dev instance probes upward when its derived port is taken; a window
+    // pinned to the derived value would be pinned to nothing.
+    const dataDir = dataDirWithServer(24911);
+    const verdict = await verifyServer(dataDir, respondingServer(dataDir));
+    expect(verdict.kind === "verified" && verdict.live.origin).toBe("http://127.0.0.1:24911");
+  });
+
+  it("REFUSES a port squatter — it cannot hold a token it never wrote", async () => {
+    const dataDir = dataDirWithServer(4700);
+    const verdict = await verifyServer(dataDir, respondingServer(dataDir, { token: "other" }));
+    expect(verdict).toEqual({ kind: "not-ours", origin: "http://127.0.0.1:4700" });
+  });
+
+  it("refuses a real server that serves a different vault", async () => {
+    // It can read the token (same user, same file) but it is not the instance
+    // this shell means — adopting it points the window at the wrong notes.
+    const dataDir = dataDirWithServer(4700);
+    const verdict = await verifyServer(
+      dataDir,
+      respondingServer(dataDir, {
+        status: {
+          version: "0.1.0",
+          dataDir: "/elsewhere",
+          vaultDir: "/elsewhere/vault",
+          schemaVersion: 1,
+          uptimeMs: 1,
+          agent: { mode: "off", runtime: "off", detail: null },
+        },
+      }),
     );
+    expect(verdict).toEqual({
+      kind: "wrong-data-dir",
+      origin: "http://127.0.0.1:4700",
+      claimed: "/elsewhere",
+    });
+  });
+
+  it("fails CLOSED when the data dir names no server", async () => {
+    await expect(verifyServer(dataDirWithServer(null), respondingServer("/x"))).resolves.toEqual({
+      kind: "no-server",
+    });
+  });
+
+  it("reports a stale row as unreachable, not as a stranger", async () => {
+    const dataDir = dataDirWithServer(4700);
+    await expect(
+      verifyServer(dataDir, () => Promise.reject(new Error("ECONNREFUSED"))),
+    ).resolves.toEqual({ kind: "unreachable", origin: "http://127.0.0.1:4700" });
   });
 });
 
-describe("newIdentityChallenge", () => {
-  it("is fresh every time — a replayed proof must be worthless", () => {
-    const first = newIdentityChallenge();
-    const second = newIdentityChallenge();
-    expect(first).not.toBe(second);
-    expect(first).toMatch(/^[0-9a-f]{64}$/u);
-  });
-});
-
-describe("verifyServerIdentity", () => {
-  it("verifies a responder that answers the challenge for the right data dir", () => {
-    expect(
-      verifyServerIdentity({
-        dataDir: DATA_DIR,
-        challenge: CHALLENGE,
-        answer: { proof: proveIdentity(SECRET, CHALLENGE), dataDir: DATA_DIR },
-        readSecret,
-      }),
-    ).toEqual({ kind: "verified" });
-  });
-
-  it("REFUSES a port squatter that answers health but cannot prove anything", () => {
-    // The finding in one case: any local process can hold 4664 and return 200.
-    expect(
-      verifyServerIdentity({
-        dataDir: DATA_DIR,
-        challenge: CHALLENGE,
-        answer: { proof: "0".repeat(64), dataDir: DATA_DIR },
-        readSecret,
-      }),
-    ).toEqual({ kind: "bad-proof" });
-  });
-
-  it("refuses a proof computed for a DIFFERENT challenge — no replay", () => {
-    expect(
-      verifyServerIdentity({
-        dataDir: DATA_DIR,
-        challenge: CHALLENGE,
-        answer: { proof: proveIdentity(SECRET, "c".repeat(64)), dataDir: DATA_DIR },
-        readSecret,
-      }),
-    ).toEqual({ kind: "bad-proof" });
-  });
-
-  it("refuses a real server that serves a different vault", () => {
-    // It can prove the secret (same user, same file) but it is not the
-    // instance this shell means — adopting it points the window at the wrong
-    // notes.
-    expect(
-      verifyServerIdentity({
-        dataDir: DATA_DIR,
-        challenge: CHALLENGE,
-        answer: { proof: proveIdentity(SECRET, CHALLENGE), dataDir: "/Users/kyh/.inteligir-other" },
-        readSecret,
-      }),
-    ).toEqual({ kind: "wrong-data-dir", claimed: "/Users/kyh/.inteligir-other" });
-  });
-
-  it("fails CLOSED when the local data dir has no secret to check against", () => {
-    expect(
-      verifyServerIdentity({
-        dataDir: DATA_DIR,
-        challenge: CHALLENGE,
-        answer: { proof: proveIdentity(SECRET, CHALLENGE), dataDir: DATA_DIR },
-        readSecret: () => null,
-      }),
-    ).toEqual({ kind: "no-secret" });
-  });
-
-  it("reports an unanswered challenge as unreachable, not as a bad proof", () => {
-    expect(
-      verifyServerIdentity({ dataDir: DATA_DIR, challenge: CHALLENGE, answer: null, readSecret }),
-    ).toEqual({ kind: "unreachable" });
-  });
-});
-
-describe("describeIdentityVerdict", () => {
+describe("describeServerVerdict", () => {
   it.each([
-    ["verified" as const],
-    ["no-secret" as const],
-    ["unreachable" as const],
-    ["bad-proof" as const],
-  ])("says something a human can act on for %s", (kind) => {
-    expect(describeIdentityVerdict({ kind }, "http://127.0.0.1:4664").length).toBeGreaterThan(10);
+    [{ kind: "no-server" as const }],
+    [{ kind: "unreachable" as const, origin: "http://127.0.0.1:4664" }],
+    [{ kind: "not-ours" as const, origin: "http://127.0.0.1:4664" }],
+  ])("says something a human can act on for %o", (verdict) => {
+    expect(describeServerVerdict(verdict, "/data").length).toBeGreaterThan(10);
   });
 
   it("names the other data dir when that is the mismatch", () => {
     expect(
-      describeIdentityVerdict(
-        { kind: "wrong-data-dir", claimed: "/elsewhere" },
-        "http://127.0.0.1:4664",
+      describeServerVerdict(
+        { kind: "wrong-data-dir", origin: "http://127.0.0.1:4664", claimed: "/elsewhere" },
+        "/data",
       ),
     ).toContain("/elsewhere");
   });

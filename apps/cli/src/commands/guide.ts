@@ -10,7 +10,7 @@ export function guideCommand(deps: CliDeps) {
     meta: { name: "guide", description: "Print the agent manual served by the app" },
     args: { ...jsonArg },
     run: async ({ args }) => {
-      const api = await apiFor(deps);
+      const api = apiFor(deps);
       const body = await (await requireOk(await api.guide.$get())).json();
       if (outputJson(args, body)) {
         return;

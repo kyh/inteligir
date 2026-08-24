@@ -22,15 +22,15 @@ output; without it the output is compact human text.
 
 ## Finding the server
 
-- \`INTELIGIR_SERVER_URL\` — when set (it is set inside agent shells), the CLI
-  dials it directly and verifies nothing: you named it, you own it. This is
-  the base URL, e.g. \`http://127.0.0.1:21847\`.
-- Otherwise the CLI derives the local instance the same way the app does
-  (per-checkout dev port, then the installed default), probes for it, and
-  requires the server it finds to serve THIS checkout's data dir — a
-  neighbouring checkout's server answering first is refused, never used.
-- \`inteligir status\` prints which server was chosen, how, and which vault it
-  is about to write into.
+- \`INTELIGIR_DATA_DIR\` — WHICH instance (it is set inside agent shells). The
+  running server publishes \`<dataDir>/server.json\` holding the port it bound
+  and the token it answers to, so the CLI never probes and never guesses.
+- Unset, the CLI derives the same data dir the app does: the per-checkout dev
+  instance, or the installed one under \`NODE_ENV=production\`.
+- No readable \`server.json\` means no server: the CLI exits 3 rather than
+  dialing anything.
+- \`inteligir status\` prints which server it reached and which vault that
+  server is about to write into.
 - \`INTELIGIR_THREAD_ID\` — set inside agent shells to the thread you are
   running in. \`inteligir --help\` prints both values under "Environment".
 

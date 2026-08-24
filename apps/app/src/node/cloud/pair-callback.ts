@@ -29,7 +29,7 @@ import {
 } from "@repo/cloud-contract/pairing";
 import { describeCloudFailure } from "./cloud-client";
 import type { CloudRuntime, PairCompletion } from "./sync-runtime";
-import { loopbackRequestOrigin } from "../browser-request-guard";
+import { loopbackRequestOrigin } from "../loopback-origin";
 import {
   INERT_CALLBACK_HEADERS,
   type InertCallbackPage,

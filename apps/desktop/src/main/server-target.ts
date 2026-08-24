@@ -10,27 +10,29 @@
 // leaving the window pinned to an origin no server listens on while a second
 // server runs against the same vault.
 //
-// The origin is still a PIN: it is fixed for the whole launch, and the child
-// is told the exact port (and data/vault dirs) this resolution produced, so
-// nothing downstream can land somewhere else.
+// The origin is still a PIN: it is fixed for the whole launch once the server
+// has answered, and a spawned child is told the exact port (and data/vault
+// dirs) this resolution produced, so nothing downstream can land somewhere
+// else.
 //
 // AND WHAT ANSWERS THERE STILL HAS TO PROVE ITSELF. A loopback port is
 // first-come-first-served and unauthenticated, so "something answered /health"
-// identifies nothing. Adoption is a deliberate capability — a user with `npx
-// inteligir` already running should get a window on the vault they are already
-// using rather than a second process fighting for the port — and that is
-// exactly why the responder has to EARN it. The shell adopts only a server
-// that proves it can read the data dir this resolution named
-// (@repo/app/node/instance-identity says what that proof is worth). A squatter
-// that cannot produce the proof wins nothing.
+// identifies nothing. Adoption is a deliberate capability — a user with
+// `inteligir serve` already running should get a window on the vault they are
+// already using rather than a second process fighting for the port — and that
+// is exactly why the responder has to EARN it.
+//
+// BOTH HALVES ARE REQUIRED, and `<dataDir>/server.json` carries them together.
+// Reading the file proves THIS process can read the data dir; presenting its
+// token back and being answered proves the RESPONDER is what wrote it. Either
+// half alone is not enough: a squatter on the port has no token, and a file
+// this shell cannot read names nothing it may adopt. The responder must also
+// still name the data dir this resolution derived — a real inteligir server
+// for a DIFFERENT vault is exactly the wrong window.
 
 import { resolveAppConfig, type ResolveAppConfigArgs } from "@repo/app/node/config";
-import {
-  newIdentityChallenge,
-  readInstanceSecret,
-  verifyIdentityProof,
-} from "@repo/app/node/instance-identity";
-import { apiPath, apiRoutes, type SystemIdentityResponse } from "@repo/server-contract/routes";
+import { authorizationHeader, readServerFile } from "@repo/app/node/server-file";
+import { apiPath, apiRoutes, systemStatusResponseSchema } from "@repo/server-contract/routes";
 import { isHttpUrl } from "./origin-pin";
 
 /** Loopback, never `localhost`: the name resolves to ::1 or 127.0.0.1
@@ -39,16 +41,11 @@ export function serverOrigin(port: number): string {
   return `http://127.0.0.1:${port}`;
 }
 
-export function identityUrl(origin: string, challenge: string): string {
-  const path = apiPath(apiRoutes.system.identity);
-  return `${origin}${path}?challenge=${encodeURIComponent(challenge)}`;
-}
-
-/** One resolution, carried whole: the origin the window is pinned to and the
- *  three facts a spawned child is handed so it cannot resolve them again and
- *  disagree. */
+/** One resolution, carried whole: the three facts a spawned child is handed so
+ *  it cannot resolve them again and disagree. The ORIGIN is not among them —
+ *  it is what the server that answered says it is (`verifyServer`), because an
+ *  adopted one may sit on a port this resolution never named. */
 export interface ServerTarget {
-  origin: string;
   port: number;
   dataDir: string;
   vaultDir: string;
@@ -87,7 +84,6 @@ export function resolveServerTarget(args: ResolveServerTargetArgs): ServerTarget
     return {
       kind: "resolved",
       target: {
-        origin: serverOrigin(config.port),
         port: config.port,
         dataDir: config.dataDir,
         vaultDir: config.vaultDir,
@@ -98,71 +94,83 @@ export function resolveServerTarget(args: ResolveServerTargetArgs): ServerTarget
   }
 }
 
-/**
- * What a responder has to satisfy before the shell will point a window at it.
- *
- * Both halves are required, and neither is sufficient. The PROOF says the
- * responder can read the secret in the data dir this shell means — a squatter
- * cannot. The dataDir MATCH says it is serving that vault rather than some
- * other one it also has access to. A responder that proves the secret but
- * names a different data dir is a real inteligir server for a different vault,
- * and adopting it would silently point the window at the wrong notes.
- */
-export type IdentityVerdict =
-  | { kind: "verified" }
-  | { kind: "no-secret" }
-  | { kind: "unreachable" }
-  | { kind: "wrong-data-dir"; claimed: string }
-  | { kind: "bad-proof" };
-
-export interface VerifyIdentityArgs {
-  /** The data dir this shell is configured for. */
-  dataDir: string;
-  challenge: string;
-  /** What the responder answered, PARSED against the contract's own row, or
-   *  null when it answered nothing usable. The shape is the contract's rather
-   *  than a local narrowing of two string fields: this is the one message a
-   *  squatter gets to compose, so the schema's own bounds (a 64-hex proof, no
-   *  extra keys) are exactly what should be applied to it. */
-  answer: SystemIdentityResponse | null;
-  /** Reads the secret the local data dir holds; injected for the tests. */
-  readSecret?: (dataDir: string) => string | null;
+/** The server that is actually listening for this data dir. `origin` is built
+ *  from the BOUND port the file names, never from the configured one — a dev
+ *  instance may have probed upward, and a window pinned to the derived value
+ *  would be pinned to nothing. */
+export interface LiveServer {
+  origin: string;
+  port: number;
+  token: string;
 }
 
-export function verifyServerIdentity(args: VerifyIdentityArgs): IdentityVerdict {
-  const readSecret = args.readSecret ?? readInstanceSecret;
-  const secret = readSecret(args.dataDir);
-  if (secret === null) {
-    // Nothing has ever booted against this data dir (or this process may not
-    // read it). Fails CLOSED: with no secret there is no question to ask, so
-    // there is no responder that can be trusted.
-    return { kind: "no-secret" };
+export type ServerVerdict =
+  | { kind: "verified"; live: LiveServer }
+  /** No server has published itself for this data dir. */
+  | { kind: "no-server" }
+  /** A row exists but nothing usable answered on it. */
+  | { kind: "unreachable"; origin: string }
+  /** Something answered, holding the token, but serving somewhere else. */
+  | { kind: "wrong-data-dir"; origin: string; claimed: string }
+  /** Something answered and refused the token — not the process that wrote it. */
+  | { kind: "not-ours"; origin: string };
+
+const PROBE_TIMEOUT_MS = 2_000;
+
+export type ProbeFetch = (url: string, init: RequestInit) => Promise<Response>;
+
+/**
+ * Ask the data dir who is serving it, then make that answer prove itself.
+ *
+ * `/system/status` is the probe because it is behind the token AND names the
+ * data dir: one round trip settles "can this responder read what I read" and
+ * "is it serving what I mean".
+ */
+export async function verifyServer(
+  dataDir: string,
+  fetchImpl: ProbeFetch = (url, init) => fetch(url, init),
+): Promise<ServerVerdict> {
+  const file = readServerFile(dataDir);
+  if (file === null) {
+    return { kind: "no-server" };
   }
-  if (args.answer === null) {
-    return { kind: "unreachable" };
+  const origin = serverOrigin(file.port);
+  let response: Response;
+  try {
+    response = await fetchImpl(`${origin}${apiPath(apiRoutes.system.status)}`, {
+      headers: { authorization: authorizationHeader(file.token) },
+      signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
+    });
+  } catch {
+    return { kind: "unreachable", origin };
   }
-  if (args.answer.dataDir !== args.dataDir) {
-    return { kind: "wrong-data-dir", claimed: args.answer.dataDir };
+  if (!response.ok) {
+    return { kind: "not-ours", origin };
   }
-  return verifyIdentityProof(secret, args.challenge, args.answer.proof)
-    ? { kind: "verified" }
-    : { kind: "bad-proof" };
+  const status = systemStatusResponseSchema.safeParse(await response.json().catch(() => undefined));
+  if (!status.success) {
+    return { kind: "not-ours", origin };
+  }
+  if (status.data.dataDir !== dataDir) {
+    return { kind: "wrong-data-dir", origin, claimed: status.data.dataDir };
+  }
+  return { kind: "verified", live: { origin, port: file.port, token: file.token } };
 }
 
 /** One sentence per verdict, for the log line and the dialog. A refusal the
  *  user cannot read is a refusal they will work around. */
-export function describeIdentityVerdict(verdict: IdentityVerdict, origin: string): string {
+export function describeServerVerdict(verdict: ServerVerdict, dataDir: string): string {
   switch (verdict.kind) {
     case "verified":
-      return `${origin} proved it serves this data directory`;
-    case "no-secret":
-      return `no inteligir instance secret in the configured data directory yet`;
+      return `${verdict.live.origin} serves ${dataDir}`;
+    case "no-server":
+      return `no inteligir server has published itself for ${dataDir}`;
     case "unreachable":
-      return `${origin} did not answer the identity challenge`;
+      return `${verdict.origin} did not answer — the row in ${dataDir} is stale`;
     case "wrong-data-dir":
-      return `${origin} serves a different data directory (${verdict.claimed})`;
-    case "bad-proof":
-      return `${origin} could not prove it owns this data directory — refusing to adopt it`;
+      return `${verdict.origin} serves a different data directory (${verdict.claimed})`;
+    case "not-ours":
+      return `${verdict.origin} refused this instance's token — refusing to adopt it`;
   }
 }
 
@@ -186,5 +194,3 @@ export function windowUrl(origin: string): string {
   }
   return `${origin}/`;
 }
-
-export { newIdentityChallenge };

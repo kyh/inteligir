@@ -465,7 +465,7 @@ describe("status, guide and help", () => {
     // chrome cannot be pinned. The FACTS still are, in order: the assertion
     // reads the box's own rows back out.
     expect(boxedLines(result.stdout)).toEqual([
-      `inteligir 9.9.9-fixture — ${server.baseUrl} (explicit)`,
+      `inteligir 9.9.9-fixture — ${server.baseUrl}`,
       "Data dir: /fixture/data",
       "Vault: /fixture/vault",
       "Schema: v3 — uptime 65s",
@@ -488,7 +488,7 @@ describe("status, guide and help", () => {
       env: { INTELIGIR_THREAD_ID: "thr_ctx" },
     });
     expect(result.code).toBe(0);
-    expect(result.stdout).toContain("INTELIGIR_SERVER_URL");
+    expect(result.stdout).toContain("INTELIGIR_DATA_DIR");
     expect(result.stdout).toContain("INTELIGIR_THREAD_ID:  thr_ctx");
   });
 });

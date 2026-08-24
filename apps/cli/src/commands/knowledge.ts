@@ -40,7 +40,7 @@ export function searchCommand(deps: CliDeps) {
     },
     run: async ({ args }) => {
       const limit = parseLimit(args.limit, KNOWLEDGE_SEARCH_MAX_LIMIT);
-      const api = await apiFor(deps);
+      const api = apiFor(deps);
       const query: KnowledgeSearchRequest = { q: args.query };
       if (limit !== undefined) {
         query.limit = limit;
@@ -73,7 +73,7 @@ export function backlinksCommand(deps: CliDeps) {
       ...jsonArg,
     },
     run: async ({ args }) => {
-      const api = await apiFor(deps);
+      const api = apiFor(deps);
       const linked = await requireOk(
         await api.knowledge.backlinks.$get({ query: { path: args.path } }),
       );
@@ -103,7 +103,7 @@ export function relatedCommand(deps: CliDeps) {
     },
     run: async ({ args }) => {
       const limit = parseLimit(args.limit, KNOWLEDGE_RELATED_MAX_LIMIT);
-      const api = await apiFor(deps);
+      const api = apiFor(deps);
       const query: KnowledgeRelatedRequest = { path: args.path };
       if (limit !== undefined) {
         query.limit = limit;
@@ -135,7 +135,7 @@ export function tagsCommand(deps: CliDeps) {
     meta: { name: "tags", description: "Every tag with its usage count, most used first" },
     args: { ...jsonArg },
     run: async ({ args }) => {
-      const api = await apiFor(deps);
+      const api = apiFor(deps);
       const body = await (await requireOk(await api.knowledge.tags.$get())).json();
       if (outputJson(args, body)) {
         return;

@@ -12,7 +12,7 @@
 
 import { spawn } from "node:child_process";
 import { mkdtemp, readdir, rm } from "node:fs/promises";
-import { accessSync, constants, existsSync } from "node:fs";
+import { accessSync, constants, existsSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -159,6 +159,12 @@ try {
   const { stdout: launcherVersion } = await run(bin, ["--version"]);
   process.stdout.write(`smoke: launcher --version -> ${launcherVersion.trim()}\n`);
 
+  /** The device token the booted server published for this scratch instance —
+   *  every privileged route is behind it. */
+  const authHeaders = () => ({
+    authorization: `Bearer ${JSON.parse(readFileSync(join(dataDir, "server.json"), "utf8")).token}`,
+  });
+
   process.stdout.write(`smoke: booting on ${baseUrl}\n`);
   server = spawn(
     bin,
@@ -184,7 +190,7 @@ try {
   }
   process.stdout.write(`smoke: SPA shell -> ${shell.status} ${html.length} bytes\n`);
 
-  const vaultList = await fetch(`${baseUrl}/api/v1/vault/tree`);
+  const vaultList = await fetch(`${baseUrl}/api/v1/vault/tree`, { headers: authHeaders() });
   process.stdout.write(`smoke: vault tree -> ${vaultList.status}\n`);
 
   // Dictation's native binding is the ONE runtime dependency this smoke checks
@@ -197,7 +203,7 @@ try {
   // REFUSED: this smoke runs on a platform the artifact ships a prebuild for,
   // so a runtime that will not load there is a packaging or ABI regression,
   // which is exactly the class a green smoke on `unavailable` would hide.
-  const voice = await fetch(`${baseUrl}/api/v1/voice/status`);
+  const voice = await fetch(`${baseUrl}/api/v1/voice/status`, { headers: authHeaders() });
   if (!voice.ok) {
     fail(`the voice status route answered ${voice.status}`);
   }

@@ -1,9 +1,10 @@
 // Vendored from bb (github.com/get-bb/bb), MIT. © bb contributors.
 
 // One Hono root splitting /api/v1 (the contract table), GET /ws (the
-// invalidation bus), GET /pair/callback (the browser-approve landing), and a
-// fallback — vite middlewares in dev, static client + the Start server entry's
-// fetch in prod.
+// invalidation bus), GET /voice/stream (dictation), the two browser landings,
+// and a fallback — vite middlewares in dev, static client + the Start server
+// entry's fetch in prod. Everything but /health and the landings is behind the
+// device token (server-file.ts).
 
 import { randomBytes } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
@@ -15,13 +16,12 @@ import type { HttpBindings } from "@hono/node-server";
 import type { DbConnection } from "@repo/db/connection";
 import { rebindThreadOrigins } from "@repo/db/threads";
 import { API_ERROR_STATUS, type ApiErrorResponse } from "@repo/server-contract/errors";
-import { API_BASE_PATH, apiRoutes, type AgentStatus } from "@repo/server-contract/routes";
+import { API_BASE_PATH, apiPath, apiRoutes, type AgentStatus } from "@repo/server-contract/routes";
 import { WS_PATH } from "@repo/server-contract/notifications";
 import { typedRoutes } from "@repo/typed-routes/typed-routes";
 import { Hono, type Context, type MiddlewareHandler, type Next } from "hono";
 import { PAIR_CALLBACK_PATH } from "@repo/cloud-contract/pairing";
 import { CONNECTOR_OAUTH_CALLBACK_PATH } from "@repo/server-contract/connectors";
-import { browserRequestProblem, buildLocalAppOrigins } from "./browser-request-guard";
 import type { OpenExternalUrl } from "./cloud/browser-opener";
 import { handlePairCallback } from "./cloud/pair-callback";
 import { registerCloudRoutes } from "./cloud/routes";
@@ -42,7 +42,7 @@ import { registerFolderRoutes } from "./folders/routes";
 import { registerNoteIntelligenceRoutes } from "./note-intelligence/routes";
 import { buildContentSecurityPolicy } from "./csp";
 import { CLI_SKILL_MD } from "./guide/cli-skill";
-import { proveIdentity } from "./instance-identity";
+import { presentedToken, serverTokenCookie, tokenAccepted } from "./server-file";
 import type { KnowledgeRuntime } from "./knowledge/knowledge-runtime";
 import { renameNoteWithLinkRewrite } from "./knowledge/rename";
 import { createCommentsService } from "./comments/comments-service";
@@ -113,9 +113,9 @@ export interface CreateAppArgs {
   /** The thread routes' store; system/status reads nothing from it (schemaVersion below). */
   db: DbConnection;
   fallback: AppFallback;
-  /** This boot's secret (instance-identity.ts). Answers the identity challenge
-   *  a client uses to tell this server from anything else holding the port. */
-  instanceSecret: string;
+  /** This boot's bearer (server-file.ts). Every privileged surface requires
+   *  it; the data dir it was written into is what makes holding it meaningful. */
+  serverToken: string;
   knowledge: KnowledgeRuntime;
   /** Tests: watch a pairing send the user to their browser without a window
    *  opening on whoever ran the suite. */
@@ -152,29 +152,48 @@ export function createApp(args: CreateAppArgs) {
   const upgradeWebSocket = nodeWebSocket.upgradeWebSocket.bind(nodeWebSocket);
   const injectWebSocket = nodeWebSocket.injectWebSocket.bind(nodeWebSocket);
 
-  const allowedOrigins = buildLocalAppOrigins(args.config.port);
-  const guardBrowserRequest = async (c: Context, next: Next) => {
-    const problem = browserRequestProblem(
-      {
-        host: c.req.header("host"),
-        origin: c.req.header("origin"),
-        secFetchSite: c.req.header("sec-fetch-site"),
-      },
-      allowedOrigins,
-    );
-    if (problem !== null) {
+  // THE ONE GATE, and it sits at the HTTP boundary rather than in a procedure
+  // middleware because three of the four surfaces it protects are not
+  // procedures: the invalidation bus, the dictation stream and the vault's
+  // asset bytes. A gate per transport is a gate that can disagree with itself.
+  //
+  // `/health` is deliberately outside it — a supervisor's spawn probe must
+  // answer before it has any reason to hold a credential, and `{ok:true}`
+  // discloses nothing a bound port does not.
+  //
+  // The two browser landings (`/pair/callback`, the connector OAuth callback)
+  // are outside it too, and cannot be inside it: what arrives is a
+  // cross-site top-level navigation carrying no credential by construction.
+  // Their single-use `state` stands in its place, which is the whole argument
+  // `cloud/pair-callback.ts` states.
+  const requireServerToken = async (c: Context, next: Next) => {
+    if (
+      !tokenAccepted(
+        args.serverToken,
+        presentedToken({
+          authorization: c.req.header("authorization"),
+          cookie: c.req.header("cookie"),
+        }),
+      )
+    ) {
       const body: ApiErrorResponse = {
-        error: "forbidden_origin",
-        message: problem,
+        error: "unauthorized",
+        message: "this request carried no valid inteligir device token",
       };
-      return c.json(body, API_ERROR_STATUS.forbidden_origin);
+      return c.json(body, API_ERROR_STATUS.unauthorized);
     }
     await next();
     return undefined;
   };
 
   const api = new Hono();
-  api.use("*", guardBrowserRequest);
+  api.use("*", async (c, next) => {
+    if (c.req.path === apiPath(apiRoutes.health)) {
+      await next();
+      return undefined;
+    }
+    return requireServerToken(c, next);
+  });
   api.onError((error, context) => {
     if (error instanceof ApiValidationError) {
       const body: ApiErrorResponse = {
@@ -205,17 +224,6 @@ export function createApp(args: CreateAppArgs) {
       schemaVersion: args.schemaVersion,
       uptimeMs: Date.now() - args.startedAt,
       agent: args.agent,
-    }),
-  );
-  // Answers a caller's nonce with an HMAC keyed by this boot's secret, so a
-  // client can tell THIS server from anything else that reached the port
-  // first. Deliberately unauthenticated and unthrottled: the answer is worth
-  // nothing without the secret, and refusing to answer would only stop the
-  // legitimate client. The secret itself never leaves the process.
-  get(apiRoutes.system.identity, (c, query) =>
-    c.json({
-      proof: proveIdentity(args.instanceSecret, query.challenge),
-      dataDir: args.config.dataDir,
     }),
   );
   get(apiRoutes.guide, (c) => c.json({ markdown: CLI_SKILL_MD }));
@@ -304,7 +312,7 @@ export function createApp(args: CreateAppArgs) {
 
   app.get(
     WS_PATH,
-    guardBrowserRequest,
+    requireServerToken,
     upgradeWebSocket(() => ({
       onOpen: (_event, socket) => args.bus.registerClient(socket),
       onMessage: (event, socket) => args.bus.handleMessage(socket, event.data),
@@ -321,7 +329,7 @@ export function createApp(args: CreateAppArgs) {
   // every connection so the listener teardown can close them by name.
   app.get(
     VOICE_STREAM_PATH,
-    guardBrowserRequest,
+    requireServerToken,
     upgradeWebSocket(() => {
       let connection: VoiceStreamConnection | null = null;
       return {
@@ -422,6 +430,10 @@ export function createApp(args: CreateAppArgs) {
       headers.set("content-security-policy", buildContentSecurityPolicy({ nonce, wsOrigin }));
       headers.set("x-content-type-options", "nosniff");
       headers.set("referrer-policy", "no-referrer");
+      // The document is where the browser gets its credential: it is the one
+      // client that cannot set a header for itself (server-file.ts says why),
+      // and this is the one response it is guaranteed to receive first.
+      headers.set("set-cookie", serverTokenCookie(args.serverToken));
       return new Response(response.body, {
         status: response.status,
         statusText: response.statusText,

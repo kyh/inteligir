@@ -42,7 +42,7 @@ export function interactionsCommand(deps: CliDeps) {
           ...jsonArg,
         },
         run: async ({ args }) => {
-          const api = await apiFor(deps);
+          const api = apiFor(deps);
           const listing = await requireOk(
             await api.threads.interaction.list.$get({
               query: args.thread === undefined ? {} : { threadId: args.thread },
@@ -71,7 +71,7 @@ export function interactionsCommand(deps: CliDeps) {
           ...jsonArg,
         },
         run: async ({ args }) => {
-          const api = await apiFor(deps);
+          const api = apiFor(deps);
           const listing = await requireOk(
             await api.threads.interaction.list.$get({
               query: args.thread === undefined ? {} : { threadId: args.thread },

@@ -1,8 +1,14 @@
-// What the agent's SHELL gets: the server it can drive, and a PATH that can
+// What the agent's SHELL gets: the instance it can drive, and a PATH that can
 // actually reach the CLI that drives it. Telling a model to run `inteligir`
 // while the binary is not on its PATH is the whole feature failing quietly,
 // so the bin directory is RESOLVED (never assumed) and the instructions only
 // promise the command when it resolved.
+//
+// THE INSTANCE IS NAMED BY ITS DATA DIRECTORY, never by a URL and never by the
+// token. An agent's cwd is the vault, not this checkout, so it cannot derive
+// which instance it belongs to — but from the data dir the CLI reads
+// `server.json` and learns the bound port AND the bearer together, so the two
+// can never disagree and the credential never enters a child's environment.
 //
 // Layout resolution mirrors main.ts's `resolveEntryLayout`: this module runs
 // either from source under tsx (apps/app/src/node/agent/ — the CLI package is
@@ -78,8 +84,8 @@ export function resolveCliBinDir(moduleUrl: string = import.meta.url): string | 
 }
 
 export interface AgentShellEnvArgs {
-  /** Where this instance is listening — known only after listen. */
-  serverUrl: string;
+  /** WHICH instance — the data dir holding this boot's `server.json`. */
+  dataDir: string;
   /** The host process's environment, whose PATH the agent shell inherits. */
   env: NodeJS.ProcessEnv;
   cliBinDir: string | null;
@@ -102,7 +108,7 @@ export function withConnectedDirs(env: AgentShellEnv, dirs: readonly string[]): 
  */
 /** What the agent's shell inherits from this app, and nothing else. */
 export interface AgentShellEnv {
-  INTELIGIR_SERVER_URL: string;
+  INTELIGIR_DATA_DIR: string;
   /** Present when the vendored dialect skills resolved on this layout. */
   INTELIGIR_SKILLS_DIR?: string;
   /** Present when Connected Folders are configured: os-delimited absolute
@@ -116,7 +122,7 @@ export interface AgentShellEnv {
 export function buildAgentShellEnv(args: AgentShellEnvArgs): AgentShellEnv {
   const skillsDir = resolveSkillsDir();
   const base: AgentShellEnv = {
-    INTELIGIR_SERVER_URL: args.serverUrl,
+    INTELIGIR_DATA_DIR: args.dataDir,
   };
   if (skillsDir !== null) {
     base.INTELIGIR_SKILLS_DIR = skillsDir;

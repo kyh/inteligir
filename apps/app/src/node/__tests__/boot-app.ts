@@ -24,13 +24,18 @@ import { createNoteIntelligenceSettingsStore } from "../note-intelligence/settin
 import type { OpenExternalUrl } from "../cloud/browser-opener";
 import type { CloudTransport } from "../cloud/sync-runtime";
 import type { AppConfig } from "../config";
-import { ensureInstanceSecret } from "../instance-identity";
 import { createKnowledgeRuntime, type KnowledgeRuntime } from "../knowledge/knowledge-runtime";
 import { unavailableTurnDriver, type CreateTurnDriver } from "../threads/turn-driver";
 import { hermeticGitEnv } from "../vault/__tests__/git-test-env";
 import { createVaultRuntime, type VaultRuntime } from "../vault/vault-runtime";
+import { authorizationHeader } from "../server-file";
 import { WsBus } from "../ws-bus";
 import { makeTempDir } from "./temp-dir";
+
+/** One fixed token for every booted suite: the file's own tests cover minting
+ *  and comparison, and a per-boot value here would only make the client's
+ *  header harder to read in a failure. */
+export const TEST_SERVER_TOKEN = "test-server-token";
 
 const cleanups: Array<() => void | Promise<void>> = [];
 
@@ -67,6 +72,10 @@ export interface BootedTestApp {
   bus: WsBus;
   /** The typed hc client, dialing the composed app in-process. */
   client: ApiClient;
+  /** One in-process request, carrying this boot's device token — what every
+   *  privileged surface requires. Tests that are ABOUT the gate call
+   *  `composed.app.request` directly and present whatever they mean to. */
+  request: (input: string, init?: RequestInit) => Promise<Response>;
   db: DbConnection;
   vault: VaultRuntime;
   vaultDir: string;
@@ -148,7 +157,7 @@ export async function bootTestApp(options: BootTestAppOptions = {}): Promise<Boo
     createTurnDriver: driver?.createTurnDriver ?? (() => unavailableTurnDriver),
     db,
     fallback: options.fallback ?? { kind: "none" },
-    instanceSecret: ensureInstanceSecret(dataDir),
+    serverToken: TEST_SERVER_TOKEN,
     knowledge,
     schemaVersion: getSchemaVersion(db, knownSchemaVersion),
     startedAt: Date.now(),
@@ -160,7 +169,16 @@ export async function bootTestApp(options: BootTestAppOptions = {}): Promise<Boo
   const composed = createApp(args);
   cleanups.push(() => composed.cloud.dispose());
   const client = createApiClient("http://app.test", {
-    fetch: async (input, init) => composed.app.request(input, init),
+    fetch: async (input, init) => {
+      const headers = new Headers(init?.headers);
+      headers.set("authorization", authorizationHeader(TEST_SERVER_TOKEN));
+      return composed.app.request(input, { ...init, headers });
+    },
   });
-  return { args, composed, bus, client, db, vault, vaultDir, dataDir };
+  const request = async (input: string, init?: RequestInit): Promise<Response> => {
+    const headers = new Headers(init?.headers);
+    headers.set("authorization", authorizationHeader(TEST_SERVER_TOKEN));
+    return composed.app.request(input, { ...init, headers });
+  };
+  return { args, composed, bus, client, db, vault, vaultDir, dataDir, request };
 }

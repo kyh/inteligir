@@ -7,7 +7,7 @@
 import { CONNECTOR_OAUTH_CALLBACK_PATH, connectorRoutes } from "@repo/server-contract/connectors";
 import { API_ERROR_STATUS, type ApiErrorResponse } from "@repo/server-contract/errors";
 import type { TypedRoutesRegistrars } from "@repo/typed-routes/typed-routes";
-import { loopbackRequestOrigin } from "../browser-request-guard";
+import { loopbackRequestOrigin } from "../loopback-origin";
 import type { OpenExternalUrl } from "../cloud/browser-opener";
 import { ConnectorConflictError, type ConnectorsService } from "./connectors-service";
 import type { ConnectorOauthFlow } from "./oauth-flow";

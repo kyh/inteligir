@@ -60,19 +60,19 @@ describe("resolveCliBinDir", () => {
 });
 
 describe("buildAgentShellEnv", () => {
-  it("prepends the bin dir to the inherited PATH and carries the server URL and memory dir", () => {
+  it("prepends the bin dir to the inherited PATH and names the instance", () => {
     const env = buildAgentShellEnv({
-      serverUrl: "http://127.0.0.1:21999",
+      dataDir: "/instances/one/data",
       env: { PATH: `/usr/bin${delimiter}/bin` },
       cliBinDir: "/repo/apps/cli/bin",
     });
-    expect(env.INTELIGIR_SERVER_URL).toBe("http://127.0.0.1:21999");
+    expect(env.INTELIGIR_DATA_DIR).toBe("/instances/one/data");
     expect(env.PATH).toBe(`/repo/apps/cli/bin${delimiter}/usr/bin${delimiter}/bin`);
   });
 
   it("is the bin dir alone when the host process has no PATH", () => {
     const env = buildAgentShellEnv({
-      serverUrl: "http://127.0.0.1:1",
+      dataDir: "/instances/one/data",
       env: {},
       cliBinDir: "/repo/apps/cli/bin",
     });
@@ -81,7 +81,7 @@ describe("buildAgentShellEnv", () => {
 
   it("leaves PATH untouched when no CLI resolved — never a dangling entry", () => {
     const env = buildAgentShellEnv({
-      serverUrl: "http://127.0.0.1:1",
+      dataDir: "/instances/one/data",
       env: { PATH: "/usr/bin" },
       cliBinDir: null,
     });
@@ -89,6 +89,6 @@ describe("buildAgentShellEnv", () => {
     // resolve is a property of the layout the test runs in, and asserting the
     // object whole made this fail the day they started resolving.
     expect(env.PATH).toBeUndefined();
-    expect(env.INTELIGIR_SERVER_URL).toBe("http://127.0.0.1:1");
+    expect(env.INTELIGIR_DATA_DIR).toBe("/instances/one/data");
   });
 });

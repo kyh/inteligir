@@ -28,7 +28,7 @@ async function begin(
   app: BootedTestApp,
   options: { host?: string; openBrowser?: boolean } = {},
 ): Promise<Response> {
-  return await app.composed.app.request(`/api/v1/cloud/pair/begin`, {
+  return await app.request(`/api/v1/cloud/pair/begin`, {
     method: "POST",
     headers: {
       "content-type": "application/json",

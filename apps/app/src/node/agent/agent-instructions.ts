@@ -16,7 +16,7 @@ const AGENT_INSTRUCTIONS_MAX_BYTES = 32_768;
 /** Kept minimal on purpose: the full manual is a `inteligir guide` away, so
  *  the per-turn cost is a pointer, not the manual. */
 export const CLI_POINTER_INSTRUCTIONS = `The \`inteligir\` CLI drives this notes app from your shell: vault file CRUD, \
-full-text search, agent actions and comments. INTELIGIR_SERVER_URL and INTELIGIR_THREAD_ID \
+full-text search, agent actions and comments. INTELIGIR_DATA_DIR and INTELIGIR_THREAD_ID \
 are set in your environment. Run \`inteligir guide\` for the manual; every \
 command takes \`--json\`.`;
 

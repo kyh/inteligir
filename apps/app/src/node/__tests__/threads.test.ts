@@ -23,7 +23,8 @@ import { createApp } from "../app";
 import { ThreadEventThreadIdMismatchError, ThreadService } from "../threads/service";
 import { unavailableTurnDriver } from "../threads/turn-driver";
 import { WsBus } from "../ws-bus";
-import { bootTestApp } from "./boot-app";
+import { authorizationHeader } from "../server-file";
+import { bootTestApp, TEST_SERVER_TOKEN } from "./boot-app";
 import { boundAddressSchema } from "./bound-address";
 import { FakeTurnDriver, type FakeTurnDriverOptions } from "./fake-turn-driver";
 
@@ -779,10 +780,18 @@ describe("a fake-provider turn end-to-end", () => {
       await new Promise<void>((resolve) => server.once("listening", resolve));
     }
     const address = boundAddressSchema.parse(server.address());
-    const client = createApiClient(`http://127.0.0.1:${address.port}`);
+    const client = createApiClient(`http://127.0.0.1:${address.port}`, {
+      fetch: (input, init) => {
+        const headers = new Headers(init?.headers);
+        headers.set("authorization", authorizationHeader(TEST_SERVER_TOKEN));
+        return fetch(input, { ...init, headers });
+      },
+    });
     const threadId = await createThread(client);
 
-    const socket = new WebSocket(`ws://127.0.0.1:${address.port}/ws`);
+    const socket = new WebSocket(`ws://127.0.0.1:${address.port}/ws`, {
+      headers: { authorization: authorizationHeader(TEST_SERVER_TOKEN) },
+    });
     cleanups.push(() => socket.close());
     const frames: ServerMessage[] = [];
     socket.addEventListener("message", (event) => {

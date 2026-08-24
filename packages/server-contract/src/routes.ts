@@ -1,9 +1,7 @@
-import type { EmptyInput } from "@repo/typed-routes/endpoint";
 import {
   defineRoute,
   jsonResponse,
   noRequest,
-  queryRequest,
   type ApiSchemaFromRouteDescriptors,
   type RouteDefinition,
 } from "@repo/typed-routes/route-descriptor";
@@ -12,7 +10,6 @@ import { cloudRoutes } from "./cloud";
 import { connectorRoutes } from "./connectors";
 import { folderRoutes } from "./folders";
 import { noteIntelligenceRoutes } from "./note-intelligence";
-import type { ApiErrorResponse } from "./errors";
 import { commentRoutes } from "./comments";
 import { knowledgeRoutes } from "./knowledge";
 import { agentsRoutes } from "./agents";
@@ -28,8 +25,8 @@ export const API_BASE_PATH = "/api/v1";
  * The path a route is SERVED at — the mount point plus the row's own path.
  *
  * The typed client composes this for itself, so callers that reach the server
- * any other way (a discovery probe, an identity challenge, an `<img src>`, a
- * scenario asserting a request URL) had each written their own concatenation,
+ * any other way (a health probe, an `<img src>`, a scenario asserting a
+ * request URL) had each written their own concatenation,
  * and several skipped the row entirely and spelled the whole path. Both halves
  * move: the mount point is a version prefix, and a row's path is edited in the
  * table below. One function so neither half can be half-derived.
@@ -68,13 +65,8 @@ export const systemStatusResponseSchema = z
   .object({
     /** Version of the running @repo/app package, read from its package.json. */
     version: z.string().min(1),
-    /**
-     * Absolute path of the active data directory (where the DB lives). This
-     * is the instance's IDENTITY on the wire: a client that derived which
-     * instance it means compares this before trusting a port it probed, so a
-     * neighbouring checkout's server answering first is caught rather than
-     * silently written to.
-     */
+    /** Absolute path of the active data directory (where the DB lives) —
+     *  which instance answered. */
     dataDir: z.string().min(1),
     /** Absolute path of the vault this instance serves — the other half of
      *  the identity, and what a caller is actually about to write into. */
@@ -86,36 +78,6 @@ export const systemStatusResponseSchema = z
   })
   .strict();
 export type SystemStatusResponse = z.infer<typeof systemStatusResponseSchema>;
-
-/**
- * The identity challenge. `/system/status` states which data dir the responder
- * CLAIMS; this route makes it PROVE the claim, which matters because a
- * loopback port is first-come-first-served and a squatter can claim anything.
- * The client sends a fresh nonce and gets back an HMAC over it keyed by the
- * secret the server minted into that data dir — see
- * apps/app/src/node/instance-identity.ts for what the proof does and does not
- * establish.
- */
-export const systemIdentityRequestSchema = z
-  .object({
-    challenge: z
-      .string()
-      .regex(/^[0-9a-f]{32,128}$/u, "challenge must be 16–64 bytes of lowercase hex"),
-  })
-  .strict();
-export type SystemIdentityRequest = z.infer<typeof systemIdentityRequestSchema>;
-
-export const systemIdentityResponseSchema = z
-  .object({
-    /** HMAC-SHA256(instance secret, challenge), hex. */
-    proof: z.string().regex(/^[0-9a-f]{64}$/u),
-    /** Repeated from status so one round trip answers "which instance, and
-     *  prove it" — a client must compare BOTH, since the proof alone says
-     *  nothing about which vault is being served. */
-    dataDir: z.string().min(1),
-  })
-  .strict();
-export type SystemIdentityResponse = z.infer<typeof systemIdentityResponseSchema>;
 
 /**
  * THE route table. One row per endpoint, grouped by domain; handlers register
@@ -135,15 +97,6 @@ export const apiRoutes = {
       method: "get",
       request: noRequest(),
       response: jsonResponse<SystemStatusResponse>(),
-    }),
-    identity: defineRoute({
-      path: "/system/identity",
-      method: "get",
-      request: queryRequest<EmptyInput, SystemIdentityRequest>(systemIdentityRequestSchema),
-      response: [
-        jsonResponse<SystemIdentityResponse>(),
-        jsonResponse<ApiErrorResponse>({ status: 400 }),
-      ],
     }),
   },
   guide: defineRoute({
