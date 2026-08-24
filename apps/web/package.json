@@ -18,7 +18,7 @@
   },
   "dependencies": {
     "@react-three/fiber": "^9.6.1",
-    "@repo/cloud-contract": "workspace:*",
+    "@repo/api": "workspace:*",
     "@repo/ui": "workspace:*",
     "@tanstack/react-router": "catalog:",
     "@tanstack/react-start": "catalog:",

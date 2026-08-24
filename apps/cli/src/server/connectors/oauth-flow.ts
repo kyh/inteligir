@@ -9,7 +9,7 @@
 // an open port instead of a hole.
 
 import { randomBytes } from "node:crypto";
-import { generatePkceVerifier, pkceChallengeS256 } from "@repo/cloud-contract/pairing";
+import { generatePkceVerifier, pkceChallengeS256 } from "@repo/api/cloud/pairing/pairing-schema";
 import { z } from "zod";
 
 import type { ConnectorsStore, StoredOauthTokens } from "./connectors-store";

@@ -27,15 +27,15 @@ import {
   type AckCapturesResponse,
   type CaptureRow,
   type ClaimCapturesResponse,
-} from "@repo/cloud-contract/captures";
-import { cloudError, type CloudErrorCode } from "@repo/cloud-contract/errors";
+} from "@repo/api/cloud/captures/captures-schema";
+import { cloudError, type CloudErrorCode } from "@repo/api/cloud/errors";
 import {
   DEVICE_API_PATHS,
   DEVICE_CREDENTIAL_PREFIX,
   pkceChallengeS256,
   redeemDeviceRequestSchema,
   type RedeemDeviceResponse,
-} from "@repo/cloud-contract/pairing";
+} from "@repo/api/cloud/pairing/pairing-schema";
 import {
   pullQuerySchema,
   pushRequestSchema,
@@ -43,7 +43,7 @@ import {
   type PullResponse,
   type PushResponse,
   type SyncEventRow,
-} from "@repo/cloud-contract/sync";
+} from "@repo/api/cloud/sync/sync-schema";
 import type { CloudFetch } from "../cloud-client";
 import { z } from "zod";
 

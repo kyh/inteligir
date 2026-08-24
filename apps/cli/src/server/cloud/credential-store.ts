@@ -22,7 +22,7 @@
 import { readFileSync, rmSync } from "node:fs";
 import { stagedWriteFileSync } from "../staged-write";
 import { join } from "node:path";
-import { DEVICE_CREDENTIAL_PATTERN } from "@repo/cloud-contract/pairing";
+import { DEVICE_CREDENTIAL_PATTERN } from "@repo/api/cloud/pairing/pairing-schema";
 import { z } from "zod";
 import { errnoCode } from "../errno";
 

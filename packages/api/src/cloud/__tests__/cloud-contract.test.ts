@@ -3,8 +3,8 @@ import {
   ackCapturesRequestSchema,
   ackCapturesResponseSchema,
   captureRequestSchema,
-} from "../captures";
-import { cloudError, cloudErrorSchema } from "../errors";
+} from "../captures/captures-schema";
+import { cloudError, cloudErrorSchema } from "../cloud-errors";
 import {
   buildPairApproveUrl,
   buildPairCallbackUrl,
@@ -19,9 +19,9 @@ import {
   PKCE_S256_PATTERN,
   pkceChallengeS256,
   redeemDeviceRequestSchema,
-} from "../pairing";
-import { EVENT_MAX_BYTES, pullQuerySchema, pushRequestSchema } from "../sync";
-import { syncPingSchema } from "../ws";
+} from "../pairing/pairing-schema";
+import { EVENT_MAX_BYTES, pullQuerySchema, pushRequestSchema } from "../sync/sync-schema";
+import { syncPingSchema } from "../sync/sync-ws";
 
 describe("error envelope", () => {
   it("round-trips through its own schema", () => {

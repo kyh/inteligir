@@ -25,7 +25,7 @@ import {
   VOICE_STREAM_PATH,
   WS_PATH,
 } from "@repo/api/local/routes";
-import { PAIR_CALLBACK_PATH } from "@repo/cloud-contract/pairing";
+import { PAIR_CALLBACK_PATH } from "@repo/api/cloud/pairing/pairing-schema";
 import { CONNECTOR_OAUTH_CALLBACK_PATH } from "@repo/api/local/connectors/connectors-schema";
 import { describe, expect, it } from "vitest";
 import { bootTestApp } from "./boot-app";

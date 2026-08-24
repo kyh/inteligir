@@ -2,7 +2,7 @@
 // itself is `@repo/db/sync-outbox`; what lives here is the serialization rule
 // and the batch the wire takes.
 //
-// `@repo/cloud-contract/sync` states the rule: re-pushing a stored position is
+// `@repo/api/cloud/sync/sync-schema` states the rule: re-pushing a stored position is
 // the RETRY path only while the body is byte-identical, and a different body
 // at the same position is `sync-conflict` — data loss wearing idempotency's
 // clothes, so the log refuses it rather than swallowing it.
@@ -25,7 +25,7 @@ import {
   syncEventInputSchema,
   type PushRequest,
   type SyncEventInput,
-} from "@repo/cloud-contract/sync";
+} from "@repo/api/cloud/sync/sync-schema";
 import type { DbConnection, DbTransaction } from "@repo/db/connection";
 import {
   deleteSyncOutboxThrough,

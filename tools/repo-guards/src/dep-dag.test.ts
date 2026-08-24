@@ -41,7 +41,6 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
     // agent-skills is CONTENT (the dialect spec, issue #581) —
     // markdown served to agents, importing nothing and imported as files.
     "@repo/agent-skills": [],
-    "@repo/cloud-contract": [],
     "@repo/domain": [],
     "@repo/notes": [],
     "@repo/ui": [],
@@ -62,14 +61,13 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
     // are parser-free, so refusing a bad value in the contract cannot drag
     // remark into every client bundle. Widening this edge to a remark-carrying
     // module is the regression to catch.
-    // The @repo/cloud-contract edge is ONE fact, and it is a wire fact: the
-    // device name `cloud.pairBegin` accepts is the name the cloud's own
-    // `/v1/device/redeem` will eventually be sent, so the ceiling it validates
-    // against has to be that route's. A hand-copied number here is a value this
-    // end accepts and the cloud then refuses, arriving as a shape error long
-    // after the click that caused it. Both packages are zod-only leaves, so the
-    // edge costs a client bundle nothing but the schemas it already parses.
-    "@repo/api": ["@repo/cloud-contract", "@repo/domain", "@repo/notes"],
+    // `/local` reaching `/cloud` inside this package is ONE fact, and it is a
+    // wire fact: the device name `cloud.pairBegin` accepts is the name the
+    // cloud's own `/v1/device/redeem` will eventually be sent, so the ceiling
+    // it validates against has to be that route's. A hand-copied number would
+    // be a value this end accepts and the cloud then refuses, arriving as a
+    // shape error long after the click that caused it.
+    "@repo/api": ["@repo/domain", "@repo/notes"],
     "@repo/agent-runtime": ["@repo/domain"],
     // Persistence sits BELOW the wire: the store announces its writes through
     // @repo/domain's `DbNotifier`, whose change-kind vocabulary the contract
@@ -85,14 +83,12 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
     // reach is the page: no @repo/ui, no @repo/editor, no react.
     inteligir: [
       "@repo/agent-runtime",
+      // ONE edge, BOTH entry points: `/local` is the contract this program
+      // serves, and `/cloud` is the wire it is a CLIENT of (issue #572) — the
+      // sync client parses the same push/pull/capture schemas, ws ping frames
+      // and error envelope apps/web produces, so the contract has two
+      // implementations and no second reading.
       "@repo/api",
-      // The cloud wire (issue #572). This program is the OTHER end of what
-      // apps/web serves: the sync client parses the same push/pull/capture
-      // schemas, the same ws ping frames and the same error envelope the
-      // Worker produces, so the contract has two implementations and no second
-      // reading. It stays a zod-only leaf precisely so this edge costs the
-      // local process nothing beyond the grammar.
-      "@repo/cloud-contract",
       "@repo/db",
       "@repo/domain",
       "@repo/notes",
@@ -109,16 +105,15 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
     // in the repo (no local server, no apps/web worker, no @repo/notes vault
     // engine): the settled shape is that the agent and the vault stay on the
     // desktop.
-    "@repo/mobile": ["@repo/cloud-contract", "@repo/domain"],
+    "@repo/mobile": ["@repo/api", "@repo/domain"],
     // Drives a RUNNING app over the typed client; the @repo/app edge is the
     // discovery config (which port/dataDir this checkout means), not the server.
     // It reaches no runtime — an approval it prints is domain grammar, and a
     // client that could not print one without the package that spawns provider
     // processes would be carrying a process tree to format a string.
-    // The Cloudflare Worker. Only the two zod-only/browser-only packages it can
-    // survive on workerd — see the workerd rule below for what enforces that
-    // beyond this row.
-    "@repo/web": ["@repo/cloud-contract", "@repo/ui"],
+    // The Cloudflare Worker. Only the two packages it can survive on workerd —
+    // see the workerd rule below for what enforces that beyond this row.
+    "@repo/web": ["@repo/api", "@repo/ui"],
     // THE SHIPPED PRODUCT: the window, and the page inside it. The renderer is
     // this workspace's own source, so the whole UI vocabulary lives on this row
     // — and `inteligir` is here for FOUR facts the two processes must agree on
@@ -207,10 +202,6 @@ const PURITY_RULES = new Map<string, PurityRule>(
     "@repo/api": {
       forbidden: ["node", "react", "electron"],
       why: "the contract both ends compile against: it loads in the Electron renderer, on node, on workerd and in React Native, so a platform import there is a package that stops loading somewhere",
-    },
-    "@repo/cloud-contract": {
-      forbidden: ["node", "react", "electron"],
-      why: "a zod-only leaf: the cloud wire runs on workerd, where node builtins do not exist, and the local app parses the same frames",
     },
     "@repo/thread-view": {
       forbidden: ["node", "react", "electron"],
@@ -465,6 +456,29 @@ describe("platform purity", () => {
               `  rule: packages are consumed BY apps — the arrow only points one way, or the library is an app in disguise`,
           );
         }
+      }
+    }
+    expect(violations, `\n${violations.join("\n\n")}\n`).toEqual([]);
+  });
+
+  it("the Cloudflare Worker reaches @repo/api's cloud entry and nothing else", () => {
+    // ONE package, TWO entry points, and the split only means something if the
+    // halves stay apart. `/cloud` is a deployed Worker answering installs that
+    // may be months stale and may never break; `/local` is the desktop's own
+    // renderer and CLI, which ship in one bundle and break freely. A Worker
+    // reaching a `/local` symbol is that freedom quietly becoming a promise.
+    const worker = workspaces().find((candidate) => candidate.name === "@repo/web");
+    if (worker === undefined) throw new Error("@repo/web is not a workspace");
+    const files = workspaceFiles(worker);
+    const violations: string[] = [];
+    for (const file of [...files.shipped, ...files.test]) {
+      for (const specifier of importsOf(file)) {
+        if (!specifier.startsWith("@repo/api/")) continue;
+        if (specifier.startsWith("@repo/api/cloud/")) continue;
+        violations.push(
+          `LOCAL CONTRACT IN THE WORKER  ${file} imports "${specifier}"\n` +
+            `  rule: apps/web serves the cloud wire and only the cloud wire — @repo/api/cloud/* is its half of the package`,
+        );
       }
     }
     expect(violations, `\n${violations.join("\n\n")}\n`).toEqual([]);

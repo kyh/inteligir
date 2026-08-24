@@ -8,7 +8,7 @@
 // rule, this holds the pull half's rendering rule, and the runtime is left
 // owning only the ordering that is genuinely its own.
 
-import type { CaptureRow } from "@repo/cloud-contract/captures";
+import type { CaptureRow } from "@repo/api/cloud/captures/captures-schema";
 import { messageOf } from "../knowledge/message-of";
 import { VaultServiceError, type VaultService } from "../vault/vault-service";
 

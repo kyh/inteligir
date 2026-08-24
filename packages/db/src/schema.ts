@@ -198,7 +198,7 @@ export const pendingInteractions = sqliteTable(
 
 /**
  * The cloud sync outbox: one row per LOCAL thread event still owed to the
- * account's merged log (`@repo/cloud-contract/sync`).
+ * account's merged log (`@repo/api/cloud/sync/sync-schema`).
  *
  * `device_seq` is the WIRE position — strictly increasing per device across
  * batches, and the log's idempotency key. It cannot be derived from

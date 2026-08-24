@@ -23,7 +23,7 @@ import type { AgentStatus } from "@repo/api/local/system/system-schema";
 import { onError, ORPCError } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
 import { Hono, type Context, type MiddlewareHandler, type Next } from "hono";
-import { PAIR_CALLBACK_PATH } from "@repo/cloud-contract/pairing";
+import { PAIR_CALLBACK_PATH } from "@repo/api/cloud/pairing/pairing-schema";
 import { CONNECTOR_OAUTH_CALLBACK_PATH } from "@repo/api/local/connectors/connectors-schema";
 import type { OpenExternalUrl } from "./cloud/browser-opener";
 import { handlePairCallback } from "./cloud/pair-callback";

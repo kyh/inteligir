@@ -143,13 +143,6 @@
       "entry": ["src/**/__tests__/**/*.test.ts", "src/**/*.test.ts"],
       "project": ["src/**/*.ts"]
     },
-    // Same trade as packages/domain: the cloud contract is built ahead of its
-    // app-side consumer (issue #554's follow-up sync client), so its entry
-    // exports are trusted as API rather than reported.
-    "packages/cloud-contract": {
-      "entry": ["src/**/__tests__/**/*.test.ts"],
-      "project": ["src/**/*.ts"]
-    },
     "packages/db": {
       "entry": ["src/**/__tests__/**/*.test.ts"],
       "project": ["src/**/*.ts"]

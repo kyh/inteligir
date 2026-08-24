@@ -2,7 +2,7 @@
 // of apps/app/src/node/cloud/outbox.ts, over the injected `SyncStore` instead of
 // better-sqlite3.
 //
-// `@repo/cloud-contract/sync` states the rule the freezing obeys: re-pushing a
+// `@repo/api/cloud/sync/sync-schema` states the rule the freezing obeys: re-pushing a
 // stored position is the RETRY path only while the body is byte-identical, and a
 // different body at the same position is `sync-conflict` — data loss wearing
 // idempotency's clothes. A client honours it by serializing ONCE, at enqueue,
@@ -15,7 +15,7 @@ import {
   syncEventInputSchema,
   type PushRequest,
   type SyncEventInput,
-} from "@repo/cloud-contract/sync";
+} from "@repo/api/cloud/sync/sync-schema";
 import type { ThreadEvent } from "@repo/domain/provider-event";
 import type { SyncStore } from "./sync-store";
 

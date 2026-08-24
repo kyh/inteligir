@@ -4,7 +4,7 @@
 // what address the redirect is aimed at, and what the browser is handed back.
 
 import { statSync } from "node:fs";
-import { PAIR_CALLBACK_PATH } from "@repo/cloud-contract/pairing";
+import { PAIR_CALLBACK_PATH } from "@repo/api/cloud/pairing/pairing-schema";
 import { describe, expect, it } from "vitest";
 import { deviceCredentialPath } from "../credential-store";
 import { pairCallbackUrlFor } from "../pair-callback";

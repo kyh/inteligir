@@ -8,7 +8,7 @@
 // one notification rather than hundreds.
 
 import { threadEventSchema } from "@repo/domain/provider-event";
-import type { SyncEventRow } from "@repo/cloud-contract/sync";
+import type { SyncEventRow } from "@repo/api/cloud/sync/sync-schema";
 import type { AppliedRow, SyncStore } from "./sync-store";
 
 export type PlanStep =

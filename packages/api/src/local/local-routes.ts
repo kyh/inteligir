@@ -18,7 +18,7 @@
 //
 // The two browser landings (`/pair/callback`, the connector OAuth callback)
 // are not here because they belong to the flows that own their state; they are
-// spelled by `@repo/cloud-contract/pairing` and the connectors schema.
+// spelled by `@repo/api/cloud/pairing/pairing-schema` and the connectors schema.
 
 import { z } from "zod";
 

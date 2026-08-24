@@ -2,8 +2,8 @@
 // over Maps. What each case pins is a promise made in issue #572 that no unit
 // below the runtime can keep on its own.
 
-import { CAPTURE_API_PATHS } from "@repo/cloud-contract/captures";
-import { SYNC_API_PATHS } from "@repo/cloud-contract/sync";
+import { CAPTURE_API_PATHS } from "@repo/api/cloud/captures/captures-schema";
+import { SYNC_API_PATHS } from "@repo/api/cloud/sync/sync-schema";
 import { closeConnection, createConnection, type DbConnection } from "@repo/db/connection";
 import { runMigrations } from "@repo/db/migrate";
 import { countSyncOutbox, readSyncState, writeSyncCursor } from "@repo/db/sync-outbox";

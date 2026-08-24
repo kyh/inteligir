@@ -5,7 +5,7 @@ import {
   DEVICE_API_PATHS,
   listDevicesResponseSchema,
   type Device,
-} from "@repo/cloud-contract/pairing";
+} from "@repo/api/cloud/pairing/pairing-schema";
 import { Button } from "@repo/ui/components/button";
 
 import { AuthError } from "@/components/auth-shell";

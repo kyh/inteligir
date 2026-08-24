@@ -1,6 +1,9 @@
-import type { ArtifactsMintResponse } from "@repo/cloud-contract/artifacts";
-import { cloudError, type CloudErrorCode } from "@repo/cloud-contract/errors";
-import type { MintPairingCodeResponse, RedeemDeviceResponse } from "@repo/cloud-contract/pairing";
+import type { ArtifactsMintResponse } from "@repo/api/cloud/artifacts/artifacts-schema";
+import { cloudError, type CloudErrorCode } from "@repo/api/cloud/errors";
+import type {
+  MintPairingCodeResponse,
+  RedeemDeviceResponse,
+} from "@repo/api/cloud/pairing/pairing-schema";
 
 // ---------------------------------------------------------------------------
 // The one place a cloud-contract refusal becomes an HTTP response, so every

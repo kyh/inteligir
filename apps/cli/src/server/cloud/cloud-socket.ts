@@ -15,7 +15,7 @@ import {
   SYNC_WS_PATH,
   SYNC_WS_PLATFORM_PARAM,
   syncPingSchema,
-} from "@repo/cloud-contract/ws";
+} from "@repo/api/cloud/sync/sync-ws";
 import type { CloudSocket, CloudSocketOpener } from "./cloud-client";
 import { z } from "zod";
 

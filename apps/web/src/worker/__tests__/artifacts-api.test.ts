@@ -1,5 +1,5 @@
-import { artifactsMintResponseSchema } from "@repo/cloud-contract/artifacts";
-import { cloudErrorSchema } from "@repo/cloud-contract/errors";
+import { artifactsMintResponseSchema } from "@repo/api/cloud/artifacts/artifacts-schema";
+import { cloudErrorSchema } from "@repo/api/cloud/errors";
 import { env } from "cloudflare:test";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { deviceHeaders, pairDevice, signUpUser, userIdOf } from "./cloud-helpers";

@@ -8,7 +8,7 @@ import {
   mintPairingCodeResponseSchema,
   pairApproveSearchSchema,
   type PairApproveSearch,
-} from "@repo/cloud-contract/pairing";
+} from "@repo/api/cloud/pairing/pairing-schema";
 import { Button } from "@repo/ui/components/button";
 
 import { AuthError } from "@/components/auth-shell";

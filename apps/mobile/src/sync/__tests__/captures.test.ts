@@ -1,4 +1,4 @@
-import type { CaptureRow } from "@repo/cloud-contract/captures";
+import type { CaptureRow } from "@repo/api/cloud/captures/captures-schema";
 import { describe, expect, it } from "vitest";
 import { runCapturePass, type CaptureApplyResult, type CaptureSink } from "../captures";
 import { createMemorySyncStore } from "../memory-sync-store";

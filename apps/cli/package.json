@@ -67,7 +67,6 @@
     "@repo/agent-runtime": "workspace:*",
     "@repo/agent-skills": "workspace:*",
     "@repo/api": "workspace:*",
-    "@repo/cloud-contract": "workspace:*",
     "@repo/db": "workspace:*",
     "@repo/domain": "workspace:*",
     "@repo/notes": "workspace:*",

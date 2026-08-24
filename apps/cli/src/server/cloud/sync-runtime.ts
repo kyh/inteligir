@@ -36,16 +36,16 @@
 
 import { randomBytes } from "node:crypto";
 import { hostname } from "node:os";
-import { CLAIM_DEFAULT_LIMIT } from "@repo/cloud-contract/captures";
-import type { CloudErrorCode } from "@repo/cloud-contract/errors";
+import { CLAIM_DEFAULT_LIMIT } from "@repo/api/cloud/captures/captures-schema";
+import type { CloudErrorCode } from "@repo/api/cloud/errors";
 import {
   buildPairApproveUrl,
   DEVICE_NAME_MAX_LENGTH,
   generatePkceVerifier,
   PAIR_STATE_BYTES,
   pkceChallengeS256,
-} from "@repo/cloud-contract/pairing";
-import { PULL_DEFAULT_LIMIT, type SyncEventRow } from "@repo/cloud-contract/sync";
+} from "@repo/api/cloud/pairing/pairing-schema";
+import { PULL_DEFAULT_LIMIT, type SyncEventRow } from "@repo/api/cloud/sync/sync-schema";
 import type { DbConnection, DbTransaction } from "@repo/db/connection";
 import type { SyncedEventInput } from "@repo/db/events";
 import {
@@ -687,7 +687,7 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
    * that makes both true at once. A process that dies in that gap writes the
    * bullet again when the capture is redelivered. That direction is CHOSEN:
    * recording first would instead lose the capture outright, and
-   * `@repo/cloud-contract/captures` states the trade plainly — a lost capture
+   * `@repo/api/cloud/captures/captures-schema` states the trade plainly — a lost capture
    * is unrecoverable, a duplicated one is a line a reader deletes.
    */
   async function applyCaptures(context: PassContext): Promise<boolean> {

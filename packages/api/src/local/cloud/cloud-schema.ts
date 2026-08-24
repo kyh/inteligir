@@ -16,7 +16,7 @@
 // the flag on without one would be a promise no loop can keep. So the state is
 // a three-way union over the credential this data dir holds.
 
-import { DEVICE_NAME_MAX_LENGTH } from "@repo/cloud-contract/pairing";
+import { DEVICE_NAME_MAX_LENGTH } from "@repo/api/cloud/pairing/pairing-schema";
 import { z } from "zod";
 
 /**

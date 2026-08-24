@@ -76,7 +76,7 @@ custom scheme `inteligir://pair/callback` instead of
    cannot be spent.
 
 **What is NOT done here, on purpose:** the contract's `pairRedirectUrlSchema`
-(`@repo/cloud-contract/pairing`) admits `127.0.0.1` and nothing else, carrying
+(`@repo/api/cloud/pairing/pairing-schema`) admits `127.0.0.1` and nothing else, carrying
 the anti-open-redirect guards #573 hardened. Accepting one registered
 custom-scheme callback — with the same exact-scheme / exact-host / no-wildcard
 rigor — is a **separate reviewed change**, because it reopens that surface. Until

@@ -23,14 +23,14 @@ import {
   type AckCapturesRequest,
   type AckCapturesResponse,
   type ClaimCapturesResponse,
-} from "@repo/cloud-contract/captures";
-import { cloudErrorSchema, type CloudErrorCode } from "@repo/cloud-contract/errors";
+} from "@repo/api/cloud/captures/captures-schema";
+import { cloudErrorSchema, type CloudErrorCode } from "@repo/api/cloud/errors";
 import {
   DEVICE_API_PATHS,
   redeemDeviceResponseSchema,
   type RedeemDeviceRequest,
   type RedeemDeviceResponse,
-} from "@repo/cloud-contract/pairing";
+} from "@repo/api/cloud/pairing/pairing-schema";
 import {
   pullResponseSchema,
   pushResponseSchema,
@@ -39,8 +39,8 @@ import {
   type PullResponse,
   type PushRequest,
   type PushResponse,
-} from "@repo/cloud-contract/sync";
-import type { DevicePlatform, SyncPing } from "@repo/cloud-contract/ws";
+} from "@repo/api/cloud/sync/sync-schema";
+import type { DevicePlatform, SyncPing } from "@repo/api/cloud/sync/sync-ws";
 import type { z } from "zod";
 
 /** Narrower than `globalThis.fetch` on purpose: this module only ever dials a

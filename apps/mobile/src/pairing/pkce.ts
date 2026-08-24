@@ -10,7 +10,7 @@
 // the result against the contract's own transform, so the two spellings cannot
 // drift.
 
-import { PKCE_VERIFIER_BYTES } from "@repo/cloud-contract/pairing";
+import { PKCE_VERIFIER_BYTES } from "@repo/api/cloud/pairing/pairing-schema";
 
 /** The two crypto primitives a PKCE pair needs, and a hex source for the pairing
  *  `state`. Injected so the assembly is exercised without a native module. */

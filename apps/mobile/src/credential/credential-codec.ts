@@ -8,7 +8,7 @@
 // the contract's own (`DEVICE_CREDENTIAL_PATTERN`), so a value this end stores is
 // a value the cloud's bearer check admits.
 
-import { DEVICE_CREDENTIAL_PATTERN } from "@repo/cloud-contract/pairing";
+import { DEVICE_CREDENTIAL_PATTERN } from "@repo/api/cloud/pairing/pairing-schema";
 import { z } from "zod";
 
 const storedCredentialSchema = z
