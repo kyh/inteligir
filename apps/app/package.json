@@ -33,7 +33,7 @@
     "@repo/thread-view": "workspace:*",
     "@repo/typed-routes": "workspace:*",
     "@repo/ui": "workspace:*",
-    "@tanstack/react-query": "^5.90.2",
+    "@tanstack/react-query": "^5.102.0",
     "@tanstack/react-router": "catalog:",
     "@tanstack/react-start": "catalog:",
     "better-sqlite3": "catalog:",

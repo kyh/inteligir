@@ -50,24 +50,24 @@ catalog:
   consola: ^3.4.2
   drizzle-kit: ^0.31.10
   drizzle-orm: ^0.45.2
-  esbuild: ^0.28.1
-  expo: ~57.0.8
-  expo-constants: ~57.0.7
+  esbuild: ^0.28.2
+  expo: ~57.0.15
+  expo-constants: ~57.0.13
   expo-crypto: ~57.0.1
-  expo-linking: ~57.0.4
-  expo-router: ~57.0.8
+  expo-linking: ~57.0.7
+  expo-router: ~57.0.15
   expo-secure-store: ~57.0.1
-  expo-splash-screen: ~57.0.5
+  expo-splash-screen: ~57.0.7
   expo-status-bar: ~57.0.1
-  expo-system-ui: ~57.0.1
+  expo-system-ui: ~57.0.2
   expo-web-browser: ~57.0.2
-  hono: ^4.13.2
+  hono: ^4.13.3
   jsdom: ^30.0.1
-  lucide-react: ^1.26.0
+  lucide-react: ^1.33.0
   nanoid: ^5.1.16
   react: ^19.2.8
   react-dom: ^19.2.8
-  react-native: ~0.86.0
+  react-native: ~0.86.2
   react-native-safe-area-context: ~5.7.0
   react-native-screens: ~4.26.2
   remark-frontmatter: ^5.0.0
@@ -77,9 +77,9 @@ catalog:
   tsx: ^4.23.12
   typescript: ^7.0.2
   unified: ^11.0.5
-  vite: ^8.1.5
-  vitest: ^4.1.10
-  wrangler: ^4.114.0
+  vite: ^8.2.2
+  vitest: ^4.1.11
+  wrangler: ^4.125.0
   yaml: ^2.9.0
   zod: ^4.4.3
 

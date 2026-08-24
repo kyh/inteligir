@@ -17,7 +17,7 @@
     "typecheck": "tsc --noEmit && tsc --noEmit -p src/worker"
   },
   "dependencies": {
-    "@react-three/fiber": "^9.6.1",
+    "@react-three/fiber": "^9.7.0",
     "@repo/cloud-contract": "workspace:*",
     "@repo/ui": "workspace:*",
     "@tanstack/react-router": "catalog:",
@@ -38,7 +38,7 @@
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
-    "@types/three": "^0.185.1",
+    "@types/three": "^0.185.4",
     "@vitejs/plugin-react": "catalog:",
     "drizzle-kit": "catalog:",
     "tailwindcss": "catalog:",
