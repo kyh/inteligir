@@ -24,6 +24,10 @@ import type { ContractRouterClient } from "@orpc/contract";
 import type { LocalContract } from "@repo/api/local";
 import { RPC_PREFIX } from "@repo/api/local/routes";
 
+function isAbort(cause: unknown): boolean {
+  return cause instanceof Error && cause.name === "AbortError";
+}
+
 /**
  * The link. No `headers` thunk and no credential: the page is served by the
  * server it talks to, so the device token rides the same-origin cookie the
@@ -34,7 +38,11 @@ const link = new RPCLink({
   url: () => `${window.location.origin}${RPC_PREFIX}`,
   interceptors: [
     onError((cause: unknown) => {
-      if (import.meta.env.DEV) {
+      // A cancelled query is ORDINARY: react-query aborts an in-flight fetch
+      // when its last observer unmounts, and oRPC honours the signal. Logging
+      // that is noise — and noise the scenario suite reads as a broken page,
+      // because it asserts a clean console.
+      if (import.meta.env.DEV && !isAbort(cause)) {
         console.error(cause);
       }
     }),

@@ -4,13 +4,19 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { isDefinedError, safe } from "@orpc/client";
+import { ORPCError, safe } from "@orpc/client";
 import { expect, expectEq } from "../harness/assert";
 import type { Scenario } from "../harness/scenario";
 
 const FIXTURE_CONTENT = "# Seeded fixture\n";
 const FIRST_CONTENT = "# Hello\n\nWritten by the e2e harness.\n";
 const SECOND_CONTENT = "# Hello again\n\nOverwritten by the e2e harness.\n";
+
+/** The class a refusal carries, or its own text when it carries none — so a
+ *  failure message names what actually came back. */
+function refusalClass(cause: unknown): string {
+  return cause instanceof ORPCError ? cause.code : String(cause);
+}
 
 export const vaultCrud: Scenario = {
   name: "vault-crud",
@@ -63,7 +69,7 @@ export const vaultCrud: Scenario = {
       "old stem recorded in frontmatter aliases",
     );
     const [readOldError] = await safe(api.vault.read({ path: "notes/hello.md" }));
-    const readOldRefusal = isDefinedError(readOldError) ? readOldError.code : String(readOldError);
+    const readOldRefusal = refusalClass(readOldError);
     expect(readOldRefusal === "NOT_FOUND", `old path read refused with ${readOldRefusal}`);
 
     ctx.log("rename onto an existing file is refused, and refuses on disk too");
@@ -71,7 +77,7 @@ export const vaultCrud: Scenario = {
     const [collideError] = await safe(
       api.vault.rename({ from: "notes/renamed.md", to: "fixture.md" }),
     );
-    const collideRefusal = isDefinedError(collideError) ? collideError.code : String(collideError);
+    const collideRefusal = refusalClass(collideError);
     expect(collideRefusal === "CONFLICT", `colliding rename refused with ${collideRefusal}`);
     expectEq(
       await readFile(join(vaultDir, "notes", "renamed.md"), "utf8"),
@@ -88,39 +94,28 @@ export const vaultCrud: Scenario = {
     await api.vault.remove({ path: "notes/renamed.md" });
     expect(!existsSync(join(vaultDir, "notes", "renamed.md")), "deleted on disk");
     const [readGoneError] = await safe(api.vault.read({ path: "notes/renamed.md" }));
-    const readGoneRefusal = isDefinedError(readGoneError)
-      ? readGoneError.code
-      : String(readGoneError);
+    const readGoneRefusal = refusalClass(readGoneError);
     expect(readGoneRefusal === "NOT_FOUND", `deleted path read refused with ${readGoneRefusal}`);
 
     ctx.log("path refusals, and the disk stays untouched");
     const gitHeadBefore = await readFile(join(vaultDir, ".git", "HEAD"), "utf8");
-    const [traversalReadError] = await safe(api.vault.read({ path: "../escape.md" }));
-    const traversalReadRefusal = isDefinedError(traversalReadError)
-      ? traversalReadError.code
-      : String(traversalReadError);
-    expect(
-      traversalReadRefusal === "INVALID_PATH",
-      `traversal read refused with ${traversalReadRefusal}`,
-    );
-    const [traversalWriteError] = await safe(
-      api.vault.write({ path: "../escape.md", content: "x" }),
-    );
-    const traversalWriteRefusal = isDefinedError(traversalWriteError)
-      ? traversalWriteError.code
-      : String(traversalWriteError);
-    expect(
-      traversalWriteRefusal === "INVALID_PATH",
-      `traversal write refused with ${traversalWriteRefusal}`,
-    );
+    // A traversal never reaches a handler: the vault-path grammar rides the
+    // INPUT schema, so it is the validator that refuses — which is the point,
+    // since a refusal each handler had to remember to catch is one a new
+    // handler forgets.
+    for (const path of ["../escape.md", ".git/hooks/pwn.md"]) {
+      const [readError] = await safe(api.vault.read({ path }));
+      expect(
+        refusalClass(readError) === "BAD_REQUEST",
+        `reading ${path} refused with ${refusalClass(readError)}`,
+      );
+      const [writeError] = await safe(api.vault.write({ path, content: "x" }));
+      expect(
+        refusalClass(writeError) === "BAD_REQUEST",
+        `writing ${path} refused with ${refusalClass(writeError)}`,
+      );
+    }
     expect(!existsSync(join(vaultDir, "..", "escape.md")), "no file escaped the vault root");
-    const [gitWriteError] = await safe(
-      api.vault.write({ path: ".git/hooks/pwn.md", content: "x" }),
-    );
-    const gitWriteRefusal = isDefinedError(gitWriteError)
-      ? gitWriteError.code
-      : String(gitWriteError);
-    expect(gitWriteRefusal === "INVALID_PATH", `.git write refused with ${gitWriteRefusal}`);
     expect(!existsSync(join(vaultDir, ".git", "hooks", "pwn.md")), ".git target was not created");
     expectEq(
       await readFile(join(vaultDir, ".git", "HEAD"), "utf8"),

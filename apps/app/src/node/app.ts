@@ -331,10 +331,21 @@ export function createApp(args: CreateAppArgs) {
     return c.body(answer.body, answer.status, answer.headers);
   });
 
+  // The browser gets its credential on the DOCUMENT: it is the one client that
+  // cannot set a header for itself (server-file.ts says why), and the document
+  // is the one response it is guaranteed to receive first. Both fallbacks
+  // answer documents — Vite's middleware in dev, the Start entry in prod — so
+  // each stamps it on the response IT builds.
+  const wantsDocument = (c: Context): boolean =>
+    c.req.method === "GET" && (c.req.header("accept") ?? "").includes("text/html");
+
   const fallback = args.fallback;
   if (fallback.kind === "dev") {
     app.all("*", (c) => {
       const { incoming, outgoing } = c.env;
+      if (wantsDocument(c)) {
+        outgoing.setHeader("set-cookie", serverTokenCookie(args.serverToken));
+      }
       fallback.middlewares(incoming, outgoing, (cause?: unknown) => {
         if (cause !== undefined && cause !== null) {
           console.error("vite middleware error", cause);
@@ -395,9 +406,6 @@ export function createApp(args: CreateAppArgs) {
       headers.set("content-security-policy", buildContentSecurityPolicy({ nonce, wsOrigin }));
       headers.set("x-content-type-options", "nosniff");
       headers.set("referrer-policy", "no-referrer");
-      // The document is where the browser gets its credential: it is the one
-      // client that cannot set a header for itself (server-file.ts says why),
-      // and this is the one response it is guaranteed to receive first.
       headers.set("set-cookie", serverTokenCookie(args.serverToken));
       return new Response(response.body, {
         status: response.status,
