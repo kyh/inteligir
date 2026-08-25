@@ -1,4 +1,4 @@
-// The typed face over the cloud Worker: `@repo/cloud-contract`'s paths and
+// The typed face over the cloud Worker: `@repo/api/cloud`'s paths and
 // schemas, the bearer, and the ONE thing this file exists to get right — a
 // refusal is a VALUE, never a thrown string.
 //
@@ -240,7 +240,7 @@ export function createCloudClient(args: CreateCloudClientArgs): CloudClient {
 // -- the invalidation socket ------------------------------------------------
 //
 // Only its SHAPE lives here. The dial itself is `cloud-socket.ts`, imported by
-// `main.ts` alone, and the split is not taste: a UI test harness imports the
+// `serve.ts` alone, and the split is not taste: a UI test harness imports the
 // node test harness, which drags every module reachable from `app.ts` into the
 // browser tsconfig's program — where `WebSocket` is the DOM one and takes no
 // headers. Moving the dial out of that graph is what keeps `Authorization` on

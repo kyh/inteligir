@@ -7,11 +7,10 @@
 // why deleting one was the price of the header.
 //
 // WHAT THE BUNDLE FORCES, stated rather than discovered later:
-//   - `style-src` needs 'unsafe-inline'. CodeMirror injects its theme as a
-//     <style> element at runtime (StyleModule) and React writes style
-//     attributes; neither is noncible from here. This is the one directive
-//     weaker than it looks, and it is a real residual — a CSS injection is not
-//     blocked.
+//   - `style-src` needs 'unsafe-inline'. React writes style attributes and the
+//     Plate/lowlight editor stack injects <style> elements at runtime; neither
+//     is noncible from here. This is the one directive weaker than it looks, and
+//     it is a real residual — a CSS injection is not blocked.
 //   - `img-src` allows data: and blob: — pasted and embedded images — and
 //     'self'. It names no remote host, so a note embedding
 //     `![](https://…/x.png)` does NOT load: the editor's image widget shows the
@@ -45,7 +44,8 @@ export function buildContentSecurityPolicy(args: ContentSecurityPolicyArgs): str
   return [
     "default-src 'self'",
     "script-src 'self'",
-    // See the header: CodeMirror's runtime <style> injection forces this.
+    // See the header: React style attributes + Plate/lowlight's runtime <style>
+    // injection force this.
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob:",
     "font-src 'self' data:",

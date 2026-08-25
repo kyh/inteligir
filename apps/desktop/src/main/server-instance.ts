@@ -5,13 +5,14 @@
 // resolver (`inteligir/server/config`, the same module the CLI's discovery
 // reuses), because a second, partial copy of that layering is how a window
 // ends up on a dead port. `resolveAppConfig` layers env →
-// `<dataDir>/config.json` → default, and a shell that read only
-// `INTELIGIR_PORT` would hand its child 4664 while the app's own resolution
-// said otherwise — two servers, one vault.
+// `<dataDir>/config.json` → default.
 //
-// The origin is a PIN once the server has answered, and a spawned child is
-// told the exact port (and data/vault dirs) this resolution produced, so
-// nothing downstream can land somewhere else.
+// A spawned child is handed the two facts that DEFINE the instance — its data
+// dir and its vault dir — plus the mode, so it cannot re-derive a different
+// vault. It is NOT handed the port: `<dataDir>/server.json` names the port that
+// actually answered, so the child derives-and-binds (probing upward off a busy
+// dev default), and the shell reads back where it landed rather than dictating
+// it. Pinning the port would only disable that recovery.
 //
 // AND WHAT ANSWERS THERE STILL HAS TO PROVE ITSELF. A loopback port is
 // first-come-first-served and unauthenticated, so "something answered /health"
@@ -193,12 +194,22 @@ export function planServerStart(verified: boolean): ServerPlan {
   return verified ? "adopt" : "spawn";
 }
 
-/** The environment a spawned child is handed: this resolution, whole. */
-export function serverProcessEnv(target: ServerTarget) {
+/**
+ * The environment a spawned child is handed: the instance's identity and its
+ * mode, never its port.
+ *
+ * `NODE_ENV` is stated from `isPackaged` — the same fact `resolveServerTarget`
+ * used above — because a Finder-launched packaged app inherits no `NODE_ENV`,
+ * and a child that read the ambient one would resolve `dev` inside a production
+ * install. The PORT is deliberately absent: pinning it sets the child's
+ * `portSource` to `env`, which turns off the upward probe a busy dev default
+ * relies on — and the shell learns the real port from `server.json` regardless.
+ */
+export function serverProcessEnv(target: ServerTarget, isPackaged: boolean) {
   return {
     INTELIGIR_DATA_DIR: target.dataDir,
-    INTELIGIR_PORT: String(target.port),
     INTELIGIR_VAULT_DIR: target.vaultDir,
+    NODE_ENV: isPackaged ? "production" : "development",
   };
 }
 

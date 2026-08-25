@@ -13,15 +13,16 @@ catalog:
   "@orpc/server": ^1.15.0
   "@orpc/tanstack-query": ^1.15.0
   # The ACP adapters (issue #588) are CHILD PROCESSES, not imports: agent-runtime
-  # spawns them in dev, apps/launcher ships them packaged, and the two manifests
-  # must agree on the version the wire was verified against — pinned EXACT, and
+  # spawns them in dev, apps/cli ships them as real dependencies of the published
+  # binary, and the two manifests must agree on the version the wire was verified
+  # against — pinned EXACT, and
   # codex-acp deliberately held (its bundled core is live-broken upstream, #594).
   "@zed-industries/claude-code-acp": 0.16.2
   "@zed-industries/codex-acp": 0.16.0
   # Dictation (issue #578): streaming Parakeet through sherpa-onnx. Pinned EXACT
   # for the reason the whisper pin it replaces stated — the binary arrives
   # through 6 per-platform optionalDependencies and there is NO install/build
-  # script (a prebuilt N-API addon), which is the property `apps/launcher`'s
+  # script (a prebuilt N-API addon), which is the property `npx inteligir`'s
   # zero-rebuild install depends on, so the version verified against is the one
   # that ships. `tar` + `unbzip2-stream` extract the `.tar.bz2` model archive in
   # pure JS (Node has no bzip2, and Windows' tar.exe cannot do `-j`).

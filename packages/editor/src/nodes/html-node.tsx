@@ -4,11 +4,9 @@
 // allow-same-origin under any mode: with scripts on, same-origin would hand
 // the payload this origin's storage and API surface.
 //
-// Stated environment limit: the app's prod document CSP carries
-// `frame-src 'none'` (apps/app/src/node/csp.ts), which blocks srcdoc frames —
-// so the live preview works in dev and needs a deliberate `frame-src 'self'`
-// (or an equivalent decision) to light up in prod. The source card is the
-// prod-safe default either way.
+// The document CSP admits exactly this frame: `frame-src 'self'`
+// (apps/cli/src/server/csp.ts) permits the srcdoc preview while refusing REMOTE
+// frames, so the sandbox — never the CSP — is what contains the payload.
 
 import { type PlateElementProps, PlateElement } from "platejs/react";
 import { useState } from "react";

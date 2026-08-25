@@ -117,7 +117,7 @@ describe("the API over the in-process app", () => {
   });
 
   it("refuses to boot on an un-migrated database — the boot-time schema read throws", () => {
-    // The schema version is resolved once at boot (main.ts) and passed into
+    // The schema version is resolved once at boot (serve.ts) and passed into
     // createApp, so a broken schema fails the process loudly instead of
     // surfacing as a 500 per status request.
     const dataDir = makeTempDir("inteligir-app-test-");
@@ -221,12 +221,31 @@ describe("the device token", () => {
     expect(bearer.status).toBe(200);
 
     // The browser's carrier: a document navigation, an `<img src>` and a
-    // `new WebSocket()` can none of them set a header.
+    // `new WebSocket()` can none of them set a header. The SPA's own fetch is
+    // same-origin, so it clears the cookie path's extra check.
     const cookie = await composed.app.request(
       STATUS_RPC_PATH,
-      statusRpcRequest({ cookie: `${SERVER_TOKEN_COOKIE}=${TEST_SERVER_TOKEN}` }),
+      statusRpcRequest({
+        cookie: `${SERVER_TOKEN_COOKIE}=${TEST_SERVER_TOKEN}`,
+        "sec-fetch-site": "same-origin",
+      }),
     );
     expect(cookie.status).toBe(200);
+  });
+
+  it("REFUSES the cookie from a co-resident cross-port page (SameSite does not isolate ports)", async () => {
+    // A page on another 127.0.0.1 port is same-SITE, so the browser attaches
+    // this cookie — but its request is same-SITE, not same-ORIGIN, and must not
+    // be able to drive the API with a credential it never read.
+    const { composed } = await bootTestApp();
+    const crossPort = await composed.app.request(
+      STATUS_RPC_PATH,
+      statusRpcRequest({
+        cookie: `${SERVER_TOKEN_COOKIE}=${TEST_SERVER_TOKEN}`,
+        "sec-fetch-site": "same-site",
+      }),
+    );
+    expect(crossPort.status).toBe(403);
   });
 
   it("leaves /health outside the gate — it is a spawn probe", async () => {
@@ -385,7 +404,7 @@ describe("the real socket upgrade", () => {
     });
 
     const hello = await nextFrame();
-    expect(hello).toEqual({ type: "hello", version: "0.1.0-test" });
+    expect(hello).toEqual({ type: "hello" });
 
     socket.send(JSON.stringify({ type: "subscribe", target: { kind: "doc-detail", docId: "d1" } }));
     // Subscription is processed on receipt; poll until the broadcast lands.

@@ -135,6 +135,26 @@ describe.each([
           `  fix: mount it in app.ts, or delete the row`,
       );
     }
+
+    // `mountedRoutes` drops `ALL` registrations because middleware (`app.use`)
+    // is how they arrive — but a genuine `app.all("/debug", …)` is ALSO `ALL`
+    // and would slip past BOTH directions unseen. An `ALL` on a path is only
+    // safe to drop when a non-`ALL` route shares that path (it is guarding a
+    // declared surface); one that guards nothing declared is a reachable route
+    // the completeness check cannot otherwise see.
+    const nonAllPaths = new Set(
+      composed.app.routes.filter((route) => route.method !== "ALL").map((route) => route.path),
+    );
+    for (const route of composed.app.routes) {
+      if (route.method !== "ALL" || route.path === `${RPC_PREFIX}/*`) continue;
+      if (nonAllPaths.has(route.path)) continue;
+      violations.push(
+        `REACHABLE ALL ROUTE  ALL ${route.path}\n` +
+          `  rule: an ALL registration is dropped as middleware only when a non-ALL route on the same path proves it guards something; this one guards nothing declared\n` +
+          `  fix: declare it as a real route, or make it a procedure — an untyped ALL surface is exactly what this guard exists to catch`,
+      );
+    }
+
     expect(violations, `\n${violations.join("\n\n")}\n`).toEqual([]);
 
     // A walk that found nothing would satisfy one direction vacuously.

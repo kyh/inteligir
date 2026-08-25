@@ -96,7 +96,7 @@ bytes no user ever sees.
 ## Agent reachability
 
 The agent runs `inteligir` as a BARE command, so the server resolves this bin
-directory (`src/server/agent/agent-shell-env.ts`) and PREPENDS it to the PATH
+directory (`src/server/agents/agent-shell-env.ts`) and PREPENDS it to the PATH
 it injects into the agent's shell, alongside `INTELIGIR_DATA_DIR` (which names
 the instance without handing a child the credential) and
 `INTELIGIR_THREAD_ID`. The directory is CHECKED for an executable rather than

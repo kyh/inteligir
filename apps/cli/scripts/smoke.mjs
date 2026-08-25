@@ -198,6 +198,19 @@ try {
   const vaultList = await rpc("vault/tree");
   process.stdout.write(`smoke: vault tree -> ${vaultList.entries.length} entries\n`);
 
+  // The packaged CLIENT half — server.json discovery, the oRPC client and the
+  // bearer attach — driven from the SAME bundle, which the hand-rolled fetch
+  // above bypasses. A bundling regression confined to it would pass every
+  // source-run suite and this fetch path alike.
+  const { stdout: statusJson } = await run(bin, ["status", "--json"], {
+    env: { ...process.env, INTELIGIR_DATA_DIR: dataDir },
+  });
+  const status = JSON.parse(statusJson);
+  if (status.dataDir !== dataDir) {
+    fail(`packed \`status --json\` reported dataDir ${status.dataDir}, expected ${dataDir}`);
+  }
+  process.stdout.write(`smoke: packaged CLI status --json -> dataDir ${status.dataDir}\n`);
+
   // Dictation's native binding is the ONE runtime dependency this smoke checks
   // by BEHAVIOUR rather than presence, and it is a real check because the
   // status is computed from a worker that spawns from the staged bundle,

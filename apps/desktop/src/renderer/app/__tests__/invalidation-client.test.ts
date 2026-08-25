@@ -132,7 +132,7 @@ describe("messages", () => {
     h.client.start();
     const socket = h.sockets[0];
     socket?.open();
-    socket?.receive({ type: "hello", version: "0.1.0" });
+    socket?.receive({ type: "hello" });
     socket?.receive({ type: "changed", entity: "vault", changes: ["files-changed"] });
     expect(h.changed).toEqual([{ type: "changed", entity: "vault", changes: ["files-changed"] }]);
   });

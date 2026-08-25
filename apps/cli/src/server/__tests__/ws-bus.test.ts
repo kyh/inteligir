@@ -28,7 +28,7 @@ function createFakeSocket(): FakeSocket {
 }
 
 function createBus(): WsBus {
-  return new WsBus({ version: "0.1.0-test" });
+  return new WsBus();
 }
 
 function lastFrame(socket: FakeSocket): ServerMessage {
@@ -44,7 +44,7 @@ describe("registerClient", () => {
     const bus = createBus();
     const socket = createFakeSocket();
     bus.registerClient(socket);
-    expect(lastFrame(socket)).toEqual({ type: "hello", version: "0.1.0-test" });
+    expect(lastFrame(socket)).toEqual({ type: "hello" });
   });
 });
 

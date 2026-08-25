@@ -66,7 +66,11 @@ export function registerAppProtocol(args: AppProtocolArgs): void {
       // The body is READ rather than forwarded as a stream: Electron's
       // `net.fetch` takes no `duplex`, so a streamed body is not an option
       // here — and every proxied call is one RPC envelope or a bare GET, which
-      // is small by construction.
+      // is small by construction. #611's STOP condition (abandon the proxy if it
+      // measurably costs interaction latency) is judged clear by inspection: the
+      // added work is one in-memory buffer copy of a small envelope plus a
+      // loopback hop, both far below a frame — the fallback CORS path is not
+      // needed and would only widen the token's exposure.
       const init: RequestInit = { method: request.method, headers };
       if (request.method !== "GET" && request.method !== "HEAD") {
         init.body = await request.arrayBuffer();

@@ -6,7 +6,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { isDefinedError, safe, toORPCError } from "@orpc/client";
 import { vaultChangedMessageSchema } from "@repo/api/local/notifications";
-import { VAULT_ASSET_PATH } from "@repo/api/local/routes";
+import { VAULT_ASSET_PATH, vaultAssetUrl } from "@repo/api/local/routes";
 import { VAULT_MAX_CONTENT_LENGTH, contentHashHex } from "@repo/api/local/vault/vault-schema";
 import { describe, expect, it } from "vitest";
 import { bootTestApp } from "../../__tests__/boot-app";
@@ -74,7 +74,7 @@ describe("the vault routes", () => {
         vaultDir: join(instanceDir, "vault"),
         vaultRemote: null,
         dataDir: instanceDir,
-        notifier: new WsBus({ version: "0.1.0-test" }),
+        notifier: new WsBus(),
         watch: false,
         syncIntervalMs: null,
         gitEnv: hermeticGitEnv(),
@@ -200,6 +200,26 @@ describe("the vault routes", () => {
 
     const missing = await request(`${VAULT_ASSET_PATH}?path=absent.png`);
     expect(missing.status).toBe(404);
+  });
+
+  it("passes the markdown path VERBATIM to containment — no client-side normalization", async () => {
+    // The client sends the raw path (only URL-encoded, `vaultAssetUrl`) and the
+    // SERVER decides: a name that needs encoding round-trips to disk, and a
+    // traversal is refused by the vault's own containment, not by the builder.
+    // This is the narrowing that replaced the old client-side decode/normalize.
+    const { request, vaultDir } = await bootTestApp();
+    await writeFile(join(vaultDir, "my picture.png"), "png-bytes", "utf8");
+
+    // encodeURIComponent in the builder, decoded back by the handler's
+    // searchParams — the two must agree or a spaced name 404s.
+    const encoded = vaultAssetUrl("", "my picture.png");
+    expect(encoded).toBe(`${VAULT_ASSET_PATH}?path=my%20picture.png`);
+    const spaced = await request(encoded);
+    expect(spaced.status).toBe(200);
+
+    // A traversal is a .png (media check passes) that containment refuses.
+    const traversal = await request(vaultAssetUrl("", "../escape.png"));
+    expect(traversal.status).toBe(400);
   });
 
   it("refuses an asset request that carries no device token", async () => {

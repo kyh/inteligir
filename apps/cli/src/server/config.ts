@@ -30,10 +30,10 @@ const DEV_PORT_BASE = 21_000;
 const DEV_PORT_BUCKETS = 8_000;
 
 /**
- * Bound for the upward probe on a busy DERIVED dev port — both halves of it:
- * `listen.ts` probes this many ports when binding, and the CLI's server
- * discovery probes the same range when dialing, so the two can never disagree
- * on where a probed instance may have landed.
+ * Bound for the upward probe on a busy DERIVED dev port: `listen.ts` probes
+ * this many ports when binding. Nothing probes when DIALING — a caller reads
+ * the bound port straight out of `<dataDir>/server.json`, so there is no range
+ * for the two ends to disagree about.
  */
 export const DEV_PORT_PROBE_LIMIT = 10;
 
@@ -102,7 +102,7 @@ function parseRemoteUrlValue(name: string, rawValue: string): string {
  */
 export const DEFAULT_CLOUD_URL = "https://inteligir.com";
 
-/** Origin only: the paths are `@repo/cloud-contract`'s, and a base carrying a
+/** Origin only: the paths are `@repo/api/cloud`'s, and a base carrying a
  *  path would silently truncate them (`new URL("/v1/…", base)` drops it). */
 function parseCloudUrlValue(name: string, rawValue: string): string {
   const trimmed = rawValue.trim();
@@ -238,7 +238,7 @@ const ENV_VARS = {
 
 /**
  * Every variable the table above declares, DERIVED from it rather than
- * retyped. `apps/app/turbo.json`'s `dev.passThroughEnv` must name exactly
+ * retyped. `apps/desktop/turbo.json`'s `dev.passThroughEnv` must name exactly
  * these: turbo runs in strict env mode and strips anything unnamed, so a
  * variable declared here and missing there is silently IGNORED through the
  * root `pnpm dev` rather than refused — the failure mode has no error message

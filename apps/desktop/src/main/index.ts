@@ -117,13 +117,22 @@ async function startServer(target: ServerTarget): Promise<void> {
   }
   serverProcess = createServerProcess({
     entryPath,
-    // The shell's resolution is handed down whole. A child re-deriving any of
-    // it would be a second answer to a question already asked — and its cwd is
-    // this process's, not a checkout's, so a re-derived dev instance would not
-    // even be the same one.
-    env: serverProcessEnv(target),
+    // The instance's identity (data + vault dirs) and its mode are handed down;
+    // the child derives its own port and reports it back via server.json
+    // (server-instance.ts states why the port is discovered, not dictated).
+    env: serverProcessEnv(target, app.isPackaged),
     isReady: () => verifiedServerAnswered(target),
     log: (message) => console.log(`[server] ${message}`),
+    // A mid-session crash leaves the window talking to nothing. There is no
+    // in-place restart (server-process.ts says why the fresh token makes one
+    // unsafe): name the failure and quit, so a relaunch rebuilds cleanly.
+    onUnexpectedExit: (code) => {
+      dialog.showErrorBox(
+        "Inteligir server stopped",
+        `The local server exited unexpectedly (code ${String(code)}). Reopen Inteligir to continue.`,
+      );
+      app.quit();
+    },
   });
   await serverProcess.start();
 }
@@ -188,9 +197,16 @@ function openExternalFromPage(url: string): void {
   void shell.openExternal(url);
 }
 
-function createWindow(target: ServerTarget, server: LiveServer): BrowserWindow {
-  const partition = sessionPartition(target.dataDir);
-  const windowSession = lockDownSession(partition);
+/**
+ * The window's session is set up ONCE per launch, not once per window. The
+ * permission lock-down, the socket bearer and the protocol handler are all
+ * session-lifetime — `registerAppProtocol` in particular THROWS if the scheme
+ * is handled twice on one session — while the window itself is re-created every
+ * time it is closed and reopened (tray, dock, second instance). There is
+ * exactly one partition per launch, so this binds to it here.
+ */
+function prepareWindowSession(target: ServerTarget, server: LiveServer): void {
+  const windowSession = lockDownSession(sessionPartition(target.dataDir));
   attachSocketCredential(windowSession, server);
   registerAppProtocol({
     session: windowSession,
@@ -201,7 +217,10 @@ function createWindow(target: ServerTarget, server: LiveServer): BrowserWindow {
         ? { kind: "files", dir: rendererDir() }
         : { kind: "dev", origin: rendererDevUrl },
   });
+}
 
+function createWindow(target: ServerTarget): BrowserWindow {
+  const partition = sessionPartition(target.dataDir);
   const window = new BrowserWindow({
     width: 1200,
     height: 800,
@@ -271,10 +290,10 @@ function createWindow(target: ServerTarget, server: LiveServer): BrowserWindow {
   return window;
 }
 
-function showMainWindow(target: ServerTarget, server: LiveServer): BrowserWindow {
+function showMainWindow(target: ServerTarget): BrowserWindow {
   const existing = mainWindow;
   if (existing === null) {
-    mainWindow = createWindow(target, server);
+    mainWindow = createWindow(target);
     return mainWindow;
   }
   if (existing.isMinimized()) {
@@ -349,7 +368,7 @@ function configureApplicationMenu(target: ServerTarget, server: LiveServer): voi
 
 /** Tray icon, sized and marked as a template so macOS tints it for the menu
  *  bar rather than rendering the full-colour app icon. */
-function createTray(target: ServerTarget, server: LiveServer): Tray | null {
+function createTray(target: ServerTarget): Tray | null {
   const icon = nativeImage
     .createFromPath(join(app.getAppPath(), "resources", "icon.png"))
     .resize({ width: 16, height: 16 });
@@ -362,7 +381,7 @@ function createTray(target: ServerTarget, server: LiveServer): Tray | null {
   created.setToolTip(APP_DISPLAY_NAME);
   created.setContextMenu(
     Menu.buildFromTemplate([
-      { label: `Show ${APP_DISPLAY_NAME}`, click: () => showMainWindow(target, server) },
+      { label: `Show ${APP_DISPLAY_NAME}`, click: () => showMainWindow(target) },
       { label: "Hide", click: () => mainWindow?.hide() },
       { type: "separator" },
       { label: "Open Data Folder", click: () => openDataDir(target) },
@@ -370,7 +389,7 @@ function createTray(target: ServerTarget, server: LiveServer): Tray | null {
       { role: "quit" },
     ]),
   );
-  created.on("click", () => showMainWindow(target, server));
+  created.on("click", () => showMainWindow(target));
   return created;
 }
 
@@ -392,14 +411,15 @@ async function onAppReady(target: ServerTarget): Promise<void> {
   if (server === null) {
     throw new Error("the server reported ready without publishing its address");
   }
+  prepareWindowSession(target, server);
   // The renderer's one bridged fact. Synchronous, because the page needs it
   // before it opens its first socket (../types.ts states the whole surface).
   ipcMain.on(IPC_CHANNELS.SOCKET_ORIGIN, (event) => {
     event.returnValue = server.origin;
   });
   configureApplicationMenu(target, server);
-  tray = createTray(target, server);
-  mainWindow = createWindow(target, server);
+  tray = createTray(target);
+  mainWindow = createWindow(target);
 }
 
 // Resolved before `whenReady`, so a bad INTELIGIR_PORT or a config.json that
@@ -414,8 +434,18 @@ if (target.kind === "refused") {
 
   app.on("activate", () => {
     if (live !== null) {
-      showMainWindow(resolved, live);
+      showMainWindow(resolved);
     }
+  });
+
+  // Closing the last window HIDES to the tray rather than quitting: the server
+  // child keeps the vault synced and the agent reachable in the background, and
+  // the tray's Show / dock re-activate reopen the window (both above). Quit —
+  // tray, ⌘Q, the app menu — is the only exit, and it runs the ordered teardown
+  // through `before-quit`. Without this handler Electron's default quits the
+  // app the moment the window closes, stranding every one of those affordances.
+  app.on("window-all-closed", () => {
+    // Intentionally empty: keep the app (and its server child) alive under the tray.
   });
 
   // The server is a child of this process, so quitting must take it with it —
@@ -443,7 +473,7 @@ if (target.kind === "refused") {
   } else {
     app.on("second-instance", () => {
       if (live !== null) {
-        showMainWindow(resolved, live);
+        showMainWindow(resolved);
       }
     });
     app

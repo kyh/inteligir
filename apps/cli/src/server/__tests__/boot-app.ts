@@ -1,7 +1,7 @@
 // ONE parameterized boot for the in-process app suites: a scratch instance
 // dir, migrated db, vault runtime with hermetic git, knowledge runtime wired
 // to the vault's change announcements, the composed hono app and the typed
-// in-process client — the same graph main.ts builds, minus listen. Every
+// in-process client — the same graph serve.ts builds, minus listen. Every
 // booted runtime (and an injected driver's dispose) is torn down by this
 // module's own afterEach, LIFO, so consumers register no cleanup of their own.
 
@@ -100,7 +100,7 @@ export async function bootTestApp(options: BootTestAppOptions = {}): Promise<Boo
   const db = createConnection(databasePath);
   const knownSchemaVersion = runMigrations(db);
 
-  const bus = new WsBus({ version: "0.1.0-test" });
+  const bus = new WsBus();
   let knowledgeSink: KnowledgeRuntime | null = null;
   const vault = await createVaultRuntime({
     vaultDir,

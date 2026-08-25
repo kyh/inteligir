@@ -5,7 +5,7 @@
 
 import type { ThreadEventTurnStatus } from "@repo/domain/provider-event";
 import { turnScope } from "@repo/domain/thread-event-scope";
-import { agentMessageEvents } from "../agent/agent-message-events";
+import { agentMessageEvents } from "../agents/agent-message-events";
 import type {
   ProviderEventSink,
   TurnDriver,

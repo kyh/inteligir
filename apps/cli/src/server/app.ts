@@ -42,7 +42,8 @@ import type { NoteIntelligence } from "./note-intelligence/note-intelligence";
 import { websocketOrigin } from "@repo/api/local/routes";
 import { documentSecurityHeaders } from "./csp";
 import { loopbackRequestOrigin } from "./loopback-origin";
-import { presentedToken, serverTokenCookie, tokenAccepted } from "./server-file";
+import { isSameOriginBrowserRequest } from "./browser-request";
+import { presentedCredential, serverTokenCookie, tokenAccepted } from "./server-file";
 import type { KnowledgeRuntime } from "./knowledge/knowledge-runtime";
 import { renameNoteWithLinkRewrite } from "./knowledge/rename";
 import { createCommentsService } from "./comments/comments-service";
@@ -65,7 +66,7 @@ export interface CreateAppArgs {
   /** What the boot-time driver resolution decided; served on system.status. */
   agent: AgentStatus;
   bus: WsBus;
-  /** The sync loop's wire. main.ts supplies the real dial; injectable so a
+  /** The sync loop's wire. serve.ts supplies the real dial; injectable so a
    *  suite drives the whole loop without a network — and inert either way
    *  until someone pairs, since an install with no credential opens nothing. */
   cloudTransport?: CloudTransport;
@@ -146,17 +147,30 @@ export function createApp(args: CreateAppArgs) {
   // top-level navigation carrying no credential by construction. Their
   // single-use `state` stands in its place, which is the whole argument
   // `cloud/pair-callback.ts` states.
+  //
+  // A COOKIE-authed request gets a SECOND check the bearer path does not: the
+  // cookie is ambient (the browser attaches it to same-site requests, and
+  // loopback "site" ignores the port), so a co-resident page on another
+  // 127.0.0.1 port carries it — the one gap `SameSite=Strict` leaves open. It
+  // must therefore prove it is same-ORIGIN (`browser-request.ts`). The bearer
+  // is not ambient, so it is trusted as-is.
   const requireServerToken = async (c: Context, next: Next) => {
-    if (
-      !tokenAccepted(
-        args.serverToken,
-        presentedToken({
-          authorization: c.req.header("authorization"),
-          cookie: c.req.header("cookie"),
-        }),
-      )
-    ) {
+    const credential = presentedCredential({
+      authorization: c.req.header("authorization"),
+      cookie: c.req.header("cookie"),
+    });
+    if (credential === null || !tokenAccepted(args.serverToken, credential.token)) {
       return c.text("This request carried no valid inteligir device token", 401);
+    }
+    if (
+      credential.carrier === "cookie" &&
+      !isSameOriginBrowserRequest({
+        secFetchSite: c.req.header("sec-fetch-site"),
+        origin: c.req.header("origin"),
+        host: c.req.header("host"),
+      })
+    ) {
+      return c.text("This cross-origin request cannot use the session cookie", 403);
     }
     await next();
     return undefined;

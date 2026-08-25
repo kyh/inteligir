@@ -19,6 +19,7 @@ import type { ContractRouterClient } from "@orpc/contract";
 import { createLocalClient } from "inteligir/server/local-client";
 import type { LocalContract } from "@repo/api/local";
 import { toErrorMessage } from "../types";
+import { BROWSER_IPC } from "./browser-ipc";
 import { browserChromePage, browserChromePreloadScript } from "./bundle-paths";
 import type { LiveServer } from "./server-instance";
 import {
@@ -74,7 +75,7 @@ function layout(handle: BrowserWindowHandle): void {
 
 function pushChromeState(handle: BrowserWindowHandle): void {
   const contents = handle.content.webContents;
-  handle.chrome.webContents.send("inteligir-browser:state", {
+  handle.chrome.webContents.send(BROWSER_IPC.STATE, {
     url: contents.getURL(),
     title: contents.getTitle(),
     canGoBack: contents.navigationHistory.canGoBack(),
@@ -98,13 +99,7 @@ async function sendPageToAgent(
   if (url.length === 0) {
     return { ok: false, detail: "nothing loaded" };
   }
-  let selection = "";
-  try {
-    const raw: unknown = await contents.executeJavaScript("String(getSelection())", false);
-    selection = typeof raw === "string" ? raw : "";
-  } catch {
-    // A page that refuses script evaluation still captures by url + title.
-  }
+  const selection = await readPageSelection(contents);
   const capture = { url, title: contents.getTitle(), selection };
   try {
     const api = apiClientFor(server);
@@ -125,6 +120,30 @@ async function sendPageToAgent(
 /** A ceiling on the capture call. Without one a wedged server leaves the
  *  chrome bar's IPC handler pending forever and the button spinning. */
 const CAPTURE_TIMEOUT_MS = 30_000;
+
+/** The same reasoning applied to the PAGE half. The content view runs arbitrary
+ *  pages: one overriding `Selection.toString` (or `String`) with a loop would
+ *  leave `executeJavaScript` pending forever — hanging the IPC handler and
+ *  spinning the button exactly as a wedged server would. A selection read is
+ *  near-instant, so this bounds it and falls back to no selection (url + title
+ *  still capture). */
+const SELECTION_READ_TIMEOUT_MS = 1_000;
+
+async function readPageSelection(contents: Electron.WebContents): Promise<string> {
+  const evaluate = contents
+    .executeJavaScript("String(getSelection())", false)
+    .then((raw: unknown) => (typeof raw === "string" ? raw : ""))
+    .catch(() => "");
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<string>((resolve) => {
+    timer = setTimeout(() => resolve(""), SELECTION_READ_TIMEOUT_MS);
+  });
+  try {
+    return await Promise.race([evaluate, timeout]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 /** The typed client against the local server, carrying this instance's device
  *  token. "Send to agent" is a MAIN-process call — the browser view has no
@@ -153,7 +172,7 @@ function registerBrowserIpc(server: LiveServer): void {
     return browserHandle;
   };
 
-  ipcMain.handle("inteligir-browser:navigate", (event, input: unknown) => {
+  ipcMain.handle(BROWSER_IPC.NAVIGATE, (event, input: unknown) => {
     const handle = fromChrome(event);
     if (handle === null) {
       return;
@@ -163,16 +182,16 @@ function registerBrowserIpc(server: LiveServer): void {
       void handle.content.webContents.loadURL(resolved);
     }
   });
-  ipcMain.handle("inteligir-browser:back", (event) => {
+  ipcMain.handle(BROWSER_IPC.BACK, (event) => {
     fromChrome(event)?.content.webContents.navigationHistory.goBack();
   });
-  ipcMain.handle("inteligir-browser:forward", (event) => {
+  ipcMain.handle(BROWSER_IPC.FORWARD, (event) => {
     fromChrome(event)?.content.webContents.navigationHistory.goForward();
   });
-  ipcMain.handle("inteligir-browser:reload", (event) => {
+  ipcMain.handle(BROWSER_IPC.RELOAD, (event) => {
     fromChrome(event)?.content.webContents.reload();
   });
-  ipcMain.handle("inteligir-browser:send-to-agent", async (event) => {
+  ipcMain.handle(BROWSER_IPC.SEND_TO_AGENT, async (event) => {
     const handle = fromChrome(event);
     if (handle === null) {
       return { ok: false, detail: "not the browser chrome" };

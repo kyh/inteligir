@@ -10,7 +10,6 @@
 // /voice/stream answer bytes, sockets and a supervisor's probe, none of which
 // is a procedure.
 
-import type { InferContractRouterInputs, InferContractRouterOutputs } from "@orpc/contract";
 import { agentsContract } from "./agents/agents-contract";
 import { cloudContract } from "./cloud/cloud-contract";
 import { commentsContract } from "./comments/comments-contract";
@@ -40,18 +39,3 @@ export const localContract = {
 };
 
 export type LocalContract = typeof localContract;
-
-/**
- * Inference helpers for input types
- * @example
- * type WriteNoteInput = RouterInputs['vault']['write']
- *      ^? { path: string; content: string; expectedHash?: string }
- */
-export type RouterInputs = InferContractRouterInputs<LocalContract>;
-
-/**
- * Inference helpers for output types
- * @example
- * type VaultTree = RouterOutputs['vault']['tree']
- */
-export type RouterOutputs = InferContractRouterOutputs<LocalContract>;

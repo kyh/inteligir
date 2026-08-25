@@ -662,3 +662,20 @@ describe("--json failures", () => {
     });
   });
 });
+
+describe("a server that stopped answering", () => {
+  it("classifies a refused dial as SERVER_UNREACHABLE / exit 3", async () => {
+    // The stale-file path #611 states: a crash leaves server.json behind, so
+    // discovery finds a row and the dial reaches a DEAD port. The refused
+    // connection must read as SERVER_UNREACHABLE (exit 3) — the class the served
+    // guide teaches agents to branch on — not the raw ECONNREFUSED it rests on,
+    // nor UNEXPECTED/exit 1. Booting then closing a fixture is exactly that
+    // state: a real bound port, then nothing listening on it.
+    const server = await serveFixture(makeFixtureState());
+    const { baseUrl } = server;
+    await server.close();
+    const result = await runCliForTest({ argv: ["status", "--json"], baseUrl });
+    expect(result.code).toBe(3);
+    expect(JSON.parse(result.stderr).error).toBe("SERVER_UNREACHABLE");
+  });
+});

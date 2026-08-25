@@ -104,7 +104,7 @@ if (!existsSync(notesSkill)) {
 }
 
 // The agent's PATH resolver looks for the bin beside the running bundle
-// (apps/cli/src/server/agent/agent-shell-env.ts::resolveCliBinDir), and the
+// (apps/cli/src/server/agents/agent-shell-env.ts::resolveCliBinDir), and the
 // execute bit is checked because the resolver refuses a file without one —
 // which is the capability disappearing with no error anywhere.
 const cliBin = join(runtimeRoot, "bin", CLI_BIN_NAME);
@@ -159,13 +159,15 @@ try {
     stdio: ["ignore", "inherit", "inherit"],
     env: {
       ...process.env,
-      // Exactly what src/main/server-instance.ts composes for the packaged
-      // runtime.
+      // The packaged runtime's own composition (src/main/server-instance.ts):
+      // NODE_ENV from isPackaged, and the instance's data + vault dirs.
       ELECTRON_RUN_AS_NODE: "1",
       NODE_ENV: "production",
-      INTELIGIR_PORT: String(port),
       INTELIGIR_DATA_DIR: dataDir,
       INTELIGIR_VAULT_DIR: join(scratch, "vault"),
+      // The smoke's own pins: a fixed port to probe deterministically (the shell
+      // lets the child derive one), and the agent/sync loops off for isolation.
+      INTELIGIR_PORT: String(port),
       INTELIGIR_AGENT: "off",
       INTELIGIR_SYNC_INTERVAL_MS: "0",
     },

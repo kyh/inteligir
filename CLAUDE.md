@@ -96,7 +96,11 @@ packages/
                  their compatibility obligations are OPPOSITE: /local's ends
                  ship in one bundle and may break freely, /cloud is a deployed
                  Worker answering installs that may be months stale and may
-                 never break. A dep-dag row pins apps/web to /cloud alone.
+                 never break. A dep-dag row pins apps/web to /cloud alone. /cloud
+                 stays zod + REST paths (NOT oRPC, diverging from #611 phase 6
+                 deliberately): oRPC addresses procedures by router position, so
+                 moving the deployed wire to it would break exactly the stale
+                 installs /cloud may never break.
   db/            @repo/db — drizzle + better-sqlite3 (WAL, sync=NORMAL),
                  committed SQL migrations applied on boot, the DbNotifier
                  seam, prefixed-nanoid ids.

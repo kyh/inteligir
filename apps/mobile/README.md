@@ -2,13 +2,13 @@
 
 A sync-only content client. **The agent and the vault stay on the desktop**
 (issue #542's re-founding): the phone holds the SYNCED THREADS and the CAPTURE
-inbox, and reaches nothing in this repo but `@repo/cloud-contract` (the wire) and
+inbox, and reaches nothing in this repo but `@repo/api/cloud` (the wire) and
 `@repo/domain` (the `ThreadEvent` grammar it renders). No Codex, no vault
 checkout, no vault-file sync.
 
 Expo + expo-router, recovered from the pre-purge app's shape (`3a62a4cb`) with a
 brand-new transport: the old sync engine spoke to the deleted hosted platform, so
-`src/sync` is the RN implementation of today's `@repo/cloud-contract` wire.
+`src/sync` is the RN implementation of today's `@repo/api/cloud` wire.
 
 ## Layout
 

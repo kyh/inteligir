@@ -15,14 +15,14 @@ import { isDefinedError, safe } from "@orpc/client";
 import type { Proposal } from "@repo/api/local/proposals/proposals-schema";
 import { contentHashHex } from "@repo/api/local/vault/vault-schema";
 import { describe, expect, it } from "vitest";
-import { resolveAgentDriver } from "../../agent/agent-driver";
+import { resolveAgentDriver } from "../../agents/agent-driver";
 import {
   createThread,
   getThreadDetail,
   sendMessage,
   waitFor,
-} from "../../agent/__tests__/agent-test-harness";
-import { scriptedNotePath } from "../../agent/scripted-driver";
+} from "../../agents/__tests__/agent-test-harness";
+import { scriptedNotePath } from "../../agents/scripted-driver";
 import { bootTestApp, type BootedTestApp } from "../../__tests__/boot-app";
 import { hermeticGitEnv } from "../../vault/__tests__/git-test-env";
 import { createTurnProposalCapture } from "../turn-proposals";

@@ -17,7 +17,9 @@
       }
       body {
         margin: 0;
-        height: 44px;
+        /* Fill the view the layout code sized to BROWSER_CHROME_HEIGHT, rather
+           than repeat that number here — the constant is the one source. */
+        height: 100vh;
         display: flex;
         align-items: center;
         gap: 6px;

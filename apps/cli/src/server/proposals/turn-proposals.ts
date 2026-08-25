@@ -18,7 +18,7 @@ import { captureProposal } from "@repo/db/proposals";
 import type { DbConnection } from "@repo/db/connection";
 import type { DbNotifier } from "@repo/domain/notifier";
 import { contentHashHex } from "@repo/api/local/vault/vault-schema";
-import type { CaptureTurnProposals } from "../agent/agent-commits";
+import type { CaptureTurnProposals } from "../agents/agent-commits";
 import type { GitEngine } from "../vault/git";
 import { VaultServiceError, type VaultService } from "../vault/vault-service";
 

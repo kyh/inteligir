@@ -47,8 +47,8 @@ describe("buildContentSecurityPolicy", () => {
   });
 
   it("keeps style-src open, which is the stated residual", () => {
-    // CodeMirror injects its theme as a runtime <style>; nothing here can
-    // nonce that. Pinned so the weakness stays deliberate.
+    // React style attributes + Plate/lowlight's runtime <style> injection;
+    // nothing here can nonce that. Pinned so the weakness stays deliberate.
     expect(directive(policy, "style-src")).toBe("style-src 'self' 'unsafe-inline'");
   });
 

@@ -36,21 +36,20 @@
 // but "names a subset nobody derived" cannot be asked of this detector, for a
 // reason in its own mechanism: a subset that DERIVES spells its members as
 // quoted literals too. `vault-service.ts` holds its refusal classes in a
-// `satisfies readonly ApiErrorCode[]` array, compiler-tied to the vocabulary,
-// and reads here exactly like a hand-written union would. That is not true of
+// `["not_found", "conflict", "too_large"] as const` array, compiler-tied to the
+// vocabulary, and reads here exactly like a hand-written union would. That is not true of
 // a TOTAL table — one built by iterating the array names no literal at all —
 // which is precisely why the totality rule can be trusted and a subset rule
 // cannot.
 //
-// The measurement, so the next reader does not have to retake it: at a
-// three-member floor the widened rule fires on nine sites and none of them is
-// drift. Six are producers naming the classes they throw or the kinds they
-// announce, at unrelated call sites, deciding nothing jointly. One is
-// `packages/ui/src/components/geometric-orb.tsx`, which names "idle",
-// "starting" and "error" as its own prop vocabulary in a leaf that cannot
-// import `@repo/domain` at all — a collision of common words the detector has
-// no way to tell from the real thing. Nine exemption rows whose reason is
-// uniformly "these are not one decision" is a guard that gets muted, and a
+// Why the widened "names a subset" rule is NOT worth adopting, by kind of false
+// positive it fires on: producers that name the classes they throw or the kinds
+// they announce, at unrelated call sites, deciding nothing jointly; and UI
+// leaves that name short status words ("idle", "error") as their own prop
+// vocabulary — a leaf cannot import `@repo/domain` at all, so it is a collision
+// of common words the detector has no way to tell from the real thing. Every
+// such site would need an exemption row whose reason is uniformly "these are not
+// one decision" — a guard exempted that widely is a guard that gets muted, and a
 // muted guard protects less than a narrow one.
 //
 // What DOES catch partial dispatch is making the subset a derivation, which

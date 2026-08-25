@@ -18,7 +18,7 @@ import type {
   NoteIntelligenceSweep,
 } from "@repo/api/local/note-intelligence/note-intelligence-schema";
 
-import { headCapUtf8 } from "../agent/agent-instructions";
+import { headCapUtf8 } from "../agents/agent-instructions";
 import type { VaultService } from "../vault/vault-service";
 import type { InferenceRunner, InferredFields } from "./infer";
 import type { NoteIntelligenceSettingsStore } from "./settings-store";

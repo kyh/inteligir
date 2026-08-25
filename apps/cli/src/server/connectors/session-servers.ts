@@ -1,5 +1,5 @@
 // The registry rows → ACP mcpServers composition every session boots through
-// (issue #591). Lives beside the service so main.ts passes only a thunk — the
+// (issue #591). Lives beside the service so serve.ts passes only a thunk — the
 // thunk must stay LAZY (called per session open), which is what lets a
 // Settings edit reach the next session without a reboot.
 

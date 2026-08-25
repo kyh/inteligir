@@ -322,6 +322,10 @@ export function VaultProvider({
 
   // Non-React callers (palette actions, shortcuts) persist the live buffers
   // through the pane registry; the flush action itself lives in the store.
+  // There is deliberately NO unload/pagehide last-gasp flush: a tab closed
+  // mid-debounce loses that debounce window, an accepted trade rather than a
+  // gap to plug — a `keepalive` write is best-effort and the desktop shell is
+  // the real surface. This registry is the seam a real answer would hang off.
   useEffect(() => {
     primaryStore.setFlush(session.actions.flush);
     const unregister = registerOpenNoteStore(primaryStore);

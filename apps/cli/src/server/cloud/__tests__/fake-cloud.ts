@@ -1,5 +1,5 @@
 // An in-process stand-in for the cloud Worker, implementing
-// `@repo/cloud-contract` over Maps.
+// `@repo/api/cloud` over Maps.
 //
 // WHAT THIS IS AND IS NOT. It is not a second reading of the contract: every
 // request is parsed and every response is built with the contract's OWN

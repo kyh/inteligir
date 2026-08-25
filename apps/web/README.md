@@ -3,7 +3,7 @@
 One Cloudflare Worker serving the marketing site and the whole v3 cloud from
 one origin: the TanStack Start pages, Better Auth on D1, device pairing, the
 per-user thread-sync Durable Object, the capture inbox and the (feature-gated)
-Artifacts mint. The wire contract is `@repo/cloud-contract` — the Worker
+Artifacts mint. The wire contract is `@repo/api/cloud` — the Worker
 implements it, the local app's sync client consumes it.
 
 ## Layout

@@ -16,6 +16,7 @@
 
 import { VaultPathError } from "@repo/notes/knowledge/vault-path";
 import { ORPCError } from "@orpc/server";
+import { INVALID_PATH } from "@repo/api/local/errors";
 import { VaultServiceError, type VaultServiceErrorCode } from "./vault-service";
 
 const VAULT_REFUSALS = {
@@ -25,13 +26,20 @@ const VAULT_REFUSALS = {
   invalid_path: "INVALID_PATH",
 } as const satisfies Record<VaultServiceErrorCode | "invalid_path", string>;
 
-/** The HTTP status each wire class carries, for the one surface that answers
- *  in statuses rather than in classes. */
+/**
+ * The HTTP status each wire class carries. Needed in TWO places, and neither is
+ * optional: `/vault/asset` answers in statuses rather than classes, AND the
+ * oRPC error below must carry the status its CONTRACT ROW declares — a custom
+ * class (INVALID_PATH) thrown with no status defaults to 500, and oRPC then
+ * refuses to mark it a defined error, so the client's `isDefinedError` narrowing
+ * silently misses it. The one custom class sources its status from the contract
+ * so the two cannot drift; the rest are oRPC's own built-in statuses.
+ */
 const REFUSAL_STATUS = {
   NOT_FOUND: 404,
   CONFLICT: 409,
   PAYLOAD_TOO_LARGE: 413,
-  INVALID_PATH: 400,
+  INVALID_PATH: INVALID_PATH.status,
 } as const satisfies Record<(typeof VAULT_REFUSALS)[keyof typeof VAULT_REFUSALS], number>;
 
 type VaultWireClass = (typeof VAULT_REFUSALS)[keyof typeof VAULT_REFUSALS];
@@ -47,7 +55,7 @@ function vaultWireClass(cause: unknown): VaultWireClass | null {
 export function vaultWireError(cause: unknown): ORPCError<string, unknown> | null {
   const wireClass = vaultWireClass(cause);
   if (wireClass === null || !(cause instanceof Error)) return null;
-  return new ORPCError(wireClass, { message: cause.message });
+  return new ORPCError(wireClass, { message: cause.message, status: REFUSAL_STATUS[wireClass] });
 }
 
 /** The status this class carries. Inferred rather than widened to `number`,

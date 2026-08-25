@@ -1,6 +1,6 @@
 // `GET /connectors/oauth/callback` — where the browser lands after a provider's
 // consent page. Outside the contract table and the browser-origin guard for
-// pair-callback's own reasons (src/node/cloud/pair-callback.ts): what arrives
+// pair-callback's own reasons (cloud/pair-callback.ts): what arrives
 // is a cross-site top-level navigation wanting a page, no typed client has any
 // use for the row, and the armed `state` stands where the origin guard cannot.
 // The page is inert by construction: no script, no external asset, a policy

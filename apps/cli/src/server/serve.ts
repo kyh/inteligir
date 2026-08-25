@@ -16,7 +16,7 @@ import { closeConnection, createConnection } from "@repo/db/connection";
 import { getSchemaVersion } from "@repo/db/meta";
 import { runMigrations } from "@repo/db/migrate";
 import { resolveMigrationsFolder, resolveUiDir } from "../paths";
-import { resolveAgentDriver } from "./agent/agent-driver";
+import { resolveAgentDriver } from "./agents/agent-driver";
 import { createConnectorsService } from "./connectors/connectors-service";
 import { createConnectorOauthFlow } from "./connectors/oauth-flow";
 import { composeSessionMcpServers } from "./connectors/session-servers";
@@ -34,14 +34,15 @@ import {
   resolveCliBinDir,
   withConnectedDirs,
   type AgentShellEnv,
-} from "./agent/agent-shell-env";
+} from "./agents/agent-shell-env";
 import { createApp } from "./app";
 import { openCloudSocket } from "./cloud/cloud-socket";
 import { resolveAppConfig, resolveCheckoutRoot } from "./config";
 import { ensureDevDataDirOwnership } from "./data-dir";
 import { createKnowledgeRuntime, type KnowledgeRuntime } from "./knowledge/knowledge-runtime";
 import { closeServer, listenWithRetry, type UpgradedSockets } from "./listen";
-import { mintServerToken, removeServerFile, writeServerFile } from "./server-file";
+import { mintServerToken, readServerFile, removeServerFile, writeServerFile } from "./server-file";
+import { createLocalClient } from "./local-client";
 import { createTurnProposalCapture } from "./proposals/turn-proposals";
 import {
   createGracefulShutdown,
@@ -96,9 +97,43 @@ function registerTeardown(name: TeardownStepName, run: () => Promise<void>): voi
   teardownSteps.unshift({ name, timeoutMs: TEARDOWN_BUDGETS_MS[name], run });
 }
 
+/**
+ * Refuse to start a SECOND server on an instance one already owns.
+ *
+ * `serve` has no adoption path (that is the desktop shell's job) — so without
+ * this, a second `inteligir serve` for the same data dir binds a neighbouring
+ * dev port, then overwrites the first's `server.json`, pointing every client at
+ * the newcomer while the first still holds the vault, its watcher fork and the
+ * git lock: two servers on one vault. A STALE file (a crash skipped the
+ * teardown that removes it) does not answer its own token, so this proceeds and
+ * the later write overwrites it — the guard fires only on a LIVE owner.
+ */
+async function assertNoLiveServer(dataDir: string): Promise<void> {
+  const existing = readServerFile(dataDir);
+  if (existing === null) return;
+  const client = createLocalClient({
+    origin: `http://127.0.0.1:${String(existing.port)}`,
+    token: existing.token,
+    timeoutMs: 1_500,
+  });
+  let claimedDataDir: string;
+  try {
+    claimedDataDir = (await client.system.status()).dataDir;
+  } catch {
+    return;
+  }
+  if (claimedDataDir === dataDir) {
+    throw new Error(
+      `An inteligir server already serves ${dataDir} on port ${String(existing.port)} ` +
+        `(pid ${String(existing.pid)}). Stop it first, or select another instance with INTELIGIR_DATA_DIR.`,
+    );
+  }
+}
+
 async function boot(version: string, env: NodeJS.ProcessEnv): Promise<ServeResult> {
   const checkoutPath = resolveCheckoutRoot();
   const config = resolveAppConfig({ checkoutPath, env });
+  await assertNoLiveServer(config.dataDir);
   mkdirSync(config.dataDir, { recursive: true });
   if (config.mode === "dev" && config.dataDirSource === "default") {
     ensureDevDataDirOwnership(config.dataDir, checkoutPath);
@@ -113,7 +148,7 @@ async function boot(version: string, env: NodeJS.ProcessEnv): Promise<ServeResul
   // Minted before anything is served and published only once the port is
   // BOUND (below), so a reader never learns an address before it answers.
   const serverToken = mintServerToken();
-  const bus = new WsBus({ version });
+  const bus = new WsBus();
   // The knowledge runtime needs the vault service the runtime hands back, so
   // the hook late-binds; changes before it exists are covered by the boot
   // reconcile the first pass always runs.

@@ -84,19 +84,9 @@ function decodeSocketPayload(raw: SocketPayload): string {
   throw new Error("Unsupported socket payload");
 }
 
-export interface WsBusOptions {
-  /** Echoed in the hello ack frame so clients can detect version skew. */
-  version: string;
-}
-
 export class WsBus implements DbNotifier {
   private readonly keysBySocket = new Map<BusSocket, Set<string>>();
   private readonly socketsByKey = new Map<string, Set<BusSocket>>();
-  private readonly version: string;
-
-  constructor(options: WsBusOptions) {
-    this.version = options.version;
-  }
 
   /** Called on socket open; acks with the hello frame. */
   registerClient(socket: BusSocket): void {
@@ -106,7 +96,7 @@ export class WsBus implements DbNotifier {
     // Outbound frames are house-constructed against the contract types, so
     // they serialize directly — ws-bus.test.ts parses every frame the bus can
     // emit against the strict schemas instead of paying a parse per send.
-    const hello: HelloMessage = { type: "hello", version: this.version };
+    const hello: HelloMessage = { type: "hello" };
     socket.send(JSON.stringify(hello));
   }
 

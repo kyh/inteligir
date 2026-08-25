@@ -3,7 +3,7 @@
 // procedure nobody implemented — fails to compile HERE, so the contract's
 // coverage needs no test beside it.
 
-import { agentsRouter } from "./agent/agents-router";
+import { agentsRouter } from "./agents/agents-router";
 import { cloudRouter } from "./cloud/cloud-router";
 import { commentsRouter } from "./comments/comments-router";
 import { connectorsRouter } from "./connectors/connectors-router";

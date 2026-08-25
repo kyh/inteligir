@@ -32,7 +32,7 @@
   ],
   "type": "module",
   "exports": {
-    "./server/agent-shell-env": "./src/server/agent/agent-shell-env.ts",
+    "./server/agent-shell-env": "./src/server/agents/agent-shell-env.ts",
     "./server/config": "./src/server/config.ts",
     "./server/csp": "./src/server/csp.ts",
     "./server/local-client": "./src/server/local-client.ts",

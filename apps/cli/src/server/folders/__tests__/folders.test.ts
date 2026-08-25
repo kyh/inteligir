@@ -2,7 +2,7 @@ import { mkdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { delimiter, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { withConnectedDirs, type AgentShellEnv } from "../../agent/agent-shell-env";
+import { withConnectedDirs, type AgentShellEnv } from "../../agents/agent-shell-env";
 import { createFoldersService, FolderRefusedError } from "../folders-service";
 import { createFoldersStore, FoldersStoreError } from "../folders-store";
 import { makeTempDir } from "../../__tests__/temp-dir";

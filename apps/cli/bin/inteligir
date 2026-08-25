@@ -1,23 +1,60 @@
-#!/bin/sh
-# In a checkout, always run the SOURCE under tsx — a previously-built dist/
-# must never shadow fresh edits during dev. The built bundle is what a
-# packaged install runs, where src/ does not ship.
-#
-# `$0` is followed through its symlinks first: an installed package is reached
-# through `node_modules/.bin/inteligir`, which is a link, and the directory
-# holding the link has no dist/ beside it.
-entry=$0
-while [ -L "$entry" ]; do
-  link=$(readlink "$entry")
-  case $link in
-    /*) entry=$link ;;
-    *) entry=$(dirname -- "$entry")/$link ;;
-  esac
-done
-SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$entry")" && pwd)
-SRC_ENTRY="$SCRIPT_DIR/../src/index.ts"
-TSX_BIN="$SCRIPT_DIR/../node_modules/.bin/tsx"
-if [ -f "$SRC_ENTRY" ] && [ -x "$TSX_BIN" ]; then
-  exec "$TSX_BIN" "$SRC_ENTRY" "$@"
-fi
-exec node "$SCRIPT_DIR/../dist/index.js" "$@"
+#!/usr/bin/env node
+// A NODE bin (ESM — this package is `type: module`), not a `sh` script, so
+// `npx inteligir` works on native Windows too: there is no `/bin/sh` there, and
+// npm's Windows cmd-shim runs a node bin directly. The file stays EXTENSIONLESS
+// so the agent's shell finds it as the bare command `inteligir` on the PATH the
+// runtime prepends (agent-shell-env.ts) — a `.cjs` name would break that.
+//
+// Node resolves this file's realpath through the `node_modules/.bin` symlink,
+// so `import.meta.url` is the package's own bin dir with no manual following.
+//
+// In a checkout, run the SOURCE under tsx — a stale `dist/` must never shadow
+// fresh edits. The published artifact ships no `src/`, so there it runs the
+// bundle, and the ARTIFACT is production: NODE_ENV is stated here rather than
+// inherited, because a Finder or npx launch sets none and the mode decides the
+// vault location (a missing one lands a zero-install run in a cwd-keyed dev
+// instance).
+//
+// The real entry is a CHILD, and signals are FORWARDED to it: Ctrl+C and an
+// explicit SIGTERM both reach the server's ordered shutdown (the vault flush),
+// and this mirror-exits with the child's own code.
+
+import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const binDir = dirname(fileURLToPath(import.meta.url));
+const srcEntry = join(binDir, "..", "src", "index.ts");
+const tsxBin = join(
+  binDir,
+  "..",
+  "node_modules",
+  ".bin",
+  process.platform === "win32" ? "tsx.cmd" : "tsx",
+);
+const args = process.argv.slice(2);
+
+const useSource = existsSync(srcEntry) && existsSync(tsxBin);
+const command = useSource ? tsxBin : process.execPath;
+const commandArgs = useSource ? [srcEntry, ...args] : [join(binDir, "..", "dist", "index.js"), ...args];
+const env = useSource ? process.env : { ...process.env, NODE_ENV: "production" };
+
+const child = spawn(command, commandArgs, { stdio: "inherit", env, windowsHide: true });
+
+for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"]) {
+  process.on(signal, () => child.kill(signal));
+}
+
+child.on("exit", (code, signal) => {
+  if (signal) {
+    process.kill(process.pid, signal);
+    return;
+  }
+  process.exit(code === null ? 1 : code);
+});
+
+child.on("error", (error) => {
+  process.stderr.write(`inteligir: failed to start (${error.message})\n`);
+  process.exit(1);
+});

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { contentHashBytesHex, contentHashHex, vaultEntrySchema } from "./vault-schema";
+import { contentHashBytesHex, contentHashHex, vaultEntrySchema } from "../vault-schema";
 
 describe("the content hash", () => {
   it("is the same convention from a string and from its bytes", async () => {

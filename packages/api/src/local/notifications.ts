@@ -164,7 +164,6 @@ export type ChangedMessage = z.infer<typeof changedMessageSchema>;
 export const helloMessageSchema = z
   .object({
     type: z.literal("hello"),
-    version: z.string().min(1),
   })
   .strict();
 export type HelloMessage = z.infer<typeof helloMessageSchema>;
@@ -180,7 +179,6 @@ export const changedMessageLenientSchema = z.discriminatedUnion("entity", [
 
 const helloMessageLenientSchema = z.object({
   type: z.literal("hello"),
-  version: z.string().min(1),
 });
 
 export const serverMessageLenientSchema = z.union([

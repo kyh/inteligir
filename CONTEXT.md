@@ -64,7 +64,7 @@ signed-in user's row in D1 — which shares only the word.
 distinction is load-bearing. The service mints the host id (`turn_…`) and hands
 it to `startTurn`; codex mints its own and puts it in its events. The first
 `turn/started` BINDS the two, and
-`apps/cli/src/server/agent/runtime-manager.ts` rewrites every turn-scoped event
+`apps/cli/src/server/agents/runtime-manager.ts` rewrites every turn-scoped event
 through that binding — so an event naming any other provider turn (a resume
 replay) is dropped rather than persisted. Everything stored, subscribed to or
 shown is the HOST id; the provider id is only ever spoken to the provider,
@@ -92,7 +92,7 @@ into a thread with no origin — a composer send with the note chip detached
 has none.
 
 **lane** — a CLOUD word, not a local one: `"any" | "desktop"` on a synced
-thread's metadata row (`@repo/cloud-contract/sync`). It is what makes the sync
+thread's metadata row (`@repo/api/cloud/sync`). It is what makes the sync
 log double as a dispatch mailbox — a `desktop`-lane thread pokes the desktop
 sockets, an `any`-lane one only bumps sync. There is no lane in the local server;
 locally a thread is just a thread.
@@ -107,13 +107,13 @@ state.
   `events` table, server-assigned `sequence` contiguous per thread. This is
   what a client replays and what syncs.
 - **provider event** — the runtime's EMITTED grammar: what a provider adapter
-  is allowed to produce (`@repo/agent-runtime/domain/provider-event`). The two
+  is allowed to produce (`@repo/agent-runtime/vocabulary/provider-event`). The two
   grammars are near-twins with the same file name and are not the same set —
   the runtime constructs its events and never parses them, and
-  `apps/cli/src/server/agent/event-mapping.ts` is the one place that narrows onto
+  `apps/cli/src/server/agents/event-mapping.ts` is the one place that narrows onto
   the persisted grammar. A provider event with no persisted counterpart is
   logged and dropped, never invented into a divergent shape.
-- **sync event** — the cloud's unit of transfer (`@repo/cloud-contract/sync`,
+- **sync event** — the cloud's unit of transfer (`@repo/api/cloud/sync`,
   `syncEventInputSchema`). Its body is `z.json()` on purpose: the Worker
   merges, dedupes and orders these WITHOUT parsing them. A sync event carries a
   thread event; it is not one.

@@ -1,5 +1,5 @@
 // The OAuth authorize dance for hosted MCP connectors (issue #602), in the
-// pairing discipline exactly (src/node/cloud/sync-runtime.ts): ONE pending
+// pairing discipline exactly (cloud/sync-runtime.ts): ONE pending
 // slot, 128-bit state compared in constant time, the slot CONSUMED before the
 // code is exchanged, PKCE S256 so an intercepted loopback redirect holds a
 // code nobody else can spend, and a `disposed` guard so a callback in flight

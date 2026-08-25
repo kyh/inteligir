@@ -9,6 +9,7 @@
 // per procedure rather than defaulted.
 
 import { CONNECTOR_OAUTH_CALLBACK_PATH } from "@repo/api/local/connectors/connectors-schema";
+import { ALREADY_EXISTS } from "@repo/api/local/errors";
 import { ORPCError } from "@orpc/server";
 import { base } from "../orpc";
 import { loopbackRequestOrigin } from "../loopback-origin";
@@ -22,6 +23,14 @@ const CONNECTOR_REFUSALS = {
   "not-found": "NOT_FOUND",
 } as const satisfies Record<ConnectorConflictKind, string>;
 
+/** The status each class carries — the custom one from the contract, so a throw
+ *  cannot drift from the row the client narrows against (a statusless custom
+ *  class defaults to 500, which oRPC will not mark a defined error). */
+const CONNECTOR_REFUSAL_STATUS = {
+  ALREADY_EXISTS: ALREADY_EXISTS.status,
+  NOT_FOUND: 404,
+} as const satisfies Record<(typeof CONNECTOR_REFUSALS)[keyof typeof CONNECTOR_REFUSALS], number>;
+
 /** Runs `work`, re-raising `declared` as the class the contract row declares.
  *  Any other refusal — including the conflict kind this row does not declare —
  *  is rethrown as it came, which is a 500 and should be. */
@@ -33,7 +42,11 @@ async function refusing<T>(
     return await work();
   } catch (cause) {
     if (cause instanceof ConnectorConflictError && cause.kind === declared) {
-      throw new ORPCError(CONNECTOR_REFUSALS[cause.kind], { message: cause.message });
+      const wireClass = CONNECTOR_REFUSALS[cause.kind];
+      throw new ORPCError(wireClass, {
+        message: cause.message,
+        status: CONNECTOR_REFUSAL_STATUS[wireClass],
+      });
     }
     throw cause;
   }

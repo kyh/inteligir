@@ -5,7 +5,7 @@
 // THE ENTRY IS RESOLVED AS A SIBLING of the running module, the same walk
 // `vault/watcher/fork-channel.ts` makes for the watcher child and for the same
 // reason: in dev this module runs from source and its sibling is the `.ts`
-// entry, in a build it is inside `dist-node/main.js` and the sibling is the
+// entry, in a build it is inside `dist/index.js` and the sibling is the
 // separately-bundled `.mjs`. The two resolvers are deliberately not shared —
 // `fork-channel.ts` is vendored; keep house helpers out of it.
 //

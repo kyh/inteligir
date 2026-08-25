@@ -18,6 +18,7 @@
 // point — the table is the review surface.
 // ---------------------------------------------------------------------------
 
+import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   importsOf,
@@ -477,6 +478,37 @@ describe("platform purity", () => {
           `LOCAL CONTRACT IN THE WORKER  ${file} imports "${specifier}"\n` +
             `  rule: apps/web serves the cloud wire and only the cloud wire — @repo/api/cloud/* is its half of the package`,
         );
+      }
+    }
+    expect(violations, `\n${violations.join("\n\n")}\n`).toEqual([]);
+  });
+
+  it("@repo/api's cloud entry never reaches into its local entry", () => {
+    // The mirror of the Worker pin, enforced from INSIDE the package. apps/web
+    // imports only `@repo/api/cloud/*` — but a file UNDER src/cloud reaching
+    // src/local by a relative path (or by the package's own name) is invisible
+    // to that check and would drag a may-break-freely /local shape into the
+    // never-break cloud wire through every cloud import the Worker makes. The
+    // one sanctioned crossing is the OTHER direction (local/cloud reuses a
+    // cloud constant), which this does not touch.
+    const api = workspaces().find((candidate) => candidate.name === "@repo/api");
+    if (api === undefined) throw new Error("@repo/api is not a workspace");
+    const cloudDir = join(api.dir, "src", "cloud");
+    const localDir = join(api.dir, "src", "local");
+    const files = workspaceFiles(api);
+    const violations: string[] = [];
+    for (const file of [...files.shipped, ...files.test]) {
+      if (!file.startsWith(`${cloudDir}/`)) continue;
+      for (const specifier of importsOf(file)) {
+        const reachesLocal = specifier.startsWith(".")
+          ? join(dirname(file), specifier).startsWith(`${localDir}/`)
+          : specifier === "@repo/api/local" || specifier.startsWith("@repo/api/local/");
+        if (reachesLocal) {
+          violations.push(
+            `CLOUD REACHES LOCAL  ${file} imports "${specifier}"\n` +
+              `  rule: @repo/api/cloud is the never-break wire — it may import zod and its own cloud/ modules, never src/local`,
+          );
+        }
       }
     }
     expect(violations, `\n${violations.join("\n\n")}\n`).toEqual([]);

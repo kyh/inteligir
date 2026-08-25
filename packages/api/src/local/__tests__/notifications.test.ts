@@ -94,10 +94,7 @@ describe("lenient inbound schemas", () => {
   });
 
   it("parses the hello ack frame", () => {
-    const result = serverMessageLenientSchema.parse({
-      type: "hello",
-      version: "0.1.0",
-    });
-    expect(result).toEqual({ type: "hello", version: "0.1.0" });
+    const result = serverMessageLenientSchema.parse({ type: "hello" });
+    expect(result).toEqual({ type: "hello" });
   });
 });

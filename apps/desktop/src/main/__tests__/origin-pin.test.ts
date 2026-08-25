@@ -41,6 +41,54 @@ describe("isSameOriginNavigation", () => {
   });
 });
 
+// The SHIPPED window is pinned to `inteligir://app` (issue #611), so the
+// custom-scheme arm of `comparableOrigin` — the `URL.origin === "null"` trap the
+// header spends its length on, plus the username and empty-hostname refusals —
+// is the PRODUCTION path. The matrix above pins an http origin (the in-app
+// browser's), which never exercises it; this block drives the real pin.
+describe("the pinned custom scheme (inteligir://app)", () => {
+  const APP = "inteligir://app";
+
+  it.each([
+    ["inteligir://app", true],
+    ["inteligir://app/", true],
+    ["inteligir://app/notes/a.md?x=1#y", true],
+    // The `URL.origin === "null"` trap: a naive origin compare calls these two
+    // equal, collapsing the pin to nothing.
+    ["inteligir://evil/", false],
+    ["inteligir://evil", false],
+    // `inteligir://app@evil/` parses to username "app", hostname "evil".
+    ["inteligir://app@evil/x", false],
+    // Empty authority.
+    ["inteligir:///x", false],
+    // Cross-scheme: the loopback server is a DIFFERENT origin to the window.
+    ["http://127.0.0.1:4664/", false],
+    ["inteligir2://app/", false],
+  ])("isSameOriginNavigation %s → %s", (target, expected) => {
+    expect(isSameOriginNavigation(target, APP)).toBe(expected);
+  });
+
+  it("classifyNavigation allows the pin and blocks the impostors", () => {
+    expect(classifyNavigation("inteligir://app/notes", APP)).toBe("allow");
+    // A custom scheme is never handed to the system browser — it is not http.
+    expect(classifyNavigation("inteligir://app@evil/x", APP)).toBe("block");
+    expect(classifyNavigation("inteligir://evil/x", APP)).toBe("block");
+    // The loopback origin is real http, so it goes to the browser rather than
+    // being swallowed.
+    expect(classifyNavigation("http://127.0.0.1:4664/", APP)).toBe("block-and-open-external");
+  });
+
+  it("grants media only to the pinned origin, in both carriers Chromium delivers", () => {
+    // The check handler passes a bare origin; the request handler passes a full
+    // requestingUrl. A standard-registered scheme gets a real origin from
+    // Chromium, so both forms must resolve the same.
+    expect(classifyPermission("media", APP, APP)).toBe(true);
+    expect(classifyPermission("media", "inteligir://app/note", APP)).toBe(true);
+    expect(classifyPermission("media", "inteligir://evil", APP)).toBe(false);
+    expect(classifyPermission("media", "inteligir://app@evil/x", APP)).toBe(false);
+  });
+});
+
 describe("classifyNavigation", () => {
   it("allows the pinned origin", () => {
     expect(classifyNavigation(`${ORIGIN}/app`, ORIGIN)).toBe("allow");

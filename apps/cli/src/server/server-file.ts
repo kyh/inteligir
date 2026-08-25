@@ -58,10 +58,15 @@ const BEARER_PREFIX = "Bearer ";
  * to a `<img src>`, or to a `new WebSocket(...)` — so the one client that is a
  * browser needs the credential in the one carrier a browser attaches by
  * itself. `HttpOnly` keeps it out of the DOM (script never reads it, which is
- * the property an in-page token would give up), and `SameSite=Strict` is what
- * makes it safe on a loopback origin any page can address: a cross-site
- * request simply does not carry it, so a hostile page reaches the API with no
- * credential at all — which is the same place the bearer leaves it.
+ * the property an in-page token would give up), and `SameSite=Strict` closes
+ * every CROSS-SITE vector: a page on another domain carries no cookie here.
+ *
+ * IT DOES NOT CLOSE CROSS-PORT. "Site" ignores the port, so a page served from
+ * `http://127.0.0.1:<any other port>` is same-SITE with this server and the
+ * browser DOES attach this cookie to its requests. That is the one gap the
+ * bearer never had (only a reader of the data dir holds a bearer), and it is
+ * closed separately: a cookie-authed request must also prove it is same-ORIGIN
+ * (`browser-request.ts`). The bearer path needs no such proof.
  *
  * Not `Secure`: this origin is plain http, and a `Secure` cookie on it would
  * be dropped by some browsers rather than merely ignored.
@@ -81,9 +86,10 @@ const serverFileSchema = z.object({
    *  value. A caller dials this and nothing else; there is no probe range. */
   port: z.number().int().min(1).max(65_535),
   token: z.string().min(1),
-  /** What this instance is serving. A caller that derived which instance it
-   *  means compares this before trusting the row, so a data dir shared by
-   *  accident is caught rather than silently written to. */
+  /** What this instance is serving. DIAGNOSTIC only — the CLI prints it in
+   *  `status` and nothing branches on it. The instance-identity check is the
+   *  desktop shell's, and it compares `system.status`'s data dir against its own
+   *  resolution (server-instance.ts), not this field. */
   vaultDir: z.string().min(1),
   /** Whose file this is. Diagnostic only — nothing branches on it — but it is
    *  what makes a stale file after a crash identifiable by a human. */
@@ -137,18 +143,38 @@ export function removeServerFile(dataDir: string): void {
   rmSync(serverFilePath(dataDir), { force: true });
 }
 
-/** The token a request presents, from whichever carrier it used, or null. The
- *  header wins: a programmatic caller that bothered to set one means it. */
+/** Which carrier a request's token arrived in. The distinction is load-bearing:
+ *  the bearer is proof the caller could read the data dir, while the cookie is
+ *  ambient authority a browser attaches by itself — so only the cookie path
+ *  needs the same-origin assertion (`browser-request.ts`). */
+export type TokenCarrier = "header" | "cookie";
+
+export interface PresentedCredential {
+  token: string;
+  carrier: TokenCarrier;
+}
+
+/** The token a request presents AND the carrier it used, or null. The header
+ *  wins: a programmatic caller that bothered to set one means it. */
+export function presentedCredential(headers: {
+  authorization: string | undefined;
+  cookie: string | undefined;
+}): PresentedCredential | null {
+  const authorization = headers.authorization;
+  if (authorization !== undefined && authorization.startsWith(BEARER_PREFIX)) {
+    const value = authorization.slice(BEARER_PREFIX.length).trim();
+    return value.length === 0 ? null : { token: value, carrier: "header" };
+  }
+  const cookie = cookieValue(headers.cookie, SERVER_TOKEN_COOKIE);
+  return cookie === null ? null : { token: cookie, carrier: "cookie" };
+}
+
+/** The token alone, for callers that do not distinguish the carrier. */
 export function presentedToken(headers: {
   authorization: string | undefined;
   cookie: string | undefined;
 }): string | null {
-  const authorization = headers.authorization;
-  if (authorization !== undefined && authorization.startsWith(BEARER_PREFIX)) {
-    const value = authorization.slice(BEARER_PREFIX.length).trim();
-    return value.length === 0 ? null : value;
-  }
-  return cookieValue(headers.cookie, SERVER_TOKEN_COOKIE);
+  return presentedCredential(headers)?.token ?? null;
 }
 
 function cookieValue(header: string | undefined, name: string): string | null {

@@ -115,7 +115,11 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
     }
     const resolved = resolveCommandPath(program, rawArgs);
     if (resolved.command.run !== undefined) {
-      assertKnownFlags(resolved.rest, argsOf(resolved.command));
+      // The WHOLE argv, not just the post-name remainder: group levels declare
+      // no args of their own, so every `--flag` belongs to the leaf — and a
+      // flag typed BEFORE the subcommand name (`vault --contentt write x`)
+      // would otherwise slip past the gate and be silently dropped by citty.
+      assertKnownFlags(rawArgs, argsOf(resolved.command));
     } else if (rawArgs.length === 0) {
       // What commander did with a bare program that has only subcommands.
       process.stderr.write(`${await renderUsage(program)}\n`);

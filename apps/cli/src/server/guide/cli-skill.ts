@@ -185,6 +185,7 @@ never printed as an answer. Failures go to **stderr** and stdout stays empty,
 so a \`--json\` caller can parse stdout unconditionally. Under \`--json\` the
 failure itself is JSON on stderr: \`{"error":"<class>","message":"<text>"}\`,
 where \`<class>\` is the server's own error class where there is one
-(\`not_found\`, \`invalid_request\`, …) or a CLI one otherwise
-(\`invalid_usage\`, \`wait_timeout\`, \`server_unreachable\`).
+(\`NOT_FOUND\`, \`BAD_REQUEST\`, …) or a CLI one otherwise
+(\`INVALID_USAGE\`, \`WAIT_TIMEOUT\`, \`SERVER_UNREACHABLE\`). Classes are
+\`UPPER_SNAKE\` on both sides — one vocabulary, whichever side raised it.
 `;

@@ -49,7 +49,7 @@ function sendFailureCode(cause: unknown): string {
   if (cause instanceof ORPCError || cause instanceof CliExitError) {
     return cause.code;
   }
-  return "send_failed";
+  return "SEND_FAILED";
 }
 
 export function actionCommand(deps: CliDeps) {
@@ -149,7 +149,7 @@ export function actionCommand(deps: CliDeps) {
           const timelineBody = await api.threads.timeline({ threadId: args.id });
           if (timelineBody.kind !== "full") {
             throw new CliExitError("The server answered a delta for a full timeline request", {
-              code: "unexpected_response",
+              code: "UNEXPECTED_RESPONSE",
             });
           }
           if (
@@ -234,7 +234,7 @@ export function actionCommand(deps: CliDeps) {
             }
             if (current.status === "error") {
               throw new CliExitError(`Thread ${args.id} settled in error`, {
-                code: "thread_error",
+                code: "THREAD_ERROR",
               });
             }
             const remainingAfterPoll = deadline - Date.now();

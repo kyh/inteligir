@@ -75,7 +75,7 @@ describe("codex runtime shell env wiring", () => {
       },
     });
 
-    // What main.ts does after listen: the getter observes the late binding.
+    // What serve.ts does after listen: the getter observes the late binding.
     Object.assign(
       shellEnv,
       buildAgentShellEnv({

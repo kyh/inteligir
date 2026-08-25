@@ -78,7 +78,7 @@ export function interactionsCommand(deps: CliDeps) {
               args.thread === undefined
                 ? `No open interaction ${args.id}`
                 : `No open interaction ${args.id} on thread ${args.thread}`,
-              { code: "not_found" },
+              { code: "NOT_FOUND" },
             );
           }
           assertResolutionValid(interaction, args.resolution);

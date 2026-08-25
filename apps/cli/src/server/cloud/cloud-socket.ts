@@ -1,6 +1,6 @@
 // The real dial for the cloud's invalidation socket.
 //
-// IMPORTED BY `main.ts` AND NOTHING ELSE, and that has to stay true. A UI test
+// IMPORTED BY `serve.ts` AND NOTHING ELSE, and that has to stay true. A UI test
 // harness imports the node test harness, so every module reachable from
 // `app.ts` is also compiled by the browser tsconfig — where `WebSocket` is the
 // DOM one, whose second argument is a subprotocol list rather than an options

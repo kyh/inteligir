@@ -8,8 +8,9 @@ import { childToParentMessageSchema, type ParentToChildMessage } from "./message
 import type { ChildChannel } from "./parcel-watcher-proxy";
 
 // Resolve the watcher child entry relative to this module's runtime location.
-// In prod this file is bundled into dist-node/main.js and the child bundle
-// (parcel-watcher-child.mjs, see scripts/build-node-entry.mjs) sits beside it.
+// In prod this file is bundled into dist/index.js and the child bundle
+// (parcel-watcher-child.mjs, emitted beside it by apps/cli/scripts/build.mjs)
+// sits in the same dist/ dir.
 // In dev this file runs from source, so the child is its `.ts` sibling —
 // forked children inherit `--import tsx` via execArgv, so a `.ts` entry runs
 // without extra wiring.
