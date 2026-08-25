@@ -291,7 +291,8 @@ function spawnAttempt(
   // rather than captured once: it is published after listen, and this client is
   // built before the health wait.
   const link = new RPCLink({
-    url: `${baseUrl}${RPC_PREFIX}`,
+    origin: baseUrl,
+    url: RPC_PREFIX,
     headers: () => {
       const server = readServerFile(dataDir);
       return server === null ? {} : { authorization: authorizationHeader(server.token) };

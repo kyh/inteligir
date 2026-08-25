@@ -41,6 +41,7 @@ import type { FoldersService } from "./folders/folders-service";
 import type { NoteIntelligence } from "./note-intelligence/note-intelligence";
 import { websocketOrigin } from "@repo/api/local/routes";
 import { documentSecurityHeaders } from "./csp";
+import { ERROR_STATUS_MAP, errorStatus } from "./error-status";
 import { loopbackRequestOrigin } from "./loopback-origin";
 import { isSameOriginBrowserRequest } from "./browser-request";
 import { presentedCredential, serverTokenCookie, tokenAccepted } from "./server-file";
@@ -246,11 +247,17 @@ export function createApp(args: CreateAppArgs) {
   } satisfies Omit<AppContext, "requestHost">;
 
   const rpc = new RPCHandler(localRouter, {
+    // oRPC v2 carries no status on the error; the handler maps code → status
+    // here. Custom codes (INVALID_PATH, ALREADY_EXISTS, …) plus oRPC's built-ins,
+    // in one place also read by the asset route (error-status.ts).
+    errorStatusMap: ERROR_STATUS_MAP,
     interceptors: [
       onError((cause: unknown) => {
         // Never echo internals: the full error goes to the server log only,
-        // and only for the classes that are genuinely faults.
-        if (cause instanceof ORPCError && cause.status < SERVER_FAULT_STATUS) {
+        // and only for the classes that are genuinely faults. Below 500 is
+        // normal control flow — a missing row, a rejected input, a conflict the
+        // client is expected to merge — and the status now comes from the map.
+        if (cause instanceof ORPCError && errorStatus(cause.code) < SERVER_FAULT_STATUS) {
           return;
         }
         console.error("rpc error", cause);

@@ -30,18 +30,20 @@ export interface LocalClientArgs {
 
 export function createLocalClient(args: LocalClientArgs): ContractRouterClient<LocalContract> {
   const link = new RPCLink({
-    url: `${args.origin}${RPC_PREFIX}`,
+    // v2 splits the base: `origin` is the host, `url` the path prefix the
+    // handler is mounted under (a `StandardUrl`, so it must start with `/`).
+    origin: args.origin,
+    url: RPC_PREFIX,
     headers: () => ({ authorization: authorizationHeader(args.token) }),
-    // COMPOSE, never replace: oRPC builds the Request carrying the caller's own
-    // per-call signal (e.g. `action wait --timeout`'s wall-clock bound) and
-    // hands the init it needs (`redirect: "manual"`). Passing a bare `{ signal }`
-    // would drop both — the per-call deadline would never reach the wire and the
-    // request would be bounded only by this ceiling.
-    fetch: (request, init) =>
-      fetch(request, {
-        ...init,
-        signal: AbortSignal.any([request.signal, AbortSignal.timeout(args.timeoutMs)]),
-      }),
+    // COMPOSE, never replace: oRPC hands the custom fetch its own `init` carrying
+    // the caller's per-call signal (e.g. `action wait --timeout`'s wall-clock
+    // bound). Merging the timeout with `init.signal` keeps both — a bare
+    // `{ signal }` would drop the per-call deadline and the rest of the init.
+    fetch: (url, init) => {
+      const timeout = AbortSignal.timeout(args.timeoutMs);
+      const signal = init.signal ? AbortSignal.any([init.signal, timeout]) : timeout;
+      return fetch(url, { ...init, signal });
+    },
   });
   return createORPCClient(link);
 }
