@@ -235,11 +235,14 @@ export interface EnsureVaultRepoArgs {
 
 /**
  * Try to clone the configured remote into a root that does not exist yet.
- * False means "no vault there to clone" — a fresh account's hosted repo
- * answers 404 until its first push, and a BYO remote can be empty — and the
- * caller falls through to the init+seed path, whose first push creates the
- * remote branch. git cleans up its own partially-cloned directory on failure,
- * so the fall-through starts from the same absent root either way.
+ * False means "nothing cloned" — a fresh account's hosted repo answers 404
+ * until its first push, a BYO remote can be empty, and a REFUSED credential
+ * (a revoked device at first boot) lands here too: the vault boots local and
+ * the first sync pass surfaces `unauthorized`, because failing the boot
+ * would take down the very server the user re-pairs through. The caller
+ * falls through to init+seed, whose first push creates the remote branch.
+ * git cleans up its own partially-cloned directory on failure, so the
+ * fall-through starts from the same absent root either way.
  */
 async function tryCloneVault(args: EnsureVaultRepoArgs, remote: VaultRemoteSpec): Promise<boolean> {
   await mkdir(dirname(args.root), { recursive: true });
@@ -395,23 +398,18 @@ export function createGitEngine(args: GitEngineArgs): GitEngine {
   /** Set when a failed rebase could not be aborted; syncs stop until repaired. */
   let broken = false;
   /**
-   * Set when a pass could not REACH the remote, cleared by one that did. The
-   * status below measures "unpushed" against the remote-tracking ref, and a
-   * failed fetch leaves that ref exactly where it was — so without this a
-   * vault with nothing local to push answers `clean` ("Synced") while the
-   * remote is unreachable and may have moved. A push that the remote REFUSED
-   * is not this: contact was made, and the local commits it left behind show
-   * up as `dirty` on their own.
+   * What the last network invocation's failure WAS, or null after one that
+   * succeeded. One value rather than two booleans because the two outcomes
+   * mask each other's fix — "offline" heals on its own while "unauthorized"
+   * (a revoked device) refuses every retry until a re-pair — and the latest
+   * outcome is the only truth: a refusal followed by a dead network must
+   * read offline, not still-unauthorized. Also why the status cannot come
+   * from the porcelain read: "unpushed" is measured against the
+   * remote-tracking ref, which a failed fetch leaves exactly where it was,
+   * so a vault with nothing local to push would answer `clean` ("Synced")
+   * while the remote is unreachable and may have moved.
    */
-  let remoteUnreachable = false;
-  /**
-   * Its own flag beside `remoteUnreachable` because the fixes are opposite:
-   * "offline" heals on its own and retrying is right, while a remote that
-   * REFUSED the credential (a revoked device) refuses every retry the same
-   * way — the user has to re-pair, and a UI saying "Offline" forever would
-   * send them to their network settings instead.
-   */
-  let remoteAuthRefused = false;
+  let networkFailure: "offline" | "unauthorized" | null = null;
   let syncing = false;
   let disposed = false;
   let inflightSync: Promise<VaultStatusResponse> | null = null;
@@ -429,20 +427,16 @@ export function createGitEngine(args: GitEngineArgs): GitEngine {
     return runGit(root, gitArgs, { ...options, env: { ...extraEnv, ...options.env } });
   }
 
-  /** The two invocations that actually dial the remote. A failure here is what
-   *  `remoteUnreachable` / `remoteAuthRefused` record; every other git call is
-   *  local. `env` carries the remote's own auth (the provider's header env). */
+  /** The two invocations that actually dial the remote. A failure here is
+   *  what `networkFailure` records; every other git call is local. `env`
+   *  carries the remote's own auth (the provider's header env). */
   async function runNetwork(gitArgs: readonly string[], env?: Record<string, string>) {
     try {
       const options: RunGitOptions = { timeoutMs: NETWORK_GIT_TIMEOUT_MS };
       if (env) options.env = env;
       return await run(gitArgs, options);
     } catch (error) {
-      if (isAuthRefusal(error)) {
-        remoteAuthRefused = true;
-      } else {
-        remoteUnreachable = true;
-      }
+      networkFailure = isAuthRefusal(error) ? "unauthorized" : "offline";
       throw error;
     }
   }
@@ -655,11 +649,7 @@ export function createGitEngine(args: GitEngineArgs): GitEngine {
     );
   }
 
-  async function doSync(): Promise<void> {
-    const remote = args.remote();
-    if (remote === null) {
-      return;
-    }
+  async function doSync(remote: VaultRemoteSpec): Promise<void> {
     await commitIfDirty();
     await ensureOriginRemote(remote.url);
     const branch = await currentBranch();
@@ -677,7 +667,7 @@ export function createGitEngine(args: GitEngineArgs): GitEngine {
       }
       // A fresh remote: nothing to rebase onto, the push below creates it.
       // The remote ANSWERED, so this is not an unreachable one.
-      remoteUnreachable = false;
+      networkFailure = null;
       remoteHasBranch = false;
     }
 
@@ -735,8 +725,7 @@ export function createGitEngine(args: GitEngineArgs): GitEngine {
     lastConflict = null;
     lastSyncAt = Date.now();
     lastError = null;
-    remoteUnreachable = false;
-    remoteAuthRefused = false;
+    networkFailure = null;
   }
 
   async function statusSnapshot(): Promise<VaultStatusResponse> {
@@ -764,17 +753,13 @@ export function createGitEngine(args: GitEngineArgs): GitEngine {
     }
     // These outrank the porcelain read below, because each means the
     // clean/dirty answer would be a claim about the remote that this engine
-    // cannot make: no pass may start under a hold, a refused credential
-    // refuses every retry, and a pass that could not reach the remote left
-    // the tracking ref stale.
+    // cannot make: no pass may start under a hold, and a failed network
+    // invocation left the tracking ref stale (`networkFailure`'s own note).
     if (commitHoldCount > 0) {
       return { state: "held", remote, lastSyncAt, lastError };
     }
-    if (remoteAuthRefused) {
-      return { state: "unauthorized", remote, lastSyncAt, lastError };
-    }
-    if (remoteUnreachable) {
-      return { state: "offline", remote, lastSyncAt, lastError };
+    if (networkFailure !== null) {
+      return { state: networkFailure, remote, lastSyncAt, lastError };
     }
     // The porcelain reads run behind the repo lock, so a status can never
     // report the half-way tree of a sync or commit in flight.
@@ -802,13 +787,16 @@ export function createGitEngine(args: GitEngineArgs): GitEngine {
     // A sync pass starts by committing the dirty tree, which is exactly what
     // a commit hold exists to prevent; the interval retries after release.
     // The snapshot SAYS so (`held`) rather than answering as if a pass ran —
-    // a "Sync now" that reported `clean` here would be a silent no-op.
-    if (args.remote() === null || broken || commitHoldCount > 0) {
+    // a "Sync now" that reported `clean` here would be a silent no-op. The
+    // provider is read ONCE for the pass, so the gate and the pass cannot
+    // disagree about which remote (or credential) this pass is under.
+    const remote = args.remote();
+    if (remote === null || broken || commitHoldCount > 0) {
       return statusSnapshot();
     }
     syncing = true;
     args.onStatusChanged?.();
-    const pass = withRepoLock(doSync)
+    const pass = withRepoLock(() => doSync(remote))
       .catch((cause: unknown) => {
         lastError = cause instanceof Error ? cause.message : "sync failed";
         args.onError?.(lastError);

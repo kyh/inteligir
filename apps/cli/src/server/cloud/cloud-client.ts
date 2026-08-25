@@ -154,7 +154,7 @@ function callSignal(signal: AbortSignal | undefined): AbortSignal {
   return signal === undefined ? timeout : AbortSignal.any([signal, timeout]);
 }
 
-function endpointUrl(baseUrl: string, path: string): string {
+export function endpointUrl(baseUrl: string, path: string): string {
   return new URL(path, baseUrl).toString();
 }
 

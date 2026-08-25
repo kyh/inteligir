@@ -41,6 +41,30 @@ export const CLOUD_ERROR_CODES = [
 export const cloudErrorCodeSchema = z.enum(CLOUD_ERROR_CODES);
 export type CloudErrorCode = z.infer<typeof cloudErrorCodeSchema>;
 
+/**
+ * The HTTP status each code answers with — part of the wire, so it lives
+ * beside the enum: the Worker serves it and the CLI's test fake must answer
+ * the SAME numbers, and `satisfies` alone pins exhaustiveness, not values.
+ * "account-deleted" is Gone rather than 401 on purpose: the credential was
+ * fine, the account it named is not — a client told "unauthorized" retries
+ * the credential forever.
+ */
+export const CLOUD_ERROR_STATUS = {
+  "bad-request": 400,
+  unauthorized: 401,
+  "not-found": 404,
+  "rate-limited": 429,
+  "invalid-code": 404,
+  "code-expired": 410,
+  "code-consumed": 409,
+  "device-limit": 409,
+  "sync-conflict": 409,
+  "sync-out-of-order": 409,
+  "account-deleted": 410,
+  "file-too-large": 413,
+  internal: 500,
+} as const satisfies Record<CloudErrorCode, number>;
+
 export const cloudErrorSchema = z
   .object({
     error: z

@@ -1,7 +1,8 @@
 import { VAULT_GIT_PATH } from "@repo/api/cloud/vault/vault-git";
-import { createDurableGit } from "durable-git";
+import { createDurableGit, type Registry } from "durable-git";
 import { createDb } from "../db/client";
-import { verifyDeviceCredentialValue, type VerifiedDevice } from "../device/device-auth";
+import { deviceCredentialFromHeader, verifyDeviceCredentialValue } from "../device/device-auth";
+import { pingVaultAdvanced } from "../sync/routes";
 
 // ---------------------------------------------------------------------------
 // `/v1/git/vault.git` — the hosted vault remote: one git repo per user, a
@@ -39,8 +40,6 @@ import { verifyDeviceCredentialValue, type VerifiedDevice } from "../device/devi
 // pings the user's ThreadSyncDO itself, off the response path.
 // ---------------------------------------------------------------------------
 
-export const VAULT_GIT_PREFIX = VAULT_GIT_PATH;
-
 /** Stamped after verification, checked by dgit's authorize hook. Never
  *  accepted from the wire — the wrapper strips any inbound copy. */
 const AUTHORIZED_HEADER = "x-vault-authorized";
@@ -63,36 +62,16 @@ export function vaultRepoName(userId: string): string {
   return `vault-${userId}`;
 }
 
+/** The one name index. One spelling, because reads consult it and deletion
+ *  removes from it — a drift makes every account read "no hosted vault". */
+export function vaultRegistry(env: Env): DurableObjectStub<Registry> {
+  return env.REGISTRY.getByName("registry");
+}
+
 const handler = createDurableGit<Env>({
   ui: false,
   authorize: (ctx) => ctx.request.headers.get(AUTHORIZED_HEADER) === ctx.repo,
 });
-
-/**
- * The credential, from whichever carrier the client used. Basic takes the
- * password field; a client that put the token in the username slot (some
- * helpers do) still verifies, since the other field is empty exactly then.
- */
-function credentialFrom(request: Request): string | null {
-  const header = request.headers.get("authorization");
-  if (header === null) return null;
-  const [scheme, value, ...rest] = header.split(" ");
-  if (value === undefined || rest.length > 0) return null;
-  if (scheme?.toLowerCase() === "bearer") return value;
-  if (scheme?.toLowerCase() === "basic") {
-    let decoded: string;
-    try {
-      decoded = atob(value);
-    } catch {
-      return null;
-    }
-    const colon = decoded.indexOf(":");
-    if (colon === -1) return decoded;
-    const pass = decoded.slice(colon + 1);
-    return pass !== "" ? pass : decoded.slice(0, colon);
-  }
-  return null;
-}
 
 /** Plain text + Basic challenge, not the JSON envelope: this is the git wire,
  *  and the challenge is what makes a stock client prompt. */
@@ -109,12 +88,12 @@ export async function handleVaultGitRemote(
   ctx: ExecutionContext,
   url: URL,
 ): Promise<Response> {
-  const sub = url.pathname.slice(VAULT_GIT_PREFIX.length);
+  const sub = url.pathname.slice(VAULT_GIT_PATH.length);
   if (!PROTOCOL_ROUTES.has(`${request.method} ${sub}`)) {
     return new Response("not found\n", { status: 404 });
   }
 
-  const credential = credentialFrom(request);
+  const credential = deviceCredentialFromHeader(request.headers.get("authorization"));
   const verified =
     credential === null ? null : await verifyDeviceCredentialValue(createDb(env.DB), credential);
   if (verified === null) return unauthorized();
@@ -137,20 +116,9 @@ export async function handleVaultGitRemote(
   );
 
   if (sub === "/git-receive-pack" && response.ok && response.headers.get("x-changed") === "1") {
-    // Best-effort like the socket sever: a lost ping costs staleness until
-    // the next poll, never correctness.
-    ctx.waitUntil(sendVaultPing(env, verified).catch(() => {}));
+    ctx.waitUntil(pingVaultAdvanced(env, verified.userId, verified.deviceId));
   }
   return response;
-}
-
-async function sendVaultPing(env: Env, pusher: VerifiedDevice): Promise<void> {
-  const stub = env.THREAD_SYNC.getByName(`user:${pusher.userId}`);
-  await stub.fetch("https://thread-sync/vault-ping", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ pushingDeviceId: pusher.deviceId }),
-  });
 }
 
 /**
@@ -169,6 +137,9 @@ async function sendVaultPing(env: Env, pusher: VerifiedDevice): Promise<void> {
  */
 export async function deleteVaultGitRepo(env: Env, userId: string): Promise<void> {
   const repo = vaultRepoName(userId);
+  // Deliberately NOT gated on the registry (the read routes' rule): a purge
+  // must not trust an index — a registry row lost to a hiccup must never
+  // leave the repo's bytes alive.
   const response = await env.REPO.getByName(repo).fetch("https://vault-git/", {
     method: "DELETE",
     headers: { "x-repo": repo },
@@ -176,5 +147,5 @@ export async function deleteVaultGitRepo(env: Env, userId: string): Promise<void
   if (!response.ok) {
     throw new Error(`vault git repo delete failed: ${response.status}`);
   }
-  await env.REGISTRY.getByName("registry").remove(repo);
+  await vaultRegistry(env).remove(repo);
 }

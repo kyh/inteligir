@@ -12,13 +12,7 @@ function noteBlocks(content: string): NoteBlock[] {
 }
 
 function allText(spans: readonly InlineSpan[]): string {
-  return spans
-    .map((span) => (span.kind === "text" || span.kind === "link" ? spanLabel(span) : span.label))
-    .join("");
-}
-
-function spanLabel(span: InlineSpan): string {
-  return span.kind === "text" ? span.text : span.label;
+  return spans.map((span) => (span.kind === "text" ? span.text : span.label)).join("");
 }
 
 describe("projectNote", () => {
@@ -100,6 +94,27 @@ describe("projectNote", () => {
     const inner = callout.blocks[0];
     if (inner?.kind !== "paragraph") throw new Error("expected a paragraph inside");
     expect(inner.spans).toContainEqual({ kind: "wiki-link", target: "Ledger", label: "Ledger" });
+  });
+
+  it("reads the callout header with the dialect's own grammar — prefixes and levels", () => {
+    const blocks = noteBlocks(
+      "```inteligir-callout\ntype: priority\nlevel: high\nShip [[Plans]] first.\n```\n",
+    );
+    const callout = blocks[0];
+    if (callout?.kind !== "callout") throw new Error("expected a callout");
+    // The level line is HEADER, never body prose — the drift a second parser
+    // had before the grammar moved into @repo/notes.
+    expect(callout.label).toBe("priority · high");
+    const inner = callout.blocks[0];
+    if (inner?.kind !== "paragraph") throw new Error("expected a paragraph inside");
+    expect(inner.spans.some((span) => span.kind === "text" && span.text.includes("level"))).toBe(
+      false,
+    );
+  });
+
+  it("renders an unknown callout kind as a plain code block — the dialect's own fallback", () => {
+    const blocks = noteBlocks("```inteligir-callout\nnot-a-kind\nbody\n```\n");
+    expect(blocks).toEqual([{ kind: "code", lang: "inteligir-callout", text: "not-a-kind\nbody" }]);
   });
 
   it("answers rich payload fences as honest unsupported cards", () => {

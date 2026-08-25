@@ -1,4 +1,4 @@
-import { cloudError, type CloudErrorCode } from "@repo/api/cloud/errors";
+import { CLOUD_ERROR_STATUS, cloudError, type CloudErrorCode } from "@repo/api/cloud/errors";
 import type {
   MintPairingCodeResponse,
   RedeemDeviceResponse,
@@ -9,28 +9,12 @@ import type {
 // route answers the same envelope and no route invents a status for a code.
 // ---------------------------------------------------------------------------
 
-const STATUS_BY_CODE = {
-  "bad-request": 400,
-  unauthorized: 401,
-  "not-found": 404,
-  "rate-limited": 429,
-  "invalid-code": 404,
-  "code-expired": 410,
-  "code-consumed": 409,
-  "device-limit": 409,
-  "sync-conflict": 409,
-  "sync-out-of-order": 409,
-  // Gone, not 401: the credential was fine, the account it named is not — a
-  // client told "unauthorized" retries the credential forever.
-  "account-deleted": 410,
-  "file-too-large": 413,
-  internal: 500,
-} satisfies Record<CloudErrorCode, number>;
-
 /** `deviceSeq` is carried only by the two sync codes, which name the outbox
  * position that disagreed (see the contract's errors module). */
 export function refuse(code: CloudErrorCode, message: string, deviceSeq?: number): Response {
-  return Response.json(cloudError(code, message, deviceSeq), { status: STATUS_BY_CODE[code] });
+  return Response.json(cloudError(code, message, deviceSeq), {
+    status: CLOUD_ERROR_STATUS[code],
+  });
 }
 
 /** Every body this Worker answers with `no-store`, which is exactly the set

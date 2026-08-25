@@ -1,7 +1,5 @@
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
+import { makeTempDir } from "../../__tests__/temp-dir";
 import { clearDeviceCredential, writeDeviceCredential } from "../credential-store";
 import { createVaultRemoteProvider, hostedVaultRemoteUrl } from "../vault-remote";
 
@@ -12,19 +10,9 @@ import { createVaultRemoteProvider, hostedVaultRemoteUrl } from "../vault-remote
 const CLOUD_URL = "https://cloud.test";
 const CREDENTIAL = `igd_${"a".repeat(64)}`;
 
-const dirs: string[] = [];
-
 function makeDataDir(): string {
-  const dir = mkdtempSync(join(tmpdir(), "inteligir-vault-remote-"));
-  dirs.push(dir);
-  return dir;
+  return makeTempDir("inteligir-vault-remote-");
 }
-
-afterEach(() => {
-  for (const dir of dirs.splice(0)) {
-    rmSync(dir, { recursive: true, force: true });
-  }
-});
 
 describe("createVaultRemoteProvider", () => {
   it("answers null for an unpaired install with no explicit remote", () => {

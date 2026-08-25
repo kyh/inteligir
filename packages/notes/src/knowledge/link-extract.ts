@@ -17,6 +17,7 @@
 
 import type { Nodes } from "mdast";
 
+import { parseCalloutPayload } from "../markdown/callout-payload";
 import { isCalloutLang } from "../markdown/fence-langs";
 import { parseProperties, type ParsedProperties } from "../markdown/frontmatter";
 import { parseWikiBodyRange } from "../markdown/remark-wiki-link";
@@ -165,11 +166,13 @@ function scanCalloutBody(
   const openLineEnd = source.indexOf("\n", pos.start.offset);
   if (openLineEnd === -1) return;
   const payloadStart = openLineEnd + 1;
+  // The shared grammar (callout-payload.ts) decides the header height. An
+  // unknown kind renders as a plain CODE BLOCK, where a wiki spelling is not
+  // a link — indexing it would aim rename byte-surgery into code.
+  const payload = parseCalloutPayload(node.value);
+  if (payload === null) return;
   const lines = node.value.split("\n");
-  const kind = lines[0]?.trim() ?? "";
-  const level = lines[1]?.trim() ?? "";
-  const headerLines =
-    kind === "priority" && ["low", "medium", "high", "critical"].includes(level) ? 2 : 1;
+  const headerLines = payload.headerLines;
   let bodyStart = payloadStart;
   for (let skipped = 0; skipped < headerLines; skipped++) {
     const nl = source.indexOf("\n", bodyStart);

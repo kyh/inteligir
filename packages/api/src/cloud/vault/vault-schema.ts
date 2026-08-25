@@ -31,7 +31,8 @@ export const VAULT_TREE_MAX_ENTRIES = 500;
  *  this large is not one. Binary embeds need their own asset route. */
 export const VAULT_FILE_MAX_BYTES = 2 * 1024 * 1024;
 
-const commitShaSchema = z.string().regex(/^[0-9a-f]{40}$/u, "must be a full lowercase commit sha");
+const gitOidSchema = z.string().regex(/^[0-9a-f]{40}$/u, "must be a full lowercase git oid");
+const commitShaSchema = gitOidSchema;
 
 /**
  * A vault-relative file path as git holds it: no leading slash, no empty or
@@ -95,7 +96,7 @@ export const vaultFileResponseSchema = z
     commit: commitShaSchema,
     path: vaultPathSchema,
     /** The blob's own id — a `(commit, path)`-independent cache key. */
-    oid: z.string().regex(/^[0-9a-f]{40}$/u),
+    oid: gitOidSchema,
     /** UTF-8 text. A file that does not decode, or exceeds the byte ceiling,
      *  is refused rather than mangled. */
     content: z.string(),

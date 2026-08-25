@@ -3,7 +3,6 @@ import { readFile, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { z } from "zod";
 import {
   createGitEngine,
   ensureVaultRepo,
@@ -11,6 +10,7 @@ import {
   type GitEngine,
   type GitEngineArgs,
 } from "../git";
+import { boundAddressSchema } from "../../__tests__/bound-address";
 import { hermeticGitEnv } from "./git-test-env";
 import { makeTempDir } from "../../__tests__/temp-dir";
 
@@ -23,10 +23,6 @@ afterEach(async () => {
 });
 
 const env = hermeticGitEnv();
-
-/** `net.Server#address()` answers a pipe name, an AddressInfo, or null — the
- *  test server bound a TCP port, so the union is parsed rather than narrowed. */
-const boundAddressSchema = z.object({ port: z.number() });
 
 function scratchDir(prefix: string): string {
   const dir = makeTempDir(prefix);

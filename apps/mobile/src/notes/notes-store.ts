@@ -16,12 +16,7 @@
 import { buildResolver, type TargetResolver } from "@repo/notes/knowledge/link-resolve";
 import type { VaultTreeResponse } from "@repo/api/cloud/vault/vault-schema";
 import type { DeviceCredential } from "../credential/credential-codec";
-import {
-  createCloudClient,
-  describeCloudFailure,
-  type CloudFailure,
-  type CloudFetch,
-} from "../sync/cloud-client";
+import { createCloudClient, describeCloudFailure, type CloudFetch } from "../sync/cloud-client";
 import { createExternalStore, type ExternalStore } from "../lib/external-store";
 
 /** Cached note bodies. Small and bounded: a note re-fetches on a miss, and
@@ -61,16 +56,6 @@ export interface CreateNotesStoreArgs {
 
 type Client = ReturnType<typeof createCloudClient>;
 
-// "No hosted vault" is a STATE, not an error: an unpaired-desktop or
-// BYO-remote account answers 404 forever, and an error banner would send the
-// user hunting for a fault. Empty string = that state.
-function failureMessage(failure: CloudFailure): string {
-  if (failure.kind === "refused" && failure.code === "not-found") {
-    return "";
-  }
-  return describeCloudFailure(failure);
-}
-
 export function createNotesStore(args: CreateNotesStoreArgs): NotesStore {
   let client: Client | null = null;
   let resolver: TargetResolver | null = null;
@@ -109,23 +94,34 @@ export function createNotesStore(args: CreateNotesStoreArgs): NotesStore {
           if (after !== undefined) query.after = after;
           const result = await client.vaultTree(query);
           if (!result.ok) {
-            const message = failureMessage(result.failure);
+            // "No hosted vault" is a STATE, not an error: an unpaired-desktop
+            // or BYO-remote account answers 404 forever, and an error banner
+            // would send the user hunting for a fault.
+            const noVault =
+              result.failure.kind === "refused" && result.failure.code === "not-found";
             tree.set(
-              message === ""
+              noVault
                 ? {
                     state: "empty",
                     message: "No hosted vault yet — sync a desktop to your account first.",
                   }
-                : { state: "error", message },
+                : { state: "error", message: describeCloudFailure(result.failure) },
             );
             return;
           }
           commit = result.value.commit;
           entries.push(...result.value.entries);
-          if (result.value.next === null) break;
-          after = result.value.next;
+          after = result.value.next ?? undefined;
+          if (after === undefined) break;
         }
         if (commit === undefined) return;
+        if (after !== undefined) {
+          // The guard tripped with pages still unread: a partial listing
+          // silently missing notes (and wiki targets) must not answer
+          // "ready" — the Worker sibling states the same rule.
+          tree.set({ state: "error", message: "This vault is too large for the notes list." });
+          return;
+        }
         resolver = buildResolver(entries.map((entry) => entry.path));
         tree.set({ state: "ready", commit, entries });
       } finally {

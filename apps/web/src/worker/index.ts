@@ -1,3 +1,4 @@
+import { VAULT_GIT_PATH } from "@repo/api/cloud/vault/vault-git";
 import { VAULT_API_PATHS } from "@repo/api/cloud/vault/vault-schema";
 import { createAuth, enabledSocialProviders } from "./auth/auth";
 import { handleInviteSignUp } from "./auth/invite";
@@ -5,7 +6,7 @@ import { handleResetPage } from "./auth/reset-page";
 import { handleDeviceRoutes } from "./device/routes";
 import { logUnhandled } from "./log";
 import { handleSyncRoutes } from "./sync/routes";
-import { handleVaultGitRemote, VAULT_GIT_PREFIX } from "./vault/git-remote";
+import { handleVaultGitRemote } from "./vault/git-remote";
 import { handleVaultReadRoutes } from "./vault/read-routes";
 
 // The Durable Object classes must be exported from the entry the runtime
@@ -117,7 +118,7 @@ async function route(request: Request, env: Env, ctx: ExecutionContext): Promise
   }
 
   // The hosted vault git remote, device-authed — src/worker/vault/git-remote.ts.
-  if (url.pathname.startsWith(VAULT_GIT_PREFIX)) {
+  if (url.pathname.startsWith(VAULT_GIT_PATH)) {
     return await handleVaultGitRemote(request, env, ctx, url);
   }
 

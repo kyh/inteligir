@@ -11,7 +11,7 @@ import type { RepoCell } from "durable-git";
 import { refuse } from "../cloud-http";
 import { createDb } from "../db/client";
 import { verifyDeviceCredential } from "../device/device-auth";
-import { vaultRepoName } from "./git-remote";
+import { vaultRegistry, vaultRepoName } from "./git-remote";
 
 // ---------------------------------------------------------------------------
 // `/v1/vault/tree` + `/v1/vault/file` — how a client with no git client (the
@@ -20,15 +20,18 @@ import { vaultRepoName } from "./git-remote";
 // wrapper's rule 2), so this module is the ONE read surface and our /cloud
 // schemas are the one wire truth.
 //
-// THE REGISTRY IS CONSULTED BEFORE THE REPO IS NAMED. `getByName` on the
-// REPO namespace CREATES a cell, and a phone on a BYO-remote account polls
-// these routes forever with no hosted vault to find — the registry (one
-// singleton, a lookup that creates nothing) answers "no vault yet" without
-// materializing an empty billable cell per poll.
+// THE REGISTRY IS CONSULTED BEFORE THE REPO IS NAMED — but only when the
+// request pins no `ref`. `getByName` on the REPO namespace CREATES a cell,
+// and a phone on a BYO-remote account polls the unpinned tree forever with
+// no hosted vault to find; the registry (one singleton, a lookup that
+// creates nothing) answers "no vault yet" without materializing an empty
+// cell per poll. A request that DOES pin a sha already holds a page that
+// passed this gate, so it skips the singleton hop.
 //
-// Both responses carry the COMMIT they were read at, resolved once per
-// request: a paged tree walk passes it back as `ref`, so later pages read
-// the same tree whatever a device pushes in between.
+// Both responses carry the COMMIT they were read at: an unpinned request
+// resolves HEAD once; a pinned one uses its sha directly (`readBlob`/
+// `listTree` resolve reachable oids themselves), so the phone's hot path —
+// opening a note at the listing's commit — costs one repo-cell hop.
 // ---------------------------------------------------------------------------
 
 /** Bounds the recursive walk, and states its own failure: a vault with more
@@ -50,9 +53,11 @@ export async function handleVaultReadRoutes(
   if (verified === null) return refuse("unauthorized", "No valid device credential.");
 
   const repo = vaultRepoName(verified.userId);
-  const info = await env.REGISTRY.getByName("registry").get(repo);
-  if (info === null) {
-    return refuse("not-found", "This account has no hosted vault yet.");
+  if (url.searchParams.get("ref") === null) {
+    const info = await vaultRegistry(env).get(repo);
+    if (info === null) {
+      return refuse("not-found", "This account has no hosted vault yet.");
+    }
   }
   const stub = env.REPO.getByName(repo);
 
@@ -65,14 +70,27 @@ export async function handleVaultReadRoutes(
   return refuse("not-found", "No such route.");
 }
 
-/** Resolve the commit this request reads at: the query's pinned sha, or the
- *  current HEAD. Null when neither names a commit the repo holds. */
+/** The commit this request reads at: the query's pinned sha as-is, or HEAD
+ *  resolved once. Null when the repo has no HEAD yet; a pinned sha that names
+ *  nothing surfaces as the read itself answering null. */
 async function resolveCommit(
   stub: DurableObjectStub<RepoCell>,
   ref: string | undefined,
 ): Promise<string | null> {
-  const commit = await stub.readCommit(ref);
-  return commit === null ? null : commit.oid;
+  if (ref !== undefined) return ref;
+  const head = await stub.readCommit(undefined);
+  return head === null ? null : head.oid;
+}
+
+/** Whether any path under `dir` can still be beyond the cursor — the subtree
+ *  prune that keeps a later page from re-walking directories it has wholly
+ *  passed. Every path under `dir` starts with `dir + "/"`, so a cursor that
+ *  is lexicographically past that prefix (and not inside it) is past the
+ *  whole subtree. */
+function subtreeReaches(dir: string, after: string | undefined): boolean {
+  if (after === undefined) return true;
+  const prefix = `${dir}/`;
+  return after < prefix || after.startsWith(prefix);
 }
 
 async function answerTree(stub: DurableObjectStub<RepoCell>, url: URL): Promise<Response> {
@@ -85,50 +103,51 @@ async function answerTree(stub: DurableObjectStub<RepoCell>, url: URL): Promise<
   if (!query.success) {
     return refuse("bad-request", "Send ?ref=<sha>&after=<path>&limit=<1..500>, each optional.");
   }
+  const after = query.data.after;
 
   const commit = await resolveCommit(stub, query.data.ref);
   if (commit === null) {
     return refuse("not-found", "This vault has no content at that revision.");
   }
 
-  // A full flat walk per page, filtered by the cursor after: the walk is
-  // what a git-less client would otherwise do itself, one round trip per
-  // directory, and the vault's own layout (plain nested markdown) keeps it
-  // shallow. Sorted so the cursor is total.
+  // Level-parallel walk: each BFS level's directories are independent, so a
+  // level is ONE round of concurrent repo-cell calls rather than one call per
+  // directory — wall time scales with the tree's depth, not its width.
   const files: VaultTreeResponse["entries"][number][] = [];
-  const dirs: string[] = [""];
+  let frontier = [""];
   let visited = 0;
-  while (dirs.length > 0) {
-    const dir = dirs.shift();
-    if (dir === undefined) break;
-    visited += 1;
+  while (frontier.length > 0) {
+    visited += frontier.length;
     if (visited > MAX_TREE_DIRS) {
       return refuse("internal", `Vault tree exceeds ${String(MAX_TREE_DIRS)} directories.`);
     }
-    const tree = await stub.listTree(commit, dir);
-    if (tree === null) {
-      return refuse("not-found", "This vault has no content at that revision.");
-    }
-    for (const entry of tree.entries) {
-      const path = dir === "" ? entry.name : `${dir}/${entry.name}`;
-      if (entry.type === "tree") {
-        dirs.push(path);
-      } else if (entry.type === "blob") {
-        files.push({ path, size: entry.size ?? 0 });
+    const trees = await Promise.all(frontier.map((dir) => stub.listTree(commit, dir)));
+    const next: string[] = [];
+    for (const [index, tree] of trees.entries()) {
+      const dir = frontier[index];
+      if (tree === null || dir === undefined) {
+        return refuse("not-found", "This vault has no content at that revision.");
+      }
+      for (const entry of tree.entries) {
+        const path = dir === "" ? entry.name : `${dir}/${entry.name}`;
+        if (entry.type === "tree") {
+          if (subtreeReaches(path, after)) next.push(path);
+        } else if (entry.type === "blob" && (after === undefined || path > after)) {
+          files.push({ path, size: entry.size ?? 0 });
+        }
       }
     }
+    frontier = next;
   }
   files.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
 
-  const after = query.data.after;
-  const from = after === undefined ? files : files.filter((file) => file.path > after);
   const limit = query.data.limit ?? VAULT_TREE_MAX_ENTRIES;
-  const page = from.slice(0, limit);
+  const page = files.slice(0, limit);
   const last = page.at(-1);
   const response: VaultTreeResponse = {
     commit,
     entries: page,
-    next: from.length > page.length && last !== undefined ? last.path : null,
+    next: files.length > page.length && last !== undefined ? last.path : null,
   };
   return Response.json(response);
 }

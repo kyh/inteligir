@@ -1,4 +1,5 @@
 import { VAULT_GIT_PATH } from "@repo/api/cloud/vault/vault-git";
+import { endpointUrl } from "./cloud-client";
 import { readDeviceCredential } from "./credential-store";
 
 // ---------------------------------------------------------------------------
@@ -36,7 +37,7 @@ export interface VaultRemoteSpec {
 export type VaultRemoteProvider = () => VaultRemoteSpec | null;
 
 export function hostedVaultRemoteUrl(cloudUrl: string): string {
-  return `${cloudUrl}${VAULT_GIT_PATH}`;
+  return endpointUrl(cloudUrl, VAULT_GIT_PATH);
 }
 
 export interface CreateVaultRemoteProviderArgs {

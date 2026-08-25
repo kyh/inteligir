@@ -1,4 +1,3 @@
-import { Fragment } from "react";
 import { Linking, StyleSheet, Text, View } from "react-native";
 import { RADIUS, SPACE, useTheme, type Theme } from "@/lib/theme";
 import type { InlineSpan, NoteBlock } from "./note-projection";
@@ -185,13 +184,14 @@ export function MarkdownBlocks({
             );
           case "raw":
             return (
-              <Fragment key={blockKey(index)}>
-                <View style={[styles.codeBlock, { backgroundColor: theme.muted }]}>
-                  <Text style={[styles.mono, styles.codeText, { color: theme.mutedForeground }]}>
-                    {block.text}
-                  </Text>
-                </View>
-              </Fragment>
+              <View
+                key={blockKey(index)}
+                style={[styles.codeBlock, { backgroundColor: theme.muted }]}
+              >
+                <Text style={[styles.mono, styles.codeText, { color: theme.mutedForeground }]}>
+                  {block.text}
+                </Text>
+              </View>
             );
         }
       })}

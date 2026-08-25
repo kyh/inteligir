@@ -56,12 +56,45 @@ export async function verifyDeviceCredential(
   db: ReturnType<typeof createDb>,
   authorization: string | null,
 ): Promise<VerifiedDevice | null> {
+  const credential = bearerCredential(authorization);
+  return credential === null ? null : await verifyDeviceCredentialValue(db, credential);
+}
+
+function bearerCredential(authorization: string | null): string | null {
   if (authorization === null) return null;
   const [scheme, credential, ...rest] = authorization.split(" ");
   if (scheme?.toLowerCase() !== "bearer" || credential === undefined || rest.length > 0) {
     return null;
   }
-  return await verifyDeviceCredentialValue(db, credential);
+  return credential;
+}
+
+/**
+ * The credential from EITHER carrier — Bearer, or HTTP Basic where the
+ * password holds it (a client that put the token in the username slot still
+ * verifies, since the other field is empty exactly then). Only the vault git
+ * remote accepts Basic — a stock git client answers its 401 challenge that
+ * way — but how an Authorization header yields a device credential stays this
+ * module's one fact.
+ */
+export function deviceCredentialFromHeader(authorization: string | null): string | null {
+  const bearer = bearerCredential(authorization);
+  if (bearer !== null) return bearer;
+  if (authorization === null) return null;
+  const [scheme, value, ...rest] = authorization.split(" ");
+  if (scheme?.toLowerCase() !== "basic" || value === undefined || rest.length > 0) {
+    return null;
+  }
+  let decoded: string;
+  try {
+    decoded = atob(value);
+  } catch {
+    return null;
+  }
+  const colon = decoded.indexOf(":");
+  if (colon === -1) return decoded;
+  const pass = decoded.slice(colon + 1);
+  return pass !== "" ? pass : decoded.slice(0, colon);
 }
 
 /**

@@ -1,7 +1,13 @@
-import { syncPingSchema, type SyncPing } from "@repo/api/cloud/sync/sync-ws";
 import { SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
-import { deviceHeaders, ORIGIN, pairDevice, signUpUser } from "./cloud-helpers";
+import {
+  deviceHeaders,
+  openSocket,
+  ORIGIN,
+  pairDevice,
+  settled,
+  signUpUser,
+} from "./cloud-helpers";
 import { pushVaultFiles, ZERO_OID } from "./git-pack";
 
 // The hosted vault remote end to end, in-process: credential verification on
@@ -10,30 +16,6 @@ import { pushVaultFiles, ZERO_OID } from "./git-pack";
 // vault ping's pusher exclusion.
 
 const REMOTE = `${ORIGIN}/v1/git/vault.git`;
-
-/** Open the invalidation socket and collect its frames. */
-async function openSocket(credential: string): Promise<{ frames: SyncPing[] }> {
-  const response = await SELF.fetch(`${ORIGIN}/v1/sync/ws?platform=desktop`, {
-    headers: { ...deviceHeaders(credential), upgrade: "websocket" },
-  });
-  expect(response.status).toBe(101);
-  const socket = response.webSocket;
-  if (socket === null) throw new Error("no websocket on the 101");
-  socket.accept();
-  const frames: SyncPing[] = [];
-  socket.addEventListener("message", (message) => {
-    const { data } = message;
-    if (data instanceof ArrayBuffer) return;
-    frames.push(syncPingSchema.parse(JSON.parse(data)));
-  });
-  return { frames };
-}
-
-/** The ping rides waitUntil off the push's own invocation; one macrotask
- *  later it has crossed the in-process pair. */
-function settled(): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, 100));
-}
 
 describe("vault git remote auth", () => {
   it("refuses the wire without a credential, with the Basic challenge", async () => {
@@ -103,8 +85,8 @@ describe("vault git remote round-trip", () => {
     const pusher = await pairDevice(bearer, "Laptop");
     const other = await pairDevice(bearer, "Phone");
 
-    const pusherSocket = await openSocket(pusher.credential);
-    const otherSocket = await openSocket(other.credential);
+    const pusherSocket = await openSocket(pusher.credential, "desktop");
+    const otherSocket = await openSocket(other.credential, "desktop");
 
     const first = await pushVaultFiles(
       pusher.credential,

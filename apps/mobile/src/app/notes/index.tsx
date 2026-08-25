@@ -1,6 +1,6 @@
 import { Stack, useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { isDocPath } from "@repo/notes/knowledge/doc-file";
 import { titleFromPath } from "@repo/notes/knowledge/link-extract";
@@ -10,6 +10,8 @@ import { RADIUS, SPACE, useTheme } from "@/lib/theme";
 // The vault, read-only: every doc in the hosted repo, title first with its
 // folder as the caption. The tree fetch pins one commit, so a list and the
 // notes opened from it agree with each other even mid-push elsewhere.
+// A FlatList, not a ScrollView: the vault's own design targets thousands of
+// notes, and mounting a row per doc eagerly janks the list open.
 export default function NotesScreen() {
   const theme = useTheme();
   const router = useRouter();
@@ -28,6 +30,14 @@ export default function NotesScreen() {
   }, []);
 
   const docs = tree.state === "ready" ? tree.entries.filter((entry) => isDocPath(entry.path)) : [];
+  const emptyText =
+    status.state !== "paired"
+      ? "Pair this device to read your notes."
+      : tree.state === "loading" || tree.state === "idle"
+        ? "Loading your vault…"
+        : tree.state === "empty" || tree.state === "error"
+          ? tree.message
+          : "No notes yet — write one on your desktop.";
 
   return (
     <SafeAreaView
@@ -35,57 +45,43 @@ export default function NotesScreen() {
       edges={["left", "right"]}
     >
       <Stack.Screen options={{ title: "Notes" }} />
-      <ScrollView
+      <FlatList
         style={styles.screen}
         contentContainerStyle={styles.list}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void refresh()} />}
-      >
-        {status.state !== "paired" ? (
-          <Empty text="Pair this device to read your notes." />
-        ) : tree.state === "loading" || tree.state === "idle" ? (
-          <Empty text="Loading your vault…" />
-        ) : tree.state === "empty" ? (
-          <Empty text={tree.message} />
-        ) : tree.state === "error" ? (
-          <Empty text={tree.message} />
-        ) : docs.length === 0 ? (
-          <Empty text="No notes yet — write one on your desktop." />
-        ) : (
-          docs.map((entry) => {
-            const dir = entry.path.includes("/")
-              ? entry.path.slice(0, entry.path.lastIndexOf("/"))
-              : null;
-            return (
-              <Pressable
-                key={entry.path}
-                style={({ pressed }) => [
-                  styles.row,
-                  { borderColor: theme.border, backgroundColor: theme.card },
-                  pressed && styles.pressed,
-                ]}
-                onPress={() =>
-                  router.push({
-                    pathname: "/notes/[...path]",
-                    params: { path: entry.path.split("/") },
-                  })
-                }
-              >
-                <Text style={[styles.title, { color: theme.cardForeground }]} numberOfLines={1}>
-                  {titleFromPath(entry.path)}
+        data={docs}
+        keyExtractor={(entry) => entry.path}
+        ListEmptyComponent={<Empty text={emptyText} />}
+        renderItem={({ item: entry }) => {
+          const dir = entry.path.includes("/")
+            ? entry.path.slice(0, entry.path.lastIndexOf("/"))
+            : null;
+          return (
+            <Pressable
+              style={({ pressed }) => [
+                styles.row,
+                { borderColor: theme.border, backgroundColor: theme.card },
+                pressed && styles.pressed,
+              ]}
+              onPress={() =>
+                router.push({
+                  pathname: "/notes/[...path]",
+                  params: { path: entry.path.split("/") },
+                })
+              }
+            >
+              <Text style={[styles.title, { color: theme.cardForeground }]} numberOfLines={1}>
+                {titleFromPath(entry.path)}
+              </Text>
+              {dir !== null ? (
+                <Text style={[styles.caption, { color: theme.mutedForeground }]} numberOfLines={1}>
+                  {dir}
                 </Text>
-                {dir !== null ? (
-                  <Text
-                    style={[styles.caption, { color: theme.mutedForeground }]}
-                    numberOfLines={1}
-                  >
-                    {dir}
-                  </Text>
-                ) : null}
-              </Pressable>
-            );
-          })
-        )}
-      </ScrollView>
+              ) : null}
+            </Pressable>
+          );
+        }}
+      />
     </SafeAreaView>
   );
 }
