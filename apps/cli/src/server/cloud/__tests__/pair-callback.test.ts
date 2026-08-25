@@ -36,18 +36,18 @@ async function boot(cloud: FakeCloud): Promise<BootedTestApp> {
  * hands the composed Request straight to the app, so the Host is whatever the
  * URL names.
  */
-function headersOf(request: Request): Record<string, string> {
-  return Object.fromEntries(request.headers.entries());
-}
-
 function beginClient(app: BootedTestApp, host: string) {
   const link = new RPCLink({
-    url: `http://${host}${RPC_PREFIX}`,
+    origin: `http://${host}`,
+    url: RPC_PREFIX,
     headers: () => ({ authorization: authorizationHeader(TEST_SERVER_TOKEN) }),
-    // A `Request` object carries no Host header — a real fetch adds one at the
+    // A fetch Request carries no Host header — a real fetch adds one at the
     // network layer — so it is set here, where the URL's authority is known.
-    fetch: async (request) =>
-      app.composed.app.request(new Request(request, { headers: { ...headersOf(request), host } })),
+    fetch: async (url, init) => {
+      const headers = new Headers(init.headers);
+      headers.set("host", host);
+      return app.composed.app.request(url, { ...init, headers });
+    },
   });
   const client: ContractRouterClient<LocalContract> = createORPCClient(link);
   return client;

@@ -12,11 +12,13 @@
 // what enforces that), so a new code is a compile error here rather than a
 // silent 500 in whichever surface forgot it. WHICH classes a given procedure
 // can raise is still declared per row, in the contract, where the client
-// reads it.
+// reads it. The HTTP status a class answers is NOT here any more — oRPC v2
+// keeps none on the error, so the asset route reads `errorStatus` from the one
+// map the handler also uses (`error-status.ts`).
 
 import { VaultPathError } from "@repo/notes/knowledge/vault-path";
 import { ORPCError } from "@orpc/server";
-import { INVALID_PATH } from "@repo/api/local/errors";
+import { errorStatus } from "../error-status";
 import { VaultServiceError, type VaultServiceErrorCode } from "./vault-service";
 
 const VAULT_REFUSALS = {
@@ -25,22 +27,6 @@ const VAULT_REFUSALS = {
   too_large: "PAYLOAD_TOO_LARGE",
   invalid_path: "INVALID_PATH",
 } as const satisfies Record<VaultServiceErrorCode | "invalid_path", string>;
-
-/**
- * The HTTP status each wire class carries. Needed in TWO places, and neither is
- * optional: `/vault/asset` answers in statuses rather than classes, AND the
- * oRPC error below must carry the status its CONTRACT ROW declares — a custom
- * class (INVALID_PATH) thrown with no status defaults to 500, and oRPC then
- * refuses to mark it a defined error, so the client's `isDefinedError` narrowing
- * silently misses it. The one custom class sources its status from the contract
- * so the two cannot drift; the rest are oRPC's own built-in statuses.
- */
-const REFUSAL_STATUS = {
-  NOT_FOUND: 404,
-  CONFLICT: 409,
-  PAYLOAD_TOO_LARGE: 413,
-  INVALID_PATH: INVALID_PATH.status,
-} as const satisfies Record<(typeof VAULT_REFUSALS)[keyof typeof VAULT_REFUSALS], number>;
 
 type VaultWireClass = (typeof VAULT_REFUSALS)[keyof typeof VAULT_REFUSALS];
 
@@ -55,12 +41,12 @@ function vaultWireClass(cause: unknown): VaultWireClass | null {
 export function vaultWireError(cause: unknown): ORPCError<string, unknown> | null {
   const wireClass = vaultWireClass(cause);
   if (wireClass === null || !(cause instanceof Error)) return null;
-  return new ORPCError(wireClass, { message: cause.message, status: REFUSAL_STATUS[wireClass] });
+  return new ORPCError(wireClass, { message: cause.message });
 }
 
-/** The status this class carries. Inferred rather than widened to `number`,
- *  so a caller answering an HTTP status gets the literal union it needs. */
-export function vaultRefusalStatus(cause: unknown) {
+/** The HTTP status a vault refusal answers, for the one surface that answers in
+ *  statuses rather than classes. Null for anything with no wire class. */
+export function vaultRefusalStatus(cause: unknown): number | null {
   const wireClass = vaultWireClass(cause);
-  return wireClass === null ? null : REFUSAL_STATUS[wireClass];
+  return wireClass === null ? null : errorStatus(wireClass);
 }

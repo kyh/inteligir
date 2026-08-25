@@ -704,7 +704,8 @@ describe("a fake-provider turn end-to-end", () => {
     const address = boundAddressSchema.parse(server.address());
     const client: ThreadsClient = createORPCClient(
       new RPCLink({
-        url: `http://127.0.0.1:${address.port}${RPC_PREFIX}`,
+        origin: `http://127.0.0.1:${address.port}`,
+        url: RPC_PREFIX,
         headers: { authorization: authorizationHeader(TEST_SERVER_TOKEN) },
       }),
     );

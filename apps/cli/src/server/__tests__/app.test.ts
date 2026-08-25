@@ -357,7 +357,8 @@ describe("the real socket upgrade", () => {
     // The typed client against the live server — contract → handler → wire →
     // client, which the in-process client cannot prove.
     const link = new RPCLink({
-      url: `http://127.0.0.1:${address.port}${RPC_PREFIX}`,
+      origin: `http://127.0.0.1:${address.port}`,
+      url: RPC_PREFIX,
       headers: { authorization: authorizationHeader(TEST_SERVER_TOKEN) },
     });
     const wireClient: RouterClient<typeof localRouter> = createORPCClient(link);

@@ -9,7 +9,6 @@
 // when someone presses a button, so the query is re-read on mount and left
 // alone.
 
-import type { VoiceStatusResponse } from "@repo/api/local/voice/voice-schema";
 import { useQuery } from "@tanstack/react-query";
 import { orpc } from "./api";
 
@@ -18,7 +17,9 @@ import { orpc } from "./api";
 const DOWNLOAD_POLL_MS = 500;
 
 export function useVoiceStatus() {
-  return useQuery<VoiceStatusResponse>({
+  // No explicit `useQuery<…>` generic: the queryOptions carry the output type,
+  // and an explicit one collides with that in oRPC v2's inference.
+  return useQuery({
     ...orpc.voice.status.queryOptions(),
     staleTime: 0,
     refetchInterval: (query) => {

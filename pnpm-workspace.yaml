@@ -8,10 +8,12 @@ catalog:
   # oRPC (issue #611): ONE contract package, two entry points, four callers.
   # The four halves are versioned together — a contract compiled by one minor
   # and served by another is exactly the drift the package exists to prevent.
-  "@orpc/client": ^1.15.0
-  "@orpc/contract": ^1.15.0
-  "@orpc/server": ^1.15.0
-  "@orpc/tanstack-query": ^1.15.0
+  # Pinned EXACT on the v2 beta: a pre-release breaks between patches, so a
+  # range would let the four drift onto different betas mid-install.
+  "@orpc/client": 2.0.0-beta.31
+  "@orpc/contract": 2.0.0-beta.31
+  "@orpc/server": 2.0.0-beta.31
+  "@orpc/tanstack-query": 2.0.0-beta.31
   # The ACP adapters (issue #588) are CHILD PROCESSES, not imports: agent-runtime
   # spawns them in dev, apps/cli ships them as real dependencies of the published
   # binary, and the two manifests must agree on the version the wire was verified

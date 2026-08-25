@@ -55,7 +55,9 @@ export async function handleVaultAsset(c: Context, vault: VaultService): Promise
       throw cause;
     }
     // Text, not the contract's envelope: nothing typed reads this body, and a
-    // refusal a browser will render is a sentence.
-    return c.text(cause instanceof Error ? cause.message : "Refused", status);
+    // refusal a browser will render is a sentence. A raw Response rather than
+    // `c.text`, which wants a literal StatusCode — the status is a plain number
+    // off the shared map, and casting it is exactly what this repo forbids.
+    return new Response(cause instanceof Error ? cause.message : "Refused", { status });
   }
 }

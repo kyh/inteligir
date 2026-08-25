@@ -35,7 +35,8 @@ function isAbort(cause: unknown): boolean {
  * why script cannot read it).
  */
 const link = new RPCLink({
-  url: () => `${window.location.origin}${RPC_PREFIX}`,
+  origin: () => window.location.origin,
+  url: RPC_PREFIX,
   interceptors: [
     onError((cause: unknown) => {
       // A cancelled query is ORDINARY: react-query aborts an in-flight fetch
