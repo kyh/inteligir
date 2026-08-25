@@ -14,6 +14,7 @@
     "@expo/metro-runtime": "catalog:",
     "@repo/api": "workspace:*",
     "@repo/domain": "workspace:*",
+    "@repo/notes": "workspace:*",
     "expo": "catalog:",
     "expo-constants": "catalog:",
     "expo-crypto": "catalog:",
@@ -31,6 +32,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@types/mdast": "catalog:",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "typescript": "catalog:",

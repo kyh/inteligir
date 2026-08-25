@@ -100,19 +100,31 @@ function HomeScreen() {
         <Text style={[styles.smallText, { color: theme.mutedForeground }]} numberOfLines={1}>
           {describeStatus(status)}
         </Text>
-        <Pressable
-          style={({ pressed }) => [
-            styles.syncButton,
-            { backgroundColor: theme.primary },
-            pressed && styles.pressed80,
-          ]}
-          disabled={refreshing}
-          onPress={() => void refresh()}
-        >
-          <Text style={[styles.smallLabel, { color: theme.primaryForeground }]}>
-            {refreshing ? "Syncing…" : "Sync"}
-          </Text>
-        </Pressable>
+        <View style={styles.syncActions}>
+          <Pressable
+            style={({ pressed }) => [
+              styles.syncButton,
+              { borderColor: theme.border, borderWidth: 1 },
+              pressed && styles.pressed80,
+            ]}
+            onPress={() => router.push("/notes")}
+          >
+            <Text style={[styles.smallLabel, { color: theme.foreground }]}>Notes</Text>
+          </Pressable>
+          <Pressable
+            style={({ pressed }) => [
+              styles.syncButton,
+              { backgroundColor: theme.primary },
+              pressed && styles.pressed80,
+            ]}
+            disabled={refreshing}
+            onPress={() => void refresh()}
+          >
+            <Text style={[styles.smallLabel, { color: theme.primaryForeground }]}>
+              {refreshing ? "Syncing…" : "Sync"}
+            </Text>
+          </Pressable>
+        </View>
       </View>
 
       <ScrollView
@@ -234,6 +246,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACE.lg,
     paddingVertical: SPACE.md,
   },
+  syncActions: { flexDirection: "row", gap: SPACE.sm },
   syncButton: { borderRadius: RADIUS.md, paddingHorizontal: SPACE.lg, paddingVertical: SPACE.sm },
   list: { paddingHorizontal: SPACE.lg, paddingBottom: 32 },
   empty: { alignItems: "center", gap: SPACE.sm, paddingVertical: 96 },

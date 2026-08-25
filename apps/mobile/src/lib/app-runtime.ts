@@ -20,6 +20,12 @@ import {
   parsePairCallback,
 } from "../pairing/expo-pairing";
 import { createMemorySyncStore } from "../sync/memory-sync-store";
+import {
+  createNotesStore,
+  type NoteRead,
+  type NotesStore,
+  type NotesTreeState,
+} from "../notes/notes-store";
 import { createSyncRuntime, type SyncRuntime, type SyncStatus } from "../sync/sync-runtime";
 import type { SyncStore } from "../sync/sync-store";
 import { projectThread, type ThreadProjection } from "../sync/thread-projection";
@@ -29,6 +35,7 @@ import { getCloudUrl } from "./cloud-url";
 interface AppRuntime {
   store: SyncStore;
   sync: SyncRuntime;
+  notes: NotesStore;
   pairing: PairingManager;
   credentials: CredentialStore;
   cloudUrl: string;
@@ -62,6 +69,7 @@ function build(): AppRuntime {
   return {
     store,
     sync,
+    notes: createNotesStore({ cloudUrl }),
     pairing,
     credentials: createSecureStoreCredential(),
     cloudUrl,
@@ -82,6 +90,7 @@ function refreshStatus(rt: AppRuntime): void {
 async function finishPairing(rt: AppRuntime, credential: DeviceCredential): Promise<void> {
   await rt.credentials.write(credential);
   rt.sync.setCredential(credential);
+  rt.notes.setCredential(credential);
   rt.sync.start();
   refreshStatus(rt);
 }
@@ -126,6 +135,7 @@ export async function ensureStarted(): Promise<void> {
   const stored = await rt.credentials.read();
   if (stored !== null) {
     rt.sync.setCredential(stored);
+    rt.notes.setCredential(stored);
     rt.sync.start();
   }
   refreshStatus(rt);
@@ -142,6 +152,7 @@ export async function unpair(): Promise<void> {
   const rt = getRuntime();
   await rt.credentials.clear();
   rt.sync.setCredential(null);
+  rt.notes.setCredential(null);
   refreshStatus(rt);
 }
 
@@ -162,7 +173,27 @@ function newIdempotencyKey(): string {
   return hex;
 }
 
+/** Fetch (or re-fetch) the vault tree; the hook below re-renders on it. */
+export async function refreshNotes(): Promise<void> {
+  await getRuntime().notes.refresh();
+}
+
+/** One note's text at the tree's commit — cached, bounded. */
+export function readNote(path: string): Promise<NoteRead> {
+  return getRuntime().notes.readNote(path);
+}
+
+/** A wiki target's vault path over the last refreshed tree, or null. */
+export function resolveWikiPath(target: string): string | null {
+  return getRuntime().notes.resolveWiki(target);
+}
+
 // -- React hooks ------------------------------------------------------------
+
+export function useNotesTree(): NotesTreeState {
+  const rt = getRuntime();
+  return useSyncExternalStore(rt.notes.tree.subscribe, rt.notes.tree.get);
+}
 
 export function useSyncStatus(): SyncStatus {
   const rt = getRuntime();

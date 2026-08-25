@@ -40,6 +40,15 @@ import {
   type PushRequest,
   type PushResponse,
 } from "@repo/api/cloud/sync/sync-schema";
+import {
+  VAULT_API_PATHS,
+  vaultFileResponseSchema,
+  vaultTreeResponseSchema,
+  type VaultFileQuery,
+  type VaultFileResponse,
+  type VaultTreeQuery,
+  type VaultTreeResponse,
+} from "@repo/api/cloud/vault/vault-schema";
 import type { z } from "zod";
 
 /** Narrower than `globalThis.fetch` on purpose: this module only ever dials a
@@ -144,6 +153,17 @@ function endpointUrl(baseUrl: string, path: string): string {
   return new URL(path, baseUrl).toString();
 }
 
+/** GET query strings, built in one place so every value is encoded and an
+ *  absent member is an absent parameter. */
+function queryString(values: Record<string, string | number | undefined>): string {
+  const parameters = new URLSearchParams();
+  for (const [key, value] of Object.entries(values)) {
+    if (value !== undefined) parameters.set(key, String(value));
+  }
+  const rendered = parameters.toString();
+  return rendered === "" ? "" : `?${rendered}`;
+}
+
 /**
  * Exchange a pairing code for the durable credential. The only unauthenticated
  * call this app makes — the code IS the credential here, which is why it is
@@ -174,6 +194,8 @@ export interface CloudClient {
   createCapture(request: CaptureRequest): Promise<CloudResult<CaptureResponse>>;
   claimCaptures(limit: number): Promise<CloudResult<ClaimCapturesResponse>>;
   ackCaptures(request: AckCapturesRequest): Promise<CloudResult<AckCapturesResponse>>;
+  vaultTree(query: VaultTreeQuery): Promise<CloudResult<VaultTreeResponse>>;
+  vaultFile(query: VaultFileQuery): Promise<CloudResult<VaultFileResponse>>;
 }
 
 export interface CreateCloudClientArgs extends CloudEndpoint {
@@ -221,5 +243,9 @@ export function createCloudClient(args: CreateCloudClientArgs): CloudClient {
     createCapture: (request) => send(CAPTURE_API_PATHS.capture, request, captureResponseSchema),
     claimCaptures: (limit) => send(CAPTURE_API_PATHS.claim, { limit }, claimCapturesResponseSchema),
     ackCaptures: (request) => send(CAPTURE_API_PATHS.ack, request, ackCapturesResponseSchema),
+    vaultTree: (query) =>
+      send(`${VAULT_API_PATHS.tree}${queryString(query)}`, undefined, vaultTreeResponseSchema),
+    vaultFile: (query) =>
+      send(`${VAULT_API_PATHS.file}${queryString(query)}`, undefined, vaultFileResponseSchema),
   };
 }

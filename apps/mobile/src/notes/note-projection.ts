@@ -1,0 +1,284 @@
+// The pure half of the mobile note renderer: dialect markdown in, a flat
+// typed block list out. The component (markdown-view.tsx) only MAPS blocks to
+// RN elements, so everything worth testing lives here, RN-free — the same
+// pure-core/thin-shell split the sync store uses.
+//
+// The parse is the vault's own (`@repo/notes/markdown/parse`); this module
+// never forks the dialect. What it decides is PRESENTATION on a phone:
+//   • comment markers render as NOTHING — a raw renderer would leak
+//     `%%i:…%%` plumbing into prose;
+//   • formula pills render their display half (or the source), read-only;
+//   • callouts recurse — their body is markdown by the dialect's own rule;
+//   • chart/canvas/html payloads and tables answer an honest `unsupported` /
+//     `raw` block rather than a lossy imitation;
+//   • a file the parse refuses opens RAW, byte-for-byte — the desktop's own
+//     posture for a doc it cannot round-trip.
+
+import type { List, PhrasingContent, Root, RootContent } from "mdast";
+import { splitFrontmatter } from "@repo/notes/markdown/frontmatter";
+import { parseMdast } from "@repo/notes/markdown/parse";
+import { parseWikiBodyRange } from "@repo/notes/markdown/remark-wiki-link";
+import { CALLOUT_LANG, CANVAS_LANG, CHART_LANG, HTML_LANG } from "@repo/notes/markdown/fence-langs";
+import { titleFromPath } from "@repo/notes/knowledge/link-extract";
+
+export type InlineSpan =
+  | {
+      kind: "text";
+      text: string;
+      bold?: boolean;
+      italic?: boolean;
+      strike?: boolean;
+      code?: boolean;
+    }
+  | { kind: "wiki-link"; target: string; label: string }
+  | { kind: "formula"; label: string }
+  | { kind: "link"; label: string; url: string };
+
+export type NoteBlock =
+  | { kind: "heading"; depth: 1 | 2 | 3 | 4 | 5 | 6; spans: InlineSpan[] }
+  | { kind: "paragraph"; spans: InlineSpan[] }
+  | {
+      kind: "list-item";
+      depth: number;
+      /** 1-based ordinal for an ordered item; null for a bullet. */
+      ordinal: number | null;
+      /** true/false for a task checkbox; null for a plain item. */
+      checked: boolean | null;
+      spans: InlineSpan[];
+    }
+  | { kind: "code"; lang: string | null; text: string }
+  | { kind: "callout"; label: string; blocks: NoteBlock[] }
+  | { kind: "quote"; blocks: NoteBlock[] }
+  | { kind: "divider" }
+  | { kind: "unsupported"; label: string }
+  | { kind: "raw"; text: string };
+
+export type NoteProjection =
+  | { kind: "note"; title: string; blocks: NoteBlock[] }
+  | { kind: "raw"; title: string; text: string; reason: string };
+
+const UNSUPPORTED_FENCES = new Map<string, string>([
+  [CHART_LANG, "Chart"],
+  [CANVAS_LANG, "Canvas"],
+  [HTML_LANG, "HTML block"],
+]);
+
+type SpanStyle = { bold?: boolean; italic?: boolean; strike?: boolean };
+
+function flattenInline(nodes: readonly PhrasingContent[], style: SpanStyle = {}): InlineSpan[] {
+  const spans: InlineSpan[] = [];
+  for (const node of nodes) {
+    switch (node.type) {
+      case "text":
+        spans.push({ kind: "text", text: node.value, ...style });
+        break;
+      case "strong":
+        spans.push(...flattenInline(node.children, { ...style, bold: true }));
+        break;
+      case "emphasis":
+        spans.push(...flattenInline(node.children, { ...style, italic: true }));
+        break;
+      case "delete":
+        spans.push(...flattenInline(node.children, { ...style, strike: true }));
+        break;
+      case "inlineCode":
+        spans.push({ kind: "text", text: node.value, ...style, code: true });
+        break;
+      case "break":
+        spans.push({ kind: "text", text: "\n", ...style });
+        break;
+      case "link":
+        spans.push({
+          kind: "link",
+          label: flattenInline(node.children).map(spanText).join("") || node.url,
+          url: node.url,
+        });
+        break;
+      case "image":
+        spans.push({
+          kind: "text",
+          text:
+            node.alt === null || node.alt === undefined || node.alt === "" ? "[image]" : node.alt,
+          ...style,
+        });
+        break;
+      case "wikiLink":
+      case "wikiEmbed": {
+        const body = parseWikiBodyRange(node.body);
+        spans.push({
+          kind: "wiki-link",
+          target: body.target,
+          label:
+            body.alias ??
+            (body.anchor === undefined ? body.target : `${body.target}#${body.anchor}`),
+        });
+        break;
+      }
+      case "formulaPill":
+        spans.push({ kind: "formula", label: node.display === "" ? node.source : node.display });
+        break;
+      case "commentMarker":
+        // Review plumbing, never prose.
+        break;
+      case "html":
+        // Inline opaque html (comments included) is plumbing on a phone.
+        break;
+      default:
+        spans.push({ kind: "text", text: rawSlice(node) ?? "", ...style });
+    }
+  }
+  return spans;
+}
+
+function spanText(span: InlineSpan): string {
+  switch (span.kind) {
+    case "text":
+      return span.text;
+    case "wiki-link":
+    case "formula":
+      return span.label;
+    case "link":
+      return span.label;
+  }
+}
+
+/** The node's own source bytes, when the parser kept offsets — the honest
+ *  fallback for anything this projection does not model. */
+function rawSlice(node: {
+  position?:
+    | { start: { offset?: number | undefined }; end: { offset?: number | undefined } }
+    | undefined;
+}): string | null {
+  const start = node.position?.start.offset;
+  const end = node.position?.end.offset;
+  if (start === undefined || end === undefined) return null;
+  return currentSource.slice(start, end);
+}
+
+// Threaded through the recursion as module state rather than a parameter on
+// every helper: one projection runs at a time (the entry point sets it), and
+// the alternative threads an argument through ten signatures for one reader.
+let currentSource = "";
+
+function projectList(list: List, depth: number, blocks: NoteBlock[]): void {
+  let ordinal = list.ordered === true ? (list.start ?? 1) : null;
+  for (const item of list.children) {
+    let first = true;
+    for (const child of item.children) {
+      if (child.type === "paragraph" && first) {
+        blocks.push({
+          kind: "list-item",
+          depth,
+          ordinal,
+          checked: item.checked ?? null,
+          spans: flattenInline(child.children),
+        });
+        first = false;
+      } else if (child.type === "list") {
+        projectList(child, depth + 1, blocks);
+      } else {
+        projectBlock(child, blocks);
+      }
+    }
+    if (first) {
+      // An item with no paragraph (e.g. only a nested list) still owns a row.
+      blocks.push({
+        kind: "list-item",
+        depth,
+        ordinal,
+        checked: item.checked ?? null,
+        spans: [],
+      });
+    }
+    if (ordinal !== null) ordinal += 1;
+  }
+}
+
+/** The callout payload: a kind line, an optional level line, then the body. */
+function projectCallout(payload: string, blocks: NoteBlock[]): void {
+  const lines = payload.split("\n");
+  const label = (lines[0] ?? "note").trim() || "note";
+  let bodyStart = 1;
+  if (lines[bodyStart] !== undefined && /^level=\d+$/.test(lines[bodyStart] ?? "")) {
+    bodyStart += 1;
+  }
+  const body = lines.slice(bodyStart).join("\n");
+  blocks.push({ kind: "callout", label, blocks: projectSource(body) });
+}
+
+function projectBlock(node: RootContent, blocks: NoteBlock[]): void {
+  switch (node.type) {
+    case "heading":
+      blocks.push({ kind: "heading", depth: node.depth, spans: flattenInline(node.children) });
+      break;
+    case "paragraph":
+      blocks.push({ kind: "paragraph", spans: flattenInline(node.children) });
+      break;
+    case "list":
+      projectList(node, 0, blocks);
+      break;
+    case "code": {
+      const unsupported = node.lang === null ? undefined : UNSUPPORTED_FENCES.get(node.lang ?? "");
+      if (unsupported !== undefined) {
+        blocks.push({ kind: "unsupported", label: unsupported });
+      } else if (node.lang === CALLOUT_LANG) {
+        projectCallout(node.value, blocks);
+      } else {
+        blocks.push({ kind: "code", lang: node.lang ?? null, text: node.value });
+      }
+      break;
+    }
+    case "blockquote": {
+      const inner: NoteBlock[] = [];
+      for (const child of node.children) projectBlock(child, inner);
+      blocks.push({ kind: "quote", blocks: inner });
+      break;
+    }
+    case "thematicBreak":
+      blocks.push({ kind: "divider" });
+      break;
+    case "yaml":
+    case "html":
+      // Frontmatter is folded by the entry point; block html is opaque
+      // plumbing (legacy thread markers parse as comments and stay unshown).
+      break;
+    default: {
+      const raw = rawSlice(node);
+      if (raw !== null && raw.trim() !== "") {
+        blocks.push({ kind: "raw", text: raw });
+      }
+    }
+  }
+}
+
+function projectParsed(source: string, root: Root): NoteBlock[] {
+  const previous = currentSource;
+  currentSource = source;
+  try {
+    const blocks: NoteBlock[] = [];
+    for (const child of root.children) projectBlock(child, blocks);
+    return blocks;
+  } finally {
+    currentSource = previous;
+  }
+}
+
+/** The callout recursion's entry: a payload that refuses to parse renders raw
+ *  INSIDE the card rather than failing the whole note. */
+function projectSource(source: string): NoteBlock[] {
+  const parsed = parseMdast(source);
+  if (!parsed.ok) {
+    return [{ kind: "raw", text: source }];
+  }
+  return projectParsed(source, parsed.root);
+}
+
+export function projectNote(path: string, content: string): NoteProjection {
+  const title = titleFromPath(path);
+  const { body } = splitFrontmatter(content);
+  const parsed = parseMdast(body);
+  if (!parsed.ok) {
+    return { kind: "raw", title, text: content, reason: parsed.failure.message };
+  }
+  return { kind: "note", title, blocks: projectParsed(body, parsed.root) };
+}

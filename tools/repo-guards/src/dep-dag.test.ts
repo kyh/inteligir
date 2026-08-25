@@ -102,11 +102,18 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
     // @repo/domain edge is the ThreadEvent grammar: the pull answers opaque
     // event bodies, and this client parses each with `threadEventSchema` before
     // it renders one. Both are zod-only leaves, so the edge costs the RN bundle
-    // only the schemas it already parses — and the phone reaches NOTHING else
-    // in the repo (no local server, no apps/web worker, no @repo/notes vault
-    // engine): the settled shape is that the agent and the vault stay on the
-    // desktop.
-    "@repo/mobile": ["@repo/api", "@repo/domain"],
+    // only the schemas it already parses.
+    //
+    // The @repo/notes edge is the vault READ surface (#618, owner's call
+    // 2026-08-25, revising the earlier "no @repo/notes" line): the phone
+    // renders notes from the hosted vault through the dialect's OWN parse and
+    // resolves wiki links with the same pickBest as the desktop — a second
+    // parser or resolver would drift per device. The package is guard-pure
+    // (no node/react — the platform rules below), so the edge carries only
+    // remark and the resolvers. What the phone still reaches NOTHING of: the
+    // local server, the apps/web worker, the vault ENGINE (git, watcher,
+    // sqlite index) and the agent — those stay on the desktop.
+    "@repo/mobile": ["@repo/api", "@repo/domain", "@repo/notes"],
     // The Cloudflare Worker. Only the two packages it can survive on workerd —
     // see the workerd rule below for what enforces that beyond this row.
     "@repo/web": ["@repo/api", "@repo/ui"],

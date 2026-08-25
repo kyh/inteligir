@@ -76,9 +76,10 @@ apps/
                  src/worker/vault/git-remote.ts, one per user, device-authed.
                  src/worker/ is its own tsconfig program (no DOM —
                  workerd's globals must win).
-  mobile/        @repo/mobile — the Expo RN client (#576): a sync-only
-                 thread/capture surface over @repo/api/cloud; reaches nothing
-                 but that and domain.
+  mobile/        @repo/mobile — the Expo RN client (#576): threads, captures
+                 and (#618) a read-only notes surface over the hosted vault's
+                 /cloud read rows, rendered through @repo/notes' own parse;
+                 reaches @repo/api/cloud, @repo/domain and @repo/notes only.
 packages/
   domain/        @repo/domain — zod-only leaf vocabulary (view context, ids,
                  provider events), vendored-from-bb shapes; every package may

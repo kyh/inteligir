@@ -18,6 +18,7 @@ import type {
 } from "@repo/api/cloud/sync/sync-schema";
 import { threadScope, turnScope } from "@repo/domain/thread-event-scope";
 import type { ThreadEvent } from "@repo/domain/provider-event";
+import type { VaultFileResponse } from "@repo/api/cloud/vault/vault-schema";
 import type { CloudClient, CloudResult } from "../cloud-client";
 
 export function userRequest(threadId: string, text: string): ThreadEvent {
@@ -121,6 +122,14 @@ export function createFakeCloud(): FakeCloud {
             ok({ results: request.ids.map((id) => ({ id, outcome: "deleted" as const })) }),
         );
       },
+      // The sync runtime never reads the vault; the notes-store suite fakes
+      // its own client. An empty vault is the honest inert answer here.
+      vaultTree: () => Promise.resolve(ok({ commit: "0".repeat(40), entries: [], next: null })),
+      vaultFile: () =>
+        Promise.resolve<CloudResult<VaultFileResponse>>({
+          ok: false,
+          failure: { kind: "refused", code: "not-found", message: "empty fake", deviceSeq: null },
+        }),
     },
   };
   return fake;
