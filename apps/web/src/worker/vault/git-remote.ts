@@ -1,3 +1,4 @@
+import { VAULT_GIT_PATH } from "@repo/api/cloud/vault/vault-git";
 import { createDurableGit } from "durable-git";
 import { createDb } from "../db/client";
 import { verifyDeviceCredentialValue, type VerifiedDevice } from "../device/device-auth";
@@ -38,7 +39,7 @@ import { verifyDeviceCredentialValue, type VerifiedDevice } from "../device/devi
 // pings the user's ThreadSyncDO itself, off the response path.
 // ---------------------------------------------------------------------------
 
-export const VAULT_GIT_PREFIX = "/v1/git/vault.git";
+export const VAULT_GIT_PREFIX = VAULT_GIT_PATH;
 
 /** Stamped after verification, checked by dgit's authorize hook. Never
  *  accepted from the wire — the wrapper strips any inbound copy. */

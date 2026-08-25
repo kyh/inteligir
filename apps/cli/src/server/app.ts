@@ -195,6 +195,12 @@ export function createApp(args: CreateAppArgs) {
     dataDir: args.config.dataDir,
     cloudUrl: args.config.cloudUrl,
     vault: args.vault.service,
+    // Another device pushed vault bytes (or a pairing just completed): run a
+    // vault sync pass. The rebase's consolidated files-changed notification
+    // then carries the applied changes to the renderer on its own.
+    onVaultPing: () => {
+      void args.vault.syncNow();
+    },
   };
   if (args.cloudTransport !== undefined) cloudArgs.transport = args.cloudTransport;
   if (args.openExternalUrl !== undefined) cloudArgs.openExternalUrl = args.openExternalUrl;

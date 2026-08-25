@@ -104,7 +104,7 @@ export async function bootTestApp(options: BootTestAppOptions = {}): Promise<Boo
   let knowledgeSink: KnowledgeRuntime | null = null;
   const vault = await createVaultRuntime({
     vaultDir,
-    vaultRemote: null,
+    remote: () => null,
     dataDir,
     notifier: bus,
     onFilesChanged: (change) => knowledgeSink?.noteVaultChange(change),

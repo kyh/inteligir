@@ -62,6 +62,8 @@ export function syncStateLabel(status: VaultStatusResponse): string {
       return "Waiting on an agent turn";
     case "offline":
       return "Offline";
+    case "unauthorized":
+      return "Not authorized — re-pair this device";
     case "conflict":
       return `Conflict (${status.conflict.files.length})`;
     case "broken":
@@ -93,6 +95,7 @@ export function syncStateDotClass(status: VaultStatusResponse): string {
       return "bg-sky-500";
     case "offline":
       return "bg-muted-foreground/60";
+    case "unauthorized":
     case "conflict":
     case "broken":
       return "bg-destructive";
@@ -122,6 +125,7 @@ export function syncBlockedReason(status: VaultStatusResponse): string | null {
     case "clean":
     case "dirty":
     case "offline":
+    case "unauthorized":
     case "conflict":
     case "broken":
       return null;
@@ -192,6 +196,11 @@ function syncNowNotice(status: VaultStatusResponse): SyncNowNotice | null {
           status.lastError === null
             ? "Could not reach the git remote."
             : `Could not reach the git remote: ${status.lastError}`,
+      };
+    case "unauthorized":
+      return {
+        tone: "error",
+        message: "The remote refused this device's credential — re-pair in Settings → Devices.",
       };
     case "clean":
     case "dirty":

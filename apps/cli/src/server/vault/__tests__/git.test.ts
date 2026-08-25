@@ -1,7 +1,9 @@
 import { existsSync } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";
+import { createServer } from "node:http";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { z } from "zod";
 import {
   createGitEngine,
   ensureVaultRepo,
@@ -21,6 +23,10 @@ afterEach(async () => {
 });
 
 const env = hermeticGitEnv();
+
+/** `net.Server#address()` answers a pipe name, an AddressInfo, or null — the
+ *  test server bound a TCP port, so the union is parsed rather than narrowed. */
+const boundAddressSchema = z.object({ port: z.number() });
 
 function scratchDir(prefix: string): string {
   const dir = makeTempDir(prefix);
@@ -43,7 +49,7 @@ async function makeEngine(args: {
   let statusChanges = 0;
   const engineArgs: GitEngineArgs = {
     root,
-    remoteUrl: args.remoteUrl,
+    remote: () => (args.remoteUrl === null ? null : { url: args.remoteUrl, source: "explicit" }),
     env,
     onStatusChanged: () => {
       statusChanges += 1;
@@ -412,5 +418,89 @@ describe("runGit", () => {
       { env: { ...env, GIT_SSH_COMMAND: "ssh -F /custom/config" } },
     );
     expect(stdout.trim()).toBe("ssh -F /custom/config");
+  });
+});
+
+describe("the clone path", () => {
+  it("clones a populated remote instead of init+seed — a second device joins the vault", async () => {
+    const remote = await makeBareRemote();
+    const a = await makeEngine({ remoteUrl: remote });
+    await writeFile(join(a.root, "note.md"), "# from A\n");
+    await a.engine.commitNow();
+    expect((await a.engine.syncNow()).state).toBe("clean");
+
+    const bRoot = join(scratchDir("inteligir-git-clone-"), "vault");
+    let seeded = false;
+    const { created, cloned } = await ensureVaultRepo({
+      root: bRoot,
+      remote: { url: remote, source: "explicit" },
+      seed: async () => {
+        seeded = true;
+      },
+      env,
+    });
+    expect(created).toBe(true);
+    expect(cloned).toBe(true);
+    expect(seeded).toBe(false);
+    expect(await readFile(join(bRoot, "note.md"), "utf8")).toBe("# from A\n");
+  });
+
+  it("falls through to init+seed when the remote has no vault to clone", async () => {
+    // A fresh account's hosted repo answers 404 until its first push.
+    const bRoot = join(scratchDir("inteligir-git-clone-miss-"), "vault");
+    let seeded = false;
+    const { created, cloned } = await ensureVaultRepo({
+      root: bRoot,
+      remote: { url: join(scratchDir("inteligir-git-nowhere-"), "gone.git"), source: "explicit" },
+      seed: async () => {
+        seeded = true;
+      },
+      env,
+    });
+    expect(created).toBe(true);
+    expect(cloned).toBe(false);
+    expect(seeded).toBe(true);
+    expect(existsSync(join(bRoot, ".git"))).toBe(true);
+  });
+});
+
+describe("a refused credential", () => {
+  it("surfaces as `unauthorized`, not `offline`", async () => {
+    // The fixes are opposite: offline heals on its own, while a revoked
+    // device fails every retry the same way until the user re-pairs.
+    const server = createServer((_request, response) => {
+      response.writeHead(401, { "www-authenticate": 'Basic realm="test"' });
+      response.end("auth required\n");
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    cleanups.push(() => new Promise<void>((resolve) => server.close(() => resolve())));
+    const { port } = boundAddressSchema.parse(server.address());
+
+    const { engine } = await makeEngine({
+      remoteUrl: `http://127.0.0.1:${String(port)}/vault.git`,
+    });
+    const status = await engine.syncNow();
+    expect(status.state).toBe("unauthorized");
+  });
+});
+
+describe("a live remote provider", () => {
+  it("turns sync on mid-life — the pairing flip needs no engine restart", async () => {
+    const remote = await makeBareRemote();
+    const root = scratchDir("inteligir-git-live-");
+    await ensureVaultRepo({ root, env });
+    let current: { url: string; source: "paired" } | null = null;
+    const engine = createGitEngine({ root, remote: () => current, env });
+    cleanups.push(() => engine.dispose());
+
+    expect((await engine.status()).state).toBe("no-remote");
+
+    current = { url: remote, source: "paired" };
+    await writeFile(join(root, "note.md"), "# paired\n");
+    await engine.commitNow();
+    expect((await engine.syncNow()).state).toBe("clean");
+
+    current = null;
+    expect((await engine.status()).state).toBe("no-remote");
   });
 });

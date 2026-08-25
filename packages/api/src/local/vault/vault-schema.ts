@@ -321,6 +321,17 @@ export const vaultStatusResponseSchema = z.discriminatedUnion("state", [
       ...syncStatusFields,
     })
     .strict(),
+  /** The remote REFUSED the credential (a revoked device). Its own state
+   *  rather than `offline` because the fixes are opposite: offline heals on
+   *  its own, while every retry here fails the same way until the user
+   *  re-pairs. */
+  z
+    .object({
+      state: z.literal("unauthorized"),
+      remote: z.string().min(1),
+      ...syncStatusFields,
+    })
+    .strict(),
   z
     .object({
       state: z.literal("conflict"),

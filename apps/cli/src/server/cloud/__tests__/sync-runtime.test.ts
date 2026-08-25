@@ -86,6 +86,8 @@ interface Harness {
   socketOpens: OpenCloudSocketArgs[];
   /** Every URL this runtime asked the desktop to open. */
   opened: string[];
+  /** How many vault passes the runtime asked for (the onVaultPing hook). */
+  vaultPings: () => number;
 }
 
 function makeHarness(
@@ -107,6 +109,7 @@ function makeHarness(
   const applied: Harness["applied"] = [];
   const socketOpens: OpenCloudSocketArgs[] = [];
   const opened: string[] = [];
+  let vaultPings = 0;
   const sink: SyncedEventSink = {
     applySyncedEvents: (args) => {
       applied.push({
@@ -134,6 +137,9 @@ function makeHarness(
     cloudUrl: CLOUD_URL,
     vault,
     onDebug: () => undefined,
+    onVaultPing: () => {
+      vaultPings += 1;
+    },
     openExternalUrl: async (url) => {
       opened.push(url);
       return options.canOpenBrowser ?? true;
@@ -145,7 +151,17 @@ function makeHarness(
     void runtime.dispose();
     closeConnection(db);
   });
-  return { db, dataDir, cloud, vault, runtime, applied, socketOpens, opened };
+  return {
+    db,
+    dataDir,
+    cloud,
+    vault,
+    runtime,
+    applied,
+    socketOpens,
+    opened,
+    vaultPings: () => vaultPings,
+  };
 }
 
 function message(threadId: string, text: string): ThreadEvent {
@@ -512,6 +528,22 @@ describe("the invalidation socket", () => {
     await harness.runtime.syncNow();
     expect(afterCovered).toBeGreaterThan(quiet);
     expect(harness.cloud.requests.length).toBeGreaterThan(afterCovered);
+  });
+
+  it("routes a vault ping to the vault hook and starts no thread pass", async () => {
+    const harness = makeHarness({ pollIntervalMs: null });
+    await pair(harness);
+    const dial = harness.socketOpens[0];
+    if (dial === undefined) throw new Error("expected a socket dial");
+    // The pairing itself kicks one vault pass (the derived remote is new).
+    expect(harness.vaultPings()).toBe(1);
+    const quiet = harness.cloud.requests.length;
+
+    dial.onPing({ type: "vault" });
+    expect(harness.vaultPings()).toBe(2);
+    // The pass that answers a vault ping is the git engine's, not this
+    // runtime's — no thread request may ride it.
+    expect(harness.cloud.requests).toHaveLength(quiet);
   });
 
   it("re-dials after a close, and a severed socket turns into a refusal", async () => {

@@ -72,7 +72,7 @@ describe("the vault routes", () => {
     await expect(
       createVaultRuntime({
         vaultDir: join(instanceDir, "vault"),
-        vaultRemote: null,
+        remote: () => null,
         dataDir: instanceDir,
         notifier: new WsBus(),
         watch: false,

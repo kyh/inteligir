@@ -199,6 +199,10 @@ export interface CloudRuntimeArgs {
   /** How a pairing sends the user to their browser. Injected so a suite can
    *  drive the whole flow without a window opening on whoever ran it. */
   openExternalUrl?: OpenExternalUrl;
+  /** Run a VAULT sync pass — the `vault` ping's handler, and kicked once
+   *  after a pairing completes so the newly derived hosted remote syncs
+   *  without waiting out the interval. Thread sync stays this runtime's own. */
+  onVaultPing?: () => void;
   onDebug?: (message: string) => void;
 }
 
@@ -411,11 +415,17 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
         reconnectAttempt = 0;
       },
       onPing: (ping) => {
-        // Invalidation-only frames, so all three mean "ask the server what
+        // Invalidation-only frames, so each means "ask the server what
         // changed" — including `dispatch`, whose thread still wants pulling so
         // it shows up here rather than existing only in the cloud. A `sync`
         // ping carries the log's high-water precisely so a client can tell one
-        // it already covers from news.
+        // it already covers from news. `vault` is the one frame that is not
+        // about THIS log: another device pushed vault bytes, and the pass
+        // that answers it is the git engine's, not this runtime's.
+        if (ping.type === "vault") {
+          args.onVaultPing?.();
+          return;
+        }
         if (ping.type === "sync" && ping.seq <= readSyncState(args.db).cursor) {
           return;
         }
@@ -956,6 +966,9 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
       armTimers();
       connect();
       await syncNow();
+      // The pairing just derived a hosted vault remote; sync it now rather
+      // than on the next interval tick.
+      args.onVaultPing?.();
       return { kind: "paired", status: status() };
     },
 

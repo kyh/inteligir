@@ -197,7 +197,8 @@ const ENV_VARS = {
   }),
   vaultRemote: defineEnvVar({
     name: "INTELIGIR_VAULT_REMOTE",
-    description: "Git remote URL the vault syncs against; unset means local-only.",
+    description:
+      "Git remote URL the vault syncs against. Unset, a PAIRED install derives the hosted remote from its device credential; unset and unpaired means local-only.",
     parse: ({ name, value }) => parseRemoteUrlValue(name, value),
   }),
   vaultSyncIntervalMs: defineEnvVar({
@@ -362,7 +363,9 @@ export interface AppConfig {
   portSource: "env" | "managed-config" | "default";
   /** The vault: a git repo of markdown files, created on first boot if absent. */
   vaultDir: string;
-  /** null means local-only — no sync loop runs. */
+  /** The EXPLICIT remote (env/config.json), or null when none is set — in
+   *  which case a paired install still derives the hosted one per pass
+   *  (cloud/vault-remote.ts); truly local-only means null here AND unpaired. */
   vaultRemote: string | null;
   /** Absent = the runtime's default cadence; null = disabled (explicit syncs
    *  only); a positive number = the cadence in ms. */
