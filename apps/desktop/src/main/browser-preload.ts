@@ -5,6 +5,7 @@
 // nothing here takes a channel name, a path, or anything but the URL-bar text.
 
 import { contextBridge, ipcRenderer } from "electron";
+import { BROWSER_IPC } from "./browser-ipc";
 
 export interface BrowserChromeState {
   url: string;
@@ -21,19 +22,19 @@ export interface SendToAgentResult {
 
 const api = {
   navigate(input: string): void {
-    void ipcRenderer.invoke("inteligir-browser:navigate", input);
+    void ipcRenderer.invoke(BROWSER_IPC.NAVIGATE, input);
   },
   back(): void {
-    void ipcRenderer.invoke("inteligir-browser:back");
+    void ipcRenderer.invoke(BROWSER_IPC.BACK);
   },
   forward(): void {
-    void ipcRenderer.invoke("inteligir-browser:forward");
+    void ipcRenderer.invoke(BROWSER_IPC.FORWARD);
   },
   reload(): void {
-    void ipcRenderer.invoke("inteligir-browser:reload");
+    void ipcRenderer.invoke(BROWSER_IPC.RELOAD);
   },
   async sendToAgent(): Promise<SendToAgentResult> {
-    const result: unknown = await ipcRenderer.invoke("inteligir-browser:send-to-agent");
+    const result: unknown = await ipcRenderer.invoke(BROWSER_IPC.SEND_TO_AGENT);
     // The bridge does not trust shapes across the boundary either way.
     if (
       typeof result === "object" &&
@@ -48,7 +49,7 @@ const api = {
     return { ok: false, detail: "malformed shell response" };
   },
   onState(listener: (state: BrowserChromeState) => void): void {
-    ipcRenderer.on("inteligir-browser:state", (_event, state: BrowserChromeState) => {
+    ipcRenderer.on(BROWSER_IPC.STATE, (_event, state: BrowserChromeState) => {
       listener(state);
     });
   },

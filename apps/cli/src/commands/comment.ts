@@ -8,9 +8,9 @@
 import { randomBytes } from "node:crypto";
 import { defineCommand } from "citty";
 
-import type { CommentThreadWire } from "@repo/server-contract/comments";
+import type { CommentThreadWire } from "@repo/api/local/comments/comments-schema";
 import { apiFor, type CliDeps } from "../context";
-import { jsonArg, outputJson, requireOk, writeLines } from "../output";
+import { jsonArg, outputJson, writeLines } from "../output";
 
 function mintCommentId(): string {
   return `c${randomBytes(5).toString("hex")}`;
@@ -36,9 +36,8 @@ export function commentCommand(deps: CliDeps) {
           ...jsonArg,
         },
         run: async ({ args }) => {
-          const api = await apiFor(deps);
-          const response = await requireOk(await api.comments.$get({ query: { path: args.path } }));
-          const body = await response.json();
+          const api = apiFor(deps);
+          const body = await api.comments.list({ path: args.path });
           if (outputJson(args, body)) {
             return;
           }
@@ -62,12 +61,9 @@ export function commentCommand(deps: CliDeps) {
           ...jsonArg,
         },
         run: async ({ args }) => {
-          const api = await apiFor(deps);
+          const api = apiFor(deps);
           const id = mintCommentId();
-          const response = await requireOk(
-            await api.comments.add.$post({ json: { id, path: args.path, text: args.text } }),
-          );
-          const body = await response.json();
+          const body = await api.comments.add({ id, path: args.path, text: args.text });
           if (outputJson(args, { id, ...body })) {
             return;
           }
@@ -84,14 +80,14 @@ export function commentCommand(deps: CliDeps) {
           ...jsonArg,
         },
         run: async ({ args }) => {
-          const api = await apiFor(deps);
+          const api = apiFor(deps);
           const id = mintCommentId();
-          const response = await requireOk(
-            await api.comments.reply.$post({
-              json: { id, parentId: args.parent, path: args.path, text: args.text },
-            }),
-          );
-          const body = await response.json();
+          const body = await api.comments.reply({
+            id,
+            parentId: args.parent,
+            path: args.path,
+            text: args.text,
+          });
           if (outputJson(args, { id, ...body })) {
             return;
           }
@@ -108,14 +104,9 @@ export function commentCommand(deps: CliDeps) {
           ...jsonArg,
         },
         run: async ({ args }) => {
-          const api = await apiFor(deps);
+          const api = apiFor(deps);
           const resolved = args.reopen !== true;
-          const response = await requireOk(
-            await api.comments.resolve.$post({
-              json: { id: args.id, path: args.path, resolved },
-            }),
-          );
-          const body = await response.json();
+          const body = await api.comments.resolve({ id: args.id, path: args.path, resolved });
           if (outputJson(args, body)) {
             return;
           }
@@ -134,11 +125,8 @@ export function commentCommand(deps: CliDeps) {
           ...jsonArg,
         },
         run: async ({ args }) => {
-          const api = await apiFor(deps);
-          const response = await requireOk(
-            await api.comments.remove.$post({ json: { id: args.id, path: args.path } }),
-          );
-          const body = await response.json();
+          const api = apiFor(deps);
+          const body = await api.comments.remove({ id: args.id, path: args.path });
           if (outputJson(args, body)) {
             return;
           }

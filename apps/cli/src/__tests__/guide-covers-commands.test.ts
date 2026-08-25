@@ -8,10 +8,10 @@
 // SOURCE (a comment mentioning a command satisfied the check), and it does
 // not stop at command names (`interactions answer --thread` was undocumented
 // and unnoticed). It reads the guide's RENDERED markdown — the bytes an agent
-// receives from GET /api/v1/guide — and the inventory comes from the citty
+// receives from system.guide — and the inventory comes from the citty
 // tree.
 
-import { CLI_SKILL_MD } from "@repo/app/node/guide/cli-skill";
+import { CLI_SKILL_MD } from "../server/guide/cli-skill";
 import { describe, expect, it } from "vitest";
 import { argsOf, collectLeafCommands } from "../command-tree";
 import { testProgram } from "./command-tree";

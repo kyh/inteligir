@@ -20,24 +20,21 @@ export const threadsScripted: Scenario = {
     });
 
     ctx.log("create a thread");
-    const created = await app.api.threads.create.$post({ json: { title: "e2e scripted turn" } });
-    expect(created.status === 201, `create answered ${created.status}`);
-    const { thread } = await created.json();
+    const { thread } = await app.api.threads.create({ title: "e2e scripted turn" });
+    expect(thread.id.length > 0, "create answered a thread");
 
     ctx.log("send a message");
-    const send = await app.api.threads.send.$post({
-      json: { threadId: thread.id, text: TURN_TEXT, mode: "steer-if-active" },
+    const outcome = await app.api.threads.send({
+      threadId: thread.id,
+      text: TURN_TEXT,
+      mode: "steer-if-active",
     });
-    expect(send.status === 200, `send answered ${send.status}`);
-    const outcome = await send.json();
     expect(outcome.kind === "started", `send outcome was "${outcome.kind}"`);
 
     ctx.log("wait for the turn to settle");
     const deadline = Date.now() + TURN_DEADLINE_MS;
     for (;;) {
-      const detail = await app.api.threads.get.$get({ query: { threadId: thread.id } });
-      expect(detail.status === 200, `thread get answered ${detail.status}`);
-      const { thread: current } = await detail.json();
+      const { thread: current } = await app.api.threads.get({ threadId: thread.id });
       if (current.status === "idle") {
         break;
       }
@@ -47,9 +44,7 @@ export const threadsScripted: Scenario = {
     }
 
     ctx.log("read the timeline");
-    const timeline = await app.api.threads.timeline.$get({ query: { threadId: thread.id } });
-    expect(timeline.status === 200, `timeline answered ${timeline.status}`);
-    const body = await timeline.json();
+    const body = await app.api.threads.timeline({ threadId: thread.id });
     expect(body.kind === "full", `timeline without afterSequence answers full, got "${body.kind}"`);
     const rows = body.timeline.rows;
     expect(

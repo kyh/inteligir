@@ -7,7 +7,7 @@ import * as Crypto from "expo-crypto";
 import * as Linking from "expo-linking";
 import * as WebBrowser from "expo-web-browser";
 import { Platform } from "react-native";
-import { PAIR_CALLBACK_PARAMS } from "@repo/cloud-contract/pairing";
+import { PAIR_CALLBACK_PARAMS } from "@repo/api/cloud/pairing/pairing-schema";
 import { z } from "zod";
 import type { PkceCrypto } from "./pkce";
 

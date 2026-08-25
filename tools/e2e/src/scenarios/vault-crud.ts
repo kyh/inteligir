@@ -4,12 +4,19 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
+import { ORPCError, safe } from "@orpc/client";
 import { expect, expectEq } from "../harness/assert";
 import type { Scenario } from "../harness/scenario";
 
 const FIXTURE_CONTENT = "# Seeded fixture\n";
 const FIRST_CONTENT = "# Hello\n\nWritten by the e2e harness.\n";
 const SECOND_CONTENT = "# Hello again\n\nOverwritten by the e2e harness.\n";
+
+/** The class a refusal carries, or its own text when it carries none — so a
+ *  failure message names what actually came back. */
+function refusalClass(cause: unknown): string {
+  return cause instanceof ORPCError ? cause.code : String(cause);
+}
 
 export const vaultCrud: Scenario = {
   name: "vault-crud",
@@ -24,20 +31,15 @@ export const vaultCrud: Scenario = {
     const { api, vaultDir } = app;
 
     ctx.log("listing the seeded tree");
-    const tree = await api.vault.tree.$get();
-    expect(tree.status === 200, `tree answered ${tree.status}`);
-    const treeBody = await tree.json();
+    const tree = await api.vault.tree();
     expect(
-      treeBody.entries.some((entry) => entry.kind === "file" && entry.path === "fixture.md"),
+      tree.entries.some((entry) => entry.kind === "file" && entry.path === "fixture.md"),
       "the pre-boot fixture file is listed",
     );
 
     ctx.log("write notes/hello.md");
-    const write = await api.vault.file.$put({
-      json: { path: "notes/hello.md", content: FIRST_CONTENT },
-    });
-    expect(write.status === 200, `write answered ${write.status}`);
-    expectEq((await write.json()).path, "notes/hello.md", "write echoes the path");
+    const write = await api.vault.write({ path: "notes/hello.md", content: FIRST_CONTENT });
+    expectEq(write.path, "notes/hello.md", "write echoes the path");
     expectEq(
       await readFile(join(vaultDir, "notes", "hello.md"), "utf8"),
       FIRST_CONTENT,
@@ -45,14 +47,10 @@ export const vaultCrud: Scenario = {
     );
 
     ctx.log("read it back and overwrite");
-    const read = await api.vault.file.$get({ query: { path: "notes/hello.md" } });
-    expect(read.status === 200, `read answered ${read.status}`);
-    expectEq((await read.json()).content, FIRST_CONTENT, "read-back content");
+    const read = await api.vault.read({ path: "notes/hello.md" });
+    expectEq(read.content, FIRST_CONTENT, "read-back content");
 
-    const overwrite = await api.vault.file.$put({
-      json: { path: "notes/hello.md", content: SECOND_CONTENT },
-    });
-    expect(overwrite.status === 200, `overwrite answered ${overwrite.status}`);
+    await api.vault.write({ path: "notes/hello.md", content: SECOND_CONTENT });
     expectEq(
       await readFile(join(vaultDir, "notes", "hello.md"), "utf8"),
       SECOND_CONTENT,
@@ -60,10 +58,7 @@ export const vaultCrud: Scenario = {
     );
 
     ctx.log("rename notes/hello.md -> notes/renamed.md");
-    const rename = await api.vault.rename.$post({
-      json: { from: "notes/hello.md", to: "notes/renamed.md" },
-    });
-    expect(rename.status === 200, `rename answered ${rename.status}`);
+    await api.vault.rename({ from: "notes/hello.md", to: "notes/renamed.md" });
     expect(!existsSync(join(vaultDir, "notes", "hello.md")), "old path gone on disk");
     // Rename records the old stem in frontmatter aliases so wiki links keep
     // resolving; the body must ride along byte-intact below it.
@@ -73,15 +68,17 @@ export const vaultCrud: Scenario = {
       renamedBytes.startsWith("---\n") && renamedBytes.includes("- hello"),
       "old stem recorded in frontmatter aliases",
     );
-    const readOld = await api.vault.file.$get({ query: { path: "notes/hello.md" } });
-    expect(readOld.status === 404, `old path read answered ${readOld.status}`);
+    const [readOldError] = await safe(api.vault.read({ path: "notes/hello.md" }));
+    const readOldRefusal = refusalClass(readOldError);
+    expect(readOldRefusal === "NOT_FOUND", `old path read refused with ${readOldRefusal}`);
 
     ctx.log("rename onto an existing file is refused, and refuses on disk too");
     const preCollide = await readFile(join(vaultDir, "notes", "renamed.md"), "utf8");
-    const collide = await api.vault.rename.$post({
-      json: { from: "notes/renamed.md", to: "fixture.md" },
-    });
-    expect(collide.status === 409, `colliding rename answered ${collide.status}`);
+    const [collideError] = await safe(
+      api.vault.rename({ from: "notes/renamed.md", to: "fixture.md" }),
+    );
+    const collideRefusal = refusalClass(collideError);
+    expect(collideRefusal === "CONFLICT", `colliding rename refused with ${collideRefusal}`);
     expectEq(
       await readFile(join(vaultDir, "notes", "renamed.md"), "utf8"),
       preCollide,
@@ -94,25 +91,31 @@ export const vaultCrud: Scenario = {
     );
 
     ctx.log("delete notes/renamed.md");
-    const remove = await api.vault.delete.$post({ json: { path: "notes/renamed.md" } });
-    expect(remove.status === 200, `delete answered ${remove.status}`);
+    await api.vault.remove({ path: "notes/renamed.md" });
     expect(!existsSync(join(vaultDir, "notes", "renamed.md")), "deleted on disk");
-    const readGone = await api.vault.file.$get({ query: { path: "notes/renamed.md" } });
-    expect(readGone.status === 404, `deleted path read answered ${readGone.status}`);
+    const [readGoneError] = await safe(api.vault.read({ path: "notes/renamed.md" }));
+    const readGoneRefusal = refusalClass(readGoneError);
+    expect(readGoneRefusal === "NOT_FOUND", `deleted path read refused with ${readGoneRefusal}`);
 
     ctx.log("path refusals, and the disk stays untouched");
     const gitHeadBefore = await readFile(join(vaultDir, ".git", "HEAD"), "utf8");
-    const traversalRead = await api.vault.file.$get({ query: { path: "../escape.md" } });
-    expect(traversalRead.status === 400, `traversal read answered ${traversalRead.status}`);
-    const traversalWrite = await api.vault.file.$put({
-      json: { path: "../escape.md", content: "x" },
-    });
-    expect(traversalWrite.status === 400, `traversal write answered ${traversalWrite.status}`);
+    // A traversal never reaches a handler: the vault-path grammar rides the
+    // INPUT schema, so it is the validator that refuses — which is the point,
+    // since a refusal each handler had to remember to catch is one a new
+    // handler forgets.
+    for (const path of ["../escape.md", ".git/hooks/pwn.md"]) {
+      const [readError] = await safe(api.vault.read({ path }));
+      expect(
+        refusalClass(readError) === "BAD_REQUEST",
+        `reading ${path} refused with ${refusalClass(readError)}`,
+      );
+      const [writeError] = await safe(api.vault.write({ path, content: "x" }));
+      expect(
+        refusalClass(writeError) === "BAD_REQUEST",
+        `writing ${path} refused with ${refusalClass(writeError)}`,
+      );
+    }
     expect(!existsSync(join(vaultDir, "..", "escape.md")), "no file escaped the vault root");
-    const gitWrite = await api.vault.file.$put({
-      json: { path: ".git/hooks/pwn.md", content: "x" },
-    });
-    expect(gitWrite.status === 400, `.git write answered ${gitWrite.status}`);
     expect(!existsSync(join(vaultDir, ".git", "hooks", "pwn.md")), ".git target was not created");
     expectEq(
       await readFile(join(vaultDir, ".git", "HEAD"), "utf8"),

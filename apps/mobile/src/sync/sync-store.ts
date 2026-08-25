@@ -1,6 +1,6 @@
 // The storage PORT the RN sync client writes through, and nothing else. The
 // desktop client (apps/app/src/node/cloud) is better-sqlite3 and cannot run on
-// React Native, so this is NEW code implementing the SAME @repo/cloud-contract
+// React Native, so this is NEW code implementing the SAME @repo/api/cloud
 // wire over injected storage — with a fake for the unit suite and a durable
 // adapter chosen at composition.
 //

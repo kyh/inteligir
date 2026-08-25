@@ -4,7 +4,7 @@
 // bb's user_question and plugin payloads, the plan-review subject
 // (claude-code only) and the server-side row schemas are not vendored —
 // the pending_interactions TABLE and its wire shape live in @repo/db and
-// @repo/server-contract; these schemas are the PAYLOAD contract inside a
+// @repo/api/local; these schemas are the PAYLOAD contract inside a
 // row's JSON `payload` / `resolution` columns.
 //
 // Provider-neutral by construction: the adapter that RAISES an approval spawns

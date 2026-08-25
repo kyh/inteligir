@@ -23,7 +23,7 @@ import {
   buildPairApproveUrl,
   DEVICE_NAME_MAX_LENGTH,
   PAIR_STATE_BYTES,
-} from "@repo/cloud-contract/pairing";
+} from "@repo/api/cloud/pairing/pairing-schema";
 import type { DeviceCredential } from "../credential/credential-codec";
 import {
   redeemDevice,

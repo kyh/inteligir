@@ -34,8 +34,8 @@ function rootScripts(): Record<string, string> {
 describe("root script naming", () => {
   it("a script suffixed with a workspace directory drives that workspace", () => {
     // Directory basename → the manifest name a command actually filters on.
-    // Both spellings count: `apps/launcher` publishes as `inteligir`, so
-    // `package:launcher` names the folder and filters the package, and
+    // Both spellings count: `apps/cli` publishes as `inteligir`, so
+    // `package:cli` names the folder and filters the package, and
     // demanding either one alone would be demanding the wrong thing.
     const byDir = new Map(workspaces().map((w) => [path.basename(w.dir), w]));
 

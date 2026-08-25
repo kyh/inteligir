@@ -1,0 +1,10 @@
+{
+  "extends": "../../../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2023", "dom", "dom.iterable"],
+    "jsx": "react-jsx",
+    "types": ["vite/client"],
+    "tsBuildInfoFile": "${configDir}/../../.cache/tsbuildinfo.renderer.json"
+  },
+  "include": ["."]
+}

@@ -4,7 +4,7 @@ import {
   applyTimelineDelta,
   computeTimelineDelta,
   threadTimelineSchema,
-} from "@repo/server-contract/thread-timeline";
+} from "@repo/api/local/thread-timeline";
 import { describe, expect, it } from "vitest";
 import { buildThreadTimeline, type ThreadTimelineEvent } from "../build-thread-timeline";
 

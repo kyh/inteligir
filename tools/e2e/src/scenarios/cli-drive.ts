@@ -9,8 +9,7 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
-import { pathToFileURL } from "node:url";
-import { buildAgentShellEnv, resolveCliBinDir } from "@repo/app/node/agent/agent-shell-env";
+import { buildAgentShellEnv, resolveCliBinDir } from "inteligir/server/agent-shell-env";
 import { z } from "zod";
 import { expect, expectEq } from "../harness/assert";
 import { exec, hermeticProcessEnv, type ExecResult } from "../harness/exec";
@@ -31,28 +30,23 @@ const threadOutputSchema = z.looseObject({ thread: z.looseObject({ id: z.string(
 
 export const cliDrive: Scenario = {
   name: "cli-drive",
-  description: "the built CLI drives a real instance: vault write, search, action new+wait+show",
+  description: "the CLI drives a real instance: vault write, search, action new+wait+show",
+  // No build step: the bare `inteligir` resolves through `bin/inteligir`, which
+  // runs `src/` under tsx in a checkout — the exact path an agent's shell takes.
+  // The published BUNDLE is what `pnpm smoke:cli` exercises against a real
+  // install; asserting it here would test bytes this flow never runs.
   async run(ctx) {
-    ctx.log("build the CLI bundle");
-    await exec("pnpm", ["--filter", "@repo/cli", "build"], {
-      cwd: ctx.repoRoot,
-      env: hermeticProcessEnv(),
-      timeoutMs: 120_000,
-    });
-
     const app = await ctx.boot({
       name: "solo",
       extraEnv: { INTELIGIR_AGENT: "scripted" },
     });
 
-    // The env a codex shell gets, composed by the app's own resolver against
-    // this checkout — so a broken PATH or a missing bin fails HERE.
-    const cliBinDir = resolveCliBinDir(
-      pathToFileURL(join(ctx.repoRoot, "apps", "app", "src", "node", "agent", "x.ts")).href,
-    );
+    // The env an agent's shell gets, composed by the server's own resolver
+    // against this checkout — so a broken PATH or a missing bin fails HERE.
+    const cliBinDir = resolveCliBinDir(join(ctx.repoRoot, "apps", "cli", "bin"));
     expect(cliBinDir !== null, "the app resolves a CLI bin directory for the agent's PATH");
     const agentShellEnv = buildAgentShellEnv({
-      serverUrl: app.baseUrl,
+      dataDir: app.dataDir,
       env: hermeticProcessEnv(),
       cliBinDir,
     });

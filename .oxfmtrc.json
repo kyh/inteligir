@@ -2,7 +2,6 @@
   "$schema": "./node_modules/oxfmt/configuration_schema.json",
   "ignorePatterns": [
     "dist",
-    "dist-node",
     "node_modules",
     "pnpm-lock.yaml",
     "*.tsbuildinfo",
@@ -13,6 +12,6 @@
     "worker-configuration.d.ts",
     "packages/agent-runtime/src/codex/generated",
     "packages/editor/src/__tests__/fixtures",
-    "apps/app/seed"
+    "apps/cli/seed"
   ]
 }

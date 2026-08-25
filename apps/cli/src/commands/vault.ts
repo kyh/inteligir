@@ -3,11 +3,14 @@
 // consume it without --json.
 
 import { buffer } from "node:stream/consumers";
-import { VAULT_MAX_CONTENT_LENGTH, type VaultStatusResponse } from "@repo/server-contract/vault";
+import {
+  VAULT_MAX_CONTENT_LENGTH,
+  type VaultStatusResponse,
+} from "@repo/api/local/vault/vault-schema";
 import { defineCommand } from "citty";
 import { invalidUsage } from "../cli-error";
 import { apiFor, type CliDeps } from "../context";
-import { jsonArg, out, outputJson, requireOk, writeLines, writeOut } from "../output";
+import { jsonArg, out, outputJson, writeLines, writeOut } from "../output";
 
 function renderVaultStatus(status: VaultStatusResponse): string[] {
   const lines = [`state: ${status.state}`];
@@ -74,8 +77,8 @@ export function vaultCommand(deps: CliDeps) {
           ...jsonArg,
         },
         run: async ({ args }) => {
-          const api = await apiFor(deps);
-          const tree = await (await requireOk(await api.vault.tree.$get())).json();
+          const api = apiFor(deps);
+          const tree = await api.vault.tree();
           const prefix = args.dir?.replace(/\/+$/u, "");
           const entries =
             prefix === undefined || prefix.length === 0
@@ -99,10 +102,8 @@ export function vaultCommand(deps: CliDeps) {
           ...jsonArg,
         },
         run: async ({ args }) => {
-          const api = await apiFor(deps);
-          const body = await (
-            await requireOk(await api.vault.file.$get({ query: { path: args.path } }))
-          ).json();
+          const api = apiFor(deps);
+          const body = await api.vault.read({ path: args.path });
           if (outputJson(args, body)) {
             return;
           }
@@ -131,11 +132,8 @@ export function vaultCommand(deps: CliDeps) {
             assertContentWithinBound(args.content);
             content = args.content;
           }
-          const api = await apiFor(deps);
-          const written = await requireOk(
-            await api.vault.file.$put({ json: { path: args.path, content } }),
-          );
-          const body = await written.json();
+          const api = apiFor(deps);
+          const body = await api.vault.write({ path: args.path, content });
           if (outputJson(args, body)) {
             return;
           }
@@ -154,11 +152,8 @@ export function vaultCommand(deps: CliDeps) {
           ...jsonArg,
         },
         run: async ({ args }) => {
-          const api = await apiFor(deps);
-          const renamed = await requireOk(
-            await api.vault.rename.$post({ json: { from: args.from, to: args.to } }),
-          );
-          const body = await renamed.json();
+          const api = apiFor(deps);
+          const body = await api.vault.rename({ from: args.from, to: args.to });
           if (outputJson(args, body)) {
             return;
           }
@@ -177,10 +172,8 @@ export function vaultCommand(deps: CliDeps) {
           ...jsonArg,
         },
         run: async ({ args }) => {
-          const api = await apiFor(deps);
-          const body = await (
-            await requireOk(await api.vault.delete.$post({ json: { path: args.path } }))
-          ).json();
+          const api = apiFor(deps);
+          const body = await api.vault.remove({ path: args.path });
           if (outputJson(args, body)) {
             return;
           }
@@ -195,10 +188,8 @@ export function vaultCommand(deps: CliDeps) {
           ...jsonArg,
         },
         run: async ({ args }) => {
-          const api = await apiFor(deps);
-          const body = await (
-            await requireOk(await api.vault.mkdir.$post({ json: { path: args.path } }))
-          ).json();
+          const api = apiFor(deps);
+          const body = await api.vault.mkdir({ path: args.path });
           if (outputJson(args, body)) {
             return;
           }
@@ -210,8 +201,8 @@ export function vaultCommand(deps: CliDeps) {
         meta: { name: "status", description: "Git sync state (remote, dirty, conflicts)" },
         args: { ...jsonArg },
         run: async ({ args }) => {
-          const api = await apiFor(deps);
-          const body = await (await requireOk(await api.vault.status.$get())).json();
+          const api = apiFor(deps);
+          const body = await api.vault.status();
           if (outputJson(args, body)) {
             return;
           }
@@ -223,8 +214,8 @@ export function vaultCommand(deps: CliDeps) {
         meta: { name: "sync", description: "Sync against the configured remote now" },
         args: { ...jsonArg },
         run: async ({ args }) => {
-          const api = await apiFor(deps);
-          const body = await (await requireOk(await api.vault.sync.$post())).json();
+          const api = apiFor(deps);
+          const body = await api.vault.syncNow();
           if (outputJson(args, body)) {
             return;
           }

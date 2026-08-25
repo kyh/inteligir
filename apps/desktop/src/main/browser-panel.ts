@@ -23,8 +23,9 @@ export const BROWSER_PARTITION = "persist:inteligir-browser";
  *  ⌘E/⌘G/⌘T/⌘L(+⇧)/⌘⇧A/⌘⇧C — ⌘⇧B collides with none of them. */
 export const BROWSER_ACCELERATOR = "CmdOrCtrl+Shift+B";
 
-/** The chrome bar's height in the browser window, in px. One constant shared
- *  by the layout code and the chrome page's own CSS-free sizing. */
+/** The chrome bar's height in the browser window, in px, and the ONE source of
+ *  it: the layout code sizes the chrome view to this, and the chrome page fills
+ *  that view with `height: 100vh` rather than repeating the number. */
 export const BROWSER_CHROME_HEIGHT = 44;
 
 export const BROWSER_HOME_URL = "https://duckduckgo.com/";

@@ -3,27 +3,30 @@
 > An AI-native notes app — Obsidian with an agent.
 
 Your notes are plain markdown files in a folder you own, versioned with git.
-The app runs on your machine: one local Node process serves the workspace UI,
-owns the vault, indexes it, and drives a coding agent that edits those same
-files. Nothing leaves the machine unless you configure a git remote or sign in
-to sync threads across devices.
+The app runs on your machine: one local Node process owns the vault, indexes
+it, serves the API, and drives a coding agent that edits those same files.
+Nothing leaves the machine unless you configure a git remote or sign in to sync
+threads across devices.
 
 ## Install & run
 
+The desktop app is the product: one window on that local server, which it
+starts and stops with itself — [`apps/desktop`](./apps/desktop/README.md). It
+is built unsigned from this repo (`pnpm package:desktop`); there is no download
+and no update feed yet.
+
+Without installing anything:
+
 ```bash
-npx inteligir
+npx inteligir serve --open
 ```
 
-That boots the local server, prints the URL and opens it. The vault is created
-at `~/Inteligir` on first run; the database and settings live in `~/.inteligir`.
-`--port`, `--data-dir`, `--vault` and `--no-open` override that; `^C` stops it
-cleanly (the pending vault commit is flushed and the database closed before it
-exits). See [`apps/launcher`](./apps/launcher/README.md).
-
-The desktop app is the same product in a window that starts and stops the
-server with it — [`apps/desktop`](./apps/desktop/README.md). It is built
-unsigned from this repo (`pnpm package:desktop`); there is no download and no
-update feed yet.
+Same server, same workspace, in a browser tab instead of a window. The vault is
+created at `~/Inteligir` on first run; the database and settings live in
+`~/.inteligir`. `--port`, `--data-dir` and `--vault` override that; `^C` stops
+it cleanly (the pending vault commit is flushed and the database closed before
+it exits). Every other verb of that same binary is a client against a running
+server — see [`apps/cli`](./apps/cli/README.md).
 
 The agent speaks ACP: install the [Claude Code](https://claude.com/claude-code)
 or [Codex](https://developers.openai.com/codex/cli) CLI and sign in, and
@@ -33,25 +36,28 @@ From a checkout instead:
 
 ```bash
 pnpm install
-pnpm dev              # the local server + UI, on a per-checkout port
+pnpm dev              # the desktop shell over a server on a per-checkout port
 ```
 
 ## Layout
 
 ```
 apps/
-  app/               @repo/app — THE PRODUCT: one Node process. TanStack Start
-                     SPA served by a custom entry that owns /api/v1, the /ws
-                     invalidation bus, the vault, the knowledge index and the
-                     agent runtime
-  cli/               @repo/cli — the `inteligir` CLI over the same typed
-                     contract; how agents drive the product from bash
-  launcher/          inteligir — the published npx package
-  desktop/           @repo/desktop — Electron shell supervising the server
+  desktop/           @repo/desktop — THE SHIPPED PRODUCT: the window (main,
+                     the inteligir:// protocol, the forked server) and the SPA
+                     inside it
+  cli/               inteligir — THE PUBLISHED BINARY: `serve` is the whole
+                     local server (vault, index, agent, API); every other verb
+                     is a client of one, and how agents drive it from bash
   web/               @repo/web — ONE Cloudflare Worker: the marketing site,
                      Better Auth on D1, device pairing, the thread-sync
                      Durable Object and the capture inbox
+  mobile/            @repo/mobile — the Expo client: a sync-only thread and
+                     capture surface over the cloud contract
 packages/
+  api/               @repo/api — ONE contract, TWO entry points: /local (the
+                     renderer and the CLI → the local server) and /cloud (the
+                     local server and mobile → the Worker)
   notes/             @repo/notes — pure platform-neutral domain: markdown
                      pipeline, knowledge engine (links, tags, tasks, search)
   editor/            @repo/editor — the Plate.js WYSIWYG over the fixpoint
@@ -59,12 +65,10 @@ packages/
                      wiki chips, formula pills, comments, tag chips
   ui/                @repo/ui — vendored shadcn components
   domain/            @repo/domain — the thread grammar and lifecycle, zod-only
-  server-contract/   @repo/server-contract — THE route table + ws schemas
-  cloud-contract/    @repo/cloud-contract — the sync/pairing wire, zod-only
-  typed-routes/      @repo/typed-routes — the contract-first route machinery
   db/                @repo/db — drizzle + better-sqlite3, migrations, notifier
   thread-view/       @repo/thread-view — isomorphic timeline projection
-  agent-runtime/     @repo/agent-runtime — the codex app-server adapter
+  agent-runtime/     @repo/agent-runtime — the ACP adapter over the harnesses
+  agent-skills/      @repo/agent-skills — the dialect spec, as files agents read
 tools/
   repo-guards/       structural invariant tests over the repo itself
   e2e/               scenario harness driving a real instance
@@ -83,14 +87,16 @@ conventions, and the durable decisions; `CONTEXT.md` is the domain glossary.
 ## Common commands
 
 ```bash
-pnpm dev              # the product — local server + UI
-pnpm dev:web         # the marketing + auth Worker (localhost:5174)
+pnpm dev              # the product — the shell over its own server
+pnpm dev:web          # the marketing + auth Worker (localhost:5174)
 pnpm cli              # the CLI against a running instance
+pnpm cli serve        # the server alone, from source — the shell adopts it
 pnpm e2e              # scenario suite against real instances
 pnpm verify           # typecheck, lint, knip, format, test, build — CI's order
-pnpm package:launcher      # build the npx package
-pnpm smoke:launcher    # pack it, install it, boot it, kill it
+pnpm package:cli      # build the npm artifact
+pnpm smoke:cli        # pack it, install it, boot it, kill it
 pnpm package:desktop  # build the unsigned desktop app
+pnpm smoke:desktop    # package it, boot its server, drive it, SIGTERM
 ```
 
 ## Quality gates

@@ -25,7 +25,6 @@
     ".claude",
     ".codex",
     "dist",
-    "dist-node",
     "node_modules",
     "pnpm-lock.yaml",
     "*.tsbuildinfo",
@@ -236,7 +235,7 @@
       // diffability.
       "files": [
         "packages/ui/src/**",
-        "apps/app/src/app/workspace-context.tsx",
+        "apps/desktop/src/renderer/app/workspace-context.tsx",
         "apps/web/src/routes/__root.tsx"
       ],
       "rules": {

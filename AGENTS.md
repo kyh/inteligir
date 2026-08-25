@@ -1,37 +1,42 @@
 # AGENTS.md
 
 **inteligir** is an AI-native notes app — Obsidian with an agent, local-first.
-`apps/app` is THE PRODUCT: one local Node process (TanStack Start SPA + typed
-/api/v1 + ws invalidation bus over SQLite) that owns a git-versioned markdown
-vault, indexes it, and drives Codex over it. `apps/cli` is how an agent drives
-that product from bash; `apps/launcher` publishes it as `npx inteligir` and
-`apps/desktop` wraps it in a window. `apps/web` is the one hosted piece — a
+There are TWO programs. `apps/cli` is the `inteligir` binary: `serve` runs the
+whole local server (a git-versioned markdown vault, its index, the agent
+runtime and one oRPC API over SQLite), and every other verb is a client of a
+running one — which is how an agent drives the product from bash.
+`apps/desktop` is THE SHIPPED PRODUCT: one window on that server, forking it as
+a child, with the SPA as its renderer. `apps/web` is the one hosted piece — a
 Cloudflare Worker carrying the marketing site, Better Auth on D1, device
 pairing and cross-device thread sync. This is the tool-agnostic guide for
 coding agents; `CLAUDE.md` holds the architecture and the durable decisions,
-GitHub issue #542 the decision record, `CONTEXT.md` the domain glossary,
-`apps/web/README.md` the Worker's own routes and deploy.
+GitHub issues #542 and #611 the decision record, `CONTEXT.md` the domain
+glossary, `apps/web/README.md` the Worker's own routes and deploy.
 
 ## Quickstart
 
 ```sh
 pnpm install
-pnpm dev             # → THE PRODUCT (apps/app); prints its own URL, e.g.
+pnpm dev             # → THE PRODUCT: the shell over its own server, e.g.
                      #   inteligir 0.1.0 (dev) listening on http://127.0.0.1:26723
+pnpm cli serve       # → the server ALONE, from source, no window. A shell
+                     #   started afterwards ADOPTS it, so this is the loop for
+                     #   iterating on server code.
 ```
 
 That's the whole product setup — no bootstrap script, no Docker, no cloud
-account, no login. The port and the data dir are derived per checkout (hash of
-the checkout path), so parallel worktrees never collide; `INTELIGIR_PORT` and
-`INTELIGIR_DATA_DIR` override. SQLite lives at `<data-dir>/inteligir.db`
-(dev default: `~/.inteligir-dev/<hash>/`).
+account, no login. The port and the data dir are derived per CHECKOUT (hash of
+the checkout root, walked up to from wherever the command started), so parallel
+worktrees never collide and every command in one checkout names one instance;
+`INTELIGIR_PORT` and `INTELIGIR_DATA_DIR` override. SQLite lives at
+`<data-dir>/inteligir.db` (dev default: `~/.inteligir-dev/<hash>/`).
 
 Requirements: **Node ≥ 24** and **pnpm 10** (`corepack enable`).
 (`.codex/environments/environment.toml` runs `pnpm i` for cloud runners.)
 
 The agent provider is selected by `INTELIGIR_AGENT` (`auto` · `codex` ·
 `scripted` · `off`; default `auto` — codex when the binary is on PATH, else an
-unavailable driver whose reason `/api/v1/system/status` states under `agent`).
+unavailable driver whose reason `system.status` states under `agent`).
 **`INTELIGIR_AGENT=scripted` is the login-free e2e mode**: an in-process
 deterministic driver over the REAL ingest/timeline/vault/commit paths — send a
 action message, watch the turn stream, find the note in the vault with an
@@ -41,13 +46,15 @@ agent-attributed commit. `INTELIGIR_AGENT_MODEL` passes a model through.
 faster than the browser for vault/search/action checks:
 
 ```sh
-pnpm cli status            # discovers the per-checkout instance and probes it
-pnpm cli guide             # the agent manual the app serves (GET /api/v1/guide)
+pnpm cli status            # reads this checkout's <dataDir>/server.json
+pnpm cli guide             # the agent manual the app serves (system.guide)
 ```
 
-Every leaf takes `--json`. `INTELIGIR_SERVER_URL` pins the target explicitly
-(agent shells get it injected, plus `INTELIGIR_THREAD_ID` for their own
-thread).
+Every leaf takes `--json`. `INTELIGIR_DATA_DIR` names WHICH instance — the port
+and the bearer are both read out of the `server.json` there, so the address and
+the credential can never disagree. Agent shells get it injected, plus
+`INTELIGIR_THREAD_ID` for their own thread; there is deliberately no way to
+point the CLI at a bare URL.
 
 The marketing/auth Worker is separate:
 
@@ -134,28 +141,28 @@ rather than moving the app somewhere the docs don't name.
 ## Map
 
 ```
-apps/app                 THE PRODUCT: local Node server — Start SPA +
-                         /api/v1 + /ws + SQLite                      @repo/app
-apps/cli                 The `inteligir` CLI over the typed client   @repo/cli
-apps/launcher            THE PUBLISHED ARTIFACT: `npx inteligir`,
-                         which boots the server in-process           inteligir
-apps/desktop             Electron shell: one window on the local
-                         server, supervising it as a child          @repo/desktop
+apps/desktop             THE SHIPPED PRODUCT: the window, the
+                         inteligir:// protocol, and the SPA         @repo/desktop
+apps/cli                 THE PUBLISHED BINARY: `serve` is the whole
+                         server; every other verb is a client        inteligir
 apps/web                 ONE CF Worker: marketing + Better Auth (D1) @repo/web
-packages/typed-routes    Contract-first Hono route machinery (bb)    @repo/typed-routes
-packages/server-contract The wire contract: route table + ws proto   @repo/server-contract
+apps/mobile              Expo: a sync-only thread/capture surface   @repo/mobile
+packages/api             ONE contract, TWO entries: /local and
+                         /cloud                                      @repo/api
 packages/db              drizzle + better-sqlite3, migrations,
                          DbNotifier, ids                             @repo/db
-packages/agent-runtime   bb's provider runtime, codex slice:
-                         JSON-RPC/stdio + adapter                   @repo/agent-runtime
+packages/agent-runtime   The ACP runtime: one adapter, harness rows @repo/agent-runtime
 packages/notes           Pure domain — knowledge + markdown          @repo/notes
+packages/editor          The Plate WYSIWYG over the serializer      @repo/editor
 packages/ui              Shared components (vendored shadcn)         @repo/ui
 tools/repo-guards        Fitness tests over the repo: the dep DAG,
-                         ws change kinds, install layout             @repo/repo-guards
+                         ws change kinds, CI parity                 @repo/repo-guards
 ```
 
 - `CLAUDE.md` — architecture and § Decisions.
 - `CONTEXT.md` — the domain glossary.
 - `apps/web/README.md` — the Worker's routes, auth, dev loop, deploy.
 - `docs/development.md` — the dev loop in one page.
+- `apps/cli/README.md` — the binary's two modes and every verb.
+- `apps/desktop/README.md` — the window, the protocol, the packaged app.
 - `docs/privacy.md` — placeholder until the v3 cloud rework (issue #554).

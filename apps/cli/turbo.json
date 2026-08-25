@@ -1,0 +1,15 @@
+{
+  "$schema": "https://turborepo.dev/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    // The workspace UI this bundle stages is `@repo/desktop#build`'s output,
+    // and the shell in turn PACKS this bundle — so the ordering is named on
+    // one side rather than inherited through `^build` on both, which would be
+    // a cycle. The renderer is built first, this bundle stages it, and
+    // `@repo/desktop#package` puts the result inside the .app.
+    "build": {
+      "dependsOn": ["^build", "@repo/desktop#build"],
+      "outputs": ["dist/**"]
+    }
+  }
+}

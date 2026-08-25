@@ -5,16 +5,24 @@ packages:
 
 catalog:
   "@base-ui/react": ^1.6.0
+  # oRPC (issue #611): ONE contract package, two entry points, four callers.
+  # The four halves are versioned together — a contract compiled by one minor
+  # and served by another is exactly the drift the package exists to prevent.
+  "@orpc/client": ^1.15.0
+  "@orpc/contract": ^1.15.0
+  "@orpc/server": ^1.15.0
+  "@orpc/tanstack-query": ^1.15.0
   # The ACP adapters (issue #588) are CHILD PROCESSES, not imports: agent-runtime
-  # spawns them in dev, apps/launcher ships them packaged, and the two manifests
-  # must agree on the version the wire was verified against — pinned EXACT, and
+  # spawns them in dev, apps/cli ships them as real dependencies of the published
+  # binary, and the two manifests must agree on the version the wire was verified
+  # against — pinned EXACT, and
   # codex-acp deliberately held (its bundled core is live-broken upstream, #594).
   "@zed-industries/claude-code-acp": 0.16.2
   "@zed-industries/codex-acp": 0.16.0
   # Dictation (issue #578): streaming Parakeet through sherpa-onnx. Pinned EXACT
   # for the reason the whisper pin it replaces stated — the binary arrives
   # through 6 per-platform optionalDependencies and there is NO install/build
-  # script (a prebuilt N-API addon), which is the property `apps/launcher`'s
+  # script (a prebuilt N-API addon), which is the property `npx inteligir`'s
   # zero-rebuild install depends on, so the version verified against is the one
   # that ships. `tar` + `unbzip2-stream` extract the `.tar.bz2` model archive in
   # pure JS (Node has no bzip2, and Windows' tar.exe cannot do `-j`).
@@ -34,10 +42,15 @@ catalog:
   "@tailwindcss/vite": ^4.3.3
   "@testing-library/dom": ^10.4.1
   "@testing-library/react": ^16.3.2
-  # Start is still RC (issue #545's research report): pin router+start EXACT so
-  # a silent daily release cannot move the fetch-entry seam under us.
+  # Pinned EXACT, and the codegen plugin with it: the generated route tree is
+  # an artifact of the plugin's version, so a silent daily release would
+  # rewrite a committed file under a build nobody asked to change. The plugin
+  # trails the router's own line because it ships on its own cadence. Start is
+  # still RC and is apps/web's alone — that is a real SSR marketing site; the
+  # product is a plain SPA over the router.
   "@tanstack/react-router": 1.170.29
   "@tanstack/react-start": 1.168.46
+  "@tanstack/router-plugin": 1.168.35
   "@types/better-sqlite3": ^9.6.0
   "@types/mdast": ^4.0.4
   "@types/node": ^26.1.1

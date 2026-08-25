@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // WebWorker, not DOM: the fetch/Response/crypto surface without claiming a
+    // document — this contract loads in the Electron renderer, on node, on
+    // workerd and in React Native.
+    "lib": ["ES2023", "WebWorker"],
+    "types": [],
+    "paths": {
+      "@repo/api/*": ["./src/*"]
+    }
+  },
+  "include": ["src"]
+}

@@ -15,7 +15,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
-import type { TimelineConversationRow, TimelineRow } from "@repo/server-contract/thread-timeline";
+import type { TimelineConversationRow, TimelineRow } from "@repo/api/local/thread-timeline";
 import { agentBrowserSession, probeHeadlessOrSkip } from "../harness/agent-browser";
 import { expect, expectEq } from "../harness/assert";
 import type { Scenario } from "../harness/scenario";
@@ -74,17 +74,14 @@ export const viewContextBrowser: Scenario = {
       const deadline = Date.now() + TURN_DEADLINE_MS;
       let rows: readonly TimelineRow[] = [];
       for (;;) {
-        const listed = await app.api.threads.list.$get();
-        expect(listed.status === 200, `threads list answered ${listed.status}`);
+        const listed = await app.api.threads.list();
         // The composer attaches the open note by default, so the action's
         // originDocPath IS the doc — which is itself worth asserting.
-        const chat = (await listed.json()).threads.find(
+        const chat = listed.threads.find(
           (thread) => thread.originDocPath === DOC_PATH && thread.archivedAt === null,
         );
         if (chat !== undefined && chat.status === "idle") {
-          const timeline = await app.api.threads.timeline.$get({ query: { threadId: chat.id } });
-          expect(timeline.status === 200, `timeline answered ${timeline.status}`);
-          const body = await timeline.json();
+          const body = await app.api.threads.timeline({ threadId: chat.id });
           expect(body.kind === "full", `expected the full timeline, got "${body.kind}"`);
           const settled = body.kind === "full" ? body.timeline.rows : [];
           if (settled.some((row) => row.kind === "conversation" && row.role === "user")) {

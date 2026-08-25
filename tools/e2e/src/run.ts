@@ -9,7 +9,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { ScenarioSkip } from "./harness/assert";
-import { killAllLiveGroups, type AppInstance, type BootMode } from "./harness/instance";
+import { killAllLiveGroups, type AppInstance } from "./harness/instance";
 import { createScenarioContext, type Scenario } from "./harness/scenario";
 import { browserSmoke } from "./scenarios/browser-smoke";
 import { cliDrive } from "./scenarios/cli-drive";
@@ -39,29 +39,24 @@ const SCENARIOS: readonly Scenario[] = [
   dictationBrowser,
 ];
 
-const USAGE = `Usage: pnpm e2e [--prod] [--only <names>] [--keep] [--list]
+const USAGE = `Usage: pnpm e2e [--only <names>] [--keep] [--list]
 
-  --prod          run the built bundle (pnpm --filter @repo/app build first)
-                  instead of the dev entry
   --only <names>  comma-separated scenario names (repeatable)
   --keep          keep the scratch dirs for post-mortem
   --list          print the scenario names and exit
 `;
 
 interface CliOptions {
-  mode: BootMode;
   only: string[];
   keep: boolean;
   list: boolean;
 }
 
 function parseArgs(argv: readonly string[]): CliOptions {
-  const options: CliOptions = { mode: "dev", only: [], keep: false, list: false };
+  const options: CliOptions = { only: [], keep: false, list: false };
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
-    if (arg === "--prod") {
-      options.mode = "prod";
-    } else if (arg === "--keep") {
+    if (arg === "--keep") {
       options.keep = true;
     } else if (arg === "--list") {
       options.list = true;
@@ -122,7 +117,6 @@ async function runScenario(
     console.log(`${timestamp()} [${scenario.name}] ${message}`);
   };
   const context = createScenarioContext({
-    mode: options.mode,
     repoRoot,
     scratchDir,
     log,
@@ -207,7 +201,7 @@ async function main(): Promise<number> {
   const selected = selectScenarios(options);
   const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
   const scratchRoot = await mkdtemp(join(tmpdir(), "inteligir-e2e-"));
-  console.log(`e2e: ${selected.length} scenario(s), mode=${options.mode}, scratch=${scratchRoot}`);
+  console.log(`e2e: ${selected.length} scenario(s), scratch=${scratchRoot}`);
 
   const outcomes = new Map<string, ScenarioOutcome>();
   let everyTeardownClean = true;

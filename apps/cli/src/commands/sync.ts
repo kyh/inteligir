@@ -22,10 +22,10 @@ import type {
   CloudPairBeginRequest,
   CloudPairBeginResponse,
   CloudStatusResponse,
-} from "@repo/server-contract/cloud";
+} from "@repo/api/local/cloud/cloud-schema";
 import { defineCommand } from "citty";
 import { apiFor, type CliDeps } from "../context";
-import { jsonArg, outputJson, requireOk, writeLines } from "../output";
+import { jsonArg, outputJson, writeLines } from "../output";
 
 function describe(status: CloudStatusResponse): string[] {
   switch (status.state) {
@@ -72,8 +72,8 @@ export function syncCommand(deps: CliDeps) {
         meta: { name: "status", description: "Whether this install is paired, and how far behind" },
         args: { ...jsonArg },
         run: async ({ args }) => {
-          const api = await apiFor(deps);
-          const body = await (await requireOk(await api.cloud.status.$get())).json();
+          const api = apiFor(deps);
+          const body = await api.cloud.status();
           if (outputJson(args, body)) {
             return;
           }
@@ -94,13 +94,12 @@ export function syncCommand(deps: CliDeps) {
           ...jsonArg,
         },
         run: async ({ args }) => {
-          const api = await apiFor(deps);
-          const json: CloudPairBeginRequest = { openBrowser: !args.json };
+          const api = apiFor(deps);
+          const input: CloudPairBeginRequest = { openBrowser: !args.json };
           if (args.name !== undefined) {
-            json.deviceName = args.name;
+            input.deviceName = args.name;
           }
-          const response = await api.cloud.pair.begin.$post({ json });
-          const body = await (await requireOk(response)).json();
+          const body = await api.cloud.pairBegin(input);
           if (outputJson(args, body)) {
             return;
           }
@@ -114,8 +113,8 @@ export function syncCommand(deps: CliDeps) {
         },
         args: { ...jsonArg },
         run: async ({ args }) => {
-          const api = await apiFor(deps);
-          const body = await (await requireOk(await api.cloud.sync.$post())).json();
+          const api = apiFor(deps);
+          const body = await api.cloud.syncNow();
           if (outputJson(args, body)) {
             return;
           }

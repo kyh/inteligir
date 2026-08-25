@@ -1,4 +1,4 @@
-import { PKCE_S256_PATTERN, pkceChallengeS256 } from "@repo/cloud-contract/pairing";
+import { PKCE_S256_PATTERN, pkceChallengeS256 } from "@repo/api/cloud/pairing/pairing-schema";
 import { describe, expect, it } from "vitest";
 import { base64UrlFromBytes, createPkcePair, hexFromBytes, type PkceCrypto } from "../pkce";
 

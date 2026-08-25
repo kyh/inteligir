@@ -1,4 +1,4 @@
-import { DEVICE_CREDENTIAL_PREFIX } from "@repo/cloud-contract/pairing";
+import { DEVICE_CREDENTIAL_PREFIX } from "@repo/api/cloud/pairing/pairing-schema";
 import { and, eq, isNull } from "drizzle-orm";
 import type { createDb } from "../db/client";
 import { device } from "../db/schema";

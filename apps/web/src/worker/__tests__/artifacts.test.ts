@@ -1,4 +1,4 @@
-import { cloudErrorSchema } from "@repo/cloud-contract/errors";
+import { cloudErrorSchema } from "@repo/api/cloud/errors";
 import { SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 import { deviceHeaders, ORIGIN, pairDevice, signUpUser } from "./cloud-helpers";

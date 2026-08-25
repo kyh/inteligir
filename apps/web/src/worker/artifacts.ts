@@ -1,4 +1,4 @@
-import { type ArtifactsMintResponse } from "@repo/cloud-contract/artifacts";
+import { type ArtifactsMintResponse } from "@repo/api/cloud/artifacts/artifacts-schema";
 import { z } from "zod";
 import { jsonNoStore, refuse } from "./cloud-http";
 import { createDb } from "./db/client";

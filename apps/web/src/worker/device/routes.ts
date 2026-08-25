@@ -6,7 +6,7 @@ import {
   revokeDeviceRequestSchema,
   type ListDevicesResponse,
   type RevokeDeviceResponse,
-} from "@repo/cloud-contract/pairing";
+} from "@repo/api/cloud/pairing/pairing-schema";
 import { and, eq, isNull } from "drizzle-orm";
 import { mintPairingCode, redeemPairingCode } from "./pairing";
 import { createAuth } from "../auth/auth";

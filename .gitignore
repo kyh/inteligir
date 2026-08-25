@@ -19,7 +19,6 @@ out/
 
 # build output
 dist/
-dist-node/
 
 # production
 .source

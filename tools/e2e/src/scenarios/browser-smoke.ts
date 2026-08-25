@@ -29,7 +29,7 @@ const PALETTE_CHORD = process.platform === "darwin" ? "Meta+p" : "Control+p";
 
 function pageIsMounted(bodyText: string): boolean {
   // The seeded welcome note's content only reaches the page through a
-  // successful /api/v1/vault/file round trip; the sync pill proves the status
+  // successful `vault.read` round trip; the sync pill proves the status
   // query ran. Together they prove the client bundle ran against this
   // instance's API. (The sidebar lists TITLES now — "Welcome", not
   // "Welcome.md" — so the content line is the sturdier witness.)
@@ -38,37 +38,40 @@ function pageIsMounted(bodyText: string): boolean {
 
 /**
  * The document the REAL build serves, asserted over the wire before a browser
- * touches it. Prod only: the dev fallback is vite's middleware, which carries
- * no policy.
+ * touches it.
  *
  * This lives here rather than in a unit test because it is a claim about the
  * built artifact, and `pnpm verify` runs its tests BEFORE the build — a unit
  * test reading `dist/` asserts over the previous build's output.
  */
-async function assertDocumentCarriesItsNonce(baseUrl: string): Promise<void> {
+async function assertDocumentPolicy(baseUrl: string): Promise<void> {
   const response = await fetch(`${baseUrl}/`, { headers: { accept: "text/html" } });
   expect(response.ok, `GET / answered ${response.status}`);
-  const policy = response.headers.get("content-security-policy");
-  expect(policy !== null, "the prod document carries no content-security-policy");
-  const nonce = /'nonce-([^']+)'/u.exec(policy ?? "")?.[1];
-  expect(nonce !== undefined, `no nonce in the policy: ${policy ?? "(none)"}`);
+  const policy = response.headers.get("content-security-policy") ?? "";
+  expect(policy.length > 0, "the served document carries no content-security-policy");
+
+  // `'self'` is the WHOLE script allowance, and it only works because a plain
+  // SPA injects nothing at runtime — so an inline script in the shipped
+  // document is a script the browser will refuse.
+  expect(
+    policy.includes("script-src 'self'"),
+    `the policy does not admit the bundle's own script: ${policy}`,
+  );
   const html = await response.text();
-
-  // A script the policy does not admit is a script the browser refuses, so
-  // every one of them has to carry THIS response's nonce.
-  const unnonced = (html.match(/<script\b[^>]*>/gu) ?? []).filter(
-    (tag) => !tag.includes(`nonce="${nonce ?? ""}"`) && !tag.includes(`nonce='${nonce ?? ""}'`),
+  const inline = (html.match(/<script\b(?![^>]*\bsrc=)[^>]*>/gu) ?? []).filter(
+    (tag) => !tag.includes("application/json"),
   );
   expect(
-    unnonced.length === 0,
-    `scripts served without the document's nonce:\n${unnonced.join("\n")}`,
+    inline.length === 0,
+    `the built document carries inline scripts this policy refuses:\n${inline.join("\n")}`,
   );
 
-  // The client router reads the nonce back from this meta and stamps it onto
-  // everything it injects after hydration; without it those go out bare.
+  // The browser's credential rides the document, because it is the one client
+  // that cannot set a header for itself.
+  const cookie = response.headers.get("set-cookie") ?? "";
   expect(
-    html.includes('property="csp-nonce"') && html.includes(`content="${nonce ?? ""}"`),
-    'the document does not republish its nonce as <meta property="csp-nonce">',
+    cookie.includes("HttpOnly") && cookie.includes("SameSite=Strict"),
+    `the document did not hand the browser its device token: ${cookie}`,
   );
 }
 
@@ -79,10 +82,8 @@ export const browserSmoke: Scenario = {
   async run(ctx) {
     const app = await ctx.boot({ name: "solo" });
     try {
-      if (ctx.mode === "prod") {
-        ctx.log("asserting the served document carries the nonce its policy names");
-        await assertDocumentCarriesItsNonce(app.baseUrl);
-      }
+      ctx.log("asserting the served document carries the real policy");
+      await assertDocumentPolicy(app.baseUrl);
 
       await probeHeadlessOrSkip(agentBrowser, ctx.log);
 

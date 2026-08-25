@@ -1,39 +1,47 @@
-// An in-process server implementing the SAME contract table the product
-// registers (typedRoutes over apiRoutes — the handlers compile against the
-// rows, so this fixture cannot drift from the wire contract) over in-memory
-// state. What it deliberately is NOT: the product's composition — the real
-// server behind the CLI is exercised by the e2e cli-drive scenario; these
-// suites pin what the CLI itself owns (rendering, flags, exit codes).
+// An in-process server implementing the SAME contract the product serves
+// (`implement(localContract)` — a handler that drifts from its row, or a row
+// nobody implemented, fails to compile here) over in-memory state. What it
+// deliberately is NOT: the product's composition — the real server behind the
+// CLI is exercised by the e2e cli-drive scenario; these suites pin what the
+// CLI itself owns (rendering, flags, exit codes).
 
-import { serve } from "@hono/node-server";
-import type { CloudStatusResponse } from "@repo/server-contract/cloud";
-import type { ConnectorsResponse } from "@repo/server-contract/connectors";
-import type { ConnectedFoldersResponse } from "@repo/server-contract/folders";
-import type { ApiErrorCode, ApiErrorResponse } from "@repo/server-contract/errors";
-import type { AgentStatus, SystemStatusResponse } from "@repo/server-contract/routes";
-import { apiRoutes, API_BASE_PATH } from "@repo/server-contract/routes";
+import { createServer } from "node:http";
+import { implement, ORPCError } from "@orpc/server";
+import { RPCHandler } from "@orpc/server/node";
+import { localContract } from "@repo/api/local";
+import type { CloudStatusResponse } from "@repo/api/local/cloud/cloud-schema";
+import type { CommentThreadWire } from "@repo/api/local/comments/comments-schema";
+import type { ConnectorsResponse } from "@repo/api/local/connectors/connectors-schema";
+import type { ConnectedFoldersResponse } from "@repo/api/local/folders/folders-schema";
 import type {
   BacklinkEntryWire,
   RelatedNoteWire,
   SearchResultWire,
   TagCountWire,
-} from "@repo/server-contract/knowledge";
-import type { CommentThreadWire } from "@repo/server-contract/comments";
-import type { Proposal } from "@repo/server-contract/proposals";
+} from "@repo/api/local/knowledge/knowledge-schema";
+import type { Proposal } from "@repo/api/local/proposals/proposals-schema";
+import { RPC_PREFIX } from "@repo/api/local/routes";
+import type { AgentStatus, SystemStatusResponse } from "@repo/api/local/system/system-schema";
+import type { ThreadTimeline } from "@repo/api/local/thread-timeline";
 import type {
   PendingInteraction,
   QueuedThreadMessage,
   Thread,
-} from "@repo/server-contract/threads";
-import type { ThreadTimeline } from "@repo/server-contract/thread-timeline";
-import type { VaultEntry, VaultStatusResponse } from "@repo/server-contract/vault";
+} from "@repo/api/local/threads/threads-schema";
+import type { VaultEntry, VaultStatusResponse } from "@repo/api/local/vault/vault-schema";
 import type { ThreadStatus } from "@repo/domain/thread-status";
-import { typedRoutes } from "@repo/typed-routes/typed-routes";
-import { Hono } from "hono";
+import { z } from "zod";
 
-const NOT_FOUND: ApiErrorResponse = { error: "not_found", message: "Not found" };
+/** The device token this fixture requires. The CLI attaches it from
+ *  `<dataDir>/server.json`; the gate is here so a command that somehow reached
+ *  the wire without one fails LOUDLY rather than passing. */
+export const FIXTURE_SERVER_TOKEN = "fixture-server-token";
 
 const FIXTURE_CLOUD_URL = "https://cloud.fixture";
+
+/** `net.Server#address()` answers a pipe name, an AddressInfo, or null — this
+ *  server bound a TCP port, so the union is parsed rather than narrowed. */
+const boundAddressSchema = z.object({ port: z.number() });
 
 export interface FixtureThread {
   thread: Thread;
@@ -41,18 +49,18 @@ export interface FixtureThread {
   /** Optional: most fixtures never queue, and the response defaults it. */
   queuedMessages?: QueuedThreadMessage[];
   timeline: ThreadTimeline;
-  /** Each /threads/get consumes one entry; the last one sticks. */
+  /** Each threads.get consumes one entry; the last one sticks. */
   statusSequence?: ThreadStatus[];
 }
 
 export interface FixtureState {
   /** The instance identity discovery compares against. */
   dataDir: string;
-  /** When set, EVERY api route answers this instead — the fitness test's
-   *  "does each leaf check the status?" lever. */
-  failWith: { status: 400 | 500; error: ApiErrorCode; message: string } | null;
-  /** Refuse only /threads/send — the window `thread new` must not orphan in. */
-  refuseSend: { error: ApiErrorCode; message: string } | null;
+  /** When set, EVERY procedure refuses with this instead — the fitness test's
+   *  "does each leaf check the result?" lever. */
+  failWith: { code: "BAD_REQUEST" | "INTERNAL_SERVER_ERROR"; message: string } | null;
+  /** Refuse only threads.send — the window `action new` must not orphan in. */
+  refuseSend: { code: "PROVIDER_UNAVAILABLE"; message: string } | null;
   vault: Map<string, string>;
   searchResults: SearchResultWire[];
   tags: TagCountWire[];
@@ -63,7 +71,7 @@ export interface FixtureState {
   cloud: CloudStatusResponse;
   threads: FixtureThread[];
   proposals: Proposal[];
-  /** Comment threads per note path, in the wire shape the routes answer. */
+  /** Comment threads per note path, in the wire shape the procedures answer. */
   comments: Map<string, CommentThreadWire[]>;
   guideMarkdown: string;
   agent: AgentStatus;
@@ -160,30 +168,29 @@ function findThread(state: FixtureState, threadId: string): FixtureThread | unde
   return state.threads.find((entry) => entry.thread.id === threadId);
 }
 
+function commentsBody(state: FixtureState, path: string) {
+  const threads = state.comments.get(path) ?? [];
+  return { path, threads, total: threads.length, orphanMarkers: [], strayIds: [] };
+}
+
 /** The two review verbs, as far as the CLI can tell them apart: the revision
  *  guard and the settled row. The real arithmetic lives in the app's own
- *  service and is tested there. Answers a DESCRIPTION rather than a Response,
- *  because the typed json() is a union of (body, status) tuples that a shared
- *  helper cannot satisfy — the handler picks the arm. */
+ *  service and is tested there. Answers a DESCRIPTION rather than raising,
+ *  because `errors` is the PROCEDURE's own constructor map — the handler
+ *  picks the arm. */
 function resolveFixtureProposal(
   state: FixtureState,
-  body: { proposalId: string; expectedRevision: number },
+  input: { proposalId: string; expectedRevision: number },
   status: "accepted" | "rejected",
-): { ok: true; proposal: Proposal } | { ok: false; status: 404 | 409; body: ApiErrorResponse } {
-  const existing = state.proposals.find((row) => row.id === body.proposalId);
+):
+  | { ok: true; proposal: Proposal }
+  | { ok: false; code: "NOT_FOUND" | "CONFLICT"; message: string } {
+  const existing = state.proposals.find((row) => row.id === input.proposalId);
   if (existing === undefined) {
-    return {
-      ok: false,
-      status: 404,
-      body: { error: "not_found", message: "Suggestion not found" },
-    };
+    return { ok: false, code: "NOT_FOUND", message: "Suggestion not found" };
   }
-  if (existing.revision !== body.expectedRevision) {
-    return {
-      ok: false,
-      status: 409,
-      body: { error: "conflict", message: "This suggestion moved on" },
-    };
+  if (existing.revision !== input.expectedRevision) {
+    return { ok: false, code: "CONFLICT", message: "This suggestion moved on" };
   }
   const resolved: Proposal = {
     ...existing,
@@ -196,363 +203,464 @@ function resolveFixtureProposal(
   return { ok: true, proposal: resolved };
 }
 
-function createFixtureApp(state: FixtureState): Hono {
-  const api = new Hono();
-  // Flipped by a test to make every route refuse: what proves a command
-  // CHECKS the status rather than printing whatever body arrives.
-  api.use("*", async (c, next) => {
-    const failure = state.failWith;
-    if (failure === null) {
-      await next();
-      return undefined;
-    }
-    return c.json({ error: failure.error, message: failure.message }, failure.status);
-  });
-  const { get, post, put } = typedRoutes(api);
+const base = implement(localContract).$context<FixtureState>();
 
-  get(apiRoutes.health, (c) => c.json({ ok: true }));
-  get(apiRoutes.system.status, (c) => {
-    const status: SystemStatusResponse = {
-      version: "9.9.9-fixture",
-      dataDir: state.dataDir,
-      vaultDir: "/fixture/vault",
-      schemaVersion: 3,
-      uptimeMs: 65_000,
-      agent: state.agent,
-    };
-    return c.json(status);
-  });
-  get(apiRoutes.guide, (c) => c.json({ markdown: state.guideMarkdown }));
+const agentsRouter = {
+  status: base.agents.status.handler(() => ({ harnesses: [] })),
+};
 
-  get(apiRoutes.vault.tree, (c) =>
-    c.json({ root: "/fixture/vault", name: "vault", entries: deriveTree(state.vault) }),
-  );
-  get(apiRoutes.vault.read, (c, query) => {
-    const content = state.vault.get(query.path);
-    if (content === undefined) {
-      return c.json({ error: "not_found", message: `No file at ${query.path}` }, 404);
-    }
-    return c.json({ path: query.path, content });
-  });
-  put(apiRoutes.vault.write, (c, body) => {
-    state.vault.set(body.path, body.content);
-    return c.json({ path: body.path });
-  });
-  post(apiRoutes.vault.rename, (c, body) => {
-    const content = state.vault.get(body.from);
-    if (content === undefined) {
-      return c.json({ error: "not_found", message: `No file at ${body.from}` }, 404);
-    }
-    state.vault.delete(body.from);
-    state.vault.set(body.to, content);
-    return c.json({ path: body.to, rewritten: [], skipped: [] });
-  });
-  post(apiRoutes.vault.remove, (c, body) => {
-    if (!state.vault.delete(body.path)) {
-      return c.json({ error: "not_found", message: `No file at ${body.path}` }, 404);
-    }
-    return c.json({ ok: true });
-  });
-  post(apiRoutes.vault.mkdir, (c, body) => c.json({ path: body.path }));
-  get(apiRoutes.vault.trashList, (c) =>
-    c.json({
-      entries: [...state.vault.keys()]
-        .filter((path) => path.startsWith("Trash/") && path.endsWith(".md"))
-        .map((path) => ({ path, trashedAt: null, trashedFrom: null })),
-    }),
-  );
-  post(apiRoutes.vault.trash, (c, body) => {
-    const content = state.vault.get(body.path);
-    if (content === undefined) {
-      return c.json({ error: "not_found", message: `No file at ${body.path}` }, 404);
-    }
-    state.vault.delete(body.path);
-    const target = `Trash/${body.path}`;
-    state.vault.set(target, content);
-    return c.json({ path: target });
-  });
-  post(apiRoutes.vault.trashRestore, (c, body) => {
-    const content = state.vault.get(body.path);
-    if (content === undefined) {
-      return c.json({ error: "not_found", message: `No file at ${body.path}` }, 404);
-    }
-    state.vault.delete(body.path);
-    const target = body.path.replace(/^Trash\//, "");
-    state.vault.set(target, content);
-    return c.json({ path: target });
-  });
-  post(apiRoutes.vault.trashPurge, (c, body) => {
-    if (!state.vault.delete(body.path)) {
-      return c.json({ error: "not_found", message: `No file at ${body.path}` }, 404);
-    }
-    return c.json({ ok: true });
-  });
-  get(apiRoutes.vault.status, (c) => c.json(state.vaultStatus));
-  post(apiRoutes.vault.syncNow, (c) => c.json(state.vaultStatus));
+const cloudRouter = {
+  status: base.cloud.status.handler(({ context }) => context.cloud),
+  // The real procedure opens a browser; this one never can, so `opened`
+  // mirrors what was ASKED — which is what the CLI's own claim ("opened your
+  // browser" vs "approve here") is derived from.
+  pairBegin: base.cloud.pairBegin.handler(({ input }) => ({
+    url: `${FIXTURE_CLOUD_URL}/app/pair?redirect=http%3A%2F%2F127.0.0.1%3A4664%2Fpair%2Fcallback&state=${"0".repeat(32)}&name=fixture`,
+    opened: input.openBrowser,
+    deviceName: input.deviceName ?? "fixture-host",
+    expiresInMs: 600_000,
+  })),
+  unpair: base.cloud.unpair.handler(({ context }) => {
+    context.cloud = { state: "off", cloudUrl: FIXTURE_CLOUD_URL };
+    return context.cloud;
+  }),
+  syncNow: base.cloud.syncNow.handler(({ context }) => context.cloud),
+};
 
-  get(apiRoutes.knowledge.search, (c, query) =>
-    c.json({ results: query.q.length === 0 ? [] : state.searchResults }),
-  );
-  get(apiRoutes.knowledge.backlinks, (c, query) =>
-    c.json({ path: query.path, backlinks: state.backlinks, total: state.backlinks.length }),
-  );
-  get(apiRoutes.knowledge.related, (c, query) =>
-    c.json({ path: query.path, related: state.related.slice(0, query.limit) }),
-  );
-  get(apiRoutes.knowledge.tags, (c) => c.json({ tags: state.tags, total: state.tags.length }));
-  get(apiRoutes.knowledge.renameCandidates, (c) => c.json({ candidates: [], total: 0 }));
-
-  const commentsBody = (path: string) => {
-    const threads = state.comments.get(path) ?? [];
-    return { path, threads, total: threads.length, orphanMarkers: [], strayIds: [] };
-  };
-  get(apiRoutes.comments.list, (c, query) => c.json(commentsBody(query.path)));
-  post(apiRoutes.comments.add, (c, body) => {
-    const threads = state.comments.get(body.path) ?? [];
+const commentsRouter = {
+  list: base.comments.list.handler(({ context, input }) => commentsBody(context, input.path)),
+  add: base.comments.add.handler(({ context, input }) => {
+    const threads = context.comments.get(input.path) ?? [];
     threads.push({
       anchored: false,
       replies: [],
       resolved: false,
-      root: { createdAt: 1, source: "user", text: body.text, updatedAt: 1 },
-      rootId: body.id,
+      root: { createdAt: 1, source: "user", text: input.text, updatedAt: 1 },
+      rootId: input.id,
     });
-    state.comments.set(body.path, threads);
-    return c.json(commentsBody(body.path));
-  });
-  post(apiRoutes.comments.reply, (c, body) => {
-    const threads = state.comments.get(body.path) ?? [];
-    const thread = threads.find((row) => row.rootId === body.parentId);
+    context.comments.set(input.path, threads);
+    return commentsBody(context, input.path);
+  }),
+  reply: base.comments.reply.handler(({ context, input, errors }) => {
+    const threads = context.comments.get(input.path) ?? [];
+    const thread = threads.find((row) => row.rootId === input.parentId);
     if (thread === undefined) {
-      return c.json({ error: "not_found", message: `no thread ${body.parentId}` }, 404);
+      throw errors.NOT_FOUND({ message: `no thread ${input.parentId}` });
     }
     thread.replies.push({
-      entry: { createdAt: 2, source: "user", text: body.text, updatedAt: 2 },
-      id: body.id,
+      entry: { createdAt: 2, source: "user", text: input.text, updatedAt: 2 },
+      id: input.id,
     });
-    return c.json(commentsBody(body.path));
-  });
-  post(apiRoutes.comments.resolve, (c, body) => {
-    const thread = (state.comments.get(body.path) ?? []).find((row) => row.rootId === body.id);
+    return commentsBody(context, input.path);
+  }),
+  resolve: base.comments.resolve.handler(({ context, input, errors }) => {
+    const thread = (context.comments.get(input.path) ?? []).find((row) => row.rootId === input.id);
     if (thread === undefined) {
-      return c.json({ error: "not_found", message: `no thread ${body.id}` }, 404);
+      throw errors.NOT_FOUND({ message: `no thread ${input.id}` });
     }
-    thread.resolved = body.resolved;
-    return c.json(commentsBody(body.path));
-  });
-  post(apiRoutes.comments.remove, (c, body) => {
-    const threads = state.comments.get(body.path) ?? [];
-    const remaining = threads.filter((row) => row.rootId !== body.id);
+    thread.resolved = input.resolved;
+    return commentsBody(context, input.path);
+  }),
+  remove: base.comments.remove.handler(({ context, input, errors }) => {
+    const threads = context.comments.get(input.path) ?? [];
+    const remaining = threads.filter((row) => row.rootId !== input.id);
     if (remaining.length === threads.length) {
-      return c.json({ error: "not_found", message: `no thread ${body.id}` }, 404);
+      throw errors.NOT_FOUND({ message: `no thread ${input.id}` });
     }
-    state.comments.set(body.path, remaining);
-    return c.json({ ...commentsBody(body.path), removedIds: [body.id] });
-  });
+    context.comments.set(input.path, remaining);
+    return { ...commentsBody(context, input.path), removedIds: [input.id] };
+  }),
+};
 
-  get(apiRoutes.folders.list, (c) => c.json(state.folders));
-  post(apiRoutes.folders.add, (c, body) => {
-    if (state.folders.folders.includes(body.path)) {
-      return c.json({ error: "already_exists", message: `"${body.path}" is connected` }, 409);
+const connectorsRouter = {
+  list: base.connectors.list.handler(({ context }) => context.connectors),
+  add: base.connectors.add.handler(({ context, input, errors }) => {
+    if (context.connectors.servers.some((row) => row.name === input.name)) {
+      throw errors.ALREADY_EXISTS({ message: `"${input.name}" exists` });
     }
-    state.folders.folders.push(body.path);
-    return c.json(state.folders);
-  });
-  post(apiRoutes.folders.remove, (c, body) => {
-    const before = state.folders.folders.length;
-    state.folders.folders = state.folders.folders.filter((row) => row !== body.path);
-    if (state.folders.folders.length === before) {
-      return c.json({ error: "not_found", message: `not connected: ${body.path}` }, 404);
-    }
-    return c.json(state.folders);
-  });
-
-  get(apiRoutes.connectors.list, (c) => c.json(state.connectors));
-  post(apiRoutes.connectors.add, (c, body) => {
-    if (state.connectors.servers.some((row) => row.name === body.name)) {
-      return c.json({ error: "already_exists", message: `"${body.name}" exists` }, 409);
-    }
-    state.connectors.servers.push({
+    context.connectors.servers.push({
       enabled: true,
-      name: body.name,
+      name: input.name,
       transport:
-        body.transport.kind === "stdio"
-          ? { args: body.transport.args, command: body.transport.command, kind: "stdio" }
-          : body.transport.kind === "oauth"
+        input.transport.kind === "stdio"
+          ? { args: input.transport.args, command: input.transport.command, kind: "stdio" }
+          : input.transport.kind === "oauth"
             ? {
-                authorizationEndpoint: body.transport.authorizationEndpoint,
-                clientId: body.transport.clientId,
+                authorizationEndpoint: input.transport.authorizationEndpoint,
+                clientId: input.transport.clientId,
                 kind: "oauth",
-                scopes: body.transport.scopes,
+                scopes: input.transport.scopes,
                 status: "needs-auth",
-                tokenEndpoint: body.transport.tokenEndpoint,
-                url: body.transport.url,
+                tokenEndpoint: input.transport.tokenEndpoint,
+                url: input.transport.url,
               }
             : {
-                hasAuth: Object.keys(body.transport.headers ?? {}).length > 0,
+                hasAuth: Object.keys(input.transport.headers ?? {}).length > 0,
                 kind: "http",
-                url: body.transport.url,
+                url: input.transport.url,
               },
     });
-    return c.json(state.connectors);
-  });
-  post(apiRoutes.connectors.remove, (c, body) => {
-    const before = state.connectors.servers.length;
-    state.connectors.servers = state.connectors.servers.filter((row) => row.name !== body.name);
-    if (state.connectors.servers.length === before) {
-      return c.json({ error: "not_found", message: `no connector ${body.name}` }, 404);
-    }
-    return c.json(state.connectors);
-  });
-  post(apiRoutes.connectors.update, (c, body) => {
-    const row = state.connectors.servers.find((candidate) => candidate.name === body.name);
+    return context.connectors;
+  }),
+  update: base.connectors.update.handler(({ context, input, errors }) => {
+    const row = context.connectors.servers.find((candidate) => candidate.name === input.name);
     if (row === undefined) {
-      return c.json({ error: "not_found", message: `no connector ${body.name}` }, 404);
+      throw errors.NOT_FOUND({ message: `no connector ${input.name}` });
     }
-    return c.json(state.connectors);
-  });
-  post(apiRoutes.connectors.toggle, (c, body) => {
-    const row = state.connectors.servers.find((candidate) => candidate.name === body.name);
+    return context.connectors;
+  }),
+  remove: base.connectors.remove.handler(({ context, input, errors }) => {
+    const before = context.connectors.servers.length;
+    context.connectors.servers = context.connectors.servers.filter(
+      (row) => row.name !== input.name,
+    );
+    if (context.connectors.servers.length === before) {
+      throw errors.NOT_FOUND({ message: `no connector ${input.name}` });
+    }
+    return context.connectors;
+  }),
+  toggle: base.connectors.toggle.handler(({ context, input, errors }) => {
+    const row = context.connectors.servers.find((candidate) => candidate.name === input.name);
     if (row === undefined) {
-      return c.json({ error: "not_found", message: `no connector ${body.name}` }, 404);
+      throw errors.NOT_FOUND({ message: `no connector ${input.name}` });
     }
-    row.enabled = body.enabled;
-    return c.json(state.connectors);
-  });
+    row.enabled = input.enabled;
+    return context.connectors;
+  }),
+  oauthBegin: base.connectors.oauthBegin.handler(({ context, input, errors }) => {
+    const row = context.connectors.servers.find((candidate) => candidate.name === input.name);
+    if (row === undefined) {
+      throw errors.NOT_FOUND({ message: `no connector ${input.name}` });
+    }
+    return { url: `${FIXTURE_CLOUD_URL}/oauth/${input.name}/authorize`, opened: input.open };
+  }),
+  oauthDisconnect: base.connectors.oauthDisconnect.handler(({ context, input, errors }) => {
+    const row = context.connectors.servers.find((candidate) => candidate.name === input.name);
+    if (row === undefined) {
+      throw errors.NOT_FOUND({ message: `no connector ${input.name}` });
+    }
+    return context.connectors;
+  }),
+};
 
-  get(apiRoutes.cloud.status, (c) => c.json(state.cloud));
-  // The real route opens a browser; this one never can, so `opened` mirrors
-  // what was ASKED — which is what the CLI's own claim ("opened your browser"
-  // vs "approve here") is derived from.
-  post(apiRoutes.cloud.pairBegin, (c, body) =>
-    c.json({
-      url: `${FIXTURE_CLOUD_URL}/app/pair?redirect=http%3A%2F%2F127.0.0.1%3A4664%2Fpair%2Fcallback&state=${"0".repeat(32)}&name=fixture`,
-      opened: body.openBrowser,
-      deviceName: body.deviceName ?? "fixture-host",
-      expiresInMs: 600_000,
-    }),
-  );
-  post(apiRoutes.cloud.unpair, (c) => {
-    state.cloud = { state: "off", cloudUrl: FIXTURE_CLOUD_URL };
-    return c.json(state.cloud);
-  });
-  post(apiRoutes.cloud.syncNow, (c) => c.json(state.cloud));
+const foldersRouter = {
+  list: base.folders.list.handler(({ context }) => context.folders),
+  add: base.folders.add.handler(({ context, input, errors }) => {
+    if (context.folders.folders.includes(input.path)) {
+      throw errors.ALREADY_EXISTS({ message: `"${input.path}" is connected` });
+    }
+    context.folders.folders.push(input.path);
+    return context.folders;
+  }),
+  remove: base.folders.remove.handler(({ context, input, errors }) => {
+    const before = context.folders.folders.length;
+    context.folders.folders = context.folders.folders.filter((row) => row !== input.path);
+    if (context.folders.folders.length === before) {
+      throw errors.NOT_FOUND({ message: `not connected: ${input.path}` });
+    }
+    return context.folders;
+  }),
+};
 
-  get(apiRoutes.threads.list, (c) =>
-    c.json({ threads: state.threads.map((entry) => entry.thread) }),
-  );
-  get(apiRoutes.threads.get, (c, query) => {
-    const entry = findThread(state, query.threadId);
+const knowledgeRouter = {
+  search: base.knowledge.search.handler(({ context, input }) => ({
+    results: input.q.length === 0 ? [] : context.searchResults,
+  })),
+  wikiTargets: base.knowledge.wikiTargets.handler(() => ({ targets: [] })),
+  backlinks: base.knowledge.backlinks.handler(({ context, input }) => ({
+    path: input.path,
+    backlinks: context.backlinks,
+    total: context.backlinks.length,
+  })),
+  related: base.knowledge.related.handler(({ context, input }) => ({
+    path: input.path,
+    related: context.related.slice(0, input.limit),
+  })),
+  tags: base.knowledge.tags.handler(({ context }) => ({
+    tags: context.tags,
+    total: context.tags.length,
+  })),
+  renameCandidates: base.knowledge.renameCandidates.handler(() => ({
+    candidates: [],
+    total: 0,
+  })),
+};
+
+const noteIntelligenceRouter = {
+  status: base.noteIntelligence.status.handler(() => ({
+    enabled: false,
+    running: false,
+    lastSweep: null,
+  })),
+  toggle: base.noteIntelligence.toggle.handler(({ input }) => ({
+    enabled: input.enabled,
+    running: false,
+    lastSweep: null,
+  })),
+};
+
+const proposalsRouter = {
+  list: base.proposals.list.handler(({ context, input }) => ({
+    proposals: context.proposals.filter(
+      (proposal) =>
+        (input.docPath === undefined || proposal.docPath === input.docPath) &&
+        (input.threadId === undefined || proposal.threadId === input.threadId) &&
+        (input.includeResolved === true || proposal.status !== "accepted"),
+    ),
+  })),
+  get: base.proposals.get.handler(({ context, input, errors }) => {
+    const proposal = context.proposals.find((row) => row.id === input.proposalId);
+    if (proposal === undefined) {
+      throw errors.NOT_FOUND({ message: "Suggestion not found" });
+    }
+    return { proposal };
+  }),
+  accept: base.proposals.accept.handler(({ context, input, errors }) => {
+    const outcome = resolveFixtureProposal(context, input, "accepted");
+    if (!outcome.ok) {
+      throw outcome.code === "NOT_FOUND"
+        ? errors.NOT_FOUND({ message: outcome.message })
+        : errors.CONFLICT({ message: outcome.message });
+    }
+    return { proposal: outcome.proposal };
+  }),
+  reject: base.proposals.reject.handler(({ context, input, errors }) => {
+    const outcome = resolveFixtureProposal(context, input, "rejected");
+    if (!outcome.ok) {
+      throw outcome.code === "NOT_FOUND"
+        ? errors.NOT_FOUND({ message: outcome.message })
+        : errors.CONFLICT({ message: outcome.message });
+    }
+    return { proposal: outcome.proposal };
+  }),
+};
+
+const systemRouter = {
+  status: base.system.status.handler(({ context }) => {
+    const status: SystemStatusResponse = {
+      version: "9.9.9-fixture",
+      dataDir: context.dataDir,
+      vaultDir: "/fixture/vault",
+      schemaVersion: 3,
+      uptimeMs: 65_000,
+      agent: context.agent,
+    };
+    return status;
+  }),
+  guide: base.system.guide.handler(({ context }) => ({ markdown: context.guideMarkdown })),
+};
+
+const threadsRouter = {
+  list: base.threads.list.handler(({ context }) => ({
+    threads: context.threads.map((entry) => entry.thread),
+  })),
+  get: base.threads.get.handler(({ context, input, errors }) => {
+    const entry = findThread(context, input.threadId);
     if (entry === undefined) {
-      return c.json(NOT_FOUND, 404);
+      throw errors.NOT_FOUND({ message: "Not found" });
     }
     const nextStatus = entry.statusSequence?.shift();
     if (nextStatus !== undefined) {
       entry.thread = { ...entry.thread, status: nextStatus };
     }
-    return c.json({
+    return {
       thread: entry.thread,
       pendingInteractions: entry.pendingInteractions,
       queuedMessages: entry.queuedMessages ?? [],
-    });
-  });
-  post(apiRoutes.threads.create, (c, body) => {
-    const overrides: Partial<Thread> & Pick<Thread, "id"> = {
-      id: state.nextCreatedThreadId,
-      originDocPath: body.originDocPath ?? null,
-      originAnchor: body.originAnchor ?? null,
     };
-    if (body.title !== undefined) {
-      overrides.title = body.title;
+  }),
+  byDoc: base.threads.byDoc.handler(({ context, input }) => ({
+    threads: context.threads
+      .filter((entry) => entry.thread.originDocPath === input.docPath)
+      .map((entry) => ({
+        thread: entry.thread,
+        openInteractionCount: entry.pendingInteractions.filter((row) => row.status === "pending")
+          .length,
+        queuedCount: (entry.queuedMessages ?? []).length,
+        pendingProposalCount: context.proposals.filter(
+          (row) => row.threadId === entry.thread.id && row.status === "pending",
+        ).length,
+      })),
+  })),
+  create: base.threads.create.handler(({ context, input }) => {
+    const overrides: Partial<Thread> & Pick<Thread, "id"> = {
+      id: context.nextCreatedThreadId,
+      originDocPath: input.originDocPath ?? null,
+      originAnchor: input.originAnchor ?? null,
+    };
+    if (input.title !== undefined) {
+      overrides.title = input.title;
     }
     const thread = makeThread(overrides);
-    state.threads.push({ thread, pendingInteractions: [], timeline: EMPTY_TIMELINE });
-    return c.json({ thread }, 201);
-  });
-  post(apiRoutes.threads.archive, (c, body) => {
-    const entry = findThread(state, body.threadId);
+    context.threads.push({ thread, pendingInteractions: [], timeline: EMPTY_TIMELINE });
+    return { thread };
+  }),
+  archive: base.threads.archive.handler(({ context, input, errors }) => {
+    const entry = findThread(context, input.threadId);
     if (entry === undefined) {
-      return c.json(NOT_FOUND, 404);
+      throw errors.NOT_FOUND({ message: "Not found" });
     }
     entry.thread = { ...entry.thread, archivedAt: 1_700_000_001_000 };
-    return c.json({ thread: entry.thread });
-  });
-  post(apiRoutes.threads.send, (c, body) => {
-    const entry = findThread(state, body.threadId);
+    return { thread: entry.thread };
+  }),
+  send: base.threads.send.handler(({ context, input, errors }) => {
+    const entry = findThread(context, input.threadId);
     if (entry === undefined) {
-      return c.json(NOT_FOUND, 404);
+      throw errors.NOT_FOUND({ message: "Not found" });
     }
-    const refusal = state.refuseSend;
+    const refusal = context.refuseSend;
     if (refusal !== null) {
-      return c.json({ error: refusal.error, message: refusal.message }, 503);
+      throw errors.PROVIDER_UNAVAILABLE({ message: refusal.message });
     }
-    return c.json({ kind: "started", turnId: `turn_for_${body.threadId}` });
-  });
-  get(apiRoutes.threads.listInteractions, (c, query) =>
-    c.json({
-      interactions: state.threads
-        .filter((entry) => query.threadId === undefined || entry.thread.id === query.threadId)
-        .flatMap((entry) => entry.pendingInteractions),
-    }),
-  );
-  get(apiRoutes.threads.timeline, (c, query) => {
-    const entry = findThread(state, query.threadId);
+    return { kind: "started", turnId: `turn_for_${input.threadId}` };
+  }),
+  timeline: base.threads.timeline.handler(({ context, input, errors }) => {
+    const entry = findThread(context, input.threadId);
     if (entry === undefined) {
-      return c.json(NOT_FOUND, 404);
+      throw errors.NOT_FOUND({ message: "Not found" });
     }
-    return c.json({ kind: "full", timeline: entry.timeline });
-  });
-  post(apiRoutes.threads.answerInteraction, (c, body) => {
-    const entry = findThread(state, body.threadId);
-    const interaction = entry?.pendingInteractions.find((row) => row.id === body.interactionId);
+    return { kind: "full", timeline: entry.timeline };
+  }),
+  listInteractions: base.threads.listInteractions.handler(({ context, input }) => ({
+    interactions: context.threads
+      .filter((entry) => input.threadId === undefined || entry.thread.id === input.threadId)
+      .flatMap((entry) => entry.pendingInteractions),
+  })),
+  answerInteraction: base.threads.answerInteraction.handler(({ context, input, errors }) => {
+    const entry = findThread(context, input.threadId);
+    const interaction = entry?.pendingInteractions.find((row) => row.id === input.interactionId);
     if (entry === undefined || interaction === undefined) {
-      return c.json({ error: "not_found", message: "Interaction not found" }, 404);
+      throw errors.NOT_FOUND({ message: "Interaction not found" });
     }
     const resolved: PendingInteraction = {
       ...interaction,
       status: "resolved",
-      resolution: body.resolution,
+      resolution: input.resolution,
       resolvedAt: 1_700_000_002_000,
     };
     entry.pendingInteractions = entry.pendingInteractions.map((row) =>
       row.id === resolved.id ? resolved : row,
     );
-    return c.json({ interaction: resolved });
-  });
+    return { interaction: resolved };
+  }),
+};
 
-  get(apiRoutes.proposals.list, (c, query) =>
-    c.json({
-      proposals: state.proposals.filter(
-        (proposal) =>
-          (query?.docPath === undefined || proposal.docPath === query.docPath) &&
-          (query?.threadId === undefined || proposal.threadId === query.threadId) &&
-          (query?.includeResolved === true || proposal.status !== "accepted"),
-      ),
-    }),
-  );
-  get(apiRoutes.proposals.get, (c, query) => {
-    const proposal = state.proposals.find((row) => row.id === query.proposalId);
-    if (proposal === undefined) {
-      return c.json({ error: "not_found", message: "Suggestion not found" }, 404);
+const vaultRouter = {
+  tree: base.vault.tree.handler(({ context }) => ({
+    root: "/fixture/vault",
+    name: "vault",
+    entries: deriveTree(context.vault),
+  })),
+  read: base.vault.read.handler(({ context, input, errors }) => {
+    const content = context.vault.get(input.path);
+    if (content === undefined) {
+      throw errors.NOT_FOUND({ message: `No file at ${input.path}` });
     }
-    return c.json({ proposal });
-  });
-  post(apiRoutes.proposals.accept, (c, body) => {
-    const outcome = resolveFixtureProposal(state, body, "accepted");
-    return outcome.ok
-      ? c.json({ proposal: outcome.proposal })
-      : c.json(outcome.body, outcome.status);
-  });
-  post(apiRoutes.proposals.reject, (c, body) => {
-    const outcome = resolveFixtureProposal(state, body, "rejected");
-    return outcome.ok
-      ? c.json({ proposal: outcome.proposal })
-      : c.json(outcome.body, outcome.status);
-  });
+    return { path: input.path, content };
+  }),
+  write: base.vault.write.handler(({ context, input }) => {
+    context.vault.set(input.path, input.content);
+    return { path: input.path };
+  }),
+  assetWrite: base.vault.assetWrite.handler(({ input }) => ({
+    path: `${input.dir}/${input.baseName}`,
+  })),
+  rename: base.vault.rename.handler(({ context, input, errors }) => {
+    const content = context.vault.get(input.from);
+    if (content === undefined) {
+      throw errors.NOT_FOUND({ message: `No file at ${input.from}` });
+    }
+    context.vault.delete(input.from);
+    context.vault.set(input.to, content);
+    return { path: input.to, rewritten: [], skipped: [] };
+  }),
+  mkdir: base.vault.mkdir.handler(({ input }) => ({ path: input.path })),
+  trashList: base.vault.trashList.handler(({ context }) => ({
+    entries: [...context.vault.keys()]
+      .filter((path) => path.startsWith("Trash/") && path.endsWith(".md"))
+      .map((path) => ({ path, trashedAt: null, trashedFrom: null })),
+  })),
+  trash: base.vault.trash.handler(({ context, input, errors }) => {
+    const content = context.vault.get(input.path);
+    if (content === undefined) {
+      throw errors.NOT_FOUND({ message: `No file at ${input.path}` });
+    }
+    context.vault.delete(input.path);
+    const target = `Trash/${input.path}`;
+    context.vault.set(target, content);
+    return { path: target };
+  }),
+  trashRestore: base.vault.trashRestore.handler(({ context, input, errors }) => {
+    const content = context.vault.get(input.path);
+    if (content === undefined) {
+      throw errors.NOT_FOUND({ message: `No file at ${input.path}` });
+    }
+    context.vault.delete(input.path);
+    const target = input.path.replace(/^Trash\//, "");
+    context.vault.set(target, content);
+    return { path: target };
+  }),
+  trashPurge: base.vault.trashPurge.handler(({ context, input, errors }) => {
+    if (!context.vault.delete(input.path)) {
+      throw errors.NOT_FOUND({ message: `No file at ${input.path}` });
+    }
+    return { ok: true } as const;
+  }),
+  remove: base.vault.remove.handler(({ context, input, errors }) => {
+    if (!context.vault.delete(input.path)) {
+      throw errors.NOT_FOUND({ message: `No file at ${input.path}` });
+    }
+    return { ok: true } as const;
+  }),
+  status: base.vault.status.handler(({ context }) => context.vaultStatus),
+  syncNow: base.vault.syncNow.handler(({ context }) => context.vaultStatus),
+};
 
-  const app = new Hono();
-  app.route(API_BASE_PATH, api);
-  return app;
-}
+/** Dictation needs a model file and a native binding, and this server has
+ *  neither — which the vocabulary already has a word for, so the switch
+ *  answers rather than refuses. */
+const voiceRouter = {
+  status: base.voice.status.handler(() => ({
+    state: "unavailable",
+    detail: "the fixture server does not dictate",
+  })),
+  install: base.voice.install.handler(() => ({
+    state: "unavailable",
+    detail: "the fixture server does not dictate",
+  })),
+  remove: base.voice.remove.handler(() => ({
+    state: "unavailable",
+    detail: "the fixture server does not dictate",
+  })),
+  transcribe: base.voice.transcribe.handler(() => ({ text: "" })),
+};
+
+// Flipped by a test to make every procedure refuse: what proves a command
+// CHECKS the result rather than printing whatever body arrives. It is a
+// middleware rather than a handler interceptor so the refusal is an ORPCError
+// the client raises — the same shape a real refusal has.
+const fixtureRouter = base
+  .use(({ context, next }) => {
+    const failure = context.failWith;
+    if (failure !== null) {
+      throw new ORPCError(failure.code, { message: failure.message });
+    }
+    return next();
+  })
+  .router({
+    agents: agentsRouter,
+    cloud: cloudRouter,
+    comments: commentsRouter,
+    connectors: connectorsRouter,
+    folders: foldersRouter,
+    knowledge: knowledgeRouter,
+    noteIntelligence: noteIntelligenceRouter,
+    proposals: proposalsRouter,
+    system: systemRouter,
+    threads: threadsRouter,
+    vault: vaultRouter,
+    voice: voiceRouter,
+  });
 
 export interface FixtureServer {
   baseUrl: string;
@@ -560,22 +668,39 @@ export interface FixtureServer {
 }
 
 export async function serveFixture(state: FixtureState): Promise<FixtureServer> {
-  const app = createFixtureApp(state);
-  return new Promise((resolve) => {
-    const server = serve({ fetch: app.fetch, hostname: "127.0.0.1", port: 0 }, (info) => {
-      resolve({
-        baseUrl: `http://127.0.0.1:${info.port}`,
-        close: () =>
-          new Promise<void>((resolveClose, rejectClose) => {
-            server.close((error) => {
-              if (error) {
-                rejectClose(error);
-                return;
-              }
-              resolveClose();
-            });
-          }),
+  const handler = new RPCHandler(fixtureRouter);
+  const server = createServer((request, response) => {
+    if (request.headers.authorization !== `Bearer ${FIXTURE_SERVER_TOKEN}`) {
+      response.writeHead(401, { "content-type": "text/plain" });
+      response.end("This request carried no valid inteligir device token");
+      return;
+    }
+    void (async () => {
+      const { matched } = await handler.handle(request, response, {
+        prefix: RPC_PREFIX,
+        context: state,
       });
-    });
+      if (!matched) {
+        response.writeHead(404, { "content-type": "text/plain" });
+        response.end("Not found");
+      }
+    })();
   });
+  await new Promise<void>((resolve) => {
+    server.listen(0, "127.0.0.1", resolve);
+  });
+  const { port } = boundAddressSchema.parse(server.address());
+  return {
+    baseUrl: `http://127.0.0.1:${port}`,
+    close: () =>
+      new Promise<void>((resolve, reject) => {
+        server.close((error) => {
+          if (error) {
+            reject(error);
+            return;
+          }
+          resolve();
+        });
+      }),
+  };
 }

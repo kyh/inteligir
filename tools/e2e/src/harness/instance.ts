@@ -1,23 +1,27 @@
-// Boots ONE real app process on a scratch instance dir (data/ and vault/ as
-// siblings — the app refuses nesting) and hands back the typed API client.
-// Dev mode runs the same entry `pnpm dev` runs (tsx + vite middleware); prod
-// mode runs the built bundle (`dist-node/main.js`) under plain node.
+// Boots ONE real server on a scratch instance dir (data/ and vault/ as
+// siblings — the app refuses nesting) and hands back the typed client.
+//
+// ONE MODE, because there is one build: the workspace is a plain SPA built
+// once and served as files, so the suite drives the same bytes and the same
+// policy a user gets. A dev entry that mounted Vite in the server process
+// would serve different code and force a second run.
 
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
-import { createApiClient, type ApiClient } from "@repo/server-contract/client";
-import { apiPath, apiRoutes, healthResponseSchema } from "@repo/server-contract/routes";
+import { createORPCClient } from "@orpc/client";
+import { RPCLink } from "@orpc/client/fetch";
+import type { ContractRouterClient } from "@orpc/contract";
+import { authorizationHeader, readServerFile } from "inteligir/server/server-file";
+import type { LocalContract } from "@repo/api/local";
+import { HEALTH_PATH, healthResponseSchema, RPC_PREFIX } from "@repo/api/local/routes";
 import { hermeticProcessEnv } from "./exec";
 import { reserveFreePorts } from "./ports";
 
-export type BootMode = "dev" | "prod";
-
 const HEALTH_POLL_INTERVAL_MS = 250;
-/** Dev pays a vite cold start; prod is a plain node boot. */
-const HEALTH_DEADLINE_MS = { dev: 120_000, prod: 30_000 } satisfies Record<BootMode, number>;
+const HEALTH_DEADLINE_MS = 60_000;
 const STOP_SIGTERM_GRACE_MS = 5_000;
 const STOP_SIGKILL_GRACE_MS = 2_000;
 const KILL_POLL_INTERVAL_MS = 100;
@@ -43,7 +47,6 @@ export function killAllLiveGroups(signal: NodeJS.Signals): void {
 }
 
 export interface LaunchAppArgs {
-  mode: BootMode;
   /** Short label for transcript lines ("a", "b", "solo"). */
   name: string;
   /** Scratch dir owned by this instance; data/ and vault/ are created inside. */
@@ -60,8 +63,12 @@ export interface LaunchAppArgs {
   register: (instance: AppInstance) => void;
 }
 
+/** The typed client every scenario drives. A refusal THROWS, so a scenario
+ *  that forgot to check one fails rather than asserting on a refusal body. */
+export type InstanceApi = ContractRouterClient<LocalContract>;
+
 export interface AppInstance {
-  api: ApiClient;
+  api: InstanceApi;
   baseUrl: string;
   dataDir: string;
   vaultDir: string;
@@ -79,8 +86,6 @@ const HARNESS_OWNED_ENV_KEYS = new Set([
   "INTELIGIR_VAULT_DIR",
   "INTELIGIR_PORT",
   "INTELIGIR_VAULT_REMOTE",
-  "INTELIGIR_HMR_PORT",
-  "NODE_ENV",
 ]);
 
 function buildChildEnv(
@@ -88,12 +93,11 @@ function buildChildEnv(
   dataDir: string,
   vaultDir: string,
   port: number,
-  hmrPort: number | undefined,
 ): NodeJS.ProcessEnv {
   for (const key of Object.keys(args.extraEnv ?? {})) {
     if (HARNESS_OWNED_ENV_KEYS.has(key) || key.startsWith("GIT_")) {
       throw new Error(
-        `extraEnv must not set "${key}": the harness owns the instance paths, the port, the mode and git isolation`,
+        `extraEnv must not set "${key}": the harness owns the instance paths, the port and git isolation`,
       );
     }
   }
@@ -112,45 +116,31 @@ function buildChildEnv(
   if (args.vaultRemote !== undefined) {
     env.INTELIGIR_VAULT_REMOTE = args.vaultRemote;
   }
-  if (args.mode === "prod") {
-    env.NODE_ENV = "production";
-  } else {
-    delete env.NODE_ENV;
-    // Vite's default HMR websocket port is machine-global; concurrent
-    // instances (and any other vite dev server on the box) collide on it and
-    // the loser's page throws. Each instance gets its own reserved port.
-    if (hmrPort !== undefined) {
-      env.INTELIGIR_HMR_PORT = String(hmrPort);
-    }
-  }
   return env;
 }
 
-/** The executable and argv one boot mode spawns. */
+/** The executable and argv every instance spawns. */
 interface LaunchCommand {
   file: string;
   argv: string[];
 }
 
-function resolveCommand(mode: BootMode, appDir: string): LaunchCommand {
-  if (mode === "dev") {
-    return {
-      file: join(appDir, "node_modules", ".bin", "tsx"),
-      argv: [join(appDir, "src", "node", "main.ts")],
-    };
-  }
-  const bundle = join(appDir, "dist-node", "main.js");
-  // The Start server entry, because it is what answers every HTML navigation
-  // in prod — a dist-node bundle beside a missing entry boots and then 500s
-  // the page, which is a worse failure than refusing here.
-  const startEntry = join(appDir, "dist", "server", "server.js");
-  const missing = [bundle, startEntry].find((artifact) => !existsSync(artifact));
-  if (missing !== undefined) {
+/**
+ * `inteligir serve` through its own bin — the same entry a user's shell
+ * resolves, which under a checkout runs the SOURCE under tsx.
+ *
+ * The built workspace UI is required rather than optional: the browser
+ * scenarios drive the real page, and a server with no UI would answer their
+ * navigation with a 404 no assertion could explain.
+ */
+function resolveCommand(cliDir: string): LaunchCommand {
+  const ui = join(cliDir, "dist", "ui", "index.html");
+  if (!existsSync(ui)) {
     throw new Error(
-      `prod mode needs the built app (missing ${missing}); run: pnpm --filter @repo/app build`,
+      `the scenario suite needs the built workspace UI (missing ${ui}); run: pnpm --filter inteligir build`,
     );
   }
-  return { file: process.execPath, argv: [bundle] };
+  return { file: join(cliDir, "bin", "inteligir"), argv: ["serve"] };
 }
 
 function groupAlive(pgid: number): boolean {
@@ -174,8 +164,6 @@ async function pollGroupGone(pgid: number, graceMs: number): Promise<boolean> {
     await delay(KILL_POLL_INTERVAL_MS);
   }
 }
-
-const HEALTH_PATH = apiPath(apiRoutes.health);
 
 async function healthAnswered(baseUrl: string): Promise<boolean> {
   try {
@@ -207,20 +195,19 @@ interface SpawnedAttempt {
 function spawnAttempt(
   args: LaunchAppArgs,
   command: LaunchCommand,
-  appDir: string,
+  cliDir: string,
   dataDir: string,
   vaultDir: string,
   port: number,
-  hmrPort: number | undefined,
 ): SpawnedAttempt {
   const baseUrl = `http://127.0.0.1:${port}`;
 
-  // Its own process group, so stop() can kill the whole tree — the dev entry
+  // Its own process group, so stop() can kill the whole tree — the server
   // forks a watcher child that would otherwise outlive its parent.
   const child = spawn(command.file, command.argv, {
-    cwd: appDir,
+    cwd: cliDir,
     detached: true,
-    env: buildChildEnv(args, dataDir, vaultDir, port, hmrPort),
+    env: buildChildEnv(args, dataDir, vaultDir, port),
     stdio: ["ignore", "pipe", "pipe"],
   });
   const pid = child.pid;
@@ -300,8 +287,19 @@ function spawnAttempt(
     return stopPromise;
   }
 
+  // The device token is read from the instance's own data dir on every call
+  // rather than captured once: it is published after listen, and this client is
+  // built before the health wait.
+  const link = new RPCLink({
+    url: `${baseUrl}${RPC_PREFIX}`,
+    headers: () => {
+      const server = readServerFile(dataDir);
+      return server === null ? {} : { authorization: authorizationHeader(server.token) };
+    },
+  });
+
   const instance: AppInstance = {
-    api: createApiClient(baseUrl),
+    api: createORPCClient(link),
     baseUrl,
     dataDir,
     vaultDir,
@@ -316,30 +314,20 @@ function spawnAttempt(
 async function attemptLaunch(
   args: LaunchAppArgs,
   command: LaunchCommand,
-  appDir: string,
+  cliDir: string,
   dataDir: string,
   vaultDir: string,
 ): Promise<AttemptResult> {
-  // Dev needs a second port for vite's HMR websocket; both are reserved in
-  // one call so the pair is distinct.
-  const ports = await reserveFreePorts(args.mode === "dev" ? 2 : 1);
+  const ports = await reserveFreePorts(1);
   const port = ports[0];
   if (port === undefined) {
     throw new Error("port reservation returned nothing");
   }
-  const { instance, exited } = spawnAttempt(
-    args,
-    command,
-    appDir,
-    dataDir,
-    vaultDir,
-    port,
-    ports[1],
-  );
+  const { instance, exited } = spawnAttempt(args, command, cliDir, dataDir, vaultDir, port);
   args.register(instance);
-  args.onLog(`booting ${args.mode} instance "${args.name}" on ${instance.baseUrl}`);
+  args.onLog(`booting instance "${args.name}" on ${instance.baseUrl}`);
 
-  const deadline = Date.now() + HEALTH_DEADLINE_MS[args.mode];
+  const deadline = Date.now() + HEALTH_DEADLINE_MS;
   for (;;) {
     if (exited()) {
       const tail = instance.outputTail();
@@ -357,7 +345,7 @@ async function attemptLaunch(
       const tail = instance.outputTail();
       await instance.stop();
       throw new Error(
-        `instance "${args.name}" did not answer ${HEALTH_PATH} within ${HEALTH_DEADLINE_MS[args.mode]}ms\n${tail}`,
+        `instance "${args.name}" did not answer ${HEALTH_PATH} within ${HEALTH_DEADLINE_MS}ms\n${tail}`,
       );
     }
     await delay(HEALTH_POLL_INTERVAL_MS);
@@ -369,11 +357,11 @@ export async function launchApp(args: LaunchAppArgs): Promise<AppInstance> {
   const vaultDir = join(args.instanceDir, "vault");
   await mkdir(dataDir, { recursive: true });
 
-  const appDir = join(args.repoRoot, "apps", "app");
-  const command = resolveCommand(args.mode, appDir);
+  const cliDir = join(args.repoRoot, "apps", "cli");
+  const command = resolveCommand(cliDir);
 
   for (let attempt = 1; ; attempt += 1) {
-    const result = await attemptLaunch(args, command, appDir, dataDir, vaultDir);
+    const result = await attemptLaunch(args, command, cliDir, dataDir, vaultDir);
     if (result.kind === "ready") {
       return result.instance;
     }

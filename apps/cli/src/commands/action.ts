@@ -3,12 +3,13 @@
 // (0 idle, 1 error, 2 timeout) so a shell script can branch on it.
 
 import { setTimeout as delay } from "node:timers/promises";
-import type { Thread } from "@repo/server-contract/threads";
+import { ORPCError } from "@orpc/client";
+import type { Thread } from "@repo/api/local/threads/threads-schema";
 import { formatThreadTimeline } from "@repo/thread-view/format-thread-timeline";
 import { defineCommand } from "citty";
-import { CliExitError, EXIT_WAIT_TIMEOUT, invalidUsage } from "../cli-error";
+import { CliExitError, EXIT_WAIT_TIMEOUT, getErrorMessage, invalidUsage } from "../cli-error";
 import { apiFor, type CliDeps } from "../context";
-import { jsonArg, out, outputJson, requireOk, writeLines } from "../output";
+import { jsonArg, out, outputJson, writeLines } from "../output";
 
 const DEFAULT_WAIT_TIMEOUT_SECONDS = 600;
 const DEFAULT_WAIT_POLL_INTERVAL_MS = 300;
@@ -42,6 +43,15 @@ function describeSendOutcome(outcome: SendOutcome): string {
   }
 }
 
+/** A refusal keeps its own class through the re-wrap, so a `--json` caller
+ *  branches on the same vocabulary a bare `send` would have handed it. */
+function sendFailureCode(cause: unknown): string {
+  if (cause instanceof ORPCError || cause instanceof CliExitError) {
+    return cause.code;
+  }
+  return "SEND_FAILED";
+}
+
 export function actionCommand(deps: CliDeps) {
   return defineCommand({
     meta: { name: "action", description: "Agent actions — threads attached to notes" },
@@ -50,8 +60,8 @@ export function actionCommand(deps: CliDeps) {
         meta: { name: "list", description: "All actions with status" },
         args: { ...jsonArg },
         run: async ({ args }) => {
-          const api = await apiFor(deps);
-          const body = await (await requireOk(await api.threads.list.$get())).json();
+          const api = apiFor(deps);
+          const body = await api.threads.list();
           if (outputJson(args, body)) {
             return;
           }
@@ -70,30 +80,25 @@ export function actionCommand(deps: CliDeps) {
           ...jsonArg,
         },
         run: async ({ args }) => {
-          const api = await apiFor(deps);
-          const created = await requireOk(
-            await api.threads.create.$post({
-              json: args.doc === undefined ? {} : { originDocPath: args.doc },
-            }),
+          const api = apiFor(deps);
+          const { thread: createdThread } = await api.threads.create(
+            args.doc === undefined ? {} : { originDocPath: args.doc },
           );
-          const { thread: createdThread } = await created.json();
           let outcome: SendOutcome;
           try {
-            const sent = await requireOk(
-              await api.threads.send.$post({
-                json: { threadId: createdThread.id, text: args.prompt, mode: "steer-if-active" },
-              }),
-            );
-            outcome = await sent.json();
+            outcome = await api.threads.send({
+              threadId: createdThread.id,
+              text: args.prompt,
+              mode: "steer-if-active",
+            });
           } catch (error) {
             // The thread EXISTS now. Failing without naming it would leave an
             // empty thread the user cannot resume or archive because they never
             // learned its id.
-            const detail = error instanceof CliExitError ? error.message : String(error);
             throw new CliExitError(
-              `Action ${createdThread.id} was created but its first turn failed: ${detail}. ` +
+              `Action ${createdThread.id} was created but its first turn failed: ${getErrorMessage(error)}. ` +
                 `Retry with \`inteligir action send ${createdThread.id} …\` or archive it.`,
-              { code: error instanceof CliExitError ? error.code : "send_failed" },
+              { code: sendFailureCode(error) },
             );
           }
           if (outputJson(args, { thread: createdThread, send: outcome })) {
@@ -119,17 +124,12 @@ export function actionCommand(deps: CliDeps) {
           ...jsonArg,
         },
         run: async ({ args }) => {
-          const api = await apiFor(deps);
-          const sent = await requireOk(
-            await api.threads.send.$post({
-              json: {
-                threadId: args.id,
-                text: args.prompt,
-                mode: args.queue === true ? "queue-if-active" : "steer-if-active",
-              },
-            }),
-          );
-          const outcome = await sent.json();
+          const api = apiFor(deps);
+          const outcome = await api.threads.send({
+            threadId: args.id,
+            text: args.prompt,
+            mode: args.queue === true ? "queue-if-active" : "steer-if-active",
+          });
           if (outputJson(args, outcome)) {
             return;
           }
@@ -144,17 +144,12 @@ export function actionCommand(deps: CliDeps) {
           ...jsonArg,
         },
         run: async ({ args }) => {
-          const api = await apiFor(deps);
-          const detail = await (
-            await requireOk(await api.threads.get.$get({ query: { threadId: args.id } }))
-          ).json();
-          const timelineResponse = await requireOk(
-            await api.threads.timeline.$get({ query: { threadId: args.id } }),
-          );
-          const timelineBody = await timelineResponse.json();
+          const api = apiFor(deps);
+          const detail = await api.threads.get({ threadId: args.id });
+          const timelineBody = await api.threads.timeline({ threadId: args.id });
           if (timelineBody.kind !== "full") {
             throw new CliExitError("The server answered a delta for a full timeline request", {
-              code: "unexpected_response",
+              code: "UNEXPECTED_RESPONSE",
             });
           }
           if (
@@ -207,11 +202,11 @@ export function actionCommand(deps: CliDeps) {
             args["poll-interval"] === undefined
               ? DEFAULT_WAIT_POLL_INTERVAL_MS
               : parsePositiveNumber(args["poll-interval"], "--poll-interval");
-          const api = await apiFor(deps);
+          const api = apiFor(deps);
           const deadline = Date.now() + timeoutSeconds * 1_000;
           const expire = (): CliExitError =>
             new CliExitError(`Thread ${args.id} did not settle within ${timeoutSeconds}s`, {
-              code: "wait_timeout",
+              code: "WAIT_TIMEOUT",
               exitCode: EXIT_WAIT_TIMEOUT,
             });
           for (;;) {
@@ -222,18 +217,14 @@ export function actionCommand(deps: CliDeps) {
             // --timeout is a WALL-CLOCK bound, so the request carries it too: a
             // server that accepts the connection and never answers must not park
             // the wait past its deadline.
-            const response = await api.threads.get
-              .$get(
-                { query: { threadId: args.id } },
-                { init: { signal: AbortSignal.timeout(remainingMs) } },
-              )
+            const { thread: current } = await api.threads
+              .get({ threadId: args.id }, { signal: AbortSignal.timeout(remainingMs) })
               .catch((cause: unknown) => {
                 if (Date.now() >= deadline) {
                   throw expire();
                 }
                 throw cause;
               });
-            const { thread: current } = await (await requireOk(response)).json();
             if (current.status === "idle") {
               if (outputJson(args, { threadId: args.id, status: current.status })) {
                 return;
@@ -243,7 +234,7 @@ export function actionCommand(deps: CliDeps) {
             }
             if (current.status === "error") {
               throw new CliExitError(`Thread ${args.id} settled in error`, {
-                code: "thread_error",
+                code: "THREAD_ERROR",
               });
             }
             const remainingAfterPoll = deadline - Date.now();
@@ -262,11 +253,8 @@ export function actionCommand(deps: CliDeps) {
           ...jsonArg,
         },
         run: async ({ args }) => {
-          const api = await apiFor(deps);
-          const archived = await requireOk(
-            await api.threads.archive.$post({ json: { threadId: args.id } }),
-          );
-          const body = await archived.json();
+          const api = apiFor(deps);
+          const body = await api.threads.archive({ threadId: args.id });
           if (outputJson(args, body)) {
             return;
           }

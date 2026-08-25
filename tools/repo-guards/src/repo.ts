@@ -17,7 +17,7 @@ export const WORKSPACE_MANIFEST = "pnpm-workspace.yaml";
 /** Directories no guard walks: dependencies, and build output that would be
  *  read as source. Shared, because a guard with its own shorter list passes on
  *  CI and fails on a machine that has run a build. */
-const SKIP_DIR_NAMES = new Set(["node_modules", "dist", "dist-node", "coverage"]);
+const SKIP_DIR_NAMES = new Set(["node_modules", "dist", "coverage"]);
 
 /**
  * Directories a guard must not walk. Dot-directories are excluded wholesale

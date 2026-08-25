@@ -2,7 +2,7 @@ import {
   PAIR_APPROVE_PARAMS,
   PAIR_STATE_PATTERN,
   PKCE_S256_PATTERN,
-} from "@repo/cloud-contract/pairing";
+} from "@repo/api/cloud/pairing/pairing-schema";
 import { describe, expect, it } from "vitest";
 import type { CloudFetch } from "../../sync/cloud-client";
 import { createPairingManager } from "../pairing-manager";

@@ -7,22 +7,22 @@ import {
   type CaptureResponse,
   type CaptureRow,
   type ClaimCapturesResponse,
-} from "@repo/cloud-contract/captures";
-import { revokeDeviceRequestSchema } from "@repo/cloud-contract/pairing";
+} from "@repo/api/cloud/captures/captures-schema";
+import { revokeDeviceRequestSchema } from "@repo/api/cloud/pairing/pairing-schema";
 import {
   pullQuerySchema,
   pushRequestSchema,
   type PullResponse,
   type PushResponse,
   type SyncEventRow,
-} from "@repo/cloud-contract/sync";
+} from "@repo/api/cloud/sync/sync-schema";
 import {
   devicePlatformSchema,
   SYNC_WS_KEEPALIVE_PING,
   SYNC_WS_KEEPALIVE_PONG,
   type DevicePlatform,
   type SyncPing,
-} from "@repo/cloud-contract/ws";
+} from "@repo/api/cloud/sync/sync-ws";
 import { DurableObject } from "cloudflare:workers";
 import { z } from "zod";
 import { refuse } from "../cloud-http";
@@ -42,7 +42,7 @@ import { refuse } from "../cloud-http";
 //   • thread metadata (lane, title), last-writer-wins on the CLIENT's own
 //     timestamp — the lane is what makes the log double as a DISPATCH MAILBOX.
 //   • the capture inbox — two-phase: claim takes ownership for a window, ack
-//     deletes by that claim's token. `@repo/cloud-contract/captures` states
+//     deletes by that claim's token. `@repo/api/cloud/captures/captures-schema` states
 //     the guarantee that buys (at-least-once delivery, exactly-once deletion).
 //
 // HIBERNATION RULES (the old codebase's law, carried): sockets are accepted

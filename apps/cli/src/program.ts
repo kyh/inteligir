@@ -15,10 +15,16 @@
 // half of it that returns rather than exits, so the loop below is `runMain`'s
 // shape — builtin flags, dispatch, one catch — with the code as its value.
 
-import { readFileSync } from "node:fs";
+import { ORPCError } from "@orpc/client";
 import { runCommand, defineCommand, renderUsage, type CommandDef } from "citty";
-import { z } from "zod";
-import { CliExitError, EXIT_ERROR, getErrorMessage, invalidUsage } from "./cli-error";
+import {
+  CliExitError,
+  EXIT_ERROR,
+  EXIT_UNREACHABLE,
+  getErrorMessage,
+  invalidUsage,
+  isUnreachable,
+} from "./cli-error";
 import { argsOf, assertKnownFlags, resolveCommandPath } from "./command-tree";
 import { connectorsCommand } from "./commands/connectors";
 import { foldersCommand } from "./commands/folders";
@@ -30,27 +36,11 @@ import { syncCommand } from "./commands/sync";
 import { trashCommand } from "./commands/trash";
 import { actionCommand } from "./commands/action";
 import { commentCommand } from "./commands/comment";
+import { serveCommand } from "./commands/serve";
 import { vaultCommand } from "./commands/vault";
 import { describeContext, type CliDeps } from "./context";
+import { readCliVersion } from "./paths";
 import { out, wantsJsonOutput, writeOut } from "./output";
-
-const manifestSchema = z.looseObject({ version: z.string() });
-
-/** package.json sits one level above this module in src/ AND in the dist/
- *  bundle, so one relative read serves both layouts. */
-function readCliVersion(): string {
-  try {
-    const manifest = manifestSchema.safeParse(
-      JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")),
-    );
-    if (manifest.success) {
-      return manifest.data.version;
-    }
-  } catch {
-    // Fall through to the placeholder.
-  }
-  return "0.0.0";
-}
 
 /**
  * The command factories deliberately declare no return type. `CommandDef<T>`
@@ -65,9 +55,10 @@ export function buildProgram(deps: CliDeps): CommandDef {
     meta: {
       name: "inteligir",
       version: readCliVersion(),
-      description: "Drive the local inteligir notes app — vault, search, agent actions",
+      description: "Run the local inteligir notes app, and drive it — vault, search, agent actions",
     },
     subCommands: {
+      serve: serveCommand(),
       vault: vaultCommand(deps),
       search: searchCommand(deps),
       backlinks: backlinksCommand(deps),
@@ -124,7 +115,11 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
     }
     const resolved = resolveCommandPath(program, rawArgs);
     if (resolved.command.run !== undefined) {
-      assertKnownFlags(resolved.rest, argsOf(resolved.command));
+      // The WHOLE argv, not just the post-name remainder: group levels declare
+      // no args of their own, so every `--flag` belongs to the leaf — and a
+      // flag typed BEFORE the subcommand name (`vault --contentt write x`)
+      // would otherwise slip past the gate and be silently dropped by citty.
+      assertKnownFlags(rawArgs, argsOf(resolved.command));
     } else if (rawArgs.length === 0) {
       // What commander did with a bare program that has only subcommands.
       process.stderr.write(`${await renderUsage(program)}\n`);
@@ -152,18 +147,37 @@ interface Failure {
 }
 
 /**
+ * THE one place a refusal becomes an exit. A server refusal arrives as a
+ * thrown `ORPCError` carrying the contract's own class, so it passes through
+ * with its class intact — and because it is thrown rather than returned, no
+ * command can reach a body that does not exist. That invariant used to need a
+ * status-checking chokepoint every command had to remember to call.
+ *
  * citty raises a missing argument, an unknown command and a bad enum as its
  * own `CLIError`, which it does not export — so the class is recognised by
- * name. Every one of them is the caller's own mistake, which is the class
- * commander reported for the same inputs.
+ * name. Every one of them is the caller's own mistake.
  */
 function asFailure(cause: unknown): Failure {
   if (cause instanceof CliExitError) {
     return { code: cause.code, message: cause.message, exitCode: cause.exitCode };
   }
+  if (cause instanceof ORPCError) {
+    return { code: cause.code, message: cause.message, exitCode: EXIT_ERROR };
+  }
   if (cause instanceof Error && cause.name === "CLIError") {
     const local = invalidUsage(cause.message);
     return { code: local.code, message: local.message, exitCode: local.exitCode };
   }
-  return { code: "unexpected", message: getErrorMessage(cause), exitCode: EXIT_ERROR };
+  const message = getErrorMessage(cause);
+  if (isUnreachable(cause)) {
+    // Discovery answers this class when there is no `server.json`; a stale one
+    // (a crash skips the ordered shutdown that removes it) reaches the dial
+    // instead, and the class has to mean the same thing either way.
+    return {
+      code: "SERVER_UNREACHABLE",
+      message: `${message} — no inteligir server answered. Start one with \`inteligir serve\`.`,
+      exitCode: EXIT_UNREACHABLE,
+    };
+  }
+  return { code: "UNEXPECTED", message, exitCode: EXIT_ERROR };
 }

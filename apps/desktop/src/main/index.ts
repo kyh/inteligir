@@ -1,20 +1,21 @@
 // The inteligir desktop shell.
 //
-// One window on the local server, and nothing else: no vault, no agent, no
-// index and no renderer of its own. The window's whole security surface is the
-// ORIGIN PIN (origin-pin.ts) — it loads exactly one origin, top-level
-// navigation away goes to the system browser, and `window.open` is denied
-// unconditionally. Everything imperative here delegates its decisions to that
-// module and to server-target.ts / server-paths.ts, all of which are pure and
-// unit-tested; this file is wiring.
+// One window on the workspace, and nothing else: no vault, no agent and no
+// index of its own. The window's whole security surface is the ORIGIN PIN
+// (origin-pin.ts) — it loads exactly one origin, top-level navigation away
+// goes to the system browser, and `window.open` is denied unconditionally. Two
+// rules sit beside it and are tested the same way: WHERE the device token goes
+// and which files the bundle may answer with (credential-scope.ts). Everything
+// imperative here delegates to those and to server-instance.ts; this file is
+// wiring.
 
-import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import {
   app,
   BrowserWindow,
   dialog,
+  ipcMain,
   Menu,
   nativeImage,
   nativeTheme,
@@ -23,10 +24,8 @@ import {
   Tray,
   type MenuItemConstructorOptions,
 } from "electron";
-import {
-  systemIdentityResponseSchema,
-  type SystemIdentityResponse,
-} from "@repo/server-contract/routes";
+import { rendererDir, appPreloadScript } from "./bundle-paths";
+import { socketCredentialFilter } from "./credential-scope";
 import { BROWSER_ACCELERATOR } from "./browser-panel";
 import { showBrowserWindow } from "./browser-window";
 import {
@@ -35,48 +34,46 @@ import {
   classifyWindowOpen,
   decideExternalOpen,
 } from "./origin-pin";
+import { APP_ORIGIN, registerAppProtocol, registerAppScheme } from "./protocol";
+import { createServerProcess, type ServerProcess } from "./server-process";
 import {
-  resolveAppCheckoutDir,
-  resolveServerEntry,
-  resolveServerRuntime,
-  serverProcessEnv,
-  sessionPartition,
-} from "./server-paths";
-import {
-  createSupervisor,
-  DEFAULT_SUPERVISOR_LIMITS,
-  type SupervisedChild,
-  type SupervisorState,
-} from "./server-supervisor";
-import {
-  describeIdentityVerdict,
-  identityUrl,
-  newIdentityChallenge,
+  describeServerVerdict,
   planServerStart,
   resolveServerTarget,
-  verifyServerIdentity,
-  windowUrl,
+  serverEntryPath,
+  serverProcessEnv,
+  sessionPartition,
+  verifyServer,
+  type LiveServer,
   type ServerTarget,
-} from "./server-target";
+} from "./server-instance";
+import { authorizationHeader } from "inteligir/server/server-file";
+import { IPC_CHANNELS, toErrorMessage } from "../types";
 
 const APP_DISPLAY_NAME = app.isPackaged ? "Inteligir" : "Inteligir (Dev)";
-const HEALTH_TIMEOUT_MS = 2_000;
+
+/** electron-vite sets this while `electron-vite dev` is running; its absence
+ *  is what makes a packaged app serve the built bundle instead. */
+const rendererDevUrl = process.env.ELECTRON_RENDERER_URL;
 
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 /** Null while the shell adopted a server it did not start — quitting must
  *  never stop a process someone else owns. */
-let supervisor: ReturnType<typeof createSupervisor> | null = null;
+let serverProcess: ServerProcess | null = null;
 /** The last real input the page saw, for the user-activation gate on
  *  page-initiated external opens (origin-pin.ts::decideExternalOpen). */
 let lastInputAt: number | null = null;
+/** What this launch settled on. Null until the server has answered. */
+let live: LiveServer | null = null;
+
+// The window is pinned to the shell's OWN scheme, so it must be privileged
+// before `app.whenReady` — Electron enforces the ordering.
+registerAppScheme();
 
 process.on("uncaughtException", (error) => {
   console.error("[desktop] uncaught exception:", error);
-  dialog.showErrorBox(
-    "A JavaScript error occurred in the main process",
-    error instanceof Error ? (error.stack ?? error.message) : String(error),
-  );
+  dialog.showErrorBox("A JavaScript error occurred in the main process", toErrorMessage(error));
 });
 
 process.on("unhandledRejection", (reason) => {
@@ -88,105 +85,57 @@ process.on("unhandledRejection", (reason) => {
 // ---------------------------------------------------------------------------
 
 /**
- * IS THE SERVER ON THIS ORIGIN OURS? Health alone cannot say — a loopback port
- * is first-come-first-served — so every probe is an identity challenge, not a
- * liveness check. Used for the pre-flight AND as the supervisor's own
- * `probeHealth`, because a child that loses a race for the port would
- * otherwise leave the supervisor reporting "up" about a stranger.
+ * IS A SERVER SERVING THIS DATA DIR, AND IS IT OURS? Health alone cannot say —
+ * a loopback port is first-come-first-served — so every probe presents the
+ * token `<dataDir>/server.json` holds and requires the responder to name that
+ * same data dir back (server-instance.ts states what that proves). Used for
+ * the pre-flight AND as the child's readiness signal, because a child that
+ * lost a race for the port would otherwise be reported up about a stranger.
  */
-async function verifiedServerAnswered(origin: string, dataDir: string): Promise<boolean> {
-  const challenge = newIdentityChallenge();
-  let answer: SystemIdentityResponse | null = null;
-  try {
-    const response = await fetch(identityUrl(origin, challenge), {
-      signal: AbortSignal.timeout(HEALTH_TIMEOUT_MS),
-    });
-    if (response.ok) {
-      const body: unknown = await response.json();
-      answer = systemIdentityResponseSchema.safeParse(body).data ?? null;
-    }
-  } catch {
-    answer = null;
+async function verifiedServerAnswered(target: ServerTarget): Promise<boolean> {
+  const verdict = await verifyServer(target.dataDir);
+  if (verdict.kind === "verified") {
+    live = verdict.live;
+    return true;
   }
-  const verdict = verifyServerIdentity({ dataDir, challenge, answer });
-  if (
-    verdict.kind !== "verified" &&
-    verdict.kind !== "unreachable" &&
-    verdict.kind !== "no-secret"
-  ) {
+  if (verdict.kind !== "no-server") {
     // A responder that is REACHABLE but not ours is the case worth a log line:
     // something is on our port and it is not the vault we mean.
-    console.warn(`[desktop] ${describeIdentityVerdict(verdict, origin)}`);
+    console.warn(`[desktop] ${describeServerVerdict(verdict, target.dataDir)}`);
   }
-  return verdict.kind === "verified";
-}
-
-function spawnServerChild(entryPath: string, target: ServerTarget): SupervisedChild {
-  const runtime = resolveServerRuntime({ isPackaged: app.isPackaged, execPath: process.execPath });
-  const child = spawn(runtime.executablePath, [entryPath], {
-    // The shell's resolution is handed down whole. The child re-deriving any
-    // of it would be a second answer to a question already asked — and its
-    // cwd is this process's, not the app checkout's, so a re-derived dev
-    // instance would not even be the same one.
-    env: serverProcessEnv(process.env, runtime.mode, {
-      INTELIGIR_DATA_DIR: target.dataDir,
-      INTELIGIR_PORT: String(target.port),
-      INTELIGIR_VAULT_DIR: target.vaultDir,
-    }),
-    stdio: ["ignore", "inherit", "inherit"],
-  });
-  return {
-    get pid() {
-      return child.pid;
-    },
-    kill: (signal) => child.kill(signal),
-    onExit: (listener) => {
-      child.once("exit", listener);
-    },
-  };
+  return false;
 }
 
 async function startServer(target: ServerTarget): Promise<void> {
-  if (planServerStart(await verifiedServerAnswered(target.origin, target.dataDir)) === "adopt") {
+  if (planServerStart(await verifiedServerAnswered(target)) === "adopt") {
     console.log(`[desktop] adopting the server already serving ${target.dataDir}`);
     return;
   }
-  const entryPath = resolveServerEntry(app.getAppPath());
+  const entryPath = serverEntryPath(app.getAppPath());
   if (!existsSync(entryPath)) {
     throw new Error(`the bundled server is missing (${entryPath}) — this install is incomplete`);
   }
-  supervisor = createSupervisor(
-    {
-      spawnServer: () => spawnServerChild(entryPath, target),
-      probeHealth: () => verifiedServerAnswered(target.origin, target.dataDir),
-      delay: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
-      schedule: (intervalMs, tick) => {
-        const timer = setInterval(tick, intervalMs);
-        return () => clearInterval(timer);
-      },
-      log: (message) => console.log(`[desktop] ${message}`),
+  serverProcess = createServerProcess({
+    entryPath,
+    // The instance's identity (data + vault dirs) and its mode are handed down;
+    // the child derives its own port and reports it back via server.json
+    // (server-instance.ts states why the port is discovered, not dictated).
+    env: serverProcessEnv(target, app.isPackaged),
+    isReady: () => verifiedServerAnswered(target),
+    log: (message) => console.log(`[server] ${message}`),
+    // A mid-session crash leaves the window talking to nothing. There is no
+    // in-place restart (server-process.ts says why the fresh token makes one
+    // unsafe): name the failure and quit, so a relaunch rebuilds cleanly.
+    onUnexpectedExit: (code) => {
+      dialog.showErrorBox(
+        "Inteligir server stopped",
+        `The local server exited unexpectedly (code ${String(code)}). Reopen Inteligir to continue.`,
+      );
+      app.quit();
     },
-    DEFAULT_SUPERVISOR_LIMITS,
-  );
-  supervisor.onStateChanged(onServerStateChanged);
-  await supervisor.start();
+  });
+  await serverProcess.start();
 }
-
-function onServerStateChanged(state: SupervisorState): void {
-  if (state.kind === "up") {
-    mainWindow?.webContents.reload();
-    return;
-  }
-  if (state.kind === "failed") {
-    dialog.showErrorBox("Inteligir stopped", state.reason);
-  }
-}
-
-// The shell no longer asks the running server where its data lives. It used to,
-// because an adopted server was one the shell had not configured — but adoption
-// now REQUIRES the responder to name this shell's own data dir and prove it
-// (`verifyServerIdentity`), so the two can no longer differ, and `target` is
-// the answer without trusting a value off the wire.
 
 // ---------------------------------------------------------------------------
 // The window, menu and tray
@@ -202,18 +151,38 @@ function onServerStateChanged(state: SupervisorState): void {
  * query (`navigator.permissions.query`, `getUserMedia`'s pre-flight — its
  * origin arrives as the third argument).
  */
-function lockDownSession(partition: string, appOrigin: string): Electron.Session {
+function lockDownSession(partition: string): Electron.Session {
   const windowSession = session.fromPartition(partition);
   windowSession.setPermissionRequestHandler((_contents, permission, callback, details) => {
-    callback(classifyPermission(permission, details.requestingUrl, appOrigin));
+    callback(classifyPermission(permission, details.requestingUrl, APP_ORIGIN));
   });
   windowSession.setPermissionCheckHandler((_contents, permission, requestingOrigin) =>
-    classifyPermission(permission, requestingOrigin, appOrigin),
+    classifyPermission(permission, requestingOrigin, APP_ORIGIN),
   );
   // Serial/HID/USB device pickers, which the permission handlers above do not
   // cover.
   windowSession.setDevicePermissionHandler(() => false);
   return windowSession;
+}
+
+/**
+ * The bearer on the two WEBSOCKET upgrades, attached in MAIN.
+ *
+ * A browser `WebSocket` cannot set a header, and these two dial the loopback
+ * origin rather than the shell's own — so the token cannot ride the protocol
+ * handler the way every other request does. Filtered to this instance's own
+ * origin, so nothing else the window ever reaches sees a credential.
+ */
+function attachSocketCredential(windowSession: Electron.Session, server: LiveServer): void {
+  const urls = socketCredentialFilter(server.origin);
+  windowSession.webRequest.onBeforeSendHeaders({ urls }, (details, callback) => {
+    callback({
+      requestHeaders: {
+        ...details.requestHeaders,
+        Authorization: authorizationHeader(server.token),
+      },
+    });
+  });
 }
 
 /** Hand a PAGE-INITIATED url to the system browser, or refuse it. Menu and
@@ -228,9 +197,30 @@ function openExternalFromPage(url: string): void {
   void shell.openExternal(url);
 }
 
+/**
+ * The window's session is set up ONCE per launch, not once per window. The
+ * permission lock-down, the socket bearer and the protocol handler are all
+ * session-lifetime — `registerAppProtocol` in particular THROWS if the scheme
+ * is handled twice on one session — while the window itself is re-created every
+ * time it is closed and reopened (tray, dock, second instance). There is
+ * exactly one partition per launch, so this binds to it here.
+ */
+function prepareWindowSession(target: ServerTarget, server: LiveServer): void {
+  const windowSession = lockDownSession(sessionPartition(target.dataDir));
+  attachSocketCredential(windowSession, server);
+  registerAppProtocol({
+    session: windowSession,
+    serverOrigin: server.origin,
+    token: server.token,
+    renderer:
+      rendererDevUrl === undefined
+        ? { kind: "files", dir: rendererDir() }
+        : { kind: "dev", origin: rendererDevUrl },
+  });
+}
+
 function createWindow(target: ServerTarget): BrowserWindow {
   const partition = sessionPartition(target.dataDir);
-  lockDownSession(partition, target.origin);
   const window = new BrowserWindow({
     width: 1200,
     height: 800,
@@ -243,13 +233,14 @@ function createWindow(target: ServerTarget): BrowserWindow {
     titleBarStyle: "hiddenInset",
     trafficLightPosition: { x: 16, y: 16 },
     webPreferences: {
+      preload: appPreloadScript(),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
       webSecurity: true,
-      // Never the default session: `http://127.0.0.1:<port>` is a shared name
-      // rather than an identity, so the storage follows the VAULT
-      // (server-paths.ts::sessionPartition) instead of the port number.
+      // Never the default session: the storage follows the VAULT
+      // (server-instance.ts::sessionPartition) rather than a name two different
+      // vaults could share.
       partition,
     },
   });
@@ -269,7 +260,7 @@ function createWindow(target: ServerTarget): BrowserWindow {
   });
 
   const guardNavigation = (event: Electron.Event, url: string): void => {
-    const verdict = classifyNavigation(url, target.origin);
+    const verdict = classifyNavigation(url, APP_ORIGIN);
     if (verdict === "allow") {
       return;
     }
@@ -295,7 +286,7 @@ function createWindow(target: ServerTarget): BrowserWindow {
     }
   });
 
-  void window.loadURL(windowUrl(target.origin));
+  void window.loadURL(`${APP_ORIGIN}/`);
   return window;
 }
 
@@ -321,7 +312,7 @@ function openDataDir(target: ServerTarget): void {
   void shell.openPath(target.dataDir);
 }
 
-function configureApplicationMenu(target: ServerTarget): void {
+function configureApplicationMenu(target: ServerTarget, server: LiveServer): void {
   const template: MenuItemConstructorOptions[] = [
     {
       label: app.name,
@@ -347,7 +338,7 @@ function configureApplicationMenu(target: ServerTarget): void {
           // (browser-window.ts), so this window's origin pin is untouched.
           label: "Browser",
           accelerator: BROWSER_ACCELERATOR,
-          click: () => showBrowserWindow(target.origin),
+          click: () => showBrowserWindow(server),
         },
         { type: "separator" },
         { role: "close" },
@@ -362,9 +353,11 @@ function configureApplicationMenu(target: ServerTarget): void {
         {
           label: "Open in Browser",
           // A menu click IS the user gesture, so this goes straight out rather
-          // than through the page-initiated activation gate.
+          // than through the page-initiated activation gate. The BROWSER door
+          // is the server's own origin: the shell's scheme means nothing
+          // outside this process.
           click: () => {
-            void shell.openExternal(windowUrl(target.origin));
+            void shell.openExternal(`${server.origin}/`);
           },
         },
       ],
@@ -410,8 +403,21 @@ async function onAppReady(target: ServerTarget): Promise<void> {
     applicationName: APP_DISPLAY_NAME,
     applicationVersion: app.getVersion(),
   });
-  configureApplicationMenu(target);
   await startServer(target);
+  // The menu, the tray and the window are all built AFTER the server answered,
+  // because each names the origin it answered on — an adopted server may sit
+  // on a port this shell never chose.
+  const server = live;
+  if (server === null) {
+    throw new Error("the server reported ready without publishing its address");
+  }
+  prepareWindowSession(target, server);
+  // The renderer's one bridged fact. Synchronous, because the page needs it
+  // before it opens its first socket (../types.ts states the whole surface).
+  ipcMain.on(IPC_CHANNELS.SOCKET_ORIGIN, (event) => {
+    event.returnValue = server.origin;
+  });
+  configureApplicationMenu(target, server);
   tray = createTray(target);
   mainWindow = createWindow(target);
 }
@@ -419,11 +425,7 @@ async function onAppReady(target: ServerTarget): Promise<void> {
 // Resolved before `whenReady`, so a bad INTELIGIR_PORT or a config.json that
 // nests the vault inside the data dir is a named error rather than a window on
 // the wrong place.
-const target = resolveServerTarget({
-  isPackaged: app.isPackaged,
-  appCheckoutDir: resolveAppCheckoutDir(app.getAppPath()),
-  env: process.env,
-});
+const target = resolveServerTarget({ isPackaged: app.isPackaged, env: process.env });
 if (target.kind === "refused") {
   dialog.showErrorBox("Inteligir failed to start", target.error);
   app.exit(2);
@@ -431,21 +433,33 @@ if (target.kind === "refused") {
   const resolved = target.target;
 
   app.on("activate", () => {
-    showMainWindow(resolved);
+    if (live !== null) {
+      showMainWindow(resolved);
+    }
+  });
+
+  // Closing the last window HIDES to the tray rather than quitting: the server
+  // child keeps the vault synced and the agent reachable in the background, and
+  // the tray's Show / dock re-activate reopen the window (both above). Quit —
+  // tray, ⌘Q, the app menu — is the only exit, and it runs the ordered teardown
+  // through `before-quit`. Without this handler Electron's default quits the
+  // app the moment the window closes, stranding every one of those affordances.
+  app.on("window-all-closed", () => {
+    // Intentionally empty: keep the app (and its server child) alive under the tray.
   });
 
   // The server is a child of this process, so quitting must take it with it —
   // and the SIGTERM its graceful shutdown listens for is what flushes the
   // vault's pending commit. `before-quit` is where that still has time to run.
-  // `supervisor` is null when the shell ADOPTED a server it did not start;
+  // `serverProcess` is null when the shell ADOPTED a server it did not start;
   // quitting must leave that one running.
   let teardown: Promise<void> | null = null;
   app.on("before-quit", (event) => {
-    if (supervisor === null || teardown !== null) {
+    if (serverProcess === null || teardown !== null) {
       return;
     }
     event.preventDefault();
-    teardown = supervisor.stop().finally(() => {
+    teardown = serverProcess.stop().finally(() => {
       tray?.destroy();
       tray = null;
       app.quit();
@@ -458,17 +472,16 @@ if (target.kind === "refused") {
     app.quit();
   } else {
     app.on("second-instance", () => {
-      showMainWindow(resolved);
+      if (live !== null) {
+        showMainWindow(resolved);
+      }
     });
     app
       .whenReady()
       .then(() => onAppReady(resolved))
       .catch((cause: unknown) => {
         console.error("[desktop] fatal startup error", cause);
-        dialog.showErrorBox(
-          "Inteligir failed to start",
-          cause instanceof Error ? cause.message : String(cause),
-        );
+        dialog.showErrorBox("Inteligir failed to start", toErrorMessage(cause));
         app.quit();
       });
   }

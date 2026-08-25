@@ -4,7 +4,7 @@
 
 import { defineCommand } from "citty";
 import { apiFor, type CliDeps } from "../context";
-import { jsonArg, out, outputJson, requireOk, writeLines } from "../output";
+import { jsonArg, out, outputJson, writeLines } from "../output";
 
 export function trashCommand(deps: CliDeps) {
   return defineCommand({
@@ -14,8 +14,8 @@ export function trashCommand(deps: CliDeps) {
         meta: { name: "list", description: "Notes currently in the trash" },
         args: { ...jsonArg },
         run: async ({ args }) => {
-          const api = await apiFor(deps);
-          const body = await (await requireOk(await api.vault.trash.$get())).json();
+          const api = apiFor(deps);
+          const body = await api.vault.trashList();
           if (outputJson(args, body)) {
             return;
           }
@@ -39,10 +39,8 @@ export function trashCommand(deps: CliDeps) {
           ...jsonArg,
         },
         run: async ({ args }) => {
-          const api = await apiFor(deps);
-          const body = await (
-            await requireOk(await api.vault.trash.$post({ json: { path: args.path } }))
-          ).json();
+          const api = apiFor(deps);
+          const body = await api.vault.trash({ path: args.path });
           if (outputJson(args, body)) {
             return;
           }
@@ -57,10 +55,8 @@ export function trashCommand(deps: CliDeps) {
           ...jsonArg,
         },
         run: async ({ args }) => {
-          const api = await apiFor(deps);
-          const body = await (
-            await requireOk(await api.vault.trash.restore.$post({ json: { path: args.path } }))
-          ).json();
+          const api = apiFor(deps);
+          const body = await api.vault.trashRestore({ path: args.path });
           if (outputJson(args, body)) {
             return;
           }
@@ -75,10 +71,8 @@ export function trashCommand(deps: CliDeps) {
           ...jsonArg,
         },
         run: async ({ args }) => {
-          const api = await apiFor(deps);
-          const body = await (
-            await requireOk(await api.vault.trash.purge.$post({ json: { path: args.path } }))
-          ).json();
+          const api = apiFor(deps);
+          const body = await api.vault.trashPurge({ path: args.path });
           if (outputJson(args, body)) {
             return;
           }

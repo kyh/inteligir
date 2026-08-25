@@ -6,7 +6,7 @@ import {
   pkceChallengeS256,
   type MintPairingCodeResponse,
   type RedeemDeviceResponse,
-} from "@repo/cloud-contract/pairing";
+} from "@repo/api/cloud/pairing/pairing-schema";
 import { and, eq, isNull, lt, or, sql } from "drizzle-orm";
 import { constantTimeEqual, sha256Hex } from "./device-auth";
 import type { createDb } from "../db/client";

@@ -5,11 +5,11 @@
 // offers instead of reaching the host and settling as a silent deny.
 
 import { parseApprovalResolution } from "@repo/domain/pending-interactions";
-import type { PendingInteraction } from "@repo/server-contract/threads";
+import type { PendingInteraction } from "@repo/api/local/threads/threads-schema";
 import { defineCommand } from "citty";
 import { CliExitError, invalidUsage } from "../cli-error";
 import { apiFor, type CliDeps } from "../context";
-import { jsonArg, out, outputJson, requireOk, writeLines } from "../output";
+import { jsonArg, out, outputJson, writeLines } from "../output";
 
 /**
  * The interaction's own payload is what says which decisions are on offer, so
@@ -42,13 +42,10 @@ export function interactionsCommand(deps: CliDeps) {
           ...jsonArg,
         },
         run: async ({ args }) => {
-          const api = await apiFor(deps);
-          const listing = await requireOk(
-            await api.threads.interaction.list.$get({
-              query: args.thread === undefined ? {} : { threadId: args.thread },
-            }),
+          const api = apiFor(deps);
+          const body = await api.threads.listInteractions(
+            args.thread === undefined ? {} : { threadId: args.thread },
           );
-          const body = await listing.json();
           if (outputJson(args, body)) {
             return;
           }
@@ -71,33 +68,25 @@ export function interactionsCommand(deps: CliDeps) {
           ...jsonArg,
         },
         run: async ({ args }) => {
-          const api = await apiFor(deps);
-          const listing = await requireOk(
-            await api.threads.interaction.list.$get({
-              query: args.thread === undefined ? {} : { threadId: args.thread },
-            }),
+          const api = apiFor(deps);
+          const listed = await api.threads.listInteractions(
+            args.thread === undefined ? {} : { threadId: args.thread },
           );
-          const listed = await listing.json();
           const interaction = listed.interactions.find((row) => row.id === args.id);
           if (interaction === undefined) {
             throw new CliExitError(
               args.thread === undefined
                 ? `No open interaction ${args.id}`
                 : `No open interaction ${args.id} on thread ${args.thread}`,
-              { code: "not_found" },
+              { code: "NOT_FOUND" },
             );
           }
           assertResolutionValid(interaction, args.resolution);
-          const answered = await requireOk(
-            await api.threads.interaction.answer.$post({
-              json: {
-                threadId: interaction.threadId,
-                interactionId: args.id,
-                resolution: args.resolution,
-              },
-            }),
-          );
-          const body = await answered.json();
+          const body = await api.threads.answerInteraction({
+            threadId: interaction.threadId,
+            interactionId: args.id,
+            resolution: args.resolution,
+          });
           if (outputJson(args, body)) {
             return;
           }

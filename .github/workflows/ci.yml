@@ -77,14 +77,10 @@ jobs:
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npm i -g agent-browser && agent-browser install --with-deps
 
-      - name: E2E (dev)
+      # ONE run, and that is what deleting the document server bought: the
+      # workspace is a plain SPA built once and served as files, so the suite
+      # drives the same bytes a user gets. It ran twice while a dev entry
+      # mounted Vite in the server process and served no policy at all.
+      - name: E2E
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: pnpm e2e
-
-      # BOTH modes, because they serve different code: dev runs Vite's
-      # middleware and serves no CSP, prod serves the built shell under the
-      # real policy. A policy regression is invisible to the dev run — that is
-      # how the first CSP landed green and broke a packaged install.
-      - name: E2E (prod)
-        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: pnpm e2e --prod

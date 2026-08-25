@@ -2,21 +2,33 @@
   "$schema": "https://turborepo.dev/schema.json",
   "extends": ["//"],
   "tasks": {
-    // `inteligir` is packed into the app from node_modules and spawned as a
-    // child, never imported, so the ordering is named rather than inherited
-    // through `^build`.
+    // Deliberately NOT `^build`. This package's one dependency is the CLI,
+    // which it EXECUTES rather than imports — and the CLI's own build stages
+    // THIS build's renderer, so inheriting the edge would be a cycle. The
+    // ordering runs the other way and is named on `inteligir#build`.
     "build": {
-      "dependsOn": ["inteligir#build"],
-      "outputs": ["dist/**"]
+      "dependsOn": [],
+      "outputs": [".output/app/**"]
+    },
+    // The .app is where the two halves meet: electron-builder packs the CLI
+    // bundle from node_modules, and that bundle already carries the renderer.
+    "package": {
+      "dependsOn": ["build", "inteligir#build"],
+      "outputs": [".output/bin/**"]
     },
     "dev": {
       "cache": false,
       "persistent": true,
+      // The shell FORKS the CLI's bundle, so a stale `dist/` is a shell running
+      // last week's server with no error anywhere. esbuild rebuilds it in
+      // milliseconds; iterating on the server itself is `pnpm cli serve` in its
+      // own terminal, which this shell adopts.
+      "dependsOn": ["inteligir#build"],
       // turbo runs in strict env mode and strips anything unnamed. The shell
-      // resolves its target through the APP's own `resolveAppConfig`, so the
+      // resolves its target through the server's own `resolveAppConfig`, so the
       // set it needs is that module's whole table and not the port alone —
       // stripping INTELIGIR_DATA_DIR alone would have the window verify a
-      // responder's identity against the wrong data directory. Held against
+      // responder against the wrong data directory. Held against
       // `ENV_VAR_NAMES` by tools/repo-guards/src/turbo-passthrough.test.ts,
       // which derives its scope from who calls that function.
       "passThroughEnv": [
@@ -24,7 +36,6 @@
         "INTELIGIR_AGENT_MODEL",
         "INTELIGIR_CLOUD_URL",
         "INTELIGIR_DATA_DIR",
-        "INTELIGIR_HMR_PORT",
         "INTELIGIR_MODEL_DIR",
         "INTELIGIR_PORT",
         "INTELIGIR_SYNC_INTERVAL_MS",

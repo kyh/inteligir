@@ -57,12 +57,8 @@ const DECLARED_CI_EXTRAS = new Map<string, string>([
     "installs agent-browser and its system deps globally on the runner; a developer installs it once, so making `verify` do it on every run would be a minutes-long tax on the static gate",
   ],
   [
-    "ci.yml:E2E (dev)",
+    "ci.yml:E2E",
     "boots real instances and drives them over the wire — `pnpm e2e` is deliberately outside `verify`'s test task (tools/e2e/package.json), because every unit passes while the composition fails",
-  ],
-  [
-    "ci.yml:E2E (prod)",
-    "the same suite against the BUILT shell under the real CSP; dev serves Vite's middleware and no policy, so a policy regression is invisible to the run above",
   ],
 ]);
 
@@ -82,7 +78,7 @@ const ROOT_SMOKE_PREFIX = "smoke";
  */
 const MANUAL_SMOKES = new Map<string, string>([
   [
-    "smoke:launcher",
+    "smoke:cli",
     "it packs the publishable tarball, installs it into a scratch prefix and binds a port — minutes of work per run to prove a thing that only changes when the artifact's shape does, and nothing about it is a PR-sized risk",
   ],
   [
@@ -304,7 +300,7 @@ describe("CI does not drift from `pnpm verify`", () => {
       violations.push(
         `UNREACHABLE SMOKE  ${workspace.dir}/package.json declares "${SMOKE_SCRIPT}"\n` +
           `  rule: every smoke has a root script that runs it — one reachable only through \`pnpm --filter ${workspace.name} ${SMOKE_SCRIPT}\` is one nobody runs, and neither \`verify\` nor CI can be held against a command that has no name\n` +
-          `  fix: add a root script (beside "smoke:launcher" in ${ROOT_MANIFEST}) that runs it, and give it a row in MANUAL_SMOKES or a step in a gate workflow`,
+          `  fix: add a root script (beside "smoke:cli" in ${ROOT_MANIFEST}) that runs it, and give it a row in MANUAL_SMOKES or a step in a gate workflow`,
       );
     }
     expect(violations, `\n${violations.join("\n\n")}\n`).toEqual([]);

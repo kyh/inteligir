@@ -33,7 +33,7 @@ const ROOTS = [
   { dir: "ai", subpath: "ai" },
 ] as const;
 
-const SKIP_DIR_NAMES = new Set(["node_modules", "dist", "dist-node", "coverage"]);
+const SKIP_DIR_NAMES = new Set(["node_modules", "dist", "coverage"]);
 
 /**
  * The component gallery (`/gallery`) imports EVERY component by design, so

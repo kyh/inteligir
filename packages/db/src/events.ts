@@ -79,7 +79,7 @@ function hasStoredTurnStarted(
 
 /**
  * Which device's outbox position a synced event arrived as — the merged log
- * row's natural key (`@repo/cloud-contract/sync`), and the identity the apply
+ * row's natural key (`@repo/api/cloud/sync/sync-schema`), and the identity the apply
  * is idempotent on.
  */
 export interface SyncedEventOrigin {

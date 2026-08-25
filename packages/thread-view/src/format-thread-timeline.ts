@@ -9,7 +9,7 @@ import type {
   TimelineRow,
   TimelineRowStatus,
   TimelineWorkRow,
-} from "@repo/server-contract/thread-timeline";
+} from "@repo/api/local/thread-timeline";
 
 const CHILD_INDENT = "  ";
 const SNIPPET_LIMIT = 100;

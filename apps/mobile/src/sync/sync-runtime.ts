@@ -23,9 +23,9 @@
 // runtime produces captures (quick-capture) and reads threads; the desktop owns
 // applying captures to the vault.
 
-import type { CaptureRequest, CaptureResponse } from "@repo/cloud-contract/captures";
-import type { CloudErrorCode } from "@repo/cloud-contract/errors";
-import { PULL_DEFAULT_LIMIT } from "@repo/cloud-contract/sync";
+import type { CaptureRequest, CaptureResponse } from "@repo/api/cloud/captures/captures-schema";
+import type { CloudErrorCode } from "@repo/api/cloud/errors";
+import { PULL_DEFAULT_LIMIT } from "@repo/api/cloud/sync/sync-schema";
 import type { ThreadEvent } from "@repo/domain/provider-event";
 import {
   createCloudClient,

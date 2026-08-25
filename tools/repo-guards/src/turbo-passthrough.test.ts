@@ -2,14 +2,14 @@
 // The app's environment contract, held across every turbo task whose process
 // reads it.
 //
-// `apps/app/src/node/config.ts` declares every variable the server reads, and
+// `apps/cli/src/server/config.ts` declares every variable the server reads, and
 // `resolveAppConfig` is the ONE function that reads them. Turbo runs in STRICT
 // env mode, so a variable a task does not name is stripped before the process
 // starts. The two drifting apart has no error message on either side:
 // `INTELIGIR_AGENT=scripted pnpm dev` simply boots the default agent, and the
 // variable the docs promise does nothing.
 //
-// The invariant is NOT "apps/app's dev task" — that was this guard's first
+// The invariant is NOT "one app's dev task" — that was this guard's first
 // spelling and it was a fact about one file. It is "every turbo task whose
 // process calls `resolveAppConfig`", and the scope is DERIVED: a workspace
 // belongs to it when its shipped source reaches that function. Today that is
@@ -30,7 +30,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { ENV_VAR_NAMES } from "@repo/app/node/config";
+import { ENV_VAR_NAMES } from "inteligir/server/config";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import { REPO_ROOT, sourceOf, workspaceFiles, workspaces, type Workspace } from "./repo";
@@ -44,12 +44,7 @@ const CONFIG_READER = "resolveAppConfig";
  * path that actually starts them. The drain below fails the moment one gains a
  * turbo.json, because at that point the reason here stopped being true.
  */
-const RUNS_OUTSIDE_TURBO = new Map<string, string>([
-  [
-    "@repo/cli",
-    "started by apps/cli/bin/inteligir — the root `cli` script, and the PATH shim the agent's shell gets — never by a turbo task",
-  ],
-]);
+const RUNS_OUTSIDE_TURBO = new Map<string, string>([]);
 
 interface TurboTask {
   name: string;
@@ -118,7 +113,7 @@ describe("turbo passes through the whole environment contract", () => {
     expect(
       consumers.map((workspace) => workspace.name),
       `no workspace's shipped source calls ${CONFIG_READER}() — the sweep is broken, not the tree`,
-    ).toContain("@repo/app");
+    ).toContain("inteligir");
     expect(ENV_VAR_NAMES).toContain("INTELIGIR_AGENT");
   });
 
@@ -133,7 +128,7 @@ describe("turbo passes through the whole environment contract", () => {
         for (const name of declared.filter((each) => !passedThrough.includes(each))) {
           violations.push(
             `STRIPPED ENV VAR  ${name}\n` +
-              `  rule: turbo runs in strict env mode — a variable apps/app/src/node/config.ts declares and this task does not name is dropped before the process starts, silently\n` +
+              `  rule: turbo runs in strict env mode — a variable apps/cli/src/server/config.ts declares and this task does not name is dropped before the process starts, silently\n` +
               `  at ${config} tasks.${task.name}.passThroughEnv (${workspace.name} calls ${CONFIG_READER}())\n` +
               `  fix: add "${name}" there`,
           );
@@ -141,7 +136,7 @@ describe("turbo passes through the whole environment contract", () => {
         for (const name of passedThrough.filter((each) => !declared.includes(each))) {
           violations.push(
             `UNDECLARED ENV VAR  ${name}\n` +
-              `  rule: passThroughEnv states what the process READS; nothing in apps/app/src/node/config.ts declares this one\n` +
+              `  rule: passThroughEnv states what the process READS; nothing in apps/cli/src/server/config.ts declares this one\n` +
               `  at ${config} tasks.${task.name}.passThroughEnv\n` +
               `  fix: remove it, or declare it in that module's ENV_VARS`,
           );

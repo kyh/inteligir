@@ -15,7 +15,12 @@ import { buildProgram } from "../program";
 export function testProgram(): CommandDef {
   const deps: CliDeps = {
     env: {},
-    resolveServer: async () => ({ baseUrl: "http://127.0.0.1:0", source: "explicit" }),
+    resolveServer: () => ({
+      baseUrl: "http://127.0.0.1:0",
+      token: "unused",
+      dataDir: "/fixture/data",
+      vaultDir: "/fixture/vault",
+    }),
   };
   return buildProgram(deps);
 }

@@ -8,14 +8,14 @@ import type {
   CaptureRequest,
   CaptureResponse,
   ClaimCapturesResponse,
-} from "@repo/cloud-contract/captures";
+} from "@repo/api/cloud/captures/captures-schema";
 import type {
   PullQuery,
   PullResponse,
   PushRequest,
   PushResponse,
   SyncEventRow,
-} from "@repo/cloud-contract/sync";
+} from "@repo/api/cloud/sync/sync-schema";
 import { threadScope, turnScope } from "@repo/domain/thread-event-scope";
 import type { ThreadEvent } from "@repo/domain/provider-event";
 import type { CloudClient, CloudResult } from "../cloud-client";

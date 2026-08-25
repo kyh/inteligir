@@ -7,7 +7,7 @@
 //     response is one row, not two. This is what quick-capture drives.
 //
 //   • CLAIM / APPLY / ACK — `runCapturePass` is the CONSUMER half, implemented
-//     in full against `@repo/cloud-contract/captures`: at-least-once delivery,
+//     in full against `@repo/api/cloud/captures/captures-schema`: at-least-once delivery,
 //     exactly-once deletion by the owning claim, and an apply that is IDEMPOTENT
 //     on the capture id (the applied-capture ledger). It is unit-tested here,
 //     and it is what a phone-ONLY account would run — but the default runtime
@@ -15,7 +15,7 @@
 //     phone claiming would take a capture the desktop then never sees. See the
 //     README's "who applies captures".
 
-import type { CaptureRow } from "@repo/cloud-contract/captures";
+import type { CaptureRow } from "@repo/api/cloud/captures/captures-schema";
 import type { CloudClient, CloudFailure } from "./cloud-client";
 import type { SyncStore } from "./sync-store";
 

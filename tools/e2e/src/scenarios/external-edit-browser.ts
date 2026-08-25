@@ -33,16 +33,11 @@ export const externalEditBrowser: Scenario = {
     });
 
     ctx.log("create the thread whose scripted turn owns a note path");
-    const created = await app.api.threads.create.$post({ json: { title: PROMPT } });
-    expect(created.status === 201, `create answered ${created.status}`);
-    const { thread } = await created.json();
+    const { thread } = await app.api.threads.create({ title: PROMPT });
     // The scripted driver writes exactly here; folders sort before root
     // files, so the virgin boot opens this note without a deep link.
     const notePath = `Agent/${thread.id}.md`;
-    const seeded = await app.api.vault.file.$put({
-      json: { path: notePath, content: BASE_NOTE, ifAbsent: true },
-    });
-    expect(seeded.status === 200, `note seed answered ${seeded.status}`);
+    await app.api.vault.write({ path: notePath, content: BASE_NOTE, ifAbsent: true });
 
     try {
       await probeHeadlessOrSkip(agentBrowser, ctx.log);
@@ -60,10 +55,7 @@ export const externalEditBrowser: Scenario = {
       );
 
       ctx.log("clean buffer: the agent rewrites the note, the editor adopts");
-      const send = await app.api.threads.send.$post({
-        json: { threadId: thread.id, text: PROMPT, mode: "steer-if-active" },
-      });
-      expect(send.status === 200, `send answered ${send.status}`);
+      await app.api.threads.send({ threadId: thread.id, text: PROMPT, mode: "steer-if-active" });
 
       const adoptDeadline = Date.now() + TURN_DEADLINE_MS;
       for (;;) {

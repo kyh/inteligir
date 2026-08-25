@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "@expo/metro-runtime": "catalog:",
-    "@repo/cloud-contract": "workspace:*",
+    "@repo/api": "workspace:*",
     "@repo/domain": "workspace:*",
     "expo": "catalog:",
     "expo-constants": "catalog:",

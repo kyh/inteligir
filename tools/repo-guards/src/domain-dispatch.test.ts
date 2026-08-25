@@ -36,21 +36,20 @@
 // but "names a subset nobody derived" cannot be asked of this detector, for a
 // reason in its own mechanism: a subset that DERIVES spells its members as
 // quoted literals too. `vault-service.ts` holds its refusal classes in a
-// `satisfies readonly ApiErrorCode[]` array, compiler-tied to the vocabulary,
-// and reads here exactly like a hand-written union would. That is not true of
+// `["not_found", "conflict", "too_large"] as const` array, compiler-tied to the
+// vocabulary, and reads here exactly like a hand-written union would. That is not true of
 // a TOTAL table — one built by iterating the array names no literal at all —
 // which is precisely why the totality rule can be trusted and a subset rule
 // cannot.
 //
-// The measurement, so the next reader does not have to retake it: at a
-// three-member floor the widened rule fires on nine sites and none of them is
-// drift. Six are producers naming the classes they throw or the kinds they
-// announce, at unrelated call sites, deciding nothing jointly. One is
-// `packages/ui/src/components/geometric-orb.tsx`, which names "idle",
-// "starting" and "error" as its own prop vocabulary in a leaf that cannot
-// import `@repo/domain` at all — a collision of common words the detector has
-// no way to tell from the real thing. Nine exemption rows whose reason is
-// uniformly "these are not one decision" is a guard that gets muted, and a
+// Why the widened "names a subset" rule is NOT worth adopting, by kind of false
+// positive it fires on: producers that name the classes they throw or the kinds
+// they announce, at unrelated call sites, deciding nothing jointly; and UI
+// leaves that name short status words ("idle", "error") as their own prop
+// vocabulary — a leaf cannot import `@repo/domain` at all, so it is a collision
+// of common words the detector has no way to tell from the real thing. Every
+// such site would need an exemption row whose reason is uniformly "these are not
+// one decision" — a guard exempted that widely is a guard that gets muted, and a
 // muted guard protects less than a narrow one.
 //
 // What DOES catch partial dispatch is making the subset a derivation, which
@@ -67,8 +66,7 @@ import {
 import { pendingInteractionStatusValues } from "@repo/domain/pending-interaction-status";
 import { PROPOSAL_STATUS_VALUES } from "@repo/domain/proposal-status";
 import { threadStatusValues } from "@repo/domain/thread-status";
-import { API_ERROR_CODES } from "@repo/server-contract/errors";
-import { vaultStatusResponseSchema } from "@repo/server-contract/vault";
+import { vaultStatusResponseSchema } from "@repo/api/local/vault/vault-schema";
 import { describe, expect, it } from "vitest";
 import { sourceOf, workspaceFiles, workspaces } from "./repo";
 
@@ -102,11 +100,11 @@ const VOCABULARIES: Vocabulary[] = [
   {
     name: "vault sync state",
     members: syncStates,
-    declaredIn: "packages/server-contract/src/vault.ts",
+    declaredIn: "packages/api/src/local/vault/vault-schema.ts",
     dispatchedIn: {
-      "apps/app/src/node/vault/git.ts":
+      "apps/cli/src/server/vault/git.ts":
         "the PRODUCER — `statusSnapshot` is the state machine that decides which state the vault is in; naming them all is what it is for",
-      "apps/app/src/app/vault-hooks.ts":
+      "apps/desktop/src/renderer/app/vault-hooks.ts":
         "the ONE client answer, four tables deliberately side by side so a ninth state cannot be answered in one and forgotten in another: `syncStateLabel` (the word), `syncStateDotClass` (the colour), `syncBlockedReason` (why a pass would not run — which `canSyncNow` reads as a boolean) and `syncNowNotice` (what the command owes the user afterwards)",
     },
   },
@@ -117,9 +115,9 @@ const VOCABULARIES: Vocabulary[] = [
     dispatchedIn: {
       "packages/domain/src/thread-lifecycle.ts":
         "the FSM — which transition each status permits, and the only table that may say so",
-      "apps/app/src/node/threads/service.ts":
+      "apps/cli/src/server/threads/service.ts":
         "server POLICY — what a send does in each status (start, steer, queue, refuse), which is a different question from what the status is called",
-      "apps/app/src/app/chat/chat-model.ts":
+      "apps/desktop/src/renderer/app/chat/chat-model.ts":
         "the client's ONE derivation into `ThreadActivity`; every React surface reads its labels, dots and tones from there rather than from the lifecycle word",
     },
   },
@@ -139,17 +137,11 @@ const VOCABULARIES: Vocabulary[] = [
     dispatchedIn: {},
   },
   {
-    name: "API error class",
-    members: API_ERROR_CODES,
-    declaredIn: "packages/server-contract/src/errors.ts",
-    dispatchedIn: {},
-  },
-  {
     name: "thread change kind",
     members: THREAD_CHANGE_KINDS,
     declaredIn: "packages/domain/src/change-kinds.ts",
     dispatchedIn: {
-      "apps/app/src/app/chat/thread-hooks.ts":
+      "apps/desktop/src/renderer/app/chat/thread-hooks.ts":
         "which kinds move the TIMELINE, and therefore earn a delta fetch — the one thread surface the query sweep does not cover, so a kind nobody weighed here is a row the user never sees; a table rather than a list, because the answer for a new kind is a decision and not a default",
     },
   },

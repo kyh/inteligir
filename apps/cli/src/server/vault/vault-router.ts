@@ -1,0 +1,131 @@
+// The vault's handlers. Each one calls its service and answers the contract's
+// output; a domain refusal becomes the wire class `vault-refusals.ts` decides,
+// which is also what the comments procedures and the asset route answer with.
+
+import {
+  VAULT_ASSET_MEDIA_TYPES,
+  VAULT_ASSET_WRITE_MAX_BYTES,
+  type VaultRenameResponse,
+} from "@repo/api/local/vault/vault-schema";
+import { base, refusals } from "../orpc";
+import { vaultWireError } from "./vault-refusals";
+import { listTrash, purgeTrashedNote, restoreNote, trashNote } from "./trash";
+import type { GuardedWriteGuard } from "./vault-service";
+
+/** The composed rename (the link rewrite riding the service's rename); refusals
+ *  surface as the same VaultPathError/VaultServiceError the service throws. */
+export type RenameNote = (from: string, to: string) => Promise<VaultRenameResponse>;
+
+/** Runs `work`, re-raising a vault refusal as the class the contract declares
+ *  (`vault-refusals.ts` owns which). One wrapper rather than a try/catch per
+ *  handler: thirteen handlers deciding it separately is thirteen answers that
+ *  can disagree. */
+const refusing = refusals(vaultWireError);
+
+/** The media type this extension is served as, or null for anything outside
+ *  the allowlist. Lowercased, because a vault carries `.PNG` too. */
+export function assetMediaType(path: string): string | null {
+  const dot = path.lastIndexOf(".");
+  if (dot < 0) return null;
+  return VAULT_ASSET_MEDIA_TYPES.get(path.slice(dot).toLowerCase()) ?? null;
+}
+
+const tree = base.vault.tree.handler(({ context }) => context.vault.service.listTree());
+
+const read = base.vault.read.handler(({ context, input }) =>
+  refusing(() => context.vault.service.read(input.path)),
+);
+
+const write = base.vault.write.handler(async ({ context, input, errors }) =>
+  refusing(async () => {
+    if (input.expectedHash === undefined && input.ifAbsent === undefined) {
+      return await context.vault.service.write(input.path, input.content);
+    }
+    const guard: GuardedWriteGuard =
+      input.expectedHash === undefined ? { ifAbsent: true } : { expectedHash: input.expectedHash };
+    const result = await context.vault.service.writeGuarded(input.path, input.content, guard);
+    if (result.applied) {
+      return { path: result.path };
+    }
+    if (result.reason === "exists") {
+      throw errors.ALREADY_EXISTS({ message: `A file already exists at ${input.path}` });
+    }
+    // The client merges `current` with diff3 and retries — which is why the
+    // guard lives in the protocol rather than in the UI. `current` is absent
+    // when the file no longer exists at all.
+    throw errors.CAS_MISMATCH({
+      message: `${input.path} changed since the base this write was derived from`,
+      data: result.current === null ? {} : { current: result.current },
+    });
+  }),
+);
+
+const assetWrite = base.vault.assetWrite.handler(async ({ context, input, errors }) => {
+  if (assetMediaType(input.baseName) === null) {
+    throw errors.INVALID_PATH({
+      message: `${input.baseName} is not an image type this vault serves`,
+    });
+  }
+  const byteLength = Math.floor((input.bytesBase64.length * 3) / 4);
+  if (byteLength > VAULT_ASSET_WRITE_MAX_BYTES) {
+    throw errors.PAYLOAD_TOO_LARGE({
+      message: `attachment is ~${byteLength} bytes; the cap is ${VAULT_ASSET_WRITE_MAX_BYTES}`,
+    });
+  }
+  const bytes = new Uint8Array(Buffer.from(input.bytesBase64, "base64"));
+  return refusing(() => context.vault.service.writeAsset(input.dir, input.baseName, bytes));
+});
+
+const rename = base.vault.rename.handler(({ context, input }) =>
+  refusing(() => context.renameNote(input.from, input.to)),
+);
+
+const mkdir = base.vault.mkdir.handler(({ context, input }) =>
+  refusing(() => context.vault.service.createDir(input.path)),
+);
+
+const trashList = base.vault.trashList.handler(async ({ context }) => ({
+  entries: await listTrash(context.vault.service),
+}));
+
+const trash = base.vault.trash.handler(({ context, input }) =>
+  refusing(() => trashNote(context.vault.service, input.path)),
+);
+
+const trashRestore = base.vault.trashRestore.handler(({ context, input }) =>
+  refusing(() => restoreNote(context.vault.service, input.path)),
+);
+
+const trashPurge = base.vault.trashPurge.handler(({ context, input }) =>
+  refusing(async () => {
+    await purgeTrashedNote(context.vault.service, input.path);
+    return { ok: true } as const;
+  }),
+);
+
+const remove = base.vault.remove.handler(({ context, input }) =>
+  refusing(async () => {
+    await context.vault.service.remove(input.path);
+    return { ok: true } as const;
+  }),
+);
+
+const status = base.vault.status.handler(({ context }) => context.vault.status());
+
+const syncNow = base.vault.syncNow.handler(({ context }) => context.vault.syncNow());
+
+export const vaultRouter = {
+  tree,
+  read,
+  write,
+  assetWrite,
+  rename,
+  mkdir,
+  trashList,
+  trash,
+  trashRestore,
+  trashPurge,
+  remove,
+  status,
+  syncNow,
+};

@@ -7,7 +7,6 @@
 // ORDINARY typed routes over loopback — the app window gains no IPC and the
 // server gains no new surface.
 
-import { join } from "node:path";
 import {
   BaseWindow,
   ipcMain,
@@ -16,7 +15,13 @@ import {
   WebContentsView,
   type IpcMainInvokeEvent,
 } from "electron";
-import { createApiClient } from "@repo/server-contract/client";
+import type { ContractRouterClient } from "@orpc/contract";
+import { createLocalClient } from "inteligir/server/local-client";
+import type { LocalContract } from "@repo/api/local";
+import { toErrorMessage } from "../types";
+import { BROWSER_IPC } from "./browser-ipc";
+import { browserChromePage, browserChromePreloadScript } from "./bundle-paths";
+import type { LiveServer } from "./server-instance";
 import {
   BROWSER_CHROME_HEIGHT,
   BROWSER_HOME_URL,
@@ -70,7 +75,7 @@ function layout(handle: BrowserWindowHandle): void {
 
 function pushChromeState(handle: BrowserWindowHandle): void {
   const contents = handle.content.webContents;
-  handle.chrome.webContents.send("inteligir-browser:state", {
+  handle.chrome.webContents.send(BROWSER_IPC.STATE, {
     url: contents.getURL(),
     title: contents.getTitle(),
     canGoBack: contents.navigationHistory.canGoBack(),
@@ -87,50 +92,74 @@ function pushChromeState(handle: BrowserWindowHandle): void {
  */
 async function sendPageToAgent(
   handle: BrowserWindowHandle,
-  appOrigin: string,
+  server: LiveServer,
 ): Promise<{ ok: boolean; detail: string }> {
   const contents = handle.content.webContents;
   const url = contents.getURL();
   if (url.length === 0) {
     return { ok: false, detail: "nothing loaded" };
   }
-  let selection = "";
-  try {
-    const raw: unknown = await contents.executeJavaScript("String(getSelection())", false);
-    selection = typeof raw === "string" ? raw : "";
-  } catch {
-    // A page that refuses script evaluation still captures by url + title.
-  }
+  const selection = await readPageSelection(contents);
   const capture = { url, title: contents.getTitle(), selection };
   try {
-    const api = createApiClient(appOrigin);
-    const created = await api.threads.create.$post({
-      json: { title: capturePageTitle(capture) },
+    const api = apiClientFor(server);
+    const { thread } = await api.threads.create({ title: capturePageTitle(capture) });
+    await api.threads.send({
+      threadId: thread.id,
+      text: capturePageMessage(capture),
+      mode: "queue-if-active",
     });
-    if (!created.ok) {
-      return { ok: false, detail: `create answered ${created.status}` };
-    }
-    const { thread } = await created.json();
-    const sent = await api.threads.send.$post({
-      json: {
-        threadId: thread.id,
-        text: capturePageMessage(capture),
-        mode: "queue-if-active",
-      },
-    });
-    if (!sent.ok) {
-      return { ok: false, detail: `send answered ${sent.status}` };
-    }
     return { ok: true, detail: thread.id };
   } catch (error) {
-    return { ok: false, detail: error instanceof Error ? error.message : String(error) };
+    // A refusal THROWS, so both halves land here — and the chrome bar shows
+    // whichever sentence the server sent rather than a status number.
+    return { ok: false, detail: toErrorMessage(error) };
   }
+}
+
+/** A ceiling on the capture call. Without one a wedged server leaves the
+ *  chrome bar's IPC handler pending forever and the button spinning. */
+const CAPTURE_TIMEOUT_MS = 30_000;
+
+/** The same reasoning applied to the PAGE half. The content view runs arbitrary
+ *  pages: one overriding `Selection.toString` (or `String`) with a loop would
+ *  leave `executeJavaScript` pending forever — hanging the IPC handler and
+ *  spinning the button exactly as a wedged server would. A selection read is
+ *  near-instant, so this bounds it and falls back to no selection (url + title
+ *  still capture). */
+const SELECTION_READ_TIMEOUT_MS = 1_000;
+
+async function readPageSelection(contents: Electron.WebContents): Promise<string> {
+  const evaluate = contents
+    .executeJavaScript("String(getSelection())", false)
+    .then((raw: unknown) => (typeof raw === "string" ? raw : ""))
+    .catch(() => "");
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<string>((resolve) => {
+    timer = setTimeout(() => resolve(""), SELECTION_READ_TIMEOUT_MS);
+  });
+  try {
+    return await Promise.race([evaluate, timeout]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** The typed client against the local server, carrying this instance's device
+ *  token. "Send to agent" is a MAIN-process call — the browser view has no
+ *  preload and never sees the credential. */
+function apiClientFor(server: LiveServer): ContractRouterClient<LocalContract> {
+  return createLocalClient({
+    origin: server.origin,
+    token: server.token,
+    timeoutMs: CAPTURE_TIMEOUT_MS,
+  });
 }
 
 /** One registration for the process; each handler re-resolves the live handle
  *  and refuses any sender that is not the shell's own chrome bar — the app
  *  window has no preload, but a guard that checks is one that cannot rot. */
-function registerBrowserIpc(appOrigin: string): void {
+function registerBrowserIpc(server: LiveServer): void {
   if (ipcRegistered) {
     return;
   }
@@ -143,7 +172,7 @@ function registerBrowserIpc(appOrigin: string): void {
     return browserHandle;
   };
 
-  ipcMain.handle("inteligir-browser:navigate", (event, input: unknown) => {
+  ipcMain.handle(BROWSER_IPC.NAVIGATE, (event, input: unknown) => {
     const handle = fromChrome(event);
     if (handle === null) {
       return;
@@ -153,21 +182,21 @@ function registerBrowserIpc(appOrigin: string): void {
       void handle.content.webContents.loadURL(resolved);
     }
   });
-  ipcMain.handle("inteligir-browser:back", (event) => {
+  ipcMain.handle(BROWSER_IPC.BACK, (event) => {
     fromChrome(event)?.content.webContents.navigationHistory.goBack();
   });
-  ipcMain.handle("inteligir-browser:forward", (event) => {
+  ipcMain.handle(BROWSER_IPC.FORWARD, (event) => {
     fromChrome(event)?.content.webContents.navigationHistory.goForward();
   });
-  ipcMain.handle("inteligir-browser:reload", (event) => {
+  ipcMain.handle(BROWSER_IPC.RELOAD, (event) => {
     fromChrome(event)?.content.webContents.reload();
   });
-  ipcMain.handle("inteligir-browser:send-to-agent", async (event) => {
+  ipcMain.handle(BROWSER_IPC.SEND_TO_AGENT, async (event) => {
     const handle = fromChrome(event);
     if (handle === null) {
       return { ok: false, detail: "not the browser chrome" };
     }
-    return sendPageToAgent(handle, appOrigin);
+    return sendPageToAgent(handle, server);
   });
 }
 
@@ -179,9 +208,9 @@ function guardContentNavigation(event: Electron.Event, url: string): void {
   }
 }
 
-function createBrowserWindow(appOrigin: string): BrowserWindowHandle {
+function createBrowserWindow(server: LiveServer): BrowserWindowHandle {
   lockDownBrowserSession();
-  registerBrowserIpc(appOrigin);
+  registerBrowserIpc(server);
 
   const window = new BaseWindow({
     width: 1100,
@@ -195,7 +224,7 @@ function createBrowserWindow(appOrigin: string): BrowserWindowHandle {
   });
 
   const chrome = new WebContentsView({
-    webPreferences: chromeViewWebPreferences(join(__dirname, "browser-preload.cjs")),
+    webPreferences: chromeViewWebPreferences(browserChromePreloadScript()),
   });
   const content = new WebContentsView({
     webPreferences: contentViewWebPreferences(),
@@ -231,15 +260,15 @@ function createBrowserWindow(appOrigin: string): BrowserWindowHandle {
     }
   });
 
-  void chrome.webContents.loadFile(join(__dirname, "browser-chrome.html"));
+  void chrome.webContents.loadFile(browserChromePage());
   void contents.loadURL(BROWSER_HOME_URL);
   return handle;
 }
 
 /** Open the browser window, or focus the one already open. */
-export function showBrowserWindow(appOrigin: string): void {
+export function showBrowserWindow(server: LiveServer): void {
   if (browserHandle === null) {
-    browserHandle = createBrowserWindow(appOrigin);
+    browserHandle = createBrowserWindow(server);
     return;
   }
   if (browserHandle.window.isMinimized()) {

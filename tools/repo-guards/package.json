@@ -10,10 +10,10 @@
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
-    "@repo/app": "workspace:*",
+    "@repo/api": "workspace:*",
     "@repo/domain": "workspace:*",
-    "@repo/server-contract": "workspace:*",
     "@types/node": "catalog:",
+    "inteligir": "workspace:*",
     "typescript": "catalog:",
     "vitest": "catalog:",
     "yaml": "catalog:",

@@ -1,52 +1,50 @@
-// The CLI's runtime context: which env it reads, how a command reaches the
-// typed client, and the context block `--help` prints. INTELIGIR_THREAD_ID is
-// context only — commands take explicit ids; the variable tells an agent
+// The CLI's runtime context: which instance it drives, how a command reaches
+// the typed client, and the context block `--help` prints. INTELIGIR_THREAD_ID
+// is context only — commands take explicit ids; the variable tells an agent
 // WHICH thread it is running in (the runtime injects it into agent shells).
 
-import { realpathSync } from "node:fs";
-import { resolve } from "node:path";
-import { fileURLToPath } from "node:url";
-import { createApiClient, type ApiClient } from "@repo/server-contract/client";
-import { resolveServer, SERVER_URL_ENV_VAR, type ResolvedServer } from "./server-discovery";
+import type { ContractRouterClient } from "@orpc/contract";
+import type { LocalContract } from "@repo/api/local";
+import { resolveCheckoutRoot } from "./server/config";
+import { createLocalClient } from "./server/local-client";
+import { DATA_DIR_ENV_VAR, resolveServer, type ResolvedServer } from "./server-discovery";
+
+/** The typed surface every command drives. A refusal is a THROWN error, so
+ *  there is no success-or-refusal value a command could print by mistake. */
+export type Api = ContractRouterClient<LocalContract>;
 
 const THREAD_ID_ENV_VAR = "INTELIGIR_THREAD_ID";
 
 export interface CliDeps {
   env: NodeJS.ProcessEnv;
-  /** Resolved lazily on the first command that needs the server, then cached. */
-  resolveServer(): Promise<ResolvedServer>;
-}
-
-/**
- * The sibling apps/app checkout, which is what the server hashes as its cwd
- * for the per-checkout port derivation. Structural: the CLI and the app ship
- * in one checkout, and this module sits one level under the CLI package root
- * both in src/ and in the dist/ bundle. realpath'd because the server hashes
- * its (real) cwd.
- */
-function defaultAppCheckoutDir(): string {
-  const cliPackageDir = fileURLToPath(new URL("..", import.meta.url));
-  const appDir = resolve(cliPackageDir, "..", "app");
-  try {
-    return realpathSync(appDir);
-  } catch {
-    return appDir;
-  }
+  /** Resolved on the first command that needs the server, then cached. */
+  resolveServer(): ResolvedServer;
 }
 
 export function createCliDeps(env: NodeJS.ProcessEnv = process.env): CliDeps {
-  let cached: Promise<ResolvedServer> | null = null;
+  let cached: ResolvedServer | null = null;
   return {
     env,
     resolveServer() {
-      cached ??= resolveServer({ env, appCheckoutDir: defaultAppCheckoutDir() });
+      cached ??= resolveServer({ env, checkoutPath: resolveCheckoutRoot() });
       return cached;
     },
   };
 }
 
-export async function apiFor(deps: CliDeps): Promise<ApiClient> {
-  return createApiClient((await deps.resolveServer()).baseUrl);
+/** A ceiling on ONE verb. Generous, because `action wait` and a first-boot
+ *  vault scan are legitimately slow; the point is that a WEDGED server ends
+ *  the command rather than leaving a shell — an agent's shell — hanging. */
+const CALL_TIMEOUT_MS = 120_000;
+
+/** The typed client, carrying this instance's bearer on every request. */
+export function apiFor(deps: CliDeps): Api {
+  const server = deps.resolveServer();
+  return createLocalClient({
+    origin: server.baseUrl,
+    token: server.token,
+    timeoutMs: CALL_TIMEOUT_MS,
+  });
 }
 
 export function contextThreadId(env: NodeJS.ProcessEnv): string | undefined {
@@ -60,12 +58,12 @@ export function contextThreadId(env: NodeJS.ProcessEnv): string | undefined {
 
 /** The `--help` epilogue: what this invocation would actually dial and run in. */
 export function describeContext(env: NodeJS.ProcessEnv): string {
-  const serverUrl = env[SERVER_URL_ENV_VAR]?.trim();
+  const dataDir = env[DATA_DIR_ENV_VAR]?.trim();
   const threadId = contextThreadId(env);
   return [
     "",
     "Environment:",
-    `  ${SERVER_URL_ENV_VAR}: ${serverUrl !== undefined && serverUrl.length > 0 ? serverUrl : "(unset — discovered from the local instance)"}`,
+    `  ${DATA_DIR_ENV_VAR}: ${dataDir !== undefined && dataDir.length > 0 ? dataDir : "(unset — derived from this checkout)"}`,
     `  ${THREAD_ID_ENV_VAR}:  ${threadId ?? "(unset)"}`,
     "",
     "Run `inteligir guide` for the agent manual.",

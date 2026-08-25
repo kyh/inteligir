@@ -8,13 +8,13 @@ directories:
   output: .output/bin
 # The server is a CHILD PROCESS, so its entry has to be a real file on disk —
 # an asar is not a filesystem a process can be spawned from. Everything under
-# node_modules is unpacked for that reason (src/main/server-paths.ts rewrites
-# the app.asar path to match), which also covers better-sqlite3's .node binary.
+# node_modules is unpacked for that reason (server-instance.ts rewrites the
+# app.asar path to match), which also covers better-sqlite3's .node binary.
 asar: true
 asarUnpack:
   - node_modules/**
 files:
-  - dist/**
+  - .output/app/**
   - node_modules/**
   - package.json
   - resources/icon.png

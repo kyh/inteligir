@@ -6,7 +6,7 @@ import { z } from "zod";
  * The invalidation vocabulary: what a write can announce about each entity.
  * It sits in the domain rather than in the wire contract because both sides
  * of the wire derive from it — the write layer announces through `DbNotifier`
- * beside this file, and `@repo/server-contract/notifications` builds the ws
+ * beside this file, and `@repo/api/local/notifications` builds the ws
  * frames from the same arrays.
  */
 export const VAULT_CHANGE_KINDS = ["files-changed", "sync-status-changed"] as const;

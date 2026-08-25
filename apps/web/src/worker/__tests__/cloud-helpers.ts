@@ -3,7 +3,7 @@ import {
   mintPairingCodeResponseSchema,
   pkceChallengeS256,
   redeemDeviceResponseSchema,
-} from "@repo/cloud-contract/pairing";
+} from "@repo/api/cloud/pairing/pairing-schema";
 import { env, SELF } from "cloudflare:test";
 import { expect } from "vitest";
 import { z } from "zod";

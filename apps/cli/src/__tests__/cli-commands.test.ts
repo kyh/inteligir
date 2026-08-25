@@ -3,8 +3,8 @@
 // error paths' exit codes. The timeline fixture exercises the shared
 // @repo/thread-view renderer end to end through `thread show`.
 
-import type { ThreadTimeline } from "@repo/server-contract/thread-timeline";
-import { VAULT_MAX_CONTENT_LENGTH } from "@repo/server-contract/vault";
+import type { ThreadTimeline } from "@repo/api/local/thread-timeline";
+import { VAULT_MAX_CONTENT_LENGTH } from "@repo/api/local/vault/vault-schema";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   makeFixtureState,
@@ -465,7 +465,7 @@ describe("status, guide and help", () => {
     // chrome cannot be pinned. The FACTS still are, in order: the assertion
     // reads the box's own rows back out.
     expect(boxedLines(result.stdout)).toEqual([
-      `inteligir 9.9.9-fixture — ${server.baseUrl} (explicit)`,
+      `inteligir 9.9.9-fixture — ${server.baseUrl}`,
       "Data dir: /fixture/data",
       "Vault: /fixture/vault",
       "Schema: v3 — uptime 65s",
@@ -488,7 +488,7 @@ describe("status, guide and help", () => {
       env: { INTELIGIR_THREAD_ID: "thr_ctx" },
     });
     expect(result.code).toBe(0);
-    expect(result.stdout).toContain("INTELIGIR_SERVER_URL");
+    expect(result.stdout).toContain("INTELIGIR_DATA_DIR");
     expect(result.stdout).toContain("INTELIGIR_THREAD_ID:  thr_ctx");
   });
 });
@@ -508,7 +508,7 @@ describe("argv the CLI refuses", () => {
     expect(result.stderr).toContain("unknown option: --contentt");
   });
 
-  it("reports an undeclared flag as invalid_usage under --json", async () => {
+  it("reports an undeclared flag as INVALID_USAGE under --json", async () => {
     const server = await boot(seededState());
     const result = await runCliForTest({
       argv: ["tags", "--nope", "--json"],
@@ -517,7 +517,7 @@ describe("argv the CLI refuses", () => {
     expect(result.code).toBe(1);
     expect(result.stdout).toBe("");
     expect(JSON.parse(result.stderr)).toEqual({
-      error: "invalid_usage",
+      error: "INVALID_USAGE",
       message: "unknown option: --nope",
     });
   });
@@ -579,7 +579,7 @@ describe("action new never orphans a thread silently", () => {
     const server = await boot(state);
     // The thread is created, THEN the send refuses — exactly the window where
     // the id would otherwise be lost.
-    state.refuseSend = { error: "provider_unavailable", message: "no agent" };
+    state.refuseSend = { code: "PROVIDER_UNAVAILABLE", message: "no agent" };
     const result = await runCliForTest({
       argv: ["action", "new", "do a thing"],
       baseUrl: server.baseUrl,
@@ -644,7 +644,7 @@ describe("--json failures", () => {
     expect(result.code).toBe(1);
     expect(result.stdout).toBe("");
     expect(JSON.parse(result.stderr)).toEqual({
-      error: "not_found",
+      error: "NOT_FOUND",
       message: "No file at nope.md",
     });
   });
@@ -657,8 +657,25 @@ describe("--json failures", () => {
     });
     expect(result.code).toBe(1);
     expect(JSON.parse(result.stderr)).toEqual({
-      error: "invalid_usage",
+      error: "INVALID_USAGE",
       message: '--timeout must be a positive number (got "nope")',
     });
+  });
+});
+
+describe("a server that stopped answering", () => {
+  it("classifies a refused dial as SERVER_UNREACHABLE / exit 3", async () => {
+    // The stale-file path #611 states: a crash leaves server.json behind, so
+    // discovery finds a row and the dial reaches a DEAD port. The refused
+    // connection must read as SERVER_UNREACHABLE (exit 3) — the class the served
+    // guide teaches agents to branch on — not the raw ECONNREFUSED it rests on,
+    // nor UNEXPECTED/exit 1. Booting then closing a fixture is exactly that
+    // state: a real bound port, then nothing listening on it.
+    const server = await serveFixture(makeFixtureState());
+    const { baseUrl } = server;
+    await server.close();
+    const result = await runCliForTest({ argv: ["status", "--json"], baseUrl });
+    expect(result.code).toBe(3);
+    expect(JSON.parse(result.stderr).error).toBe("SERVER_UNREACHABLE");
   });
 });

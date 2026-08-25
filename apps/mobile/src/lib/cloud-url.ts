@@ -6,7 +6,7 @@ import { z } from "zod";
 const extraSchema = z.object({ cloudUrl: z.string().min(1) });
 
 // The cloud Worker origin the sync client and pairing talk to. There is no other
-// backend — the phone is a sync-only client of `@repo/cloud-contract`.
+// backend — the phone is a sync-only client of `@repo/api/cloud`.
 
 /** The wrangler dev port the cloud Worker serves on locally. */
 const DEV_CLOUD_PORT = 8787;

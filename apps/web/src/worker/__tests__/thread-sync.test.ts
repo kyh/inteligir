@@ -2,15 +2,15 @@ import {
   ackCapturesResponseSchema,
   captureResponseSchema,
   claimCapturesResponseSchema,
-} from "@repo/cloud-contract/captures";
-import { cloudErrorSchema } from "@repo/cloud-contract/errors";
+} from "@repo/api/cloud/captures/captures-schema";
+import { cloudErrorSchema } from "@repo/api/cloud/errors";
 import {
   pullResponseSchema,
   pushResponseSchema,
   type PushRequest,
   type ThreadMetaInput,
-} from "@repo/cloud-contract/sync";
-import { syncPingSchema, type SyncPing } from "@repo/cloud-contract/ws";
+} from "@repo/api/cloud/sync/sync-schema";
+import { syncPingSchema, type SyncPing } from "@repo/api/cloud/sync/sync-ws";
 import { env, runInDurableObject, SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 import {

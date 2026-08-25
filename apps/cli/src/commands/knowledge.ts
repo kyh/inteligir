@@ -10,11 +10,11 @@ import {
   KNOWLEDGE_SEARCH_MAX_LIMIT,
   type KnowledgeRelatedRequest,
   type KnowledgeSearchRequest,
-} from "@repo/server-contract/knowledge";
+} from "@repo/api/local/knowledge/knowledge-schema";
 import { defineCommand } from "citty";
 import { invalidUsage } from "../cli-error";
 import { apiFor, type CliDeps } from "../context";
-import { jsonArg, out, outputJson, requireOk, writeLines } from "../output";
+import { jsonArg, out, outputJson, writeLines } from "../output";
 
 /** Bounded HERE as well as server-side: an out-of-range limit is the caller's
  *  own mistake, and naming the ceiling beats relaying a 400. The ceiling is
@@ -40,13 +40,12 @@ export function searchCommand(deps: CliDeps) {
     },
     run: async ({ args }) => {
       const limit = parseLimit(args.limit, KNOWLEDGE_SEARCH_MAX_LIMIT);
-      const api = await apiFor(deps);
-      const query: KnowledgeSearchRequest = { q: args.query };
+      const api = apiFor(deps);
+      const request: KnowledgeSearchRequest = { q: args.query };
       if (limit !== undefined) {
-        query.limit = limit;
+        request.limit = limit;
       }
-      const found = await requireOk(await api.knowledge.search.$get({ query }));
-      const body = await found.json();
+      const body = await api.knowledge.search(request);
       if (outputJson(args, body)) {
         return;
       }
@@ -73,11 +72,8 @@ export function backlinksCommand(deps: CliDeps) {
       ...jsonArg,
     },
     run: async ({ args }) => {
-      const api = await apiFor(deps);
-      const linked = await requireOk(
-        await api.knowledge.backlinks.$get({ query: { path: args.path } }),
-      );
-      const body = await linked.json();
+      const api = apiFor(deps);
+      const body = await api.knowledge.backlinks({ path: args.path });
       if (outputJson(args, body)) {
         return;
       }
@@ -103,13 +99,12 @@ export function relatedCommand(deps: CliDeps) {
     },
     run: async ({ args }) => {
       const limit = parseLimit(args.limit, KNOWLEDGE_RELATED_MAX_LIMIT);
-      const api = await apiFor(deps);
-      const query: KnowledgeRelatedRequest = { path: args.path };
+      const api = apiFor(deps);
+      const request: KnowledgeRelatedRequest = { path: args.path };
       if (limit !== undefined) {
-        query.limit = limit;
+        request.limit = limit;
       }
-      const found = await requireOk(await api.knowledge.related.$get({ query }));
-      const body = await found.json();
+      const body = await api.knowledge.related(request);
       if (outputJson(args, body)) {
         return;
       }
@@ -135,8 +130,8 @@ export function tagsCommand(deps: CliDeps) {
     meta: { name: "tags", description: "Every tag with its usage count, most used first" },
     args: { ...jsonArg },
     run: async ({ args }) => {
-      const api = await apiFor(deps);
-      const body = await (await requireOk(await api.knowledge.tags.$get())).json();
+      const api = apiFor(deps);
+      const body = await api.knowledge.tags();
       if (outputJson(args, body)) {
         return;
       }

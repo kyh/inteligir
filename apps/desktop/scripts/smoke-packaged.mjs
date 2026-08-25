@@ -1,8 +1,8 @@
 // The packaged-app smoke: everything the shipped .app does EXCEPT open a
 // window.
 //
-// It boots the packaged server the way the supervisor does — the app's own
-// Electron binary with ELECTRON_RUN_AS_NODE=1 — and checks the parts a build
+// It boots the packaged server the way the shell does — the app's own Electron
+// binary with ELECTRON_RUN_AS_NODE=1 — and checks the parts a build
 // can silently get wrong: that the native modules load under Electron's
 // runtime, that the SPA and API are served, that the bundled CLI is reachable
 // and executable where the agent's PATH resolver looks for it, and that
@@ -19,30 +19,22 @@
 // packaged shell is something users install, and not before.
 
 import { spawn } from "node:child_process";
-import { accessSync, constants, existsSync } from "node:fs";
+import { accessSync, constants, existsSync, readFileSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import {
-  CLI_BIN_NAME,
-  appBundleDir,
-  appServerEntry,
-  appSkillsDir,
-  cliBinDirFromAppBundle,
-  installRootIn,
-} from "inteligir/scripts/staged-layout.mjs";
+const CLI_BIN_NAME = "inteligir";
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const appDir = join(packageRoot, ".output", "bin", "mac-arm64", "Inteligir.app");
 const electronBinary = join(appDir, "Contents", "MacOS", "Inteligir");
+// The packaged server is an ORDINARY dependency in an ordinary node_modules —
+// electron-builder unpacks the tree npm laid down, so the walk below is the one
+// src/main/server-instance.ts::serverEntryPath does at runtime.
 const unpacked = join(appDir, "Contents", "Resources", "app.asar.unpacked");
-// The layout is the launcher's, imported rather than re-typed: this file used
-// to spell `dist/apps/app/dist-node/main.js` out again, which meant a flatten
-// on the producing side left this smoke passing against a path that no longer
-// described the tree it was checking.
-const runtimeRoot = installRootIn(unpacked);
-const serverEntry = appServerEntry(runtimeRoot);
+const runtimeRoot = join(unpacked, "node_modules", CLI_BIN_NAME);
+const serverEntry = join(runtimeRoot, "dist", "index.js");
 const BOOT_TIMEOUT_MS = 60_000;
 const EXIT_TIMEOUT_MS = 20_000;
 
@@ -106,16 +98,16 @@ if (!existsSync(electronBinary)) {
 if (!existsSync(serverEntry)) {
   fail(`the packaged app carries no server entry at ${serverEntry}`);
 }
-const notesSkill = join(appSkillsDir(runtimeRoot), "inteligir-notes", "SKILL.md");
+const notesSkill = join(runtimeRoot, "dist", "skills", "inteligir-notes", "SKILL.md");
 if (!existsSync(notesSkill)) {
-  fail(`the packaged app carries no product skills at ${notesSkill}`);
+  fail(`the packaged app carries no dialect skills at ${notesSkill}`);
 }
 
-// The agent's PATH resolver walks up from the running bundle
-// (apps/app/src/node/agent/agent-shell-env.ts::resolveCliBinDir), so the same
-// walk is done here — and the execute bit is checked, because the resolver
-// refuses a file without one and the capability then disappears silently.
-const cliBin = join(cliBinDirFromAppBundle(appBundleDir(runtimeRoot)), CLI_BIN_NAME);
+// The agent's PATH resolver looks for the bin beside the running bundle
+// (apps/cli/src/server/agents/agent-shell-env.ts::resolveCliBinDir), and the
+// execute bit is checked because the resolver refuses a file without one —
+// which is the capability disappearing with no error anywhere.
+const cliBin = join(runtimeRoot, "bin", CLI_BIN_NAME);
 if (!existsSync(cliBin)) {
   fail(`the packaged CLI is missing at ${cliBin}`);
 }
@@ -128,28 +120,60 @@ try {
 const scratch = await mkdtemp(join(tmpdir(), "inteligir-desktop-smoke-"));
 const port = 4_900 + Math.floor(Math.random() * 90);
 const baseUrl = `http://127.0.0.1:${port}`;
+const dataDir = join(scratch, "data");
+
+/** The device token the packaged server published for this scratch instance.
+ *  Every privileged route is behind it, so a smoke that skipped it would be
+ *  asserting 401s. */
+function authHeaders() {
+  const row = JSON.parse(readFileSync(join(dataDir, "server.json"), "utf8"));
+  return { authorization: `Bearer ${row.token}` };
+}
+
+/**
+ * ONE procedure call over the RPC protocol, hand-rolled because this script has
+ * no bundler and no workspace link — the wire is `POST /rpc/<path>` with a JSON
+ * body and an answer under `json`.
+ */
+async function rpc(procedure) {
+  const response = await fetch(`${baseUrl}/rpc/${procedure}`, {
+    method: "POST",
+    headers: { ...authHeaders(), "content-type": "application/json" },
+    body: "{}",
+  });
+  if (!response.ok) {
+    fail(`${procedure} answered ${response.status}`);
+  }
+  const body = await response.json();
+  return body.json;
+}
+
 let server = null;
 
 try {
   process.stdout.write(`smoke: booting the packaged server on ${baseUrl}\n`);
-  server = spawn(electronBinary, [serverEntry], {
+  // `serve` is the argument the shell passes too: the entry is the CLI, and
+  // every other verb is a client against a server this one IS.
+  server = spawn(electronBinary, [serverEntry, "serve"], {
     detached: true,
     stdio: ["ignore", "inherit", "inherit"],
     env: {
       ...process.env,
-      // Exactly what src/main/server-paths.ts composes for the packaged
-      // runtime.
+      // The packaged runtime's own composition (src/main/server-instance.ts):
+      // NODE_ENV from isPackaged, and the instance's data + vault dirs.
       ELECTRON_RUN_AS_NODE: "1",
       NODE_ENV: "production",
-      INTELIGIR_PORT: String(port),
-      INTELIGIR_DATA_DIR: join(scratch, "data"),
+      INTELIGIR_DATA_DIR: dataDir,
       INTELIGIR_VAULT_DIR: join(scratch, "vault"),
+      // The smoke's own pins: a fixed port to probe deterministically (the shell
+      // lets the child derive one), and the agent/sync loops off for isolation.
+      INTELIGIR_PORT: String(port),
       INTELIGIR_AGENT: "off",
       INTELIGIR_SYNC_INTERVAL_MS: "0",
     },
   });
 
-  const health = await waitForUrl(`${baseUrl}/api/v1/health`, BOOT_TIMEOUT_MS);
+  const health = await waitForUrl(`${baseUrl}/health`, BOOT_TIMEOUT_MS);
   if (health === null) {
     fail(`no health answer within ${BOOT_TIMEOUT_MS}ms — see the output above`);
   }
@@ -164,8 +188,8 @@ try {
 
   // A vault listing exercises better-sqlite3, @parcel/watcher and the git repo
   // init — the parts that would fail first on an ABI mismatch.
-  const tree = await fetch(`${baseUrl}/api/v1/vault/tree`);
-  process.stdout.write(`smoke: vault tree -> ${tree.status} ${(await tree.text()).length} bytes\n`);
+  const tree = await rpc("vault/tree");
+  process.stdout.write(`smoke: vault tree -> ${tree.entries.length} entries under ${tree.root}\n`);
 
   // The third native module, and the only one reached from a WORKER THREAD, so
   // this is the one check that proves the worker entry was staged inside
@@ -176,11 +200,7 @@ try {
   // darwin-arm64 and ships that prebuild, so a runtime that will not load is a
   // staging or ABI regression — the very thing a green smoke on `unavailable`
   // (its old, false, "legitimate answer") would have hidden.
-  const voice = await fetch(`${baseUrl}/api/v1/voice/status`);
-  if (!voice.ok) {
-    fail(`the packaged voice status route answered ${voice.status}`);
-  }
-  const voiceStatus = await voice.json();
+  const voiceStatus = await rpc("voice/status");
   if (!["no-model", "ready"].includes(voiceStatus.state)) {
     fail(
       `packaged voice status is ${JSON.stringify(voiceStatus)}; expected no-model or ready — ` +
@@ -189,8 +209,10 @@ try {
   }
   process.stdout.write(`smoke: voice -> ${voiceStatus.state}\n`);
 
+  // The packaged CLI is told WHICH instance, never where or with what: it
+  // reads the port and the token out of the same server.json this smoke does.
   const status = await run(cliBin, ["status", "--json"], {
-    env: { ...process.env, INTELIGIR_SERVER_URL: baseUrl },
+    env: { ...process.env, INTELIGIR_DATA_DIR: dataDir },
   });
   if (!status.includes(baseUrl)) {
     fail(`the packaged CLI did not reach the packaged server: ${status}`);
@@ -203,7 +225,6 @@ try {
   }
   // Only the leader, never the group: `kill(-pid)` would take the forked
   // watcher with it and turn the graceful-exit assertion into a tautology.
-  // POSIX-only, like the group check in apps/launcher's smoke.
   process.stdout.write(`smoke: SIGTERM ${pid} (the server alone)\n`);
   process.kill(pid, "SIGTERM");
   const exit = await Promise.race([

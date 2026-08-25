@@ -1,10 +1,10 @@
-import { cloudErrorSchema } from "@repo/cloud-contract/errors";
+import { cloudErrorSchema } from "@repo/api/cloud/errors";
 import {
   DEVICE_PAIR_PURPOSE,
   generatePkceVerifier,
   listDevicesResponseSchema,
   redeemDeviceResponseSchema,
-} from "@repo/cloud-contract/pairing";
+} from "@repo/api/cloud/pairing/pairing-schema";
 import { and, eq, isNull } from "drizzle-orm";
 import { env, SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";

@@ -5,7 +5,7 @@
 // callback the user then approves is inert — while the destination itself must
 // never become a way to bounce a signed-in visitor off this origin.
 
-import { PAIR_APPROVE_PATH } from "@repo/cloud-contract/pairing";
+import { PAIR_APPROVE_PATH } from "@repo/api/cloud/pairing/pairing-schema";
 import { describe, expect, it } from "vitest";
 import { internalNextPath } from "../next-path";
 

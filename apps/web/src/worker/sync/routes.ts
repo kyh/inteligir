@@ -1,6 +1,6 @@
-import { CAPTURE_API_PATHS } from "@repo/cloud-contract/captures";
-import { SYNC_API_PATHS } from "@repo/cloud-contract/sync";
-import { SYNC_WS_PATH, SYNC_WS_PLATFORM_PARAM } from "@repo/cloud-contract/ws";
+import { CAPTURE_API_PATHS } from "@repo/api/cloud/captures/captures-schema";
+import { SYNC_API_PATHS } from "@repo/api/cloud/sync/sync-schema";
+import { SYNC_WS_PATH, SYNC_WS_PLATFORM_PARAM } from "@repo/api/cloud/sync/sync-ws";
 import { refuse } from "../cloud-http";
 import { createDb } from "../db/client";
 import { verifyDeviceCredential } from "../device/device-auth";
