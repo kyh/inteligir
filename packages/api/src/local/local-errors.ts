@@ -94,12 +94,30 @@ export const DISPATCH_FAILED = {
   message: "The agent runtime refused the turn",
 } as const;
 
+/** The custom codes gathered into ONE registry, so the status map below is
+ *  checked EXHAUSTIVE against them (`satisfies`). v1 kept the status ON each
+ *  class precisely so it could not be forgotten; with status moved to a map, a
+ *  code with no entry would silently default to 500 — this restores the
+ *  compile-time "every code has a status" guarantee. */
+const LOCAL_ERRORS = {
+  INVALID_PATH,
+  ALREADY_EXISTS,
+  CAS_MISMATCH,
+  ARCHIVED,
+  STALE_TURN,
+  NOT_STEERABLE,
+  ALREADY_RESOLVED,
+  INVALID_RESOLUTION,
+  PROVIDER_UNAVAILABLE,
+  DISPATCH_FAILED,
+};
+
 /**
- * The HTTP status each CUSTOM local code answers — this domain's own codes, keyed
- * by the code string the contract rows raise them under. The built-in codes are
- * NOT here; they come from oRPC's `COMMON_ERROR_STATUS_MAP`. Merge the two at the
- * handler (`errorStatusMap`) and the asset route, so one refusal answers the same
- * status on the procedure surface and the raw-HTTP one.
+ * The HTTP status each CUSTOM local code answers, keyed by the code string the
+ * contract rows raise them under. The built-in codes are NOT here; they come
+ * from oRPC's `COMMON_ERROR_STATUS_MAP`. Merge the two at the handler
+ * (`errorStatusMap`) and the asset route, so one refusal answers the same status
+ * on the procedure surface and the raw-HTTP one.
  */
 export const LOCAL_ERROR_STATUS_MAP = {
   INVALID_PATH: 400,
@@ -112,4 +130,4 @@ export const LOCAL_ERROR_STATUS_MAP = {
   INVALID_RESOLUTION: 400,
   PROVIDER_UNAVAILABLE: 503,
   DISPATCH_FAILED: 503,
-} as const;
+} satisfies Record<keyof typeof LOCAL_ERRORS, number>;
