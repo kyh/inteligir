@@ -36,7 +36,8 @@
   // Durable Object migration history. APPEND a tag per change; never edit a
   // tag that has shipped. v5 is what removes the retired classes (and their
   // stored state) from the deployed namespace on the next deploy; v6 is the
-  // v3 thread-sync object (issue #554).
+  // v3 thread-sync object (issue #554); v7 is the hosted vault git remote
+  // (issue #618) — durable-git's repo cells and their name index.
   "migrations": [
     { "tag": "v1", "new_sqlite_classes": ["VaultCoordinator"] },
     { "tag": "v2", "new_sqlite_classes": ["UserHost"] },
@@ -44,14 +45,30 @@
     { "tag": "v4", "new_sqlite_classes": ["AgentSandbox"] },
     { "tag": "v5", "deleted_classes": ["UserHost", "AgentSandbox"] },
     { "tag": "v6", "new_sqlite_classes": ["ThreadSyncDO"] },
+    { "tag": "v7", "new_sqlite_classes": ["RepoCell", "Registry"] },
   ],
 
   // One ThreadSyncDO per user: the append-only merged thread-event log, the
   // capture inbox and the invalidation sockets (src/worker/sync/thread-sync-do.ts).
   // Addressed `user:<userId>` from a VERIFIED credential only.
+  //
+  // REPO is one git repository per user — the hosted vault remote
+  // (src/worker/vault/git-remote.ts), named `vault-<userId>` from a VERIFIED
+  // credential only. REGISTRY is durable-git's single name index; both
+  // classes are the library's, re-exported through the entry modules.
   "durable_objects": {
-    "bindings": [{ "name": "THREAD_SYNC", "class_name": "ThreadSyncDO" }],
+    "bindings": [
+      { "name": "THREAD_SYNC", "class_name": "ThreadSyncDO" },
+      { "name": "REPO", "class_name": "RepoCell" },
+      { "name": "REGISTRY", "class_name": "Registry" },
+    ],
   },
+
+  // Pack bytes for the vault repos, keeping the per-user cell's SQLite to the
+  // pack INDEX (durable-git treats an absent binding as SQLite-only, which
+  // caps vault size at the cell's database). Owner deploy step: create the
+  // bucket once with `npx wrangler r2 bucket create inteligir-vault-packs`.
+  "r2_buckets": [{ "binding": "PACK_CACHE", "bucket_name": "inteligir-vault-packs" }],
 
   // D1 (SQLite) backs Better Auth (user/session/account/verification) plus the
   // rate-limit and invite-code tables. `database_id` is filled in at deploy time

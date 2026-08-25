@@ -34,16 +34,4 @@ interface Env {
    * several users would otherwise trip the limiter. Unset in dev/prod → enabled.
    */
   readonly RATE_LIMIT_DISABLED?: string;
-  /**
-   * "true" switches `/v1/artifacts/mint` from the typed `artifacts-not-enabled`
-   * refusal to the real Cloudflare Artifacts calls. Leave unset until the
-   * account's beta access lands (the API answers 10004 before then).
-   */
-  readonly ARTIFACTS_ENABLED?: string;
-  /** Required only when ARTIFACTS_ENABLED — the account that owns the repos. */
-  readonly CLOUDFLARE_ACCOUNT_ID?: string;
-  /** Required only when ARTIFACTS_ENABLED — an API token scoped to Artifacts. */
-  readonly CLOUDFLARE_API_TOKEN?: string;
-  /** Optional Artifacts namespace; defaults to "default". */
-  readonly ARTIFACTS_NAMESPACE?: string;
 }

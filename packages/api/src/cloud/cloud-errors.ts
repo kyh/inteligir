@@ -1,8 +1,8 @@
 import { z } from "zod";
 
 /**
- * Every refusal the cloud Worker's `/v1/device/*`, `/v1/sync/*`, `/v1/capture`
- * and `/v1/artifacts/*` routes can answer. One envelope, one code enum, so the
+ * Every refusal the cloud Worker's `/v1/device/*`, `/v1/sync/*` and
+ * `/v1/capture` routes can answer. One envelope, one code enum, so the
  * app renders every failure through one path and a new refusal is a compile
  * error in the client's switch rather than an unstyled string.
  *
@@ -32,7 +32,6 @@ export const CLOUD_ERROR_CODES = [
   "sync-conflict",
   "sync-out-of-order",
   "account-deleted",
-  "artifacts-not-enabled",
   "internal",
 ] as const;
 export const cloudErrorCodeSchema = z.enum(CLOUD_ERROR_CODES);

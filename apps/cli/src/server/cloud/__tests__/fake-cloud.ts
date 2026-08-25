@@ -65,7 +65,6 @@ const STATUS_BY_CODE = {
   "sync-conflict": 409,
   "sync-out-of-order": 409,
   "account-deleted": 410,
-  "artifacts-not-enabled": 503,
   internal: 500,
 } satisfies Record<CloudErrorCode, number>;
 

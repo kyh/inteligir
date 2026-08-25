@@ -5,7 +5,6 @@
   "description": "ONE contract package, TWO entry points. `./local` is the desktop renderer and the CLI talking to the local server; `./cloud` is the local server and mobile talking to the Worker. Separate routers because their compatibility obligations are opposite: /local's two ends ship in one bundle and may break freely, /cloud is a deployed Worker answering installs that may be months stale.",
   "type": "module",
   "exports": {
-    "./cloud/artifacts/artifacts-schema": "./src/cloud/artifacts/artifacts-schema.ts",
     "./cloud/captures/captures-schema": "./src/cloud/captures/captures-schema.ts",
     "./cloud/errors": "./src/cloud/cloud-errors.ts",
     "./cloud/pairing/pairing-schema": "./src/cloud/pairing/pairing-schema.ts",

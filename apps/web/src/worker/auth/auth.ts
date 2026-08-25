@@ -2,7 +2,7 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { bearer } from "better-auth/plugins";
 import { sql } from "drizzle-orm";
-import { deleteArtifactsRepo } from "../artifacts";
+import { deleteVaultGitRepo } from "../vault/git-remote";
 import { createDb } from "../db/client";
 import { inviteCode } from "../db/schema";
 import { purgeDeviceRows } from "../device/pairing";
@@ -187,8 +187,8 @@ function buildAuth(env: Env, baseURL: string, disableSignUp: boolean) {
         //      which an authenticated request lands AFTER the purge and
         //      rebuilds exactly what was deleted. Killing the credentials
         //      first means no NEW request can even name the object.
-        //   2. The hosted vault repo, if this deployment hosts one — the only
-        //      note bytes the cloud ever holds.
+        //   2. The hosted vault repo — the only note bytes the cloud ever
+        //      holds.
         //   3. The object itself, which closes its sockets, drops its storage
         //      and tombstones itself. The tombstone is what closes the
         //      remaining race: a request that verified microseconds before
@@ -198,7 +198,7 @@ function buildAuth(env: Env, baseURL: string, disableSignUp: boolean) {
         //      lives outside all of the above.
         beforeDelete: async (user) => {
           await purgeDeviceRows(createDb(env.DB), user.id);
-          await deleteArtifactsRepo(env, user.id);
+          await deleteVaultGitRepo(env, user.id);
           await purgeThreadSync(env, user.id);
           await forgetInviteRedeemer(env, user.email);
         },

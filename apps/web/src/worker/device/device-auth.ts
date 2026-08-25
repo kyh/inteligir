@@ -5,7 +5,7 @@ import { device } from "../db/schema";
 
 // ---------------------------------------------------------------------------
 // Device-credential verification: the auth for /v1/sync/*, /v1/capture and
-// /v1/artifacts/mint. A hash compare against D1 on EVERY request, never
+// the vault git remote. A hash compare against D1 on EVERY request, never
 // cached — dashboard revocation must bite on the device's next request, and a
 // cache with any TTL would be exactly the window a revoked credential keeps
 // working through (bb caches here and pays for it with a "fresh" bypass).
@@ -61,6 +61,20 @@ export async function verifyDeviceCredential(
   if (scheme?.toLowerCase() !== "bearer" || credential === undefined || rest.length > 0) {
     return null;
   }
+  return await verifyDeviceCredentialValue(db, credential);
+}
+
+/**
+ * The value-level half, for the one surface where the credential arrives
+ * outside a Bearer header: the vault git remote, where a stock git client
+ * answers the 401 challenge with HTTP Basic and the credential is the
+ * password. The `igd_` prefix check stays here so both carriers route
+ * through the same vocabulary split.
+ */
+export async function verifyDeviceCredentialValue(
+  db: ReturnType<typeof createDb>,
+  credential: string,
+): Promise<VerifiedDevice | null> {
   if (!credential.startsWith(DEVICE_CREDENTIAL_PREFIX)) return null;
 
   const hash = await sha256Hex(credential);

@@ -43,11 +43,13 @@ anything shared across accounts.
   claim. If that device dies mid-apply the claim lapses after five minutes and
   the capture is offered again — so a capture can be delivered twice and is
   never silently lost. The app deduplicates on the capture's id.
-- **Your vault — ONLY if you configure a git remote.** Sync is `git push` to a
-  remote you choose. No remote configured, no vault bytes leave the machine.
-  The optional hosted remote (Cloudflare Artifacts, feature-gated until beta
-  access lands) is exactly that: a git host for your repo, per user, opted
-  into by pairing it as your remote.
+- **Your vault — ONLY if you configure a git remote or pair a device.** Sync
+  is `git push` to a remote you choose. No remote configured and no pairing,
+  no vault bytes leave the machine. The hosted remote is exactly that: a git
+  host for your repo, per user, reachable only with a device credential from
+  your own account. It is encrypted at rest by Cloudflare, but this
+  deployment can read it — there is no end-to-end encryption; the trade is
+  what lets your phone read notes without holding a git client.
 
 ## What never leaves
 
@@ -109,6 +111,6 @@ delete.
 - A revoked device stops at the next request, and its live connection is closed
   as part of the revoke — but revocation cannot reach a response already in
   flight.
-- `git push` to ANY remote is subject to that remote's own retention; a hosted
-  Artifacts repo is deleted with the account, a GitHub remote is governed by
-  GitHub.
+- `git push` to ANY remote is subject to that remote's own retention; the
+  hosted vault repo is deleted with the account, a GitHub remote is governed
+  by GitHub.

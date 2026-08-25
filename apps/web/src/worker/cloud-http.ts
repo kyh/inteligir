@@ -1,4 +1,3 @@
-import type { ArtifactsMintResponse } from "@repo/api/cloud/artifacts/artifacts-schema";
 import { cloudError, type CloudErrorCode } from "@repo/api/cloud/errors";
 import type {
   MintPairingCodeResponse,
@@ -24,7 +23,6 @@ const STATUS_BY_CODE = {
   // Gone, not 401: the credential was fine, the account it named is not — a
   // client told "unauthorized" retries the credential forever.
   "account-deleted": 410,
-  "artifacts-not-enabled": 503,
   internal: 500,
 } satisfies Record<CloudErrorCode, number>;
 
@@ -36,7 +34,7 @@ export function refuse(code: CloudErrorCode, message: string, deviceSeq?: number
 
 /** Every body this Worker answers with `no-store`, which is exactly the set
  *  that carries a credential or a one-time code. */
-type NoStoreBody = ArtifactsMintResponse | MintPairingCodeResponse | RedeemDeviceResponse;
+type NoStoreBody = MintPairingCodeResponse | RedeemDeviceResponse;
 
 /** For responses that carry a credential or a code — never cacheable. */
 export function jsonNoStore(body: NoStoreBody): Response {

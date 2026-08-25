@@ -1,14 +1,17 @@
-import { handleArtifactsMint } from "./artifacts";
 import { createAuth, enabledSocialProviders } from "./auth/auth";
 import { handleInviteSignUp } from "./auth/invite";
 import { handleResetPage } from "./auth/reset-page";
 import { handleDeviceRoutes } from "./device/routes";
 import { logUnhandled } from "./log";
 import { handleSyncRoutes } from "./sync/routes";
+import { handleVaultGitRemote, VAULT_GIT_PREFIX } from "./vault/git-remote";
 
-// The Durable Object class must be exported from the entry the runtime loads:
-// this file for the test suite (vitest.config `main`), ./server.ts for deploy.
+// The Durable Object classes must be exported from the entry the runtime
+// loads: this file for the test suite (vitest.config `main`), ./server.ts for
+// deploy. RepoCell/Registry are durable-git's — the vault repo cells and
+// their name index.
 export { ThreadSyncDO } from "./sync/thread-sync-do";
+export { RepoCell, Registry } from "durable-git";
 
 // ---------------------------------------------------------------------------
 // The API half of the one Worker this app deploys (./server.ts routes
@@ -22,10 +25,11 @@ export { ThreadSyncDO } from "./sync/thread-sync-do";
 //     dashboard's device table). AUTH is a Better Auth SESSION: the cookie a
 //     browser on this origin carries, or `Authorization: Bearer
 //     <session-token>` for a native client.
-//   • The device surface — /v1/sync/*, /v1/capture, /v1/artifacts/mint. AUTH
-//     is the durable DEVICE CREDENTIAL pairing minted (`igd_…` bearer, hash
-//     compare per request, never cached), and every one of these is served by
-//     the caller's own ThreadSyncDO (src/worker/sync/).
+//   • The device surface — /v1/sync/*, /v1/capture, /v1/git/*. AUTH is the
+//     durable DEVICE CREDENTIAL pairing minted (`igd_…` bearer, hash compare
+//     per request, never cached). Sync and capture are served by the caller's
+//     own ThreadSyncDO (src/worker/sync/); the vault git remote by the
+//     caller's own RepoCell (src/worker/vault/).
 //
 // `POST /v1/device/redeem` is the bridge between the two: the one-time code a
 // session minted is its whole authorization.
@@ -56,9 +60,9 @@ export function ownsPath(pathname: string): boolean {
 }
 
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     try {
-      return await route(request, env);
+      return await route(request, env, ctx);
     } catch (error) {
       logUnhandled("worker", request, error);
       return new Response("internal error", { status: 500 });
@@ -67,7 +71,7 @@ export default {
 } satisfies ExportedHandler<Env>;
 
 /** The route table. Throws are caught by the `fetch` wrapper above. */
-async function route(request: Request, env: Env): Promise<Response> {
+async function route(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
   const url = new URL(request.url);
 
   // Better Auth surface. baseURL = this request's origin so callbacks/cookies
@@ -110,9 +114,9 @@ async function route(request: Request, env: Env): Promise<Response> {
     return await handleSyncRoutes(request, env, url);
   }
 
-  // The Artifacts repo + token mint, feature-flagged — src/worker/artifacts.ts.
-  if (request.method === "POST" && url.pathname === "/v1/artifacts/mint") {
-    return await handleArtifactsMint(request, env);
+  // The hosted vault git remote, device-authed — src/worker/vault/git-remote.ts.
+  if (url.pathname.startsWith(VAULT_GIT_PREFIX)) {
+    return await handleVaultGitRemote(request, env, ctx, url);
   }
 
   return new Response("not found", { status: 404 });

@@ -307,6 +307,7 @@ describe("ws ping frames", () => {
     expect(syncPingSchema.parse({ type: "sync", seq: 12 }).type).toBe("sync");
     expect(syncPingSchema.parse({ type: "capture" }).type).toBe("capture");
     expect(syncPingSchema.parse({ type: "dispatch", threadId: "th_1" }).type).toBe("dispatch");
+    expect(syncPingSchema.parse({ type: "vault" }).type).toBe("vault");
   });
 
   it("refuses a frame with extra fields — the server owns this boundary", () => {

@@ -71,8 +71,10 @@ apps/
                  (invite-gated sign-up), and the v3 cloud (issue #554):
                  device pairing (/app/pair approves one, /app/devices lists and
                  revokes), the per-user ThreadSyncDO (merged thread log +
-                 capture inbox + ws invalidation), the flag-gated Artifacts
-                 mint. src/worker/ is its own tsconfig program (no DOM —
+                 capture inbox + ws invalidation), and the hosted vault git
+                 remote (issue #618): durable-git repo cells behind
+                 src/worker/vault/git-remote.ts, one per user, device-authed.
+                 src/worker/ is its own tsconfig program (no DOM —
                  workerd's globals must win).
   mobile/        @repo/mobile — the Expo RN client (#576): a sync-only
                  thread/capture surface over @repo/api/cloud; reaches nothing
