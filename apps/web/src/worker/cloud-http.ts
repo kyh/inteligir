@@ -23,6 +23,7 @@ const STATUS_BY_CODE = {
   // Gone, not 401: the credential was fine, the account it named is not — a
   // client told "unauthorized" retries the credential forever.
   "account-deleted": 410,
+  "file-too-large": 413,
   internal: 500,
 } satisfies Record<CloudErrorCode, number>;
 

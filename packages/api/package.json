@@ -11,6 +11,7 @@
     "./cloud/sync/sync-schema": "./src/cloud/sync/sync-schema.ts",
     "./cloud/sync/sync-ws": "./src/cloud/sync/sync-ws.ts",
     "./cloud/vault/vault-git": "./src/cloud/vault/vault-git.ts",
+    "./cloud/vault/vault-schema": "./src/cloud/vault/vault-schema.ts",
     "./local": "./src/local/local-contract.ts",
     "./local/agents/agents-schema": "./src/local/agents/agents-schema.ts",
     "./local/cloud/cloud-schema": "./src/local/cloud/cloud-schema.ts",

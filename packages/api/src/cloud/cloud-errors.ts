@@ -32,6 +32,10 @@ export const CLOUD_ERROR_CODES = [
   "sync-conflict",
   "sync-out-of-order",
   "account-deleted",
+  // Vault read rows only (a new code is additive-safe exactly because stale
+  // clients never call the new routes): the file exists but exceeds the text
+  // ceiling this wire carries.
+  "file-too-large",
   "internal",
 ] as const;
 export const cloudErrorCodeSchema = z.enum(CLOUD_ERROR_CODES);

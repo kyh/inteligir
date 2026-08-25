@@ -56,7 +56,10 @@ const PROTOCOL_ROUTES = new Set([
  *  name, so the assumption is checked rather than carried silently. */
 const REPO_NAME_SAFE = /^[A-Za-z0-9._-]+$/;
 
-function repoName(userId: string): string {
+/** Also the read routes' address (read-routes.ts) — one derivation, so the
+ *  wire a device pushes and the wire a phone reads can never name different
+ *  repos for one account. */
+export function vaultRepoName(userId: string): string {
   return `vault-${userId}`;
 }
 
@@ -116,7 +119,7 @@ export async function handleVaultGitRemote(
     credential === null ? null : await verifyDeviceCredentialValue(createDb(env.DB), credential);
   if (verified === null) return unauthorized();
 
-  const repo = repoName(verified.userId);
+  const repo = vaultRepoName(verified.userId);
   if (!REPO_NAME_SAFE.test(verified.userId)) {
     return new Response("internal error\n", { status: 500 });
   }
@@ -165,7 +168,7 @@ async function sendVaultPing(env: Env, pusher: VerifiedDevice): Promise<void> {
  * could name it is already revoked.
  */
 export async function deleteVaultGitRepo(env: Env, userId: string): Promise<void> {
-  const repo = repoName(userId);
+  const repo = vaultRepoName(userId);
   const response = await env.REPO.getByName(repo).fetch("https://vault-git/", {
     method: "DELETE",
     headers: { "x-repo": repo },

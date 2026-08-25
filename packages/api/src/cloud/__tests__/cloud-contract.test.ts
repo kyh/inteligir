@@ -22,6 +22,12 @@ import {
 } from "../pairing/pairing-schema";
 import { EVENT_MAX_BYTES, pullQuerySchema, pushRequestSchema } from "../sync/sync-schema";
 import { syncPingSchema } from "../sync/sync-ws";
+import {
+  vaultFileQuerySchema,
+  vaultFileResponseSchema,
+  vaultTreeQuerySchema,
+  vaultTreeResponseSchema,
+} from "../vault/vault-schema";
 
 describe("error envelope", () => {
   it("round-trips through its own schema", () => {
@@ -312,6 +318,48 @@ describe("ws ping frames", () => {
 
   it("refuses a frame with extra fields — the server owns this boundary", () => {
     expect(syncPingSchema.safeParse({ type: "sync", seq: 1, extra: true }).success).toBe(false);
+  });
+});
+
+// Final at birth: `.strict()` responses mean a stale phone's parse REFUSES an
+// added field as malformed, so these pins are the shapes' whole lives.
+describe("vault read rows", () => {
+  const COMMIT = "a".repeat(40);
+
+  it("parses the tree page and the file", () => {
+    const tree = vaultTreeResponseSchema.parse({
+      commit: COMMIT,
+      entries: [{ path: "notes/a.md", size: 12 }],
+      next: null,
+    });
+    expect(tree.entries[0]?.path).toBe("notes/a.md");
+    const file = vaultFileResponseSchema.parse({
+      commit: COMMIT,
+      path: "notes/a.md",
+      oid: "b".repeat(40),
+      content: "# a\n",
+    });
+    expect(file.content).toBe("# a\n");
+  });
+
+  it("refuses an added field — the never-break rule made these final", () => {
+    expect(
+      vaultTreeResponseSchema.safeParse({ commit: COMMIT, entries: [], next: null, extra: 1 })
+        .success,
+    ).toBe(false);
+  });
+
+  it("refuses paths that are not vault-relative", () => {
+    for (const bad of ["/rooted.md", "../up.md", "a//b.md", "a/./b.md", ""]) {
+      expect(vaultFileQuerySchema.safeParse({ path: bad }).success).toBe(false);
+    }
+    expect(vaultFileQuerySchema.safeParse({ path: "notes/ok.md" }).success).toBe(true);
+  });
+
+  it("refuses a short or uppercase ref — the cursor pins one commit exactly", () => {
+    expect(vaultTreeQuerySchema.safeParse({ ref: "abc123" }).success).toBe(false);
+    expect(vaultTreeQuerySchema.safeParse({ ref: "A".repeat(40) }).success).toBe(false);
+    expect(vaultTreeQuerySchema.safeParse({ ref: COMMIT }).success).toBe(true);
   });
 });
 

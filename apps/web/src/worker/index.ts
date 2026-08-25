@@ -1,3 +1,4 @@
+import { VAULT_API_PATHS } from "@repo/api/cloud/vault/vault-schema";
 import { createAuth, enabledSocialProviders } from "./auth/auth";
 import { handleInviteSignUp } from "./auth/invite";
 import { handleResetPage } from "./auth/reset-page";
@@ -5,6 +6,7 @@ import { handleDeviceRoutes } from "./device/routes";
 import { logUnhandled } from "./log";
 import { handleSyncRoutes } from "./sync/routes";
 import { handleVaultGitRemote, VAULT_GIT_PREFIX } from "./vault/git-remote";
+import { handleVaultReadRoutes } from "./vault/read-routes";
 
 // The Durable Object classes must be exported from the entry the runtime
 // loads: this file for the test suite (vitest.config `main`), ./server.ts for
@@ -117,6 +119,12 @@ async function route(request: Request, env: Env, ctx: ExecutionContext): Promise
   // The hosted vault git remote, device-authed — src/worker/vault/git-remote.ts.
   if (url.pathname.startsWith(VAULT_GIT_PREFIX)) {
     return await handleVaultGitRemote(request, env, ctx, url);
+  }
+
+  // The vault READ rows a git-less client (the phone) uses, device-authed —
+  // src/worker/vault/read-routes.ts.
+  if (url.pathname === VAULT_API_PATHS.tree || url.pathname === VAULT_API_PATHS.file) {
+    return await handleVaultReadRoutes(request, env, url);
   }
 
   return new Response("not found", { status: 404 });

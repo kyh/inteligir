@@ -2,152 +2,14 @@ import { syncPingSchema, type SyncPing } from "@repo/api/cloud/sync/sync-ws";
 import { SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 import { deviceHeaders, ORIGIN, pairDevice, signUpUser } from "./cloud-helpers";
+import { pushVaultFiles, ZERO_OID } from "./git-pack";
 
 // The hosted vault remote end to end, in-process: credential verification on
-// both carriers, the identity-free URL rewrite, a REAL push (pkt-line +
-// packfile built by hand below — workerd has SHA-1 and zlib, git's formats
-// are documented, and nothing else proves the ingest path), the clone leg
-// over what was pushed, and the vault ping's pusher exclusion.
+// both carriers, the identity-free URL rewrite, a REAL push (the hand-built
+// pack wire in ./git-pack.ts), the clone leg over what was pushed, and the
+// vault ping's pusher exclusion.
 
 const REMOTE = `${ORIGIN}/v1/git/vault.git`;
-
-// -- a minimal git object/pack builder --------------------------------------
-
-const encoder = new TextEncoder();
-
-function concat(parts: Uint8Array[]): Uint8Array {
-  const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
-  let at = 0;
-  for (const p of parts) {
-    out.set(p, at);
-    at += p.length;
-  }
-  return out;
-}
-
-async function sha1(bytes: Uint8Array): Promise<Uint8Array> {
-  return new Uint8Array(await crypto.subtle.digest("SHA-1", bytes));
-}
-
-function hex(bytes: Uint8Array): string {
-  let out = "";
-  for (const b of bytes) out += b.toString(16).padStart(2, "0");
-  return out;
-}
-
-/** zlib-wrapped DEFLATE, the per-object encoding inside a pack. */
-async function deflate(bytes: Uint8Array): Promise<Uint8Array> {
-  const stream = new CompressionStream("deflate");
-  const writer = stream.writable.getWriter();
-  const wrote = (async () => {
-    await writer.write(bytes);
-    await writer.close();
-  })();
-  const out = new Uint8Array(await new Response(stream.readable).arrayBuffer());
-  await wrote;
-  return out;
-}
-
-type GitObject = {
-  /** pack type code: commit=1, tree=2, blob=3 */
-  type: 1 | 2 | 3;
-  oid: string;
-  raw: Uint8Array;
-};
-
-const TYPE_NAMES = { 1: "commit", 2: "tree", 3: "blob" } as const;
-
-async function gitObject(type: 1 | 2 | 3, raw: Uint8Array): Promise<GitObject> {
-  const header = encoder.encode(`${TYPE_NAMES[type]} ${raw.length}\0`);
-  return { type, oid: hex(await sha1(concat([header, raw]))), raw };
-}
-
-function oidBytes(oid: string): Uint8Array {
-  const out = new Uint8Array(20);
-  for (let i = 0; i < 20; i += 1) out[i] = parseInt(oid.slice(i * 2, i * 2 + 2), 16);
-  return out;
-}
-
-/** The pack entry header: 4 bits of type, size in little-endian 7-bit groups. */
-function entryHeader(type: number, size: number): Uint8Array {
-  const bytes: number[] = [];
-  let first = (type << 4) | (size & 0x0f);
-  let rest = size >> 4;
-  while (rest > 0) {
-    bytes.push(first | 0x80);
-    first = rest & 0x7f;
-    rest >>= 7;
-  }
-  bytes.push(first);
-  return new Uint8Array(bytes);
-}
-
-async function buildPack(objects: GitObject[]): Promise<Uint8Array> {
-  const head = new Uint8Array(12);
-  head.set(encoder.encode("PACK"));
-  new DataView(head.buffer).setUint32(4, 2);
-  new DataView(head.buffer).setUint32(8, objects.length);
-  const entries: Uint8Array[] = [head];
-  for (const object of objects) {
-    entries.push(entryHeader(object.type, object.raw.length), await deflate(object.raw));
-  }
-  const body = concat(entries);
-  return concat([body, await sha1(body)]);
-}
-
-function pktLine(text: string): Uint8Array {
-  const payload = encoder.encode(text);
-  const length = (payload.length + 4).toString(16).padStart(4, "0");
-  return concat([encoder.encode(length), payload]);
-}
-
-/** One commit ("<message>") holding one file, parented on `parent`. Returns
- *  the receive-pack body updating refs/heads/main from `oldOid`. */
-async function pushBody(
-  message: string,
-  file: { path: string; content: string },
-  oldOid: string,
-  parent?: string,
-): Promise<{ body: Uint8Array; commit: string }> {
-  const blob = await gitObject(3, encoder.encode(file.content));
-  const tree = await gitObject(
-    2,
-    concat([encoder.encode(`100644 ${file.path}\0`), oidBytes(blob.oid)]),
-  );
-  const person = "Test <t@example.test> 1700000000 +0000";
-  const commit = await gitObject(
-    1,
-    encoder.encode(
-      `tree ${tree.oid}\n` +
-        (parent === undefined ? "" : `parent ${parent}\n`) +
-        `author ${person}\ncommitter ${person}\n\n${message}\n`,
-    ),
-  );
-  const command = pktLine(`${oldOid} ${commit.oid} refs/heads/main\0report-status`);
-  const body = concat([command, encoder.encode("0000"), await buildPack([blob, tree, commit])]);
-  return { body, commit: commit.oid };
-}
-
-const ZERO_OID = "0".repeat(40);
-
-async function push(
-  credential: string,
-  message: string,
-  file: { path: string; content: string },
-  oldOid: string,
-  parent?: string,
-): Promise<{ response: Response; commit: string }> {
-  const { body, commit } = await pushBody(message, file, oldOid, parent);
-  const response = await SELF.fetch(`${REMOTE}/git-receive-pack`, {
-    method: "POST",
-    headers: {
-      ...deviceHeaders(credential),
-      "content-type": "application/x-git-receive-pack-request",
-    },
-    body,
-  });
-  return { response, commit };
-}
 
 /** Open the invalidation socket and collect its frames. */
 async function openSocket(credential: string): Promise<{ frames: SyncPing[] }> {
@@ -244,10 +106,10 @@ describe("vault git remote round-trip", () => {
     const pusherSocket = await openSocket(pusher.credential);
     const otherSocket = await openSocket(other.credential);
 
-    const first = await push(
+    const first = await pushVaultFiles(
       pusher.credential,
       "vault: initialize",
-      { path: "welcome.md", content: "# hello\n" },
+      [{ path: "welcome.md", content: "# hello\n" }],
       ZERO_OID,
     );
     expect(first.response.status).toBe(200);
@@ -265,10 +127,10 @@ describe("vault git remote round-trip", () => {
     expect(await refs.text()).toContain(first.commit);
 
     // A second push on top round-trips too — the repo holds real history.
-    const second = await push(
+    const second = await pushVaultFiles(
       pusher.credential,
       "vault: update welcome.md",
-      { path: "welcome.md", content: "# hello again\n" },
+      [{ path: "welcome.md", content: "# hello again\n" }],
       first.commit,
       first.commit,
     );
@@ -282,10 +144,10 @@ describe("vault git remote round-trip", () => {
     const beta = await signUpUser("vault-git-beta@example.test");
     const betaDevice = await pairDevice(beta.bearer, "Laptop");
 
-    const pushed = await push(
+    const pushed = await pushVaultFiles(
       alphaDevice.credential,
       "vault: initialize",
-      { path: "secret.md", content: "alpha's note\n" },
+      [{ path: "secret.md", content: "alpha's note\n" }],
       ZERO_OID,
     );
     expect(pushed.response.status).toBe(200);
