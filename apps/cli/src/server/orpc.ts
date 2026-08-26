@@ -28,7 +28,6 @@ import type { OpenExternalUrl } from "./cloud/browser-opener";
 import type { FoldersService } from "./folders/folders-service";
 import type { KnowledgeRuntime } from "./knowledge/knowledge-runtime";
 import type { NoteIntelligence } from "./note-intelligence/note-intelligence";
-import type { ProposalService } from "./proposals/proposal-service";
 import type { ThreadService } from "./threads/service";
 import type { VaultRuntime } from "./vault/vault-runtime";
 import type { RenameNote } from "./vault/vault-router";
@@ -57,7 +56,6 @@ export interface AppContext {
   /** Opens a URL in the user's browser — injected so a suite can watch a
    *  pairing begin without a window opening on whoever ran it. */
   openExternalUrl: OpenExternalUrl;
-  proposals: ProposalService;
   /**
    * THIS request's Host header, the one per-request value in the context.
    *

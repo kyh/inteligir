@@ -982,9 +982,6 @@ importers:
       '@repo/api':
         specifier: workspace:*
         version: link:../../packages/api
-      '@repo/notes':
-        specifier: workspace:*
-        version: link:../../packages/notes
       inteligir:
         specifier: workspace:*
         version: link:../../apps/cli

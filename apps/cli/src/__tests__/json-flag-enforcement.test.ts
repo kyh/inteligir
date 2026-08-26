@@ -23,7 +23,6 @@ import { argsOf, collectLeafCommands, type LeafCommand } from "../command-tree";
 import { LEAF_INVOCATIONS, testProgram } from "./command-tree";
 import {
   makeFixtureState,
-  makeProposal,
   makeThread,
   serveFixture,
   EMPTY_TIMELINE,
@@ -77,8 +76,6 @@ function seedFixture(state: FixtureState): void {
       },
     ],
   };
-  state.proposals.length = 0;
-  state.proposals.push(makeProposal({ id: "prp_1" }));
   state.threads.length = 0;
   state.comments.set("notes/hello.md", [
     {

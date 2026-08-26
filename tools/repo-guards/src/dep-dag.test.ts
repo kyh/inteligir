@@ -56,12 +56,11 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
     // `/cloud` half is a deployed Worker answering installs that may be months
     // stale, and may never break.
     //
-    // The @repo/notes edge is two grammars the contract validates against —
-    // the delegation anchor's token (`markdown/thread-anchor`) and the vault
-    // path (`knowledge/vault-path`) — and it is narrow ON PURPOSE: both modules
-    // are parser-free, so refusing a bad value in the contract cannot drag
-    // remark into every client bundle. Widening this edge to a remark-carrying
-    // module is the regression to catch.
+    // The @repo/notes edge is one grammar the contract validates against —
+    // the vault path (`knowledge/vault-path`) — and it is narrow ON PURPOSE:
+    // the module is parser-free, so refusing a bad value in the contract
+    // cannot drag remark into every client bundle. Widening this edge to a
+    // remark-carrying module is the regression to catch.
     // `/local` reaching `/cloud` inside this package is ONE fact, and it is a
     // wire fact: the device name `cloud.pairBegin` accepts is the name the
     // cloud's own `/v1/device/redeem` will eventually be sent, so the ceiling
@@ -139,7 +138,7 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
     // Boots a REAL server and drives it over the typed client; the `inteligir`
     // edge is the binary it spawns and the config resolution that says which
     // instance this checkout means.
-    "@repo/e2e": ["@repo/api", "@repo/notes", "inteligir"],
+    "@repo/e2e": ["@repo/api", "inteligir"],
     "@repo/repo-guards": [],
   }),
 );

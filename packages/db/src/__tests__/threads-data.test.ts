@@ -9,7 +9,6 @@ import {
   createThread,
   getThread,
   listThreads,
-  listThreadsByOriginDoc,
   rebindThreadOrigins,
 } from "../threads";
 
@@ -49,14 +48,12 @@ describe("thread CRUD", () => {
     expect(threadChanges).toEqual([{ threadId: thread.id, changes: ["thread-created"] }]);
   });
 
-  it("stores the doc-bound origin pair", () => {
+  it("stores the doc attachment", () => {
     const db = openTempDb();
     const thread = createThread(db, noopNotifier, {
       originDocPath: "notes/today.md",
-      originAnchor: "task-3",
     });
     expect(thread.originDocPath).toBe("notes/today.md");
-    expect(thread.originAnchor).toBe("task-3");
   });
 
   it("lists live threads before archived ones", () => {
@@ -233,39 +230,21 @@ describe("listThreads query plan", () => {
   });
 });
 
-describe("doc-bound threads", () => {
-  it("answers by-doc from its own index", () => {
+describe("doc-attached threads", () => {
+  it("rebinds a moved doc's threads from the origin index, not a table scan", () => {
     const db = openTempDb();
+    // The statement is rebindThreadOrigins' file-move UPDATE, spelled out
+    // because EXPLAIN needs raw SQL; the pin is the planner of the BUNDLED
+    // sqlite choosing threads_origin_doc_idx, same style as the listThreads
+    // plan suite above.
     const plan = db.$client
       .prepare(
-        "EXPLAIN QUERY PLAN SELECT * FROM threads WHERE origin_doc_path = 'a.md' ORDER BY updated_at DESC",
+        "EXPLAIN QUERY PLAN UPDATE threads SET origin_doc_path = 'b.md' WHERE origin_doc_path = 'a.md'",
       )
       .all()
       .map((step) => JSON.stringify(step))
       .join("\n");
     expect(plan).toContain("threads_origin_doc_idx");
-  });
-
-  it("refuses two threads claiming one anchor", () => {
-    const db = openTempDb();
-    createThread(db, noopNotifier, { originDocPath: "a.md", originAnchor: "anc_0123456789ab" });
-    expect(() =>
-      createThread(db, noopNotifier, { originDocPath: "b.md", originAnchor: "anc_0123456789ab" }),
-    ).toThrow(/UNIQUE/u);
-  });
-
-  it("lists only the threads bound to the named doc", () => {
-    const db = openTempDb();
-    const bound = createThread(db, noopNotifier, {
-      originDocPath: "notes/a.md",
-      originAnchor: "anc_00000000000a",
-    });
-    createThread(db, noopNotifier, {
-      originDocPath: "notes/b.md",
-      originAnchor: "anc_00000000000b",
-    });
-    createThread(db, noopNotifier, {});
-    expect(listThreadsByOriginDoc(db, "notes/a.md").map((row) => row.id)).toEqual([bound.id]);
   });
 });
 
@@ -273,18 +252,9 @@ describe("rebindThreadOrigins", () => {
   it("follows a renamed file and announces each moved thread", () => {
     const db = openTempDb();
     const { notifier, threadChanges } = recordingNotifier();
-    const first = createThread(db, notifier, {
-      originDocPath: "Plans.md",
-      originAnchor: "anc_00000000000a",
-    });
-    const second = createThread(db, notifier, {
-      originDocPath: "Plans.md",
-      originAnchor: "anc_00000000000b",
-    });
-    const elsewhere = createThread(db, notifier, {
-      originDocPath: "Other.md",
-      originAnchor: "anc_00000000000c",
-    });
+    const first = createThread(db, notifier, { originDocPath: "Plans.md" });
+    const second = createThread(db, notifier, { originDocPath: "Plans.md" });
+    const elsewhere = createThread(db, notifier, { originDocPath: "Other.md" });
     threadChanges.length = 0;
 
     expect(rebindThreadOrigins(db, notifier, { from: "Plans.md", to: "Archive/Moved.md" })).toBe(2);
@@ -299,15 +269,9 @@ describe("rebindThreadOrigins", () => {
 
   it("follows a renamed DIRECTORY for every doc under it", () => {
     const db = openTempDb();
-    const nested = createThread(db, noopNotifier, {
-      originDocPath: "Notes/deep/a.md",
-      originAnchor: "anc_00000000000a",
-    });
+    const nested = createThread(db, noopNotifier, { originDocPath: "Notes/deep/a.md" });
     // A sibling whose path merely shares the prefix must NOT move.
-    const sibling = createThread(db, noopNotifier, {
-      originDocPath: "Notes2/b.md",
-      originAnchor: "anc_00000000000b",
-    });
+    const sibling = createThread(db, noopNotifier, { originDocPath: "Notes2/b.md" });
 
     expect(rebindThreadOrigins(db, noopNotifier, { from: "Notes", to: "Archive" })).toBe(1);
     expect(getThread(db, nested.id)?.originDocPath).toBe("Archive/deep/a.md");

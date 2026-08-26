@@ -1,6 +1,6 @@
 // The composer's send flow against the REAL thread service (in-process app,
 // typed client): the send-mode matrix including the unguarded-steer refusal,
-// the single-flight chat resolver, the delegation create's ordering, and the
+// the single-flight chat resolver, the action create's ordering, and the
 // approval answer the inline card emits.
 
 import { noopNotifier } from "@repo/domain/notifier";
@@ -208,9 +208,9 @@ describe("the chat thread resolver", () => {
     expect(threads.filter((thread) => thread.originDocPath === null)).toHaveLength(1);
   });
 
-  it("does not adopt a delegation thread as the chat", async () => {
+  it("does not adopt a doc-attached action as the chat", async () => {
     const { client } = await bootChatHarness({ mode: "manual" });
-    await client.threads.create({ originDocPath: "Doc.md", originAnchor: "anc_0123456789ab" });
+    await client.threads.create({ originDocPath: "Doc.md" });
     const chat = await createChatThreadResolver(client)();
     expect(chat.originDocPath).toBeNull();
   });

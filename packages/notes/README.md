@@ -44,8 +44,6 @@ src/
     remark-wiki-link.ts  # own [[wiki-link]] tokenizer, byte-exact both ways
     frontmatter.ts     # split/recombine + the typed-property ADT (YAML it
                        # cannot represent is preserved byte-exactly)
-    thread-marker.ts, thread-anchor.ts  # the delegation marker: parsed as a
-                       # block-level node, never matched as text
 ```
 
 ## Invariants

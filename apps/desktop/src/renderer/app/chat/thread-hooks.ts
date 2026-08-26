@@ -1,4 +1,4 @@
-// Thread state for the workspace. List/detail/by-doc are query-cached and
+// Thread state for the workspace. List/detail are query-cached and
 // swept whole by the ws thread invalidation; the TIMELINE is deliberately
 // not — it is stateful (held rows + maxSequence drive the next delta fetch),
 // so its hook holds it and refreshes off threadEvents directly.
@@ -42,10 +42,6 @@ const MOVES_THE_TIMELINE = {
   "queue-changed": false,
   "interactions-changed": false,
   "origin-changed": false,
-  // A proposal is not a thread event: it lives in its own table, and no
-  // timeline row renders one — the kind dies whole with the retired
-  // proposals pipeline.
-  "proposals-changed": false,
 } satisfies Record<ThreadChangeKind, boolean>;
 
 /**

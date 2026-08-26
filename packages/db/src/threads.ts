@@ -1,6 +1,5 @@
 // Vendored from bb (github.com/get-bb/bb), MIT. © bb contributors.
 
-import { DEFAULT_AGENT_WRITE_MODE, type AgentWriteMode } from "@repo/domain/agent-write-mode";
 import type {
   ThreadLifecycleEvent,
   ThreadLifecycleNoopReason,
@@ -19,10 +18,8 @@ type ThreadWriteConnection = DbConnection | DbTransaction;
 export interface CreateThreadInput {
   title?: string;
   originDocPath?: string;
-  originAnchor?: string;
   /** The harness this thread runs on; unset adopts the dispatch default. */
   providerId?: string;
-  writeMode?: AgentWriteMode;
 }
 
 export function createThread(
@@ -39,9 +36,7 @@ export function createThread(
       status: "idle",
       activeTurnId: null,
       originDocPath: input.originDocPath ?? null,
-      originAnchor: input.originAnchor ?? null,
       providerId: input.providerId ?? null,
-      writeMode: input.writeMode ?? DEFAULT_AGENT_WRITE_MODE,
       archivedAt: null,
       createdAt: now,
       updatedAt: now,
@@ -61,9 +56,9 @@ export type EnsureThreadOutcome = { row: ThreadRow; created: boolean };
  * `createThread` is the wrong verb here and its id is the reason: a synced
  * thread's identity belongs to the account, so a device that minted its own
  * would turn one conversation into two, one per device. Everything else about
- * the row is left at its default — an event log carries no title, no write
- * mode and no origin, so inventing values for them would be this device
- * guessing at facts another device holds.
+ * the row is left at its default — an event log carries no title and no
+ * origin, so inventing values for them would be this device guessing at
+ * facts another device holds.
  */
 export function ensureThreadInTransaction(tx: DbTransaction, id: string): EnsureThreadOutcome {
   const existing = tx.select().from(threads).where(eq(threads.id, id)).get();
@@ -106,25 +101,12 @@ export function listThreads(db: DbConnection): ThreadRow[] {
   return [...live, ...archived];
 }
 
-/** Threads bound to one doc, newest-updated first — answered by
- *  `threads_origin_doc_idx` rather than a scan of every thread. */
-export function listThreadsByOriginDoc(db: DbConnection, docPath: string): ThreadRow[] {
-  return db
-    .select()
-    .from(threads)
-    .where(eq(threads.originDocPath, docPath))
-    .orderBy(desc(threads.updatedAt))
-    .all();
-}
-
 /**
  * Follow a moved doc: every thread bound to it (or, for a directory move, to
  * anything under it) keeps pointing at the file it was spawned from.
  *
- * Without this a rename orphans every delegation on the doc — the marker moves
- * with the bytes, but `originDocPath` still names a path that no longer
- * exists, so the open note's by-doc query returns nothing and every chip in
- * the renamed file goes `unknown` (and therefore dismissable). Runs in the
+ * Without this a rename orphans every action attached to the doc —
+ * `originDocPath` would still name a path that no longer exists. Runs in the
  * same operation as the link rewrite, for the same reason that one does.
  */
 export function rebindThreadOrigins(

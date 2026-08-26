@@ -19,10 +19,6 @@ const get = base.threads.get.handler(({ context, input, errors }) => {
   return detail;
 });
 
-const byDoc = base.threads.byDoc.handler(({ context, input }) => ({
-  threads: context.threads.listByDoc(input.docPath),
-}));
-
 const create = base.threads.create.handler(({ context, input }) => ({
   thread: context.threads.create(input),
 }));
@@ -92,7 +88,6 @@ const answerInteraction = base.threads.answerInteraction.handler(({ context, inp
 export const threadsRouter = {
   list,
   get,
-  byDoc,
   create,
   archive,
   send,

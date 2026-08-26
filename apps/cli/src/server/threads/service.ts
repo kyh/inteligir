@@ -15,7 +15,6 @@
 // cannot nest; a dispatch failure is folded back in its own transaction
 // (provider/error + run.failed), so a driver crash cannot wedge `starting`.
 
-import type { AgentWriteMode } from "@repo/domain/agent-write-mode";
 import {
   approvalPendingInteractionPayloadSchema,
   parseApprovalResolution,
@@ -31,7 +30,6 @@ import {
 import { createTurnId } from "@repo/db/ids";
 import { NotificationBuffer, type DbNotifier } from "@repo/domain/notifier";
 import {
-  countOpenPendingInteractionsByThread,
   getPendingInteraction,
   interruptOpenPendingInteractions,
   listAllOpenPendingInteractions,
@@ -39,10 +37,8 @@ import {
   resolvePendingInteraction,
   type PendingInteractionRow,
 } from "@repo/db/pending-interactions";
-import { countPendingProposalsByThread } from "@repo/db/proposals";
 import {
   claimNextQueuedThreadMessageInTransaction,
-  countQueuedThreadMessagesByThread,
   createQueuedThreadMessageInTransaction,
   deleteClaimedQueuedThreadMessage,
   listQueuedThreadMessages,
@@ -57,7 +53,6 @@ import {
   ensureThreadInTransaction,
   getThread,
   listThreads,
-  listThreadsByOriginDoc,
   type CreateThreadInput,
   type ThreadRow,
 } from "@repo/db/threads";
@@ -68,7 +63,6 @@ import type { ThreadLifecycleEvent } from "@repo/domain/thread-lifecycle";
 import type {
   AnswerInteractionRequest,
   CreateThreadRequest,
-  DocThreadActivity,
   GetThreadResponse,
   PendingInteraction,
   SendMessageRequest,
@@ -105,7 +99,6 @@ type SendDecision =
       threadId: string;
       turnId: string;
       text: string;
-      writeMode: AgentWriteMode;
       viewContext: ViewContext | undefined;
     }
   | { kind: "done"; outcome: SendOutcome };
@@ -152,7 +145,6 @@ function toWireThread(row: ThreadRow): Thread {
     originDocPath: row.originDocPath,
     originAnchor: row.originAnchor,
     providerId: row.providerId,
-    writeMode: row.writeMode,
     archivedAt: row.archivedAt,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
@@ -223,9 +215,7 @@ export class ThreadService implements ProviderEventSink {
     const created: CreateThreadInput = {};
     if (input.title !== undefined) created.title = input.title;
     if (input.originDocPath !== undefined) created.originDocPath = input.originDocPath;
-    if (input.originAnchor !== undefined) created.originAnchor = input.originAnchor;
     if (input.providerId !== undefined) created.providerId = input.providerId;
-    if (input.writeMode !== undefined) created.writeMode = input.writeMode;
     return toWireThread(createThread(this.db, this.notifier, created));
   }
 
@@ -257,30 +247,6 @@ export class ThreadService implements ProviderEventSink {
         ? listAllOpenPendingInteractions(this.db)
         : listOpenPendingInteractions(this.db, threadId);
     return rows.map(toWirePendingInteraction);
-  }
-
-  /**
-   * Every thread bound to a doc, archived included — a chip for an archived
-   * thread is what carries the dismiss affordance.
-   *
-   * THREE queries, whatever the vault holds: the bound threads by their own
-   * index, then one grouped count each. The open note re-runs this on every
-   * thread invalidation, so the shape that scanned all threads and then asked
-   * two questions per row would grow with the vault and fire while an agent
-   * streams.
-   */
-  listByDoc(docPath: string): DocThreadActivity[] {
-    const bound = listThreadsByOriginDoc(this.db, docPath);
-    const ids = bound.map((row) => row.id);
-    const interactions = countOpenPendingInteractionsByThread(this.db, ids);
-    const queued = countQueuedThreadMessagesByThread(this.db, ids);
-    const proposals = countPendingProposalsByThread(this.db, ids);
-    return bound.map((row) => ({
-      thread: toWireThread(row),
-      openInteractionCount: interactions.get(row.id) ?? 0,
-      queuedCount: queued.get(row.id) ?? 0,
-      pendingProposalCount: proposals.get(row.id) ?? 0,
-    }));
   }
 
   archive(threadId: string): Thread | null {
@@ -465,7 +431,6 @@ export class ThreadService implements ProviderEventSink {
       threadId,
       turnId: createTurnId(),
       text,
-      writeMode: thread.writeMode,
       viewContext,
     };
   }
@@ -475,7 +440,6 @@ export class ThreadService implements ProviderEventSink {
       threadId: decision.threadId,
       turnId: decision.turnId,
       text: decision.text,
-      writeMode: decision.writeMode,
     };
     if (decision.viewContext !== undefined) start.viewContext = decision.viewContext;
     try {

@@ -43,7 +43,6 @@ import { createKnowledgeRuntime, type KnowledgeRuntime } from "./knowledge/knowl
 import { closeServer, listenWithRetry, type UpgradedSockets } from "./listen";
 import { mintServerToken, readServerFile, removeServerFile, writeServerFile } from "./server-file";
 import { createLocalClient } from "./local-client";
-import { createTurnProposalCapture } from "./proposals/turn-proposals";
 import {
   createGracefulShutdown,
   installFatalErrorHandlers,
@@ -228,15 +227,6 @@ async function boot(version: string, env: NodeJS.ProcessEnv): Promise<ServeResul
     vault,
     cliBinDir,
     mcpServers: () => composeSessionMcpServers(connectors, connectorsOauth),
-    captureProposals: createTurnProposalCapture({
-      db,
-      notifier: bus,
-      git: vault.git,
-      vault: vault.service,
-      onDebug: (message) => {
-        console.error(`proposals: ${message}`);
-      },
-    }),
     shellEnv: () => ({ ...withConnectedDirs(agentShellEnv, folders.list()) }),
     connectedDirs: () => folders.list(),
   });
