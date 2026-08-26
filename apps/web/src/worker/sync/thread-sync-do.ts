@@ -80,6 +80,10 @@ function readSocketTag(ws: WebSocket): SocketTag | null {
   return tag.success ? tag.data : null;
 }
 
+/** Worker→DO only — the vault git wrapper is the sole caller, naming the
+ *  verified device whose push this ping announces. Not a wire shape. */
+const vaultPingRequestSchema = z.object({ pushingDeviceId: z.string().min(1) });
+
 export class ThreadSyncDO extends DurableObject<Env> {
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
@@ -147,6 +151,7 @@ export class ThreadSyncDO extends DurableObject<Env> {
     if (route === "POST /captures/claim") return await this.claimCaptures(request);
     if (route === "POST /captures/ack") return await this.ackCaptures(request);
     if (route === "POST /sever-device") return await this.severDevice(request);
+    if (route === "POST /vault-ping") return await this.vaultPing(request);
     if (route === "POST /purge") return await this.purge();
 
     return refuse("not-found", "No such route.");
@@ -197,6 +202,21 @@ export class ThreadSyncDO extends DurableObject<Env> {
         // event is already on its way; nothing to do.
       }
     }
+  }
+
+  /**
+   * The hosted vault repo advanced: poke every OTHER device to run a vault
+   * sync pass. The pusher is excluded the way `sync` pings exclude theirs —
+   * it already holds what it pushed, and the echo would cost it a no-op
+   * fetch per push.
+   */
+  private async vaultPing(request: Request): Promise<Response> {
+    const body = vaultPingRequestSchema.safeParse(await request.json().catch(() => null));
+    if (!body.success) {
+      return refuse("bad-request", "Send { pushingDeviceId }.");
+    }
+    this.broadcast({ type: "vault" }, (tag) => tag.deviceId !== body.data.pushingDeviceId);
+    return Response.json({ ok: true });
   }
 
   /**

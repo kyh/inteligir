@@ -21,11 +21,14 @@ import api, { ownsPath } from "./index";
 // ---------------------------------------------------------------------------
 
 // The runtime instantiates Durable Objects from the DEPLOYED entry's exports,
-// so the class rides through here as well as ./index.ts (the test entry).
+// so the classes ride through here as well as ./index.ts (the test entry).
 export { ThreadSyncDO } from "./sync/thread-sync-do";
+export { RepoCell, Registry } from "durable-git";
 
 export default {
-  fetch(request, env) {
-    return ownsPath(new URL(request.url).pathname) ? api.fetch(request, env) : site.fetch(request);
+  fetch(request, env, ctx) {
+    return ownsPath(new URL(request.url).pathname)
+      ? api.fetch(request, env, ctx)
+      : site.fetch(request);
   },
 } satisfies ExportedHandler<Env>;

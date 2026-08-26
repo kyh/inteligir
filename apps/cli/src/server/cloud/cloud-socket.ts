@@ -16,7 +16,7 @@ import {
   SYNC_WS_PLATFORM_PARAM,
   syncPingSchema,
 } from "@repo/api/cloud/sync/sync-ws";
-import type { CloudSocket, CloudSocketOpener } from "./cloud-client";
+import type { CloudSocket, CloudSocketOpener } from "@repo/api/cloud/client";
 import { z } from "zod";
 
 /** The client keepalive cadence. The server answers it from the runtime's

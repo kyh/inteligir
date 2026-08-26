@@ -4,7 +4,7 @@ import {
   PKCE_S256_PATTERN,
 } from "@repo/api/cloud/pairing/pairing-schema";
 import { describe, expect, it } from "vitest";
-import type { CloudFetch } from "../../sync/cloud-client";
+import type { CloudFetch } from "@repo/api/cloud/client";
 import { createPairingManager } from "../pairing-manager";
 import type { PkceCrypto } from "../pkce";
 

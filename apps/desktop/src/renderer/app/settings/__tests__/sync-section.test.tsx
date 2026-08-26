@@ -72,6 +72,7 @@ describe("the paired details", () => {
         status={{
           state: "paired",
           cloudUrl: "https://cloud.test",
+          accountEmail: "k@example.test",
           deviceId: "dev_1",
           connected: false,
           pending: 3,

@@ -33,6 +33,9 @@ export const SYNC_WS_KEEPALIVE_PONG = "pong";
  * - `dispatch`: a desktop-lane thread landed new work; sent only to sockets
  *   whose platform is `desktop`. The mailbox poke that makes a phone-started
  *   thread run on the machine with the agent.
+ * - `vault`: the hosted vault repo advanced — run a vault sync pass. Bare by
+ *   design (the pull is what carries state), and not sent to the pushing
+ *   device's own sockets, same as `sync`. Stale clients drop it unparsed.
  */
 export const syncPingSchema = z.discriminatedUnion("type", [
   z
@@ -50,6 +53,11 @@ export const syncPingSchema = z.discriminatedUnion("type", [
     .object({
       type: z.literal("dispatch"),
       threadId: z.string().min(1),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("vault"),
     })
     .strict(),
 ]);

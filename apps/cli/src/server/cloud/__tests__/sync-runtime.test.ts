@@ -13,7 +13,7 @@ import { threadScope } from "@repo/domain/thread-event-scope";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CAPTURE_INBOX_PATH, type CaptureVault } from "../captures";
-import type { CloudFetch, CloudSocket, OpenCloudSocketArgs } from "../cloud-client";
+import type { CloudFetch, CloudSocket, OpenCloudSocketArgs } from "@repo/api/cloud/client";
 import { readDeviceCredential } from "../credential-store";
 import {
   createCloudRuntime,
@@ -86,6 +86,8 @@ interface Harness {
   socketOpens: OpenCloudSocketArgs[];
   /** Every URL this runtime asked the desktop to open. */
   opened: string[];
+  /** How many vault passes the runtime asked for (the onVaultPing hook). */
+  vaultPings: () => number;
 }
 
 function makeHarness(
@@ -107,6 +109,7 @@ function makeHarness(
   const applied: Harness["applied"] = [];
   const socketOpens: OpenCloudSocketArgs[] = [];
   const opened: string[] = [];
+  let vaultPings = 0;
   const sink: SyncedEventSink = {
     applySyncedEvents: (args) => {
       applied.push({
@@ -134,6 +137,9 @@ function makeHarness(
     cloudUrl: CLOUD_URL,
     vault,
     onDebug: () => undefined,
+    onVaultPing: () => {
+      vaultPings += 1;
+    },
     openExternalUrl: async (url) => {
       opened.push(url);
       return options.canOpenBrowser ?? true;
@@ -145,7 +151,17 @@ function makeHarness(
     void runtime.dispose();
     closeConnection(db);
   });
-  return { db, dataDir, cloud, vault, runtime, applied, socketOpens, opened };
+  return {
+    db,
+    dataDir,
+    cloud,
+    vault,
+    runtime,
+    applied,
+    socketOpens,
+    opened,
+    vaultPings: () => vaultPings,
+  };
 }
 
 function message(threadId: string, text: string): ThreadEvent {
@@ -232,6 +248,9 @@ describe("pairing", () => {
     expect(readDeviceCredential(harness.dataDir)).toEqual({
       deviceId,
       credential: expect.stringMatching(/^igd_[0-9a-f]{64}$/u),
+      // Learned from /v1/account after the session opened — the identity the
+      // vault's cross-account fence compares its marker against.
+      userId: "user_fake",
     });
     const status = harness.runtime.status();
     expect(status.state).toBe("paired");
@@ -512,6 +531,23 @@ describe("the invalidation socket", () => {
     await harness.runtime.syncNow();
     expect(afterCovered).toBeGreaterThan(quiet);
     expect(harness.cloud.requests.length).toBeGreaterThan(afterCovered);
+  });
+
+  it("routes a vault ping to the vault hook and starts no thread pass", async () => {
+    const harness = makeHarness({ pollIntervalMs: null });
+    await pair(harness);
+    const dial = harness.socketOpens[0];
+    if (dial === undefined) throw new Error("expected a socket dial");
+    // The pairing kicks one vault pass, and the account-identity learner
+    // kicks the deferred one the fail-closed fence held until the id landed.
+    expect(harness.vaultPings()).toBe(2);
+    const quiet = harness.cloud.requests.length;
+
+    dial.onPing({ type: "vault" });
+    expect(harness.vaultPings()).toBe(3);
+    // The pass that answers a vault ping is the git engine's, not this
+    // runtime's — no thread request may ride it.
+    expect(harness.cloud.requests).toHaveLength(quiet);
   });
 
   it("re-dials after a close, and a severed socket turns into a refusal", async () => {

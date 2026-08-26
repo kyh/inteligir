@@ -16,7 +16,7 @@
 //     README's "who applies captures".
 
 import type { CaptureRow } from "@repo/api/cloud/captures/captures-schema";
-import type { CloudClient, CloudFailure } from "./cloud-client";
+import type { CloudClient, CloudFailure } from "@repo/api/cloud/client";
 import type { SyncStore } from "./sync-store";
 
 /** How long an applied capture id is remembered — long enough to cover a lapsed

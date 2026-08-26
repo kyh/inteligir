@@ -2,7 +2,7 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { bearer } from "better-auth/plugins";
 import { sql } from "drizzle-orm";
-import { deleteArtifactsRepo } from "../artifacts";
+import { deleteVaultGitRepo } from "../vault/git-remote";
 import { createDb } from "../db/client";
 import { inviteCode } from "../db/schema";
 import { purgeDeviceRows } from "../device/pairing";
@@ -155,8 +155,14 @@ function buildAuth(env: Env, baseURL: string, disableSignUp: boolean) {
       // `redirectTo: "/auth/reset"`, so the URL's GET leg redirects to the
       // Worker-hosted reset page (see ./reset-page.ts) with `?token=`.
       sendResetPassword: ({ user, url }) => sendResetEmail(env, user.email, url),
-      // A reset is usually "I lost control of this account" recovery — kill
-      // every other live session so a possibly-stolen bearer dies with it.
+      // A reset kills every other live session, so a possibly-stolen bearer
+      // dies with it. SESSIONS ONLY, not device credentials — deliberately:
+      // most resets are the owner rotating a password, and cutting every
+      // paired device would unpair their own machines each time. The
+      // stolen-device hatch is the dashboard's per-device revoke, which
+      // bites on the next request. The residual, stated: a reset after a
+      // full takeover leaves an attacker-paired device syncing until the
+      // owner revokes it from Devices.
       revokeSessionsOnPasswordReset: true,
     },
     // Persist rate-limit counters in D1. The default in-memory store keeps
@@ -187,8 +193,8 @@ function buildAuth(env: Env, baseURL: string, disableSignUp: boolean) {
         //      which an authenticated request lands AFTER the purge and
         //      rebuilds exactly what was deleted. Killing the credentials
         //      first means no NEW request can even name the object.
-        //   2. The hosted vault repo, if this deployment hosts one — the only
-        //      note bytes the cloud ever holds.
+        //   2. The hosted vault repo — the only note bytes the cloud ever
+        //      holds.
         //   3. The object itself, which closes its sockets, drops its storage
         //      and tombstones itself. The tombstone is what closes the
         //      remaining race: a request that verified microseconds before
@@ -198,7 +204,7 @@ function buildAuth(env: Env, baseURL: string, disableSignUp: boolean) {
         //      lives outside all of the above.
         beforeDelete: async (user) => {
           await purgeDeviceRows(createDb(env.DB), user.id);
-          await deleteArtifactsRepo(env, user.id);
+          await deleteVaultGitRepo(env, user.id);
           await purgeThreadSync(env, user.id);
           await forgetInviteRedeemer(env, user.email);
         },

@@ -28,6 +28,7 @@ import { confirm } from "@repo/ui/components/confirm-dialog";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { orpc } from "../api";
+import { useVaultStatus } from "../vault-hooks";
 import { useWorkspace } from "../workspace-context";
 import { failed, Row, SectionHeading } from "./settings-chrome";
 
@@ -86,8 +87,9 @@ export function PairPrompt({ cloudUrl, begun, onBegin, pending }: PairPromptProp
   return (
     <div className="space-y-3 rounded-md border border-border p-3">
       <p className="text-xs text-muted-foreground">
-        Pairing sends you to {new URL(cloudUrl).host} to approve this device. Threads and their
-        history sync; your notes stay in the vault, versioned by git.
+        Pairing sends you to {new URL(cloudUrl).host} to approve this device. Your threads and your
+        vault then sync through your account — unless this machine is configured with its own git
+        remote.
       </p>
       <Button type="button" size="xs" onClick={onBegin} disabled={pending}>
         Pair with browser
@@ -117,7 +119,9 @@ export function PairedDetails({ status }: PairedDetailsProps) {
   return (
     <dl className="space-y-1.5">
       <Row label="Account">
-        <span className="block truncate font-mono text-xs">{new URL(status.cloudUrl).host}</span>
+        <span className="block truncate font-mono text-xs">
+          {status.accountEmail ?? new URL(status.cloudUrl).host}
+        </span>
       </Row>
       <Row label="Device">
         <span className="block truncate font-mono text-xs">{status.deviceId}</span>
@@ -140,6 +144,7 @@ export function PairedDetails({ status }: PairedDetailsProps) {
 export function SyncSection() {
   const { api } = useWorkspace();
   const queryClient = useQueryClient();
+  const { data: vaultStatus } = useVaultStatus();
   const statusQuery = useCloudStatus();
   const [pending, setPending] = useState(false);
   const [begun, setBegun] = useState<CloudPairBeginResponse | null>(null);
@@ -182,9 +187,16 @@ export function SyncSection() {
   // waits for an answer, and a section greyed out meanwhile says otherwise.
   const unpair = (): void => {
     void (async () => {
+      // The clause is conditional on the SOURCE: an account-derived vault
+      // remote dies with the credential, a user-configured one does not —
+      // and the dialog must not claim either about the other.
+      const vaultPaired =
+        vaultStatus !== undefined &&
+        vaultStatus.state !== "no-remote" &&
+        vaultStatus.remoteSource === "paired";
       const confirmed = await confirm({
         title: "Stop syncing this device?",
-        body: "This machine forgets its credential and everything queued for the cloud. Your notes and threads stay here. The device stays listed on your account until you revoke it there.",
+        body: `This machine forgets its credential and everything queued for the cloud.${vaultPaired ? " Your vault stops syncing through your account." : ""} Your notes and threads stay here. The device stays listed on your account until you revoke it there.`,
         confirmLabel: "Unpair",
         destructive: true,
       });

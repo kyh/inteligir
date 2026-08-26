@@ -1,10 +1,12 @@
 # @repo/mobile — the inteligir phone companion (issue #576)
 
-A sync-only content client. **The agent and the vault stay on the desktop**
-(issue #542's re-founding): the phone holds the SYNCED THREADS and the CAPTURE
-inbox, and reaches nothing in this repo but `@repo/api/cloud` (the wire) and
-`@repo/domain` (the `ThreadEvent` grammar it renders). No Codex, no vault
-checkout, no vault-file sync.
+A read-and-capture content client. **The agent and the vault ENGINE stay on
+the desktop** (issue #542's re-founding): the phone holds the SYNCED THREADS,
+the CAPTURE inbox and — since #618 — a READ surface over the account's hosted
+vault, reaching `@repo/api/cloud` (the wire), `@repo/domain` (the
+`ThreadEvent` grammar) and `@repo/notes` (the dialect's parse + wiki
+resolution, guard-pure). No Codex, no vault checkout, no git client — notes
+arrive over the /v1/vault read rows, rendered read-only.
 
 Expo + expo-router, recovered from the pre-purge app's shape (`3a62a4cb`) with a
 brand-new transport: the old sync engine spoke to the deleted hosted platform, so
@@ -31,8 +33,13 @@ src/
     pkce.ts             pure PKCE assembly over injected crypto
     pairing-manager.ts  beginPair/completePair (state + PKCE, pure)
     expo-pairing.ts     expo-crypto / expo-linking / expo-web-browser wiring
+  notes/        the vault read surface (#618)
+    notes-store.ts      tree + bounded note cache + wiki resolver (pure, unit-tested)
+    note-projection.ts  dialect markdown → typed blocks (pure, unit-tested)
+    markdown-view.tsx   projected blocks → RN elements (the thin half)
   lib/          composition root + hooks (app-runtime.ts), theme, cloud URL
-  app/          expo-router screens: thread list + quick-capture, a thread view
+  app/          expo-router screens: thread list + quick-capture, a thread
+                view, the notes list + read-only note view
 ```
 
 ## The storage choice (v1: in-memory)

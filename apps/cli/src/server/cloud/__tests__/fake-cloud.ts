@@ -28,7 +28,8 @@ import {
   type CaptureRow,
   type ClaimCapturesResponse,
 } from "@repo/api/cloud/captures/captures-schema";
-import { cloudError, type CloudErrorCode } from "@repo/api/cloud/errors";
+import { ACCOUNT_API_PATHS } from "@repo/api/cloud/account/account-schema";
+import { CLOUD_ERROR_STATUS, cloudError, type CloudErrorCode } from "@repo/api/cloud/errors";
 import {
   DEVICE_API_PATHS,
   DEVICE_CREDENTIAL_PREFIX,
@@ -44,7 +45,7 @@ import {
   type PushResponse,
   type SyncEventRow,
 } from "@repo/api/cloud/sync/sync-schema";
-import type { CloudFetch } from "../cloud-client";
+import type { CloudFetch } from "@repo/api/cloud/client";
 import { z } from "zod";
 
 /** A decoded request body, before a route's schema reads it. */
@@ -53,24 +54,10 @@ type RequestBody = z.infer<ReturnType<typeof z.json>>;
 /** One row of an ack answer, as the contract spells it. */
 type AckCaptureResult = AckCapturesResponse["results"][number];
 
-const STATUS_BY_CODE = {
-  "bad-request": 400,
-  unauthorized: 401,
-  "not-found": 404,
-  "rate-limited": 429,
-  "invalid-code": 404,
-  "code-expired": 410,
-  "code-consumed": 409,
-  "device-limit": 409,
-  "sync-conflict": 409,
-  "sync-out-of-order": 409,
-  "account-deleted": 410,
-  "artifacts-not-enabled": 503,
-  internal: 500,
-} satisfies Record<CloudErrorCode, number>;
-
 function refuse(code: CloudErrorCode, message: string, deviceSeq?: number): Response {
-  return Response.json(cloudError(code, message, deviceSeq), { status: STATUS_BY_CODE[code] });
+  return Response.json(cloudError(code, message, deviceSeq), {
+    status: CLOUD_ERROR_STATUS[code],
+  });
 }
 
 interface LogRow {
@@ -175,6 +162,9 @@ export class FakeCloud {
     }
     if (method === "POST" && url.pathname === CAPTURE_API_PATHS.ack) {
       return this.ack(body);
+    }
+    if (method === "GET" && url.pathname === ACCOUNT_API_PATHS.account) {
+      return Response.json({ id: "user_fake", email: "paired@example.test" });
     }
     return refuse("not-found", "No such route.");
   };

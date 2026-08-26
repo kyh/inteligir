@@ -31,6 +31,7 @@ import {
 } from "@platejs/markdown";
 
 import { MD_STRINGIFY } from "@repo/notes/markdown/md-plugins";
+import { parseCalloutPayload } from "@repo/notes/markdown/callout-payload";
 import { parseMdast } from "@repo/notes/markdown/parse";
 import type { OpaqueBlock, OpaqueInline } from "@repo/notes/markdown/remark-opaque";
 import {
@@ -65,27 +66,6 @@ function isPanelContent(
 function ensureBlocks(children: Descendant[]): Descendant[] {
   return children.length > 0 ? children : [{ children: [{ text: "" }], type: "p" }];
 }
-
-const PRIORITY_LEVELS = new Set(["low", "medium", "high", "critical"]);
-
-// The kinds a callout payload may open with: the dialect's three plus the
-// legacy variants callout-node still accents (a converted note must keep
-// reading as a callout). Anything else falls back to a plain code block —
-// the same unknown-type behavior — instead of a bogus-variant callout.
-const CALLOUT_VARIANTS = new Set([
-  "caution",
-  "error",
-  "info",
-  "note",
-  "priority",
-  "tip",
-  "warning",
-]);
-
-// A payload line may also arrive prefixed (`type: warning` / `level: high`); the
-// prefixed spelling is remembered on the node so re-serializing is byte-exact.
-const TYPE_PREFIX_RE = /^type\s*:/i;
-const LEVEL_PREFIX_RE = /^level\s*:/i;
 
 const defaultCodeBlock = defaultRules.code_block;
 const defaultCodeBlockDeserialize = defaultCodeBlock?.deserialize;
@@ -443,28 +423,22 @@ export const MD_RULES: MdRules = {
   code_block: {
     deserialize: (node: MdCode, deco, options): TElement => {
       if (isCalloutLang(node.lang)) {
-        const payload = node.value.split("\n");
-        const rawKind = payload[0]?.trim() ?? "";
-        const typePrefixed = TYPE_PREFIX_RE.test(rawKind);
-        const kind = (typePrefixed ? rawKind.replace(TYPE_PREFIX_RE, "") : rawKind).trim();
-        if (!CALLOUT_VARIANTS.has(kind)) {
+        const payload = parseCalloutPayload(node.value);
+        if (payload === null) {
           return defaultCodeBlockDeserialize(node, deco, options);
         }
-        const rawLevel = payload[1]?.trim() ?? "";
-        const levelPrefixed = LEVEL_PREFIX_RE.test(rawLevel);
-        const level = (levelPrefixed ? rawLevel.replace(LEVEL_PREFIX_RE, "") : rawLevel).trim();
-        const hasLevel = kind === "priority" && PRIORITY_LEVELS.has(level);
-        const body = payload.slice(hasLevel ? 2 : 1).join("\n");
-        const parsed = parseMdast(body);
+        const parsed = parseMdast(payload.body);
         const children: Descendant[] = parsed.ok
           ? convertChildrenDeserialize(parsed.root.children, deco, options)
-          : [{ children: [{ text: body }], type: "p" }];
+          : [{ children: [{ text: payload.body }], type: "p" }];
         return {
           children: children.length > 0 ? children : [{ children: [{ text: "" }], type: "p" }],
           type: "callout",
-          variant: kind,
-          ...(typePrefixed ? { typePrefixed: true } : {}),
-          ...(hasLevel ? { level, ...(levelPrefixed ? { levelPrefixed: true } : {}) } : {}),
+          variant: payload.kind,
+          ...(payload.typePrefixed ? { typePrefixed: true } : {}),
+          ...(payload.level !== undefined
+            ? { level: payload.level, ...(payload.levelPrefixed ? { levelPrefixed: true } : {}) }
+            : {}),
         };
       }
       const richBlock = RICH_FENCE_LANGS.get(node.lang ?? "");

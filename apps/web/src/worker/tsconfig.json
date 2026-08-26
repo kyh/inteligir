@@ -12,7 +12,11 @@
     // The site program's `${configDir}` resolves to apps/web, so an unqualified
     // inherited path would have both tsc runs sharing one incremental file and
     // re-checking from cold every time.
-    "tsBuildInfoFile": "${configDir}/../../.cache/tsbuildinfo.worker.json"
+    "tsBuildInfoFile": "${configDir}/../../.cache/tsbuildinfo.worker.json",
+    // durable-git publishes TS source and no .d.ts; typing it through the
+    // hand-authored stub keeps the library's own code out of this stricter
+    // program. The bundler ignores `paths` and still resolves the real source.
+    "paths": { "durable-git": ["./types/durable-git.d.ts"] }
   },
   "include": ["."],
   "exclude": ["node_modules"]

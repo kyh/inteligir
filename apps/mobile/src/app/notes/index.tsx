@@ -1,0 +1,123 @@
+import { Stack, useRouter } from "expo-router";
+import { useCallback, useEffect, useState } from "react";
+import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { isDocPath } from "@repo/notes/knowledge/doc-file";
+import { titleFromPath } from "@repo/notes/knowledge/link-extract";
+import { refreshNotes, useNotesTree, useSyncStatus } from "@/lib/app-runtime";
+import { RADIUS, SPACE, useTheme } from "@/lib/theme";
+
+// The vault, read-only: every doc in the hosted repo, title first with its
+// folder as the caption. The tree fetch pins one commit, so a list and the
+// notes opened from it agree with each other even mid-push elsewhere.
+// A FlatList, not a ScrollView: the vault's own design targets thousands of
+// notes, and mounting a row per doc eagerly janks the list open.
+export default function NotesScreen() {
+  const theme = useTheme();
+  const router = useRouter();
+  const status = useSyncStatus();
+  const tree = useNotesTree();
+  const [refreshing, setRefreshing] = useState(false);
+
+  useEffect(() => {
+    // `status.state` is a dependency because the mount can precede the
+    // credential load: the first call is then a no-op, and only the pairing
+    // state changing re-runs it.
+    if (status.state === "paired" && tree.state === "idle") void refreshNotes();
+  }, [status.state, tree.state]);
+
+  const refresh = useCallback(async () => {
+    setRefreshing(true);
+    await refreshNotes();
+    setRefreshing(false);
+  }, []);
+
+  // Gated on the PAIRING state, not just the tree: a revoked credential
+  // leaves the tree "ready" with the old listing, and rendering it would
+  // show a vault this device may no longer read.
+  const docs =
+    status.state === "paired" && tree.state === "ready"
+      ? tree.entries.filter((entry) => isDocPath(entry.path))
+      : [];
+  const emptyText =
+    status.state !== "paired"
+      ? "Pair this device to read your notes."
+      : tree.state === "loading" || tree.state === "idle"
+        ? "Loading your vault…"
+        : tree.state === "empty" || tree.state === "error"
+          ? tree.message
+          : "No notes yet — write one on your desktop.";
+
+  return (
+    <SafeAreaView
+      style={[styles.screen, { backgroundColor: theme.background }]}
+      edges={["left", "right"]}
+    >
+      <Stack.Screen options={{ title: "Notes" }} />
+      <FlatList
+        style={styles.screen}
+        contentContainerStyle={styles.list}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void refresh()} />}
+        data={docs}
+        keyExtractor={(entry) => entry.path}
+        ListEmptyComponent={<Empty text={emptyText} />}
+        renderItem={({ item: entry }) => {
+          const dir = entry.path.includes("/")
+            ? entry.path.slice(0, entry.path.lastIndexOf("/"))
+            : null;
+          return (
+            <Pressable
+              style={({ pressed }) => [
+                styles.row,
+                { borderColor: theme.border, backgroundColor: theme.card },
+                pressed && styles.pressed,
+              ]}
+              onPress={() =>
+                router.push({
+                  pathname: "/notes/[...path]",
+                  params: { path: entry.path.split("/") },
+                })
+              }
+            >
+              <Text style={[styles.title, { color: theme.cardForeground }]} numberOfLines={1}>
+                {titleFromPath(entry.path)}
+              </Text>
+              {dir !== null ? (
+                <Text style={[styles.caption, { color: theme.mutedForeground }]} numberOfLines={1}>
+                  {dir}
+                </Text>
+              ) : null}
+            </Pressable>
+          );
+        }}
+      />
+    </SafeAreaView>
+  );
+}
+
+function Empty({ text }: { text: string }) {
+  const theme = useTheme();
+  return (
+    <View style={styles.empty}>
+      <Text style={[styles.body, { color: theme.mutedForeground }]}>{text}</Text>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  screen: { flex: 1 },
+  list: { paddingHorizontal: SPACE.lg, paddingVertical: SPACE.md, paddingBottom: 32 },
+  empty: { alignItems: "center", gap: SPACE.sm, paddingVertical: 96, paddingHorizontal: SPACE.xxl },
+  body: { fontSize: 16, textAlign: "center" },
+  row: {
+    gap: 2,
+    marginBottom: SPACE.sm,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    paddingHorizontal: SPACE.lg,
+    paddingVertical: SPACE.md,
+  },
+  title: { fontSize: 16 },
+  caption: { fontSize: 13 },
+  pressed: { opacity: 0.7 },
+});

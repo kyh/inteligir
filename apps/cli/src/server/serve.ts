@@ -52,6 +52,7 @@ import {
   type ShutdownStep,
   type TeardownStepName,
 } from "./shutdown";
+import { createVaultRemoteProvider } from "./cloud/vault-remote";
 import { redactRemoteUrl } from "./vault/git";
 import { createVaultRuntime, type VaultRuntimeArgs } from "./vault/vault-runtime";
 import { WsBus } from "./ws-bus";
@@ -154,9 +155,14 @@ async function boot(version: string, env: NodeJS.ProcessEnv): Promise<ServeResul
   // reconcile the first pass always runs.
   let knowledgeRef: KnowledgeRuntime | null = null;
   let noteIntelligenceRef: NoteIntelligence | null = null;
+  const vaultRemote = createVaultRemoteProvider({
+    explicitRemote: config.vaultRemote,
+    cloudUrl: config.cloudUrl,
+    dataDir: config.dataDir,
+  });
   const vaultArgs: VaultRuntimeArgs = {
     vaultDir: config.vaultDir,
-    vaultRemote: config.vaultRemote,
+    remote: vaultRemote,
     dataDir: config.dataDir,
     notifier: bus,
     onFilesChanged: (change) => {
@@ -315,8 +321,9 @@ async function boot(version: string, env: NodeJS.ProcessEnv): Promise<ServeResul
     env: process.env,
     cliBinDir,
   });
+  const bootRemote = vaultRemote();
   console.log(
-    `inteligir ${version} (${config.mode}) listening on http://127.0.0.1:${port} — data: ${config.dataDir} — vault: ${config.vaultDir}${config.vaultRemote === null ? "" : ` ⇄ ${redactRemoteUrl(config.vaultRemote)}`}`,
+    `inteligir ${version} (${config.mode}) listening on http://127.0.0.1:${port} — data: ${config.dataDir} — vault: ${config.vaultDir}${bootRemote === null ? "" : ` ⇄ ${redactRemoteUrl(bootRemote.url)}${bootRemote.source === "paired" ? " (paired)" : ""}`}`,
   );
   console.log(
     `agent: ${agentDriver.status.runtime}${agentDriver.status.detail === null ? "" : ` — ${agentDriver.status.detail}`}`,

@@ -7,9 +7,10 @@
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
 import { appendFile, mkdir, readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import type { VaultConflict, VaultStatusResponse } from "@repo/api/local/vault/vault-schema";
 import { VAULT_TMP_PREFIX } from "@repo/notes/knowledge/vault-path";
+import type { VaultRemoteProvider, VaultRemoteSpec } from "../cloud/vault-remote";
 import { createDebouncedCallbackScheduler } from "./watcher/debounce";
 
 const LOCAL_GIT_TIMEOUT_MS = 30_000;
@@ -176,6 +177,40 @@ export function redactRemoteUrl(url: string): string {
   }
 }
 
+/**
+ * Whether a failed network invocation was the remote REFUSING the credential,
+ * as opposed to being unreachable. Three spellings, because git's own varies:
+ * an explicit 401/403 from the HTTP layer, "Authentication failed", and —
+ * the one this engine's non-interactive env actually produces — "could not
+ * read Username … terminal prompts disabled", which is git answering a 401
+ * challenge with a prompt this process forbids.
+ */
+function isAuthRefusal(cause: unknown): boolean {
+  if (!(cause instanceof GitError)) {
+    return false;
+  }
+  return /authentication failed|returned error: 40[13]|could not read username/i.test(cause.stderr);
+}
+
+/** The remote itself is absent — the hosted repo before its first push
+ *  (HTTP 404), or a path that names no repository. Distinct from
+ *  unreachable/refused because only THIS class may fall through to the
+ *  welcome seed: seeding beside a populated-but-unreachable remote plants a
+ *  history the eventual first sync has to rebase through. */
+function isMissingRemoteRepo(cause: unknown): boolean {
+  if (!(cause instanceof GitError)) {
+    return false;
+  }
+  return /repository .+ (not found|does not exist)|returned error: 404|does not appear to be a git repository/i.test(
+    cause.stderr,
+  );
+}
+
+/** The vault-side account marker: which account's hosted repo this checkout
+ *  has synced with. ONE spelling, read and written by the engine below and
+ *  by the clone path. */
+const ACCOUNT_MARKER_KEY = "inteligir.account";
+
 function identityEnv(author?: CommitAuthor) {
   return {
     GIT_AUTHOR_NAME: author?.name ?? ENGINE_IDENTITY.name,
@@ -210,22 +245,83 @@ export interface EnsureVaultRepoArgs {
   root: string;
   /** Runs when the directory did not exist before this boot (the welcome seed). */
   seed?: (root: string) => Promise<void>;
+  /** The remote as of boot. A NEW vault dir clones from it instead of
+   *  init+seed, which is what makes a second device join an existing vault
+   *  rather than colliding with it. */
+  remote?: VaultRemoteSpec | null;
   env?: Record<string, string>;
 }
 
 /**
- * Create + `git init` the vault directory if absent, and always leave it with
- * a born HEAD — the sync loop rebases, and a rebase needs a commit to stand on.
+ * Try to clone the configured remote into a root that does not exist yet,
+ * and SAY which way it failed — the caller's seeding decision hangs on it:
+ *
+ * - "missing": the remote holds no repository (the hosted repo before its
+ *   first push, an absent BYO path). Nothing existed to join, so the welcome
+ *   seed is safe — the first push creates the remote.
+ * - "failed": the remote may exist but could not answer (offline boot, a
+ *   refused credential). Seeding HERE is the trap cubic's review named: a
+ *   populated remote comes back later and the seed's history has to rebase
+ *   through it. The vault boots EMPTY instead (one empty init commit, which
+ *   `--empty=drop` discards on the eventual first sync), and a revoked
+ *   credential surfaces as `unauthorized` rather than failing the boot —
+ *   which would take down the very server the user re-pairs through.
+ *
+ * git cleans up its own partially-cloned directory on failure, so every
+ * fall-through starts from the same absent root.
  */
-export async function ensureVaultRepo(args: EnsureVaultRepoArgs): Promise<{ created: boolean }> {
+async function tryCloneVault(
+  args: EnsureVaultRepoArgs,
+  remote: VaultRemoteSpec,
+): Promise<"cloned" | "missing" | "failed"> {
+  await mkdir(dirname(args.root), { recursive: true });
+  try {
+    await runGit(dirname(args.root), ["clone", "--", remote.url, args.root], {
+      timeoutMs: NETWORK_GIT_TIMEOUT_MS,
+      env: { ...args.env, ...remote.env },
+    });
+    return "cloned";
+  } catch (error) {
+    return isMissingRemoteRepo(error) ? "missing" : "failed";
+  }
+}
+
+/**
+ * Create the vault directory if absent — cloning the remote when one is
+ * configured, else `git init` + seed — and always leave it with a born HEAD:
+ * the sync loop rebases, and a rebase needs a commit to stand on.
+ *
+ * An EXISTING local vault beside a populated remote is deliberately not
+ * merged here: the first sync pass rebases, and unrelated histories surface
+ * as its typed `conflict` state rather than any silent resolution.
+ */
+export async function ensureVaultRepo(
+  args: EnsureVaultRepoArgs,
+): Promise<{ created: boolean; cloned: boolean }> {
   const created = !existsSync(args.root);
+  const remote = args.remote ?? null;
+  const outcome =
+    created && remote !== null ? await tryCloneVault(args, remote) : ("missing" as const);
+  const cloned = outcome === "cloned";
   await mkdir(args.root, { recursive: true });
   const runOptions = args.env ? { env: args.env } : {};
   if (!existsSync(join(args.root, ".git"))) {
     await runGit(args.root, ["init", "-b", "main"], runOptions);
   }
   await ensureLocalExclude(args.root);
-  if (created && args.seed) {
+  if (created && remote?.source === "paired" && remote.account !== undefined && cloned) {
+    // The clone came from this account's repo; pin it so a later re-pair to
+    // a DIFFERENT account refuses instead of pushing these notes into it.
+    await runGit(args.root, ["config", ACCOUNT_MARKER_KEY, remote.account], runOptions);
+  }
+  // The welcome seed runs with NO remote, or when the HOSTED remote itself
+  // answered "no repository" — which our Worker says only for a truly absent
+  // repo (auth precedes it). An EXPLICIT remote's "not found" is ambiguous:
+  // GitHub answers 404 for a private repo the credential cannot see, and
+  // seeding beside it plants the unrelated history the eventual first sync
+  // conflicts through. Those boot empty instead.
+  const seedable = remote === null || (outcome === "missing" && remote.source === "paired");
+  if (created && seedable && args.seed) {
     await args.seed(args.root);
   }
   if (!(await hasHeadCommit(args.root, args.env))) {
@@ -236,13 +332,18 @@ export async function ensureVaultRepo(args: EnsureVaultRepoArgs): Promise<{ crea
       { env: { ...args.env, ...identityEnv() } },
     );
   }
-  return { created };
+  return { created, cloned };
 }
 
 export interface GitEngineArgs {
   root: string;
-  /** null = local-only: commits still happen, the sync loop stays idle. */
-  remoteUrl: string | null;
+  /**
+   * Where the remote comes from, re-read at every pass and status read — so a
+   * pairing that derives one (or an unpair that removes it) flips sync live,
+   * with no engine restart. null = local-only: commits still happen, the sync
+   * loop stays idle.
+   */
+  remote: VaultRemoteProvider;
   /**
    * Fired on every sync-status TRANSITION, which is a sync starting and a sync
    * ending — and not a commit. A commit only ever runs with something dirty,
@@ -332,7 +433,6 @@ export interface GitEngine {
 
 export function createGitEngine(args: GitEngineArgs): GitEngine {
   const root = args.root;
-  const remoteUrl = args.remoteUrl;
   const extraEnv = args.env ?? {};
 
   let lastSyncAt: number | null = null;
@@ -341,15 +441,26 @@ export function createGitEngine(args: GitEngineArgs): GitEngine {
   /** Set when a failed rebase could not be aborted; syncs stop until repaired. */
   let broken = false;
   /**
-   * Set when a pass could not REACH the remote, cleared by one that did. The
-   * status below measures "unpushed" against the remote-tracking ref, and a
-   * failed fetch leaves that ref exactly where it was — so without this a
-   * vault with nothing local to push answers `clean` ("Synced") while the
-   * remote is unreachable and may have moved. A push that the remote REFUSED
-   * is not this: contact was made, and the local commits it left behind show
-   * up as `dirty` on their own.
+   * What the last network invocation's failure WAS, or null after one that
+   * succeeded. One value rather than two booleans because the two outcomes
+   * mask each other's fix — "offline" heals on its own while "unauthorized"
+   * (a revoked device) refuses every retry until a re-pair — and the latest
+   * outcome is the only truth: a refusal followed by a dead network must
+   * read offline, not still-unauthorized. Also why the status cannot come
+   * from the porcelain read: "unpushed" is measured against the
+   * remote-tracking ref, which a failed fetch leaves exactly where it was,
+   * so a vault with nothing local to push would answer `clean` ("Synced")
+   * while the remote is unreachable and may have moved.
    */
-  let remoteUnreachable = false;
+  let networkFailure: "offline" | "unauthorized" | null = null;
+  /**
+   * The paired remote belongs to a DIFFERENT account than the one this
+   * checkout last synced with (the `inteligir.account` marker). Evaluated at
+   * the top of every paired pass; while true no network invocation runs —
+   * pushing would upload this vault's notes into an account that never held
+   * them, which is the one thing a re-pair must not do silently.
+   */
+  let accountMismatch = false;
   let syncing = false;
   let disposed = false;
   let inflightSync: Promise<VaultStatusResponse> | null = null;
@@ -367,13 +478,16 @@ export function createGitEngine(args: GitEngineArgs): GitEngine {
     return runGit(root, gitArgs, { ...options, env: { ...extraEnv, ...options.env } });
   }
 
-  /** The two invocations that actually dial the remote. A failure here is what
-   *  `remoteUnreachable` records; every other git call is local. */
-  async function runNetwork(gitArgs: readonly string[]) {
+  /** The two invocations that actually dial the remote. A failure here is
+   *  what `networkFailure` records; every other git call is local. `env`
+   *  carries the remote's own auth (the provider's header env). */
+  async function runNetwork(gitArgs: readonly string[], env?: Record<string, string>) {
     try {
-      return await run(gitArgs, { timeoutMs: NETWORK_GIT_TIMEOUT_MS });
+      const options: RunGitOptions = { timeoutMs: NETWORK_GIT_TIMEOUT_MS };
+      if (env) options.env = env;
+      return await run(gitArgs, options);
     } catch (error) {
-      remoteUnreachable = true;
+      networkFailure = isAuthRefusal(error) ? "unauthorized" : "offline";
       throw error;
     }
   }
@@ -572,16 +686,53 @@ export function createGitEngine(args: GitEngineArgs): GitEngine {
       .toSorted();
   }
 
+  /**
+   * A remote with nothing to fetch YET: the branch is missing ("couldn't find
+   * remote ref"), or the repository itself is (the hosted remote answers 404
+   * until the first push creates it). Both mean the same thing to the pass —
+   * rebase onto nothing, and let the push below create what was missing. A
+   * mistyped BYO remote also lands here and fails honestly at that push.
+   */
   function isMissingRemoteRef(cause: unknown): boolean {
-    return cause instanceof GitError && /couldn't find remote ref/i.test(cause.stderr);
+    return (
+      cause instanceof GitError &&
+      /couldn't find remote ref|repository .+ not found|returned error: 404/i.test(cause.stderr)
+    );
   }
 
-  async function doSync(): Promise<void> {
-    if (remoteUrl === null) {
+  /** The checkout's account marker, or null before the first paired sync. */
+  async function readAccountMarker(): Promise<string | null> {
+    try {
+      const { stdout } = await run(["config", "--get", ACCOUNT_MARKER_KEY]);
+      const value = stdout.trim();
+      return value === "" ? null : value;
+    } catch {
+      return null;
+    }
+  }
+
+  async function doSync(remote: VaultRemoteSpec): Promise<void> {
+    if (remote.source === "paired" && remote.account === undefined) {
+      // FAIL CLOSED, quietly: the session has not learned WHOSE account this
+      // credential is yet (the /v1/account fetch is in flight, or the cloud
+      // predates the route). A pass that ran now would skip the marker check
+      // below — exactly the window a re-pair pushes the old vault through.
+      // The sync runtime re-kicks the moment the identity lands.
       return;
     }
+    if (remote.source === "paired" && remote.account !== undefined) {
+      const marker = await readAccountMarker();
+      if (marker !== null && marker !== remote.account) {
+        accountMismatch = true;
+        lastError =
+          "This vault last synced with a different account. Unpair, or move this vault aside " +
+          "and restart to pull the new account's vault.";
+        return;
+      }
+    }
+    accountMismatch = false;
     await commitIfDirty();
-    await ensureOriginRemote(remoteUrl);
+    await ensureOriginRemote(remote.url);
     const branch = await currentBranch();
     if (branch === null) {
       lastError = "vault HEAD is detached; sync needs a branch";
@@ -590,14 +741,14 @@ export function createGitEngine(args: GitEngineArgs): GitEngine {
 
     let remoteHasBranch = true;
     try {
-      await runNetwork(["fetch", "origin", branch]);
+      await runNetwork(["fetch", "origin", branch], remote.env);
     } catch (error) {
       if (!isMissingRemoteRef(error)) {
         throw error;
       }
       // A fresh remote: nothing to rebase onto, the push below creates it.
       // The remote ANSWERED, so this is not an unreachable one.
-      remoteUnreachable = false;
+      networkFailure = null;
       remoteHasBranch = false;
     }
 
@@ -651,44 +802,58 @@ export function createGitEngine(args: GitEngineArgs): GitEngine {
       }
     }
 
-    await runNetwork(["push", "origin", branch]);
+    await runNetwork(["push", "origin", branch], remote.env);
+    if (remote.source === "paired" && remote.account !== undefined) {
+      // Pin the account whose repo this push landed in; the fence above
+      // compares every later pass against it.
+      const marker = await readAccountMarker();
+      if (marker === null) {
+        await run(["config", ACCOUNT_MARKER_KEY, remote.account]);
+      }
+    }
     lastConflict = null;
     lastSyncAt = Date.now();
     lastError = null;
-    remoteUnreachable = false;
+    networkFailure = null;
   }
 
   async function statusSnapshot(): Promise<VaultStatusResponse> {
-    if (remoteUrl === null) {
+    const currentRemote = args.remote();
+    if (currentRemote === null) {
       return { state: "no-remote", lastSyncAt, lastError };
     }
     // Status responses carry the redacted remote: an https remote is where a
     // token rides, and this string reaches logs and the UI.
-    const remote = redactRemoteUrl(remoteUrl);
+    const remote = redactRemoteUrl(currentRemote.url);
+    const remoteSource = currentRemote.source;
     if (syncing) {
-      return { state: "syncing", remote, lastSyncAt, lastError };
+      return { state: "syncing", remote, remoteSource, lastSyncAt, lastError };
     }
     if (broken) {
-      return { state: "broken", remote, lastSyncAt, lastError };
+      return { state: "broken", remote, remoteSource, lastSyncAt, lastError };
     }
     if (lastConflict !== null) {
       return {
         state: "conflict",
         remote,
+        remoteSource,
         conflict: lastConflict,
         lastSyncAt,
         lastError,
       };
     }
-    // Both of these outrank the porcelain read below, because both mean the
+    // These outrank the porcelain read below, because each means the
     // clean/dirty answer would be a claim about the remote that this engine
-    // cannot make: no pass may start under a hold, and a pass that could not
-    // reach the remote left the tracking ref stale.
+    // cannot make: no pass may start under a hold, and a failed network
+    // invocation left the tracking ref stale (`networkFailure`'s own note).
     if (commitHoldCount > 0) {
-      return { state: "held", remote, lastSyncAt, lastError };
+      return { state: "held", remote, remoteSource, lastSyncAt, lastError };
     }
-    if (remoteUnreachable) {
-      return { state: "offline", remote, lastSyncAt, lastError };
+    if (accountMismatch) {
+      return { state: "account-mismatch", remote, remoteSource, lastSyncAt, lastError };
+    }
+    if (networkFailure !== null) {
+      return { state: networkFailure, remote, remoteSource, lastSyncAt, lastError };
     }
     // The porcelain reads run behind the repo lock, so a status can never
     // report the half-way tree of a sync or commit in flight.
@@ -703,9 +868,9 @@ export function createGitEngine(args: GitEngineArgs): GitEngine {
         }
       }
       if (dirtyPaths > 0 || unpushed > 0) {
-        return { state: "dirty", remote, lastSyncAt, lastError };
+        return { state: "dirty", remote, remoteSource, lastSyncAt, lastError };
       }
-      return { state: "clean", remote, lastSyncAt, lastError };
+      return { state: "clean", remote, remoteSource, lastSyncAt, lastError };
     });
   }
 
@@ -716,13 +881,16 @@ export function createGitEngine(args: GitEngineArgs): GitEngine {
     // A sync pass starts by committing the dirty tree, which is exactly what
     // a commit hold exists to prevent; the interval retries after release.
     // The snapshot SAYS so (`held`) rather than answering as if a pass ran —
-    // a "Sync now" that reported `clean` here would be a silent no-op.
-    if (remoteUrl === null || broken || commitHoldCount > 0) {
+    // a "Sync now" that reported `clean` here would be a silent no-op. The
+    // provider is read ONCE for the pass, so the gate and the pass cannot
+    // disagree about which remote (or credential) this pass is under.
+    const remote = args.remote();
+    if (remote === null || broken || commitHoldCount > 0) {
       return statusSnapshot();
     }
     syncing = true;
     args.onStatusChanged?.();
-    const pass = withRepoLock(doSync)
+    const pass = withRepoLock(() => doSync(remote))
       .catch((cause: unknown) => {
         lastError = cause instanceof Error ? cause.message : "sync failed";
         args.onError?.(lastError);
@@ -777,7 +945,10 @@ export function createGitEngine(args: GitEngineArgs): GitEngine {
     isSyncing: () => syncing,
     runExclusive: withRepoLock,
     startAutoSync(intervalMs: number) {
-      if (disposed || remoteUrl === null || autoSyncTimer !== null) {
+      // Armed even with no remote right now: the provider is live, so a
+      // pairing minted after boot starts syncing on the next tick. A tick
+      // with none is one provider read.
+      if (disposed || autoSyncTimer !== null) {
         return;
       }
       autoSyncTimer = setInterval(() => {

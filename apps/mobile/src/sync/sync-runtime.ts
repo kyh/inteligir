@@ -24,7 +24,7 @@
 // applying captures to the vault.
 
 import type { CaptureRequest, CaptureResponse } from "@repo/api/cloud/captures/captures-schema";
-import type { CloudErrorCode } from "@repo/api/cloud/errors";
+import { SYNC_OUTBOX_CODES, SYNC_TERMINAL_CODES } from "@repo/api/cloud/errors";
 import { PULL_DEFAULT_LIMIT } from "@repo/api/cloud/sync/sync-schema";
 import type { ThreadEvent } from "@repo/domain/provider-event";
 import {
@@ -34,7 +34,7 @@ import {
   type CloudFailure,
   type CloudFetch,
   type CloudResult,
-} from "./cloud-client";
+} from "@repo/api/cloud/client";
 import { ackPushBatch, enqueueThreadEvents, takePushBatch } from "./outbox";
 import { applyPlan, planPage } from "./thread-log";
 import type { SyncStore } from "./sync-store";
@@ -64,9 +64,8 @@ const MAX_PULL_PAGES_PER_PASS = 25;
 
 /** Refusals that end this device's session — both terminal: `unauthorized` is a
  *  revoked or unknown credential, `account-deleted` a tombstoned account. */
-const TERMINAL_CODES: ReadonlySet<CloudErrorCode> = new Set(["unauthorized", "account-deleted"]);
+
 /** Refusals that mean THIS DEVICE'S OWN OUTBOX disagrees with the log. */
-const OUTBOX_CODES: ReadonlySet<CloudErrorCode> = new Set(["sync-conflict", "sync-out-of-order"]);
 
 type Session =
   | { kind: "off"; id: number }
@@ -175,7 +174,7 @@ export function createSyncRuntime(args: SyncRuntimeArgs): SyncRuntime {
   /** True when the failure ends this device's session; the caller stops. */
   function recordFailure(failure: CloudFailure): boolean {
     lastError = describeCloudFailure(failure);
-    if (failure.kind !== "refused" || !TERMINAL_CODES.has(failure.code)) {
+    if (failure.kind !== "refused" || !SYNC_TERMINAL_CODES.has(failure.code)) {
       debug(lastError);
       return false;
     }
@@ -215,7 +214,7 @@ export function createSyncRuntime(args: SyncRuntimeArgs): SyncRuntime {
       // flight has already emptied that queue.
       if (!fenced(context)) return false;
       if (!result.ok) {
-        if (result.failure.kind === "refused" && OUTBOX_CODES.has(result.failure.code)) {
+        if (result.failure.kind === "refused" && SYNC_OUTBOX_CODES.has(result.failure.code)) {
           const through = result.failure.deviceSeq ?? batch.throughDeviceSeq;
           const dropped = args.store.deleteOutboxThrough(through);
           debug(

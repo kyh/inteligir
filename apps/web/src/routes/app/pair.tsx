@@ -132,7 +132,10 @@ function PairPage() {
       <ul className="mt-6 grid gap-2 text-sm text-muted-foreground">
         <li>It gets its own credential, which you can revoke from Devices at any time.</li>
         <li>Your threads and their history sync to it, and its threads sync back.</li>
-        <li>Your notes are not sent here — those stay in the vault on that machine.</li>
+        <li>
+          Your notes sync through your account's hosted vault — unless that machine is configured
+          with its own git remote.
+        </li>
       </ul>
       <div className="mt-6 grid gap-3">
         <Button type="button" onClick={onApprove} disabled={busy}>

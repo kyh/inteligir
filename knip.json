@@ -65,6 +65,11 @@
       // entry (vitest.config `main`), which no plugin resolves.
       "entry": ["src/routes/**/*.tsx", "src/worker/index.ts", "src/worker/__tests__/**/*.test.ts"],
       "project": ["src/**/*.{ts,tsx,css}"],
+      // Hand-authored .d.ts for durable-git (the package ships TS source, no
+      // types). A stub declares the MODULE's surface, not this repo's usage —
+      // unused-export reporting over it would demand trimming the module's own
+      // API, which is exactly what makes the next version bump a conflict.
+      "ignore": ["src/worker/types/durable-git.d.ts"],
       // `cloudflare` is NOT a stale suppression, and NOT an npm package:
       // `cloudflare:workers` and `cloudflare:test` are workerd /
       // vitest-pool-workers BUILT-IN module specifiers. knip reads the

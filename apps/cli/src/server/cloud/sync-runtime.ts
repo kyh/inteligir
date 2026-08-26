@@ -37,7 +37,7 @@
 import { randomBytes } from "node:crypto";
 import { hostname } from "node:os";
 import { CLAIM_DEFAULT_LIMIT } from "@repo/api/cloud/captures/captures-schema";
-import type { CloudErrorCode } from "@repo/api/cloud/errors";
+import { SYNC_OUTBOX_CODES, SYNC_TERMINAL_CODES } from "@repo/api/cloud/errors";
 import {
   buildPairApproveUrl,
   DEVICE_NAME_MAX_LENGTH,
@@ -77,7 +77,7 @@ import {
   type CloudSocket,
   type CloudSocketOpener,
   type CreateCloudClientArgs,
-} from "./cloud-client";
+} from "@repo/api/cloud/client";
 import {
   clearDeviceCredential,
   readDeviceCredential,
@@ -199,6 +199,10 @@ export interface CloudRuntimeArgs {
   /** How a pairing sends the user to their browser. Injected so a suite can
    *  drive the whole flow without a window opening on whoever ran it. */
   openExternalUrl?: OpenExternalUrl;
+  /** Run a VAULT sync pass — the `vault` ping's handler, and kicked once
+   *  after a pairing completes so the newly derived hosted remote syncs
+   *  without waiting out the interval. Thread sync stays this runtime's own. */
+  onVaultPing?: () => void;
   onDebug?: (message: string) => void;
 }
 
@@ -234,11 +238,9 @@ export interface CloudRuntime {
 /** A refusal that means the credential is finished. Both are terminal for this
  *  device: `unauthorized` is a revoked or unknown credential, `account-deleted`
  *  is a tombstoned account that every route refuses against. */
-const TERMINAL_CODES: ReadonlySet<CloudErrorCode> = new Set(["unauthorized", "account-deleted"]);
 
 /** A refusal that means THIS DEVICE'S OWN OUTBOX disagrees with the log, and
  *  names the position that did. */
-const OUTBOX_CODES: ReadonlySet<CloudErrorCode> = new Set(["sync-conflict", "sync-out-of-order"]);
 
 /**
  * `id` is the fence. Every session gets a fresh one, and a pass captures the id
@@ -304,6 +306,11 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
   let inflight: Promise<void> | null = null;
   let dirty = false;
   let pendingPair: PendingPair | null = null;
+  /** Whose account this session syncs as — fetched best-effort when a session
+   *  opens, so Settings can name the account rather than a hostname. Null
+   *  until the fetch lands (or when a stale cloud has no account row); a
+   *  failure costs the label, never the sync. */
+  let accountEmail: string | null = null;
 
   /** The endpoint every call rides. `fetch` stays ABSENT unless a suite
    *  injected one, so the client falls back to the global. */
@@ -327,12 +334,41 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
   function openSession(credential: DeviceCredential): void {
     closeSession();
     sessionCounter += 1;
+    accountEmail = null;
+    const client = createCloudClient(clientArgs(credential.credential, sessionAbort.signal));
     session = {
       kind: "live",
       id: sessionCounter,
       credential,
-      client: createCloudClient(clientArgs(credential.credential, sessionAbort.signal)),
+      client,
     };
+    learnAccountIdentity();
+  }
+
+  /**
+   * Whose account this session syncs as, learned from `/v1/account` and
+   * persisted beside the credential — the value the vault's cross-account
+   * fence FAILS CLOSED without, which is why this is retried (each thread
+   * pass re-calls it while the id is missing) and why success re-kicks the
+   * vault pass the fence deferred.
+   */
+  function learnAccountIdentity(): void {
+    if (session.kind !== "live") return;
+    const { client, credential } = session;
+    const sessionId = session.id;
+    void (async () => {
+      const result = await client.account();
+      // The standard fence: a re-pair mid-flight must not label the NEW
+      // session with the old account.
+      if (disposed || session.kind !== "live" || session.id !== sessionId) return;
+      accountEmail = result.ok ? result.value.email : null;
+      if (result.ok && credential.userId !== result.value.id) {
+        const updated = { ...credential, userId: result.value.id };
+        writeDeviceCredential(args.dataDir, updated);
+        session = { ...session, credential: updated };
+        args.onVaultPing?.();
+      }
+    })();
   }
 
   /** True while `context`'s session is still the one this runtime is running,
@@ -411,11 +447,17 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
         reconnectAttempt = 0;
       },
       onPing: (ping) => {
-        // Invalidation-only frames, so all three mean "ask the server what
+        // Invalidation-only frames, so each means "ask the server what
         // changed" — including `dispatch`, whose thread still wants pulling so
         // it shows up here rather than existing only in the cloud. A `sync`
         // ping carries the log's high-water precisely so a client can tell one
-        // it already covers from news.
+        // it already covers from news. `vault` is the one frame that is not
+        // about THIS log: another device pushed vault bytes, and the pass
+        // that answers it is the git engine's, not this runtime's.
+        if (ping.type === "vault") {
+          args.onVaultPing?.();
+          return;
+        }
         if (ping.type === "sync" && ping.seq <= readSyncState(args.db).cursor) {
           return;
         }
@@ -468,7 +510,7 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
   /** True when the failure ends this device's session; the caller stops. */
   function recordFailure(failure: CloudFailure): boolean {
     lastError = describeCloudFailure(failure);
-    if (failure.kind !== "refused" || !TERMINAL_CODES.has(failure.code)) {
+    if (failure.kind !== "refused" || !SYNC_TERMINAL_CODES.has(failure.code)) {
       debug(lastError);
       return false;
     }
@@ -526,7 +568,7 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
         return false;
       }
       if (!result.ok) {
-        if (result.failure.kind === "refused" && OUTBOX_CODES.has(result.failure.code)) {
+        if (result.failure.kind === "refused" && SYNC_OUTBOX_CODES.has(result.failure.code)) {
           const through = result.failure.deviceSeq ?? batch.throughDeviceSeq;
           const dropped = deleteSyncOutboxThrough(args.db, through);
           debug(
@@ -796,6 +838,7 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
         return {
           state: "paired",
           cloudUrl: args.cloudUrl,
+          accountEmail,
           deviceId: session.credential.deviceId,
           connected,
           pending: countSyncOutbox(args.db),
@@ -956,6 +999,9 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
       armTimers();
       connect();
       await syncNow();
+      // The pairing just derived a hosted vault remote; sync it now rather
+      // than on the next interval tick.
+      args.onVaultPing?.();
       return { kind: "paired", status: status() };
     },
 

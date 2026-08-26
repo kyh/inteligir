@@ -105,3 +105,26 @@ export async function severDeviceSockets(
     // See above: the revoke already stands.
   }
 }
+
+/**
+ * The hosted vault repo advanced: poke every OTHER device of the user to run
+ * a vault sync pass (the DO excludes the pusher's own sockets). Best-effort
+ * like the sever above — a lost ping costs staleness until the next poll,
+ * never correctness.
+ */
+export async function pingVaultAdvanced(
+  env: Env,
+  userId: string,
+  pushingDeviceId: string,
+): Promise<void> {
+  const stub = env.THREAD_SYNC.getByName(`user:${userId}`);
+  try {
+    await stub.fetch("https://thread-sync/vault-ping", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ pushingDeviceId }),
+    });
+  } catch {
+    // See above: the push already stands.
+  }
+}

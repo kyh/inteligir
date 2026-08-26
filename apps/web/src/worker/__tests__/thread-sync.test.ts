@@ -10,14 +10,15 @@ import {
   type PushRequest,
   type ThreadMetaInput,
 } from "@repo/api/cloud/sync/sync-schema";
-import { syncPingSchema, type SyncPing } from "@repo/api/cloud/sync/sync-ws";
 import { env, runInDurableObject, SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 import {
   deviceHeaders,
+  openSocket,
   ORIGIN,
   pairDevice,
   sessionHeaders,
+  settled,
   signUpUser,
   userIdOf,
 } from "./cloud-helpers";
@@ -91,34 +92,6 @@ async function ack(credential: string, claimToken: string, ids: string[]) {
   });
   expect(response.status).toBe(200);
   return ackCapturesResponseSchema.parse(await response.json());
-}
-
-/** Open the invalidation socket and collect its frames. */
-async function openSocket(
-  credential: string,
-  platform: string,
-): Promise<{ frames: SyncPing[]; socket: WebSocket }> {
-  const response = await SELF.fetch(`${ORIGIN}/v1/sync/ws?platform=${platform}`, {
-    headers: { ...deviceHeaders(credential), upgrade: "websocket" },
-  });
-  expect(response.status).toBe(101);
-  const socket = response.webSocket;
-  if (socket === null) throw new Error("no websocket on the 101");
-  socket.accept();
-  const frames: SyncPing[] = [];
-  socket.addEventListener("message", (message) => {
-    // Keepalive frames are text; a binary frame is not one of them.
-    const { data } = message;
-    if (data instanceof ArrayBuffer) return;
-    frames.push(syncPingSchema.parse(JSON.parse(data)));
-  });
-  return { frames, socket };
-}
-
-/** The pings are sent inside the push's own invocation; one macrotask later
- * they have crossed the in-process pair. */
-function settled(): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, 100));
 }
 
 describe("thread sync log", () => {

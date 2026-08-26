@@ -1,6 +1,7 @@
-// The typed face over the cloud Worker: `@repo/api/cloud`'s paths and
-// schemas, the bearer, and the ONE thing this file exists to get right — a
-// refusal is a VALUE, never a thrown string.
+// The typed face over the cloud Worker, shared by every consumer of the wire
+// (the CLI's sync client and the phone — issue #606 folded their twin copies
+// here): the contract's paths and schemas, the bearer, and the ONE thing this
+// module exists to get right — a refusal is a VALUE, never a thrown string.
 //
 // The contract ships a closed error enum precisely so the app can switch on
 // it, and the sync loop's whole behaviour hangs off that switch: `unauthorized`
@@ -16,21 +17,30 @@
 // credential, and a MALFORMED answer is a body this build cannot read — which
 // is what a proxy that intercepted the request looks like.
 
+import type { z } from "zod";
+import {
+  ACCOUNT_API_PATHS,
+  accountResponseSchema,
+  type AccountResponse,
+} from "./account/account-schema";
 import {
   ackCapturesResponseSchema,
   CAPTURE_API_PATHS,
+  captureResponseSchema,
   claimCapturesResponseSchema,
   type AckCapturesRequest,
   type AckCapturesResponse,
+  type CaptureRequest,
+  type CaptureResponse,
   type ClaimCapturesResponse,
-} from "@repo/api/cloud/captures/captures-schema";
-import { cloudErrorSchema, type CloudErrorCode } from "@repo/api/cloud/errors";
+} from "./captures/captures-schema";
+import { cloudErrorSchema, type CloudErrorCode } from "./cloud-errors";
 import {
   DEVICE_API_PATHS,
   redeemDeviceResponseSchema,
   type RedeemDeviceRequest,
   type RedeemDeviceResponse,
-} from "@repo/api/cloud/pairing/pairing-schema";
+} from "./pairing/pairing-schema";
 import {
   pullResponseSchema,
   pushResponseSchema,
@@ -39,9 +49,17 @@ import {
   type PullResponse,
   type PushRequest,
   type PushResponse,
-} from "@repo/api/cloud/sync/sync-schema";
-import type { DevicePlatform, SyncPing } from "@repo/api/cloud/sync/sync-ws";
-import type { z } from "zod";
+} from "./sync/sync-schema";
+import type { DevicePlatform, SyncPing } from "./sync/sync-ws";
+import {
+  VAULT_API_PATHS,
+  vaultFileResponseSchema,
+  vaultTreeResponseSchema,
+  type VaultFileQuery,
+  type VaultFileResponse,
+  type VaultTreeQuery,
+  type VaultTreeResponse,
+} from "./vault/vault-schema";
 
 /** Narrower than `globalThis.fetch` on purpose: this module only ever dials a
  *  string URL, and the narrow shape is what a test double has to implement. */
@@ -154,8 +172,19 @@ function callSignal(signal: AbortSignal | undefined): AbortSignal {
   return signal === undefined ? timeout : AbortSignal.any([signal, timeout]);
 }
 
-function endpointUrl(baseUrl: string, path: string): string {
+export function endpointUrl(baseUrl: string, path: string): string {
   return new URL(path, baseUrl).toString();
+}
+
+/** GET query strings, built in one place so every value is encoded and an
+ *  absent member is an absent parameter. */
+function queryString(values: Record<string, string | number | undefined>): string {
+  const parameters = new URLSearchParams();
+  for (const [key, value] of Object.entries(values)) {
+    if (value !== undefined) parameters.set(key, String(value));
+  }
+  const rendered = parameters.toString();
+  return rendered === "" ? "" : `?${rendered}`;
 }
 
 /**
@@ -182,11 +211,17 @@ export async function redeemDevice(
   return await readValue(response, redeemDeviceResponseSchema);
 }
 
+/** Every row the wire serves. One interface for every platform — a runtime
+ *  uses the rows its product needs, and a fake implements them all. */
 export interface CloudClient {
   push(request: PushRequest): Promise<CloudResult<PushResponse>>;
   pull(query: PullQuery): Promise<CloudResult<PullResponse>>;
+  createCapture(request: CaptureRequest): Promise<CloudResult<CaptureResponse>>;
   claimCaptures(limit: number): Promise<CloudResult<ClaimCapturesResponse>>;
   ackCaptures(request: AckCapturesRequest): Promise<CloudResult<AckCapturesResponse>>;
+  account(): Promise<CloudResult<AccountResponse>>;
+  vaultTree(query: VaultTreeQuery): Promise<CloudResult<VaultTreeResponse>>;
+  vaultFile(query: VaultFileQuery): Promise<CloudResult<VaultFileResponse>>;
 }
 
 export interface CreateCloudClientArgs extends CloudEndpoint {
@@ -228,23 +263,28 @@ export function createCloudClient(args: CreateCloudClientArgs): CloudClient {
     push: (request) => send(SYNC_API_PATHS.push, request, pushResponseSchema),
     pull: (query) =>
       send(
-        `${SYNC_API_PATHS.pull}?afterSeq=${query.afterSeq}&limit=${query.limit}`,
+        `${SYNC_API_PATHS.pull}${queryString({ afterSeq: query.afterSeq, limit: query.limit })}`,
         undefined,
         pullResponseSchema,
       ),
+    createCapture: (request) => send(CAPTURE_API_PATHS.capture, request, captureResponseSchema),
     claimCaptures: (limit) => send(CAPTURE_API_PATHS.claim, { limit }, claimCapturesResponseSchema),
     ackCaptures: (request) => send(CAPTURE_API_PATHS.ack, request, ackCapturesResponseSchema),
+    account: () => send(ACCOUNT_API_PATHS.account, undefined, accountResponseSchema),
+    vaultTree: (query) =>
+      send(`${VAULT_API_PATHS.tree}${queryString(query)}`, undefined, vaultTreeResponseSchema),
+    vaultFile: (query) =>
+      send(`${VAULT_API_PATHS.file}${queryString(query)}`, undefined, vaultFileResponseSchema),
   };
 }
 
 // -- the invalidation socket ------------------------------------------------
 //
-// Only its SHAPE lives here. The dial itself is `cloud-socket.ts`, imported by
-// `serve.ts` alone, and the split is not taste: a UI test harness imports the
-// node test harness, which drags every module reachable from `app.ts` into the
-// browser tsconfig's program — where `WebSocket` is the DOM one and takes no
-// headers. Moving the dial out of that graph is what keeps `Authorization` on
-// the upgrade, which is the whole reason the contract needs no ticket.
+// Only its SHAPE lives here. The dial is platform code (the CLI's
+// `cloud-socket.ts`; the phone has none yet), and the split is not taste: a
+// browser-program import of a node dial types `WebSocket` as the DOM one,
+// which takes no headers — and the Authorization on the upgrade is the whole
+// reason the contract needs no ticket.
 
 export interface CloudSocket {
   close(): void;

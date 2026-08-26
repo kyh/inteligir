@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { env, SELF } from "cloudflare:test";
+import { createExecutionContext, env, SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 import worker from "../index";
 import { sendResetEmail } from "../auth/reset-email";
@@ -83,6 +83,7 @@ function requestReset(email: string, testEnv: Env): Promise<Response> {
       body: JSON.stringify({ email, redirectTo: "/auth/reset" }),
     }),
     testEnv,
+    createExecutionContext(),
   );
 }
 

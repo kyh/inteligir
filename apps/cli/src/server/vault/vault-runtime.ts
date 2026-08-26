@@ -7,6 +7,7 @@
 import { resolve } from "node:path";
 import type { DbNotifier } from "@repo/domain/notifier";
 import type { VaultStatusResponse } from "@repo/api/local/vault/vault-schema";
+import type { VaultRemoteProvider } from "../cloud/vault-remote";
 import { assertVaultAndDataDirDisjoint } from "../path-containment";
 import {
   createGitEngine,
@@ -37,8 +38,9 @@ export type VaultFilesChange = { kind: "paths"; paths: readonly string[] } | { k
 
 export interface VaultRuntimeArgs {
   vaultDir: string;
-  /** null = local-only; the sync loop stays idle and status says "no-remote". */
-  vaultRemote: string | null;
+  /** Where the remote comes from, re-read per pass (an explicit remote, the
+   *  pairing-derived hosted one, or null = local-only with the loop idle). */
+  remote: VaultRemoteProvider;
   /** The app's data dir. Must be disjoint from the vault (the vault is a git
    *  repo the sync loop pushes; a nested data dir would be staged into it). */
   dataDir: string;
@@ -74,6 +76,7 @@ export async function createVaultRuntime(args: VaultRuntimeArgs): Promise<VaultR
   const ensureArgs: EnsureVaultRepoArgs = {
     root,
     seed: (vaultRoot) => seedVault(vaultRoot),
+    remote: args.remote(),
   };
   if (args.gitEnv) ensureArgs.env = args.gitEnv;
   await ensureVaultRepo(ensureArgs);
@@ -89,7 +92,7 @@ export async function createVaultRuntime(args: VaultRuntimeArgs): Promise<VaultR
 
   const gitArgs: GitEngineArgs = {
     root,
-    remoteUrl: args.vaultRemote,
+    remote: args.remote,
     onStatusChanged: () => {
       args.notifier.notifyVault(["sync-status-changed"]);
       if (!gitIsSyncing() && sawChangesDuringSync) {
@@ -183,9 +186,12 @@ export async function createVaultRuntime(args: VaultRuntimeArgs): Promise<VaultR
   const trashSweepTimer = setInterval(sweepTrash, TRASH_SWEEP_INTERVAL_MS);
   trashSweepTimer.unref();
 
+  // Armed whether or not a remote exists right now: the provider is live, so
+  // a pairing minted after boot starts syncing on the next tick, and a pass
+  // with no remote is one provider read.
   const syncIntervalMs =
     args.syncIntervalMs === undefined ? DEFAULT_SYNC_INTERVAL_MS : args.syncIntervalMs;
-  if (args.vaultRemote !== null && syncIntervalMs !== null) {
+  if (syncIntervalMs !== null) {
     void git.syncNow();
     git.startAutoSync(syncIntervalMs);
   }

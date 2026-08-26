@@ -1,8 +1,9 @@
 import { z } from "zod";
 
 /**
- * Every refusal the cloud Worker's `/v1/device/*`, `/v1/sync/*`, `/v1/capture`
- * and `/v1/artifacts/*` routes can answer. One envelope, one code enum, so the
+ * Every refusal the cloud Worker's `/v1/device/*`, `/v1/sync/*`,
+ * `/v1/capture`, `/v1/account` and `/v1/vault/*` routes can answer. One
+ * envelope, one code enum, so the
  * app renders every failure through one path and a new refusal is a compile
  * error in the client's switch rather than an unstyled string.
  *
@@ -32,11 +33,60 @@ export const CLOUD_ERROR_CODES = [
   "sync-conflict",
   "sync-out-of-order",
   "account-deleted",
-  "artifacts-not-enabled",
+  // Vault read rows only (a new code is additive-safe exactly because stale
+  // clients never call the new routes): the file exists but exceeds the text
+  // ceiling this wire carries.
+  "file-too-large",
   "internal",
 ] as const;
 export const cloudErrorCodeSchema = z.enum(CLOUD_ERROR_CODES);
 export type CloudErrorCode = z.infer<typeof cloudErrorCodeSchema>;
+
+/**
+ * The HTTP status each code answers with — part of the wire, so it lives
+ * beside the enum: the Worker serves it and the CLI's test fake must answer
+ * the SAME numbers, and `satisfies` alone pins exhaustiveness, not values.
+ * "account-deleted" is Gone rather than 401 on purpose: the credential was
+ * fine, the account it named is not — a client told "unauthorized" retries
+ * the credential forever.
+ */
+export const CLOUD_ERROR_STATUS = {
+  "bad-request": 400,
+  unauthorized: 401,
+  "not-found": 404,
+  "rate-limited": 429,
+  "invalid-code": 404,
+  "code-expired": 410,
+  "code-consumed": 409,
+  "device-limit": 409,
+  "sync-conflict": 409,
+  "sync-out-of-order": 409,
+  "account-deleted": 410,
+  "file-too-large": 413,
+  internal: 500,
+} as const satisfies Record<CloudErrorCode, number>;
+
+/**
+ * The refusals a sync pass must STOP on: retrying cannot fix a credential the
+ * cloud has rejected or an account that no longer exists. ONE spelling for
+ * every platform's runtime — a code classified terminal on one device and
+ * retryable on another turns the same refusal into an infinite retry loop
+ * there, silently (#606's stated failure mode).
+ */
+export const SYNC_TERMINAL_CODES: ReadonlySet<CloudErrorCode> = new Set([
+  "unauthorized",
+  "account-deleted",
+]);
+
+/**
+ * The refusals that mean this device's OWN outbox is wrong (and name the
+ * `deviceSeq` that disagreed): the fix is dropping the named rows, never
+ * resending the batch the server will refuse forever.
+ */
+export const SYNC_OUTBOX_CODES: ReadonlySet<CloudErrorCode> = new Set([
+  "sync-conflict",
+  "sync-out-of-order",
+]);
 
 export const cloudErrorSchema = z
   .object({
