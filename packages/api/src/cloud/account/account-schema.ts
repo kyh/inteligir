@@ -19,6 +19,10 @@ export const ACCOUNT_API_PATHS = {
 
 export const accountResponseSchema = z
   .object({
+    /** The account's opaque id — what the CLI pins into the vault's own
+     *  `inteligir.account` marker so a re-pair to a DIFFERENT account cannot
+     *  silently push this machine's notes into it. */
+    id: z.string().min(1),
     /** The account's email — display identity, never an address to send to. */
     email: z.string().min(1),
   })

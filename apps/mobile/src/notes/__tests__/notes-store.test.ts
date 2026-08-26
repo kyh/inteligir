@@ -135,6 +135,38 @@ describe("the notes store", () => {
     expect(tree.state).toBe("empty");
   });
 
+  it("a response from the previous pairing never lands — the generation fence", async () => {
+    const releases: Array<() => void> = [];
+    const gate = new Promise<void>((resolve) => releases.push(resolve));
+    const inner = fakeCloud();
+    const store = createNotesStore({
+      cloudUrl: "https://cloud.test",
+      fetch: async (input, init) => {
+        await gate;
+        return inner.fetch(input, init);
+      },
+    });
+    store.setCredential(CREDENTIAL);
+    const pending = store.refresh();
+    store.setCredential(null);
+    releases[0]?.();
+    await pending;
+    // The unpair won; the stale page did not resurrect the tree.
+    expect(store.tree.get()).toEqual({ state: "idle" });
+  });
+
+  it("re-pairing resets the previous account's state before the new client serves", async () => {
+    const cloud = fakeCloud();
+    const store = createNotesStore({ cloudUrl: "https://cloud.test", fetch: cloud.fetch });
+    store.setCredential(CREDENTIAL);
+    await store.refresh();
+    expect(store.tree.get().state).toBe("ready");
+    store.setCredential({ deviceId: "dev_2", credential: `igd_${"b".repeat(64)}` });
+    // The OLD account's listing must not survive into the new pairing.
+    expect(store.tree.get()).toEqual({ state: "idle" });
+    expect(store.resolveWiki("b")).toBeNull();
+  });
+
   it("unpairing clears everything and answers idle", async () => {
     const cloud = fakeCloud();
     const store = createNotesStore({ cloudUrl: "https://cloud.test", fetch: cloud.fetch });

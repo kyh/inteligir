@@ -1,4 +1,5 @@
 import {
+  isReservedVaultSegment,
   VAULT_API_PATHS,
   VAULT_FILE_MAX_BYTES,
   VAULT_TREE_MAX_ENTRIES,
@@ -87,6 +88,10 @@ async function resolveCommit(
  *  passed. Every path under `dir` starts with `dir + "/"`, so a cursor that
  *  is lexicographically past that prefix (and not inside it) is past the
  *  whole subtree. */
+function byPath(a: { path: string }, b: { path: string }): number {
+  return a.path < b.path ? -1 : a.path > b.path ? 1 : 0;
+}
+
 function subtreeReaches(dir: string, after: string | undefined): boolean {
   if (after === undefined) return true;
   const prefix = `${dir}/`;
@@ -113,7 +118,13 @@ async function answerTree(stub: DurableObjectStub<RepoCell>, url: URL): Promise<
   // Level-parallel walk: each BFS level's directories are independent, so a
   // level is ONE round of concurrent repo-cell calls rather than one call per
   // directory — wall time scales with the tree's depth, not its width.
-  const files: VaultTreeResponse["entries"][number][] = [];
+  //
+  // MEMORY is bounded to the page: the walk keeps only the `limit + 1`
+  // smallest candidate paths (a later, smaller path still displaces a kept
+  // larger one), so a very wide vault costs a trim per level, never a full
+  // materialized listing.
+  const limit = query.data.limit ?? VAULT_TREE_MAX_ENTRIES;
+  let files: VaultTreeResponse["entries"][number][] = [];
   let frontier = [""];
   let visited = 0;
   while (frontier.length > 0) {
@@ -129,6 +140,7 @@ async function answerTree(stub: DurableObjectStub<RepoCell>, url: URL): Promise<
         return refuse("not-found", "This vault has no content at that revision.");
       }
       for (const entry of tree.entries) {
+        if (isReservedVaultSegment(entry.name)) continue;
         const path = dir === "" ? entry.name : `${dir}/${entry.name}`;
         if (entry.type === "tree") {
           if (subtreeReaches(path, after)) next.push(path);
@@ -137,11 +149,14 @@ async function answerTree(stub: DurableObjectStub<RepoCell>, url: URL): Promise<
         }
       }
     }
+    if (files.length > limit + 1) {
+      files.sort(byPath);
+      files = files.slice(0, limit + 1);
+    }
     frontier = next;
   }
-  files.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+  files.sort(byPath);
 
-  const limit = query.data.limit ?? VAULT_TREE_MAX_ENTRIES;
   const page = files.slice(0, limit);
   const last = page.at(-1);
   const response: VaultTreeResponse = {

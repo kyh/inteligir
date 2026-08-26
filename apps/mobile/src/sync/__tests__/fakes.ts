@@ -125,7 +125,7 @@ export function createFakeCloud(): FakeCloud {
       // The sync runtime reads neither the vault nor the account; the
       // notes-store suite fakes its own client. Empty answers are the honest
       // inert rows here.
-      account: () => Promise.resolve(ok({ email: "paired@example.test" })),
+      account: () => Promise.resolve(ok({ id: "user_fake", email: "paired@example.test" })),
       vaultTree: () => Promise.resolve(ok({ commit: "0".repeat(40), entries: [], next: null })),
       vaultFile: () =>
         Promise.resolve<CloudResult<VaultFileResponse>>({

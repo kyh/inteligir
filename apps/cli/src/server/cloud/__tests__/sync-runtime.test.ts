@@ -248,6 +248,9 @@ describe("pairing", () => {
     expect(readDeviceCredential(harness.dataDir)).toEqual({
       deviceId,
       credential: expect.stringMatching(/^igd_[0-9a-f]{64}$/u),
+      // Learned from /v1/account after the session opened — the identity the
+      // vault's cross-account fence compares its marker against.
+      userId: "user_fake",
     });
     const status = harness.runtime.status();
     expect(status.state).toBe("paired");

@@ -60,16 +60,28 @@ export function createNotesStore(args: CreateNotesStoreArgs): NotesStore {
   let client: Client | null = null;
   let resolver: TargetResolver | null = null;
   let refreshing = false;
+  /** Bumped on EVERY credential change (set and clear alike); checked after
+   *  every await, so a response from the previous pairing can never
+   *  repopulate the new one's state — the same fence the sync runtime runs. */
+  let generation = 0;
   const noteCache = new Map<string, NoteRead & { ok: true }>();
   const tree = createExternalStore<NotesTreeState>({ state: "idle" });
 
+  function resetState(): void {
+    resolver = null;
+    noteCache.clear();
+    tree.set({ state: "idle" });
+  }
+
   return {
     setCredential(next) {
+      generation += 1;
+      // Reset on EVERY change, not just the clear: a re-pair to a different
+      // account must not serve the previous account's tree, resolver, or
+      // cached notes for even one render.
+      resetState();
       if (next === null) {
         client = null;
-        resolver = null;
-        noteCache.clear();
-        tree.set({ state: "idle" });
         return;
       }
       const clientArgs: Parameters<typeof createCloudClient>[0] = {
@@ -82,6 +94,7 @@ export function createNotesStore(args: CreateNotesStoreArgs): NotesStore {
 
     async refresh() {
       if (client === null || refreshing) return;
+      const startedAt = generation;
       refreshing = true;
       if (tree.get().state === "idle") tree.set({ state: "loading" });
       try {
@@ -93,6 +106,7 @@ export function createNotesStore(args: CreateNotesStoreArgs): NotesStore {
           if (commit !== undefined) query.ref = commit;
           if (after !== undefined) query.after = after;
           const result = await client.vaultTree(query);
+          if (generation !== startedAt) return;
           if (!result.ok) {
             // "No hosted vault" is a STATE, not an error: an unpaired-desktop
             // or BYO-remote account answers 404 forever, and an error banner
@@ -139,9 +153,13 @@ export function createNotesStore(args: CreateNotesStoreArgs): NotesStore {
       const cached = noteCache.get(cacheKey);
       if (cached !== undefined) return cached;
 
+      const startedAt = generation;
       const query: Parameters<Client["vaultFile"]>[0] = { path };
       if (commit !== undefined) query.ref = commit;
       const result = await client.vaultFile(query);
+      if (generation !== startedAt) {
+        return { ok: false, message: "Not paired." };
+      }
       if (!result.ok) {
         return { ok: false, message: describeCloudFailure(result.failure) };
       }

@@ -42,6 +42,11 @@ const storedCredentialSchema = z
   .object({
     deviceId: z.string().min(1),
     credential: z.string().regex(DEVICE_CREDENTIAL_PATTERN),
+    /** The account this credential belongs to, learned from `/v1/account`
+     *  after the session opens (the redeem answers no identity — its wire
+     *  predates the field and may never break). Absent until that fetch
+     *  lands; the vault's cross-account fence stays inert without it. */
+    userId: z.string().min(1).optional(),
   })
   .strict();
 

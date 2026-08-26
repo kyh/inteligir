@@ -1,8 +1,9 @@
 import { z } from "zod";
 
 /**
- * Every refusal the cloud Worker's `/v1/device/*`, `/v1/sync/*` and
- * `/v1/capture` routes can answer. One envelope, one code enum, so the
+ * Every refusal the cloud Worker's `/v1/device/*`, `/v1/sync/*`,
+ * `/v1/capture`, `/v1/account` and `/v1/vault/*` routes can answer. One
+ * envelope, one code enum, so the
  * app renders every failure through one path and a new refusal is a compile
  * error in the client's switch rather than an unstyled string.
  *

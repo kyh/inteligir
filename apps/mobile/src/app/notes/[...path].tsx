@@ -2,7 +2,7 @@ import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { readNote, resolveWikiPath } from "@/lib/app-runtime";
+import { readNote, resolveWikiPath, useSyncStatus } from "@/lib/app-runtime";
 import { SPACE, useTheme } from "@/lib/theme";
 import { MarkdownBlocks } from "@/notes/markdown-view";
 import { projectNote, type NoteProjection } from "@/notes/note-projection";
@@ -19,6 +19,7 @@ type ScreenState =
 export default function NoteScreen() {
   const theme = useTheme();
   const router = useRouter();
+  const status = useSyncStatus();
   const params = useLocalSearchParams<{ path: string[] }>();
   const path = Array.isArray(params.path) ? params.path.join("/") : (params.path ?? "");
   const [screen, setScreen] = useState<ScreenState>({ state: "loading" });
@@ -48,7 +49,9 @@ export default function NoteScreen() {
     [router],
   );
 
-  const title = screen.state === "ready" ? screen.projection.title : "…";
+  // A mounted note must not outlive the pairing that fetched it.
+  const paired = status.state === "paired";
+  const title = paired && screen.state === "ready" ? screen.projection.title : "…";
 
   return (
     <SafeAreaView
@@ -57,7 +60,11 @@ export default function NoteScreen() {
     >
       <Stack.Screen options={{ title }} />
       <ScrollView style={styles.screen} contentContainerStyle={styles.body}>
-        {screen.state === "loading" ? (
+        {!paired ? (
+          <Text style={[styles.status, { color: theme.mutedForeground }]}>
+            Pair this device to read your notes.
+          </Text>
+        ) : screen.state === "loading" ? (
           <Text style={[styles.status, { color: theme.mutedForeground }]}>Loading…</Text>
         ) : screen.state === "error" ? (
           <Text style={[styles.status, { color: theme.mutedForeground }]}>{screen.message}</Text>

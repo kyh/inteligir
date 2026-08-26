@@ -164,7 +164,7 @@ export class FakeCloud {
       return this.ack(body);
     }
     if (method === "GET" && url.pathname === ACCOUNT_API_PATHS.account) {
-      return Response.json({ email: "paired@example.test" });
+      return Response.json({ id: "user_fake", email: "paired@example.test" });
     }
     return refuse("not-found", "No such route.");
   };

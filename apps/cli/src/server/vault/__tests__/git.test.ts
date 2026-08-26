@@ -460,6 +460,43 @@ describe("the clone path", () => {
   });
 });
 
+describe("the cross-account fence", () => {
+  it("refuses a pass when the vault last synced with a different account", async () => {
+    const remote = await makeBareRemote();
+    const root = scratchDir("inteligir-git-fence-");
+    await ensureVaultRepo({ root, env });
+    let account = "user-a";
+    const engine = createGitEngine({
+      root,
+      remote: () => ({ url: remote, source: "paired", account }),
+      env,
+    });
+    cleanups.push(() => engine.dispose());
+
+    await writeFile(join(root, "note.md"), "# a\n");
+    await engine.commitNow();
+    expect((await engine.syncNow()).state).toBe("clean");
+    // The first paired push pinned the marker.
+    const marker = await runGit(root, ["config", "--get", "inteligir.account"], { env });
+    expect(marker.stdout.trim()).toBe("user-a");
+
+    const pushedCount = Number(
+      (await runGit(remote, ["rev-list", "--count", "main"], { env })).stdout.trim(),
+    );
+    account = "user-b";
+    const status = await engine.syncNow();
+    expect(status.state).toBe("account-mismatch");
+    // Nothing crossed the wire for the wrong account.
+    expect(
+      Number((await runGit(remote, ["rev-list", "--count", "main"], { env })).stdout.trim()),
+    ).toBe(pushedCount);
+
+    // Pairing back to the marker's own account syncs again.
+    account = "user-a";
+    expect((await engine.syncNow()).state).toBe("clean");
+  });
+});
+
 describe("a refused credential", () => {
   it("surfaces as `unauthorized`, not `offline`", async () => {
     // The fixes are opposite: offline heals on its own, while a revoked
@@ -477,6 +514,38 @@ describe("a refused credential", () => {
     });
     const status = await engine.syncNow();
     expect(status.state).toBe("unauthorized");
+  });
+});
+
+describe("clone failure classes", () => {
+  it("an unreachable remote boots EMPTY — the seed waits for a remote that answered", async () => {
+    // A populated remote that merely could not answer must not gain a seeded
+    // sibling history; an empty init commit is dropped by the eventual
+    // rebase's --empty=drop, so the vault heals into a clean join.
+    const server = createServer((_request, response) => {
+      response.writeHead(401, { "www-authenticate": 'Basic realm="test"' });
+      response.end("auth required\n");
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    cleanups.push(() => new Promise<void>((resolve) => server.close(() => resolve())));
+    const { port } = boundAddressSchema.parse(server.address());
+
+    const root = join(scratchDir("inteligir-git-clone-fail-"), "vault");
+    let seeded = false;
+    const { created, cloned } = await ensureVaultRepo({
+      root,
+      remote: { url: `http://127.0.0.1:${String(port)}/vault.git`, source: "paired" },
+      seed: async () => {
+        seeded = true;
+      },
+      env,
+    });
+    expect(created).toBe(true);
+    expect(cloned).toBe(false);
+    expect(seeded).toBe(false);
+    // Born HEAD, nothing else: one empty commit for the rebase to stand on.
+    const count = await runGit(root, ["rev-list", "--count", "HEAD"], { env });
+    expect(count.stdout.trim()).toBe("1");
   });
 });
 

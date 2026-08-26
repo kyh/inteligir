@@ -192,6 +192,25 @@ function isAuthRefusal(cause: unknown): boolean {
   return /authentication failed|returned error: 40[13]|could not read username/i.test(cause.stderr);
 }
 
+/** The remote itself is absent — the hosted repo before its first push
+ *  (HTTP 404), or a path that names no repository. Distinct from
+ *  unreachable/refused because only THIS class may fall through to the
+ *  welcome seed: seeding beside a populated-but-unreachable remote plants a
+ *  history the eventual first sync has to rebase through. */
+function isMissingRemoteRepo(cause: unknown): boolean {
+  if (!(cause instanceof GitError)) {
+    return false;
+  }
+  return /repository .+ (not found|does not exist)|returned error: 404|does not appear to be a git repository/i.test(
+    cause.stderr,
+  );
+}
+
+/** The vault-side account marker: which account's hosted repo this checkout
+ *  has synced with. ONE spelling, read and written by the engine below and
+ *  by the clone path. */
+const ACCOUNT_MARKER_KEY = "inteligir.account";
+
 function identityEnv(author?: CommitAuthor) {
   return {
     GIT_AUTHOR_NAME: author?.name ?? ENGINE_IDENTITY.name,
@@ -234,26 +253,36 @@ export interface EnsureVaultRepoArgs {
 }
 
 /**
- * Try to clone the configured remote into a root that does not exist yet.
- * False means "nothing cloned" — a fresh account's hosted repo answers 404
- * until its first push, a BYO remote can be empty, and a REFUSED credential
- * (a revoked device at first boot) lands here too: the vault boots local and
- * the first sync pass surfaces `unauthorized`, because failing the boot
- * would take down the very server the user re-pairs through. The caller
- * falls through to init+seed, whose first push creates the remote branch.
- * git cleans up its own partially-cloned directory on failure, so the
- * fall-through starts from the same absent root either way.
+ * Try to clone the configured remote into a root that does not exist yet,
+ * and SAY which way it failed — the caller's seeding decision hangs on it:
+ *
+ * - "missing": the remote holds no repository (the hosted repo before its
+ *   first push, an absent BYO path). Nothing existed to join, so the welcome
+ *   seed is safe — the first push creates the remote.
+ * - "failed": the remote may exist but could not answer (offline boot, a
+ *   refused credential). Seeding HERE is the trap cubic's review named: a
+ *   populated remote comes back later and the seed's history has to rebase
+ *   through it. The vault boots EMPTY instead (one empty init commit, which
+ *   `--empty=drop` discards on the eventual first sync), and a revoked
+ *   credential surfaces as `unauthorized` rather than failing the boot —
+ *   which would take down the very server the user re-pairs through.
+ *
+ * git cleans up its own partially-cloned directory on failure, so every
+ * fall-through starts from the same absent root.
  */
-async function tryCloneVault(args: EnsureVaultRepoArgs, remote: VaultRemoteSpec): Promise<boolean> {
+async function tryCloneVault(
+  args: EnsureVaultRepoArgs,
+  remote: VaultRemoteSpec,
+): Promise<"cloned" | "missing" | "failed"> {
   await mkdir(dirname(args.root), { recursive: true });
   try {
     await runGit(dirname(args.root), ["clone", "--", remote.url, args.root], {
       timeoutMs: NETWORK_GIT_TIMEOUT_MS,
       env: { ...args.env, ...remote.env },
     });
-    return true;
-  } catch {
-    return false;
+    return "cloned";
+  } catch (error) {
+    return isMissingRemoteRepo(error) ? "missing" : "failed";
   }
 }
 
@@ -271,14 +300,21 @@ export async function ensureVaultRepo(
 ): Promise<{ created: boolean; cloned: boolean }> {
   const created = !existsSync(args.root);
   const remote = args.remote ?? null;
-  const cloned = created && remote !== null && (await tryCloneVault(args, remote));
+  const outcome =
+    created && remote !== null ? await tryCloneVault(args, remote) : ("missing" as const);
+  const cloned = outcome === "cloned";
   await mkdir(args.root, { recursive: true });
   const runOptions = args.env ? { env: args.env } : {};
   if (!existsSync(join(args.root, ".git"))) {
     await runGit(args.root, ["init", "-b", "main"], runOptions);
   }
   await ensureLocalExclude(args.root);
-  if (created && !cloned && args.seed) {
+  if (created && remote?.source === "paired" && remote.account !== undefined && cloned) {
+    // The clone came from this account's repo; pin it so a later re-pair to
+    // a DIFFERENT account refuses instead of pushing these notes into it.
+    await runGit(args.root, ["config", ACCOUNT_MARKER_KEY, remote.account], runOptions);
+  }
+  if (created && outcome === "missing" && args.seed) {
     await args.seed(args.root);
   }
   if (!(await hasHeadCommit(args.root, args.env))) {
@@ -410,6 +446,14 @@ export function createGitEngine(args: GitEngineArgs): GitEngine {
    * while the remote is unreachable and may have moved.
    */
   let networkFailure: "offline" | "unauthorized" | null = null;
+  /**
+   * The paired remote belongs to a DIFFERENT account than the one this
+   * checkout last synced with (the `inteligir.account` marker). Evaluated at
+   * the top of every paired pass; while true no network invocation runs —
+   * pushing would upload this vault's notes into an account that never held
+   * them, which is the one thing a re-pair must not do silently.
+   */
+  let accountMismatch = false;
   let syncing = false;
   let disposed = false;
   let inflightSync: Promise<VaultStatusResponse> | null = null;
@@ -649,7 +693,29 @@ export function createGitEngine(args: GitEngineArgs): GitEngine {
     );
   }
 
+  /** The checkout's account marker, or null before the first paired sync. */
+  async function readAccountMarker(): Promise<string | null> {
+    try {
+      const { stdout } = await run(["config", "--get", ACCOUNT_MARKER_KEY]);
+      const value = stdout.trim();
+      return value === "" ? null : value;
+    } catch {
+      return null;
+    }
+  }
+
   async function doSync(remote: VaultRemoteSpec): Promise<void> {
+    if (remote.source === "paired" && remote.account !== undefined) {
+      const marker = await readAccountMarker();
+      if (marker !== null && marker !== remote.account) {
+        accountMismatch = true;
+        lastError =
+          "This vault last synced with a different account. Unpair, or move this vault aside " +
+          "and restart to pull the new account's vault.";
+        return;
+      }
+    }
+    accountMismatch = false;
     await commitIfDirty();
     await ensureOriginRemote(remote.url);
     const branch = await currentBranch();
@@ -722,6 +788,14 @@ export function createGitEngine(args: GitEngineArgs): GitEngine {
     }
 
     await runNetwork(["push", "origin", branch], remote.env);
+    if (remote.source === "paired" && remote.account !== undefined) {
+      // Pin the account whose repo this push landed in; the fence above
+      // compares every later pass against it.
+      const marker = await readAccountMarker();
+      if (marker === null) {
+        await run(["config", ACCOUNT_MARKER_KEY, remote.account]);
+      }
+    }
     lastConflict = null;
     lastSyncAt = Date.now();
     lastError = null;
@@ -759,6 +833,9 @@ export function createGitEngine(args: GitEngineArgs): GitEngine {
     // invocation left the tracking ref stale (`networkFailure`'s own note).
     if (commitHoldCount > 0) {
       return { state: "held", remote, remoteSource, lastSyncAt, lastError };
+    }
+    if (accountMismatch) {
+      return { state: "account-mismatch", remote, remoteSource, lastSyncAt, lastError };
     }
     if (networkFailure !== null) {
       return { state: networkFailure, remote, remoteSource, lastSyncAt, lastError };

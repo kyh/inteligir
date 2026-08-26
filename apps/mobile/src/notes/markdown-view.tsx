@@ -1,4 +1,12 @@
 import { Linking, StyleSheet, Text, View } from "react-native";
+
+/** Only web links leave the app: a hosted note is content another device
+ *  wrote, and `file:`/`intent:`/custom schemes reaching Linking would hand
+ *  it app-launching power — the same http(s) gate the editor runs. */
+function openExternalLink(url: string): void {
+  if (!/^https?:\/\//i.test(url)) return;
+  void Linking.openURL(url).catch(() => undefined);
+}
 import { RADIUS, SPACE, useTheme, type Theme } from "@/lib/theme";
 import type { InlineSpan, NoteBlock } from "./note-projection";
 
@@ -70,7 +78,7 @@ function Spans({
               <Text
                 key={spanKey(index)}
                 style={{ color: theme.primary }}
-                onPress={() => void Linking.openURL(span.url).catch(() => undefined)}
+                onPress={() => openExternalLink(span.url)}
               >
                 {span.label}
               </Text>

@@ -98,6 +98,7 @@ const EVERY_STATUS: readonly VaultStatusResponse[] = [
   { state: "held", ...REMOTE },
   { state: "offline", ...REMOTE },
   { state: "unauthorized", ...REMOTE },
+  { state: "account-mismatch", ...REMOTE },
   {
     state: "conflict",
     conflict: { files: ["a.md", "b.md"], ours: { commits: 1 }, theirs: { commits: 1 } },

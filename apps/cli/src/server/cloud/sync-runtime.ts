@@ -349,6 +349,12 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
       // session with the old account.
       if (disposed || session.kind !== "live" || session.id !== sessionId) return;
       accountEmail = result.ok ? result.value.email : null;
+      // Persist the account id beside the credential: the vault remote
+      // provider reads it per pass, and the engine's cross-account marker
+      // compares against it. Best-effort like the label.
+      if (result.ok && credential.userId !== result.value.id) {
+        writeDeviceCredential(args.dataDir, { ...credential, userId: result.value.id });
+      }
     })();
   }
 

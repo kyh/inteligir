@@ -1,3 +1,4 @@
+import { VAULT_TMP_PREFIX } from "@repo/notes/knowledge/vault-path";
 import { z } from "zod";
 
 // ---------------------------------------------------------------------------
@@ -35,10 +36,20 @@ const gitOidSchema = z.string().regex(/^[0-9a-f]{40}$/u, "must be a full lowerca
 const commitShaSchema = gitOidSchema;
 
 /**
+ * A segment the vault's own grammar hides: git's machinery and the write
+ * path's staging files. A git push can place them in the hosted tree, and
+ * the read routes must not surface what the local engine would never list.
+ * The tmp prefix is the engine's one spelling; `.git` is git's own.
+ */
+export function isReservedVaultSegment(segment: string): boolean {
+  return segment === ".git" || segment.startsWith(VAULT_TMP_PREFIX);
+}
+
+/**
  * A vault-relative file path as git holds it: no leading slash, no empty or
- * dot-dot segments, no NUL. Deliberately a shape check, not the vault
- * engine's containment ladder — the Worker resolves paths inside a git tree,
- * where traversal has nothing to escape into.
+ * dot-dot segments, no NUL, no reserved segments. Deliberately a shape
+ * check, not the vault engine's containment ladder — the Worker resolves
+ * paths inside a git tree, where traversal has nothing to escape into.
  */
 const vaultPathSchema = z
   .string()
@@ -48,8 +59,16 @@ const vaultPathSchema = z
     (path) =>
       !path.includes("\0") &&
       !path.startsWith("/") &&
-      path.split("/").every((segment) => segment.length > 0 && segment !== "." && segment !== ".."),
-    "must be a vault-relative path with no empty, '.', or '..' segments",
+      path
+        .split("/")
+        .every(
+          (segment) =>
+            segment.length > 0 &&
+            segment !== "." &&
+            segment !== ".." &&
+            !isReservedVaultSegment(segment),
+        ),
+    "must be a vault-relative path with no empty, '.', '..', or reserved segments",
   );
 
 export const vaultTreeQuerySchema = z

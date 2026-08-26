@@ -64,6 +64,8 @@ export function syncStateLabel(status: VaultStatusResponse): string {
       return "Offline";
     case "unauthorized":
       return "Not authorized — re-pair this device";
+    case "account-mismatch":
+      return "This vault belongs to a different account";
     case "conflict":
       return `Conflict (${status.conflict.files.length})`;
     case "broken":
@@ -96,6 +98,7 @@ export function syncStateDotClass(status: VaultStatusResponse): string {
     case "offline":
       return "bg-muted-foreground/60";
     case "unauthorized":
+    case "account-mismatch":
     case "conflict":
     case "broken":
       return "bg-destructive";
@@ -122,6 +125,8 @@ export function syncBlockedReason(status: VaultStatusResponse): string | null {
       return "A sync is already running";
     case "held":
       return "An agent turn holds the vault; the next sync runs when it finishes";
+    case "account-mismatch":
+      return "This vault last synced with a different account — unpair, or move the vault aside";
     case "clean":
     case "dirty":
     case "offline":
@@ -211,6 +216,7 @@ function syncNowNotice(status: VaultStatusResponse): SyncNowNotice | null {
     case "no-remote":
     case "syncing":
     case "held":
+    case "account-mismatch":
       // Answered by the blocked branch above; listed so the switch stays total.
       return null;
   }

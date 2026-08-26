@@ -19,8 +19,8 @@ describe("the account row", () => {
     const { credential } = await pairDevice(bearer, "Laptop");
     const response = await SELF.fetch(ACCOUNT, { headers: deviceHeaders(credential) });
     expect(response.status).toBe(200);
-    expect(accountResponseSchema.parse(await response.json())).toEqual({
-      email: "whoami@example.test",
-    });
+    const account = accountResponseSchema.parse(await response.json());
+    expect(account.email).toBe("whoami@example.test");
+    expect(account.id.length).toBeGreaterThan(0);
   });
 });

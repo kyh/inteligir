@@ -20,8 +20,11 @@ export default function NotesScreen() {
   const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
-    if (tree.state === "idle") void refreshNotes();
-  }, [tree.state]);
+    // `status.state` is a dependency because the mount can precede the
+    // credential load: the first call is then a no-op, and only the pairing
+    // state changing re-runs it.
+    if (status.state === "paired" && tree.state === "idle") void refreshNotes();
+  }, [status.state, tree.state]);
 
   const refresh = useCallback(async () => {
     setRefreshing(true);
@@ -29,7 +32,13 @@ export default function NotesScreen() {
     setRefreshing(false);
   }, []);
 
-  const docs = tree.state === "ready" ? tree.entries.filter((entry) => isDocPath(entry.path)) : [];
+  // Gated on the PAIRING state, not just the tree: a revoked credential
+  // leaves the tree "ready" with the old listing, and rendering it would
+  // show a vault this device may no longer read.
+  const docs =
+    status.state === "paired" && tree.state === "ready"
+      ? tree.entries.filter((entry) => isDocPath(entry.path))
+      : [];
   const emptyText =
     status.state !== "paired"
       ? "Pair this device to read your notes."

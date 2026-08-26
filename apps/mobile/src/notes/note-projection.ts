@@ -19,6 +19,7 @@ import type { List, PhrasingContent, Root, RootContent } from "mdast";
 import { parseCalloutPayload } from "@repo/notes/markdown/callout-payload";
 import { splitFrontmatter } from "@repo/notes/markdown/frontmatter";
 import { parseMdast } from "@repo/notes/markdown/parse";
+import { escapePillPipesInTables } from "@repo/notes/markdown/table-pipes";
 import { parseWikiBodyRange } from "@repo/notes/markdown/remark-wiki-link";
 import { isCalloutLang, RICH_FENCE_LANGS } from "@repo/notes/markdown/fence-langs";
 import { titleFromPath } from "@repo/notes/knowledge/link-extract";
@@ -80,7 +81,10 @@ function projectSource(source: string): NoteBlock[] {
   if (!parsed.ok) {
     return [{ kind: "raw", text: source }];
   }
-  return projectParsed(source, parsed.root);
+  // The parser positions nodes against the PIPE-ESCAPED text (table-pipes.ts
+  // runs ahead of micromark), so raw slices must cut the same bytes — the
+  // original body drifts wherever a table cell held a pill.
+  return projectParsed(escapePillPipesInTables(source), parsed.root);
 }
 
 /** The whole projection closes over `source`, which exactly one leaf reads:
@@ -264,5 +268,5 @@ export function projectNote(path: string, content: string): NoteProjection {
   if (!parsed.ok) {
     return { kind: "raw", title, text: content, reason: parsed.failure.message };
   }
-  return { kind: "note", title, blocks: projectParsed(body, parsed.root) };
+  return { kind: "note", title, blocks: projectParsed(escapePillPipesInTables(body), parsed.root) };
 }

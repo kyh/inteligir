@@ -340,6 +340,18 @@ export const vaultStatusResponseSchema = z.discriminatedUnion("state", [
       ...syncStatusFields,
     })
     .strict(),
+  /** The paired account is not the one this vault last synced with (the
+   *  checkout's own marker refused it). No pass runs — pushing would upload
+   *  this vault's notes into an account that never held them. The fix is a
+   *  human's: unpair, or move the vault aside and let the new account's
+   *  clone in. */
+  z
+    .object({
+      state: z.literal("account-mismatch"),
+      ...remoteFields,
+      ...syncStatusFields,
+    })
+    .strict(),
   z
     .object({
       state: z.literal("conflict"),

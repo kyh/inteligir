@@ -28,6 +28,12 @@ export interface VaultRemoteSpec {
   /** "explicit" = the user configured it; "paired" = derived from the device
    *  credential, and gone the moment an unpair removes that file. */
   source: "explicit" | "paired";
+  /** The paired account's id, once the session has learned it — what the
+   *  engine's `inteligir.account` marker is compared against, so a re-pair
+   *  to a DIFFERENT account refuses instead of silently pushing this
+   *  machine's notes into it. Absent = fence inert (an old credential file,
+   *  or the account fetch has not landed yet). */
+  account?: string;
   /** Extra env for the network git invocations (fetch/push/clone) only. */
   env?: Record<string, string>;
 }
@@ -60,7 +66,7 @@ export function createVaultRemoteProvider(
       return null;
     }
     const url = hostedVaultRemoteUrl(args.cloudUrl);
-    return {
+    const spec: VaultRemoteSpec = {
       url,
       source: "paired",
       env: {
@@ -69,5 +75,7 @@ export function createVaultRemoteProvider(
         GIT_CONFIG_VALUE_0: `Authorization: Bearer ${credential.credential}`,
       },
     };
+    if (credential.userId !== undefined) spec.account = credential.userId;
+    return spec;
   };
 }

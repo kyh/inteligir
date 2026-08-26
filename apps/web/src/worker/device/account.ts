@@ -16,7 +16,7 @@ export async function handleAccountRoute(request: Request, env: Env): Promise<Re
   if (verified === null) return refuse("unauthorized", "No valid device credential.");
 
   const row = await db
-    .select({ email: user.email })
+    .select({ id: user.id, email: user.email })
     .from(user)
     .where(eq(user.id, verified.userId))
     .get();
@@ -24,6 +24,6 @@ export async function handleAccountRoute(request: Request, env: Env): Promise<Re
   // in-flight sliver; answer what the tombstone would.
   if (row === undefined) return refuse("account-deleted", "This account was deleted.");
 
-  const response: AccountResponse = { email: row.email };
+  const response: AccountResponse = { id: row.id, email: row.email };
   return Response.json(response);
 }
