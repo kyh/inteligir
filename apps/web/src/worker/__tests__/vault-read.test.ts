@@ -83,6 +83,21 @@ describe("vault read rows", () => {
     expect(file.oid).toMatch(/^[0-9a-f]{40}$/);
   });
 
+  it("serves a filename holding a percent sign — git allows it, the cell decodes", async () => {
+    const { credential } = await pairAndPush("vault-read-percent@example.test", [
+      { path: "100%done.md", content: "# done\n" },
+    ]);
+    const response = await SELF.fetch(`${FILE}?path=${encodeURIComponent("100%done.md")}`, {
+      headers: deviceHeaders(credential),
+    });
+    expect(response.status).toBe(200);
+    expect(vaultFileResponseSchema.parse(await response.json()).content).toBe("# done\n");
+    const tree = await SELF.fetch(TREE, { headers: deviceHeaders(credential) });
+    expect(
+      vaultTreeResponseSchema.parse(await tree.json()).entries.map((entry) => entry.path),
+    ).toContain("100%done.md");
+  });
+
   it("answers not-found for a path the revision does not carry", async () => {
     const { credential } = await pairAndPush("vault-read-miss@example.test", [
       { path: "a.md", content: "# a\n" },

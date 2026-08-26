@@ -538,12 +538,13 @@ describe("the invalidation socket", () => {
     await pair(harness);
     const dial = harness.socketOpens[0];
     if (dial === undefined) throw new Error("expected a socket dial");
-    // The pairing itself kicks one vault pass (the derived remote is new).
-    expect(harness.vaultPings()).toBe(1);
+    // The pairing kicks one vault pass, and the account-identity learner
+    // kicks the deferred one the fail-closed fence held until the id landed.
+    expect(harness.vaultPings()).toBe(2);
     const quiet = harness.cloud.requests.length;
 
     dial.onPing({ type: "vault" });
-    expect(harness.vaultPings()).toBe(2);
+    expect(harness.vaultPings()).toBe(3);
     // The pass that answers a vault ping is the git engine's, not this
     // runtime's — no thread request may ride it.
     expect(harness.cloud.requests).toHaveLength(quiet);

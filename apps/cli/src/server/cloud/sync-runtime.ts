@@ -342,18 +342,31 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
       credential,
       client,
     };
-    const sessionId = sessionCounter;
+    learnAccountIdentity();
+  }
+
+  /**
+   * Whose account this session syncs as, learned from `/v1/account` and
+   * persisted beside the credential — the value the vault's cross-account
+   * fence FAILS CLOSED without, which is why this is retried (each thread
+   * pass re-calls it while the id is missing) and why success re-kicks the
+   * vault pass the fence deferred.
+   */
+  function learnAccountIdentity(): void {
+    if (session.kind !== "live") return;
+    const { client, credential } = session;
+    const sessionId = session.id;
     void (async () => {
       const result = await client.account();
       // The standard fence: a re-pair mid-flight must not label the NEW
       // session with the old account.
       if (disposed || session.kind !== "live" || session.id !== sessionId) return;
       accountEmail = result.ok ? result.value.email : null;
-      // Persist the account id beside the credential: the vault remote
-      // provider reads it per pass, and the engine's cross-account marker
-      // compares against it. Best-effort like the label.
       if (result.ok && credential.userId !== result.value.id) {
-        writeDeviceCredential(args.dataDir, { ...credential, userId: result.value.id });
+        const updated = { ...credential, userId: result.value.id };
+        writeDeviceCredential(args.dataDir, updated);
+        session = { ...session, credential: updated };
+        args.onVaultPing?.();
       }
     })();
   }

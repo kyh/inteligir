@@ -314,7 +314,14 @@ export async function ensureVaultRepo(
     // a DIFFERENT account refuses instead of pushing these notes into it.
     await runGit(args.root, ["config", ACCOUNT_MARKER_KEY, remote.account], runOptions);
   }
-  if (created && outcome === "missing" && args.seed) {
+  // The welcome seed runs with NO remote, or when the HOSTED remote itself
+  // answered "no repository" — which our Worker says only for a truly absent
+  // repo (auth precedes it). An EXPLICIT remote's "not found" is ambiguous:
+  // GitHub answers 404 for a private repo the credential cannot see, and
+  // seeding beside it plants the unrelated history the eventual first sync
+  // conflicts through. Those boot empty instead.
+  const seedable = remote === null || (outcome === "missing" && remote.source === "paired");
+  if (created && seedable && args.seed) {
     await args.seed(args.root);
   }
   if (!(await hasHeadCommit(args.root, args.env))) {
@@ -705,6 +712,14 @@ export function createGitEngine(args: GitEngineArgs): GitEngine {
   }
 
   async function doSync(remote: VaultRemoteSpec): Promise<void> {
+    if (remote.source === "paired" && remote.account === undefined) {
+      // FAIL CLOSED, quietly: the session has not learned WHOSE account this
+      // credential is yet (the /v1/account fetch is in flight, or the cloud
+      // predates the route). A pass that ran now would skip the marker check
+      // below — exactly the window a re-pair pushes the old vault through.
+      // The sync runtime re-kicks the moment the identity lands.
+      return;
+    }
     if (remote.source === "paired" && remote.account !== undefined) {
       const marker = await readAccountMarker();
       if (marker !== null && marker !== remote.account) {

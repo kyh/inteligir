@@ -59,7 +59,10 @@ type Client = ReturnType<typeof createCloudClient>;
 export function createNotesStore(args: CreateNotesStoreArgs): NotesStore {
   let client: Client | null = null;
   let resolver: TargetResolver | null = null;
-  let refreshing = false;
+  /** Which generation's refresh is in flight (-1 = none). Tied to the
+   *  generation rather than a boolean so a re-pair's refresh is never
+   *  blocked by the PREVIOUS pairing's stalled one. */
+  let refreshingFor = -1;
   /** Bumped on EVERY credential change (set and clear alike); checked after
    *  every await, so a response from the previous pairing can never
    *  repopulate the new one's state — the same fence the sync runtime runs. */
@@ -93,9 +96,9 @@ export function createNotesStore(args: CreateNotesStoreArgs): NotesStore {
     },
 
     async refresh() {
-      if (client === null || refreshing) return;
+      if (client === null || refreshingFor === generation) return;
       const startedAt = generation;
-      refreshing = true;
+      refreshingFor = startedAt;
       if (tree.get().state === "idle") tree.set({ state: "loading" });
       try {
         const entries: VaultTreeResponse["entries"][number][] = [];
@@ -139,7 +142,7 @@ export function createNotesStore(args: CreateNotesStoreArgs): NotesStore {
         resolver = buildResolver(entries.map((entry) => entry.path));
         tree.set({ state: "ready", commit, entries });
       } finally {
-        refreshing = false;
+        if (refreshingFor === startedAt) refreshingFor = -1;
       }
     },
 

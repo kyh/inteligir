@@ -88,6 +88,14 @@ async function resolveCommit(
  *  passed. Every path under `dir` starts with `dir + "/"`, so a cursor that
  *  is lexicographically past that prefix (and not inside it) is past the
  *  whole subtree. */
+/** durable-git URL-decodes every path it receives (its HTTP surface takes
+ *  encoded paths, and the RPC shares the parser) — so raw vault paths must
+ *  be encoded per segment or a legal git filename holding `%` throws inside
+ *  the cell. */
+function encodeGitPath(path: string): string {
+  return path.split("/").map(encodeURIComponent).join("/");
+}
+
 function byPath(a: { path: string }, b: { path: string }): number {
   return a.path < b.path ? -1 : a.path > b.path ? 1 : 0;
 }
@@ -132,7 +140,9 @@ async function answerTree(stub: DurableObjectStub<RepoCell>, url: URL): Promise<
     if (visited > MAX_TREE_DIRS) {
       return refuse("internal", `Vault tree exceeds ${String(MAX_TREE_DIRS)} directories.`);
     }
-    const trees = await Promise.all(frontier.map((dir) => stub.listTree(commit, dir)));
+    const trees = await Promise.all(
+      frontier.map((dir) => stub.listTree(commit, encodeGitPath(dir))),
+    );
     const next: string[] = [];
     for (const [index, tree] of trees.entries()) {
       const dir = frontier[index];
@@ -180,7 +190,7 @@ async function answerFile(stub: DurableObjectStub<RepoCell>, url: URL): Promise<
   if (commit === null) {
     return refuse("not-found", "This vault has no content at that revision.");
   }
-  const blob = await stub.readBlob(commit, query.data.path);
+  const blob = await stub.readBlob(commit, encodeGitPath(query.data.path));
   if (blob === null) {
     return refuse("not-found", "That revision does not carry the path.");
   }

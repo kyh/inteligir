@@ -51,6 +51,12 @@ const PROTOCOL_ROUTES = new Set([
   "POST /git-receive-pack",
 ]);
 
+/** Mirror of durable-git's negotiation-body ceiling. Enforced HERE on the
+ *  declared length because the library treats an UNDECLARED (chunked) body
+ *  as small and buffers it whole — and stock git always declares upload-pack
+ *  negotiation bodies (they sit far under http.postBuffer). */
+const MAX_UPLOAD_PACK_BYTES = 16 * 1024 * 1024;
+
 /** dgit refuses repo names outside this set; the userId is embedded in the
  *  name, so the assumption is checked rather than carried silently. */
 const REPO_NAME_SAFE = /^[A-Za-z0-9._-]+$/;
@@ -103,6 +109,15 @@ export async function handleVaultGitRemote(
     return new Response("internal error\n", { status: 500 });
   }
 
+  if (sub === "/git-upload-pack") {
+    const declared = Number(request.headers.get("content-length"));
+    if (!Number.isFinite(declared) || declared > MAX_UPLOAD_PACK_BYTES) {
+      return new Response("upload-pack body must declare a length within the ceiling\n", {
+        status: 413,
+      });
+    }
+  }
+
   const target = new URL(request.url);
   target.pathname = `/${repo}.git${sub}`;
   const headers = new Headers(request.headers);
@@ -117,6 +132,17 @@ export async function handleVaultGitRemote(
 
   if (sub === "/git-receive-pack" && response.ok && response.headers.get("x-changed") === "1") {
     ctx.waitUntil(pingVaultAdvanced(env, verified.userId, verified.deviceId));
+    // Belt over the library's own bookkeeping: dgit SUPPRESSES a registry
+    // upsert failure ("next push heals"), but the read routes gate unpinned
+    // requests on the registry — a suppressed failure after the FIRST push
+    // leaves the vault invisible with no later push to heal it. Idempotent,
+    // so the double-write in the common case costs one row touch.
+    const idle = Number(response.headers.get("x-commit-time")) || Date.now();
+    ctx.waitUntil(
+      Promise.resolve(vaultRegistry(env).upsert(repo, idle)).catch(() => {
+        // dgit's next-push-heals fallback still stands.
+      }),
+    );
   }
   return response;
 }
@@ -146,6 +172,22 @@ export async function deleteVaultGitRepo(env: Env, userId: string): Promise<void
   });
   if (!response.ok) {
     throw new Error(`vault git repo delete failed: ${response.status}`);
+  }
+  // Belt over the library's R2 purge, which LOGS a failure and answers ok —
+  // an answer this hook must not trust, because these keys are the note
+  // bytes docs/privacy.md promises die with the account. A throw here aborts
+  // the deletion, and the account survives to ask again.
+  for (const prefix of [`raw/${repo}/`, `pack/${repo}/`]) {
+    let cursor: string | undefined;
+    do {
+      const listing = await env.PACK_CACHE.list(
+        cursor === undefined ? { prefix } : { prefix, cursor },
+      );
+      if (listing.objects.length > 0) {
+        await env.PACK_CACHE.delete(listing.objects.map((object) => object.key));
+      }
+      cursor = listing.truncated ? listing.cursor : undefined;
+    } while (cursor !== undefined);
   }
   await vaultRegistry(env).remove(repo);
 }

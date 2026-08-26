@@ -441,8 +441,10 @@ describe("the clone path", () => {
     expect(await readFile(join(bRoot, "note.md"), "utf8")).toBe("# from A\n");
   });
 
-  it("falls through to init+seed when the remote has no vault to clone", async () => {
-    // A fresh account's hosted repo answers 404 until its first push.
+  it("seeds only the HOSTED missing-repo miss; an explicit remote's miss boots empty", async () => {
+    // GitHub-style hosts answer 404 for a private repo the credential cannot
+    // see, so an explicit remote's "not found" must not plant a seed beside
+    // a vault that may exist.
     const bRoot = join(scratchDir("inteligir-git-clone-miss-"), "vault");
     let seeded = false;
     const { created, cloned } = await ensureVaultRepo({
@@ -455,8 +457,25 @@ describe("the clone path", () => {
     });
     expect(created).toBe(true);
     expect(cloned).toBe(false);
-    expect(seeded).toBe(true);
+    expect(seeded).toBe(false);
     expect(existsSync(join(bRoot, ".git"))).toBe(true);
+
+    const pairedRoot = join(scratchDir("inteligir-git-clone-miss-paired-"), "vault");
+    let pairedSeeded = false;
+    const paired = await ensureVaultRepo({
+      root: pairedRoot,
+      remote: {
+        url: join(scratchDir("inteligir-git-nowhere-2-"), "gone.git"),
+        source: "paired",
+        account: "user-a",
+      },
+      seed: async () => {
+        pairedSeeded = true;
+      },
+      env,
+    });
+    expect(paired.cloned).toBe(false);
+    expect(pairedSeeded).toBe(true);
   });
 });
 
@@ -574,13 +593,13 @@ describe("a live remote provider", () => {
     const remote = await makeBareRemote();
     const root = scratchDir("inteligir-git-live-");
     await ensureVaultRepo({ root, env });
-    let current: { url: string; source: "paired" } | null = null;
+    let current: { url: string; source: "paired"; account: string } | null = null;
     const engine = createGitEngine({ root, remote: () => current, env });
     cleanups.push(() => engine.dispose());
 
     expect((await engine.status()).state).toBe("no-remote");
 
-    current = { url: remote, source: "paired" };
+    current = { url: remote, source: "paired", account: "user-live" };
     await writeFile(join(root, "note.md"), "# paired\n");
     await engine.commitNow();
     expect((await engine.syncNow()).state).toBe("clean");
