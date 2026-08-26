@@ -24,6 +24,11 @@ import {
   type AckCapturesResponse,
   type ClaimCapturesResponse,
 } from "@repo/api/cloud/captures/captures-schema";
+import {
+  ACCOUNT_API_PATHS,
+  accountResponseSchema,
+  type AccountResponse,
+} from "@repo/api/cloud/account/account-schema";
 import { cloudErrorSchema, type CloudErrorCode } from "@repo/api/cloud/errors";
 import {
   DEVICE_API_PATHS,
@@ -187,6 +192,7 @@ export interface CloudClient {
   pull(query: PullQuery): Promise<CloudResult<PullResponse>>;
   claimCaptures(limit: number): Promise<CloudResult<ClaimCapturesResponse>>;
   ackCaptures(request: AckCapturesRequest): Promise<CloudResult<AckCapturesResponse>>;
+  account(): Promise<CloudResult<AccountResponse>>;
 }
 
 export interface CreateCloudClientArgs extends CloudEndpoint {
@@ -234,6 +240,7 @@ export function createCloudClient(args: CreateCloudClientArgs): CloudClient {
       ),
     claimCaptures: (limit) => send(CAPTURE_API_PATHS.claim, { limit }, claimCapturesResponseSchema),
     ackCaptures: (request) => send(CAPTURE_API_PATHS.ack, request, ackCapturesResponseSchema),
+    account: () => send(ACCOUNT_API_PATHS.account, undefined, accountResponseSchema),
   };
 }
 

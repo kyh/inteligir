@@ -265,6 +265,14 @@ const syncStatusFields = {
   lastError: z.string().nullable(),
 };
 
+/** Every state with a remote carries WHERE it came from: "paired" is the
+ *  account-derived hosted remote (unpair kills it), "explicit" is the user's
+ *  own configuration — the unpair dialog's honesty depends on the split. */
+const remoteFields = {
+  remote: z.string().min(1),
+  remoteSource: z.enum(["explicit", "paired"]),
+};
+
 export const vaultStatusResponseSchema = z.discriminatedUnion("state", [
   z.object({ state: z.literal("no-remote"), ...syncStatusFields }).strict(),
   /** A sync left rebase state behind that even `rebase --abort` could not
@@ -273,28 +281,28 @@ export const vaultStatusResponseSchema = z.discriminatedUnion("state", [
   z
     .object({
       state: z.literal("broken"),
-      remote: z.string().min(1),
+      ...remoteFields,
       ...syncStatusFields,
     })
     .strict(),
   z
     .object({
       state: z.literal("clean"),
-      remote: z.string().min(1),
+      ...remoteFields,
       ...syncStatusFields,
     })
     .strict(),
   z
     .object({
       state: z.literal("dirty"),
-      remote: z.string().min(1),
+      ...remoteFields,
       ...syncStatusFields,
     })
     .strict(),
   z
     .object({
       state: z.literal("syncing"),
-      remote: z.string().min(1),
+      ...remoteFields,
       ...syncStatusFields,
     })
     .strict(),
@@ -306,7 +314,7 @@ export const vaultStatusResponseSchema = z.discriminatedUnion("state", [
   z
     .object({
       state: z.literal("held"),
-      remote: z.string().min(1),
+      ...remoteFields,
       ...syncStatusFields,
     })
     .strict(),
@@ -317,7 +325,7 @@ export const vaultStatusResponseSchema = z.discriminatedUnion("state", [
   z
     .object({
       state: z.literal("offline"),
-      remote: z.string().min(1),
+      ...remoteFields,
       ...syncStatusFields,
     })
     .strict(),
@@ -328,14 +336,14 @@ export const vaultStatusResponseSchema = z.discriminatedUnion("state", [
   z
     .object({
       state: z.literal("unauthorized"),
-      remote: z.string().min(1),
+      ...remoteFields,
       ...syncStatusFields,
     })
     .strict(),
   z
     .object({
       state: z.literal("conflict"),
-      remote: z.string().min(1),
+      ...remoteFields,
       conflict: vaultConflictSchema,
       ...syncStatusFields,
     })

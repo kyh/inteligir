@@ -736,16 +736,18 @@ export function createGitEngine(args: GitEngineArgs): GitEngine {
     // Status responses carry the redacted remote: an https remote is where a
     // token rides, and this string reaches logs and the UI.
     const remote = redactRemoteUrl(currentRemote.url);
+    const remoteSource = currentRemote.source;
     if (syncing) {
-      return { state: "syncing", remote, lastSyncAt, lastError };
+      return { state: "syncing", remote, remoteSource, lastSyncAt, lastError };
     }
     if (broken) {
-      return { state: "broken", remote, lastSyncAt, lastError };
+      return { state: "broken", remote, remoteSource, lastSyncAt, lastError };
     }
     if (lastConflict !== null) {
       return {
         state: "conflict",
         remote,
+        remoteSource,
         conflict: lastConflict,
         lastSyncAt,
         lastError,
@@ -756,10 +758,10 @@ export function createGitEngine(args: GitEngineArgs): GitEngine {
     // cannot make: no pass may start under a hold, and a failed network
     // invocation left the tracking ref stale (`networkFailure`'s own note).
     if (commitHoldCount > 0) {
-      return { state: "held", remote, lastSyncAt, lastError };
+      return { state: "held", remote, remoteSource, lastSyncAt, lastError };
     }
     if (networkFailure !== null) {
-      return { state: networkFailure, remote, lastSyncAt, lastError };
+      return { state: networkFailure, remote, remoteSource, lastSyncAt, lastError };
     }
     // The porcelain reads run behind the repo lock, so a status can never
     // report the half-way tree of a sync or commit in flight.
@@ -774,9 +776,9 @@ export function createGitEngine(args: GitEngineArgs): GitEngine {
         }
       }
       if (dirtyPaths > 0 || unpushed > 0) {
-        return { state: "dirty", remote, lastSyncAt, lastError };
+        return { state: "dirty", remote, remoteSource, lastSyncAt, lastError };
       }
-      return { state: "clean", remote, lastSyncAt, lastError };
+      return { state: "clean", remote, remoteSource, lastSyncAt, lastError };
     });
   }
 

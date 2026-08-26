@@ -1,8 +1,10 @@
+import { ACCOUNT_API_PATHS } from "@repo/api/cloud/account/account-schema";
 import { VAULT_GIT_PATH } from "@repo/api/cloud/vault/vault-git";
 import { VAULT_API_PATHS } from "@repo/api/cloud/vault/vault-schema";
 import { createAuth, enabledSocialProviders } from "./auth/auth";
 import { handleInviteSignUp } from "./auth/invite";
 import { handleResetPage } from "./auth/reset-page";
+import { handleAccountRoute } from "./device/account";
 import { handleDeviceRoutes } from "./device/routes";
 import { logUnhandled } from "./log";
 import { handleSyncRoutes } from "./sync/routes";
@@ -126,6 +128,11 @@ async function route(request: Request, env: Env, ctx: ExecutionContext): Promise
   // src/worker/vault/read-routes.ts.
   if (url.pathname === VAULT_API_PATHS.tree || url.pathname === VAULT_API_PATHS.file) {
     return await handleVaultReadRoutes(request, env, url);
+  }
+
+  // Whose account a device credential syncs as — src/worker/device/account.ts.
+  if (url.pathname === ACCOUNT_API_PATHS.account) {
+    return await handleAccountRoute(request, env);
   }
 
   return new Response("not found", { status: 404 });

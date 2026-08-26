@@ -35,7 +35,7 @@ function PairScreen({ status }: { status: SyncStatus }) {
   const reason =
     status.state === "unauthorized"
       ? "This device was unpaired. Pair again to resume syncing."
-      : "Pair this phone with your account to read your threads and capture notes.";
+      : "Pair this phone with your account to read your notes and threads, and capture ideas.";
 
   return (
     <SafeAreaView style={[styles.screen, styles.center, { backgroundColor: theme.background }]}>

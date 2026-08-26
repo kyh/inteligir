@@ -6,7 +6,8 @@
 The vault is markdown files in a git repo the user owns; one local Node process
 owns that vault, indexes it, answers one API, and drives a coding agent that
 edits those same files. The only hosted piece is a Cloudflare Worker carrying
-the marketing site, accounts, and cross-device thread sync.
+the marketing site, accounts, cross-device thread sync, the capture inbox and
+the account's hosted vault git remote (#618).
 
 **TWO PROGRAMS.** `apps/desktop` is the shipped product — the window, and the
 SPA inside it. `apps/cli` is the `inteligir` binary: `serve` IS that local
@@ -596,12 +597,24 @@ body_stems` at the same bm25 weights, and `@repo/notes/knowledge/search-query`
   ceiling) is dropped from the batch rather than retried, because the log
   refuses the WHOLE batch for it and one bad event would strand every event
   behind it.
-- **Sync carries THREADS, not the vault, and the contract has no thread-metadata
-  read.** The pull answers events alone, so lane and title are push-only —
-  nothing reads them back, and this client therefore sends neither. The
-  consequence is stated rather than hidden: a thread with no events never
-  reaches another device, because the merged log is the only channel that
-  carries one.
+- **SYNC IS PERMISSIONED BY ACCOUNT — the account IS the entitlement** (owner
+  decision 2026-08-25, issue #618, the Obsidian model). Accountless, the app
+  is fully functional local-only and makes ZERO cloud requests (pinned at the
+  shipping cadence in `cloud/__tests__/sync-runtime.test.ts` and the
+  pair-callback boot suite). Paired, the credential alone entitles ALL THREE
+  sync kinds — threads, captures, and the hosted vault — with no second flag
+  and no sub-entitlement, ever: a "vault sync enabled" bit beside the
+  credential is exactly the two-values-that-can-disagree failure the
+  credential-is-the-switch decision forbids. The invite gate is account-
+  CREATION policy, never sync policy. The BYO git remote
+  (`INTELIGIR_VAULT_REMOTE`) stays fully accountless — it is the user's own.
+- **The THREAD channel carries thread events alone, and its contract has no
+  thread-metadata read.** The pull answers events, so lane and title are
+  push-only — nothing reads them back, and this client therefore sends
+  neither. The consequence is stated rather than hidden: a thread with no
+  events never reaches another device, because the merged log is the only
+  channel that carries one. (Vault bytes ride their own channel — the git
+  remote — never this log.)
 - **Cloud state names its Durable Object from a VERIFIED credential**, never
   from anything a caller supplies. Account deletion revokes credentials FIRST,
   then purges, then writes a tombstone every route refuses against — the

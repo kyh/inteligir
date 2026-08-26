@@ -65,7 +65,7 @@ export function syncCommand(deps: CliDeps) {
   return defineCommand({
     meta: {
       name: "sync",
-      description: "Cloud thread sync: pairing state, pairing, and an immediate pass",
+      description: "Account sync: pairing state, pairing, and an immediate thread pass",
     },
     subCommands: {
       status: defineCommand({

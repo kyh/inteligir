@@ -28,6 +28,7 @@ import {
   type CaptureRow,
   type ClaimCapturesResponse,
 } from "@repo/api/cloud/captures/captures-schema";
+import { ACCOUNT_API_PATHS } from "@repo/api/cloud/account/account-schema";
 import { CLOUD_ERROR_STATUS, cloudError, type CloudErrorCode } from "@repo/api/cloud/errors";
 import {
   DEVICE_API_PATHS,
@@ -161,6 +162,9 @@ export class FakeCloud {
     }
     if (method === "POST" && url.pathname === CAPTURE_API_PATHS.ack) {
       return this.ack(body);
+    }
+    if (method === "GET" && url.pathname === ACCOUNT_API_PATHS.account) {
+      return Response.json({ email: "paired@example.test" });
     }
     return refuse("not-found", "No such route.");
   };

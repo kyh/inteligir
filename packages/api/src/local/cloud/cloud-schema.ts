@@ -44,6 +44,10 @@ export const cloudStatusResponseSchema = z.discriminatedUnion("state", [
     .object({
       state: z.literal("paired"),
       cloudUrl: z.url(),
+      /** Whose account this install syncs as — the visible entitlement. Null
+       *  until the session's best-effort fetch lands (or against a stale
+       *  cloud with no account route). */
+      accountEmail: z.string().nullable(),
       /** This machine's row in the account's device list. */
       deviceId: z.string().min(1),
       /** Whether the invalidation socket is currently up. A pull still runs on

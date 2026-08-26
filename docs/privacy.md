@@ -2,8 +2,8 @@
 
 inteligir v3 is local-first: the product is a process on your machine, and your
 vault is a git repository of markdown files on your disk. The cloud's job is
-accounts, cross-device thread sync, quick capture, and (eventually) an optional
-hosted git remote. This page states exactly what that means — what leaves your
+accounts, cross-device thread sync, quick capture, and the account's hosted
+git remote. This page states exactly what that means — what leaves your
 machine, what never does, how long the cloud keeps it, and how it dies.
 
 ## What leaves your machine
@@ -86,9 +86,9 @@ account row itself goes:
 1. **Every device and pairing row you own** is deleted from D1. This is first
    on purpose: while a device row lives its credential still works, so any
    later step could be undone by a request that arrives a moment after it.
-2. **Your hosted vault repo**, if this deployment hosts one for you. When it
-   does not — the default today — nothing was ever created, so there is
-   nothing to delete.
+2. **Your hosted vault repo** — created once a paired device first pushes. A
+   never-pushed account wipes empty tables, so the step is idempotent either
+   way.
 3. **Your thread-sync Durable Object** is purged whole: every thread event,
    every capture, every open socket closed. It is then tombstoned, so a
    request that authenticated microseconds before step 1 cannot rebuild what

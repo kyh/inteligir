@@ -308,6 +308,11 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
   let inflight: Promise<void> | null = null;
   let dirty = false;
   let pendingPair: PendingPair | null = null;
+  /** Whose account this session syncs as — fetched best-effort when a session
+   *  opens, so Settings can name the account rather than a hostname. Null
+   *  until the fetch lands (or when a stale cloud has no account row); a
+   *  failure costs the label, never the sync. */
+  let accountEmail: string | null = null;
 
   /** The endpoint every call rides. `fetch` stays ABSENT unless a suite
    *  injected one, so the client falls back to the global. */
@@ -331,12 +336,22 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
   function openSession(credential: DeviceCredential): void {
     closeSession();
     sessionCounter += 1;
+    accountEmail = null;
+    const client = createCloudClient(clientArgs(credential.credential, sessionAbort.signal));
     session = {
       kind: "live",
       id: sessionCounter,
       credential,
-      client: createCloudClient(clientArgs(credential.credential, sessionAbort.signal)),
+      client,
     };
+    const sessionId = sessionCounter;
+    void (async () => {
+      const result = await client.account();
+      // The standard fence: a re-pair mid-flight must not label the NEW
+      // session with the old account.
+      if (disposed || session.kind !== "live" || session.id !== sessionId) return;
+      accountEmail = result.ok ? result.value.email : null;
+    })();
   }
 
   /** True while `context`'s session is still the one this runtime is running,
@@ -806,6 +821,7 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
         return {
           state: "paired",
           cloudUrl: args.cloudUrl,
+          accountEmail,
           deviceId: session.credential.deviceId,
           connected,
           pending: countSyncOutbox(args.db),

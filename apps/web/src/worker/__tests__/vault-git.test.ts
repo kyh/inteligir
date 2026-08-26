@@ -1,12 +1,14 @@
-import { SELF } from "cloudflare:test";
+import { env, runInDurableObject, SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 import {
   deviceHeaders,
   openSocket,
   ORIGIN,
   pairDevice,
+  sessionHeaders,
   settled,
   signUpUser,
+  userIdOf,
 } from "./cloud-helpers";
 import { pushVaultFiles, ZERO_OID } from "./git-pack";
 
@@ -139,5 +141,46 @@ describe("vault git remote round-trip", () => {
       headers: deviceHeaders(betaDevice.credential),
     });
     expect(refs.status).toBe(404);
+  });
+});
+
+describe("account deletion's vault half", () => {
+  it("wipes the repo cell and the registry row with the account", async () => {
+    const { bearer, password } = await signUpUser("vault-git-delete@example.test");
+    const { credential } = await pairDevice(bearer, "Laptop");
+    const pushed = await pushVaultFiles(
+      credential,
+      "vault: initialize",
+      [{ path: "secret.md", content: "note bytes the deletion promise covers\n" }],
+      ZERO_OID,
+    );
+    expect(pushed.response.status).toBe(200);
+    const userId = await userIdOf(bearer);
+
+    const deletion = await SELF.fetch(`${ORIGIN}/api/auth/delete-user`, {
+      method: "POST",
+      headers: { ...sessionHeaders(bearer), "content-type": "application/json" },
+      body: JSON.stringify({ password }),
+    });
+    expect(deletion.status).toBe(200);
+
+    // The wire died with the credential...
+    const refused = await SELF.fetch(`${REMOTE}/info/refs?service=git-upload-pack`, {
+      headers: deviceHeaders(credential),
+    });
+    expect(refused.status).toBe(401);
+
+    // ...the registry row is gone...
+    expect(await env.REGISTRY.getByName("registry").get(`vault-${userId}`)).toBeNull();
+
+    // ...and the cell holds no objects and no refs — privacy.md's deletion
+    // step 2, read straight off the SQL because the wire refuses before it
+    // could prove the wipe.
+    const stub = env.REPO.getByName(`vault-${userId}`);
+    const rows = await runInDurableObject(stub, (_instance, state) => ({
+      objects: state.storage.sql.exec("SELECT COUNT(*) AS n FROM objects").one().n,
+      refs: state.storage.sql.exec("SELECT COUNT(*) AS n FROM refs").one().n,
+    }));
+    expect(rows).toEqual({ objects: 0, refs: 0 });
   });
 });

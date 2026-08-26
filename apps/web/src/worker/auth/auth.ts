@@ -155,8 +155,14 @@ function buildAuth(env: Env, baseURL: string, disableSignUp: boolean) {
       // `redirectTo: "/auth/reset"`, so the URL's GET leg redirects to the
       // Worker-hosted reset page (see ./reset-page.ts) with `?token=`.
       sendResetPassword: ({ user, url }) => sendResetEmail(env, user.email, url),
-      // A reset is usually "I lost control of this account" recovery — kill
-      // every other live session so a possibly-stolen bearer dies with it.
+      // A reset kills every other live session, so a possibly-stolen bearer
+      // dies with it. SESSIONS ONLY, not device credentials — deliberately:
+      // most resets are the owner rotating a password, and cutting every
+      // paired device would unpair their own machines each time. The
+      // stolen-device hatch is the dashboard's per-device revoke, which
+      // bites on the next request. The residual, stated: a reset after a
+      // full takeover leaves an attacker-paired device syncing until the
+      // owner revokes it from Devices.
       revokeSessionsOnPasswordReset: true,
     },
     // Persist rate-limit counters in D1. The default in-memory store keeps

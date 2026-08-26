@@ -481,6 +481,26 @@ describe("a refused credential", () => {
 });
 
 describe("a live remote provider", () => {
+  it("an armed tick with no remote invokes no network git — no origin is ever written", async () => {
+    const root = scratchDir("inteligir-git-idle-");
+    await ensureVaultRepo({ root, env });
+    let reads = 0;
+    const engine = createGitEngine({
+      root,
+      remote: () => {
+        reads += 1;
+        return null;
+      },
+      env,
+    });
+    cleanups.push(() => engine.dispose());
+    engine.startAutoSync(50);
+    await waitFor(async () => Promise.resolve(reads >= 2));
+    // ensureOriginRemote is reachable only inside a pass; a pass that ran
+    // would have persisted `origin` into .git/config.
+    await expect(runGit(root, ["remote", "get-url", "origin"], { env })).rejects.toThrow();
+  });
+
   it("turns sync on mid-life — the pairing flip needs no engine restart", async () => {
     const remote = await makeBareRemote();
     const root = scratchDir("inteligir-git-live-");
