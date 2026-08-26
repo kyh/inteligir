@@ -167,7 +167,7 @@ wrangler email sending enable <verified-domain>   # then the DKIM/SPF DNS
 # wrangler secret put RESET_FROM_ADDRESS          # e.g. no-reply@<verified-domain>
 
 # 6. The vault pack bucket (once — the R2 binding refuses to deploy without it)
-wrangler r2 bucket create inteligir-vault-packs
+wrangler r2 bucket create inteligir-vault
 
 # 7. Deploy
 pnpm --filter @repo/web deploy       # == vite build && wrangler deploy
