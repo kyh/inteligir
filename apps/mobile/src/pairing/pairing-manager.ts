@@ -30,7 +30,7 @@ import {
   type CloudEndpoint,
   type CloudFailure,
   type CloudFetch,
-} from "../sync/cloud-client";
+} from "@repo/api/cloud/client";
 import { createPkcePair, hexFromBytes, type PkceCrypto } from "./pkce";
 
 /**

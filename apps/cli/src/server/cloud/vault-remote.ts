@@ -1,5 +1,5 @@
 import { VAULT_GIT_PATH } from "@repo/api/cloud/vault/vault-git";
-import { endpointUrl } from "./cloud-client";
+import { endpointUrl } from "@repo/api/cloud/client";
 import { readDeviceCredential } from "./credential-store";
 
 // ---------------------------------------------------------------------------

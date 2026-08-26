@@ -27,7 +27,7 @@ import {
   PAIR_CALLBACK_PATH,
   pairRedirectUrlSchema,
 } from "@repo/api/cloud/pairing/pairing-schema";
-import { describeCloudFailure } from "./cloud-client";
+import { describeCloudFailure } from "@repo/api/cloud/client";
 import type { CloudRuntime, PairCompletion } from "./sync-runtime";
 import { loopbackRequestOrigin } from "../loopback-origin";
 import {

@@ -13,7 +13,7 @@ import { threadScope } from "@repo/domain/thread-event-scope";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CAPTURE_INBOX_PATH, type CaptureVault } from "../captures";
-import type { CloudFetch, CloudSocket, OpenCloudSocketArgs } from "../cloud-client";
+import type { CloudFetch, CloudSocket, OpenCloudSocketArgs } from "@repo/api/cloud/client";
 import { readDeviceCredential } from "../credential-store";
 import {
   createCloudRuntime,

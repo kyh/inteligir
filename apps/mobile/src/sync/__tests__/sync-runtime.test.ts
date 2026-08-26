@@ -1,4 +1,4 @@
-import type { CloudResult } from "../cloud-client";
+import type { CloudResult } from "@repo/api/cloud/client";
 import { describe, expect, it } from "vitest";
 import { createMemorySyncStore } from "../memory-sync-store";
 import { createSyncRuntime } from "../sync-runtime";

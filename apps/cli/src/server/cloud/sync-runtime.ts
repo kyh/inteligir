@@ -37,7 +37,7 @@
 import { randomBytes } from "node:crypto";
 import { hostname } from "node:os";
 import { CLAIM_DEFAULT_LIMIT } from "@repo/api/cloud/captures/captures-schema";
-import type { CloudErrorCode } from "@repo/api/cloud/errors";
+import { SYNC_OUTBOX_CODES, SYNC_TERMINAL_CODES } from "@repo/api/cloud/errors";
 import {
   buildPairApproveUrl,
   DEVICE_NAME_MAX_LENGTH,
@@ -77,7 +77,7 @@ import {
   type CloudSocket,
   type CloudSocketOpener,
   type CreateCloudClientArgs,
-} from "./cloud-client";
+} from "@repo/api/cloud/client";
 import {
   clearDeviceCredential,
   readDeviceCredential,
@@ -238,11 +238,9 @@ export interface CloudRuntime {
 /** A refusal that means the credential is finished. Both are terminal for this
  *  device: `unauthorized` is a revoked or unknown credential, `account-deleted`
  *  is a tombstoned account that every route refuses against. */
-const TERMINAL_CODES: ReadonlySet<CloudErrorCode> = new Set(["unauthorized", "account-deleted"]);
 
 /** A refusal that means THIS DEVICE'S OWN OUTBOX disagrees with the log, and
  *  names the position that did. */
-const OUTBOX_CODES: ReadonlySet<CloudErrorCode> = new Set(["sync-conflict", "sync-out-of-order"]);
 
 /**
  * `id` is the fence. Every session gets a fresh one, and a pass captures the id
@@ -493,7 +491,7 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
   /** True when the failure ends this device's session; the caller stops. */
   function recordFailure(failure: CloudFailure): boolean {
     lastError = describeCloudFailure(failure);
-    if (failure.kind !== "refused" || !TERMINAL_CODES.has(failure.code)) {
+    if (failure.kind !== "refused" || !SYNC_TERMINAL_CODES.has(failure.code)) {
       debug(lastError);
       return false;
     }
@@ -551,7 +549,7 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
         return false;
       }
       if (!result.ok) {
-        if (result.failure.kind === "refused" && OUTBOX_CODES.has(result.failure.code)) {
+        if (result.failure.kind === "refused" && SYNC_OUTBOX_CODES.has(result.failure.code)) {
           const through = result.failure.deviceSeq ?? batch.throughDeviceSeq;
           const dropped = deleteSyncOutboxThrough(args.db, through);
           debug(

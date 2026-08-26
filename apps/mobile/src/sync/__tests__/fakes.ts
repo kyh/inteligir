@@ -19,7 +19,7 @@ import type {
 import { threadScope, turnScope } from "@repo/domain/thread-event-scope";
 import type { ThreadEvent } from "@repo/domain/provider-event";
 import type { VaultFileResponse } from "@repo/api/cloud/vault/vault-schema";
-import type { CloudClient, CloudResult } from "../cloud-client";
+import type { CloudClient, CloudResult } from "@repo/api/cloud/client";
 
 export function userRequest(threadId: string, text: string): ThreadEvent {
   return { type: "client/turn/requested", threadId, text, kind: "message", scope: threadScope() };
@@ -122,8 +122,10 @@ export function createFakeCloud(): FakeCloud {
             ok({ results: request.ids.map((id) => ({ id, outcome: "deleted" as const })) }),
         );
       },
-      // The sync runtime never reads the vault; the notes-store suite fakes
-      // its own client. An empty vault is the honest inert answer here.
+      // The sync runtime reads neither the vault nor the account; the
+      // notes-store suite fakes its own client. Empty answers are the honest
+      // inert rows here.
+      account: () => Promise.resolve(ok({ email: "paired@example.test" })),
       vaultTree: () => Promise.resolve(ok({ commit: "0".repeat(40), entries: [], next: null })),
       vaultFile: () =>
         Promise.resolve<CloudResult<VaultFileResponse>>({

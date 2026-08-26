@@ -7,6 +7,7 @@
   "exports": {
     "./cloud/account/account-schema": "./src/cloud/account/account-schema.ts",
     "./cloud/captures/captures-schema": "./src/cloud/captures/captures-schema.ts",
+    "./cloud/client": "./src/cloud/cloud-client.ts",
     "./cloud/errors": "./src/cloud/cloud-errors.ts",
     "./cloud/pairing/pairing-schema": "./src/cloud/pairing/pairing-schema.ts",
     "./cloud/sync/sync-schema": "./src/cloud/sync/sync-schema.ts",

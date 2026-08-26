@@ -45,7 +45,7 @@ import {
   type PushResponse,
   type SyncEventRow,
 } from "@repo/api/cloud/sync/sync-schema";
-import type { CloudFetch } from "../cloud-client";
+import type { CloudFetch } from "@repo/api/cloud/client";
 import { z } from "zod";
 
 /** A decoded request body, before a route's schema reads it. */

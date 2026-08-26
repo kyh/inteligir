@@ -65,6 +65,28 @@ export const CLOUD_ERROR_STATUS = {
   internal: 500,
 } as const satisfies Record<CloudErrorCode, number>;
 
+/**
+ * The refusals a sync pass must STOP on: retrying cannot fix a credential the
+ * cloud has rejected or an account that no longer exists. ONE spelling for
+ * every platform's runtime — a code classified terminal on one device and
+ * retryable on another turns the same refusal into an infinite retry loop
+ * there, silently (#606's stated failure mode).
+ */
+export const SYNC_TERMINAL_CODES: ReadonlySet<CloudErrorCode> = new Set([
+  "unauthorized",
+  "account-deleted",
+]);
+
+/**
+ * The refusals that mean this device's OWN outbox is wrong (and name the
+ * `deviceSeq` that disagreed): the fix is dropping the named rows, never
+ * resending the batch the server will refuse forever.
+ */
+export const SYNC_OUTBOX_CODES: ReadonlySet<CloudErrorCode> = new Set([
+  "sync-conflict",
+  "sync-out-of-order",
+]);
+
 export const cloudErrorSchema = z
   .object({
     error: z

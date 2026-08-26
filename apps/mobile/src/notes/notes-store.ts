@@ -16,7 +16,7 @@
 import { buildResolver, type TargetResolver } from "@repo/notes/knowledge/link-resolve";
 import type { VaultTreeResponse } from "@repo/api/cloud/vault/vault-schema";
 import type { DeviceCredential } from "../credential/credential-codec";
-import { createCloudClient, describeCloudFailure, type CloudFetch } from "../sync/cloud-client";
+import { createCloudClient, describeCloudFailure, type CloudFetch } from "@repo/api/cloud/client";
 import { createExternalStore, type ExternalStore } from "../lib/external-store";
 
 /** Cached note bodies. Small and bounded: a note re-fetches on a miss, and
