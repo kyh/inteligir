@@ -102,7 +102,6 @@ const ACTIVITY_TASK_STATUS = {
   queued: "pending",
   running: "running",
   "needs-approval": "pending",
-  "needs-review": "pending",
   done: "done",
   failed: "failed",
   archived: "done",
@@ -111,7 +110,6 @@ const ACTIVITY_TASK_STATUS = {
 function ActionRow({ thread, onSelect }: { thread: Thread; onSelect: (threadId: string) => void }) {
   const activity = threadActivity(thread, {
     openInteractionCount: 0,
-    pendingProposalCount: 0,
     queuedCount: 0,
   });
   return (

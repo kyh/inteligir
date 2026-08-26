@@ -1,6 +1,6 @@
 // Vendored from bb (github.com/get-bb/bb), MIT. © bb contributors.
 
-import { DEFAULT_AGENT_WRITE_MODE, type AgentWriteMode } from "@repo/domain/agent-write-mode";
+import { DEFAULT_AGENT_WRITE_MODE } from "@repo/domain/agent-write-mode";
 import type {
   ThreadLifecycleEvent,
   ThreadLifecycleNoopReason,
@@ -19,10 +19,8 @@ type ThreadWriteConnection = DbConnection | DbTransaction;
 export interface CreateThreadInput {
   title?: string;
   originDocPath?: string;
-  originAnchor?: string;
   /** The harness this thread runs on; unset adopts the dispatch default. */
   providerId?: string;
-  writeMode?: AgentWriteMode;
 }
 
 export function createThread(
@@ -39,9 +37,13 @@ export function createThread(
       status: "idle",
       activeTurnId: null,
       originDocPath: input.originDocPath ?? null,
-      originAnchor: input.originAnchor ?? null,
+      // Both retired columns keep their defaults: writeMode is genuinely
+      // INERT now (#613 — nothing reads it past this insert) and anchors are
+      // legacy rows only; the columns stay because cross-device sync skew
+      // makes a drop unsafe.
+      originAnchor: null,
       providerId: input.providerId ?? null,
-      writeMode: input.writeMode ?? DEFAULT_AGENT_WRITE_MODE,
+      writeMode: DEFAULT_AGENT_WRITE_MODE,
       archivedAt: null,
       createdAt: now,
       updatedAt: now,
@@ -104,17 +106,6 @@ export function listThreads(db: DbConnection): ThreadRow[] {
     .orderBy(desc(threads.updatedAt))
     .all();
   return [...live, ...archived];
-}
-
-/** Threads bound to one doc, newest-updated first — answered by
- *  `threads_origin_doc_idx` rather than a scan of every thread. */
-export function listThreadsByOriginDoc(db: DbConnection, docPath: string): ThreadRow[] {
-  return db
-    .select()
-    .from(threads)
-    .where(eq(threads.originDocPath, docPath))
-    .orderBy(desc(threads.updatedAt))
-    .all();
 }
 
 /**

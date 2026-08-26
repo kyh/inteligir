@@ -45,35 +45,8 @@ describe("threadActivity", () => {
       threadActivity(thread({ status: "active", archivedAt: 1 }), {
         openInteractionCount: 1,
         queuedCount: 1,
-        pendingProposalCount: 1,
       }),
     ).toBe("archived");
-  });
-
-  it("ranks a pending suggestion above done and below everything blocking", () => {
-    const idle = thread({ status: "idle" });
-    expect(threadActivity(idle, { ...NO_ACTIVITY_COUNTS, pendingProposalCount: 1 })).toBe(
-      "needs-review",
-    );
-    // A queue and an approval both block the AGENT; a suggestion waits on the
-    // user with the turn already over, so it never masks either.
-    expect(
-      threadActivity(idle, { ...NO_ACTIVITY_COUNTS, queuedCount: 1, pendingProposalCount: 1 }),
-    ).toBe("queued");
-    expect(
-      threadActivity(idle, {
-        ...NO_ACTIVITY_COUNTS,
-        openInteractionCount: 1,
-        pendingProposalCount: 1,
-      }),
-    ).toBe("needs-approval");
-    // A running turn is still running, whatever an earlier one left behind.
-    expect(
-      threadActivity(thread({ status: "active" }), {
-        ...NO_ACTIVITY_COUNTS,
-        pendingProposalCount: 1,
-      }),
-    ).toBe("running");
   });
 });
 

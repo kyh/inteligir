@@ -42,10 +42,6 @@ const MOVES_THE_TIMELINE = {
   "queue-changed": false,
   "interactions-changed": false,
   "origin-changed": false,
-  // A proposal is not a thread event: it lives in its own table, and no
-  // timeline row renders one — the kind dies whole with the retired
-  // proposals pipeline.
-  "proposals-changed": false,
 } satisfies Record<ThreadChangeKind, boolean>;
 
 /**

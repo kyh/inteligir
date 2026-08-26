@@ -22,10 +22,8 @@
 //   onInteractionResolved) or the turn settles, which interrupts open rows
 //   and answers the provider with a deny.
 // - WRITES: a turn takes the vault's commit hold at dispatch and the settle
-//   path either commits as the agent or lifts the write set into a reviewable
-//   proposal — see agent-commits.ts for the race design and for what review
-//   mode does with the hold. Which of the two a turn does is the THREAD's
-//   column, carried on the dispatch that started it.
+//   path commits the recorded write set as the agent — see agent-commits.ts
+//   for the race design.
 // - THE WATCHDOG: a turn that goes quiet for too long is FAILED through the
 //   same grammar, because the hold it carries is not local to the thread —
 //   while it is open the vault's auto-commit defers and no sync pass may
@@ -77,7 +75,6 @@ import {
   beginAgentTurnWrites,
   createVaultPathResolver,
   type AgentTurnWrites,
-  type CaptureTurnProposals,
   type VaultPathResolver,
 } from "./agent-commits";
 import { loadAgentInstructions } from "./agent-instructions";
@@ -140,9 +137,6 @@ export interface AcpRuntimeManagerDeps {
   /** The enabled connector rows every session gets (issue #591). */
   mcpServers: () => AcpMcpServerConfig[] | Promise<AcpMcpServerConfig[]>;
   createRuntime?: typeof createAcpAgentRuntime;
-  /** Review mode's seam: where a turn's write set goes when the thread asks
-   *  for proposals instead of writes. Omitted, every turn writes directly. */
-  captureProposals?: CaptureTurnProposals;
   /** null disables the reap interval (tests drive reaping directly). */
   reapIntervalMs?: number | null;
   /** The idle budget a dispatched turn gets; null disables the watchdog. */
@@ -220,30 +214,8 @@ class CodexTurnDriver implements TurnDriver {
     this.deps.onDebug?.(message);
   }
 
-  /**
-   * The turn's write destination. `propose` needs a capture the deployment
-   * wired; without one the turn falls back to writing directly rather than
-   * silently discarding its work — and says so, because a review-mode thread
-   * that lands its edits is not a quiet degradation.
-   */
   private beginWrites(args: TurnDriverStartArgs): AgentTurnWrites {
-    const capture = this.deps.captureProposals;
-    if (args.writeMode === "propose" && capture !== undefined) {
-      return beginAgentTurnWrites({
-        mode: "propose",
-        git: this.deps.git,
-        threadId: args.threadId,
-        turnId: args.turnId,
-        capture,
-      });
-    }
-    if (args.writeMode === "propose") {
-      this.debug(
-        `thread ${args.threadId} asked for review mode but no proposal store is wired; writing directly`,
-      );
-    }
     return beginAgentTurnWrites({
-      mode: "direct",
       git: this.deps.git,
       threadId: args.threadId,
       turnId: args.turnId,

@@ -405,9 +405,8 @@ export interface GitEngine {
    * commit). Returns the release function.
    */
   holdCommits(): () => void;
-  /** The commit HEAD names right now — the base revision a review-mode turn
-   *  measures its proposals against (issue #560). Null on an unborn HEAD,
-   *  which `ensureVaultRepo` makes unreachable in a booted vault. */
+  /** The commit HEAD names right now. Null on an unborn HEAD, which
+   *  `ensureVaultRepo` makes unreachable in a booted vault. */
   headRevision(): Promise<string | null>;
   /**
    * A file's bytes AT a revision, or null when that revision does not carry

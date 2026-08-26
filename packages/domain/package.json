@@ -10,7 +10,6 @@
     "./notifier": "./src/notifier.ts",
     "./pending-interaction-status": "./src/pending-interaction-status.ts",
     "./pending-interactions": "./src/pending-interactions.ts",
-    "./proposal-status": "./src/proposal-status.ts",
     "./thread-status": "./src/thread-status.ts",
     "./thread-lifecycle": "./src/thread-lifecycle.ts",
     "./thread-event-scope": "./src/thread-event-scope.ts",

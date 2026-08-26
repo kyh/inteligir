@@ -87,9 +87,7 @@ export function applyChangedMessage(
       // are two kinds. The note's bytes are not query state (the buffer IS the
       // file), so `content-changed` goes to the open note's own reader and
       // invalidates no read of those bytes — a `vaultFile` query alongside it
-      // bought a second read of the same ones. (`proposals-changed` still
-      // arrives on the wire but no query family consumes it; the kind dies
-      // whole with the retired proposals pipeline.)
+      // bought a second read of the same ones.
       //
       // Knowledge is the other kind of derived state a doc's OWN bytes move:
       // the links this doc holds are someone else's backlinks, and which

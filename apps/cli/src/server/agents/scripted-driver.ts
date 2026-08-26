@@ -4,7 +4,7 @@
 // vault service write, the settling of the turn's write set). The script:
 // stream an agent message echoing THE PROMPT IT WAS HANDED, write a note
 // through the VAULT SERVICE, report the fileChange item, settle the write set
-// (an agent-attributed commit, or a reviewable proposal), complete.
+// (an agent-attributed commit), complete.
 //
 // The echo is the prompt rather than the raw text because the prompt is
 // assembled by production code (`turnPromptInput`) that a real provider would
@@ -20,7 +20,7 @@ import type {
   TurnDriver,
   TurnDriverStartArgs,
 } from "../threads/turn-driver";
-import { beginAgentTurnWrites, type CaptureTurnProposals } from "./agent-commits";
+import { beginAgentTurnWrites } from "./agent-commits";
 import { agentMessageEvents } from "./agent-message-events";
 import { turnPromptInput } from "./view-context-prompt";
 
@@ -28,7 +28,6 @@ export interface ScriptedDriverDeps {
   vault: VaultService;
   git: GitEngine;
   /** Review mode's seam, same as the codex manager's. */
-  captureProposals?: CaptureTurnProposals;
   onError?: (message: string) => void;
 }
 
@@ -65,22 +64,11 @@ class ScriptedTurnDriver implements TurnDriver {
     args: TurnDriverStartArgs,
     scope: ReturnType<typeof turnScope>,
   ): Promise<void> {
-    const capture = this.deps.captureProposals;
-    const turnCommit =
-      args.writeMode === "propose" && capture !== undefined
-        ? beginAgentTurnWrites({
-            mode: "propose",
-            git: this.deps.git,
-            threadId: args.threadId,
-            turnId: args.turnId,
-            capture,
-          })
-        : beginAgentTurnWrites({
-            mode: "direct",
-            git: this.deps.git,
-            threadId: args.threadId,
-            turnId: args.turnId,
-          });
+    const turnCommit = beginAgentTurnWrites({
+      git: this.deps.git,
+      threadId: args.threadId,
+      turnId: args.turnId,
+    });
     const fileItemId = `item_${args.turnId}_file`;
     try {
       // Wait out any mid-flight sync before writing (same barrier the codex

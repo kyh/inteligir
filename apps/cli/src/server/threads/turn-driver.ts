@@ -1,4 +1,3 @@
-import type { AgentWriteMode } from "@repo/domain/agent-write-mode";
 import type { ThreadEvent } from "@repo/domain/provider-event";
 import type { ViewContext } from "@repo/domain/view-context";
 import type { PendingInteraction } from "@repo/api/local/threads/threads-schema";
@@ -39,7 +38,6 @@ export interface TurnDriverStartArgs {
   text: string;
   /** Where this turn's file writes land — the thread's own column, read by
    *  the send that dispatched it so a driver never has to ask the db. */
-  writeMode: AgentWriteMode;
   /** What the sender was looking at, when this host can name it. Omitted for
    *  the CLI, the palette, a chat with no note open — and for a QUEUED
    *  message, which drains long after its screen went away. */

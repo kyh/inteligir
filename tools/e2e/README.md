@@ -56,10 +56,9 @@ what each one is FOR.
 |                           | ops verified to leave the disk untouched                                 |
 | vault-sync                | two instances + one bare remote (auto-sync off, every sync explicit):    |
 |                           | propagation, then a typed conflict + git-verified repo integrity         |
+| action-scripted           | an action attaches to its note; the CAS write guards the save (409 on a  |
+|                           | stale base, current bytes in the body); a rename drags the attachment    |
 | threads-scripted          | a turn through the scripted driver: send, settle, timeline               |
-| delegation-scripted       | the action loop: anchor spliced via the guarded CAS write, bound thread, |
-|                           | scripted turn writes the vault, by-doc data, timeline turn + file change |
-| proposal-review           | a review-mode action proposes instead of writing; accepting lands bytes  |
 | cli-drive                 | the CLI drives a real instance, and the env an agent's shell would get   |
 |                           | resolves against this checkout                                           |
 | browser-smoke             | headless page load: the REAL policy on the served document, SPA mount,   |
@@ -95,7 +94,7 @@ Each feature issue lands with its scenario here (#556).
 | `INTELIGIR_SYNC_INTERVAL_MS` | vault auto-sync cadence; `0` disables the loop AND the |
 |                              | boot sync (vault-sync sets it for determinism)         |
 | `INTELIGIR_AGENT`            | `scripted` — the deterministic in-process driver the   |
-|                              | thread and delegation scenarios run against            |
+|                              | thread and action scenarios run against                |
 
 Instances run with every host `GIT_*` variable stripped, `GIT_CONFIG_GLOBAL`
 /`GIT_CONFIG_SYSTEM` pinned to `/dev/null` and an explicit harness git

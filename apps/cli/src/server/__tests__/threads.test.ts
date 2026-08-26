@@ -568,54 +568,7 @@ describe("turn identity and crash recovery", () => {
   });
 });
 
-describe("the by-doc query", () => {
-  it("answers exactly the threads bound to the doc, archived included, with activity counts", async () => {
-    const { bus, client, db, driver } = await bootThreadsApp({ mode: "manual" });
-    if (!driver) {
-      throw new Error("expected the fake driver");
-    }
-    const plainChat = await createThread(client);
-    void plainChat;
-    const { thread: bound } = await client.threads.create({
-      title: "Fix the intro",
-      originDocPath: "Notes/Plans.md",
-      originAnchor: "anc_00000000000a",
-    });
-    await client.threads.create({
-      originDocPath: "Other.md",
-      originAnchor: "anc_00000000000b",
-    });
-
-    // Activity the counts must surface: a running turn with a queued send
-    // and an open approval.
-    const started = await client.threads.send({
-      threadId: bound.id,
-      text: "go",
-      mode: "steer-if-active",
-    });
-    expect(started.kind).toBe("started");
-    await client.threads.send({ threadId: bound.id, text: "later", mode: "queue-if-active" });
-    createPendingInteraction(db, bus, {
-      threadId: bound.id,
-      requestKey: "req-chip",
-      payload: JSON.stringify({ kind: "approval" }),
-    });
-
-    const byDoc = await client.threads.byDoc({ docPath: "Notes/Plans.md" });
-    expect(byDoc.threads).toHaveLength(1);
-    const activity = byDoc.threads[0];
-    expect(activity?.thread.id).toBe(bound.id);
-    expect(activity?.thread.originAnchor).toBe("anc_00000000000a");
-    expect(activity?.openInteractionCount).toBe(1);
-    expect(activity?.queuedCount).toBe(1);
-
-    // Archiving keeps the row in the answer — the chip's dismiss affordance
-    // is keyed off exactly this.
-    await client.threads.archive({ threadId: bound.id });
-    const afterArchive = await client.threads.byDoc({ docPath: "Notes/Plans.md" });
-    expect(afterArchive.threads[0]?.thread.archivedAt).not.toBeNull();
-  });
-
+describe("thread detail", () => {
   it("thread detail carries the unclaimed queue for pending bubbles", async () => {
     const { client } = await bootThreadsApp({ mode: "manual" });
     const threadId = await createThread(client);

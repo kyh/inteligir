@@ -7,7 +7,6 @@ import { pendingInteractionStatusSchema } from "@repo/domain/pending-interaction
 import { approvalPendingInteractionPayloadSchema } from "@repo/domain/pending-interactions";
 import { threadStatusSchema } from "@repo/domain/thread-status";
 import { viewContextSchema, type ViewContext } from "@repo/domain/view-context";
-import { THREAD_ANCHOR_TOKEN_PATTERN } from "@repo/notes/markdown/thread-anchor";
 import { z } from "zod";
 import { threadTimelineSchema, timelineDeltaSchema } from "../thread-timeline";
 import { vaultPathSchema } from "../vault/vault-schema";
@@ -25,7 +24,7 @@ export const threadSchema = z
     /** The harness this thread runs on, once one ever dispatched (or was
      *  chosen at create); null adopts the default at next dispatch. */
     providerId: z.string().nullable(),
-    /** Where this thread's turns land: the vault, or a reviewable proposal. */
+    /** Retired (#613): legacy rows only — nothing writes or branches on it. */
     writeMode: agentWriteModeSchema,
     archivedAt: z.number().nullable(),
     createdAt: z.number(),
@@ -55,39 +54,17 @@ export type PendingInteraction = z.infer<typeof pendingInteractionSchema>;
 
 const MAX_THREAD_TITLE_LENGTH = 200;
 
-/** The anchor token grammar, stated once in @repo/notes and validated here so
- *  a stored anchor always matches what the marker in the file can spell. */
-const originAnchorSchema = z.string().regex(new RegExp(THREAD_ANCHOR_TOKEN_PATTERN, "u"), {
-  message: "originAnchor must be anc_ followed by 12 lowercase hex digits",
-});
-
 export const createThreadRequestSchema = z
   .object({
     title: z.string().min(1).max(MAX_THREAD_TITLE_LENGTH).optional(),
     /** A thread's origin is a stored path nothing else re-validates, so a bad
      *  one would sit in the database forever, unmatched by every by-doc query. */
     originDocPath: vaultPathSchema.optional(),
-    originAnchor: originAnchorSchema.optional(),
     /** The harness this thread runs on ("claude" | "codex" today); omitted
      *  adopts the server's default at first dispatch. */
     providerId: z.string().min(1).optional(),
-    /** Omitted means `direct` — v1's behaviour, so a caller that has never
-     *  heard of review mode keeps the semantics it was written against. */
-    writeMode: agentWriteModeSchema.optional(),
   })
-  .strict()
-  .superRefine((value, ctx) => {
-    // An anchor names a marker inside its doc, so it cannot exist without one;
-    // a doc ALONE is a marker-less attachment (an action composed over the
-    // note, #587). The db CHECK is the storage-level twin of this refine.
-    if (value.originAnchor !== undefined && value.originDocPath === undefined) {
-      ctx.addIssue({
-        code: "custom",
-        message: "originAnchor requires originDocPath",
-        path: [value.originAnchor === undefined ? "originAnchor" : "originDocPath"],
-      });
-    }
-  });
+  .strict();
 export type CreateThreadRequest = z.infer<typeof createThreadRequestSchema>;
 
 /** The single-thread answer of a create or an archive. */
@@ -96,33 +73,6 @@ export type ThreadResponse = z.infer<typeof threadResponseSchema>;
 
 export const listThreadsResponseSchema = z.object({ threads: z.array(threadSchema) }).strict();
 export type ListThreadsResponse = z.infer<typeof listThreadsResponseSchema>;
-
-export const docThreadsQuerySchema = z
-  .object({
-    docPath: z.string().min(1),
-  })
-  .strict();
-export type DocThreadsQuery = z.infer<typeof docThreadsQuerySchema>;
-
-/**
- * A doc-bound thread with the activity counts a status chip needs and a
- * `Thread` alone cannot answer: an open approval, a queued send and a pending
- * proposal are rows in their own tables, not thread columns.
- */
-export const docThreadActivitySchema = z
-  .object({
-    thread: threadSchema,
-    openInteractionCount: z.number(),
-    queuedCount: z.number(),
-    pendingProposalCount: z.number(),
-  })
-  .strict();
-export type DocThreadActivity = z.infer<typeof docThreadActivitySchema>;
-
-export const listDocThreadsResponseSchema = z
-  .object({ threads: z.array(docThreadActivitySchema) })
-  .strict();
-export type ListDocThreadsResponse = z.infer<typeof listDocThreadsResponseSchema>;
 
 export const threadIdQuerySchema = z
   .object({

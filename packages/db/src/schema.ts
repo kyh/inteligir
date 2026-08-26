@@ -1,7 +1,6 @@
 import { AGENT_WRITE_MODE_VALUES } from "@repo/domain/agent-write-mode";
 import { pendingInteractionStatusValues } from "@repo/domain/pending-interaction-status";
 import type { ThreadEventItemType, ThreadEventType } from "@repo/domain/provider-event";
-import { STORED_PROPOSAL_STATUS_VALUES } from "@repo/domain/proposal-status";
 import type { ThreadEventScopeKind } from "@repo/domain/thread-event-scope";
 import { threadStatusValues } from "@repo/domain/thread-status";
 import { sql } from "drizzle-orm";
@@ -43,10 +42,9 @@ export const threads = sqliteTable(
     // idle-session reaping — the next turn resumes by this id.
     providerId: text("provider_id"),
     providerThreadId: text("provider_thread_id"),
-    // Where this thread's turns LAND (issue #560): straight into the vault, or
-    // into a reviewable proposal. Defaulted rather than nullable, because
-    // "unknown" is not a mode any dispatch could act on — an existing row and
-    // a caller that names nothing both mean v1's behaviour.
+    // Retired (#613): every turn writes direct now, and nothing dispatches on
+    // this. The column stays because cross-device sync version skew makes a
+    // drop unsafe — a peer still syncing the old grammar may send the field.
     writeMode: text("write_mode", { enum: AGENT_WRITE_MODE_VALUES }).notNull().default("direct"),
     archivedAt: integer("archived_at"),
     createdAt: integer("created_at").notNull(),
@@ -266,28 +264,14 @@ export const syncAppliedCaptures = sqliteTable("sync_applied_captures", {
 });
 
 /**
- * A suggested edit a review-mode turn captured instead of landing (issue
- * #560): one row per file the turn wrote, holding BOTH sides whole.
- *
- * WHOLE CONTENT, NOT HUNKS. The hunk list every surface renders is
- * `diffLines(base, proposed)` — the Myers walk `@repo/notes/text` already
- * carries for diff3 and the editor's external replace — so storing hunks
- * would be storing a derivation of these two columns that can disagree with
- * them, and a partial accept would need a second assembler to turn hunks back
- * into the bytes a write takes. With the content stored, the bytes applied
- * ARE the bytes recorded, per-hunk accept is a rewrite of this same pair, and
- * a vault file (10MB ceiling, KBs in practice) beside a git object store that
- * already holds every revision is not the cost worth optimising.
- *
- * `base_hash` NULL means the file did not exist — a creation. `proposed`
- * NULL means the turn deleted it. Both may not be null at once: a proposal
- * that neither creates nor changes anything has nothing to review.
- *
- * `revision` is the identity of the (base, proposed) PAIR. Both columns are
- * rewritten by a per-hunk accept or reject, so a client acting on hunks it
- * rendered a moment ago names the revision it rendered and a rewrite in
- * between refuses instead of applying hunk 2 of a different diff.
+ * RETIRED (#613 deleted the review-mode pipeline, #560's). The table is
+ * RETAINED BYTES ONLY: no code reads or writes it, but a drop migration is
+ * unsafe under cross-device sync version skew, so the definition stays for
+ * the migration↔schema agreement guard. `status` values inlined because the
+ * domain module died with the pipeline.
  */
+const RETAINED_PROPOSAL_STATUS_VALUES = ["pending", "applied", "rejected"] as const;
+
 export const proposals = sqliteTable(
   "proposals",
   {
@@ -295,38 +279,23 @@ export const proposals = sqliteTable(
     threadId: text("thread_id")
       .notNull()
       .references(() => threads.id, { onDelete: "cascade" }),
-    /** The turn that produced it; null once that identity is no longer known. */
     turnId: text("turn_id"),
     docPath: text("doc_path").notNull(),
-    /** The git revision the base bytes were read from — what a re-run rebases
-     *  against, and what makes "which base" answerable after the fact. */
     baseRev: text("base_rev"),
     baseHash: text("base_hash"),
     baseContent: text("base_content").notNull(),
     proposedContent: text("proposed_content"),
-    status: text("status", { enum: STORED_PROPOSAL_STATUS_VALUES }).notNull(),
+    status: text("status", { enum: RETAINED_PROPOSAL_STATUS_VALUES }).notNull(),
     revision: integer("revision").notNull(),
-    // How many hunks of this suggestion reached disk. The resolved status is
-    // read off it, and it has to be counted rather than inferred: after a
-    // mixed review the base has moved and the proposal is empty, which looks
-    // identical whether the hunks were taken or discarded. Answering
-    // "rejected" for a suggestion whose edits ARE in the file is the one
-    // outcome the history must never claim.
     acceptedHunks: integer("accepted_hunks").notNull().default(0),
     createdAt: integer("created_at").notNull(),
     updatedAt: integer("updated_at").notNull(),
     resolvedAt: integer("resolved_at"),
   },
   (table) => [
-    // ONE pending proposal per (thread, doc): a second turn on the same thread
-    // is refining the same work, so its capture SUPERSEDES rather than stacks.
-    // Two pending rows for one file would each claim a base the other's accept
-    // invalidates, and the second would read stale the moment the first landed.
     uniqueIndex("proposals_thread_doc_pending_idx")
       .on(table.threadId, table.docPath)
       .where(sql`${table.status} = 'pending'`),
-    // The editor's gutter asks "what is proposed against THIS doc?" on every
-    // proposal invalidation; the dock asks the same by thread.
     index("proposals_doc_status_idx").on(table.docPath, table.status),
     index("proposals_thread_status_idx").on(table.threadId, table.status),
     check(

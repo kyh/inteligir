@@ -210,7 +210,7 @@ describe("the chat thread resolver", () => {
 
   it("does not adopt a delegation thread as the chat", async () => {
     const { client } = await bootChatHarness({ mode: "manual" });
-    await client.threads.create({ originDocPath: "Doc.md", originAnchor: "anc_0123456789ab" });
+    await client.threads.create({ originDocPath: "Doc.md" });
     const chat = await createChatThreadResolver(client)();
     expect(chat.originDocPath).toBeNull();
   });

@@ -16,9 +16,7 @@ import {
   answerInteractionResponseSchema,
   archiveThreadRequestSchema,
   createThreadRequestSchema,
-  docThreadsQuerySchema,
   getThreadResponseSchema,
-  listDocThreadsResponseSchema,
   listInteractionsQuerySchema,
   listInteractionsResponseSchema,
   listThreadsResponseSchema,
@@ -34,8 +32,6 @@ export const threadsContract = {
   list: oc.output(listThreadsResponseSchema),
 
   get: oc.input(threadIdQuerySchema).output(getThreadResponseSchema).errors({ NOT_FOUND: {} }),
-
-  byDoc: oc.input(docThreadsQuerySchema).output(listDocThreadsResponseSchema),
 
   create: oc.input(createThreadRequestSchema).output(threadResponseSchema),
 

@@ -11,13 +11,12 @@ import { fileURLToPath } from "node:url";
 import { ScenarioSkip } from "./harness/assert";
 import { killAllLiveGroups, type AppInstance } from "./harness/instance";
 import { createScenarioContext, type Scenario } from "./harness/scenario";
+import { actionScripted } from "./scenarios/action-scripted";
 import { browserSmoke } from "./scenarios/browser-smoke";
 import { cliDrive } from "./scenarios/cli-drive";
-import { delegationScripted } from "./scenarios/delegation-scripted";
 import { dictationBrowser } from "./scenarios/dictation-browser";
 import { editorConstructsBrowser } from "./scenarios/editor-constructs-browser";
 import { externalEditBrowser } from "./scenarios/external-edit-browser";
-import { proposalReview } from "./scenarios/proposal-review";
 import { slashMenuBrowser } from "./scenarios/slash-menu-browser";
 import { threadsScripted } from "./scenarios/threads-scripted";
 import { vaultCrud } from "./scenarios/vault-crud";
@@ -28,8 +27,7 @@ const SCENARIOS: readonly Scenario[] = [
   vaultCrud,
   vaultSync,
   threadsScripted,
-  delegationScripted,
-  proposalReview,
+  actionScripted,
   cliDrive,
   browserSmoke,
   editorConstructsBrowser,

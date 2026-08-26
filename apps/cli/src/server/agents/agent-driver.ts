@@ -10,7 +10,6 @@ import type { DbNotifier } from "@repo/domain/notifier";
 import type { AgentStatus } from "@repo/api/local/system/system-schema";
 import type { CreateTurnDriver } from "../threads/turn-driver";
 import { createUnavailableTurnDriver } from "../threads/turn-driver";
-import type { CaptureTurnProposals } from "./agent-commits";
 import type { AcpMcpServerConfig } from "@repo/agent-runtime/acp/acp-runtime";
 import type { AppConfig } from "../config";
 import type { VaultRuntime } from "../vault/vault-runtime";
@@ -39,7 +38,6 @@ export interface ResolveAgentDriverArgs {
   /** Where a review-mode turn's write set goes (issue #560). Both drivers
    *  take it, so the mode is a property of the THREAD rather than of which
    *  provider happens to be running. */
-  captureProposals?: CaptureTurnProposals;
   env?: NodeJS.ProcessEnv;
 }
 
@@ -70,7 +68,6 @@ export function resolveAgentDriver(args: ResolveAgentDriverArgs): ResolvedAgentD
       git: args.vault.git,
       onError: onDebug,
     };
-    if (args.captureProposals !== undefined) scripted.captureProposals = args.captureProposals;
     return {
       status: { mode, runtime: "scripted", detail: null },
       createTurnDriver: createScriptedTurnDriverFactory(scripted),
@@ -109,7 +106,6 @@ export function resolveAgentDriver(args: ResolveAgentDriverArgs): ResolvedAgentD
     defaultProviderId: claudeBinary === null ? "codex" : "claude",
     onDebug,
   };
-  if (args.captureProposals !== undefined) codex.captureProposals = args.captureProposals;
   const manager = createAcpRuntimeManager(codex);
   return {
     status: { mode, runtime: "acp", detail: null },

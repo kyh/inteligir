@@ -139,7 +139,7 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
     // Boots a REAL server and drives it over the typed client; the `inteligir`
     // edge is the binary it spawns and the config resolution that says which
     // instance this checkout means.
-    "@repo/e2e": ["@repo/api", "@repo/notes", "inteligir"],
+    "@repo/e2e": ["@repo/api", "inteligir"],
     "@repo/repo-guards": [],
   }),
 );

@@ -38,7 +38,6 @@ export type ThreadActivity =
   | "queued"
   | "running"
   | "needs-approval"
-  | "needs-review"
   | "done"
   | "failed"
   | "archived";
@@ -47,7 +46,6 @@ export type ThreadActivity =
 export interface ThreadActivityCounts {
   openInteractionCount: number;
   queuedCount: number;
-  pendingProposalCount: number;
 }
 
 /** For a surface holding a bare `Thread`: the list route answers no counts,
@@ -56,7 +54,6 @@ export interface ThreadActivityCounts {
 export const NO_ACTIVITY_COUNTS: ThreadActivityCounts = {
   openInteractionCount: 0,
   queuedCount: 0,
-  pendingProposalCount: 0,
 };
 
 export function threadActivity(thread: Thread, counts: ThreadActivityCounts): ThreadActivity {
@@ -74,13 +71,7 @@ export function threadActivity(thread: Thread, counts: ThreadActivityCounts): Th
     case "error":
       return "failed";
     case "idle":
-      if (counts.queuedCount > 0) {
-        return "queued";
-      }
-      // Ranked BELOW an approval and a queue, because those block the agent
-      // while this one waits on the user with the turn already finished — but
-      // above `done`, which would leave a suggestion nobody is told about.
-      return counts.pendingProposalCount > 0 ? "needs-review" : "done";
+      return counts.queuedCount > 0 ? "queued" : "done";
   }
 }
 
@@ -89,7 +80,6 @@ export const THREAD_ACTIVITY_LABELS = {
   queued: "queued",
   running: "running",
   "needs-approval": "needs approval",
-  "needs-review": "suggested edit",
   done: "done",
   failed: "failed",
   archived: "archived",

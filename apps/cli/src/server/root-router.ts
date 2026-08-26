@@ -11,7 +11,6 @@ import { foldersRouter } from "./folders/folders-router";
 import { knowledgeRouter } from "./knowledge/knowledge-router";
 import { noteIntelligenceRouter } from "./note-intelligence/note-intelligence-router";
 import { base } from "./orpc";
-import { proposalsRouter } from "./proposals/proposals-router";
 import { systemRouter } from "./system/system-router";
 import { threadsRouter } from "./threads/threads-router";
 import { vaultRouter } from "./vault/vault-router";
@@ -25,7 +24,6 @@ export const localRouter = base.router({
   folders: foldersRouter,
   knowledge: knowledgeRouter,
   noteIntelligence: noteIntelligenceRouter,
-  proposals: proposalsRouter,
   system: systemRouter,
   threads: threadsRouter,
   vault: vaultRouter,

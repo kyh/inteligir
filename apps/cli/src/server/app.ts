@@ -49,7 +49,6 @@ import type { KnowledgeRuntime } from "./knowledge/knowledge-runtime";
 import { renameNoteWithLinkRewrite } from "./knowledge/rename";
 import { createCommentsService } from "./comments/comments-service";
 import type { AppContext } from "./orpc";
-import { ProposalService } from "./proposals/proposal-service";
 import { localRouter } from "./root-router";
 import { ThreadService } from "./threads/service";
 import type { CreateTurnDriver } from "./threads/turn-driver";
@@ -225,11 +224,6 @@ export function createApp(args: CreateAppArgs) {
     knowledge: args.knowledge,
     noteIntelligence: args.noteIntelligence,
     openExternalUrl: args.openExternalUrl ?? systemOpenExternalUrl,
-    proposals: new ProposalService({
-      db: args.db,
-      notifier: args.bus,
-      vault: args.vault.service,
-    }),
     renameNote: (from: string, to: string) =>
       renameNoteWithLinkRewrite({
         service: args.vault.service,

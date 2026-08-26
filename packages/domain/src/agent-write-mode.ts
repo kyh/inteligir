@@ -1,11 +1,7 @@
-// Where a delegated turn's file writes LAND: straight into the vault, or into
-// a proposal the user reviews first. It is a per-thread fact rather than a
-// per-turn one, because a thread is one conversation and its later turns
-// refine the same work — a turn that proposed and a follow-up that wrote
-// directly would leave half the answer behind a review gate and half already
-// on disk.
-//
-// `ask` delegations never write at all, so this says nothing about them.
+// The retired review-mode vocabulary (#613): the pipeline that read this
+// died whole, and the enum survives ONLY because the `threads.write_mode`
+// COLUMN survives — legacy rows hold these spellings, and cross-device sync
+// skew makes a column drop unsafe. Nothing branches on it any more.
 
 import { z } from "zod";
 

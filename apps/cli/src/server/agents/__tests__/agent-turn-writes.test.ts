@@ -96,11 +96,10 @@ function recordingEngine(head = "rev-1"): RecordingEngine {
   };
 }
 
-describe("direct mode", () => {
+describe("agent turn writes", () => {
   it("commits exactly the recorded write set, as the agent", async () => {
     const engine = recordingEngine();
     const turn = beginAgentTurnWrites({
-      mode: "direct",
       git: engine.git,
       threadId: "thr_1",
       turnId: "turn_1",
@@ -123,7 +122,6 @@ describe("direct mode", () => {
   it("makes no commit when the turn wrote nothing, and still releases", async () => {
     const engine = recordingEngine();
     const turn = beginAgentTurnWrites({
-      mode: "direct",
       git: engine.git,
       threadId: "thr_1",
       turnId: "turn_1",
@@ -138,7 +136,6 @@ describe("direct mode", () => {
   it("releases once however many times finish is called", async () => {
     const engine = recordingEngine();
     const turn = beginAgentTurnWrites({
-      mode: "direct",
       git: engine.git,
       threadId: "thr_1",
       turnId: "turn_1",
@@ -153,7 +150,6 @@ describe("direct mode", () => {
   it("does not pin a base revision — it has nothing to measure against", async () => {
     const engine = recordingEngine();
     const turn = beginAgentTurnWrites({
-      mode: "direct",
       git: engine.git,
       threadId: "thr_1",
       turnId: "turn_1",
@@ -162,109 +158,6 @@ describe("direct mode", () => {
     await turn.finish();
     expect(engine.wholeTreeCommits).toBe(0);
     expect(engine.headMoves).toBe(0);
-  });
-});
-
-describe("review mode", () => {
-  it("flushes the tree and pins the base BEFORE the turn may write", async () => {
-    const engine = recordingEngine("rev-base");
-    let captured: { baseRev: string; paths: readonly string[] } | null = null;
-    const turn = beginAgentTurnWrites({
-      mode: "propose",
-      git: engine.git,
-      threadId: "thr_1",
-      turnId: "turn_1",
-      capture: async (args) => {
-        captured = { baseRev: args.baseRev, paths: args.paths };
-      },
-    });
-    // `ready` is what the driver awaits before dispatching, so the flush and
-    // the pin have to be inside it.
-    await turn.ready;
-    expect(engine.wholeTreeCommits).toBe(1);
-    expect(engine.headMoves).toBe(1);
-
-    turn.recordPaths(["notes/a.md"]);
-    await turn.finish();
-    expect(captured).toEqual({ baseRev: "rev-base", paths: ["notes/a.md"] });
-  });
-
-  it("commits nothing — not the write set, and not an empty commit", async () => {
-    const engine = recordingEngine();
-    const turn = beginAgentTurnWrites({
-      mode: "propose",
-      git: engine.git,
-      threadId: "thr_1",
-      turnId: "turn_1",
-      capture: async () => {},
-    });
-    await turn.ready;
-    turn.recordPaths(["notes/a.md"]);
-    await turn.finish();
-    expect(engine.scopedCommits).toEqual([]);
-    expect(engine.releases).toBe(1);
-  });
-
-  it("skips the capture when the turn wrote nothing", async () => {
-    const engine = recordingEngine();
-    let calls = 0;
-    const turn = beginAgentTurnWrites({
-      mode: "propose",
-      git: engine.git,
-      threadId: "thr_1",
-      turnId: "turn_1",
-      capture: async () => {
-        calls += 1;
-      },
-    });
-    await turn.ready;
-    await turn.finish();
-    expect(calls).toBe(0);
-    expect(engine.releases).toBe(1);
-  });
-
-  it("releases the hold even when the base could never be pinned", async () => {
-    const engine = recordingEngine();
-    const failing: GitEngine = {
-      ...engine.git,
-      commitNow: async () => {
-        throw new Error("the repo is mid-rebase");
-      },
-    };
-    let calls = 0;
-    const turn = beginAgentTurnWrites({
-      mode: "propose",
-      git: failing,
-      threadId: "thr_1",
-      turnId: "turn_1",
-      capture: async () => {
-        calls += 1;
-      },
-    });
-    await expect(turn.ready).rejects.toThrow("mid-rebase");
-    turn.recordPaths(["notes/a.md"]);
-    // No base means no proposal: the turn's writes stay where they are rather
-    // than being reverted against a revision nobody pinned.
-    await expect(turn.finish()).resolves.toBeUndefined();
-    expect(calls).toBe(0);
-    expect(engine.releases).toBe(1);
-  });
-
-  it("releases the hold when the capture itself throws", async () => {
-    const engine = recordingEngine();
-    const turn = beginAgentTurnWrites({
-      mode: "propose",
-      git: engine.git,
-      threadId: "thr_1",
-      turnId: "turn_1",
-      capture: async () => {
-        throw new Error("the store is gone");
-      },
-    });
-    await turn.ready;
-    turn.recordPaths(["notes/a.md"]);
-    await expect(turn.finish()).rejects.toThrow("the store is gone");
-    expect(engine.releases).toBe(1);
   });
 });
 

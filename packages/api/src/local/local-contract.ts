@@ -17,7 +17,6 @@ import { connectorsContract } from "./connectors/connectors-contract";
 import { foldersContract } from "./folders/folders-contract";
 import { knowledgeContract } from "./knowledge/knowledge-contract";
 import { noteIntelligenceContract } from "./note-intelligence/note-intelligence-contract";
-import { proposalsContract } from "./proposals/proposals-contract";
 import { systemContract } from "./system/system-contract";
 import { threadsContract } from "./threads/threads-contract";
 import { vaultContract } from "./vault/vault-contract";
@@ -31,7 +30,6 @@ export const localContract = {
   folders: foldersContract,
   knowledge: knowledgeContract,
   noteIntelligence: noteIntelligenceContract,
-  proposals: proposalsContract,
   system: systemContract,
   threads: threadsContract,
   vault: vaultContract,

@@ -19,7 +19,6 @@ import type {
   SearchResultWire,
   TagCountWire,
 } from "@repo/api/local/knowledge/knowledge-schema";
-import type { Proposal } from "@repo/api/local/proposals/proposals-schema";
 import { RPC_PREFIX } from "@repo/api/local/routes";
 import type { AgentStatus, SystemStatusResponse } from "@repo/api/local/system/system-schema";
 import type { ThreadTimeline } from "@repo/api/local/thread-timeline";
@@ -70,7 +69,6 @@ export interface FixtureState {
   folders: ConnectedFoldersResponse;
   cloud: CloudStatusResponse;
   threads: FixtureThread[];
-  proposals: Proposal[];
   /** Comment threads per note path, in the wire shape the procedures answer. */
   comments: Map<string, CommentThreadWire[]>;
   guideMarkdown: string;
@@ -80,33 +78,6 @@ export interface FixtureState {
 }
 
 export const EMPTY_TIMELINE: ThreadTimeline = { rows: [], maxSequence: 0, tokenUsage: null };
-
-export function makeProposal(overrides: Partial<Proposal> & Pick<Proposal, "id">): Proposal {
-  return {
-    threadId: "thr_1",
-    turnId: "turn_1",
-    docPath: "notes/hello.md",
-    status: "pending",
-    revision: 1,
-    baseHash: "a".repeat(64),
-    baseContent: "# Hello\n",
-    proposedContent: "# Hello there\n",
-    hunks: [
-      {
-        index: 0,
-        baseStart: 0,
-        baseEnd: 1,
-        baseLines: ["# Hello"],
-        proposedLines: ["# Hello there"],
-      },
-    ],
-    acceptedHunks: 0,
-    createdAt: 1_700_000_000_000,
-    updatedAt: 1_700_000_000_000,
-    resolvedAt: null,
-    ...overrides,
-  };
-}
 
 export function makeThread(overrides: Partial<Thread> & Pick<Thread, "id">): Thread {
   return {
@@ -138,7 +109,6 @@ export function makeFixtureState(): FixtureState {
     folders: { folders: [] },
     cloud: { state: "off", cloudUrl: FIXTURE_CLOUD_URL },
     threads: [],
-    proposals: [],
     comments: new Map(),
     guideMarkdown: "# Fixture guide\n\nBe kind to the vault.\n",
     agent: { mode: "auto", runtime: "acp", detail: null },
@@ -171,36 +141,6 @@ function findThread(state: FixtureState, threadId: string): FixtureThread | unde
 function commentsBody(state: FixtureState, path: string) {
   const threads = state.comments.get(path) ?? [];
   return { path, threads, total: threads.length, orphanMarkers: [], strayIds: [] };
-}
-
-/** The two review verbs, as far as the CLI can tell them apart: the revision
- *  guard and the settled row. The real arithmetic lives in the app's own
- *  service and is tested there. Answers a DESCRIPTION rather than raising,
- *  because `errors` is the PROCEDURE's own constructor map — the handler
- *  picks the arm. */
-function resolveFixtureProposal(
-  state: FixtureState,
-  input: { proposalId: string; expectedRevision: number },
-  status: "accepted" | "rejected",
-):
-  | { ok: true; proposal: Proposal }
-  | { ok: false; code: "NOT_FOUND" | "CONFLICT"; message: string } {
-  const existing = state.proposals.find((row) => row.id === input.proposalId);
-  if (existing === undefined) {
-    return { ok: false, code: "NOT_FOUND", message: "Suggestion not found" };
-  }
-  if (existing.revision !== input.expectedRevision) {
-    return { ok: false, code: "CONFLICT", message: "This suggestion moved on" };
-  }
-  const resolved: Proposal = {
-    ...existing,
-    status,
-    revision: existing.revision + 1,
-    hunks: [],
-    resolvedAt: 1_700_000_003_000,
-  };
-  state.proposals = state.proposals.map((row) => (row.id === resolved.id ? resolved : row));
-  return { ok: true, proposal: resolved };
 }
 
 const base = implement(localContract).$context<FixtureState>();
@@ -399,42 +339,6 @@ const noteIntelligenceRouter = {
   })),
 };
 
-const proposalsRouter = {
-  list: base.proposals.list.handler(({ context, input }) => ({
-    proposals: context.proposals.filter(
-      (proposal) =>
-        (input.docPath === undefined || proposal.docPath === input.docPath) &&
-        (input.threadId === undefined || proposal.threadId === input.threadId) &&
-        (input.includeResolved === true || proposal.status !== "accepted"),
-    ),
-  })),
-  get: base.proposals.get.handler(({ context, input, errors }) => {
-    const proposal = context.proposals.find((row) => row.id === input.proposalId);
-    if (proposal === undefined) {
-      throw errors.NOT_FOUND({ message: "Suggestion not found" });
-    }
-    return { proposal };
-  }),
-  accept: base.proposals.accept.handler(({ context, input, errors }) => {
-    const outcome = resolveFixtureProposal(context, input, "accepted");
-    if (!outcome.ok) {
-      throw outcome.code === "NOT_FOUND"
-        ? errors.NOT_FOUND({ message: outcome.message })
-        : errors.CONFLICT({ message: outcome.message });
-    }
-    return { proposal: outcome.proposal };
-  }),
-  reject: base.proposals.reject.handler(({ context, input, errors }) => {
-    const outcome = resolveFixtureProposal(context, input, "rejected");
-    if (!outcome.ok) {
-      throw outcome.code === "NOT_FOUND"
-        ? errors.NOT_FOUND({ message: outcome.message })
-        : errors.CONFLICT({ message: outcome.message });
-    }
-    return { proposal: outcome.proposal };
-  }),
-};
-
 const systemRouter = {
   status: base.system.status.handler(({ context }) => {
     const status: SystemStatusResponse = {
@@ -469,24 +373,10 @@ const threadsRouter = {
       queuedMessages: entry.queuedMessages ?? [],
     };
   }),
-  byDoc: base.threads.byDoc.handler(({ context, input }) => ({
-    threads: context.threads
-      .filter((entry) => entry.thread.originDocPath === input.docPath)
-      .map((entry) => ({
-        thread: entry.thread,
-        openInteractionCount: entry.pendingInteractions.filter((row) => row.status === "pending")
-          .length,
-        queuedCount: (entry.queuedMessages ?? []).length,
-        pendingProposalCount: context.proposals.filter(
-          (row) => row.threadId === entry.thread.id && row.status === "pending",
-        ).length,
-      })),
-  })),
   create: base.threads.create.handler(({ context, input }) => {
     const overrides: Partial<Thread> & Pick<Thread, "id"> = {
       id: context.nextCreatedThreadId,
       originDocPath: input.originDocPath ?? null,
-      originAnchor: input.originAnchor ?? null,
     };
     if (input.title !== undefined) {
       overrides.title = input.title;
@@ -655,7 +545,6 @@ const fixtureRouter = base
     folders: foldersRouter,
     knowledge: knowledgeRouter,
     noteIntelligence: noteIntelligenceRouter,
-    proposals: proposalsRouter,
     system: systemRouter,
     threads: threadsRouter,
     vault: vaultRouter,
