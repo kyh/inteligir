@@ -269,7 +269,7 @@ export const syncAppliedCaptures = sqliteTable("sync_applied_captures", {
  * the migration↔schema agreement guard. `status` values inlined because the
  * domain module died with the pipeline.
  */
-const RETAINED_PROPOSAL_STATUS_VALUES = ["pending", "applied", "rejected"] as const;
+const RETAINED_PROPOSAL_STATUS_VALUES = ["pending", "accepted", "rejected"] as const;
 
 export const proposals = sqliteTable(
   "proposals",
