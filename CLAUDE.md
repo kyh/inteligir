@@ -145,6 +145,7 @@ tools/
 
 ```bash
 pnpm dev              # THE PRODUCT — the shell over its own server
+pnpm dev:desktop      # Alias of dev, kept deliberately (owner call 2026-08-26)
 pnpm cli serve        # The server ALONE, from source; a shell adopts it
 pnpm dev:web          # apps/web: vite + miniflare on :5174 (pinned, strictPort)
 pnpm package:cli      # The npm artifact (apps/cli) — `npx inteligir serve`
