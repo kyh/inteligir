@@ -25,6 +25,17 @@ describe("the sign-in return path", () => {
     expect(search.get("name")).toBe("Work laptop");
   });
 
+  it("carries the mobile deep-link redirect through the same round trip", () => {
+    const pairHref = `${PAIR_APPROVE_PATH}?redirect=${encodeURIComponent(
+      "inteligir://pair/callback",
+    )}&state=${"b".repeat(32)}&name=Phone`;
+
+    const returned = internalNextPath(pairHref);
+    expect(returned).toBe(pairHref);
+    const search = new URLSearchParams(new URL(returned ?? "", "http://x.test").search);
+    expect(search.get("redirect")).toBe("inteligir://pair/callback");
+  });
+
   it("keeps a fragment, which is part of where someone was", () => {
     expect(internalNextPath("/app/devices?tab=all#row-3")).toBe("/app/devices?tab=all#row-3");
   });

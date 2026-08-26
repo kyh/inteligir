@@ -6,6 +6,7 @@ import {
   DEVICE_API_PATHS,
   type MintPairingCodeRequest,
   mintPairingCodeResponseSchema,
+  PAIR_MOBILE_REDIRECT_SCHEME,
   pairApproveSearchSchema,
   type PairApproveSearch,
 } from "@repo/api/cloud/pairing/pairing-schema";
@@ -103,6 +104,9 @@ function PairPage() {
   }
 
   const { redirect: callback, state, name, challenge } = search;
+  // The deep-link callback has no host a human recognises — its `host` parses
+  // to "pair" — so the return-address line names the app instead.
+  const mobileCallback = new URL(callback).protocol === PAIR_MOBILE_REDIRECT_SCHEME;
 
   // `busy` is cleared only on the failure path: the success path is a
   // navigation, and a button that came back to life underneath it would mint a
@@ -143,8 +147,14 @@ function PairPage() {
         </Button>
         <AuthError message={error} />
         <p className="text-xs text-muted-foreground">
-          Approving sends you back to <code>{new URL(callback).host}</code> — the app on that
-          machine.
+          {mobileCallback ? (
+            <>Approving sends you back to the {siteConfig.name} app on this phone.</>
+          ) : (
+            <>
+              Approving sends you back to <code>{new URL(callback).host}</code> — the app on that
+              machine.
+            </>
+          )}
         </p>
       </div>
     </PairShell>

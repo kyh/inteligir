@@ -233,6 +233,32 @@ export const PAIR_APPROVE_PARAMS = {
  */
 export const PAIR_CALLBACK_HOST = "127.0.0.1";
 
+/**
+ * The ONE custom-scheme redirect a pairing callback may name: the mobile app's
+ * own deep link, `inteligir://pair/callback`. A phone has no loopback server
+ * for the browser to come back to, so the approve page redirects into whatever
+ * app the OS resolves for the scheme instead.
+ *
+ * `new URL("inteligir://pair/callback")` parses `pair` into `hostname` and
+ * `/callback` into `pathname` — and `URL.origin` answers the opaque `"null"`
+ * for any non-special scheme — so this arm is judged on the same FIELDS the
+ * loopback arm reads, never on `origin` and never as text. Scheme, host and
+ * path are each exact; userinfo, port, query and fragment are required empty.
+ *
+ * THE RESIDUAL, STATED: an allowlist cannot prevent OS scheme squatting — a
+ * malicious app registering `inteligir://` on the same device receives the
+ * redirect, code included. What keeps that code unredeemable is PKCE: the
+ * verifier never leaves the real app, and redeem refuses a code without it —
+ * the same property that keeps the loopback arm's deliberately-open port safe.
+ *
+ * The desktop renderer's `inteligir://app` origin is the same scheme in a
+ * different registry (Chromium's, not the OS's); its pin is a separate policy,
+ * and neither allowlist is ever widened by reference to the other.
+ */
+export const PAIR_MOBILE_REDIRECT_SCHEME = "inteligir:";
+const PAIR_MOBILE_REDIRECT_HOST = "pair";
+const PAIR_MOBILE_REDIRECT_PATH = "/callback";
+
 /** 128 bits, hex. Large enough that a callback nobody initiated cannot be
  *  guessed, which is the whole of what `state` buys. */
 export const PAIR_STATE_BYTES = 16;
@@ -246,6 +272,10 @@ export const PAIR_STATE_PATTERN = /^[0-9a-f]{32}$/;
  * parses to username `127.0.0.1` and hostname `evil.com`, so every check that
  * "saw 127.0.0.1 in there" was reading the wrong field. Here the credential
  * fields are required EMPTY and the host is read from `hostname` alone.
+ *
+ * Two arms, dispatched on scheme, and exactly two: the desktop's loopback
+ * callback and the mobile deep link. Each pins every field the other pins;
+ * where they differ, the difference is stated in place.
  */
 function pairRedirectProblem(value: string): string | null {
   let url: URL;
@@ -254,28 +284,46 @@ function pairRedirectProblem(value: string): string | null {
   } catch {
     return "is not an absolute URL";
   }
-  if (url.protocol !== "http:") {
-    // Loopback carries no TLS and needs none — the bytes never leave the
-    // machine — so an https target is by definition somewhere else.
-    return `must be http: (got "${url.protocol}")`;
-  }
   if (url.username !== "" || url.password !== "") {
     return "must carry no userinfo";
-  }
-  if (url.hostname !== PAIR_CALLBACK_HOST) {
-    return `must be ${PAIR_CALLBACK_HOST} (got "${url.hostname}")`;
-  }
-  // THE PORT IS DELIBERATELY UNCONSTRAINED, default included. A loopback
-  // address is loopback whichever port it names, so a rule here would refuse
-  // nothing dangerous — and `URL` normalises `:80` away for http, so demanding
-  // an explicit one made an app bound to port 80 impossible to pair at all.
-  if (url.pathname !== PAIR_CALLBACK_PATH) {
-    return `must be ${PAIR_CALLBACK_PATH} (got "${url.pathname}")`;
   }
   if (url.search !== "" || url.hash !== "") {
     return "must carry no query or fragment — the code and state are appended to it";
   }
-  return null;
+  if (url.protocol === "http:") {
+    // Loopback carries no TLS and needs none — the bytes never leave the
+    // machine — so an https target is by definition somewhere else.
+    if (url.hostname !== PAIR_CALLBACK_HOST) {
+      return `must be ${PAIR_CALLBACK_HOST} (got "${url.hostname}")`;
+    }
+    // THE PORT IS DELIBERATELY UNCONSTRAINED, default included. A loopback
+    // address is loopback whichever port it names, so a rule here would refuse
+    // nothing dangerous — and `URL` normalises `:80` away for http, so
+    // demanding an explicit one made an app bound to port 80 impossible to
+    // pair at all.
+    if (url.pathname !== PAIR_CALLBACK_PATH) {
+      return `must be ${PAIR_CALLBACK_PATH} (got "${url.pathname}")`;
+    }
+    return null;
+  }
+  if (url.protocol === PAIR_MOBILE_REDIRECT_SCHEME) {
+    // Non-special schemes never case-fold the host, so this compare is exact
+    // against `PAIR` as well as `evil`.
+    if (url.hostname !== PAIR_MOBILE_REDIRECT_HOST) {
+      return `must be ${PAIR_MOBILE_REDIRECT_SCHEME}//${PAIR_MOBILE_REDIRECT_HOST} (got host "${url.hostname}")`;
+    }
+    // Unlike the loopback arm, the port is required ABSENT: a custom scheme
+    // has no server, so a port names nothing and a target carrying one is a
+    // shape this flow never produces.
+    if (url.port !== "") {
+      return "must name no port — a custom scheme has no server";
+    }
+    if (url.pathname !== PAIR_MOBILE_REDIRECT_PATH) {
+      return `must be ${PAIR_MOBILE_REDIRECT_PATH} (got "${url.pathname}")`;
+    }
+    return null;
+  }
+  return `must be http: (the loopback callback) or ${PAIR_MOBILE_REDIRECT_SCHEME} (the mobile deep link) — got "${url.protocol}"`;
 }
 
 /** The redirect allowlist, as a schema: a target refuses at PARSE, before any

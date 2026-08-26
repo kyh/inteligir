@@ -1,6 +1,7 @@
 import {
   PAIR_APPROVE_PARAMS,
   PAIR_STATE_PATTERN,
+  pairRedirectUrlSchema,
   PKCE_S256_PATTERN,
 } from "@repo/api/cloud/pairing/pairing-schema";
 import { describe, expect, it } from "vitest";
@@ -42,6 +43,13 @@ function stateOf(approveUrl: string): string {
 }
 
 describe("the pairing manager", () => {
+  it("aims at a callback the production approve page admits", () => {
+    // The cross-package lockstep that makes this flow real: the deep link this
+    // app hands the approve page must pass the contract's redirect allowlist,
+    // or production refuses the pairing at parse.
+    expect(pairRedirectUrlSchema.safeParse(CALLBACK).success).toBe(true);
+  });
+
   it("mints an approve URL carrying the callback, a state, and the S256 challenge", async () => {
     const manager = createPairingManager({
       cloudUrl: "https://cloud.test",

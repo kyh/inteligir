@@ -9,13 +9,12 @@
 // compare, consumed BEFORE the redeem, redeemed with the secret verifier so an
 // intercepted code alone cannot be spent.
 //
-// THE SEAM, stated because it is load-bearing: the contract's
-// `pairRedirectUrlSchema` admits `127.0.0.1` and nothing else, so the PRODUCTION
-// approve page refuses this custom-scheme redirect today. Widening it to accept
-// one registered custom-scheme callback — with the same exact-scheme /
-// exact-host / no-wildcard rigor #573 hardened — is a SEPARATE reviewed change
-// (it reopens that surface). Until it lands, this flow is dev-testable by handing
-// the app a deep-link it accepts; it is not yet wired to a production approve.
+// THE REDIRECT IS ALLOWLISTED BY THE CONTRACT: `pairRedirectUrlSchema` admits
+// exactly two shapes — the loopback callback and this one registered
+// custom-scheme callback — each judged field-by-field, no wildcards. The
+// residual an allowlist cannot reach — another app registering `inteligir://`
+// on the same OS receives the redirect, code included — is held by PKCE: the
+// verifier never leaves this app, and redeem refuses a code without it.
 // This module is pure and touches no `expo-*`: the browser + deep-link wiring is
 // expo-pairing.ts.
 

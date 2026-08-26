@@ -80,6 +80,7 @@ describe("pairing grammar", () => {
 // that parses through it.
 describe("the pairing redirect allowlist", () => {
   const OK = `http://127.0.0.1:4664${PAIR_CALLBACK_PATH}`;
+  const MOBILE = "inteligir://pair/callback";
 
   it("accepts the loopback callback on any port", () => {
     expect(pairRedirectUrlSchema.safeParse(OK).success).toBe(true);
@@ -161,6 +162,56 @@ describe("the pairing redirect allowlist", () => {
       false,
     );
     expect(pairRedirectUrlSchema.safeParse(PAIR_CALLBACK_PATH).success).toBe(false);
+  });
+
+  it("accepts the mobile deep link, exactly", () => {
+    expect(pairRedirectUrlSchema.safeParse(MOBILE).success).toBe(true);
+  });
+
+  it("refuses every near-miss of the deep link — scheme, host and path are each exact", () => {
+    for (const value of [
+      "inteligir://evil/callback",
+      "inteligir://pair/other",
+      "inteligir://pair",
+      "inteligir://pair/",
+      "inteligir://pair/callback/",
+      "inteligir://pair/callback/../evil",
+      "inteligir2://pair/callback",
+      // Non-special schemes never case-fold the host, so the exact compare
+      // refuses a case variant rather than quietly admitting it.
+      "inteligir://PAIR/callback",
+      // No authority at all: `pair` lands in pathname, hostname is empty.
+      "inteligir:pair/callback",
+      "inteligir:///callback",
+      // Metro's dev form stays refused — admitting `exp://` would be a
+      // wildcard host, since the phone's LAN address rides in it.
+      "exp://192.168.0.10:8081/--/pair/callback",
+    ]) {
+      expect(pairRedirectUrlSchema.safeParse(value).success, value).toBe(false);
+    }
+  });
+
+  it("refuses a deep link dressed with userinfo, a port, a query or a fragment", () => {
+    for (const value of [
+      "inteligir://user:pass@pair/callback",
+      "inteligir://127.0.0.1@pair/callback",
+      "inteligir://pair:99/callback",
+      `${MOBILE}?code=X`,
+      `${MOBILE}#x`,
+    ]) {
+      expect(pairRedirectUrlSchema.safeParse(value).success, value).toBe(false);
+    }
+  });
+
+  it("round-trips the deep link through the callback builder", () => {
+    const callback = new URL(
+      buildPairCallbackUrl(MOBILE, { code: "ABCD-EFGH", state: "c".repeat(32) }),
+    );
+    expect(callback.protocol).toBe("inteligir:");
+    expect(callback.hostname).toBe("pair");
+    expect(callback.pathname).toBe("/callback");
+    expect(callback.searchParams.get("code")).toBe("ABCD-EFGH");
+    expect(callback.searchParams.get("state")).toBe("c".repeat(32));
   });
 
   it("gates the approve page's whole search, and strips what it does not know", () => {

@@ -68,29 +68,33 @@ phone-only account — but the default runtime does **not** claim, because in a
 desktop-present account the desktop owns applying captures to the vault, and a
 phone claiming would take a capture the desktop then never sees.
 
-## The pairing seam (FLAGGED — needs a reviewed web-side change)
+## The pairing seam
 
 A phone has no loopback callback, so browser-approve redirects to the app's own
 custom scheme `inteligir://pair/callback` instead of
-`http://127.0.0.1:<port>/pair/callback`. The mobile side is complete:
+`http://127.0.0.1:<port>/pair/callback`. The contract's `pairRedirectUrlSchema`
+(`@repo/api/cloud/pairing/pairing-schema`) admits exactly those two shapes, each
+judged field-by-field with no wildcards, so the production approve page
+completes this redirect. The flow:
 
 1. `pairing-manager.beginPair` mints a single-use `state` and a PKCE verifier
    (the secret stays on the phone), and builds the account's approve URL with the
    S256 challenge.
-2. `expo-web-browser` opens it; the browser redirects back to the deep-link.
+2. `expo-web-browser` opens it; the browser redirects back to the deep-link (the
+   global `expo-linking` listener and `openAuthSessionAsync` both route into
+   `completePair`).
 3. `completePair` verifies the state (constant-time, consumed **before** the
    redeem) and redeems the code with the verifier — so an intercepted code alone
    cannot be spent.
 
-**What is NOT done here, on purpose:** the contract's `pairRedirectUrlSchema`
-(`@repo/api/cloud/pairing/pairing-schema`) admits `127.0.0.1` and nothing else, carrying
-the anti-open-redirect guards #573 hardened. Accepting one registered
-custom-scheme callback — with the same exact-scheme / exact-host / no-wildcard
-rigor — is a **separate reviewed change**, because it reopens that surface. Until
-it lands, the production approve page refuses this redirect. The flow is
-dev-testable by handing the app a deep-link it accepts (the global `expo-linking`
-listener and `openAuthSessionAsync` both route into `completePair`); it is not
-yet wired to a production approve.
+**The residual, stated:** the allowlist cannot stop another app from registering
+the `inteligir://` scheme on the same OS — a squatter can receive the redirect,
+code included. The PKCE verifier, which never leaves this app, is what keeps
+that code unredeemable — the same property that keeps the desktop's
+deliberately-open loopback port safe. In Expo Go the callback composes to
+Metro's `exp://…/--/pair/callback`, which the allowlist refuses; end-to-end
+pairing needs a build that owns the scheme, and the dev loop hand-feeds the
+listener a deep link instead.
 
 ## Verified vs device-side
 
@@ -98,7 +102,7 @@ yet wired to a production approve.
   repo-wide `pnpm verify`): the sync client (push freezes bodies + advances the
   per-device counter; pull applies by global seq idempotently; a capture
   delivered twice applies once), the credential codec, and the PKCE + pairing
-  handshake — all against faked storage / crypto / fetch. 24 unit tests, no
+  handshake — all against faked storage / crypto / fetch. Unit tests, no
   device.
 - **Needs the owner's device / simulator** (no headless Expo boot in CI): the app
   actually booting, the expo-secure-store Keychain round trip, and the live
