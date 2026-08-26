@@ -233,6 +233,10 @@ describe("listThreads query plan", () => {
 describe("doc-attached threads", () => {
   it("rebinds a moved doc's threads from the origin index, not a table scan", () => {
     const db = openTempDb();
+    // The statement is rebindThreadOrigins' file-move UPDATE, spelled out
+    // because EXPLAIN needs raw SQL; the pin is the planner of the BUNDLED
+    // sqlite choosing threads_origin_doc_idx, same style as the listThreads
+    // plan suite above.
     const plan = db.$client
       .prepare(
         "EXPLAIN QUERY PLAN UPDATE threads SET origin_doc_path = 'b.md' WHERE origin_doc_path = 'a.md'",

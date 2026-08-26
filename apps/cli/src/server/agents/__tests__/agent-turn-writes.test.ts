@@ -1,16 +1,12 @@
-// The commit-hold contract both write modes share, over a recording engine —
-// the one thing no integration test can see, because a leaked hold is silent
-// until a sync mysteriously stops running hours later.
+// The agent turn's commit-hold contract, over a recording engine — the one
+// thing no integration test can see, because a leaked hold is silent until a
+// sync mysteriously stops running hours later.
 //
 // The invariants, stated as this suite checks them:
 //   - a hold is taken once per turn and released exactly once, on every exit
 //     path (settled, failed, finished twice, `ready` rejected);
 //   - a turn that wrote nothing makes NO commit — an empty commit is not a
-//     harmless artefact, it is a lie about what the agent did;
-//   - review mode commits nothing at all, and hands the write set to the
-//     capture instead;
-//   - review mode PINS its base before the provider can write, which is what
-//     lets a capture read pre-turn bytes out of a revision.
+//     harmless artefact, it is a lie about what the agent did.
 
 import type { CommitAuthor, GitEngine } from "../../vault/git";
 import { describe, expect, it } from "vitest";
