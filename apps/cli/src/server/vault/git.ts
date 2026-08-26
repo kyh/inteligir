@@ -405,16 +405,6 @@ export interface GitEngine {
    * commit). Returns the release function.
    */
   holdCommits(): () => void;
-  /** The commit HEAD names right now. Null on an unborn HEAD, which
-   *  `ensureVaultRepo` makes unreachable in a booted vault. */
-  headRevision(): Promise<string | null>;
-  /**
-   * A file's bytes AT a revision, or null when that revision does not carry
-   * the path. Read through git rather than off disk because the point is the
-   * content BEFORE the working tree moved: the agent has already written the
-   * file by the time its write is reported, so disk cannot answer this.
-   */
-  readBlob(rev: string, path: string): Promise<string | null>;
   /** One full sync pass; coalesces with an in-flight one. */
   syncNow(): Promise<VaultStatusResponse>;
   status(): Promise<VaultStatusResponse>;
@@ -920,25 +910,6 @@ export function createGitEngine(args: GitEngineArgs): GitEngine {
       return withRepoLock(() => commitPathsIfDirty(paths, author, subject));
     },
     holdCommits,
-    async headRevision() {
-      try {
-        return (await run(["rev-parse", "HEAD"])).stdout.trim();
-      } catch {
-        return null;
-      }
-    },
-    async readBlob(rev, path) {
-      try {
-        // The `<rev>:<path>` form, which git resolves as an object rather
-        // than as a revision followed by a pathspec — so a file whose name
-        // also names a branch still reads as a file.
-        return (await run(["show", `${rev}:${path}`])).stdout;
-      } catch {
-        // The revision does not carry the path. git says so on stderr with a
-        // non-zero exit, which is exactly "the file did not exist then".
-        return null;
-      }
-    },
     syncNow,
     status: statusSnapshot,
     isSyncing: () => syncing,

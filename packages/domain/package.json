@@ -5,7 +5,6 @@
   "description": "Pure, isomorphic thread domain vendored from bb: the thread lifecycle as data ((status, event) → status table plus supersession predicates), the ThreadEvent zod grammar trimmed to the item kinds v1 emits, the per-event-type scope policy table, the provider-neutral approval grammar, and the invalidation vocabulary with the DbNotifier seam the write layer announces through. No node, no db, no transport — every consumer parses at its own boundary with these schemas.",
   "type": "module",
   "exports": {
-    "./agent-write-mode": "./src/agent-write-mode.ts",
     "./change-kinds": "./src/change-kinds.ts",
     "./notifier": "./src/notifier.ts",
     "./pending-interaction-status": "./src/pending-interaction-status.ts",

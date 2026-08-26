@@ -214,14 +214,6 @@ class CodexTurnDriver implements TurnDriver {
     this.deps.onDebug?.(message);
   }
 
-  private beginWrites(args: TurnDriverStartArgs): AgentTurnWrites {
-    return beginAgentTurnWrites({
-      git: this.deps.git,
-      threadId: args.threadId,
-      turnId: args.turnId,
-    });
-  }
-
   private ensureRuntime(): AgentRuntime {
     if (this.runtime !== null) {
       return this.runtime;
@@ -309,7 +301,11 @@ class CodexTurnDriver implements TurnDriver {
       started: false,
       acceptedGeneration: null,
       settled: false,
-      writes: this.beginWrites(args),
+      writes: beginAgentTurnWrites({
+        git: this.deps.git,
+        threadId: args.threadId,
+        turnId: args.turnId,
+      }),
       idleTimer: null,
     });
     this.armWatchdog(args.threadId);

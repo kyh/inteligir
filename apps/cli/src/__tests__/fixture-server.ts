@@ -87,7 +87,6 @@ export function makeThread(overrides: Partial<Thread> & Pick<Thread, "id">): Thr
     originDocPath: null,
     originAnchor: null,
     providerId: null,
-    writeMode: "direct",
     archivedAt: null,
     createdAt: 1_700_000_000_000,
     updatedAt: 1_700_000_000_000,

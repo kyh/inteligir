@@ -56,9 +56,10 @@ what each one is FOR.
 |                           | ops verified to leave the disk untouched                                 |
 | vault-sync                | two instances + one bare remote (auto-sync off, every sync explicit):    |
 |                           | propagation, then a typed conflict + git-verified repo integrity         |
-| action-scripted           | an action attaches to its note; the CAS write guards the save (409 on a  |
-|                           | stale base, current bytes in the body); a rename drags the attachment    |
 | threads-scripted          | a turn through the scripted driver: send, settle, timeline               |
+| action-scripted           | an action attaches to its note; a scripted turn writes the vault; the    |
+|                           | CAS write guards the save (typed conflict, current bytes in the body);   |
+|                           | a rename drags the attachment along — all verified on disk               |
 | cli-drive                 | the CLI drives a real instance, and the env an agent's shell would get   |
 |                           | resolves against this checkout                                           |
 | browser-smoke             | headless page load: the REAL policy on the served document, SPA mount,   |

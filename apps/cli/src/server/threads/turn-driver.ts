@@ -36,17 +36,14 @@ export interface TurnDriverStartArgs {
   threadId: string;
   turnId: string;
   text: string;
-  /** Where this turn's file writes land — the thread's own column, read by
-   *  the send that dispatched it so a driver never has to ask the db. */
   /** What the sender was looking at, when this host can name it. Omitted for
    *  the CLI, the palette, a chat with no note open — and for a QUEUED
    *  message, which drains long after its screen went away. */
   viewContext?: ViewContext;
 }
 
-/** A steer joins a turn that already chose its write mode, so it names none.
- *  It does name its OWN view context: a steer is a fresh statement about the
- *  past, exactly like any other message. */
+/** A steer joins a running turn, but names its OWN view context: a steer is
+ *  a fresh statement about the past, exactly like any other message. */
 export interface TurnDriverSteerArgs {
   threadId: string;
   turnId: string;

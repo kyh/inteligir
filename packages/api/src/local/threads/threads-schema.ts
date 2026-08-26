@@ -2,7 +2,6 @@
 // that drive a turn, the timeline projection a client renders, and the pending
 // interactions a turn blocks on.
 
-import { agentWriteModeSchema } from "@repo/domain/agent-write-mode";
 import { pendingInteractionStatusSchema } from "@repo/domain/pending-interaction-status";
 import { approvalPendingInteractionPayloadSchema } from "@repo/domain/pending-interactions";
 import { threadStatusSchema } from "@repo/domain/thread-status";
@@ -18,14 +17,13 @@ export const threadSchema = z
     status: threadStatusSchema,
     /** The turn the status describes — the client's `expectedTurnId` source. */
     activeTurnId: z.string().nullable(),
-    /** Set together for a doc-bound delegation; both null for a plain chat. */
+    /** The note this action was composed over; null for a plain chat. */
     originDocPath: z.string().nullable(),
+    /** Retired (#613): legacy rows only — new threads always carry null. */
     originAnchor: z.string().nullable(),
     /** The harness this thread runs on, once one ever dispatched (or was
      *  chosen at create); null adopts the default at next dispatch. */
     providerId: z.string().nullable(),
-    /** Retired (#613): legacy rows only — nothing writes or branches on it. */
-    writeMode: agentWriteModeSchema,
     archivedAt: z.number().nullable(),
     createdAt: z.number(),
     updatedAt: z.number(),
@@ -58,7 +56,7 @@ export const createThreadRequestSchema = z
   .object({
     title: z.string().min(1).max(MAX_THREAD_TITLE_LENGTH).optional(),
     /** A thread's origin is a stored path nothing else re-validates, so a bad
-     *  one would sit in the database forever, unmatched by every by-doc query. */
+     *  one would sit in the database forever, pointing at nothing. */
     originDocPath: vaultPathSchema.optional(),
     /** The harness this thread runs on ("claude" | "codex" today); omitted
      *  adopts the server's default at first dispatch. */

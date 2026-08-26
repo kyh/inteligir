@@ -27,7 +27,7 @@ import { turnPromptInput } from "./view-context-prompt";
 export interface ScriptedDriverDeps {
   vault: VaultService;
   git: GitEngine;
-  /** Review mode's seam, same as the codex manager's. */
+  /** Where a failed scripted turn reports itself, same as the codex manager's. */
   onError?: (message: string) => void;
 }
 

@@ -1,4 +1,3 @@
-import { AGENT_WRITE_MODE_VALUES } from "@repo/domain/agent-write-mode";
 import { pendingInteractionStatusValues } from "@repo/domain/pending-interaction-status";
 import type { ThreadEventItemType, ThreadEventType } from "@repo/domain/provider-event";
 import type { ThreadEventScopeKind } from "@repo/domain/thread-event-scope";
@@ -16,6 +15,10 @@ export const meta = sqliteTable("meta", {
   value: text("value").notNull(),
 });
 
+/** The retired review-mode vocabulary (#613), inlined like the proposal
+ *  statuses below: the column is retained, the feature is not. */
+const RETAINED_WRITE_MODE_VALUES = ["direct", "propose"] as const;
+
 export const threads = sqliteTable(
   "threads",
   {
@@ -27,10 +30,8 @@ export const threads = sqliteTable(
     // completion for an old turn cannot settle the running one.
     activeTurnId: text("active_turn_id"),
     // The vault doc this thread is ABOUT (an action attaches to the note it
-    // was composed over, #587), and — for a legacy doc-bound delegation — the
-    // stable anchor inside it. Both null for a plain chat thread; the CHECK
-    // keeps an anchor from existing without its doc, while a doc alone is a
-    // marker-less attachment.
+    // was composed over, #587). The anchor is retired (#613, legacy rows
+    // only); the CHECK still keeps one from existing without its doc.
     originDocPath: text("origin_doc_path"),
     originAnchor: text("origin_anchor"),
     // The provider session this thread resumes into (issue #549): which
@@ -45,7 +46,7 @@ export const threads = sqliteTable(
     // Retired (#613): every turn writes direct now, and nothing dispatches on
     // this. The column stays because cross-device sync version skew makes a
     // drop unsafe — a peer still syncing the old grammar may send the field.
-    writeMode: text("write_mode", { enum: AGENT_WRITE_MODE_VALUES }).notNull().default("direct"),
+    writeMode: text("write_mode", { enum: RETAINED_WRITE_MODE_VALUES }).notNull().default("direct"),
     archivedAt: integer("archived_at"),
     createdAt: integer("created_at").notNull(),
     updatedAt: integer("updated_at").notNull(),
@@ -65,12 +66,10 @@ export const threads = sqliteTable(
       "threads_origin_pair_check",
       sql`(${table.originAnchor} IS NULL OR ${table.originDocPath} IS NOT NULL)`,
     ),
-    // The open note asks "which threads are bound to THIS doc?" on every
-    // thread invalidation, and a rename rebinds by the same key — both are
-    // scans of one column, so both get this index instead of the table.
+    // A rename rebinds every attached thread by this key (rebindThreadOrigins)
+    // rather than scanning the table.
     index("threads_origin_doc_idx").on(table.originDocPath),
-    // One anchor, one thread: the client mints the token, and a duplicate
-    // would give a chip two threads to open with no way to choose.
+    // One anchor, one thread — legacy rows only; nothing mints anchors now.
     uniqueIndex("threads_origin_anchor_idx").on(table.originAnchor),
   ],
 );

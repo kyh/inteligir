@@ -99,19 +99,14 @@ function InlineProperties({
  *  archived action reads as settled, which is what it is; its pill carries
  *  the difference. */
 const ACTIVITY_TASK_STATUS = {
-  queued: "pending",
   running: "running",
-  "needs-approval": "pending",
   done: "done",
   failed: "failed",
   archived: "done",
 } satisfies Record<ThreadActivity, TaskStatus>;
 
 function ActionRow({ thread, onSelect }: { thread: Thread; onSelect: (threadId: string) => void }) {
-  const activity = threadActivity(thread, {
-    openInteractionCount: 0,
-    queuedCount: 0,
-  });
+  const activity = threadActivity(thread);
   return (
     <TaskItem>
       <TaskItemRow

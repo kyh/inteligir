@@ -35,9 +35,7 @@ export interface ResolveAgentDriverArgs {
   /** Connected Folders (issue #601), read fresh per session open so a
    *  Settings edit reaches the next session without a reboot. */
   connectedDirs: () => readonly string[];
-  /** Where a review-mode turn's write set goes (issue #560). Both drivers
-   *  take it, so the mode is a property of the THREAD rather than of which
-   *  provider happens to be running. */
+  /** The environment the PATH probes read; the tests' seam. */
   env?: NodeJS.ProcessEnv;
 }
 

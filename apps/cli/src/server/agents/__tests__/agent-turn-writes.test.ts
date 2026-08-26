@@ -28,17 +28,15 @@ interface RecordingEngine {
   releases: number;
   scopedCommits: RecordedCommit[];
   wholeTreeCommits: number;
-  headMoves: number;
 }
 
-function recordingEngine(head = "rev-1"): RecordingEngine {
+function recordingEngine(): RecordingEngine {
   const scopedCommits: RecordedCommit[] = [];
   const state = {
     holds: 0,
     releases: 0,
     scopedCommits,
     wholeTreeCommits: 0,
-    headMoves: 0,
   };
   const git: GitEngine = {
     scheduleCommit() {},
@@ -55,13 +53,6 @@ function recordingEngine(head = "rev-1"): RecordingEngine {
       return () => {
         state.releases += 1;
       };
-    },
-    async headRevision() {
-      state.headMoves += 1;
-      return head;
-    },
-    async readBlob() {
-      return null;
     },
     async syncNow() {
       return { state: "no-remote", lastSyncAt: null, lastError: null };
@@ -89,9 +80,6 @@ function recordingEngine(head = "rev-1"): RecordingEngine {
     },
     get wholeTreeCommits() {
       return state.wholeTreeCommits;
-    },
-    get headMoves() {
-      return state.headMoves;
     },
   };
 }
@@ -157,7 +145,6 @@ describe("agent turn writes", () => {
     await turn.ready;
     await turn.finish();
     expect(engine.wholeTreeCommits).toBe(0);
-    expect(engine.headMoves).toBe(0);
   });
 });
 

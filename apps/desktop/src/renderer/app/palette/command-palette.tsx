@@ -28,7 +28,7 @@ import {
   ColumnsIcon,
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { NO_ACTIVITY_COUNTS, threadActivity, THREAD_ACTIVITY_LABELS } from "../chat/chat-model";
+import { threadActivity, THREAD_ACTIVITY_LABELS } from "../chat/chat-model";
 import type { NoteSearchHit, NoteSearchSource } from "./note-search";
 
 export interface PaletteActions {
@@ -72,7 +72,7 @@ function threadRowLabel(thread: Thread): string {
 }
 
 function threadRowDetail(thread: Thread): string {
-  const activity = THREAD_ACTIVITY_LABELS[threadActivity(thread, NO_ACTIVITY_COUNTS)];
+  const activity = THREAD_ACTIVITY_LABELS[threadActivity(thread)];
   return thread.originDocPath === null ? activity : `${activity} · ${thread.originDocPath}`;
 }
 

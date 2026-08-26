@@ -145,7 +145,6 @@ function toWireThread(row: ThreadRow): Thread {
     originDocPath: row.originDocPath,
     originAnchor: row.originAnchor,
     providerId: row.providerId,
-    writeMode: row.writeMode,
     archivedAt: row.archivedAt,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,

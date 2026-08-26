@@ -230,12 +230,12 @@ describe("listThreads query plan", () => {
   });
 });
 
-describe("doc-bound threads", () => {
-  it("answers by-doc from its own index", () => {
+describe("doc-attached threads", () => {
+  it("rebinds a moved doc's threads from the origin index, not a table scan", () => {
     const db = openTempDb();
     const plan = db.$client
       .prepare(
-        "EXPLAIN QUERY PLAN SELECT * FROM threads WHERE origin_doc_path = 'a.md' ORDER BY updated_at DESC",
+        "EXPLAIN QUERY PLAN UPDATE threads SET origin_doc_path = 'b.md' WHERE origin_doc_path = 'a.md'",
       )
       .all()
       .map((step) => JSON.stringify(step))
