@@ -9,7 +9,8 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { ScenarioSkip } from "./harness/assert";
-import { killAllLiveGroups, type AppInstance } from "./harness/instance";
+import { type AppInstance } from "./harness/instance";
+import { killAllLiveGroups } from "./harness/process-group";
 import { createScenarioContext, type Scenario } from "./harness/scenario";
 import { actionScripted } from "./scenarios/action-scripted";
 import { browserSmoke } from "./scenarios/browser-smoke";
@@ -17,6 +18,7 @@ import { cliDrive } from "./scenarios/cli-drive";
 import { dictationBrowser } from "./scenarios/dictation-browser";
 import { editorConstructsBrowser } from "./scenarios/editor-constructs-browser";
 import { externalEditBrowser } from "./scenarios/external-edit-browser";
+import { hostedVaultSync } from "./scenarios/hosted-vault-sync";
 import { slashMenuBrowser } from "./scenarios/slash-menu-browser";
 import { threadsScripted } from "./scenarios/threads-scripted";
 import { vaultCrud } from "./scenarios/vault-crud";
@@ -26,6 +28,7 @@ import { viewContextBrowser } from "./scenarios/view-context-browser";
 const SCENARIOS: readonly Scenario[] = [
   vaultCrud,
   vaultSync,
+  hostedVaultSync,
   threadsScripted,
   actionScripted,
   cliDrive,

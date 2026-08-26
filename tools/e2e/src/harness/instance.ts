@@ -19,32 +19,12 @@ import type { LocalContract } from "@repo/api/local";
 import { HEALTH_PATH, healthResponseSchema, RPC_PREFIX } from "@repo/api/local/routes";
 import { hermeticProcessEnv } from "./exec";
 import { reserveFreePorts } from "./ports";
+import { stopProcessGroup, trackLiveGroup } from "./process-group";
 
 const HEALTH_POLL_INTERVAL_MS = 250;
 const HEALTH_DEADLINE_MS = 60_000;
-const STOP_SIGTERM_GRACE_MS = 5_000;
-const STOP_SIGKILL_GRACE_MS = 2_000;
-const KILL_POLL_INTERVAL_MS = 100;
 /** Bound on losing the reserve→bind race to another process on the machine. */
 const BOOT_PORT_ATTEMPTS = 3;
-
-/**
- * Every process group the harness has spawned and not yet verified dead —
- * module scope on purpose: this is a single-process CLI, and the runner's
- * signal handlers need one place that names every group to kill.
- */
-const liveGroups = new Set<number>();
-
-/** For the runner's SIGINT/SIGTERM handlers; synchronous, best-effort. */
-export function killAllLiveGroups(signal: NodeJS.Signals): void {
-  for (const pgid of liveGroups) {
-    try {
-      process.kill(-pgid, signal);
-    } catch {
-      // Group already gone.
-    }
-  }
-}
 
 export interface LaunchAppArgs {
   /** Short label for transcript lines ("a", "b", "solo"). */
@@ -143,28 +123,6 @@ function resolveCommand(cliDir: string): LaunchCommand {
   return { file: join(cliDir, "bin", "inteligir"), argv: ["serve"] };
 }
 
-function groupAlive(pgid: number): boolean {
-  try {
-    process.kill(-pgid, 0);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-async function pollGroupGone(pgid: number, graceMs: number): Promise<boolean> {
-  const deadline = Date.now() + graceMs;
-  for (;;) {
-    if (!groupAlive(pgid)) {
-      return true;
-    }
-    if (Date.now() > deadline) {
-      return false;
-    }
-    await delay(KILL_POLL_INTERVAL_MS);
-  }
-}
-
 async function healthAnswered(baseUrl: string): Promise<boolean> {
   try {
     const response = await fetch(`${baseUrl}${HEALTH_PATH}`, {
@@ -212,7 +170,7 @@ function spawnAttempt(
   });
   const pid = child.pid;
   if (pid !== undefined) {
-    liveGroups.add(pid);
+    trackLiveGroup(pid);
   }
 
   const outputLines: string[] = [];
@@ -254,36 +212,8 @@ function spawnAttempt(
 
   let stopPromise: Promise<void> | null = null;
   function stop(): Promise<void> {
-    stopPromise ??= (async () => {
-      if (pid === undefined) {
-        return;
-      }
-      try {
-        // The GROUP, leader dead or not — the watcher child outlives a
-        // crashed leader. (A recycled pgid is theoretically reachable here;
-        // the window between leader exit and this signal is too small to
-        // matter on a test box.)
-        process.kill(-pid, "SIGTERM");
-      } catch {
-        // Whole group already gone.
-      }
-      if (await pollGroupGone(pid, STOP_SIGTERM_GRACE_MS)) {
-        liveGroups.delete(pid);
-        return;
-      }
-      try {
-        process.kill(-pid, "SIGKILL");
-      } catch {
-        // Gone between polls.
-      }
-      if (await pollGroupGone(pid, STOP_SIGKILL_GRACE_MS)) {
-        liveGroups.delete(pid);
-        return;
-      }
-      throw new Error(
-        `instance "${args.name}": process group ${pid} survived SIGKILL — refusing to treat it as torn down`,
-      );
-    })();
+    stopPromise ??=
+      pid === undefined ? Promise.resolve() : stopProcessGroup(pid, `instance "${args.name}"`);
     return stopPromise;
   }
 

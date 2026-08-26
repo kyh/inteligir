@@ -50,29 +50,31 @@ scratch dir and tears everything down afterwards:
 `pnpm e2e --list` prints this table from the registry itself; what follows is
 what each one is FOR.
 
-| name                      | proves                                                                   |
-| ------------------------- | ------------------------------------------------------------------------ |
-| vault-crud                | write/read/rename/delete over the wire, bytes verified on disk; refused  |
-|                           | ops verified to leave the disk untouched                                 |
-| vault-sync                | two instances + one bare remote (auto-sync off, every sync explicit):    |
-|                           | propagation, then a typed conflict + git-verified repo integrity         |
-| threads-scripted          | a turn through the scripted driver: send, settle, timeline               |
-| action-scripted           | an action attaches to its note; a scripted turn writes the vault; the    |
-|                           | CAS write guards the save (typed conflict, current bytes in the body);   |
-|                           | a rename drags the attachment along — all verified on disk               |
-| cli-drive                 | the CLI drives a real instance, and the env an agent's shell would get   |
-|                           | resolves against this checkout                                           |
-| browser-smoke             | headless page load: the REAL policy on the served document, SPA mount,   |
-|                           | API reached, the palette chord safe, clean console after a settle window |
-| editor-constructs-browser | every live-preview construct renders in a real browser (jsdom has no     |
-|                           | layout, so the unit suite cannot prove a widget survived the bundle and  |
-|                           | a measure pass), and the file is re-read to prove rendering wrote no     |
-|                           | bytes                                                                    |
-| slash-menu-browser        | a typed slash opens the menu, and the picked construct lands in the file |
-| external-edit-browser     | a clean buffer adopts an agent write; a dirty buffer merges instead of   |
-|                           | clobbering                                                               |
-| view-context-browser      | the agent is told which note the message left from, and at what revision |
-| dictation-browser         | the composer's mic captures, transcribes and inserts — never sends       |
+| name                      | proves                                                                    |
+| ------------------------- | ------------------------------------------------------------------------- |
+| vault-crud                | write/read/rename/delete over the wire, bytes verified on disk; refused   |
+|                           | ops verified to leave the disk untouched                                  |
+| vault-sync                | two instances + one bare remote (auto-sync off, every sync explicit):     |
+|                           | propagation, then a typed conflict + git-verified repo integrity          |
+| hosted-vault-sync         | the hosted loop for real: a wrangler-dev Worker, production pairing,      |
+|                           | convergence through the derived remote, boot clone, revoke → unauthorized |
+| threads-scripted          | a turn through the scripted driver: send, settle, timeline                |
+| action-scripted           | an action attaches to its note; a scripted turn writes the vault; the     |
+|                           | CAS write guards the save (typed conflict, current bytes in the body);    |
+|                           | a rename drags the attachment along — all verified on disk                |
+| cli-drive                 | the CLI drives a real instance, and the env an agent's shell would get    |
+|                           | resolves against this checkout                                            |
+| browser-smoke             | headless page load: the REAL policy on the served document, SPA mount,    |
+|                           | API reached, the palette chord safe, clean console after a settle window  |
+| editor-constructs-browser | every live-preview construct renders in a real browser (jsdom has no      |
+|                           | layout, so the unit suite cannot prove a widget survived the bundle and   |
+|                           | a measure pass), and the file is re-read to prove rendering wrote no      |
+|                           | bytes                                                                     |
+| slash-menu-browser        | a typed slash opens the menu, and the picked construct lands in the file  |
+| external-edit-browser     | a clean buffer adopts an agent write; a dirty buffer merges instead of    |
+|                           | clobbering                                                                |
+| view-context-browser      | the agent is told which note the message left from, and at what revision  |
+| dictation-browser         | the composer's mic captures, transcribes and inserts — never sends        |
 
 ## Adding a scenario
 
