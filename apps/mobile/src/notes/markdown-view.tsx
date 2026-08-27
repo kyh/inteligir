@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Image, Linking, StyleSheet, Text, View } from "react-native";
 
 /** Only web links leave the app: a hosted note is content another device
@@ -95,6 +96,43 @@ function blockKey(index: number): string {
   return `b${String(index)}`;
 }
 
+function Unavailable({ label, theme }: { label: string; theme: Theme }) {
+  return (
+    <View style={[styles.unsupported, { borderColor: theme.border }]}>
+      <Text style={[styles.calloutLabel, { color: theme.mutedForeground }]}>
+        {label} — image unavailable
+      </Text>
+    </View>
+  );
+}
+
+/** Owns its load failure: offline, a revoked credential's 401, the route's
+ *  413 — every post-resolve refusal falls back to the unavailable card
+ *  instead of a silent gray rectangle. */
+function EmbedImage({
+  source,
+  label,
+  theme,
+}: {
+  source: VaultAssetSource;
+  label: string;
+  theme: Theme;
+}) {
+  const [failed, setFailed] = useState(false);
+  if (failed) {
+    return <Unavailable label={label} theme={theme} />;
+  }
+  return (
+    <Image
+      source={{ uri: source.uri, headers: source.headers }}
+      style={[styles.embedImage, { backgroundColor: theme.muted }]}
+      resizeMode="contain"
+      accessibilityLabel={label}
+      onError={() => setFailed(true)}
+    />
+  );
+}
+
 export function MarkdownBlocks({
   blocks,
   onWikiLink,
@@ -132,25 +170,10 @@ export function MarkdownBlocks({
           case "image": {
             const source = resolveAsset(block.target);
             if (source === null) {
-              return (
-                <View
-                  key={blockKey(index)}
-                  style={[styles.unsupported, { borderColor: theme.border }]}
-                >
-                  <Text style={[styles.calloutLabel, { color: theme.mutedForeground }]}>
-                    {block.label} — image unavailable
-                  </Text>
-                </View>
-              );
+              return <Unavailable key={blockKey(index)} label={block.label} theme={theme} />;
             }
             return (
-              <Image
-                key={blockKey(index)}
-                source={{ uri: source.uri, headers: source.headers }}
-                style={[styles.embedImage, { backgroundColor: theme.muted }]}
-                resizeMode="contain"
-                accessibilityLabel={block.label}
-              />
+              <EmbedImage key={blockKey(index)} source={source} label={block.label} theme={theme} />
             );
           }
           case "list-item":

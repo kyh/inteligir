@@ -26,6 +26,7 @@ import {
   assetMediaType,
   buildVaultAssetUrl,
   VAULT_API_PATHS,
+  VAULT_ASSET_MEDIA_TYPES,
   vaultAssetQuerySchema,
   vaultFileQuerySchema,
   vaultFileResponseSchema,
@@ -441,6 +442,25 @@ describe("vault read rows", () => {
     expect(assetMediaType("notes.md")).toBeNull();
     expect(assetMediaType("script.html")).toBeNull();
     expect(assetMediaType("no-extension")).toBeNull();
+  });
+
+  it("pins the asset allowlist WHOLE — growth is additive, removal never happens", () => {
+    // The table is the deployed /v1/vault/asset wire's behavior, shared with
+    // the desktop route: add a row here WITH the new entry; removing one
+    // 400s every stale phone whose notes embed that type. This pin is what
+    // turns a local-side "cleanup" of the shared table into a failing test.
+    expect(Object.fromEntries(VAULT_ASSET_MEDIA_TYPES)).toEqual({
+      ".apng": "image/apng",
+      ".avif": "image/avif",
+      ".bmp": "image/bmp",
+      ".gif": "image/gif",
+      ".ico": "image/x-icon",
+      ".jpeg": "image/jpeg",
+      ".jpg": "image/jpeg",
+      ".png": "image/png",
+      ".svg": "image/svg+xml",
+      ".webp": "image/webp",
+    });
   });
 });
 

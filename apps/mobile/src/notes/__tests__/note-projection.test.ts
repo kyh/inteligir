@@ -1,3 +1,4 @@
+import { assetMediaType } from "@repo/api/cloud/vault/vault-schema";
 import { describe, expect, it } from "vitest";
 import { projectNote, type InlineSpan, type NoteBlock } from "../note-projection";
 
@@ -151,6 +152,17 @@ describe("projectNote", () => {
     const paragraph = blocks[0];
     if (paragraph?.kind !== "paragraph") throw new Error("expected a paragraph");
     expect(paragraph.spans.map((span) => span.kind)).toEqual(["text", "image-embed", "text"]);
+  });
+
+  it("promotes only extensions the asset route actually serves", () => {
+    // The phone's render subset must stay INSIDE the route's allowlist, or a
+    // promoted embed fetches a guaranteed 400. Spelled out here on purpose —
+    // a test deriving the set could not catch the set drifting.
+    for (const extension of ["png", "jpg", "jpeg", "gif", "webp"]) {
+      const blocks = noteBlocks(`![[img.${extension}]]\n`);
+      expect(blocks[0]?.kind, extension).toBe("image");
+      expect(assetMediaType(`img.${extension}`), extension).not.toBeNull();
+    }
   });
 
   it("renders only what core RN Image can draw — everything else stays a link", () => {
