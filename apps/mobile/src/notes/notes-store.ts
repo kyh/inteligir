@@ -59,9 +59,19 @@ interface CredentialHandover {
   source: "restored" | "paired";
 }
 
-/** What an RN `Image` needs to fetch a vault asset: the pinned URL, and the
- *  credential as a header — never in the URL, where image caches and logs
- *  would keep it. */
+/**
+ * What an RN `Image` needs to fetch a vault asset: the pinned URL, and the
+ * credential as a header — never in the URL, where image caches and logs
+ * would keep it.
+ *
+ * THE RESIDUAL, stated: the BYTES the image fetches land in the platform's
+ * own HTTP/image caches (NSURLCache honors the route's year-long immutable
+ * answer; Fresco disk-caches regardless), which an unpair cannot clear —
+ * core RN Image has no purge. Serving them stays safe (the URL pins a commit
+ * sha, and an equal sha means identical content), but they sit at rest on
+ * the device until the OS evicts them — unlike note bodies, whose cache the
+ * unpair wipes.
+ */
 export interface VaultAssetSource {
   uri: string;
   headers: Record<string, string>;

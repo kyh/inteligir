@@ -252,10 +252,35 @@ async function answerAsset(stub: DurableObjectStub<RepoCell>, url: URL): Promise
   if (mediaType === null) {
     return refuse("bad-request", "That extension is not an image type this vault serves.");
   }
+
+  // Size-gate from the TREE before the blob crosses the repo cell's RPC:
+  // `readBlob` inflates the whole blob inside the cell and the RPC return has
+  // its own message bound, so a huge asset gated only after the hop would
+  // surface as an opaque 500 — and pay the crossing again on every retry. The
+  // parent directory's own entry answers the question for one cheap hop.
+  const slash = query.data.path.lastIndexOf("/");
+  const parentDir = slash < 0 ? "" : query.data.path.slice(0, slash);
+  const leaf = slash < 0 ? query.data.path : query.data.path.slice(slash + 1);
+  const parentTree = await stub.listTree(query.data.ref, encodeGitPath(parentDir));
+  if (parentTree === null) {
+    return refuse("not-found", "That revision does not carry the path.");
+  }
+  const entry = parentTree.entries.find((row) => row.name === leaf && row.type === "blob");
+  if (entry === undefined) {
+    return refuse("not-found", "That revision does not carry the path.");
+  }
+  if (entry.size !== undefined && entry.size > VAULT_ASSET_MAX_BYTES) {
+    return refuse(
+      "file-too-large",
+      `Assets over ${String(VAULT_ASSET_MAX_BYTES)} bytes do not cross this wire.`,
+    );
+  }
+
   const blob = await stub.readBlob(query.data.ref, encodeGitPath(query.data.path));
   if (blob === null) {
     return refuse("not-found", "That revision does not carry the path.");
   }
+  // The belt behind the tree gate: an entry with no size still lands here.
   if (blob.data.length > VAULT_ASSET_MAX_BYTES) {
     return refuse(
       "file-too-large",

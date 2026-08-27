@@ -41,9 +41,10 @@ export const VAULT_TREE_MAX_ENTRIES = 500;
  *  this large is not one. Binary embeds ride the asset route instead. */
 export const VAULT_FILE_MAX_BYTES = 2 * 1024 * 1024;
 
-/** The asset route's own ceiling — the desktop asset route's read cap, and
- *  comfortably under the Workers RPC message bound the repo cell's
- *  `readBlob` answer has to cross. */
+/** The asset route's own ceiling — the desktop asset route's read cap. The
+ *  route enforces it from the TREE's entry size BEFORE the blob crosses the
+ *  repo cell's RPC (whose own message bound a giant blob would otherwise hit
+ *  as an opaque failure), with the read-back length as the belt. */
 export const VAULT_ASSET_MAX_BYTES = 10 * 1024 * 1024;
 
 const gitOidSchema = z.string().regex(/^[0-9a-f]{40}$/u, "must be a full lowercase git oid");
