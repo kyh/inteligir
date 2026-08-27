@@ -1,5 +1,6 @@
 import { VAULT_API_PATHS } from "@repo/api/cloud/vault/vault-schema";
 import { describe, expect, it } from "vitest";
+import { createMemoryNoteCache, type NoteCache } from "../note-cache";
 import { createNotesStore } from "../notes-store";
 
 // The read model's own rules: the credential is the switch, a paged tree
@@ -176,5 +177,97 @@ describe("the notes store", () => {
     expect(store.tree.get()).toEqual({ state: "idle" });
     expect(store.resolveWiki("b")).toBeNull();
     expect(await store.readNote("a.md")).toEqual({ ok: false, message: "Not paired." });
+  });
+});
+
+/** The memory cache with every port call recorded — what the store DOES with
+ *  a cache, separately from what a cache does with its rows. */
+function recordingCache() {
+  const inner = createMemoryNoteCache(100);
+  const calls: string[] = [];
+  return {
+    calls,
+    cache: {
+      get: (commit, path) => {
+        calls.push(`get ${path}`);
+        return inner.get(commit, path);
+      },
+      set: (note) => {
+        calls.push(`set ${note.path}@${note.commit}`);
+        return inner.set(note);
+      },
+      sweep: (keepCommit) => {
+        calls.push(`sweep ${keepCommit}`);
+        return inner.sweep(keepCommit);
+      },
+      clear: () => {
+        calls.push("clear");
+        return inner.clear();
+      },
+    } satisfies NoteCache,
+  };
+}
+
+describe("the notes store over a durable cache", () => {
+  it("serves a cached note across a relaunch — no second request", async () => {
+    const { cache } = recordingCache();
+    const firstLaunch = fakeCloud();
+    const first = createNotesStore({
+      cloudUrl: "https://cloud.test",
+      fetch: firstLaunch.fetch,
+      cache,
+    });
+    first.setCredential(CREDENTIAL);
+    await first.refresh();
+    await first.readNote("notes/b.md");
+
+    // The relaunch: a fresh store, the SAME cache, the boot-time restore of
+    // the SAME credential — which must not wipe the rows the cache exists for.
+    const secondLaunch = fakeCloud();
+    const second = createNotesStore({
+      cloudUrl: "https://cloud.test",
+      fetch: secondLaunch.fetch,
+      cache,
+    });
+    second.setCredential(CREDENTIAL);
+    await second.refresh();
+    const read = await second.readNote("notes/b.md");
+    expect(read).toEqual({ ok: true, path: "notes/b.md", commit: COMMIT, content: "# b\n" });
+    const fileRequests = secondLaunch.requests.filter((line) =>
+      line.startsWith(VAULT_API_PATHS.file),
+    );
+    expect(fileRequests).toEqual([]);
+  });
+
+  it("never caches a read the tree did not pin — 'head' moves", async () => {
+    const { cache, calls } = recordingCache();
+    const cloud = fakeCloud();
+    const store = createNotesStore({ cloudUrl: "https://cloud.test", fetch: cloud.fetch, cache });
+    store.setCredential(CREDENTIAL);
+    // No refresh: the tree is not ready, so the read is unpinned.
+    const read = await store.readNote("a.md");
+    expect(read.ok).toBe(true);
+    expect(calls.filter((line) => line.startsWith("get"))).toEqual([]);
+    expect(calls.filter((line) => line.startsWith("set"))).toEqual([]);
+  });
+
+  it("sweeps to the tree's commit on every refresh", async () => {
+    const { cache, calls } = recordingCache();
+    const cloud = fakeCloud();
+    const store = createNotesStore({ cloudUrl: "https://cloud.test", fetch: cloud.fetch, cache });
+    store.setCredential(CREDENTIAL);
+    await store.refresh();
+    expect(calls).toContain(`sweep ${COMMIT}`);
+  });
+
+  it("wipes the rows on unpair and on a live re-pair, never on the boot restore", async () => {
+    const { cache, calls } = recordingCache();
+    const store = createNotesStore({ cloudUrl: "https://cloud.test", cache });
+    store.setCredential(CREDENTIAL);
+    expect(calls).toEqual([]);
+    store.setCredential({ deviceId: "dev_2", credential: `igd_${"b".repeat(64)}` });
+    expect(calls).toEqual(["clear"]);
+    store.setCredential(null);
+    expect(calls).toEqual(["clear", "clear"]);
   });
 });

@@ -20,6 +20,7 @@ import {
   parsePairCallback,
 } from "../pairing/expo-pairing";
 import { createMemorySyncStore } from "../sync/memory-sync-store";
+import { createExpoNoteCache } from "../notes/expo-note-cache";
 import {
   createNotesStore,
   type NoteRead,
@@ -69,7 +70,7 @@ function build(): AppRuntime {
   return {
     store,
     sync,
-    notes: createNotesStore({ cloudUrl }),
+    notes: createNotesStore({ cloudUrl, cache: createExpoNoteCache() }),
     pairing,
     credentials: createSecureStoreCredential(),
     cloudUrl,
