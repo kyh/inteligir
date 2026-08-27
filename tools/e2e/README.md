@@ -39,8 +39,13 @@ scratch dir and tears everything down afterwards:
   group. `extraEnv` may not touch harness-owned keys (paths, port, NODE_ENV,
   `GIT_*`) — collisions are refused loudly. `seedVault` writes fixture files
   before boot; the app's repo init commits them.
+  `seedData` does the same for the data dir — a device credential, so the
+  instance boots already paired.
 - `bareRemote()` — a scratch bare git repo, returned as the `file://` URL for
   `INTELIGIR_VAULT_REMOTE`.
+- `cloudWorker()` — the product Worker (apps/web) under `wrangler dev` on a
+  scratch persist dir, its D1 carrying apps/web's own `db:export` schema plus
+  one invite row. Registered for teardown exactly like an instance.
 - `instance.api` — the oRPC client over `@repo/api/local`, carrying the device
   token this instance published in `<dataDir>/server.json`;
   `instance.vaultDir` / `dataDir` for on-disk assertions.

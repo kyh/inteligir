@@ -7,6 +7,7 @@
     "build": "vite build",
     "cf-typegen": "wrangler types src/worker/worker-configuration.d.ts",
     "clean": "git clean -xdf .cache .tanstack .turbo .wrangler dist node_modules",
+    "db:export": "drizzle-kit export --dialect=sqlite --schema=./src/worker/db/schema.ts",
     "db:push": "dotenv -e ../../.env.production.local -- drizzle-kit push",
     "db:push:local": "drizzle-kit push --config drizzle.config.local.ts --force",
     "db:studio": "dotenv -e ../../.env.production.local -- drizzle-kit studio",

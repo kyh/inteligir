@@ -9,7 +9,7 @@
 // "unauthorized" (never "offline"), and no token ever lands in .git/config.
 
 import { existsSync } from "node:fs";
-import { mkdir, readFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import {
@@ -27,7 +27,7 @@ import {
 } from "inteligir/server/cloud/credential-store";
 import { z } from "zod";
 import { expect, expectEq } from "../harness/assert";
-import { E2E_INVITE_CODE, launchCloudWorker } from "../harness/cloud-worker";
+import { E2E_INVITE_CODE } from "../harness/cloud-worker";
 import { exec, hermeticProcessEnv } from "../harness/exec";
 import type { InstanceApi } from "../harness/instance";
 import type { Scenario } from "../harness/scenario";
@@ -65,11 +65,11 @@ async function signUp(origin: string): Promise<{ bearer: string; userId: string 
   expect(bearer !== null, "sign-up returned a session bearer");
 
   const session = await fetch(`${origin}/api/auth/get-session`, {
-    headers: { authorization: `Bearer ${bearer ?? ""}`, origin },
+    headers: { authorization: `Bearer ${bearer}`, origin },
   });
   const parsed = sessionUserSchema.safeParse(await session.json());
   expect(parsed.success, "get-session names the signed-up user");
-  return { bearer: bearer ?? "", userId: parsed.success ? parsed.data.user.id : "" };
+  return { bearer, userId: parsed.data.user.id };
 }
 
 /** The approve page's act: mint a code with the session, bound to a PKCE
@@ -111,6 +111,14 @@ async function revokeDevice(origin: string, bearer: string, deviceId: string): P
   expect(response.ok, `revoke answered ${response.status}`);
 }
 
+/** A parameter the approve URL must carry — asserted where it is read, so a
+ *  missing one fails HERE rather than as a 400 one call later. */
+function requiredParam(url: URL, key: string): string {
+  const value = url.searchParams.get(key);
+  expect(value !== null, `the approve URL carries ${key}`);
+  return value;
+}
+
 /** Drive the production pairing loop for a booted instance: pairBegin, the
  *  approve page's mint, then the browser's own GET of the local callback. */
 async function pairThroughBrowserFlow(
@@ -120,10 +128,9 @@ async function pairThroughBrowserFlow(
 ): Promise<void> {
   const begun = await api.cloud.pairBegin({ openBrowser: false });
   const approve = new URL(begun.url);
-  const state = approve.searchParams.get(PAIR_APPROVE_PARAMS.state) ?? "";
-  const challenge = approve.searchParams.get(PAIR_APPROVE_PARAMS.challenge) ?? "";
-  const redirect = approve.searchParams.get(PAIR_APPROVE_PARAMS.redirect) ?? "";
-  expect(redirect !== "", "the approve URL carries the callback redirect");
+  const state = requiredParam(approve, PAIR_APPROVE_PARAMS.state);
+  const challenge = requiredParam(approve, PAIR_APPROVE_PARAMS.challenge);
+  const redirect = requiredParam(approve, PAIR_APPROVE_PARAMS.redirect);
 
   const code = await mintCode(origin, bearer, challenge);
   const callback = new URL(redirect);
@@ -200,12 +207,10 @@ async function expectNoTokenInGitConfig(
   const config = await readFile(join(vaultDir, ".git", "config"), "utf8");
   const stored = readDeviceCredential(dataDir);
   expect(stored !== null, `${label}: a device credential is on disk to compare against`);
-  if (stored !== null) {
-    expect(
-      !config.includes(stored.credential),
-      `${label}: .git/config never carries the live credential`,
-    );
-  }
+  expect(
+    !config.includes(stored.credential),
+    `${label}: .git/config never carries the live credential`,
+  );
   expect(
     !config.includes(DEVICE_CREDENTIAL_PREFIX),
     `${label}: .git/config carries no device credential`,
@@ -218,15 +223,7 @@ export const hostedVaultSync: Scenario = {
   name: "hosted-vault-sync",
   description: "two instances against a real dev Worker: pair, converge, clone, revoke",
   async run(ctx) {
-    // Tracked with the runner like any instance: stopped in reverse launch
-    // order (apps first, worker last), counted in teardownClean, tail printed
-    // on failure.
-    const worker = await launchCloudWorker({
-      repoRoot: ctx.repoRoot,
-      scratchDir: ctx.scratchDir,
-      onLog: ctx.log,
-      track: (process) => ctx.track(process),
-    });
+    const worker = await ctx.cloudWorker();
 
     ctx.log("creating the account through the invite gate");
     const { bearer, userId } = await signUp(worker.origin);
@@ -242,10 +239,17 @@ export const hostedVaultSync: Scenario = {
 
     ctx.log("B holds a credential BEFORE boot: the clone path, not init+seed");
     const deviceB = await redeemDevice(worker.origin, bearer, "E2E Device B");
-    const dataDirB = join(ctx.scratchDir, "b", "data");
-    await mkdir(dataDirB, { recursive: true });
-    writeDeviceCredential(dataDirB, { ...deviceB, userId });
-    const b = await ctx.boot({ name: "b", extraEnv: cloudEnv(worker.origin) });
+    const b = await ctx.boot({
+      name: "b",
+      extraEnv: cloudEnv(worker.origin),
+      // Through the harness's own hook: the instance layout is the
+      // launcher's, and a path rebuilt here would silently send B down the
+      // init+seed path the assertions below exist to refuse.
+      seedData: (dataDir) => {
+        writeDeviceCredential(dataDir, { ...deviceB, userId });
+        return Promise.resolve();
+      },
+    });
 
     expect(
       existsSync(join(b.vaultDir, "notes", "shared.md")),

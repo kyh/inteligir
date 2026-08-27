@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { dirname, join } from "node:path";
+import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { cloudflareTest } from "@cloudflare/vitest-pool-workers";
 import { defineConfig } from "vitest/config";
@@ -10,21 +10,19 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 
 // D1 test schema. There are NO migration files — dev uses `drizzle-kit push`
 // (see package.json db:push:*). Tests derive the schema DDL straight from
-// src/worker/db/schema.ts via `drizzle-kit export` (reads the schema, touches no
-// database), inject it as the TEST_SCHEMA binding, and apply it per test file in
-// src/worker/__tests__/apply-schema.ts. Always in sync with the schema — zero
-// drift, no generate step.
-const TEST_SCHEMA = execFileSync(
-  "pnpm",
-  [
-    "exec",
-    "drizzle-kit",
-    "export",
-    "--dialect=sqlite",
-    `--schema=${join(HERE, "src/worker/db/schema.ts")}`,
-  ],
-  { cwd: HERE, encoding: "utf8" },
-);
+// src/worker/db/schema.ts via this package's own `db:export` script (reads the
+// schema, touches no database), inject it as the TEST_SCHEMA binding, and apply
+// it per test file in src/worker/__tests__/apply-schema.ts. Always in sync with
+// the schema — zero drift, no generate step.
+//
+// The SCRIPT rather than the command, because the e2e harness derives the same
+// DDL for its scratch D1 (tools/e2e/src/harness/cloud-worker.ts): two spellings
+// of one derivation is how the schema under test stops being the schema the
+// suite boots.
+const TEST_SCHEMA = execFileSync("pnpm", ["run", "--silent", "db:export"], {
+  cwd: HERE,
+  encoding: "utf8",
+});
 
 // Runs the tests inside a real miniflare Workers runtime (in-process), with the
 // same D1 binding wrangler.jsonc declares — so the auth database is exercised
