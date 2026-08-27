@@ -70,6 +70,9 @@ export const Route = createFileRoute("/app/pair")({
   component: PairPage,
 });
 
+/** How long the deep-link handoff gets before the approve button re-arms. */
+const MOBILE_REARM_MS = 4_000;
+
 async function mintCode(challenge: string): Promise<string> {
   const body: MintPairingCodeRequest = { challenge, challengeMethod: "S256" };
   const response = await fetch(DEVICE_API_PATHS.mintCode, {
@@ -108,9 +111,13 @@ function PairPage() {
   // to "pair" — so the return-address line names the app instead.
   const mobileCallback = new URL(callback).protocol === PAIR_MOBILE_REDIRECT_SCHEME;
 
-  // `busy` is cleared only on the failure path: the success path is a
-  // navigation, and a button that came back to life underneath it would mint a
-  // second code for a pairing that already has one.
+  // `busy` clears on failure — and, for the deep link only, on a timer: a
+  // loopback assignment always unloads this page (even a refused connection
+  // commits to an error page), but a custom-scheme launch hands off to the OS
+  // WITHOUT unloading it, and a refused launch (no app owns the scheme, the
+  // user cancels the open-app dialog) leaves the user here. Re-arming lets
+  // them try again; each approval mints its own single-use code, so a retry
+  // costs nothing a reload would not also cost.
   const onApprove = () => {
     setBusy(true);
     setError(null);
@@ -120,6 +127,9 @@ function PairPage() {
         // A top-level assignment, not a fetch: the code has to reach the local
         // app's loopback, and only the browser can go there.
         window.location.assign(buildPairCallbackUrl(callback, { code, state }));
+        if (mobileCallback) {
+          window.setTimeout(() => setBusy(false), MOBILE_REARM_MS);
+        }
       } catch (failure) {
         setError(failure instanceof Error ? failure.message : "Couldn't mint a pairing code.");
         setBusy(false);

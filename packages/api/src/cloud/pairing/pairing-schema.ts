@@ -256,8 +256,16 @@ export const PAIR_CALLBACK_HOST = "127.0.0.1";
  * and neither allowlist is ever widened by reference to the other.
  */
 export const PAIR_MOBILE_REDIRECT_SCHEME = "inteligir:";
-const PAIR_MOBILE_REDIRECT_HOST = "pair";
-const PAIR_MOBILE_REDIRECT_PATH = "/callback";
+
+/** The deep-link segment under that scheme, exported because the mobile app
+ *  COMPOSES its callback from it (`Linking.createURL(segment)`) — the same
+ *  spelling this schema then admits, so neither can drift alone. */
+export const PAIR_MOBILE_REDIRECT_SEGMENT = "pair/callback";
+
+// `new URL` splits the segment at its first slash: authority, then path.
+const SEGMENT_SLASH = PAIR_MOBILE_REDIRECT_SEGMENT.indexOf("/");
+const PAIR_MOBILE_REDIRECT_HOST = PAIR_MOBILE_REDIRECT_SEGMENT.slice(0, SEGMENT_SLASH);
+const PAIR_MOBILE_REDIRECT_PATH = PAIR_MOBILE_REDIRECT_SEGMENT.slice(SEGMENT_SLASH);
 
 /** 128 bits, hex. Large enough that a callback nobody initiated cannot be
  *  guessed, which is the whole of what `state` buys. */
