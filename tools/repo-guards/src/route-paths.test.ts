@@ -65,9 +65,11 @@ interface Hit {
 
 /** A path is spelled when it appears NOT followed by a word character or a
  *  dash — which is what tells `"/vault/asset?path="` from the module specifier
- *  `"./vault/asset-route"`. */
+ *  `"./vault/asset-route"`. The `/v1` lookbehind keeps the CLOUD wire's own
+ *  `/v1/vault/asset` from reading as the local route: that namespace is a
+ *  different server with its own one-spelling home, the cloud contract. */
 function spells(source: string, path: string): boolean {
-  return new RegExp(`${path}(?![\\w-])`, "u").test(source);
+  return new RegExp(`(?<!/v1)${path}(?![\\w-])`, "u").test(source);
 }
 
 function spellings(source: string): string[] {

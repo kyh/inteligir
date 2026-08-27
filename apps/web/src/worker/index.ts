@@ -126,7 +126,11 @@ async function route(request: Request, env: Env, ctx: ExecutionContext): Promise
 
   // The vault READ rows a git-less client (the phone) uses, device-authed —
   // src/worker/vault/read-routes.ts.
-  if (url.pathname === VAULT_API_PATHS.tree || url.pathname === VAULT_API_PATHS.file) {
+  if (
+    url.pathname === VAULT_API_PATHS.tree ||
+    url.pathname === VAULT_API_PATHS.file ||
+    url.pathname === VAULT_API_PATHS.asset
+  ) {
     return await handleVaultReadRoutes(request, env, url);
   }
 

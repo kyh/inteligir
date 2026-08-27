@@ -26,6 +26,7 @@ import {
   type NoteRead,
   type NotesStore,
   type NotesTreeState,
+  type VaultAssetSource,
 } from "../notes/notes-store";
 import { createSyncRuntime, type SyncRuntime, type SyncStatus } from "../sync/sync-runtime";
 import type { SyncStore } from "../sync/sync-store";
@@ -187,6 +188,11 @@ export function readNote(path: string): Promise<NoteRead> {
 /** A wiki target's vault path over the last refreshed tree, or null. */
 export function resolveWikiPath(target: string): string | null {
   return getRuntime().notes.resolveWiki(target);
+}
+
+/** An image embed's source at the tree's commit, or null. */
+export function assetSource(path: string): VaultAssetSource | null {
+  return getRuntime().notes.assetSource(path);
 }
 
 // -- React hooks ------------------------------------------------------------

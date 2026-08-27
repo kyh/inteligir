@@ -189,6 +189,24 @@ describe("the notes store", () => {
     expect(store.resolveWiki("b")).toBeNull();
     expect(await store.readNote("a.md")).toEqual({ ok: false, message: "Not paired." });
   });
+
+  it("composes an asset source pinned to the tree's commit, credential in a header", async () => {
+    const cloud = fakeCloud();
+    const store = createNotesStore({ cloudUrl: "https://cloud.test", fetch: cloud.fetch });
+    // No tree yet: an unpinned asset URL is no cache key, so there is none.
+    store.setCredential(CREDENTIAL);
+    expect(store.assetSource("media/a.png")).toBeNull();
+    await store.refresh();
+    const source = store.assetSource("media/a.png");
+    expect(source).not.toBeNull();
+    const url = new URL(source?.uri ?? "");
+    expect(url.pathname).toBe("/v1/vault/asset");
+    expect(url.searchParams.get("path")).toBe("media/a.png");
+    expect(url.searchParams.get("ref")).toBe(COMMIT);
+    expect(source?.headers).toEqual({ authorization: `Bearer ${CREDENTIAL.credential}` });
+    store.setCredential(null);
+    expect(store.assetSource("media/a.png")).toBeNull();
+  });
 });
 
 /** The memory cache with every port call recorded — what the store DOES with

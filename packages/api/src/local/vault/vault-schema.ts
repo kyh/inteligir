@@ -94,32 +94,10 @@ export async function contentHashBytesHex(
   return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
-/**
- * The image types the asset route will serve, extension → media type. It is
- * an ALLOWLIST rather than a lookup with a fallback, and that is the whole
- * security design of the route: the bytes come from a vault a hostile git
- * remote can write to, and they are served from the app's own origin, so a
- * guessed `text/html` would be stored XSS with the vault as the store. An
- * extension outside this table is refused rather than sent as
- * `application/octet-stream` — the editor renders only images, so a type it
- * cannot draw has no reason to leave the disk.
- *
- * SVG is here because notes carry diagrams, and it is the one entry that can
- * carry script. `<img>` never runs it; a direct NAVIGATION to the asset URL
- * would, which is why the route answers with a `sandbox` CSP.
- */
-export const VAULT_ASSET_MEDIA_TYPES = new Map([
-  [".apng", "image/apng"],
-  [".avif", "image/avif"],
-  [".bmp", "image/bmp"],
-  [".gif", "image/gif"],
-  [".ico", "image/x-icon"],
-  [".jpeg", "image/jpeg"],
-  [".jpg", "image/jpeg"],
-  [".png", "image/png"],
-  [".svg", "image/svg+xml"],
-  [".webp", "image/webp"],
-]);
+// The asset allowlist is shared with the cloud asset route — one table, one
+// lookup, because both serve the same vault and a drift means an image that
+// renders on one device and 400s on the other.
+export { assetMediaType, VAULT_ASSET_MEDIA_TYPES } from "../../shared/vault-asset-media-types";
 
 export const vaultReadRequestSchema = z.object({ path: vaultPathSchema }).strict();
 export type VaultReadRequest = z.infer<typeof vaultReadRequestSchema>;

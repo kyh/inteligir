@@ -2,7 +2,7 @@ import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { readNote, resolveWikiPath, useSyncStatus } from "@/lib/app-runtime";
+import { assetSource, readNote, resolveWikiPath, useSyncStatus } from "@/lib/app-runtime";
 import { SPACE, useTheme } from "@/lib/theme";
 import { MarkdownBlocks } from "@/notes/markdown-view";
 import { projectNote, type NoteProjection } from "@/notes/note-projection";
@@ -49,6 +49,11 @@ export default function NoteScreen() {
     [router],
   );
 
+  const resolveAsset = useCallback((target: string) => {
+    const resolved = resolveWikiPath(target);
+    return resolved === null ? null : assetSource(resolved);
+  }, []);
+
   // A mounted note must not outlive the pairing that fetched it.
   const paired = status.state === "paired";
   const title = paired && screen.state === "ready" ? screen.projection.title : "…";
@@ -76,7 +81,11 @@ export default function NoteScreen() {
             <Text style={[styles.raw, { color: theme.foreground }]}>{screen.projection.text}</Text>
           </View>
         ) : (
-          <MarkdownBlocks blocks={screen.projection.blocks} onWikiLink={onWikiLink} />
+          <MarkdownBlocks
+            blocks={screen.projection.blocks}
+            onWikiLink={onWikiLink}
+            resolveAsset={resolveAsset}
+          />
         )}
       </ScrollView>
     </SafeAreaView>
