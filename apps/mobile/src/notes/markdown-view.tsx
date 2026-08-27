@@ -1,4 +1,4 @@
-import { Linking, StyleSheet, Text, View } from "react-native";
+import { Image, Linking, StyleSheet, Text, View } from "react-native";
 
 /** Only web links leave the app: a hosted note is content another device
  *  wrote, and `file:`/`intent:`/custom schemes reaching Linking would hand
@@ -9,6 +9,7 @@ function openExternalLink(url: string): void {
 }
 import { RADIUS, SPACE, useTheme, type Theme } from "@/lib/theme";
 import type { InlineSpan, NoteBlock } from "./note-projection";
+import type { VaultAssetSource } from "./notes-store";
 
 // The thin half of the note renderer: projected blocks in, RN elements out.
 // Every decision about WHAT to show lives in note-projection.ts; what this
@@ -55,6 +56,7 @@ function Spans({
               </Text>
             );
           case "wiki-link":
+          case "image-embed":
             return (
               <Text
                 key={spanKey(index)}
@@ -96,9 +98,13 @@ function blockKey(index: number): string {
 export function MarkdownBlocks({
   blocks,
   onWikiLink,
+  resolveAsset,
 }: {
   blocks: readonly NoteBlock[];
   onWikiLink: (target: string) => void;
+  /** An embed target's image source, or null when it cannot be shown — an
+   *  unresolved target, an unpinned tree, an unpaired screen. */
+  resolveAsset: (target: string) => VaultAssetSource | null;
 }) {
   const theme = useTheme();
   return (
@@ -123,6 +129,30 @@ export function MarkdownBlocks({
                 <Spans spans={block.spans} theme={theme} onWikiLink={onWikiLink} />
               </Text>
             );
+          case "image": {
+            const source = resolveAsset(block.target);
+            if (source === null) {
+              return (
+                <View
+                  key={blockKey(index)}
+                  style={[styles.unsupported, { borderColor: theme.border }]}
+                >
+                  <Text style={[styles.calloutLabel, { color: theme.mutedForeground }]}>
+                    {block.label} — image unavailable
+                  </Text>
+                </View>
+              );
+            }
+            return (
+              <Image
+                key={blockKey(index)}
+                source={{ uri: source.uri, headers: source.headers }}
+                style={[styles.embedImage, { backgroundColor: theme.muted }]}
+                resizeMode="contain"
+                accessibilityLabel={block.label}
+              />
+            );
+          }
           case "list-item":
             return (
               <View
@@ -163,13 +193,21 @@ export function MarkdownBlocks({
                 <Text style={[styles.calloutLabel, { color: theme.mutedForeground }]}>
                   {block.label.toUpperCase()}
                 </Text>
-                <MarkdownBlocks blocks={block.blocks} onWikiLink={onWikiLink} />
+                <MarkdownBlocks
+                  blocks={block.blocks}
+                  onWikiLink={onWikiLink}
+                  resolveAsset={resolveAsset}
+                />
               </View>
             );
           case "quote":
             return (
               <View key={blockKey(index)} style={[styles.quote, { borderLeftColor: theme.border }]}>
-                <MarkdownBlocks blocks={block.blocks} onWikiLink={onWikiLink} />
+                <MarkdownBlocks
+                  blocks={block.blocks}
+                  onWikiLink={onWikiLink}
+                  resolveAsset={resolveAsset}
+                />
               </View>
             );
           case "divider":
@@ -231,6 +269,7 @@ const styles = StyleSheet.create({
   calloutLabel: { fontSize: 11, fontWeight: "700", letterSpacing: 0.6, marginBottom: SPACE.sm },
   quote: { borderLeftWidth: 3, paddingLeft: SPACE.md, marginBottom: SPACE.md },
   divider: { height: 1, marginVertical: SPACE.lg },
+  embedImage: { width: "100%", height: 240, borderRadius: RADIUS.md, marginBottom: SPACE.md },
   unsupported: {
     borderWidth: 1,
     borderStyle: "dashed",

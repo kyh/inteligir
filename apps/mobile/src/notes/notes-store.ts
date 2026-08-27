@@ -19,7 +19,7 @@
 // alias-only link renders unresolved until that changes.
 
 import { buildResolver, type TargetResolver } from "@repo/notes/knowledge/link-resolve";
-import type { VaultTreeResponse } from "@repo/api/cloud/vault/vault-schema";
+import { buildVaultAssetUrl, type VaultTreeResponse } from "@repo/api/cloud/vault/vault-schema";
 import type { DeviceCredential } from "../credential/credential-codec";
 import { createCloudClient, describeCloudFailure, type CloudFetch } from "@repo/api/cloud/client";
 import { createExternalStore, type ExternalStore } from "../lib/external-store";
@@ -59,6 +59,14 @@ interface CredentialHandover {
   source: "restored" | "paired";
 }
 
+/** What an RN `Image` needs to fetch a vault asset: the pinned URL, and the
+ *  credential as a header — never in the URL, where image caches and logs
+ *  would keep it. */
+export interface VaultAssetSource {
+  uri: string;
+  headers: Record<string, string>;
+}
+
 export interface NotesStore {
   /** The pairing layer's switch, same contract as the sync runtime's. */
   setCredential(next: CredentialHandover | null): void;
@@ -68,6 +76,10 @@ export interface NotesStore {
   readNote(path: string): Promise<NoteRead>;
   /** A wiki target's vault path over the LAST refreshed tree, or null. */
   resolveWiki(target: string): string | null;
+  /** An image source for a vault asset, pinned to the tree's commit — null
+   *  until a tree is ready, because an unpinned asset URL is not a stable
+   *  cache key and the route refuses it. */
+  assetSource(path: string): VaultAssetSource | null;
 }
 
 export interface CreateNotesStoreArgs {
@@ -225,6 +237,16 @@ export function createNotesStore(args: CreateNotesStoreArgs): NotesStore {
 
     resolveWiki(target) {
       return resolver === null ? null : resolver.resolveWiki(target);
+    },
+
+    assetSource(path) {
+      if (activeCredential === null) return null;
+      const current = tree.get();
+      if (current.state !== "ready") return null;
+      return {
+        uri: buildVaultAssetUrl(args.cloudUrl, { path, ref: current.commit }),
+        headers: { authorization: `Bearer ${activeCredential}` },
+      };
     },
   };
 }

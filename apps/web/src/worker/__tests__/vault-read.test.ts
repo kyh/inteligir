@@ -1,5 +1,6 @@
 import {
   VAULT_API_PATHS,
+  VAULT_ASSET_MAX_BYTES,
   VAULT_FILE_MAX_BYTES,
   vaultFileResponseSchema,
   vaultTreeResponseSchema,
@@ -15,6 +16,7 @@ import { pushVaultFiles, ZERO_OID } from "./git-pack";
 
 const TREE = `${ORIGIN}${VAULT_API_PATHS.tree}`;
 const FILE = `${ORIGIN}${VAULT_API_PATHS.file}`;
+const ASSET = `${ORIGIN}${VAULT_API_PATHS.asset}`;
 
 async function errorCode(response: Response): Promise<string> {
   return cloudErrorSchema.parse(await response.json()).error.code;
@@ -154,5 +156,93 @@ describe("vault read rows", () => {
       });
       expect(response.status).toBe(400);
     }
+  });
+});
+
+describe("the vault asset route", () => {
+  const PNG_BYTES = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0xff]);
+
+  it("answers an image embed's raw bytes with the allowlist's type", async () => {
+    const { credential, commit } = await pairAndPush("vault-asset-read@example.test", [
+      { path: "media/diagram.png", content: PNG_BYTES },
+    ]);
+    const response = await SELF.fetch(
+      `${ASSET}?path=${encodeURIComponent("media/diagram.png")}&ref=${commit}`,
+      { headers: deviceHeaders(credential) },
+    );
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe("image/png");
+    expect(response.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(response.headers.get("content-security-policy")).toBe("default-src 'none'; sandbox");
+    // Pinned to a commit, so immutable is the truth — and private, because
+    // the answer is credential-gated.
+    expect(response.headers.get("cache-control")).toBe("private, max-age=31536000, immutable");
+    expect(new Uint8Array(await response.arrayBuffer())).toEqual(PNG_BYTES);
+  });
+
+  it("refuses the wire without a credential", async () => {
+    const response = await SELF.fetch(`${ASSET}?path=a.png&ref=${"c".repeat(40)}`);
+    expect(response.status).toBe(401);
+    expect(await errorCode(response)).toBe("unauthorized");
+  });
+
+  it("requires the pinning ref — an unpinned asset URL is not a cache key", async () => {
+    const { credential } = await pairAndPush("vault-asset-ref@example.test", [
+      { path: "a.png", content: PNG_BYTES },
+    ]);
+    const response = await SELF.fetch(`${ASSET}?path=a.png`, {
+      headers: deviceHeaders(credential),
+    });
+    expect(response.status).toBe(400);
+    expect(await errorCode(response)).toBe("bad-request");
+  });
+
+  it("refuses an extension outside the allowlist — never a fallback type", async () => {
+    const { credential, commit } = await pairAndPush("vault-asset-ext@example.test", [
+      { path: "notes.md", content: "# text\n" },
+    ]);
+    for (const path of ["notes.md", "script.html", "no-extension"]) {
+      const response = await SELF.fetch(`${ASSET}?path=${path}&ref=${commit}`, {
+        headers: deviceHeaders(credential),
+      });
+      expect(response.status).toBe(400);
+      expect(await errorCode(response)).toBe("bad-request");
+    }
+  });
+
+  it("answers not-found for a path the revision does not carry", async () => {
+    const { credential, commit } = await pairAndPush("vault-asset-miss@example.test", [
+      { path: "a.png", content: PNG_BYTES },
+    ]);
+    const response = await SELF.fetch(`${ASSET}?path=gone.png&ref=${commit}`, {
+      headers: deviceHeaders(credential),
+    });
+    expect(response.status).toBe(404);
+    expect(await errorCode(response)).toBe("not-found");
+  });
+
+  it("refuses bytes over the asset ceiling", async () => {
+    const huge = new Uint8Array(VAULT_ASSET_MAX_BYTES + 1).fill(0x61);
+    const { credential, commit } = await pairAndPush("vault-asset-huge@example.test", [
+      { path: "huge.png", content: huge },
+    ]);
+    const response = await SELF.fetch(`${ASSET}?path=huge.png&ref=${commit}`, {
+      headers: deviceHeaders(credential),
+    });
+    expect(response.status).toBe(413);
+    expect(await errorCode(response)).toBe("file-too-large");
+  });
+
+  it("keeps two users' vaults apart on the asset wire too", async () => {
+    const alpha = await pairAndPush("vault-asset-alpha@example.test", [
+      { path: "secret.png", content: PNG_BYTES },
+    ]);
+    const beta = await signUpUser("vault-asset-beta@example.test");
+    const betaDevice = await pairDevice(beta.bearer, "Laptop");
+    const asBeta = await SELF.fetch(`${ASSET}?path=secret.png&ref=${alpha.commit}`, {
+      headers: deviceHeaders(betaDevice.credential),
+    });
+    // Beta's own repo has no such commit; alpha's sha buys nothing.
+    expect(asBeta.status).toBe(404);
   });
 });

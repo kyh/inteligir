@@ -23,6 +23,10 @@ import {
 import { EVENT_MAX_BYTES, pullQuerySchema, pushRequestSchema } from "../sync/sync-schema";
 import { syncPingSchema } from "../sync/sync-ws";
 import {
+  assetMediaType,
+  buildVaultAssetUrl,
+  VAULT_API_PATHS,
+  vaultAssetQuerySchema,
   vaultFileQuerySchema,
   vaultFileResponseSchema,
   vaultTreeQuerySchema,
@@ -411,6 +415,32 @@ describe("vault read rows", () => {
     expect(vaultTreeQuerySchema.safeParse({ ref: "abc123" }).success).toBe(false);
     expect(vaultTreeQuerySchema.safeParse({ ref: "A".repeat(40) }).success).toBe(false);
     expect(vaultTreeQuerySchema.safeParse({ ref: COMMIT }).success).toBe(true);
+  });
+
+  it("the asset query REQUIRES its ref — an unpinned asset URL is no cache key", () => {
+    expect(vaultAssetQuerySchema.safeParse({ path: "a.png" }).success).toBe(false);
+    expect(vaultAssetQuerySchema.safeParse({ path: "a.png", ref: COMMIT }).success).toBe(true);
+    expect(vaultAssetQuerySchema.safeParse({ path: "../up.png", ref: COMMIT }).success).toBe(false);
+    expect(vaultAssetQuerySchema.safeParse({ path: "a.png", ref: COMMIT, extra: 1 }).success).toBe(
+      false,
+    );
+  });
+
+  it("round-trips the asset URL through the one builder the phone composes with", () => {
+    const url = new URL(
+      buildVaultAssetUrl("https://cloud.test", { path: "media/α β.png", ref: COMMIT }),
+    );
+    expect(url.pathname).toBe(VAULT_API_PATHS.asset);
+    expect(url.searchParams.get("path")).toBe("media/α β.png");
+    expect(url.searchParams.get("ref")).toBe(COMMIT);
+  });
+
+  it("the asset allowlist answers a type or nothing — never a fallback", () => {
+    expect(assetMediaType("media/diagram.png")).toBe("image/png");
+    expect(assetMediaType("media/PHOTO.JPG")).toBe("image/jpeg");
+    expect(assetMediaType("notes.md")).toBeNull();
+    expect(assetMediaType("script.html")).toBeNull();
+    expect(assetMediaType("no-extension")).toBeNull();
   });
 });
 
