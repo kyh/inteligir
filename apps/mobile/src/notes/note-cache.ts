@@ -26,7 +26,9 @@ export interface NoteCache {
   get(commit: string, path: string): Promise<CachedNote | null>;
   set(note: CachedNote): Promise<void>;
   /** Drop every row whose commit is not `keepCommit`: a refresh moved the
-   *  tree, and nothing can reach them again. */
+   *  tree, and nothing can reach them again. A `set` still in flight for an
+   *  older commit may land after the sweep — that row is equally unreachable,
+   *  and the next sweep reclaims it. */
   sweep(keepCommit: string): Promise<void>;
   /** Forget everything — the credential changed, and at-rest rows must not
    *  outlive the pairing that fetched them. */

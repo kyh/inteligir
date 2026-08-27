@@ -260,6 +260,30 @@ describe("the notes store over a durable cache", () => {
     expect(calls).toContain(`sweep ${COMMIT}`);
   });
 
+  it("a cache hit landing after an unpair is refused — the fence covers the disk too", async () => {
+    const inner = createMemoryNoteCache(100);
+    const releases: Array<() => void> = [];
+    const cache: NoteCache = {
+      ...inner,
+      get: async (commit, path) => {
+        await new Promise<void>((resolve) => releases.push(resolve));
+        return inner.get(commit, path);
+      },
+    };
+    const cloud = fakeCloud();
+    const store = createNotesStore({ cloudUrl: "https://cloud.test", fetch: cloud.fetch, cache });
+    store.setCredential(CREDENTIAL);
+    await store.refresh();
+    await inner.set({ commit: COMMIT, path: "a.md", content: "# a\n" });
+
+    const pending = store.readNote("a.md");
+    store.setCredential(null);
+    releases[0]?.();
+    // The row was on disk and the read was in flight — but the unpair won,
+    // and yesterday's account's bytes never reach the new session.
+    expect(await pending).toEqual({ ok: false, message: "Not paired." });
+  });
+
   it("wipes the rows on unpair and on a live re-pair, never on the boot restore", async () => {
     const { cache, calls } = recordingCache();
     const store = createNotesStore({ cloudUrl: "https://cloud.test", cache });
