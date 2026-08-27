@@ -13,6 +13,7 @@ import { mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import {
+  DEVICE_CREDENTIAL_PREFIX,
   generatePkceVerifier,
   mintPairingCodeResponseSchema,
   PAIR_APPROVE_PARAMS,
@@ -20,10 +21,13 @@ import {
   pkceChallengeS256,
   redeemDeviceResponseSchema,
 } from "@repo/api/cloud/pairing/pairing-schema";
-import { writeDeviceCredential } from "inteligir/server/cloud/credential-store";
+import {
+  readDeviceCredential,
+  writeDeviceCredential,
+} from "inteligir/server/cloud/credential-store";
 import { z } from "zod";
 import { expect, expectEq } from "../harness/assert";
-import { E2E_INVITE_CODE, launchCloudWorker, type CloudWorker } from "../harness/cloud-worker";
+import { E2E_INVITE_CODE, launchCloudWorker } from "../harness/cloud-worker";
 import { exec, hermeticProcessEnv } from "../harness/exec";
 import type { InstanceApi } from "../harness/instance";
 import type { Scenario } from "../harness/scenario";
@@ -184,10 +188,28 @@ async function syncUntil(
 }
 
 /** The epic's acceptance line verbatim: no token in any .git/config — not as
- *  the credential, not as URL userinfo. */
-async function expectNoTokenInGitConfig(vaultDir: string, label: string): Promise<void> {
+ *  the credential, not as URL userinfo. The credential compared is the LIVE
+ *  one read back from the instance's own data dir, and the prefix sweep is
+ *  the contract's constant — a hand-copied "igd_" would keep passing after a
+ *  prefix change while the real secret sat in the config. */
+async function expectNoTokenInGitConfig(
+  vaultDir: string,
+  dataDir: string,
+  label: string,
+): Promise<void> {
   const config = await readFile(join(vaultDir, ".git", "config"), "utf8");
-  expect(!config.includes("igd_"), `${label}: .git/config carries no device credential`);
+  const stored = readDeviceCredential(dataDir);
+  expect(stored !== null, `${label}: a device credential is on disk to compare against`);
+  if (stored !== null) {
+    expect(
+      !config.includes(stored.credential),
+      `${label}: .git/config never carries the live credential`,
+    );
+  }
+  expect(
+    !config.includes(DEVICE_CREDENTIAL_PREFIX),
+    `${label}: .git/config carries no device credential`,
+  );
   expect(!/https?:\/\/[^\n]*@/.test(config), `${label}: .git/config carries no URL userinfo`);
   expect(!config.toLowerCase().includes("extraheader"), `${label}: auth rides env, never config`);
 }
@@ -196,80 +218,77 @@ export const hostedVaultSync: Scenario = {
   name: "hosted-vault-sync",
   description: "two instances against a real dev Worker: pair, converge, clone, revoke",
   async run(ctx) {
-    let worker: CloudWorker | null = null;
-    try {
-      worker = await launchCloudWorker({
-        repoRoot: ctx.repoRoot,
-        scratchDir: ctx.scratchDir,
-        onLog: ctx.log,
-      });
+    // Tracked with the runner like any instance: stopped in reverse launch
+    // order (apps first, worker last), counted in teardownClean, tail printed
+    // on failure.
+    const worker = await launchCloudWorker({
+      repoRoot: ctx.repoRoot,
+      scratchDir: ctx.scratchDir,
+      onLog: ctx.log,
+      track: (process) => ctx.track(process),
+    });
 
-      ctx.log("creating the account through the invite gate");
-      const { bearer, userId } = await signUp(worker.origin);
+    ctx.log("creating the account through the invite gate");
+    const { bearer, userId } = await signUp(worker.origin);
 
-      ctx.log("A boots accountless, then pairs through the production flow");
-      const a = await ctx.boot({ name: "a", extraEnv: cloudEnv(worker.origin) });
-      await pairThroughBrowserFlow(a.api, worker.origin, bearer);
-      await untilIdentityKnown(a.api, "A");
+    ctx.log("A boots accountless, then pairs through the production flow");
+    const a = await ctx.boot({ name: "a", extraEnv: cloudEnv(worker.origin) });
+    await pairThroughBrowserFlow(a.api, worker.origin, bearer);
+    await untilIdentityKnown(a.api, "A");
 
-      ctx.log("A writes and pushes through the derived hosted remote");
-      await a.api.vault.write({ path: "notes/shared.md", content: FROM_A });
-      await syncUntil(a.api, "A after write", "clean");
+    ctx.log("A writes and pushes through the derived hosted remote");
+    await a.api.vault.write({ path: "notes/shared.md", content: FROM_A });
+    await syncUntil(a.api, "A after write", "clean");
 
-      ctx.log("B holds a credential BEFORE boot: the clone path, not init+seed");
-      const deviceB = await redeemDevice(worker.origin, bearer, "E2E Device B");
-      const dataDirB = join(ctx.scratchDir, "b", "data");
-      await mkdir(dataDirB, { recursive: true });
-      writeDeviceCredential(dataDirB, { ...deviceB, userId });
-      const b = await ctx.boot({ name: "b", extraEnv: cloudEnv(worker.origin) });
+    ctx.log("B holds a credential BEFORE boot: the clone path, not init+seed");
+    const deviceB = await redeemDevice(worker.origin, bearer, "E2E Device B");
+    const dataDirB = join(ctx.scratchDir, "b", "data");
+    await mkdir(dataDirB, { recursive: true });
+    writeDeviceCredential(dataDirB, { ...deviceB, userId });
+    const b = await ctx.boot({ name: "b", extraEnv: cloudEnv(worker.origin) });
 
-      expect(
-        existsSync(join(b.vaultDir, "notes", "shared.md")),
-        "B's boot clone brought A's note down",
-      );
-      expectEq(
-        await readFile(join(b.vaultDir, "notes", "shared.md"), "utf8"),
-        FROM_A,
-        "B's on-disk content",
-      );
-      // A CLONE, not a seed-then-merge: B's history IS A's history, byte for
-      // byte — a seeded B would hold its own root commit that no rebase erases.
-      const headA = await exec("git", ["-C", a.vaultDir, "rev-parse", "HEAD"], {
-        env: hermeticProcessEnv(),
-      });
-      const headB = await exec("git", ["-C", b.vaultDir, "rev-parse", "HEAD"], {
-        env: hermeticProcessEnv(),
-      });
-      expectEq(headB.stdout.trim(), headA.stdout.trim(), "B's clone landed on A's own HEAD");
-      const marker = await exec("git", ["-C", b.vaultDir, "config", "--get", "inteligir.account"], {
-        env: hermeticProcessEnv(),
-      });
-      expectEq(marker.stdout.trim(), userId, "B's clone pinned the account marker");
+    expect(
+      existsSync(join(b.vaultDir, "notes", "shared.md")),
+      "B's boot clone brought A's note down",
+    );
+    expectEq(
+      await readFile(join(b.vaultDir, "notes", "shared.md"), "utf8"),
+      FROM_A,
+      "B's on-disk content",
+    );
+    // A CLONE, not a seed-then-merge: B's history IS A's history, byte for
+    // byte — a seeded B would hold its own root commit that no rebase erases.
+    const headA = await exec("git", ["-C", a.vaultDir, "rev-parse", "HEAD"], {
+      env: hermeticProcessEnv(),
+    });
+    const headB = await exec("git", ["-C", b.vaultDir, "rev-parse", "HEAD"], {
+      env: hermeticProcessEnv(),
+    });
+    expectEq(headB.stdout.trim(), headA.stdout.trim(), "B's clone landed on A's own HEAD");
+    const marker = await exec("git", ["-C", b.vaultDir, "config", "--get", "inteligir.account"], {
+      env: hermeticProcessEnv(),
+    });
+    expectEq(marker.stdout.trim(), userId, "B's clone pinned the account marker");
 
-      ctx.log("B writes; the change reaches A the other way around");
-      await b.api.vault.write({ path: "notes/from-b.md", content: FROM_B });
-      await syncUntil(b.api, "B after write", "clean");
-      await syncUntil(a.api, "A pulling B's write", "clean");
-      expectEq(
-        await readFile(join(a.vaultDir, "notes", "from-b.md"), "utf8"),
-        FROM_B,
-        "A's on-disk content",
-      );
+    ctx.log("B writes; the change reaches A the other way around");
+    await b.api.vault.write({ path: "notes/from-b.md", content: FROM_B });
+    await syncUntil(b.api, "B after write", "clean");
+    await syncUntil(a.api, "A pulling B's write", "clean");
+    expectEq(
+      await readFile(join(a.vaultDir, "notes", "from-b.md"), "utf8"),
+      FROM_B,
+      "A's on-disk content",
+    );
 
-      await expectNoTokenInGitConfig(a.vaultDir, "A");
-      await expectNoTokenInGitConfig(b.vaultDir, "B");
+    await expectNoTokenInGitConfig(a.vaultDir, a.dataDir, "A");
+    await expectNoTokenInGitConfig(b.vaultDir, b.dataDir, "B");
 
-      ctx.log("revoking B: the next sync must read unauthorized, not offline");
-      await revokeDevice(worker.origin, bearer, deviceB.deviceId);
-      await b.api.vault.write({ path: "notes/after-revoke.md", content: "# Stranded\n" });
-      await syncUntil(b.api, "B after revoke", "unauthorized");
+    ctx.log("revoking B: the next sync must read unauthorized, not offline");
+    await revokeDevice(worker.origin, bearer, deviceB.deviceId);
+    await b.api.vault.write({ path: "notes/after-revoke.md", content: "# Stranded\n" });
+    await syncUntil(b.api, "B after revoke", "unauthorized");
 
-      ctx.log("A is untouched by B's revocation");
-      await syncUntil(a.api, "A after B's revoke", "clean");
-    } finally {
-      if (worker !== null) {
-        await worker.stop();
-      }
-    }
+    ctx.log("A is untouched by B's revocation");
+    await syncUntil(a.api, "A after B's revoke", "clean");
   },
 };

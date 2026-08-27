@@ -16,6 +16,19 @@ interface BootOptions {
   seedVault?: (vaultDir: string) => Promise<void>;
 }
 
+/**
+ * What the runner's teardown and failure transcript need from a long-lived
+ * child — the slice of AppInstance the runner actually reads, so a non-app
+ * process (the cloud dev Worker) rides the same registry: stopped in reverse
+ * launch order, counted in `teardownClean` (a group surviving SIGKILL keeps
+ * the scratch), and its output tail printed on failure.
+ */
+export interface TrackedProcess {
+  name: string;
+  outputTail(lines?: number): string;
+  stop(): Promise<void>;
+}
+
 export interface ScenarioContext {
   repoRoot: string;
   /** This scenario's own scratch dir; removed by the runner unless --keep. */
@@ -24,6 +37,8 @@ export interface ScenarioContext {
   boot(options: BootOptions): Promise<AppInstance>;
   /** A scratch bare git repo; returns the file:// URL for INTELIGIR_VAULT_REMOTE. */
   bareRemote(name?: string): Promise<string>;
+  /** Hand a non-app process to the runner's teardown registry. */
+  track(process: TrackedProcess): void;
 }
 
 export interface Scenario {
@@ -37,7 +52,7 @@ export interface CreateScenarioContextArgs {
   scratchDir: string;
   log: (message: string) => void;
   /** The runner's teardown registry; every boot lands here. */
-  instances: AppInstance[];
+  instances: TrackedProcess[];
 }
 
 export function createScenarioContext(args: CreateScenarioContextArgs): ScenarioContext {
@@ -66,6 +81,9 @@ export function createScenarioContext(args: CreateScenarioContextArgs): Scenario
       if (options.vaultRemote !== undefined) launchArgs.vaultRemote = options.vaultRemote;
       if (options.extraEnv !== undefined) launchArgs.extraEnv = options.extraEnv;
       return launchApp(launchArgs);
+    },
+    track(process) {
+      args.instances.push(process);
     },
     async bareRemote(name = "remote") {
       const remoteDir = join(args.scratchDir, `${name}.git`);

@@ -94,8 +94,10 @@ Each feature issue lands with its scenario here (#556).
 | `INTELIGIR_VAULT_DIR`        | absolute vault dir; must be disjoint from the data dir |
 | `INTELIGIR_PORT`             | exact port (env-configured ports are never probed)     |
 | `INTELIGIR_VAULT_REMOTE`     | git remote URL for the sync loop; unset = local-only   |
+| `INTELIGIR_CLOUD_URL`        | the cloud origin; hosted-vault-sync points it at its   |
+|                              | own scratch wrangler-dev Worker                        |
 | `INTELIGIR_SYNC_INTERVAL_MS` | vault auto-sync cadence; `0` disables the loop AND the |
-|                              | boot sync (vault-sync sets it for determinism)         |
+|                              | boot sync (the sync scenarios set it for determinism)  |
 | `INTELIGIR_AGENT`            | `scripted` — the deterministic in-process driver the   |
 |                              | thread and action scenarios run against                |
 
@@ -106,10 +108,13 @@ the same env every git the harness itself runs gets.
 
 ## CI
 
-Headless and login-free by construction: no accounts, no interactive auth, no
-pinned ports. The one setup step beyond `pnpm install` is the browser binary
-for browser-smoke: `npm i -g agent-browser && agent-browser install` (Linux:
-`--with-deps`). browser-smoke probes the environment with `about:blank`
+Headless by construction: no interactive auth, no pinned ports, and no
+accounts on any EXTERNAL service — hosted-vault-sync signs up a real account,
+but against its own scratch wrangler-dev Worker (apps/web's wrangler, local
+mode, state under the scenario's scratch dir; secrets ride `--var`, so no
+`.dev.vars` is needed). The one setup step beyond `pnpm install` is the
+browser binary for browser-smoke: `npm i -g agent-browser && agent-browser
+install` (Linux: `--with-deps`). browser-smoke probes the environment with `about:blank`
 first — only a failure THERE (the browser cannot launch at all) reports SKIP,
 with the exact launcher error; opening the app and everything after is a real
 assertion.

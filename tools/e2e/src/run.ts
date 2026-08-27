@@ -9,9 +9,8 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { ScenarioSkip } from "./harness/assert";
-import { type AppInstance } from "./harness/instance";
 import { killAllLiveGroups } from "./harness/process-group";
-import { createScenarioContext, type Scenario } from "./harness/scenario";
+import { createScenarioContext, type Scenario, type TrackedProcess } from "./harness/scenario";
 import { actionScripted } from "./scenarios/action-scripted";
 import { browserSmoke } from "./scenarios/browser-smoke";
 import { cliDrive } from "./scenarios/cli-drive";
@@ -113,7 +112,7 @@ async function runScenario(
   const startedAt = Date.now();
   const scratchDir = join(scratchRoot, scenario.name);
   await mkdir(scratchDir, { recursive: true });
-  const instances: AppInstance[] = [];
+  const instances: TrackedProcess[] = [];
   const log = (message: string) => {
     console.log(`${timestamp()} [${scenario.name}] ${message}`);
   };
