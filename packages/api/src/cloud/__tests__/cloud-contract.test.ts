@@ -20,11 +20,11 @@ import {
   pkceChallengeS256,
   redeemDeviceRequestSchema,
 } from "../pairing/pairing-schema";
+import { createCloudClient } from "../cloud-client";
 import { EVENT_MAX_BYTES, pullQuerySchema, pushRequestSchema } from "../sync/sync-schema";
 import { syncPingSchema } from "../sync/sync-ws";
 import {
   assetMediaType,
-  buildVaultAssetUrl,
   VAULT_API_PATHS,
   VAULT_ASSET_MEDIA_TYPES,
   vaultAssetQuerySchema,
@@ -427,13 +427,20 @@ describe("vault read rows", () => {
     );
   });
 
-  it("round-trips the asset URL through the one builder the phone composes with", () => {
-    const url = new URL(
-      buildVaultAssetUrl("https://cloud.test", { path: "media/α β.png", ref: COMMIT }),
-    );
+  it("composes an asset source through the client — bearer in a header, never the URL", () => {
+    // The client is the one composer: it holds the credential, so nothing
+    // downstream assembles a second spelling of the auth header.
+    const source = createCloudClient({
+      baseUrl: "https://cloud.test",
+      credential: `igd_${"a".repeat(64)}`,
+    }).vaultAssetSource({ path: "media/α β.png", ref: COMMIT });
+    const url = new URL(source.uri);
     expect(url.pathname).toBe(VAULT_API_PATHS.asset);
     expect(url.searchParams.get("path")).toBe("media/α β.png");
     expect(url.searchParams.get("ref")).toBe(COMMIT);
+    expect(url.username).toBe("");
+    expect(url.search).not.toContain("igd_");
+    expect(source.headers).toEqual({ authorization: `Bearer igd_${"a".repeat(64)}` });
   });
 
   it("the asset allowlist answers a type or nothing — never a fallback", () => {

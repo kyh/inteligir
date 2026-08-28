@@ -5,7 +5,6 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import {
   assetSource,
   readNote,
-  refreshNotes,
   resolveWikiPath,
   useNotesTree,
   useSyncStatus,
@@ -30,16 +29,12 @@ export default function NoteScreen() {
   const params = useLocalSearchParams<{ path: string[] }>();
   const path = Array.isArray(params.path) ? params.path.join("/") : (params.path ?? "");
   const [screen, setScreen] = useState<ScreenState>({ state: "loading" });
-  // Subscribed, not just read imperatively: a deep link can mount this screen
-  // before any tree exists (the note still opens — an unpinned read), and the
-  // subscription is what re-renders embeds from "unavailable" to images when
-  // the tree lands. The refresh mirrors the list screen's, for the cold start
-  // that never visited it.
-  const tree = useNotesTree();
+  // SUBSCRIBED, not just read imperatively: a deep link can mount this screen
+  // before the tree lands (the note still opens — an unpinned read), and this
+  // subscription is what re-renders its embeds from "unavailable" to images
+  // when it does. Fetching a cold tree is the runtime's job, not a screen's.
+  useNotesTree();
   const paired = status.state === "paired";
-  useEffect(() => {
-    if (paired && tree.state === "idle") void refreshNotes();
-  }, [paired, tree.state]);
 
   useEffect(() => {
     let cancelled = false;

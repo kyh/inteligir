@@ -158,12 +158,3 @@ export const vaultAssetQuerySchema = z
   })
   .strict();
 export type VaultAssetQuery = z.infer<typeof vaultAssetQuerySchema>;
-
-/** The asset URL, as the phone composes it — one spelling, so the query the
- *  route parses and the URL the client builds cannot drift. */
-export function buildVaultAssetUrl(baseUrl: string, query: VaultAssetQuery): string {
-  const url = new URL(VAULT_API_PATHS.asset, baseUrl);
-  url.searchParams.set("path", query.path);
-  url.searchParams.set("ref", query.ref);
-  return url.toString();
-}
