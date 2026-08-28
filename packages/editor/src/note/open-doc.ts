@@ -60,8 +60,6 @@ export function deriveOpenDoc(args: {
   openPath: string | null;
   /** The controller's loaded path — null while reading / after a vanish. */
   loadedPath: string | null;
-  /** The live content buffer. */
-  content: string;
   /** The last SAVED-content gate verdict (analysis lags typing on purpose). */
   rawReason: GateReason | null;
   /** The user's per-open raw/rich pick (honored only when rich is available). */

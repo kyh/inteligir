@@ -18,7 +18,7 @@ glossary, `apps/web/README.md` the Worker's own routes and deploy.
 ```sh
 pnpm install
 pnpm dev             # → THE PRODUCT: the shell over its own server, e.g.
-                     #   inteligir 0.1.0 (dev) listening on http://127.0.0.1:26723
+                     #   inteligir 0.2.0 (dev) listening on http://127.0.0.1:26723
 pnpm cli serve       # → the server ALONE, from source, no window. A shell
                      #   started afterwards ADOPTS it, so this is the loop for
                      #   iterating on server code.
@@ -40,7 +40,7 @@ PATH, else an unavailable driver whose reason `system.status` states under
 `agent`). WHICH harness runs is a thread's own `providerId`, never this
 variable.
 **`INTELIGIR_AGENT=scripted` is the login-free e2e mode**: an in-process
-deterministic driver over the REAL ingest/timeline/vault/commit paths — send a
+deterministic driver over the REAL ingest/timeline/vault/commit paths — send an
 action message, watch the turn stream, find the note in the vault with an
 agent-attributed commit. `INTELIGIR_AGENT_MODEL` passes a model through.
 
@@ -148,7 +148,8 @@ apps/desktop             THE SHIPPED PRODUCT: the window, the
 apps/cli                 THE PUBLISHED BINARY: `serve` is the whole
                          server; every other verb is a client        inteligir
 apps/web                 ONE CF Worker: marketing + Better Auth (D1) @repo/web
-apps/mobile              Expo: a sync-only thread/capture surface   @repo/mobile
+apps/mobile              Expo: threads, captures and a read-only
+                         notes surface over the hosted vault    @repo/mobile
 packages/api             ONE contract, TWO entries: /local and
                          /cloud                                      @repo/api
 packages/db              drizzle + better-sqlite3, migrations,
@@ -157,8 +158,9 @@ packages/agent-runtime   The ACP runtime: one adapter, harness rows @repo/agent-
 packages/notes           Pure domain — knowledge + markdown          @repo/notes
 packages/editor          The Plate WYSIWYG over the serializer      @repo/editor
 packages/ui              Shared components (vendored shadcn)         @repo/ui
-tools/repo-guards        Fitness tests over the repo: the dep DAG,
-                         ws change kinds, CI parity                 @repo/repo-guards
+tools/repo-guards        Fitness tests over the repo: the dep DAG, ws
+                         change kinds, CI parity, dangling refs     @repo/repo-guards
+tools/e2e                The scenario suite `pnpm e2e` drives           @repo/e2e
 ```
 
 - `CLAUDE.md` — architecture and § Decisions.

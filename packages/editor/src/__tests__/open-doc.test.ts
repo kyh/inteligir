@@ -24,7 +24,6 @@ describe("deriveOpenDoc", () => {
     const doc = deriveOpenDoc({
       openPath: null,
       loadedPath: null,
-      content: "",
       rawReason: null,
       chosenMode: "raw",
     });
@@ -37,7 +36,6 @@ describe("deriveOpenDoc", () => {
     const doc = deriveOpenDoc({
       openPath: "notes/a.md",
       loadedPath: null,
-      content: "",
       rawReason: null,
       chosenMode: "raw",
     });
@@ -51,7 +49,6 @@ describe("deriveOpenDoc", () => {
       const doc = deriveOpenDoc({
         openPath: path,
         loadedPath: path,
-        content: "<p>hi</p>",
         rawReason: null,
         chosenMode: "raw",
       });
@@ -64,7 +61,6 @@ describe("deriveOpenDoc", () => {
     const doc = deriveOpenDoc({
       openPath: "a.md",
       loadedPath: "a.md",
-      content: "# Hi\n",
       rawReason: null,
       chosenMode: "rich",
     });
@@ -80,7 +76,6 @@ describe("deriveOpenDoc", () => {
     const doc = deriveOpenDoc({
       openPath: "a.md",
       loadedPath: "a.md",
-      content: "# Hi\n",
       rawReason: null,
       chosenMode: "raw",
     });
@@ -97,7 +92,6 @@ describe("deriveOpenDoc", () => {
       const doc = deriveOpenDoc({
         openPath: "a.md",
         loadedPath: "a.md",
-        content: "left {unclosed\n",
         rawReason: GATE,
         chosenMode,
       });

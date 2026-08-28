@@ -83,7 +83,7 @@ apps/
                  @repo/notes' own parse; reaches @repo/api/cloud, @repo/domain
                  and @repo/notes only.
 packages/
-  domain/        @repo/domain — zod-only leaf vocabulary (view context, ids,
+  domain/        @repo/domain — zod-only leaf vocabulary (view context,
                  provider events), vendored-from-bb shapes; every package may
                  reach it, it reaches nothing.
   api/           @repo/api — ONE contract package, TWO entry points (#611).
@@ -136,12 +136,22 @@ packages/
                  provider-event vocabulary is the one internal grammar.
   agent-skills/  @repo/agent-skills — product skill files: the
                  dialect's first-party spec, served to agents as files.
-  ui/            @repo/ui — vendored stock shadcn on Base UI; leaf.
+  ui/            @repo/ui — the shared component vocabulary, all of it
+                 vendored on Base UI and kept near upstream so a re-pull
+                 stays a diff: stock shadcn in components/, the Fluid
+                 Functionalism sidebar and system helpers beside it, and the
+                 Beautiful UI surfaces in ai/. Each source's licence text
+                 rides in tools/licenses and ships with the artifact. Leaf.
 tools/
   repo-guards/   @repo/repo-guards — derived fitness tests over the REPO: the
-                 package dependency DAG + its platform-purity rules and ws
-                 change-kind reachability. The
+                 package dependency DAG + its platform-purity rules, ws
+                 change-kind reachability, and the dangling-reference sweep
+                 over every path and @repo/* name the repo writes down. The
                  invariants that span workspaces and belong to none of them.
+  e2e/           @repo/e2e — the scenario suite `pnpm e2e` runs: it boots real
+                 instances and drives them over the wire, which is why it sits
+                 outside `verify` (every unit passes while the composition
+                 fails).
 ```
 
 ## Tech Stack
