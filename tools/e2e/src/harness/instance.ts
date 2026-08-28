@@ -5,12 +5,13 @@
 // once and served as files, so the suite drives the same bytes and the same
 // policy a user gets. A dev entry that mounted Vite in the server process
 // would serve different code and force a second run.
+//
+// The child-process half — the group, the kill ladder, the output ring, the
+// port-retry boot loop — is `tracked-child.ts`, shared with the cloud Worker.
 
-import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
-import { setTimeout as delay } from "node:timers/promises";
 import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
 import type { ContractRouterClient } from "@orpc/contract";
@@ -18,33 +19,10 @@ import { authorizationHeader, readServerFile } from "inteligir/server/server-fil
 import type { LocalContract } from "@repo/api/local";
 import { HEALTH_PATH, healthResponseSchema, RPC_PREFIX } from "@repo/api/local/routes";
 import { hermeticProcessEnv } from "./exec";
-import { reserveFreePorts } from "./ports";
+import { bootWithPorts, spawnSupervised, type TrackedProcess } from "./tracked-child";
 
 const HEALTH_POLL_INTERVAL_MS = 250;
 const HEALTH_DEADLINE_MS = 60_000;
-const STOP_SIGTERM_GRACE_MS = 5_000;
-const STOP_SIGKILL_GRACE_MS = 2_000;
-const KILL_POLL_INTERVAL_MS = 100;
-/** Bound on losing the reserve→bind race to another process on the machine. */
-const BOOT_PORT_ATTEMPTS = 3;
-
-/**
- * Every process group the harness has spawned and not yet verified dead —
- * module scope on purpose: this is a single-process CLI, and the runner's
- * signal handlers need one place that names every group to kill.
- */
-const liveGroups = new Set<number>();
-
-/** For the runner's SIGINT/SIGTERM handlers; synchronous, best-effort. */
-export function killAllLiveGroups(signal: NodeJS.Signals): void {
-  for (const pgid of liveGroups) {
-    try {
-      process.kill(-pgid, signal);
-    } catch {
-      // Group already gone.
-    }
-  }
-}
 
 export interface LaunchAppArgs {
   /** Short label for transcript lines ("a", "b", "solo"). */
@@ -67,18 +45,12 @@ export interface LaunchAppArgs {
  *  that forgot to check one fails rather than asserting on a refusal body. */
 export type InstanceApi = ContractRouterClient<LocalContract>;
 
-export interface AppInstance {
+export interface AppInstance extends TrackedProcess {
   api: InstanceApi;
   baseUrl: string;
   dataDir: string;
   vaultDir: string;
   port: number;
-  name: string;
-  /** The child's interleaved stdout+stderr tail, for failure transcripts. */
-  outputTail(lines?: number): string;
-  /** Resolves once the WHOLE process group is verified gone (ESRCH); throws
-   *  if the group survives SIGKILL — the caller must then keep the scratch. */
-  stop(): Promise<void>;
 }
 
 const HARNESS_OWNED_ENV_KEYS = new Set([
@@ -143,28 +115,6 @@ function resolveCommand(cliDir: string): LaunchCommand {
   return { file: join(cliDir, "bin", "inteligir"), argv: ["serve"] };
 }
 
-function groupAlive(pgid: number): boolean {
-  try {
-    process.kill(-pgid, 0);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-async function pollGroupGone(pgid: number, graceMs: number): Promise<boolean> {
-  const deadline = Date.now() + graceMs;
-  for (;;) {
-    if (!groupAlive(pgid)) {
-      return true;
-    }
-    if (Date.now() > deadline) {
-      return false;
-    }
-    await delay(KILL_POLL_INTERVAL_MS);
-  }
-}
-
 async function healthAnswered(baseUrl: string): Promise<boolean> {
   try {
     const response = await fetch(`${baseUrl}${HEALTH_PATH}`, {
@@ -182,175 +132,34 @@ async function healthAnswered(baseUrl: string): Promise<boolean> {
   }
 }
 
-type AttemptResult =
-  /** The reserved port was taken between reserve and bind; retry fresh. */
-  { kind: "port-lost"; tail: string } | { kind: "ready"; instance: AppInstance };
-
-/** A spawned child, paired with the liveness flag its exit handlers set. */
-interface SpawnedAttempt {
-  instance: AppInstance;
-  exited: () => boolean;
-}
-
-function spawnAttempt(
+/** The instance client over a spawned child — everything about an app
+ *  instance that is not the child process itself. */
+function attachInstance(
   args: LaunchAppArgs,
-  command: LaunchCommand,
-  cliDir: string,
+  child: TrackedProcess,
   dataDir: string,
   vaultDir: string,
   port: number,
-): SpawnedAttempt {
-  const baseUrl = `http://127.0.0.1:${port}`;
-
-  // Its own process group, so stop() can kill the whole tree — the server
-  // forks a watcher child that would otherwise outlive its parent.
-  const child = spawn(command.file, command.argv, {
-    cwd: cliDir,
-    detached: true,
-    env: buildChildEnv(args, dataDir, vaultDir, port),
-    stdio: ["ignore", "pipe", "pipe"],
-  });
-  const pid = child.pid;
-  if (pid !== undefined) {
-    liveGroups.add(pid);
-  }
-
-  const outputLines: string[] = [];
-  function consume(stream: NodeJS.ReadableStream, label: string): void {
-    let buffered = "";
-    stream.setEncoding("utf8");
-    stream.on("data", (chunk: string) => {
-      buffered += chunk;
-      const lines = buffered.split("\n");
-      buffered = lines.pop() ?? "";
-      for (const line of lines) {
-        if (line.length > 0) {
-          outputLines.push(`[${label}] ${line}`);
-        }
-      }
-    });
-  }
-  const stdout = child.stdout;
-  const stderr = child.stderr;
-  if (stdout !== null) {
-    consume(stdout, args.name);
-  }
-  if (stderr !== null) {
-    consume(stderr, `${args.name}!`);
-  }
-
-  let exited = false;
-  child.once("exit", () => {
-    exited = true;
-  });
-  child.once("error", (error) => {
-    outputLines.push(`[${args.name}!] spawn error: ${error.message}`);
-    exited = true;
-  });
-
-  function outputTail(lines = 40): string {
-    return outputLines.slice(-lines).join("\n");
-  }
-
-  let stopPromise: Promise<void> | null = null;
-  function stop(): Promise<void> {
-    stopPromise ??= (async () => {
-      if (pid === undefined) {
-        return;
-      }
-      try {
-        // The GROUP, leader dead or not — the watcher child outlives a
-        // crashed leader. (A recycled pgid is theoretically reachable here;
-        // the window between leader exit and this signal is too small to
-        // matter on a test box.)
-        process.kill(-pid, "SIGTERM");
-      } catch {
-        // Whole group already gone.
-      }
-      if (await pollGroupGone(pid, STOP_SIGTERM_GRACE_MS)) {
-        liveGroups.delete(pid);
-        return;
-      }
-      try {
-        process.kill(-pid, "SIGKILL");
-      } catch {
-        // Gone between polls.
-      }
-      if (await pollGroupGone(pid, STOP_SIGKILL_GRACE_MS)) {
-        liveGroups.delete(pid);
-        return;
-      }
-      throw new Error(
-        `instance "${args.name}": process group ${pid} survived SIGKILL — refusing to treat it as torn down`,
-      );
-    })();
-    return stopPromise;
-  }
-
+): AppInstance {
   // The device token is read from the instance's own data dir on every call
   // rather than captured once: it is published after listen, and this client is
   // built before the health wait.
   const link = new RPCLink({
-    origin: baseUrl,
+    origin: `http://127.0.0.1:${String(port)}`,
     url: RPC_PREFIX,
     headers: () => {
       const server = readServerFile(dataDir);
       return server === null ? {} : { authorization: authorizationHeader(server.token) };
     },
   });
-
-  const instance: AppInstance = {
+  return {
+    ...child,
     api: createORPCClient(link),
-    baseUrl,
+    baseUrl: `http://127.0.0.1:${String(port)}`,
     dataDir,
     vaultDir,
     port,
-    name: args.name,
-    outputTail,
-    stop,
   };
-  return { instance, exited: () => exited };
-}
-
-async function attemptLaunch(
-  args: LaunchAppArgs,
-  command: LaunchCommand,
-  cliDir: string,
-  dataDir: string,
-  vaultDir: string,
-): Promise<AttemptResult> {
-  const ports = await reserveFreePorts(1);
-  const port = ports[0];
-  if (port === undefined) {
-    throw new Error("port reservation returned nothing");
-  }
-  const { instance, exited } = spawnAttempt(args, command, cliDir, dataDir, vaultDir, port);
-  args.register(instance);
-  args.onLog(`booting instance "${args.name}" on ${instance.baseUrl}`);
-
-  const deadline = Date.now() + HEALTH_DEADLINE_MS;
-  for (;;) {
-    if (exited()) {
-      const tail = instance.outputTail();
-      await instance.stop();
-      if (tail.includes("EADDRINUSE")) {
-        return { kind: "port-lost", tail };
-      }
-      throw new Error(`instance "${args.name}" exited before becoming healthy\n${tail}`);
-    }
-    if (await healthAnswered(instance.baseUrl)) {
-      args.onLog(`instance "${args.name}" is healthy`);
-      return { kind: "ready", instance };
-    }
-    if (Date.now() > deadline) {
-      const tail = instance.outputTail();
-      await instance.stop();
-      throw new Error(
-        `instance "${args.name}" did not answer ${HEALTH_PATH} within ${HEALTH_DEADLINE_MS}ms\n${tail}`,
-      );
-    }
-    await delay(HEALTH_POLL_INTERVAL_MS);
-  }
 }
 
 export async function launchApp(args: LaunchAppArgs): Promise<AppInstance> {
@@ -361,16 +170,30 @@ export async function launchApp(args: LaunchAppArgs): Promise<AppInstance> {
   const cliDir = join(args.repoRoot, "apps", "cli");
   const command = resolveCommand(cliDir);
 
-  for (let attempt = 1; ; attempt += 1) {
-    const result = await attemptLaunch(args, command, cliDir, dataDir, vaultDir);
-    if (result.kind === "ready") {
-      return result.instance;
-    }
-    if (attempt >= BOOT_PORT_ATTEMPTS) {
-      throw new Error(
-        `instance "${args.name}" lost its reserved port ${BOOT_PORT_ATTEMPTS} times in a row\n${result.tail}`,
-      );
-    }
-    args.onLog(`instance "${args.name}" lost its reserved port at bind; retrying with a fresh one`);
-  }
+  const instance = await bootWithPorts<AppInstance>({
+    label: `instance "${args.name}"`,
+    portCount: 1,
+    deadlineMs: HEALTH_DEADLINE_MS,
+    pollIntervalMs: HEALTH_POLL_INTERVAL_MS,
+    onLog: args.onLog,
+    spawn: (ports) => {
+      const port = ports[0] ?? 0;
+      const child = spawnSupervised({
+        name: args.name,
+        file: command.file,
+        argv: command.argv,
+        cwd: cliDir,
+        env: buildChildEnv(args, dataDir, vaultDir, port),
+      });
+      const handle = attachInstance(args, child, dataDir, vaultDir, port);
+      // Registered at SPAWN, before the health wait, so the runner's teardown
+      // owns the group through every early-exit path.
+      args.register(handle);
+      args.onLog(`booting instance "${args.name}" on ${handle.baseUrl}`);
+      return { handle, child };
+    },
+    ready: (handle) => healthAnswered(handle.baseUrl),
+  });
+  args.onLog(`instance "${args.name}" is healthy`);
+  return instance;
 }

@@ -3,8 +3,10 @@
 
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
+import { launchCloudWorker, type CloudWorker } from "./cloud-worker";
 import { exec, hermeticProcessEnv } from "./exec";
 import { launchApp, type AppInstance, type LaunchAppArgs } from "./instance";
+import type { TrackedProcess } from "./tracked-child";
 
 interface BootOptions {
   /** Short label, unique within the scenario ("a", "b", "solo"). */
@@ -14,6 +16,10 @@ interface BootOptions {
   /** Seeds fixture files into the vault dir BEFORE boot; the app's repo init
    *  commits whatever it finds there. */
   seedVault?: (vaultDir: string) => Promise<void>;
+  /** Seeds the data dir BEFORE boot — a device credential, so the instance
+   *  boots already paired. A hook rather than a path the scenario builds,
+   *  because the instance layout is the launcher's own. */
+  seedData?: (dataDir: string) => Promise<void>;
 }
 
 export interface ScenarioContext {
@@ -24,6 +30,9 @@ export interface ScenarioContext {
   boot(options: BootOptions): Promise<AppInstance>;
   /** A scratch bare git repo; returns the file:// URL for INTELIGIR_VAULT_REMOTE. */
   bareRemote(name?: string): Promise<string>;
+  /** The product Worker on a scratch persist dir — the REAL cloud, for the
+   *  scenarios that need one. Registered for teardown like an instance. */
+  cloudWorker(): Promise<CloudWorker>;
 }
 
 export interface Scenario {
@@ -37,7 +46,7 @@ export interface CreateScenarioContextArgs {
   scratchDir: string;
   log: (message: string) => void;
   /** The runner's teardown registry; every boot lands here. */
-  instances: AppInstance[];
+  instances: TrackedProcess[];
 }
 
 export function createScenarioContext(args: CreateScenarioContextArgs): ScenarioContext {
@@ -47,10 +56,15 @@ export function createScenarioContext(args: CreateScenarioContextArgs): Scenario
     log: args.log,
     async boot(options) {
       const instanceDir = join(args.scratchDir, options.name);
-      const vaultDir = join(instanceDir, "vault");
       if (options.seedVault) {
+        const vaultDir = join(instanceDir, "vault");
         await mkdir(vaultDir, { recursive: true });
         await options.seedVault(vaultDir);
+      }
+      if (options.seedData) {
+        const dataDir = join(instanceDir, "data");
+        await mkdir(dataDir, { recursive: true });
+        await options.seedData(dataDir);
       }
       const launchArgs: LaunchAppArgs = {
         name: options.name,
@@ -66,6 +80,14 @@ export function createScenarioContext(args: CreateScenarioContextArgs): Scenario
       if (options.vaultRemote !== undefined) launchArgs.vaultRemote = options.vaultRemote;
       if (options.extraEnv !== undefined) launchArgs.extraEnv = options.extraEnv;
       return launchApp(launchArgs);
+    },
+    cloudWorker() {
+      return launchCloudWorker({
+        repoRoot: args.repoRoot,
+        scratchDir: args.scratchDir,
+        onLog: args.log,
+        register: (process) => args.instances.push(process),
+      });
     },
     async bareRemote(name = "remote") {
       const remoteDir = join(args.scratchDir, `${name}.git`);

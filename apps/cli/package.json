@@ -33,6 +33,7 @@
   "type": "module",
   "exports": {
     "./server/agent-shell-env": "./src/server/agents/agent-shell-env.ts",
+    "./server/cloud/credential-store": "./src/server/cloud/credential-store.ts",
     "./server/config": "./src/server/config.ts",
     "./server/csp": "./src/server/csp.ts",
     "./server/local-client": "./src/server/local-client.ts",

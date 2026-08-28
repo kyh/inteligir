@@ -39,8 +39,13 @@ scratch dir and tears everything down afterwards:
   group. `extraEnv` may not touch harness-owned keys (paths, port, NODE_ENV,
   `GIT_*`) — collisions are refused loudly. `seedVault` writes fixture files
   before boot; the app's repo init commits them.
+  `seedData` does the same for the data dir — a device credential, so the
+  instance boots already paired.
 - `bareRemote()` — a scratch bare git repo, returned as the `file://` URL for
   `INTELIGIR_VAULT_REMOTE`.
+- `cloudWorker()` — the product Worker (apps/web) under `wrangler dev` on a
+  scratch persist dir, its D1 carrying apps/web's own `db:export` schema plus
+  one invite row. Registered for teardown exactly like an instance.
 - `instance.api` — the oRPC client over `@repo/api/local`, carrying the device
   token this instance published in `<dataDir>/server.json`;
   `instance.vaultDir` / `dataDir` for on-disk assertions.
@@ -50,29 +55,31 @@ scratch dir and tears everything down afterwards:
 `pnpm e2e --list` prints this table from the registry itself; what follows is
 what each one is FOR.
 
-| name                      | proves                                                                   |
-| ------------------------- | ------------------------------------------------------------------------ |
-| vault-crud                | write/read/rename/delete over the wire, bytes verified on disk; refused  |
-|                           | ops verified to leave the disk untouched                                 |
-| vault-sync                | two instances + one bare remote (auto-sync off, every sync explicit):    |
-|                           | propagation, then a typed conflict + git-verified repo integrity         |
-| threads-scripted          | a turn through the scripted driver: send, settle, timeline               |
-| action-scripted           | an action attaches to its note; a scripted turn writes the vault; the    |
-|                           | CAS write guards the save (typed conflict, current bytes in the body);   |
-|                           | a rename drags the attachment along — all verified on disk               |
-| cli-drive                 | the CLI drives a real instance, and the env an agent's shell would get   |
-|                           | resolves against this checkout                                           |
-| browser-smoke             | headless page load: the REAL policy on the served document, SPA mount,   |
-|                           | API reached, the palette chord safe, clean console after a settle window |
-| editor-constructs-browser | every live-preview construct renders in a real browser (jsdom has no     |
-|                           | layout, so the unit suite cannot prove a widget survived the bundle and  |
-|                           | a measure pass), and the file is re-read to prove rendering wrote no     |
-|                           | bytes                                                                    |
-| slash-menu-browser        | a typed slash opens the menu, and the picked construct lands in the file |
-| external-edit-browser     | a clean buffer adopts an agent write; a dirty buffer merges instead of   |
-|                           | clobbering                                                               |
-| view-context-browser      | the agent is told which note the message left from, and at what revision |
-| dictation-browser         | the composer's mic captures, transcribes and inserts — never sends       |
+| name                      | proves                                                                    |
+| ------------------------- | ------------------------------------------------------------------------- |
+| vault-crud                | write/read/rename/delete over the wire, bytes verified on disk; refused   |
+|                           | ops verified to leave the disk untouched                                  |
+| vault-sync                | two instances + one bare remote (auto-sync off, every sync explicit):     |
+|                           | propagation, then a typed conflict + git-verified repo integrity          |
+| hosted-vault-sync         | the hosted loop for real: a wrangler-dev Worker, production pairing,      |
+|                           | convergence through the derived remote, boot clone, revoke → unauthorized |
+| threads-scripted          | a turn through the scripted driver: send, settle, timeline                |
+| action-scripted           | an action attaches to its note; a scripted turn writes the vault; the     |
+|                           | CAS write guards the save (typed conflict, current bytes in the body);    |
+|                           | a rename drags the attachment along — all verified on disk                |
+| cli-drive                 | the CLI drives a real instance, and the env an agent's shell would get    |
+|                           | resolves against this checkout                                            |
+| browser-smoke             | headless page load: the REAL policy on the served document, SPA mount,    |
+|                           | API reached, the palette chord safe, clean console after a settle window  |
+| editor-constructs-browser | every live-preview construct renders in a real browser (jsdom has no      |
+|                           | layout, so the unit suite cannot prove a widget survived the bundle and   |
+|                           | a measure pass), and the file is re-read to prove rendering wrote no      |
+|                           | bytes                                                                     |
+| slash-menu-browser        | a typed slash opens the menu, and the picked construct lands in the file  |
+| external-edit-browser     | a clean buffer adopts an agent write; a dirty buffer merges instead of    |
+|                           | clobbering                                                                |
+| view-context-browser      | the agent is told which note the message left from, and at what revision  |
+| dictation-browser         | the composer's mic captures, transcribes and inserts — never sends        |
 
 ## Adding a scenario
 
@@ -92,8 +99,10 @@ Each feature issue lands with its scenario here (#556).
 | `INTELIGIR_VAULT_DIR`        | absolute vault dir; must be disjoint from the data dir |
 | `INTELIGIR_PORT`             | exact port (env-configured ports are never probed)     |
 | `INTELIGIR_VAULT_REMOTE`     | git remote URL for the sync loop; unset = local-only   |
+| `INTELIGIR_CLOUD_URL`        | the cloud origin; hosted-vault-sync points it at its   |
+|                              | own scratch wrangler-dev Worker                        |
 | `INTELIGIR_SYNC_INTERVAL_MS` | vault auto-sync cadence; `0` disables the loop AND the |
-|                              | boot sync (vault-sync sets it for determinism)         |
+|                              | boot sync (the sync scenarios set it for determinism)  |
 | `INTELIGIR_AGENT`            | `scripted` — the deterministic in-process driver the   |
 |                              | thread and action scenarios run against                |
 
@@ -104,10 +113,13 @@ the same env every git the harness itself runs gets.
 
 ## CI
 
-Headless and login-free by construction: no accounts, no interactive auth, no
-pinned ports. The one setup step beyond `pnpm install` is the browser binary
-for browser-smoke: `npm i -g agent-browser && agent-browser install` (Linux:
-`--with-deps`). browser-smoke probes the environment with `about:blank`
+Headless by construction: no interactive auth, no pinned ports, and no
+accounts on any EXTERNAL service — hosted-vault-sync signs up a real account,
+but against its own scratch wrangler-dev Worker (apps/web's wrangler, local
+mode, state under the scenario's scratch dir; secrets ride `--var`, so no
+`.dev.vars` is needed). The one setup step beyond `pnpm install` is the
+browser binary for browser-smoke: `npm i -g agent-browser && agent-browser
+install` (Linux: `--with-deps`). browser-smoke probes the environment with `about:blank`
 first — only a failure THERE (the browser cannot launch at all) reports SKIP,
 with the exact launcher error; opening the app and everything after is a real
 assertion.
