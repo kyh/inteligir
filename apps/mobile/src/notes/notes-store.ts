@@ -23,7 +23,7 @@ import type { VaultTreeResponse } from "@repo/api/cloud/vault/vault-schema";
 import type { DeviceCredential } from "../credential/credential-codec";
 import { createCloudClient, describeCloudFailure, type CloudFetch } from "@repo/api/cloud/client";
 import { createExternalStore, type ExternalStore } from "../lib/external-store";
-import { createMemoryNoteCache, type NoteCache } from "./note-cache";
+import { createMemoryNoteCache, type CachedNote, type NoteCache } from "./note-cache";
 
 /** The default (memory) cache's bound: a note re-fetches on a miss, and the
  *  commit in the key makes a stale entry unreachable after a refresh. */
@@ -40,13 +40,28 @@ export type NotesTreeState =
   | { state: "empty"; message: string }
   | { state: "error"; message: string };
 
-export type NoteRead =
-  | { ok: true; path: string; commit: string; content: string }
-  | { ok: false; message: string };
+/** The ok arm IS a cached row — one shape, so the cache hit and the fetch
+ *  cannot answer with different fields. */
+export type NoteRead = ({ ok: true } & CachedNote) | { ok: false; message: string };
+
+/**
+ * A credential and WHY the store is being handed it — the composition root
+ * knows which of its three calls this is, and reconstructing that here (by
+ * keeping a second copy of the bearer to compare against) answers a question
+ * the caller already answered.
+ */
+interface CredentialHandover {
+  credential: DeviceCredential;
+  /** `restored` is the boot read of a credential this device already had —
+   *  the durable rows on disk are this same pairing's, and that launch is
+   *  what the cache exists for. `paired` is a pairing that just completed:
+   *  nothing on disk belongs to it. */
+  source: "restored" | "paired";
+}
 
 export interface NotesStore {
   /** The pairing layer's switch, same contract as the sync runtime's. */
-  setCredential(next: DeviceCredential | null): void;
+  setCredential(next: CredentialHandover | null): void;
   /** Fetch the whole tree (paged) and rebuild the resolver. */
   refresh(): Promise<void>;
   tree: ExternalStore<NotesTreeState>;
@@ -65,6 +80,12 @@ export interface CreateNotesStoreArgs {
 
 type Client = ReturnType<typeof createCloudClient>;
 
+/** The cache is best-effort HERE, so no implementation has to re-derive the
+ *  discipline: a refused write costs a re-fetch, and nothing else. */
+function bestEffort(work: Promise<void>): void {
+  void work.catch(() => undefined);
+}
+
 export function createNotesStore(args: CreateNotesStoreArgs): NotesStore {
   let client: Client | null = null;
   let resolver: TargetResolver | null = null;
@@ -77,10 +98,6 @@ export function createNotesStore(args: CreateNotesStoreArgs): NotesStore {
    *  repopulate the new one's state — the same fence the sync runtime runs. */
   let generation = 0;
   const noteCache = args.cache ?? createMemoryNoteCache(NOTE_CACHE_MAX);
-  /** The credential string this store last served — what decides whether a
-   *  `setCredential` is the boot restore (keep the durable rows) or an actual
-   *  change of hands (wipe them). */
-  let activeCredential: string | null = null;
   const tree = createExternalStore<NotesTreeState>({ state: "idle" });
 
   return {
@@ -90,28 +107,20 @@ export function createNotesStore(args: CreateNotesStoreArgs): NotesStore {
       // the previous account's tree or resolver for even one render.
       resolver = null;
       tree.set({ state: "idle" });
-      // The DURABLE rows are wiped only when the credential actually changes
-      // hands — an unpair, or a live re-pair — never on the boot-time restore
-      // of the same credential, which is the launch the cache exists for. The
-      // residual is stated: a fresh pair arriving while nothing was active
-      // inherits whatever a crashed unpair left behind, and a row can only be
-      // served cross-account at an EQUAL commit sha, which means identical
-      // content.
-      const nextCredential = next === null ? null : next.credential;
-      if (
-        nextCredential === null ||
-        (activeCredential !== null && activeCredential !== nextCredential)
-      ) {
-        void noteCache.clear();
+      // The DURABLE rows survive exactly one transition — the boot restore of
+      // the credential that wrote them. An unpair or a fresh pairing is a
+      // change of hands, and at-rest rows must not outlive the pairing that
+      // fetched them.
+      if (next === null || next.source === "paired") {
+        bestEffort(noteCache.clear());
       }
-      activeCredential = nextCredential;
       if (next === null) {
         client = null;
         return;
       }
       const clientArgs: Parameters<typeof createCloudClient>[0] = {
         baseUrl: args.cloudUrl,
-        credential: next.credential,
+        credential: next.credential.credential,
       };
       if (args.fetch !== undefined) clientArgs.fetch = args.fetch;
       client = createCloudClient(clientArgs);
@@ -165,7 +174,7 @@ export function createNotesStore(args: CreateNotesStoreArgs): NotesStore {
         tree.set({ state: "ready", commit, entries });
         // Rows keyed to older commits are unreachable from here on; a durable
         // cache reclaims their disk.
-        void noteCache.sweep(commit);
+        bestEffort(noteCache.sweep(commit));
       } finally {
         if (refreshingFor === startedAt) refreshingFor = -1;
       }
@@ -187,10 +196,10 @@ export function createNotesStore(args: CreateNotesStoreArgs): NotesStore {
       // unpinned read answers whatever HEAD is now, and a cached row keyed to
       // a moving target would serve yesterday's bytes as today's.
       if (commit !== undefined) {
-        const cached = await noteCache.get(commit, path);
+        const cached = await noteCache.get(commit, path).catch(() => null);
         if (generation !== startedAt) return { ok: false, message: "Not paired." };
         if (cached !== null) {
-          return { ok: true, path, commit: cached.commit, content: cached.content };
+          return { ok: true, ...cached };
         }
       }
 
@@ -204,7 +213,7 @@ export function createNotesStore(args: CreateNotesStoreArgs): NotesStore {
         return { ok: false, message: describeCloudFailure(result.failure) };
       }
       if (commit !== undefined) {
-        void noteCache.set({ commit, path, content: result.value.content });
+        bestEffort(noteCache.set({ commit, path, content: result.value.content }));
       }
       return {
         ok: true,

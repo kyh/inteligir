@@ -10,6 +10,17 @@ import { createNotesStore } from "../notes-store";
 
 const COMMIT = "c".repeat(40);
 const CREDENTIAL = { deviceId: "dev_1", credential: `igd_${"a".repeat(64)}` };
+const OTHER_CREDENTIAL = { deviceId: "dev_2", credential: `igd_${"b".repeat(64)}` };
+
+/** The boot read of a credential this device already had. */
+function restored(credential: typeof CREDENTIAL) {
+  return { credential, source: "restored" } as const;
+}
+
+/** A pairing that just completed. */
+function paired(credential: typeof CREDENTIAL) {
+  return { credential, source: "paired" } as const;
+}
 
 interface FakeCloud {
   requests: string[];
@@ -78,7 +89,7 @@ describe("the notes store", () => {
   it("walks every page into one listing pinned to one commit", async () => {
     const cloud = fakeCloud();
     const store = createNotesStore({ cloudUrl: "https://cloud.test", fetch: cloud.fetch });
-    store.setCredential(CREDENTIAL);
+    store.setCredential(restored(CREDENTIAL));
     await store.refresh();
     const tree = store.tree.get();
     expect(tree).toEqual({
@@ -99,7 +110,7 @@ describe("the notes store", () => {
   it("resolves wiki targets over the tree with the vault's own tiers", async () => {
     const cloud = fakeCloud();
     const store = createNotesStore({ cloudUrl: "https://cloud.test", fetch: cloud.fetch });
-    store.setCredential(CREDENTIAL);
+    store.setCredential(restored(CREDENTIAL));
     await store.refresh();
     expect(store.resolveWiki("b")).toBe("notes/b.md");
     expect(store.resolveWiki("deep/c")).toBe("notes/deep/c.md");
@@ -109,7 +120,7 @@ describe("the notes store", () => {
   it("caches a note at the tree's commit — one request, many reads", async () => {
     const cloud = fakeCloud();
     const store = createNotesStore({ cloudUrl: "https://cloud.test", fetch: cloud.fetch });
-    store.setCredential(CREDENTIAL);
+    store.setCredential(restored(CREDENTIAL));
     await store.refresh();
     const first = await store.readNote("notes/b.md");
     const again = await store.readNote("notes/b.md");
@@ -130,7 +141,7 @@ describe("the notes store", () => {
           ),
         ),
     });
-    store.setCredential(CREDENTIAL);
+    store.setCredential(restored(CREDENTIAL));
     await store.refresh();
     const tree = store.tree.get();
     expect(tree.state).toBe("empty");
@@ -147,7 +158,7 @@ describe("the notes store", () => {
         return inner.fetch(input, init);
       },
     });
-    store.setCredential(CREDENTIAL);
+    store.setCredential(restored(CREDENTIAL));
     const pending = store.refresh();
     store.setCredential(null);
     releases[0]?.();
@@ -159,10 +170,10 @@ describe("the notes store", () => {
   it("re-pairing resets the previous account's state before the new client serves", async () => {
     const cloud = fakeCloud();
     const store = createNotesStore({ cloudUrl: "https://cloud.test", fetch: cloud.fetch });
-    store.setCredential(CREDENTIAL);
+    store.setCredential(restored(CREDENTIAL));
     await store.refresh();
     expect(store.tree.get().state).toBe("ready");
-    store.setCredential({ deviceId: "dev_2", credential: `igd_${"b".repeat(64)}` });
+    store.setCredential(paired(OTHER_CREDENTIAL));
     // The OLD account's listing must not survive into the new pairing.
     expect(store.tree.get()).toEqual({ state: "idle" });
     expect(store.resolveWiki("b")).toBeNull();
@@ -171,7 +182,7 @@ describe("the notes store", () => {
   it("unpairing clears everything and answers idle", async () => {
     const cloud = fakeCloud();
     const store = createNotesStore({ cloudUrl: "https://cloud.test", fetch: cloud.fetch });
-    store.setCredential(CREDENTIAL);
+    store.setCredential(restored(CREDENTIAL));
     await store.refresh();
     store.setCredential(null);
     expect(store.tree.get()).toEqual({ state: "idle" });
@@ -217,7 +228,7 @@ describe("the notes store over a durable cache", () => {
       fetch: firstLaunch.fetch,
       cache,
     });
-    first.setCredential(CREDENTIAL);
+    first.setCredential(restored(CREDENTIAL));
     await first.refresh();
     await first.readNote("notes/b.md");
 
@@ -229,7 +240,7 @@ describe("the notes store over a durable cache", () => {
       fetch: secondLaunch.fetch,
       cache,
     });
-    second.setCredential(CREDENTIAL);
+    second.setCredential(restored(CREDENTIAL));
     await second.refresh();
     const read = await second.readNote("notes/b.md");
     expect(read).toEqual({ ok: true, path: "notes/b.md", commit: COMMIT, content: "# b\n" });
@@ -243,7 +254,7 @@ describe("the notes store over a durable cache", () => {
     const { cache, calls } = recordingCache();
     const cloud = fakeCloud();
     const store = createNotesStore({ cloudUrl: "https://cloud.test", fetch: cloud.fetch, cache });
-    store.setCredential(CREDENTIAL);
+    store.setCredential(restored(CREDENTIAL));
     // No refresh: the tree is not ready, so the read is unpinned.
     const read = await store.readNote("a.md");
     expect(read.ok).toBe(true);
@@ -255,7 +266,7 @@ describe("the notes store over a durable cache", () => {
     const { cache, calls } = recordingCache();
     const cloud = fakeCloud();
     const store = createNotesStore({ cloudUrl: "https://cloud.test", fetch: cloud.fetch, cache });
-    store.setCredential(CREDENTIAL);
+    store.setCredential(restored(CREDENTIAL));
     await store.refresh();
     expect(calls).toContain(`sweep ${COMMIT}`);
   });
@@ -272,7 +283,7 @@ describe("the notes store over a durable cache", () => {
     };
     const cloud = fakeCloud();
     const store = createNotesStore({ cloudUrl: "https://cloud.test", fetch: cloud.fetch, cache });
-    store.setCredential(CREDENTIAL);
+    store.setCredential(restored(CREDENTIAL));
     await store.refresh();
     await inner.set({ commit: COMMIT, path: "a.md", content: "# a\n" });
 
@@ -284,14 +295,43 @@ describe("the notes store over a durable cache", () => {
     expect(await pending).toEqual({ ok: false, message: "Not paired." });
   });
 
-  it("wipes the rows on unpair and on a live re-pair, never on the boot restore", async () => {
+  it("wipes on a pairing and on unpair; the boot restore keeps its rows", () => {
     const { cache, calls } = recordingCache();
     const store = createNotesStore({ cloudUrl: "https://cloud.test", cache });
-    store.setCredential(CREDENTIAL);
+    // The launch the cache exists for: rows written last session survive.
+    store.setCredential(restored(CREDENTIAL));
     expect(calls).toEqual([]);
-    store.setCredential({ deviceId: "dev_2", credential: `igd_${"b".repeat(64)}` });
+    // A pairing inherits nothing — including from a crashed earlier unpair.
+    store.setCredential(paired(CREDENTIAL));
     expect(calls).toEqual(["clear"]);
-    store.setCredential(null);
+    store.setCredential(paired(OTHER_CREDENTIAL));
     expect(calls).toEqual(["clear", "clear"]);
+    store.setCredential(null);
+    expect(calls).toEqual(["clear", "clear", "clear"]);
+  });
+
+  it("swallows a cache that throws — the guarantee is the store's, not the adapter's", async () => {
+    const angry: NoteCache = {
+      get: () => Promise.reject(new Error("disk")),
+      set: () => Promise.reject(new Error("disk")),
+      sweep: () => Promise.reject(new Error("disk")),
+      clear: () => Promise.reject(new Error("disk")),
+    };
+    const cloud = fakeCloud();
+    const store = createNotesStore({
+      cloudUrl: "https://cloud.test",
+      fetch: cloud.fetch,
+      cache: angry,
+    });
+    store.setCredential(restored(CREDENTIAL));
+    await store.refresh();
+    expect(store.tree.get().state).toBe("ready");
+    // The read falls through to the wire and answers; nothing rejects.
+    expect(await store.readNote("notes/b.md")).toEqual({
+      ok: true,
+      path: "notes/b.md",
+      commit: COMMIT,
+      content: "# b\n",
+    });
   });
 });

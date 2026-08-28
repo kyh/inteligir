@@ -91,7 +91,7 @@ function refreshStatus(rt: AppRuntime): void {
 async function finishPairing(rt: AppRuntime, credential: DeviceCredential): Promise<void> {
   await rt.credentials.write(credential);
   rt.sync.setCredential(credential);
-  rt.notes.setCredential(credential);
+  rt.notes.setCredential({ credential, source: "paired" });
   rt.sync.start();
   refreshStatus(rt);
 }
@@ -136,7 +136,7 @@ export async function ensureStarted(): Promise<void> {
   const stored = await rt.credentials.read();
   if (stored !== null) {
     rt.sync.setCredential(stored);
-    rt.notes.setCredential(stored);
+    rt.notes.setCredential({ credential: stored, source: "restored" });
     rt.sync.start();
   }
   refreshStatus(rt);

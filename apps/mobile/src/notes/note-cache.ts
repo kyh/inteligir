@@ -11,9 +11,15 @@
 // moves, and a durable row keyed to it would serve yesterday's bytes as
 // today's.
 //
-// A cache is BEST-EFFORT and must never reject: a failure to read is a miss,
-// a failure to write is a note fetched again next launch. The store calls
-// `set`/`sweep`/`clear` fire-and-forget on that contract.
+// A cache is BEST-EFFORT, and that is held at the ONE consumer rather than
+// re-derived per implementation: `notes-store` swallows every refusal (a
+// failed read is a miss, a failed write is a note fetched again next launch),
+// so an implementation is free to throw and the discipline cannot be
+// forgotten by the next adapter.
+//
+// The row BOUND is each implementation's own: the memory one evicts, the
+// filesystem one refuses (ordering rows there costs a stat apiece). What both
+// owe is only that they stay bounded.
 
 export interface CachedNote {
   /** The tree commit the read was pinned to — half of the lookup key. */
