@@ -1,6 +1,6 @@
 import { VAULT_TMP_PREFIX } from "@repo/notes/knowledge/vault-path";
 import { z } from "zod";
-import { assetMediaType, VAULT_ASSET_MEDIA_TYPES } from "../../shared/vault-asset-media-types";
+import { assetMediaType, VAULT_ASSET_MEDIA_TYPES } from "./vault-asset-media-types";
 
 // The asset allowlist is shared with the desktop's own asset route — one
 // table, one lookup, because both serve the same vault and a drift means an

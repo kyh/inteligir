@@ -135,6 +135,7 @@ export async function bootTestApp(options: BootTestAppOptions = {}): Promise<Boo
       dataDir,
     }),
     noteIntelligence: createNoteIntelligence({
+      availability: { kind: "available" },
       infer: () => Promise.resolve(null),
       settings: createNoteIntelligenceSettingsStore(dataDir),
       vault: vault.service,

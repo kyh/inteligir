@@ -29,8 +29,6 @@ const commandPayload: ApprovalPendingInteractionPayload = {
     itemId: "item_1",
     command: "rm -rf node_modules",
     cwd: null,
-    actions: [],
-    sessionGrant: null,
   },
   reason: "The command deletes files.",
   availableDecisions: ["allow_once", "deny"],

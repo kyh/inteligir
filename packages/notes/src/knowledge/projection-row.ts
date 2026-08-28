@@ -4,11 +4,9 @@
 // The projection is stored whole rather than shredded into child tables,
 // because nothing queries its parts: link, tag and name RESOLUTION all happen
 // in the in-memory LinkGraphIndex, so child rows would be read only by
-// hydration's own sweeps — a value object spelled as a relational schema.
-//
-// It is also the cost the store is shaped around: Durable Object SQLite bills
-// rows WRITTEN, so one doc with 30 links, 12 headings, 5 tags and 8 tasks is
-// one billed write here and 56 shredded.
+// hydration's own sweeps — a value object spelled as a relational schema. One
+// doc with 30 links, 12 headings, 5 tags and 8 tasks is one row written here
+// and 56 shredded.
 //
 // Parsing is TOTAL and THROWS: the store's guards treat any malformed row as
 // corruption and wipe-rebuild, which is safe precisely because nothing durable
@@ -44,15 +42,7 @@ const storedProjectionRow = z.object({
   links: z.array(storedLinkRow),
   tags: z.array(z.string()),
   aliases: z.array(z.string()),
-  tasks: z.array(
-    z.object({
-      checked: z.boolean(),
-      text: z.string(),
-      raw: z.string(),
-      line: z.number(),
-      ordinal: z.number(),
-    }),
-  ),
+  tasks: z.array(z.object({ checked: z.boolean(), text: z.string(), line: z.number() })),
   // Strict, not optional: a PROJECTION_VERSION mismatch wipes and rebuilds,
   // so no stored row can legitimately lack a current field.
   pinned: z.boolean(),

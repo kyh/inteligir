@@ -9,7 +9,7 @@
 // owning only the ordering that is genuinely its own.
 
 import type { CaptureRow } from "@repo/api/cloud/captures/captures-schema";
-import { messageOf } from "../knowledge/message-of";
+import { messageOf } from "../error-message";
 import { VaultServiceError, type VaultService } from "../vault/vault-service";
 
 /** Where a claimed capture lands. One note rather than a dated one: a daily

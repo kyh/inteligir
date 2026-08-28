@@ -7,7 +7,7 @@
 // `tag:` typed by a user resolves exactly like a `tag` the model passed.
 // ---------------------------------------------------------------------------
 
-import { titleFromPath } from "./link-extract";
+import { docStem } from "./doc-file";
 import type { SearchResult } from "./knowledge-index";
 
 export type VaultSearchSources = {
@@ -36,7 +36,7 @@ const TAG_WINDOW_MAX = 500;
 /** A tag listing has no ranking and no matched line — the path IS the hit, so
  * the title falls back the same way an untitled note's search hit does. */
 function taggedRow(path: string): SearchResult {
-  return { path, title: titleFromPath(path), snippet: "", score: 0 };
+  return { path, title: docStem(path), snippet: "", score: 0 };
 }
 
 /** Text ∧ tag, in that precedence: the tag narrows the set, the text ranks

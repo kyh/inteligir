@@ -123,7 +123,7 @@ export function createParcelChildHandler(args: {
           void handleUnsubscribe(message.id);
           break;
         case "ping":
-          args.send({ kind: "pong", nonce: message.nonce });
+          args.send({ kind: "pong" });
           break;
       }
     },

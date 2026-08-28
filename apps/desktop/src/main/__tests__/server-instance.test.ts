@@ -1,7 +1,7 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { DEV_DATA_ROOT_DIR, PROD_DATA_DIR_NAME, PROD_SERVER_PORT } from "inteligir/server/config";
+import { DEV_DATA_ROOT_DIR, PROD_DATA_DIR_NAME } from "inteligir/server/config";
 import { SERVER_FILE_NAME } from "inteligir/server/server-file";
 import type { SystemStatusResponse } from "@repo/api/local/system/system-schema";
 import { afterEach, describe, expect, it } from "vitest";
@@ -32,10 +32,9 @@ function scratchHome(): string {
 }
 
 /** The managed config the app reads from `<dataDir>/config.json` — only the
- *  two fields these cases pin. */
+ *  field these cases pin. */
 interface ManagedConfig {
-  port?: number;
-  vaultDir?: string;
+  vaultDir: string;
 }
 
 function writeManagedConfig(dataDir: string, config: ManagedConfig): void {
@@ -54,24 +53,10 @@ describe("resolveServerTarget", () => {
     expect(resolved).toEqual({
       kind: "resolved",
       target: {
-        port: PROD_SERVER_PORT,
         dataDir: join(homeDir, PROD_DATA_DIR_NAME),
         vaultDir: join(homeDir, "Inteligir"),
       },
     });
-  });
-
-  it("reads the port out of config.json, which is what a spawned child binds", () => {
-    // A shell that knows only INTELIGIR_PORT would hand its child 4664 while
-    // the app's own resolution says 4700 — two servers, one vault.
-    const homeDir = scratchHome();
-    writeManagedConfig(join(homeDir, PROD_DATA_DIR_NAME), { port: 4700 });
-    const resolved = resolveServerTarget({
-      isPackaged: true,
-      env: {},
-      homeDir,
-    });
-    expect(resolved.kind === "resolved" && resolved.target.port).toBe(4700);
   });
 
   it("carries config.json's vault dir down to the child", () => {
@@ -102,18 +87,6 @@ describe("resolveServerTarget", () => {
     const devRoot = join(homeDir, DEV_DATA_ROOT_DIR);
     expect(resolved.target.dataDir.startsWith(devRoot)).toBe(true);
     expect(resolved.target.vaultDir.startsWith(devRoot)).toBe(true);
-    expect(resolved.target.port).not.toBe(PROD_SERVER_PORT);
-  });
-
-  it("lets INTELIGIR_PORT override the managed config", () => {
-    const homeDir = scratchHome();
-    writeManagedConfig(join(homeDir, PROD_DATA_DIR_NAME), { port: 4700 });
-    const resolved = resolveServerTarget({
-      isPackaged: true,
-      env: { INTELIGIR_PORT: "4800" },
-      homeDir,
-    });
-    expect(resolved.kind === "resolved" && resolved.target.port).toBe(4800);
   });
 
   it("surfaces the app's own refusal rather than falling back to a default", () => {

@@ -4,11 +4,10 @@ import { createContext, useContext, type ReactNode } from "react";
 // ---------------------------------------------------------------------------
 // The editor's view of the app around it.
 //
-// @repo/editor sits BELOW @repo/workspace: the Plate tree, the markdown
-// round-trip and the note runtime must not reach up into the shell that mounts
-// them. Everything the editor needs from that shell arrives here — the vault
-// mutation surface, the file listing (which resolves `[[wiki targets]]`), and
-// the one panel the shell owns but renders inside the editor column.
+// @repo/editor sits BELOW the app that mounts it: the Plate tree, the markdown
+// round-trip and the note runtime must not reach up into that shell.
+// Everything the editor needs from it arrives here — the vault mutation
+// surface and the file listing (which resolves `[[wiki targets]]`).
 //
 // Only things the SHELL owns cross. A capability that lives in this package
 // already — the open-note store's mode and html-view setters, say — is imported
@@ -16,9 +15,10 @@ import { createContext, useContext, type ReactNode } from "react";
 // that reads like a boundary and guards nothing.
 //
 // These types live HERE, not beside the provider, because the dependency runs
-// this way: `workspace/vault-context.tsx` implements `VaultActions` and imports
-// the type from this file. Declaring them in the shell would put a type edge
-// back across the boundary and reintroduce the cycle the split removed.
+// this way: the app's `note/vault-provider.tsx` implements `VaultActions` and
+// imports the type from this file. Declaring them in the shell would put a
+// type edge back across the boundary and reintroduce the cycle the split
+// removed.
 // ---------------------------------------------------------------------------
 
 export type VaultActions = {

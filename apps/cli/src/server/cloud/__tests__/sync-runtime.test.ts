@@ -2,6 +2,7 @@
 // over Maps. What each case pins is a promise made in issue #572 that no unit
 // below the runtime can keep on its own.
 
+import { ACCOUNT_API_PATHS } from "@repo/api/cloud/account/account-schema";
 import { CAPTURE_API_PATHS } from "@repo/api/cloud/captures/captures-schema";
 import { SYNC_API_PATHS } from "@repo/api/cloud/sync/sync-schema";
 import { closeConnection, createConnection, type DbConnection } from "@repo/db/connection";
@@ -165,7 +166,7 @@ function makeHarness(
 }
 
 function message(threadId: string, text: string): ThreadEvent {
-  return { type: "client/turn/requested", threadId, text, kind: "message", scope: threadScope() };
+  return { type: "client/turn/requested", threadId, text, scope: threadScope() };
 }
 
 function append(harness: Harness, events: readonly ThreadEvent[]): void {
@@ -254,6 +255,36 @@ describe("pairing", () => {
     });
     const status = harness.runtime.status();
     expect(status.state).toBe("paired");
+  });
+
+  it("retries the account identity on the next pass rather than losing vault sync for good", async () => {
+    // The identity is fetched once when a session opens, and the vault's
+    // cross-account fence FAILS CLOSED without it — so a laptop that
+    // autostarted before its network was up would push nothing, ever, and say
+    // nothing about why.
+    const cloud = new FakeCloud();
+    let refusals = 1;
+    const harness = makeHarness({
+      cloud,
+      pollIntervalMs: null,
+      fetch: (input, init) => {
+        if (new URL(input).pathname === ACCOUNT_API_PATHS.account && refusals > 0) {
+          refusals -= 1;
+          return Promise.reject(new Error("network is down"));
+        }
+        return cloud.fetch(input, init);
+      },
+    });
+
+    await pair(harness);
+    expect(readDeviceCredential(harness.dataDir)?.userId).toBeUndefined();
+    const pingsWhileBlind = harness.vaultPings();
+
+    await harness.runtime.syncNow();
+
+    expect(readDeviceCredential(harness.dataDir)?.userId).toBe("user_fake");
+    // Learning it re-kicks the vault pass the fence deferred.
+    expect(harness.vaultPings()).toBe(pingsWhileBlind + 1);
   });
 
   it("reports the cloud's own refusal for a code it will not take", async () => {

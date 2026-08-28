@@ -17,6 +17,7 @@ import {
 } from "@repo/notes/comments/comment-threads";
 import { markerRootIds } from "@repo/notes/comments/marker-ids";
 import {
+  commentsSidecarPath,
   parseSidecar,
   serializeSidecar,
   type CommentSidecar,
@@ -54,10 +55,6 @@ export class SidecarInvalidError extends Error {}
 /** A model-level refusal (taken id, missing parent, not a root). */
 export class CommentRefusedError extends Error {}
 
-export function sidecarPathFor(notePath: string): string {
-  return `${notePath}.comments.json`;
-}
-
 /** The wire entry is a strict projection — the FILE keeps fields this version
  * has never heard of; the wire carries only what the contract declares. */
 function toWire(entry: CommentSidecar[string]): CommentEntryWire {
@@ -94,14 +91,14 @@ export function createCommentsService(vault: VaultService, now: CommentsClock): 
   async function readSidecar(notePath: string): Promise<CommentSidecar> {
     let raw: string;
     try {
-      raw = (await vault.read(sidecarPathFor(notePath))).content;
+      raw = (await vault.read(commentsSidecarPath(notePath))).content;
     } catch (error) {
       if (error instanceof VaultServiceError && error.code === "not_found") return {};
       throw error;
     }
     const parsed = parseSidecar(raw);
     if (!parsed.ok) {
-      throw new SidecarInvalidError(`${sidecarPathFor(notePath)}: ${parsed.error}`);
+      throw new SidecarInvalidError(`${commentsSidecarPath(notePath)}: ${parsed.error}`);
     }
     return parsed.sidecar;
   }
@@ -114,7 +111,7 @@ export function createCommentsService(vault: VaultService, now: CommentsClock): 
   }
 
   async function writeSidecar(notePath: string, sidecar: CommentSidecar): Promise<void> {
-    await vault.write(sidecarPathFor(notePath), serializeSidecar(sidecar));
+    await vault.write(commentsSidecarPath(notePath), serializeSidecar(sidecar));
   }
 
   async function answer(notePath: string, sidecar: CommentSidecar): Promise<CommentsResponse> {

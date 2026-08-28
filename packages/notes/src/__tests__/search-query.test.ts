@@ -1,6 +1,6 @@
 // The query policy both engines execute. What is pinned here is the shape of
 // the plan; that FTS5 and the pure index AGREE on it is pinned where both can
-// be run together (apps/app's search-eval suite).
+// be run together (apps/cli/src/server/knowledge/__tests__/search-eval.test.ts).
 
 import { describe, expect, it } from "vitest";
 

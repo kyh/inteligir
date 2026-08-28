@@ -8,7 +8,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { CommandPalette } from "../palette/command-palette";
-import { exportNoteAsPdf, printTitleForPath } from "../note/export-pdf";
+import { exportNoteAsPdf } from "../note/export-pdf";
 
 afterEach(() => {
   cleanup();
@@ -63,14 +63,6 @@ describe("exportNoteAsPdf", () => {
     );
     exportNoteAsPdf("   ");
     expect(titleDuringPrint).toBe("inteligir");
-  });
-});
-
-describe("printTitleForPath", () => {
-  it("prints under the basename stem", () => {
-    expect(printTitleForPath("Plans/Weekly Plan.md")).toBe("Weekly Plan");
-    expect(printTitleForPath("notes.md")).toBe("notes");
-    expect(printTitleForPath("odd/no-extension")).toBe("no-extension");
   });
 });
 

@@ -1,19 +1,18 @@
-// THE ONE COMPOSER of a view context into prompt text, and the one place a
-// turn's `input` is assembled.
+// THE ONE COMPOSER of a turn's prompt: the session's standing instructions on
+// the first turn, the view context when the sender named one, and the user's
+// own text — in that order, and never anywhere else.
 //
 // Server-side, not client-side, for two reasons: the CLI is a second sender,
 // and the stored `client/turn/requested.text` must stay exactly what the user
 // typed — the timeline renders it verbatim, and stapling a preamble onto the
 // user's own bubble is noise.
 //
-// It ships as a SEPARATE leading `text` element of `input` rather than a prefix
-// on the user's string, so the boundary is structural and the user's text is
-// never mangled. `input` is also the only per-turn channel codex honours, and
-// the three alternatives are dead ends worth naming so nobody re-derives them:
-// `RunTurnArgs.instructions` is forwarded but read only under
-// `thread/start`/`thread/resume`, `buildThreadShellEnvironment` runs once per
-// session (so an env var would refresh only after the idle reap), and session
-// instructions are per session.
+// Each block ships as a SEPARATE leading `text` element of `input` rather than
+// a prefix on the user's string, so the boundary is structural and the user's
+// text is never mangled. `input` is also the ONLY channel either preamble has:
+// ACP's `session/new` carries no instructions field, and
+// `buildThreadShellEnvironment` runs once per session (so an env var would
+// refresh only after the idle reap).
 //
 // No TOOL, either. The agent already has the file — it works in the vault
 // checkout and has `inteligir vault read` — so a `get_view_context` tool would
@@ -24,7 +23,7 @@
 
 import type { PromptInput } from "@repo/agent-runtime/types";
 import { VIEW_CONTEXT_EXCERPT_MAX_BYTES, type ViewContext } from "@repo/domain/view-context";
-import { headCapUtf8 } from "./agent-instructions";
+import { headCapUtf8 } from "../head-cap-utf8";
 
 function quoted(text: string): string {
   return text
@@ -63,12 +62,20 @@ export function composeViewContextBlock(context: ViewContext): string {
 type TurnPromptText = Extract<PromptInput, { type: "text" }>;
 
 /**
- * A turn's prompt, in order: the view-context block (what the user was
- * looking at) when there is one, then the user's own text always, as its own
- * element — `context` undefined yields exactly `[{text}]`.
+ * A turn's prompt, in order: the session instructions when this is the turn
+ * that opened the session, the view-context block (what the user was looking
+ * at) when there is one, then the user's own text always, as its own element —
+ * both preambles undefined yields exactly `[{text}]`.
  */
-export function turnPromptInput(text: string, context: ViewContext | undefined): TurnPromptText[] {
+export function turnPromptInput(
+  text: string,
+  context: ViewContext | undefined,
+  instructions?: string,
+): TurnPromptText[] {
   const blocks: TurnPromptText[] = [];
+  if (instructions !== undefined) {
+    blocks.push({ type: "text", text: instructions });
+  }
   if (context !== undefined) {
     blocks.push({ type: "text", text: composeViewContextBlock(context) });
   }

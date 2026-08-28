@@ -3,10 +3,10 @@
 // here and `ThreadEvent` in @repo/domain are two unions on purpose — this one
 // is wider (it carries kinds no renderer persists) and is TYPES only, because
 // the runtime constructs these and never parses them. Parsing happens where
-// events cross into the host, which narrows this union onto the persisted one
-// (`apps/app/src/node/agent/event-mapping.ts`). The leaves the two unions
-// share are single-sourced from @repo/domain below, so a narrowing can assign
-// them across rather than respell them field by field.
+// events cross into the server, which narrows this union onto the persisted
+// one (`apps/cli/src/server/agents/event-mapping.ts`). The leaves the two
+// unions share are single-sourced from @repo/domain below, so a narrowing can
+// assign them across rather than respell them field by field.
 //
 // Trimmed families: background tasks, goals, rate limits, model fallback,
 // context-window clearing, turn/input/accepted correlation and the system/*

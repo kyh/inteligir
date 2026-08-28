@@ -10,7 +10,6 @@ import { RELATED_DEFAULT_LIMIT } from "@repo/notes/knowledge/related-notes";
 import { parseSearchQuery } from "@repo/notes/knowledge/vault-search";
 import {
   KNOWLEDGE_BACKLINKS_MAX,
-  KNOWLEDGE_RENAME_CANDIDATES_MAX,
   KNOWLEDGE_TAGS_MAX,
 } from "@repo/api/local/knowledge/knowledge-schema";
 import { base } from "../orpc";
@@ -48,19 +47,10 @@ const tags = base.knowledge.tags.handler(async ({ context }) => {
   return { tags: found.slice(0, KNOWLEDGE_TAGS_MAX), total: found.length };
 });
 
-const renameCandidates = base.knowledge.renameCandidates.handler(async ({ context, input }) => {
-  const candidates = await context.knowledge.renameCandidates(input.from, input.to);
-  return {
-    candidates: candidates.slice(0, KNOWLEDGE_RENAME_CANDIDATES_MAX),
-    total: candidates.length,
-  };
-});
-
 export const knowledgeRouter = {
   search,
   wikiTargets,
   backlinks,
   related,
   tags,
-  renameCandidates,
 };

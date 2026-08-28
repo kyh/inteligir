@@ -60,7 +60,7 @@ export function SettingsPage({ onBack }: { onBack: () => void }) {
   const treeQuery = useVaultTree();
   const statusQuery = useVaultStatus();
   const systemQuery = useSystemStatus();
-  const syncNow = useSyncNow();
+  const { syncNow, inFlight: syncInFlight } = useSyncNow();
   const { theme, setTheme } = useTheme();
   const { appearance, setAppearance } = useAppearance();
 
@@ -129,7 +129,7 @@ export function SettingsPage({ onBack }: { onBack: () => void }) {
                 <span className="flex items-center gap-2">
                   {status === undefined ? "…" : syncStateLabel(status)}
                   {canSyncNow(status) ? (
-                    <Button variant="outline" size="xs" onClick={syncNow}>
+                    <Button variant="outline" size="xs" disabled={syncInFlight} onClick={syncNow}>
                       Sync now
                     </Button>
                   ) : null}

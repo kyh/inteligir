@@ -15,7 +15,7 @@ import { GalleryPage } from "../gallery-page";
 
 afterEach(cleanup);
 
-/** The page's only context dependency. The ROUTE supplies it through
+/** The page's only context dependency. The ROOT route supplies it through
  *  WorkspaceProvider; the test supplies it directly so mounting every
  *  component does not also stand up an api client. */
 function mount() {

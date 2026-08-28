@@ -12,13 +12,21 @@ import { describe, expect, it } from "vitest";
 
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
 import { parseMarkdown } from "@repo/editor/markdown/markdown-doc";
+import { OpenNoteStoreProvider } from "@repo/editor/note/open-note-context";
+import { createOpenNoteStore } from "@repo/editor/note/open-note-store";
+
+// The kit's own plugins read the pane they render in (heading collapse folds
+// per note), so the harness has to be a pane.
+const STORE = createOpenNoteStore();
 
 function Harness({ value }: { value: Value }) {
   const editor = usePlateEditor({ plugins: EDITOR_KIT, value });
   return (
-    <Plate editor={editor}>
-      <PlateContent />
-    </Plate>
+    <OpenNoteStoreProvider store={STORE}>
+      <Plate editor={editor}>
+        <PlateContent />
+      </Plate>
+    </OpenNoteStoreProvider>
   );
 }
 

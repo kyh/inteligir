@@ -3,10 +3,10 @@
 // verbatim (round-trip contract lives in @repo/notes/markdown/remark-wiki-link).
 // The React half renders navigating chips (wiki-chip.tsx) and transclusion
 // cards (transclusion.tsx) — both behind React.lazy, because they reach into
-// vault-context and an eager import from this file (which base-kit composes)
-// would close an import cycle around the kit files. It also adds the `]]`
-// input rule: without it, typed `[[Note]]` would stay plain text and the
-// serializer would escape it to `\[\[Note]]` on save — the flagship syntax
+// the editor host seam and an eager import from this file (which base-kit
+// composes) would close an import cycle around the kit files. It also adds
+// the `]]` input rule: without it, typed `[[Note]]` would stay plain text and
+// the serializer would escape it to `\[\[Note]]` on save — the flagship syntax
 // would self-destruct.
 
 import { Suspense, lazy } from "react";

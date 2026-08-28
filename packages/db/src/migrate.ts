@@ -6,8 +6,8 @@ import type { DbConnection } from "./connection";
 import { parseMigrationJournal } from "./migration-journal";
 
 // The committed SQL migrations live at `packages/db/drizzle/`, next to this
-// source. A deployment whose bundling moves the folder (apps/app's prod
-// bundle copies it beside its entry) resolves its own layout and passes the
+// source. A deployment whose bundling moves the folder (the `inteligir`
+// bundle stages it beside its entry) resolves its own layout and passes the
 // path in — this package never probes for another package's file layout.
 const SOURCE_MIGRATIONS_FOLDER = fileURLToPath(new URL("../drizzle", import.meta.url));
 

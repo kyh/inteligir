@@ -72,7 +72,6 @@ function PairScreen({ status }: { status: SyncStatus }) {
 function describeStatus(status: SyncStatus): string {
   if (status.state !== "paired") return "";
   if (status.lastError !== null) return `Sync issue: ${status.lastError}`;
-  if (status.pending > 0) return `${status.pending} pending`;
   return status.lastSyncedAt === null ? "Not synced yet" : "Synced";
 }
 

@@ -7,7 +7,7 @@ import type { PlateEditor } from "platejs/react";
 import { BaseDatePlugin } from "@platejs/date";
 import { DatePlugin } from "@platejs/date/react";
 
-import { formatIsoDate } from "@repo/notes/daily-path";
+import { formatIsoDate } from "@repo/notes/iso-date";
 
 import { insertVoidAndEscape } from "@repo/editor/insert-void";
 import { DateElement } from "@repo/editor/nodes/date-node";

@@ -12,12 +12,12 @@ import { Button } from "@repo/ui/components/button";
 import { Textarea } from "@repo/ui/components/textarea";
 import { toast } from "@repo/ui/components/sonner";
 import { cn } from "@repo/ui/lib/utils";
-import { useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { CheckIcon, Trash2Icon, Undo2Icon } from "lucide-react";
 import { useState } from "react";
 
 import { orpc } from "../api";
-import { useWorkspace, type WorkspaceRuntime } from "../workspace-context";
+import { relativeTimeLabel } from "../relative-time";
 import { useNoteComments } from "./comment-hooks";
 
 const SOURCE_LABELS = { agent: "Agent", external: "External", user: "Me" } as const;
@@ -26,12 +26,9 @@ function sourceLabel(entry: CommentEntryWire): string {
   return entry.source === undefined ? "—" : SOURCE_LABELS[entry.source];
 }
 
-function relativeTime(unixSeconds: number): string {
-  const deltaSeconds = Math.max(0, Math.floor(Date.now() / 1000) - unixSeconds);
-  if (deltaSeconds < 60) return "just now";
-  if (deltaSeconds < 3600) return `${String(Math.floor(deltaSeconds / 60))}m ago`;
-  if (deltaSeconds < 86_400) return `${String(Math.floor(deltaSeconds / 3600))}h ago`;
-  return `${String(Math.floor(deltaSeconds / 86_400))}d ago`;
+/** The sidecar stamps unix SECONDS; the shared label speaks epoch ms. */
+function entryTimeMs(entry: CommentEntryWire): number {
+  return entry.createdAt * 1000;
 }
 
 function CommentRow({ id, entry }: { id: string; entry: CommentEntryWire }) {
@@ -39,7 +36,7 @@ function CommentRow({ id, entry }: { id: string; entry: CommentEntryWire }) {
     <div key={id} className="px-2 py-1">
       <div className="flex items-baseline gap-2 text-[11px] text-muted-foreground">
         <span className="font-medium text-foreground/80">{sourceLabel(entry)}</span>
-        <span>{relativeTime(entry.createdAt)}</span>
+        <span>{relativeTimeLabel(entryTimeMs(entry), Date.now())}</span>
       </div>
       <p className="text-sm whitespace-pre-wrap">{entry.text}</p>
     </div>
@@ -47,20 +44,17 @@ function CommentRow({ id, entry }: { id: string; entry: CommentEntryWire }) {
 }
 
 function ThreadCard({
-  api,
   docPath,
   thread,
   focused,
   onDone,
 }: {
-  api: WorkspaceRuntime["api"];
   docPath: string;
   thread: CommentThreadWire;
   focused: boolean;
   onDone: () => void;
 }) {
-  const [reply, setReply] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [draft, setDraft] = useState("");
 
   const jump = (): void => {
     const editor = getLiveEditor(docPath);
@@ -69,45 +63,52 @@ function ThreadCard({
     }
   };
 
-  const act = (run: () => Promise<void>): void => {
-    if (busy) return;
-    setBusy(true);
-    void run()
-      .catch(() => {
-        toast.error("The comment change was refused.");
-      })
-      .finally(() => {
-        setBusy(false);
-        onDone();
-      });
+  // Every verb re-reads the sidecar afterwards, refusal included: a failed
+  // resolve leaves the card claiming a state the file never took.
+  const settle = {
+    onError: (): void => {
+      toast.error("The comment change was refused.");
+    },
+    onSettled: onDone,
   };
 
+  const reply = useMutation(orpc.comments.reply.mutationOptions({ ...settle }));
+  const resolve = useMutation(orpc.comments.resolve.mutationOptions({ ...settle }));
+  const remove = useMutation(
+    orpc.comments.remove.mutationOptions({
+      ...settle,
+      // The route owns the sidecar; the markers are the editor's to strip.
+      onSuccess: async (response) => {
+        const editor = getLiveEditor(docPath);
+        if (editor !== null && response.removedIds.length > 0) {
+          removeCommentMarkers(editor, response.removedIds);
+          await flushOpenNote();
+        }
+      },
+    }),
+  );
+  const busy = reply.isPending || resolve.isPending || remove.isPending;
+
   const sendReply = (): void => {
-    const trimmed = reply.trim();
-    if (trimmed === "") return;
-    act(async () => {
-      const id = `${thread.rootId}-r${String(Date.now() % 100_000)}`;
-      await api.comments.reply({ id, parentId: thread.rootId, path: docPath, text: trimmed });
-      setReply("");
-    });
+    const text = draft.trim();
+    if (text === "" || busy) return;
+    reply.mutate(
+      {
+        id: `${thread.rootId}-r${String(Date.now() % 100_000)}`,
+        parentId: thread.rootId,
+        path: docPath,
+        text,
+      },
+      {
+        onSuccess: () => {
+          setDraft("");
+        },
+      },
+    );
   };
 
   const setResolved = (resolved: boolean): void => {
-    act(async () => {
-      await api.comments.resolve({ id: thread.rootId, path: docPath, resolved });
-    });
-  };
-
-  const remove = (): void => {
-    act(async () => {
-      const response = await api.comments.remove({ id: thread.rootId, path: docPath });
-      // The route owns the sidecar; the markers are the editor's to strip.
-      const editor = getLiveEditor(docPath);
-      if (editor !== null && response.removedIds.length > 0) {
-        removeCommentMarkers(editor, response.removedIds);
-        await flushOpenNote();
-      }
-    });
+    resolve.mutate({ id: thread.rootId, path: docPath, resolved });
   };
 
   return (
@@ -133,11 +134,11 @@ function ThreadCard({
         <Textarea
           aria-label="Reply to comment"
           placeholder="Reply…"
-          value={reply}
+          value={draft}
           rows={1}
           className="max-h-24 min-h-8 flex-1 resize-none text-sm"
           onChange={(event) => {
-            setReply(event.target.value);
+            setDraft(event.target.value);
           }}
           onKeyDown={(event) => {
             if (event.key === "Enter" && !event.shiftKey) {
@@ -176,7 +177,9 @@ function ThreadCard({
           variant="ghost"
           aria-label="Delete comment thread"
           disabled={busy}
-          onClick={remove}
+          onClick={() => {
+            remove.mutate({ id: thread.rootId, path: docPath });
+          }}
         >
           <Trash2Icon />
         </Button>
@@ -192,7 +195,6 @@ export function CommentsTab({
   docPath: string | null;
   focusIds: readonly string[];
 }) {
-  const { api } = useWorkspace();
   const queryClient = useQueryClient();
   const query = useNoteComments(docPath);
   const [showResolved, setShowResolved] = useState(false);
@@ -222,7 +224,6 @@ export function CommentsTab({
       {open.map((thread) => (
         <ThreadCard
           key={thread.rootId}
-          api={api}
           docPath={docPath}
           thread={thread}
           focused={focusIds.includes(thread.rootId)}
@@ -244,7 +245,6 @@ export function CommentsTab({
         ? resolved.map((thread) => (
             <ThreadCard
               key={thread.rootId}
-              api={api}
               docPath={docPath}
               thread={thread}
               focused={focusIds.includes(thread.rootId)}

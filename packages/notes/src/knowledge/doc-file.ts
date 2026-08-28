@@ -14,6 +14,13 @@ export function isDocPath(path: string): boolean {
   return DOC_EXTENSIONS.has(extnamePath(path).toLowerCase());
 }
 
+/** True when the path names a markdown NOTE — the `.md` half of
+ * {@link isDocPath}, and narrower on purpose: a caller that splices frontmatter
+ * into what it finds must not write YAML into a `.txt`. */
+export function isNotePath(path: string): boolean {
+  return extnamePath(path).toLowerCase() === DEFAULT_DOC_EXTENSION;
+}
+
 /** The doc extension `path` carries, spelled as it is on disk (`".md"`,
  * `".Markdown"`), or `""` when the path names no doc. */
 export function docExtension(path: string): string {

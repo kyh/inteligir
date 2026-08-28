@@ -66,7 +66,6 @@ packages/
   ui/                @repo/ui — vendored shadcn components
   domain/            @repo/domain — the thread grammar and lifecycle, zod-only
   db/                @repo/db — drizzle + better-sqlite3, migrations, notifier
-  thread-view/       @repo/thread-view — isomorphic timeline projection
   agent-runtime/     @repo/agent-runtime — the ACP adapter over the harnesses
   agent-skills/      @repo/agent-skills — the dialect spec, as files agents read
 tools/

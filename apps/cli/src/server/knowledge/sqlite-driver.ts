@@ -13,16 +13,13 @@
 // files cannot be deleted, rename them aside (timestamped) and open fresh; if
 // even that fails, run in memory for this process — an empty index the boot
 // reconcile rebuilds either way. Every downgrade is logged, none is thrown.
-//
-// `transaction` and `schemaVersion` stay unset on purpose: a file-backed
-// binding wants the store's plain SQL path (BEGIN/COMMIT, PRAGMA user_version).
 
 import { mkdirSync, renameSync, rmSync } from "node:fs";
 import { dirname } from "node:path";
 import Database from "better-sqlite3";
 import type { SqlDriver } from "@repo/notes/knowledge/sql-knowledge-store";
 import { z } from "zod";
-import { messageOf } from "./message-of";
+import { messageOf } from "../error-message";
 
 // The store binds and reads NULL/REAL/INTEGER/TEXT only, so a row carrying
 // anything else is not one this driver can hand over.

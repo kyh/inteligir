@@ -9,7 +9,25 @@ import type { PlateEditor } from "platejs/react";
 
 import { wrapBlockInToggle } from "@repo/editor/kits/toggle-kit";
 
+/** The menu's vocabulary. Every caller names a row by this id, never by its
+ * display label — a label is what a person reads, and looking one up by string
+ * made "rename the menu entry" a silent behaviour change three call sites
+ * away. */
+export type TurnIntoId =
+  | "text"
+  | "heading-1"
+  | "heading-2"
+  | "heading-3"
+  | "bulleted-list"
+  | "numbered-list"
+  | "todo-list"
+  | "quote"
+  | "callout"
+  | "code-block"
+  | "toggle";
+
 export type TurnIntoOption = {
+  id: TurnIntoId;
   label: string;
   type: string;
   listStyleType?: string;
@@ -17,19 +35,53 @@ export type TurnIntoOption = {
   marker?: string;
 };
 
-export const TURN_INTO: TurnIntoOption[] = [
-  { label: "Text", type: KEYS.p },
-  { label: "Heading 1", type: KEYS.h1 },
-  { label: "Heading 2", type: KEYS.h2 },
-  { label: "Heading 3", type: KEYS.h3 },
-  { label: "Bulleted list", type: KEYS.p, listStyleType: "disc" },
-  { label: "Numbered list", type: KEYS.p, listStyleType: "decimal" },
-  { label: "To-do list", type: KEYS.p, listStyleType: "todo" },
-  { label: "Quote", type: KEYS.blockquote },
-  { label: "Callout", type: KEYS.blockquote, marker: "[!NOTE] " },
-  { label: "Code block", type: KEYS.codeBlock },
-  { label: "Toggle", type: KEYS.toggle },
+/** Closed over the vocabulary: a new id must declare its row here. */
+const TURN_INTO_ROWS: Record<TurnIntoId, TurnIntoOption> = {
+  text: { id: "text", label: "Text", type: KEYS.p },
+  "heading-1": { id: "heading-1", label: "Heading 1", type: KEYS.h1 },
+  "heading-2": { id: "heading-2", label: "Heading 2", type: KEYS.h2 },
+  "heading-3": { id: "heading-3", label: "Heading 3", type: KEYS.h3 },
+  "bulleted-list": {
+    id: "bulleted-list",
+    label: "Bulleted list",
+    type: KEYS.p,
+    listStyleType: "disc",
+  },
+  "numbered-list": {
+    id: "numbered-list",
+    label: "Numbered list",
+    type: KEYS.p,
+    listStyleType: "decimal",
+  },
+  "todo-list": { id: "todo-list", label: "To-do list", type: KEYS.p, listStyleType: "todo" },
+  quote: { id: "quote", label: "Quote", type: KEYS.blockquote },
+  callout: { id: "callout", label: "Callout", type: KEYS.blockquote, marker: "[!NOTE] " },
+  "code-block": { id: "code-block", label: "Code block", type: KEYS.codeBlock },
+  toggle: { id: "toggle", label: "Toggle", type: KEYS.toggle },
+};
+
+/** Menu order — the rows' own record has none. */
+const TURN_INTO_ORDER: readonly TurnIntoId[] = [
+  "text",
+  "heading-1",
+  "heading-2",
+  "heading-3",
+  "bulleted-list",
+  "numbered-list",
+  "todo-list",
+  "quote",
+  "callout",
+  "code-block",
+  "toggle",
 ];
+
+export const TURN_INTO: readonly TurnIntoOption[] = TURN_INTO_ORDER.map((id) => TURN_INTO_ROWS[id]);
+
+/** The row an id names. Total — every id has a row, so no caller carries a
+ *  "not found" branch. */
+export function turnIntoOption(id: TurnIntoId): TurnIntoOption {
+  return TURN_INTO_ROWS[id];
+}
 
 const ALERT_MARKER_RE = /^\[!(?:NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s?/;
 
@@ -60,10 +112,13 @@ function retargetToggleSummary(editor: PlateEditor, entry: [TElement, Path]): [T
   return entry;
 }
 
-/** The TURN_INTO entry describing `node`, for the toolbar's type indicator. */
-export function turnIntoLabelFor(node: { type: string } & Record<string, unknown>): string {
+/** The TURN_INTO row describing `node` — the toolbar's type indicator reads
+ *  its label, the shortcut batch its id. */
+export function turnIntoOptionFor(
+  node: { type: string } & Record<string, unknown>,
+): TurnIntoOption {
   if (typeof node.listStyleType === "string") {
-    return TURN_INTO.find((opt) => opt.listStyleType === node.listStyleType)?.label ?? "Text";
+    return TURN_INTO.find((opt) => opt.listStyleType === node.listStyleType) ?? TURN_INTO_ROWS.text;
   }
   const isAlert =
     node.type === KEYS.blockquote &&
@@ -72,7 +127,7 @@ export function turnIntoLabelFor(node: { type: string } & Record<string, unknown
   const match = TURN_INTO.find(
     (opt) => !opt.listStyleType && opt.type === node.type && Boolean(opt.marker) === isAlert,
   );
-  return match?.label ?? "Text";
+  return match ?? TURN_INTO_ROWS.text;
 }
 
 // Strip a leading GitHub-alert marker (unless the target wants one). Only

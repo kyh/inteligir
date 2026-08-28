@@ -29,6 +29,7 @@ import { socketCredentialFilter } from "./credential-scope";
 import { BROWSER_ACCELERATOR } from "./browser-panel";
 import { showBrowserWindow } from "./browser-window";
 import {
+  appWindowWebPreferences,
   classifyNavigation,
   classifyPermission,
   classifyWindowOpen,
@@ -232,17 +233,7 @@ function createWindow(target: ServerTarget): BrowserWindow {
     title: APP_DISPLAY_NAME,
     titleBarStyle: "hiddenInset",
     trafficLightPosition: { x: 16, y: 16 },
-    webPreferences: {
-      preload: appPreloadScript(),
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true,
-      webSecurity: true,
-      // Never the default session: the storage follows the VAULT
-      // (server-instance.ts::sessionPartition) rather than a name two different
-      // vaults could share.
-      partition,
-    },
+    webPreferences: appWindowWebPreferences(appPreloadScript(), partition),
   });
 
   // The user-activation clock for page-initiated external opens. Electron

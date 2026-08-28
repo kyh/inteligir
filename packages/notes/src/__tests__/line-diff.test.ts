@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { diffLines, splitLines, type DiffHunk } from "../text/line-diff";
+import { diffLines, splitLinesLf, type DiffHunk } from "../text/line-diff";
 
 /** Re-apply hunks to the base — the correctness oracle: applying the diff
  *  must reproduce the side exactly. */
@@ -16,8 +16,8 @@ function apply(base: readonly string[], side: readonly string[], hunks: DiffHunk
 }
 
 function roundTrips(baseText: string, sideText: string): void {
-  const base = splitLines(baseText);
-  const side = splitLines(sideText);
+  const base = splitLinesLf(baseText);
+  const side = splitLinesLf(sideText);
   const hunks = diffLines(base, side);
   expect(apply(base, side, hunks).join("\n")).toBe(sideText);
   // Hunks are ordered, non-overlapping, separated by at least one match.

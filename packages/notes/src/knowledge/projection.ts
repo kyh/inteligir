@@ -1,7 +1,7 @@
 // ---------------------------------------------------------------------------
 // Doc projection — the ONE parse of a markdown doc, shaped for persistence.
-// `projectDoc` wraps scanDoc (same remark pipeline the editor runs) and adds
-// what the derived indexes need beyond the raw scan: the resolved title
+// `projectDoc` wraps scanDoc (the scan's own grammar, ../markdown/scan-parse)
+// and adds what the derived indexes need beyond the raw scan: the resolved title
 // (heading or filename fallback) and a per-link source-line snippet, captured
 // HERE so no downstream index ever has to retain doc bodies or line arrays.
 //
@@ -13,13 +13,14 @@
 // ---------------------------------------------------------------------------
 
 import type { ExtractedLink } from "./link-extract";
-import { scanDoc, titleFromPath } from "./link-extract";
+import { scanDoc } from "./link-extract";
+import { docStem } from "./doc-file";
 import { splitLines } from "./source-lines";
 import type { ExtractedTask } from "./task-ordinal";
 
 /** Bump whenever `projectDoc`'s OUTPUT shape or semantics change — persisted
  * projections from another version are discarded and rebuilt from the vault. */
-export const PROJECTION_VERSION = 9;
+export const PROJECTION_VERSION = 10;
 
 const SNIPPET_MAX = 200;
 
@@ -47,8 +48,8 @@ export type DocProjection = {
   aliases: string[];
   /** The doc's GFM task items in ordinal order (empty under the `tasks:
    * false` opt-out). Persisted, and read by no query today: the scan counts
-   * them regardless — that count is the editor's checkbox lockstep — so
-   * carrying the result costs one json field and no second parse. */
+   * them regardless, so carrying the result costs one json field and no
+   * second parse. */
   tasks: ExtractedTask[];
   /** Frontmatter `pinned: true` — the sidebar's pinned section. */
   pinned: boolean;
@@ -64,7 +65,7 @@ export function projectDoc(path: string, content: string): DocProjection {
     (link): StoredLink => ({ ...link, snippet: clipSnippet((lines[link.line - 1] ?? "").trim()) }),
   );
   return {
-    title: scan.title ?? titleFromPath(path),
+    title: scan.title ?? docStem(path),
     headings: scan.headings,
     links,
     tags: scan.tags,

@@ -1,6 +1,6 @@
 // Vendored from bb (github.com/get-bb/bb), MIT. © bb contributors.
 
-import { and, asc, desc, eq, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, isNotNull, isNull } from "drizzle-orm";
 import type { DbConnection, DbTransaction } from "./connection";
 import { createPrefixedId, createQueuedThreadMessageId } from "./ids";
 import type { DbNotifier } from "@repo/domain/notifier";
@@ -162,6 +162,26 @@ export interface ClaimedQueuedThreadMessageKey {
   claimToken: string;
 }
 
+/** The claimed message leaves the queue for good. The caller owns
+ *  notification (it holds the transaction). */
+export function deleteClaimedQueuedThreadMessageInTransaction(
+  tx: DbTransaction,
+  key: ClaimedQueuedThreadMessageKey,
+): boolean {
+  return (
+    tx
+      .delete(queuedThreadMessages)
+      .where(
+        and(
+          eq(queuedThreadMessages.id, key.id),
+          eq(queuedThreadMessages.claimToken, key.claimToken),
+        ),
+      )
+      .returning({ threadId: queuedThreadMessages.threadId })
+      .get() !== undefined
+  );
+}
+
 /** Dispatch succeeded: the claimed message leaves the queue for good. */
 export function deleteClaimedQueuedThreadMessage(
   db: DbConnection,
@@ -180,6 +200,23 @@ export function deleteClaimedQueuedThreadMessage(
     return true;
   }
   return false;
+}
+
+/**
+ * Free every claim in the table, whatever holds it. A claim has no TTL and no
+ * owner outside the process that took it, so a kill between the drain's ingest
+ * commit and its delete leaves a row that `listQueuedThreadMessages` hides and
+ * `claimNextQueuedThreadMessageInTransaction` will never take again — typed
+ * input lost with no error. One server owns a data dir, so at boot no claim
+ * can be live and no provenance check is needed.
+ */
+export function releaseAllQueuedMessageClaims(db: DbConnection): number {
+  return db
+    .update(queuedThreadMessages)
+    .set({ claimedAt: null, claimToken: null, updatedAt: Date.now() })
+    .where(isNotNull(queuedThreadMessages.claimToken))
+    .returning({ id: queuedThreadMessages.id })
+    .all().length;
 }
 
 /** Dispatch failed: the message goes back to the head of the queue. */

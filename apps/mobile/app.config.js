@@ -33,10 +33,10 @@ module.exports = ({ config }) => ({
       backgroundColor: "#171717",
     },
   },
-  // The cloud Worker origin, baked at build time. In dev the client falls back
-  // to the Metro host on the wrangler port (see src/lib/cloud-url.ts), so this
-  // may stay unset locally. Fill `eas.projectId` once the app is registered
-  // with EAS (`eas init`).
+  // The cloud Worker origin, baked at build time. `EXPO_PUBLIC_CLOUD_URL` in
+  // the shell is the other spelling of the same value; with neither set the
+  // client throws (src/lib/cloud-url.ts). Fill `eas.projectId` once the app is
+  // registered with EAS (`eas init`).
   extra: {
     cloudUrl: process.env.EXPO_PUBLIC_CLOUD_URL,
     // eas: { projectId: "your-eas-project-id" },

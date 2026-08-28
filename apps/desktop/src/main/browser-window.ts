@@ -1,8 +1,8 @@
 // The in-app browser WINDOW — wiring only; every decision lives in
 // browser-panel.ts. A separate shell-owned window so the app window's origin
-// pin survives verbatim: two webContents, the shell's own chrome bar (the one
-// preload in this process) above a sandboxed, preload-less content view on its
-// own storage partition. "Send page to agent" runs entirely in this process:
+// pin survives verbatim: two webContents, the shell's own chrome bar (carrying
+// this window's own preload) above a sandboxed, preload-less content view on
+// its own storage partition. "Send page to agent" runs entirely in this process:
 // the shell reads the page's url/title/selection and drives the local app's
 // ORDINARY typed routes over loopback — the app window gains no IPC and the
 // server gains no new surface.
@@ -107,7 +107,6 @@ async function sendPageToAgent(
     await api.threads.send({
       threadId: thread.id,
       text: capturePageMessage(capture),
-      mode: "queue-if-active",
     });
     return { ok: true, detail: thread.id };
   } catch (error) {
@@ -157,8 +156,7 @@ function apiClientFor(server: LiveServer): ContractRouterClient<LocalContract> {
 }
 
 /** One registration for the process; each handler re-resolves the live handle
- *  and refuses any sender that is not the shell's own chrome bar — the app
- *  window has no preload, but a guard that checks is one that cannot rot. */
+ *  and refuses any sender that is not the shell's own chrome bar. */
 function registerBrowserIpc(server: LiveServer): void {
   if (ipcRegistered) {
     return;

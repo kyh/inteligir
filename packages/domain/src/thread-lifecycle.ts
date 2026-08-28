@@ -13,11 +13,10 @@ import type { ThreadStatus } from "./thread-status";
  * work is in progress), `stopping` (the current run/start is winding down),
  * and `error` (quiescent after failure). In-progress intent lives in the
  * status, not in side-fields: a requested stop IS `status = stopping`, not a
- * separate `stopRequestedAt`. The orthogonal record dimensions
- * (deletedAt/archivedAt) are fields, surfaced here as supersession
- * predicates; `activeTurnId` names WHICH run the status describes, so a
- * settle for a turn that is no longer the active one is a stale no-op rather
- * than a wrong-turn transition.
+ * separate `stopRequestedAt`. The orthogonal record dimension (`archivedAt`)
+ * is a field, surfaced here as a supersession predicate; `activeTurnId` names
+ * WHICH run the status describes, so a settle for a turn that is no longer the
+ * active one is a stale no-op rather than a wrong-turn transition.
  *
  * Vocabulary:
  * - `run.preparing` — new work needs preparation before it can run.
@@ -41,13 +40,12 @@ export type ThreadLifecycleEventType = ThreadLifecycleEvent["type"];
 /**
  * Declarative supersession predicates: row-level staleness signals that turn
  * an otherwise-legal event into a "superseded" no-op. Only the orthogonal
- * record dimensions remain — stop intent is not a predicate because it is the
+ * record dimension remains — stop intent is not a predicate because it is the
  * `stopping` status (the table simply has no "begin new work" transition out
  * of `stopping`).
  */
 export interface ThreadLifecycleSupersessionPredicates {
   notArchived?: true;
-  notDeleted?: true;
 }
 
 /** A closed table over the event vocabulary: every event names its predicates,
@@ -57,10 +55,10 @@ type ThreadLifecycleEventPredicateTable = {
 };
 
 export const THREAD_LIFECYCLE_EVENT_PREDICATES: ThreadLifecycleEventPredicateTable = {
-  "run.preparing": { notArchived: true, notDeleted: true },
-  "run.started": { notArchived: true, notDeleted: true },
+  "run.preparing": { notArchived: true },
+  "run.started": { notArchived: true },
   "run.succeeded": {},
-  "run.failed": { notDeleted: true },
+  "run.failed": {},
   "stop.requested": {},
   "stop.settled": {},
 };
@@ -109,17 +107,11 @@ export const THREAD_LIFECYCLE: ThreadLifecycleTable = {
   },
 };
 
-/**
- * The thread-row fields lifecycle evaluation reads. `deletedAt` stays in the
- * vendored contract even though v1 ships no thread deletion — the db adapter
- * passes null until a delete surface exists, so the FSM table matches bb's
- * and deletion arrives as a column, not a domain change.
- */
+/** The thread-row fields lifecycle evaluation reads. */
 export interface ThreadLifecycleRowState {
   /** The turn the current status describes; null whenever no run is bound. */
   activeTurnId: string | null;
   archivedAt: number | null;
-  deletedAt: number | null;
   status: ThreadStatus;
 }
 
@@ -157,9 +149,9 @@ function settlingTurnId(event: ThreadLifecycleEvent): SettlingTurn {
 /**
  * Pure evaluation of a lifecycle event against a loaded thread row.
  * Supersession and turn identity are checked before table lookup, so a stale
- * event on a deleted/archived thread — or a settle for a turn that is no
- * longer the active one — reports its true diagnosis even when the current
- * status has no cell for it. An applied evaluation carries the next
+ * event on an archived thread — or a settle for a turn that is no longer the
+ * active one — reports its true diagnosis even when the current status has no
+ * cell for it. An applied evaluation carries the next
  * `activeTurnId` alongside the next status: run.started binds the named
  * turn, every settle unbinds it, everything else carries it over.
  */
@@ -168,9 +160,6 @@ export function evaluateThreadLifecycleEvent(
 ): ThreadLifecycleEvaluation {
   const { event, thread } = args;
   const predicates = THREAD_LIFECYCLE_EVENT_PREDICATES[event.type];
-  if (predicates.notDeleted && thread.deletedAt !== null) {
-    return { noop: "superseded", detail: "deletedAt set" };
-  }
   if (predicates.notArchived && thread.archivedAt !== null) {
     return { noop: "superseded", detail: "archivedAt set" };
   }

@@ -2,9 +2,9 @@
 
 A read-and-capture content client. **The agent and the vault ENGINE stay on
 the desktop** (issue #542's re-founding): the phone holds the SYNCED THREADS,
-the CAPTURE inbox and — since #618 — a READ surface over the account's hosted
-vault, reaching `@repo/api/cloud` (the wire), `@repo/domain` (the
-`ThreadEvent` grammar) and `@repo/notes` (the dialect's parse + wiki
+FEEDS the CAPTURE inbox and — since #618 — carries a READ surface over the
+account's hosted vault, reaching `@repo/api/cloud` (the wire), `@repo/domain`
+(the `ThreadEvent` grammar) and `@repo/notes` (the dialect's parse + wiki
 resolution, guard-pure). No Codex, no vault checkout, no git client — notes
 arrive over the /v1/vault read rows, rendered read-only.
 
@@ -17,13 +17,10 @@ brand-new transport: the old sync engine spoke to the deleted hosted platform, s
 ```
 src/
   sync/         the RN sync client (pure, unit-tested)
-    sync-store.ts          the storage PORT (outbox, cursor, thread log, capture ledger)
+    sync-store.ts          the storage PORT (pull cursor + applied thread log)
     memory-sync-store.ts   the in-memory implementation (v1 runtime + the test fake)
-    outbox.ts              freeze-at-enqueue + per-device counter (push)
-    thread-log.ts          plan/apply a pulled page by global seq, idempotent
-    captures.ts            produce + the claim/ack idempotent apply
-    cloud-client.ts        the typed face over the Worker (a refusal is a value)
-    sync-runtime.ts        the session-fenced, single-flight pass loop
+    thread-log.ts          execute a planned page (@repo/api/cloud/sync/plan-page plans it)
+    sync-runtime.ts        the session-fenced, single-flight pull loop
     thread-projection.ts   fold a thread's events into display rows
   credential/   the device credential at rest
     credential-codec.ts        parse/serialize + the wire pattern
@@ -46,13 +43,15 @@ src/
 
 ## The storage choice
 
-The four sync stores — outbox, pull cursor, applied thread log, applied-capture
-ledger — **must agree**, so they live in one `SyncStore`, and v1's concrete
-implementation keeps all four **in memory**. This is correct, not degraded: a
-cold launch re-pulls the account log from cursor 0 and re-applies it
-idempotently (own rows skipped by device id, every row deduped on its
-`(deviceId, deviceSeq)` origin), rebuilding the readable state. Persisting the
-cursor beside an in-memory log would claim rows the log never saw.
+The two sync stores — the pull cursor and the applied thread log — **must
+agree**, so they live in one `SyncStore`, and v1's concrete implementation keeps
+both **in memory**. This is correct, not degraded: a cold launch re-pulls the
+account log from cursor 0 and re-applies it idempotently (own rows skipped by
+device id, every row deduped on its `(deviceId, deviceSeq)` origin), rebuilding
+the readable state. Persisting the cursor beside an in-memory log would claim
+rows the log never saw. There is no outbox and no capture ledger: the phone
+appends nothing to the log and claims nothing from the inbox, so neither has
+anything to hold.
 
 The **device credential** is durable in `expo-secure-store` (the Keychain /
 Keystore), never AsyncStorage — it is a bearer secret and the sync switch,
@@ -72,18 +71,16 @@ an embed's fetch lands in the platform's own image caches, which an unpair
 cannot clear — safe to serve (the URL pins a commit sha), but at rest until
 the OS evicts them.
 
-The durable follow-up is an **expo-sqlite** `SyncStore` that persists all four
-sync stores together; the port exists precisely so that swap touches nothing
-else.
+The durable follow-up is an **expo-sqlite** `SyncStore` that persists both sync
+stores together; the port exists precisely so that swap touches nothing else.
 
 ## Who applies captures
 
-The phone **produces** captures (quick-capture → `POST /v1/capture`, retry-stable
-idempotency key). The claim/ack **idempotent apply** is implemented and
-unit-tested (`captures.ts`, `runCapturePass`) for completeness and for a
-phone-only account — but the default runtime does **not** claim, because in a
-desktop-present account the desktop owns applying captures to the vault, and a
-phone claiming would take a capture the desktop then never sees.
+The phone **produces** captures (quick-capture → `POST /v1/capture`,
+retry-stable idempotency key) and never claims one. The desktop owns applying a
+capture to the vault, so a phone claiming would take a capture the desktop then
+never sees — and the consumer half therefore does not exist on this device at
+all.
 
 ## The pairing seam
 
@@ -116,11 +113,10 @@ listener a deep link instead.
 ## Verified vs device-side
 
 - **Verified here** (`pnpm --filter @repo/mobile typecheck` + `test`, and the
-  repo-wide `pnpm verify`): the sync client (push freezes bodies + advances the
-  per-device counter; pull applies by global seq idempotently; a capture
-  delivered twice applies once), the credential codec, and the PKCE + pairing
-  handshake — all against faked storage / crypto / fetch. Unit tests, no
-  device.
+  repo-wide `pnpm verify`): the sync client (pull applies by global seq
+  idempotently, and a pass neither pushes a thread event nor claims a capture),
+  the credential codec, and the PKCE + pairing handshake — all against faked
+  storage / crypto / fetch. Unit tests, no device.
 - **Needs the owner's device / simulator** (no headless Expo boot in CI): the app
   actually booting, the expo-secure-store Keychain round trip, and the live
   pairing browser flow against a running cloud Worker.
@@ -131,3 +127,8 @@ listener a deep link instead.
 pnpm --filter @repo/mobile dev          # expo start
 EXPO_PUBLIC_CLOUD_URL=… pnpm --filter @repo/mobile dev   # point at a cloud
 ```
+
+The cloud origin is REQUIRED: `EXPO_PUBLIC_CLOUD_URL` in the shell, or
+`extra.cloudUrl` in `app.config.js`. With neither, the first cloud read throws
+rather than guessing — the Worker's dev server binds localhost, so an origin
+derived from the Metro host could never answer a phone on the LAN.

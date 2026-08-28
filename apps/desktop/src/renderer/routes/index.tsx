@@ -6,7 +6,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { z } from "zod";
 import { Workspace } from "../app/workspace";
-import { WorkspaceProvider } from "../app/workspace-context";
 
 /** An empty or non-string `note` is the same as none: the workspace opens
  *  what it was last on rather than an unnamed document. */
@@ -23,13 +22,11 @@ function Index() {
   const { note } = Route.useSearch();
   const navigate = useNavigate();
   return (
-    <WorkspaceProvider>
-      <Workspace
-        openNote={note ?? null}
-        onOpenNote={(path) => {
-          void navigate({ to: "/", search: path === null ? {} : { note: path } });
-        }}
-      />
-    </WorkspaceProvider>
+    <Workspace
+      openNote={note ?? null}
+      onOpenNote={(path) => {
+        void navigate({ to: "/", search: path === null ? {} : { note: path } });
+      }}
+    />
   );
 }

@@ -7,14 +7,27 @@
 import { z } from "zod";
 
 /**
+ * Which RUNTIME SHAPE serves turns, and nothing about which harness: a thread
+ * carries its own `providerId`, so naming a harness here would be a second
+ * answer to that question. `auto` boots the ACP runtime when a vendor CLI is
+ * on PATH, `scripted` is the in-process e2e driver, `off` refuses every send.
+ *
+ * The values live here rather than beside the env parser because the server
+ * and every client read the same three — one enum, parsed at both ends.
+ */
+export const agentModeValues = ["auto", "scripted", "off"] as const;
+export const agentModeSchema = z.enum(agentModeValues);
+export type AgentMode = z.infer<typeof agentModeSchema>;
+
+/**
  * What the boot-time driver resolution decided. `mode` is the configuration
  * (INTELIGIR_AGENT / config.json); `runtime` is what actually serves turns —
- * `unavailable` states the reason in `detail` (e.g. no codex binary on PATH)
+ * `unavailable` states the reason in `detail` (e.g. no vendor CLI on PATH)
  * so a 503 on send is diagnosable from status alone.
  */
 export const agentStatusSchema = z
   .object({
-    mode: z.enum(["auto", "codex", "scripted", "off"]),
+    mode: agentModeSchema,
     runtime: z.enum(["acp", "scripted", "unavailable", "off"]),
     detail: z.string().nullable(),
   })

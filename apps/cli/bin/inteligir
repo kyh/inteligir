@@ -26,21 +26,29 @@ import { fileURLToPath } from "node:url";
 
 const binDir = dirname(fileURLToPath(import.meta.url));
 const srcEntry = join(binDir, "..", "src", "index.ts");
-const tsxBin = join(
-  binDir,
-  "..",
-  "node_modules",
-  ".bin",
-  process.platform === "win32" ? "tsx.cmd" : "tsx",
-);
 const args = process.argv.slice(2);
 
-const useSource = existsSync(srcEntry) && existsSync(tsxBin);
-const command = useSource ? tsxBin : process.execPath;
-const commandArgs = useSource ? [srcEntry, ...args] : [join(binDir, "..", "dist", "index.js"), ...args];
+/** tsx's own CLI module, resolved through its exports map — never the
+ *  `node_modules/.bin` shim. Node refuses to spawn a `.cmd` without a shell
+ *  (CVE-2024-27980), so the Windows shim always throws EINVAL; running the
+ *  module under THIS node is one spelling that works on every platform. Null
+ *  when tsx is absent, which is the published artifact. */
+function resolveTsxCli() {
+  try {
+    return fileURLToPath(import.meta.resolve("tsx/cli"));
+  } catch {
+    return null;
+  }
+}
+
+const tsxCli = existsSync(srcEntry) ? resolveTsxCli() : null;
+const useSource = tsxCli !== null;
+const commandArgs = useSource
+  ? [tsxCli, srcEntry, ...args]
+  : [join(binDir, "..", "dist", "index.js"), ...args];
 const env = useSource ? process.env : { ...process.env, NODE_ENV: "production" };
 
-const child = spawn(command, commandArgs, { stdio: "inherit", env, windowsHide: true });
+const child = spawn(process.execPath, commandArgs, { stdio: "inherit", env, windowsHide: true });
 
 for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"]) {
   process.on(signal, () => child.kill(signal));

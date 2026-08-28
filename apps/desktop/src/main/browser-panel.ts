@@ -3,11 +3,10 @@
 // browser-window.ts owns the wiring and delegates every DECISION here).
 //
 // The browser is a SEPARATE shell-owned window, never a view inside the app
-// window: the app window's origin pin survives verbatim, with no preload and
-// no IPC, and everything below concerns only the browser window's two
-// webContents — the shell's own chrome bar (bundled HTML, the one place a
-// preload exists) and the web content view (no preload, no node, sandboxed,
-// its own storage partition).
+// window: the app window's origin pin survives verbatim, and everything below
+// concerns only the browser window's two webContents — the shell's own chrome
+// bar (bundled HTML, carrying the browser window's own preload) and the web
+// content view (no preload, no node, sandboxed, its own storage partition).
 
 import { isHttpUrl } from "./origin-pin";
 
@@ -84,7 +83,7 @@ export function classifyBrowserWindowOpen(url: string): BrowserWindowOpenVerdict
 /**
  * The content view's webPreferences, as data so the test can pin every flag.
  * No preload and no node: the content view renders the open web, and the only
- * process that may talk to the shell is the shell's own chrome bar.
+ * page in this window that may talk to the shell is the shell's own chrome bar.
  */
 export function contentViewWebPreferences() {
   return {
@@ -96,8 +95,8 @@ export function contentViewWebPreferences() {
   } as const;
 }
 
-/** The chrome bar's webPreferences: same lockdown, PLUS the one preload in
- *  this process — the bridge that exposes exactly the nav verbs. It loads a
+/** The chrome bar's webPreferences: same lockdown, PLUS the browser window's
+ *  own preload — the bridge that exposes exactly the nav verbs. It loads a
  *  bundled file, so it needs no partition of its own. */
 export function chromeViewWebPreferences(preloadPath: string) {
   return {

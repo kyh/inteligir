@@ -103,8 +103,8 @@ class FakeController {
   }
 }
 
-/** Mirror vault-context's `ensureRuntime` wiring: subscribe first, then publish
- * once, so no emission can slip between snapshot and subscription. */
+/** Mirror the vault session's `ensureRuntime` wiring: subscribe first, then
+ * publish once, so no emission can slip between snapshot and subscription. */
 function mountRuntime(): FakeController {
   const controller = new FakeController();
   controller.subscribe(() => publishEditor(controller.getState()));

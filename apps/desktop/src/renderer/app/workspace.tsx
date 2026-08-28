@@ -4,9 +4,10 @@
 // param — deep-linkable, back/forward works — mirrored to localStorage so a
 // fresh boot reopens where the user left off.
 
+import { docStem, isDocPath } from "@repo/notes/knowledge/doc-file";
 import { parseSearchQuery } from "@repo/notes/knowledge/vault-search";
 import type { ViewContext } from "@repo/domain/view-context";
-import type { ViewContextSource } from "./chat/chat-model";
+import type { ViewContextSource } from "./chat-model";
 import type { Thread } from "@repo/api/local/threads/threads-schema";
 import type { VaultEntry } from "@repo/api/local/vault/vault-schema";
 import { ConfirmDialogHost, confirm } from "@repo/ui/components/confirm-dialog";
@@ -29,13 +30,13 @@ import { ActionComposer } from "./actions/action-composer";
 import { ActionsPanel, type PanelTab } from "./actions/actions-panel";
 import { useNoteComments } from "./actions/comment-hooks";
 import { NoteTopbar } from "./note-topbar";
-import { useThreads } from "./chat/thread-hooks";
+import { useThreads } from "./actions/thread-hooks";
 import { platformShortcutModifier, useGlobalShortcuts } from "./global-shortcuts";
 import { setAgentRequestActions } from "@repo/editor/agent-request";
 import { consumeSearchRequest, useSearchRequest } from "@repo/editor/search-request";
 import { EditorPane } from "@repo/editor/editor-pane";
 import { flushOpenNote } from "@repo/editor/note/open-note-flush";
-import { exportNoteAsPdf, printTitleForPath } from "./note/export-pdf";
+import { exportNoteAsPdf } from "./note/export-pdf";
 import type { VaultActions } from "@repo/editor/host";
 import { dailyNotePath, dailyNoteTemplate } from "./note/daily";
 import { readNoteViewContext } from "./note/note-view-context";
@@ -303,7 +304,7 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
     void createNote(dailyNotePath(now), dailyNoteTemplate(now));
   }, [createNote]);
 
-  const syncNow = useSyncNow();
+  const { syncNow, inFlight: syncInFlight } = useSyncNow();
 
   const treeOps = useMemo<TreeOps>(
     () => ({
@@ -415,7 +416,7 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
     }
   });
 
-  const canSync = canSyncNow(statusQuery.data);
+  const canSync = canSyncNow(statusQuery.data) && !syncInFlight;
 
   // The palette's search source: the knowledge index's full-text + tag
   // search (`tag:<name>` terms parse engine-side), with the filename tiers as
@@ -427,7 +428,7 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
       treeEntries
         // Notes only: the tree also holds comment sidecars and assets, and the
         // palette's fallback must answer the same question the index does.
-        .filter((entry) => entry.kind === "file" && entry.path.endsWith(".md"))
+        .filter((entry) => entry.kind === "file" && isDocPath(entry.path))
         .map((entry) => entry.path)
         .toSorted(),
     [treeEntries],
@@ -477,7 +478,7 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
         focusedPath === null
           ? null
           : () => {
-              exportNoteAsPdf(printTitleForPath(focusedPath));
+              exportNoteAsPdf(docStem(focusedPath));
             },
     }),
     [
@@ -581,7 +582,7 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
                   }}
                   onExportPdf={() => {
                     const path = focusedPathRef.current;
-                    if (path !== null) exportNoteAsPdf(printTitleForPath(path));
+                    if (path !== null) exportNoteAsPdf(docStem(path));
                   }}
                 />
               )}

@@ -5,6 +5,11 @@ import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { z } from "zod";
+import {
+  agentModeSchema,
+  agentModeValues,
+  type AgentMode,
+} from "@repo/api/local/system/system-schema";
 import { errnoCode } from "./errno";
 import { assertModelDirOutsideVault, assertVaultAndDataDirDisjoint } from "./path-containment";
 
@@ -118,19 +123,14 @@ function parseCloudUrlValue(name: string, rawValue: string): string {
   return url.origin;
 }
 
-const AGENT_MODE_VALUES = ["auto", "codex", "scripted", "off"] as const;
-type AgentMode = (typeof AGENT_MODE_VALUES)[number];
-
-function isAgentMode(value: string): value is AgentMode {
-  return AGENT_MODE_VALUES.some((mode) => mode === value);
-}
-
 function parseAgentModeValue(name: string, rawValue: string): AgentMode {
-  const trimmed = rawValue.trim();
-  if (!isAgentMode(trimmed)) {
-    throw new Error(`${name} must be one of ${AGENT_MODE_VALUES.join(", ")} (got "${trimmed}")`);
+  const parsed = agentModeSchema.safeParse(rawValue.trim());
+  if (!parsed.success) {
+    throw new Error(
+      `${name} must be one of ${agentModeValues.join(", ")} (got "${rawValue.trim()}")`,
+    );
   }
-  return trimmed;
+  return parsed.data;
 }
 
 const VOICE_MODE_VALUES = ["auto", "scripted"] as const;
@@ -210,7 +210,7 @@ const ENV_VARS = {
   agent: defineEnvVar({
     name: "INTELIGIR_AGENT",
     description:
-      "Agent provider selection: auto (codex when the binary exists), codex, scripted (in-process fake for e2e), or off.",
+      "Agent runtime selection: auto (the ACP runtime when a vendor CLI is on PATH), scripted (in-process fake for e2e), or off. WHICH harness runs is a thread's own providerId, never this.",
     parse: ({ name, value }) => parseAgentModeValue(name, value),
   }),
   agentModel: defineEnvVar({
@@ -270,7 +270,7 @@ const managedConfigSchema = z.object({
   port: z.number().int().min(1).max(65_535).optional(),
   vaultDir: z.string().min(1).optional(),
   vaultRemote: z.string().min(1).optional(),
-  agent: z.enum(AGENT_MODE_VALUES).optional(),
+  agent: agentModeSchema.optional(),
   agentModel: z.string().min(1).optional(),
   cloudUrl: z.string().min(1).optional(),
 });
@@ -378,7 +378,7 @@ export interface AppConfig {
   modelDir: string;
   /** Which transcription runtime dictation uses; "scripted" is the e2e fake. */
   voice: VoiceMode;
-  /** Which turn driver boots (issue #549); "auto" resolves at boot by binary presence. */
+  /** Which turn driver boots; "auto" resolves at boot by binary presence. */
   agent: AgentMode;
   /** Model passed through to the provider; null means the provider's default. */
   agentModel: string | null;

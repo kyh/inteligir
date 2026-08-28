@@ -6,7 +6,12 @@
 // task that must read the note as CONTENT, not as a workspace.
 
 import { execFile } from "node:child_process";
+import { HARNESSES } from "@repo/agent-runtime/acp/harness-registry";
 import { z } from "zod";
+
+/** The vendor CLI this runs, taken from the harness table so the PATH probe at
+ *  boot and the spawn here can never name different binaries. */
+export const INFERENCE_BINARY = HARNESSES.claude.vendorBinary;
 
 /** The closed field set — the ONLY keys inference may produce (#590). */
 const inferredFieldsSchema = z
@@ -73,7 +78,7 @@ export function createCliInferenceRunner(args: CliInferenceArgs): InferenceRunne
   return (body) =>
     new Promise((resolvePromise) => {
       execFile(
-        "claude",
+        INFERENCE_BINARY,
         ["-p", buildInferencePrompt(body), "--output-format", "json", "--model", "haiku"],
         { cwd: args.cwd, timeout: args.timeoutMs ?? DEFAULT_TIMEOUT_MS },
         (error, stdout) => {

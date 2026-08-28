@@ -1,7 +1,7 @@
 // Command output goldens against an in-process served contract app: exact
 // stdout bytes for the human renderings, parsed JSON for --json, and the
 // error paths' exit codes. The timeline fixture exercises the shared
-// @repo/thread-view renderer end to end through `thread show`.
+// the timeline renderer end to end through `thread show`.
 
 import type { ThreadTimeline } from "@repo/api/local/thread-timeline";
 import { VAULT_MAX_CONTENT_LENGTH } from "@repo/api/local/vault/vault-schema";
@@ -610,8 +610,6 @@ describe("interactions answer validates the resolution locally", () => {
               itemId: "cmd_1",
               command: "rm -rf /",
               cwd: null,
-              actions: [],
-              sessionGrant: null,
             },
             reason: null,
             availableDecisions: ["allow_once", "deny"],

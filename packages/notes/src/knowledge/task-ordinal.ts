@@ -4,42 +4,41 @@
 // A checkbox in a markdown file has no id, so anything that points at one
 // points at its POSITION among the file's task items: document pre-order,
 // counted over the canonical grammar (../markdown/scan-parse), checked items
-// included. The projection persists that ordinal.
+// included. That position IS the index in the array returned here.
 //
 // So the COUNT lives here, once, and no surface may bring its own. The editor
-// draws its checkboxes off a DIFFERENT parser (lezer-markdown), which is why
-// packages/editor's checkbox-toggle suite pins the two against each other from
-// the editor's side — a disagreement there desyncs every later ordinal.
+// draws its checkboxes off the other plugin list over the same micromark
+// (../markdown/parse), and the two agree only while both disable
+// `codeIndented` and `htmlFlow` — pinned in ../__tests__/task-ordinal.test.ts,
+// which counts the same docs through both parses.
 // ---------------------------------------------------------------------------
 
 import type { ListItem, Nodes } from "mdast";
 
 import { parseScan } from "../markdown/scan-parse";
-import { checkboxMarkerAt, splitLines } from "./source-lines";
+import { splitLines } from "./source-lines";
 
-/** One GFM task item (`- [ ]` checkbox), as the projection records it. `raw` is
- * the exact untrimmed source line EXCLUDING its terminator (./source-lines'
- * one rule). */
+/** One GFM task item (`- [ ]` checkbox), as the projection records it. */
 export type ExtractedTask = {
   checked: boolean;
   /** The item text after the checkbox marker, trimmed (inline md verbatim). */
   text: string;
-  /** The EXACT untrimmed source line, terminator excluded. */
-  raw: string;
   /** 1-based source line the item starts on. */
   line: number;
-  /** Position among the doc's GFM task items (0-based, document pre-order). */
-  ordinal: number;
 };
 
-// The item text is what follows the checkbox marker; locating the marker goes
-// through ./source-lines' one grammar, so the strip cannot drift from the
-// editor's reading of the same line. A raw line the grammar refuses (an item
-// shape only the parser accepts) keeps its full text rather than a
-// half-stripped one.
+// The checkbox marker on a GFM task line: indent + blockquote markers + list
+// marker + `[`, the state char, `]`, then whitespace. Bullets, ordered markers
+// (`1.` / `2)`) and `> ` prefixes all carry live checkboxes in the editor, so
+// the grammar names them all — a narrower one would leave half a marker in the
+// text of a line the parser just accepted.
+const CHECKBOX_MARKER_RE = /^[ \t]*(?:>[ \t]*)*(?:[-*+]|\d+[.)])[ \t]+\[[ xX]\](?=\s)/;
+
+// A raw line this grammar refuses (an item shape only the parser accepts) keeps
+// its full text rather than a half-stripped one.
 function taskTextOf(raw: string): string {
-  const marker = checkboxMarkerAt(raw);
-  return (marker === null ? raw : raw.slice(marker.checkboxIndex + 2)).trim();
+  const marker = CHECKBOX_MARKER_RE.exec(raw);
+  return (marker === null ? raw : raw.slice(marker[0].length)).trim();
 }
 
 /** Every GFM task item in `source`, in ordinal order — the counting authority.
@@ -59,13 +58,12 @@ export function tasksInTree(tree: Nodes, source: string): ExtractedTask[] {
   if (items.length === 0) return [];
   const lines = splitLines(source);
   const tasks: ExtractedTask[] = [];
-  for (const [ordinal, { item, checked }] of items.entries()) {
+  for (const { item, checked } of items) {
     const startLine = item.position?.start.line;
-    // An item with no source position still CONSUMES its ordinal: dropping the
-    // slot instead would shift every task after it out from under its ordinal.
+    // Both parses position every item; a synthetic tree names no line to read
+    // the item's text from, so there is nothing here to count.
     if (startLine === undefined) continue;
-    const raw = lines[startLine - 1] ?? "";
-    tasks.push({ checked, text: taskTextOf(raw), raw, line: startLine, ordinal });
+    tasks.push({ checked, text: taskTextOf(lines[startLine - 1] ?? ""), line: startLine });
   }
   return tasks;
 }

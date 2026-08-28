@@ -17,7 +17,6 @@ import {
   connectorRemoveRequestSchema,
   connectorsResponseSchema,
   connectorToggleRequestSchema,
-  connectorUpdateRequestSchema,
 } from "./connectors-schema";
 
 export const connectorsContract = {
@@ -27,11 +26,6 @@ export const connectorsContract = {
     .input(connectorAddRequestSchema)
     .output(connectorsResponseSchema)
     .errors({ ALREADY_EXISTS }),
-
-  update: oc
-    .input(connectorUpdateRequestSchema)
-    .output(connectorsResponseSchema)
-    .errors({ NOT_FOUND: {} }),
 
   remove: oc
     .input(connectorRemoveRequestSchema)

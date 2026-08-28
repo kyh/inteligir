@@ -100,18 +100,27 @@
       "includeEntryExports": true,
       "ignoreExportsUsedInFile": true
     },
-    // Same trade as packages/notes: every subpath is an entry the app and the
-    // headless mirror import piecemeal. The Plate kit/registry adaptations
-    // keep their upstream-shaped exports for the same
-    // reason packages/ui trusts its vendored components: trimming them makes
-    // the next re-vendor a conflict.
+    // Same trade as packages/notes, and taken the same way: every subpath is an
+    // entry the app and the headless mirror import piecemeal, so without
+    // `includeEntryExports` a whole component with no consumer hides behind the
+    // exports map. `ignoreExportsUsedInFile` covers the modules that name a
+    // part of their own shape (a node's element type beside its component).
+    //
+    // Everything left is a per-export `@public` tag carrying its own reason —
+    // today that is zero. A re-vendored Plate kit whose upstream-shaped surface
+    // is wider than this repo's importers is what one would be for; trimming
+    // that surface is what makes the next re-vendor a conflict.
     "packages/editor": {
       "entry": ["src/**/__tests__/**/*.test.ts", "src/**/*.test.{ts,tsx}"],
-      "project": ["src/**/*.{ts,tsx}"]
+      "project": ["src/**/*.{ts,tsx}"],
+      "includeEntryExports": true,
+      "ignoreExportsUsedInFile": true
     },
-    // Vendored-from-bb thread domain + projection (issue #548): the public
-    // surface is the vendored bb API, wider than today's importers on
-    // purpose — trimming it makes the next re-vendor a conflict.
+    // The leaf vocabulary every other workspace reaches. Every subpath in its
+    // exports map is an entry, so knip trusts those exports as API rather than
+    // reporting them — the same trade packages/api takes, and for the same
+    // reason: the schemas ARE the surface, parsed at each consumer's own
+    // boundary rather than called.
     "packages/domain": {
       "entry": ["src/**/__tests__/**/*.test.ts"],
       "project": ["src/**/*.ts"]
@@ -135,10 +144,6 @@
       // The ACP adapters are ARTIFACTS: harness-registry createRequire-resolves
       // their entry files to spawn as children; no module import exists.
       "ignoreDependencies": ["@zed-industries/claude-code-acp", "@zed-industries/codex-acp"]
-    },
-    "packages/thread-view": {
-      "entry": ["src/**/__tests__/**/*.test.ts"],
-      "project": ["src/**/*.ts"]
     },
     // ONE contract package, TWO entry points — every subpath in its exports
     // map is an entry, so its exports are trusted as API rather than reported.

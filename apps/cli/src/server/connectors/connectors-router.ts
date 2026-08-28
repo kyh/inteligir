@@ -57,10 +57,6 @@ const add = base.connectors.add.handler(({ context, input }) =>
   refusing("already-exists", () => ({ servers: context.connectors.add(input) })),
 );
 
-const update = base.connectors.update.handler(({ context, input }) =>
-  refusing("not-found", () => ({ servers: context.connectors.update(input) })),
-);
-
 const remove = base.connectors.remove.handler(({ context, input }) =>
   refusing("not-found", () => ({ servers: context.connectors.remove(input.name) })),
 );
@@ -95,7 +91,6 @@ const oauthDisconnect = base.connectors.oauthDisconnect.handler(({ context, inpu
 export const connectorsRouter = {
   list,
   add,
-  update,
   remove,
   toggle,
   oauthBegin,

@@ -50,7 +50,7 @@ import {
 import {
   TURN_INTO,
   effectiveBlockEntry,
-  turnIntoLabelFor,
+  turnIntoOptionFor,
   turnIntoSelection,
 } from "@repo/editor/block-transforms";
 import { BarButton } from "@repo/editor/toolbar-button";
@@ -259,7 +259,7 @@ export function SelectionToolbar() {
   const typeLabel = useMemo(() => {
     const at = selection ?? savedSel.current ?? undefined;
     const entry = effectiveBlockEntry(editor, at);
-    return entry ? turnIntoLabelFor(entry[0]) : "Text";
+    return entry ? turnIntoOptionFor(entry[0]).label : "Text";
   }, [selection, editor]);
 
   if (hidden && !frozen) return null;
@@ -311,7 +311,7 @@ export function SelectionToolbar() {
                   <DropdownMenuLabel>Turn into</DropdownMenuLabel>
                   {TURN_INTO.map((opt) => (
                     <DropdownMenuItem
-                      key={opt.label}
+                      key={opt.id}
                       onClick={() => {
                         turnIntoSelection(editor, opt, savedSel.current ?? undefined);
                         editor.tf.focus();

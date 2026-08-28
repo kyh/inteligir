@@ -45,8 +45,8 @@ vi.mock("@repo/db/events", async (importOriginal) => {
 // whole log. Counting at the module is the only vantage that sees a rebuild
 // made somewhere down the call path.
 // oxlint-disable-next-line anti-slop/no-module-mocking
-vi.mock("@repo/thread-view/build-thread-timeline", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@repo/thread-view/build-thread-timeline")>();
+vi.mock("@repo/api/local/build-thread-timeline", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@repo/api/local/build-thread-timeline")>();
   return {
     ...actual,
     buildThreadTimeline: (...args: Parameters<typeof actual.buildThreadTimeline>) => {

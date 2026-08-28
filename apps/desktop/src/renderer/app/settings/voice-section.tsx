@@ -12,12 +12,10 @@
 
 import { Switch } from "@repo/ui/components/switch";
 import { confirm } from "@repo/ui/components/confirm-dialog";
-import { useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { VoiceStatusResponse } from "@repo/api/local/voice/voice-schema";
-import { useState } from "react";
 import { orpc } from "../api";
 import { downloadPercent, useVoiceStatus } from "../voice-hooks";
-import { useWorkspace } from "../workspace-context";
 import { failed, Row, SectionHeading } from "./settings-chrome";
 
 function megabytes(bytes: number): string {
@@ -40,36 +38,46 @@ function stateLabel(status: Exclude<VoiceStatusResponse, { state: "unavailable" 
 }
 
 export function VoiceSection() {
-  const { api } = useWorkspace();
   const queryClient = useQueryClient();
   const statusQuery = useVoiceStatus();
-  const [pending, setPending] = useState(false);
   const status = statusQuery.data;
 
   const applyStatus = (next: VoiceStatusResponse): void => {
     queryClient.setQueryData(orpc.voice.status.queryKey(), next);
   };
 
+  const install = useMutation(
+    orpc.voice.install.mutationOptions({
+      onSuccess: applyStatus,
+      onError: (error) => {
+        failed(error, "Could not start the download.");
+      },
+    }),
+  );
+  const removeModel = useMutation(
+    orpc.voice.remove.mutationOptions({
+      onSuccess: applyStatus,
+      onError: (error) => {
+        failed(error, "Could not delete the model.");
+      },
+    }),
+  );
+  const pending = install.isPending || removeModel.isPending;
+
   const setEnabled = (enabled: boolean): void => {
+    if (enabled) {
+      install.mutate();
+      return;
+    }
     void (async () => {
-      if (!enabled) {
-        const confirmed = await confirm({
-          title: "Turn off voice input?",
-          body: "The downloaded speech model is deleted. Turning it back on downloads it again.",
-          confirmLabel: "Turn off",
-          destructive: true,
-        });
-        if (!confirmed) {
-          return;
-        }
-      }
-      setPending(true);
-      try {
-        applyStatus(enabled ? await api.voice.install() : await api.voice.remove());
-      } catch (error) {
-        failed(error, enabled ? "Could not start the download." : "Could not delete the model.");
-      } finally {
-        setPending(false);
+      const confirmed = await confirm({
+        title: "Turn off voice input?",
+        body: "The downloaded speech model is deleted. Turning it back on downloads it again.",
+        confirmLabel: "Turn off",
+        destructive: true,
+      });
+      if (confirmed) {
+        removeModel.mutate();
       }
     })();
   };

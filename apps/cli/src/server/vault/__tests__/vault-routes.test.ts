@@ -7,7 +7,11 @@ import { join } from "node:path";
 import { isDefinedError, safe, toORPCError } from "@orpc/client";
 import { vaultChangedMessageSchema } from "@repo/api/local/notifications";
 import { VAULT_ASSET_PATH, vaultAssetUrl } from "@repo/api/local/routes";
-import { VAULT_MAX_CONTENT_LENGTH, contentHashHex } from "@repo/api/local/vault/vault-schema";
+import {
+  VAULT_ASSET_MAX_BYTES,
+  VAULT_MAX_CONTENT_LENGTH,
+  contentHashHex,
+} from "@repo/api/local/vault/vault-schema";
 import { describe, expect, it } from "vitest";
 import { bootTestApp } from "../../__tests__/boot-app";
 import { makeTempDir } from "../../__tests__/temp-dir";
@@ -65,6 +69,17 @@ describe("the vault routes", () => {
       client.vault.write({ path: "big.md", content: "x".repeat(VAULT_MAX_CONTENT_LENGTH + 1) }),
     );
     expect(toORPCError(oversizedError).code).toBe("BAD_REQUEST");
+
+    // An asset the write gate accepted but the read route would refuse forever
+    // is the one failure with no recovery — the two caps are one number.
+    const [oversizedAsset] = await safe(
+      client.vault.assetWrite({
+        dir: "assets",
+        baseName: "big.png",
+        bytesBase64: "A".repeat(Math.ceil(((VAULT_ASSET_MAX_BYTES + 1) * 4) / 3)),
+      }),
+    );
+    expect(isDefinedError(oversizedAsset) && oversizedAsset.code).toBe("PAYLOAD_TOO_LARGE");
   });
 
   it("refuses a vault nested in the data dir at composition time", async () => {

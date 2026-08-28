@@ -40,14 +40,6 @@ import {
   PopoverTitle,
   PopoverTrigger,
 } from "@repo/ui/components/popover";
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from "@repo/ui/components/sheet";
 import { Tooltip } from "@repo/ui/components/tooltip";
 import { FileTextIcon, SettingsIcon } from "lucide-react";
 import { useState } from "react";
@@ -116,21 +108,6 @@ export function OverlaysSection() {
         >
           Ask with confirm()
         </Button>
-      </Demo>
-
-      <Demo
-        name="Sheet"
-        purpose="A panel that slides in from an edge — a dialog with room for a list."
-      >
-        <Sheet>
-          <SheetTrigger render={<Button variant="secondary">Open sheet</Button>} />
-          <SheetContent side="right">
-            <SheetHeader>
-              <SheetTitle>Page details</SheetTitle>
-              <SheetDescription>Everything the index knows about this note.</SheetDescription>
-            </SheetHeader>
-          </SheetContent>
-        </Sheet>
       </Demo>
 
       <Demo name="Popover" purpose="A small surface anchored to what opened it. Not modal.">

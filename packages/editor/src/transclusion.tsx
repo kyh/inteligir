@@ -6,8 +6,8 @@
 // chips. Content re-reads on every onVaultChanged so an edit to the target
 // (agent or user) refreshes the card.
 //
-// Loaded via React.lazy from wiki-link-kit — this module reaches into
-// vault-context, so an eager import from the kit file (which base-kit
+// Loaded via React.lazy from wiki-link-kit — this module reaches into the
+// editor host seam, so an eager import from the kit file (which base-kit
 // composes) would close an import cycle around the kit files.
 
 import {
@@ -374,8 +374,8 @@ function TransclusionBody({ content }: { content: string }) {
 export default function Transclusion({ body }: { body: string }) {
   const { resolveWikiTarget } = useVaultListing();
   const { openFile } = useVaultActions();
-  // The cycle chain roots at the note HOSTING this embed — the single
-  // mounted editor always serves vault-context's open note.
+  // The cycle chain roots at the note HOSTING this embed — this pane's own
+  // open note.
   const hostPath = useOpenNote((s) => s.editor.path);
   const scope = useContext(TransclusionScopeContext);
   const parsed = parseWikiBody(body);

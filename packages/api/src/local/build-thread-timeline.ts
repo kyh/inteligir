@@ -1,4 +1,6 @@
-// Folds stored thread events into the timeline rows the contract declares.
+// Folds stored thread events into the timeline rows the contract declares —
+// beside the grammar it produces and the delta algebra that diffs those rows,
+// so the three can be read as one concept.
 // The row grammar is bb's (github.com/get-bb/bb, MIT) and the row constructors
 // follow its idiom, but the fold is this repo's: bb projects events into
 // messages through a stateful multi-module pipeline and converts those to
@@ -21,11 +23,12 @@ import type {
   TimelineRowStatus,
   TimelineTurnRow,
   TimelineWorkRow,
-} from "@repo/api/local/thread-timeline";
+} from "./thread-timeline";
 
 /** A stored event with the server-assigned metadata rows are ordered and
- *  keyed by. Matches @repo/db/events' StoredThreadEvent structurally — this
- *  package stays db-free so the same projection runs in any client. */
+ *  keyed by. Matches @repo/db/events' StoredThreadEvent structurally rather
+ *  than importing it: this package is platform-neutral and db-free, so the
+ *  same fold runs on the server and in any client. */
 export interface ThreadTimelineEvent {
   sequence: number;
   createdAt: number;

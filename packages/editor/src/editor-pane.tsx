@@ -13,11 +13,11 @@ import { checkNoteName, noteNameErrorMessage } from "@repo/notes/knowledge/note-
 import { basenamePath } from "@repo/notes/knowledge/vault-path";
 
 /**
- * The editor body: the open note's page title + document (+ connections). One
- * mounted editor — opening another note replaces it (fresh undo history and
- * scroll, potion-style). The per-file controls (raw/rich, delete, status)
- * live in the shell header; this is just the scrolling document. Bottom
- * padding clears the pinned composer.
+ * The editor body: the open note's page title + document. One mounted editor
+ * per pane — opening another note replaces it (fresh undo history and scroll,
+ * potion-style). The per-file controls (raw/rich, delete, status) live in the
+ * shell header; this is just the scrolling document. Bottom padding clears the
+ * pinned composer.
  */
 export function EditorPane() {
   // Narrow selectors: the pane's mount decision depends on the doc's
@@ -163,10 +163,10 @@ function NotePane({ path, showRich }: { path: string; showRich: boolean }) {
 
   // potion-style column: the editable (PlateContent) carries the centered
   // 700px column padding itself (EDITOR_COLUMN_PX — see editor-chrome.tsx:
-  // the drag gutter must live inside its clip); the title, Raw textarea, and
-  // backlinks apply the same constant so all four align byte-exact. The pane
-  // owns only the vertical padding — pb-72 is the breathing room below the
-  // last block (spec §4.1).
+  // the drag gutter must live inside its clip); the title and the Raw textarea
+  // apply the same constant so all three align byte-exact. The pane owns only
+  // the vertical padding — pb-72 is the breathing room below the last block
+  // (spec §4.1).
   return (
     <div ref={paneRef} className="flex w-full flex-1 cursor-text flex-col pt-10 pb-72 print:pb-0">
       <h1
@@ -195,12 +195,6 @@ function NotePane({ path, showRich }: { path: string; showRich: boolean }) {
           path={path}
           value={content}
           onChange={(md) => editNote(path, md)}
-          // Teardown settle: route by the path THIS editor served —
-          // the pane unmounts on note switch, when the open note may
-          // already differ, so the bytes carry their own path.
-          // Pre-flush hook: the runtime drains the editor's serialize
-          // debounce before persisting, so save/rename/delete always see
-          // the latest keystroke. Path-routed like editNote.
           onRegisterSerializeFlush={(flush) => registerNoteSerializeFlush(path, flush)}
         />
       ) : (
@@ -215,8 +209,6 @@ function NotePane({ path, showRich }: { path: string; showRich: boolean }) {
           placeholder="Empty note"
         />
       )}
-      {/* Linked mentions live in the same centered column, below the doc. */}
-      <div className={cn(EDITOR_COLUMN_PX, "print:hidden")}></div>
     </div>
   );
 }

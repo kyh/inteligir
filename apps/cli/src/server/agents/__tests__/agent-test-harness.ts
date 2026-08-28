@@ -24,9 +24,9 @@ export async function sendMessage(
   threadId: string,
   text: string,
 ): Promise<string> {
-  const outcome = await client.threads.send({ threadId, text, mode: "steer-if-active" });
-  // A steer or a queue answers with someone else's turn id — or none at all —
-  // so the caller's "this send started that turn" claim is checked here.
+  const outcome = await client.threads.send({ threadId, text });
+  // A queued send answers with no turn id at all, so the caller's "this send
+  // started that turn" claim is checked here.
   if (outcome.kind !== "started") {
     throw new Error(`expected the send to start a turn, got ${outcome.kind}`);
   }

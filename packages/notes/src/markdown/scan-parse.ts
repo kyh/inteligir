@@ -5,15 +5,18 @@
 // so everything that points at one points at its POSITION in this count
 // (../knowledge/task-ordinal) — which means the count has to agree with the set
 // of checkboxes the editor DRAWS, or a projected ordinal names a different line
-// than the one the reader is looking at. The
-// editor renders through a different parser (@repo/editor over lezer-markdown),
-// and CommonMark's defaults are where the two diverge: indented code hides a
-// 4-space-indented `- [ ]` the editor still shows, and flow HTML lets one
-// `<div>x</div>` line swallow every task line under it. That agreement is
-// pinned from the other side, by @repo/editor's checkbox-toggle suite.
+// than the one the reader is looking at. The editor renders through the OTHER
+// plugin list over the same micromark (./md-plugins, via ./parse), and that one
+// disables both too (./remark-mdx-agnostic states its own reasons): indented
+// code hides a 4-space-indented `- [ ]` the editor still shows, and flow HTML
+// lets one `<div>x</div>` line swallow every task line under it. The two counts
+// are pinned against each other in ../__tests__/task-ordinal.test.ts.
 //
 // The parse is TOTAL: it never throws, so a doc nothing else can make sense of
-// still indexes.
+// still indexes. That is why this is NOT the editor's plugin list (md-plugins):
+// the mdx tokenizer throws, and a malformed tag must not cost a note its place
+// in the index. The price is that this grammar cannot see the ranges the editor
+// holds verbatim — ./verbatim-spans is what the scan asks about those.
 
 import type { Root } from "mdast";
 import type { Plugin, Processor } from "unified";

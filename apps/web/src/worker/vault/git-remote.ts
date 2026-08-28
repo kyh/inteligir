@@ -54,7 +54,9 @@ const PROTOCOL_ROUTES = new Set([
 /** Mirror of durable-git's negotiation-body ceiling. Enforced HERE on the
  *  declared length because the library treats an UNDECLARED (chunked) body
  *  as small and buffers it whole — and stock git always declares upload-pack
- *  negotiation bodies (they sit far under http.postBuffer). */
+ *  negotiation bodies (they sit far under http.postBuffer). The parse must be
+ *  the library's own `parseInt`: `Number(null)` is 0, so an absent header
+ *  would read as a declared, tiny body and walk straight through. */
 const MAX_UPLOAD_PACK_BYTES = 16 * 1024 * 1024;
 
 /** dgit refuses repo names outside this set; the userId is embedded in the
@@ -110,7 +112,7 @@ export async function handleVaultGitRemote(
   }
 
   if (sub === "/git-upload-pack") {
-    const declared = Number(request.headers.get("content-length"));
+    const declared = Number.parseInt(request.headers.get("content-length") ?? "", 10);
     if (!Number.isFinite(declared) || declared > MAX_UPLOAD_PACK_BYTES) {
       return new Response("upload-pack body must declare a length within the ceiling\n", {
         status: 413,

@@ -5,6 +5,7 @@
 import { describe, expect, it } from "vitest";
 import {
   ALLOWED_PERMISSIONS,
+  appWindowWebPreferences,
   classifyNavigation,
   classifyPermission,
   classifyWindowOpen,
@@ -229,6 +230,21 @@ describe("classifyPermission", () => {
     "usb",
   ])("denies %s even from the window's own origin", (permission) => {
     expect(classifyPermission(permission, ORIGIN, ORIGIN)).toBe(false);
+  });
+});
+
+describe("appWindowWebPreferences", () => {
+  it("isolates the app window, and takes the vault's partition rather than the default session", () => {
+    // Every flag, by value: these are Electron's defaults today, so a silent
+    // flip is exactly the change nothing else in this process would notice.
+    expect(appWindowWebPreferences("/x/preload.cjs", "persist:vault-1")).toEqual({
+      preload: "/x/preload.cjs",
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+      webSecurity: true,
+      partition: "persist:vault-1",
+    });
   });
 });
 

@@ -11,5 +11,5 @@ export function HeroOrb() {
   // Default to the dark-mode base before mount (matches the default theme),
   // then track the resolved theme so the orb stays legible on either bg.
   const dark = !mounted || resolved === "dark";
-  return <GeometricOrb status="starting" baseColor={dark ? "#eeeeee" : "#0a0a0a"} />;
+  return <GeometricOrb baseColor={dark ? "#eeeeee" : "#0a0a0a"} />;
 }

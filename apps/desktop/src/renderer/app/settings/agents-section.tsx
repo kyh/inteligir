@@ -49,7 +49,7 @@ function HarnessRow({ probe }: { probe: HarnessProbe }) {
 export function AgentsSection() {
   const statusQuery = useQuery({
     ...orpc.agents.status.queryOptions(),
-    // Login state changes outside this app; a dialog mount re-probes.
+    // Login state changes outside this app; opening the page re-probes.
     staleTime: 0,
   });
 

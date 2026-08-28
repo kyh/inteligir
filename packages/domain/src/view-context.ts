@@ -10,10 +10,9 @@
 // a turn still running after the app quit) and would be a lie the first time
 // anyone stopped looking.
 //
-// Not the thread's `originDocPath`/`originAnchor` either: that is the DURABLE
-// binding a delegation splices into the file, one anchor per thread, rebound on
-// rename. Two spellings of "which doc is this about" is the confusion
-// CONTEXT.md exists to prevent.
+// Not the thread's `originDocPath` either: that is the DURABLE binding of an
+// action to the note it was composed over, rebound on rename. Two spellings of
+// "which doc is this about" is the confusion CONTEXT.md exists to prevent.
 
 import { z } from "zod";
 

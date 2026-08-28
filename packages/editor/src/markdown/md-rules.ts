@@ -10,7 +10,7 @@
 // Slate `frontmatter` node, which serializes back under its own key.
 
 import type { AlignType } from "mdast";
-import { ElementApi, TextApi, type Descendant, type TElement } from "platejs";
+import { ElementApi, TextApi, type Descendant, type TElement, type TLinkElement } from "platejs";
 import {
   type DeserializeMdOptions,
   type MdDecoration,
@@ -100,17 +100,14 @@ if (!defaultParagraphSerialize) {
 
 const ALERT_RE = /^\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]/;
 
-// Verbatim bytes: the stringifier emits a raw `html` node's value untouched,
-// and the serialize engine emits whatever node a rule returns (Plate's own `a`
-// defaultRule returns `html` for bare autolinks) — MdRules just over-narrows
-// each rule's return type. The ONE sanctioned escape hatch bridging that
-// over-narrow third-party type; `T` is the rule signature's demanded return.
-// `T` living only in the return position IS the escape, not an oversight.
-// oxlint-disable-next-line typescript/no-unnecessary-type-parameters
-function verbatimHtml<T>(value: string): T {
-  // oxlint-disable-next-line typescript/consistent-type-assertions, typescript/no-unsafe-type-assertion -- the sanctioned escape, see doc above
-  return { type: "html", value } as unknown as T;
-}
+// Two rules below emit VERBATIM BYTES as a raw `html` node: the stringifier
+// prints such a node's value untouched, and the serialize engine emits
+// whatever node a rule returns (Plate's own `a` defaultRule returns `html` for
+// bare autolinks). `MdRules` over-narrows each keyed rule's return to the one
+// mdast node that key maps to, so those two are declared against the
+// intersection's OTHER half — its index signature, whose serialize is
+// deliberately wide — instead of casting past the narrow one.
+type WideMdRule = NonNullable<MdRules[string]>;
 
 // Plate's NodeIdPlugin is a v53 core DEFAULT (disabled only under
 // NODE_ENV=test): every block in a live editor carries an `id`. Plate's own
@@ -220,6 +217,73 @@ function pruneElementAdjacentEmptyTexts(children: Descendant[]): Descendant[] {
   return pruned.length > 0 ? pruned : children;
 }
 
+// Serialize-only override of Plate's `a` rule (deserialize dispatch falls back
+// to the default). Plate's default emits bare https literals as raw bytes but
+// lets mailto links reach mdast-util-to-markdown, whose formatLinkAsAutolink
+// turns them into `<a@b.cd>` — unparseable under MDX, so a rich save would
+// corrupt the file (worse: bare emails analyze as richSafe). Bare gfm emails
+// emit their literal bytes instead, which re-parse as the same autolink; every
+// remaining link stays `[text](url)` (MD_STRINGIFY's resourceLink: true — a
+// blanket resourceLink alone would ALSO force bare-https literals into resource
+// form, hence this rule).
+const linkRule: WideMdRule = {
+  serialize: (node: TLinkElement, options: SerializeMdOptions) => {
+    // The literal check mirrors the default rule's bare-link check: the
+    // CONVERTED children must be a single plain text node (marks inside the
+    // link text disqualify it) whose bytes are the address itself.
+    const children = convertNodesSerialize(node.children, options);
+    const url = typeof node.url === "string" ? node.url : "";
+    const only = children.length === 1 ? children[0] : undefined;
+    const text = only !== undefined && isMdText(only) ? only.value : null;
+    const literal =
+      text !== null &&
+      ((text === url && BARE_AUTOLINK_PROTOCOL_RE.test(url)) ||
+        (`mailto:${text}` === url && GFM_EMAIL_RE.test(text)));
+    if (literal) {
+      // Verbatim bytes — guaranteed by the regexes above to re-parse as the
+      // same autolink (as with blockquote's alert emission).
+      return { type: "html", value: text };
+    }
+    // Under MD_STRINGIFY's resourceLink: true the default skips its own
+    // bare-https html path (hence the interception above) and every link
+    // reaching the stringifier stays in resource form.
+    return defaultLinkSerialize(node, options);
+  },
+};
+
+const blockquoteRule: WideMdRule = {
+  deserialize: defaultBlockquoteDeserialize,
+  serialize: (node: TElement, options: SerializeMdOptions) => {
+    const editor = options.editor;
+    if (!editor || !ALERT_RE.test(nodeText(node))) {
+      return defaultBlockquoteSerialize(node, options);
+    }
+    const children: Descendant[] = node.children;
+    const inner = serializeMd(editor, {
+      value: children,
+      // Keep MD_STRINGIFY's handlers (doc-leading-hr guard — harmless here:
+      // every line gets a `> ` prefix, so `---` can't land on byte 0 either
+      // way) and add the soft-break override for alert continuation lines.
+      remarkStringifyOptions: {
+        ...MD_STRINGIFY,
+        handlers: { ...MD_STRINGIFY.handlers, break: () => "\n" },
+      },
+    })
+      .trimEnd()
+      // The nested pass escapes the marker's leading `[` — undo just that.
+      .replace(/^\\(?=\[!)/, "");
+    // Verbatim `html` is the point here — self-managed `> ` prefixes the
+    // stringifier must not touch.
+    return {
+      type: "html",
+      value: inner
+        .split("\n")
+        .map((line) => (line ? `> ${line}` : ">"))
+        .join("\n"),
+    };
+  },
+};
+
 export const MD_RULES: MdRules = {
   // Serialize-only override of the default p rule (deserialize dispatch falls
   // back to the default): see pruneElementAdjacentEmptyTexts.
@@ -231,39 +295,7 @@ export const MD_RULES: MdRules = {
       ),
   },
 
-  // Serialize-only override of Plate's `a` rule (deserialize dispatch falls
-  // back to the default). Plate's default emits bare https literals as raw
-  // bytes but lets mailto links reach mdast-util-to-markdown, whose
-  // formatLinkAsAutolink turns them into `<a@b.cd>` — unparseable under MDX,
-  // so a rich save would corrupt the file (worse: bare emails analyze as
-  // richSafe). Bare gfm emails emit their literal bytes instead, which
-  // re-parse as the same autolink; every remaining link stays `[text](url)`
-  // (MD_STRINGIFY's resourceLink: true — a blanket resourceLink alone would
-  // ALSO force bare-https literals into resource form, hence this rule).
-  a: {
-    serialize: (node, options) => {
-      // The literal check mirrors the default rule's bare-link check: the
-      // CONVERTED children must be a single plain text node (marks inside the
-      // link text disqualify it) whose bytes are the address itself.
-      const children = convertNodesSerialize(node.children, options);
-      const url = typeof node.url === "string" ? node.url : "";
-      const only = children.length === 1 ? children[0] : undefined;
-      const text = only !== undefined && isMdText(only) ? only.value : null;
-      const literal =
-        text !== null &&
-        ((text === url && BARE_AUTOLINK_PROTOCOL_RE.test(url)) ||
-          (`mailto:${text}` === url && GFM_EMAIL_RE.test(text)));
-      if (literal) {
-        // Verbatim bytes — guaranteed by the regexes above to re-parse as the
-        // same autolink (as with blockquote's alert emission).
-        return verbatimHtml<ReturnType<typeof defaultLinkSerialize>>(text);
-      }
-      // Under MD_STRINGIFY's resourceLink: true the default skips its own
-      // bare-https html path (hence the interception above) and every link
-      // reaching the stringifier stays in resource form.
-      return defaultLinkSerialize(node, options);
-    },
-  },
+  a: linkRule,
 
   // Plate maps `toggle` in its type table but ships NO rule — serializing a
   // toggle without this one silently DROPS the block (probe-proven).
@@ -592,37 +624,7 @@ export const MD_RULES: MdRules = {
   // serializeMd pass so marks/math/wiki-links inside survive byte-exact; the
   // nested pass emits soft-break `break` nodes as plain newlines (handler
   // override) because GitHub alert continuation lines carry no trailing `\`.
-  blockquote: {
-    deserialize: defaultBlockquoteDeserialize,
-    serialize: (node, options) => {
-      const editor = options.editor;
-      if (!editor || !ALERT_RE.test(nodeText(node))) {
-        return defaultBlockquoteSerialize(node, options);
-      }
-      const children: Descendant[] = node.children;
-      const inner = serializeMd(editor, {
-        value: children,
-        // Keep MD_STRINGIFY's handlers (doc-leading-hr guard — harmless here:
-        // every line gets a `> ` prefix, so `---` can't land on byte 0 either
-        // way) and add the soft-break override for alert continuation lines.
-        remarkStringifyOptions: {
-          ...MD_STRINGIFY,
-          handlers: { ...MD_STRINGIFY.handlers, break: () => "\n" },
-        },
-      })
-        .trimEnd()
-        // The nested pass escapes the marker's leading `[` — undo just that.
-        .replace(/^\\(?=\[!)/, "");
-      // Verbatim `html` is the point here — self-managed `> ` prefixes the
-      // stringifier must not touch.
-      return verbatimHtml<ReturnType<typeof defaultBlockquoteSerialize>>(
-        inner
-          .split("\n")
-          .map((line) => (line ? `> ${line}` : ">"))
-          .join("\n"),
-      );
-    },
-  },
+  blockquote: blockquoteRule,
 
   // Frontmatter: Plate maps mdast `yaml` in its type table but ships no rule —
   // parsed-then-dropped without this pair. The Slate node is a void element

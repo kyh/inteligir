@@ -21,7 +21,7 @@
 
 import { LinkGraphIndex } from "./link-graph-index";
 import type { BacklinkEntry, ForwardLinkEntry, LinkGraph, WikiTarget } from "./link-graph-index";
-import { titleFromPath } from "./link-extract";
+import { docStem } from "./doc-file";
 import { projectDoc } from "./projection";
 import { splitLines } from "./source-lines";
 import { relatedNotes, type RelatedNoteEntry, type RelatedNotesOpts } from "./related-notes";
@@ -100,7 +100,7 @@ export class KnowledgeIndex {
     const ranked = this.searchIndex.search(query, limit);
     return ranked.map(({ path, score }) => ({
       path,
-      title: this.linkGraph.titleOf(path) ?? titleFromPath(path),
+      title: this.linkGraph.titleOf(path) ?? docStem(path),
       snippet: this.searchSnippet(path, terms),
       score,
     }));

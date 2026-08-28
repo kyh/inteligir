@@ -23,7 +23,7 @@ import { parseMdast } from "@repo/notes/markdown/parse";
 import { escapePillPipesInTables } from "@repo/notes/markdown/table-pipes";
 import { parseWikiBodyRange } from "@repo/notes/markdown/remark-wiki-link";
 import { isCalloutLang, RICH_FENCE_LANGS } from "@repo/notes/markdown/fence-langs";
-import { titleFromPath } from "@repo/notes/knowledge/link-extract";
+import { docStem } from "@repo/notes/knowledge/doc-file";
 
 export type InlineSpan =
   | {
@@ -305,7 +305,7 @@ function projectParsed(source: string, root: Root): NoteBlock[] {
 }
 
 export function projectNote(path: string, content: string): NoteProjection {
-  const title = titleFromPath(path);
+  const title = docStem(path);
   const { body } = splitFrontmatter(content);
   const parsed = parseMdast(body);
   if (!parsed.ok) {

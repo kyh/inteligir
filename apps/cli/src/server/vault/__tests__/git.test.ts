@@ -180,15 +180,14 @@ describe("auto-commit", () => {
     await expectCleanRepo(root);
   });
 
-  it("commitNow is a no-op on a clean tree and takes the author seam", async () => {
+  it("commitNow is a no-op on a clean tree and commits as the engine", async () => {
     const { root, engine } = await makeEngine({ remoteUrl: null });
     expect(await engine.commitNow()).toBeNull();
 
-    await writeFile(join(root, "agent.md"), "written by an agent\n", "utf8");
-    const committed = await engine.commitNow({ name: "Agent Smith", email: "agent@inteligir" });
-    expect(committed).toEqual({ files: 1 });
+    await writeFile(join(root, "note.md"), "a user edit\n", "utf8");
+    expect(await engine.commitNow()).toEqual({ files: 1 });
     const { stdout } = await runGit(root, ["log", "-1", "--format=%an <%ae>|%cn"], { env });
-    expect(stdout.trim()).toBe("Agent Smith <agent@inteligir>|inteligir");
+    expect(stdout.trim()).toBe("inteligir <vault@inteligir.local>|inteligir");
   });
 
   it("interleaved turns attribute separately: each commits ITS write set only", async () => {
@@ -255,7 +254,8 @@ describe("auto-commit", () => {
     expect(await commitCount(root)).toBe(before);
 
     // The turn's own commit runs under the hold — that IS the release path.
-    const committed = await engine.commitNow(
+    const committed = await engine.commitPaths(
+      ["mid-turn.md"],
       { name: "inteligir-agent", email: "agent@inteligir.local" },
       "agent: vault update\n\nThread: thr_test",
     );
@@ -266,6 +266,8 @@ describe("auto-commit", () => {
     await new Promise((resolve) => setTimeout(resolve, 200));
     expect(await commitCount(root)).toBe(before + 1);
     expect(await lastMessage(root)).toBe("agent: vault update");
+    const identity = await runGit(root, ["log", "-1", "--format=%an <%ae>|%cn"], { env });
+    expect(identity.stdout.trim()).toBe("inteligir-agent <agent@inteligir.local>|inteligir");
     const { stdout } = await runGit(root, ["log", "-1", "--format=%(trailers:key=Thread)"], {
       env,
     });
@@ -513,6 +515,39 @@ describe("the cross-account fence", () => {
     // Pairing back to the marker's own account syncs again.
     account = "user-a";
     expect((await engine.syncNow()).state).toBe("clean");
+  });
+
+  it("drops the previous account's conflict, which outranks the mismatch", async () => {
+    // A conflict names files in the account being LEFT, and the UI offers
+    // "Sync now" for one — the wrong instruction for a condition whose only fix
+    // is unpairing.
+    const remote = await makeBareRemote();
+    const a = await makeEngine({ remoteUrl: remote });
+    const root = scratchDir("inteligir-git-fence-conflict-");
+    await ensureVaultRepo({ root, env });
+    let account = "user-a";
+    const engine = createGitEngine({
+      root,
+      remote: () => ({ url: remote, source: "paired", account }),
+      env,
+    });
+    cleanups.push(() => engine.dispose());
+
+    await a.engine.syncNow();
+    await engine.syncNow();
+    await a.engine.syncNow();
+
+    await writeFile(join(a.root, "shared.md"), "from A\n", "utf8");
+    await a.engine.commitNow();
+    await a.engine.syncNow();
+
+    await writeFile(join(root, "shared.md"), "from B\n", "utf8");
+    await engine.commitNow();
+    expect((await engine.syncNow()).state).toBe("conflict");
+
+    account = "user-b";
+    expect((await engine.syncNow()).state).toBe("account-mismatch");
+    expect((await engine.status()).state).toBe("account-mismatch");
   });
 });
 

@@ -206,28 +206,6 @@ describe("listThreads query plan", () => {
       expect(plan).not.toContain("TEMP B-TREE");
     }
   });
-
-  it("accepts a doc-attached thread with no anchor (a marker-less action)", () => {
-    const db = openTempDb();
-    db.$client
-      .prepare(
-        `INSERT INTO threads (id, title, status, active_turn_id, origin_doc_path, origin_anchor, archived_at, created_at, updated_at)
-         VALUES ('thr_doc', NULL, 'idle', NULL, 'notes/a.md', NULL, NULL, 0, 0)`,
-      )
-      .run();
-  });
-
-  it("refuses an anchor without its doc at the database", () => {
-    const db = openTempDb();
-    expect(() =>
-      db.$client
-        .prepare(
-          `INSERT INTO threads (id, title, status, active_turn_id, origin_doc_path, origin_anchor, archived_at, created_at, updated_at)
-           VALUES ('thr_bad', NULL, 'idle', NULL, NULL, 'anc_aaaaaaaaaaaa', NULL, 0, 0)`,
-        )
-        .run(),
-    ).toThrow(/threads_origin_pair_check/u);
-  });
 });
 
 describe("doc-attached threads", () => {
@@ -276,6 +254,16 @@ describe("rebindThreadOrigins", () => {
     expect(rebindThreadOrigins(db, noopNotifier, { from: "Notes", to: "Archive" })).toBe(1);
     expect(getThread(db, nested.id)?.originDocPath).toBe("Archive/deep/a.md");
     expect(getThread(db, sibling.id)?.originDocPath).toBe("Notes2/b.md");
+  });
+
+  it("follows a directory whose name carries a LIKE wildcard", () => {
+    const db = openTempDb();
+    const nested = createThread(db, noopNotifier, { originDocPath: "50%/a.md" });
+    const sibling = createThread(db, noopNotifier, { originDocPath: "50x/b.md" });
+
+    expect(rebindThreadOrigins(db, noopNotifier, { from: "50%", to: "Archive" })).toBe(1);
+    expect(getThread(db, nested.id)?.originDocPath).toBe("Archive/a.md");
+    expect(getThread(db, sibling.id)?.originDocPath).toBe("50x/b.md");
   });
 
   it("is a no-op when nothing is bound to the moved path", () => {

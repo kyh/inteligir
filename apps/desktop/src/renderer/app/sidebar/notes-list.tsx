@@ -5,6 +5,7 @@
 // away for anyone who thinks in folders; this list answers "what was I
 // working on", not "where does it live".
 
+import { docStem, isDocPath } from "@repo/notes/knowledge/doc-file";
 import { isTrashedPath } from "@repo/notes/knowledge/vault-path";
 import type { VaultTreeResponse } from "@repo/api/local/vault/vault-schema";
 import {
@@ -14,24 +15,10 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@repo/ui/components/sidebar";
+import { relativeTimeLabel } from "../relative-time";
 import { useWikiTargets } from "../vault-hooks";
 
 type FileEntry = Extract<VaultTreeResponse["entries"][number], { kind: "file" }>;
-
-/** "Just now" → minutes → hours → days → a date. One vocabulary, sidebar-wide. */
-export function relativeTimeLabel(modifiedMs: number, now: number): string {
-  const elapsed = now - modifiedMs;
-  if (elapsed < 60_000) return "Just now";
-  if (elapsed < 3_600_000) return `${String(Math.floor(elapsed / 60_000))}m ago`;
-  if (elapsed < 86_400_000) return `${String(Math.floor(elapsed / 3_600_000))}h ago`;
-  if (elapsed < 7 * 86_400_000) return `${String(Math.floor(elapsed / 86_400_000))}d ago`;
-  return new Date(modifiedMs).toLocaleDateString();
-}
-
-function noteTitle(path: string): string {
-  const base = path.split("/").pop() ?? path;
-  return base.replace(/\.md$/u, "");
-}
 
 /** Root notes group under "", folder notes under their FIRST path segment —
  *  the grain a sidebar can show without re-growing the file tree. */
@@ -85,7 +72,7 @@ export function NotesList({ entries, openPath, onOpenFile }: NotesListProps) {
     // living vault; Trash/ shows only in the file tree and the trash dialog.
     .filter(
       (entry): entry is FileEntry =>
-        entry.kind === "file" && entry.path.endsWith(".md") && !isTrashedPath(entry.path),
+        entry.kind === "file" && isDocPath(entry.path) && !isTrashedPath(entry.path),
     )
     .toSorted((a, b) => (b.modifiedMs ?? 0) - (a.modifiedMs ?? 0));
 
@@ -105,7 +92,7 @@ export function NotesList({ entries, openPath, onOpenFile }: NotesListProps) {
           onOpenFile(note.path);
         }}
       >
-        {noteTitle(note.path)}
+        {docStem(note.path)}
         {note.modifiedMs === undefined ? null : (
           <span className="ml-auto shrink-0 text-[11px] text-muted-foreground">
             {relativeTimeLabel(note.modifiedMs, now)}

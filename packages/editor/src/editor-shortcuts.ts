@@ -8,11 +8,11 @@ import { isHotkey, KEYS } from "platejs";
 import { createPlatePlugin, type PlateEditor } from "platejs/react";
 
 import {
-  TURN_INTO,
   effectiveBlockEntry,
-  turnIntoLabelFor,
+  turnIntoOption,
+  turnIntoOptionFor,
   turnIntoSelection,
-  type TurnIntoOption,
+  type TurnIntoId,
 } from "@repo/editor/block-transforms";
 import { focusNoteTitle } from "@repo/editor/note-title-focus";
 
@@ -30,21 +30,15 @@ export type ShortcutKeyEvent = {
   preventDefault: () => void;
 };
 
-function turnIntoOption(label: string): TurnIntoOption {
-  const found = TURN_INTO.find((opt) => opt.label === label);
-  if (found === undefined) throw new Error(`TURN_INTO lost its "${label}" row`);
-  return found;
-}
-
 function inCodeBlock(editor: PlateEditor): boolean {
   return editor.api.some({ match: { type: [editor.getType(KEYS.codeBlock)] } });
 }
 
 /** Toggle the block against a list shape: already that shape → back to Text. */
-function toggleList(editor: PlateEditor, label: string): void {
+function toggleList(editor: PlateEditor, id: TurnIntoId): void {
   const entry = effectiveBlockEntry(editor);
-  const active = entry !== null && turnIntoLabelFor(entry[0]) === label;
-  turnIntoSelection(editor, turnIntoOption(active ? "Text" : label));
+  const active = entry !== null && turnIntoOptionFor(entry[0]).id === id;
+  turnIntoSelection(editor, turnIntoOption(active ? "text" : id));
 }
 
 /** The batch's one routing, exported so the test can call it directly (the
@@ -62,17 +56,17 @@ export function handleEditorShortcut(editor: PlateEditor, event: ShortcutKeyEven
     editor.tf.toggleMark(KEYS.code);
     return;
   }
-  const label = isHotkey("mod+shift+c", event)
-    ? "To-do list"
+  const id: TurnIntoId | null = isHotkey("mod+shift+c", event)
+    ? "todo-list"
     : isHotkey("mod+shift+l", event)
-      ? "Numbered list"
+      ? "numbered-list"
       : isHotkey("mod+l", event)
-        ? "Bulleted list"
+        ? "bulleted-list"
         : null;
-  if (label === null) return;
+  if (id === null) return;
   if (inCodeBlock(editor)) return;
   event.preventDefault();
-  toggleList(editor, label);
+  toggleList(editor, id);
 }
 
 export const EditorShortcutsKit = [

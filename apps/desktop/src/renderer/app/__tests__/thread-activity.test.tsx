@@ -6,7 +6,7 @@ import { threadStatusValues } from "@repo/domain/thread-status";
 import type { Thread } from "@repo/api/local/threads/threads-schema";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { CommandPalette } from "../../palette/command-palette";
+import { CommandPalette } from "../palette/command-palette";
 import { THREAD_ACTIVITY_LABELS, threadActivity } from "../chat-model";
 
 afterEach(cleanup);
@@ -17,7 +17,6 @@ const thread = (over: Partial<Thread> = {}): Thread => ({
   status: "idle",
   activeTurnId: null,
   originDocPath: null,
-  originAnchor: null,
   providerId: null,
   archivedAt: null,
   createdAt: 0,
@@ -71,7 +70,7 @@ describe("the palette renders that answer and no other", () => {
   });
 });
 
-const REPO_ROOT = resolve(import.meta.dirname, "../../../../../../..");
+const REPO_ROOT = resolve(import.meta.dirname, "../../../../../..");
 const sourceOf = (relative: string): string => readFileSync(join(REPO_ROOT, relative), "utf8");
 
 describe("only one module reads a thread's lifecycle", () => {
@@ -90,6 +89,6 @@ describe("only one module reads a thread's lifecycle", () => {
   });
 
   it("names chat-model.ts as the one that does", () => {
-    expect(sourceOf("apps/desktop/src/renderer/app/chat/chat-model.ts")).toMatch(LIFECYCLE);
+    expect(sourceOf("apps/desktop/src/renderer/app/chat-model.ts")).toMatch(LIFECYCLE);
   });
 });

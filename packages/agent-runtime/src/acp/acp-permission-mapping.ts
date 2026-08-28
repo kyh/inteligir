@@ -56,7 +56,6 @@ function subjectFor(request: RequestPermissionRequest): PendingInteractionApprov
       kind: "file_change",
       itemId,
       writeScope: toolCall.locations?.[0]?.path ?? null,
-      sessionGrant: null,
     };
   }
   return {
@@ -64,8 +63,6 @@ function subjectFor(request: RequestPermissionRequest): PendingInteractionApprov
     itemId,
     command: toolCall.title ?? "(unnamed tool call)",
     cwd: null,
-    actions: [],
-    sessionGrant: null,
   };
 }
 

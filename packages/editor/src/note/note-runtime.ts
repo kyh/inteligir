@@ -1,9 +1,9 @@
-// NoteRuntime — the open note's live machinery, kept out of vault-context so
-// the debounce/vanish lifecycle can be characterized in isolation. The provider
-// owns WHEN to create/dispose one (open/rename/delete/root-switch ordering —
-// those races live in vault-context); this owns HOW one behaves: the editor
-// controller, the autosave debounce timer, and the vanish watcher that fires
-// when the file disappears out from under the open note.
+// NoteRuntime — the open note's live machinery, kept out of the vault session
+// so the debounce/vanish lifecycle can be characterized in isolation. The
+// session owns WHEN to create/dispose one (open/rename/delete/root-switch
+// ordering — those races live in vault-session.ts); this owns HOW one behaves:
+// the editor controller, the autosave debounce timer, and the vanish watcher
+// that fires when the file disappears out from under the open note.
 
 import type { DeleteVaultEntryResult } from "@repo/editor/host-io";
 

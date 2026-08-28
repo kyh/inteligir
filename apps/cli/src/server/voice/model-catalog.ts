@@ -61,14 +61,3 @@ export const VOICE_MODEL: VoiceModelSpec = {
     tokens: "tokens.txt",
   },
 };
-
-/** What the scripted runtime reports, so a harness sees the same shape a real
- *  install does without a download. */
-export const SCRIPTED_VOICE_MODEL: VoiceModelSpec = {
-  id: "scripted",
-  label: "Scripted (test runtime)",
-  sizeBytes: 1,
-  sha256: "",
-  url: "",
-  files: { encoder: "", decoder: "", joiner: "", tokens: "" },
-};

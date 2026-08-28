@@ -5,7 +5,9 @@
 // which is why the resolver lives ONE level under the package root, where the
 // same `../` reaches it either way. A module a level deeper cannot do this.
 
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
+import { createRequire } from "node:module";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
 
@@ -46,11 +48,29 @@ export function resolveUiDir(): string | null {
 }
 
 /**
- * The committed SQL migrations, or undefined to let `@repo/db` resolve its own
- * source-adjacent default. The bundle carries a copy beside itself because the
- * package it would otherwise resolve through does not ship.
+ * The committed SQL migrations, or undefined when neither layout answers.
+ *
+ * WORKSPACE FIRST, staged copy second — `resolveSkillsDir`'s order, and
+ * `bin/inteligir`'s rule that a stale `dist/` must never shadow fresh edits.
+ * `dist/` is the normal state of a worked-in checkout (`verify` ends in
+ * `build`), so a staged-first answer boots `pnpm cli serve` against a frozen
+ * snapshot: the source's newest migration never applies, and an older build's
+ * snapshot migrates the dev database PAST what the running code understands —
+ * which `getSchemaVersion`'s ceiling cannot refuse, because the ceiling is read
+ * from the same stale folder.
+ *
+ * `@repo/db/migrate` is what is resolved, not the folder: the package exports
+ * no `./drizzle` subpath, and the folder sits beside that module's own source.
  */
 export function resolveMigrationsFolder(): string | undefined {
+  try {
+    const require = createRequire(import.meta.url);
+    const source = join(dirname(require.resolve("@repo/db/migrate")), "..", "drizzle");
+    if (statSync(source).isDirectory()) return source;
+  } catch {
+    // A published install resolves no workspace package and reads the staged
+    // copy instead.
+  }
   const bundled = packageFile("dist/drizzle");
   return existsSync(bundled) ? bundled : undefined;
 }

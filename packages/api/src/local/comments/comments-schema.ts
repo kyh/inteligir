@@ -27,11 +27,16 @@ export const commentIdSchema = z.string().regex(/^[A-Za-z0-9_-]+$/);
 export const commentEntryWireSchema = z
   .object({
     text: z.string(),
+    /** Unix SECONDS, as the sidecar stamps them — not epoch ms. A renderer
+     *  that reads this as milliseconds is off by three orders of magnitude,
+     *  and a bare number says nothing about which. */
     createdAt: z.number(),
+    /** Unix seconds; bumped on every change to the entry. */
     updatedAt: z.number(),
     source: commentSourceSchema.optional(),
     parentId: z.string().optional(),
     imageUrls: z.array(z.string()).optional(),
+    /** Unix seconds. */
     resolvedAt: z.number().optional(),
     resolvedBy: commentSourceSchema.optional(),
   })

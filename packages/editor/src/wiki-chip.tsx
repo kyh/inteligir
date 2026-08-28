@@ -3,8 +3,8 @@
 // clicking offers to create the note. Hovering shows the target's head as a
 // plain-text preview (pointer-inert, so it never intercepts the hover).
 //
-// Loaded via React.lazy from wiki-link-kit: this module reaches into
-// vault-context (and through it the markdown pipeline and base-kit), so an
+// Loaded via React.lazy from wiki-link-kit: this module reaches into the
+// editor host seam (and through it the markdown pipeline and base-kit), so an
 // eager import from the kit file — which base-kit composes — would close an
 // import cycle around the kit files.
 

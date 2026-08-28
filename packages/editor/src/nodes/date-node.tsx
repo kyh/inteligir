@@ -16,7 +16,7 @@ import {
   type PlateElementProps,
 } from "platejs/react";
 
-import { formatIsoDate } from "@repo/notes/daily-path";
+import { formatIsoDate } from "@repo/notes/iso-date";
 
 import { cn } from "@repo/ui/lib/utils";
 

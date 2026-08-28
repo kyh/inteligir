@@ -47,12 +47,11 @@ export function serverOrigin(port: number): string {
   return `http://127.0.0.1:${port}`;
 }
 
-/** One resolution, carried whole: the three facts a spawned child is handed so
+/** One resolution, carried whole: the two facts a spawned child is handed so
  *  it cannot resolve them again and disagree. The ORIGIN is not among them —
  *  it is what the server that answered says it is (`verifyServer`), because an
  *  adopted one may sit on a port this resolution never named. */
 export interface ServerTarget {
-  port: number;
   dataDir: string;
   vaultDir: string;
 }
@@ -91,7 +90,6 @@ export function resolveServerTarget(args: ResolveServerTargetArgs): ServerTarget
     return {
       kind: "resolved",
       target: {
-        port: config.port,
         dataDir: config.dataDir,
         vaultDir: config.vaultDir,
       },

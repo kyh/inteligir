@@ -20,14 +20,16 @@ import { ChevronDownIcon } from "lucide-react";
 
 import { cn } from "@repo/ui/lib/utils";
 
+import { openDocPath } from "@repo/editor/note/open-doc";
+import { useOpenNote } from "@repo/editor/note/open-note-context";
+
 const STORAGE_KEY = "inteligir.collapsed-headings";
 
 const HEADING_RANK: Record<string, number> = { h1: 1, h2: 2, h3: 3 };
 
-// ---- Store (module singleton; the editor mounts one note at a time) --------
+// ---- Store (one fold set per note path — two panes are two notes) ----------
 
-let scope = "";
-let collapsed = new Set<string>();
+const folds = new Map<string, Set<string>>();
 let version = 0;
 const listeners = new Set<() => void>();
 
@@ -54,29 +56,39 @@ function readStorage(): Record<string, string[]> {
   }
 }
 
-function writeStorage(): void {
+// Re-read before every write: another pane's note is another entry in the same
+// record, and a whole-record write built from this process's map alone would
+// drop the notes it never opened.
+function writeStorage(path: string, keys: ReadonlySet<string>): void {
   try {
     const all = readStorage();
-    if (collapsed.size === 0) delete all[scope];
-    else all[scope] = [...collapsed];
+    if (keys.size === 0) delete all[path];
+    else all[path] = [...keys];
     localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
   } catch {
     // Storage full or unavailable — collapse state degrades to session-only.
   }
 }
 
-/** Point the store at a note. Called by the editor host on open. */
-export function setHeadingCollapseScope(path: string): void {
-  if (path === scope) return;
-  scope = path;
-  collapsed = new Set(readStorage()[path] ?? []);
-  emit();
+function foldsFor(path: string): Set<string> {
+  const known = folds.get(path);
+  if (known !== undefined) return known;
+  const restored = new Set(readStorage()[path] ?? []);
+  folds.set(path, restored);
+  return restored;
 }
 
-function toggleCollapsed(key: string): void {
-  if (collapsed.has(key)) collapsed.delete(key);
-  else collapsed.add(key);
-  writeStorage();
+/** The folded heading keys of ONE note, restored from storage on first ask. */
+export function headingCollapseKeys(path: string): ReadonlySet<string> {
+  return foldsFor(path);
+}
+
+/** Fold or unfold one heading of ONE note. */
+export function toggleHeadingCollapse(path: string, key: string): void {
+  const keys = foldsFor(path);
+  if (keys.has(key)) keys.delete(key);
+  else keys.add(key);
+  writeStorage(path, keys);
   emit();
 }
 
@@ -90,20 +102,33 @@ function subscribe(listener: () => void): () => void {
 // ---- Derivation ------------------------------------------------------------
 
 type Derived = {
+  /** The note this walk was derived against — null when the pane holds none,
+   * which is exactly when `keys` is empty and nothing on screen folds. */
+  path: string | null;
   /** Top-level indices hidden under some collapsed heading. */
   hidden: Set<number>;
   /** index → collapse key, for blocks that are collapsible headings. */
   keys: Map<number, string>;
+  /** That note's folded keys, so the walk and every chevron read one set. */
+  folded: ReadonlySet<string>;
+};
+
+const NOTHING_FOLDED: Derived = {
+  path: null,
+  hidden: new Set(),
+  keys: new Map(),
+  folded: new Set(),
 };
 
 /** `version` is unused by the walk — it exists so the memo key carries the
- * store's clock (the collapsed set is module state the linter cannot see). */
-function deriveAt(children: readonly TElement[], version: number): Derived {
+ * store's clock (the fold sets are module state the linter cannot see). */
+function deriveAt(children: readonly TElement[], path: string, version: number): Derived {
   void version;
-  return derive(children);
+  return derive(children, path);
 }
 
-function derive(children: readonly TElement[]): Derived {
+function derive(children: readonly TElement[], path: string): Derived {
+  const folded = headingCollapseKeys(path);
   const hidden = new Set<number>();
   const keys = new Map<number, string>();
   const ordinals = new Map<string, number>();
@@ -123,20 +148,23 @@ function derive(children: readonly TElement[]): Derived {
     ordinals.set(base, ordinal + 1);
     const key = `${base}:${String(ordinal)}`;
     keys.set(index, key);
-    if (collapsed.has(key)) stack.push(rank);
+    if (folded.has(key)) stack.push(rank);
   }
-  return { hidden, keys };
+  return { path, hidden, keys, folded };
 }
 
-const DerivedContext = createContext<Derived>({ hidden: new Set(), keys: new Map() });
+const DerivedContext = createContext<Derived>(NOTHING_FOLDED);
 
 function CollapseProvider({ children }: { children: React.ReactNode }) {
   const editor = useEditorRef();
+  // This PANE's note, subscribed once here rather than per block: the fold set
+  // and every chevron under it must name the same file.
+  const path = useOpenNote((s) => openDocPath(s.openDoc));
   const storeVersion = useSyncExternalStore(subscribe, () => version);
   // children identity tracks edits; the store clock tracks collapse toggles.
   const derived = useMemo(
-    () => deriveAt(editor.children, storeVersion),
-    [editor.children, storeVersion],
+    () => (path === null ? NOTHING_FOLDED : deriveAt(editor.children, path, storeVersion)),
+    [editor.children, path, storeVersion],
   );
   return <DerivedContext.Provider value={derived}>{children}</DerivedContext.Provider>;
 }
@@ -148,11 +176,13 @@ function CollapsibleBlock(props: PlateElementProps) {
   const index = props.path?.at(0) ?? -1;
   const key = derived.keys.get(index);
   const isHidden = derived.hidden.has(index);
-  const isCollapsed = key !== undefined && collapsed.has(key);
+  const path = derived.path;
 
-  if (key === undefined) {
+  // A key exists only when a note does, so the path check is narrowing alone.
+  if (key === undefined || path === null) {
     return <div className={cn(isHidden && "hidden")}>{props.children}</div>;
   }
+  const isCollapsed = derived.folded.has(key);
   return (
     <div className={cn("group/heading relative", isHidden && "hidden")}>
       <button
@@ -164,7 +194,7 @@ function CollapsibleBlock(props: PlateElementProps) {
           event.preventDefault();
         }}
         onClick={() => {
-          toggleCollapsed(key);
+          toggleHeadingCollapse(path, key);
         }}
         className={cn(
           "absolute top-1/2 -left-6 -translate-y-1/2 rounded-sm p-0.5 text-muted-foreground transition-transform select-none hover:bg-accent [&_svg]:size-3.5",

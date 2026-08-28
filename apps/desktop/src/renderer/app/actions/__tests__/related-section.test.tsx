@@ -11,7 +11,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   RelatedRows,
   linkedMentionsSummary,
-  relatedRowLabel,
   type RelatedRow,
   groupBacklinks,
   plainSnippet,
@@ -19,12 +18,7 @@ import {
 
 afterEach(cleanup);
 
-describe("row naming and the mentions count", () => {
-  it("shows the note's own name, not its path or extension", () => {
-    expect(relatedRowLabel("projects/Q3/Roadmap.md")).toBe("Roadmap");
-    expect(relatedRowLabel("README")).toBe("README");
-  });
-
+describe("the mentions count", () => {
   it("counts what the VAULT holds, and says so when the list was cut", () => {
     expect(linkedMentionsSummary(1, 1)).toBe("1 linked mention");
     expect(linkedMentionsSummary(2, 2)).toBe("2 linked mentions");

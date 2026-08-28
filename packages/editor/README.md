@@ -11,16 +11,19 @@ bytes**. Splitting it out makes that invariant a package boundary: the byte
 contract, its fixture matrix and the kit-parity guards live together, and the
 workspace above it consumes an editor rather than containing one.
 
-Deps: `@repo/bridge` (the host contract), `@repo/notes` (the parse pipeline and
-the knowledge types), `@repo/ui` (the components). No node, no electron.
+The product's privacy posture lives in `docs/privacy.md`.
+
+Deps: `@repo/notes` (the parse pipeline and the knowledge types), `@repo/ui`
+(the components). No node, no electron. The host contract is this package's own
+`host.tsx` / `host-io.ts`; the app implements it.
 
 ## Layout
 
 ```
 src/
   markdown-editor.tsx, editor-pane.tsx, editor-chrome.tsx
-                       # the editor surface, its chrome, and the pane the
-                       # workspace mounts
+                       # the editor surface, its chrome, and the pane the app
+                       # mounts once per split
   markdown/
     md-rules.ts        # the Slate↔mdast rules — one per node type
     markdown-doc.ts    # the round trip itself: parse → doc → serialize, run to
@@ -31,21 +34,25 @@ src/
     markdown-kit.ts    # the markdown plugin wiring
   nodes/               # every node type as a Base (headless) + React pair
   note/
-    open-note-store.ts # the high-cadence open-note slice (zustand)
+    open-note-store.ts, open-note-context.tsx
+                       # the per-pane open-note slice (zustand) and React's door
+                       # to one pane's store
+    vault-session.ts   # the open note's ORDERING, drivable without React
     note-runtime.ts    # controller + autosave debounce + vanish watcher
-    open-doc.ts, open-note-flush.ts  # opening, flushing, the privacy read
-  note-privacy.ts      # the OTHER privacy read — off the live Plate document,
-                       # gating ⌘J and ghost text (see docs/privacy.md)
-  ai/                  # the ⌘J menu, intent, suggestions, ghost text,
-                       # and the transient state that must never reach disk
+    open-doc.ts, markdown-gate.ts, open-note-flush.ts
+                       # the open-document union, the raw/rich gate, the flush
+                       # that visits every registered pane
+  comments/            # anchored-comment markers, ranges, gutter, store
+  formulas/            # `{{…}}` pill entry, editing and recompute
   properties/          # the typed frontmatter panel
-  stores/              # AI settings, AI provider snapshot, delegation badges
-  delegation/          # the inline delegation badge on a checkbox
-  lib/                 # debounce, the dark-class hook
-  host.tsx             # the injected EditorHost: vault actions + listing
+  lib/                 # debounce, the dark-class hook, the wire helper
+  host.tsx, host-io.ts # the injected EditorHost (vault actions + listing) and
+                       # its non-React twin for modules Plate renders outside
+                       # a provider
   slash-menu.tsx, selection-toolbar.tsx, block-menu.tsx, block-*.tsx,
-  toc.tsx, transclusion*.ts(x), todo-*.ts(x), embed-url-dialog.tsx,
-  emoji-input.tsx, inline-combobox.tsx, cursor-overlay.tsx, insert-void.ts
+  toc.tsx, transclusion*.ts(x), heading-collapse.tsx, find-bar.tsx,
+  embed-url-dialog.tsx, emoji-input.tsx, inline-combobox.tsx,
+  cursor-overlay.tsx, insert-void.ts
                        # the in-document affordances — every surface a node can
                        # be inserted from, and the transforms behind them
   wiki-*.ts(x)         # the `[[` picker, chips, insertion, key handling
@@ -72,24 +79,21 @@ src/
   (`@repo/notes/markdown/remark-opaque`): shown as inert literal text and
   written back byte-for-byte. Only a real parse failure (a mismatched tag, an
   unbalanced brace) opens Raw, byte-exact, with the badge.
-- **AI state is transient.** Generation marks and accept/reject suggestions are
-  editor-only; `ai/transient*.ts` settles them before any flush, so no AI
-  artifact can reach a file.
-- **The privacy read is the live buffer**, not the last save, so a
-  `private: true` typed a second ago already counts. Two reads over one kernel
-  (`@repo/notes/markdown/frontmatter`'s `privacyOfParsed`):
-  `note/open-note-flush.ts::openNoteIsPrivate` for the chat context hint and
-  read-aloud, `note-privacy.ts::isEditorNotePrivate` off the live Plate document
-  for ⌘J and ghost text. Harden both or the guarantee is half true. Fail-closed
-  in each: unreadable, untypeable or unregistered reads as private.
+- **View state is per pane, keyed by note path.** Two panes are two notes, so
+  the open-note store is an instance (`note/open-note-context.tsx`) and every
+  module holding view state — heading folds included — keys by the pane's own
+  path rather than a shared scope.
 
 ## Seams
 
 - `host.tsx` — the injected `EditorHost`: vault actions, the listing, and the
-  wiki resolver. The editor never calls the Bridge for those; the workspace
-  supplies them (`workspace/vault-context.tsx`).
-- `stores/*` — read through the Bridge directly, because they are host state
-  the editor owns the UI for (AI provider snapshot, delegation badges).
+  wiki resolver. The editor never reaches the server for those; the app
+  supplies them (`apps/desktop/src/renderer/app/note/vault-provider.tsx`).
+- `host-io.ts` — the same boundary as a MODULE SINGLETON, because kit factories
+  and paste handlers run outside React: vault reads, asset bytes in and out,
+  the knowledge queries, and the change events that invalidate them.
+- `note/open-note-context.tsx` — ONE pane's open-note store. Every consumer
+  below a pane reads its own note through `useOpenNote(sel)`.
 
 ## Testing
 
@@ -98,7 +102,7 @@ pnpm --filter @repo/editor test
 ```
 
 Two vitest projects: `editor` (node, `*.test.ts`) for the pipeline, the
-fixtures, the property/adversarial harnesses and the stores; `editor-dom`
-(jsdom, `*.test.tsx`) for the components. Component tests drive the DOM with
-`fireEvent` — `@testing-library/user-event` is deliberately not a dependency
-(root `CLAUDE.md` § Decisions).
+fixtures, the property/adversarial harnesses and the open-note store;
+`editor-dom` (jsdom, `*.test.tsx`) for the components. Component tests drive
+the DOM with `fireEvent` — `@testing-library/user-event` is deliberately not a
+dependency.

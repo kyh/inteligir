@@ -8,7 +8,8 @@ import { noopNotifier } from "@repo/domain/notifier";
 import { describe, expect, it } from "vitest";
 import { makeTempDir } from "../../__tests__/temp-dir";
 import { createVaultService } from "../../vault/vault-service";
-import { createCommentsService, sidecarPathFor } from "../comments-service";
+import { commentsSidecarPath } from "@repo/notes/comments/sidecar-schema";
+import { createCommentsService } from "../comments-service";
 import { identityLock } from "../../__tests__/identity-lock";
 
 const AT = 1_707_900_000;
@@ -59,7 +60,7 @@ describe("comments service", () => {
     const removed = await comments.remove({ path: "plan.md", id: "c1" });
     expect(removed.removedIds.toSorted()).toEqual(["c1", "r1"]);
     expect(removed.total).toBe(0);
-    const raw = readFileSync(join(root, sidecarPathFor("plan.md")), "utf8");
+    const raw = readFileSync(join(root, commentsSidecarPath("plan.md")), "utf8");
     expect(raw).toBe("{}\n");
   });
 
@@ -67,7 +68,7 @@ describe("comments service", () => {
     const { root, comments } = boot();
     writeFileSync(join(root, "plan.md"), "note\n");
     writeFileSync(
-      join(root, sidecarPathFor("plan.md")),
+      join(root, commentsSidecarPath("plan.md")),
       `${JSON.stringify(
         { m1: { text: "inteligir wrote this", createdAt: AT, updatedAt: AT, inteligirOnly: true } },
         null,
@@ -75,16 +76,16 @@ describe("comments service", () => {
       )}\n`,
     );
     await comments.add({ path: "plan.md", id: "n1", text: "ours" });
-    const raw = readFileSync(join(root, sidecarPathFor("plan.md")), "utf8");
+    const raw = readFileSync(join(root, commentsSidecarPath("plan.md")), "utf8");
     expect(raw).toContain('"inteligirOnly": true');
   });
 
   it("refuses to write over a malformed sidecar instead of erasing it", async () => {
     const { root, comments } = boot();
     writeFileSync(join(root, "plan.md"), "note\n");
-    writeFileSync(join(root, sidecarPathFor("plan.md")), "{broken");
+    writeFileSync(join(root, commentsSidecarPath("plan.md")), "{broken");
     await expect(comments.add({ path: "plan.md", id: "c1", text: "x" })).rejects.toThrow();
-    expect(readFileSync(join(root, sidecarPathFor("plan.md")), "utf8")).toBe("{broken");
+    expect(readFileSync(join(root, commentsSidecarPath("plan.md")), "utf8")).toBe("{broken");
   });
 
   it("add against a missing note refuses; list still answers", async () => {

@@ -27,10 +27,10 @@ mean something the environment cannot.
 
 The bin (`bin/inteligir`) runs the source under tsx inside a checkout and the
 esbuild bundle (`pnpm package:cli` → `dist/index.js`) when packaged, so dev
-edits are never shadowed by a stale build. It follows `$0` through its
-symlinks first, because an installed package is reached through
-`node_modules/.bin/inteligir` and the directory holding that link has no
-`dist/` beside it.
+edits are never shadowed by a stale build. Node resolves that file's realpath
+through the `node_modules/.bin/inteligir` symlink an installed package is
+reached by, so `import.meta.url` names the package's own bin dir with no manual
+following — the directory holding the link has no `dist/` beside it.
 
 ## Which server, and may I talk to it
 
@@ -136,14 +136,29 @@ Two bundles cannot ride inside the entry and each says why beside itself: the
 vault watcher is a forked CHILD PROCESS and the transcriber is a WORKER THREAD,
 so both need a real file on disk resolved as a sibling of the running entry.
 
-Three trees are staged as CONTENT rather than code: the committed SQL
-migrations, the dialect skills the agent reads with its own shell, and the
+Four trees are staged as CONTENT rather than code: the committed SQL
+migrations, the dialect skills the agent reads with its own shell, the
 workspace UI — the desktop renderer's build — which `serve` answers over plain
-HTTP so `--open` lands a browser in the product.
+HTTP so `--open` lands a browser in the product, and `tools/licenses` as
+`dist/licenses`, because the repo-root path no `files` glob can name is where
+the vendored sources' notices live. The migrations resolve SOURCE-FIRST — the
+staged copy answers only where `@repo/db` cannot be resolved, because `dist/`
+is the ordinary state of a worked-in checkout and a frozen snapshot would
+migrate a dev database past what the running code carries. The UI stays
+staged-first, which is why the two resolvers read differently.
 
 `pnpm smoke:cli` proves all of it against a real `npm install` of the packed
-tarball: the layout, the execute bit, a boot, the three native modules, a
-graceful SIGTERM.
+tarball: the layout, the execute bit, the licence texts, a boot, the three
+native modules, a graceful SIGTERM.
+
+The published surface is the bin and nothing else: `publishConfig.exports` is
+`{}`, so pnpm rewrites the manifest on the way out. The subpath map in
+`package.json` is a WORKSPACE seam — apps/desktop, tools/e2e and
+tools/repo-guards compile against `inteligir/server/*` — and it is unshippable
+as written, since those modules target `src/`, which `files` does not carry,
+and import devDependencies and unpublished `@repo/*` packages. Advertising a
+subpath a real install answers with ERR_MODULE_NOT_FOUND is the failure this
+closes.
 
 ## Tests
 

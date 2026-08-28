@@ -1,6 +1,7 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { ORPCError } from "@orpc/client";
+import { DEFAULT_DOC_EXTENSION } from "@repo/notes/knowledge/doc-file";
 import {
   vaultStatusResponseSchema,
   type VaultStatusResponse,
@@ -9,12 +10,13 @@ import {
 import { describe, expect, it } from "vitest";
 import {
   filePathsLowercased,
-  firstRootDoc,
   renameVaultEntry,
   syncStateLabel,
   untitledNotePath,
   type RenameVaultApi,
 } from "../vault-hooks";
+
+const REPO_ROOT = resolve(import.meta.dirname, "../../../../../..");
 
 const tree = (...paths: string[]): VaultTreeResponse => ({
   root: "/home/kyh/vault",
@@ -26,26 +28,49 @@ const tree = (...paths: string[]): VaultTreeResponse => ({
   ),
 });
 
-describe("the note a virgin boot opens", () => {
-  // The whole bug: the server indexes and lists .txt/.markdown/.mdx as docs,
-  // so a root holding only one of them has a note to open — a client that
-  // knows only `.md` boots the vault to an empty pane.
-  it("opens any doc the server would index, not just .md", () => {
-    expect(firstRootDoc(tree("README.txt"))).toBe("README.txt");
-    expect(firstRootDoc(tree("spec.markdown"))).toBe("spec.markdown");
-    expect(firstRootDoc(tree("page.mdx"))).toBe("page.mdx");
+/** Every renderer source file, tests excluded — a walk rather than a list, so
+ *  a surface written tomorrow is covered the day it appears. */
+function rendererSources(dir: string): string[] {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const full = join(dir, entry.name);
+    if (entry.isDirectory()) return entry.name === "__tests__" ? [] : rendererSources(full);
+    return /\.tsx?$/u.test(entry.name) ? [full] : [];
+  });
+}
+
+/**
+ * The shapes of a client re-deciding what a doc is, derived from the extension
+ * rather than typed out. Two spellings of the rule disagree the moment a name
+ * is not lowercase — a case-sensitive `endsWith` prints `Notes.MD` verbatim
+ * where a case-insensitive one prints `Notes` — and a `.md`-only predicate
+ * hides every `.txt`/`.markdown`/`.mdx` note the server indexes.
+ */
+const EXTENSION = DEFAULT_DOC_EXTENSION.slice(1);
+const PRIVATE_DOC_RULES: readonly RegExp[] = [
+  new RegExp(`endsWith\\(["']\\.${EXTENSION}["']\\)`, "u"),
+  new RegExp(`\\\\\\.${EXTENSION}\\$`, "u"),
+];
+
+describe("what the client calls a doc, and what it calls it by", () => {
+  const files = rendererSources(join(REPO_ROOT, "apps/desktop/src/renderer"));
+
+  it("finds the renderer at all", () => {
+    // A walk that matched nothing would satisfy the assertion below.
+    expect(files.length).toBeGreaterThan(20);
   });
 
-  it("skips folders, nested files and non-docs", () => {
-    expect(firstRootDoc(tree("notes/", "notes/deep.md", "logo.png", "Welcome.md"))).toBe(
-      "Welcome.md",
-    );
-    expect(firstRootDoc(tree("logo.png"))).toBeNull();
-  });
-
-  it("answers null while the listing has not arrived", () => {
-    expect(firstRootDoc(undefined)).toBeNull();
-  });
+  it.each(PRIVATE_DOC_RULES.map((rule) => [rule.source, rule] as const))(
+    "no module spells its own %s",
+    (_source, rule) => {
+      const offenders = files
+        .filter((file) => rule.test(readFileSync(file, "utf8")))
+        .map((file) => file.slice(REPO_ROOT.length + 1));
+      expect(
+        offenders,
+        "@repo/notes/knowledge/doc-file answers this — isDocPath / isNotePath / docStem",
+      ).toEqual([]);
+    },
+  );
 });
 
 /** The port `renameVaultEntry` declares — one procedure, so a stub is a
@@ -106,8 +131,6 @@ const EVERY_STATUS: readonly VaultStatusResponse[] = [
   },
   { state: "broken", ...REMOTE },
 ];
-
-const REPO_ROOT = resolve(import.meta.dirname, "../../../../../..");
 
 describe("naming a sync state", () => {
   it("covers every state the contract can answer", () => {

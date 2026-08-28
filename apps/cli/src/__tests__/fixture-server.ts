@@ -85,7 +85,6 @@ export function makeThread(overrides: Partial<Thread> & Pick<Thread, "id">): Thr
     status: "idle",
     activeTurnId: null,
     originDocPath: null,
-    originAnchor: null,
     providerId: null,
     archivedAt: null,
     createdAt: 1_700_000_000_000,
@@ -241,13 +240,6 @@ const connectorsRouter = {
     });
     return context.connectors;
   }),
-  update: base.connectors.update.handler(({ context, input, errors }) => {
-    const row = context.connectors.servers.find((candidate) => candidate.name === input.name);
-    if (row === undefined) {
-      throw errors.NOT_FOUND({ message: `no connector ${input.name}` });
-    }
-    return context.connectors;
-  }),
   remove: base.connectors.remove.handler(({ context, input, errors }) => {
     const before = context.connectors.servers.length;
     context.connectors.servers = context.connectors.servers.filter(
@@ -319,19 +311,17 @@ const knowledgeRouter = {
     tags: context.tags,
     total: context.tags.length,
   })),
-  renameCandidates: base.knowledge.renameCandidates.handler(() => ({
-    candidates: [],
-    total: 0,
-  })),
 };
 
 const noteIntelligenceRouter = {
   status: base.noteIntelligence.status.handler(() => ({
+    availability: { kind: "available" },
     enabled: false,
     running: false,
     lastSweep: null,
   })),
   toggle: base.noteIntelligence.toggle.handler(({ input }) => ({
+    availability: { kind: "available" },
     enabled: input.enabled,
     running: false,
     lastSweep: null,

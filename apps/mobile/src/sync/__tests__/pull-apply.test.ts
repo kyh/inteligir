@@ -1,6 +1,7 @@
+import { planPage } from "@repo/api/cloud/sync/plan-page";
 import { describe, expect, it } from "vitest";
 import { createMemorySyncStore } from "../memory-sync-store";
-import { applyPlan, planPage } from "../thread-log";
+import { applyPlan } from "../thread-log";
 import { agentMessage, logRow, userRequest } from "./fakes";
 
 const SELF = "dev_self";

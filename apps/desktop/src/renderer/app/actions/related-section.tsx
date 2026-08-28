@@ -9,6 +9,7 @@
 // cannot check. No dedup is needed between the halves — the scorer excludes
 // direct neighbours by construction, so the same note never appears twice.
 
+import { docStem } from "@repo/notes/knowledge/doc-file";
 import { isUuidWikiAlias } from "@repo/notes/markdown/remark-wiki-link";
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "@repo/ui/lib/utils";
@@ -26,8 +27,6 @@ export interface RelatedRow {
   detail: string;
 }
 
-/** The stem a reader recognises — the file's own name, without the folder or
- *  the extension, with the full path as the row's title. */
 /** A backlink SNIPPET is the linking sentence verbatim, so it still carries
  *  the dialect's own syntax. The panel wants prose: render what a reader sees
  *  in the source note, not the bytes that produce it. */
@@ -73,12 +72,6 @@ export function groupBacklinks(
     existing.count += 1;
   }
   return [...groups.values()];
-}
-
-export function relatedRowLabel(sourcePath: string): string {
-  const name = sourcePath.slice(sourcePath.lastIndexOf("/") + 1);
-  const dot = name.lastIndexOf(".");
-  return dot > 0 ? name.slice(0, dot) : name;
 }
 
 /** "3 linked mentions (2 shown)" keeps the old summary's truncation honesty;
@@ -129,7 +122,7 @@ export function RelatedInline({
   const rows: RelatedRow[] = [
     ...groupBacklinks(backlinks).map((group) => ({
       path: group.sourcePath,
-      label: relatedRowLabel(group.sourcePath),
+      label: docStem(group.sourcePath),
       detail:
         group.count === 1
           ? `Links here · ${plainSnippet(group.snippet)}`

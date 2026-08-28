@@ -34,9 +34,11 @@ worktrees never collide and every command in one checkout names one instance;
 Requirements: **Node ≥ 24** and **pnpm 10** (`corepack enable`).
 (`.codex/environments/environment.toml` runs `pnpm i` for cloud runners.)
 
-The agent provider is selected by `INTELIGIR_AGENT` (`auto` · `codex` ·
-`scripted` · `off`; default `auto` — codex when the binary is on PATH, else an
-unavailable driver whose reason `system.status` states under `agent`).
+The agent RUNTIME is selected by `INTELIGIR_AGENT` (`auto` · `scripted` ·
+`off`; default `auto` — the ACP runtime when Claude Code or the Codex CLI is on
+PATH, else an unavailable driver whose reason `system.status` states under
+`agent`). WHICH harness runs is a thread's own `providerId`, never this
+variable.
 **`INTELIGIR_AGENT=scripted` is the login-free e2e mode**: an in-process
 deterministic driver over the REAL ingest/timeline/vault/commit paths — send a
 action message, watch the turn stream, find the note in the vault with an
@@ -165,4 +167,4 @@ tools/repo-guards        Fitness tests over the repo: the dep DAG,
 - `docs/development.md` — the dev loop in one page.
 - `apps/cli/README.md` — the binary's two modes and every verb.
 - `apps/desktop/README.md` — the window, the protocol, the packaged app.
-- `docs/privacy.md` — placeholder until the v3 cloud rework (issue #554).
+- `docs/privacy.md` — what leaves the machine, what never does, how it dies.

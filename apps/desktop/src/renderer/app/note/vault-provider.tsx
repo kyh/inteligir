@@ -43,6 +43,7 @@ import {
   noteIdOf,
   type CollectedFormula,
 } from "@repo/notes/formulas/collect-formulas";
+import { isDocPath, isNotePath } from "@repo/notes/knowledge/doc-file";
 import { buildResolver } from "@repo/notes/knowledge/link-resolve";
 import { diff3 } from "@repo/notes/text/diff3";
 import type { KnowledgeWikiTargetsResponse } from "@repo/api/local/knowledge/knowledge-schema";
@@ -82,7 +83,7 @@ function listingEntries(tree: VaultTreeResponse): VaultEntry[] {
           {
             path: entry.path,
             name: entry.path.split("/").pop() ?? entry.path,
-            kind: entry.path.endsWith(".md") ? ("doc" as const) : ("other" as const),
+            kind: isDocPath(entry.path) ? ("doc" as const) : ("other" as const),
           },
         ]
       : [],
@@ -354,7 +355,9 @@ export function VaultProvider({
       readVaultAsset: async ({ path }) => {
         const response = await fetch(vaultAssetUrl(window.location.origin, path));
         if (!response.ok) return { ok: false, error: `asset ${String(response.status)}` };
-        return { ok: true, bytesBase64: toBase64(new Uint8Array(await response.arrayBuffer())) };
+        // The Blob carries the route's own `content-type`, which is the shared
+        // allowlist's answer — so nothing downstream re-derives one.
+        return { ok: true, bytes: await response.blob() };
       },
       writeVaultAsset: async ({ dir, baseName, file }) => {
         const bytesBase64 = toBase64(new Uint8Array(await file.arrayBuffer()));
@@ -508,7 +511,7 @@ function createGuardedVaultIo(api: Api): VaultIO {
     // 30 days); anything else, and anything already in the trash, deletes
     // for real. The port answers "trashed" either way: the session only
     // needs to know the row is gone from the listing.
-    const isNote = path.toLowerCase().endsWith(".md");
+    const isNote = isNotePath(path);
     const inTrash = path === "Trash" || path.startsWith("Trash/");
     const { error } =
       isNote && !inTrash

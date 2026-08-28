@@ -1,10 +1,9 @@
 // OpenDoc — the open document modeled as ONE discriminated union, derived per
-// render by the VaultProvider (deriveOpenDoc below). ONE union instead of six
-// correlated flat view fields (openPath / openNoteIsPrivate / isMarkdownOpen /
-// richAvailable / rawReason / mode), so the illegal combinations those would
-// allow — rich mode on a non-markdown file, a gate reason without a markdown
-// note, a private mark with nothing open — are unrepresentable. Consumers
-// switch on `openDoc.kind`.
+// render by the VaultProvider (deriveOpenDoc below). ONE union instead of the
+// correlated flat view fields (openPath / isMarkdownOpen / richAvailable /
+// rawReason / mode), so the illegal combinations those would allow — rich mode
+// on a non-markdown file, a gate reason without a markdown note — are
+// unrepresentable. Consumers switch on `openDoc.kind`.
 
 import type { GateReason } from "@repo/editor/note/markdown-gate";
 
@@ -41,10 +40,8 @@ type MarkdownSurface = { mode: "rich" } | { mode: "raw"; reason: GateReason | nu
  *   key off it before content lands).
  * - `non-markdown`: a loaded non-markdown file (`.html`, `.txt`, …) — always
  *   the raw textarea.
- * - `markdown`: a loaded markdown note.
- *   badge — USER-FACING semantics: strictly `private: true` on the LIVE
- *   buffer (unreadable frontmatter shows no lock); the AI paths use their own
- *   fail-closed reads. `surface` is the effective editing surface.
+ * - `markdown`: a loaded markdown note. `surface` is the effective editing
+ *   surface.
  */
 export type OpenDoc =
   | { kind: "none" }
@@ -63,7 +60,7 @@ export function deriveOpenDoc(args: {
   openPath: string | null;
   /** The controller's loaded path — null while reading / after a vanish. */
   loadedPath: string | null;
-  /** The live content buffer (privacy reads it, not the saved bytes). */
+  /** The live content buffer. */
   content: string;
   /** The last SAVED-content gate verdict (analysis lags typing on purpose). */
   rawReason: GateReason | null;

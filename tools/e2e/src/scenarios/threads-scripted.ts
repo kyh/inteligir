@@ -27,7 +27,6 @@ export const threadsScripted: Scenario = {
     const outcome = await app.api.threads.send({
       threadId: thread.id,
       text: TURN_TEXT,
-      mode: "steer-if-active",
     });
     expect(outcome.kind === "started", `send outcome was "${outcome.kind}"`);
 

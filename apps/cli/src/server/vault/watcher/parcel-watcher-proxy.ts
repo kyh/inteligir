@@ -100,7 +100,6 @@ export function createParcelWatcherProxy(options: ParcelWatcherProxyOptions): Pa
   // (nothing missed).
   let restarting = false;
   let idCounter = 0;
-  let pingNonce = 0;
   let lastPongAt = 0;
   let lastPingTickAt = 0;
   let pingTimer: ReturnType<typeof setInterval> | null = null;
@@ -133,8 +132,7 @@ export function createParcelWatcherProxy(options: ParcelWatcherProxyOptions): Pa
         // The parent itself stalled (a laptop sleep, a blocked event loop):
         // the silence says nothing about the child, so give it a fresh window.
         lastPongAt = now;
-        pingNonce += 1;
-        channel.send({ kind: "ping", nonce: pingNonce });
+        channel.send({ kind: "ping" });
         return;
       }
       if (now - lastPongAt > pingTimeoutMs) {
@@ -144,8 +142,7 @@ export function createParcelWatcherProxy(options: ParcelWatcherProxyOptions): Pa
         killAndRespawn();
         return;
       }
-      pingNonce += 1;
-      channel.send({ kind: "ping", nonce: pingNonce });
+      channel.send({ kind: "ping" });
     }, pingIntervalMs);
     // Never let the watcher's ping pin the server's event loop open on shutdown.
     pingTimer.unref?.();

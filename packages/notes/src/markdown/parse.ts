@@ -40,8 +40,11 @@ function isMdastRoot(node: { type: string }): node is Root {
 export function parseMdast(md: string): ParseResult {
   const processor = unified().use(remarkParse).use(MD_REMARK_PLUGINS);
   try {
-    // runSync is a no-op today — none of our plugins register transformers —
-    // but keeps us correct if one ever does.
+    // runSync is where the tree-shaping plugins act: the inline constructs, the
+    // tabs containers and the opaque transform are all transformers, so a bare
+    // `parse` yields a DIFFERENT tree (see markdown/verbatim-spans, which wants
+    // exactly that one).
+    //
     // Foreign bytes first: raw pill pipes in table cells become `\|`
     // (table-pipes.ts states why this lives ahead of micromark).
     const tree = processor.runSync(processor.parse(escapePillPipesInTables(md)));

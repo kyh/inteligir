@@ -118,7 +118,7 @@ export function resolveCommandPath(root: CommandDef, rawArgs: readonly string[])
 }
 
 /** Every spelling `argsDef` makes reachable, plus the two citty answers itself. */
-function declaredFlags(argsDef: ArgsDef): Set<string> {
+export function declaredFlags(argsDef: ArgsDef): Set<string> {
   const names = new Set(["help", "version"]);
   for (const [name, def] of Object.entries(argsDef)) {
     if (def.type === "positional") {

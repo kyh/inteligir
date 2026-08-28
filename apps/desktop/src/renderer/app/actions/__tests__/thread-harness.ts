@@ -10,11 +10,11 @@ import {
   type FakeTurnDriverOptions,
 } from "inteligir/server/testing";
 
-export interface ChatHarness extends BootedTestApp {
+export interface ThreadHarness extends BootedTestApp {
   driver: FakeTurnDriver;
 }
 
-export async function bootChatHarness(options: FakeTurnDriverOptions): Promise<ChatHarness> {
+export async function bootThreadHarness(options: FakeTurnDriverOptions): Promise<ThreadHarness> {
   let driver: FakeTurnDriver | null = null;
   const booted = await bootTestApp({
     makeDriver: () => ({

@@ -26,14 +26,14 @@ import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { orpc } from "../api";
-import { ApprovalCard } from "../chat/approval-card";
-import { THREAD_ACTIVITY_LABELS, threadActivity, type ThreadActivity } from "../chat/chat-model";
-import { sendToThread } from "../chat/chat-service";
-import { useThreadDetail, useThreads, useThreadTimeline } from "../chat/thread-hooks";
+import { ApprovalCard } from "./approval-card";
+import { THREAD_ACTIVITY_LABELS, threadActivity, type ThreadActivity } from "../chat-model";
+import { sendToThread } from "./send-to-thread";
+import { useThreadDetail, useThreads, useThreadTimeline } from "./thread-hooks";
 import { useNoteComments } from "./comment-hooks";
 import { RelatedInline } from "./related-section";
 import { CommentsTab } from "./comments-tab";
-import { TimelineRowView } from "../chat/timeline-rows";
+import { TimelineRowView } from "./timeline-rows";
 import { useWorkspace } from "../workspace-context";
 
 export type PanelTab = "actions" | "comments";

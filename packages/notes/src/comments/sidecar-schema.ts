@@ -5,6 +5,13 @@
 
 import { z } from "zod";
 
+/** Where a note's sidecar lives: beside the note, under its full name. The
+ * comments service and the trash both derive it, and two spellings that
+ * disagree orphan a trashed note's threads. */
+export function commentsSidecarPath(notePath: string): string {
+  return `${notePath}.comments.json`;
+}
+
 export const COMMENT_SOURCES = ["user", "agent", "external"] as const;
 export const commentSourceSchema = z.enum(COMMENT_SOURCES);
 export type CommentSource = z.infer<typeof commentSourceSchema>;

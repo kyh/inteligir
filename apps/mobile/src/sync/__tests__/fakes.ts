@@ -22,7 +22,7 @@ import type { VaultFileResponse } from "@repo/api/cloud/vault/vault-schema";
 import type { CloudClient, CloudResult } from "@repo/api/cloud/client";
 
 export function userRequest(threadId: string, text: string): ThreadEvent {
-  return { type: "client/turn/requested", threadId, text, kind: "message", scope: threadScope() };
+  return { type: "client/turn/requested", threadId, text, scope: threadScope() };
 }
 
 export function agentMessage(
@@ -64,39 +64,34 @@ export function ok<T>(value: T): CloudResult<T> {
   return { ok: true, value };
 }
 
-/** A CloudClient whose every method reads from a queue the test fills, and
- *  records what it was called with. A queue that runs dry answers a sensible
- *  default (empty pull, empty claim) so a pass can settle. */
+/** A CloudClient whose pull and capture answers come from queues the test fills,
+ *  and which records what it was called with. A queue that runs dry answers an
+ *  empty pull so a pass can settle.
+ *
+ *  `pushes` and `claims` count the two halves of the wire this client does NOT
+ *  run — the desktop pushes thread events and claims captures — so a suite can
+ *  assert the phone stays off both. */
 export interface FakeCloud {
   client: CloudClient;
   pushes: PushRequest[];
-  captures: CaptureRequest[];
   claims: number;
-  acks: AckCapturesRequest[];
-  pushResults: CloudResult<PushResponse>[];
+  captures: CaptureRequest[];
   pullResults: CloudResult<PullResponse>[];
-  claimResults: CloudResult<ClaimCapturesResponse>[];
-  ackResults: CloudResult<AckCapturesResponse>[];
   captureResults: CloudResult<CaptureResponse>[];
 }
 
 export function createFakeCloud(): FakeCloud {
   const fake: FakeCloud = {
     pushes: [],
-    captures: [],
     claims: 0,
-    acks: [],
-    pushResults: [],
+    captures: [],
     pullResults: [],
-    claimResults: [],
-    ackResults: [],
     captureResults: [],
     client: {
       push: (request) => {
         fake.pushes.push(request);
-        return Promise.resolve(
-          fake.pushResults.shift() ??
-            ok({ accepted: request.events.length, duplicates: 0, lastSeq: 0 }),
+        return Promise.resolve<CloudResult<PushResponse>>(
+          ok({ accepted: request.events.length, duplicates: 0, lastSeq: 0 }),
         );
       },
       pull: (query: PullQuery) =>
@@ -111,17 +106,14 @@ export function createFakeCloud(): FakeCloud {
       },
       claimCaptures: () => {
         fake.claims += 1;
-        return Promise.resolve(
-          fake.claimResults.shift() ?? ok({ claimToken: "tok", captures: [], expiresAt: 1 }),
+        return Promise.resolve<CloudResult<ClaimCapturesResponse>>(
+          ok({ claimToken: "tok", captures: [], expiresAt: 1 }),
         );
       },
-      ackCaptures: (request) => {
-        fake.acks.push(request);
-        return Promise.resolve(
-          fake.ackResults.shift() ??
-            ok({ results: request.ids.map((id) => ({ id, outcome: "deleted" as const })) }),
-        );
-      },
+      ackCaptures: (request: AckCapturesRequest) =>
+        Promise.resolve<CloudResult<AckCapturesResponse>>(
+          ok({ results: request.ids.map((id) => ({ id, outcome: "deleted" as const })) }),
+        ),
       // The sync runtime reads neither the vault nor the account; the
       // notes-store suite fakes its own client. Empty answers are the honest
       // inert rows here.

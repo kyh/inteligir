@@ -63,14 +63,9 @@ export const CAS_MISMATCH = {
 export const ARCHIVED = { message: "That thread is archived" } as const;
 
 /** The turn the caller named is not the one that is open — the staleness guard
- *  on a steer. */
+ *  a send carries. */
 export const STALE_TURN = {
   message: "That turn is no longer the open one",
-} as const;
-
-/** The open turn will not take a mid-flight message. */
-export const NOT_STEERABLE = {
-  message: "The running turn cannot be steered",
 } as const;
 
 /** An approval that was already answered. */
@@ -105,7 +100,6 @@ const LOCAL_ERRORS = {
   CAS_MISMATCH,
   ARCHIVED,
   STALE_TURN,
-  NOT_STEERABLE,
   ALREADY_RESOLVED,
   INVALID_RESOLUTION,
   PROVIDER_UNAVAILABLE,
@@ -125,7 +119,6 @@ export const LOCAL_ERROR_STATUS_MAP = {
   CAS_MISMATCH: 409,
   ARCHIVED: 409,
   STALE_TURN: 409,
-  NOT_STEERABLE: 409,
   ALREADY_RESOLVED: 409,
   INVALID_RESOLUTION: 400,
   PROVIDER_UNAVAILABLE: 503,

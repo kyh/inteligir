@@ -178,13 +178,11 @@ const unscopedThreadEventSchema = z.discriminatedUnion("type", [
     willRetry: z.boolean().optional(),
   }),
   // The user's message, recorded by the send path at thread scope before any
-  // turn exists (bb's client/turn/requested); `kind` distinguishes a fresh
-  // turn request from a steer into the running one.
+  // turn exists (bb's client/turn/requested).
   z.object({
     type: z.literal("client/turn/requested"),
     threadId: z.string(),
     text: z.string(),
-    kind: z.enum(["message", "steer"]),
     /**
      * What the sender was looking at — a local addition to bb's shape, and the
      * one place a message's ambient context is recorded. `text` stays exactly

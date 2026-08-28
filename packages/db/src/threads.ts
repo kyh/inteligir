@@ -18,8 +18,6 @@ type ThreadWriteConnection = DbConnection | DbTransaction;
 export interface CreateThreadInput {
   title?: string;
   originDocPath?: string;
-  /** The harness this thread runs on; unset adopts the dispatch default. */
-  providerId?: string;
 }
 
 export function createThread(
@@ -36,7 +34,7 @@ export function createThread(
       status: "idle",
       activeTurnId: null,
       originDocPath: input.originDocPath ?? null,
-      providerId: input.providerId ?? null,
+      providerId: null,
       archivedAt: null,
       createdAt: now,
       updatedAt: now,
@@ -126,7 +124,11 @@ export function rebindThreadOrigins(
   const descendants = db
     .select({ id: threads.id, originDocPath: threads.originDocPath })
     .from(threads)
-    .where(like(threads.originDocPath, `${prefix.replaceAll("%", "\\%")}%`))
+    // No escaping of the prefix's own LIKE wildcards: drizzle's `like` emits no
+    // ESCAPE clause, so a backslash would be matched literally and find
+    // nothing. The pattern over-matches instead, and `startsWith` below is the
+    // authoritative filter.
+    .where(like(threads.originDocPath, `${prefix}%`))
     .all();
   for (const row of descendants) {
     if (row.originDocPath === null || !row.originDocPath.startsWith(prefix)) {
@@ -223,13 +225,10 @@ function applyThreadLifecycleEventRecord(
 
   const evaluation = evaluateThreadLifecycleEvent({
     event: args.event,
-    // v1 has no thread deletion; the vendored predicate contract keeps the
-    // field so deletion arrives as a column, not a domain change.
     thread: {
       status: thread.status,
       activeTurnId: thread.activeTurnId,
       archivedAt: thread.archivedAt,
-      deletedAt: null,
     },
   });
   if ("noop" in evaluation) {

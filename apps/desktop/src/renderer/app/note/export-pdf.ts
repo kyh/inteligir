@@ -23,9 +23,3 @@ export function exportNoteAsPdf(title: string): void {
     document.title = previousTitle;
   }
 }
-
-/** The note title a path prints under: the basename without its extension. */
-export function printTitleForPath(path: string): string {
-  const base = path.split("/").at(-1) ?? path;
-  return base.endsWith(".md") ? base.slice(0, -3) : base;
-}

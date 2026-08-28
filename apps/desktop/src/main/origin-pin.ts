@@ -147,6 +147,31 @@ export function decideExternalOpen(args: ExternalOpenArgs): ExternalOpenDecision
 }
 
 // ---------------------------------------------------------------------------
+// The app window's isolation flags
+// ---------------------------------------------------------------------------
+
+/**
+ * The app window's webPreferences, as data so the test can pin every flag —
+ * the same discipline the browser window's two views follow. The packaged
+ * smoke cannot open a window, so without this the app window is the one
+ * webContents in this process whose security posture nothing asserts.
+ *
+ * The partition is the CALLER's: storage follows the vault
+ * (`server-instance.ts::sessionPartition`) rather than a name two different
+ * vaults could share, and never the default session.
+ */
+export function appWindowWebPreferences(preloadPath: string, partition: string) {
+  return {
+    preload: preloadPath,
+    contextIsolation: true,
+    nodeIntegration: false,
+    sandbox: true,
+    webSecurity: true,
+    partition,
+  } as const;
+}
+
+// ---------------------------------------------------------------------------
 // Permissions
 // ---------------------------------------------------------------------------
 

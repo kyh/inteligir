@@ -8,9 +8,8 @@ import { rateLimit } from "./db/schema";
 // credential-free route gets the treatment the auth routes already have without
 // a second store to reason about.
 //
-// The caller is the one surface that takes input from an UNAUTHENTICATED
-// caller and decides something durable from it: `/v1/auth/sign-up`, where the
-// invite code IS the authorization and is short enough for a human to type.
+// It guards the routes that take input from an UNAUTHENTICATED caller and
+// decide something durable from it.
 // ---------------------------------------------------------------------------
 
 /** A budget: at most `max` requests per `windowMs`, per key. */

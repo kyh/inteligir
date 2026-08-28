@@ -1,14 +1,16 @@
-// The instructions appended to each provider session (start/resume): a short
-// built-in pointer at the CLI — only when the CLI is actually reachable from
-// the agent's PATH — then the vault's own AGENTS.md, the user's standing
-// instructions. Loaded at session construction, so an edit applies from the
-// next session rather than mid-turn. Head-capped: instruction bytes are a
-// recurring per-turn prompt cost, which is also why the CLI pointer is three
-// sentences and the manual lives behind `inteligir guide` instead.
+// The standing instructions a provider session opens with: a short built-in
+// pointer at the CLI — only when the CLI is actually reachable from the
+// agent's PATH — then the vault's own AGENTS.md, the user's standing
+// instructions. Loaded at session construction and delivered on that session's
+// first turn (view-context-prompt.ts), so an edit applies from the next
+// session rather than mid-turn. Head-capped: instruction bytes are a prompt
+// cost, which is also why the CLI pointer is three sentences and the manual
+// lives behind `inteligir guide` instead.
 
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { errnoCode } from "../errno";
+import { headCapUtf8 } from "../head-cap-utf8";
 
 const AGENT_INSTRUCTIONS_FILE = "AGENTS.md";
 const AGENT_INSTRUCTIONS_MAX_BYTES = 32_768;
@@ -28,26 +30,6 @@ const SKILLS_POINTER_INSTRUCTIONS = `Notes in this vault use the inteligir markd
 The dialect's own skills live in $INTELIGIR_SKILLS_DIR — read the relevant \
 SKILL.md there (inteligir-notes first) before authoring or editing constructs, and \
 follow it exactly; the app parses what it specifies.`;
-
-/**
- * Cut to at most `maxBytes` of UTF-8 WITHOUT splitting a character. Measuring
- * `string.length` would count UTF-16 units (wrong for any non-BMP text) and
- * slicing by it can halve a surrogate pair, which reaches the model as U+FFFD.
- *
- * Exported because the per-turn view-context block caps the same way against a
- * much smaller budget: "cut UTF-8 to N bytes without splitting a code point"
- * must not get a second answer.
- */
-export function headCapUtf8(text: string, maxBytes: number): string {
-  const bytes = new TextEncoder().encode(text);
-  if (bytes.length <= maxBytes) {
-    return text;
-  }
-  // fatal:false lets the decoder drop a trailing partial sequence rather than
-  // throw; the cut is then on a real code-point boundary.
-  const decoded = new TextDecoder("utf-8", { ignoreBOM: true }).decode(bytes.subarray(0, maxBytes));
-  return decoded.endsWith("�") ? decoded.slice(0, -1) : decoded;
-}
 
 /** One sentence, not a manifest: the paths are in $INTELIGIR_CONNECTED_DIRS
  *  too, and the phrasing states the USER'S INTENT (read-only reference) —

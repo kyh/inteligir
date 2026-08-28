@@ -1,12 +1,11 @@
 // The built-in agent guide, served at system.guide and printed by
 // `inteligir guide`. SKILL.md-shaped so an agent harness can ingest it as a
-// skill verbatim. DOC-SYNC: this manual must name every CLI leaf command AND
-// every flag those leaves accept —
-// apps/cli/src/__tests__/guide-covers-commands.test.ts walks the real citty
-// tree against these RENDERED bytes and fails on anything it does
-// not mention, so adding, renaming or re-flagging a CLI command means
-// updating this text in the same change (the discipline bb records in
-// docs/cli-guide-and-skill.md).
+// skill verbatim. DOC-SYNC runs BOTH ways: this manual must name every CLI leaf
+// command AND every flag those leaves accept, and it may name no flag they do
+// not — apps/cli/src/__tests__/guide-covers-commands.test.ts walks the real
+// citty tree against these RENDERED bytes, so adding, renaming or re-flagging a
+// CLI command means updating this text in the same change (the discipline bb
+// records in docs/cli-guide-and-skill.md).
 
 export const CLI_SKILL_MD = `---
 name: inteligir-cli
@@ -81,8 +80,8 @@ Paths are vault-relative POSIX paths (\`notes/idea.md\`). Prefer wiki links
   (optionally attached to a note) and send the first turn. If the action is
   created but its first turn fails, the failure names the new id so you can
   retry or archive it.
-- \`inteligir action send <id> <prompt>\` — send a follow-up; steers the
-  active turn by default, \`--queue\` queues it for after the turn instead.
+- \`inteligir action send <id> <prompt>\` — send a follow-up; starts a turn
+  when the action is idle, queues behind a running one otherwise.
 - \`inteligir action show <id>\` — action detail plus the compact timeline
   (turns, commands, file changes, messages).
 - \`inteligir action wait <id>\` — block until the action settles. Exit code
@@ -123,8 +122,10 @@ launch, Claude Code and Codex alike.
 - \`inteligir connectors list\` — the configured servers, each with its target
   and whether it is enabled and authenticated.
 - \`inteligir connectors add <name> --url <https://…> [--header NAME=VALUE]\` —
-  add a remote server (the header carries its API key). For a local command
-  server: \`--command <program> [--arg <a> …]\`.
+  add a remote server (the header carries its API key). For a local stdio
+  server, name the program after \`--\` instead:
+  \`inteligir connectors add <name> -- <command> [args…]\`. Exactly one of the
+  two forms.
 - \`inteligir connectors remove <name>\` — remove one; sessions stop getting it
   from their next launch.
 

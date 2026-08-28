@@ -15,9 +15,9 @@ import { FileTextIcon, XIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { useWorkspace } from "../workspace-context";
-import type { ViewContextSource } from "../chat/chat-model";
-import { spliceIntoComposer } from "../chat/dictation";
-import { MicButton } from "../chat/mic-button";
+import type { ViewContextSource } from "../chat-model";
+import { spliceIntoComposer } from "../voice/dictation";
+import { MicButton } from "../voice/mic-button";
 import { useVoiceStatus } from "../voice-hooks";
 import { useWikiTargets } from "../vault-hooks";
 import { createAction } from "./action-service";

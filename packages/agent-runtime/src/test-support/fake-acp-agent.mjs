@@ -8,6 +8,8 @@
 //                a confirmation chunk, then end_turn
 //   approval     one turn: a permission request first; allowed → chunk +
 //                end_turn, denied → end_turn immediately
+//   promptEcho   one turn: echoes the prompt's LEADING text block back as a
+//                message chunk, so a caller can assert what it actually sent
 //   silent       accepts the prompt and never settles it (watchdog food)
 //
 // Session ids are minted `fakeacp_<n>`; loadSession echoes the requested id
@@ -46,6 +48,17 @@ function buildAgent(client) {
       const sessionId = params.sessionId;
       if (mode === "silent") {
         return new Promise(() => {});
+      }
+      if (mode === "promptEcho") {
+        const leading = params.prompt.find((block) => block.type === "text");
+        await client.sessionUpdate({
+          sessionId,
+          update: {
+            sessionUpdate: "agent_message_chunk",
+            content: { type: "text", text: leading?.text ?? "" },
+          },
+        });
+        return { stopReason: "end_turn" };
       }
       if (mode === "approval") {
         const outcome = await client.requestPermission({

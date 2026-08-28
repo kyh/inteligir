@@ -5,12 +5,11 @@
 // one invalidation path a second client gets too.
 
 import { useCallback } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useIsMutating, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "@repo/ui/components/sonner";
-import { DEFAULT_DOC_EXTENSION, isDocPath } from "@repo/notes/knowledge/doc-file";
+import { DEFAULT_DOC_EXTENSION } from "@repo/notes/knowledge/doc-file";
 import type { VaultStatusResponse, VaultTreeResponse } from "@repo/api/local/vault/vault-schema";
 import { orpc, refusalMessage } from "./api";
-import { useWorkspace } from "./workspace-context";
 
 export function useVaultTree() {
   return useQuery(orpc.vault.tree.queryOptions());
@@ -152,6 +151,48 @@ interface SyncNowNotice {
   message: string;
 }
 
+export interface SyncNowHandle {
+  syncNow: () => void;
+  /** True while ANY caller's pass is in flight, not just this one's. */
+  inFlight: boolean;
+}
+
+/**
+ * The one "Sync now" verb, shared by the workspace's palette command and the
+ * settings page — one spelling of the mutation, the status write and the
+ * notice policy.
+ *
+ * Each caller mounts its own `useMutation`, so `isPending` would answer only
+ * about the affordance that was clicked and the other would stay live through
+ * the pass. `useIsMutating` over the procedure's own key is the shared fact:
+ * the surfaces disable together and re-arm together, with no state threaded
+ * between them.
+ */
+export function useSyncNow(): SyncNowHandle {
+  const queryClient = useQueryClient();
+  const { mutate } = useMutation(
+    orpc.vault.syncNow.mutationOptions({
+      onSuccess: (status) => {
+        queryClient.setQueryData(orpc.vault.status.queryKey(), status);
+        const notice = syncNowNotice(status);
+        if (notice !== null) {
+          toast[notice.tone](notice.message);
+        }
+      },
+      onError: () => {
+        toast.error("Sync failed.");
+      },
+    }),
+  );
+  const inFlight = useIsMutating({ mutationKey: orpc.vault.syncNow.mutationKey() }) > 0;
+  // `mutate` is stable across renders, so the verb is too — the workspace
+  // threads it through memoized action tables.
+  const syncNow = useCallback((): void => {
+    mutate();
+  }, [mutate]);
+  return { syncNow, inFlight };
+}
+
 /**
  * What a "Sync now" pass has to SAY about the state it landed in, or null when
  * silence is honest — the pill has already changed and a toast would only
@@ -159,30 +200,6 @@ interface SyncNowNotice {
  * from a sync that worked, so a ninth state must be made to answer here rather
  * than defaulting into nothing.
  */
-/**
- * The one "Sync now" verb, shared by the workspace's palette command and the
- * settings page — two callers, one spelling of the mutation, the optimistic
- * status write and the notice policy.
- */
-export function useSyncNow(): () => void {
-  const { api } = useWorkspace();
-  const queryClient = useQueryClient();
-  return useCallback((): void => {
-    void (async () => {
-      try {
-        const status = await api.vault.syncNow();
-        queryClient.setQueryData(orpc.vault.status.queryKey(), status);
-        const notice = syncNowNotice(status);
-        if (notice !== null) {
-          toast[notice.tone](notice.message);
-        }
-      } catch {
-        toast.error("Sync failed.");
-      }
-    })();
-  }, [api, queryClient]);
-}
-
 function syncNowNotice(status: VaultStatusResponse): SyncNowNotice | null {
   const blocked = syncBlockedReason(status);
   if (blocked !== null) {
@@ -258,18 +275,6 @@ export async function renameVaultEntry(
       message: refusalMessage(error, `Could not rename ${from}.`),
     };
   }
-}
-
-/** The note a virgin boot opens: the first doc in the vault root, by the
- *  DOMAIN's definition of one. The server indexes, links and lists every
- *  extension `isDocPath` names, so a client rule of its own opens a vault
- *  whose root holds `README.txt` to an empty pane. */
-export function firstRootDoc(tree: VaultTreeResponse | undefined): string | null {
-  const entry = tree?.entries.find(
-    (candidate) =>
-      candidate.kind === "file" && !candidate.path.includes("/") && isDocPath(candidate.path),
-  );
-  return entry?.path ?? null;
 }
 
 /** The vault's file paths, lowercased for existence checks — the disk this

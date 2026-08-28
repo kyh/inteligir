@@ -21,8 +21,22 @@ export const noteIntelligenceSweepSchema = z
   .strict();
 export type NoteIntelligenceSweep = z.infer<typeof noteIntelligenceSweepSchema>;
 
+/**
+ * Whether this machine can infer at all. Inference runs a vendor CLI, so an
+ * install that does not have it must say so rather than answer "0 updated, N
+ * skipped" forever — the same fact `AgentStatus.runtime: "unavailable"` states
+ * for turns, and for the same reason: a 0 that means "nothing to do" and a 0
+ * that means "nothing can be done" are not the same number.
+ */
+export const noteIntelligenceAvailabilitySchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("available") }).strict(),
+  z.object({ kind: z.literal("unavailable"), detail: z.string().min(1) }).strict(),
+]);
+export type NoteIntelligenceAvailability = z.infer<typeof noteIntelligenceAvailabilitySchema>;
+
 export const noteIntelligenceStatusSchema = z
   .object({
+    availability: noteIntelligenceAvailabilitySchema,
     enabled: z.boolean(),
     /** A sweep is executing right now. */
     running: z.boolean(),

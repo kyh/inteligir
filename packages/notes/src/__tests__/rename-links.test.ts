@@ -35,6 +35,32 @@ describe("computeRenameEdits — wiki links", () => {
     expect([...result.keys()]).toEqual(["hub.md"]);
   });
 
+  it("never rewrites inside a range the editor holds verbatim", () => {
+    const hub = [
+      "[[old]]",
+      "",
+      "<div>[[old]]</div>",
+      "",
+      "math $$[[old]]$$ math",
+      "",
+      "{ expr [[old]] expr }",
+      "",
+    ].join("\n");
+    const result = edits({ "hub.md": hub, "old.md": "" }, "old.md", "new.md");
+    expect(result.get("hub.md")).toBe(
+      [
+        "[[new]]",
+        "",
+        "<div>[[old]]</div>",
+        "",
+        "math $$[[old]]$$ math",
+        "",
+        "{ expr [[old]] expr }",
+        "",
+      ].join("\n"),
+    );
+  });
+
   it("never rewrites inside fences or code spans", () => {
     const hub = [
       "[[old]]",

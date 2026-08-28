@@ -44,6 +44,7 @@
     "./server/vault/seed-vault": "./src/server/vault/seed-vault.ts"
   },
   "publishConfig": {
+    "exports": {},
     "access": "public"
   },
   "scripts": {
@@ -72,7 +73,6 @@
     "@repo/db": "workspace:*",
     "@repo/domain": "workspace:*",
     "@repo/notes": "workspace:*",
-    "@repo/thread-view": "workspace:*",
     "@types/better-sqlite3": "catalog:",
     "@types/node": "catalog:",
     "@types/unbzip2-stream": "^1.4.3",

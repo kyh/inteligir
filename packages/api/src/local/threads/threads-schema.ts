@@ -19,10 +19,8 @@ export const threadSchema = z
     activeTurnId: z.string().nullable(),
     /** The note this action was composed over; null for a plain chat. */
     originDocPath: z.string().nullable(),
-    /** Retired (#613): legacy rows only — new threads always carry null. */
-    originAnchor: z.string().nullable(),
-    /** The harness this thread runs on, once one ever dispatched (or was
-     *  chosen at create); null adopts the default at next dispatch. */
+    /** The harness this thread runs on, once one ever dispatched; null adopts
+     *  the default at next dispatch. */
     providerId: z.string().nullable(),
     archivedAt: z.number().nullable(),
     createdAt: z.number(),
@@ -58,9 +56,6 @@ export const createThreadRequestSchema = z
     /** A thread's origin is a stored path nothing else re-validates, so a bad
      *  one would sit in the database forever, pointing at nothing. */
     originDocPath: vaultPathSchema.optional(),
-    /** The harness this thread runs on ("claude" | "codex" today); omitted
-     *  adopts the server's default at first dispatch. */
-    providerId: z.string().min(1).optional(),
   })
   .strict();
 export type CreateThreadRequest = z.infer<typeof createThreadRequestSchema>;
@@ -122,9 +117,6 @@ export const archiveThreadRequestSchema = z
   .strict();
 export type ArchiveThreadRequest = z.infer<typeof archiveThreadRequestSchema>;
 
-export const sendMessageModeSchema = z.enum(["steer-if-active", "queue-if-active"]);
-export type SendMessageMode = z.infer<typeof sendMessageModeSchema>;
-
 /**
  * The domain shape with its `resource` held to the vault path grammar, exactly
  * as `createThreadRequestSchema` holds `originDocPath`: a path nothing
@@ -144,16 +136,19 @@ const wireViewContextSchema = viewContextSchema.transform((value, ctx): ViewCont
 });
 
 /**
+ * ONE send policy: start the turn when the thread is idle, queue the message
+ * when it is busy. There is no mode to negotiate — a message is never lost and
+ * never lands in a turn nobody asked for.
+ *
  * `expectedTurnId` is the staleness guard: the turn the client believes is
  * running. When it no longer names the open turn — it settled, or another
- * client started a new one — the send is refused with 409 instead of landing
- * on a turn the user never saw.
+ * client started a new one — the send is refused with 409 instead of starting
+ * a turn the caller believed was already under way.
  */
 export const sendMessageRequestSchema = z
   .object({
     threadId: z.string().min(1),
     text: z.string().min(1),
-    mode: sendMessageModeSchema,
     expectedTurnId: z.string().min(1).optional(),
     /** What the sender was looking at. Optional because most senders are
      *  looking at nothing this host can name — the CLI, the palette, a chat
@@ -165,7 +160,6 @@ export type SendMessageRequest = z.infer<typeof sendMessageRequestSchema>;
 
 export const sendMessageResponseSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("started"), turnId: z.string() }).strict(),
-  z.object({ kind: z.literal("steered"), turnId: z.string() }).strict(),
   z.object({ kind: z.literal("queued"), queuedMessageId: z.string() }).strict(),
 ]);
 export type SendMessageResponse = z.infer<typeof sendMessageResponseSchema>;

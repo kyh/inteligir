@@ -13,6 +13,7 @@ import {
   CommandList,
   CommandShortcut,
 } from "@repo/ui/components/command";
+import { isDocPath } from "@repo/notes/knowledge/doc-file";
 import type { Thread } from "@repo/api/local/threads/threads-schema";
 import type { VaultEntry } from "@repo/api/local/vault/vault-schema";
 import {
@@ -28,7 +29,7 @@ import {
   ColumnsIcon,
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { threadActivity, THREAD_ACTIVITY_LABELS } from "../chat/chat-model";
+import { threadActivity, THREAD_ACTIVITY_LABELS } from "../chat-model";
 import type { NoteSearchHit, NoteSearchSource } from "./note-search";
 
 export interface PaletteActions {
@@ -277,7 +278,7 @@ export function CommandPalette({
 
   if (page === "split-note") {
     const docs = entries
-      .filter((entry) => entry.kind === "file" && entry.path.endsWith(".md"))
+      .filter((entry) => entry.kind === "file" && isDocPath(entry.path))
       .filter((entry) => matchesQuery(entry.path, query))
       .slice(0, 30);
     return (

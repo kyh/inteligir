@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   authorizationHeader,
   mintServerToken,
-  presentedToken,
+  presentedCredential,
   readServerFile,
   removeServerFile,
   SERVER_FILE_NAME,
@@ -70,31 +70,31 @@ describe("the server file", () => {
 describe("what a request presents", () => {
   it("reads the bearer, and prefers it over a cookie", () => {
     expect(
-      presentedToken({ authorization: authorizationHeader("header-tok"), cookie: undefined }),
-    ).toBe("header-tok");
+      presentedCredential({ authorization: authorizationHeader("header-tok"), cookie: undefined }),
+    ).toEqual({ token: "header-tok", carrier: "header" });
     expect(
-      presentedToken({
+      presentedCredential({
         authorization: authorizationHeader("header-tok"),
         cookie: `${SERVER_TOKEN_COOKIE}=cookie-tok`,
       }),
-    ).toBe("header-tok");
+    ).toEqual({ token: "header-tok", carrier: "header" });
   });
 
   it("reads the cookie out of a header carrying several", () => {
     expect(
-      presentedToken({
+      presentedCredential({
         authorization: undefined,
         cookie: `theme=dark; ${SERVER_TOKEN_COOKIE}=cookie-tok; other=1`,
       }),
-    ).toBe("cookie-tok");
+    ).toEqual({ token: "cookie-tok", carrier: "cookie" });
   });
 
   it("is null for anything that is not a credential", () => {
     for (const authorization of [undefined, "Bearer ", "Basic abc", "bearer lowercase"]) {
-      expect(presentedToken({ authorization, cookie: undefined })).toBeNull();
+      expect(presentedCredential({ authorization, cookie: undefined })).toBeNull();
     }
-    expect(presentedToken({ authorization: undefined, cookie: "unrelated=1" })).toBeNull();
-    expect(presentedToken({ authorization: undefined, cookie: "novalue" })).toBeNull();
+    expect(presentedCredential({ authorization: undefined, cookie: "unrelated=1" })).toBeNull();
+    expect(presentedCredential({ authorization: undefined, cookie: "novalue" })).toBeNull();
   });
 
   it("accepts only the exact token", () => {

@@ -76,7 +76,7 @@ export function BlockMenu() {
           <DropdownMenuLabel>Turn into</DropdownMenuLabel>
           {TURN_INTO.map((opt) => (
             <DropdownMenuItem
-              key={opt.label}
+              key={opt.id}
               onClick={() => turnIntoBlocks(editor, selectedPaths(), opt)}
             >
               {opt.label}

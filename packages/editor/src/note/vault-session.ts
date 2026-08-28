@@ -25,7 +25,8 @@
 //
 // The session holds its own state rather than React refs: every rule above is
 // a synchronous read-then-write across an await, which is exactly what render
-// timing is free to reorder. `vault-context.tsx` is the React wiring over this.
+// timing is free to reorder. The app's `note/vault-provider.tsx` is the React
+// wiring over this.
 // ---------------------------------------------------------------------------
 
 import {

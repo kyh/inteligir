@@ -120,20 +120,38 @@ function render(node: Nodes, options: ToMarkdownOptions): string {
   return toMarkdown(node, options).replace(/\n$/, "");
 }
 
+/** Does this node go opaque — held verbatim instead of modelled? Exported
+ * because the knowledge scan reads a DIFFERENT, plain-markdown grammar
+ * (../knowledge/link-extract) that sees ordinary constructs inside these
+ * regions, and rename byte-surgery must not splice into bytes this pipeline
+ * promises to return unchanged. */
+export function isOpaqueSource(node: Nodes): boolean {
+  switch (node.type) {
+    case "html":
+    case "mdxFlowExpression":
+    case "mdxTextExpression":
+      return true;
+    case "mdxJsxFlowElement":
+    case "mdxJsxTextElement":
+      return !isComponent(node);
+    default:
+      return false;
+  }
+}
+
 function toOpaque(node: Nodes, options: ToMarkdownOptions): OpaqueBlock | OpaqueInline | null {
+  if (!isOpaqueSource(node)) return null;
   switch (node.type) {
     // htmlFlow is disabled (remark-mdx-agnostic), so every `html` node comes
     // from htmlText and sits in phrasing position. Its value IS its source.
     case "html":
       return { type: "opaqueInline", value: node.value };
     case "mdxFlowExpression":
+    case "mdxJsxFlowElement":
       return { type: "opaqueBlock", value: render(node, options) };
     case "mdxTextExpression":
-      return { type: "opaqueInline", value: render(node, options) };
-    case "mdxJsxFlowElement":
-      return isComponent(node) ? null : { type: "opaqueBlock", value: render(node, options) };
     case "mdxJsxTextElement":
-      return isComponent(node) ? null : { type: "opaqueInline", value: render(node, options) };
+      return { type: "opaqueInline", value: render(node, options) };
     default:
       return null;
   }

@@ -66,15 +66,6 @@ function approvalView(payload: ApprovalPendingInteractionPayload | null): Approv
         reason,
         decisions,
       };
-    case "permission_grant":
-      return {
-        summary:
-          subject.toolName === null
-            ? "Grant additional permissions"
-            : `Grant additional permissions to ${subject.toolName}`,
-        reason,
-        decisions,
-      };
   }
 }
 

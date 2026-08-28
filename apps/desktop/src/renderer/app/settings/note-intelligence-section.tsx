@@ -8,12 +8,17 @@
 
 import { Switch } from "@repo/ui/components/switch";
 import type { NoteIntelligenceStatus } from "@repo/api/local/note-intelligence/note-intelligence-schema";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { orpc } from "../api";
-import { useWorkspace } from "../workspace-context";
 import { failed, Row, SectionHeading } from "./settings-chrome";
+
+/** The reason this machine cannot infer, or null when it can. A sweep line of
+ *  zeros would otherwise be the only thing an install without the CLI ever
+ *  shows. */
+function unavailableReason(status: NoteIntelligenceStatus): string | null {
+  return status.availability.kind === "unavailable" ? status.availability.detail : null;
+}
 
 function sweepLine(status: NoteIntelligenceStatus): string {
   if (status.running) return "Sweeping…";
@@ -23,25 +28,21 @@ function sweepLine(status: NoteIntelligenceStatus): string {
 }
 
 export function NoteIntelligenceSection() {
-  const { api } = useWorkspace();
   const queryClient = useQueryClient();
-  const [pending, setPending] = useState(false);
   const statusQuery = useQuery(orpc.noteIntelligence.status.queryOptions());
   const status = statusQuery.data;
+  const unavailable = status === undefined ? null : unavailableReason(status);
 
-  const setEnabled = (enabled: boolean): void => {
-    void (async () => {
-      setPending(true);
-      try {
-        const next = await api.noteIntelligence.toggle({ enabled });
+  const toggle = useMutation(
+    orpc.noteIntelligence.toggle.mutationOptions({
+      onSuccess: (next) => {
         queryClient.setQueryData(orpc.noteIntelligence.status.queryKey(), next);
-      } catch (cause) {
+      },
+      onError: (cause) => {
         failed(cause, "Could not change note intelligence.");
-      } finally {
-        setPending(false);
-      }
-    })();
-  };
+      },
+    }),
+  );
 
   return (
     <>
@@ -49,8 +50,10 @@ export function NoteIntelligenceSection() {
       <Row label="Infer note metadata">
         <Switch
           checked={status?.enabled ?? false}
-          disabled={pending || status === undefined}
-          onCheckedChange={setEnabled}
+          disabled={toggle.isPending || status === undefined || unavailable !== null}
+          onCheckedChange={(enabled) => {
+            toggle.mutate({ enabled });
+          }}
           aria-label="Infer note metadata"
         />
       </Row>
@@ -58,7 +61,8 @@ export function NoteIntelligenceSection() {
         Adds description, tags and status to notes that lack them, using the local Claude CLI with
         its cheapest model. Fields you set yourself are never rewritten.
       </p>
-      {status === undefined ? null : (
+      {unavailable !== null ? <p className="text-xs text-destructive">{unavailable}</p> : null}
+      {status === undefined || unavailable !== null ? null : (
         <p className="text-xs text-muted-foreground">{sweepLine(status)}</p>
       )}
     </>

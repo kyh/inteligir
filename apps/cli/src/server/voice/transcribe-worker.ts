@@ -39,6 +39,7 @@ import type {
   VoiceStreamCommand,
   VoiceStreamEvent,
   VoiceWorkerData,
+  VoiceWorkerRequest,
   VoiceWorkerResponse,
 } from "./worker-protocol";
 
@@ -159,7 +160,7 @@ function decodeInto(recognizer: SherpaRecognizer, stream: SherpaStream): string 
   return recognizer.getResult(stream).text.trim();
 }
 
-async function runOneShot(request: VoiceWorkerData): Promise<VoiceWorkerResponse> {
+async function runOneShot(request: VoiceWorkerRequest): Promise<VoiceWorkerResponse> {
   if (request.kind === "probe") {
     // The import forces the native load (see the header); a binding that cannot
     // load throws here, which is exactly what the probe exists to catch.
@@ -167,15 +168,6 @@ async function runOneShot(request: VoiceWorkerData): Promise<VoiceWorkerResponse
       return { kind: "failed", message: "sherpa-onnx-node did not load", modelUnusable: false };
     }
     return { kind: "probed" };
-  }
-  if (request.kind === "stream") {
-    // The stream lifecycle is handled elsewhere; a one-shot runner never sees
-    // it. Answering rather than throwing keeps this exhaustive.
-    return {
-      kind: "failed",
-      message: "stream init is not a one-shot request",
-      modelUnusable: false,
-    };
   }
 
   let recognizer: SherpaRecognizer;

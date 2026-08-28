@@ -2,8 +2,7 @@ import { Stack, useRouter } from "expo-router";
 import { useCallback, useState } from "react";
 import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { isDocPath } from "@repo/notes/knowledge/doc-file";
-import { titleFromPath } from "@repo/notes/knowledge/link-extract";
+import { docStem, isDocPath } from "@repo/notes/knowledge/doc-file";
 import { refreshNotes, useNotesTree, useSyncStatus } from "@/lib/app-runtime";
 import { RADIUS, SPACE, useTheme } from "@/lib/theme";
 
@@ -73,7 +72,7 @@ export default function NotesScreen() {
               }
             >
               <Text style={[styles.title, { color: theme.cardForeground }]} numberOfLines={1}>
-                {titleFromPath(entry.path)}
+                {docStem(entry.path)}
               </Text>
               {dir !== null ? (
                 <Text style={[styles.caption, { color: theme.mutedForeground }]} numberOfLines={1}>

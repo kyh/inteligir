@@ -21,9 +21,10 @@ src/
     server.ts        The deployed entry: path-splits API vs site SSR
     index.ts         The API route table (also the test suite's entry)
     auth/            Better Auth factory, invite gate, reset email + page
-    device/          Pairing mint/redeem + device-credential verification
+    device/          Pairing mint/redeem, credential verification, /v1/account
     sync/            ThreadSyncDO + the device-authed route chokepoint
-    vault/           The hosted vault git remote (durable-git behind the wrapper)
+    vault/           The hosted vault git remote (durable-git behind the
+                     wrapper) + the git-less /v1/vault/* read routes
     db/              Drizzle schema + client for the D1 auth database
     __tests__/       vitest-pool-workers suites (real miniflare + D1 + DO)
 ```
@@ -59,11 +60,17 @@ its own `tsconfig.json`.
 | `POST /v1/sync/captures/claim` | device  | Take the inbox for a five-minute window                    |
 | `POST /v1/sync/captures/ack`   | device  | Delete what that claim owns — per-id outcomes              |
 | `/v1/git/vault.git/*`          | device  | The hosted vault git remote — smart HTTP, per-user repo    |
+| `GET /v1/vault/tree`           | device  | Flat listing of the hosted vault at one commit             |
+| `GET /v1/vault/file`           | device  | One note's bytes at that commit — 2 MB ceiling             |
+| `GET /v1/vault/asset`          | device  | One embedded binary at that commit                         |
+| `GET /v1/account`              | device  | Whose account this device credential syncs as              |
 
 "device" auth is the `igd_…` credential pairing minted, verified per request by
-hash compare against D1 — never cached, so revocation is immediate. Every
-device route is served by that user's own `ThreadSyncDO`, named from the
-VERIFIED credential's userId — no path or body carries one.
+hash compare against D1 — never cached, so revocation is immediate. The
+VERIFIED credential's userId — never a path or a body — names the state it
+reaches: the sync and capture routes fan out to that user's own
+`ThreadSyncDO`, the git remote and the `/v1/vault/*` reads to that user's own
+durable-git `RepoCell`, and `/v1/account` reads D1 directly.
 
 ## Auth
 

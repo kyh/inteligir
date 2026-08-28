@@ -32,8 +32,7 @@
     "routeTree.gen.ts",
     "worker-configuration.d.ts",
     ".design-sync",
-    ".ds-sync",
-    "packages/agent-runtime/src/codex/generated"
+    ".ds-sync"
   ],
   "plugins": ["eslint", "typescript", "unicorn", "react", "oxc", "node", "promise"],
   "jsPlugins": [{ "name": "anti-slop", "specifier": "@kyh/oxlint/anti-slop" }],
@@ -243,8 +242,8 @@
       }
     },
     {
-      // The Fluid Functionalism sidebar (vendored — see packages/ui/
-      // PROVENANCE.md): its slot system does render/asChild polymorphism over
+      // The Fluid Functionalism sidebar, vendored: its slot system does
+      // render/asChild polymorphism over
       // structurally-typed props, and its menu scope walks live DOM rows.
       // A Ref or a slot template is a
       // function-or-object union with no named parse boundary — the `typeof`

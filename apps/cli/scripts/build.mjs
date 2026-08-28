@@ -13,8 +13,9 @@
 //
 // The staged trees are content, not code: the committed migrations
 // (@repo/db/migrate resolves a folder), the dialect skills the agent reads with
-// its own shell, and the workspace UI this server answers over plain HTTP so
-// `inteligir serve --open` lands a browser in the product.
+// its own shell, the workspace UI this server answers over plain HTTP so
+// `inteligir serve --open` lands a browser in the product, and the licence
+// texts of the MIT sources this artifact carries.
 
 import { cp, rm } from "node:fs/promises";
 import { existsSync } from "node:fs";
@@ -46,7 +47,10 @@ const shared = {
   banner: { js: NODE_ESM_REQUIRE_BANNER },
   bundle: true,
   format: "esm",
-  legalComments: "none",
+  // "linked", never "none": every inlined dependency is MIT-or-similar, so a
+  // marked notice has to survive the bundle rather than be stripped out of it.
+  // It lands in a sibling `.LEGAL.txt`, which `files: ["dist"]` already ships.
+  legalComments: "linked",
   logLevel: "info",
   platform: "node",
   sourcemap: true,
@@ -88,6 +92,13 @@ await cp(join(repoRoot, "packages", "db", "drizzle"), join(distDir, "drizzle"), 
 // staged rather than imported — a published install resolves no workspace
 // package (paths.ts::resolveSkillsDir).
 await cp(join(repoRoot, "packages", "agent-skills", "skills"), join(distDir, "skills"), {
+  recursive: true,
+});
+
+// The vendored sources' licence texts. They live at the repo root, which no
+// `files` glob can name, so the obligation is met by staging them INTO dist —
+// the same move the skills and the UI make, for a different reason.
+await cp(join(repoRoot, "tools", "licenses"), join(distDir, "licenses"), {
   recursive: true,
 });
 

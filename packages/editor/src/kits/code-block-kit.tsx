@@ -19,7 +19,7 @@ import { common, createLowlight } from "lowlight";
 
 import { cn } from "@repo/ui/lib/utils";
 
-import { TURN_INTO, turnIntoSelection } from "@repo/editor/block-transforms";
+import { turnIntoOption, turnIntoSelection } from "@repo/editor/block-transforms";
 import { MermaidPreview } from "@repo/editor/nodes/code-block-mermaid";
 
 export const CodeBlockBaseKit = [BaseCodeBlockPlugin, BaseCodeLinePlugin];
@@ -109,8 +109,7 @@ function CodeLineElement(props: PlateElementProps) {
 // serialization surface), seeded with a minimal valid graph. Reuses the "Code
 // block" turn-into so the fence's byte-form matches every other code block's.
 export function insertMermaid(editor: PlateEditor): void {
-  const codeBlock = TURN_INTO.find((opt) => opt.label === "Code block");
-  if (codeBlock) turnIntoSelection(editor, codeBlock);
+  turnIntoSelection(editor, turnIntoOption("code-block"));
   editor.tf.setNodes(
     { lang: "mermaid" },
     { match: (n) => n.type === editor.getType(KEYS.codeBlock) },
