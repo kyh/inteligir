@@ -3,7 +3,7 @@
 // which is also what the comments procedures and the asset route answer with.
 
 import {
-  VAULT_ASSET_MEDIA_TYPES,
+  assetMediaType,
   VAULT_ASSET_WRITE_MAX_BYTES,
   type VaultRenameResponse,
 } from "@repo/api/local/vault/vault-schema";
@@ -21,14 +21,6 @@ export type RenameNote = (from: string, to: string) => Promise<VaultRenameRespon
  *  handler: thirteen handlers deciding it separately is thirteen answers that
  *  can disagree. */
 const refusing = refusals(vaultWireError);
-
-/** The media type this extension is served as, or null for anything outside
- *  the allowlist. Lowercased, because a vault carries `.PNG` too. */
-export function assetMediaType(path: string): string | null {
-  const dot = path.lastIndexOf(".");
-  if (dot < 0) return null;
-  return VAULT_ASSET_MEDIA_TYPES.get(path.slice(dot).toLowerCase()) ?? null;
-}
 
 const tree = base.vault.tree.handler(({ context }) => context.vault.service.listTree());
 

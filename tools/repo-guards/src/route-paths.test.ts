@@ -19,6 +19,7 @@
 // spelling the wire out is what those files are FOR.
 // ---------------------------------------------------------------------------
 
+import { VAULT_API_PATHS } from "@repo/api/cloud/vault/vault-schema";
 import {
   HEALTH_PATH,
   RPC_PREFIX,
@@ -28,19 +29,35 @@ import {
 import { describe, expect, it } from "vitest";
 import { isTestFile, sourceOf, workspaceSourceFiles, workspaces } from "./repo";
 
-/** The file that declares the paths, and therefore the one that must spell
- *  them. Everything else imports. */
-const HOME = "packages/api/src/local/local-routes.ts";
-const USE = "the constants in @repo/api/local/routes";
-
 /**
- * The paths under guard, longest first so a hit reports the most specific one.
+ * Each namespace's paths and the module that declares them. TWO homes, because
+ * there are two servers: the local app's non-procedure routes, and the cloud's
+ * vault read rows — a wire a deployed Worker answers for installs that may be
+ * months stale, so a caller holding its own copy of one is worse here, not
+ * better.
+ *
  * `/ws` is deliberately absent: two characters plus a slash matches far too
  * much ordinary prose and code to be a signal.
  */
-const GUARDED_PATHS = [VOICE_STREAM_PATH, VAULT_ASSET_PATH, HEALTH_PATH, RPC_PREFIX].toSorted(
-  (left, right) => right.length - left.length,
-);
+const NAMESPACES = [
+  {
+    home: "packages/api/src/local/local-routes.ts",
+    use: "the constants in @repo/api/local/routes",
+    paths: [VOICE_STREAM_PATH, VAULT_ASSET_PATH, HEALTH_PATH, RPC_PREFIX],
+  },
+  {
+    home: "packages/api/src/cloud/vault/vault-schema.ts",
+    use: "VAULT_API_PATHS from @repo/api/cloud/vault/vault-schema",
+    paths: Object.values(VAULT_API_PATHS),
+  },
+];
+
+/** Longest first, so a hit reports the most specific path — and so the
+ *  cloud's `/v1/vault/asset` is tried before the local `/vault/asset` it
+ *  contains. */
+const GUARDED = NAMESPACES.flatMap((namespace) =>
+  namespace.paths.map((path) => ({ path, home: namespace.home, use: namespace.use })),
+).toSorted((left, right) => right.path.length - left.path.length);
 
 /**
  * Files allowed to spell a path anyway, and why. Each is drained below: a row
@@ -58,9 +75,14 @@ const ELSEWHERE = new Map<string, string>([
   ],
 ]);
 
-interface Hit {
+interface Spelled {
+  path: string;
+  home: string;
+  use: string;
+}
+
+interface Hit extends Spelled {
   file: string;
-  what: string;
 }
 
 /** A path is spelled when it appears NOT followed by a word character or a
@@ -70,10 +92,11 @@ function spells(source: string, path: string): boolean {
   return new RegExp(`${path}(?![\\w-])`, "u").test(source);
 }
 
-function spellings(source: string): string[] {
-  return GUARDED_PATHS.filter((path) => spells(source, path))
-    .map((path) => `the literal "${path}…"`)
-    .slice(0, 1);
+/** The most specific path this source spells, with the home that owns it.
+ *  One hit: the first is the most specific, and a file that spells two has
+ *  one thing to fix either way. */
+function spellings(source: string): Spelled[] {
+  return GUARDED.filter((row) => spells(source, row.path)).slice(0, 1);
 }
 
 /** Every non-test source file the repo holds. */
@@ -85,37 +108,51 @@ function sweptFiles(): string[] {
 }
 
 function hits(files: readonly string[]): Hit[] {
-  return files.flatMap((file) => spellings(sourceOf(file)).map((what) => ({ file, what })));
+  return files.flatMap((file) =>
+    spellings(sourceOf(file)).map((row) => ({
+      file,
+      path: row.path,
+      home: row.home,
+      use: row.use,
+    })),
+  );
 }
 
 describe("one spelling per non-procedure route path", () => {
   const files = sweptFiles();
 
-  it("finds the home and the tree it is held against", () => {
+  it("finds every home and the tree they are held against", () => {
     // A path that read as empty would match every file; a sweep that missed
     // the scripts would silently stop covering the callers this guard was
     // written for. Both are checked, because both fail by finding nothing.
-    for (const path of GUARDED_PATHS) {
-      expect(path.startsWith("/"), `not a path: "${path}"`).toBe(true);
+    for (const row of GUARDED) {
+      expect(row.path.startsWith("/"), `not a path: "${row.path}"`).toBe(true);
     }
-    expect(files, `the sweep found no ${HOME} — it is broken, not the tree`).toContain(HOME);
     expect(
       files,
       "the sweep does not reach scripts/, which is where the smokes that spell paths live",
     ).toContain("apps/cli/scripts/smoke.mjs");
-    expect(spellings(sourceOf(HOME)).length, `${HOME} no longer spells a route path`).toBe(1);
+    for (const namespace of NAMESPACES) {
+      expect(files, `the sweep found no ${namespace.home} — it is broken, not the tree`).toContain(
+        namespace.home,
+      );
+      expect(
+        spellings(sourceOf(namespace.home)).length,
+        `${namespace.home} no longer spells a route path`,
+      ).toBe(1);
+    }
   });
 
   it("nothing outside the contract writes one as a literal", () => {
     const violations: string[] = [];
     for (const hit of hits(files)) {
-      if (hit.file === HOME) continue;
+      if (hit.file === hit.home) continue;
       if (ELSEWHERE.has(hit.file)) continue;
       violations.push(
         `HAND-SPELLED ROUTE PATH  ${hit.file}\n` +
-          `  found: ${hit.what}\n` +
-          `  rule: every path this server answers outside the RPC handler lives in ${HOME}; a caller holding its own copy keeps dialing the old one after it moves, and finds out at runtime\n` +
-          `  fix: use ${USE} — or add a row to ELSEWHERE in tools/repo-guards/src/route-paths.test.ts saying why this caller cannot import the contract`,
+          `  found: the literal "${hit.path}…"\n` +
+          `  rule: every path a server answers outside its RPC handler lives in ${hit.home}; a caller holding its own copy keeps dialing the old one after it moves, and finds out at runtime\n` +
+          `  fix: use ${hit.use} — or add a row to ELSEWHERE in tools/repo-guards/src/route-paths.test.ts saying why this caller cannot import the contract`,
       );
     }
     expect(violations, `\n${violations.join("\n\n")}\n`).toEqual([]);

@@ -64,10 +64,13 @@ mirroring the desktop's `<dataDir>/device-credential`.
 moves the tree's commit makes old rows unreachable and sweeps them. The TREE
 stays in memory on purpose: the resolver and the commit must be current before
 any read is pinned, so a cold launch re-fetches the listing and then reads
-note bodies from disk. A pairing and an unpair
-wipe the rows; the boot RESTORE keeps them — that launch is what the cache
-exists for. Which transition it is comes from the composition root, which
-knows, rather than from comparing bearers inside the store.
+note bodies from disk. A pairing and an unpair wipe the rows; the boot
+RESTORE keeps them — that launch is what the cache exists for. Which
+transition it is comes from the composition root, which knows, rather than
+from comparing bearers inside the store. Image BYTES are the stated residual:
+an embed's fetch lands in the platform's own image caches, which an unpair
+cannot clear — safe to serve (the URL pins a commit sha), but at rest until
+the OS evicts them.
 
 The durable follow-up is an **expo-sqlite** `SyncStore` that persists all four
 sync stores together; the port exists precisely so that swap touches nothing

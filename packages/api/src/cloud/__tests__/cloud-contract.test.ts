@@ -20,9 +20,14 @@ import {
   pkceChallengeS256,
   redeemDeviceRequestSchema,
 } from "../pairing/pairing-schema";
+import { createCloudClient } from "../cloud-client";
 import { EVENT_MAX_BYTES, pullQuerySchema, pushRequestSchema } from "../sync/sync-schema";
 import { syncPingSchema } from "../sync/sync-ws";
 import {
+  assetMediaType,
+  VAULT_API_PATHS,
+  VAULT_ASSET_MEDIA_TYPES,
+  vaultAssetQuerySchema,
   vaultFileQuerySchema,
   vaultFileResponseSchema,
   vaultTreeQuerySchema,
@@ -411,6 +416,58 @@ describe("vault read rows", () => {
     expect(vaultTreeQuerySchema.safeParse({ ref: "abc123" }).success).toBe(false);
     expect(vaultTreeQuerySchema.safeParse({ ref: "A".repeat(40) }).success).toBe(false);
     expect(vaultTreeQuerySchema.safeParse({ ref: COMMIT }).success).toBe(true);
+  });
+
+  it("the asset query REQUIRES its ref — an unpinned asset URL is no cache key", () => {
+    expect(vaultAssetQuerySchema.safeParse({ path: "a.png" }).success).toBe(false);
+    expect(vaultAssetQuerySchema.safeParse({ path: "a.png", ref: COMMIT }).success).toBe(true);
+    expect(vaultAssetQuerySchema.safeParse({ path: "../up.png", ref: COMMIT }).success).toBe(false);
+    expect(vaultAssetQuerySchema.safeParse({ path: "a.png", ref: COMMIT, extra: 1 }).success).toBe(
+      false,
+    );
+  });
+
+  it("composes an asset source through the client — bearer in a header, never the URL", () => {
+    // The client is the one composer: it holds the credential, so nothing
+    // downstream assembles a second spelling of the auth header.
+    const source = createCloudClient({
+      baseUrl: "https://cloud.test",
+      credential: `igd_${"a".repeat(64)}`,
+    }).vaultAssetSource({ path: "media/α β.png", ref: COMMIT });
+    const url = new URL(source.uri);
+    expect(url.pathname).toBe(VAULT_API_PATHS.asset);
+    expect(url.searchParams.get("path")).toBe("media/α β.png");
+    expect(url.searchParams.get("ref")).toBe(COMMIT);
+    expect(url.username).toBe("");
+    expect(url.search).not.toContain("igd_");
+    expect(source.headers).toEqual({ authorization: `Bearer igd_${"a".repeat(64)}` });
+  });
+
+  it("the asset allowlist answers a type or nothing — never a fallback", () => {
+    expect(assetMediaType("media/diagram.png")).toBe("image/png");
+    expect(assetMediaType("media/PHOTO.JPG")).toBe("image/jpeg");
+    expect(assetMediaType("notes.md")).toBeNull();
+    expect(assetMediaType("script.html")).toBeNull();
+    expect(assetMediaType("no-extension")).toBeNull();
+  });
+
+  it("pins the asset allowlist WHOLE — growth is additive, removal never happens", () => {
+    // The table is the deployed /v1/vault/asset wire's behavior, shared with
+    // the desktop route: add a row here WITH the new entry; removing one
+    // 400s every stale phone whose notes embed that type. This pin is what
+    // turns a local-side "cleanup" of the shared table into a failing test.
+    expect(Object.fromEntries(VAULT_ASSET_MEDIA_TYPES)).toEqual({
+      ".apng": "image/apng",
+      ".avif": "image/avif",
+      ".bmp": "image/bmp",
+      ".gif": "image/gif",
+      ".ico": "image/x-icon",
+      ".jpeg": "image/jpeg",
+      ".jpg": "image/jpeg",
+      ".png": "image/png",
+      ".svg": "image/svg+xml",
+      ".webp": "image/webp",
+    });
   });
 });
 

@@ -1,8 +1,11 @@
 import {
+  assetMediaType,
   isReservedVaultSegment,
   VAULT_API_PATHS,
+  VAULT_ASSET_MAX_BYTES,
   VAULT_FILE_MAX_BYTES,
   VAULT_TREE_MAX_ENTRIES,
+  vaultAssetQuerySchema,
   vaultFileQuerySchema,
   vaultTreeQuerySchema,
   type VaultFileResponse,
@@ -67,6 +70,9 @@ export async function handleVaultReadRoutes(
   }
   if (url.pathname === VAULT_API_PATHS.file) {
     return await answerFile(stub, url);
+  }
+  if (url.pathname === VAULT_API_PATHS.asset) {
+    return await answerAsset(stub, url);
   }
   return refuse("not-found", "No such route.");
 }
@@ -215,4 +221,73 @@ async function answerFile(stub: DurableObjectStub<RepoCell>, url: URL): Promise<
     content,
   };
   return Response.json(response);
+}
+
+// An asset is bytes from a vault a git remote can write into, served to a
+// credential that trusts this origin. `nosniff` pins the declared type, and
+// the sandbox CSP is what makes SVG safe: `<img>` never runs its script, but
+// a NAVIGATION to this URL renders it as a document, and a sandbox with no
+// `allow-scripts` refuses that. Unlike the desktop route's `no-cache`+ETag —
+// whose vault is mutable — this URL pins a commit, so the bytes it names can
+// never change and `immutable` is the truth; `private`, because the answer is
+// credential-gated.
+const ASSET_HEADERS = {
+  "cache-control": "private, max-age=31536000, immutable",
+  "content-security-policy": "default-src 'none'; sandbox",
+  "x-content-type-options": "nosniff",
+};
+
+/** The image-embed bytes at (ref, path). `ref` is required by the contract —
+ *  a pinned request also skips the registry gate above by construction, so
+ *  image loads never pay the singleton hop. */
+async function answerAsset(stub: DurableObjectStub<RepoCell>, url: URL): Promise<Response> {
+  const query = vaultAssetQuerySchema.safeParse({
+    path: url.searchParams.get("path") ?? undefined,
+    ref: url.searchParams.get("ref") ?? undefined,
+  });
+  if (!query.success) {
+    return refuse("bad-request", "Send ?path=<vault-relative path>&ref=<sha> — both required.");
+  }
+  const mediaType = assetMediaType(query.data.path);
+  if (mediaType === null) {
+    return refuse("bad-request", "That extension is not an image type this vault serves.");
+  }
+
+  // Size-gate from the TREE before the blob crosses the repo cell's RPC:
+  // `readBlob` inflates the whole blob inside the cell and the RPC return has
+  // its own message bound, so a huge asset gated only after the hop would
+  // surface as an opaque 500 — and pay the crossing again on every retry. The
+  // parent directory's own entry answers the question for one cheap hop.
+  const slash = query.data.path.lastIndexOf("/");
+  const parentDir = slash < 0 ? "" : query.data.path.slice(0, slash);
+  const leaf = slash < 0 ? query.data.path : query.data.path.slice(slash + 1);
+  const parentTree = await stub.listTree(query.data.ref, encodeGitPath(parentDir));
+  if (parentTree === null) {
+    return refuse("not-found", "That revision does not carry the path.");
+  }
+  const entry = parentTree.entries.find((row) => row.name === leaf && row.type === "blob");
+  if (entry === undefined) {
+    return refuse("not-found", "That revision does not carry the path.");
+  }
+  if (entry.size !== undefined && entry.size > VAULT_ASSET_MAX_BYTES) {
+    return refuse(
+      "file-too-large",
+      `Assets over ${String(VAULT_ASSET_MAX_BYTES)} bytes do not cross this wire.`,
+    );
+  }
+
+  const blob = await stub.readBlob(query.data.ref, encodeGitPath(query.data.path));
+  if (blob === null) {
+    return refuse("not-found", "That revision does not carry the path.");
+  }
+  // The belt behind the tree gate: an entry with no size still lands here.
+  if (blob.data.length > VAULT_ASSET_MAX_BYTES) {
+    return refuse(
+      "file-too-large",
+      `Assets over ${String(VAULT_ASSET_MAX_BYTES)} bytes do not cross this wire.`,
+    );
+  }
+  return new Response(blob.data, {
+    headers: { ...ASSET_HEADERS, "content-type": mediaType, etag: `"${blob.oid}"` },
+  });
 }

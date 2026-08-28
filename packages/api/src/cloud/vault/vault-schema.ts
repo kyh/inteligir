@@ -1,5 +1,13 @@
 import { VAULT_TMP_PREFIX } from "@repo/notes/knowledge/vault-path";
 import { z } from "zod";
+import { assetMediaType, VAULT_ASSET_MEDIA_TYPES } from "../../shared/vault-asset-media-types";
+
+// The asset allowlist is shared with the desktop's own asset route — one
+// table, one lookup, because both serve the same vault and a drift means an
+// image that renders on one device and 400s on the other. Growing the table
+// is additive (a stale phone never asks for a type it does not know); an
+// entry is never removed, because old notes keep embedding old images.
+export { assetMediaType, VAULT_ASSET_MEDIA_TYPES };
 
 // ---------------------------------------------------------------------------
 // The hosted vault's READ rows: how a client with no git client (the phone)
@@ -22,6 +30,7 @@ import { z } from "zod";
 export const VAULT_API_PATHS = {
   tree: "/v1/vault/tree",
   file: "/v1/vault/file",
+  asset: "/v1/vault/asset",
 } as const;
 
 /** One page's ceiling — also the default, since a phone wants few round
@@ -29,8 +38,14 @@ export const VAULT_API_PATHS = {
 export const VAULT_TREE_MAX_ENTRIES = 500;
 
 /** Files above this never cross this wire; the phone reads notes, and a note
- *  this large is not one. Binary embeds need their own asset route. */
+ *  this large is not one. Binary embeds ride the asset route instead. */
 export const VAULT_FILE_MAX_BYTES = 2 * 1024 * 1024;
+
+/** The asset route's own ceiling — the desktop asset route's read cap. The
+ *  route enforces it from the TREE's entry size BEFORE the blob crosses the
+ *  repo cell's RPC (whose own message bound a giant blob would otherwise hit
+ *  as an opaque failure), with the read-back length as the belt. */
+export const VAULT_ASSET_MAX_BYTES = 10 * 1024 * 1024;
 
 const gitOidSchema = z.string().regex(/^[0-9a-f]{40}$/u, "must be a full lowercase git oid");
 const commitShaSchema = gitOidSchema;
@@ -122,3 +137,24 @@ export const vaultFileResponseSchema = z
   })
   .strict();
 export type VaultFileResponse = z.infer<typeof vaultFileResponseSchema>;
+
+/**
+ * `GET /v1/vault/asset?path=…&ref=…` — an image embed's raw bytes, answered
+ * with a content-type from the allowlist above rather than a JSON envelope
+ * (base64 through `.strict()` JSON would tax every image by a third and buy
+ * nothing a header does not already carry).
+ *
+ * `ref` is REQUIRED, unlike the file route's, and that is the design: a URL
+ * pinned to a commit names immutable bytes, which makes the URL itself the
+ * cache key — exactly what a phone's image cache keys on, since it ignores
+ * headers — and lets the route answer long-lived `immutable` caching where
+ * the desktop's mutable-vault route must revalidate. A client always holds a
+ * commit before it can see an embed: the tree answered one.
+ */
+export const vaultAssetQuerySchema = z
+  .object({
+    path: vaultPathSchema,
+    ref: commitShaSchema,
+  })
+  .strict();
+export type VaultAssetQuery = z.infer<typeof vaultAssetQuerySchema>;

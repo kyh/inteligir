@@ -2,7 +2,13 @@ import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { readNote, resolveWikiPath, useSyncStatus } from "@/lib/app-runtime";
+import {
+  assetSource,
+  readNote,
+  resolveWikiPath,
+  useNotesTree,
+  useSyncStatus,
+} from "@/lib/app-runtime";
 import { SPACE, useTheme } from "@/lib/theme";
 import { MarkdownBlocks } from "@/notes/markdown-view";
 import { projectNote, type NoteProjection } from "@/notes/note-projection";
@@ -23,6 +29,12 @@ export default function NoteScreen() {
   const params = useLocalSearchParams<{ path: string[] }>();
   const path = Array.isArray(params.path) ? params.path.join("/") : (params.path ?? "");
   const [screen, setScreen] = useState<ScreenState>({ state: "loading" });
+  // SUBSCRIBED, not just read imperatively: a deep link can mount this screen
+  // before the tree lands (the note still opens — an unpinned read), and this
+  // subscription is what re-renders its embeds from "unavailable" to images
+  // when it does. Fetching a cold tree is the runtime's job, not a screen's.
+  useNotesTree();
+  const paired = status.state === "paired";
 
   useEffect(() => {
     let cancelled = false;
@@ -49,8 +61,12 @@ export default function NoteScreen() {
     [router],
   );
 
+  const resolveAsset = useCallback((target: string) => {
+    const resolved = resolveWikiPath(target);
+    return resolved === null ? null : assetSource(resolved);
+  }, []);
+
   // A mounted note must not outlive the pairing that fetched it.
-  const paired = status.state === "paired";
   const title = paired && screen.state === "ready" ? screen.projection.title : "…";
 
   return (
@@ -76,7 +92,11 @@ export default function NoteScreen() {
             <Text style={[styles.raw, { color: theme.foreground }]}>{screen.projection.text}</Text>
           </View>
         ) : (
-          <MarkdownBlocks blocks={screen.projection.blocks} onWikiLink={onWikiLink} />
+          <MarkdownBlocks
+            blocks={screen.projection.blocks}
+            onWikiLink={onWikiLink}
+            resolveAsset={resolveAsset}
+          />
         )}
       </ScrollView>
     </SafeAreaView>

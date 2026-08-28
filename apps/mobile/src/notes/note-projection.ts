@@ -15,6 +15,7 @@
 //   • a file the parse refuses opens RAW, byte-for-byte — the desktop's own
 //     posture for a doc it cannot round-trip.
 
+import { assetMediaType } from "@repo/api/cloud/vault/vault-schema";
 import type { List, PhrasingContent, Root, RootContent } from "mdast";
 import { parseCalloutPayload } from "@repo/notes/markdown/callout-payload";
 import { splitFrontmatter } from "@repo/notes/markdown/frontmatter";
@@ -34,12 +35,14 @@ export type InlineSpan =
       code?: boolean;
     }
   | { kind: "wiki-link"; target: string; label: string }
+  | { kind: "image-embed"; target: string; label: string }
   | { kind: "formula"; label: string }
   | { kind: "link"; label: string; url: string };
 
 export type NoteBlock =
   | { kind: "heading"; depth: 1 | 2 | 3 | 4 | 5 | 6; spans: InlineSpan[] }
   | { kind: "paragraph"; spans: InlineSpan[] }
+  | { kind: "image"; target: string; label: string }
   | {
       kind: "list-item";
       depth: number;
@@ -67,6 +70,22 @@ const RICH_LABELS = {
   chart_block: "Chart",
   html_block: "HTML block",
 } satisfies Record<NonNullable<ReturnType<(typeof RICH_FENCE_LANGS)["get"]>>, string>;
+
+/**
+ * What this surface renders as an image — a deliberate SUBSET of what the
+ * asset route serves, expressed in the route's own MEDIA TYPES rather than a
+ * second extension table: core RN `Image` cannot draw SVG (and svg's script
+ * risk wants a webview this app does not carry), and the rarer formats render
+ * inconsistently across Fresco and UIImage. Anything else stays a tappable
+ * link, exactly what it was before — and because the lookup is the route's,
+ * a target this promotes is a target that route serves.
+ */
+const MOBILE_IMAGE_MEDIA_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp"]);
+
+function isMobileImageTarget(target: string): boolean {
+  const mediaType = assetMediaType(target);
+  return mediaType !== null && MOBILE_IMAGE_MEDIA_TYPES.has(mediaType);
+}
 
 type SpanStyle = { bold?: boolean; italic?: boolean; strike?: boolean };
 
@@ -141,13 +160,16 @@ function projectParsed(source: string, root: Root): NoteBlock[] {
         case "wikiLink":
         case "wikiEmbed": {
           const body = parseWikiBodyRange(node.body);
-          spans.push({
-            kind: "wiki-link",
-            target: body.target,
-            label:
-              body.alias ??
-              (body.anchor === undefined ? body.target : `${body.target}#${body.anchor}`),
-          });
+          const label =
+            body.alias ??
+            (body.anchor === undefined ? body.target : `${body.target}#${body.anchor}`);
+          // Only an EMBED of an image renders as one; `[[img.png]]` is a
+          // reference and stays a link, the dialect's own distinction.
+          spans.push(
+            node.type === "wikiEmbed" && isMobileImageTarget(body.target)
+              ? { kind: "image-embed", target: body.target, label }
+              : { kind: "wiki-link", target: body.target, label },
+          );
           break;
         }
         case "formulaPill":
@@ -205,9 +227,30 @@ function projectParsed(source: string, root: Root): NoteBlock[] {
       case "heading":
         blocks.push({ kind: "heading", depth: node.depth, spans: flattenInline(node.children) });
         break;
-      case "paragraph":
-        blocks.push({ kind: "paragraph", spans: flattenInline(node.children) });
+      case "paragraph": {
+        const spans = flattenInline(node.children);
+        // A paragraph that IS an embed (whitespace aside) promotes to image
+        // blocks — an image inside a Text run cannot be sized honestly. An
+        // embed mixed into prose stays a span, rendered as its link. The
+        // `every` runs only for the few paragraphs that hold an embed at all,
+        // and stops at the first span that is prose.
+        const promotes =
+          spans.some((span) => span.kind === "image-embed") &&
+          spans.every(
+            (span) =>
+              span.kind === "image-embed" || (span.kind === "text" && span.text.trim() === ""),
+          );
+        if (promotes) {
+          for (const span of spans) {
+            if (span.kind === "image-embed") {
+              blocks.push({ kind: "image", target: span.target, label: span.label });
+            }
+          }
+          break;
+        }
+        blocks.push({ kind: "paragraph", spans });
         break;
+      }
       case "list":
         projectList(node, 0, blocks);
         break;

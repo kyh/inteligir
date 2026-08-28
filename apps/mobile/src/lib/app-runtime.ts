@@ -30,6 +30,7 @@ import {
 import { createSyncRuntime, type SyncRuntime, type SyncStatus } from "../sync/sync-runtime";
 import type { SyncStore } from "../sync/sync-store";
 import { projectThread, type ThreadProjection } from "../sync/thread-projection";
+import type { VaultAssetSource } from "@repo/api/cloud/client";
 import { createExternalStore, type ExternalStore } from "./external-store";
 import { getCloudUrl } from "./cloud-url";
 
@@ -93,6 +94,9 @@ async function finishPairing(rt: AppRuntime, credential: DeviceCredential): Prom
   rt.sync.setCredential(credential);
   rt.notes.setCredential({ credential, source: "paired" });
   rt.sync.start();
+  // The read model starts where sync does: a screen that reads the tree
+  // should not each carry its own "if it is cold, fetch it" effect.
+  void rt.notes.refresh();
   refreshStatus(rt);
 }
 
@@ -138,6 +142,7 @@ export async function ensureStarted(): Promise<void> {
     rt.sync.setCredential(stored);
     rt.notes.setCredential({ credential: stored, source: "restored" });
     rt.sync.start();
+    void rt.notes.refresh();
   }
   refreshStatus(rt);
 }
@@ -187,6 +192,11 @@ export function readNote(path: string): Promise<NoteRead> {
 /** A wiki target's vault path over the last refreshed tree, or null. */
 export function resolveWikiPath(target: string): string | null {
   return getRuntime().notes.resolveWiki(target);
+}
+
+/** An image embed's source at the tree's commit, or null. */
+export function assetSource(path: string): VaultAssetSource | null {
+  return getRuntime().notes.assetSource(path);
 }
 
 // -- React hooks ------------------------------------------------------------

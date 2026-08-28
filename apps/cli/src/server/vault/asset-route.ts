@@ -5,9 +5,9 @@
 // instead of a re-download.
 
 import { vaultAssetQuerySchema } from "@repo/api/local/routes";
+import { assetMediaType } from "@repo/api/local/vault/vault-schema";
 import type { Context } from "hono";
 import { vaultRefusalStatus } from "./vault-refusals";
-import { assetMediaType } from "./vault-router";
 import type { VaultService } from "./vault-service";
 
 // An asset is bytes from a vault a git remote can write into, served from the

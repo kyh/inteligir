@@ -55,6 +55,7 @@ import {
   VAULT_API_PATHS,
   vaultFileResponseSchema,
   vaultTreeResponseSchema,
+  type VaultAssetQuery,
   type VaultFileQuery,
   type VaultFileResponse,
   type VaultTreeQuery,
@@ -222,6 +223,21 @@ export interface CloudClient {
   account(): Promise<CloudResult<AccountResponse>>;
   vaultTree(query: VaultTreeQuery): Promise<CloudResult<VaultTreeResponse>>;
   vaultFile(query: VaultFileQuery): Promise<CloudResult<VaultFileResponse>>;
+  /**
+   * What an image element needs to fetch a vault asset itself: the pinned URL
+   * and the auth header. SYNCHRONOUS and un-parsed, because this row's answer
+   * is BYTES an `<img>`/`<Image>` fetches — the one cloud row this client
+   * composes rather than performs. It is here regardless, so the bearer has
+   * exactly one spelling and no caller assembles its own.
+   */
+  vaultAssetSource(query: VaultAssetQuery): VaultAssetSource;
+}
+
+/** A vault asset addressed for an image element: the credential rides a
+ *  HEADER, never the URL, where image caches and logs would keep it. */
+export interface VaultAssetSource {
+  uri: string;
+  headers: Record<string, string>;
 }
 
 export interface CreateCloudClientArgs extends CloudEndpoint {
@@ -275,6 +291,10 @@ export function createCloudClient(args: CreateCloudClientArgs): CloudClient {
       send(`${VAULT_API_PATHS.tree}${queryString(query)}`, undefined, vaultTreeResponseSchema),
     vaultFile: (query) =>
       send(`${VAULT_API_PATHS.file}${queryString(query)}`, undefined, vaultFileResponseSchema),
+    vaultAssetSource: (query) => ({
+      uri: endpointUrl(args.baseUrl, `${VAULT_API_PATHS.asset}${queryString(query)}`),
+      headers: { authorization },
+    }),
   };
 }
 
