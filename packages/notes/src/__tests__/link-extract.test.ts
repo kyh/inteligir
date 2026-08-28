@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { scanDoc, titleFromPath, type ExtractedLink } from "../knowledge/link-extract";
+import { scanDoc, type ExtractedLink } from "../knowledge/link-extract";
 import { scanTaskItems } from "../knowledge/task-ordinal";
 
 function links(source: string): ExtractedLink[] {
@@ -257,7 +257,7 @@ describe("scanDoc — frontmatter aliases", () => {
 });
 
 describe("scanDoc — task extraction", () => {
-  it("extracts every GFM task item with ordinal, exact raw line, and text", () => {
+  it("extracts every GFM task item in ordinal order, with its line and text", () => {
     const src = [
       "# Plan",
       "",
@@ -269,42 +269,22 @@ describe("scanDoc — task extraction", () => {
     ].join("\n");
     const tasks = scanDoc(src).tasks;
     expect(tasks).toEqual([
-      {
-        checked: false,
-        text: "book the flight",
-        raw: "- [ ] book the flight",
-        line: 3,
-        ordinal: 0,
-      },
-      { checked: true, text: "already done", raw: "- [x] already done", line: 4, ordinal: 1 },
-      {
-        checked: false,
-        text: "nested child",
-        raw: "  - [ ] nested child", // untrimmed: leading indent preserved
-        line: 5,
-        ordinal: 2,
-      },
-      {
-        checked: false,
-        text: "**bold** star item", // inline md verbatim
-        raw: "* [ ] **bold** star item",
-        line: 7,
-        ordinal: 3,
-      },
+      { checked: false, text: "book the flight", line: 3 },
+      { checked: true, text: "already done", line: 4 },
+      { checked: false, text: "nested child", line: 5 },
+      { checked: false, text: "**bold** star item", line: 7 }, // inline md verbatim
     ]);
   });
 
-  it("raw excludes the line terminator on CRLF files", () => {
+  it("counts a task on a CRLF file at its own line", () => {
     const tasks = scanDoc("# H\r\n\r\n- [ ] crlf task\r\n").tasks;
-    expect(tasks).toHaveLength(1);
-    expect(tasks[0]?.raw).toBe("- [ ] crlf task");
-    expect(tasks[0]?.line).toBe(3);
+    expect(tasks).toEqual([{ checked: false, text: "crlf task", line: 3 }]);
   });
 
   it("skips plain bullets, empty checkboxes, and fenced lookalikes — but counts an indented item", () => {
     // A 4-space-indented `- [ ]` is a LIVE task: the canonical MDX flavor has
-    // no indented code, and the editor renders it as a checkbox — the count
-    // must agree (ordinal lockstep) with `raw` keeping the exact indent.
+    // no indented code, and the editor renders it as a checkbox — so the count
+    // has to include it, indent and all.
     const src = [
       "- plain bullet",
       "- [ ] ",
@@ -318,17 +298,17 @@ describe("scanDoc — task extraction", () => {
       "- [ ] the real one",
     ].join("\n");
     const tasks = scanDoc(src).tasks;
-    expect(tasks.map((t) => [t.ordinal, t.text, t.raw])).toEqual([
-      [0, "indented live task", "    - [ ] indented live task"],
-      [1, "the real one", "- [ ] the real one"],
+    expect(tasks.map((t) => [t.text, t.line])).toEqual([
+      ["indented live task", 8],
+      ["the real one", 10],
     ]);
   });
 
   it("frontmatter `tasks: false` suppresses extraction (scanTaskItems still counts)", () => {
     const src = "---\ntasks: false\n---\n\n- [ ] hidden from the view\n";
     expect(scanDoc(src).tasks).toEqual([]);
-    // The raw count is the editor's checkbox lockstep, and the editor draws
-    // every checkbox in the buffer whatever the frontmatter says.
+    // The unfiltered count is the editor's checkbox lockstep, and the editor
+    // draws every checkbox in the buffer whatever the frontmatter says.
     expect(scanTaskItems(src).map((t) => t.text)).toEqual(["hidden from the view"]);
   });
 
@@ -341,20 +321,13 @@ describe("scanDoc — task extraction", () => {
   it("never counts checkbox-shaped lines inside YAML frontmatter", () => {
     const src = ["---", "notes:", "  - [ ] yaml lookalike", "---", "", "- [ ] real"].join("\n");
     const tasks = scanDoc(src).tasks;
-    expect(tasks.map((t) => [t.ordinal, t.text, t.line])).toEqual([[0, "real", 6]]);
+    expect(tasks.map((t) => [t.text, t.line])).toEqual([["real", 6]]);
   });
 
   it("leaves tags/links extraction unchanged on task-bearing docs (regression)", () => {
     const scan = scanDoc("- [ ] follow up on [[target note]] #urgent\n");
     expect(scan.links.map((l) => l.target)).toEqual(["target note"]);
     expect(scan.tags).toEqual(["urgent"]);
-  });
-});
-
-describe("titleFromPath", () => {
-  it("strips directories and the extension", () => {
-    expect(titleFromPath("notes/my note.md")).toBe("my note");
-    expect(titleFromPath("plain")).toBe("plain");
   });
 });
 
@@ -386,5 +359,38 @@ describe("callout fence bodies (editor ⊆ vault)", () => {
   it("plain code fences stay unindexed", () => {
     const scan = scanDoc("```\n[[Not A Link]]\n```\n");
     expect(scan.links).toEqual([]);
+  });
+});
+
+describe("verbatim regions (indexed, never rewritten)", () => {
+  const cases: Array<[string, string]> = [
+    ["raw html", "<div>[[Alpha]]</div>\n"],
+    ["inline math", "cost $$[[Alpha]]$$ here\n"],
+    ["display math", "$$\n[[Alpha]]\n$$\n"],
+    ["an mdx expression", "{foo [[Alpha]] bar}\n"],
+  ];
+
+  it.each(cases)("indexes a wiki link inside %s with no span", (_name, source) => {
+    const link = only(source);
+    expect(link.target).toBe("Alpha");
+    expect(link.targetSpan).toBeUndefined();
+  });
+
+  it("suppresses an md link's span inside raw html too", () => {
+    const link = only("<div>[img](a/img.png)</div>\n");
+    expect(link.target).toBe("a/img.png");
+    expect(link.targetSpan).toBeUndefined();
+  });
+
+  it("keeps the span inside a modelled component — only unmodellable tags go verbatim", () => {
+    const src = '<callout kind="note">\n\n[[Alpha]]\n\n</callout>\n';
+    const link = only(src);
+    expect(sliceTarget(src, link)).toBe("Alpha");
+  });
+
+  it("keeps the span when the editor's grammar refuses the doc (it opens Raw)", () => {
+    const src = "<mal <tag [[Alpha]]\n";
+    const link = only(src);
+    expect(sliceTarget(src, link)).toBe("Alpha");
   });
 });

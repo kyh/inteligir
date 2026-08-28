@@ -40,7 +40,7 @@ import { KEYS } from "platejs";
 import type { PlateEditor, PlateElementProps } from "platejs/react";
 import { PlateElement, createPlatePlugin } from "platejs/react";
 
-import { TURN_INTO, turnIntoSelection } from "@repo/editor/block-transforms";
+import { turnIntoOption, turnIntoSelection, type TurnIntoId } from "@repo/editor/block-transforms";
 import {
   insertCanvasBlock,
   insertChartBlock,
@@ -64,9 +64,8 @@ import { insertDate, insertMonthDate } from "@repo/editor/kits/date-kit";
 import { insertEquation, insertInlineEquation } from "@repo/editor/kits/math-kit";
 import { insertToggle } from "@repo/editor/kits/toggle-kit";
 
-function turnInto(editor: PlateEditor, label: string): void {
-  const opt = TURN_INTO.find((o) => o.label === label);
-  if (opt) turnIntoSelection(editor, opt);
+function turnInto(editor: PlateEditor, id: TurnIntoId): void {
+  turnIntoSelection(editor, turnIntoOption(id));
 }
 
 type SlashItem = {
@@ -88,7 +87,7 @@ const GROUPS: { group: string; items: SlashItem[] }[] = [
         value: "p",
         description: "Plain paragraph.",
         keywords: ["paragraph", "text"],
-        onSelect: (editor) => turnInto(editor, "Text"),
+        onSelect: (editor) => turnInto(editor, "text"),
       },
       {
         icon: <Heading1Icon />,
@@ -96,7 +95,7 @@ const GROUPS: { group: string; items: SlashItem[] }[] = [
         value: "h1",
         description: "Large section heading.",
         keywords: ["title", "h1", "#"],
-        onSelect: (editor) => turnInto(editor, "Heading 1"),
+        onSelect: (editor) => turnInto(editor, "heading-1"),
       },
       {
         icon: <Heading2Icon />,
@@ -104,7 +103,7 @@ const GROUPS: { group: string; items: SlashItem[] }[] = [
         value: "h2",
         description: "Medium section heading.",
         keywords: ["subtitle", "h2", "##"],
-        onSelect: (editor) => turnInto(editor, "Heading 2"),
+        onSelect: (editor) => turnInto(editor, "heading-2"),
       },
       {
         icon: <Heading3Icon />,
@@ -112,7 +111,7 @@ const GROUPS: { group: string; items: SlashItem[] }[] = [
         value: "h3",
         description: "Small section heading.",
         keywords: ["subtitle", "h3", "###"],
-        onSelect: (editor) => turnInto(editor, "Heading 3"),
+        onSelect: (editor) => turnInto(editor, "heading-3"),
       },
       {
         icon: <ListIcon />,
@@ -120,7 +119,7 @@ const GROUPS: { group: string; items: SlashItem[] }[] = [
         value: "ul",
         description: "Create a bulleted list.",
         keywords: ["unordered", "ul", "-"],
-        onSelect: (editor) => turnInto(editor, "Bulleted list"),
+        onSelect: (editor) => turnInto(editor, "bulleted-list"),
       },
       {
         icon: <ListOrderedIcon />,
@@ -128,7 +127,7 @@ const GROUPS: { group: string; items: SlashItem[] }[] = [
         value: "ol",
         description: "Create a numbered list.",
         keywords: ["ordered", "ol", "1."],
-        onSelect: (editor) => turnInto(editor, "Numbered list"),
+        onSelect: (editor) => turnInto(editor, "numbered-list"),
       },
       {
         icon: <SquareCheckIcon />,
@@ -136,7 +135,7 @@ const GROUPS: { group: string; items: SlashItem[] }[] = [
         value: "todo",
         description: "Track tasks with checkboxes.",
         keywords: ["checklist", "task", "checkbox", "[]"],
-        onSelect: (editor) => turnInto(editor, "To-do list"),
+        onSelect: (editor) => turnInto(editor, "todo-list"),
       },
       {
         icon: <ChevronRightIcon />,
@@ -152,7 +151,7 @@ const GROUPS: { group: string; items: SlashItem[] }[] = [
         value: "blockquote",
         description: "Capture a quote.",
         keywords: ["citation", "quote", ">"],
-        onSelect: (editor) => turnInto(editor, "Quote"),
+        onSelect: (editor) => turnInto(editor, "quote"),
       },
       {
         icon: <InfoIcon />,
@@ -160,7 +159,7 @@ const GROUPS: { group: string; items: SlashItem[] }[] = [
         value: "callout",
         description: "Highlighted note (info, warning, priority).",
         keywords: ["callout", "alert", "note", "warning", "tip", "admonition"],
-        onSelect: (editor) => turnInto(editor, "Callout"),
+        onSelect: (editor) => turnInto(editor, "callout"),
       },
       {
         icon: <Code2Icon />,
@@ -168,7 +167,7 @@ const GROUPS: { group: string; items: SlashItem[] }[] = [
         value: "code",
         description: "Capture a code snippet.",
         keywords: ["```", "fenced"],
-        onSelect: (editor) => turnInto(editor, "Code block"),
+        onSelect: (editor) => turnInto(editor, "code-block"),
       },
       {
         icon: <Table2Icon />,

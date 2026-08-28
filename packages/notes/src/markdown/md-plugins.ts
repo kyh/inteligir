@@ -8,8 +8,8 @@
 // extensions are ours; the opaque transform runs LAST, over the finished tree
 // and the complete set of stringify extensions.
 
-import type { ListItem } from "mdast";
-import type { Handle } from "mdast-util-to-markdown";
+import type { ListItem, Nodes } from "mdast";
+import type { Handle, Options as ToMarkdownOptions } from "mdast-util-to-markdown";
 import type { Plugin, Processor, Transformer } from "unified";
 import { gfmTaskListItemToMarkdown } from "mdast-util-gfm-task-list-item";
 import { defaultHandlers } from "mdast-util-to-markdown";
@@ -71,10 +71,6 @@ if (!gfmListItem) {
   );
 }
 
-function isListItem(node: unknown): node is ListItem {
-  return node !== null && typeof node === "object" && "type" in node && node.type === "listItem";
-}
-
 // An EMPTY todo cannot survive gfm's serializer as-is: with no content the
 // item emits as a bare `-` (the checkbox is inserted after the bullet's
 // following space, which empty content never produces) — so a just-created
@@ -83,8 +79,8 @@ function isListItem(node: unknown): node is ListItem {
 // re-parses as an empty todo (micromark needs non-whitespace after `[ ]` —
 // matching GitHub's files behavior, which is also why a hand-WRITTEN bare
 // `- [ ]` is literal text per GFM, not a todo, and stays that way here).
-const listItemEmptyTodoPlaceholder: Handle = (node, parent, state, info) => {
-  if (isListItem(node) && typeof node.checked === "boolean") {
+const listItemEmptyTodoPlaceholder: Handle = (node: Nodes, parent, state, info) => {
+  if (node.type === "listItem" && node.checked !== null && node.checked !== undefined) {
     const head = node.children[0];
     const headEmpty =
       head?.type === "paragraph" &&
@@ -108,13 +104,7 @@ const listItemEmptyTodoPlaceholder: Handle = (node, parent, state, info) => {
 // form outright: under MDX a serialized `<mailto:…>`/`<tel:…>` re-parses as
 // broken JSX, so any link the rules don't special-case (md-rules' `a` rule
 // emits bare https/email literals itself) must stay in `[text](url)` form.
-export const MD_STRINGIFY: {
-  bullet: "-";
-  handlers: { listItem: Handle; thematicBreak: Handle };
-  listItemIndent: "one";
-  resourceLink: true;
-  rule: "-";
-} = {
+export const MD_STRINGIFY = {
   bullet: "-",
   handlers: {
     listItem: listItemEmptyTodoPlaceholder,
@@ -123,4 +113,4 @@ export const MD_STRINGIFY: {
   listItemIndent: "one",
   resourceLink: true,
   rule: "-",
-};
+} satisfies ToMarkdownOptions;

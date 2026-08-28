@@ -28,10 +28,12 @@ export type VaultEntry = {
  * described (missing, escaping the vault). */
 export type VaultFileFacts = { sizeBytes: number; modifiedMs: number };
 
-/** readVaultAsset result: base64 bytes of an in-vault file, or an error.
- * Rendering a broken image is a UI state, not an exception — hence a Result,
- * not a throw. */
-export type ReadVaultAssetResult = { ok: true; bytesBase64: string } | { ok: false; error: string };
+/** readVaultAsset result: an in-vault file's bytes, or an error. Rendering a
+ * broken image is a UI state, not an exception — hence a Result, not a throw.
+ * A Blob rather than base64 because the host's asset route already answers the
+ * media type, and re-deriving it from the extension here is a second
+ * allowlist that drifts from the one both asset routes share. */
+export type ReadVaultAssetResult = { ok: true; bytes: Blob } | { ok: false; error: string };
 
 /** The deletion gate's refusal, in the terms it is stated in. Every field is a
  * number the host computed, because the gate's policy is the host's. */

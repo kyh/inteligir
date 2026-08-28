@@ -19,7 +19,8 @@ import { common, createLowlight } from "lowlight";
 
 import { cn } from "@repo/ui/lib/utils";
 
-import { TURN_INTO, turnIntoSelection } from "@repo/editor/block-transforms";
+import { turnIntoOption, turnIntoSelection } from "@repo/editor/block-transforms";
+import { stringProp } from "@repo/editor/node-props";
 import { MermaidPreview } from "@repo/editor/nodes/code-block-mermaid";
 
 export const CodeBlockBaseKit = [BaseCodeBlockPlugin, BaseCodeLinePlugin];
@@ -38,8 +39,7 @@ lowlight.registerAlias("plaintext", ["mermaid", "math"]);
 // CodeSyntaxPlugin tags each highlighted token with an `.hljs-*` className on
 // the leaf; render it so the theme in styles.css colors it.
 function CodeSyntaxLeaf(props: PlateLeafProps) {
-  const { className } = props.leaf;
-  return <PlateLeaf {...props} className={typeof className === "string" ? className : ""} />;
+  return <PlateLeaf {...props} className={stringProp(props.leaf, "className") ?? ""} />;
 }
 
 // Code lines are sibling elements — NodeApi.string on the block concatenates
@@ -83,7 +83,7 @@ function MermaidCodeBlock(props: PlateElementProps) {
 
 function CodeBlockElement(props: PlateElementProps) {
   if (props.element.lang === "mermaid") return <MermaidCodeBlock {...props} />;
-  const lang = typeof props.element.lang === "string" ? props.element.lang : null;
+  const lang = stringProp(props.element, "lang");
   return (
     <PlateElement {...props} as="pre" className="group/code relative">
       {/* Hover-reveal language label (display-only header — the fence's lang
@@ -109,8 +109,7 @@ function CodeLineElement(props: PlateElementProps) {
 // serialization surface), seeded with a minimal valid graph. Reuses the "Code
 // block" turn-into so the fence's byte-form matches every other code block's.
 export function insertMermaid(editor: PlateEditor): void {
-  const codeBlock = TURN_INTO.find((opt) => opt.label === "Code block");
-  if (codeBlock) turnIntoSelection(editor, codeBlock);
+  turnIntoSelection(editor, turnIntoOption("code-block"));
   editor.tf.setNodes(
     { lang: "mermaid" },
     { match: (n) => n.type === editor.getType(KEYS.codeBlock) },

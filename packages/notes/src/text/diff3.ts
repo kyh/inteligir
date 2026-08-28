@@ -7,7 +7,7 @@
 // not separated by at least one stable line are grouped, as classic diff3
 // does — interleaving adjacent edits would be ambiguous.
 
-import { diffLines, splitLines, type DiffHunk } from "./line-diff";
+import { diffLines, splitLinesLf, type DiffHunk } from "./line-diff";
 
 export interface Diff3Result {
   merged: string;
@@ -47,9 +47,9 @@ export function diff3(base: string, mine: string, theirs: string): Diff3Result {
   if (mine === theirs) {
     return { merged: mine, conflicted: false };
   }
-  const baseLines = splitLines(base);
-  const mineLines = splitLines(mine);
-  const theirsLines = splitLines(theirs);
+  const baseLines = splitLinesLf(base);
+  const mineLines = splitLinesLf(mine);
+  const theirsLines = splitLinesLf(theirs);
 
   const mineCursor: SideCursor = { hunks: diffLines(baseLines, mineLines), index: 0, sideLine: 0 };
   const theirsCursor: SideCursor = {

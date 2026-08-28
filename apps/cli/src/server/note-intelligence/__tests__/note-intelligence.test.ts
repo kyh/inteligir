@@ -6,6 +6,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { noopNotifier } from "@repo/domain/notifier";
+import type { NoteIntelligenceAvailability } from "@repo/api/local/note-intelligence/note-intelligence-schema";
 import { describe, expect, it } from "vitest";
 import { makeTempDir } from "../../__tests__/temp-dir";
 import { createVaultService } from "../../vault/vault-service";
@@ -21,13 +22,15 @@ const INFERRED: InferredFields = {
   tags: ["testing", "inference"],
 };
 
-function boot(infer: InferenceRunner) {
+const AVAILABLE: NoteIntelligenceAvailability = { kind: "available" };
+
+function boot(infer: InferenceRunner, availability: NoteIntelligenceAvailability = AVAILABLE) {
   const dir = makeTempDir("inteligir-noteintel-");
   const root = join(dir, "vault");
   mkdirSync(root, { recursive: true });
   const vault = createVaultService({ lock: identityLock, notifier: noopNotifier, root });
   const settings = createNoteIntelligenceSettingsStore(join(dir, "data"));
-  const service = createNoteIntelligence({ infer, settings, vault });
+  const service = createNoteIntelligence({ availability, infer, settings, vault });
   return { root, service, settings, vault };
 }
 
@@ -115,6 +118,51 @@ describe("note intelligence", () => {
     expect(sweep.updated).toBe(0);
     expect(sweep.skipped).toBe(1);
     expect(readFileSync(join(root, "note.md"), "utf8")).toBe("# N\n\nBody.\n");
+  });
+
+  it("never sweeps a trashed note, and does sweep an upper-case extension", async () => {
+    const calls: string[] = [];
+    const { root, service, vault } = boot((body) => {
+      calls.push(body);
+      return Promise.resolve(INFERRED);
+    });
+    mkdirSync(join(root, "Trash"), { recursive: true });
+    writeFileSync(join(root, "Trash", "deleted.md"), "# Deleted\n\nStill incomplete.\n");
+    writeFileSync(join(root, "Note.MD"), "# Shouty\n\nBody.\n");
+
+    const sweep = await service.sweepNow();
+
+    expect(sweep.scanned).toBe(1);
+    expect(calls).toEqual(["# Shouty\n\nBody.\n"]);
+    expect(readFileSync(join(root, "Trash", "deleted.md"), "utf8")).toBe(
+      "# Deleted\n\nStill incomplete.\n",
+    );
+    expect((await vault.read("Note.MD")).content).toContain("status: draft");
+  });
+
+  it("spawns nothing and says why when the machine cannot infer", async () => {
+    let calls = 0;
+    const { root, service } = boot(
+      () => {
+        calls += 1;
+        return Promise.resolve(INFERRED);
+      },
+      { kind: "unavailable", detail: "`claude` was not found on PATH" },
+    );
+    writeFileSync(join(root, "note.md"), "# N\n\nBody.\n");
+
+    const status = service.setEnabled(true);
+    await service.sweepNow();
+    service.noteVaultChange();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    service.dispose();
+
+    expect(status.availability).toEqual({
+      kind: "unavailable",
+      detail: "`claude` was not found on PATH",
+    });
+    expect(calls).toBe(0);
+    expect(service.status().lastSweep).toBeNull();
   });
 
   it("persists the toggle and reports it in status", () => {

@@ -20,6 +20,7 @@ import { fileURLToPath } from "node:url";
 const CLI_BIN_NAME = "inteligir";
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const repoRoot = resolve(packageRoot, "..", "..");
 const BOOT_TIMEOUT_MS = 60_000;
 const EXIT_TIMEOUT_MS = 20_000;
 
@@ -141,6 +142,17 @@ try {
   ]) {
     if (!existsSync(path)) {
       fail(`the packaged install carries no ${what} (${path})`);
+    }
+  }
+
+  // The licence texts, derived from the repo's own directory rather than a
+  // hand-copied list. Nothing READS them, so no capability check can notice
+  // their absence — and the artifact is public and inlines MIT sources, so the
+  // notice obligation is real and this is the only place it can be tested.
+  for (const name of await readdir(join(repoRoot, "tools", "licenses"))) {
+    const staged = join(installRoot, "dist", "licenses", name);
+    if (!existsSync(staged)) {
+      fail(`the packaged install carries no ${name} (${staged})`);
     }
   }
 

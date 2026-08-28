@@ -24,7 +24,7 @@
 // those inside the paragraph they land in.
 //
 // `codeIndented` stays disabled too: a 4-space-indented `- [ ]` must read as a
-// live task, and knowledge/link-extract.ts pins its scan to the same choice.
+// live task, and scan-parse.ts pins the knowledge scan to the same choice.
 
 import type { Options as ToMarkdownOptions } from "mdast-util-to-markdown";
 import type { Code, Construct, ConstructRecord, Extension } from "micromark-util-types";

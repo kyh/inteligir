@@ -7,15 +7,13 @@ import { VaultEditorController, type VaultIO } from "@repo/editor/vault-editor";
 // A controllable fake filesystem: reads/writes resolve only when the test
 // releases them, so we can interleave async operations deterministically and
 // assert the controller never clobbers newer data with a slower result.
-type Deferred<T> = { resolve: (v: T) => void; reject: (e?: unknown) => void; promise: Promise<T> };
+type Deferred<T> = { resolve: (v: T) => void; promise: Promise<T> };
 function defer<T>(): Deferred<T> {
   let resolve!: (v: T) => void;
-  let reject!: (e?: unknown) => void;
-  const promise = new Promise<T>((res, rej) => {
+  const promise = new Promise<T>((res) => {
     resolve = res;
-    reject = rej;
   });
-  return { resolve, reject, promise };
+  return { resolve, promise };
 }
 
 class FakeVault implements VaultIO {

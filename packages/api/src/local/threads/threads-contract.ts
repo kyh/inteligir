@@ -7,7 +7,6 @@ import {
   ARCHIVED,
   DISPATCH_FAILED,
   INVALID_RESOLUTION,
-  NOT_STEERABLE,
   PROVIDER_UNAVAILABLE,
   STALE_TURN,
 } from "../local-errors";
@@ -44,7 +43,6 @@ export const threadsContract = {
     NOT_FOUND: {},
     ARCHIVED,
     STALE_TURN,
-    NOT_STEERABLE,
     PROVIDER_UNAVAILABLE,
     DISPATCH_FAILED,
   }),

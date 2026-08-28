@@ -335,10 +335,10 @@ describe("the agent selection", () => {
 
     const layered = resolveAppConfig({
       checkoutPath: "/checkout/a",
-      env: { INTELIGIR_DATA_DIR: dataDir, INTELIGIR_AGENT: "codex" },
+      env: { INTELIGIR_DATA_DIR: dataDir, INTELIGIR_AGENT: "scripted" },
       homeDir,
     });
-    expect(layered.agent).toBe("codex");
+    expect(layered.agent).toBe("scripted");
     expect(layered.agentModel).toBe("m1");
   });
 });

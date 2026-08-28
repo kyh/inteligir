@@ -1,10 +1,6 @@
 import type { ThreadEvent } from "@repo/domain/provider-event";
 import { threadScope, turnScope } from "@repo/domain/thread-event-scope";
-import {
-  applyTimelineDelta,
-  computeTimelineDelta,
-  threadTimelineSchema,
-} from "@repo/api/local/thread-timeline";
+import { applyTimelineDelta, computeTimelineDelta, threadTimelineSchema } from "../thread-timeline";
 import { describe, expect, it } from "vitest";
 import { buildThreadTimeline, type ThreadTimelineEvent } from "../build-thread-timeline";
 
@@ -26,7 +22,6 @@ function streamedTurnEvents(): ThreadEvent[] {
       type: "client/turn/requested",
       threadId: THREAD_ID,
       text: "What changed today?",
-      kind: "message",
       scope: threadScope(),
     },
     { type: "turn/started", threadId: THREAD_ID, scope: turn },

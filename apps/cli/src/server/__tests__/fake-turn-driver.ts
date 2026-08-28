@@ -6,12 +6,7 @@
 import type { ThreadEventTurnStatus } from "@repo/domain/provider-event";
 import { turnScope } from "@repo/domain/thread-event-scope";
 import { agentMessageEvents } from "../agents/agent-message-events";
-import type {
-  ProviderEventSink,
-  TurnDriver,
-  TurnDriverStartArgs,
-  TurnDriverSteerArgs,
-} from "../threads/turn-driver";
+import type { ProviderEventSink, TurnDriver, TurnDriverStartArgs } from "../threads/turn-driver";
 
 export interface FakeTurnDriverOptions {
   /**
@@ -21,12 +16,10 @@ export interface FakeTurnDriverOptions {
    * inert — a start is accepted and emits nothing; the thread holds starting.
    */
   mode: "scripted" | "manual" | "inert";
-  steerable?: boolean;
 }
 
 export class FakeTurnDriver implements TurnDriver {
   readonly startedTurns: TurnDriverStartArgs[] = [];
-  readonly steeredTurns: TurnDriverSteerArgs[] = [];
   /** When set, the next startTurn throws it (a dispatch crash) and resets. */
   failNextStart: Error | null = null;
   private readonly sink: ProviderEventSink;
@@ -64,14 +57,6 @@ export class FakeTurnDriver implements TurnDriver {
     this.sink.ingestProviderEvents(args.threadId, [
       { type: "turn/completed", threadId: args.threadId, status: "completed", scope },
     ]);
-  }
-
-  steerTurn(args: TurnDriverSteerArgs): boolean {
-    if (this.options.steerable === false) {
-      return false;
-    }
-    this.steeredTurns.push(args);
-    return true;
   }
 
   /** Settle a manually held turn the way a provider report would. */

@@ -3,6 +3,8 @@
 
 import { ElementApi, RangeApi, type SlateEditor, type TElement } from "platejs";
 
+import { stringProp } from "@repo/editor/node-props";
+
 const ID_ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789";
 
 /** A fresh root id in the marker grammar's alphabet — 10 chars of the
@@ -52,7 +54,7 @@ export function removeCommentMarkers(editor: SlateEditor, ids: readonly string[]
     // Reverse document order so earlier paths stay valid while later markers
     // are removed.
     for (const [node, path] of entries.toReversed()) {
-      const raw = typeof node.ids === "string" ? node.ids : "";
+      const raw = stringProp(node, "ids") ?? "";
       const kept = raw.split(",").filter((one) => one !== "" && !dead.has(one));
       if (kept.length === 0) {
         editor.tf.removeNodes({ at: path });
@@ -69,7 +71,7 @@ export function findCommentMarker(editor: SlateEditor, id: string) {
     at: [],
     match: (node) => ElementApi.isElement(node) && node.type === "commentMarker",
   })) {
-    const raw = typeof entry[0].ids === "string" ? entry[0].ids : "";
+    const raw = stringProp(entry[0], "ids") ?? "";
     if (raw.split(",").includes(id)) return entry;
   }
   return null;

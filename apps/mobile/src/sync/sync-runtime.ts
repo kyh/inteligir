@@ -1,32 +1,36 @@
-// The RN sync loop: carry this device's queued thread events to the account's
-// merged log, and apply everyone else's back into the store the UI reads. The
-// node twin is apps/app/src/node/cloud/sync-runtime.ts; this is the same wire and
-// the same disciplines over React Native storage.
+// The RN sync loop: page the account's merged thread log forward and apply into
+// the store the UI reads. The node twin is apps/cli/src/server/cloud/sync-runtime.ts;
+// this is the same wire and the same disciplines over React Native storage.
+//
+// THE PHONE ONLY PULLS THREADS. The desktop runs the turns, so this device
+// produces no thread event and pushes none — the outbox half of the wire is the
+// desktop's alone.
+//
+// CAPTURES ARE PRODUCED HERE AND CLAIMED ELSEWHERE. `createCapture` POSTs a
+// quick capture to `/v1/capture` with a client-minted idempotency key, so a
+// share-sheet retry after a lost response is one row and not two. The desktop
+// owns applying a capture to the vault; a phone claiming would take a capture
+// the desktop then never sees.
 //
 // THE CREDENTIAL IS THE SWITCH. With none, this object opens no timer and makes
 // no request; the pairing layer sets it, and `setCredential(null)` (unpair)
 // clears the account's state. There is no second "enabled" flag, for the reason
 // the desktop states: two values that must agree are two that can disagree.
 //
-// ONE DIRECTION AT A TIME, in one single-flight pass: drain the outbox, then
-// page the log forward. A trigger that lands mid-pass marks the pass dirty rather
-// than starting a second one — two concurrent drains would push a batch twice,
-// two concurrent pulls would apply a page twice.
+// A PASS IS SINGLE-FLIGHT AND COALESCING. A trigger that lands mid-pass marks
+// the pass dirty rather than starting a second one — two concurrent pulls would
+// apply the same page twice.
 //
 // EVERY STEP RE-CHECKS THE SESSION ID after every await. "Is a session live?" is
-// the wrong question when the answer can be yes about a DIFFERENT pairing: an old
-// push's ack would delete rows a re-pair has since queued, an old pull's page
-// would apply another account's events. The id is the fence; cancellation covers
-// the in-flight half, identity the half cancellation cannot reach.
-//
-// Captures are NOT claimed here — see captures.ts and the README. The default
-// runtime produces captures (quick-capture) and reads threads; the desktop owns
-// applying captures to the vault.
+// the wrong question when the answer can be yes about a DIFFERENT pairing: an
+// old pull's page would apply another account's events. The id is the fence;
+// cancellation covers the in-flight half, identity the half cancellation cannot
+// reach.
 
 import type { CaptureRequest, CaptureResponse } from "@repo/api/cloud/captures/captures-schema";
-import { SYNC_OUTBOX_CODES, SYNC_TERMINAL_CODES } from "@repo/api/cloud/errors";
+import { SYNC_TERMINAL_CODES } from "@repo/api/cloud/errors";
+import { planPage } from "@repo/api/cloud/sync/plan-page";
 import { PULL_DEFAULT_LIMIT } from "@repo/api/cloud/sync/sync-schema";
-import type { ThreadEvent } from "@repo/domain/provider-event";
 import {
   createCloudClient,
   describeCloudFailure,
@@ -35,8 +39,7 @@ import {
   type CloudFetch,
   type CloudResult,
 } from "@repo/api/cloud/client";
-import { ackPushBatch, enqueueThreadEvents, takePushBatch } from "./outbox";
-import { applyPlan, planPage } from "./thread-log";
+import { applyPlan } from "./thread-log";
 import type { SyncStore } from "./sync-store";
 import type { DeviceCredential } from "../credential/credential-codec";
 
@@ -46,7 +49,6 @@ export type SyncStatus =
   | {
       state: "paired";
       deviceId: string;
-      pending: number;
       cursor: number;
       lastSyncedAt: number | null;
       lastError: string | null;
@@ -57,15 +59,9 @@ export type SyncStatus =
  *  lands the poll is what makes sync correct.) */
 const POLL_INTERVAL_MS = 60_000;
 
-/** Bound on one pass's drain and pull, so a backlog cannot starve the other half
- *  or hold a teardown open. What is left rides the next pass. */
-const MAX_PUSH_BATCHES_PER_PASS = 25;
+/** Bound on one pass's pull, so a backlog cannot hold a teardown open. What is
+ *  left rides the next pass. */
 const MAX_PULL_PAGES_PER_PASS = 25;
-
-/** Refusals that end this device's session — both terminal: `unauthorized` is a
- *  revoked or unknown credential, `account-deleted` a tombstoned account. */
-
-/** Refusals that mean THIS DEVICE'S OWN OUTBOX disagrees with the log. */
 
 type Session =
   | { kind: "off"; id: number }
@@ -99,9 +95,6 @@ export interface SyncRuntime {
   /** Pair / re-pair / unpair. A different credential resets the store, because it
    *  describes an account this device may no longer be talking to. */
   setCredential(next: DeviceCredential | null): void;
-  /** Queue this device's own events for the log — the hook a future dispatch
-   *  push calls. A no-op while unpaired. */
-  enqueue(events: readonly ThreadEvent[]): void;
   /** POST a quick capture over the live credential — the producer half of the
    *  inbox. Refused (unreachable) while unpaired. */
   createCapture(request: CaptureRequest): Promise<CloudResult<CaptureResponse>>;
@@ -193,44 +186,6 @@ export function createSyncRuntime(args: SyncRuntimeArgs): SyncRuntime {
     return true;
   }
 
-  /** Drain the outbox. Returns false when the session ended. An outbox refusal is
-   *  not retried — the log holds a body at that position or one past it, so the
-   *  queued row can never land where it is numbered, and keeping it wedges every
-   *  event behind it. */
-  async function drain(context: PassContext): Promise<boolean> {
-    for (let round = 0; round < MAX_PUSH_BATCHES_PER_PASS; round += 1) {
-      if (!fenced(context)) return false;
-      const batch = takePushBatch(args.store);
-      if (batch === null) return true;
-      for (const row of batch.rejected) {
-        debug(`dropping outbox position ${row.deviceSeq}: ${row.reason}`);
-      }
-      if (batch.request.events.length === 0) {
-        ackPushBatch(args.store, batch);
-        continue;
-      }
-      const result = await context.client.push(batch.request);
-      // The ack DELETES rows — a pair or unpair that landed while this was in
-      // flight has already emptied that queue.
-      if (!fenced(context)) return false;
-      if (!result.ok) {
-        if (result.failure.kind === "refused" && SYNC_OUTBOX_CODES.has(result.failure.code)) {
-          const through = result.failure.deviceSeq ?? batch.throughDeviceSeq;
-          const dropped = args.store.deleteOutboxThrough(through);
-          debug(
-            `${result.failure.code} at position ${through}: dropped ${dropped} queued event(s) the log will not take`,
-          );
-          lastError = describeCloudFailure(result.failure);
-          continue;
-        }
-        return !recordFailure(result.failure);
-      }
-      ackPushBatch(args.store, batch);
-      lastError = null;
-    }
-    return true;
-  }
-
   /** Page the log forward and apply everything this device did not write. Returns
    *  false when the session ended. */
   async function pullAndApply(context: PassContext): Promise<boolean> {
@@ -258,7 +213,6 @@ export function createSyncRuntime(args: SyncRuntimeArgs): SyncRuntime {
       client: session.client,
       deviceId: session.credential.deviceId,
     };
-    if (!(await drain(context))) return;
     if (!(await pullAndApply(context))) return;
     if (!fenced(context)) return;
     lastSyncedAt = now();
@@ -305,7 +259,6 @@ export function createSyncRuntime(args: SyncRuntimeArgs): SyncRuntime {
         return {
           state: "paired",
           deviceId: session.credential.deviceId,
-          pending: args.store.countOutbox(),
           cursor: args.store.readCursor(),
           lastSyncedAt,
           lastError,
@@ -322,8 +275,8 @@ export function createSyncRuntime(args: SyncRuntimeArgs): SyncRuntime {
       }
       closeSession();
       clearTimer();
-      // A fresh pairing starts from a clean slate: the outbox and the cursor
-      // describe an account this device may no longer be talking to.
+      // A fresh pairing starts from a clean slate: the cursor and the applied
+      // log describe an account this device may no longer be talking to.
       args.store.reset();
       lastError = null;
       lastSyncedAt = null;
@@ -333,11 +286,6 @@ export function createSyncRuntime(args: SyncRuntimeArgs): SyncRuntime {
         return;
       }
       openSession(next);
-    },
-
-    enqueue(events) {
-      if (session.kind !== "live" || events.length === 0) return;
-      enqueueThreadEvents(args.store, events, now());
     },
 
     createCapture(request) {

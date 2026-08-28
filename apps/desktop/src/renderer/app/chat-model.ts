@@ -1,28 +1,9 @@
-// Framework-free action vocabulary: which unattached thread a send reuses,
-// what activity an actions-panel row shows, and the view-context source
-// shape. Pure functions so the composer, the panel and the tests share one
-// answer.
+// Framework-free action vocabulary: what activity an actions-panel row shows,
+// and the view-context source shape. Pure functions so the composer, the panel
+// and the tests share one answer.
 
 import type { ViewContext } from "@repo/domain/view-context";
 import type { Thread } from "@repo/api/local/threads/threads-schema";
-
-/**
- * Which unattached thread a send REUSES: the newest unarchived thread with
- * no doc origin (`listThreads` orders live threads newest-updated first, so
- * the first match is it).
- *
- * This chooses an INITIAL target and nothing more — the caller holds the id
- * from then on. Re-deriving would make the thread a send lands in a function
- * of `updatedAt`, which every lifecycle event on every thread moves: a
- * background action settling would silently redirect the next send. A
- * conversation ends because the user ended it, never because another thread
- * was touched.
- */
-export function initialChatThread(threads: readonly Thread[]): Thread | null {
-  return (
-    threads.find((thread) => thread.archivedAt === null && thread.originDocPath === null) ?? null
-  );
-}
 
 /**
  * WHAT A THREAD IS DOING, as every surface shows it. The lifecycle statuses

@@ -20,10 +20,12 @@ import { cn } from "@repo/ui/lib/utils";
 import { Button } from "@repo/ui/components/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@repo/ui/components/popover";
 
+import { stringProp } from "@repo/editor/node-props";
+
 const KatexView = lazy(() => import("@repo/editor/nodes/equation-katex"));
 
 function tex(element: TElement): string {
-  return typeof element.texExpression === "string" ? element.texExpression : "";
+  return stringProp(element, "texExpression") ?? "";
 }
 
 // Re-derivation of @platejs/math's useEquationInput (the package is not a

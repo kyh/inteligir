@@ -64,9 +64,9 @@ apps/
                  PATH carrying this bin dir into agent shells, so a model
                  drives the product by typing `inteligir …` in bash. The build
                  inlines every workspace package (they export TS source) and
-                 stages three trees as CONTENT: the migrations, the dialect
-                 skills, and the desktop renderer's bundle as dist/ui, which
-                 `serve --open` answers over plain HTTP.
+                 stages as CONTENT the migrations, the dialect skills, the
+                 vendored licence texts, and the desktop renderer's bundle as
+                 dist/ui, which `serve --open` answers over plain HTTP.
   web/           @repo/web — ONE Cloudflare Worker: the TanStack Start
                  marketing site, the auth pages, Better Auth on D1
                  (invite-gated sign-up), and the v3 cloud (issue #554):
@@ -77,34 +77,44 @@ apps/
                  src/worker/vault/git-remote.ts, one per user, device-authed.
                  src/worker/ is its own tsconfig program (no DOM —
                  workerd's globals must win).
-  mobile/        @repo/mobile — the Expo RN client (#576): threads, captures
-                 and (#618) a read-only notes surface over the hosted vault's
-                 /cloud read rows, rendered through @repo/notes' own parse;
-                 reaches @repo/api/cloud, @repo/domain and @repo/notes only.
+  mobile/        @repo/mobile — the Expo RN client (#576): read-only threads,
+                 produced captures and (#618) a read-only notes surface over
+                 the hosted vault's /cloud read rows, rendered through
+                 @repo/notes' own parse; reaches @repo/api/cloud, @repo/domain
+                 and @repo/notes only.
 packages/
-  domain/        @repo/domain — zod-only leaf vocabulary (view context, ids,
+  domain/        @repo/domain — zod-only leaf vocabulary (view context,
                  provider events), vendored-from-bb shapes; every package may
                  reach it, it reaches nothing.
-  thread-view/   @repo/thread-view — pure timeline projection; the app's
-                 panel and the CLI render the same rows through it.
   api/           @repo/api — ONE contract package, TWO entry points (#611).
                  `./local/*` is the oRPC contract the renderer and the CLI
-                 compile against and `inteligir serve` implements: twelve
-                 domains, each a `<domain>-contract.ts` + `<domain>-schema.ts`
-                 folder, plus the ws notification protocol and the paths that
-                 are NOT procedures. `./cloud/*` is the cloud wire (zod only):
+                 compile against and `inteligir serve` implements: ONE folder
+                 per domain, each a `<domain>-contract.ts` +
+                 `<domain>-schema.ts`, plus the ws notification protocol and
+                 the paths that are NOT procedures, and `build-thread-timeline`
+                 — the pure fold from stored events into the timeline rows the
+                 delta algebra beside it diffs. `./cloud/*` is the cloud wire:
                  pairing, device auth, sync push/pull, captures, the ws ping
-                 frames and the typed error envelope, with TWO implementations
-                 — apps/web serves every row and the CLI's sync client
-                 consumes them. Two entries rather than one router because
-                 their compatibility obligations are OPPOSITE: /local's ends
-                 ship in one bundle and may break freely, /cloud is a deployed
-                 Worker answering installs that may be months stale and may
-                 never break. A dep-dag row pins apps/web to /cloud alone. /cloud
-                 stays zod + REST paths (NOT oRPC, diverging from #611 phase 6
-                 deliberately): oRPC addresses procedures by router position, so
-                 moving the deployed wire to it would break exactly the stale
-                 installs /cloud may never break.
+                 frames, the typed error envelope, and the ONE page planner
+                 every reader of the merged log runs (`cloud/sync/plan-page`) —
+                 two copies of that planner would be two answers to "did this
+                 row move the cursor?", and a mis-set cursor is a duplicated
+                 conversation. apps/web SERVES every row; the CLI's sync client
+                 consumes all of them; apps/mobile consumes the read half alone
+                 — it pulls threads and produces captures, and never pushes or
+                 claims, because the desktop runs the turns and owns applying a
+                 capture to the vault. Two entries rather than one router
+                 because their compatibility obligations are OPPOSITE: /local's
+                 ends ship in one bundle and may break freely, /cloud is a
+                 deployed Worker answering installs that may be months stale and
+                 may never break. A dep-dag row pins apps/web to /cloud alone.
+                 src/ holds exactly those two buckets, and a dep-dag row refuses
+                 a third: the cloud-never-reaches-local guard populates itself
+                 from src/cloud, so a file outside both halves is one no guard
+                 reads. /cloud stays zod + REST paths (NOT oRPC, diverging from
+                 #611 phase 6 deliberately): oRPC addresses procedures by router
+                 position, so moving the deployed wire to it would break exactly
+                 the stale installs /cloud may never break.
   db/            @repo/db — drizzle + better-sqlite3 (WAL, sync=NORMAL),
                  committed SQL migrations applied on boot, the DbNotifier
                  seam, prefixed-nanoid ids.
@@ -112,26 +122,48 @@ packages/
                  engine (link graph, FTS5 search over an injected SqlDriver,
                  tags, tasks, rename byte-surgery) over ONE markdown scan
                  (scan-parse + wiki-links), frontmatter, the dialect's own
-                 modules (markdown/remark-*, comments/, formulas/, import/),
+                 modules (markdown/remark-*, comments/, formulas/),
                  and `text/` — ONE Myers diff under diff3. No node/react/ui
-                 imports — lint-enforced.
+                 imports — lint-enforced. `markdown/mdast-nodes.ts` is the
+                 mdast NARROWING boundary: a walk asks it what a node is
+                 rather than discriminating structurally at each visit.
   editor/        @repo/editor — the Plate.js WYSIWYG (resurrected, #580):
                  kits/nodes for every dialect construct, the md-rules table,
                  the fixpoint serializer + fixture matrix, the open-note
                  runtime (vault-session/note-runtime/open-note-store) the app
                  drives through injected ports (host.tsx / host-io.ts).
+                 `node-props.ts` is the SLATE DECODE BOUNDARY, and it is the
+                 reason no walk here narrows structurally: a node's dialect
+                 fields ride `TElement`'s open index signature, so every read
+                 arrives as `unknown` and this is the one place it becomes a
+                 domain value.
   agent-runtime/ @repo/agent-runtime — the ACP runtime (#588): one adapter
                  speaks Zed's agent-client-protocol to claude-code-acp and
                  codex-acp children; harnesses are data rows; the
                  provider-event vocabulary is the one internal grammar.
   agent-skills/  @repo/agent-skills — product skill files: the
                  dialect's first-party spec, served to agents as files.
-  ui/            @repo/ui — vendored stock shadcn on Base UI; leaf.
+  ui/            @repo/ui — the shared component vocabulary on Base UI:
+                 shadcn in components/, the Fluid Functionalism sidebar and
+                 system helpers beside it, and the Beautiful UI surfaces in
+                 ai/. All four origins were vendored and the code is now this
+                 repo's own — it obeys this repo's rules, not upstream's
+                 shape. What survives of the origin is the MIT attribution
+                 header on each file and its licence text in tools/licenses.
+                 A LIBRARY AHEAD OF ITS CONSUMERS: `src/ai` holds fourteen
+                 components no surface draws on yet, kept by owner decision
+                 and listed one by one in the orphan guard, so a fifteenth
+                 still fails. Leaf.
 tools/
   repo-guards/   @repo/repo-guards — derived fitness tests over the REPO: the
-                 package dependency DAG + its platform-purity rules and ws
-                 change-kind reachability. The
+                 package dependency DAG + its platform-purity rules, ws
+                 change-kind reachability, and the dangling-reference sweep
+                 over every path and @repo/* name the repo writes down. The
                  invariants that span workspaces and belong to none of them.
+  e2e/           @repo/e2e — the scenario suite `pnpm e2e` runs: it boots real
+                 instances and drives them over the wire, which is why it sits
+                 outside `verify` (every unit passes while the composition
+                 fails).
 ```
 
 ## Tech Stack
@@ -272,12 +304,10 @@ pull` from a hostile remote is enough to plant one.
   retiring the chat dock, the delegation checkbox/selection
   affordances, thread-chip markers, and #560's proposals pipeline whole). An
   ACTION is an ordinary thread ATTACHED to the note it was composed over
-  (`threads.originDocPath` alone; an anchor still cannot exist without its
-  doc, but a doc alone is a marker-less attachment). The agent edits the
-  vault directly, and ANCHORED COMMENTS are the review channel (#583): the
-  panel's Actions | Comments | Properties tabs are the transcript, review and
-  metadata surfaces; approvals answer inline. `threads.writeMode` survives as
-  an INERT column (cross-device sync version skew makes a drop unsafe).
+  (`threads.originDocPath` alone). The agent edits the vault directly, and
+  ANCHORED COMMENTS are the review channel (#583): the panel's Actions |
+  Comments | Properties tabs are the transcript, review and metadata surfaces;
+  approvals answer inline.
   The palette moved to ⌘P; ⌘\ is zen. The selection toolbar's "Ask agent"
   seeds the composer with the quoted selection through a module-store seam
   the app registers — the editor package never imports the shell.
@@ -291,11 +321,12 @@ pull` from a hostile remote is enough to plant one.
   the screen the message LEFT FROM, the staleness question dissolves: nothing
   needs to happen when the user navigates away mid-turn. The consequences are
   three. It reaches the model as a leading `{type:"text"}` element of the
-  turn's `input`, because that is the ONLY per-turn channel codex honours —
-  `instructions` is read at thread start/resume only, the shell environment is
-  built once per session, and session instructions are per session. There is NO
-  tool: the agent already works in the vault checkout and can read the file, so
-  a `get_view_context` tool would buy a round trip to deliver what it can
+  turn's `input`, because that is the ONLY channel a preamble has: ACP's
+  `session/new` carries no instructions field at all, and the shell environment
+  is built once per session. The session's own standing instructions ride the
+  same channel, on the first turn of the session. There is NO tool: the agent
+  already works in the vault checkout and can read the file, so a
+  `get_view_context` tool would buy a round trip to deliver what it can
   already fetch, and the one thing it could add — a LIVE selection — is the one
   thing that cannot be made honest. And it is a STATEMENT, NOT A GRANT: it
   widens nothing, because the agent could already write any file in the vault,
@@ -370,8 +401,8 @@ body_stems` at the same bm25 weights, and `@repo/notes/knowledge/search-query`
   DID survive the removal is the pattern: content the agent consumes lives in
   FILES read with its own shell — the vendored dialect skills ride
   `INTELIGIR_SKILLS_DIR` (resolved from `@repo/agent-skills`, staged beside
-  the app bundle in the packaged layout), with a three-sentence instructions
-  pointer, never the spec inlined.
+  the app bundle in the packaged layout), with a three-sentence pointer
+  delivered on the session's first turn prompt, never the spec inlined.
 
 - **DICTATION IS STREAMING PARAKEET AGAIN, REVERSING #574's whisper.cpp**
   (issue #578). This is a deliberate reversal, and it must not be "fixed" back
@@ -445,9 +476,9 @@ body_stems` at the same bm25 weights, and `@repo/notes/knowledge/search-query`
 "sherpa-onnx-node")` requires the addon), so a platform whose binary cannot
   load answers `unavailable` at the switch. **THE DESKTOP SHELL GRANTS `media`,
   ORIGIN-SCOPED** (unchanged), and there is **NO CLI VERB** — dictation is a
-  human affordance, the same reason connectors gets `list` and nothing else. The
-  residual is stated: English only, and the final's rough text is the accepted
-  cost of the streaming feel.
+  human affordance, and holding a key over a live microphone is not something a
+  shell invocation can express. The residual is stated: English only, and the
+  final's rough text is the accepted cost of the streaming feel.
 - **THE DEVICE CREDENTIAL IS THE SYNC SWITCH, and it lives in the data dir.**
   `<dataDir>/device-credential` at 0600, beside `server.json` and for the
   same reason — and the two places it must NOT go are what fix the location:
@@ -651,8 +682,10 @@ body_stems` at the same bm25 weights, and `@repo/notes/knowledge/search-query`
   nothing left to hold together. The desktop shell still forks a CHILD, and
   that reason is unchanged: it must not share its compositor's event loop with
   better-sqlite3, a watcher fork and `git`. What changed is who supervises —
-  `utilityProcess` IS a managed Node child with an owned lifecycle, so the
-  health poll, the restart ladder and the signal plumbing are the runtime's.
+  `utilityProcess` IS a managed Node child with owned bookkeeping, so the
+  process handle, the piped stdio and the SIGTERM `kill()` sends are the
+  runtime's. Readiness, the SIGKILL behind an overrun grace, and the
+  deliberate ABSENCE of a restart are `src/main/server-process.ts`'s own.
   The shell adopts an already-listening server rather than fighting it, and
   only kills the child it started.
 - **THE CREDENTIAL IS A FILE, NOT A CHALLENGE** (#611, reversing the
@@ -664,9 +697,12 @@ body_stems` at the same bm25 weights, and `@repo/notes/knowledge/search-query`
   no probing and no neighbouring-checkout ambiguity, because the FILE names the
   port that answered rather than the port the derivation predicted. There is no
   adoption ceremony, because a squatter on 4664 cannot have written the file
-  and so fails the token instead of being adopted. And there is no
-  browser-origin guard left on the HTTP surface, because a hostile page can
-  POST to loopback but cannot read the data dir. The bound is the same honest
+  and so fails the token instead of being adopted. And the browser-origin
+  guard survives only where the credential is AMBIENT: a page cannot hold the
+  bearer, so that carrier is trusted as-is, while a COOKIE-authed request must
+  additionally prove same-ORIGIN (`apps/cli/src/server/browser-request.ts`) —
+  loopback "site" ignores the port, so a co-resident page on another 127.0.0.1
+  port carries this server's cookie by itself. The bound is the same honest
   one the nonce challenge had — it proves the caller can READ that data
   directory, not that it is this code — which is exactly the line between "the
   program that owns this vault" and "the program that got to the port first".
@@ -714,7 +750,13 @@ body_stems` at the same bm25 weights, and `@repo/notes/knowledge/search-query`
   names a server. **The pin cannot use `URL.origin`**: Node's parser answers
   the opaque string `"null"` for any non-special scheme, so `inteligir://app`
   and `inteligir://evil` would compare EQUAL. Scheme and host are compared as
-  fields.
+  fields. A link the user COPIES is the mirror of this: it must name the
+  server's own loopback origin (`socketOrigin()`), never the page's, because
+  the shell's scheme is registered with no OS and this process denies
+  `window.open` for it — a copied `inteligir://app` URL opens nowhere,
+  inteligir included. The residual is stated rather than hidden: the bound port
+  can move across restarts, so a copied link is a same-machine affordance and a
+  durable address is its own feature.
 - **Better Auth's `baseURL` is derived per-request from the request origin**,
   never configured or allowlisted. Every hostname that reaches this Worker is
   one the deployment owns, and Cloudflare routes by hostname, so a spoofed
@@ -742,11 +784,46 @@ export` over `src/worker/db/schema.ts`. A second deployer or a destructive
   platform-injected), so this in-memory composition is the ONLY way the package
   can test its own knowledge engine; the related-notes, tags and link-graph
   suites drive production logic through it.
+- **THE CLIENT DOES NOT DECIDE WHAT A DOC IS.**
+  `@repo/notes/knowledge/doc-file` is the one answer to both halves of the
+  question — `isDocPath` (the extensions the vault indexes: `.md`,
+  `.markdown`, `.mdx`, `.txt`), `isNotePath` (the `.md` half, for a caller that
+  will splice frontmatter or move a file to Trash/) and `docStem` (the name a
+  surface shows). A private `.md` rule in a client is two bugs at once: a
+  `.md`-only PREDICATE hides every `.txt` note the server lists, links and
+  searches, and two spellings of the display rule disagree the moment a name
+  is not lowercase — a case-sensitive `endsWith` prints `Notes.MD` verbatim
+  where a case-insensitive one prints `Notes`.
+  `apps/desktop/src/renderer/app/__tests__/vault-hooks.test.ts` walks the
+  renderer and fails on either shape, with the extension derived rather than
+  typed out. The desktop client's trash-vs-delete gate and the server's
+  `trash.ts` both call `isNotePath`, so that deliberate lockstep is one
+  spelling rather than two that agree by hand.
 - **The knowledge scan disables `codeIndented` and `htmlFlow`**
   (`@repo/notes/markdown/scan-parse`). A checkbox is addressed by its POSITION
   among a doc's task items, so the scan's count has to agree with the set the
-  editor draws — and CommonMark's defaults are where a micromark scan and
-  lezer-markdown diverge. The agreement is pinned by the editor's roundtrip fixture matrix.
+  editor draws — and the editor's plugin list
+  (`@repo/notes/markdown/md-plugins`, via `parse`) disables both too.
+  CommonMark's defaults are where the two would diverge: indented code hides a
+  4-space-indented `- [ ]` the editor still shows, and flow HTML lets one
+  `<div>x</div>` line swallow every task line under it. The agreement is pinned
+  by counting the same docs through both parses
+  (`packages/notes/src/__tests__/task-ordinal.test.ts`).
+- **THE SCAN'S GRAMMAR IS NOT THE EDITOR'S, and `verbatim-spans` is the one
+  bridge.** `@repo/notes/markdown/scan-parse` is plain markdown and TOTAL, so a
+  malformed tag cannot cost a note its place in the index; the editor's
+  `md-plugins` stack runs remark-math, the agnostic MDX tokenizer (which
+  THROWS) and remark-opaque. The two therefore disagree about which bytes are
+  verbatim: `<div>[[A]]</div>`, `$$[[A]]$$` and `{ [[A]] }` are ONE opaque
+  string to the editor and a wiki link with a rewritable `targetSpan` to the
+  scan. A `targetSpan` is a LICENCE TO REWRITE BYTES, so the scan runs the
+  editor's own plugin list as a bare `parse` (`markdown/verbatim-spans.ts`) and
+  withholds the span inside those ranges — the existing "indexed but never
+  rewritten" tier, the same one an unverifiable destination lands in. Unifying
+  the two grammars is the rejected alternative: it would let one malformed tag
+  stop a note indexing at all. A doc the editor's grammar REFUSES yields no
+  ranges, and that is correct rather than lax — it opens RAW, so it has no
+  round trip whose bytes could be broken.
 - **Frontmatter is the ONLY property store.** No metadata table, ever. YAML the
   typing rules can't represent is preserved byte-exactly, never coerced.
 - **No coverage tooling, on purpose.** This repo enforces targeted invariants
@@ -764,8 +841,17 @@ export` over `src/worker/db/schema.ts`. A second deployer or a destructive
   derives every value it compares. No hardcoded counts, no hand-copied lists —
   the one exception is `dep-dag.test.ts`'s `DECLARED_EDGES`, which IS the pin
   rather than a copy of one.
-- **Vendored source keeps its attribution header.** Third-party license texts
-  live under `tools/licenses` and ship with the published artifact.
+- **VENDORED CODE IS THIS REPO'S CODE, except for the attribution.** The rule
+  that vendored files stay close to upstream so a re-pull is a clean diff is
+  GONE (owner's call): rename, restructure and delete freely, and make the code
+  obey this repo's rules rather than upstream's shape — "it would make the next
+  re-pull a conflict" is not a reason for anything. What survives is the
+  LICENSING, which is an obligation rather than a convention and does not
+  depend on tracking upstream at all: every vendored file keeps its `// Vendored
+from X, MIT.` header, and the third-party license texts live under
+  `tools/licenses`, staged into the published artifact as `dist/licenses` — a
+  repo-root path can never be a `files` glob — with `pnpm smoke:cli` deriving
+  the expected set from that directory rather than a hand-copied list.
 - **`packages/ui/components.json` declares `rsc: true` and it is deliberately
   inert** — the `"use client"` directives it produces are ignored by every
   consumer, all plain Vite builds with no RSC bundler in the graph.

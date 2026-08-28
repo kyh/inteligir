@@ -81,7 +81,6 @@ describe("evaluateThreadLifecycleEvent", () => {
         status: startStatus,
         activeTurnId: startTurnId,
         archivedAt: random() < 0.2 ? 1 : null,
-        deletedAt: random() < 0.2 ? 1 : null,
       };
       for (let step = 0; step < 40; step += 1) {
         const event = randomEvent(random);
@@ -120,7 +119,7 @@ describe("evaluateThreadLifecycleEvent", () => {
               : { type };
         const evaluation = evaluateThreadLifecycleEvent({
           event,
-          thread: { status, activeTurnId, archivedAt: null, deletedAt: null },
+          thread: { status, activeTurnId, archivedAt: null },
         });
         if (expected === undefined) {
           expect(evaluation).toEqual({
@@ -139,7 +138,6 @@ describe("evaluateThreadLifecycleEvent", () => {
       status: "active",
       activeTurnId: "turn_b",
       archivedAt: null,
-      deletedAt: null,
     };
     expect(
       evaluateThreadLifecycleEvent({
@@ -162,7 +160,7 @@ describe("evaluateThreadLifecycleEvent", () => {
     expect(
       evaluateThreadLifecycleEvent({
         event: { type: "run.failed", turnId: null },
-        thread: { status: "starting", activeTurnId: null, archivedAt: null, deletedAt: null },
+        thread: { status: "starting", activeTurnId: null, archivedAt: null },
       }),
     ).toEqual({ to: "error", activeTurnId: null });
     expect(
@@ -173,29 +171,21 @@ describe("evaluateThreadLifecycleEvent", () => {
     ).toMatchObject({ noop: "stale-turn" });
   });
 
-  it("supersedes new work on archived and deleted threads before table lookup", () => {
+  it("supersedes new work on archived threads before table lookup", () => {
     const archived: ThreadLifecycleRowState = {
       status: "idle",
       activeTurnId: null,
       archivedAt: 5,
-      deletedAt: null,
     };
     expect(
       evaluateThreadLifecycleEvent({ event: { type: "run.preparing" }, thread: archived }),
     ).toEqual({ noop: "superseded", detail: "archivedAt set" });
-
-    const deleted: ThreadLifecycleRowState = {
-      status: "idle",
-      activeTurnId: null,
-      archivedAt: null,
-      deletedAt: 5,
-    };
     expect(
       evaluateThreadLifecycleEvent({
         event: { type: "run.started", turnId: "turn_a" },
-        thread: deleted,
+        thread: archived,
       }),
-    ).toEqual({ noop: "superseded", detail: "deletedAt set" });
+    ).toEqual({ noop: "superseded", detail: "archivedAt set" });
 
     // stop/settle events carry no predicates: they must land even on an
     // archived thread, or an archive mid-run wedges the status forever.
@@ -203,7 +193,6 @@ describe("evaluateThreadLifecycleEvent", () => {
       status: "active",
       activeTurnId: "turn_a",
       archivedAt: 5,
-      deletedAt: null,
     };
     expect(
       evaluateThreadLifecycleEvent({

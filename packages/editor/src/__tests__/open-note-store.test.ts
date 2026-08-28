@@ -103,8 +103,8 @@ class FakeController {
   }
 }
 
-/** Mirror vault-context's `ensureRuntime` wiring: subscribe first, then publish
- * once, so no emission can slip between snapshot and subscription. */
+/** Mirror the vault session's `ensureRuntime` wiring: subscribe first, then
+ * publish once, so no emission can slip between snapshot and subscription. */
 function mountRuntime(): FakeController {
   const controller = new FakeController();
   controller.subscribe(() => publishEditor(controller.getState()));
@@ -123,7 +123,7 @@ function openNote(path: string, content: string): FakeController {
 
 /** Record every state the store publishes — the machine's OBSERVABLE history,
  * which is what atomicity is a claim about. */
-function recordStates(): { seen: OpenNoteState[]; stop: () => void } {
+function recordStates() {
   const seen: OpenNoteState[] = [];
   const stop = useOpenNote.subscribe((s) => {
     seen.push(s);

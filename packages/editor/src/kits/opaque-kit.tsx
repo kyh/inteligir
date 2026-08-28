@@ -13,6 +13,8 @@
 import { createSlatePlugin } from "platejs";
 import { PlateElement, type PlateElementProps } from "platejs/react";
 
+import { stringProp } from "@repo/editor/node-props";
+
 const opaqueBlockBasePlugin = createSlatePlugin({
   key: "opaqueBlock",
   node: { isElement: true, isVoid: true },
@@ -25,10 +27,6 @@ const opaqueInlineBasePlugin = createSlatePlugin({
 
 export const OpaqueBaseKit = [opaqueBlockBasePlugin, opaqueInlineBasePlugin];
 
-function opaqueValue(element: PlateElementProps["element"]): string {
-  return typeof element.value === "string" ? element.value : "";
-}
-
 function OpaqueBlockElement(props: PlateElementProps) {
   return (
     <PlateElement {...props}>
@@ -37,7 +35,7 @@ function OpaqueBlockElement(props: PlateElementProps) {
         title="Not editable here — switch to Raw mode to change it"
         className="overflow-x-auto rounded-md border border-dashed border-muted-foreground/30 bg-muted/40 px-3 py-2 font-mono text-muted-foreground text-sm whitespace-pre select-none"
       >
-        {opaqueValue(props.element)}
+        {stringProp(props.element, "value") ?? ""}
       </pre>
       {props.children}
     </PlateElement>
@@ -52,7 +50,7 @@ function OpaqueInlineElement(props: PlateElementProps) {
         title="Not editable here — switch to Raw mode to change it"
         className="rounded-sm bg-muted/60 px-1 font-mono text-muted-foreground text-[0.9em] whitespace-pre-wrap select-none"
       >
-        {opaqueValue(props.element)}
+        {stringProp(props.element, "value") ?? ""}
       </span>
       {props.children}
     </PlateElement>

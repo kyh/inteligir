@@ -6,6 +6,11 @@
 // enforced twice, here (candidate selection) and in the frontmatter helper
 // (key-presence check), because the failure mode is silently rewriting what a
 // person typed.
+//
+// Inference SPAWNS A VENDOR CLI, so a machine either can run it or cannot.
+// An install without that binary answers `unavailable` with a reason and
+// schedules nothing — a sweep of zeros is what "nothing to do" looks like, and
+// it must not also be what "nothing can be done" looks like.
 
 import {
   addAbsentFrontmatterFields,
@@ -14,11 +19,14 @@ import {
   type SplitDoc,
 } from "@repo/notes/markdown/frontmatter";
 import type {
+  NoteIntelligenceAvailability,
   NoteIntelligenceStatus,
   NoteIntelligenceSweep,
 } from "@repo/api/local/note-intelligence/note-intelligence-schema";
+import { isNotePath } from "@repo/notes/knowledge/doc-file";
+import { isTrashedPath } from "@repo/notes/knowledge/vault-path";
 
-import { headCapUtf8 } from "../agents/agent-instructions";
+import { headCapUtf8 } from "../head-cap-utf8";
 import type { VaultService } from "../vault/vault-service";
 import type { InferenceRunner, InferredFields } from "./infer";
 import type { NoteIntelligenceSettingsStore } from "./settings-store";
@@ -39,6 +47,9 @@ export interface NoteIntelligenceDeps {
   vault: VaultService;
   settings: NoteIntelligenceSettingsStore;
   infer: InferenceRunner;
+  /** Whether the machine can run `infer` at all, decided at boot. Unavailable
+   *  means no sweep is ever scheduled and no child is ever spawned. */
+  availability: NoteIntelligenceAvailability;
   /** Test seam: the debounce delay. */
   debounceMs?: number;
   onLog?: (message: string) => void;
@@ -71,7 +82,10 @@ function absentFields(
   return fields;
 }
 
+const NO_SWEEP: NoteIntelligenceSweep = { scanned: 0, skipped: 0, updated: 0 };
+
 export function createNoteIntelligence(deps: NoteIntelligenceDeps): NoteIntelligence {
+  const usable = deps.availability.kind === "available";
   let enabled = deps.settings.readEnabled();
   let running = false;
   let lastSweep: NoteIntelligenceSweep | null = null;
@@ -132,11 +146,19 @@ export function createNoteIntelligence(deps: NoteIntelligenceDeps): NoteIntellig
   }
 
   async function sweep(): Promise<NoteIntelligenceSweep> {
+    if (!usable) {
+      return NO_SWEEP;
+    }
     running = true;
     try {
       const tree = await deps.vault.listTree();
+      // Trash/ is in the tree and must never be swept: inferring into a deleted
+      // note spends a child on it, and the strip that restore runs takes the
+      // two stamp lines back out — not the fields inference wrote.
       const docs = tree.entries.flatMap((entry) =>
-        entry.kind === "file" && entry.path.endsWith(".md") ? [entry.path] : [],
+        entry.kind === "file" && isNotePath(entry.path) && !isTrashedPath(entry.path)
+          ? [entry.path]
+          : [],
       );
       // Candidate selection reads cheaply first, so a complete note costs one
       // read and no child.
@@ -179,7 +201,7 @@ export function createNoteIntelligence(deps: NoteIntelligenceDeps): NoteIntellig
   }
 
   const scheduleSweep = (): void => {
-    if (!enabled || disposed) return;
+    if (!enabled || disposed || !usable) return;
     clearTimer();
     timer = setTimeout(() => {
       timer = null;
@@ -187,23 +209,26 @@ export function createNoteIntelligence(deps: NoteIntelligenceDeps): NoteIntellig
     }, deps.debounceMs ?? SWEEP_DEBOUNCE_MS);
   };
 
+  const snapshot = (): NoteIntelligenceStatus => ({
+    availability: deps.availability,
+    enabled,
+    lastSweep,
+    running,
+  });
+
   return {
-    status(): NoteIntelligenceStatus {
-      return { enabled, lastSweep, running };
-    },
+    status: snapshot,
 
     setEnabled(next: boolean): NoteIntelligenceStatus {
       enabled = next;
       deps.settings.writeEnabled(next);
-      if (next) {
+      clearTimer();
+      if (next && usable) {
         // The toggle-on kick: an immediate-ish sweep rather than waiting a
         // quiet period nothing is counting down.
-        clearTimer();
         void runSweepLogged();
-      } else {
-        clearTimer();
       }
-      return { enabled, lastSweep, running };
+      return snapshot();
     },
 
     noteVaultChange(): void {

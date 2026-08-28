@@ -153,7 +153,6 @@ export function createOpenNoteStore(): OpenNoteStore {
       const sameDocInputs =
         merged.openPath === s.openPath &&
         merged.editor.path === s.editor.path &&
-        merged.editor.content === s.editor.content &&
         merged.analyzed.rawReason === s.analyzed.rawReason &&
         merged.mode === s.mode;
       merged.openDoc = sameDocInputs
@@ -161,7 +160,6 @@ export function createOpenNoteStore(): OpenNoteStore {
         : deriveOpenDoc({
             openPath: merged.openPath,
             loadedPath: merged.editor.path,
-            content: merged.editor.content,
             rawReason: merged.analyzed.rawReason,
             chosenMode: merged.mode,
           });

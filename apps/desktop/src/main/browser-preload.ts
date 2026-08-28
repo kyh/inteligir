@@ -1,8 +1,8 @@
-// The browser CHROME BAR's preload — the one preload in this process, and it
-// bridges only the shell's own bundled chrome page (browser-chrome.html) to
-// the main process. The app window and the web CONTENT view load no preload
-// at all, so neither ever sees an ipcRenderer. The surface is fixed verbs:
-// nothing here takes a channel name, a path, or anything but the URL-bar text.
+// The browser CHROME BAR's preload — the browser window's own, and it bridges
+// only the shell's own bundled chrome page (browser-chrome.html) to the main
+// process. The web CONTENT view loads no preload at all, so it never sees an
+// ipcRenderer. The surface is fixed verbs: nothing here takes a channel name,
+// a path, or anything but the URL-bar text.
 
 import { contextBridge, ipcRenderer } from "electron";
 import { BROWSER_IPC } from "./browser-ipc";

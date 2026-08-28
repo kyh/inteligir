@@ -1,11 +1,11 @@
 // Machine-enforce the editor-kit import acyclicity that the kit files also
 // assert in prose.
 //
-// `base-kit.ts` composes the Plate kit files, so a kit that EAGERLY imports
-// back into the workspace (vault-context, the open-note store, transclusion)
-// closes a cycle around the kits. The failure mode is vicious: a kit export
-// evaluates to `undefined` at module-init time, so the editor breaks
-// intermittently, far from the import that caused it. The comments in
+// The kit roots compose the Plate kit files, so a kit that EAGERLY imports
+// back into the shell seams (the editor host, the open-note store,
+// transclusion) closes a cycle around the kits. The failure mode is vicious:
+// a kit export evaluates to `undefined` at module-init time, so the editor
+// breaks intermittently, far from the import that caused it. The comments in
 // `transclusion.tsx`, `wiki-chip.tsx`, `block-list.tsx`, `wiki-link-kit.tsx`
 // and `wiki-input-key.ts` state the rule but cannot enforce it — oxlint and
 // knip do not detect cycles, so this test is the only thing in CI that does.
@@ -24,7 +24,15 @@ import fs from "node:fs";
 import path from "node:path";
 
 const EDITOR = path.resolve(import.meta.dirname, "..");
-const ENTRY = path.join(EDITOR, "kits/base-kit.ts");
+
+/**
+ * BOTH kit roots, because they are not the same graph. `base-kit.ts` composes
+ * the shared nodes; `EDITOR_KIT` is what the SHIPPED editor runs, and the kits
+ * only it pulls in (the host, the comment store, the slash menu, the find bar,
+ * the autocompletes) are exactly the reach-back surface this guard exists for.
+ * Walking base-kit alone leaves that half unwatched.
+ */
+const ENTRIES = ["kits/base-kit.ts", "kits/editor-kit.ts"] as const;
 
 /** Resolve a specifier to a file inside @repo/editor, or null if it leaves. */
 function resolve(specifier: string, fromFile: string): string | null {
@@ -113,26 +121,28 @@ function findCycle(entry: string): string[] | null {
 }
 
 describe("editor kit import graph", () => {
-  it("has no eager import cycle rooted at base-kit", () => {
-    expect(fs.existsSync(ENTRY), `${ENTRY} moved — update this guard`).toBe(true);
+  it.each(ENTRIES)("has no eager import cycle rooted at %s", (relative) => {
+    const entry = path.join(EDITOR, relative);
+    expect(fs.existsSync(entry), `${relative} moved — update this guard`).toBe(true);
 
-    const cycle = findCycle(ENTRY);
+    const cycle = findCycle(entry);
     const rendered =
       cycle === null ? "" : cycle.map((file) => `  ${path.relative(EDITOR, file)}`).join("\n  ↓\n");
 
     expect(
       cycle,
-      `Eager import cycle around the Plate kits. A kit export will evaluate to\n` +
-        `undefined at module-init time and break the editor intermittently.\n` +
-        `Break it with React.lazy(() => import(...)) at the workspace boundary:\n\n${rendered}\n`,
+      `Eager import cycle around the Plate kits, rooted at ${relative}. A kit\n` +
+        `export will evaluate to undefined at module-init time and break the\n` +
+        `editor intermittently. Break it with React.lazy(() => import(...)) at\n` +
+        `the workspace boundary:\n\n${rendered}\n`,
     ).toBeNull();
   });
 
-  it("still walks a meaningful graph (guard against a no-op resolver)", () => {
+  it.each(ENTRIES)("still walks a meaningful graph from %s (no-op resolver guard)", (relative) => {
     // If resolution silently stopped working, the cycle check above would pass
     // vacuously. Assert the entry really does reach a good chunk of the editor.
     const seen = new Set<string>();
-    const queue = [ENTRY];
+    const queue = [path.join(EDITOR, relative)];
     while (queue.length > 0) {
       const file = queue.pop();
       if (file === undefined || seen.has(file)) continue;

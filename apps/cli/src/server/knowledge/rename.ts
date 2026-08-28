@@ -30,8 +30,7 @@
 // writes. Directory renames pass straight through: the engine's surgery is
 // per-file, and a folder move keeps every file's basename resolvable.
 
-import { isDocPath } from "@repo/notes/knowledge/doc-file";
-import { titleFromPath } from "@repo/notes/knowledge/link-extract";
+import { docStem, isDocPath } from "@repo/notes/knowledge/doc-file";
 import { computeRenameEdits } from "@repo/notes/knowledge/rename-links";
 import { addFrontmatterAlias } from "@repo/notes/markdown/frontmatter";
 import type {
@@ -110,12 +109,12 @@ export async function renameNoteWithLinkRewrite(
   // Record the old stem only when the resolvable NAME actually changed — never
   // for a dir-only move (stem unchanged) or a case-only retitle (the old
   // spelling still resolves through the case-insensitive tiers).
-  const oldStem = titleFromPath(fromPath);
+  const oldStem = docStem(fromPath);
   const recordAlias =
     isDocPath(fromPath) &&
     isDocPath(renamed.path) &&
     oldStem !== "" &&
-    oldStem.toLowerCase() !== titleFromPath(renamed.path).toLowerCase();
+    oldStem.toLowerCase() !== docStem(renamed.path).toLowerCase();
 
   const edits = computeRenameEdits(docs, allFiles, fromPath, renamed.path);
   const rewritten: string[] = [];

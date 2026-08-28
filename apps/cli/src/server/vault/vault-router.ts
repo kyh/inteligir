@@ -4,7 +4,7 @@
 
 import {
   assetMediaType,
-  VAULT_ASSET_WRITE_MAX_BYTES,
+  VAULT_ASSET_MAX_BYTES,
   type VaultRenameResponse,
 } from "@repo/api/local/vault/vault-schema";
 import { base, refusals } from "../orpc";
@@ -59,9 +59,9 @@ const assetWrite = base.vault.assetWrite.handler(async ({ context, input, errors
     });
   }
   const byteLength = Math.floor((input.bytesBase64.length * 3) / 4);
-  if (byteLength > VAULT_ASSET_WRITE_MAX_BYTES) {
+  if (byteLength > VAULT_ASSET_MAX_BYTES) {
     throw errors.PAYLOAD_TOO_LARGE({
-      message: `attachment is ~${byteLength} bytes; the cap is ${VAULT_ASSET_WRITE_MAX_BYTES}`,
+      message: `attachment is ~${byteLength} bytes; the cap is ${VAULT_ASSET_MAX_BYTES}`,
     });
   }
   const bytes = new Uint8Array(Buffer.from(input.bytesBase64, "base64"));

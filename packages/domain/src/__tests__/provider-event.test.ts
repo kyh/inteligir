@@ -31,7 +31,6 @@ describe("threadEventSchema scope validation", () => {
       type: "client/turn/requested",
       threadId: "thr_1",
       text: "hello",
-      kind: "message",
       scope: turnScope("turn_1"),
     });
     expect(result.success).toBe(false);

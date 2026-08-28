@@ -10,6 +10,8 @@ import { useEditorRef, useElement, useReadOnly, useSelected } from "platejs/reac
 import { cn } from "@repo/ui/lib/utils";
 import { Button } from "@repo/ui/components/button";
 
+import { stringProp } from "@repo/editor/node-props";
+
 // Overrides on the stock ghost icon button: toolbar radius, muted resting
 // color, and the 3.5 icon this toolbar uses.
 const BUTTON_CLASS = "rounded-md text-muted-foreground [&_svg:not([class*='size-'])]:size-3.5";
@@ -22,7 +24,7 @@ export function MediaToolbar() {
   const [editing, setEditing] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
-  const url = typeof element.url === "string" ? element.url : "";
+  const url = stringProp(element, "url") ?? "";
 
   useEffect(() => {
     if (editing) inputRef.current?.select();

@@ -27,11 +27,11 @@ export type ParentToChildMessage =
       rescan: boolean;
     }
   | { kind: "unsubscribe"; id: string }
-  | { kind: "ping"; nonce: number };
+  | { kind: "ping" };
 
 export type ChildToParentMessage =
   | { kind: "ready" }
-  | { kind: "pong"; nonce: number }
+  | { kind: "pong" }
   | { kind: "subscribed"; id: string }
   | { kind: "subscribe-failed"; id: string; message: string }
   | { kind: "unsubscribed"; id: string }
@@ -84,12 +84,12 @@ export const parentToChildMessageSchema = z.discriminatedUnion("kind", [
     })
     .transform(({ kind, id, dir, rescan, opts }) => ({ kind, id, dir, opts, rescan })),
   z.object({ kind: z.literal("unsubscribe"), id: z.string() }),
-  z.object({ kind: z.literal("ping"), nonce: z.number() }),
+  z.object({ kind: z.literal("ping") }),
 ]);
 
 export const childToParentMessageSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("ready") }),
-  z.object({ kind: z.literal("pong"), nonce: z.number() }),
+  z.object({ kind: z.literal("pong") }),
   z.object({ kind: z.literal("subscribed"), id: z.string() }),
   z.object({ kind: z.literal("unsubscribed"), id: z.string() }),
   z.object({ kind: z.literal("subscribe-failed"), id: z.string(), message: z.string() }),

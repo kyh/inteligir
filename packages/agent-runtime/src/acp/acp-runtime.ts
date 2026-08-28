@@ -11,9 +11,8 @@
 // WIRE, not when it settles: the caller's send must return while the turn
 // streams, exactly as the app-server runtime behaved.
 //
-// Steering does not exist in ACP. The runtime says so through
-// `capabilities.supportsSteer === false` and answers every steer as stale —
-// the driver's job is to refuse the steer UP FRONT so the message queues.
+// Steering does not exist in ACP: a prompt owns its session until it settles,
+// so a message sent into a running turn waits in the host's queue instead.
 
 import { spawn, type ChildProcess } from "node:child_process";
 import { Readable, Writable } from "node:stream";
@@ -35,8 +34,6 @@ import type {
   AgentRuntime,
   AgentRuntimeOptions,
   AgentRuntimeProcessExitThreadState,
-  EnsureProviderArgs,
-  ListModelsArgs,
   ReapIdleProviderSessionsArgs,
   ReapIdleProviderSessionsResult,
   ResumeThreadArgs,
@@ -44,9 +41,6 @@ import type {
   RunTurnArgs,
   StartThreadArgs,
   StartThreadResult,
-  SteerTurnArgs,
-  SteerTurnResult,
-  StopThreadArgs,
   PromptInput,
   AgentRuntimeShellEnvironment,
 } from "../types.js";
@@ -100,11 +94,6 @@ interface AcpSession {
   idleSinceMs: number;
   /** Ordered teardown flag: an expected kill must not report a crash. */
   expectedExit: boolean;
-  turnWaiters: Array<(turnId: string | null) => void>;
-}
-
-function resolveTurnWaiters(session: AcpSession, turnId: string | null): void {
-  for (const waiter of session.turnWaiters.splice(0)) waiter(turnId);
 }
 
 let turnCounter = 0;
@@ -239,7 +228,6 @@ export function createAcpAgentRuntime(options: AcpAgentRuntimeOptions): AgentRun
       providerId,
       providerThreadId: null,
       threadId,
-      turnWaiters: [],
     };
     child.stderr?.on("data", (chunk: Buffer) => {
       for (const line of chunk.toString("utf8").split("\n")) {
@@ -258,7 +246,6 @@ export function createAcpAgentRuntime(options: AcpAgentRuntimeOptions): AgentRun
           threadId,
         },
       ];
-      resolveTurnWaiters(session, null);
       options.onProcessExit?.({
         code,
         expected: session.expectedExit || shuttingDown,
@@ -285,7 +272,6 @@ export function createAcpAgentRuntime(options: AcpAgentRuntimeOptions): AgentRun
   async function destroySession(session: AcpSession): Promise<void> {
     session.expectedExit = true;
     sessions.delete(session.threadId);
-    resolveTurnWaiters(session, null);
     if (session.child.exitCode === null && session.child.signalCode === null) {
       session.child.kill("SIGTERM");
       const exited = new Promise<void>((resolve) => {
@@ -327,11 +313,6 @@ export function createAcpAgentRuntime(options: AcpAgentRuntimeOptions): AgentRun
   }
 
   const runtime: AgentRuntime = {
-    async ensureProvider(_args: EnsureProviderArgs): Promise<void> {
-      // Sessions are per-thread children; there is no provider-scoped
-      // process to warm.
-    },
-
     async startThread(args: StartThreadArgs): Promise<StartThreadResult> {
       const session = await openSession(args.threadId, args.providerId);
       const response = await session.connection.newSession({
@@ -388,7 +369,6 @@ export function createAcpAgentRuntime(options: AcpAgentRuntimeOptions): AgentRun
       session.activeMapper = mapper;
       session.pendingTurnStart = false;
       emit(mapper.started());
-      resolveTurnWaiters(session, mapper.turnId);
       void (async () => {
         try {
           const response = await session.connection.prompt({
@@ -410,76 +390,6 @@ export function createAcpAgentRuntime(options: AcpAgentRuntimeOptions): AgentRun
       // while the turn streams. A queue-level flush is the closest "accepted"
       // signal the lib exposes.
       await Promise.resolve();
-    },
-
-    async steerTurn(args: SteerTurnArgs): Promise<SteerTurnResult> {
-      const session = sessions.get(args.threadId);
-      return {
-        status: "stale",
-        activeTurnId: session?.activeMapper?.turnId ?? null,
-      };
-    },
-
-    async stopThread(args: StopThreadArgs): Promise<void> {
-      const session = sessions.get(args.threadId);
-      if (session === undefined) return;
-      const mapper = session.activeMapper;
-      if (mapper !== null && session.providerThreadId !== null) {
-        try {
-          await session.connection.cancel({ sessionId: session.providerThreadId });
-        } catch {
-          // The child may already be gone; the kill below is the backstop.
-        }
-      }
-      await destroySession(session);
-      if (mapper !== null) {
-        emit(mapper.completed("cancelled"));
-      }
-    },
-
-    async listModels(_args: ListModelsArgs): Promise<{ models: [] }> {
-      // ACP advertises no model catalog; harness model choice rides launch
-      // configuration (registry env/args), not a listing.
-      return { models: [] };
-    },
-
-    listRunningProviders(): string[] {
-      return [...new Set(Array.from(sessions.values(), (session) => session.providerId))];
-    },
-
-    getActiveTurnId(threadId: string): string | null {
-      return sessions.get(threadId)?.activeMapper?.turnId ?? null;
-    },
-
-    async waitForActiveTurn(threadId: string, args: { timeoutMs: number }): Promise<string | null> {
-      const session = sessions.get(threadId);
-      if (session === undefined) return null;
-      const active = session.activeMapper?.turnId;
-      if (active !== undefined) return active;
-      let settle: (turnId: string | null) => void;
-      const outcome = new Promise<string | null>((resolve) => {
-        settle = resolve;
-      });
-      const waiter = (turnId: string | null): void => {
-        clearTimeout(timer);
-        settle(turnId);
-      };
-      const timer = setTimeout(() => {
-        // The splice is what makes the two paths exclusive: a fired timer
-        // removes the waiter before finishing, and a fired waiter was already
-        // consumed by resolveTurnWaiters' own splice.
-        const index = session.turnWaiters.indexOf(waiter);
-        if (index >= 0) session.turnWaiters.splice(index, 1);
-        settle(null);
-      }, args.timeoutMs);
-      session.turnWaiters.push(waiter);
-      return outcome;
-    },
-
-    getProviderSession(threadId: string) {
-      const session = sessions.get(threadId);
-      if (session?.providerThreadId == null) return null;
-      return { providerId: session.providerId, providerThreadId: session.providerThreadId };
     },
 
     async reapIdleProviderSessions(
@@ -504,12 +414,6 @@ export function createAcpAgentRuntime(options: AcpAgentRuntimeOptions): AgentRun
 
     hasThread(threadId: string): boolean {
       return sessions.has(threadId);
-    },
-
-    getLiveThreadIds(): string[] {
-      return [...sessions.values()]
-        .filter((session) => session.activeMapper !== null || session.pendingTurnStart)
-        .map((session) => session.threadId);
     },
 
     async shutdown(): Promise<void> {

@@ -1,4 +1,4 @@
-// Buffers the codex driver's mapped events per thread so a streaming burst
+// Buffers the ACP driver's mapped events per thread so a streaming burst
 // lands as ONE ingest transaction (and one ws frame) instead of one per
 // delta. Deltas park until the next macrotask tick; a non-delta event flushes
 // its thread immediately — buffered deltas first, then itself, in arrival

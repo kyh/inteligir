@@ -7,7 +7,7 @@ import type { ViewContext } from "@repo/domain/view-context";
 import type { CreateThreadRequest } from "@repo/api/local/threads/threads-schema";
 
 import type { client } from "../api";
-import { sendToThread, type ComposerSendOutcome } from "../chat/chat-service";
+import { sendToThread, type ComposerSendOutcome } from "./send-to-thread";
 
 /** First line of the prompt, trimmed to a title-sized span. */
 function actionTitle(prompt: string): string {

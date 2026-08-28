@@ -14,6 +14,7 @@ import { isHttpUrl } from "@repo/editor/lib/wire";
 import { cn } from "@repo/ui/lib/utils";
 
 import { useDarkClass } from "@repo/editor/lib/use-dark-class";
+import { stringProp } from "@repo/editor/node-props";
 import { MediaToolbar } from "@repo/editor/nodes/media-toolbar";
 
 const Tweet = lazy(() => import("react-tweet").then((mod) => ({ default: mod.Tweet })));
@@ -22,7 +23,7 @@ export function MediaEmbedElement(props: PlateElementProps) {
   const selected = useSelected();
   const focused = useFocused();
   const dark = useDarkClass();
-  const url = typeof props.element.url === "string" ? props.element.url : "";
+  const url = stringProp(props.element, "url") ?? "";
   const tweet = parseTwitterUrl(url);
 
   return (

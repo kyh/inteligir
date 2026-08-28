@@ -25,19 +25,19 @@ import type {
 } from "@repo/api/local/cloud/cloud-schema";
 import { Button } from "@repo/ui/components/button";
 import { confirm } from "@repo/ui/components/confirm-dialog";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { orpc } from "../api";
+import { relativeTimeLabel } from "../relative-time";
 import { useVaultStatus } from "../vault-hooks";
-import { useWorkspace } from "../workspace-context";
 import { failed, Row, SectionHeading } from "./settings-chrome";
 
 /**
  * Nothing on the local ws bus announces a sync pass — the bus carries vault,
  * doc and thread invalidations, and sync state is none of those — so this
- * query polls while the dialog is open and stops with it. The dialog body is
- * mounted only while open, which is what makes a poll here honest rather than
- * a background timer nobody asked for.
+ * query polls while the settings page is open and stops with it. The section
+ * is mounted only while that route is, which is what makes a poll here honest
+ * rather than a background timer nobody asked for.
  */
 const STATUS_POLL_MS = 5_000;
 
@@ -49,18 +49,11 @@ function useCloudStatus() {
   });
 }
 
-function relativeTime(epochMs: number | null): string {
-  if (epochMs === null) {
-    return "never";
-  }
-  const seconds = Math.max(0, Math.round((Date.now() - epochMs) / 1000));
-  if (seconds < 60) {
-    return `${seconds}s ago`;
-  }
-  if (seconds < 3600) {
-    return `${Math.round(seconds / 60)}m ago`;
-  }
-  return new Date(epochMs).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+/** The seconds tier is on here and nowhere else: this row renders beside the
+ *  button that refreshes it, so "Just now" would hide the freshness it exists
+ *  to report. */
+function lastSyncedLabel(epochMs: number | null): string {
+  return epochMs === null ? "never" : relativeTimeLabel(epochMs, Date.now(), { seconds: true });
 }
 
 /**
@@ -129,7 +122,7 @@ export function PairedDetails({ status }: PairedDetailsProps) {
       <Row label="State">
         <span className="text-xs">
           {status.connected ? "Following" : "Polling"} · {status.pending} queued · synced{" "}
-          {relativeTime(status.lastSyncedAt)}
+          {lastSyncedLabel(status.lastSyncedAt)}
         </span>
       </Row>
       {status.lastError === null ? null : (
@@ -142,46 +135,46 @@ export function PairedDetails({ status }: PairedDetailsProps) {
 }
 
 export function SyncSection() {
-  const { api } = useWorkspace();
   const queryClient = useQueryClient();
   const { data: vaultStatus } = useVaultStatus();
   const statusQuery = useCloudStatus();
-  const [pending, setPending] = useState(false);
   const [begun, setBegun] = useState<CloudPairBeginResponse | null>(null);
 
-  // Every verb here is the same act: lock the section, ask the server, take
-  // the whole status it answers with, and say what went wrong in this verb's
-  // own words. Three copies of that lifecycle is three places a `finally` can
-  // go missing and leave the section disabled for good.
-  const perform = (fallback: string, call: () => Promise<CloudStatusResponse>): void => {
-    setPending(true);
-    void (async () => {
-      try {
-        const next = await call();
-        queryClient.setQueryData(orpc.cloud.status.queryKey(), () => next);
-      } catch (error) {
-        failed(error, fallback);
-      } finally {
-        setPending(false);
-      }
-    })();
+  // Unpair and sync each answer with the WHOLE status, so success is a cache
+  // write rather than an invalidation — the server has already said what it
+  // left behind, and re-asking would be a second answer to one question.
+  const applyStatus = (next: CloudStatusResponse): void => {
+    queryClient.setQueryData(orpc.cloud.status.queryKey(), next);
   };
 
-  // Not `perform`: beginning an approval answers a URL rather than a status,
-  // and the status that matters lands later — when the browser comes back and
-  // the poll above sees a paired install.
-  const beginPair = (): void => {
-    setPending(true);
-    void (async () => {
-      try {
-        setBegun(await api.cloud.pairBegin({ openBrowser: true }));
-      } catch (error) {
+  // Beginning an approval answers a URL rather than a status: the status that
+  // matters lands later, when the browser comes back and the poll above sees a
+  // paired install.
+  const pairBegin = useMutation(
+    orpc.cloud.pairBegin.mutationOptions({
+      onSuccess: setBegun,
+      onError: (error) => {
         failed(error, "Could not start pairing.");
-      } finally {
-        setPending(false);
-      }
-    })();
-  };
+      },
+    }),
+  );
+  const unpairDevice = useMutation(
+    orpc.cloud.unpair.mutationOptions({
+      onSuccess: applyStatus,
+      onError: (error) => {
+        failed(error, "Could not unpair this device.");
+      },
+    }),
+  );
+  const syncThreads = useMutation(
+    orpc.cloud.syncNow.mutationOptions({
+      onSuccess: applyStatus,
+      onError: (error) => {
+        failed(error, "Could not run a sync.");
+      },
+    }),
+  );
+  const pending = pairBegin.isPending || unpairDevice.isPending || syncThreads.isPending;
 
   // The confirm runs OUTSIDE the lock: nothing is in flight while a dialog
   // waits for an answer, and a section greyed out meanwhile says otherwise.
@@ -204,12 +197,8 @@ export function SyncSection() {
         return;
       }
       setBegun(null);
-      perform("Could not unpair this device.", async () => api.cloud.unpair());
+      unpairDevice.mutate();
     })();
-  };
-
-  const syncNow = (): void => {
-    perform("Could not run a sync.", async () => api.cloud.syncNow());
   };
 
   const status = statusQuery.data;
@@ -223,7 +212,9 @@ export function SyncSection() {
         <PairPrompt
           cloudUrl={status.cloudUrl}
           begun={begun}
-          onBegin={beginPair}
+          onBegin={() => {
+            pairBegin.mutate({ openBrowser: true });
+          }}
           pending={pending}
         />
       ) : status.state === "unauthorized" ? (
@@ -239,7 +230,14 @@ export function SyncSection() {
         <div className="space-y-2">
           <PairedDetails status={status} />
           <div className="flex gap-2">
-            <Button size="xs" variant="outline" onClick={syncNow} disabled={pending}>
+            <Button
+              size="xs"
+              variant="outline"
+              disabled={pending}
+              onClick={() => {
+                syncThreads.mutate();
+              }}
+            >
               Sync threads now
             </Button>
             <Button size="xs" variant="ghost" onClick={unpair} disabled={pending}>

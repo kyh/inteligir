@@ -31,8 +31,8 @@ export function appPreloadScript(): string {
   return bundlePath("preload", "index.cjs");
 }
 
-/** The in-app browser's chrome bar — the one page in this process with a
- *  preload, and its fixed verb set. */
+/** The in-app browser's chrome bar — the browser window's own preload, and its
+ *  fixed verb set. */
 export function browserChromePreloadScript(): string {
   return bundlePath("preload", "browser-preload.cjs");
 }

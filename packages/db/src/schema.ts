@@ -15,10 +15,6 @@ export const meta = sqliteTable("meta", {
   value: text("value").notNull(),
 });
 
-/** The retired review-mode vocabulary (#613), inlined like the proposal
- *  statuses below: the column is retained, the feature is not. */
-const RETAINED_WRITE_MODE_VALUES = ["direct", "propose"] as const;
-
 export const threads = sqliteTable(
   "threads",
   {
@@ -29,11 +25,9 @@ export const threads = sqliteTable(
     // every settle. The lifecycle CAS matches settles against it so a late
     // completion for an old turn cannot settle the running one.
     activeTurnId: text("active_turn_id"),
-    // The vault doc this thread is ABOUT (an action attaches to the note it
-    // was composed over, #587). The anchor is retired (#613, legacy rows
-    // only); the CHECK still keeps one from existing without its doc.
+    // The vault doc this thread is ABOUT: an action attaches to the note it
+    // was composed over.
     originDocPath: text("origin_doc_path"),
-    originAnchor: text("origin_anchor"),
     // The provider session this thread resumes into (issue #549): which
     // provider ran it and the provider's own thread id. Written together by
     // the one writer (setThreadProviderSession) once the runtime resolves the
@@ -43,10 +37,6 @@ export const threads = sqliteTable(
     // idle-session reaping — the next turn resumes by this id.
     providerId: text("provider_id"),
     providerThreadId: text("provider_thread_id"),
-    // Retired (#613): every turn writes direct now, and nothing dispatches on
-    // this. The column stays because cross-device sync version skew makes a
-    // drop unsafe — a peer still syncing the old grammar may send the field.
-    writeMode: text("write_mode", { enum: RETAINED_WRITE_MODE_VALUES }).notNull().default("direct"),
     archivedAt: integer("archived_at"),
     createdAt: integer("created_at").notNull(),
     updatedAt: integer("updated_at").notNull(),
@@ -62,15 +52,10 @@ export const threads = sqliteTable(
     index("threads_archived_updated_idx")
       .on(table.updatedAt)
       .where(sql`${table.archivedAt} IS NOT NULL`),
-    check(
-      "threads_origin_pair_check",
-      sql`(${table.originAnchor} IS NULL OR ${table.originDocPath} IS NOT NULL)`,
-    ),
-    // A rename rebinds every attached thread by this key (rebindThreadOrigins)
-    // rather than scanning the table.
+    // A rename rebinds every thread bound to the moved doc by this key
+    // (rebindThreadOrigins' equality UPDATE); the descendant sweep beside it
+    // is a prefix LIKE, which no index can serve.
     index("threads_origin_doc_idx").on(table.originDocPath),
-    // One anchor, one thread — legacy rows only; nothing mints anchors now.
-    uniqueIndex("threads_origin_anchor_idx").on(table.originAnchor),
   ],
 );
 
@@ -261,45 +246,3 @@ export const syncAppliedCaptures = sqliteTable("sync_applied_captures", {
   id: text("id").primaryKey(),
   appliedAt: integer("applied_at").notNull(),
 });
-
-/**
- * RETIRED (#613 deleted the review-mode pipeline, #560's). The table is
- * RETAINED BYTES ONLY: no code reads or writes it, but a drop migration is
- * unsafe under cross-device sync version skew, so the definition stays for
- * the migration↔schema agreement guard. `status` values inlined because the
- * domain module died with the pipeline.
- */
-const RETAINED_PROPOSAL_STATUS_VALUES = ["pending", "accepted", "rejected"] as const;
-
-export const proposals = sqliteTable(
-  "proposals",
-  {
-    id: text("id").primaryKey(),
-    threadId: text("thread_id")
-      .notNull()
-      .references(() => threads.id, { onDelete: "cascade" }),
-    turnId: text("turn_id"),
-    docPath: text("doc_path").notNull(),
-    baseRev: text("base_rev"),
-    baseHash: text("base_hash"),
-    baseContent: text("base_content").notNull(),
-    proposedContent: text("proposed_content"),
-    status: text("status", { enum: RETAINED_PROPOSAL_STATUS_VALUES }).notNull(),
-    revision: integer("revision").notNull(),
-    acceptedHunks: integer("accepted_hunks").notNull().default(0),
-    createdAt: integer("created_at").notNull(),
-    updatedAt: integer("updated_at").notNull(),
-    resolvedAt: integer("resolved_at"),
-  },
-  (table) => [
-    uniqueIndex("proposals_thread_doc_pending_idx")
-      .on(table.threadId, table.docPath)
-      .where(sql`${table.status} = 'pending'`),
-    index("proposals_doc_status_idx").on(table.docPath, table.status),
-    index("proposals_thread_status_idx").on(table.threadId, table.status),
-    check(
-      "proposals_has_change_check",
-      sql`${table.baseHash} IS NOT NULL OR ${table.proposedContent} IS NOT NULL`,
-    ),
-  ],
-);

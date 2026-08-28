@@ -91,8 +91,10 @@ const serverFileSchema = z.object({
    *  desktop shell's, and it compares `system.status`'s data dir against its own
    *  resolution (server-instance.ts), not this field. */
   vaultDir: z.string().min(1),
-  /** Whose file this is. Diagnostic only — nothing branches on it — but it is
-   *  what makes a stale file after a crash identifiable by a human. */
+  /** Whose file this is: what makes a stale row after a crash identifiable —
+   *  by a human reading it, and by the second-boot guard, which asks the OS
+   *  whether that process is still there before it asks the port anything
+   *  (serve.ts). An owner too wedged to answer is still an owner. */
   pid: z.number().int().min(1),
 });
 
@@ -167,14 +169,6 @@ export function presentedCredential(headers: {
   }
   const cookie = cookieValue(headers.cookie, SERVER_TOKEN_COOKIE);
   return cookie === null ? null : { token: cookie, carrier: "cookie" };
-}
-
-/** The token alone, for callers that do not distinguish the carrier. */
-export function presentedToken(headers: {
-  authorization: string | undefined;
-  cookie: string | undefined;
-}): string | null {
-  return presentedCredential(headers)?.token ?? null;
 }
 
 function cookieValue(header: string | undefined, name: string): string | null {

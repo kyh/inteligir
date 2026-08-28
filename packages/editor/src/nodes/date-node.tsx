@@ -16,7 +16,9 @@ import {
   type PlateElementProps,
 } from "platejs/react";
 
-import { formatIsoDate } from "@repo/notes/daily-path";
+import { formatIsoDate } from "@repo/notes/iso-date";
+
+import { stringProp } from "@repo/editor/node-props";
 
 import { cn } from "@repo/ui/lib/utils";
 
@@ -55,7 +57,7 @@ export function DateElement(props: PlateElementProps) {
   const readOnly = useReadOnly();
   const [open, setOpen] = useState(false);
 
-  const value = typeof element.date === "string" ? element.date : "";
+  const value = stringProp(element, "date") ?? "";
 
   return (
     <PlateElement {...props} as="span" className="inline-block">

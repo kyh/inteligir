@@ -8,7 +8,7 @@ function openExternalLink(url: string): void {
   if (!/^https?:\/\//i.test(url)) return;
   void Linking.openURL(url).catch(() => undefined);
 }
-import { RADIUS, SPACE, useTheme, type Theme } from "@/lib/theme";
+import { MONO_FONT, RADIUS, SPACE, useTheme, type Theme } from "@/lib/theme";
 import type { InlineSpan, NoteBlock } from "./note-projection";
 import type { VaultAssetSource } from "@repo/api/cloud/client";
 
@@ -305,5 +305,5 @@ const styles = StyleSheet.create({
   bold: { fontWeight: "700" },
   italic: { fontStyle: "italic" },
   strike: { textDecorationLine: "line-through" },
-  mono: { fontFamily: "Menlo", fontSize: 14 },
+  mono: { fontFamily: MONO_FONT, fontSize: 14 },
 });

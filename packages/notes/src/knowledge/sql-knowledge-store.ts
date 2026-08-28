@@ -1,11 +1,8 @@
 // ---------------------------------------------------------------------------
 // The SQL KnowledgeStore — schema, guards, and queries written ONCE over an
-// injected SqlDriver, so the wasm binding the workspace's suites drive and the
-// host's Durable Object storage run the IDENTICAL migrations and bm25 search.
-// Only the
-// byte-level binding is per-platform — plus the two statements a platform may
-// refuse to accept as SQL at all, which the driver may own instead
-// (SqlDriver.transaction / .schemaVersion).
+// injected SqlDriver. The one binding today is apps/cli's better-sqlite3
+// driver; the port stays injected because this package carries no sqlite
+// dependency, so only the byte-level binding lives outside this file.
 //
 // Versioning is deliberately trivial — single-version wipe-and-rebuild, three
 // guards checked at open: PRAGMA user_version vs KNOWLEDGE_SCHEMA_VERSION,
@@ -25,14 +22,13 @@
 // weights (10/4/1), the shadow carrying the same three weights so a stemmed
 // title hit still outranks a stemmed body hit.
 //
-// Hydration is PAGED. Every SQLite binding on every target platform is
-// synchronous, so a whole-corpus read is an uninterruptible stall on whatever
-// thread calls it — measured at 1.2s on a synthetic 50k-note vault, where the
-// six full-table sweeps materialize ~1M row objects in one call. `hydrate()`
-// hands back a resumable keyset cursor instead: each `next()` reads ONE bounded
-// page (a `files` slice plus the five child ranges that slice covers), so the
-// cost of a single synchronous call is a function of the page size, never of
-// the corpus. The host shell drives it with event-loop yields between pages.
+// Hydration is PAGED. The SQLite binding behind this port is synchronous, so a
+// whole-corpus read is an uninterruptible stall on whatever thread calls it —
+// measured at 1.2s on a synthetic 50k-note vault, where one call materializes
+// ~1M row objects. `hydrate()` hands back a resumable keyset cursor instead:
+// each `next()` reads ONE bounded `files` page, so the cost of a single
+// synchronous call is a function of the page size, never of the corpus. The
+// host shell drives it with event-loop yields between pages.
 // `loadAll()` (the port's one-shot contract) is that same cursor, drained.
 // ---------------------------------------------------------------------------
 
@@ -55,15 +51,8 @@ type SqlValue = null | number | string;
 
 export type SqlRow = Record<string, SqlValue>;
 
-/** The per-platform SQLite binding. Implementations own the file/instance
- * lifecycle; the store owns every statement that runs through it.
- *
- * The last two members are optional because they name the only two things a
- * platform can refuse to express as SQL. Durable Object storage refuses BOTH:
- * it answers SQLITE_AUTH to `PRAGMA user_version` and rejects
- * `BEGIN`/`SAVEPOINT` outright (it owns write coalescing and offers
- * `transactionSync` instead). A driver that leaves them unset gets the plain
- * SQL path, which is what every file-backed binding wants. */
+/** The injected SQLite binding. The implementation owns the file/instance
+ * lifecycle; the store owns every statement that runs through it. */
 export type SqlDriver = {
   /** Execute one or more statements with no parameters or results. */
   exec(sql: string): void;
@@ -75,12 +64,6 @@ export type SqlDriver = {
    * in-memory instance) and reopen empty — the recovery primitive. */
   reset(): void;
   close(): void;
-  /** Run `fn` as one atomic unit, rolling back if it throws. Bound only where
-   * the platform's own API must own the transaction. */
-  transaction?(fn: () => void): void;
-  /** Read/write the schema version where `PRAGMA user_version` is unavailable.
-   * `read()` answers 0 for a database that has never carried one. */
-  schemaVersion?: { read(): number; write(version: number): void };
 };
 
 // ---- Paged hydration ----------------------------------------------------------
@@ -118,11 +101,10 @@ export type SqlKnowledgeStore = KnowledgeStore & {
 //
 // The projection is stored rather than shredded because nothing queries its
 // parts: link, tag and name RESOLUTION all happen in the in-memory
-// LinkGraphIndex, so five FK-cascaded child tables only ever served
-// hydration's own sweeps — and Durable Object SQLite bills rows WRITTEN, so a
-// doc with 30 links and 8 tasks cost 56 billed writes where it now costs one.
-// Sibling workstreams extend by adding a projection field and bumping
-// PROJECTION_VERSION; the wipe-and-rebuild guard IS the migration.
+// LinkGraphIndex, so child tables would cost a row per link, heading, tag and
+// task and be read only by hydration's own sweeps. Extending means adding a
+// projection field and bumping PROJECTION_VERSION; the wipe-and-rebuild guard
+// IS the migration.
 //
 // `files.path` is the PK, so paged hydration is an index range scan.
 //
@@ -284,39 +266,23 @@ export function createSqlKnowledgeStore(driver: SqlDriver, vaultRoot: string): S
     return first === undefined ? null : columnString(first, "value");
   };
 
+  /** 0 for a database that has never carried a version. */
   const readSchemaVersion = (): number => {
-    const owned = driver.schemaVersion;
-    if (owned !== undefined) return owned.read();
     const row = driver.all("PRAGMA user_version", [])[0];
     return row === undefined ? 0 : columnNumber(row, "user_version");
   };
 
-  const writeSchemaVersion = (version: number): void => {
-    const owned = driver.schemaVersion;
-    if (owned !== undefined) {
-      owned.write(version);
-      return;
-    }
-    driver.exec(`PRAGMA user_version = ${version}`);
-  };
-
   const initSchema = (): void => {
     driver.exec(SCHEMA_DDL);
-    writeSchemaVersion(KNOWLEDGE_SCHEMA_VERSION);
+    driver.exec(`PRAGMA user_version = ${KNOWLEDGE_SCHEMA_VERSION}`);
     driver.run(
       "INSERT INTO meta (key, value) VALUES ('projection_version', ?), ('vault_root', ?)",
       [String(PROJECTION_VERSION), vaultRoot],
     );
   };
 
-  const openFresh = (): void => {
-    driver.exec("PRAGMA foreign_keys = ON");
-    initSchema();
-  };
-
   const open = (): void => {
     try {
-      driver.exec("PRAGMA foreign_keys = ON");
       const userVersion = readSchemaVersion();
       const hasMeta =
         driver.all("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'meta'", [])
@@ -339,12 +305,17 @@ export function createSqlKnowledgeStore(driver: SqlDriver, vaultRoot: string): S
       // Wipe and rebuild — always safe, nothing durable lives here.
       console.warn("[knowledge-store] discarding index db (will rebuild):", messageOf(err));
       driver.reset();
-      openFresh();
+      initSchema();
     }
   };
 
-  const runStatements = (fn: () => void): void => {
+  const transaction = (fn: () => void): void => {
+    if (transactionDepth > 0) {
+      fn(); // already atomic under the outermost transaction
+      return;
+    }
     driver.exec("BEGIN");
+    transactionDepth = 1;
     try {
       fn();
       driver.exec("COMMIT");
@@ -355,18 +326,6 @@ export function createSqlKnowledgeStore(driver: SqlDriver, vaultRoot: string): S
         // The transaction may already be gone (e.g. the failure closed it).
       }
       throw err;
-    }
-  };
-
-  const transaction = (fn: () => void): void => {
-    if (transactionDepth > 0) {
-      fn(); // already atomic under the outermost transaction
-      return;
-    }
-    transactionDepth = 1;
-    try {
-      if (driver.transaction === undefined) runStatements(fn);
-      else driver.transaction(fn);
     } finally {
       transactionDepth = 0;
     }
@@ -532,7 +491,7 @@ export function createSqlKnowledgeStore(driver: SqlDriver, vaultRoot: string): S
     clear() {
       transaction(() => {
         driver.run("DELETE FROM search_fts", []);
-        driver.run("DELETE FROM files", []); // children CASCADE
+        driver.run("DELETE FROM files", []);
       });
     },
 
@@ -566,7 +525,7 @@ export function createSqlKnowledgeStore(driver: SqlDriver, vaultRoot: string): S
 
     nuke() {
       driver.reset();
-      openFresh();
+      initSchema();
     },
 
     dispose() {

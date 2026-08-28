@@ -2,7 +2,7 @@
 // ThreadService is built with, and the decision (mode, what actually runs,
 // why not) is the `agent` block of /system/status — so a 503 on send is
 // diagnosable without reading logs. Binary presence is checked HERE, once,
-// so an absent codex fails the send synchronously with an actionable
+// so an absent vendor CLI fails the send synchronously with an actionable
 // message instead of wedging a thread on an async spawn failure.
 
 import type { DbConnection } from "@repo/db/connection";
@@ -91,7 +91,7 @@ export function resolveAgentDriver(args: ResolveAgentDriverArgs): ResolvedAgentD
     };
   }
 
-  const codex: AcpRuntimeManagerDeps = {
+  const acp: AcpRuntimeManagerDeps = {
     db: args.db,
     notifier: args.notifier,
     vaultDir: args.config.vaultDir,
@@ -104,7 +104,7 @@ export function resolveAgentDriver(args: ResolveAgentDriverArgs): ResolvedAgentD
     defaultProviderId: claudeBinary === null ? "codex" : "claude",
     onDebug,
   };
-  const manager = createAcpRuntimeManager(codex);
+  const manager = createAcpRuntimeManager(acp);
   return {
     status: { mode, runtime: "acp", detail: null },
     createTurnDriver: manager.createTurnDriver,

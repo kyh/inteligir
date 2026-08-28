@@ -55,7 +55,7 @@ export const externalEditBrowser: Scenario = {
       );
 
       ctx.log("clean buffer: the agent rewrites the note, the editor adopts");
-      await app.api.threads.send({ threadId: thread.id, text: PROMPT, mode: "steer-if-active" });
+      await app.api.threads.send({ threadId: thread.id, text: PROMPT });
 
       const adoptDeadline = Date.now() + TURN_DEADLINE_MS;
       for (;;) {

@@ -115,8 +115,8 @@ const VOCABULARIES: Vocabulary[] = [
       "packages/domain/src/thread-lifecycle.ts":
         "the FSM — which transition each status permits, and the only table that may say so",
       "apps/cli/src/server/threads/service.ts":
-        "server POLICY — what a send does in each status (start, steer, queue, refuse), which is a different question from what the status is called",
-      "apps/desktop/src/renderer/app/chat/chat-model.ts":
+        "server POLICY — what a send does in each status (start, queue, refuse), which is a different question from what the status is called",
+      "apps/desktop/src/renderer/app/chat-model.ts":
         "the client's ONE derivation into `ThreadActivity`; every React surface reads its labels, dots and tones from there rather than from the lifecycle word",
     },
   },
@@ -134,7 +134,7 @@ const VOCABULARIES: Vocabulary[] = [
     members: THREAD_CHANGE_KINDS,
     declaredIn: "packages/domain/src/change-kinds.ts",
     dispatchedIn: {
-      "apps/desktop/src/renderer/app/chat/thread-hooks.ts":
+      "apps/desktop/src/renderer/app/actions/thread-hooks.ts":
         "which kinds move the TIMELINE, and therefore earn a delta fetch — the one thread surface the query sweep does not cover, so a kind nobody weighed here is a row the user never sees; a table rather than a list, because the answer for a new kind is a decision and not a default",
     },
   },

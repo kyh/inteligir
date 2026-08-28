@@ -3,6 +3,7 @@
 // overflow menu rather than as bar buttons — the bar carries only what a
 // reader touches constantly.
 
+import { docStem } from "@repo/notes/knowledge/doc-file";
 import { Button } from "@repo/ui/components/button";
 import {
   DropdownMenu,
@@ -27,6 +28,7 @@ import {
 } from "lucide-react";
 
 import { shareWithAgentText } from "./actions/share-with-agent";
+import { socketOrigin } from "./socket-origin";
 
 export interface NoteTopbarProps {
   /** The focused note, or null when nothing is open. */
@@ -46,11 +48,6 @@ export interface NoteTopbarProps {
   onOpenComments: () => void;
   onOpenInSplit: () => void;
   onExportPdf: () => void;
-}
-
-function noteTitle(path: string): string {
-  const base = path.split("/").at(-1) ?? path;
-  return base.endsWith(".md") ? base.slice(0, -3) : base;
 }
 
 /** The right-panel toggle needs the RIGHT provider's context, so it renders
@@ -86,9 +83,15 @@ export function NoteTopbar({
   onOpenInSplit,
   onExportPdf,
 }: NoteTopbarProps) {
+  // The link is built from the SERVER's origin, never the page's: under the
+  // shell the page is served from `inteligir://app`, a scheme no OS registers
+  // and this process's own window-open policy refuses, so a copied link would
+  // resolve nowhere — not even back inside inteligir. The residual is stated
+  // rather than hidden: the bound port can move across restarts, so this is a
+  // same-machine affordance and a durable address is its own feature.
   const copyLink = () => {
     if (path === null) return;
-    const url = new URL(window.location.origin);
+    const url = new URL(socketOrigin());
     url.searchParams.set("note", path);
     navigator.clipboard.writeText(url.toString()).then(
       () => toast.success("Link copied"),
@@ -127,7 +130,7 @@ export function NoteTopbar({
         <ArrowRightIcon />
       </Button>
       <span className="ml-2 min-w-0 truncate text-sm text-muted-foreground">
-        {path === null ? "" : noteTitle(path)}
+        {path === null ? "" : docStem(path)}
       </span>
       <div className="ml-auto flex shrink-0 items-center gap-0.5">
         <Button variant="ghost" size="icon-xs" aria-label="Search" onClick={onOpenSearch}>

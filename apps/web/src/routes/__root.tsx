@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { createRootRoute, HeadContent, Outlet, Scripts } from "@tanstack/react-router";
 import { noFlashThemeScript } from "@repo/ui/lib/theme";
-import { ShapeProvider } from "@repo/ui/lib/shape-context";
+import { RadiusProvider } from "@repo/ui/lib/radius-context";
 import { SizeProvider } from "@repo/ui/lib/size-context";
 
 import { siteConfig } from "@/lib/site-config";
@@ -72,11 +72,11 @@ function NotFound() {
 function RootComponent() {
   return (
     <RootDocument>
-      <ShapeProvider defaultShape="rounded">
+      <RadiusProvider defaultRadius="rounded">
         <SizeProvider defaultSize="compact">
           <Outlet />
         </SizeProvider>
-      </ShapeProvider>
+      </RadiusProvider>
     </RootDocument>
   );
 }

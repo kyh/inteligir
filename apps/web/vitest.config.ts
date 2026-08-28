@@ -32,12 +32,6 @@ const TEST_SCHEMA = execFileSync("pnpm", ["run", "--silent", "db:export"], {
 // .dev.vars, never committed), so the test env has to supply a deterministic
 // dummy for Better Auth to sign/verify with.
 const TEST_BETTER_AUTH_SECRET = "test-better-auth-secret-000000000000";
-// wrangler.jsonc declares the secret as required, and its loader checks
-// .dev.vars/.env/process.env — not miniflare's bindings. There is no .dev.vars
-// here (it's gitignored), so without this the suite prints a "Missing required
-// secrets" warning per test file that is purely an artefact of where the value
-// comes from. Same value either way; `??=` leaves a real env alone.
-process.env.BETTER_AUTH_SECRET ??= TEST_BETTER_AUTH_SECRET;
 
 export default defineConfig({
   plugins: [

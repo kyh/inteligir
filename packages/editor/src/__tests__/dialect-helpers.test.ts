@@ -8,13 +8,15 @@ import { createPlateEditor } from "platejs/react";
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
 import { insertDate, insertMonthDate } from "@repo/editor/kits/date-kit";
 import { notePreviewHead } from "@repo/editor/note-preview";
+import { stringProp } from "@repo/editor/node-props";
 import { pickerHexFor, repaintLiteral } from "@repo/editor/kits/color-pill-kit";
 
 function chipDates(nodes: Descendant[]): string[] {
   const out: string[] = [];
   for (const node of nodes) {
     if (!ElementApi.isElement(node)) continue;
-    if (node.type === "date" && typeof node.date === "string") out.push(node.date);
+    const date = node.type === "date" ? stringProp(node, "date") : undefined;
+    if (date !== undefined) out.push(date);
     out.push(...chipDates(node.children));
   }
   return out;

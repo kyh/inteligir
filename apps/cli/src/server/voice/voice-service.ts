@@ -23,7 +23,7 @@ import {
   type VoiceModel,
   type VoiceStatusResponse,
 } from "@repo/api/local/voice/voice-schema";
-import { SCRIPTED_VOICE_MODEL, VOICE_MODEL, type VoiceModelSpec } from "./model-catalog";
+import { VOICE_MODEL, type VoiceModelSpec } from "./model-catalog";
 import {
   downloadModel,
   isModelInstalled,
@@ -361,9 +361,19 @@ export class ParakeetVoiceService implements VoiceService {
  * composer's text proves the microphone's bytes reached the server, not merely
  * that a button was clicked.
  */
+/** What the scripted runtime reports, so a harness sees the same shape a real
+ *  install does without a download. The WIRE shape directly: there is no
+ *  archive to pin, so a catalog spec here would be fabricated digests and
+ *  file names no reader wants. */
+const SCRIPTED_VOICE_MODEL: VoiceModel = {
+  id: "scripted",
+  label: "Scripted (test runtime)",
+  sizeBytes: 1,
+};
+
 export class ScriptedVoiceService implements VoiceService {
   async status(): Promise<VoiceStatusResponse> {
-    return { state: "ready", model: wireModel(SCRIPTED_VOICE_MODEL) };
+    return { state: "ready", model: SCRIPTED_VOICE_MODEL };
   }
 
   async install(): Promise<VoiceStatusResponse> {

@@ -4,16 +4,15 @@
 // - EVERY READ IS REDACTED. Header values reduce to `hasAuth`; the full rows
 //   leave this module only through `enabledForSessions()`, whose one caller
 //   is session launch's composition (session-servers.ts).
-// - ADD REFUSES A NAME THAT EXISTS (409) and UPDATE/REMOVE/TOGGLE REFUSE ONE
-//   THAT DOES NOT (404) — the same two guards the codex driver stated, now
-//   genuinely this app's.
+// - ADD REFUSES A NAME THAT EXISTS and UPDATE/REMOVE/TOGGLE REFUSE ONE THAT
+//   DOES NOT; the wire class a refusal answers with is the router's, not this
+//   module's.
 // - AN UPDATE THAT OMITS HEADERS KEEPS THE STORED ONES, so editing a URL
 //   never forces re-pasting a key and no client round-trips a secret.
 
 import type {
   ConnectorAddRequest,
   ConnectorTransportInput,
-  ConnectorUpdateRequest,
   ConnectorView,
 } from "@repo/api/local/connectors/connectors-schema";
 
@@ -39,10 +38,18 @@ interface SessionMcpServer {
   transport: StoredTransport;
 }
 
+/** A replacement transport for a row that already exists. */
+interface ConnectorUpdate {
+  name: string;
+  transport: ConnectorTransportInput;
+}
+
 export interface ConnectorsService {
   list(): ConnectorView[];
   add(request: ConnectorAddRequest): ConnectorView[];
-  update(request: ConnectorUpdateRequest): ConnectorView[];
+  /** Not exposed as a procedure. It is the only write that carries stored
+   *  secrets across an endpoint edit, so correcting a URL costs no re-consent. */
+  update(request: ConnectorUpdate): ConnectorView[];
   remove(name: string): ConnectorView[];
   toggle(name: string, enabled: boolean): ConnectorView[];
   /** The UNREDACTED enabled rows, for composing a session's mcpServers. */
@@ -158,7 +165,7 @@ export function createConnectorsService(store: ConnectorsStore): ConnectorsServi
       return servers.map(toView);
     },
 
-    update(request: ConnectorUpdateRequest): ConnectorView[] {
+    update(request: ConnectorUpdate): ConnectorView[] {
       const servers = store.read();
       const row = requireRow(servers, request.name);
       row.transport = toStoredTransport(request.transport, row.transport);

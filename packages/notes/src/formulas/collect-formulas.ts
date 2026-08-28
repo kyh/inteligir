@@ -1,4 +1,4 @@
-// Collecting a doc's formulas: the SAME parse the editor and the scan run
+// Collecting a doc's formulas: the SAME parse the editor runs
 // (remark-inline-constructs' nodes), never a regex over raw text — a pill inside a
 // code fence is literal there, and it must be literal here. The collector is
 // what the cross-note resolver reads, so its answer is identity-shaped:

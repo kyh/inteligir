@@ -27,7 +27,7 @@ import { turnPromptInput } from "./view-context-prompt";
 export interface ScriptedDriverDeps {
   vault: VaultService;
   git: GitEngine;
-  /** Where a failed scripted turn reports itself, same as the codex manager's. */
+  /** Where a failed scripted turn reports itself, same as the ACP manager's. */
   onError?: (message: string) => void;
 }
 
@@ -71,7 +71,7 @@ class ScriptedTurnDriver implements TurnDriver {
     });
     const fileItemId = `item_${args.turnId}_file`;
     try {
-      // Wait out any mid-flight sync before writing (same barrier the codex
+      // Wait out any mid-flight sync before writing (same barrier the ACP
       // manager takes), so the write never lands in a rebase window.
       await turnCommit.ready;
       const notePath = scriptedNotePath(args.threadId);
@@ -109,10 +109,6 @@ class ScriptedTurnDriver implements TurnDriver {
         { type: "turn/completed", threadId: args.threadId, status: "failed", scope },
       ]);
     }
-  }
-
-  steerTurn(): boolean {
-    return false;
   }
 }
 

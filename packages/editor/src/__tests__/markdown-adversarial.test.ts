@@ -66,11 +66,11 @@ function hunt(md: string): Violation[] {
   }
 
   let out: string | null = null;
-  let rtError: unknown = null;
+  let rtError: string | null = null;
   try {
     out = roundTrip(md);
   } catch (error) {
-    rtError = error;
+    rtError = String(error);
   }
 
   // (e) the mode badge and the Format action must agree.
@@ -240,7 +240,7 @@ function report(cases: Iterable<readonly [string, string]>): string[] {
 // classify (a) and agree (e), never mangle.
 // ---------------------------------------------------------------------------
 
-const CORPUS: Record<string, string> = {
+const CORPUS = {
   // dollars / math
   "dollar-adjacent": "$5-$6 and \\$7 and $$ at EOL $$\n",
   "dollar-run-alone": "$$$$\n",
@@ -429,7 +429,7 @@ const CORPUS: Record<string, string> = {
   "empty-list-item": "-\n",
   "hr-then-empty-item": "___\n\n-\n",
   entities: "&nbsp;&mdash;&amp;\n",
-};
+} satisfies Record<string, string>;
 
 // ---------------------------------------------------------------------------
 // Seeded fuzz — deterministic composition of nasty fragments + byte mutations.

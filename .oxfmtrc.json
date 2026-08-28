@@ -10,7 +10,6 @@
     "out",
     "routeTree.gen.ts",
     "worker-configuration.d.ts",
-    "packages/agent-runtime/src/codex/generated",
     "packages/editor/src/__tests__/fixtures",
     "apps/cli/seed"
   ]

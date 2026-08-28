@@ -25,10 +25,9 @@ import { confirm } from "@repo/ui/components/confirm-dialog";
 import { Input } from "@repo/ui/components/input";
 import { Label } from "@repo/ui/components/label";
 import { Textarea } from "@repo/ui/components/textarea";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useId, useState } from "react";
 import { orpc } from "../api";
-import { useWorkspace } from "../workspace-context";
 import { ChoiceRow, failed, SectionHeading } from "./settings-chrome";
 
 function useConnectors() {
@@ -229,56 +228,63 @@ function ConnectorRow({
   server: ConnectorView;
   onChanged: (servers: ConnectorView[]) => void;
 }) {
-  const { api } = useWorkspace();
-  const [busy, setBusy] = useState(false);
   /** Shown when the server could not open a browser — the URL still works. */
   const [authorizeUrl, setAuthorizeUrl] = useState<string | null>(null);
 
-  const connect = (): void => {
-    setBusy(true);
-    setAuthorizeUrl(null);
-    void (async () => {
-      try {
-        const body = await api.connectors.oauthBegin({ name: server.name, open: true });
+  const connect = useMutation(
+    orpc.connectors.oauthBegin.mutationOptions({
+      onMutate: () => {
+        setAuthorizeUrl(null);
+      },
+      onSuccess: (body) => {
         if (!body.opened) {
           setAuthorizeUrl(body.url);
         }
-      } catch (cause) {
+      },
+      onError: (cause) => {
         failed(cause, `Could not start authorizing ${server.name}.`);
-      } finally {
-        setBusy(false);
-      }
-    })();
-  };
+      },
+    }),
+  );
 
-  const disconnect = (): void => {
-    setBusy(true);
-    void (async () => {
-      try {
-        const body = await api.connectors.oauthDisconnect({ name: server.name });
+  const disconnect = useMutation(
+    orpc.connectors.oauthDisconnect.mutationOptions({
+      onSuccess: (body) => {
         onChanged(body.servers);
-      } catch (cause) {
+      },
+      onError: (cause) => {
         failed(cause, `Could not disconnect ${server.name}.`);
-      } finally {
-        setBusy(false);
-      }
-    })();
-  };
+      },
+    }),
+  );
 
-  const toggle = (): void => {
-    setBusy(true);
-    void (async () => {
-      try {
-        const body = await api.connectors.toggle({ enabled: !server.enabled, name: server.name });
+  const toggle = useMutation(
+    orpc.connectors.toggle.mutationOptions({
+      onSuccess: (body) => {
         onChanged(body.servers);
-      } catch (cause) {
+      },
+      onError: (cause) => {
         failed(cause, `Could not toggle ${server.name}.`);
-      } finally {
-        setBusy(false);
-      }
-    })();
-  };
+      },
+    }),
+  );
 
+  const removeServer = useMutation(
+    orpc.connectors.remove.mutationOptions({
+      onSuccess: (body) => {
+        onChanged(body.servers);
+      },
+      onError: (cause) => {
+        failed(cause, `Could not remove ${server.name}.`);
+      },
+    }),
+  );
+
+  const busy =
+    connect.isPending || disconnect.isPending || toggle.isPending || removeServer.isPending;
+
+  // The confirm runs before anything is in flight: a row greyed out while a
+  // dialog waits for an answer claims work that has not started.
   const remove = (): void => {
     void (async () => {
       const confirmed = await confirm({
@@ -287,17 +293,8 @@ function ConnectorRow({
         confirmLabel: "Remove",
         destructive: true,
       });
-      if (!confirmed) {
-        return;
-      }
-      setBusy(true);
-      try {
-        const body = await api.connectors.remove({ name: server.name });
-        onChanged(body.servers);
-      } catch (cause) {
-        failed(cause, `Could not remove ${server.name}.`);
-      } finally {
-        setBusy(false);
+      if (confirmed) {
+        removeServer.mutate({ name: server.name });
       }
     })();
   };
@@ -324,16 +321,37 @@ function ConnectorRow({
           </p>
         </div>
         {oauth !== null ? (
-          <Button size="xs" variant="ghost" disabled={busy} onClick={connect}>
+          <Button
+            size="xs"
+            variant="ghost"
+            disabled={busy}
+            onClick={() => {
+              connect.mutate({ name: server.name, open: true });
+            }}
+          >
             {oauth.status === "needs-auth" ? "Connect" : "Reconnect"}
           </Button>
         ) : null}
         {oauth !== null && oauth.status !== "needs-auth" ? (
-          <Button size="xs" variant="ghost" disabled={busy} onClick={disconnect}>
+          <Button
+            size="xs"
+            variant="ghost"
+            disabled={busy}
+            onClick={() => {
+              disconnect.mutate({ name: server.name });
+            }}
+          >
             Disconnect
           </Button>
         ) : null}
-        <Button size="xs" variant="ghost" disabled={busy} onClick={toggle}>
+        <Button
+          size="xs"
+          variant="ghost"
+          disabled={busy}
+          onClick={() => {
+            toggle.mutate({ enabled: !server.enabled, name: server.name });
+          }}
+        >
           {server.enabled ? "Disable" : "Enable"}
         </Button>
         <Button size="xs" variant="ghost" disabled={busy} onClick={remove}>
@@ -359,11 +377,9 @@ function ConnectorRow({
 }
 
 export function ConnectorsSection() {
-  const { api } = useWorkspace();
   const queryClient = useQueryClient();
   const query = useConnectors();
   const [draft, setDraft] = useState<AddConnectorDraft>(EMPTY_DRAFT);
-  const [adding, setAdding] = useState(false);
   const formId = useId();
 
   const servers = query.data?.servers ?? [];
@@ -373,22 +389,23 @@ export function ConnectorsSection() {
 
   const verdict = draftToRequest(draft);
 
-  const submit = (): void => {
-    if (!verdict.ok || adding) {
-      return;
-    }
-    setAdding(true);
-    void (async () => {
-      try {
-        const body = await api.connectors.add({ name: draft.name, transport: verdict.transport });
+  const addServer = useMutation(
+    orpc.connectors.add.mutationOptions({
+      onSuccess: (body) => {
         setServers(body.servers);
         setDraft(EMPTY_DRAFT);
-      } catch (cause) {
-        failed(cause, `Could not add ${draft.name}.`);
-      } finally {
-        setAdding(false);
-      }
-    })();
+      },
+      onError: (cause, variables) => {
+        failed(cause, `Could not add ${variables.name}.`);
+      },
+    }),
+  );
+
+  const submit = (): void => {
+    if (!verdict.ok || addServer.isPending) {
+      return;
+    }
+    addServer.mutate({ name: draft.name, transport: verdict.transport });
   };
 
   const prefill = (entry: CatalogEntry): void => {
@@ -596,7 +613,7 @@ export function ConnectorsSection() {
           ) : (
             <span className="flex-1" />
           )}
-          <Button size="sm" disabled={!verdict.ok || adding} onClick={submit}>
+          <Button size="sm" disabled={!verdict.ok || addServer.isPending} onClick={submit}>
             Add
           </Button>
         </div>

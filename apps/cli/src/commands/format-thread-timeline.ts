@@ -1,5 +1,6 @@
-// Compact text rendering of a ThreadTimeline for terminal consumers (the
-// CLI's `thread show`). The shape follows bb's format-timeline-text
+// Compact text rendering of a ThreadTimeline for `inteligir action show`.
+// Terminal presentation, not a shared read model, so it lives beside its one
+// caller rather than in the contract. The shape follows bb's format-timeline-text
 // (github.com/get-bb/bb, MIT) trimmed to v1's row grammar. Deliberately
 // deterministic: no timestamps, no color — the same timeline always renders
 // the same bytes, so CLI output tests can pin it.

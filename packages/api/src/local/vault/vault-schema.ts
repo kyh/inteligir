@@ -96,8 +96,11 @@ export async function contentHashBytesHex(
 
 // The asset allowlist is shared with the cloud asset route — one table, one
 // lookup, because both serve the same vault and a drift means an image that
-// renders on one device and 400s on the other.
-export { assetMediaType, VAULT_ASSET_MEDIA_TYPES } from "../../shared/vault-asset-media-types";
+// renders on one device and 400s on the other. It LIVES on the cloud side and
+// is re-exported here: local reusing a cloud constant is the one direction the
+// dep guard sanctions, and it keeps every shipped api file inside the two
+// buckets that guard covers.
+export { assetMediaType, VAULT_ASSET_MEDIA_TYPES } from "@repo/api/cloud/vault/vault-schema";
 
 export const vaultReadRequestSchema = z.object({ path: vaultPathSchema }).strict();
 export type VaultReadRequest = z.infer<typeof vaultReadRequestSchema>;
@@ -168,15 +171,23 @@ export const vaultRenameResponseSchema = z
   .strict();
 export type VaultRenameResponse = z.infer<typeof vaultRenameResponseSchema>;
 
+/**
+ * Bound on an ASSET's bytes — ONE number, gating the write and the read alike,
+ * because a write the read route will later refuse is an image that pastes,
+ * commits and syncs and then renders as a placeholder forever, with no cached
+ * copy that ever worked. It equals the hosted route's own ceiling
+ * (`@repo/api/cloud/vault/vault-schema`'s `VAULT_ASSET_MAX_BYTES`), so the
+ * same vault answers the same bytes on every device.
+ */
+export const VAULT_ASSET_MAX_BYTES = 10 * 1024 * 1024;
+
 /** An attachment write: bytes land under `dir` with a name derived from
  * `baseName` (the host picks a collision-free one). Base64 in JSON because the
  * caller is the editor's paste handler and the payload is one image; the cap
- * below bounds it. */
-export const VAULT_ASSET_WRITE_MAX_BYTES = 16 * 1024 * 1024;
-
+ * above bounds it. */
 export const vaultAssetWriteRequestSchema = z
   .object({
-    dir: z.string().min(1),
+    dir: vaultPathSchema,
     baseName: z.string().min(1),
     bytesBase64: z.string().min(1),
   })

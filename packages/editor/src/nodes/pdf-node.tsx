@@ -13,6 +13,7 @@ import { PlateElement, useFocused, useSelected, type PlateElementProps } from "p
 import { isHttpUrl } from "@repo/editor/lib/wire";
 import { cn } from "@repo/ui/lib/utils";
 
+import { stringProp } from "@repo/editor/node-props";
 import { MediaToolbar } from "@repo/editor/nodes/media-toolbar";
 
 const PDF_RE = /\.pdf(?:[?#]|$)/i;
@@ -20,8 +21,8 @@ const PDF_RE = /\.pdf(?:[?#]|$)/i;
 export function FileElement(props: PlateElementProps) {
   const selected = useSelected();
   const focused = useFocused();
-  const url = typeof props.element.url === "string" ? props.element.url : "";
-  const name = typeof props.element.name === "string" ? props.element.name : null;
+  const url = stringProp(props.element, "url") ?? "";
+  const name = stringProp(props.element, "name") ?? null;
 
   return (
     <PlateElement {...props} className="py-2.5">

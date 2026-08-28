@@ -82,7 +82,6 @@ describe("appendEvents", () => {
       type: "client/turn/requested",
       threadId: thread.id,
       text: "hello",
-      kind: "message",
       scope: threadScope(),
     };
     appendEvents(db, noopNotifier, [request, turnStarted(thread.id, "turn_1")]);

@@ -5,14 +5,18 @@
 // (our scroll container is the workspace <main>, not a PlateContainer).
 
 import { useEffect, useRef, useState } from "react";
-import { KEYS, NodeApi, type TElement } from "platejs";
+import { ElementApi, KEYS, NodeApi, type TElement } from "platejs";
 import { useEditorRef, useEditorSelector } from "platejs/react";
 
 import { cn } from "@repo/ui/lib/utils";
 
 type HeadingItem = { id: string; depth: number; title: string };
 
-const HEADING_DEPTH: Record<string, number> = { [KEYS.h1]: 1, [KEYS.h2]: 2, [KEYS.h3]: 3 };
+const HEADING_DEPTH = new Map<string, number>([
+  [KEYS.h1, 1],
+  [KEYS.h2, 2],
+  [KEYS.h3, 3],
+]);
 
 // Clearance for the sticky header so a scrolled-to heading isn't tucked under it.
 const HEADER_OFFSET = 64;
@@ -21,10 +25,10 @@ function collectHeadings(editor: ReturnType<typeof useEditorRef>): HeadingItem[]
   const out: HeadingItem[] = [];
   for (const [node, path] of editor.api.nodes<TElement>({
     at: [],
-    match: (n) => "type" in n && typeof n.type === "string" && n.type in HEADING_DEPTH,
+    match: (n) => ElementApi.isElement(n) && HEADING_DEPTH.has(n.type),
   })) {
     const title = NodeApi.string(node).trim();
-    if (title) out.push({ id: path.join("."), depth: HEADING_DEPTH[node.type] ?? 1, title });
+    if (title) out.push({ id: path.join("."), depth: HEADING_DEPTH.get(node.type) ?? 1, title });
   }
   return out;
 }

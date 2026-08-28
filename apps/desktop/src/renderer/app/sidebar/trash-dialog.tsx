@@ -10,22 +10,18 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@repo/ui/components/dialog";
+import { docStem } from "@repo/notes/knowledge/doc-file";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "@repo/ui/components/sonner";
 import { orpc, refusalMessage } from "../api";
+import { relativeTimeLabel } from "../relative-time";
 import { useWorkspace } from "../workspace-context";
-import { relativeTimeLabel } from "./notes-list";
 
 export interface TrashDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** Open a restored note in the editor. */
   onOpenNote: (path: string) => void;
-}
-
-function noteTitle(path: string): string {
-  const base = path.split("/").at(-1) ?? path;
-  return base.toLowerCase().endsWith(".md") ? base.slice(0, -3) : base;
 }
 
 export function TrashDialog({ open, onOpenChange, onOpenNote }: TrashDialogProps) {
@@ -83,7 +79,7 @@ export function TrashDialog({ open, onOpenChange, onOpenNote }: TrashDialogProps
                   className="group flex items-center gap-3 rounded-md px-2 py-1.5 hover:bg-muted/50"
                 >
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm">{noteTitle(entry.path)}</p>
+                    <p className="truncate text-sm">{docStem(entry.path)}</p>
                     <p className="truncate text-xs text-muted-foreground">
                       {entry.trashedFrom ?? entry.path.replace(/^Trash\//, "")}
                       {at !== null && !Number.isNaN(at) ? ` · ${relativeTimeLabel(at, now)}` : null}

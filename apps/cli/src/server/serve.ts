@@ -17,10 +17,11 @@ import { getSchemaVersion } from "@repo/db/meta";
 import { runMigrations } from "@repo/db/migrate";
 import { resolveMigrationsFolder, resolveUiDir } from "../paths";
 import { resolveAgentDriver } from "./agents/agent-driver";
+import { binaryOnPath } from "./agents/binary-on-path";
 import { createConnectorsService } from "./connectors/connectors-service";
 import { createConnectorOauthFlow } from "./connectors/oauth-flow";
 import { composeSessionMcpServers } from "./connectors/session-servers";
-import { createCliInferenceRunner } from "./note-intelligence/infer";
+import { createCliInferenceRunner, INFERENCE_BINARY } from "./note-intelligence/infer";
 import {
   createNoteIntelligence,
   type NoteIntelligence,
@@ -39,9 +40,16 @@ import { createApp } from "./app";
 import { openCloudSocket } from "./cloud/cloud-socket";
 import { resolveAppConfig, resolveCheckoutRoot } from "./config";
 import { ensureDevDataDirOwnership } from "./data-dir";
+import { errnoCode } from "./errno";
 import { createKnowledgeRuntime, type KnowledgeRuntime } from "./knowledge/knowledge-runtime";
 import { closeServer, listenWithRetry, type UpgradedSockets } from "./listen";
-import { mintServerToken, readServerFile, removeServerFile, writeServerFile } from "./server-file";
+import {
+  mintServerToken,
+  readServerFile,
+  removeServerFile,
+  writeServerFile,
+  type ServerFile,
+} from "./server-file";
 import { createLocalClient } from "./local-client";
 import {
   createGracefulShutdown,
@@ -97,6 +105,50 @@ function registerTeardown(name: TeardownStepName, run: () => Promise<void>): voi
   teardownSteps.unshift({ name, timeoutMs: TEARDOWN_BUDGETS_MS[name], run });
 }
 
+/** How long the row's owner gets to answer before it counts as wedged rather
+ *  than gone. Its own deadline, not the client's, because the catch below has
+ *  to tell "refused the connection" from "never answered". */
+const OWNER_PROBE_TIMEOUT_MS = 1_500;
+
+/** Is the process that wrote the row still there? EPERM is a live process this
+ *  user may not signal, which is a different answer from ESRCH's "gone". */
+function processAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return errnoCode(error) === "EPERM";
+  }
+}
+
+/** What the row's owner said when asked which data dir it serves. */
+type OwnerProbe =
+  | { kind: "answered"; dataDir: string }
+  | { kind: "silent" }
+  | { kind: "unreachable" };
+
+async function probeOwner(existing: ServerFile): Promise<OwnerProbe> {
+  const client = createLocalClient({
+    origin: `http://127.0.0.1:${String(existing.port)}`,
+    token: existing.token,
+    // Well past the deadline below, so the client's own abort can never be the
+    // one that fires and turn a wedged owner into an "unreachable" answer.
+    timeoutMs: OWNER_PROBE_TIMEOUT_MS * 4,
+  });
+  const deadline = new AbortController();
+  const timer = setTimeout(() => {
+    deadline.abort();
+  }, OWNER_PROBE_TIMEOUT_MS);
+  try {
+    const status = await client.system.status(undefined, { signal: deadline.signal });
+    return { kind: "answered", dataDir: status.dataDir };
+  } catch {
+    return deadline.signal.aborted ? { kind: "silent" } : { kind: "unreachable" };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /**
  * Refuse to start a SECOND server on an instance one already owns.
  *
@@ -104,30 +156,30 @@ function registerTeardown(name: TeardownStepName, run: () => Promise<void>): voi
  * this, a second `inteligir serve` for the same data dir binds a neighbouring
  * dev port, then overwrites the first's `server.json`, pointing every client at
  * the newcomer while the first still holds the vault, its watcher fork and the
- * git lock: two servers on one vault. A STALE file (a crash skipped the
- * teardown that removes it) does not answer its own token, so this proceeds and
- * the later write overwrites it — the guard fires only on a LIVE owner.
+ * git lock: two servers on one vault.
+ *
+ * THREE STATES, not two. A crashed owner leaves its row behind, and its PID is
+ * what says so — cheaply, and without a round trip that a stale port could
+ * answer. Only when that process still exists does the probe run, and then
+ * SILENCE COUNTS AS LIVE: better-sqlite3 is synchronous, so a large knowledge
+ * batch or a stalled fs call blocks the loop of a server that is very much
+ * still holding the vault, and reading that as "nobody there" is the two-server
+ * outcome this guard exists to prevent. A REFUSED connection is an answer, so
+ * it proceeds — an unrelated process that inherited the pid must not make the
+ * boot permanently unstartable.
  */
-async function assertNoLiveServer(dataDir: string): Promise<void> {
+export async function assertNoLiveServer(dataDir: string): Promise<void> {
   const existing = readServerFile(dataDir);
   if (existing === null) return;
-  const client = createLocalClient({
-    origin: `http://127.0.0.1:${String(existing.port)}`,
-    token: existing.token,
-    timeoutMs: 1_500,
-  });
-  let claimedDataDir: string;
-  try {
-    claimedDataDir = (await client.system.status()).dataDir;
-  } catch {
-    return;
-  }
-  if (claimedDataDir === dataDir) {
-    throw new Error(
-      `An inteligir server already serves ${dataDir} on port ${String(existing.port)} ` +
-        `(pid ${String(existing.pid)}). Stop it first, or select another instance with INTELIGIR_DATA_DIR.`,
-    );
-  }
+  if (!processAlive(existing.pid)) return;
+  const probe = await probeOwner(existing);
+  if (probe.kind === "unreachable") return;
+  if (probe.kind === "answered" && probe.dataDir !== dataDir) return;
+  const what =
+    probe.kind === "silent"
+      ? `An inteligir server (pid ${String(existing.pid)}) still holds ${dataDir} on port ${String(existing.port)} and is not answering.`
+      : `An inteligir server already serves ${dataDir} on port ${String(existing.port)} (pid ${String(existing.pid)}).`;
+  throw new Error(`${what} Stop it first, or select another instance with INTELIGIR_DATA_DIR.`);
 }
 
 async function boot(version: string, env: NodeJS.ProcessEnv): Promise<ServeResult> {
@@ -206,8 +258,17 @@ async function boot(version: string, env: NodeJS.ProcessEnv): Promise<ServeResul
   });
   // Note Intelligence (issue #590): OFF until the Settings toggle turns it
   // on; the files-changed hook below only ever schedules, never spawns, while
-  // disabled.
+  // disabled. The PATH probe is the agent driver's, one spelling
+  // (`binaryOnPath`) — an install without the vendor CLI says so in status
+  // rather than spawning a command that is not there once per note.
   const noteIntelligence = createNoteIntelligence({
+    availability:
+      binaryOnPath(INFERENCE_BINARY, env) === null
+        ? {
+            kind: "unavailable",
+            detail: `\`${INFERENCE_BINARY}\` was not found on PATH — note intelligence infers fields by running it.`,
+          }
+        : { kind: "available" },
     infer: createCliInferenceRunner({ cwd: config.dataDir }),
     settings: createNoteIntelligenceSettingsStore(config.dataDir),
     vault: vault.service,
@@ -327,9 +388,13 @@ async function boot(version: string, env: NodeJS.ProcessEnv): Promise<ServeResul
  *
  * Every handler is installed around the boot rather than at module scope: this
  * module is one branch of a CLI, so nothing may run merely because it was
- * imported. The ORDER inside is still load-bearing — the shutdown signals go on
- * BEFORE the boot, so a ^C during a slow first boot (a cold vault reconcile, a
- * clone) tears down what exists instead of being ignored.
+ * imported. The ORDER inside is still load-bearing — BOTH installers go on
+ * BEFORE the boot. A ^C during a slow first boot (a cold vault reconcile, a
+ * clone) tears down what exists instead of being ignored, and a fatal event
+ * raised while the boot is still running reports itself and leaves through the
+ * same teardown rather than by Node's default exit. `run()` is idempotent, so
+ * a fatal during the boot and the boot's own `.catch` converge on one teardown
+ * and one non-zero exit.
  */
 export async function runServe(
   version: string,
@@ -359,6 +424,14 @@ export async function runServe(
     },
   });
 
+  installFatalErrorHandlers({
+    shutdown,
+    target: process,
+    onFatal: (event, reason) => {
+      console.error(`fatal: ${event} —`, reason);
+    },
+  });
+
   const booted = await boot(version, env).catch(async (cause: unknown) => {
     console.error(
       `inteligir failed to start: ${cause instanceof Error ? (cause.stack ?? cause.message) : String(cause)}`,
@@ -372,14 +445,6 @@ export async function runServe(
     // event loop that never drains, so the command would print its error and
     // then hang forever with nothing listening.
     process.exit(1);
-  });
-
-  installFatalErrorHandlers({
-    shutdown,
-    target: process,
-    onFatal: (event, reason) => {
-      console.error(`fatal: ${event} —`, reason);
-    },
   });
 
   return booted;

@@ -20,6 +20,8 @@ import {
 } from "platejs";
 import { PlateLeaf, useEditorRef, type PlateLeafProps } from "platejs/react";
 
+import { numberProp, stringProp } from "@repo/editor/node-props";
+
 // #rgb / #rrggbb / #rrggbbaa, or rgb()/rgba() with plain numeric args — the
 // spellings CSS accepts AND a swatch can render without evaluation.
 const COLOR_RE =
@@ -84,8 +86,8 @@ export function repaintLiteral(literal: string, hex: string): string | null {
 
 function ColorPillLeaf(props: PlateLeafProps) {
   const editor = useEditorRef();
-  const value = typeof props.leaf.colorPill === "string" ? props.leaf.colorPill : "";
-  const start = typeof props.leaf.colorPillStart === "number" ? props.leaf.colorPillStart : null;
+  const value = stringProp(props.leaf, "colorPill") ?? "";
+  const start = numberProp(props.leaf, "colorPillStart") ?? null;
   const [pickerAt, setPickerAt] = useState<{ left: number; top: number } | null>(null);
   const swatchRef = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);

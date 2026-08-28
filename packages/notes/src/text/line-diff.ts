@@ -1,6 +1,5 @@
-// Myers O(ND) diff over line arrays — the ONE line-diff in the repo, shared
-// by the workspace's diff3 merge and the editor's cursor-preserving external
-// replace. Pure and platform-neutral: arrays in, hunks out.
+// Myers O(ND) diff over line arrays — the ONE line-diff in the repo, and the
+// walk ./diff3 merges over. Pure and platform-neutral: arrays in, hunks out.
 
 /** A maximal run of base lines one side rewrote: base[baseStart, baseEnd)
  * became side[sideStart, sideEnd). Zero-width base spans are insertions.
@@ -12,9 +11,13 @@ export interface DiffHunk {
   sideEnd: number;
 }
 
-/** `splitLines(text).join("\n") === text` — the trailing "" segment of a
- * newline-terminated text is what preserves the final newline. */
-export function splitLines(text: string): string[] {
+/** `splitLinesLf(text).join("\n") === text` — the trailing "" segment of a
+ * newline-terminated text is what preserves the final newline. LF ALONE, and
+ * NOT interchangeable with ../knowledge/source-lines' EOL-aware `splitLines`:
+ * the merge joins its segments back into the file's bytes, so a `\r` has to
+ * stay inside a line's content rather than become a terminator the join would
+ * rewrite. */
+export function splitLinesLf(text: string): string[] {
   return text.split("\n");
 }
 

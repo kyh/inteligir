@@ -9,6 +9,12 @@ import { ThemeProvider } from "@/components/theme-provider";
 const GITHUB_REPO = "kyh/inteligir";
 const CACHE_TTL_MS = 60 * 60 * 1000;
 
+/** Geometry shared by both arms of the download CTA; each arm adds its own
+ *  palette. Themed tokens rather than literal hex — dark is the default theme,
+ *  so a hardcoded near-black pill paints itself onto the background. */
+const CTA_PILL =
+  "inline-flex items-center gap-2 rounded-full px-6 py-3 text-sm font-medium shadow-lg";
+
 function MacLogoIcon({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 1024 1024" fill="currentColor" aria-hidden>
@@ -89,14 +95,14 @@ function Page() {
         </div>
         <div className="flex flex-col items-center gap-3 px-6 pb-16">
           {downloadUrl === null ? (
-            <span className="inline-flex items-center gap-2 rounded-full bg-[#1A1A1A]/60 px-6 py-3 text-sm font-medium text-white/80 shadow-lg">
+            <span className={`${CTA_PILL} bg-muted text-muted-foreground`}>
               <MacLogoIcon className="size-5 shrink-0" />
               Coming soon for Mac
             </span>
           ) : (
             <a
               href={downloadUrl}
-              className="inline-flex items-center gap-2 rounded-full bg-[#1A1A1A] px-6 py-3 text-sm font-medium text-white shadow-lg transition-opacity duration-200 ease hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+              className={`${CTA_PILL} bg-primary text-primary-foreground transition-opacity duration-200 ease hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background`}
             >
               <MacLogoIcon className="size-5 shrink-0" />
               Download for Mac

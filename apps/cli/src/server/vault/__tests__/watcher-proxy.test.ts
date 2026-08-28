@@ -95,7 +95,7 @@ describe("the parcel watcher proxy", () => {
       throw new Error("expected a spawned child");
     }
     first.emit({ kind: "ready" });
-    first.emit({ kind: "pong", nonce: 1 });
+    first.emit({ kind: "pong" });
 
     first.exit();
     expect(children).toHaveLength(2);
@@ -119,7 +119,7 @@ describe("the parcel watcher proxy", () => {
       throw new Error("expected a spawned child");
     }
     first.emit({ kind: "ready" });
-    first.emit({ kind: "pong", nonce: 1 });
+    first.emit({ kind: "pong" });
     const firstId = subscribeMessages(first)[0]?.id ?? "";
 
     first.emit({ kind: "watch-error", id: firstId, message: "inotify poll interrupted" });

@@ -77,10 +77,14 @@ In-process, all of that would share the event loop that paints the window and
 the lifetime of the compositor.
 
 Why `utilityProcess` rather than a supervisor of our own: it IS a managed Node
-child with an owned lifecycle, so the health poll, the restart ladder and the
-signal plumbing are the runtime's. What is left is the one thing the runtime
-cannot know — WHEN the server is ready, which is when it has published
-`<dataDir>/server.json` and answered its own token.
+child with owned bookkeeping, so the process handle, the piped stdio and the
+SIGTERM `kill()` sends are the runtime's. Three things are this module's.
+WHEN the server is ready — when it has published `<dataDir>/server.json` and
+answered its own token. The SIGKILL that follows an overrun grace, so quitting
+cannot hang on a wedged child. And the absence of a RESTART: a fresh child
+mints a fresh token, and the protocol handler and the socket-credential filter
+are bound to the current one, so an unexpected exit surfaces a dialog and
+quits instead.
 
 **Quit sends SIGTERM first**, because that is the signal the server's graceful
 shutdown listens for: it flushes the vault's pending git commit and closes the
@@ -99,8 +103,8 @@ started.
 
 The shell owns **no** copy of the app's configuration. `resolveServerTarget`
 (`src/main/server-instance.ts`) calls the server's own `resolveAppConfig` — the
-same module the CLI's discovery reuses — and hands the answer (port, data dir,
-vault dir) to the child as environment. Reading only part of the layering is
+same module the CLI's discovery reuses — and hands the answer (data dir, vault
+dir) to the child as environment. Reading only part of the layering is
 what puts a window on a dead port.
 
 Which mode that resolution runs in is decided by `app.isPackaged`, never by the

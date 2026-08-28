@@ -19,6 +19,7 @@ import { useSurface, SurfaceProvider } from "@repo/ui/lib/surface-context";
 import { surfaceClasses } from "@repo/ui/lib/surface-classes";
 import { ScrollArea } from "@repo/ui/components/scroll-area";
 import {
+  composeRefs,
   useSidebar,
   SidebarShell,
   type SidebarSide,
@@ -137,11 +138,7 @@ function SidebarSheet({ side, open, onClose, children }: SidebarSheetProps) {
                 {...rest}
                 // Merge, don't replace: the primitive needs its own handle on
                 // the panel as much as initialFocus needs ours.
-                ref={(node: HTMLDivElement | null) => {
-                  panelRef.current = node;
-                  if (typeof baseRef === "function") baseRef(node);
-                  else if (baseRef) baseRef.current = node;
-                }}
+                ref={composeRefs(panelRef, baseRef)}
                 tabIndex={-1}
                 data-sidebar="sidebar"
                 data-mobile="true"

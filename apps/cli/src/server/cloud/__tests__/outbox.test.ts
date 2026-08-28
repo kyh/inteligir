@@ -29,7 +29,7 @@ function enqueue(db: DbConnection, events: readonly ThreadEvent[]): void {
 }
 
 function message(threadId: string, text: string): ThreadEvent {
-  return { type: "client/turn/requested", threadId, text, kind: "message", scope: threadScope() };
+  return { type: "client/turn/requested", threadId, text, scope: threadScope() };
 }
 
 describe("the outbox", () => {

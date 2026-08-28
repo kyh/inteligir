@@ -10,15 +10,9 @@ import { type PlateElementProps, type RenderNodeWrapper, useReadOnly } from "pla
 import { Checkbox } from "@repo/ui/components/checkbox";
 import { cn } from "@repo/ui/lib/utils";
 
-const TODO_CONFIG: Record<
-  string,
-  {
-    Li: (props: PlateElementProps) => React.ReactElement;
-    Marker: (props: PlateElementProps) => React.ReactElement;
-  }
-> = {
-  todo: { Li: TodoLi, Marker: TodoMarker },
-};
+import { numberProp, stringProp } from "@repo/editor/node-props";
+
+const TODO_STYLE_TYPE = "todo";
 
 export const BlockList: RenderNodeWrapper = (props) => {
   if (!props.element.listStyleType) return undefined;
@@ -26,16 +20,15 @@ export const BlockList: RenderNodeWrapper = (props) => {
 };
 
 function List(props: PlateElementProps) {
-  const { listStyleType, listStart } = props.element;
-  const styleType = typeof listStyleType === "string" ? listStyleType : undefined;
-  const start = typeof listStart === "number" ? listStart : undefined;
-  const entry = styleType ? TODO_CONFIG[styleType] : undefined;
+  const styleType = stringProp(props.element, "listStyleType");
+  const start = numberProp(props.element, "listStart");
+  const isTodo = styleType === TODO_STYLE_TYPE;
   const ListTag = isOrderedList(props.element) ? "ol" : "ul";
 
   return (
     <ListTag className="relative m-0 p-0" start={start} style={{ listStyleType: styleType }}>
-      {entry?.Marker && <entry.Marker {...props} />}
-      {entry?.Li ? <entry.Li {...props} /> : <li>{props.children}</li>}
+      {isTodo && <TodoMarker {...props} />}
+      {isTodo ? <TodoLi {...props} /> : <li>{props.children}</li>}
     </ListTag>
   );
 }

@@ -41,7 +41,6 @@ export const actionScripted: Scenario = {
     const outcome = await api.threads.send({
       threadId: thread.id,
       text: "do the thing",
-      mode: "steer-if-active",
     });
     expect(outcome.kind === "started", `send outcome was "${outcome.kind}"`);
     const deadline = Date.now() + TURN_DEADLINE_MS;

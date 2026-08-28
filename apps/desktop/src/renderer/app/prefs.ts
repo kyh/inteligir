@@ -78,21 +78,6 @@ export function writePanelOpen(open: boolean): void {
   write(KEYS.panelOpen, open ? "true" : "false");
 }
 
-/**
- * Whether the backlinks section under the document is expanded. Sticky across
- * notes on purpose: it is a reading MODE, not a property of a note, and a
- * section that re-collapses on every open is one a reader stops using.
- * Defaults to open — it sits below the document, so it costs nothing until
- * the reader is already at the end of one.
- */
-/**
- * Whether the related section under the backlinks one is expanded. Its own key
- * rather than sharing the backlinks one: the two answer different questions,
- * and a reader who wants the exact list of citations open does not thereby
- * want a ranked guess open too. Defaults CLOSED, which is where it differs
- * from backlinks — this list is inferred rather than counted, so it is offered
- * rather than presented.
- */
 /** The merged Related section (panel): default OPEN — linked mentions lead
  *  the list and are counted, so the fold hides facts, not guesses. */
 export function readRelatedOpen(): boolean {

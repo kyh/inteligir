@@ -91,7 +91,7 @@ describe("webPreferences", () => {
     expect("preload" in prefs).toBe(false);
   });
 
-  it("the chrome bar carries the one preload and no partition of its own", () => {
+  it("the chrome bar carries the browser window's preload and no partition of its own", () => {
     const prefs = chromeViewWebPreferences("/x/browser-preload.cjs");
     expect(prefs).toEqual({
       contextIsolation: true,

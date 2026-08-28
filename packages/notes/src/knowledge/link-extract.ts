@@ -2,17 +2,20 @@
 // Doc scanning for the knowledge index: one remark parse per doc yields the
 // title, the headings, and every vault-local link — wiki links/embeds,
 // standard relative md links (note AND asset targets), and md images — with
-// exact source spans. Parsing reuses the SAME remark-wiki-link tokenizer the
-// editor pipeline runs, so extraction agrees with what the editor renders —
-// and fence/code-span safety is inherited from the parser (text constructs
-// never run inside code), not re-implemented with regexes.
+// exact source spans. Parsing reuses the editor's own remark-wiki-link
+// tokenizer, and fence/code-span safety is inherited from the parser (text
+// constructs never run inside code), not re-implemented with regexes.
 //
 // The grammar is ../markdown/scan-parse — shared with the task count, which
-// depends on reading exactly the same one.
+// depends on reading exactly the same one. It is PLAIN MARKDOWN and the
+// editor's is not, so the two disagree about which byte ranges the editor
+// carries verbatim; ../markdown/verbatim-spans is where the scan asks the
+// editor's grammar rather than guessing.
 //
 // Span contract: `targetSpan` is emitted only after the bytes are verified
-// (the raw slice re-derives the parsed target). A link that fails verification
-// is still indexed (backlinks/graph) but is never rewritten.
+// (the raw slice re-derives the parsed target) AND only outside a verbatim
+// range. A link failing either is still indexed (backlinks/graph) but is never
+// rewritten.
 // ---------------------------------------------------------------------------
 
 import type { Nodes } from "mdast";
@@ -22,8 +25,8 @@ import { isCalloutLang } from "../markdown/fence-langs";
 import { parseProperties, type ParsedProperties } from "../markdown/frontmatter";
 import { parseWikiBodyRange } from "../markdown/remark-wiki-link";
 import { parseScan } from "../markdown/scan-parse";
+import { insideVerbatim, verbatimSpans, type VerbatimSpan } from "../markdown/verbatim-spans";
 import { tasksInTree, type ExtractedTask } from "./task-ordinal";
-import { basenamePath, extnamePath } from "./vault-path";
 
 export type Span = { start: number; end: number };
 /** `wiki` = `[[..]]` / `![[..]]`, `md` = `[..](..)` + reference definitions,
@@ -82,6 +85,7 @@ export function scanDoc(source: string): DocScan {
   // ONE YAML parse per scan — every frontmatter extractor consumes this
   // result instead of re-locating the node and re-running parseProperties.
   const frontmatter = parseFrontmatter(tree);
+  const verbatim = verbatimSpans(source);
   const scan: DocScan = {
     title: null,
     headings: [],
@@ -102,7 +106,13 @@ export function scanDoc(source: string): DocScan {
       }
       case "wikiLink":
       case "wikiEmbed": {
-        const link = wikiToLink(source, node.type === "wikiEmbed", node.body, position(node));
+        const link = wikiToLink(
+          source,
+          node.type === "wikiEmbed",
+          node.body,
+          position(node),
+          verbatim,
+        );
         if (link) scan.links.push(link);
         return;
       }
@@ -113,7 +123,7 @@ export function scanDoc(source: string): DocScan {
         const lastEnd = last ? position(last)?.span.end : pos.span.start + 1;
         const dest =
           lastEnd === undefined ? null : locateDestination(source, lastEnd, pos.span.end);
-        const link = mdToLink(source, "md", node.url, textOf(node), pos, dest);
+        const link = mdToLink(source, "md", node.url, textOf(node), pos, dest, verbatim);
         if (link) scan.links.push(link);
         return;
       }
@@ -121,7 +131,7 @@ export function scanDoc(source: string): DocScan {
         const pos = position(node);
         if (!pos) return;
         const dest = locateImageDestination(source, pos.span);
-        const link = mdToLink(source, "image", node.url, node.alt ?? "", pos, dest);
+        const link = mdToLink(source, "image", node.url, node.alt ?? "", pos, dest, verbatim);
         if (link) scan.links.push(link);
         return;
       }
@@ -129,7 +139,7 @@ export function scanDoc(source: string): DocScan {
         const pos = position(node);
         if (!pos) return;
         const dest = locateDefinitionDestination(source, pos.span);
-        const link = mdToLink(source, "md", node.url, node.label ?? "", pos, dest);
+        const link = mdToLink(source, "md", node.url, node.label ?? "", pos, dest, verbatim);
         if (link) scan.links.push(link);
         return;
       }
@@ -375,6 +385,7 @@ function wikiToLink(
   embed: boolean,
   body: string,
   pos: NodePosition | null,
+  verbatim: readonly VerbatimSpan[],
 ): ExtractedLink | null {
   if (!pos) return null;
   const parsed = parseWikiBodyRange(body);
@@ -386,10 +397,12 @@ function wikiToLink(
     start: bodyStart + parsed.targetRange.start,
     end: bodyStart + parsed.targetRange.end,
   };
-  // Byte verification: the recorded span must re-derive the parsed target.
+  // Byte verification: the recorded span must re-derive the parsed target, and
+  // must not sit in bytes the editor holds verbatim.
   const verified =
     source.slice(pos.span.start, pos.span.end) === `${embed ? "!" : ""}[[${body}]]` &&
-    source.slice(targetSpan.start, targetSpan.end) === parsed.target;
+    source.slice(targetSpan.start, targetSpan.end) === parsed.target &&
+    !insideVerbatim(verbatim, targetSpan.start, targetSpan.end);
   const link: ExtractedLink = {
     kind: "wiki",
     embed,
@@ -419,6 +432,7 @@ function mdToLink(
   label: string,
   pos: NodePosition,
   dest: Span | null,
+  verbatim: readonly VerbatimSpan[],
 ): ExtractedLink | null {
   if (url === "" || url.startsWith("#") || url.startsWith("//") || SCHEME.test(url)) return null;
   const hash = url.indexOf("#");
@@ -426,12 +440,16 @@ function mdToLink(
   const anchor = hash === -1 ? "" : url.slice(hash + 1);
   if (urlPath === "") return null;
   const target = safeDecode(urlPath);
-  // Verify the located destination bytes re-derive the parsed url path; only
-  // then is the span trusted for rewriting.
+  // Verify the located destination bytes re-derive the parsed url path and lie
+  // outside the editor's verbatim ranges; only then is the span trusted for
+  // rewriting.
   let targetSpan: Span | undefined;
   if (dest) {
     const pathSpan = splitRawFragment(source, dest);
-    if (decodeMdEscapes(source.slice(pathSpan.start, pathSpan.end)) === urlPath) {
+    if (
+      decodeMdEscapes(source.slice(pathSpan.start, pathSpan.end)) === urlPath &&
+      !insideVerbatim(verbatim, pathSpan.start, pathSpan.end)
+    ) {
       targetSpan = pathSpan;
     }
   }
@@ -562,11 +580,4 @@ function splitRawFragment(source: string, dest: Span): Span {
     i++;
   }
   return dest;
-}
-
-/** Human title for a path when the doc has no `#` heading. */
-export function titleFromPath(path: string): string {
-  const base = basenamePath(path);
-  const ext = extnamePath(base);
-  return ext === "" ? base : base.slice(0, -ext.length);
 }

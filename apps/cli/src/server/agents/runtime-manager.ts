@@ -36,13 +36,8 @@ import {
   type AcpAgentRuntimeOptions,
   type AcpMcpServerConfig,
 } from "@repo/agent-runtime/acp/acp-runtime";
-import type {
-  AgentRuntime,
-  AgentRuntimeExecutionOptions,
-  AgentRuntimeShellEnvironment,
-  ResumeThreadArgs,
-  StartThreadArgs,
-} from "@repo/agent-runtime/types";
+import type { AgentRuntime, AgentRuntimeShellEnvironment } from "@repo/agent-runtime/types";
+import type { HarnessId } from "@repo/agent-runtime/acp/harness-registry";
 import type { ProviderEvent } from "@repo/agent-runtime/vocabulary/provider-event";
 import {
   approvalPendingInteractionPayloadSchema,
@@ -68,7 +63,6 @@ import type {
   ProviderEventSink,
   TurnDriver,
   TurnDriverStartArgs,
-  TurnDriverSteerArgs,
 } from "../threads/turn-driver";
 import type { GitEngine } from "../vault/git";
 import {
@@ -91,7 +85,6 @@ const SILENTLY_DROPPED_EVENT_TYPES: ReadonlySet<ProviderEvent["type"]> = new Set
   "thread/contextWindowUsage/updated",
 ]);
 
-const CODEX_PROVIDER_ID = "codex";
 const DEFAULT_REAP_INTERVAL_MS = 60_000;
 const DEFAULT_IDLE_REAP_MS = 10 * 60_000;
 const INTERACTION_TIMEOUT_MS = 30 * 60_000;
@@ -130,12 +123,12 @@ export interface AcpRuntimeManagerDeps {
   /** Connected Folders, read at session open (issue #601). */
   connectedDirs: () => readonly string[];
   /** The harness a NEW thread runs on; a resumed thread keeps its own. */
-  defaultProviderId?: string;
+  defaultProviderId: HarnessId;
   /** Tests: replace the adapter child spawn (the fake ACP agent). */
   spawnAdapter?: AcpAgentRuntimeOptions["spawnAdapter"];
-  /** Tests: observe/replace runtime construction (the shellEnv wiring test). */
   /** The enabled connector rows every session gets (issue #591). */
   mcpServers: () => AcpMcpServerConfig[] | Promise<AcpMcpServerConfig[]>;
+  /** Tests: observe/replace runtime construction (the shellEnv wiring test). */
   createRuntime?: typeof createAcpAgentRuntime;
   /** null disables the reap interval (tests drive reaping directly). */
   reapIntervalMs?: number | null;
@@ -157,7 +150,7 @@ interface ActiveTurn {
   /**
    * Which process GENERATION accepted this turn (the per-thread exit counter
    * at turn/started); null until accepted. A process exit fails only the
-   * turns its own generation accepted — a turn dispatched INTO the codex
+   * turns its own generation accepted — a turn dispatched INTO a harness's
    * account-restart window (the runtime replaces the app-server process
    * before sending turn/start) must survive onto the replacement.
    */
@@ -175,21 +168,9 @@ interface InteractionWaiter {
   resolve: (resolution: PendingInteractionResolution) => void;
 }
 
-function executionOptionsFor(model: string | null): AgentRuntimeExecutionOptions {
-  const options: AgentRuntimeExecutionOptions = {
-    permissionMode: "accept-edits",
-    permissionScope: "workspace",
-    approvalReviewer: "user",
-    permissionEscalation: "ask",
-  };
-  if (model !== null) options.model = model;
-  return options;
-}
-
-class CodexTurnDriver implements TurnDriver {
+class AcpTurnDriver implements TurnDriver {
   private readonly sink: ProviderEventSink;
   private readonly deps: AcpRuntimeManagerDeps;
-  private readonly options: AgentRuntimeExecutionOptions;
   private readonly resolveVaultPath: VaultPathResolver;
   private runtime: AgentRuntime | null = null;
   private reapTimer: ReturnType<typeof setInterval> | null = null;
@@ -206,7 +187,6 @@ class CodexTurnDriver implements TurnDriver {
   constructor(sink: ProviderEventSink, deps: AcpRuntimeManagerDeps) {
     this.sink = sink;
     this.deps = deps;
-    this.options = executionOptionsFor(deps.model);
     this.resolveVaultPath = createVaultPathResolver(deps.vaultDir);
   }
 
@@ -365,43 +345,47 @@ class CodexTurnDriver implements TurnDriver {
     // rebase's checkout window.
     await this.turnsByThreadId.get(args.threadId)?.writes.ready;
     const runtime = this.ensureRuntime();
-    if (!runtime.hasThread(args.threadId)) {
-      await this.openThreadSession(runtime, args.threadId);
-    }
+    // The session's standing instructions ride the FIRST turn's prompt: ACP's
+    // session/new carries no instructions field, so `input` is the only
+    // channel that reaches the model at all (see view-context-prompt.ts).
+    const instructions = runtime.hasThread(args.threadId)
+      ? undefined
+      : await this.openThreadSession(runtime, args.threadId);
     await runtime.runTurn({
       threadId: args.threadId,
-      input: turnPromptInput(args.text, args.viewContext),
-      options: this.options,
+      input: turnPromptInput(args.text, args.viewContext, instructions),
     });
   }
 
-  private async openThreadSession(runtime: AgentRuntime, threadId: string): Promise<void> {
+  /** Opens the provider session and returns the instructions its first turn
+   *  must carry, or undefined when this deployment composes none. */
+  private async openThreadSession(
+    runtime: AgentRuntime,
+    threadId: string,
+  ): Promise<string | undefined> {
     const instructions = loadAgentInstructions(
       this.deps.vaultDir,
-      this.deps.cliBinDir ?? null,
+      this.deps.cliBinDir,
       resolveSkillsDir(),
-      this.deps.connectedDirs?.(),
+      this.deps.connectedDirs(),
     );
     const row = getThread(this.deps.db, threadId);
     const persisted = row?.providerThreadId ?? null;
     // A thread that ever ran keeps its harness; a new one adopts the default.
-    const providerId = row?.providerId ?? this.deps.defaultProviderId ?? CODEX_PROVIDER_ID;
+    const providerId = row?.providerId ?? this.deps.defaultProviderId;
     if (persisted !== null) {
-      const resume: ResumeThreadArgs = {
-        threadId,
-        providerThreadId: persisted,
-        providerId,
-        options: this.options,
-      };
-      if (instructions !== undefined) resume.instructions = instructions;
       try {
-        const resumed = await runtime.resumeThread(resume);
+        const resumed = await runtime.resumeThread({
+          threadId,
+          providerThreadId: persisted,
+          providerId,
+        });
         setThreadProviderSession(this.deps.db, {
           threadId,
           providerId,
           providerThreadId: resumed.providerThreadId,
         });
-        return;
+        return instructions;
       } catch (error) {
         // The provider's rollout can be gone (cleaned ~/.codex, another
         // machine). Prior context is lost either way; a fresh session keeps
@@ -413,59 +397,13 @@ class CodexTurnDriver implements TurnDriver {
         );
       }
     }
-    const start: StartThreadArgs = {
-      threadId,
-      providerId,
-      options: this.options,
-    };
-    if (instructions !== undefined) start.instructions = instructions;
-    const started = await runtime.startThread(start);
+    const started = await runtime.startThread({ threadId, providerId });
     setThreadProviderSession(this.deps.db, {
       threadId,
       providerId,
       providerThreadId: started.providerThreadId,
     });
-  }
-
-  steerTurn(_args: TurnDriverSteerArgs): boolean {
-    // ACP has no steer: a prompt owns its session until it settles. Refusing
-    // here routes the message into the queued-messages drain, which delivers
-    // it the moment the turn settles — delayed, never dropped.
-    return false;
-  }
-
-  private steerTurnUnreachable(args: TurnDriverSteerArgs): boolean {
-    const state = this.turnsByThreadId.get(args.threadId);
-    const runtime = this.runtime;
-    if (
-      runtime === null ||
-      state === undefined ||
-      state.settled ||
-      !state.started ||
-      state.ourTurnId !== args.turnId ||
-      state.providerTurnId === null
-    ) {
-      return false;
-    }
-    const expectedTurnId = state.providerTurnId;
-    void (async () => {
-      try {
-        const result = await runtime.steerTurn({
-          threadId: args.threadId,
-          expectedTurnId,
-          input: turnPromptInput(args.text, args.viewContext),
-          options: this.options,
-        });
-        if (result.status === "stale") {
-          this.debug(`steer for thread ${args.threadId} arrived after the turn settled`);
-        }
-      } catch (error) {
-        this.debug(
-          `steer for thread ${args.threadId} failed: ${error instanceof Error ? error.message : String(error)}`,
-        );
-      }
-    })();
-    return true;
+    return instructions;
   }
 
   onInteractionResolved(interaction: PendingInteraction): void {
@@ -717,7 +655,7 @@ class CodexTurnDriver implements TurnDriver {
 }
 
 export function createAcpRuntimeManager(deps: AcpRuntimeManagerDeps): AcpRuntimeManager {
-  let driver: CodexTurnDriver | null = null;
+  let driver: AcpTurnDriver | null = null;
   return {
     createTurnDriver: (sink) => {
       // Single-assignment: a second service over the same manager would leave
@@ -725,7 +663,7 @@ export function createAcpRuntimeManager(deps: AcpRuntimeManagerDeps): AcpRuntime
       if (driver !== null) {
         throw new Error("createTurnDriver was already called on this runtime manager");
       }
-      driver = new CodexTurnDriver(sink, deps);
+      driver = new AcpTurnDriver(sink, deps);
       return driver;
     },
     async dispose() {

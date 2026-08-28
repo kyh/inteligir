@@ -29,15 +29,15 @@ import {
 import { cn } from "@repo/ui/lib/utils";
 import { spring, exitFallbackMs } from "@repo/ui/lib/springs";
 import { useProximityHover } from "@repo/ui/hooks/use-proximity-hover";
-import { shapeMap } from "@repo/ui/lib/shape-context";
+import { radiusMap } from "@repo/ui/lib/radius-context";
 import { SizeProvider, useSize, type SizeVariant } from "@repo/ui/lib/size-context";
 import { Elevated } from "@repo/ui/lib/elevated";
 
-// Dropdown opts out of the global pill/rounded shape context — popover surfaces
-// look cleaner with the smaller "rounded" radii regardless of how the rest of
-// the UI is shaped (the heavy pill bubbling distorts perceived padding at this
-// scale and produces the corner-shadow asymmetry).
-const shape = shapeMap.rounded;
+// Dropdown opts out of the global pill/rounded radius context — popover
+// surfaces look cleaner with the smaller "rounded" radii regardless of how the
+// rest of the UI is rounded (the heavy pill bubbling distorts perceived padding
+// at this scale and produces the corner-shadow asymmetry).
+const radius = radiusMap.rounded;
 
 // ---------------------------------------------------------------------------
 // Panel context — shared by the inline Dropdown and the popup DropdownContent.
@@ -151,7 +151,7 @@ const Dropdown = forwardRef<HTMLDivElement, DropdownProps>(
           }}
           role="group"
           className={cn(
-            `relative flex flex-col gap-0.5 w-72 max-w-full ${shape.container} p-1 select-none`,
+            `relative flex flex-col gap-0.5 w-72 max-w-full ${radius.container} p-1 select-none`,
             className,
           )}
           {...props}
@@ -160,7 +160,7 @@ const Dropdown = forwardRef<HTMLDivElement, DropdownProps>(
           <AnimatePresence>
             {checkedRect && (
               <motion.div
-                className={`absolute ${shape.bg} bg-active pointer-events-none`}
+                className={`absolute ${radius.bg} bg-active pointer-events-none`}
                 initial={false}
                 animate={{
                   top: checkedRect.top,
@@ -183,7 +183,7 @@ const Dropdown = forwardRef<HTMLDivElement, DropdownProps>(
             {activeRect && (
               <motion.div
                 key={sessionRef.current}
-                className={`absolute ${shape.bg} bg-hover pointer-events-none`}
+                className={`absolute ${radius.bg} bg-hover pointer-events-none`}
                 initial={{
                   opacity: 0,
                   top: checkedRect?.top ?? activeRect.top,
@@ -211,7 +211,7 @@ const Dropdown = forwardRef<HTMLDivElement, DropdownProps>(
           <AnimatePresence>
             {focusRect && (
               <motion.div
-                className={`absolute ${shape.focusRing} pointer-events-none z-20 border border-[color:var(--focus-ring,#6B97FF)]`}
+                className={`absolute ${radius.focusRing} pointer-events-none z-20 border border-[color:var(--focus-ring,#6B97FF)]`}
                 initial={false}
                 animate={{
                   left: focusRect.left - 2,
@@ -542,7 +542,7 @@ const DropdownContent = forwardRef<HTMLDivElement, DropdownContentProps>(
                 className={cn(
                   // min-w tracks the trigger via the Positioner's
                   // --anchor-width var.
-                  `relative flex flex-col gap-0.5 w-72 max-w-full min-w-[var(--anchor-width)] max-h-[min(480px,var(--available-height))] overflow-y-auto ${shape.container} p-1 select-none outline-none`,
+                  `relative flex flex-col gap-0.5 w-72 max-w-full min-w-[var(--anchor-width)] max-h-[min(480px,var(--available-height))] overflow-y-auto ${radius.container} p-1 select-none outline-none`,
                   className,
                 )}
               >
@@ -550,7 +550,7 @@ const DropdownContent = forwardRef<HTMLDivElement, DropdownContentProps>(
                 <AnimatePresence>
                   {checkedRect && (
                     <motion.div
-                      className={`absolute ${shape.bg} bg-active pointer-events-none`}
+                      className={`absolute ${radius.bg} bg-active pointer-events-none`}
                       initial={false}
                       animate={{
                         top: checkedRect.top,
@@ -573,7 +573,7 @@ const DropdownContent = forwardRef<HTMLDivElement, DropdownContentProps>(
                   {activeRect && (
                     <motion.div
                       key={sessionRef.current}
-                      className={`absolute ${shape.bg} bg-hover pointer-events-none`}
+                      className={`absolute ${radius.bg} bg-hover pointer-events-none`}
                       initial={{
                         opacity: 0,
                         top: checkedRect?.top ?? activeRect.top,
@@ -601,7 +601,7 @@ const DropdownContent = forwardRef<HTMLDivElement, DropdownContentProps>(
                 <AnimatePresence>
                   {focusRect && (
                     <motion.div
-                      className={`absolute ${shape.focusRing} pointer-events-none z-20 border border-[color:var(--focus-ring,#6B97FF)]`}
+                      className={`absolute ${radius.focusRing} pointer-events-none z-20 border border-[color:var(--focus-ring,#6B97FF)]`}
                       initial={false}
                       animate={{
                         left: focusRect.left - 2,
@@ -749,7 +749,7 @@ function DropdownMenuItem({
           data-dropdown-menu-item=""
           data-proximity-index={index ?? undefined}
           className={cn(
-            `relative z-10 flex ${sizeClasses.control} shrink-0 items-center ${sizeClasses.gap} ${shape.item} ${sizeClasses.itemPx} cursor-pointer outline-none select-none`,
+            `relative z-10 flex ${sizeClasses.control} shrink-0 items-center ${sizeClasses.gap} ${radius.item} ${sizeClasses.itemPx} cursor-pointer outline-none select-none`,
             sizeClasses.text,
             "transition-colors duration-80",
             variant === "destructive"

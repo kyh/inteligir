@@ -128,7 +128,6 @@ describe("two installs against one account", () => {
     const sent = await a.client.threads.send({
       threadId: thread.id,
       text: "hello from A",
-      mode: "steer-if-active",
     });
     expect(sent.kind).toBe("started");
 
@@ -166,7 +165,6 @@ describe("two installs against one account", () => {
     await a.client.threads.send({
       threadId: thread.id,
       text: "once",
-      mode: "steer-if-active",
     });
     await syncNow(a);
 
@@ -207,7 +205,6 @@ describe("two installs against one account", () => {
     await a.client.threads.send({
       threadId: thread.id,
       text: "seed",
-      mode: "steer-if-active",
     });
     await syncNow(a);
     await syncNow(b);
@@ -216,12 +213,10 @@ describe("two installs against one account", () => {
     await a.client.threads.send({
       threadId: thread.id,
       text: "from A",
-      mode: "steer-if-active",
     });
     await b.client.threads.send({
       threadId: thread.id,
       text: "from B",
-      mode: "steer-if-active",
     });
     await syncNow(a);
     await syncNow(b);
@@ -250,7 +245,6 @@ describe("two installs against one account", () => {
     await a.client.threads.send({
       threadId: thread.id,
       text: "before the re-pair",
-      mode: "steer-if-active",
     });
     await syncNow(a);
     await syncNow(b);
@@ -285,7 +279,6 @@ describe("two installs against one account", () => {
     await a.client.threads.send({
       threadId: thread.id,
       text: "run it",
-      mode: "steer-if-active",
     });
     await syncNow(a);
     await syncNow(b);
@@ -319,7 +312,6 @@ describe("two installs against one account", () => {
     await a.client.threads.send({
       threadId: thread.id,
       text: "from A",
-      mode: "steer-if-active",
     });
     await syncNow(a);
     await syncNow(b);
@@ -327,7 +319,6 @@ describe("two installs against one account", () => {
     await b.client.threads.send({
       threadId: thread.id,
       text: "from B",
-      mode: "steer-if-active",
     });
     await syncNow(b);
     await syncNow(a);

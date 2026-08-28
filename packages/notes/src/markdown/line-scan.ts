@@ -1,7 +1,7 @@
-// Line-level scanning shared by the pre-parse passes (table-pipe escaping,
-// import migrations): which lines are ACTIVE text — outside the
-// frontmatter block and code fences, whose bytes are verbatim by contract —
-// and which columns of a line sit inside CommonMark code spans.
+// Line-level scanning for the pre-parse pass (table-pipe escaping): which
+// lines are ACTIVE text — outside the frontmatter block and code fences, whose
+// bytes are verbatim by contract — and which columns of a line sit inside
+// CommonMark code spans.
 
 export type Range = { start: number; end: number };
 

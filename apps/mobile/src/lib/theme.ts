@@ -1,8 +1,9 @@
-// The zinc design tokens for the mobile companion, resolved to concrete hex for
-// light and dark. Mirrors packages/ui by convention — mobile does NOT import
-// @repo/ui, which is web-only — so keep these in sync when the palette changes.
+// The phone's own design tokens, resolved to concrete hex for light and dark
+// and picked close to the web palette. Mobile does NOT import @repo/ui — that
+// package is web-only and the dep-dag guard forbids the edge — so this is the
+// whole token set the screens have.
 
-import { useColorScheme } from "react-native";
+import { Platform, useColorScheme } from "react-native";
 
 export interface Theme {
   readonly background: string;
@@ -67,3 +68,8 @@ export const SPACE = {
 } as const;
 
 export const RADIUS = { sm: 4, md: 8, full: 9999 } as const;
+
+/** The face for code, formula pills and raw notes. Android ships no Menlo, and
+ *  an unresolvable family falls back to the proportional sans — which is the
+ *  one thing a raw note must not do. */
+export const MONO_FONT = Platform.select({ ios: "Menlo", default: "monospace" });

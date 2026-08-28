@@ -6,8 +6,7 @@
 // Thin by design: the plugin/component composition lives in
 // kits/editor-kit.ts (per-feature kit files whose Base halves compose the
 // headless serialization mirror — see kits/base-kit.ts); this file owns only
-// the seed/echo-dedupe lifecycle, the transient-AI settle seam, and the Plate
-// surface.
+// the seed/echo-dedupe lifecycle and the Plate surface.
 
 import { useCallback, useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from "react";
 import type { Value } from "platejs";
@@ -15,7 +14,6 @@ import { Plate, usePlateEditor } from "platejs/react";
 import { serializeMd } from "@platejs/markdown";
 
 import { Editor, EditorContainer } from "@repo/editor/editor-chrome";
-import { setHeadingCollapseScope } from "@repo/editor/heading-collapse";
 import { registerLiveEditor } from "@repo/editor/live-editor";
 import { WRITE_PLACEHOLDER } from "@repo/editor/kits/block-placeholder-kit";
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
@@ -44,20 +42,15 @@ function seedValue(md: string): Value {
 }
 
 type Props = {
-  /** Vault-relative path this editor serves — keys the transient-settle seam
-   * so a flush routed to some OTHER note's path never resolves this editor's
-   * AI session. */
+  /** Vault-relative path this editor serves — keys the live-editor registry so
+   * chrome outside the Plate tree can never grab an editor serving some OTHER
+   * note. */
   path: string;
   /** Markdown to render. Seeds the editor on mount and re-seeds it when the
    * prop changes externally (a vault reload / file switch) — see the effect. */
   value: string;
   /** Called with serialized markdown on every change. */
   onChange: (markdown: string) => void;
-  /** Teardown escape hatch: called with the settled markdown when the
-   * editor unmounts while an AI suggestion session was still pending
-   * (reject-all — the user's typing survives, the AI marks disappear). The
-   * OWNER must route these bytes by `path`: by unmount time the open note
-   * may already have changed, so the normal onChange must not carry them. */
   /** Register a synchronous flush for the debounced serialize. The owner calls
    * it (via the note runtime's pre-flush hook) before any save/rename/close so
    * a keystroke still sitting in the serialize debounce reaches the controller
@@ -163,16 +156,10 @@ export function MarkdownEditor({ path, value, onChange, onRegisterSerializeFlush
     };
   }, [editor]);
 
-  // Expose this editor to chrome outside the Plate tree — the header's
-  // "Page details" popover edits the frontmatter node through it, so property
-  // writes ride this same serialize path to disk. Path-keyed like the
-  // transient settler above.
+  // Expose this editor to chrome outside the Plate tree — the right panel's
+  // Properties tab edits the frontmatter node through it, so property writes
+  // ride this same serialize path to disk.
   useEffect(() => registerLiveEditor(path, editor), [path, editor]);
-
-  // Collapsed-heading view state is per note; point the store at this one.
-  useEffect(() => {
-    setHeadingCollapseScope(path);
-  }, [path]);
 
   return (
     <Plate
@@ -180,14 +167,12 @@ export function MarkdownEditor({ path, value, onChange, onRegisterSerializeFlush
       onChange={() => {
         // Selection-only flushes (caret moves, slate-react selection
         // re-syncs) never change bytes — skip the serialize pass and the
-        // vault-context re-render it would otherwise trigger on every caret
+        // open-note re-render it would otherwise trigger on every caret
         // move; per-event work stays bounded under input-event storms.
         if (editor.operations.every((op) => op.type === "set_selection")) return;
         // Defer the whole-document serialize behind a short debounce — this
-        // event only marks the document dirty. The freeze above lifts through
-        // an onChange (the accept/reject/discard IS an edit), which reaches
-        // here and schedules, so a settle with no following keystroke still
-        // propagates. Save/close paths flush synchronously via the runtime.
+        // event only marks the document dirty. Save/close paths flush
+        // synchronously via the runtime.
         scheduler.schedule();
       }}
     >

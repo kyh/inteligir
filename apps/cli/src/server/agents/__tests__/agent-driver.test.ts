@@ -1,4 +1,4 @@
-// Boot-time driver resolution: an absent codex binary must not crash the
+// Boot-time driver resolution: an absent vendor CLI must not crash the
 // boot — it resolves to the unavailable driver, /system/status states why,
 // and a send answers 503 with that same actionable message.
 
@@ -13,10 +13,10 @@ describe("agent driver resolution", () => {
   it("binary-absent boot surfaces unavailable and 503s a send, without crashing", async () => {
     let resolvedDetail: string | null = null;
     const harness = await bootTestApp({
-      agent: { mode: "codex", runtime: "unavailable", detail: "placeholder" },
+      agent: { mode: "auto", runtime: "unavailable", detail: "placeholder" },
       makeDriver: ({ db, bus, vault, vaultDir }) => {
         const resolved = resolveAgentDriver({
-          config: { agent: "codex", agentModel: null, vaultDir },
+          config: { agent: "auto", agentModel: null, vaultDir },
           db,
           notifier: bus,
           vault,
@@ -34,9 +34,7 @@ describe("agent driver resolution", () => {
     expect(resolvedDetail).toContain("No agent CLI was found on PATH");
 
     const threadId = await createThread(harness.client);
-    const [refusal] = await safe(
-      harness.client.threads.send({ threadId, text: "hello", mode: "steer-if-active" }),
-    );
+    const [refusal] = await safe(harness.client.threads.send({ threadId, text: "hello" }));
     expect(isDefinedError(refusal) && refusal.code).toBe("PROVIDER_UNAVAILABLE");
     expect(refusal?.message).toContain("No agent CLI was found on PATH");
   });

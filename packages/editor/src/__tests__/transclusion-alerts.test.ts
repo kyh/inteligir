@@ -9,7 +9,7 @@
 // assertion below also checks the input is left intact.
 
 import { describe, expect, it } from "vitest";
-import { KEYS, type Value } from "platejs";
+import { ElementApi, KEYS, TextApi, type Value } from "platejs";
 
 import { ALERT_VARIANT_KEY, stripAlertMarkers } from "@repo/editor/transclusion";
 
@@ -24,13 +24,11 @@ function quote(...lines: string[]): Value {
 
 function firstText(value: Value): string {
   const block = value[0];
-  if (!block || !Array.isArray(block.children)) throw new Error("no block");
+  if (!block) throw new Error("no block");
   const para = block.children[0];
-  if (!para || typeof para !== "object" || !("children" in para)) throw new Error("no paragraph");
-  const leaf = Array.isArray(para.children) ? para.children[0] : undefined;
-  return leaf && typeof leaf === "object" && "text" in leaf && typeof leaf.text === "string"
-    ? leaf.text
-    : "";
+  if (!para || !ElementApi.isElement(para)) throw new Error("no paragraph");
+  const leaf = para.children[0];
+  return leaf && TextApi.isText(leaf) ? leaf.text : "";
 }
 
 describe("stripAlertMarkers", () => {

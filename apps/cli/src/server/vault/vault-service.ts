@@ -31,6 +31,7 @@ import {
 } from "@repo/notes/knowledge/vault-path";
 import {
   contentHashHex,
+  VAULT_ASSET_MAX_BYTES,
   VAULT_MAX_CONTENT_LENGTH,
   type VaultEntry,
   type VaultTreeResponse,
@@ -319,10 +320,10 @@ export function createVaultService(args: VaultServiceArgs): VaultService {
     if (stats === null || stats.isDirectory()) {
       throw notFound(relPath);
     }
-    if (stats.size > VAULT_MAX_CONTENT_LENGTH) {
+    if (stats.size > VAULT_ASSET_MAX_BYTES) {
       throw new VaultServiceError(
         "too_large",
-        `${relPath} is ${stats.size} bytes; the read cap is ${VAULT_MAX_CONTENT_LENGTH}`,
+        `${relPath} is ${stats.size} bytes; the asset cap is ${VAULT_ASSET_MAX_BYTES}`,
       );
     }
     const etag = `"${stats.size.toString(16)}-${Math.trunc(stats.mtimeMs).toString(16)}"`;

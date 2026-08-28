@@ -18,7 +18,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { SelectionBackgrounds, useMergeSplitBlocks } from "@repo/ui/hooks/use-merge-split";
 import { useProximityHover } from "@repo/ui/hooks/use-proximity-hover";
 import { fontWeights } from "@repo/ui/lib/font-weight";
-import { useShape } from "@repo/ui/lib/shape-context";
+import { useRadius } from "@repo/ui/lib/radius-context";
 import { SizeProvider, useSize, type SizeVariant } from "@repo/ui/lib/size-context";
 import { spring } from "@repo/ui/lib/springs";
 import { cn } from "@repo/ui/lib/utils";
@@ -183,11 +183,11 @@ const CheckboxGroup = forwardRef<HTMLDivElement, CheckboxGroupProps>(
 
     const activeRect = activeIndex !== null ? (itemRects[activeIndex] ?? null) : null;
     const focusRect = focusedIndex !== null ? (itemRects[focusedIndex] ?? null) : null;
-    const shape = useShape();
+    const radius = useRadius();
 
     // Selected backgrounds, with the merge/split boundary animation when one
     // unchecked row bridges or splits two checked runs.
-    const blocks = useMergeSplitBlocks(checkedGroups, itemRects, shape.mergedRadius);
+    const blocks = useMergeSplitBlocks(checkedGroups, itemRects, radius.mergedRadius);
 
     const group = (
       <CheckboxGroupContext.Provider value={groupContextValue}>
@@ -256,7 +256,7 @@ const CheckboxGroup = forwardRef<HTMLDivElement, CheckboxGroupProps>(
             {activeRect && (
               <motion.div
                 key={sessionRef.current}
-                className={`absolute ${shape.bg} bg-hover pointer-events-none`}
+                className={`absolute ${radius.bg} bg-hover pointer-events-none`}
                 initial={{
                   opacity: 0,
                   top: activeRect.top,
@@ -284,7 +284,7 @@ const CheckboxGroup = forwardRef<HTMLDivElement, CheckboxGroupProps>(
           <AnimatePresence>
             {focusRect && (
               <motion.div
-                className={`absolute ${shape.focusRing} pointer-events-none z-20 border border-[color:var(--focus-ring,#6B97FF)]`}
+                className={`absolute ${radius.focusRing} pointer-events-none z-20 border border-[color:var(--focus-ring,#6B97FF)]`}
                 initial={false}
                 animate={{
                   left: focusRect.left - 2,
@@ -331,7 +331,7 @@ const CheckboxItem = forwardRef<HTMLDivElement, CheckboxItemProps>(
     }, [index, registerItem]);
 
     const isActive = activeIndex === index;
-    const shape = useShape();
+    const radius = useRadius();
     const sizeClasses = useSize();
     const compact = sizeClasses.variant === "compact";
 
@@ -372,7 +372,7 @@ const CheckboxItem = forwardRef<HTMLDivElement, CheckboxItemProps>(
         }}
         className={cn(
           // Fixed height so the text-box trim on the label doesn't shrink the row.
-          `relative z-10 flex ${sizeClasses.control} items-center ${sizeClasses.gap} ${shape.item} ${sizeClasses.px} cursor-pointer outline-none`,
+          `relative z-10 flex ${sizeClasses.control} items-center ${sizeClasses.gap} ${radius.item} ${sizeClasses.px} cursor-pointer outline-none`,
           className,
         )}
         {...props}

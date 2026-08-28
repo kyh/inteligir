@@ -1,12 +1,11 @@
 // ---------------------------------------------------------------------------
-// Orphan-component guard: every file under src/components and src/ai must be
-// reachable from a consumer — another workspace importing
-// `@repo/ui/components/<name>` or `@repo/ui/ai/<name>`, or another file inside
-// this package.
+// Orphan-component guard: every file under the package's wildcard-exported
+// directories must be reachable from a consumer — another workspace importing
+// `@repo/ui/<subpath>/<name>`, or another file inside this package.
 //
 // This exists because `knip` structurally CANNOT check it. The package's
-// exports map wildcards `./components/*` and `./ai/*`, which makes every
-// component a public entry point, so knip treats an orphan as intentional API
+// exports map wildcards every one of those directories, which makes every file
+// under them a public entry point, so knip treats an orphan as intentional API
 // and stays silent — it did, through several convergence sweeps, while 31
 // unused vendored components (~3,800 lines) accumulated and pinned 5 npm
 // dependencies.
@@ -14,8 +13,8 @@
 // Mirrors the repo's other source-walk invariants (teardown-completeness,
 // kit-parity, pi-quarantine): assert the architectural rule as a failing test.
 //
-// Adding a component you have not wired up yet? Wire it up, or delete it and
-// re-pull it — for shadcn that is one command.
+// Adding a component you have not wired up yet? Wire it up, or add it to
+// AWAITING_CONSUMER below with the surface it is waiting for.
 // ---------------------------------------------------------------------------
 
 import { describe, expect, it } from "vitest";
@@ -31,7 +30,14 @@ const REPO_ROOT = path.resolve(PACKAGE_ROOT, "../..");
 const ROOTS = [
   { dir: "components", subpath: "components" },
   { dir: "ai", subpath: "ai" },
+  { dir: "hooks", subpath: "hooks" },
+  { dir: "lib", subpath: "lib" },
 ] as const;
+
+/** A root's files are `.ts` OR `.tsx`: the exports map wildcards both (a `.tsx`
+ *  row per file that needs it), so a hook written without JSX is exported and
+ *  orphanable exactly like a component. */
+const SOURCE_FILE = /\.tsx?$/;
 
 const SKIP_DIR_NAMES = new Set(["node_modules", "dist", "coverage"]);
 
@@ -44,10 +50,10 @@ const SKIP_DIR_NAMES = new Set(["node_modules", "dist", "coverage"]);
  * A gallery proves a component RENDERS, not that the product NEEDS it. Those
  * are different claims and only the second one keeps a component alive.
  */
-const NON_CONSUMER_DIRS = [path.join(REPO_ROOT, "apps", "app", "src", "app", "gallery")];
+const NON_CONSUMER_DIRS = ["apps/desktop/src/renderer/app/gallery"];
 
 function isNonConsumer(file: string): boolean {
-  return NON_CONSUMER_DIRS.some((dir) => file.startsWith(dir + path.sep));
+  return NON_CONSUMER_DIRS.some((dir) => file.startsWith(path.join(REPO_ROOT, dir) + path.sep));
 }
 
 /** Dot-directories are skipped wholesale: they hold tooling state, ignored
@@ -72,13 +78,14 @@ function sourceFiles(dir: string, out: string[]): void {
 }
 
 /**
- * The Beautiful UI set was vendored WHOLE at the owner's request ("make sure
- * we have all the components"), and fourteen of them have no product surface
- * yet — only the gallery, which this guard deliberately does not count.
+ * The Beautiful UI set is held WHOLE by owner decision: these fourteen have no
+ * product surface yet and are kept for one the product will grow. Only the
+ * gallery renders them, and the gallery is deliberately not a consumer.
  *
- * Named per file rather than by directory, so the fifteenth unwired component
- * still fails. Delete an entry the moment its component is wired; the test
- * below fails if an entry outlives its file, so this cannot rot silently.
+ * So this is a standing allowance, not a backlog to drain — but it is named
+ * PER FILE rather than by directory, which is what keeps it honest: a
+ * fifteenth unwired component still fails, and the test below fails if an
+ * entry outlives its file.
  */
 const AWAITING_CONSUMER = new Set([
   "packages/ui/src/ai/chat.tsx",
@@ -97,8 +104,10 @@ const AWAITING_CONSUMER = new Set([
   "packages/ui/src/ai/sidebar-nav.tsx",
 ]);
 
+const SWEPT_DIRS = ROOTS.map((root) => `src/${root.dir}`).join(", ");
+
 describe("no orphan components", () => {
-  it("every src/components and src/ai file has at least one consumer", () => {
+  it(`every ${SWEPT_DIRS} file has at least one consumer`, () => {
     // The WHOLE repo, not a list of workspace groups. This carried
     // `["apps", "packages"]` and had already fallen behind `tools/` and `e2e`,
     // which is the shape of the bug rather than a typo: a consumer living in a
@@ -116,13 +125,13 @@ describe("no orphan components", () => {
     for (const root of ROOTS) {
       const rootDir = path.join(PACKAGE_ROOT, "src", root.dir);
       if (!fs.existsSync(rootDir)) continue;
-      const names = fs
+      const entries = fs
         .readdirSync(rootDir, { withFileTypes: true })
-        .filter((entry) => entry.isFile() && entry.name.endsWith(".tsx"))
-        .map((entry) => entry.name.replace(/\.tsx$/, ""));
+        .filter((entry) => entry.isFile() && SOURCE_FILE.test(entry.name))
+        .map((entry) => ({ fileName: entry.name, name: entry.name.replace(SOURCE_FILE, "") }));
 
-      for (const name of names) {
-        const selfPath = path.join(rootDir, `${name}.tsx`);
+      for (const { fileName, name } of entries) {
+        const selfPath = path.join(rootDir, fileName);
         let used = false;
         for (const [file, content] of contents) {
           if (file === selfPath) continue;
@@ -138,19 +147,30 @@ describe("no orphan components", () => {
             break;
           }
         }
-        const relative = `packages/ui/src/${root.dir}/${name}.tsx`;
+        const relative = `packages/ui/src/${root.dir}/${fileName}`;
         if (!used && !AWAITING_CONSUMER.has(relative)) orphans.push(relative);
       }
     }
 
     expect(
       orphans,
-      `Unused @repo/ui components (no importer anywhere in the repo).\n` +
-        `Every file under src/components and src/ai must be reachable from a consumer.\n` +
+      `Unused @repo/ui files (no importer anywhere in the repo).\n` +
+        `Every file under ${SWEPT_DIRS} must be reachable from a consumer.\n` +
         `The component gallery does NOT count as one — it imports everything by design,\n` +
         `and rendering in a gallery is not the same claim as the product needing it.\n` +
-        `Delete them — shadcn re-adds a stock component in one command — or wire them up:\n` +
+        `Wire them up, or add them to AWAITING_CONSUMER with the surface they wait for:\n` +
         orphans.map((file) => `  ${file}`).join("\n"),
+    ).toEqual([]);
+  });
+  it("every NON_CONSUMER_DIRS entry names a directory that exists", () => {
+    // An exclusion pointing at a path that is not there excludes nothing, and
+    // the failure is silent in the direction that matters: the gallery counts
+    // as a consumer, every component it renders looks wired, and this guard
+    // passes without ever asking its question.
+    const missing = NON_CONSUMER_DIRS.filter((dir) => !fs.existsSync(path.join(REPO_ROOT, dir)));
+    expect(
+      missing,
+      `NON_CONSUMER_DIRS names directories that do not exist:\n${missing.map((dir) => `  ${dir}`).join("\n")}`,
     ).toEqual([]);
   });
   it("no AWAITING_CONSUMER entry outlives its file", () => {

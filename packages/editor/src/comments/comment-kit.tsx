@@ -16,6 +16,7 @@ import {
 } from "platejs";
 import { PlateLeaf, createPlatePlugin, useEditorRef, type PlateLeafProps } from "platejs/react";
 
+import { stringProp } from "@repo/editor/node-props";
 import { cn } from "@repo/ui/lib/utils";
 import { Button } from "@repo/ui/components/button";
 import { Textarea } from "@repo/ui/components/textarea";
@@ -30,7 +31,7 @@ import {
 import { setPendingCreate, useCommentSurface } from "./comment-store";
 
 function CommentRangeLeaf(props: PlateLeafProps) {
-  const raw = typeof props.leaf.commentIds === "string" ? props.leaf.commentIds : "";
+  const raw = stringProp(props.leaf, "commentIds") ?? "";
   const ids = raw.split(",").filter((id) => id !== "");
   const orphan = props.leaf.commentOrphan === true;
   const { actions, knownIds, resolvedIds } = useCommentSurface();

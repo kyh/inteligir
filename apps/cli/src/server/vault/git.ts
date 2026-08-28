@@ -381,9 +381,9 @@ export interface GitEngine {
    * file tree and the knowledge index have already stopped being current.
    */
   scheduleCommit(paths?: readonly string[]): void;
-  /** Commit whatever is dirty right now; null when the tree was clean.
-   *  `subject` replaces the default one-line message (trailers ride in it). */
-  commitNow(author?: CommitAuthor, subject?: string): Promise<{ files: number } | null>;
+  /** Commit whatever is dirty right now, as the engine; null when the tree was
+   *  clean. Attributed work goes through `commitPaths` instead. */
+  commitNow(): Promise<{ files: number } | null>;
   /**
    * Commit exactly the named vault-relative paths (adds, edits AND deletions
    * under them) — the agent-attribution seam: a turn commits its own write
@@ -400,9 +400,9 @@ export interface GitEngine {
   /**
    * Defer the auto-commit debounce and the sync loop until released, so an
    * agent turn's writes are not swept into an engine-attributed commit
-   * mid-turn. Counted — overlapping turns each take their own hold — and an
-   * explicit commitNow still runs under a hold (that IS the release path's
-   * commit). Returns the release function.
+   * mid-turn. Counted — overlapping turns each take their own hold — and
+   * `commitPaths` still runs under a hold (that IS the release path's commit).
+   * Returns the release function.
    */
   holdCommits(): () => void;
   /** One full sync pass; coalesces with an in-flight one. */
@@ -498,10 +498,7 @@ export function createGitEngine(args: GitEngineArgs): GitEngine {
     return (await porcelain()).length;
   }
 
-  async function commitIfDirty(
-    author?: CommitAuthor,
-    subject?: string,
-  ): Promise<{ files: number } | null> {
+  async function commitIfDirty(): Promise<{ files: number } | null> {
     const files = await countDirtyPaths();
     if (files === 0) {
       return null;
@@ -509,12 +506,9 @@ export function createGitEngine(args: GitEngineArgs): GitEngine {
     // `add -A` unscoped, deliberately: the scoped form passes every path as an
     // argument, and the first commit of a large vault would exceed ARG_MAX.
     await run(["add", "-A"]);
-    await run(
-      ["-c", "commit.gpgsign=false", "commit", "-m", subject ?? `vault: update ${files} files`],
-      {
-        env: identityEnv(author),
-      },
-    );
+    await run(["-c", "commit.gpgsign=false", "commit", "-m", `vault: update ${files} files`], {
+      env: identityEnv(),
+    });
     return { files };
   }
 
@@ -558,7 +552,7 @@ export function createGitEngine(args: GitEngineArgs): GitEngine {
 
   // An agent turn holds commits so its writes cannot be swept into an
   // engine-attributed commit mid-turn; the flush the hold deflected is
-  // re-armed on release (the release path's own commitNow usually beat it,
+  // re-armed on release (the release path's own commitPaths usually beat it,
   // making the re-armed flush a clean-tree no-op).
   let commitHoldCount = 0;
   let flushDeferredWhileHeld = false;
@@ -706,13 +700,19 @@ export function createGitEngine(args: GitEngineArgs): GitEngine {
       // credential is yet (the /v1/account fetch is in flight, or the cloud
       // predates the route). A pass that ran now would skip the marker check
       // below — exactly the window a re-pair pushes the old vault through.
-      // The sync runtime re-kicks the moment the identity lands.
+      // Every thread sync pass retries that fetch while the id is missing, and
+      // the one that lands pings this engine.
       return;
     }
     if (remote.source === "paired" && remote.account !== undefined) {
       const marker = await readAccountMarker();
       if (marker !== null && marker !== remote.account) {
         accountMismatch = true;
+        // A conflict from the PREVIOUS account describes files in a repo this
+        // pass will not touch, and `statusSnapshot` ranks conflict above
+        // mismatch — so leaving it set answers "both sides changed the same
+        // files" to a condition whose only fix is unpairing.
+        lastConflict = null;
         lastError =
           "This vault last synced with a different account. Unpair, or move this vault aside " +
           "and restart to pull the new account's vault.";
@@ -903,8 +903,8 @@ export function createGitEngine(args: GitEngineArgs): GitEngine {
         commitScheduler.schedule();
       }
     },
-    commitNow(author?: CommitAuthor, subject?: string) {
-      return withRepoLock(() => commitIfDirty(author, subject));
+    commitNow() {
+      return withRepoLock(() => commitIfDirty());
     },
     commitPaths(paths, author, subject) {
       return withRepoLock(() => commitPathsIfDirty(paths, author, subject));

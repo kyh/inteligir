@@ -13,7 +13,7 @@
 
 import { CLI_SKILL_MD } from "../server/guide/cli-skill";
 import { describe, expect, it } from "vitest";
-import { argsOf, collectLeafCommands } from "../command-tree";
+import { argsOf, collectLeafCommands, declaredFlags } from "../command-tree";
 import { testProgram } from "./command-tree";
 
 describe("the served guide covers the command surface", () => {
@@ -43,5 +43,25 @@ describe("the served guide covers the command surface", () => {
       }
     }
     expect(undocumented).toEqual([]);
+  });
+
+  it("names no flag the CLI would refuse", () => {
+    // The UNION, not per-leaf: a flag is documented once and several commands
+    // may declare it, so the only honest question is whether ANY leaf accepts
+    // the spelling — which is what `assertKnownFlags` asks of the leaf that
+    // actually runs. `declaredFlags` carries citty's own `--help`/`--version`
+    // and the kebab/camel aliases with it.
+    const accepted = new Set<string>();
+    for (const { command } of collectLeafCommands(testProgram())) {
+      for (const flag of declaredFlags(argsOf(command))) {
+        accepted.add(flag);
+      }
+    }
+
+    const named = CLI_SKILL_MD.match(/--[a-z][\w-]*/gu) ?? [];
+    const invented = [...new Set(named.map((token) => token.slice(2)))].filter(
+      (flag) => !accepted.has(flag),
+    );
+    expect(invented).toEqual([]);
   });
 });

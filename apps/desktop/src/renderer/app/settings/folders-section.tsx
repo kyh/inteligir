@@ -9,10 +9,9 @@
 import type { ConnectedFoldersResponse } from "@repo/api/local/folders/folders-schema";
 import { Button } from "@repo/ui/components/button";
 import { Input } from "@repo/ui/components/input";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { isDefinedError, orpc, safe } from "../api";
-import { useWorkspace } from "../workspace-context";
+import { isDefinedError, orpc } from "../api";
 import { failed, SectionHeading } from "./settings-chrome";
 
 function useConnectedFolders() {
@@ -20,63 +19,62 @@ function useConnectedFolders() {
 }
 
 export function FoldersSection() {
-  const { api } = useWorkspace();
   const queryClient = useQueryClient();
   const foldersQuery = useConnectedFolders();
   const [draft, setDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
 
   const refresh = (response: ConnectedFoldersResponse): void => {
     queryClient.setQueryData(orpc.folders.list.queryKey(), response);
   };
 
-  const add = async (): Promise<void> => {
+  const clearError = (): void => {
+    setError(null);
+  };
+
+  // Each `onError` splits the same way, and it narrows where the mutation's
+  // own error type is known: a refusal the contract DECLARES is a judgement
+  // about this path, so it belongs beside the field that holds it; anything
+  // else is about the connection and gets the section's toast.
+  const addFolder = useMutation(
+    orpc.folders.add.mutationOptions({
+      onMutate: clearError,
+      onSuccess: (response) => {
+        refresh(response);
+        setDraft("");
+      },
+      onError: (cause) => {
+        if (isDefinedError(cause)) {
+          setError(cause.message);
+          return;
+        }
+        failed(cause, "Could not add the folder.");
+      },
+    }),
+  );
+
+  const removeFolder = useMutation(
+    orpc.folders.remove.mutationOptions({
+      onMutate: clearError,
+      onSuccess: refresh,
+      onError: (cause) => {
+        if (isDefinedError(cause)) {
+          setError(cause.message);
+          return;
+        }
+        failed(cause, "Could not remove the folder.");
+      },
+    }),
+  );
+
+  const busy = addFolder.isPending || removeFolder.isPending;
+
+  const add = (): void => {
     const path = draft.trim();
     if (path.length === 0 || busy) {
       return;
     }
-    setBusy(true);
-    setError(null);
-    try {
-      const { error: refusal, data } = await safe(api.folders.add({ path }));
-      if (refusal !== null) {
-        // A refusal the contract DECLARES is a judgement about this path, so it
-        // belongs beside the field that holds it; anything else is about the
-        // connection and gets the section's toast.
-        if (isDefinedError(refusal)) {
-          setError(refusal.message);
-          return;
-        }
-        throw refusal;
-      }
-      refresh(data);
-      setDraft("");
-    } catch (cause) {
-      failed(cause, "Could not add the folder.");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const remove = async (path: string): Promise<void> => {
-    setBusy(true);
-    setError(null);
-    try {
-      const { error: refusal, data } = await safe(api.folders.remove({ path }));
-      if (refusal !== null) {
-        if (isDefinedError(refusal)) {
-          setError(refusal.message);
-          return;
-        }
-        throw refusal;
-      }
-      refresh(data);
-    } catch (cause) {
-      failed(cause, "Could not remove the folder.");
-    } finally {
-      setBusy(false);
-    }
+    addFolder.mutate({ path });
   };
 
   const folders = foldersQuery.data?.folders ?? [];
@@ -102,7 +100,7 @@ export function FoldersSection() {
                 size="xs"
                 disabled={busy}
                 onClick={() => {
-                  void remove(folder);
+                  removeFolder.mutate({ path: folder });
                 }}
               >
                 Remove
@@ -115,7 +113,7 @@ export function FoldersSection() {
         className="flex items-center gap-2"
         onSubmit={(event) => {
           event.preventDefault();
-          void add();
+          add();
         }}
       >
         <Input

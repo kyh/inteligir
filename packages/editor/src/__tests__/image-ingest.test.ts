@@ -5,7 +5,9 @@
 // says nothing at all.
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createSlateEditor, KEYS } from "platejs";
+import { createSlateEditor, ElementApi, KEYS } from "platejs";
+
+import { stringProp } from "@repo/editor/node-props";
 
 const helpers = vi.hoisted(() => ({
   writeVaultAsset: vi.fn(() => Promise.resolve({ path: "assets/landed.png" })),
@@ -33,11 +35,11 @@ function newEditor() {
 
 /** Every image node's url, in document order. */
 function imageUrls(editor: ReturnType<typeof newEditor>): string[] {
-  return editor.children.flatMap((node) =>
-    "type" in node && node.type === KEYS.img && "url" in node && typeof node.url === "string"
-      ? [node.url]
-      : [],
-  );
+  return editor.children.flatMap((node) => {
+    if (!ElementApi.isElement(node) || node.type !== KEYS.img) return [];
+    const url = stringProp(node, "url");
+    return url === undefined ? [] : [url];
+  });
 }
 
 function imageFile(name: string, bytes: number): File {

@@ -5,17 +5,17 @@
 import { setTimeout as delay } from "node:timers/promises";
 import { ORPCError } from "@orpc/client";
 import type { Thread } from "@repo/api/local/threads/threads-schema";
-import { formatThreadTimeline } from "@repo/thread-view/format-thread-timeline";
 import { defineCommand } from "citty";
 import { CliExitError, EXIT_WAIT_TIMEOUT, getErrorMessage, invalidUsage } from "../cli-error";
 import { apiFor, type CliDeps } from "../context";
 import { jsonArg, out, outputJson, writeLines } from "../output";
+import { formatThreadTimeline } from "./format-thread-timeline";
 
 const DEFAULT_WAIT_TIMEOUT_SECONDS = 600;
 const DEFAULT_WAIT_POLL_INTERVAL_MS = 300;
 
 type SendOutcome =
-  | { kind: "started" | "steered"; turnId: string }
+  | { kind: "started"; turnId: string }
   | { kind: "queued"; queuedMessageId: string };
 
 function threadLine(thread: Thread): string {
@@ -36,8 +36,6 @@ function describeSendOutcome(outcome: SendOutcome): string {
   switch (outcome.kind) {
     case "started":
       return `Turn ${outcome.turnId} started`;
-    case "steered":
-      return `Steered active turn ${outcome.turnId}`;
     case "queued":
       return `Queued (${outcome.queuedMessageId})`;
   }
@@ -89,7 +87,6 @@ export function actionCommand(deps: CliDeps) {
             outcome = await api.threads.send({
               threadId: createdThread.id,
               text: args.prompt,
-              mode: "steer-if-active",
             });
           } catch (error) {
             // The thread EXISTS now. Failing without naming it would leave an
@@ -112,15 +109,11 @@ export function actionCommand(deps: CliDeps) {
       send: defineCommand({
         meta: {
           name: "send",
-          description: "Send a follow-up; steers the active turn unless --queue",
+          description: "Send a follow-up; starts a turn when idle, queues behind a running one",
         },
         args: {
           id: { type: "positional", required: true, description: "The thread id" },
           prompt: { type: "positional", required: true, description: "The message text" },
-          queue: {
-            type: "boolean",
-            description: "Queue behind the active turn instead of steering it",
-          },
           ...jsonArg,
         },
         run: async ({ args }) => {
@@ -128,7 +121,6 @@ export function actionCommand(deps: CliDeps) {
           const outcome = await api.threads.send({
             threadId: args.id,
             text: args.prompt,
-            mode: args.queue === true ? "queue-if-active" : "steer-if-active",
           });
           if (outputJson(args, outcome)) {
             return;
@@ -167,7 +159,7 @@ export function actionCommand(deps: CliDeps) {
             ...(detail.thread.title === null ? [] : [`Title: ${detail.thread.title}`]),
             ...(detail.thread.originDocPath === null
               ? []
-              : [`Doc: ${detail.thread.originDocPath} @ ${detail.thread.originAnchor ?? ""}`]),
+              : [`Doc: ${detail.thread.originDocPath}`]),
             ...detail.pendingInteractions.map(
               (interaction) => `Pending interaction ${interaction.id} (${interaction.status})`,
             ),

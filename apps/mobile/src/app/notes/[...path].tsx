@@ -9,7 +9,7 @@ import {
   useNotesTree,
   useSyncStatus,
 } from "@/lib/app-runtime";
-import { SPACE, useTheme } from "@/lib/theme";
+import { MONO_FONT, SPACE, useTheme } from "@/lib/theme";
 import { MarkdownBlocks } from "@/notes/markdown-view";
 import { projectNote, type NoteProjection } from "@/notes/note-projection";
 
@@ -109,5 +109,5 @@ const styles = StyleSheet.create({
   status: { fontSize: 16, textAlign: "center", paddingVertical: 96 },
   rawBody: { gap: SPACE.md },
   rawNote: { fontSize: 13 },
-  raw: { fontFamily: "Menlo", fontSize: 13, lineHeight: 19 },
+  raw: { fontFamily: MONO_FONT, fontSize: 13, lineHeight: 19 },
 });

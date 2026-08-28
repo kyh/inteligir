@@ -71,16 +71,12 @@ export async function handleSyncRoutes(request: Request, env: Env, url: URL): Pr
 
 /**
  * The account-deletion hook's DO half: drop everything the user's ThreadSyncDO
- * holds and tombstone it. A non-OK answer throws so the surrounding
+ * holds and tombstone it. A failure propagates so the surrounding
  * `beforeDelete` aborts and the account survives to ask again — the step is
  * idempotent.
  */
 export async function purgeThreadSync(env: Env, userId: string): Promise<void> {
-  const stub = env.THREAD_SYNC.getByName(`user:${userId}`);
-  const response = await stub.fetch("https://thread-sync/purge", { method: "POST" });
-  if (!response.ok) {
-    throw new Error(`thread-sync purge failed: ${response.status}`);
-  }
+  await env.THREAD_SYNC.getByName(`user:${userId}`).purge();
 }
 
 /**
@@ -94,13 +90,8 @@ export async function severDeviceSockets(
   userId: string,
   deviceId: string,
 ): Promise<void> {
-  const stub = env.THREAD_SYNC.getByName(`user:${userId}`);
   try {
-    await stub.fetch("https://thread-sync/sever-device", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ deviceId }),
-    });
+    await env.THREAD_SYNC.getByName(`user:${userId}`).severDevice(deviceId);
   } catch {
     // See above: the revoke already stands.
   }
@@ -117,13 +108,8 @@ export async function pingVaultAdvanced(
   userId: string,
   pushingDeviceId: string,
 ): Promise<void> {
-  const stub = env.THREAD_SYNC.getByName(`user:${userId}`);
   try {
-    await stub.fetch("https://thread-sync/vault-ping", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ pushingDeviceId }),
-    });
+    await env.THREAD_SYNC.getByName(`user:${userId}`).vaultPing(pushingDeviceId);
   } catch {
     // See above: the push already stands.
   }

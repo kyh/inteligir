@@ -18,13 +18,6 @@ export interface TurnDriver {
    */
   startTurn(args: TurnDriverStartArgs): void;
   /**
-   * Inject input into the running turn; false when it cannot be steered.
-   * Called INSIDE the send transaction, so it must answer synchronously and
-   * must not touch the database — an adapter queues the injection and
-   * reports the provider's echo later, through the sink.
-   */
-  steerTurn(args: TurnDriverSteerArgs): boolean;
-  /**
    * The answer route resolved a pending interaction this driver produced.
    * Called AFTER the row is resolved; a driver holding the provider's
    * request open parses `interaction.resolution` and answers the process.
@@ -39,15 +32,6 @@ export interface TurnDriverStartArgs {
   /** What the sender was looking at, when this host can name it. Omitted for
    *  the CLI, the palette, a chat with no note open — and for a QUEUED
    *  message, which drains long after its screen went away. */
-  viewContext?: ViewContext;
-}
-
-/** A steer joins a running turn, but names its OWN view context: a steer is
- *  a fresh statement about the past, exactly like any other message. */
-export interface TurnDriverSteerArgs {
-  threadId: string;
-  turnId: string;
-  text: string;
   viewContext?: ViewContext;
 }
 
@@ -70,9 +54,6 @@ export function createUnavailableTurnDriver(message?: string): TurnDriver {
   return {
     startTurn() {
       throw new TurnDriverUnavailableError(message);
-    },
-    steerTurn() {
-      return false;
     },
   };
 }

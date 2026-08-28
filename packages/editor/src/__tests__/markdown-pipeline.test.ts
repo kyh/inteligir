@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { createSlateEditor } from "platejs";
+import { createSlateEditor, ElementApi, type Descendant } from "platejs";
 import { serializeMd } from "@platejs/markdown";
 
 import { BASE_KIT } from "@repo/editor/kits/base-kit";
+import { stringProp } from "@repo/editor/node-props";
 import {
   MD_STRINGIFY,
   ParseFailedError,
@@ -73,13 +74,13 @@ function opaqueValues(md: string): string[] {
   expect(parsed.ok, md).toBe(true);
   if (!parsed.ok) return [];
   const values: string[] = [];
-  const walk = (node: unknown): void => {
-    if (node === null || typeof node !== "object") return;
-    if ("type" in node && (node.type === "opaqueBlock" || node.type === "opaqueInline")) {
-      values.push("value" in node && typeof node.value === "string" ? node.value : "");
+  const walk = (node: Descendant): void => {
+    if (!ElementApi.isElement(node)) return;
+    if (node.type === "opaqueBlock" || node.type === "opaqueInline") {
+      values.push(stringProp(node, "value") ?? "");
       return;
     }
-    if ("children" in node && Array.isArray(node.children)) node.children.forEach(walk);
+    node.children.forEach(walk);
   };
   parsed.value.forEach(walk);
   return values;

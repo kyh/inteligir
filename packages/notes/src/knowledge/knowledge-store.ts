@@ -1,16 +1,15 @@
 // ---------------------------------------------------------------------------
 // KnowledgeStore — the persistence port for projected vault knowledge. TYPES
-// ONLY, because this package carries no SQLite dependency: platforms bind an
-// implementation (the host: the Durable Object's own SQLite; the fixture
-// bridge: SQLite wasm) and the shell around it drives the store, mirroring
-// every write into the in-memory LinkGraphIndex.
+// ONLY, because this package carries no SQLite dependency: the caller binds an
+// implementation (today, apps/cli's better-sqlite3 driver) and the shell around
+// it drives the store, mirroring every write into the in-memory LinkGraphIndex.
 //
 // THE STORE IS A CACHE. Nothing durable may ever live in it: recovery from any
 // corruption/version mismatch is delete-and-rebuild from the vault, which is
-// only safe while that invariant holds. Durable state belongs in the platform
-// state stores (the manifest, the host's JsonStores), never here.
+// only safe while that invariant holds. Durable state belongs in the vault and
+// the app database, never here.
 //
-// All methods are synchronous — SQLite bindings on every target platform are
+// All methods are synchronous — the SQLite binding behind the port is
 // synchronous, and the host shell owns chunking/yielding around batches.
 // ---------------------------------------------------------------------------
 

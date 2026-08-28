@@ -45,7 +45,8 @@ import {
   PAIR_STATE_BYTES,
   pkceChallengeS256,
 } from "@repo/api/cloud/pairing/pairing-schema";
-import { PULL_DEFAULT_LIMIT, type SyncEventRow } from "@repo/api/cloud/sync/sync-schema";
+import { planPage, type LogPlanStep } from "@repo/api/cloud/sync/plan-page";
+import { PULL_DEFAULT_LIMIT } from "@repo/api/cloud/sync/sync-schema";
 import type { DbConnection, DbTransaction } from "@repo/db/connection";
 import type { SyncedEventInput } from "@repo/db/events";
 import {
@@ -59,7 +60,7 @@ import {
   unappliedCaptureIds,
   writeSyncCursor,
 } from "@repo/db/sync-outbox";
-import { threadEventSchema, type ThreadEvent } from "@repo/domain/provider-event";
+import type { ThreadEvent } from "@repo/domain/provider-event";
 import type {
   CloudPairBeginResponse,
   CloudStatusResponse,
@@ -85,7 +86,7 @@ import {
   type DeviceCredential,
 } from "./credential-store";
 import { ackPushBatch, enqueueThreadEvents, takePushBatch } from "./outbox";
-import { messageOf } from "../knowledge/message-of";
+import { messageOf } from "../error-message";
 import { constantTimeEqual } from "../constant-time-equal";
 
 /** The fallback cadence. The socket is what makes sync feel immediate; this is
@@ -235,13 +236,6 @@ export interface CloudRuntime {
   dispose(): Promise<void>;
 }
 
-/** A refusal that means the credential is finished. Both are terminal for this
- *  device: `unauthorized` is a revoked or unknown credential, `account-deleted`
- *  is a tombstoned account that every route refuses against. */
-
-/** A refusal that means THIS DEVICE'S OWN OUTBOX disagrees with the log, and
- *  names the position that did. */
-
 /**
  * `id` is the fence. Every session gets a fresh one, and a pass captures the id
  * it started under and re-checks it after EVERY await — because "is a session
@@ -311,6 +305,11 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
    *  until the fetch lands (or when a stale cloud has no account row); a
    *  failure costs the label, never the sync. */
   let accountEmail: string | null = null;
+  /** The identity fetch in flight, and WHOSE — a pass that arrives while one
+   *  is out joins it, but only when it belongs to the same session. Joining
+   *  the previous pairing's fetch would answer about an account this device
+   *  has left. */
+  let learningIdentity: { sessionId: number; pass: Promise<void> } | null = null;
 
   /** The endpoint every call rides. `fetch` stays ABSENT unless a suite
    *  injected one, so the client falls back to the global. */
@@ -342,40 +341,57 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
       credential,
       client,
     };
-    learnAccountIdentity();
+    void learnAccountIdentity().catch(() => undefined);
   }
 
   /**
    * Whose account this session syncs as, learned from `/v1/account` and
    * persisted beside the credential — the value the vault's cross-account
-   * fence FAILS CLOSED without, which is why this is retried (each thread
-   * pass re-calls it while the id is missing) and why success re-kicks the
-   * vault pass the fence deferred.
+   * fence FAILS CLOSED without.
+   *
+   * SO IT IS RETRIED, at the top of every pass while the id is missing. The
+   * fetch is best-effort and one failure is ordinary (a laptop that autostarts
+   * before its network is up), but the credential is written once and read
+   * forever: a single dropped answer would leave hosted vault sync off for the
+   * process's whole life, with nothing said and no error recorded. Learning it
+   * re-kicks the vault pass the fence deferred.
    */
-  function learnAccountIdentity(): void {
-    if (session.kind !== "live") return;
+  function learnAccountIdentity(): Promise<void> {
+    if (session.kind !== "live") return Promise.resolve();
     const { client, credential } = session;
     const sessionId = session.id;
-    void (async () => {
+    if (learningIdentity?.sessionId === sessionId) return learningIdentity.pass;
+    const pass = (async () => {
       const result = await client.account();
       // The standard fence: a re-pair mid-flight must not label the NEW
       // session with the old account.
-      if (disposed || session.kind !== "live" || session.id !== sessionId) return;
+      if (!sessionAlive(sessionId)) return;
       accountEmail = result.ok ? result.value.email : null;
       if (result.ok && credential.userId !== result.value.id) {
         const updated = { ...credential, userId: result.value.id };
         writeDeviceCredential(args.dataDir, updated);
-        session = { ...session, credential: updated };
+        // Rebuilt rather than spread: `sessionAlive` has already established
+        // that this id names the live session these two values came from.
+        session = { kind: "live", id: sessionId, credential: updated, client };
         args.onVaultPing?.();
       }
-    })();
+    })().finally(() => {
+      if (learningIdentity?.sessionId === sessionId) learningIdentity = null;
+    });
+    learningIdentity = { sessionId, pass };
+    return pass;
   }
 
-  /** True while `context`'s session is still the one this runtime is running,
-   *  and this runtime is still running at all. Checked after EVERY await,
-   *  immediately before any write. */
+  /** True while `sessionId` is still the session this runtime is running, and
+   *  this runtime is still running at all. */
+  function sessionAlive(sessionId: number): boolean {
+    return !disposed && session.kind === "live" && session.id === sessionId;
+  }
+
+  /** {@link sessionAlive} for a pass. Checked after EVERY await, immediately
+   *  before any write. */
   function fenced(context: PassContext): boolean {
-    return !disposed && session.kind === "live" && session.id === context.sessionId;
+    return sessionAlive(context.sessionId);
   }
 
   const stored = readDeviceCredential(args.dataDir);
@@ -585,64 +601,7 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
     return true;
   }
 
-  /**
-   * What a page of the log becomes before any of it is written.
-   *
-   * `apply` merges CONSECUTIVE rows for one thread, so a streaming turn's
-   * deltas land as one transaction and one invalidation rather than hundreds.
-   * `skip` is the rest — this device's own rows coming back through the merged
-   * log, and rows in a grammar this build does not know — and it exists as a
-   * step of its own because the cursor still has to move past them.
-   *
-   * The plan is built first and executed second on purpose: deciding and
-   * writing in one loop is where the "did this row move the cursor?" bookkeeping
-   * got tangled, and a mis-set cursor is a duplicated conversation.
-   */
-  interface PlannedRow extends SyncedEventInput {
-    /** The ACCOUNT log's global position — the cursor value this row alone
-     *  settles. Kept per row, not per group, because the per-row retry below
-     *  commits each one separately. */
-    seq: number;
-  }
-
-  type PlanStep =
-    | { kind: "apply"; threadId: string; rows: PlannedRow[] }
-    | { kind: "skip"; cursor: number };
-
-  function planPage(rows: readonly SyncEventRow[], deviceId: string): PlanStep[] {
-    const steps: PlanStep[] = [];
-    for (const row of rows) {
-      const last = steps.at(-1);
-      // This device already holds what it wrote; re-appending would double
-      // every event it ever pushed.
-      const mine = row.deviceId === deviceId;
-      const event = mine ? null : threadEventSchema.safeParse(row.event);
-      if (event !== null && !event.success) {
-        debug(`skipping log row ${row.seq}: not a thread event this build understands`);
-      }
-      if (event === null || !event.success) {
-        if (last?.kind === "skip") {
-          last.cursor = row.seq;
-        } else {
-          steps.push({ kind: "skip", cursor: row.seq });
-        }
-        continue;
-      }
-      const planned: PlannedRow = {
-        event: event.data,
-        origin: { deviceId: row.deviceId, deviceSeq: row.deviceSeq },
-        seq: row.seq,
-      };
-      if (last?.kind === "apply" && last.threadId === row.threadId) {
-        last.rows.push(planned);
-        continue;
-      }
-      steps.push({ kind: "apply", threadId: row.threadId, rows: [planned] });
-    }
-    return steps;
-  }
-
-  function applyStep(step: Extract<PlanStep, { kind: "apply" }>): void {
+  function applyStep(step: Extract<LogPlanStep, { kind: "apply" }>): void {
     const target = sink;
     if (target === null) {
       throw new Error("cloud sync has no ingest sink attached");
@@ -698,7 +657,11 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
         return !recordFailure(result.failure);
       }
       lastError = null;
-      for (const step of planPage(result.value.events, context.deviceId)) {
+      const plan = planPage(result.value.events, context.deviceId);
+      for (const message of plan.skipped) {
+        debug(message);
+      }
+      for (const step of plan.steps) {
         if (step.kind === "apply") {
           applyStep(step);
         } else {
@@ -802,6 +765,14 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
       client: session.client,
       deviceId: session.credential.deviceId,
     };
+    if (session.credential.userId === undefined) {
+      // A no-op once learned, so this is the poll interval's own recovery
+      // cadence for the one fetch nothing else retries.
+      await learnAccountIdentity();
+      if (!fenced(context)) {
+        return;
+      }
+    }
     if (!(await drain(context))) {
       return;
     }

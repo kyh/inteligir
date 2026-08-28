@@ -47,7 +47,7 @@ const wikiFilter: FilterFn = (item, search) => {
   const target = parseWikiBody(search).target;
   if (target === "") return true;
   const terms = [item.value, ...(item.keywords ?? []), item.label].filter(
-    (k): k is string => typeof k === "string" && k !== "",
+    (k): k is string => k !== undefined && k !== "",
   );
   return terms.some((keyword) => filterWords(keyword, target));
 };

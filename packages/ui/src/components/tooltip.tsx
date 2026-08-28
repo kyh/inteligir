@@ -8,7 +8,7 @@ import { motion, useMotionValue } from "framer-motion";
 import { cn } from "@repo/ui/lib/utils";
 import { motionStyle } from "@repo/ui/lib/motion-style";
 import { fontWeights } from "@repo/ui/lib/font-weight";
-import { useShape } from "@repo/ui/lib/shape-context";
+import { useRadius } from "@repo/ui/lib/radius-context";
 import { spring } from "@repo/ui/lib/springs";
 
 const TooltipPortalContainerContext = React.createContext<HTMLElement | null>(null);
@@ -112,7 +112,7 @@ function Tooltip({
 }: TooltipProps) {
   const [internalOpen, setInternalOpen] = React.useState(false);
   const open = forceOpen !== undefined ? forceOpen : internalOpen;
-  const shape = useShape();
+  const radius = useRadius();
   const portalContainer = React.useContext(TooltipPortalContainerContext);
   const hasAmbientProvider = React.useContext(TooltipGroupContext);
 
@@ -179,7 +179,7 @@ function Tooltip({
                       // height (~26px) as untrimmed browsers.
                       "bg-foreground text-background text-[12px] px-2 py-1",
                       "[text-box:trim-both_cap_alphabetic] supports-[text-box:trim-both]:py-2",
-                      shape.bg,
+                      radius.bg,
                       className,
                     )}
                     style={{ fontVariationSettings: fontWeights.medium }}

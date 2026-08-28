@@ -8,7 +8,6 @@ import {
   knowledgeRelatedResponseSchema,
   knowledgeSearchResponseSchema,
   knowledgeTagsResponseSchema,
-  renameCandidatesResponseSchema,
 } from "@repo/api/local/knowledge/knowledge-schema";
 import { describe, expect, it } from "vitest";
 import { bootTestApp } from "../../__tests__/boot-app";
@@ -72,25 +71,12 @@ describe("the knowledge routes", () => {
     expect(tooMany instanceof ORPCError && tooMany.code).toBe("BAD_REQUEST");
   });
 
-  it("names rename candidates and refuses a hostile path", async () => {
+  it("refuses a hostile path", async () => {
     const { client } = await bootTestApp();
-    await client.vault.write({ path: "target.md", content: "# Target\n" });
-    await client.vault.write({ path: "linker.md", content: "See [[target]].\n" });
-
-    const { candidates, total } = renameCandidatesResponseSchema.parse(
-      await client.knowledge.renameCandidates({ from: "target.md", to: "moved.md" }),
-    );
-    expect(candidates.toSorted()).toEqual(["linker.md", "target.md"]);
-    expect(total).toBe(2);
 
     // The request validator answers, not the handler: the path grammar is on
     // the schema, so an index query can never be RUN against a hostile path.
-    const [hostile] = await safe(
-      client.knowledge.renameCandidates({ from: "../escape.md", to: "x.md" }),
-    );
+    const [hostile] = await safe(client.knowledge.backlinks({ path: "../escape.md" }));
     expect(hostile instanceof ORPCError && hostile.code).toBe("BAD_REQUEST");
-
-    const [hostileBacklinks] = await safe(client.knowledge.backlinks({ path: "../escape.md" }));
-    expect(hostileBacklinks instanceof ORPCError && hostileBacklinks.code).toBe("BAD_REQUEST");
   });
 });

@@ -8,7 +8,6 @@ import {
   type CaptureRow,
   type ClaimCapturesResponse,
 } from "@repo/api/cloud/captures/captures-schema";
-import { revokeDeviceRequestSchema } from "@repo/api/cloud/pairing/pairing-schema";
 import {
   pullQuerySchema,
   pushRequestSchema,
@@ -56,6 +55,11 @@ import { refuse } from "../cloud-http";
 // verifies the device credential against D1 first and forwards with
 // `x-device-id` / `x-device-platform` stamped. Those headers are trusted here
 // precisely because no request reaches this fetch without passing that check.
+//
+// `fetch` carries the six DEVICE routes and nothing else. The Worker's own
+// three operations — purge, severDevice, vaultPing — are RPC METHODS: they
+// take typed arguments rather than a fabricated request re-parsed against a
+// wire shape, and no device path can reach them.
 // ---------------------------------------------------------------------------
 
 type SocketTag = {
@@ -79,10 +83,6 @@ function readSocketTag(ws: WebSocket): SocketTag | null {
   const tag = socketTagSchema.safeParse(ws.deserializeAttachment());
   return tag.success ? tag.data : null;
 }
-
-/** Worker→DO only — the vault git wrapper is the sole caller, naming the
- *  verified device whose push this ping announces. Not a wire shape. */
-const vaultPingRequestSchema = z.object({ pushingDeviceId: z.string().min(1) });
 
 export class ThreadSyncDO extends DurableObject<Env> {
   constructor(ctx: DurableObjectState, env: Env) {
@@ -138,9 +138,10 @@ export class ThreadSyncDO extends DurableObject<Env> {
     // records — and it is what closes the deletion race: a request that
     // verified its credential microseconds before the account was deleted can
     // still arrive here, and without this it would recreate the state the
-    // purge just removed. Checked before every route but the purge itself,
-    // which stays idempotent.
-    if (route !== "POST /purge" && this.purgedAt() !== null) {
+    // purge just removed. Every wire route is gated on it; the RPC methods
+    // are not — the two socket ones touch no storage, and `purge` is the
+    // write that sets it.
+    if (this.purgedAt() !== null) {
       return refuse("account-deleted", "This account was deleted.");
     }
 
@@ -150,9 +151,6 @@ export class ThreadSyncDO extends DurableObject<Env> {
     if (route === "POST /capture") return await this.capture(request);
     if (route === "POST /captures/claim") return await this.claimCaptures(request);
     if (route === "POST /captures/ack") return await this.ackCaptures(request);
-    if (route === "POST /sever-device") return await this.severDevice(request);
-    if (route === "POST /vault-ping") return await this.vaultPing(request);
-    if (route === "POST /purge") return await this.purge();
 
     return refuse("not-found", "No such route.");
   }
@@ -206,17 +204,12 @@ export class ThreadSyncDO extends DurableObject<Env> {
 
   /**
    * The hosted vault repo advanced: poke every OTHER device to run a vault
-   * sync pass. The pusher is excluded the way `sync` pings exclude theirs —
-   * it already holds what it pushed, and the echo would cost it a no-op
-   * fetch per push.
+   * sync pass. The pusher — the verified device the vault git wrapper names —
+   * is excluded the way `sync` pings exclude theirs: it already holds what it
+   * pushed, and the echo would cost it a no-op fetch per push.
    */
-  private async vaultPing(request: Request): Promise<Response> {
-    const body = vaultPingRequestSchema.safeParse(await request.json().catch(() => null));
-    if (!body.success) {
-      return refuse("bad-request", "Send { pushingDeviceId }.");
-    }
-    this.broadcast({ type: "vault" }, (tag) => tag.deviceId !== body.data.pushingDeviceId);
-    return Response.json({ ok: true });
+  vaultPing(pushingDeviceId: string): void {
+    this.broadcast({ type: "vault" }, (tag) => tag.deviceId !== pushingDeviceId);
   }
 
   /**
@@ -225,23 +218,16 @@ export class ThreadSyncDO extends DurableObject<Env> {
    * that already has one: without this, a revoked laptop keeps receiving every
    * thread ping until it disconnects on its own.
    */
-  private async severDevice(request: Request): Promise<Response> {
-    const body = revokeDeviceRequestSchema.safeParse(await request.json().catch(() => null));
-    if (!body.success) {
-      return refuse("bad-request", "Send { deviceId }.");
-    }
-    let severed = 0;
+  severDevice(deviceId: string): void {
     for (const ws of this.ctx.getWebSockets()) {
       const tag = readSocketTag(ws);
-      if (tag?.deviceId !== body.data.deviceId) continue;
+      if (tag?.deviceId !== deviceId) continue;
       try {
         ws.close(1008, "device revoked");
-        severed += 1;
       } catch {
         // Already closing.
       }
     }
-    return Response.json({ severed });
   }
 
   // -- the merged log ------------------------------------------------------
@@ -539,7 +525,7 @@ export class ThreadSyncDO extends DurableObject<Env> {
    * is written last so a request that verified its credential just before the
    * account died cannot rebuild what this removed. Idempotent — the deletion
    * hook may retry. */
-  private async purge(): Promise<Response> {
+  async purge(): Promise<void> {
     for (const ws of this.ctx.getWebSockets()) {
       try {
         ws.close(1001, "account deleted");
@@ -554,7 +540,6 @@ export class ThreadSyncDO extends DurableObject<Env> {
       "INSERT INTO account_state (id, purged_at) VALUES (1, ?) ON CONFLICT (id) DO NOTHING",
       Date.now(),
     );
-    return Response.json({ purged: true });
   }
 }
 

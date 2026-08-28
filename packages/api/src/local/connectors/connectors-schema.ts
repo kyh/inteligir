@@ -7,11 +7,9 @@
 // "configured once, shared by every agent" is a property of the launch path
 // rather than a promise about config files.
 //
-// SECRETS NEVER TRANSIT A READ. An http row may carry auth headers; every
-// response reduces them to `hasAuth: true`. The write path accepts full
-// values, and an update that OMITS headers keeps the stored ones — so a rename
-// of a URL never forces re-pasting a key, and no client ever holds one to
-// leak back.
+// SECRETS NEVER TRANSIT A READ. An http row may carry auth headers; the write
+// path accepts full values and every response reduces them to `hasAuth: true`,
+// so no client ever holds one to leak back.
 
 import { z } from "zod";
 
@@ -47,7 +45,7 @@ export const connectorUrlSchema = z
 
 /**
  * What a caller may WRITE. Http headers are the auth channel (a bearer or an
- * api key header); omitted on update, the stored ones survive.
+ * api key header).
  */
 export const CONNECTOR_SCOPES_MAX = 32;
 
@@ -149,11 +147,6 @@ export const connectorAddRequestSchema = z
   .object({ name: connectorNameSchema, transport: connectorTransportInputSchema })
   .strict();
 export type ConnectorAddRequest = z.infer<typeof connectorAddRequestSchema>;
-
-export const connectorUpdateRequestSchema = z
-  .object({ name: connectorNameSchema, transport: connectorTransportInputSchema })
-  .strict();
-export type ConnectorUpdateRequest = z.infer<typeof connectorUpdateRequestSchema>;
 
 export const connectorRemoveRequestSchema = z.object({ name: connectorNameSchema }).strict();
 export type ConnectorRemoveRequest = z.infer<typeof connectorRemoveRequestSchema>;

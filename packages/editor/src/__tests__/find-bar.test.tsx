@@ -18,16 +18,24 @@ import {
   setFindQuery,
 } from "@repo/editor/find-bar";
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
+import { OpenNoteStoreProvider } from "@repo/editor/note/open-note-context";
+import { createOpenNoteStore } from "@repo/editor/note/open-note-store";
 
 type EditorHolder = { editor: PlateEditor | null };
+
+// The kit's own plugins read the pane they render in (heading collapse folds
+// per note), so the harness has to be a pane.
+const STORE = createOpenNoteStore();
 
 function Harness({ value, holder }: { value: Value; holder: EditorHolder }) {
   const editor = usePlateEditor({ plugins: EDITOR_KIT, value });
   holder.editor = editor;
   return (
-    <Plate editor={editor}>
-      <PlateContent />
-    </Plate>
+    <OpenNoteStoreProvider store={STORE}>
+      <Plate editor={editor}>
+        <PlateContent />
+      </Plate>
+    </OpenNoteStoreProvider>
   );
 }
 

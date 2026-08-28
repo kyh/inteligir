@@ -16,9 +16,6 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("platejs/react", () => ({
-  // heading-collapse builds its plugin at module scope; the stub only needs to
-  // swallow the config (its render half never runs under this harness).
-  createPlatePlugin: (config: Record<string, unknown>) => config,
   Plate: ({ children, onChange }: { children?: React.ReactNode; onChange?: () => void }) => (
     <div>
       <button type="button" onClick={onChange}>

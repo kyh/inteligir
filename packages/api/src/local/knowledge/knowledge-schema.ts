@@ -1,15 +1,13 @@
 // The knowledge wire contract: read-only queries over the derived vault index
-// (search, backlinks, related, tags, rename candidates). Paths are
-// `vaultPathSchema`,
-// the same grammar the vault's own routes take — answering an index query for
-// a path the vault would refuse invites the client to then act on it.
-// Every schema here MIRRORS an
-// engine type from @repo/notes — the handlers assign engine values straight
-// into these shapes. A field the engine RENAMES or removes fails the handler's
-// compile; a field the engine ADDS is invisible to the compiler (structural
-// assignment allows excess members) and is caught at the other end: the route
-// tests parse live responses with these strict schemas, so an undeclared
-// field on the wire fails the suite.
+// (search, backlinks, related, tags). Paths are `vaultPathSchema`, the same
+// grammar the vault's own routes take — answering an index query for a path
+// the vault would refuse invites the client to then act on it.
+// Every schema here MIRRORS an engine type from @repo/notes — the handlers
+// assign engine values straight into these shapes. A field the engine RENAMES
+// or removes fails the handler's compile; a field the engine ADDS is invisible
+// to the compiler (structural assignment allows excess members) and is caught
+// at the other end: the route tests parse live responses with these strict
+// schemas, so an undeclared field on the wire fails the suite.
 //
 // Unbounded collections are CAPPED here, in the contract, so the bound is a
 // declared fact rather than a handler habit: each capped response carries
@@ -23,7 +21,6 @@ export const KNOWLEDGE_SEARCH_MAX_LIMIT = 100;
 export const KNOWLEDGE_RELATED_MAX_LIMIT = 50;
 export const KNOWLEDGE_BACKLINKS_MAX = 500;
 export const KNOWLEDGE_TAGS_MAX = 1000;
-export const KNOWLEDGE_RENAME_CANDIDATES_MAX = 200;
 
 /**
  * ONE search route: `q` is the raw box text, parsed ENGINE-side
@@ -156,21 +153,3 @@ export const knowledgeTagsResponseSchema = z
   })
   .strict();
 export type KnowledgeTagsResponse = z.infer<typeof knowledgeTagsResponseSchema>;
-
-export const renameCandidatesRequestSchema = z
-  .object({
-    from: vaultPathSchema,
-    to: vaultPathSchema,
-  })
-  .strict();
-export type RenameCandidatesRequest = z.infer<typeof renameCandidatesRequestSchema>;
-
-/** A SUPERSET of the docs a rename would actually rewrite — what a client can
- * show as "N linked notes will be updated". */
-export const renameCandidatesResponseSchema = z
-  .object({
-    candidates: z.array(z.string().min(1)).max(KNOWLEDGE_RENAME_CANDIDATES_MAX),
-    total: z.number().int().min(0),
-  })
-  .strict();
-export type RenameCandidatesResponse = z.infer<typeof renameCandidatesResponseSchema>;

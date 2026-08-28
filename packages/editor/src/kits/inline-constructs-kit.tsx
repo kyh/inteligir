@@ -29,6 +29,7 @@ import { parseFormulaMeta } from "@repo/notes/formulas/formula-meta";
 import { cn } from "@repo/ui/lib/utils";
 
 import { insertVoidAndEscape } from "@repo/editor/insert-void";
+import { stringProp } from "@repo/editor/node-props";
 import { convertFormulaToText, FormulaEditPopover } from "@repo/editor/formulas/formula-edit";
 import { formulaPropsFromEntry, formulaNodeFrom } from "@repo/editor/formulas/formula-entry";
 
@@ -44,32 +45,18 @@ const commentMarkerBasePlugin = createSlatePlugin({
 
 export const InlineConstructsBaseKit = [formulaPillBasePlugin, commentMarkerBasePlugin];
 
-function formulaLabel(element: PlateElementProps["element"]): string {
-  const display = typeof element.display === "string" ? element.display : "";
-  if (display !== "") return display;
-  return typeof element.source === "string" ? element.source : "";
-}
-
 function FormulaPillElement(props: PlateElementProps) {
   const [editing, setEditing] = useState(false);
-  const meta = parseFormulaMeta(
-    typeof props.element.meta === "string" && props.element.meta !== ""
-      ? props.element.meta
-      : undefined,
-  );
+  const source = stringProp(props.element, "source") ?? "";
+  const display = stringProp(props.element, "display") ?? "";
+  const meta = parseFormulaMeta(stringProp(props.element, "meta"));
   return (
     <PlateElement {...props} as="span" className="relative inline-block">
       <span
         contentEditable={false}
         role="button"
         tabIndex={-1}
-        title={
-          meta.stale
-            ? "Stale: a referenced variable is missing or cyclic"
-            : typeof props.element.source === "string"
-              ? props.element.source
-              : ""
-        }
+        title={meta.stale ? "Stale: a referenced variable is missing or cyclic" : source}
         className={cn(
           "cursor-pointer rounded-sm bg-accent px-1 font-medium text-accent-foreground tabular-nums",
           meta.stale && "underline decoration-amber-500 decoration-dotted underline-offset-2",
@@ -78,7 +65,7 @@ function FormulaPillElement(props: PlateElementProps) {
           setEditing(true);
         }}
       >
-        {formulaLabel(props.element)}
+        {display === "" ? source : display}
       </span>
       {editing ? (
         <FormulaEditPopover

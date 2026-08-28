@@ -1,7 +1,7 @@
 export const siteConfig = {
   name: "Inteligir",
   shortName: "Inteligir",
-  description: "An artificially intelligent operating system.",
+  description: "Your notes, and an agent that edits them.",
   url: "https://inteligir.com",
   twitter: "@kaiyuhsu",
 };

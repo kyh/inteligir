@@ -1,11 +1,11 @@
-// What a turn does with the files it wrote, shared by the codex manager and
+// What a turn does with the files it wrote, shared by the ACP manager and
 // the scripted driver — the turn's writes become the turn's OWN commit:
 //
 // - A turn takes a commit HOLD before its first write can land, so the
 //   watcher's debounce and the sync loop cannot sweep agent writes into an
 //   engine-attributed commit (or a rebase window) mid-turn. `ready` resolves
 //   once any ALREADY-RUNNING sync/commit finishes — the caller awaits it
-//   before letting the provider write, so codex never writes during a
+//   before letting the provider write, so the agent never writes during a
 //   rebase's checkout window.
 // - The turn records the paths its session reported writing (the fileChange
 //   events name them). `finish` commits exactly that write set — author is
@@ -33,11 +33,11 @@ function agentCommitSubject(threadId: string): string {
 export type VaultPathResolver = (reported: string) => string | null;
 
 /**
- * Normalize a session-reported path (codex reports absolute ones) into a
+ * Normalize a session-reported path (harnesses report absolute ones) into a
  * vault-relative pathspec; null for anything outside the vault — a path the
  * provider names must never widen the commit beyond the repo. The vault dir
  * is checked under BOTH its configured spelling and its realpath (macOS tmp
- * lives behind the /var → /private/var symlink, and codex reports resolved
+ * lives behind the /var → /private/var symlink, and harnesses report resolved
  * paths).
  */
 export function createVaultPathResolver(vaultDir: string): VaultPathResolver {

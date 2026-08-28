@@ -8,9 +8,11 @@
 // exclusively after byte verification): aliases (`[[old|alias]]`), anchors
 // (`[[old#sec]]`), image alts (`![alt](..)`), body padding, and `<>` url
 // wrappers all survive verbatim. Links inside fences/code spans were never
-// extracted, so they are never touched. Assets rename like docs: `from` may
-// be any vault file, and `![](img.png)` / `![[img.png]]` references rewrite
-// exactly like `[[note]]` ones. Three link populations are rewritten:
+// extracted, and a link inside a range the editor holds verbatim (raw HTML,
+// math, an MDX expression) is extracted with no span, so neither is ever
+// touched. Assets rename like docs: `from` may be any vault file, and
+// `![](img.png)` / `![[img.png]]` references rewrite exactly like `[[note]]`
+// ones. Three link populations are rewritten:
 //   1. links in ANY doc that resolve to `from` (including self-links inside
 //      the moved doc) — retargeted at `to`;
 //   2. relative md/image urls FROM the moved doc to other files — re-based

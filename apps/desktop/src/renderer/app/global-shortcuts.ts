@@ -1,14 +1,11 @@
 // The window-level shortcuts, as a TABLE rather than an if/else chain inside
-// the workspace. The editor installs its own CodeMirror keymap on the same
-// keys and neither side can see the other: a CodeMirror binding calls
-// preventDefault but never stopPropagation, so a key both tables claim runs
-// BOTH — the palette opens AND the buffer is edited. Naming the app's half
-// here is what lets `__tests__/global-shortcuts.test.tsx` check it against
-// @repo/editor's composed keymap, on every platform rather than the one CI
-// happens to run.
+// the workspace. The editor binds its own keys
+// (`packages/editor/src/editor-shortcuts.ts`) and neither side can see the
+// other, so a key both tables claim runs BOTH — the palette opens AND the
+// buffer is edited.
 //
 // Ownership rule: a shortcut listed here belongs to the APP, and the editor
-// must not bind it (see packages/editor/src/markdown-editor-extensions.ts).
+// must not bind it.
 
 import { useEffect, useLayoutEffect, useRef } from "react";
 

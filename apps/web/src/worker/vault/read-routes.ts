@@ -89,11 +89,6 @@ async function resolveCommit(
   return head === null ? null : head.oid;
 }
 
-/** Whether any path under `dir` can still be beyond the cursor — the subtree
- *  prune that keeps a later page from re-walking directories it has wholly
- *  passed. Every path under `dir` starts with `dir + "/"`, so a cursor that
- *  is lexicographically past that prefix (and not inside it) is past the
- *  whole subtree. */
 /** durable-git URL-decodes every path it receives (its HTTP surface takes
  *  encoded paths, and the RPC shares the parser) — so raw vault paths must
  *  be encoded per segment or a legal git filename holding `%` throws inside
@@ -106,6 +101,11 @@ function byPath(a: { path: string }, b: { path: string }): number {
   return a.path < b.path ? -1 : a.path > b.path ? 1 : 0;
 }
 
+/** Whether any path under `dir` can still be beyond the cursor — the subtree
+ *  prune that keeps a later page from re-walking directories it has wholly
+ *  passed. Every path under `dir` starts with `dir + "/"`, so a cursor that
+ *  is lexicographically past that prefix (and not inside it) is past the
+ *  whole subtree. */
 function subtreeReaches(dir: string, after: string | undefined): boolean {
   if (after === undefined) return true;
   const prefix = `${dir}/`;

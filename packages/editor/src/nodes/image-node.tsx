@@ -1,10 +1,12 @@
 // `img` node (markdown `![alt](src)`). Two rendering paths: an external
-// `http(s)` src renders as a plain `<img>` (no bytes cross the Bridge); a
-// vault-relative path is fetched lazily through the Bridge (readVaultAsset →
-// base64 → object URL), the page having no filesystem of its own to read from.
-// A path that doesn't resolve renders a broken-file placeholder rather
-// than a crash. No resize/align/caption chrome — the canonical byte form stays
-// bare `![alt](path)`.
+// `http(s)` src renders as a plain `<img>`; a vault-relative path is fetched
+// lazily through the host's asset route (readVaultAsset → object URL), the
+// page having no filesystem of its own to read from. The media type rides on
+// the Blob the host answers — this file owns no extension table, because the
+// two asset routes already share one and a second would drift from it. A path
+// that doesn't resolve renders a broken-file placeholder rather than a crash.
+// No resize/align/caption chrome — the canonical byte form stays bare
+// `![alt](path)`.
 
 import { useEffect, useState } from "react";
 import { NodeApi, type TElement } from "platejs";
@@ -14,43 +16,14 @@ import { ImageOff } from "lucide-react";
 import { cn } from "@repo/ui/lib/utils";
 
 import { getEditorHostIo } from "@repo/editor/host-io";
+import { stringProp } from "@repo/editor/node-props";
 
 const EXTERNAL_RE = /^https?:\/\//i;
 
-function mimeFromPath(path: string): string {
-  const ext = path.slice(path.lastIndexOf(".") + 1).toLowerCase();
-  switch (ext) {
-    case "png":
-      return "image/png";
-    case "jpg":
-    case "jpeg":
-      return "image/jpeg";
-    case "gif":
-      return "image/gif";
-    case "webp":
-      return "image/webp";
-    case "svg":
-      return "image/svg+xml";
-    case "avif":
-      return "image/avif";
-    case "bmp":
-      return "image/bmp";
-    default:
-      return "application/octet-stream";
-  }
-}
-
-function base64ToBlob(base64: string, mime: string): Blob {
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-  return new Blob([bytes], { type: mime });
-}
-
 type VaultState = { kind: "loading" } | { kind: "ready"; url: string } | { kind: "error" };
 
-// Resolve a vault-relative asset to an object URL via the Bridge, revoking it
-// on cleanup / path change. External srcs never enter here.
+// Resolve a vault-relative asset to an object URL through the host's I/O seam,
+// revoking it on cleanup / path change. External srcs never enter here.
 function useVaultAsset(path: string, external: boolean): VaultState {
   const [state, setState] = useState<VaultState>(
     external ? { kind: "ready", url: path } : { kind: "loading" },
@@ -61,19 +34,19 @@ function useVaultAsset(path: string, external: boolean): VaultState {
       setState({ kind: "ready", url: path });
       return;
     }
-    const bridge = getEditorHostIo();
+    const io = getEditorHostIo();
     let objectUrl: string | null = null;
     let cancelled = false;
     setState({ kind: "loading" });
     void (async () => {
       try {
-        const result = await bridge.readVaultAsset({ path });
+        const result = await io.readVaultAsset({ path });
         if (cancelled) return;
         if (!result.ok) {
           setState({ kind: "error" });
           return;
         }
-        objectUrl = URL.createObjectURL(base64ToBlob(result.bytesBase64, mimeFromPath(path)));
+        objectUrl = URL.createObjectURL(result.bytes);
         setState({ kind: "ready", url: objectUrl });
       } catch {
         if (!cancelled) setState({ kind: "error" });
@@ -96,13 +69,13 @@ function altText(element: TElement): string {
     const text = caption.map((node) => (NodeApi.isNode(node) ? NodeApi.string(node) : "")).join("");
     if (text) return text;
   }
-  const url = typeof element.url === "string" ? element.url : "";
+  const url = stringProp(element, "url") ?? "";
   return url.split("/").at(-1) ?? "";
 }
 
 export function ImageElement(props: PlateElementProps) {
   const selected = useSelected();
-  const url = typeof props.element.url === "string" ? props.element.url : "";
+  const url = stringProp(props.element, "url") ?? "";
   const external = EXTERNAL_RE.test(url);
   const state = useVaultAsset(url, external);
   const alt = altText(props.element);

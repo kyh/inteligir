@@ -1,7 +1,5 @@
-// The fixture vault the UI suites mount (dev/fixture-bridge.ts serves it),
-// shared with the editor's legacy-corpus tripwire:
-// every sample note carries an expected canonical/raw class as the markdown
-// pipeline evolves, so a plugin change that silently reclassifies prose is a
+// The corpus tripwire's sample vault: every sample note carries an expected
+// canonical/raw class, so a plugin change that silently reclassifies prose is a
 // red diff rather than a surprise.
 
 // Single source with the round-trip fixture matrix: the full-vocabulary sample
@@ -10,7 +8,7 @@ import kitchenSink from "./fixtures/roundtrip/canonical/kitchen-sink.md?raw";
 
 // Exported for the legacy-corpus classification test: every sample note must
 // hold its expected canonical/raw class as the pipeline evolves.
-export const SAMPLE_NOTES: Record<string, string> = {
+export const SAMPLE_NOTES = {
   // Sample notes are PRE-CANONICALIZED (pinned by the corpus test): a churn-y
   // note would reflow wholesale on its first edit, drowning the user's change
   // in formatting noise. Long paragraphs stay on one line (the alternative
@@ -283,4 +281,4 @@ Missing embed: ![[missing note]]
 
 Self embed (cycle guard): ![[digest]]
 `,
-};
+} satisfies Record<string, string>;

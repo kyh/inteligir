@@ -100,45 +100,45 @@
       "includeEntryExports": true,
       "ignoreExportsUsedInFile": true
     },
-    // Same trade as packages/notes: every subpath is an entry the app and the
-    // headless mirror import piecemeal. The Plate kit/registry adaptations
-    // keep their upstream-shaped exports for the same
-    // reason packages/ui trusts its vendored components: trimming them makes
-    // the next re-vendor a conflict.
+    // Same trade as packages/notes, and taken the same way: every subpath is an
+    // entry the app and the headless mirror import piecemeal, so without
+    // `includeEntryExports` a whole component with no consumer hides behind the
+    // exports map. `ignoreExportsUsedInFile` covers the modules that name a
+    // part of their own shape (a node's element type beside its component).
+    //
+    // Everything left is a per-export `@public` tag carrying its own reason —
+    // today that is zero, and any that appears needs its own stated reason,
+    // which is the point.
     "packages/editor": {
       "entry": ["src/**/__tests__/**/*.test.ts", "src/**/*.test.{ts,tsx}"],
-      "project": ["src/**/*.{ts,tsx}"]
+      "project": ["src/**/*.{ts,tsx}"],
+      "includeEntryExports": true,
+      "ignoreExportsUsedInFile": true
     },
-    // Vendored-from-bb thread domain + projection (issue #548): the public
-    // surface is the vendored bb API, wider than today's importers on
-    // purpose — trimming it makes the next re-vendor a conflict.
+    // The leaf vocabulary every other workspace reaches. Every subpath in its
+    // exports map is an entry, so knip trusts those exports as API rather than
+    // reporting them — the same trade packages/api takes, and for the same
+    // reason: the schemas ARE the surface, parsed at each consumer's own
+    // boundary rather than called.
     "packages/domain": {
       "entry": ["src/**/__tests__/**/*.test.ts"],
       "project": ["src/**/*.ts"]
     },
-    // Vendored-from-bb runtime + codex adapter (issue #549). Entries are the
-    // package exports (knip reads them itself), the tests, and the fake
-    // app-server script (spawned, never imported — knip cannot see its
-    // caller). The generated codex schema keeps upstream's PascalCase file
-    // names.
+    // The ACP runtime. Entries are the package exports (knip reads them
+    // itself), the tests, and the fake ACP agent (spawned as a child, never
+    // imported — knip cannot see its caller).
     //
     // Unused-export reporting is ON for every file that is NOT itself a
     // package export — which is where it earns its keep, and also the limit
-    // worth stating: the nine `exports` targets are entries, and knip trusts
-    // an entry's exports as API. So the vendored surface those nine declare
-    // (upstream's schema/values/type triples, the adapter contract) is not
-    // reported, deliberately — trimming it is what makes the next re-vendor a
-    // conflict. Trim residue in the OTHER thirty-odd modules still surfaces.
+    // worth stating: the `exports` targets are entries, and knip trusts an
+    // entry's exports as API, so what those declare is not reported. Trim
+    // residue in every other module still surfaces.
     "packages/agent-runtime": {
       "entry": ["src/**/__tests__/**/*.test.ts"],
       "project": ["src/**/*.{ts,mjs}"],
       // The ACP adapters are ARTIFACTS: harness-registry createRequire-resolves
       // their entry files to spawn as children; no module import exists.
       "ignoreDependencies": ["@zed-industries/claude-code-acp", "@zed-industries/codex-acp"]
-    },
-    "packages/thread-view": {
-      "entry": ["src/**/__tests__/**/*.test.ts"],
-      "project": ["src/**/*.ts"]
     },
     // ONE contract package, TWO entry points — every subpath in its exports
     // map is an entry, so its exports are trusted as API rather than reported.
@@ -164,12 +164,12 @@
       "project": ["src/**/*.ts"]
     },
     // The ONE package that keeps knip's default `includeEntryExports: false`,
-    // and the reason is the package rather than the findings. `src/components`
-    // is VENDORED shadcn: each file is copied from the registry and
-    // re-pullable with the shadcn CLI — so its
-    // exports are the UPSTREAM component's surface, not this repo's. Deleting
-    // `DialogClose` because nothing calls it today makes the next re-pull a
-    // conflict.
+    // and the reason is the package rather than the findings: this is a
+    // component LIBRARY, deliberately ahead of the product that draws on it.
+    // Fourteen files under `src/ai` have no consumer yet and are held on
+    // purpose, so unused-export reporting here would report a component's
+    // whole surface as dead and answer "delete it" to a decision that was
+    // already made the other way.
     //
     // The invariant that actually has teeth here is coarser and lives as a
     // test: src/__tests__/no-orphan-components.test.ts fails when a whole

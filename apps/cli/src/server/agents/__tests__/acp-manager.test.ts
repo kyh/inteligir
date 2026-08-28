@@ -20,6 +20,7 @@ import { getThread } from "@repo/db/threads";
 import { isDefinedError, safe } from "@orpc/client";
 import { describe, expect, it } from "vitest";
 import { hermeticGitEnv } from "../../vault/__tests__/git-test-env";
+import { CLI_POINTER_INSTRUCTIONS } from "../agent-instructions";
 import { createAcpRuntimeManager, type AcpRuntimeManagerDeps } from "../runtime-manager";
 import { bootTestApp, type BootedTestApp } from "../../__tests__/boot-app";
 import {
@@ -35,9 +36,10 @@ const execFileAsync = promisify(execFile);
 const require = createRequire(import.meta.url);
 const FAKE_AGENT = require.resolve("@repo/agent-runtime/test-support/fake-acp-agent");
 
-type FakeAcpMode = "message" | "fileChange" | "approval" | "silent";
+type FakeAcpMode = "message" | "fileChange" | "approval" | "promptEcho" | "silent";
 
 interface ManagerOptions {
+  cliBinDir?: string;
   filePath?: string;
   turnIdleTimeoutMs?: number;
 }
@@ -62,7 +64,7 @@ async function bootWithManager(
   options: ManagerOptions = {},
 ): Promise<BootedTestApp> {
   return bootTestApp({
-    agent: { mode: "codex", runtime: "acp", detail: null },
+    agent: { mode: "auto", runtime: "acp", detail: null },
     makeDriver: ({ db, bus, vault, vaultDir }) => {
       const deps: AcpRuntimeManagerDeps = {
         db,
@@ -72,8 +74,9 @@ async function bootWithManager(
         model: null,
         mcpServers: () => [],
         shellEnv: () => ({}),
-        cliBinDir: null,
+        cliBinDir: options.cliBinDir ?? null,
         connectedDirs: () => [],
+        defaultProviderId: "codex",
         spawnAdapter: fakeSpawn(mode, options),
         reapIntervalMs: null,
       };
@@ -122,8 +125,6 @@ describe("parseApprovalResolution", () => {
       itemId: "cmd_1",
       command: "ls",
       cwd: null,
-      actions: [],
-      sessionGrant: null,
     },
     reason: null,
     availableDecisions: ["allow_once", "deny"],
@@ -136,7 +137,7 @@ describe("parseApprovalResolution", () => {
     });
     expect(parseApprovalResolution("allow_once", commandPayload)).toEqual({
       ok: true,
-      resolution: { decision: "allow_once", grantedPermissions: null },
+      resolution: { decision: "allow_once" },
     });
     expect(parseApprovalResolution("allow_for_session", commandPayload).ok).toBe(false);
     expect(parseApprovalResolution("approve!!", commandPayload).ok).toBe(false);
@@ -162,6 +163,26 @@ describe("the ACP runtime manager over real HTTP", () => {
       status: "idle",
       activeTurnId: null,
     });
+  });
+
+  it("opens the session by putting its standing instructions first in the prompt", async () => {
+    // ACP's session/new carries no instructions field, so the FIRST turn's
+    // leading text block is the only channel they have. The fake echoes that
+    // block back, which is what makes this an assertion about the wire rather
+    // than about a recording double.
+    const harness = await bootWithManager("promptEcho", { cliBinDir: "/repo/apps/cli/bin" });
+    const threadId = await createThread(harness.client);
+    await sendMessage(harness.client, threadId, "hello agent");
+    await awaitThreadStatus(harness, threadId, "idle");
+
+    const rows = flattenTimelineRows(await fetchTimelineRows(harness.client, threadId));
+    const echoed = rows.find((row) => row.kind === "conversation" && row.role === "assistant");
+    if (echoed?.kind !== "conversation") {
+      throw new Error("expected the echoed prompt");
+    }
+    expect(echoed.text).toContain(CLI_POINTER_INSTRUCTIONS);
+    expect(echoed.text).toContain("$INTELIGIR_SKILLS_DIR");
+    expect(echoed.text).not.toContain("hello agent");
   });
 
   it("stages a fileChange item's write set as the agent-attributed commit", async () => {
@@ -243,7 +264,6 @@ describe("the ACP runtime manager over real HTTP", () => {
     const queued = await harness.client.threads.send({
       threadId,
       text: "second",
-      mode: "queue-if-active",
     });
     expect(queued.kind).toBe("queued");
 
@@ -278,7 +298,6 @@ describe("the ACP runtime manager over real HTTP", () => {
     const next = await harness.client.threads.send({
       threadId,
       text: "again",
-      mode: "steer-if-active",
     });
     expect(next.kind).toBe("started");
   });

@@ -1,7 +1,7 @@
-// The one seam that lets chrome OUTSIDE the Plate tree — the shell header's
-// Mirrors the transient-settle wire (ai/transient-settle.ts): the editor owns
-// the registration, this module is just the map. Keyed by path so a consumer
-// can never grab a stale editor serving some other note.
+// The one seam that lets chrome OUTSIDE the Plate tree — the right panel's
+// Properties and Comments tabs — edit the live document. The mounted editor
+// owns the registration; this module is just the map. Keyed by path so a
+// consumer can never grab a stale editor serving some other note.
 
 import type { SlateEditor } from "platejs";
 

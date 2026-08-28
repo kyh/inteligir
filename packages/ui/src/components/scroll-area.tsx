@@ -1,7 +1,7 @@
 "use client";
 // Vendored from Fluid Functionalism (github.com/mickadesign/fluid-functionalism), MIT.
 
-// Scroll area built on Base UI — shape-system scrollbar, native overflow
+// Scroll area built on Base UI — radius-aware scrollbar, native overflow
 // fallback on touch-primary devices. Scrollbar
 // machinery adapted from Lina by SameerJS6 (https://lina.sameer.sh); built on
 // @base-ui/react/scroll-area, whose scrollbars stay mounted while scrollable
@@ -17,7 +17,7 @@ import {
 } from "react";
 import { ScrollArea as ScrollAreaPrimitive } from "@base-ui/react/scroll-area";
 import { cn } from "@repo/ui/lib/utils";
-import { useShape } from "@repo/ui/lib/shape-context";
+import { useRadius } from "@repo/ui/lib/radius-context";
 import { useTouchPrimary } from "@repo/ui/hooks/use-touch-primary";
 
 // On touch-primary devices the Base UI machinery is skipped entirely in
@@ -94,7 +94,7 @@ const ScrollBar = forwardRef<
   ComponentPropsWithoutRef<typeof ScrollAreaPrimitive.Scrollbar>
 >(({ className, orientation = "vertical", ...props }, ref) => {
   const isTouch = useContext(ScrollAreaContext);
-  const shape = useShape();
+  const radius = useRadius();
 
   if (isTouch) return null;
 
@@ -133,7 +133,7 @@ const ScrollBar = forwardRef<
           // direction as the menu hover/active tokens, one notch stronger.
           "relative bg-[rgb(var(--overlay)/0.08)] transition-[background-color,width,height] duration-160 ease-in-out",
           "group-hover/scrollbar:bg-[rgb(var(--overlay)/0.12)] active:!bg-[rgb(var(--overlay)/0.16)]",
-          shape.bg,
+          radius.bg,
           // -translate nudges the thumb 2px off the container edge; the track
           // (and its 10px hit target) stays flush so edge-throws still land.
           orientation === "vertical" &&

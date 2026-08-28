@@ -21,7 +21,7 @@
 // form the app's own components use, so an opaque block that was already
 // canonical round-trips byte-identically.
 
-import type { Node, Nodes, Root } from "mdast";
+import type { Node, Nodes } from "mdast";
 import type {
   MdxJsxAttribute,
   MdxJsxExpressionAttribute,
@@ -31,6 +31,8 @@ import type {
 import type { Options as ToMarkdownOptions } from "mdast-util-to-markdown";
 import type { Plugin, Processor } from "unified";
 import { toMarkdown } from "mdast-util-to-markdown";
+
+import { isLiteralAttribute, isMdastRoot } from "./mdast-nodes";
 
 /** A flow-position construct the editor cannot model, held verbatim. */
 export interface OpaqueBlock extends Node {
@@ -100,8 +102,7 @@ function isModellableAttribute(
   tag: string,
   attribute: MdxJsxAttribute | MdxJsxExpressionAttribute,
 ): boolean {
-  if (attribute.type !== "mdxJsxAttribute") return false;
-  if (typeof attribute.value !== "string") return false;
+  if (!isLiteralAttribute(attribute)) return false;
   if (RESERVED_ATTRS.has(attribute.name)) return false;
   return tag !== "date" || DATE_ATTRS.has(attribute.name);
 }
@@ -120,20 +121,38 @@ function render(node: Nodes, options: ToMarkdownOptions): string {
   return toMarkdown(node, options).replace(/\n$/, "");
 }
 
+/** Does this node go opaque — held verbatim instead of modelled? Exported
+ * because the knowledge scan reads a DIFFERENT, plain-markdown grammar
+ * (../knowledge/link-extract) that sees ordinary constructs inside these
+ * regions, and rename byte-surgery must not splice into bytes this pipeline
+ * promises to return unchanged. */
+export function isOpaqueSource(node: Nodes): boolean {
+  switch (node.type) {
+    case "html":
+    case "mdxFlowExpression":
+    case "mdxTextExpression":
+      return true;
+    case "mdxJsxFlowElement":
+    case "mdxJsxTextElement":
+      return !isComponent(node);
+    default:
+      return false;
+  }
+}
+
 function toOpaque(node: Nodes, options: ToMarkdownOptions): OpaqueBlock | OpaqueInline | null {
+  if (!isOpaqueSource(node)) return null;
   switch (node.type) {
     // htmlFlow is disabled (remark-mdx-agnostic), so every `html` node comes
     // from htmlText and sits in phrasing position. Its value IS its source.
     case "html":
       return { type: "opaqueInline", value: node.value };
     case "mdxFlowExpression":
+    case "mdxJsxFlowElement":
       return { type: "opaqueBlock", value: render(node, options) };
     case "mdxTextExpression":
-      return { type: "opaqueInline", value: render(node, options) };
-    case "mdxJsxFlowElement":
-      return isComponent(node) ? null : { type: "opaqueBlock", value: render(node, options) };
     case "mdxJsxTextElement":
-      return isComponent(node) ? null : { type: "opaqueInline", value: render(node, options) };
+      return { type: "opaqueInline", value: render(node, options) };
     default:
       return null;
   }
@@ -160,10 +179,6 @@ const opaqueToMarkdown: ToMarkdownOptions = {
   },
 };
 
-function isRoot(node: Node): node is Root {
-  return node.type === "root";
-}
-
 /** The remark attacher, bound by its caller to the stringify conventions the
  * rest of the pipeline uses, so an opaque value is canonical in the same sense
  * every other block is. Register it LAST: it renders through whatever
@@ -177,6 +192,6 @@ export const remarkOpaque: Plugin<[ToMarkdownOptions]> = function (
   const extensions = (data.toMarkdownExtensions ??= []);
   extensions.push(opaqueToMarkdown);
   return (tree) => {
-    if (isRoot(tree)) makeOpaque(tree, { ...stringify, extensions });
+    if (isMdastRoot(tree)) makeOpaque(tree, { ...stringify, extensions });
   };
 };

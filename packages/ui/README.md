@@ -26,7 +26,8 @@ components.json  shadcn config: base-rhea, zinc, preset beqC8BzG
 
 ## Invariants
 
-- Keep vendored components near upstream. Reapply only documented adaptations.
+- These components are this repo's own. Rename, restructure and delete freely;
+  the only thing a vendored file must keep is its MIT attribution header.
 - No `any`, type assertions, or non-null assertions.
 - Use `cssVars(...)` instead of casting `React.CSSProperties`.
 - `dropdown-menu` keeps `anchor` passthrough and `modal={false}`.

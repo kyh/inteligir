@@ -29,10 +29,11 @@ function isAbort(cause: unknown): boolean {
 }
 
 /**
- * The link. No `headers` thunk and no credential: the page is served by the
- * server it talks to, so the device token rides the same-origin cookie the
- * document set (`server-file.ts` states why the browser gets that carrier and
- * why script cannot read it).
+ * The link. No `headers` thunk and no credential in the page: the device token
+ * rides a carrier this bundle never touches. Under `inteligir://app` the
+ * protocol handler attaches the bearer in main; served over plain HTTP the
+ * browser attaches the same-origin cookie the document set (`server-file.ts`
+ * states why the browser gets that carrier and why script cannot read it).
  */
 const link = new RPCLink({
   origin: () => window.location.origin,

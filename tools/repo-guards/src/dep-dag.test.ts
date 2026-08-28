@@ -75,7 +75,6 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
     // the contract's own @repo/notes edge into the build graph of a package that
     // only writes rows.
     "@repo/db": ["@repo/domain"],
-    "@repo/thread-view": ["@repo/api", "@repo/domain"],
 
     // THE SERVER, and the binary that runs it. `serve` is the whole local
     // process — vault, index, agent, API — and every other verb is a client of
@@ -92,16 +91,19 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
       "@repo/db",
       "@repo/domain",
       "@repo/notes",
-      "@repo/thread-view",
     ],
-    // The mobile companion (issue #576). It is the THIRD implementation of the
-    // cloud wire — a sync-only thread/capture client that parses the same
-    // push/pull/capture schemas and error envelope apps/web serves and the desktop
-    // consumes, over React Native storage instead of better-sqlite3. The
-    // @repo/domain edge is the ThreadEvent grammar: the pull answers opaque
-    // event bodies, and this client parses each with `threadEventSchema` before
-    // it renders one. Both are zod-only leaves, so the edge costs the RN bundle
-    // only the schemas it already parses.
+    // The mobile companion (issue #576). It is a PARTIAL client of the cloud
+    // wire — a reader of the account's merged thread log and a producer of
+    // captures — over React Native storage instead of better-sqlite3. It never
+    // pushes a thread event and never claims a capture: the desktop runs the
+    // turns and owns applying a capture to the vault, so each of those halves
+    // has exactly one client. What both readers of the log DO share is the page
+    // planner, which is the contract's own (`@repo/api/cloud/sync/plan-page`) —
+    // two copies of it would be two answers to "did this row move the cursor?",
+    // and a mis-set cursor is a duplicated conversation. The @repo/domain edge
+    // is the ThreadEvent grammar the planner hands back and this client folds
+    // into display rows. Both are zod-only leaves, so the edge costs the RN
+    // bundle only the schemas it already parses.
     //
     // The @repo/notes edge is the vault READ surface (#618, owner's call
     // 2026-08-25, revising the earlier "no @repo/notes" line): the phone
@@ -207,10 +209,6 @@ const PURITY_RULES = new Map<string, PurityRule>(
     "@repo/api": {
       forbidden: ["node", "react", "electron"],
       why: "the contract both ends compile against: it loads in the Electron renderer, on node, on workerd and in React Native, so a platform import there is a package that stops loading somewhere",
-    },
-    "@repo/thread-view": {
-      forbidden: ["node", "react", "electron"],
-      why: "isomorphic: the same projection folds a thread's events on the server and in any client",
     },
     "@repo/agent-runtime": {
       forbidden: ["react", "electron"],
@@ -504,6 +502,16 @@ describe("platform purity", () => {
     const files = workspaceFiles(api);
     const violations: string[] = [];
     for (const file of [...files.shipped, ...files.test]) {
+      // TWO buckets and no third. This guard populates itself from src/cloud,
+      // so a file outside both halves is one it cannot see — reachable from
+      // cloud, free to import local, and caught by neither pin.
+      if (!file.startsWith(`${cloudDir}/`) && !file.startsWith(`${localDir}/`)) {
+        violations.push(
+          `THIRD BUCKET  ${file}\n` +
+            `  rule: every file under packages/api/src lives in src/cloud or src/local — a third bucket is a file this guard never reads`,
+        );
+        continue;
+      }
       if (!file.startsWith(`${cloudDir}/`)) continue;
       for (const specifier of importsOf(file)) {
         const reachesLocal = specifier.startsWith(".")
@@ -512,7 +520,7 @@ describe("platform purity", () => {
         if (reachesLocal) {
           violations.push(
             `CLOUD REACHES LOCAL  ${file} imports "${specifier}"\n` +
-              `  rule: @repo/api/cloud is the never-break wire — it may import zod and its own cloud/ modules, never src/local`,
+              `  rule: @repo/api/cloud is the never-break wire — it may import zod, @repo/notes and its own cloud/ modules, never src/local`,
           );
         }
       }
@@ -567,7 +575,7 @@ describe("tests are excluded from the shipped graph", () => {
     // would start contributing edges.
     expect(isTestFile("packages/db/src/__tests__/db.test.ts")).toBe(true);
     expect(isTestFile("apps/cli/src/server/__tests__/boot-app.ts")).toBe(true);
-    expect(isTestFile("packages/agent-runtime/src/test-support/fake-codex-adapter.ts")).toBe(true);
+    expect(isTestFile("packages/agent-runtime/src/test-support/fake-acp-agent.mjs")).toBe(true);
     expect(isTestFile("packages/db/src/schema.ts")).toBe(false);
   });
 });

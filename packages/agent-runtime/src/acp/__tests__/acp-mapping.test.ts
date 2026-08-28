@@ -108,8 +108,6 @@ describe("permission mapping", () => {
         itemId: "call_9",
         command: "rm -rf scratch",
         cwd: null,
-        actions: [],
-        sessionGrant: null,
       },
     });
   });
@@ -132,12 +130,14 @@ describe("permission mapping", () => {
   });
 
   it("answers with the agent's own optionId, in-family fallback included", () => {
-    expect(
-      toPermissionOutcome(request, { decision: "allow_once", grantedPermissions: null }),
-    ).toEqual({ optionId: "y", outcome: "selected" });
-    expect(
-      toPermissionOutcome(request, { decision: "allow_for_session", grantedPermissions: null }),
-    ).toEqual({ optionId: "y", outcome: "selected" });
+    expect(toPermissionOutcome(request, { decision: "allow_once" })).toEqual({
+      optionId: "y",
+      outcome: "selected",
+    });
+    expect(toPermissionOutcome(request, { decision: "allow_for_session" })).toEqual({
+      optionId: "y",
+      outcome: "selected",
+    });
     expect(toPermissionOutcome(request, { decision: "deny" })).toEqual({
       optionId: "n",
       outcome: "selected",

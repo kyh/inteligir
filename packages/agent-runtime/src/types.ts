@@ -2,22 +2,24 @@
 // Trimmed runtime surface: no skills, no fork/rewind, no goals, no dynamic
 // tools / tool calls, no archive/rename, no background-work reporting, no
 // ACP.
+//
+// `AgentRuntime` names WHAT THE HOST CALLS and nothing else. The vendored
+// posture does not extend to this interface: it has one implementation, that
+// implementation is this repo's own ACP adapter over a protocol bb never
+// spoke, and a method kept "for the re-vendor" is a stub every test double
+// must write and every reader mistakes for a live capability.
 
-import type { RuntimeThreadExecutionOptions } from "./vocabulary/shared-types.js";
 import type {
   PendingInteractionCreate,
   PendingInteractionResolution,
 } from "@repo/domain/pending-interactions";
 import type { ProviderEvent } from "./vocabulary/provider-event.js";
-import type { AvailableModel } from "./vocabulary/provider-types.js";
 import type { ProviderEventUserContent } from "./vocabulary/provider-event.js";
 
 export type AgentRuntimeShellEnvironment = Record<string, string>;
 
 /** What a turn's prompt is made of; bb's PromptInput, mentions dropped. */
 export type PromptInput = ProviderEventUserContent;
-
-export type AgentRuntimeExecutionOptions = RuntimeThreadExecutionOptions;
 
 /**
  * Final per-thread state snapshot taken when a provider process exits,
@@ -68,22 +70,9 @@ export interface AgentRuntimeOptions {
   onProcessExit?: (info: AgentRuntimeProcessExitInfo) => void;
 }
 
-export interface EnsureProviderArgs {
-  /**
-   * Providers with thread-scoped processes use this to start the process for a
-   * specific host thread. Omit it for provider-scoped maintenance work such as
-   * model listing.
-   */
-  forThreadId?: string;
-  providerId: string;
-}
-
 export interface StartThreadArgs {
   threadId: string;
   providerId: string;
-  options: AgentRuntimeExecutionOptions;
-  instructions?: string;
-  instructionMode?: "append" | "replace";
 }
 
 export interface StartThreadResult {
@@ -94,9 +83,6 @@ export interface ResumeThreadArgs {
   threadId: string;
   providerThreadId?: string;
   providerId: string;
-  options: AgentRuntimeExecutionOptions;
-  instructions?: string;
-  instructionMode?: "append" | "replace";
 }
 
 export interface ResumeThreadResult {
@@ -106,40 +92,6 @@ export interface ResumeThreadResult {
 export interface RunTurnArgs {
   threadId: string;
   input: PromptInput[];
-  options: AgentRuntimeExecutionOptions;
-  instructions?: string;
-}
-
-export interface SteerTurnArgs {
-  threadId: string;
-  /** The PROVIDER's turn id for the active turn. */
-  expectedTurnId: string;
-  input: PromptInput[];
-  options: AgentRuntimeExecutionOptions;
-}
-
-export interface SteerTurnAppliedResult {
-  status: "steered";
-}
-
-export interface SteerTurnStaleResult {
-  status: "stale";
-  activeTurnId: string | null;
-}
-
-export type SteerTurnResult = SteerTurnAppliedResult | SteerTurnStaleResult;
-
-export interface StopThreadArgs {
-  threadId: string;
-}
-
-export interface AgentRuntimeProviderSession {
-  providerId: string;
-  providerThreadId: string;
-}
-
-export interface WaitForActiveTurnArgs {
-  timeoutMs: number;
 }
 
 export interface ReapIdleProviderSessionsArgs {
@@ -158,46 +110,12 @@ export interface ReapIdleProviderSessionsResult {
   reapedSessions: ReapedIdleProviderSession[];
 }
 
-export interface ListModelsArgs {
-  providerId: string;
-}
-
 export interface AgentRuntime {
-  ensureProvider(args: EnsureProviderArgs): Promise<void>;
-
   startThread(args: StartThreadArgs): Promise<StartThreadResult>;
 
   resumeThread(args: ResumeThreadArgs): Promise<ResumeThreadResult>;
 
   runTurn(args: RunTurnArgs): Promise<void>;
-
-  steerTurn(args: SteerTurnArgs): Promise<SteerTurnResult>;
-
-  /**
-   * Stops the thread's active turn and removes the thread from the runtime:
-   * identity, execution config, and turn state are cleared, so `hasThread`
-   * reports `false` afterwards and the next turn must go through
-   * `resumeThread`.
-   */
-  stopThread(args: StopThreadArgs): Promise<void>;
-
-  listModels(args: ListModelsArgs): Promise<{ models: AvailableModel[] }>;
-
-  listRunningProviders(): string[];
-
-  /** Active turn id (the PROVIDER's) for the thread, or `null` when no turn is running. */
-  getActiveTurnId(threadId: string): string | null;
-
-  /**
-   * Resolves with the active turn id as soon as one is known: immediately if
-   * a turn is already active, on the next `turn/started` observation
-   * otherwise. Resolves `null` on timeout or when the thread goes idle
-   * before a turn starts.
-   */
-  waitForActiveTurn(threadId: string, args: WaitForActiveTurnArgs): Promise<string | null>;
-
-  /** Provider identity for a hosted thread, or `null` when not hosted. */
-  getProviderSession(threadId: string): AgentRuntimeProviderSession | null;
 
   /**
    * Stops idle live provider sessions without deleting host thread state or
@@ -210,9 +128,6 @@ export interface AgentRuntime {
 
   /** Whether the runtime currently hosts the thread (turns can run on it). */
   hasThread(threadId: string): boolean;
-
-  /** Thread ids with an active turn or an accepted turn awaiting its first event. */
-  getLiveThreadIds(): string[];
 
   shutdown(): Promise<void>;
 }

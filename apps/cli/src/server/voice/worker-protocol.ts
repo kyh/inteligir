@@ -45,9 +45,10 @@ export type VoiceWorkerResponse =
    */
   | { kind: "failed"; message: string; modelUnusable: boolean };
 
-/** `workerData` for a persistent streaming session. Not exported — callers pass
- *  it through {@link VoiceWorkerData}, and the worker reads it off `workerData`. */
-interface VoiceStreamInit {
+/** `workerData` for a persistent streaming session — the shape the host
+ *  annotates its literal against, so a mistyped `kind` cannot fall through to
+ *  the one-shot path. */
+export interface VoiceStreamInit {
   kind: "stream";
   model: VoiceModelFiles;
 }

@@ -1,8 +1,10 @@
-// Two open-note stores are two machines (#595): publishing into one must not
-// move the other, and the module-level flush visits every registered pane.
+// Two open-note stores are two machines: publishing into one must not move the
+// other, the module-level flush visits every registered pane, and per-note view
+// state (the heading folds) is keyed by path rather than shared.
 
 import { describe, expect, it, vi } from "vitest";
 
+import { headingCollapseKeys, toggleHeadingCollapse } from "@repo/editor/heading-collapse";
 import { flushOpenNote, registerOpenNoteStore } from "@repo/editor/note/open-note-flush";
 import { createOpenNoteStore } from "@repo/editor/note/open-note-store";
 
@@ -76,5 +78,29 @@ describe("split panes", () => {
     off();
     expect(await flushOpenNote()).toBe(true);
     expect(flushA).not.toHaveBeenCalled();
+  });
+
+  it("folding a heading in one pane leaves the other's folds and storage alone", () => {
+    const written = new Map<string, string>();
+    vi.stubGlobal("localStorage", {
+      getItem: (key: string) => written.get(key) ?? null,
+      setItem: (key: string, value: string) => {
+        written.set(key, value);
+      },
+      removeItem: (key: string) => {
+        written.delete(key);
+      },
+    });
+    try {
+      toggleHeadingCollapse("notes/a.md", "1:Intro:0");
+
+      expect([...headingCollapseKeys("notes/a.md")]).toEqual(["1:Intro:0"]);
+      expect([...headingCollapseKeys("notes/b.md")]).toEqual([]);
+      expect(written.size).toBe(1);
+      const stored: unknown = JSON.parse([...written.values()][0] ?? "{}");
+      expect(stored).toEqual({ "notes/a.md": ["1:Intro:0"] });
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

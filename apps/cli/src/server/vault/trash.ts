@@ -19,6 +19,8 @@
 
 import { splitFrontmatter, type SplitDoc } from "@repo/notes/markdown/frontmatter";
 import { z } from "zod";
+import { commentsSidecarPath } from "@repo/notes/comments/sidecar-schema";
+import { isNotePath } from "@repo/notes/knowledge/doc-file";
 import { isTrashedPath, VAULT_TRASH_DIR, VaultPathError } from "@repo/notes/knowledge/vault-path";
 import type { VaultTrashEntry } from "@repo/api/local/vault/vault-schema";
 import { VaultServiceError, type VaultService } from "./vault-service";
@@ -76,14 +78,6 @@ function stripTrashLines(content: string): string {
   return kept + body;
 }
 
-function sidecarOf(notePath: string): string {
-  return `${notePath}.comments.json`;
-}
-
-function isNotePath(path: string): boolean {
-  return path.toLowerCase().endsWith(".md");
-}
-
 /** `a/b.md` + 2 → `a/b 2.md`; suffix before the extension so the file stays
  * a note. */
 function withSuffix(path: string, attempt: number): string {
@@ -106,8 +100,8 @@ async function freePath(service: VaultService, wanted: string): Promise<string> 
  * failed sidecar move must not fail the note's own move — the note is already
  * where the caller asked; the orphaned sidecar is inert and visible. */
 async function moveSidecar(service: VaultService, from: string, to: string): Promise<void> {
-  if ((await service.statEntry(sidecarOf(from))) !== "file") return;
-  await service.rename(sidecarOf(from), sidecarOf(to)).catch(() => {});
+  if ((await service.statEntry(commentsSidecarPath(from))) !== "file") return;
+  await service.rename(commentsSidecarPath(from), commentsSidecarPath(to)).catch(() => {});
 }
 
 export interface TrashMoveResult {
@@ -165,8 +159,8 @@ export async function purgeTrashedNote(service: VaultService, path: string): Pro
     throw new VaultPathError(`${path} is not in the trash`);
   }
   await service.remove(path);
-  if ((await service.statEntry(sidecarOf(path))) === "file") {
-    await service.remove(sidecarOf(path)).catch(() => {});
+  if ((await service.statEntry(commentsSidecarPath(path))) === "file") {
+    await service.remove(commentsSidecarPath(path)).catch(() => {});
   }
 }
 

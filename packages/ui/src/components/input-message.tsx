@@ -6,7 +6,6 @@ import {
   useCallback,
   useEffect,
   useId,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -22,7 +21,7 @@ import { AnimatePresence, motion, Reorder, useReducedMotion } from "framer-motio
 import { cn } from "@repo/ui/lib/utils";
 import { fontWeights } from "@repo/ui/lib/font-weight";
 import { spring } from "@repo/ui/lib/springs";
-import { useShape } from "@repo/ui/lib/shape-context";
+import { useRadius } from "@repo/ui/lib/radius-context";
 import { SizeProvider, useSize, type SizeVariant } from "@repo/ui/lib/size-context";
 import { useIcon } from "@repo/ui/lib/icon-context";
 import { surfaceClasses } from "@repo/ui/lib/surface-classes";
@@ -30,10 +29,9 @@ import { SurfaceProvider } from "@repo/ui/lib/surface-context";
 import { useProximityHover } from "@repo/ui/hooks/use-proximity-hover";
 import { Button } from "@repo/ui/components/button";
 import { Tooltip } from "@repo/ui/components/tooltip";
+import { useIsoLayoutEffect } from "@repo/ui/lib/use-iso-layout-effect";
 
 const EMPTY_HISTORY: string[] = [];
-
-const useIsoLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
 
 /**
  * Measured layout height for one of the composer's collapsible regions
@@ -99,6 +97,11 @@ interface InputMessageSlotContext {
 }
 
 type InputMessageSlot = ReactNode | ((ctx: InputMessageSlotContext) => ReactNode);
+
+/** The union is discriminated here alone, so every slot resolves identically. */
+function renderSlot(slot: InputMessageSlot, ctx: InputMessageSlotContext): ReactNode {
+  return slot instanceof Function ? slot(ctx) : slot;
+}
 
 /** A message held in the queue while the assistant is responding. Carries the
  *  trimmed text plus a snapshot of the files attached when it was queued, so
@@ -513,7 +516,7 @@ const InputMessage = forwardRef<HTMLDivElement, InputMessageProps>(
     ref,
   ) => {
     const history = historyProp ?? EMPTY_HISTORY;
-    const shape = useShape();
+    const radius = useRadius();
     const compactStep = useSize(size).variant === "compact";
     const ArrowUpIcon = useIcon("arrow-up");
     const reduceMotion = useReducedMotion() ?? false;
@@ -566,6 +569,16 @@ const InputMessage = forwardRef<HTMLDivElement, InputMessageProps>(
     // keyboard drive the same sliding bg-hover overlay (Dropdown's pattern):
     // mouse movement resolves the nearest row, ↓/↑ set the index directly.
     const suggestionsArr = useMemo(() => suggestions ?? [], [suggestions]);
+    // A prompt's own text is the row's identity; a prompt listed twice takes an
+    // occurrence suffix so the sibling keys stay distinct.
+    const suggestionRows = useMemo(() => {
+      const seen = new Map<string, number>();
+      return suggestionsArr.map((text) => {
+        const repeat = seen.get(text) ?? 0;
+        seen.set(text, repeat + 1);
+        return { key: repeat === 0 ? text : `${text}#${repeat}`, text };
+      });
+    }, [suggestionsArr]);
     const suggestionsOpen = suggestionsArr.length > 0 && value === "";
     const suggestionListRef = useRef<HTMLDivElement>(null);
     // Pixel heights for the three collapsible regions (see useRegionHeight).
@@ -647,7 +660,7 @@ const InputMessage = forwardRef<HTMLDivElement, InputMessageProps>(
     // doesn't loop on its own height writes.
     useEffect(() => {
       const el = textareaRef.current;
-      if (!el || typeof ResizeObserver === "undefined") return;
+      if (!el) return;
       let lastWidth = el.offsetWidth;
       const ro = new ResizeObserver(() => {
         const width = el.offsetWidth;
@@ -1001,8 +1014,8 @@ const InputMessage = forwardRef<HTMLDivElement, InputMessageProps>(
       () => ({ openFilePicker, files: filesArr }),
       [openFilePicker, filesArr],
     );
-    const leftContent = typeof leftSlot === "function" ? leftSlot(slotCtx) : leftSlot;
-    const rightContent = typeof rightSlot === "function" ? rightSlot(slotCtx) : rightSlot;
+    const leftContent = renderSlot(leftSlot, slotCtx);
+    const rightContent = renderSlot(rightSlot, slotCtx);
 
     // ── Drag-and-drop ────────────────────────────────────────────────
     const handleDragOver = useCallback(
@@ -1057,7 +1070,7 @@ const InputMessage = forwardRef<HTMLDivElement, InputMessageProps>(
           // bump *contrast* without ever appearing to thicken the stroke.
           "flex flex-col gap-1 p-2 transition-[box-shadow,color] duration-80",
           surfaceClasses(2, 2),
-          shape.container,
+          radius.container,
           clickToFocus && !disabled && "cursor-text",
           disabled && "opacity-50 pointer-events-none",
           className,
@@ -1167,7 +1180,7 @@ const InputMessage = forwardRef<HTMLDivElement, InputMessageProps>(
             <textarea
               ref={(node) => {
                 textareaRef.current = node;
-                if (typeof consumerTextareaRef === "function") consumerTextareaRef(node);
+                if (consumerTextareaRef instanceof Function) consumerTextareaRef(node);
                 else if (consumerTextareaRef) consumerTextareaRef.current = node;
               }}
               value={value}
@@ -1361,7 +1374,7 @@ const InputMessage = forwardRef<HTMLDivElement, InputMessageProps>(
                       {activeSuggestion != null && suggestionRects[activeSuggestion] && (
                         <motion.div
                           key={suggestionSession.current}
-                          className={cn("pointer-events-none absolute bg-hover", shape.bg)}
+                          className={cn("pointer-events-none absolute bg-hover", radius.bg)}
                           initial={{
                             opacity: 0,
                             top: suggestionRects[activeSuggestion].top,
@@ -1387,16 +1400,16 @@ const InputMessage = forwardRef<HTMLDivElement, InputMessageProps>(
                         />
                       )}
                     </AnimatePresence>
-                    {suggestionsArr.map((s, i) => (
+                    {suggestionRows.map((row, i) => (
                       <SuggestionRow
-                        key={`${s}-${i}`}
-                        text={s}
+                        key={row.key}
+                        text={row.text}
                         index={i}
                         active={i === activeSuggestion}
                         keyHint={i === 0 && activeSuggestion == null}
                         optionId={`${suggestionListId}-${i}`}
                         registerItem={registerSuggestion}
-                        onSelect={() => acceptSuggestion(s)}
+                        onSelect={() => acceptSuggestion(row.text)}
                       />
                     ))}
                   </div>

@@ -23,6 +23,7 @@ import { Worker } from "node:worker_threads";
 import type {
   VoiceModelFiles,
   VoiceStreamEvent,
+  VoiceStreamInit,
   VoiceWorkerRequest,
   VoiceWorkerResponse,
 } from "./worker-protocol";
@@ -151,7 +152,11 @@ export function spawnVoiceStreamWorker(
 
   let worker: Worker;
   try {
-    worker = new Worker(resolveWorkerEntry(), { workerData: { kind: "stream", model } });
+    // `workerData` is `any`, so the literal is annotated here: an unannotated
+    // one with a mistyped `kind` compiles, falls through to the one-shot path
+    // and answers `modelUnusable`, which nukes the model cache.
+    const init: VoiceStreamInit = { kind: "stream", model };
+    worker = new Worker(resolveWorkerEntry(), { workerData: init });
   } catch (error) {
     // A missing worker bundle is a packaging fault, not a corrupt model.
     callbacks.onError(error instanceof Error ? error.message : String(error), false);

@@ -6,7 +6,7 @@
 // an edit and must never touch bytes or history.
 
 import { createContext, useContext, useMemo, useState } from "react";
-import { createSlatePlugin, type SlateEditor, type TElement } from "platejs";
+import { createSlatePlugin, ElementApi, type SlateEditor, type TElement } from "platejs";
 import {
   PlateElement,
   useEditorRef,
@@ -18,13 +18,14 @@ import { PlusIcon, XIcon } from "lucide-react";
 
 import { cn } from "@repo/ui/lib/utils";
 
+import { stringProp } from "@repo/editor/node-props";
+
 const ActiveTabContext = createContext(0);
 
 function panelsOf(element: TElement): { label: string; index: number }[] {
   return element.children.flatMap((child, index) => {
-    if (typeof child !== "object" || !("type" in child) || child.type !== "tab_panel") return [];
-    const label = "label" in child && typeof child.label === "string" ? child.label : "Tab";
-    return [{ index, label }];
+    if (!ElementApi.isElement(child) || child.type !== "tab_panel") return [];
+    return [{ index, label: stringProp(child, "label") ?? "Tab" }];
   });
 }
 
@@ -124,10 +125,7 @@ function TabPanelElement(props: PlateElementProps) {
   const active = useContext(ActiveTabContext);
   const path = usePath();
   const index = path === undefined ? 0 : (path.at(-1) ?? 0);
-  const label =
-    "label" in props.element && typeof props.element.label === "string"
-      ? props.element.label
-      : "Tab";
+  const label = stringProp(props.element, "label") ?? "Tab";
   return (
     <PlateElement
       {...props}

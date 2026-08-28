@@ -68,6 +68,26 @@ describe("vault git remote auth", () => {
     expect(response.status).toBe(404);
   });
 
+  it("refuses an upload-pack body that declares no length", async () => {
+    const { bearer } = await signUpUser("vault-git-chunked@example.test");
+    const { credential } = await pairDevice(bearer, "Laptop");
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode("0000"));
+        controller.close();
+      },
+    });
+    const response = await SELF.fetch(`${REMOTE}/git-upload-pack`, {
+      method: "POST",
+      headers: {
+        ...deviceHeaders(credential),
+        "content-type": "application/x-git-upload-pack-request",
+      },
+      body,
+    });
+    expect(response.status).toBe(413);
+  });
+
   it("keeps the JSON API and admin surface off the wire", async () => {
     const { bearer } = await signUpUser("vault-git-surface@example.test");
     const { credential } = await pairDevice(bearer, "Laptop");

@@ -22,7 +22,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { useEffect, useRef } from "react";
 import { GripVerticalIcon, PlusIcon } from "lucide-react";
 import { BlockMenuPlugin, BlockSelectionPlugin } from "@platejs/selection/react";
-import { PathApi } from "platejs";
+import { PathApi, type Descendant } from "platejs";
 import {
   createPlatePlugin,
   type PlateElementProps,
@@ -32,13 +32,15 @@ import {
 
 import { cn } from "@repo/ui/lib/utils";
 
+import { stringProp } from "@repo/editor/node-props";
+
 // Stable per-block drag ids. Slate's moveNodes preserves node object identity,
 // so a WeakMap keyed by the element yields ids that survive a reorder. Both the
 // SortableContext list and each useSortable() re-derive from this map within the
 // same render, so they always agree.
 let idCounter = 0;
-const blockIds = new WeakMap<object, string>();
-function blockId(node: object): string {
+const blockIds = new WeakMap<Descendant, string>();
+function blockId(node: Descendant): string {
   const existing = blockIds.get(node);
   if (existing) return existing;
   idCounter += 1;
@@ -133,7 +135,7 @@ function Draggable(props: PlateElementProps) {
   // Grip click: select this block and open THE block menu (block-menu.tsx —
   // same one as right-click) anchored under the grip.
   const openBlockMenu = () => {
-    const id = typeof element.id === "string" ? element.id : null;
+    const id = stringProp(element, "id") ?? null;
     const grip = gripRef.current;
     if (!id || !grip) return;
     editor.getApi(BlockSelectionPlugin).blockSelection.set(id);

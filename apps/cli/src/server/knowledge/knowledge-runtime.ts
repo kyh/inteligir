@@ -44,7 +44,7 @@ import { contentHashBytesHex, type VaultEntry } from "@repo/api/local/vault/vaul
 import { mapWithConcurrency } from "../concurrency";
 import { VaultServiceError, type VaultService } from "../vault/vault-service";
 import type { VaultFilesChange } from "../vault/vault-runtime";
-import { messageOf } from "./message-of";
+import { messageOf } from "../error-message";
 import { createSqliteDriver } from "./sqlite-driver";
 
 /** The index cache's own file, beside the app db — never inside it. */

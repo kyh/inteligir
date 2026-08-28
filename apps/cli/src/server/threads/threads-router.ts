@@ -1,5 +1,5 @@
 // The thread handlers. Each one translates a typed service outcome into the
-// contract's response union — nothing here reads the db or knows a send mode.
+// contract's response union — nothing here reads the db or decides a send.
 //
 // The refusals stay INLINE rather than behind one table: a send's conflict is
 // the service's own outcome union, not a thrown class, so each switch is
@@ -35,8 +35,7 @@ const send = base.threads.send.handler(({ context, input, errors }) => {
   const outcome = context.threads.send(input);
   switch (outcome.kind) {
     case "started":
-    case "steered":
-      return { kind: outcome.kind, turnId: outcome.turnId };
+      return { kind: "started", turnId: outcome.turnId };
     case "queued":
       return { kind: "queued", queuedMessageId: outcome.queuedMessageId };
     case "not-found":
@@ -53,8 +52,6 @@ const send = base.threads.send.handler(({ context, input, errors }) => {
           throw errors.ARCHIVED({ message: outcome.message });
         case "stale_turn":
           throw errors.STALE_TURN({ message: outcome.message });
-        case "not_steerable":
-          throw errors.NOT_STEERABLE({ message: outcome.message });
       }
   }
 });

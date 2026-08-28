@@ -1,5 +1,5 @@
 // Bounded logging for the agent drivers' drop/diagnostic stream. A chatty
-// new codex version (an unpersisted event kind arriving hundreds of times a
+// new harness version (an unpersisted event kind arriving hundreds of times a
 // turn) must be VISIBLE without flooding: messages collapse onto a key with
 // the volatile ids stripped, the first occurrence per key logs in full, and
 // every REPORT_EVERY-th repeat logs the running count.

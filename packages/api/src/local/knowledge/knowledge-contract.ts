@@ -15,8 +15,6 @@ import {
   knowledgeSearchResponseSchema,
   knowledgeTagsResponseSchema,
   knowledgeWikiTargetsResponseSchema,
-  renameCandidatesRequestSchema,
-  renameCandidatesResponseSchema,
 } from "./knowledge-schema";
 
 export const knowledgeContract = {
@@ -29,6 +27,4 @@ export const knowledgeContract = {
   related: oc.input(knowledgeRelatedRequestSchema).output(knowledgeRelatedResponseSchema),
 
   tags: oc.output(knowledgeTagsResponseSchema),
-
-  renameCandidates: oc.input(renameCandidatesRequestSchema).output(renameCandidatesResponseSchema),
 };

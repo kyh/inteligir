@@ -21,10 +21,10 @@ export type FakeEditorHostOptions = {
   /** The shell's panel under the editor column. Default: renders nothing. */
 };
 
-export function fakeEditorHost(options: FakeEditorHostOptions = {}): {
-  host: EditorHost;
-  calls: HostCall[];
-} {
+/** The injected host paired with the log of what was asked of it. */
+export type FakeEditorHost = { readonly host: EditorHost; readonly calls: HostCall[] };
+
+export function fakeEditorHost(options: FakeEditorHostOptions = {}): FakeEditorHost {
   const calls: HostCall[] = [];
   const record =
     <T>(action: keyof VaultActions, answer: T) =>

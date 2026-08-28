@@ -9,13 +9,15 @@
 
 import { ElementApi, type SlateEditor, type TElement } from "platejs";
 
+import { stringProp } from "@repo/editor/node-props";
+
 /** The frontmatter node's raw yaml (fences excluded, no trailing newline —
  * matching remark-frontmatter's node `value`), or `null` when the document has
  * no frontmatter block at all. `""` means an empty block (`---\n---`). */
 export function readFrontmatterRaw(editor: SlateEditor): string | null {
   const first = editor.children[0];
   if (ElementApi.isElement(first) && first.type === "frontmatter") {
-    return typeof first.value === "string" ? first.value : "";
+    return stringProp(first, "value") ?? "";
   }
   return null;
 }
