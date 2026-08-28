@@ -10,7 +10,7 @@ function openExternalLink(url: string): void {
 }
 import { RADIUS, SPACE, useTheme, type Theme } from "@/lib/theme";
 import type { InlineSpan, NoteBlock } from "./note-projection";
-import type { VaultAssetSource } from "./notes-store";
+import type { VaultAssetSource } from "@repo/api/cloud/client";
 
 // The thin half of the note renderer: projected blocks in, RN elements out.
 // Every decision about WHAT to show lives in note-projection.ts; what this
@@ -96,12 +96,16 @@ function blockKey(index: number): string {
   return `b${String(index)}`;
 }
 
-function Unavailable({ label, theme }: { label: string; theme: Theme }) {
+function unavailable(label: string): string {
+  return `${label} — image unavailable`;
+}
+
+/** The one "this device cannot show this" card — a dashed box and a line of
+ *  muted caps, shared by every block that has to say it. */
+function Notice({ text, theme }: { text: string; theme: Theme }) {
   return (
     <View style={[styles.unsupported, { borderColor: theme.border }]}>
-      <Text style={[styles.calloutLabel, { color: theme.mutedForeground }]}>
-        {label} — image unavailable
-      </Text>
+      <Text style={[styles.calloutLabel, { color: theme.mutedForeground }]}>{text}</Text>
     </View>
   );
 }
@@ -120,7 +124,7 @@ function EmbedImage({
 }) {
   const [failed, setFailed] = useState(false);
   if (failed) {
-    return <Unavailable label={label} theme={theme} />;
+    return <Notice text={unavailable(label)} theme={theme} />;
   }
   return (
     <Image
@@ -170,7 +174,7 @@ export function MarkdownBlocks({
           case "image": {
             const source = resolveAsset(block.target);
             if (source === null) {
-              return <Unavailable key={blockKey(index)} label={block.label} theme={theme} />;
+              return <Notice key={blockKey(index)} text={unavailable(block.label)} theme={theme} />;
             }
             return (
               <EmbedImage key={blockKey(index)} source={source} label={block.label} theme={theme} />
@@ -242,14 +246,11 @@ export function MarkdownBlocks({
             );
           case "unsupported":
             return (
-              <View
+              <Notice
                 key={blockKey(index)}
-                style={[styles.unsupported, { borderColor: theme.border }]}
-              >
-                <Text style={[styles.calloutLabel, { color: theme.mutedForeground }]}>
-                  {block.label} — open on your desktop
-                </Text>
-              </View>
+                text={`${block.label} — open on your desktop`}
+                theme={theme}
+              />
             );
           case "raw":
             return (

@@ -19,9 +19,14 @@
 // alias-only link renders unresolved until that changes.
 
 import { buildResolver, type TargetResolver } from "@repo/notes/knowledge/link-resolve";
-import { buildVaultAssetUrl, type VaultTreeResponse } from "@repo/api/cloud/vault/vault-schema";
+import type { VaultTreeResponse } from "@repo/api/cloud/vault/vault-schema";
 import type { DeviceCredential } from "../credential/credential-codec";
-import { createCloudClient, describeCloudFailure, type CloudFetch } from "@repo/api/cloud/client";
+import {
+  createCloudClient,
+  describeCloudFailure,
+  type CloudFetch,
+  type VaultAssetSource,
+} from "@repo/api/cloud/client";
 import { createExternalStore, type ExternalStore } from "../lib/external-store";
 import { createMemoryNoteCache, type CachedNote, type NoteCache } from "./note-cache";
 
@@ -59,24 +64,6 @@ interface CredentialHandover {
   source: "restored" | "paired";
 }
 
-/**
- * What an RN `Image` needs to fetch a vault asset: the pinned URL, and the
- * credential as a header — never in the URL, where image caches and logs
- * would keep it.
- *
- * THE RESIDUAL, stated: the BYTES the image fetches land in the platform's
- * own HTTP/image caches (NSURLCache honors the route's year-long immutable
- * answer; Fresco disk-caches regardless), which an unpair cannot clear —
- * core RN Image has no purge. Serving them stays safe (the URL pins a commit
- * sha, and an equal sha means identical content), but they sit at rest on
- * the device until the OS evicts them — unlike note bodies, whose cache the
- * unpair wipes.
- */
-export interface VaultAssetSource {
-  uri: string;
-  headers: Record<string, string>;
-}
-
 export interface NotesStore {
   /** The pairing layer's switch, same contract as the sync runtime's. */
   setCredential(next: CredentialHandover | null): void;
@@ -86,9 +73,18 @@ export interface NotesStore {
   readNote(path: string): Promise<NoteRead>;
   /** A wiki target's vault path over the LAST refreshed tree, or null. */
   resolveWiki(target: string): string | null;
-  /** An image source for a vault asset, pinned to the tree's commit — null
-   *  until a tree is ready, because an unpinned asset URL is not a stable
-   *  cache key and the route refuses it. */
+  /**
+   * An image source for a vault asset, pinned to the tree's commit — null
+   * until a tree is ready, because an unpinned asset URL is not a stable
+   * cache key and the route refuses it.
+   *
+   * THE RESIDUAL, stated: the BYTES the image then fetches land in the
+   * platform's own image caches (NSURLCache honors the route's year-long
+   * immutable answer; Fresco disk-caches regardless), which an unpair cannot
+   * clear — core RN Image has no purge. Serving them stays safe (the URL pins
+   * a commit sha, and an equal sha means identical content), but they sit at
+   * rest until the OS evicts them, unlike note bodies.
+   */
   assetSource(path: string): VaultAssetSource | null;
 }
 
@@ -121,6 +117,10 @@ export function createNotesStore(args: CreateNotesStoreArgs): NotesStore {
   let generation = 0;
   const noteCache = args.cache ?? createMemoryNoteCache(NOTE_CACHE_MAX);
   const tree = createExternalStore<NotesTreeState>({ state: "idle" });
+  /** Composed asset sources, by path. Render calls this per embed on every
+   *  re-render, and the answer only moves when the tree's commit or the
+   *  credential does — both of which clear it below. */
+  const assetSources = new Map<string, VaultAssetSource>();
 
   return {
     setCredential(next) {
@@ -128,6 +128,7 @@ export function createNotesStore(args: CreateNotesStoreArgs): NotesStore {
       // The in-memory view resets on EVERY change: a re-pair must not serve
       // the previous account's tree or resolver for even one render.
       resolver = null;
+      assetSources.clear();
       tree.set({ state: "idle" });
       // The DURABLE rows survive exactly one transition — the boot restore of
       // the credential that wrote them. An unpair or a fresh pairing is a
@@ -193,6 +194,8 @@ export function createNotesStore(args: CreateNotesStoreArgs): NotesStore {
           return;
         }
         resolver = buildResolver(entries.map((entry) => entry.path));
+        // A moved commit makes every composed URL stale.
+        assetSources.clear();
         tree.set({ state: "ready", commit, entries });
         // Rows keyed to older commits are unreachable from here on; a durable
         // cache reclaims their disk.
@@ -250,13 +253,15 @@ export function createNotesStore(args: CreateNotesStoreArgs): NotesStore {
     },
 
     assetSource(path) {
-      if (activeCredential === null) return null;
       const current = tree.get();
-      if (current.state !== "ready") return null;
-      return {
-        uri: buildVaultAssetUrl(args.cloudUrl, { path, ref: current.commit }),
-        headers: { authorization: `Bearer ${activeCredential}` },
-      };
+      if (client === null || current.state !== "ready") return null;
+      // Composed by the CLIENT, which already holds the credential — the
+      // bearer has one spelling, and this store keeps no copy of it.
+      const cached = assetSources.get(path);
+      if (cached !== undefined) return cached;
+      const source = client.vaultAssetSource({ path, ref: current.commit });
+      assetSources.set(path, source);
+      return source;
     },
   };
 }

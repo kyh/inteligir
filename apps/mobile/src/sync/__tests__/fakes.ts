@@ -127,6 +127,10 @@ export function createFakeCloud(): FakeCloud {
       // inert rows here.
       account: () => Promise.resolve(ok({ id: "user_fake", email: "paired@example.test" })),
       vaultTree: () => Promise.resolve(ok({ commit: "0".repeat(40), entries: [], next: null })),
+      vaultAssetSource: (query) => ({
+        uri: `https://cloud.test/v1/vault/asset?path=${query.path}&ref=${query.ref}`,
+        headers: { authorization: "Bearer igd_fake" },
+      }),
       vaultFile: () =>
         Promise.resolve<CloudResult<VaultFileResponse>>({
           ok: false,

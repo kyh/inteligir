@@ -15,6 +15,7 @@
 //   • a file the parse refuses opens RAW, byte-for-byte — the desktop's own
 //     posture for a doc it cannot round-trip.
 
+import { assetMediaType } from "@repo/api/cloud/vault/vault-schema";
 import type { List, PhrasingContent, Root, RootContent } from "mdast";
 import { parseCalloutPayload } from "@repo/notes/markdown/callout-payload";
 import { splitFrontmatter } from "@repo/notes/markdown/frontmatter";
@@ -71,17 +72,19 @@ const RICH_LABELS = {
 } satisfies Record<NonNullable<ReturnType<(typeof RICH_FENCE_LANGS)["get"]>>, string>;
 
 /**
- * The embed targets this surface renders as images — a deliberate SUBSET of
- * the asset route's allowlist: core RN `Image` cannot draw SVG (and svg's
- * script risk wants a webview this app does not carry), and the rarer
- * formats render inconsistently across Fresco and UIImage. An embed outside
- * the set stays a tappable link, exactly what it was before.
+ * What this surface renders as an image — a deliberate SUBSET of what the
+ * asset route serves, expressed in the route's own MEDIA TYPES rather than a
+ * second extension table: core RN `Image` cannot draw SVG (and svg's script
+ * risk wants a webview this app does not carry), and the rarer formats render
+ * inconsistently across Fresco and UIImage. Anything else stays a tappable
+ * link, exactly what it was before — and because the lookup is the route's,
+ * a target this promotes is a target that route serves.
  */
-const MOBILE_IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp"]);
+const MOBILE_IMAGE_MEDIA_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp"]);
 
 function isMobileImageTarget(target: string): boolean {
-  const dot = target.lastIndexOf(".");
-  return dot >= 0 && MOBILE_IMAGE_EXTENSIONS.has(target.slice(dot).toLowerCase());
+  const mediaType = assetMediaType(target);
+  return mediaType !== null && MOBILE_IMAGE_MEDIA_TYPES.has(mediaType);
 }
 
 type SpanStyle = { bold?: boolean; italic?: boolean; strike?: boolean };
@@ -228,15 +231,20 @@ function projectParsed(source: string, root: Root): NoteBlock[] {
         const spans = flattenInline(node.children);
         // A paragraph that IS an embed (whitespace aside) promotes to image
         // blocks — an image inside a Text run cannot be sized honestly. An
-        // embed mixed into prose stays a span, rendered as its link.
-        const images = spans.flatMap((span) => (span.kind === "image-embed" ? [span] : []));
-        const prose = spans.filter(
-          (span) =>
-            span.kind !== "image-embed" && !(span.kind === "text" && span.text.trim() === ""),
-        );
-        if (images.length > 0 && prose.length === 0) {
-          for (const image of images) {
-            blocks.push({ kind: "image", target: image.target, label: image.label });
+        // embed mixed into prose stays a span, rendered as its link. The
+        // `every` runs only for the few paragraphs that hold an embed at all,
+        // and stops at the first span that is prose.
+        const promotes =
+          spans.some((span) => span.kind === "image-embed") &&
+          spans.every(
+            (span) =>
+              span.kind === "image-embed" || (span.kind === "text" && span.text.trim() === ""),
+          );
+        if (promotes) {
+          for (const span of spans) {
+            if (span.kind === "image-embed") {
+              blocks.push({ kind: "image", target: span.target, label: span.label });
+            }
           }
           break;
         }

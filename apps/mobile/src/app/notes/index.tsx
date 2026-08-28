@@ -1,5 +1,5 @@
 import { Stack, useRouter } from "expo-router";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { isDocPath } from "@repo/notes/knowledge/doc-file";
@@ -18,13 +18,6 @@ export default function NotesScreen() {
   const status = useSyncStatus();
   const tree = useNotesTree();
   const [refreshing, setRefreshing] = useState(false);
-
-  useEffect(() => {
-    // `status.state` is a dependency because the mount can precede the
-    // credential load: the first call is then a no-op, and only the pairing
-    // state changing re-runs it.
-    if (status.state === "paired" && tree.state === "idle") void refreshNotes();
-  }, [status.state, tree.state]);
 
   const refresh = useCallback(async () => {
     setRefreshing(true);

@@ -194,7 +194,7 @@ describe("the notes store", () => {
     const cloud = fakeCloud();
     const store = createNotesStore({ cloudUrl: "https://cloud.test", fetch: cloud.fetch });
     // No tree yet: an unpinned asset URL is no cache key, so there is none.
-    store.setCredential(CREDENTIAL);
+    store.setCredential(restored(CREDENTIAL));
     expect(store.assetSource("media/a.png")).toBeNull();
     await store.refresh();
     const source = store.assetSource("media/a.png");
@@ -204,6 +204,8 @@ describe("the notes store", () => {
     expect(url.searchParams.get("path")).toBe("media/a.png");
     expect(url.searchParams.get("ref")).toBe(COMMIT);
     expect(source?.headers).toEqual({ authorization: `Bearer ${CREDENTIAL.credential}` });
+    // Composed once and remembered: render asks per embed, per re-render.
+    expect(store.assetSource("media/a.png")).toBe(source);
     store.setCredential(null);
     expect(store.assetSource("media/a.png")).toBeNull();
   });
