@@ -25,6 +25,16 @@ describe("the sign-in return path", () => {
     expect(search.get("name")).toBe("Work laptop");
   });
 
+  it("carries the mobile deep-link redirect through the same round trip", () => {
+    // The encoded custom scheme is the shape most likely to be mangled by a
+    // path guard; `toBe` pins the whole href, encoding included.
+    const pairHref = `${PAIR_APPROVE_PATH}?redirect=${encodeURIComponent(
+      "inteligir://pair/callback",
+    )}&state=${"b".repeat(32)}&name=Phone`;
+
+    expect(internalNextPath(pairHref)).toBe(pairHref);
+  });
+
   it("keeps a fragment, which is part of where someone was", () => {
     expect(internalNextPath("/app/devices?tab=all#row-3")).toBe("/app/devices?tab=all#row-3");
   });

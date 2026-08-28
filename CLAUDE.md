@@ -488,6 +488,14 @@ body_stems` at the same bm25 weights, and `@repo/notes/knowledge/search-query`
   allowlist wider than the set of addresses that can answer is an open redirect
   with extra steps — one carrying a live pairing code. The port is deliberately
   unconstrained, default included, because loopback is loopback on any port.
+  The allowlist's SECOND and only other arm is the mobile deep link,
+  `inteligir://pair/callback`, exact on every field (`URL` parses `pair` into
+  hostname, `/callback` into pathname; port required absent — a custom scheme
+  has no server). The residual an allowlist cannot reach — an app squatting the
+  `inteligir://` scheme on the same OS receives the redirect, code included —
+  is held by PKCE, the same property that keeps the open loopback port safe.
+  The desktop renderer's `inteligir://app` origin pin is a separate policy over
+  the same scheme string; neither is widened by reference to the other.
   **THE STATE IS THE APP'S, and the callback is inert without it.** One slot,
   128 bits, ten minutes, compared in constant time and CONSUMED BEFORE the
   redeem — a state that survived its own redeem is a URL replayable out of a

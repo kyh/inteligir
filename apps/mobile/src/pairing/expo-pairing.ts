@@ -7,13 +7,12 @@ import * as Crypto from "expo-crypto";
 import * as Linking from "expo-linking";
 import * as WebBrowser from "expo-web-browser";
 import { Platform } from "react-native";
-import { PAIR_CALLBACK_PARAMS } from "@repo/api/cloud/pairing/pairing-schema";
+import {
+  PAIR_CALLBACK_PARAMS,
+  PAIR_MOBILE_REDIRECT_SEGMENT,
+} from "@repo/api/cloud/pairing/pairing-schema";
 import { z } from "zod";
 import type { PkceCrypto } from "./pkce";
-
-/** The deep-link path the approve redirect comes back through — the contract's
- *  `PAIR_CALLBACK_PATH` (`/pair/callback`) as an expo-linking segment. */
-const PAIR_CALLBACK_SEGMENT = "pair/callback";
 
 /** expo-crypto behind the injected primitives the PKCE assembly needs. */
 export const expoPkceCrypto: PkceCrypto = {
@@ -25,9 +24,10 @@ export const expoPkceCrypto: PkceCrypto = {
 };
 
 /** This app's deep-link callback, e.g. `inteligir://pair/callback` (standalone)
- *  or the `exp://…/--/pair/callback` Metro form in dev. */
+ *  or the `exp://…/--/pair/callback` Metro form in dev. The segment is the
+ *  CONTRACT'S — the same spelling the redirect allowlist admits. */
 export function pairCallbackUrl(): string {
-  return Linking.createURL(PAIR_CALLBACK_SEGMENT);
+  return Linking.createURL(PAIR_MOBILE_REDIRECT_SEGMENT);
 }
 
 /** What this device calls itself on the account by default. */

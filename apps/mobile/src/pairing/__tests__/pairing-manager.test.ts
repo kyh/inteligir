@@ -1,14 +1,35 @@
+import { createRequire } from "node:module";
 import {
   PAIR_APPROVE_PARAMS,
+  PAIR_MOBILE_REDIRECT_SEGMENT,
   PAIR_STATE_PATTERN,
+  pairRedirectUrlSchema,
   PKCE_S256_PATTERN,
 } from "@repo/api/cloud/pairing/pairing-schema";
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 import type { CloudFetch } from "@repo/api/cloud/client";
 import { createPairingManager } from "../pairing-manager";
 import type { PkceCrypto } from "../pkce";
 
-const CALLBACK = "inteligir://pair/callback";
+/**
+ * The scheme THIS APP registers, read from its own config — what
+ * `Linking.createURL` composes the callback under in a standalone build. The
+ * config is plain JS (its own header says why), so a node test can load it.
+ */
+const configFactorySchema = z.custom<(context: { config: object }) => object>(
+  (value) => value instanceof Function,
+  "app.config.js no longer exports a config factory",
+);
+
+function registeredScheme(): string {
+  const factory = configFactorySchema.parse(
+    createRequire(import.meta.url)("../../../app.config.js"),
+  );
+  return z.looseObject({ scheme: z.string() }).parse(factory({ config: {} })).scheme;
+}
+
+const CALLBACK = `${registeredScheme()}://${PAIR_MOBILE_REDIRECT_SEGMENT}`;
 const REDEEMED = { deviceId: "dev_x", credential: `igd_${"c".repeat(64)}` };
 
 const fakeCrypto: PkceCrypto = {
@@ -42,6 +63,16 @@ function stateOf(approveUrl: string): string {
 }
 
 describe("the pairing manager", () => {
+  it("aims at a callback the production approve page admits", () => {
+    // The cross-package lockstep that makes this flow real: CALLBACK above is
+    // COMPOSED the way the app composes it — the registered scheme from
+    // app.config.js plus the contract's own segment (what expo-pairing hands
+    // `Linking.createURL`) — and must pass the contract's redirect allowlist,
+    // or production refuses the pairing at parse. A scheme rename or a
+    // segment edit on either side fails here, not on a user's phone.
+    expect(pairRedirectUrlSchema.safeParse(CALLBACK).success).toBe(true);
+  });
+
   it("mints an approve URL carrying the callback, a state, and the S256 challenge", async () => {
     const manager = createPairingManager({
       cloudUrl: "https://cloud.test",

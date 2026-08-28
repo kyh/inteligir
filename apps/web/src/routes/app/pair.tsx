@@ -8,6 +8,8 @@ import {
   mintPairingCodeResponseSchema,
   pairApproveSearchSchema,
   type PairApproveSearch,
+  pairRedirectKind,
+  type PairRedirectKind,
 } from "@repo/api/cloud/pairing/pairing-schema";
 import { Button } from "@repo/ui/components/button";
 
@@ -69,6 +71,9 @@ export const Route = createFileRoute("/app/pair")({
   component: PairPage,
 });
 
+/** How long the deep-link handoff gets before the approve button re-arms. */
+const MOBILE_REARM_MS = 4_000;
+
 async function mintCode(challenge: string): Promise<string> {
   const body: MintPairingCodeRequest = { challenge, challengeMethod: "S256" };
   const response = await fetch(DEVICE_API_PATHS.mintCode, {
@@ -103,10 +108,31 @@ function PairPage() {
   }
 
   const { redirect: callback, state, name, challenge } = search;
+  // Which carrier this redirect names, classified by the CONTRACT — the same
+  // dispatch the allowlist made when it admitted the target. Null is
+  // unreachable: the search schema refused anything the allowlist does not.
+  const callbackKind = pairRedirectKind(callback);
 
-  // `busy` is cleared only on the failure path: the success path is a
-  // navigation, and a button that came back to life underneath it would mint a
-  // second code for a pairing that already has one.
+  // Both arms named rather than a ternary, so a third one the schema admits
+  // later fails HERE instead of silently telling a phone to look at a machine.
+  // The deep-link callback has no host a human recognises — its `host` parses
+  // to "pair" — so its line names the app instead.
+  const returnAddress = {
+    mobile: () => <>Approving sends you back to the {siteConfig.name} app on this phone.</>,
+    loopback: () => (
+      <>
+        Approving sends you back to <code>{new URL(callback).host}</code> — the app on that machine.
+      </>
+    ),
+  } satisfies Record<PairRedirectKind, () => React.ReactNode>;
+
+  // `busy` clears on failure — and, for the deep link only, on a timer: a
+  // loopback assignment always unloads this page (even a refused connection
+  // commits to an error page), but a custom-scheme launch hands off to the OS
+  // WITHOUT unloading it, and a refused launch (no app owns the scheme, the
+  // user cancels the open-app dialog) leaves the user here. Re-arming lets
+  // them try again; each approval mints its own single-use code, so a retry
+  // costs nothing a reload would not also cost.
   const onApprove = () => {
     setBusy(true);
     setError(null);
@@ -116,6 +142,9 @@ function PairPage() {
         // A top-level assignment, not a fetch: the code has to reach the local
         // app's loopback, and only the browser can go there.
         window.location.assign(buildPairCallbackUrl(callback, { code, state }));
+        if (callbackKind === "mobile") {
+          window.setTimeout(() => setBusy(false), MOBILE_REARM_MS);
+        }
       } catch (failure) {
         setError(failure instanceof Error ? failure.message : "Couldn't mint a pairing code.");
         setBusy(false);
@@ -143,8 +172,7 @@ function PairPage() {
         </Button>
         <AuthError message={error} />
         <p className="text-xs text-muted-foreground">
-          Approving sends you back to <code>{new URL(callback).host}</code> — the app on that
-          machine.
+          {callbackKind === null ? null : returnAddress[callbackKind]()}
         </p>
       </div>
     </PairShell>
