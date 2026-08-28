@@ -17,7 +17,7 @@
 // literals — and holds it against what the repo HAS.
 // ---------------------------------------------------------------------------
 
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -54,6 +54,41 @@ const DELIBERATE_NON_REFERENCES = new Map<string, string>([
     "script-naming.test.ts — a workspace that is NOT there is the point of the assertion",
   ],
 ]);
+
+/**
+ * Whether a path is one git does not track: build output (`dist/`), local state
+ * (`.wrangler/`), an installed tree (`node_modules/`), or a secrets file the
+ * docs tell a developer to create (`.dev.vars`).
+ *
+ * Such a path CANNOT dangle, and asking whether it exists is the wrong
+ * question: the answer is a fact about the machine rather than about the repo,
+ * true on a laptop that has run a build and false in a clean checkout. Asked
+ * from git rather than pattern-matched here, so the ignore rules stay in
+ * `.gitignore` and this guard cannot disagree with them.
+ */
+function ignoredByGit(paths: readonly string[]): Set<string> {
+  if (paths.length === 0) return new Set();
+  // Each path is asked BOTH ways. A `.gitignore` entry written `dist/` matches
+  // directories only, and git cannot tell that a path which is not on disk
+  // would have been one — so the bare form misses exactly the case this
+  // exemption exists for, and misses it only in a clean checkout.
+  const asked = paths.flatMap((each) => [each, `${each}/`]);
+  const result = spawnSync("git", ["check-ignore", "--stdin", "-z"], {
+    cwd: REPO_ROOT,
+    input: asked.join("\0"),
+    encoding: "utf8",
+    maxBuffer: 64 * 1024 * 1024,
+  });
+  // Exit 1 means "none of them are ignored", which is an answer, not a failure.
+  if (result.status !== 0 && result.status !== 1) {
+    throw new Error(`git check-ignore failed: ${result.stderr}`);
+  }
+  const ignored = new Set<string>();
+  for (const each of result.stdout.split("\0")) {
+    if (each.length > 0) ignored.add(each.replace(/\/$/, ""));
+  }
+  return ignored;
+}
 
 /**
  * The scanned population is what GIT TRACKS. Deriving it from the index rather
@@ -144,9 +179,17 @@ describe("dangling references", () => {
   });
 
   it("every repo-relative path written anywhere is a file or directory that exists", () => {
-    const dangling = danglingIn(repoPathPattern(), (text) =>
+    const referenced = danglingIn(repoPathPattern(), (text) =>
       fs.existsSync(path.join(REPO_ROOT, text)),
     );
+    // A path git does not track is exempt: `node_modules/` sits behind a
+    // symlink `check-ignore` refuses to walk, so it is answered here.
+    const named = referenced.map((line) => line.trim().split(/\s+/).slice(1).join(" "));
+    const ignored = ignoredByGit(named.filter((text) => !text.includes("node_modules/")));
+    const dangling = referenced.filter((line, index) => {
+      const text = named[index] ?? "";
+      return !text.includes("node_modules/") && !ignored.has(text);
+    });
     expect(
       dangling,
       `These name a path under a workspace group that is not on disk.\n` +
