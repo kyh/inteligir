@@ -34,7 +34,9 @@ src/
     pairing-manager.ts  beginPair/completePair (state + PKCE, pure)
     expo-pairing.ts     expo-crypto / expo-linking / expo-web-browser wiring
   notes/        the vault read surface (#618)
-    notes-store.ts      tree + bounded note cache + wiki resolver (pure, unit-tested)
+    notes-store.ts      tree + cached note reads + wiki resolver (pure, unit-tested)
+    note-cache.ts       the note-body cache port + its memory implementation
+    expo-note-cache.ts  expo-file-system adapter ((commit, path)-keyed, durable)
     note-projection.ts  dialect markdown → typed blocks (pure, unit-tested)
     markdown-view.tsx   projected blocks → RN elements (the thin half)
   lib/          composition root + hooks (app-runtime.ts), theme, cloud URL
@@ -42,7 +44,7 @@ src/
                 view, the notes list + read-only note view
 ```
 
-## The storage choice (v1: in-memory)
+## The storage choice
 
 The four sync stores — outbox, pull cursor, applied thread log, applied-capture
 ledger — **must agree**, so they live in one `SyncStore`, and v1's concrete
@@ -52,12 +54,24 @@ idempotently (own rows skipped by device id, every row deduped on its
 `(deviceId, deviceSeq)` origin), rebuilding the readable state. Persisting the
 cursor beside an in-memory log would claim rows the log never saw.
 
-The ONE durable thing is the **device credential**, in `expo-secure-store` (the
-Keychain / Keystore), never AsyncStorage — it is a bearer secret and the sync
-switch, mirroring the desktop's `<dataDir>/device-credential`.
+The **device credential** is durable in `expo-secure-store` (the Keychain /
+Keystore), never AsyncStorage — it is a bearer secret and the sync switch,
+mirroring the desktop's `<dataDir>/device-credential`.
+
+**Note bodies** are durable in an expo-file-system cache
+(`notes/expo-note-cache.ts`) behind the `NoteCache` port, keyed
+`(commit, path)` — immutable content, so rows never expire; a refresh that
+moves the tree's commit makes old rows unreachable and sweeps them. The TREE
+stays in memory on purpose: the resolver and the commit must be current before
+any read is pinned, so a cold launch re-fetches the listing and then reads
+note bodies from disk. A pairing and an unpair
+wipe the rows; the boot RESTORE keeps them — that launch is what the cache
+exists for. Which transition it is comes from the composition root, which
+knows, rather than from comparing bearers inside the store.
 
 The durable follow-up is an **expo-sqlite** `SyncStore` that persists all four
-together; the port exists precisely so that swap touches nothing else.
+sync stores together; the port exists precisely so that swap touches nothing
+else.
 
 ## Who applies captures
 

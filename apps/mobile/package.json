@@ -18,6 +18,7 @@
     "expo": "catalog:",
     "expo-constants": "catalog:",
     "expo-crypto": "catalog:",
+    "expo-file-system": "catalog:",
     "expo-linking": "catalog:",
     "expo-router": "catalog:",
     "expo-secure-store": "catalog:",
