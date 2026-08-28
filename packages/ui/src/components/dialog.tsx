@@ -8,7 +8,7 @@ import { motion } from "framer-motion";
 import { Button } from "@repo/ui/components/button";
 import { useIcon } from "@repo/ui/lib/icon-context";
 import { motionStyle } from "@repo/ui/lib/motion-style";
-import { useShape } from "@repo/ui/lib/shape-context";
+import { useRadius } from "@repo/ui/lib/radius-context";
 import { useSize, useSizeVariant } from "@repo/ui/lib/size-context";
 import { spring } from "@repo/ui/lib/springs";
 import { surfaceClasses } from "@repo/ui/lib/surface-classes";
@@ -81,7 +81,7 @@ const DialogContent = forwardRef<HTMLDivElement, DialogContentProps>(
     ref,
   ) => {
     const XIcon = useIcon("x");
-    const shape = useShape();
+    const radius = useRadius();
     const substrate = useSurface();
     const dialogLevel = Math.min(substrate + DIALOG_OFFSET, 8);
     // The size ladder narrows the dialog one notch in compact regions —
@@ -160,7 +160,7 @@ const DialogContent = forwardRef<HTMLDivElement, DialogContentProps>(
                   "p-6 focus:outline-none",
                   size === "sm" && (compact ? "max-w-[360px]" : "max-w-[400px]"),
                   size === "lg" && (compact ? "max-w-[480px]" : "max-w-[540px]"),
-                  shape.container,
+                  radius.container,
                   className,
                 )}
                 style={motionStyle(baseStyle, style)}

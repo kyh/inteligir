@@ -123,7 +123,7 @@ function openNote(path: string, content: string): FakeController {
 
 /** Record every state the store publishes — the machine's OBSERVABLE history,
  * which is what atomicity is a claim about. */
-function recordStates(): { seen: OpenNoteState[]; stop: () => void } {
+function recordStates() {
   const seen: OpenNoteState[] = [];
   const stop = useOpenNote.subscribe((s) => {
     seen.push(s);

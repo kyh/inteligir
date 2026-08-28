@@ -6,6 +6,7 @@ import {
   useState,
   useCallback,
   useEffect,
+  useMemo,
   createContext,
   useContext,
   forwardRef,
@@ -18,9 +19,14 @@ import type { IconComponent } from "@repo/ui/lib/icon-context";
 import { cn } from "@repo/ui/lib/utils";
 import { spring } from "@repo/ui/lib/springs";
 import { fontWeights } from "@repo/ui/lib/font-weight";
-import { useShape } from "@repo/ui/lib/shape-context";
+import { useRadius } from "@repo/ui/lib/radius-context";
 import { SizeProvider, useSize, type SizeVariant } from "@repo/ui/lib/size-context";
 import { useProximityHover } from "@repo/ui/hooks/use-proximity-hover";
+
+/** Base UI leaves a tab's value untyped. Every tab here carries its own index,
+ *  and Base UI answers `null` when no tab is active — that is the whole domain,
+ *  named once so both ends of the Base UI boundary agree on it. */
+type TabValue = number | null;
 
 interface TabsSubtleContextValue {
   registerTab: (index: number, element: HTMLElement | null) => void;
@@ -58,7 +64,7 @@ const TabsSubtle = forwardRef<HTMLDivElement, TabsSubtleProps>(
   ) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const isMouseInside = useRef(false);
-    const shape = useShape();
+    const radius = useRadius();
 
     const {
       activeIndex: hoveredIndex,
@@ -118,10 +124,20 @@ const TabsSubtle = forwardRef<HTMLDivElement, TabsSubtleProps>(
     const isHoveringSelected = hoveredIndex === selectedIndex;
     const isHovering = hoveredIndex !== null && !isHoveringSelected;
 
+    const contextValue = useMemo<TabsSubtleContextValue>(
+      () => ({ registerTab, hoveredIndex, selectedIndex, idPrefix, activeLabel }),
+      [registerTab, hoveredIndex, selectedIndex, idPrefix, activeLabel],
+    );
+
+    const selectTab = useCallback(
+      (value: TabValue) => {
+        if (value !== null) onSelect(value);
+      },
+      [onSelect],
+    );
+
     const root = (
-      <TabsSubtleContext.Provider
-        value={{ registerTab, hoveredIndex, selectedIndex, idPrefix, activeLabel }}
-      >
+      <TabsSubtleContext.Provider value={contextValue}>
         {/* Root is merged into List via `render` so a single <div> is emitted,
             matching the previous DOM structure. Base UI owns role="tablist",
             roving tabindex, and Arrow/Home/End keyboard navigation.
@@ -129,15 +145,13 @@ const TabsSubtle = forwardRef<HTMLDivElement, TabsSubtleProps>(
             focus, Enter/Space selects. */}
         <Tabs.Root
           value={selectedIndex}
-          onValueChange={(value) => {
-            if (typeof value === "number") onSelect(value);
-          }}
+          onValueChange={selectTab}
           render={
             <Tabs.List
               activateOnFocus={false}
               ref={(node: HTMLDivElement | null) => {
                 containerRef.current = node;
-                if (typeof ref === "function") ref(node);
+                if (ref instanceof Function) ref(node);
                 else if (ref) ref.current = node;
               }}
               onMouseMove={handleMouseMove}
@@ -181,7 +195,7 @@ const TabsSubtle = forwardRef<HTMLDivElement, TabsSubtleProps>(
               {/* Selected pill */}
               {selectedRect && (
                 <motion.div
-                  className={cn("absolute bg-active pointer-events-none", shape.bg)}
+                  className={cn("absolute bg-active pointer-events-none", radius.bg)}
                   initial={false}
                   animate={{
                     left: selectedRect.left,
@@ -201,7 +215,7 @@ const TabsSubtle = forwardRef<HTMLDivElement, TabsSubtleProps>(
               <AnimatePresence>
                 {hoverRect && !isHoveringSelected && selectedRect && (
                   <motion.div
-                    className={cn("absolute bg-active pointer-events-none", shape.bg)}
+                    className={cn("absolute bg-active pointer-events-none", radius.bg)}
                     initial={{
                       left: selectedRect.left,
                       width: selectedRect.width,
@@ -242,7 +256,7 @@ const TabsSubtle = forwardRef<HTMLDivElement, TabsSubtleProps>(
                   <motion.div
                     className={cn(
                       "absolute pointer-events-none z-20 border border-[color:var(--focus-ring,#6B97FF)]",
-                      shape.focusRing,
+                      radius.focusRing,
                     )}
                     initial={false}
                     animate={{
@@ -300,7 +314,7 @@ const TabsSubtleItem = forwardRef<HTMLButtonElement, TabsSubtleItemProps>(
       labelRoRef.current = new ResizeObserver(update);
       labelRoRef.current.observe(el);
     }, []);
-    const shape = useShape();
+    const radius = useRadius();
     const sizeClasses = useSize();
     const { registerTab, hoveredIndex, selectedIndex, idPrefix, activeLabel } = useTabsSubtle();
 
@@ -348,7 +362,7 @@ const TabsSubtleItem = forwardRef<HTMLButtonElement, TabsSubtleItemProps>(
         ref={(node: HTMLElement | null) => {
           const button = node instanceof HTMLButtonElement ? node : null;
           internalRef.current = button;
-          if (typeof ref === "function") ref(button);
+          if (ref instanceof Function) ref(button);
           else if (ref) ref.current = button;
         }}
         value={index}
@@ -364,7 +378,7 @@ const TabsSubtleItem = forwardRef<HTMLButtonElement, TabsSubtleItemProps>(
           sizeClasses.control,
           sizeClasses.px,
           !collapseLabel && sizeClasses.gap,
-          shape.bg,
+          radius.bg,
           className,
         )}
         {...props}

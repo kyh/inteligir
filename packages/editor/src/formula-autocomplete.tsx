@@ -8,7 +8,14 @@
 
 import { useMemo, useState } from "react";
 import { SigmaIcon } from "lucide-react";
-import { KEYS, NodeApi, createTSlatePlugin, type PluginConfig, type TElement } from "platejs";
+import {
+  ElementApi,
+  KEYS,
+  createTSlatePlugin,
+  type Descendant,
+  type PluginConfig,
+  type TElement,
+} from "platejs";
 import {
   PlateElement,
   createPlatePlugin,
@@ -27,6 +34,7 @@ import {
   InlineComboboxInput,
 } from "@repo/editor/inline-combobox";
 import { FORMULA_INPUT_KEY } from "@repo/editor/formula-input-key";
+import { stringProp } from "@repo/editor/node-props";
 import { insertVoidAndEscape } from "@repo/editor/insert-void";
 import {
   formulaNodeFrom,
@@ -48,14 +56,14 @@ type NamedVariable = {
 function collectNamedVariables(editorChildren: readonly TElement[]): NamedVariable[] {
   const seen = new Set<string>();
   const out: NamedVariable[] = [];
-  const walk = (nodes: readonly unknown[]): void => {
+  const walk = (nodes: readonly Descendant[]): void => {
     for (const node of nodes) {
-      if (!NodeApi.isNode(node)) continue;
-      if ("type" in node && node.type === "formulaPill") {
-        const meta = typeof node.meta === "string" ? node.meta : "";
-        const parsed = parseFormulaMeta(meta === "" ? undefined : meta);
-        const source = typeof node.source === "string" ? node.source : "";
-        const display = typeof node.display === "string" ? node.display : "";
+      if (!ElementApi.isElement(node)) continue;
+      if (node.type === "formulaPill") {
+        const meta = stringProp(node, "meta") ?? "";
+        const parsed = parseFormulaMeta(meta);
+        const source = stringProp(node, "source") ?? "";
+        const display = stringProp(node, "display") ?? "";
         // Symbolic variables are named by their source.
         const name = parsed.name ?? (parsed.id !== undefined ? source : undefined);
         const key = parsed.id ?? name;
@@ -64,7 +72,7 @@ function collectNamedVariables(editorChildren: readonly TElement[]): NamedVariab
           out.push({ display, meta, name, source });
         }
       }
-      if ("children" in node && Array.isArray(node.children)) walk(node.children);
+      walk(node.children);
     }
   };
   walk(editorChildren);

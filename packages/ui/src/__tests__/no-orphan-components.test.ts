@@ -13,8 +13,8 @@
 // Mirrors the repo's other source-walk invariants (teardown-completeness,
 // kit-parity, pi-quarantine): assert the architectural rule as a failing test.
 //
-// Adding a component you have not wired up yet? Wire it up, or delete it and
-// re-pull it — for shadcn that is one command.
+// Adding a component you have not wired up yet? Wire it up, or add it to
+// AWAITING_CONSUMER below with the surface it is waiting for.
 // ---------------------------------------------------------------------------
 
 import { describe, expect, it } from "vitest";
@@ -78,13 +78,14 @@ function sourceFiles(dir: string, out: string[]): void {
 }
 
 /**
- * The Beautiful UI set was vendored WHOLE at the owner's request ("make sure
- * we have all the components"), and fourteen of them have no product surface
- * yet — only the gallery, which this guard deliberately does not count.
+ * The Beautiful UI set is held WHOLE by owner decision: these fourteen have no
+ * product surface yet and are kept for one the product will grow. Only the
+ * gallery renders them, and the gallery is deliberately not a consumer.
  *
- * Named per file rather than by directory, so the fifteenth unwired component
- * still fails. Delete an entry the moment its component is wired; the test
- * below fails if an entry outlives its file, so this cannot rot silently.
+ * So this is a standing allowance, not a backlog to drain — but it is named
+ * PER FILE rather than by directory, which is what keeps it honest: a
+ * fifteenth unwired component still fails, and the test below fails if an
+ * entry outlives its file.
  */
 const AWAITING_CONSUMER = new Set([
   "packages/ui/src/ai/chat.tsx",
@@ -157,7 +158,7 @@ describe("no orphan components", () => {
         `Every file under ${SWEPT_DIRS} must be reachable from a consumer.\n` +
         `The component gallery does NOT count as one — it imports everything by design,\n` +
         `and rendering in a gallery is not the same claim as the product needing it.\n` +
-        `Delete them — shadcn re-adds a stock component in one command — or wire them up:\n` +
+        `Wire them up, or add them to AWAITING_CONSUMER with the surface they wait for:\n` +
         orphans.map((file) => `  ${file}`).join("\n"),
     ).toEqual([]);
   });

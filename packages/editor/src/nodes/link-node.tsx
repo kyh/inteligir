@@ -18,6 +18,8 @@ import { cn } from "@repo/ui/lib/utils";
 import { Button } from "@repo/ui/components/button";
 import { Popover, PopoverContent } from "@repo/ui/components/popover";
 
+import { stringProp } from "@repo/editor/node-props";
+
 function PopoverButton({
   onClick,
   title,
@@ -49,7 +51,7 @@ export function LinkElement(props: PlateElementProps) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
 
-  const url = typeof element.url === "string" ? element.url : "";
+  const url = stringProp(element, "url") ?? "";
 
   const close = () => {
     setOpen(false);

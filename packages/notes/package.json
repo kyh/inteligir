@@ -34,6 +34,7 @@
     "./markdown/fence-langs": "./src/markdown/fence-langs.ts",
     "./markdown/frontmatter": "./src/markdown/frontmatter.ts",
     "./markdown/md-plugins": "./src/markdown/md-plugins.ts",
+    "./markdown/mdast-nodes": "./src/markdown/mdast-nodes.ts",
     "./markdown/parse": "./src/markdown/parse.ts",
     "./markdown/remark-inline-constructs": "./src/markdown/remark-inline-constructs.ts",
     "./markdown/remark-mdx-agnostic": "./src/markdown/remark-mdx-agnostic.ts",

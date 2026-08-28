@@ -401,13 +401,13 @@
   }
 
   /* Fallback focus ring for anything without its own focus-visible styling.
-     The radius tracks the shape system through the custom property
-     ShapeProvider publishes on <html>; components with their own rounding
-     keep it (utilities layer wins over base). */
+     The radius tracks the custom property RadiusProvider publishes on <html>;
+     components with their own rounding keep it (utilities layer wins over
+     base). */
   :focus-visible {
     outline: 1px solid var(--focus-ring);
     outline-offset: 2px;
-    border-radius: var(--shape-input-radius, 8px);
+    border-radius: var(--input-radius, 8px);
   }
   a:focus-visible {
     border-radius: 2px;
@@ -500,8 +500,8 @@
   }
 }
 
-/* Shape-switch cross-fade: ShapeProvider holds `.transitioning` on <html> for
-   ~200ms around a shape change so radii (and the colors riding them) glide
+/* Radius-switch cross-fade: RadiusProvider holds `.transitioning` on <html> for
+   ~200ms around a radius change so radii (and the colors riding them) glide
    instead of snapping. !important because the beat must beat per-component
    transition utilities. */
 .transitioning *,

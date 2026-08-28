@@ -10,9 +10,9 @@ import {
   type ReactNode,
 } from "react";
 
-type ShapeVariant = "pill" | "rounded";
+type RadiusVariant = "pill" | "rounded";
 
-interface ShapeClasses {
+interface RadiusClasses {
   item: string;
   bg: string;
   focusRing: string;
@@ -27,7 +27,7 @@ interface ShapeClasses {
   mergedRadius: number;
 }
 
-const shapeMap = {
+const radiusMap = {
   pill: {
     item: "rounded-[20px]",
     bg: "rounded-[20px]",
@@ -53,42 +53,42 @@ const shapeMap = {
     bgRadius: 8,
     mergedRadius: 8,
   },
-} satisfies Record<ShapeVariant, ShapeClasses>;
+} satisfies Record<RadiusVariant, RadiusClasses>;
 
-interface ShapeContextValue {
-  shape: ShapeVariant;
-  setShape: (shape: ShapeVariant) => void;
-  classes: ShapeClasses;
+interface RadiusContextValue {
+  radius: RadiusVariant;
+  setRadius: (radius: RadiusVariant) => void;
+  classes: RadiusClasses;
 }
 
-const ShapeContext = createContext<ShapeContextValue | null>(null);
+const RadiusContext = createContext<RadiusContextValue | null>(null);
 
-function useShape(): ShapeClasses {
-  const ctx = useContext(ShapeContext);
-  if (!ctx) return shapeMap.pill;
+function useRadius(): RadiusClasses {
+  const ctx = useContext(RadiusContext);
+  if (!ctx) return radiusMap.pill;
   return ctx.classes;
 }
 
-function useShapeContext() {
-  const ctx = useContext(ShapeContext);
-  if (!ctx) throw new Error("useShapeContext must be used within a ShapeProvider");
+function useRadiusContext() {
+  const ctx = useContext(RadiusContext);
+  if (!ctx) throw new Error("useRadiusContext must be used within a RadiusProvider");
   return ctx;
 }
 
-function ShapeProvider({
+function RadiusProvider({
   children,
-  defaultShape = "pill",
+  defaultRadius = "pill",
 }: {
   children: ReactNode;
-  defaultShape?: ShapeVariant;
+  defaultRadius?: RadiusVariant;
 }) {
-  const [shape, setShapeState] = useState<ShapeVariant>(defaultShape);
+  const [radius, setRadiusState] = useState<RadiusVariant>(defaultRadius);
   const transitionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Run a state change under the `.transitioning` guard (added + reflow-flushed
   // first so the 180ms border-radius cross-fade applies). Clearing the previous
   // timeout first keeps a double-press from removing the class mid-fade.
-  const transitionShape = useCallback((callback: () => void) => {
+  const transitionRadius = useCallback((callback: () => void) => {
     const root = document.documentElement;
     root.classList.add("transitioning");
     void root.offsetHeight;
@@ -97,28 +97,28 @@ function ShapeProvider({
     transitionTimeoutRef.current = setTimeout(() => root.classList.remove("transitioning"), 200);
   }, []);
 
-  const setShape = useCallback(
-    (next: ShapeVariant) => {
-      transitionShape(() => setShapeState(next));
+  const setRadius = useCallback(
+    (next: RadiusVariant) => {
+      transitionRadius(() => setRadiusState(next));
     },
-    [transitionShape],
+    [transitionRadius],
   );
 
   // Publish the current element radius as a CSS custom property so plain-CSS
-  // consumers that can't read React context stay in sync with the shape
+  // consumers that can't read React context stay in sync with the radius
   // system — e.g. the @layer base :focus-visible fallback ring in
   // globals.css. Set on <html> so portalled content sees it too.
   useEffect(() => {
-    document.documentElement.style.setProperty(
-      "--shape-input-radius",
-      `${shapeMap[shape].bgRadius}px`,
-    );
-  }, [shape]);
+    document.documentElement.style.setProperty("--input-radius", `${radiusMap[radius].bgRadius}px`);
+  }, [radius]);
 
-  const value = useMemo(() => ({ shape, setShape, classes: shapeMap[shape] }), [shape, setShape]);
+  const value = useMemo(
+    () => ({ radius, setRadius, classes: radiusMap[radius] }),
+    [radius, setRadius],
+  );
 
-  return <ShapeContext.Provider value={value}>{children}</ShapeContext.Provider>;
+  return <RadiusContext.Provider value={value}>{children}</RadiusContext.Provider>;
 }
 
-export { ShapeProvider, useShape, useShapeContext, shapeMap };
-export type { ShapeVariant, ShapeClasses };
+export { RadiusProvider, useRadius, useRadiusContext, radiusMap };
+export type { RadiusVariant, RadiusClasses };

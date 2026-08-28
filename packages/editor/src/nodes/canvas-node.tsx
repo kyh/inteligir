@@ -11,6 +11,8 @@ import { useRef, useState, type PointerEvent as ReactPointerEvent } from "react"
 
 import { cn } from "@repo/ui/lib/utils";
 
+import { stringProp } from "@repo/editor/node-props";
+
 import {
   type CanvasCell,
   clearCanvasGrid,
@@ -284,7 +286,7 @@ function SketchToolButton({
 export function CanvasElement(props: PlateElementProps) {
   const [mode, setMode] = useState<"view" | "sketch" | "raw">("view");
   const [tool, setTool] = useState<SketchTool>("pencil");
-  const value = typeof props.element.value === "string" ? props.element.value : "";
+  const value = stringProp(props.element, "value") ?? "";
   const parsed = parseCanvasPayload(value);
 
   return (

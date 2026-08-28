@@ -9,25 +9,26 @@ import { PlateElement, type PlateElementProps } from "platejs/react";
 
 import { cn } from "@repo/ui/lib/utils";
 
+import { stringProp } from "@repo/editor/node-props";
+
 // Accents mirror nodes/blockquote-node.tsx's ALERTS palette (string-keyed on
-// the callout's own variant names rather than GH marker names).
-// The dialect's callout kinds first; the legacy names
-// keep their accents so a converted note reads the same mid-migration.
-const VARIANT_ACCENTS: Record<string, string> = {
-  caution: "border-red-500/60 bg-red-500/[0.05]",
-  error: "border-red-500/60 bg-red-500/[0.05]",
-  info: "border-blue-500/60 bg-blue-500/[0.05]",
-  note: "border-blue-500/60 bg-blue-500/[0.05]",
-  priority: "border-red-500/60 bg-red-500/[0.05]",
-  tip: "border-emerald-500/60 bg-emerald-500/[0.05]",
-  warning: "border-amber-500/60 bg-amber-500/[0.05]",
-};
+// the callout's own variant names rather than GH marker names). A variant is
+// whatever the source note wrote, so the lookup is a Map rather than a record
+// whose keys would claim to be the whole vocabulary.
+const VARIANT_ACCENTS = new Map([
+  ["caution", "border-red-500/60 bg-red-500/[0.05]"],
+  ["error", "border-red-500/60 bg-red-500/[0.05]"],
+  ["info", "border-blue-500/60 bg-blue-500/[0.05]"],
+  ["note", "border-blue-500/60 bg-blue-500/[0.05]"],
+  ["priority", "border-red-500/60 bg-red-500/[0.05]"],
+  ["tip", "border-emerald-500/60 bg-emerald-500/[0.05]"],
+  ["warning", "border-amber-500/60 bg-amber-500/[0.05]"],
+]);
 
 export function CalloutElement(props: PlateElementProps) {
-  const variant =
-    typeof props.element.variant === "string" ? props.element.variant.toLowerCase() : "";
-  const icon = typeof props.element.icon === "string" ? props.element.icon : null;
-  const accent = VARIANT_ACCENTS[variant] ?? "border-border bg-muted/40";
+  const variant = stringProp(props.element, "variant")?.toLowerCase() ?? "";
+  const icon = stringProp(props.element, "icon") ?? null;
+  const accent = VARIANT_ACCENTS.get(variant) ?? "border-border bg-muted/40";
 
   return (
     <PlateElement

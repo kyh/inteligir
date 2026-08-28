@@ -16,6 +16,7 @@ import { ImageOff } from "lucide-react";
 import { cn } from "@repo/ui/lib/utils";
 
 import { getEditorHostIo } from "@repo/editor/host-io";
+import { stringProp } from "@repo/editor/node-props";
 
 const EXTERNAL_RE = /^https?:\/\//i;
 
@@ -68,13 +69,13 @@ function altText(element: TElement): string {
     const text = caption.map((node) => (NodeApi.isNode(node) ? NodeApi.string(node) : "")).join("");
     if (text) return text;
   }
-  const url = typeof element.url === "string" ? element.url : "";
+  const url = stringProp(element, "url") ?? "";
   return url.split("/").at(-1) ?? "";
 }
 
 export function ImageElement(props: PlateElementProps) {
   const selected = useSelected();
-  const url = typeof props.element.url === "string" ? props.element.url : "";
+  const url = stringProp(props.element, "url") ?? "";
   const external = EXTERNAL_RE.test(url);
   const state = useVaultAsset(url, external);
   const alt = altText(props.element);

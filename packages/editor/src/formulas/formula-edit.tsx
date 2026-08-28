@@ -15,6 +15,7 @@ import {
   formulaPropsFromEntry,
   type FormulaNodeProps,
 } from "@repo/editor/formulas/formula-entry";
+import { stringProp } from "@repo/editor/node-props";
 
 function formulaEntriesById(editor: SlateEditor, id: string): NodeEntry<TElement>[] {
   const out: NodeEntry<TElement>[] = [];
@@ -22,9 +23,7 @@ function formulaEntriesById(editor: SlateEditor, id: string): NodeEntry<TElement
     at: [],
     match: (node) => NodeApi.isNode(node) && "type" in node && node.type === "formulaPill",
   })) {
-    const meta = parseFormulaMeta(
-      typeof entry[0].meta === "string" && entry[0].meta !== "" ? entry[0].meta : undefined,
-    );
+    const meta = parseFormulaMeta(stringProp(entry[0], "meta"));
     if (meta.id === id) out.push(entry);
   }
   return out;
@@ -39,9 +38,7 @@ export function applyFormulaEdit(
 ): void {
   const path = editor.api.findPath(element);
   if (path === undefined) return;
-  const meta = parseFormulaMeta(
-    typeof element.meta === "string" && element.meta !== "" ? element.meta : undefined,
-  );
+  const meta = parseFormulaMeta(stringProp(element, "meta"));
   const targets =
     meta.id === undefined || meta.id === ""
       ? [[element, path] satisfies NodeEntry<TElement>]
@@ -81,9 +78,7 @@ export function FormulaEditPopover({
   }, []);
 
   const save = (): void => {
-    const props = formulaPropsFromEntry(entry, {
-      meta: typeof element.meta === "string" ? element.meta : "",
-    });
+    const props = formulaPropsFromEntry(entry, { meta: stringProp(element, "meta") ?? "" });
     if (props !== null) {
       applyFormulaEdit(editor, element, props);
     }

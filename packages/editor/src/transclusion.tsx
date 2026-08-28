@@ -38,6 +38,7 @@ import { BASE_KIT } from "@repo/editor/kits/base-kit";
 import { classNameSlateElement } from "@repo/editor/kits/kit-utils";
 import { TABLE_CELL_CLASS, TABLE_HEADER_CELL_CLASS } from "@repo/editor/kits/table-kit";
 import { parseMarkdown } from "@repo/editor/markdown/markdown-doc";
+import { stringProp } from "@repo/editor/node-props";
 import {
   alertMarkerPrefix,
   alertPresentation,
@@ -63,7 +64,7 @@ const TransclusionScopeContext = createContext<TransclusionScope | null>(null);
 // ---------------------------------------------------------------------------
 
 function LinkStatic(props: SlateElementProps) {
-  const url = typeof props.element.url === "string" ? props.element.url : "";
+  const url = stringProp(props.element, "url") ?? "";
   return (
     <SlateElement
       {...props}
@@ -76,7 +77,7 @@ function LinkStatic(props: SlateElementProps) {
 }
 
 function WikiLinkStatic(props: SlateElementProps) {
-  const body = typeof props.element.body === "string" ? props.element.body : "";
+  const body = stringProp(props.element, "body") ?? "";
   return (
     <SlateElement {...props} as="span">
       <WikiChip body={body} />
@@ -88,7 +89,7 @@ function WikiLinkStatic(props: SlateElementProps) {
 /** Embeds inside embedded content: always a chip (depth guard) — but still a
  * navigable one. */
 function WikiEmbedStatic(props: SlateElementProps) {
-  const body = typeof props.element.body === "string" ? props.element.body : "";
+  const body = stringProp(props.element, "body") ?? "";
   return (
     <SlateElement {...props} as="span">
       <EmbedChip body={body} />
@@ -98,7 +99,7 @@ function WikiEmbedStatic(props: SlateElementProps) {
 }
 
 function DateStatic(props: SlateElementProps) {
-  const date = typeof props.element.date === "string" ? props.element.date : "";
+  const date = stringProp(props.element, "date") ?? "";
   return (
     <SlateElement {...props} as="span" className="rounded-sm bg-muted px-1 text-muted-foreground">
       {date || "date"}
@@ -108,7 +109,7 @@ function DateStatic(props: SlateElementProps) {
 }
 
 function EquationStatic(props: SlateElementProps) {
-  const tex = typeof props.element.texExpression === "string" ? props.element.texExpression : "";
+  const tex = stringProp(props.element, "texExpression") ?? "";
   return (
     <SlateElement {...props} className="my-1">
       <code>{tex}</code>
@@ -118,7 +119,7 @@ function EquationStatic(props: SlateElementProps) {
 }
 
 function InlineEquationStatic(props: SlateElementProps) {
-  const tex = typeof props.element.texExpression === "string" ? props.element.texExpression : "";
+  const tex = stringProp(props.element, "texExpression") ?? "";
   return (
     <SlateElement {...props} as="span">
       <code>{tex}</code>
@@ -130,7 +131,7 @@ function InlineEquationStatic(props: SlateElementProps) {
 /** Media voids (video / tweet / pdf) compact to a link — a full player inside
  * a read-only digest is noise. */
 function MediaStatic(props: SlateElementProps) {
-  const url = typeof props.element.url === "string" ? props.element.url : "";
+  const url = stringProp(props.element, "url") ?? "";
   return (
     <SlateElement {...props} className="my-1">
       <a href={url} target="_blank" rel="noreferrer">
@@ -164,28 +165,28 @@ function TableRowStatic(props: SlateElementProps) {
   return <SlateElement {...props} as="tr" />;
 }
 
-const STATIC_COMPONENTS: Record<string, (props: SlateElementProps) => ReactNode> = {
-  a: LinkStatic,
-  date: DateStatic,
-  equation: EquationStatic,
-  inline_equation: InlineEquationStatic,
-  video: MediaStatic,
-  media_embed: MediaStatic,
-  file: MediaStatic,
-  frontmatter: FrontmatterStatic,
-  table: TableStatic,
-  tr: TableRowStatic,
-  td: classNameSlateElement("td", TABLE_CELL_CLASS),
-  th: classNameSlateElement("th", TABLE_HEADER_CELL_CLASS),
-  wikiLink: WikiLinkStatic,
-  wikiEmbed: WikiEmbedStatic,
-  blockquote: BlockquoteStatic,
-};
+const STATIC_COMPONENTS = new Map<string, (props: SlateElementProps) => ReactNode>([
+  ["a", LinkStatic],
+  ["date", DateStatic],
+  ["equation", EquationStatic],
+  ["inline_equation", InlineEquationStatic],
+  ["video", MediaStatic],
+  ["media_embed", MediaStatic],
+  ["file", MediaStatic],
+  ["frontmatter", FrontmatterStatic],
+  ["table", TableStatic],
+  ["tr", TableRowStatic],
+  ["td", classNameSlateElement("td", TABLE_CELL_CLASS)],
+  ["th", classNameSlateElement("th", TABLE_HEADER_CELL_CLASS)],
+  ["wikiLink", WikiLinkStatic],
+  ["wikiEmbed", WikiEmbedStatic],
+  ["blockquote", BlockquoteStatic],
+]);
 
 // withComponent returns extended copies — BASE_KIT itself (the serialization
 // mirror) is never mutated.
 const TRANSCLUSION_KIT = BASE_KIT.map((plugin) => {
-  const component = STATIC_COMPONENTS[plugin.key];
+  const component = STATIC_COMPONENTS.get(plugin.key);
   return component ? plugin.withComponent(component) : plugin;
 });
 
@@ -227,9 +228,9 @@ function alertLeaf(quote: TElement): TText | null {
  * over a body whose marker stripAlertMarkers already removed. Non-alert
  * blockquotes fall through to the default static rendering. */
 function BlockquoteStatic(props: SlateElementProps) {
-  const variant = props.element[ALERT_VARIANT_KEY];
+  const variant = stringProp(props.element, ALERT_VARIANT_KEY);
   const presentation =
-    typeof variant === "string" && isAlertVariant(variant) ? alertPresentation(variant) : null;
+    variant !== undefined && isAlertVariant(variant) ? alertPresentation(variant) : null;
   if (!presentation) {
     return (
       <SlateElement {...props} as="blockquote">

@@ -49,6 +49,9 @@ src/
   host.tsx, host-io.ts # the injected EditorHost (vault actions + listing) and
                        # its non-React twin for modules Plate renders outside
                        # a provider
+  node-props.ts        # the Slate decode boundary: a node's dialect fields ride
+                       # TElement's open index signature, so every read arrives
+                       # unknown and becomes a domain value here, once
   slash-menu.tsx, selection-toolbar.tsx, block-menu.tsx, block-*.tsx,
   toc.tsx, transclusion*.ts(x), heading-collapse.tsx, find-bar.tsx,
   embed-url-dialog.tsx, emoji-input.tsx, inline-combobox.tsx,

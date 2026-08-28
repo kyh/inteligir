@@ -56,12 +56,12 @@ const promptBarVariants = cva(
   "flex w-full flex-col bg-surface-raised shadow-surface-2 transition-[border-radius] duration-200",
   {
     variants: {
-      shape: {
+      radius: {
         rounded: "rounded-xl",
         pill: "rounded-[22px]",
       },
     },
-    defaultVariants: { shape: "rounded" },
+    defaultVariants: { radius: "rounded" },
   },
 );
 
@@ -69,11 +69,11 @@ export interface PromptBarProps
   extends HTMLAttributes<HTMLDivElement>, VariantProps<typeof promptBarVariants> {}
 
 const PromptBar = forwardRef<HTMLDivElement, PromptBarProps>(
-  ({ className, shape, ...props }, ref) => (
+  ({ className, radius, ...props }, ref) => (
     <div
       ref={ref}
       data-slot="prompt-bar"
-      className={cn(promptBarVariants({ shape }), className)}
+      className={cn(promptBarVariants({ radius }), className)}
       {...props}
     />
   ),

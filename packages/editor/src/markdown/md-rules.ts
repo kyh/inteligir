@@ -10,7 +10,14 @@
 // Slate `frontmatter` node, which serializes back under its own key.
 
 import type { AlignType } from "mdast";
-import { ElementApi, TextApi, type Descendant, type TElement, type TLinkElement } from "platejs";
+import {
+  ElementApi,
+  NodeApi,
+  TextApi,
+  type Descendant,
+  type TElement,
+  type TLinkElement,
+} from "platejs";
 import {
   type DeserializeMdOptions,
   type MdDecoration,
@@ -29,6 +36,7 @@ import {
   propsToAttributes,
   serializeMd,
 } from "@platejs/markdown";
+import { z } from "zod";
 
 import { MD_STRINGIFY } from "@repo/notes/markdown/md-plugins";
 import { parseCalloutPayload } from "@repo/notes/markdown/callout-payload";
@@ -49,6 +57,8 @@ import {
   RICH_FENCE_LANGS,
 } from "@repo/notes/markdown/fence-langs";
 import type { WikiEmbed, WikiLink } from "@repo/notes/markdown/remark-wiki-link";
+
+import { stringProp } from "@repo/editor/node-props";
 
 // Fail fast if a @platejs/markdown bump reshapes defaultRules — the alert rule
 // delegates every non-alert blockquote to the stock path, and the table rule
@@ -118,13 +128,13 @@ type WideMdRule = NonNullable<MdRules[string]>;
 // Shared body of the four MDX-flow serialize rules below (media, toggle,
 // column, callout): drop the leaked `id`, serialize children, emit an
 // `mdxJsxFlowElement`. Overrides carry each rule's specifics — `name` defaults
-// to the node's own type (media's video/media_embed/file), `mapProps` reshapes
-// the leftover props before they become attributes (media's url→src), and
-// `children` overrides the default child serialization (column's empty `[]`).
+// to the node's own type (media's video/media_embed/file) and `children`
+// overrides the default child serialization (column's empty `[]`). Every other
+// prop rides through in the node's own key order, which IS the emitted
+// attribute order.
 type JsxFlowOverrides = {
   name?: string;
   children?: ReturnType<typeof convertNodesSerialize>;
-  mapProps?: (rest: Record<string, unknown>) => Record<string, unknown>;
 };
 
 function jsxFlowSerialize(
@@ -135,25 +145,24 @@ function jsxFlowSerialize(
   const { id, children, type, ...rest } = node;
   void id;
   return {
-    attributes: propsToAttributes(overrides.mapProps ? overrides.mapProps(rest) : rest),
+    attributes: propsToAttributes(rest),
     children: overrides.children ?? convertNodesSerialize(children, options),
     name: overrides.name ?? type,
     type: "mdxJsxFlowElement",
   };
 }
 
+// A url-less media node (`<video />`) must OMIT src entirely: spreading
+// `src: undefined` emits a bare `src` attribute, which the next parse reads as
+// a non-string attribute and turns the whole element opaque — the media node
+// would stop rendering. `src` replaces `url` in place at the END of the prop
+// order, which is where the shared serializer's `propsToAttributes` reads it.
 function mediaSerializeWithoutId(node: TElement, options: SerializeMdOptions) {
-  return jsxFlowSerialize(node, options, {
-    // A url-less media node (`<video />`) must OMIT src entirely: spreading
-    // `src: undefined` emits a bare `src` attribute, which the next parse reads
-    // as a non-string attribute and turns the whole element opaque — the media
-    // node would stop rendering. `name` falls back to the node's own type
-    // (video / media_embed / file).
-    mapProps: (rest) => {
-      const { url, ...props } = rest;
-      return typeof url === "string" ? { ...props, src: url } : props;
-    },
-  });
+  const { url, ...withoutUrl } = node;
+  void url;
+  const src = stringProp(node, "url");
+  const media: TElement = src === undefined ? withoutUrl : { ...withoutUrl, src };
+  return jsxFlowSerialize(media, options, {});
 }
 
 // --- links -----------------------------------------------------------------
@@ -174,25 +183,13 @@ function isMdText(node: { type: string }): node is MdText {
 
 // --- tables ------------------------------------------------------------------
 
-// The mdast `align` array as it survives a trip through a Slate node prop.
-function isAlignArray(value: unknown): value is AlignType[] {
-  return (
-    Array.isArray(value) &&
-    value.every(
-      (align) => align === null || align === "center" || align === "left" || align === "right",
-    )
-  );
-}
+// The mdast `align` array as it survives a trip through a Slate node prop —
+// the one table field the round trip carries that Plate's own rule does not.
+const TABLE_ALIGN = z.array(z.enum(["center", "left", "right"]).nullable());
 
-// Concatenated text of a Slate subtree. Plate keeps blockquote soft breaks as
-// "\n" inside text leaves, so this sees the alert marker on the first line.
-function nodeText(node: unknown): string {
-  if (node === null || typeof node !== "object") return "";
-  if ("text" in node && typeof node.text === "string") return node.text;
-  if ("children" in node && Array.isArray(node.children)) {
-    return node.children.map(nodeText).join("");
-  }
-  return "";
+function tableAlign(node: TElement): AlignType[] | undefined {
+  const parsed = TABLE_ALIGN.safeParse(node.align);
+  return parsed.success ? parsed.data : undefined;
 }
 
 // Slate normalization pads inline elements with empty text siblings (a live
@@ -232,7 +229,7 @@ const linkRule: WideMdRule = {
     // CONVERTED children must be a single plain text node (marks inside the
     // link text disqualify it) whose bytes are the address itself.
     const children = convertNodesSerialize(node.children, options);
-    const url = typeof node.url === "string" ? node.url : "";
+    const url = node.url;
     const only = children.length === 1 ? children[0] : undefined;
     const text = only !== undefined && isMdText(only) ? only.value : null;
     const literal =
@@ -255,7 +252,9 @@ const blockquoteRule: WideMdRule = {
   deserialize: defaultBlockquoteDeserialize,
   serialize: (node: TElement, options: SerializeMdOptions) => {
     const editor = options.editor;
-    if (!editor || !ALERT_RE.test(nodeText(node))) {
+    // Plate keeps blockquote soft breaks as "\n" inside text leaves, so the
+    // subtree's concatenated text carries the alert marker on its first line.
+    if (!editor || !ALERT_RE.test(NodeApi.string(node))) {
       return defaultBlockquoteSerialize(node, options);
     }
     const children: Descendant[] = node.children;
@@ -337,10 +336,9 @@ export const MD_RULES: MdRules = {
       const isEmpty = onlyText !== undefined && TextApi.isText(onlyText) && onlyText.text === "";
       // Empty column ⇒ self-closed `<column />` (children: []); populated ⇒
       // default child serialization.
-      return jsxFlowSerialize(node, options, {
-        name: "column",
-        ...(isEmpty ? { children: [] } : {}),
-      });
+      const overrides: JsxFlowOverrides = { name: "column" };
+      if (isEmpty) overrides.children = [];
+      return jsxFlowSerialize(node, options, overrides);
     },
   },
 
@@ -376,12 +374,13 @@ export const MD_RULES: MdRules = {
   callout: {
     serialize: (node: TElement, options: SerializeMdOptions): MdCode => {
       const editor = options.editor;
-      const variant = typeof node.variant === "string" ? node.variant : "info";
+      const variant = stringProp(node, "variant") ?? "info";
       const typeLine = node.typePrefixed === true ? `type: ${variant}` : variant;
+      const levelValue = stringProp(node, "level") ?? "";
       const level =
-        typeof node.level === "string" && node.level !== ""
-          ? [node.levelPrefixed === true ? `level: ${node.level}` : node.level]
-          : [];
+        levelValue === ""
+          ? []
+          : [node.levelPrefixed === true ? `level: ${levelValue}` : levelValue];
       const children: Descendant[] = node.children;
       const body =
         editor === undefined
@@ -412,7 +411,7 @@ export const MD_RULES: MdRules = {
     }),
     serialize: (node: TElement): OpaqueBlock => ({
       type: "opaqueBlock",
-      value: typeof node.value === "string" ? node.value : "",
+      value: stringProp(node, "value") ?? "",
     }),
   },
   opaqueInline: {
@@ -423,7 +422,7 @@ export const MD_RULES: MdRules = {
     }),
     serialize: (node: TElement): OpaqueInline => ({
       type: "opaqueInline",
-      value: typeof node.value === "string" ? node.value : "",
+      value: stringProp(node, "value") ?? "",
     }),
   },
 
@@ -436,7 +435,7 @@ export const MD_RULES: MdRules = {
       type: "wikiLink",
     }),
     serialize: (node: TElement): WikiLink => ({
-      body: typeof node.body === "string" ? node.body : "",
+      body: stringProp(node, "body") ?? "",
       type: "wikiLink",
     }),
   },
@@ -447,7 +446,7 @@ export const MD_RULES: MdRules = {
       type: "wikiEmbed",
     }),
     serialize: (node: TElement): WikiEmbed => ({
-      body: typeof node.body === "string" ? node.body : "",
+      body: stringProp(node, "body") ?? "",
       type: "wikiEmbed",
     }),
   },
@@ -463,15 +462,20 @@ export const MD_RULES: MdRules = {
         const children: Descendant[] = parsed.ok
           ? convertChildrenDeserialize(parsed.root.children, deco, options)
           : [{ children: [{ text: payload.body }], type: "p" }];
-        return {
+        // The `type:` / `level:` prefixes are payload spellings the callout
+        // serializer replays, so a note that wrote one keeps it; a note that
+        // did not must carry no prop at all rather than a false one.
+        const callout: TElement = {
           children: children.length > 0 ? children : [{ children: [{ text: "" }], type: "p" }],
           type: "callout",
           variant: payload.kind,
-          ...(payload.typePrefixed ? { typePrefixed: true } : {}),
-          ...(payload.level !== undefined
-            ? { level: payload.level, ...(payload.levelPrefixed ? { levelPrefixed: true } : {}) }
-            : {}),
         };
+        if (payload.typePrefixed) callout.typePrefixed = true;
+        if (payload.level !== undefined) {
+          callout.level = payload.level;
+          if (payload.levelPrefixed) callout.levelPrefixed = true;
+        }
+        return callout;
       }
       const richBlock = RICH_FENCE_LANGS.get(node.lang ?? "");
       if (richBlock !== undefined) {
@@ -490,21 +494,21 @@ export const MD_RULES: MdRules = {
     serialize: (node: TElement): MdCode => ({
       lang: CHART_LANG,
       type: "code",
-      value: typeof node.value === "string" ? node.value : "",
+      value: stringProp(node, "value") ?? "",
     }),
   },
   canvas_block: {
     serialize: (node: TElement): MdCode => ({
       lang: CANVAS_LANG,
       type: "code",
-      value: typeof node.value === "string" ? node.value : "",
+      value: stringProp(node, "value") ?? "",
     }),
   },
   html_block: {
     serialize: (node: TElement): MdCode => ({
       lang: HTML_LANG,
       type: "code",
-      value: typeof node.value === "string" ? node.value : "",
+      value: stringProp(node, "value") ?? "",
     }),
   },
 
@@ -526,17 +530,14 @@ export const MD_RULES: MdRules = {
   tab_group: {
     serialize: (node: TElement, options: SerializeMdOptions): TabGroup => ({
       children: node.children.flatMap((panel): TabPanel[] => {
-        if (typeof panel !== "object" || !("type" in panel) || panel.type !== "tab_panel") {
-          return [];
-        }
-        const children: Descendant[] = Array.isArray(panel.children) ? panel.children : [];
-        const panelChildren = convertNodesSerialize(children, options).flatMap(
+        if (!ElementApi.isElement(panel) || panel.type !== "tab_panel") return [];
+        const panelChildren = convertNodesSerialize(panel.children, options).flatMap(
           (child): TabPanel["children"] => (isPanelContent(child) ? [child] : []),
         );
         return [
           {
             children: panelChildren,
-            label: typeof panel.label === "string" ? panel.label : "Tab",
+            label: stringProp(panel, "label") ?? "Tab",
             type: "tabPanel",
           },
         ];
@@ -557,7 +558,7 @@ export const MD_RULES: MdRules = {
       type: "formulaPill",
     }),
     serialize: (node: TElement): FormulaPill => {
-      const raw = typeof node.raw === "string" ? node.raw : "";
+      const raw = stringProp(node, "raw") ?? "";
       return { raw, type: "formulaPill", ...parseFormulaRaw(raw) };
     },
   },
@@ -570,7 +571,7 @@ export const MD_RULES: MdRules = {
     }),
     serialize: (node: TElement): CommentMarker => ({
       edge: node.edge === "end" ? "end" : "start",
-      ids: typeof node.ids === "string" ? node.ids : "",
+      ids: stringProp(node, "ids") ?? "",
       type: "commentMarker",
     }),
   },
@@ -606,13 +607,13 @@ export const MD_RULES: MdRules = {
         deco,
         options,
       );
-      return isAlignArray(node.align) && node.align.some((align) => align !== null)
-        ? { ...element, align: node.align }
-        : element;
+      const align = node.align ?? [];
+      return align.some((entry) => entry !== null) ? { ...element, align } : element;
     },
     serialize: (node, options) => {
       const table = defaultTableSerialize(node, options);
-      return isAlignArray(node.align) ? { ...table, align: node.align } : table;
+      const align = tableAlign(node);
+      return align === undefined ? table : { ...table, align };
     },
   },
 
@@ -641,7 +642,7 @@ export const MD_RULES: MdRules = {
   frontmatter: {
     serialize: (node: TElement): MdYaml => ({
       type: "yaml",
-      value: typeof node.value === "string" ? node.value : "",
+      value: stringProp(node, "value") ?? "",
     }),
   },
 };

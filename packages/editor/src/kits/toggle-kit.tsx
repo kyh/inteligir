@@ -13,6 +13,7 @@ import type { PlateEditor } from "platejs/react";
 import { BaseTogglePlugin } from "@platejs/toggle";
 import { TogglePlugin } from "@platejs/toggle/react";
 
+import { stringProp } from "@repo/editor/node-props";
 import { ToggleElement } from "@repo/editor/nodes/toggle-node";
 
 export const ToggleBaseKit = [BaseTogglePlugin];
@@ -31,7 +32,7 @@ export function wrapBlockInToggle(editor: PlateEditor, at: Path): void {
     editor.tf.wrapNodes({ children: [], type: KEYS.toggle }, { at });
   });
   const toggle = editor.api.node(at);
-  const id = toggle && typeof toggle[0].id === "string" ? toggle[0].id : null;
+  const id = toggle ? stringProp(toggle[0], "id") : undefined;
   if (id) editor.getApi(TogglePlugin).toggle.toggleIds([id], true);
 }
 

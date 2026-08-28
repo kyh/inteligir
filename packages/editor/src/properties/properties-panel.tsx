@@ -38,14 +38,14 @@ function overrideOptions(prop: TypedProperty): PropertyType[] {
   return prop.type === "text" || prop.type === "date" ? ["text", "date"] : [prop.type];
 }
 
-const TYPE_LABEL: Record<PropertyType, string> = {
+const TYPE_LABEL = {
   text: "Text",
   number: "Number",
   checkbox: "Checkbox",
   date: "Date",
   tags: "Tags",
   unsupported: "Unsupported",
-};
+} satisfies Record<PropertyType, string>;
 
 function Field({
   prop,

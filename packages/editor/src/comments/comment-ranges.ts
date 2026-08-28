@@ -10,6 +10,8 @@
 
 import { ElementApi, type Path, type Point, type SlateEditor, type TElement } from "platejs";
 
+import { stringProp } from "@repo/editor/node-props";
+
 export type CommentRange = {
   ids: string[];
   anchor: Point;
@@ -24,12 +26,12 @@ export type BlockCommentScan = {
 };
 
 function markerIds(element: TElement): string[] {
-  const raw = typeof element.ids === "string" ? element.ids : "";
+  const raw = stringProp(element, "ids") ?? "";
   return raw.split(",").filter((id) => id !== "");
 }
 
 function markerEdge(element: TElement): "start" | "end" {
-  return element.edge === "end" ? "end" : "start";
+  return stringProp(element, "edge") === "end" ? "end" : "start";
 }
 
 /** Scan ONE element's direct children for marker pairs. */

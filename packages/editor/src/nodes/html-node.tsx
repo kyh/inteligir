@@ -11,6 +11,8 @@
 import { type PlateElementProps, PlateElement } from "platejs/react";
 import { useState } from "react";
 
+import { stringProp } from "@repo/editor/node-props";
+
 import { DegradedPayloadView, RichBlockCard, PayloadEditor } from "./rich-block-chrome";
 import { setBlockValue } from "./rich-block-value";
 
@@ -30,7 +32,7 @@ function SourceView({ value }: { value: string }) {
 export function HtmlElement(props: PlateElementProps) {
   const [mode, setMode] = useState<HtmlMode>("source");
   const [editing, setEditing] = useState(false);
-  const value = typeof props.element.value === "string" ? props.element.value : "";
+  const value = stringProp(props.element, "value") ?? "";
 
   const modeButton = (target: HtmlMode, label: string) => (
     <button

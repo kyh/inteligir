@@ -12,6 +12,7 @@ import { PlateElement, useFocused, useSelected, type PlateElementProps } from "p
 
 import { cn } from "@repo/ui/lib/utils";
 
+import { stringProp } from "@repo/editor/node-props";
 import { MediaToolbar } from "@repo/editor/nodes/media-toolbar";
 
 // The stylesheet rides the same lazy chunk as the component (Vite injects it
@@ -24,18 +25,20 @@ const LiteYouTubeEmbed = lazy(() =>
   ]).then(([mod]) => ({ default: mod.default })),
 );
 
-// Per-provider aspect ratios.
-const PROVIDER_ASPECT: Record<string, string> = {
-  coub: "pb-[51.25%]",
-  dailymotion: "pb-[56.0417%]",
-  vimeo: "pb-[75%]",
-  youku: "pb-[56.25%]",
-};
+// Per-provider aspect ratios, keyed by the provider name parseVideoUrl
+// reports — an open string, so the lookup is a Map rather than a record whose
+// keys would claim to be the whole vocabulary.
+const PROVIDER_ASPECT = new Map([
+  ["coub", "pb-[51.25%]"],
+  ["dailymotion", "pb-[56.0417%]"],
+  ["vimeo", "pb-[75%]"],
+  ["youku", "pb-[56.25%]"],
+]);
 
 export function VideoElement(props: PlateElementProps) {
   const selected = useSelected();
   const focused = useFocused();
-  const url = typeof props.element.url === "string" ? props.element.url : "";
+  const url = stringProp(props.element, "url") ?? "";
   const embed = parseVideoUrl(url);
 
   return (
@@ -53,7 +56,9 @@ export function VideoElement(props: PlateElementProps) {
             </Suspense>
           </div>
         ) : embed ? (
-          <div className={cn("relative", PROVIDER_ASPECT[embed.provider ?? ""] ?? "pb-[56.25%]")}>
+          <div
+            className={cn("relative", PROVIDER_ASPECT.get(embed.provider ?? "") ?? "pb-[56.25%]")}
+          >
             <iframe
               allowFullScreen
               // No allow-popups: an embedded player has no business spawning

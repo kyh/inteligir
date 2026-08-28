@@ -5,7 +5,7 @@
 // the editing transforms that feed it.
 
 import { describe, expect, it } from "vitest";
-import { createSlateEditor, ElementApi, KEYS, type TElement } from "platejs";
+import { createSlateEditor, ElementApi, KEYS, type Descendant, type TElement } from "platejs";
 import { serializeMd } from "@platejs/markdown";
 import { TogglePlugin } from "@platejs/toggle/react";
 
@@ -30,9 +30,9 @@ function out(editor: ReturnType<typeof makeEditor>): string {
   return serializeMd(editor, { remarkStringifyOptions: MD_STRINGIFY });
 }
 
-// Assertion-free element narrowing (repo bans `as`).
-function el(node: unknown): TElement {
-  if (node === null || typeof node !== "object" || !ElementApi.isElement(node)) {
+// Assertion-free element narrowing (repo bans `as` and `!`).
+function el(node: Descendant | undefined): TElement {
+  if (node === undefined || !ElementApi.isElement(node)) {
     throw new Error("expected an element node");
   }
   return node;

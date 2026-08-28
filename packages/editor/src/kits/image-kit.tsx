@@ -9,7 +9,6 @@ import { KEYS, createSlatePlugin, type SlateEditor } from "platejs";
 import { createPlatePlugin } from "platejs/react";
 
 import { getEditorHostIo } from "@repo/editor/host-io";
-import { toErrorMessage } from "@repo/editor/lib/wire";
 import { insertVoidAndEscape } from "@repo/editor/insert-void";
 import { ImageElement } from "@repo/editor/nodes/image-node";
 import { toast } from "@repo/ui/components/sonner";
@@ -68,7 +67,8 @@ export async function ingestImageFiles(editor: SlateEditor, files: File[]): Prom
       const url = await writeAsset(file, name);
       insertVoidAndEscape(editor, { children: [{ text: "" }], type: KEYS.img, url });
     } catch (error) {
-      toast.error(`Couldn't add ${name} — ${toErrorMessage(error)}`);
+      const detail = error instanceof Error ? error.message : String(error);
+      toast.error(`Couldn't add ${name} — ${detail}`);
       return;
     }
   }

@@ -124,24 +124,36 @@ packages/
                  (scan-parse + wiki-links), frontmatter, the dialect's own
                  modules (markdown/remark-*, comments/, formulas/),
                  and `text/` — ONE Myers diff under diff3. No node/react/ui
-                 imports — lint-enforced.
+                 imports — lint-enforced. `markdown/mdast-nodes.ts` is the
+                 mdast NARROWING boundary: a walk asks it what a node is
+                 rather than discriminating structurally at each visit.
   editor/        @repo/editor — the Plate.js WYSIWYG (resurrected, #580):
                  kits/nodes for every dialect construct, the md-rules table,
                  the fixpoint serializer + fixture matrix, the open-note
                  runtime (vault-session/note-runtime/open-note-store) the app
                  drives through injected ports (host.tsx / host-io.ts).
+                 `node-props.ts` is the SLATE DECODE BOUNDARY, and it is the
+                 reason no walk here narrows structurally: a node's dialect
+                 fields ride `TElement`'s open index signature, so every read
+                 arrives as `unknown` and this is the one place it becomes a
+                 domain value.
   agent-runtime/ @repo/agent-runtime — the ACP runtime (#588): one adapter
                  speaks Zed's agent-client-protocol to claude-code-acp and
                  codex-acp children; harnesses are data rows; the
                  provider-event vocabulary is the one internal grammar.
   agent-skills/  @repo/agent-skills — product skill files: the
                  dialect's first-party spec, served to agents as files.
-  ui/            @repo/ui — the shared component vocabulary, all of it
-                 vendored on Base UI and kept near upstream so a re-pull
-                 stays a diff: stock shadcn in components/, the Fluid
-                 Functionalism sidebar and system helpers beside it, and the
-                 Beautiful UI surfaces in ai/. Each source's licence text
-                 rides in tools/licenses and ships with the artifact. Leaf.
+  ui/            @repo/ui — the shared component vocabulary on Base UI:
+                 shadcn in components/, the Fluid Functionalism sidebar and
+                 system helpers beside it, and the Beautiful UI surfaces in
+                 ai/. All four origins were vendored and the code is now this
+                 repo's own — it obeys this repo's rules, not upstream's
+                 shape. What survives of the origin is the MIT attribution
+                 header on each file and its licence text in tools/licenses.
+                 A LIBRARY AHEAD OF ITS CONSUMERS: `src/ai` holds fourteen
+                 components no surface draws on yet, kept by owner decision
+                 and listed one by one in the orphan guard, so a fifteenth
+                 still fails. Leaf.
 tools/
   repo-guards/   @repo/repo-guards — derived fitness tests over the REPO: the
                  package dependency DAG + its platform-purity rules, ws
@@ -829,11 +841,17 @@ export` over `src/worker/db/schema.ts`. A second deployer or a destructive
   derives every value it compares. No hardcoded counts, no hand-copied lists —
   the one exception is `dep-dag.test.ts`'s `DECLARED_EDGES`, which IS the pin
   rather than a copy of one.
-- **Vendored source keeps its attribution header.** Third-party license texts
-  live under `tools/licenses` and are staged into the published artifact as
-  `dist/licenses` — a repo-root path can never be a `files` glob — with
-  `pnpm smoke:cli` deriving the expected set from that directory rather than a
-  hand-copied list.
+- **VENDORED CODE IS THIS REPO'S CODE, except for the attribution.** The rule
+  that vendored files stay close to upstream so a re-pull is a clean diff is
+  GONE (owner's call): rename, restructure and delete freely, and make the code
+  obey this repo's rules rather than upstream's shape — "it would make the next
+  re-pull a conflict" is not a reason for anything. What survives is the
+  LICENSING, which is an obligation rather than a convention and does not
+  depend on tracking upstream at all: every vendored file keeps its `// Vendored
+from X, MIT.` header, and the third-party license texts live under
+  `tools/licenses`, staged into the published artifact as `dist/licenses` — a
+  repo-root path can never be a `files` glob — with `pnpm smoke:cli` deriving
+  the expected set from that directory rather than a hand-copied list.
 - **`packages/ui/components.json` declares `rsc: true` and it is deliberately
   inert** — the `"use client"` directives it produces are ignored by every
   consumer, all plain Vite builds with no RSC bundler in the graph.

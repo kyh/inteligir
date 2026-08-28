@@ -8,6 +8,7 @@ import { useEffect, useMemo, useState } from "react";
 import { EmojiInlineIndexSearch, insertEmoji } from "@platejs/emoji";
 import type { EmojiMartData } from "@emoji-mart/data";
 import { PlateElement, type PlateElementProps } from "platejs/react";
+import { z } from "zod";
 
 import {
   InlineCombobox,
@@ -18,20 +19,23 @@ import {
   InlineComboboxItem,
 } from "@repo/editor/inline-combobox";
 
-function isEmojiData(value: unknown): value is EmojiMartData {
-  return typeof value === "object" && value !== null && "emojis" in value && "categories" in value;
-}
+// The package declares `EmojiMartData` but points its entry at a .json file, so
+// the loaded value arrives carrying none of that typing. This is the boundary
+// that gives it one: the two tables the search index reads are checked, and the
+// package's own declaration names the rest — mirroring a 2,000-entry table here
+// would only give it something to drift against.
+const EMOJI_TABLES = z.object({
+  categories: z.array(z.unknown()),
+  emojis: z.record(z.string(), z.unknown()),
+});
+const EMOJI_MART_DATA = z.custom<EmojiMartData>(
+  (value) => EMOJI_TABLES.safeParse(value).success,
+  "@emoji-mart/data loaded without emoji tables",
+);
 
 let emojiDataPromise: Promise<EmojiMartData> | null = null;
 function loadEmojiData(): Promise<EmojiMartData> {
-  if (!emojiDataPromise) {
-    emojiDataPromise = import("@emoji-mart/data").then((mod) => {
-      // The json module's synthesized-default typing is a union; narrow it.
-      const data: unknown = mod.default;
-      if (isEmojiData(data)) return data;
-      throw new Error("@emoji-mart/data loaded without emoji tables");
-    });
-  }
+  emojiDataPromise ??= import("@emoji-mart/data").then((mod) => EMOJI_MART_DATA.parse(mod.default));
   return emojiDataPromise;
 }
 

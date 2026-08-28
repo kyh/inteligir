@@ -7,7 +7,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { THREAD_CHANGE_KINDS } from "@repo/domain/change-kinds";
 import { ThemeProvider, useTheme, type Theme } from "@repo/ui/lib/theme";
-import { ShapeProvider } from "@repo/ui/lib/shape-context";
+import { RadiusProvider } from "@repo/ui/lib/radius-context";
 import { SizeProvider } from "@repo/ui/lib/size-context";
 import type { ChangedMessage, ThreadChangedMessage } from "@repo/api/local/notifications";
 import { createContext, useContext, useEffect, useState } from "react";
@@ -224,7 +224,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   return (
     <ThemeProvider theme={theme} setTheme={setTheme}>
       <EditorThemeCarrier />
-      <ShapeProvider defaultShape="rounded">
+      <RadiusProvider defaultRadius="rounded">
         <SizeProvider defaultSize="compact">
           <AppearanceProvider>
             <QueryClientProvider client={runtime.queryClient}>
@@ -232,7 +232,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
             </QueryClientProvider>
           </AppearanceProvider>
         </SizeProvider>
-      </ShapeProvider>
+      </RadiusProvider>
     </ThemeProvider>
   );
 }

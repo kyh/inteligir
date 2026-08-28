@@ -17,6 +17,7 @@ import {
   type RenderNodeWrapper,
 } from "platejs/react";
 import { ChevronDownIcon } from "lucide-react";
+import { z } from "zod";
 
 import { cn } from "@repo/ui/lib/utils";
 
@@ -25,7 +26,11 @@ import { useOpenNote } from "@repo/editor/note/open-note-context";
 
 const STORAGE_KEY = "inteligir.collapsed-headings";
 
-const HEADING_RANK: Record<string, number> = { h1: 1, h2: 2, h3: 3 };
+const HEADING_RANK = new Map<string, number>([
+  ["h1", 1],
+  ["h2", 2],
+  ["h3", 3],
+]);
 
 // ---- Store (one fold set per note path — two panes are two notes) ----------
 
@@ -38,22 +43,26 @@ function emit(): void {
   for (const listener of listeners) listener();
 }
 
-function readStorage(): Record<string, string[]> {
+// The persisted blob: one note path → its folded keys. Entries are decoded one
+// at a time so a single unreadable note cannot discard every other note's folds.
+const STORED_NOTES = z.record(z.string(), z.unknown());
+const STORED_KEYS = z.array(z.string());
+
+function readStorage(): Map<string, string[]> {
+  const out = new Map<string, string[]>();
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw === null) return {};
-    const parsed: unknown = JSON.parse(raw);
-    if (typeof parsed !== "object" || parsed === null) return {};
-    const out: Record<string, string[]> = {};
-    for (const [key, value] of Object.entries(parsed)) {
-      if (Array.isArray(value) && value.every((item) => typeof item === "string")) {
-        out[key] = value;
-      }
+    if (raw === null) return out;
+    const notes = STORED_NOTES.safeParse(JSON.parse(raw));
+    if (!notes.success) return out;
+    for (const [path, value] of Object.entries(notes.data)) {
+      const keys = STORED_KEYS.safeParse(value);
+      if (keys.success) out.set(path, keys.data);
     }
-    return out;
   } catch {
-    return {};
+    // Storage unavailable or the blob is not JSON — nothing is folded.
   }
+  return out;
 }
 
 // Re-read before every write: another pane's note is another entry in the same
@@ -62,9 +71,9 @@ function readStorage(): Record<string, string[]> {
 function writeStorage(path: string, keys: ReadonlySet<string>): void {
   try {
     const all = readStorage();
-    if (keys.size === 0) delete all[path];
-    else all[path] = [...keys];
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
+    if (keys.size === 0) all.delete(path);
+    else all.set(path, [...keys]);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(Object.fromEntries(all)));
   } catch {
     // Storage full or unavailable — collapse state degrades to session-only.
   }
@@ -73,7 +82,7 @@ function writeStorage(path: string, keys: ReadonlySet<string>): void {
 function foldsFor(path: string): Set<string> {
   const known = folds.get(path);
   if (known !== undefined) return known;
-  const restored = new Set(readStorage()[path] ?? []);
+  const restored = new Set(readStorage().get(path) ?? []);
   folds.set(path, restored);
   return restored;
 }
@@ -135,7 +144,7 @@ function derive(children: readonly TElement[], path: string): Derived {
   // Ranks of collapsed headings currently covering the walk.
   const stack: number[] = [];
   for (const [index, child] of children.entries()) {
-    const rank = typeof child.type === "string" ? HEADING_RANK[child.type] : undefined;
+    const rank = HEADING_RANK.get(child.type);
     if (rank === undefined) {
       if (stack.length > 0) hidden.add(index);
       continue;

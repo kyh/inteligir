@@ -14,6 +14,7 @@ import { KEYS, NodeApi, TextApi, createSlatePlugin, type SlateEditor } from "pla
 import { PlateElement, type PlateElementProps } from "platejs/react";
 
 import { insertVoidAndEscape } from "@repo/editor/insert-void";
+import { stringProp } from "@repo/editor/node-props";
 import { parseWikiBody } from "@repo/notes/markdown/remark-wiki-link";
 
 const WikiChip = lazy(() => import("@repo/editor/wiki-chip"));
@@ -36,15 +37,15 @@ export const WikiLinkBaseKit = [wikiLinkBasePlugin, wikiEmbedBasePlugin];
 // mirroring the remark grammar, so the chip and the bytes agree.
 const WIKI_COMPLETION_RE = /(!?)\[\[([^[\]\n]+)\]$/;
 
-function chipLabel(body: unknown): string {
-  const parsed = parseWikiBody(typeof body === "string" ? body : "");
+function chipLabel(body: string): string {
+  const parsed = parseWikiBody(body);
   if (parsed.alias) return parsed.alias;
   return parsed.anchor ? `${parsed.target}#${parsed.anchor}` : parsed.target;
 }
 
 // The pre-hydration fallback chip (also what a chip looks like while the lazy
 // module streams in) — inert, but visually identical to a resolved chip.
-function FallbackChip({ body, embed }: { body: unknown; embed?: boolean }) {
+function FallbackChip({ body, embed }: { body: string; embed?: boolean }) {
   return (
     <span
       contentEditable={false}
@@ -58,16 +59,13 @@ function FallbackChip({ body, embed }: { body: unknown; embed?: boolean }) {
   );
 }
 
-function elementBody(element: PlateElementProps["element"]): string {
-  return typeof element.body === "string" ? element.body : "";
-}
-
 function WikiLinkElement(props: PlateElementProps) {
+  const body = stringProp(props.element, "body") ?? "";
   return (
     <PlateElement {...props} as="span" className="inline-block">
       <span contentEditable={false}>
-        <Suspense fallback={<FallbackChip body={props.element.body} />}>
-          <WikiChip body={elementBody(props.element)} />
+        <Suspense fallback={<FallbackChip body={body} />}>
+          <WikiChip body={body} />
         </Suspense>
       </span>
       {props.children}
@@ -76,11 +74,12 @@ function WikiLinkElement(props: PlateElementProps) {
 }
 
 function WikiEmbedElement(props: PlateElementProps) {
+  const body = stringProp(props.element, "body") ?? "";
   return (
     <PlateElement {...props} as="span" className="inline-block w-full">
       <span contentEditable={false} className="block w-full">
-        <Suspense fallback={<FallbackChip body={props.element.body} embed />}>
-          <Transclusion body={elementBody(props.element)} />
+        <Suspense fallback={<FallbackChip body={body} embed />}>
+          <Transclusion body={body} />
         </Suspense>
       </span>
       {props.children}

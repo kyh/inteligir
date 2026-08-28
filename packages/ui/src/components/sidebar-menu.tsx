@@ -5,8 +5,6 @@ import {
   createContext,
   useContext,
   useState,
-  useEffect,
-  useLayoutEffect,
   useCallback,
   useMemo,
   useRef,
@@ -27,14 +25,19 @@ import { cssVars } from "@repo/ui/lib/css-vars";
 import { cn } from "@repo/ui/lib/utils";
 import { spring } from "@repo/ui/lib/springs";
 import { fontWeights } from "@repo/ui/lib/font-weight";
-import { useShape } from "@repo/ui/lib/shape-context";
+import { useRadius } from "@repo/ui/lib/radius-context";
 import { useSize, SizeProvider, type SizeVariant } from "@repo/ui/lib/size-context";
 import { useProximityHover, type ItemRect } from "@repo/ui/hooks/use-proximity-hover";
 import type { IconComponent } from "@repo/ui/lib/icon-context";
-import { resolveSlotTemplate, slotElement } from "@repo/ui/components/sidebar-core";
+import { useIsoLayoutEffect } from "@repo/ui/lib/use-iso-layout-effect";
+import {
+  composeRefs,
+  resolveSlotTemplate,
+  slotElement,
+  splitLeadingText,
+} from "@repo/ui/components/sidebar-core";
 
 // SSR-safe layout effect (client components still server-render in Next).
-const useIsoLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
 
 // ─── Menu scope ──────────────────────────────────────────────────────────────
 //
@@ -309,7 +312,7 @@ function useMenuScope(containerRef: RefObject<HTMLElement | null>, isRoot: boole
     [isRoot, registerRow, setRowButton, setRowActive, hoveredRowEl, activeRowEl, orderedRows],
   );
 
-  const shape = useShape();
+  const radius = useRadius();
   const activeRect = overlayRect(activeRowEl);
   const hoverRect = overlayRect(hoveredRowEl);
   const focusRect = overlayRect(focusedRowEl);
@@ -320,7 +323,7 @@ function useMenuScope(containerRef: RefObject<HTMLElement | null>, isRoot: boole
       <AnimatePresence>
         {activeRect && (
           <motion.div
-            className={`absolute ${shape.bg} bg-active pointer-events-none`}
+            className={`absolute ${radius.bg} bg-active pointer-events-none`}
             initial={false}
             animate={{
               top: activeRect.top,
@@ -340,7 +343,7 @@ function useMenuScope(containerRef: RefObject<HTMLElement | null>, isRoot: boole
         {hoverRect && (
           <motion.div
             key={sessionRef.current}
-            className={`absolute ${shape.bg} bg-hover pointer-events-none`}
+            className={`absolute ${radius.bg} bg-hover pointer-events-none`}
             initial={{
               opacity: 0,
               top: activeRect?.top ?? hoverRect.top,
@@ -365,7 +368,7 @@ function useMenuScope(containerRef: RefObject<HTMLElement | null>, isRoot: boole
       <AnimatePresence>
         {focusRect && (
           <motion.div
-            className={`absolute ${shape.focusRing} pointer-events-none z-20 border border-[color:var(--focus-ring,#6B97FF)]`}
+            className={`absolute ${radius.focusRing} pointer-events-none z-20 border border-[color:var(--focus-ring,#6B97FF)]`}
             initial={false}
             animate={{
               left: focusRect.left - 2,
@@ -415,11 +418,7 @@ const SidebarMenu = forwardRef<HTMLUListElement, SidebarMenuProps>(
     const content = (
       <MenuScopeContext.Provider value={value}>
         <ul
-          ref={(node) => {
-            containerRef.current = node;
-            if (typeof ref === "function") ref(node);
-            else if (ref) ref.current = node;
-          }}
+          ref={composeRefs(containerRef, ref)}
           data-sidebar="menu"
           className={cn("relative flex w-full min-w-0 flex-col gap-0.5 select-none", className)}
           {...containerProps}
@@ -547,11 +546,7 @@ const SidebarMenuItem = forwardRef<HTMLLIElement, SidebarMenuItemProps>(
     return (
       <MenuItemContext.Provider value={item}>
         <li
-          ref={(node) => {
-            rowRef.current = node;
-            if (typeof ref === "function") ref(node);
-            else if (ref) ref.current = node;
-          }}
+          ref={composeRefs(rowRef, ref)}
           data-sidebar="menu-item"
           className={cn("group/menu-item relative", className)}
           {...props}
@@ -573,11 +568,7 @@ const SidebarMenuSubItem = forwardRef<HTMLLIElement, SidebarMenuSubItemProps>(
     return (
       <MenuItemContext.Provider value={item}>
         <li
-          ref={(node) => {
-            rowRef.current = node;
-            if (typeof ref === "function") ref(node);
-            else if (ref) ref.current = node;
-          }}
+          ref={composeRefs(rowRef, ref)}
           data-sidebar="menu-sub-item"
           className={cn("group/menu-sub-item relative", className)}
           {...props}
@@ -608,17 +599,9 @@ function MenuRowLabel({
   emphasized: boolean;
   textClass: string;
 }) {
-  const nodes = Children.toArray(content);
-  const textParts: string[] = [];
-  let i = 0;
-  while (i < nodes.length && (typeof nodes[i] === "string" || typeof nodes[i] === "number")) {
-    textParts.push(String(nodes[i]));
-    i++;
-  }
-  const label = textParts.join("");
-  const rest = nodes.slice(i);
+  const { text, rest } = splitLeadingText(content);
 
-  if (!label) {
+  if (!text) {
     return (
       <span
         className={cn(
@@ -646,7 +629,7 @@ function MenuRowLabel({
           style={{ fontVariationSettings: fontWeights.semibold }}
           aria-hidden="true"
         >
-          {label}
+          {text}
         </span>
         {/* Visible: animates between weights in the same cell */}
         <span
@@ -658,7 +641,7 @@ function MenuRowLabel({
             fontVariationSettings: emphasized ? fontWeights.semibold : fontWeights.normal,
           }}
         >
-          {label}
+          {text}
         </span>
       </span>
       {rest}
@@ -722,9 +705,9 @@ const SidebarMenuButton = forwardRef<HTMLButtonElement, SidebarMenuButtonProps>(
   ) => {
     const scope = useContext(MenuScopeContext);
     const item = useContext(MenuItemContext);
-    const shape = useShape();
+    const radius = useRadius();
     const sizeClasses = useSize();
-    const buttonRef = useRef<HTMLElement | null>(null);
+    const buttonRef = useRef<HTMLButtonElement | null>(null);
 
     // status="active" implies the row-active treatment; an explicit dot
     // overrides the status-derived one.
@@ -823,13 +806,7 @@ const SidebarMenuButton = forwardRef<HTMLButtonElement, SidebarMenuButtonProps>(
       template,
       "button",
       {
-        ref: (node: HTMLElement | null) => {
-          buttonRef.current = node;
-          // oxlint-disable-next-line typescript/consistent-type-assertions, typescript/no-unsafe-type-assertion -- polymorphic slot: the template decides the element; the declared button/anchor ref is the default-tag case
-          const forwarded = node as HTMLButtonElement | null;
-          if (typeof ref === "function") ref(forwarded);
-          else if (ref) ref.current = forwarded;
-        },
+        ref: composeRefs(buttonRef, ref),
         type: template ? undefined : "button",
         "data-sidebar": "menu-button",
         "data-size": size,
@@ -837,7 +814,7 @@ const SidebarMenuButton = forwardRef<HTMLButtonElement, SidebarMenuButtonProps>(
         "data-status": status,
         "aria-current": effectiveActive ? "page" : undefined,
         tabIndex: tabIdx,
-        className: cn(sidebarMenuButtonVariants({ variant }), heightClass, shape.item, className),
+        className: cn(sidebarMenuButtonVariants({ variant }), heightClass, radius.item, className),
         ...props,
         style: { ...gutterVars, ...props.style },
       },
@@ -857,7 +834,7 @@ export interface SidebarMenuActionProps extends ButtonHTMLAttributes<HTMLButtonE
 
 const SidebarMenuAction = forwardRef<HTMLButtonElement, SidebarMenuActionProps>(
   ({ className, showOnHover = false, render, asChild, children, onClick, ...props }, ref) => {
-    const shape = useShape();
+    const radius = useRadius();
     const sizeClasses = useSize();
     const item = useContext(MenuItemContext);
     const inCluster = useContext(MenuActionsClusterContext);
@@ -898,7 +875,7 @@ const SidebarMenuAction = forwardRef<HTMLButtonElement, SidebarMenuActionProps>(
           // One icon size across the sidebar: row actions match the leading
           // icons and the section header's actions, all on the size ladder.
           "[&_svg]:size-[var(--icon-size)] [&_svg]:shrink-0",
-          shape.item,
+          radius.item,
           // Reveal on the OWN row only. A sub action must not use the
           // menu-item group — its nearest one is the parent li, which would
           // light every sibling sub action on any hover inside the sub-tree.
@@ -1080,7 +1057,7 @@ const SidebarMenuSub = forwardRef<HTMLUListElement, SidebarMenuSubProps>(
     const [contentHeight, setContentHeight] = useState<number | null>(null);
     useIsoLayoutEffect(() => {
       const el = containerRef.current;
-      if (!el || typeof ResizeObserver === "undefined") return;
+      if (!el) return;
       const measure = () => setContentHeight(el.offsetHeight);
       measure();
       const ro = new ResizeObserver(measure);
@@ -1126,11 +1103,7 @@ const SidebarMenuSub = forwardRef<HTMLUListElement, SidebarMenuSubProps>(
       >
         <MenuScopeContext.Provider value={value}>
           <ul
-            ref={(node) => {
-              containerRef.current = node;
-              if (typeof ref === "function") ref(node);
-              else if (ref) ref.current = node;
-            }}
+            ref={composeRefs(containerRef, ref)}
             data-sidebar="menu-sub"
             data-state={open ? "open" : "closed"}
             aria-hidden={open ? undefined : true}
@@ -1170,9 +1143,9 @@ const SidebarMenuSubButton = forwardRef<HTMLAnchorElement, SidebarMenuSubButtonP
     ref,
   ) => {
     const item = useContext(MenuItemContext);
-    const shape = useShape();
+    const radius = useRadius();
     const sizeClasses = useSize();
-    const buttonRef = useRef<HTMLElement | null>(null);
+    const buttonRef = useRef<HTMLAnchorElement | null>(null);
 
     const setActive = item?.setActive;
     useIsoLayoutEffect(() => {
@@ -1204,13 +1177,7 @@ const SidebarMenuSubButton = forwardRef<HTMLAnchorElement, SidebarMenuSubButtonP
       template,
       "a",
       {
-        ref: (node: HTMLElement | null) => {
-          buttonRef.current = node;
-          // oxlint-disable-next-line typescript/consistent-type-assertions, typescript/no-unsafe-type-assertion -- polymorphic slot: the template decides the element; the declared button/anchor ref is the default-tag case
-          const forwarded = node as HTMLAnchorElement | null;
-          if (typeof ref === "function") ref(forwarded);
-          else if (ref) ref.current = forwarded;
-        },
+        ref: composeRefs(buttonRef, ref),
         "data-sidebar": "menu-sub-button",
         "data-size": size,
         "data-active": isActive ? "true" : undefined,
@@ -1220,7 +1187,7 @@ const SidebarMenuSubButton = forwardRef<HTMLAnchorElement, SidebarMenuSubButtonP
           "relative z-10 flex w-full cursor-pointer select-none items-center gap-2 pl-2 text-left outline-none",
           "transition-[padding] duration-80 pr-[var(--row-gutter)] group-hover/menu-sub-item:pr-[var(--row-gutter-hover)] group-focus-within/menu-sub-item:pr-[var(--row-gutter-hover)] group-has-[[data-sidebar=menu-action]:is([data-state=open],[data-popup-open],[aria-expanded=true])]/menu-sub-item:pr-[var(--row-gutter-hover)]",
           size === "sm" ? "h-6" : sizeClasses.variant === "compact" ? "h-6" : "h-7",
-          shape.item,
+          radius.item,
           className,
         ),
         ...props,

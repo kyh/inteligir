@@ -145,31 +145,6 @@
   },
   "overrides": [
     {
-      // The resurrected Plate editor and the unified/mdast pipeline it feeds
-      // (recovered from 7dc78ffe^, predating these rules). Slate and mdast
-      // nodes are structurally-typed unions with no named parse boundary: a
-      // `typeof` discrimination inside a tree walk IS the boundary check, and
-      // "parse first" would mean re-validating every node on every visit.
-      // Scoped to exactly the tree-walking rules that idiom collides with.
-      "files": [
-        "packages/editor/src/**",
-        "packages/notes/src/markdown/md-plugins.ts",
-        "packages/notes/src/markdown/parse.ts",
-        "packages/notes/src/markdown/remark-mdx-agnostic.ts",
-        "packages/notes/src/markdown/remark-opaque.ts"
-      ],
-      "rules": {
-        "anti-slop/no-runtime-typeof": "off",
-        "anti-slop/no-unknown-parameters": "off",
-        "anti-slop/no-known-value-widening": "off",
-        "anti-slop/no-unsafe-dictionary-type": "off",
-        "anti-slop/no-object-parameters": "off",
-        "anti-slop/no-conditional-empty-object-spread": "off",
-        "anti-slop/require-safety-comment-for-type-assertion": "off",
-        "anti-slop/no-chained-type-assertions": "off"
-      }
-    },
-    {
       // The desktop shell's IPC handlers are a real process boundary: Electron
       // hands `unknown` across it (both directions — the preload checks answers
       // too) and the shell carries no schema library, so the typeof narrowing IS
@@ -223,49 +198,6 @@
             ]
           }
         ]
-      }
-    },
-    {
-      // The Fluid Functionalism border-radius system (vendored into
-      // packages/ui, mounted at the app roots) names its domain "shape" —
-      // ShapeProvider, useShape, ShapeVariant: pill vs rounded corner
-      // geometry. There the word IS the domain role the rule asks for, not a
-      // structure description, and renaming a vendored API breaks re-pull
-      // diffability.
-      "files": [
-        "packages/ui/src/**",
-        "apps/desktop/src/renderer/app/workspace-context.tsx",
-        "apps/web/src/routes/__root.tsx"
-      ],
-      "rules": {
-        "anti-slop/no-shape-in-symbol-names": "off"
-      }
-    },
-    {
-      // The Fluid Functionalism sidebar, vendored: its slot system does
-      // render/asChild polymorphism over
-      // structurally-typed props, and its menu scope walks live DOM rows.
-      // A Ref or a slot template is a
-      // function-or-object union with no named parse boundary — the `typeof`
-      // discrimination IS the boundary check, and the Record-typed prop bags
-      // are upstream's own contract. Kept close to upstream for re-vendor
-      // diffability; only the rules that idiom trips relax, and only here.
-      "files": [
-        "packages/ui/src/components/sidebar.tsx",
-        "packages/ui/src/components/sidebar-core.tsx",
-        "packages/ui/src/components/sidebar-menu.tsx",
-        "packages/ui/src/components/input-message.tsx",
-        "packages/ui/src/components/tabs-subtle.tsx"
-      ],
-      "rules": {
-        "anti-slop/no-runtime-typeof": "off",
-        "anti-slop/no-unknown-parameters": "off",
-        "anti-slop/no-unsafe-dictionary-type": "off",
-        "anti-slop/no-known-value-widening": "off",
-        "anti-slop/require-safety-comment-for-type-assertion": "off",
-        "typescript/no-base-to-string": "off",
-        "react/jsx-no-constructed-context-values": "off",
-        "react/no-array-index-key": "off"
       }
     }
   ]

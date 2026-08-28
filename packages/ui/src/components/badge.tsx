@@ -4,7 +4,7 @@
 import { forwardRef, type HTMLAttributes } from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 
-import { useShape } from "@repo/ui/lib/shape-context";
+import { useRadius } from "@repo/ui/lib/radius-context";
 import { useSizeVariant } from "@repo/ui/lib/size-context";
 import { cn } from "@repo/ui/lib/utils";
 
@@ -84,7 +84,7 @@ const Badge = forwardRef<HTMLSpanElement, BadgeProps>(
     { className, variant = "solid", size: sizeProp, color = "gray", children, style, ...props },
     ref,
   ) => {
-    const shape = useShape();
+    const radius = useRadius();
     // Resolve the size: explicit prop > surrounding SizeProvider > default.
     const contextSize = useSizeVariant();
     const size: BadgeSizeCanonical = sizeProp
@@ -111,7 +111,7 @@ const Badge = forwardRef<HTMLSpanElement, BadgeProps>(
     return (
       <span
         ref={ref}
-        className={cn(badgeVariants({ variant, size }), shape.item, className)}
+        className={cn(badgeVariants({ variant, size }), radius.item, className)}
         style={{ ...colorStyle, ...style }}
         {...props}
       >

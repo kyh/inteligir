@@ -6,7 +6,6 @@ import {
   useContext,
   useState,
   useEffect,
-  useLayoutEffect,
   useCallback,
   useMemo,
   useRef,
@@ -18,23 +17,26 @@ import {
   Children,
   type ReactNode,
   type ReactElement,
+  type ReactEventHandler,
   type ElementType,
   type CSSProperties,
   type HTMLAttributes,
   type Ref,
+  type RefCallback,
 } from "react";
 import { motion, AnimatePresence, type HTMLMotionProps } from "framer-motion";
 import { cssVars } from "@repo/ui/lib/css-vars";
 import { cn } from "@repo/ui/lib/utils";
 import { spring } from "@repo/ui/lib/springs";
 import { fontWeights } from "@repo/ui/lib/font-weight";
-import { useShape } from "@repo/ui/lib/shape-context";
+import { useRadius } from "@repo/ui/lib/radius-context";
 import { useSize, useSizeVariant } from "@repo/ui/lib/size-context";
 import { useIcon } from "@repo/ui/lib/icon-context";
 import { useSurface, SurfaceProvider } from "@repo/ui/lib/surface-context";
 import { surfaceClasses } from "@repo/ui/lib/surface-classes";
 import { Button, type ButtonProps } from "@repo/ui/components/button";
 import { Tooltip } from "@repo/ui/components/tooltip";
+import { useIsoLayoutEffect } from "@repo/ui/lib/use-iso-layout-effect";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -123,6 +125,46 @@ function useIsMobile(breakpoint: number): boolean {
   return !!isMobile;
 }
 
+// ─── Shared part helpers ─────────────────────────────────────────────────────
+
+/** `Ref` is a union of a callback and a mutable box, and a part keeps its own
+ *  handle on a node while still honouring the forwarded one — so both shapes
+ *  have to be written to. */
+export function composeRefs<T>(...refs: (Ref<T> | undefined)[]): RefCallback<T> {
+  return (node) => {
+    for (const ref of refs) {
+      if (ref == null) continue;
+      if (ref instanceof Function) ref(node);
+      else ref.current = node;
+    }
+  };
+}
+
+type TextChild = string | number;
+
+function isTextChild(node: ReactNode): node is TextChild {
+  // oxlint-disable-next-line anti-slop/no-runtime-typeof -- ReactNode is React's own union and carries no discriminant, so `typeof` is the only way to tell a text child from an element; this predicate is the single place that asks.
+  return typeof node === "string" || typeof node === "number";
+}
+
+export interface LeadingText {
+  text: string;
+  rest: ReactNode[];
+}
+
+/** Splits the leading string children out of a row's content: they are the
+ *  label, so they can truncate on their own, while element children (badges,
+ *  trailing controls) stay flex siblings the row's gap keeps spacing. */
+export function splitLeadingText(content: ReactNode): LeadingText {
+  const nodes = Children.toArray(content);
+  const leading: TextChild[] = [];
+  for (const node of nodes) {
+    if (!isTextChild(node)) break;
+    leading.push(node);
+  }
+  return { text: leading.join(""), rest: nodes.slice(leading.length) };
+}
+
 // ─── SidebarProvider ─────────────────────────────────────────────────────────
 
 export interface SidebarProviderProps extends HTMLAttributes<HTMLDivElement> {
@@ -201,7 +243,7 @@ const SidebarProvider = forwardRef<HTMLDivElement, SidebarProviderProps>(
 
     const setOpen = useCallback(
       (value: boolean | ((prev: boolean) => boolean)) => {
-        const next = typeof value === "function" ? value(openRef.current) : value;
+        const next = value instanceof Function ? value(openRef.current) : value;
         if (onOpenChange) onOpenChange(next);
         else setInternalOpen(next);
         if (persist) {
@@ -310,11 +352,7 @@ const SidebarProvider = forwardRef<HTMLDivElement, SidebarProviderProps>(
     return (
       <SidebarContext.Provider value={value}>
         <div
-          ref={(node) => {
-            wrapperRef.current = node;
-            if (typeof ref === "function") ref(node);
-            else if (ref) ref.current = node;
-          }}
+          ref={composeRefs(wrapperRef, ref)}
           data-slot="sidebar-wrapper"
           className={cn("group/sidebar-wrapper relative flex min-h-svh w-full", className)}
           style={cssVars({
@@ -334,41 +372,37 @@ SidebarProvider.displayName = "SidebarProvider";
 
 // ─── Slot helpers (render / asChild polymorphism) ────────────────────────────
 //
-// A local slot instead of a primitive-library one so every menu part exists in
-// exactly one flavor-neutral copy: Radix's Slot would leak into the Base UI
-// flavor, and Base UI's useRender the other way around. Supports both the
-// library's `render={<Link/>}` convention and shadcn's `asChild`.
+// A local slot rather than a primitive library's, so the parts answer BOTH
+// spellings — Base UI's `render={<Link/>}` and shadcn's `asChild` — and a
+// caller from either convention composes without a second copy of every part.
 
-type SlotProps = {
+/** What a part hands a slot template, and everything this file reads by name.
+ *  The `on*`, `data-*` and `aria-*` families stay open because every part
+ *  stamps some of them; a part's own element attributes ride through in the
+ *  spread, and nothing here reads one. */
+interface SlotProps {
   className?: string | undefined;
   style?: CSSProperties | undefined;
   children?: ReactNode;
-} & Record<string, unknown>;
-
-function isHandler(value: unknown): value is (...args: unknown[]) => void {
-  return typeof value === "function";
+  ref?: Ref<HTMLElement> | undefined;
+  type?: string | undefined;
+  tabIndex?: number | undefined;
+  [handler: `on${string}`]: ReactEventHandler | undefined;
+  [attribute: `data-${string}`]: string | undefined;
+  [attribute: `aria-${string}`]: string | number | boolean | undefined;
 }
 
-/** React 19 carries a template's ref as an ordinary prop; anything
- *  ref-shaped (callback or object with `current`) is composable. */
-function refOf(value: unknown): Ref<HTMLElement> | undefined {
-  if (
-    typeof value === "function" ||
-    (typeof value === "object" && value !== null && "current" in value)
-  ) {
-    // oxlint-disable-next-line typescript/consistent-type-assertions, typescript/no-unsafe-type-assertion -- the structural check above is the whole of what Ref<T> is; T is unknowable for a slot template
-    return value as Ref<HTMLElement>;
-  }
-  return undefined;
+type SlotTemplate = ReactElement<SlotProps>;
+
+type SlotEventHandlers = { [handler: `on${string}`]: ReactEventHandler };
+
+export interface SlotResolution {
+  template: SlotTemplate | null;
+  content: ReactNode;
 }
 
-function composeRefs<T>(...refs: (Ref<T> | undefined)[]): Ref<T> {
-  return (node: T | null) => {
-    for (const r of refs) {
-      if (typeof r === "function") r(node);
-      else if (r) r.current = node;
-    }
-  };
+function isEventProp(key: string): key is `on${string}` {
+  return /^on[A-Z]/.test(key);
 }
 
 /** Resolves the element to clone: `render` wins, else `asChild`'s single
@@ -378,17 +412,16 @@ export function resolveSlotTemplate(
   render: ReactElement | undefined,
   asChild: boolean | undefined,
   children: ReactNode,
-): { template: ReactElement<SlotProps> | null; content: ReactNode } {
-  if (render && isValidElement(render)) {
-    // oxlint-disable-next-line typescript/consistent-type-assertions, typescript/no-unsafe-type-assertion -- any element is a legal slot template: SlotProps is a shallow merge contract (class/style/handlers), unknown props pass through untouched
-    return { template: render as ReactElement<SlotProps>, content: children };
+): SlotResolution {
+  // Any element is a legal template — SlotProps is the shallow merge contract
+  // this file honours on it, not a claim about the element's own props.
+  if (isValidElement<SlotProps>(render)) {
+    return { template: render, content: children };
   }
   if (asChild) {
     const only = Children.toArray(children)[0];
-    if (isValidElement(only)) {
-      // oxlint-disable-next-line typescript/consistent-type-assertions, typescript/no-unsafe-type-assertion -- same slot-template claim as above
-      const template = only as ReactElement<SlotProps>;
-      return { template, content: template.props.children };
+    if (isValidElement<SlotProps>(only)) {
+      return { template: only, content: only.props.children };
     }
   }
   return { template: null, content: children };
@@ -397,34 +430,36 @@ export function resolveSlotTemplate(
 /** Renders `content` into the template element (merging class/style/handlers,
  *  composing refs) or into the default tag when there is no template. */
 export function slotElement(
-  template: ReactElement<SlotProps> | null,
+  template: SlotTemplate | null,
   DefaultTag: ElementType,
-  props: SlotProps & { ref?: Ref<HTMLElement> },
+  props: SlotProps,
   content: ReactNode,
 ): ReactElement {
   if (!template) {
     return createElement(DefaultTag, props, content);
   }
   const templateProps = template.props;
-  const merged: SlotProps & { ref?: Ref<HTMLElement> } = {
-    ...props,
-    ...templateProps,
-    className: cn(props.className, templateProps.className),
-    style: { ...props.style, ...templateProps.style },
-  };
   // Chain duplicated event handlers, template's first (it owns the element).
+  const chained: SlotEventHandlers = {};
   for (const key of Object.keys(props)) {
-    if (!/^on[A-Z]/.test(key)) continue;
+    if (!isEventProp(key)) continue;
     const ours = props[key];
     const theirs = templateProps[key];
-    if (isHandler(ours) && isHandler(theirs)) {
-      merged[key] = (...args: unknown[]) => {
-        theirs(...args);
-        ours(...args);
+    if (ours && theirs) {
+      chained[key] = (event) => {
+        theirs(event);
+        ours(event);
       };
     }
   }
-  merged.ref = composeRefs(props.ref, refOf(templateProps.ref));
+  const merged = {
+    ...props,
+    ...templateProps,
+    ...chained,
+    className: cn(props.className, templateProps.className),
+    style: { ...props.style, ...templateProps.style },
+    ref: composeRefs(props.ref, templateProps.ref),
+  };
   return cloneElement(template, merged, content);
 }
 
@@ -434,12 +469,12 @@ export function slotElement(
 // breakpoints the shell is also hidden by CSS, avoiding a pre-hydration flash
 // of the rail on small screens. Non-standard breakpoints rely on the JS
 // isMobile branch alone.
-const BREAKPOINT_HIDDEN: Record<number, string> = {
-  640: "max-sm:hidden",
-  768: "max-md:hidden",
-  1024: "max-lg:hidden",
-  1280: "max-xl:hidden",
-};
+const BREAKPOINT_HIDDEN = new Map([
+  [640, "max-sm:hidden"],
+  [768, "max-md:hidden"],
+  [1024, "max-lg:hidden"],
+  [1280, "max-xl:hidden"],
+]);
 
 // The shell's rest props land on a motion.div, so they are declared against
 // framer's own prop type — a DOM-typed HTMLAttributes spread cannot satisfy
@@ -467,7 +502,7 @@ const SidebarShell = forwardRef<HTMLDivElement, SidebarShellProps>(
   ({ side, variant, bordered = true, rail = true, className, children, ...props }, ref) => {
     const { open, width, mobileBreakpoint, isResizing, peek, isPeeking, setIsPeeking } =
       useSidebar();
-    const shape = useShape();
+    const radius = useRadius();
     const shellRef = useRef<HTMLDivElement | null>(null);
 
     // Collapsed-peek: the edge strip reveals the sidebar as a floating
@@ -516,11 +551,7 @@ const SidebarShell = forwardRef<HTMLDivElement, SidebarShellProps>(
 
     return (
       <motion.div
-        ref={(node: HTMLDivElement | null) => {
-          shellRef.current = node;
-          if (typeof ref === "function") ref(node);
-          else if (ref) ref.current = node;
-        }}
+        ref={composeRefs(shellRef, ref)}
         data-slot="sidebar"
         data-state={open ? "expanded" : "collapsed"}
         data-collapsible={open ? "" : "offcanvas"}
@@ -541,7 +572,7 @@ const SidebarShell = forwardRef<HTMLDivElement, SidebarShellProps>(
           // The inset rail has no card edge of its own, so its scroll hairline
           // hugs the rows' 8px gutter instead of running panel-wide.
           variant === "inset" && "[--scroll-divider-inset:8px]",
-          BREAKPOINT_HIDDEN[mobileBreakpoint],
+          BREAKPOINT_HIDDEN.get(mobileBreakpoint),
           className,
         )}
         initial={false}
@@ -602,7 +633,7 @@ const SidebarShell = forwardRef<HTMLDivElement, SidebarShellProps>(
                   className={cn(
                     "absolute inset-y-2 z-50 flex flex-col overflow-hidden",
                     side === "left" ? "left-2" : "right-2",
-                    shape.container,
+                    radius.container,
                     surfaceClasses(floatingLevel, 3),
                   )}
                   style={{ width: `calc(${width} - 1rem)` }}
@@ -639,7 +670,7 @@ const SidebarShell = forwardRef<HTMLDivElement, SidebarShellProps>(
                 data-sidebar="sidebar"
                 className={cn(
                   "flex h-full w-full min-h-0 flex-col",
-                  shape.container,
+                  radius.container,
                   surfaceClasses(floatingLevel, 3),
                 )}
               >
@@ -669,15 +700,15 @@ const SidebarShell = forwardRef<HTMLDivElement, SidebarShellProps>(
                   // Cards are vertically inset and rounded — the hover hairline
                   // hugs the card's straight run: fully transparent through the
                   // corner radius, then fading in over 24px (mirrored at the
-                  // bottom). The radius rides the shape system via CSS vars.
+                  // bottom). The corner radius rides CSS vars.
                   variant !== "sidebar" &&
                     "after:inset-y-2 after:[mask-image:linear-gradient(to_bottom,transparent_var(--rail-fade-start),black_var(--rail-fade-end),black_calc(100%-var(--rail-fade-end)),transparent_calc(100%-var(--rail-fade-start)))]",
                 )}
                 style={
                   variant !== "sidebar"
                     ? cssVars({
-                        "--rail-fade-start": `${shape.bgRadius >= 20 ? 24 : 12}px`,
-                        "--rail-fade-end": `${(shape.bgRadius >= 20 ? 24 : 12) + 24}px`,
+                        "--rail-fade-start": `${radius.bgRadius >= 20 ? 24 : 12}px`,
+                        "--rail-fade-end": `${(radius.bgRadius >= 20 ? 24 : 12) + 24}px`,
                       })
                     : undefined
                 }
@@ -845,11 +876,7 @@ const SidebarRail = forwardRef<HTMLButtonElement, SidebarRailProps>(
         }
       >
         <button
-          ref={(node) => {
-            railRef.current = node;
-            if (typeof ref === "function") ref(node);
-            else if (ref) ref.current = node;
-          }}
+          ref={composeRefs(railRef, ref)}
           type="button"
           data-sidebar="rail"
           aria-label="Resize or collapse sidebar"
@@ -880,7 +907,7 @@ SidebarRail.displayName = "SidebarRail";
 export type SidebarInsetProps = HTMLAttributes<HTMLElement>;
 
 const SidebarInset = forwardRef<HTMLElement, SidebarInsetProps>(({ className, ...props }, ref) => {
-  const shape = useShape();
+  const radius = useRadius();
   return (
     <main
       ref={ref}
@@ -892,9 +919,9 @@ const SidebarInset = forwardRef<HTMLElement, SidebarInsetProps>(({ className, ..
         // the card keeps symmetric insets.
         "peer-data-[variant=inset]:peer-data-[state=collapsed]:peer-data-[side=left]:ml-2 peer-data-[variant=inset]:peer-data-[state=collapsed]:peer-data-[side=right]:mr-2",
         "transition-[margin] duration-80",
-        // Container radius follows the shape system (literal classes so
+        // Container radius follows the radius context (literal classes so
         // Tailwind's scanner emits both).
-        shape.bgRadius >= 20
+        radius.bgRadius >= 20
           ? "peer-data-[variant=inset]:rounded-3xl"
           : "peer-data-[variant=inset]:rounded-xl",
         "peer-data-[variant=inset]:bg-surface-2 peer-data-[variant=inset]:shadow-surface-2",
@@ -912,7 +939,7 @@ export type SidebarInputProps = React.InputHTMLAttributes<HTMLInputElement>;
 
 const SidebarInput = forwardRef<HTMLInputElement, SidebarInputProps>(
   ({ className, ...props }, ref) => {
-    const shape = useShape();
+    const radius = useRadius();
     const size = useSize();
     return (
       <input
@@ -928,7 +955,7 @@ const SidebarInput = forwardRef<HTMLInputElement, SidebarInputProps>(
           "focus-visible:ring-[color:var(--focus-ring,#6B97FF)]",
           size.variant === "compact" ? "h-7" : "h-8",
           size.text,
-          shape.input,
+          radius.input,
           className,
         )}
         {...props}
@@ -983,7 +1010,6 @@ SidebarSeparator.displayName = "SidebarSeparator";
 // ─── SidebarGroup family ─────────────────────────────────────────────────────
 
 // SSR-safe layout effect (client components still server-render in Next).
-const useIsoLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
 
 interface SidebarGroupContextValue {
   open: boolean;
@@ -1035,7 +1061,7 @@ const SidebarGroup = forwardRef<HTMLDivElement, SidebarGroupProps>(
     useIsoLayoutEffect(() => {
       if (!collapsible) return;
       const el = contentRef.current;
-      if (!el || typeof ResizeObserver === "undefined") return;
+      if (!el) return;
       const measure = () => setContentHeight(el.offsetHeight);
       measure();
       const ro = new ResizeObserver(measure);
@@ -1160,26 +1186,18 @@ const SidebarGroupLabel = forwardRef<HTMLDivElement, SidebarGroupLabelProps>(
     const sizeVariant = useSizeVariant();
     const sizeClasses = useSize();
     const group = useContext(SidebarGroupContext);
-    const shape = useShape();
+    const radius = useRadius();
     const ChevronDownIcon = useIcon("chevron-down");
     const { template, content } = resolveSlotTemplate(render, asChild, children);
 
     // Truncate only the leading text; element children (count badges,
     // trailing controls) stay flex siblings so the row's gap keeps spacing
     // them — same split MenuRowLabel does for menu rows.
-    const nodes = Children.toArray(content);
-    let textEnd = 0;
-    while (
-      textEnd < nodes.length &&
-      (typeof nodes[textEnd] === "string" || typeof nodes[textEnd] === "number")
-    ) {
-      textEnd++;
-    }
-    const leadingText = nodes.slice(0, textEnd).join("");
-    const labelContent = leadingText ? (
+    const { text, rest } = splitLeadingText(content);
+    const labelContent = text ? (
       <>
-        <span className="min-w-0 truncate">{leadingText}</span>
-        {nodes.slice(textEnd)}
+        <span className="min-w-0 truncate">{text}</span>
+        {rest}
       </>
     ) : (
       content
@@ -1210,7 +1228,7 @@ const SidebarGroupLabel = forwardRef<HTMLDivElement, SidebarGroupLabelProps>(
             "group/group-label flex h-8 w-full shrink-0 cursor-pointer select-none items-center gap-2 px-2 text-left text-muted-foreground/70 outline-none",
             "transition-colors duration-80 hover:text-muted-foreground",
             "focus-visible:ring-1 focus-visible:ring-[color:var(--focus-ring,#6B97FF)]",
-            shape.item,
+            radius.item,
             sizeVariant === "compact" ? "text-[11px]" : "text-[12px]",
             className,
           ),
@@ -1266,7 +1284,7 @@ const GroupActionsContext = createContext(false);
 
 const SidebarGroupAction = forwardRef<HTMLButtonElement, SidebarGroupActionProps>(
   ({ className, render, asChild, children, ...props }, ref) => {
-    const shape = useShape();
+    const radius = useRadius();
     const sizeClasses = useSize();
     const inCluster = useContext(GroupActionsContext);
     const { template, content } = resolveSlotTemplate(render, asChild, children);
@@ -1287,7 +1305,7 @@ const SidebarGroupAction = forwardRef<HTMLButtonElement, SidebarGroupActionProps
           "hover:bg-hover hover:text-foreground transition-[color,background-color] duration-80",
           "focus-visible:ring-1 focus-visible:ring-[color:var(--focus-ring,#6B97FF)]",
           "[&_svg]:size-[var(--icon-size)] [&_svg]:shrink-0",
-          shape.item,
+          radius.item,
           className,
         ),
         ...props,

@@ -17,6 +17,7 @@ import {
   serializeFormulaMeta,
   type FormulaMeta,
 } from "@repo/notes/formulas/formula-meta";
+import { stringProp } from "@repo/editor/node-props";
 
 const NAME_RE = /^([A-Za-z][A-Za-z0-9_-]*)=(.+)$/u;
 
@@ -93,9 +94,9 @@ export function formulaPropsFromEntry(
 
 /** The entry text an existing pill edits as (the inverse of the above). */
 export function entryTextOf(element: TElement): string {
-  const source = typeof element.source === "string" ? element.source : "";
-  const display = typeof element.display === "string" ? element.display : "";
-  const meta = parseFormulaMeta(typeof element.meta === "string" ? element.meta : undefined);
+  const source = stringProp(element, "source") ?? "";
+  const display = stringProp(element, "display") ?? "";
+  const meta = parseFormulaMeta(stringProp(element, "meta"));
   if (meta.name !== undefined && meta.name !== "") return `${meta.name}=${source}`;
   if (parseExpression(source) !== null) return source;
   return `${source}=${display}`;

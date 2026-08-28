@@ -26,12 +26,12 @@ function classify(md: string): Classification {
 
 const REPO_ROOT = fileURLToPath(new URL("../../../..", import.meta.url));
 
-const REPO_DOCS: Record<string, string> = {
+const REPO_DOCS = {
   "README.md": readFileSync(`${REPO_ROOT}/README.md`, "utf8"),
-};
+} satisfies Record<string, string>;
 
 // The expected-set. A change here must be a conscious decision, not a driveby.
-const EXPECTED: Record<string, Classification> = {
+const EXPECTED = {
   // repo docs (real-world hand-written markdown)
   "README.md": "formattable", // wrapped paragraphs → soft-break churn
   // dev fixture vault — pre-canonicalized: a first edit must produce a
@@ -62,20 +62,20 @@ const EXPECTED: Record<string, Classification> = {
   "wiki/ideas.md": "canonical",
   "wiki/projects.md": "canonical",
   "wiki/digest.md": "canonical",
-};
+} satisfies Record<string, Classification>;
 
-const CORPUS: Record<string, string> = { ...REPO_DOCS, ...SAMPLE_NOTES };
+const CORPUS = new Map([...Object.entries(REPO_DOCS), ...Object.entries(SAMPLE_NOTES)]);
 
 const letters = (s: string) => s.replace(/[^\p{L}\p{N}]+/gu, "").toLowerCase();
 
 describe("legacy corpus classification", () => {
   it("covers every corpus file with an expectation", () => {
-    expect(Object.keys(CORPUS).toSorted()).toEqual(Object.keys(EXPECTED).toSorted());
+    expect([...CORPUS.keys()].toSorted()).toEqual(Object.keys(EXPECTED).toSorted());
   });
 
   for (const [name, expected] of Object.entries(EXPECTED)) {
     it(`${name} → ${expected}`, () => {
-      const md = CORPUS[name];
+      const md = CORPUS.get(name);
       expect(md).toBeDefined();
       if (md === undefined) return;
       expect(classify(md)).toBe(expected);
@@ -83,7 +83,7 @@ describe("legacy corpus classification", () => {
   }
 
   it("round-trips rich-safe corpus files idempotently and letters-preserving", () => {
-    for (const [name, md] of Object.entries(CORPUS)) {
+    for (const [name, md] of CORPUS) {
       const analysis = analyzeMarkdown(md);
       if (!analysis.richSafe || md.trim() === "") continue;
       const once = roundTrip(md);

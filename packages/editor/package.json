@@ -70,6 +70,7 @@
     "./markdown-editor": "./src/markdown-editor.tsx",
     "./markdown/markdown-doc": "./src/markdown/markdown-doc.ts",
     "./markdown/md-rules": "./src/markdown/md-rules.ts",
+    "./node-props": "./src/node-props.ts",
     "./nodes/blockquote-node": "./src/nodes/blockquote-node.tsx",
     "./nodes/calendar": "./src/nodes/calendar.tsx",
     "./nodes/callout-node": "./src/nodes/callout-node.tsx",

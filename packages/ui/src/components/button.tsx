@@ -13,7 +13,7 @@ import { Button as ButtonPrimitive } from "@base-ui/react/button";
 import { cva } from "class-variance-authority";
 
 import type { IconComponent } from "@repo/ui/lib/icon-context";
-import { useShape } from "@repo/ui/lib/shape-context";
+import { useRadius } from "@repo/ui/lib/radius-context";
 import { useSizeVariant } from "@repo/ui/lib/size-context";
 import { cn } from "@repo/ui/lib/utils";
 
@@ -232,7 +232,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     // proportionate across sizes. size-* spelling on purpose: the base
     // [&_svg:not([class*='size-'])] guard must skip the spinner.
     const spinnerSizeClass = isCompact ? "size-7" : "size-9";
-    const shape = useShape();
+    const radius = useRadius();
     // text-box only applies to block containers, so the trim lives on the
     // label span (a blockified flex item), not the flex root. The button's
     // height is fixed (h-*), so this doesn't change layout — it just centers
@@ -308,7 +308,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         iconLeft: !isIconOnly && !!LeadingIcon,
         iconRight: !isIconOnly && !!TrailingIcon,
       }),
-      shape.button,
+      radius.button,
       className,
     );
 

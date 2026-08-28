@@ -26,10 +26,14 @@ const ALERT_VARIANTS = ["NOTE", "TIP", "IMPORTANT", "WARNING", "CAUTION"] as con
 
 type AlertVariant = (typeof ALERT_VARIANTS)[number];
 
-const ALERTS: Record<
-  AlertVariant,
-  { Icon: ComponentType<{ className?: string }>; accent: string; icon: string; label: string }
-> = {
+interface AlertPresentation {
+  Icon: ComponentType<{ className?: string }>;
+  accent: string;
+  icon: string;
+  label: string;
+}
+
+const ALERTS = {
   NOTE: {
     Icon: InfoIcon,
     accent: "border-blue-500/60 bg-blue-500/[0.05]",
@@ -60,7 +64,7 @@ const ALERTS: Record<
     icon: "text-red-600 dark:text-red-400",
     label: "Caution",
   },
-};
+} satisfies Record<AlertVariant, AlertPresentation>;
 
 // Strict form only: the marker IS the whole first line (GitHub's alert
 // grammar). `hidden` spans the marker plus its soft break, so hiding it pulls
@@ -80,7 +84,7 @@ function toVariant(raw: string): AlertVariant | null {
  * static path (transclusion.tsx) renders an identical badge instead of
  * re-deriving the vocabulary — a second copy drifts, and the drift shows up
  * as a transcluded card that disagrees with the live editor. */
-export function alertPresentation(variant: AlertVariant): (typeof ALERTS)[AlertVariant] {
+export function alertPresentation(variant: AlertVariant): AlertPresentation {
   return ALERTS[variant];
 }
 

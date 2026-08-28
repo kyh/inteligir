@@ -20,12 +20,14 @@ import { useToggleButton, useToggleButtonState } from "@platejs/toggle/react";
 
 import { cn } from "@repo/ui/lib/utils";
 
+import { stringProp } from "@repo/editor/node-props";
+
 export function ToggleElement(props: PlateElementProps) {
   const element = useElement();
   const { editor } = props;
   // NodeIdPlugin (a v53 core default) stamps ids on live blocks; under
   // NODE_ENV=test ids are absent and the chevron becomes inert.
-  const id = typeof element.id === "string" ? element.id : "";
+  const id = stringProp(element, "id") ?? "";
   const state = useToggleButtonState(id);
   const { buttonProps, open } = useToggleButton(state);
 

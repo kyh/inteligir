@@ -17,12 +17,12 @@ import { motion, AnimatePresence } from "framer-motion";
 import type { IconComponent } from "@repo/ui/lib/icon-context";
 import { cn } from "@repo/ui/lib/utils";
 import { fontWeights } from "@repo/ui/lib/font-weight";
-import { shapeMap } from "@repo/ui/lib/shape-context";
+import { radiusMap } from "@repo/ui/lib/radius-context";
 import { useSize } from "@repo/ui/lib/size-context";
 
 // MenuItem is only used inside Dropdown, which opts out of the global pill
-// shape — see dropdown-menu.tsx for the rationale.
-const shape = shapeMap.rounded;
+// radius — see dropdown-menu.tsx for the rationale.
+const radius = radiusMap.rounded;
 
 // ---------------------------------------------------------------------------
 // Dropdown context — the single shared context for every Dropdown build.
@@ -146,7 +146,7 @@ const MenuItem = forwardRef<HTMLDivElement, MenuItemProps>(
       // text-box trim on the label doesn't shrink the row. shrink-0 because
       // menu popups are max-height flex columns — without it a long list
       // compresses rows to fit instead of scrolling.
-      `relative z-10 flex ${sizeClasses.control} shrink-0 items-center ${sizeClasses.gap} ${shape.item} ${sizeClasses.itemPx} cursor-pointer outline-none`,
+      `relative z-10 flex ${sizeClasses.control} shrink-0 items-center ${sizeClasses.gap} ${radius.item} ${sizeClasses.itemPx} cursor-pointer outline-none`,
       disabled && "opacity-50 pointer-events-none",
       className,
     );

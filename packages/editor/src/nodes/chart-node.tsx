@@ -13,6 +13,8 @@ import { z } from "zod";
 import { type PlateElementProps, PlateElement } from "platejs/react";
 import { useState } from "react";
 
+import { stringProp } from "@repo/editor/node-props";
+
 import { ChartGridEditor, emitChartPayload } from "./chart-grid";
 import { DegradedPayloadView, RichBlockCard, PayloadEditor } from "./rich-block-chrome";
 import { setBlockValue } from "./rich-block-value";
@@ -293,7 +295,7 @@ export function ChartElement(props: PlateElementProps) {
   // surface for a payload it can represent; raw JSON is the escape hatch and
   // the only surface for a payload the grid cannot hold.
   const [mode, setMode] = useState<"view" | "grid" | "raw">("view");
-  const value = typeof props.element.value === "string" ? props.element.value : "";
+  const value = stringProp(props.element, "value") ?? "";
   const parsed = parseChartPayload(value);
 
   return (

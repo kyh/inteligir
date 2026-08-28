@@ -27,6 +27,7 @@ import { parseFormulaMeta, serializeFormulaMeta } from "@repo/notes/formulas/for
 import { getEditorHostIo } from "@repo/editor/host-io";
 import { createDebouncer } from "@repo/editor/lib/debounce";
 import { rebuildRaw } from "@repo/editor/formulas/formula-entry";
+import { stringProp } from "@repo/editor/node-props";
 
 const RECOMPUTE_DEBOUNCE_MS = 400;
 
@@ -42,14 +43,13 @@ function formulaEntries(editor: SlateEditor): FormulaEntryInDoc[] {
     match: (node) => NodeApi.isNode(node) && "type" in node && node.type === "formulaPill",
   })) {
     const [node] = entry;
-    const source = typeof node.source === "string" ? node.source : "";
-    const display = typeof node.display === "string" ? node.display : "";
-    const meta = typeof node.meta === "string" && node.meta !== "" ? node.meta : undefined;
+    const source = stringProp(node, "source") ?? "";
+    const display = stringProp(node, "display") ?? "";
     out.push({
       collected: {
         display,
         expression: parseExpression(source),
-        meta: parseFormulaMeta(meta),
+        meta: parseFormulaMeta(stringProp(node, "meta")),
         source,
       },
       entry,
@@ -62,7 +62,7 @@ function formulaEntries(editor: SlateEditor): FormulaEntryInDoc[] {
 function editorNoteId(editor: SlateEditor): string | null {
   const first = editor.children[0];
   if (first === undefined || first.type !== "frontmatter") return null;
-  const yaml = typeof first.value === "string" ? first.value : "";
+  const yaml = stringProp(first, "value") ?? "";
   const match = /^id:\s*("?)([^"\n]+)\1\s*$/mu.exec(yaml);
   return match?.[2]?.trim() ?? null;
 }

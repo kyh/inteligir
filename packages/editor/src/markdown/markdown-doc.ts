@@ -106,11 +106,6 @@ const DEPTH_REASON: RawReason = {
   message: "Document nests too deeply to convert",
 };
 
-function rangeErrorToRaw(error: unknown): RawReason {
-  if (error instanceof RangeError) return DEPTH_REASON;
-  throw error;
-}
-
 // One parse + mdast→Slate pass, shared by every entry point.
 function convert(md: string): Converted {
   const parsed = parseMdast(md);
@@ -125,7 +120,8 @@ function convert(md: string): Converted {
     const value = mdastToSlate(parsed.root, getMergedOptionsDeserialize(editor));
     return { editor, ok: true, value };
   } catch (error) {
-    return { ok: false, reason: rangeErrorToRaw(error) };
+    if (error instanceof RangeError) return { ok: false, reason: DEPTH_REASON };
+    throw error;
   }
 }
 
@@ -135,7 +131,8 @@ function serialize(editor: ReturnType<typeof makeEditor>, value: Descendant[]): 
   try {
     return { ok: true, out: serializeMd(editor, { remarkStringifyOptions: MD_STRINGIFY, value }) };
   } catch (error) {
-    return { ok: false, reason: rangeErrorToRaw(error) };
+    if (error instanceof RangeError) return { ok: false, reason: DEPTH_REASON };
+    throw error;
   }
 }
 
@@ -206,9 +203,9 @@ export function parseMarkdown(
 ): { ok: true; value: Value } | { ok: false; reason: RawReason } {
   const converted = convert(md);
   if (!converted.ok) return { ok: false, reason: converted.reason };
-  // mdast root children are flow nodes, so the converted value is TElement[]
-  // in practice; Plate's own deserializeMd performs this exact widening.
-  // oxlint-disable-next-line typescript/consistent-type-assertions, typescript/no-unsafe-type-assertion -- mdast root children are flow nodes, see doc above
+  // SAFETY: mdast root children are flow nodes, so every converted descendant
+  // is an element; Plate's own deserializeMd performs this exact widening.
+  // oxlint-disable-next-line typescript/consistent-type-assertions, typescript/no-unsafe-type-assertion -- mdast root children are flow nodes, see the SAFETY note above
   return { ok: true, value: converted.value as Value };
 }
 

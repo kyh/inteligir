@@ -8,6 +8,7 @@ import { ElementApi, KEYS, NodeApi, PathApi, type Path, type TElement, type TRan
 import type { PlateEditor } from "platejs/react";
 
 import { wrapBlockInToggle } from "@repo/editor/kits/toggle-kit";
+import { stringProp } from "@repo/editor/node-props";
 
 /** The menu's vocabulary. Every caller names a row by this id, never by its
  * display label — a label is what a person reads, and looking one up by string
@@ -36,7 +37,7 @@ export type TurnIntoOption = {
 };
 
 /** Closed over the vocabulary: a new id must declare its row here. */
-const TURN_INTO_ROWS: Record<TurnIntoId, TurnIntoOption> = {
+const TURN_INTO_ROWS = {
   text: { id: "text", label: "Text", type: KEYS.p },
   "heading-1": { id: "heading-1", label: "Heading 1", type: KEYS.h1 },
   "heading-2": { id: "heading-2", label: "Heading 2", type: KEYS.h2 },
@@ -58,7 +59,7 @@ const TURN_INTO_ROWS: Record<TurnIntoId, TurnIntoOption> = {
   callout: { id: "callout", label: "Callout", type: KEYS.blockquote, marker: "[!NOTE] " },
   "code-block": { id: "code-block", label: "Code block", type: KEYS.codeBlock },
   toggle: { id: "toggle", label: "Toggle", type: KEYS.toggle },
-};
+} satisfies Record<TurnIntoId, TurnIntoOption>;
 
 /** Menu order — the rows' own record has none. */
 const TURN_INTO_ORDER: readonly TurnIntoId[] = [
@@ -114,16 +115,12 @@ function retargetToggleSummary(editor: PlateEditor, entry: [TElement, Path]): [T
 
 /** The TURN_INTO row describing `node` — the toolbar's type indicator reads
  *  its label, the shortcut batch its id. */
-export function turnIntoOptionFor(
-  node: { type: string } & Record<string, unknown>,
-): TurnIntoOption {
-  if (typeof node.listStyleType === "string") {
-    return TURN_INTO.find((opt) => opt.listStyleType === node.listStyleType) ?? TURN_INTO_ROWS.text;
+export function turnIntoOptionFor(node: TElement): TurnIntoOption {
+  const listStyleType = stringProp(node, "listStyleType");
+  if (listStyleType !== undefined) {
+    return TURN_INTO.find((opt) => opt.listStyleType === listStyleType) ?? TURN_INTO_ROWS.text;
   }
-  const isAlert =
-    node.type === KEYS.blockquote &&
-    ElementApi.isElement(node) &&
-    ALERT_MARKER_RE.test(NodeApi.string(node));
+  const isAlert = node.type === KEYS.blockquote && ALERT_MARKER_RE.test(NodeApi.string(node));
   const match = TURN_INTO.find(
     (opt) => !opt.listStyleType && opt.type === node.type && Boolean(opt.marker) === isAlert,
   );

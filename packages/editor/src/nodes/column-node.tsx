@@ -23,6 +23,8 @@ import {
 
 import { cn } from "@repo/ui/lib/utils";
 
+import { stringProp } from "@repo/editor/node-props";
+
 const MIN_PCT = 10;
 
 // ≤2 decimals, trailing zeros trimmed: 50 → "50%", 33.333 → "33.33%".
@@ -44,7 +46,7 @@ export function ColumnElement(props: PlateElementProps) {
   const element = useElement();
   const hostRef = useRef<HTMLDivElement | null>(null);
 
-  const width = typeof element.width === "string" ? element.width : undefined;
+  const width = stringProp(element, "width");
 
   const startResize = (e: React.PointerEvent<HTMLDivElement>) => {
     const path = editor.api.findPath(element);
@@ -60,7 +62,7 @@ export function ColumnElement(props: PlateElementProps) {
     // window regardless — capture is an assist, not the routing mechanism —
     // and pointercancel (tab switch, OS gesture) aborts without committing.
     const handle = e.currentTarget;
-    if (typeof handle.setPointerCapture === "function") {
+    if ("setPointerCapture" in handle) {
       try {
         handle.setPointerCapture(e.pointerId);
       } catch {
