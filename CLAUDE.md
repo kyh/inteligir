@@ -154,10 +154,6 @@ packages/
                  components no surface draws on yet, kept by owner decision
                  and listed one by one in the orphan guard, so a fifteenth
                  still fails. Leaf.
-scripts/         The repo's own operational scripts, owned by the root
-                 tsconfig.json — `bootstrap-cloud.ts` provisions the account
-                 side of the local cloud loop. A program owns this tree
-                 precisely so a file here cannot be one no typecheck reads.
 tools/
   repo-guards/   @repo/repo-guards — derived fitness tests over the REPO: the
                  package dependency DAG + its platform-purity rules, ws
@@ -185,8 +181,6 @@ pnpm dev:desktop      # Alias of dev, kept deliberately (owner call 2026-08-26)
 pnpm dev:mobile       # apps/mobile: expo start
 pnpm cli serve        # The server ALONE, from source; a shell adopts it
 pnpm dev:web          # apps/web: vite + miniflare on :5174 (pinned, strictPort)
-pnpm bootstrap:cloud  # The local cloud loop against it: schema, invite, dev
-                      # account, and --pair writes this checkout's credential
 pnpm package:cli      # The npm artifact (apps/cli) — `npx inteligir serve`
 pnpm package:desktop  # An UNSIGNED macOS arm64 dmg
 pnpm smoke:cli        # Pack, install into a scratch prefix, boot, probe, stop

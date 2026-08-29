@@ -7,20 +7,7 @@
   // API, which turns unused-export reporting off for the whole package. Each
   // workspace below states which side of that trade it is on, and why.
   "workspaces": {
-    // The root's own `scripts/` tree — dev commands that belong to no
-    // workspace. Each one is reachable as a root package.json script
-    // (tools/repo-guards/src/root-scripts.test.ts holds that), which is what
-    // makes it an entry rather than a file nothing runs.
-    //
-    // `inteligir` is the PUBLISHED BINARY (apps/cli) and also this manifest's
-    // own name, so knip reads `inteligir/server/*` here as a self-reference and
-    // reports the dependency as unused. The dependency is real: pnpm links it,
-    // and the scripts import the config resolution and the credential store
-    // through it.
-    ".": {
-      "entry": ["scripts/*.ts"],
-      "ignoreDependencies": ["inteligir"]
-    },
+    ".": {},
     // The published artifact: the CLI and the server it runs. The bin
     // (bin/inteligir, a sh launcher knip cannot read) runs tsx over
     // src/index.ts in a checkout and the esbuild bundle when packaged — hence

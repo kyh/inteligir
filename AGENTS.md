@@ -24,7 +24,7 @@ pnpm cli serve       # → the server ALONE, from source, no window. A shell
                      #   iterating on server code.
 ```
 
-That's the whole product setup — no provisioning, no Docker, no cloud
+That's the whole product setup — no bootstrap script, no Docker, no cloud
 account, no login. The port and the data dir are derived per CHECKOUT (hash of
 the checkout root, walked up to from wherever the command started), so parallel
 worktrees never collide and every command in one checkout names one instance;
@@ -70,22 +70,26 @@ answer at all. Any value works locally.
 
 ## There is no seeded login, and sign-up is invite-only
 
-This repo ships no seed script and no test account. `scripts/bootstrap-cloud.ts`
-is the whole recipe — schema push, invite, sign-up, and the pairing — so getting
-a local account is one command against a running `pnpm dev:web`:
+This repo ships no seed script and no test account. To get one locally:
 
 ```sh
-pnpm bootstrap:cloud --pair   # → the account, its bearer, and a paired checkout
+pnpm dev:web                                       # vite dev on :5174
+
+# The local D1 file is materialized lazily, on the first request that touches
+# the binding — `dev` alone does not create it. So hit one, THEN push:
+curl -s -o /dev/null localhost:5174/api/auth/get-session
+pnpm --filter @repo/web db:push:local
+
+# Sign-up is invite-gated and there is no self-serve issuance. Mint one.
+# `code` is the primary key, so re-running this literal command after a code has
+# been minted fails on the constraint — pick a fresh string each time:
+pnpm --filter @repo/web exec wrangler d1 execute inteligir-auth --local \
+  --command "INSERT INTO invite_code (code) VALUES ('DEV-INVITE-001')"
 ```
 
-It signs INTO the dev account when one already exists, so a second run is a
-no-op, and it needs no browser: the pairing is minted and redeemed over HTTP
-with the session it just opened, then written to this checkout's data dir —
-so the next `pnpm cli serve` boots entitled and syncing against miniflare.
-Drop `--pair` for the account alone. Signing up returns 200 with a
+Then `/app/sign-up` takes the invite code. Signing up returns 200 with a
 `set-auth-token` header — that bearer is what a NON-browser client carries; a
-browser carries the session cookie instead, and `/app/sign-up` takes an invite
-code by hand.
+browser carries the session cookie instead.
 
 Auth is rate-limited to 10 requests/60s per IP; a script that creates several
 users should set `RATE_LIMIT_DISABLED=true` in `.dev.vars` rather than weaken

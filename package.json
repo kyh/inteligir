@@ -1,9 +1,7 @@
 {
   "name": "inteligir",
   "private": true,
-  "type": "module",
   "scripts": {
-    "bootstrap:cloud": "tsx scripts/bootstrap-cloud.ts",
     "build": "turbo run build",
     "clean": "git clean -xdf node_modules",
     "clean:workspaces": "turbo run clean",
@@ -24,23 +22,18 @@
     "smoke:cli": "turbo run build --filter=inteligir && pnpm --filter inteligir smoke",
     "smoke:desktop": "pnpm package:desktop && pnpm --filter @repo/desktop smoke",
     "test": "turbo run test --concurrency=4",
-    "typecheck": "turbo run typecheck && tsc -p tsconfig.json",
+    "typecheck": "turbo run typecheck",
     "verify": "pnpm typecheck && pnpm lint && pnpm knip && pnpm format && pnpm test && pnpm build"
   },
   "devDependencies": {
     "@kyh/oxlint": "^0.1.2",
-    "@repo/api": "workspace:*",
-    "@types/node": "catalog:",
     "dotenv-cli": "^11.0.0",
-    "inteligir": "workspace:*",
     "knip": "^6.29.0",
     "oxfmt": "^0.60.0",
     "oxlint": "^1.78.0",
     "oxlint-tsgolint": "^7.0.2001",
-    "tsx": "catalog:",
     "turbo": "^2.10.6",
-    "typescript": "catalog:",
-    "zod": "catalog:"
+    "typescript": "catalog:"
   },
   "engines": {
     "node": ">=24"
