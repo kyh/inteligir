@@ -218,18 +218,9 @@ importers:
       '@kyh/oxlint':
         specifier: ^0.1.2
         version: 0.1.2
-      '@repo/api':
-        specifier: workspace:*
-        version: link:packages/api
-      '@types/node':
-        specifier: 'catalog:'
-        version: 26.1.1
       dotenv-cli:
         specifier: ^11.0.0
         version: 11.0.0
-      inteligir:
-        specifier: workspace:*
-        version: link:apps/cli
       knip:
         specifier: ^6.29.0
         version: 6.29.0
@@ -242,18 +233,12 @@ importers:
       oxlint-tsgolint:
         specifier: ^7.0.2001
         version: 7.0.2001
-      tsx:
-        specifier: 'catalog:'
-        version: 4.23.12
       turbo:
         specifier: ^2.10.6
         version: 2.10.6
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
-      zod:
-        specifier: 'catalog:'
-        version: 4.4.3
 
   apps/cli:
     dependencies:
