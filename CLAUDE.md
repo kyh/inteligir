@@ -154,6 +154,10 @@ packages/
                  components no surface draws on yet, kept by owner decision
                  and listed one by one in the orphan guard, so a fifteenth
                  still fails. Leaf.
+scripts/         The repo's own operational scripts, owned by the root
+                 tsconfig.json — `bootstrap-cloud.ts` provisions the account
+                 side of the local cloud loop. A program owns this tree
+                 precisely so a file here cannot be one no typecheck reads.
 tools/
   repo-guards/   @repo/repo-guards — derived fitness tests over the REPO: the
                  package dependency DAG + its platform-purity rules, ws
@@ -181,6 +185,8 @@ pnpm dev:desktop      # Alias of dev, kept deliberately (owner call 2026-08-26)
 pnpm dev:mobile       # apps/mobile: expo start
 pnpm cli serve        # The server ALONE, from source; a shell adopts it
 pnpm dev:web          # apps/web: vite + miniflare on :5174 (pinned, strictPort)
+pnpm bootstrap:cloud  # The local cloud loop against it: schema, invite, dev
+                      # account, and --pair writes this checkout's credential
 pnpm package:cli      # The npm artifact (apps/cli) — `npx inteligir serve`
 pnpm package:desktop  # An UNSIGNED macOS arm64 dmg
 pnpm smoke:cli        # Pack, install into a scratch prefix, boot, probe, stop
@@ -355,6 +361,26 @@ pull` from a hostile remote is enough to plant one.
   `files-changed` and doc `content-changed` sweep the `knowledgeRoot` family
   WHOLE, because a link into a note lives in another note's bytes, so a
   path-scoped invalidation is not expressible.
+
+- **ONE NOTE LIVES IN ONE PANE, and the open path IS the pane's identity.** The
+  pane coordinator is the single focus channel — the panes publish into it, the
+  shell selects from it, action-time callers read it live — and `openInSplit`
+  refuses a note the primary already holds, answering with a focus instead. That
+  refusal is not a nicety: two panes on one file means two vault sessions and two
+  guarded writers racing the same bytes. The rule reaches further than the shell,
+  which is why it is stated here rather than left in the coordinator: the editor
+  keys a pane's comment tint, its create popover and ⌘T off the open path, so
+  permitting the same note twice would silently move all three. The affordance
+  that could produce it — a top-bar "open THIS note in the split" — is gone
+  rather than guarded, because a control whose only outcome is a refusal is a
+  control that should not exist.
+
+- **THE APPEARANCE DIALS ARE ONE DECLARATION, READ THROUGH `.typeset-docs`.** The
+  funnel's tokens (`--editor-font`, `-mono`, `-size`, `-line-height`, `-width`)
+  are declared once in `apps/desktop/src/renderer/styles/globals.css` and reach
+  the WYSIWYG through that class alone. There is deliberately NO accent axis:
+  nothing in Plate consumes a hue, so a dial for one would set a value no
+  surface reads.
 
 - **Stemming is a SHADOW of the indexed text, never a rewrite of it.**
   `search_fts` carries `title/headings/body` AND `title_stems/heading_stems/

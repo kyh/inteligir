@@ -1,9 +1,10 @@
 // The palette's note-search seam: ONE injected async function between the
 // query box and the hit list, so the palette renders hits without knowing how
-// they were found. The workspace composes the real source — the knowledge
+// they were found. `search-source.ts` composes the real one — the knowledge
 // index's full-text + tag search (`tag:<name>` terms parse engine-side) with
 // the filename tiers below as the zero-query view and the fallback when the
-// index answers nothing or errors.
+// index answers nothing or errors. This module stays free of the client, so
+// the tiers can be tested as the pure ranking they are.
 
 import { basenamePath } from "@repo/notes/knowledge/vault-path";
 

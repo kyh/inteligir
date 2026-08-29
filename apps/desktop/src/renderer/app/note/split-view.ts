@@ -1,15 +1,25 @@
-// Split-view plumbing shared between the provider and the panes (#595): the
-// pane vocabulary, the coordinator that enforces one-note-one-pane, and the
-// imperative handle the workspace reads at action time (view context, export,
-// comment create all act on the FOCUSED pane).
+// Split-view plumbing shared between the workspace and the panes: the pane
+// vocabulary, and the coordinator that enforces one-note-one-pane and
+// PUBLISHES the focused pane with its path. One channel, two ways to read it —
+// React selects off `store`, action-time callers ask `getState()` — so the
+// shell's focus state cannot drift from the panes' own.
 
 import type { OpenNoteState, OpenNoteStore } from "@repo/editor/note/open-note-store";
-import { createContext } from "react";
+import { createStore, type StoreApi } from "zustand/vanilla";
 
-export type PaneId = "primary" | "split";
+type PaneId = "primary" | "split";
+
+/** The published fact: which pane has focus, and the note it holds. */
+type PaneFocus = {
+  pane: PaneId;
+  path: string | null;
+};
 
 export type PaneCoordinator = {
-  /** Live open paths per pane (refs, read at action time). */
+  /** The focus, subscribable: `useStore(coordinator.store, sel)` in React,
+   * `coordinator.store.getState()` at action time. */
+  readonly store: StoreApi<PaneFocus>;
+  /** A named pane's live open path (the focused one is in `store`). */
   openPath: (pane: PaneId) => string | null;
   /** A pane reports its open path on every publish. */
   reportOpenPath: (pane: PaneId, path: string | null) => void;
@@ -20,71 +30,58 @@ export type PaneCoordinator = {
    * the caller may proceed with its own open.
    */
   requestOpen: (from: PaneId, path: string) => boolean;
+  /** Focus a pane (pointer landing in it, no open involved). */
   focus: (pane: PaneId) => void;
-  focusedPane: () => PaneId;
+  /** The focused pane's live open-note state, or null until a pane registers
+   * its store — an action fired in that window has no note to act on. */
+  focusedState: () => OpenNoteState | null;
   registerStore: (pane: PaneId, store: OpenNoteStore | null) => void;
 };
 
-/** What the workspace may ask imperatively (a ref, not a subscription). */
-export type VaultPanesHandle = {
-  /** The focused pane's live open-note state. */
-  focusedState: () => OpenNoteState;
-  focusedPane: () => PaneId;
-  /** Focus a pane (pointer landing in it, no open involved). */
-  focus: (pane: PaneId) => void;
-};
-
-export const PaneInfraContext = createContext<PaneCoordinator | null>(null);
-
 /**
- * The coordinator, pure over its callback: `onFocusChange` fires with the
- * focused pane + that pane's open path after every state move. Extracted from
- * the provider so one-note-one-pane is unit-testable without React.
+ * The coordinator, owning the focus rules. Nothing here touches React, so
+ * one-note-one-pane is unit-testable without a renderer.
  */
-export function createPaneCoordinator(
-  onFocusChange: (pane: PaneId, path: string | null) => void,
-): PaneCoordinator & { store: (pane: PaneId) => OpenNoteStore | null } {
+export function createPaneCoordinator(): PaneCoordinator {
   const openPaths = new Map<PaneId, string | null>();
-  const stores = new Map<PaneId, OpenNoteStore | null>();
-  let focused: PaneId = "primary";
+  const stores = new Map<PaneId, OpenNoteStore>();
+  const store = createStore<PaneFocus>()(() => ({ pane: "primary", path: null }));
 
-  const publish = (): void => {
-    onFocusChange(focused, openPaths.get(focused) ?? null);
+  const publish = (pane: PaneId): void => {
+    store.setState({ pane, path: openPaths.get(pane) ?? null });
   };
 
   return {
-    store: (pane) => stores.get(pane) ?? null,
-    focusedPane: () => focused,
+    store,
     openPath: (pane) => openPaths.get(pane) ?? null,
+    focusedState: () => stores.get(store.getState().pane)?.state() ?? null,
     reportOpenPath: (pane, path) => {
       openPaths.set(pane, path);
       // A split whose note closed (deleted, vault switch) yields focus back.
-      if (pane === "split" && path === null) focused = "primary";
-      publish();
+      publish(pane === "split" && path === null ? "primary" : store.getState().pane);
     },
     requestOpen: (from, path) => {
       const other: PaneId = from === "primary" ? "split" : "primary";
-      if (openPaths.get(other) === path && (stores.get(other) ?? null) !== null) {
-        focused = other;
-        publish();
+      if (openPaths.get(other) === path && stores.has(other)) {
+        publish(other);
         return false;
       }
-      focused = from;
-      publish();
+      publish(from);
       return true;
     },
     focus: (pane) => {
-      if ((stores.get(pane) ?? null) === null) return;
-      focused = pane;
-      publish();
+      if (!stores.has(pane)) return;
+      publish(pane);
     },
-    registerStore: (pane, store) => {
-      stores.set(pane, store);
-      if (store === null) {
-        openPaths.set(pane, null);
-        if (focused === pane) focused = "primary";
-        publish();
+    registerStore: (pane, paneStore) => {
+      if (paneStore !== null) {
+        stores.set(pane, paneStore);
+        return;
       }
+      stores.delete(pane);
+      openPaths.set(pane, null);
+      const focused = store.getState().pane;
+      publish(focused === pane ? "primary" : focused);
     },
   };
 }

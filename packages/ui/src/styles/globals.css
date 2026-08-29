@@ -5,13 +5,16 @@
 @import "@fontsource-variable/geist-mono";
 @import "./typeset.css";
 
-/* Typeset preset — the document surface (the note editor). */
+/* Typeset preset — the document surface (the note editor). The appearance
+   dials publish `--editor-*` on <html>, so this is where a reader's typeface,
+   size and leading reach the whole typeset scale; the fallback is what the
+   preset renders as in an app that has no such funnel. */
 .typeset-docs {
-  --typeset-font-body: var(--font-geist);
-  --typeset-font-heading: var(--font-geist);
-  --typeset-font-mono: var(--font-geist-mono);
-  --typeset-size: 14px;
-  --typeset-leading: 1.75;
+  --typeset-font-body: var(--editor-font, var(--font-geist));
+  --typeset-font-heading: var(--editor-font, var(--font-geist));
+  --typeset-font-mono: var(--editor-mono, var(--font-geist-mono));
+  --typeset-size: var(--editor-size, 14px);
+  --typeset-leading: var(--editor-line-height, 1.75);
   --typeset-flow: 1.25em;
 }
 

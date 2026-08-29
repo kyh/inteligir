@@ -14,6 +14,7 @@ import {
   turnIntoSelection,
   type TurnIntoId,
 } from "@repo/editor/block-transforms";
+import { liveEditorPath } from "@repo/editor/live-editor";
 import { focusNoteTitle } from "@repo/editor/note-title-focus";
 
 /** What the routing reads off a keydown — structural, so the headless test
@@ -45,7 +46,9 @@ function toggleList(editor: PlateEditor, id: TurnIntoId): void {
  * DOM dispatch belongs to Plate's editable, not to this table). */
 export function handleEditorShortcut(editor: PlateEditor, event: ShortcutKeyEvent): void {
   if (isHotkey("mod+t", event)) {
-    if (focusNoteTitle()) event.preventDefault();
+    // The pressed editor names its own pane, so a split hands ⌘T to the title
+    // above the document the user is typing in.
+    if (focusNoteTitle(liveEditorPath(editor))) event.preventDefault();
     return;
   }
   if (isHotkey("mod+e", event)) {

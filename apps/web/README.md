@@ -113,25 +113,28 @@ Minting invites is `wrangler d1 execute`, deliberately — no admin UI, no
 self-serve issuance:
 
 ```bash
-# local (miniflare)
-pnpm --filter @repo/web exec wrangler d1 execute inteligir-auth --local \
-  --command "INSERT INTO invite_code (code) VALUES ('DEV-INVITE-001')"
-# production
 wrangler d1 execute inteligir-auth --remote \
   --command "INSERT INTO invite_code (code) VALUES ('...')"
 ```
+
+Locally there is nothing to mint by hand — `pnpm bootstrap:cloud` issues one per
+run.
 
 ## Dev
 
 ```bash
 cp .dev.vars.example .dev.vars    # set BETTER_AUTH_SECRET to anything
 pnpm dev:web                      # vite + miniflare on :5174 (pinned, strictPort)
-
-# The local D1 file is materialized lazily, on the first request that touches
-# the binding — `dev` alone does not create it. So hit one, THEN push:
-curl -s -o /dev/null localhost:5174/api/auth/get-session
-pnpm --filter @repo/web db:push:local
+pnpm bootstrap:cloud --pair       # schema, invite, dev account, this checkout's
+                                  # credential — idempotent, and it prompts for
+                                  # nothing, so it runs headless
 ```
+
+`bootstrap:cloud` owns the local half of the recipe: the D1 file is materialized
+lazily by the first request that touches the binding, so the script hits one
+before it pushes the schema, then mints a fresh invite (the code is the primary
+key, so it cannot collide with a rerun) and signs the dev account up through the
+same invite gate a human would.
 
 > **Never run `db:push` or `db:studio`.** Both load `drizzle.config.ts`
 > (`driver: "d1-http"`) with the root `.env.production.local` creds and hit the

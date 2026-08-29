@@ -1,0 +1,17 @@
+{
+  // The repo root's own program: the `scripts/` tree, which belongs to no
+  // workspace and would otherwise be typechecked by nothing at all. `pnpm
+  // typecheck` runs it after the workspaces' own.
+  //
+  // `customConditions` matches apps/cli's, and for its reason: these scripts
+  // run on node under tsx, so the `node` export condition is the one they
+  // resolve — Bundler resolution alone would type a dependency against its
+  // browser entry.
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2023"],
+    "types": ["node"],
+    "customConditions": ["node"]
+  },
+  "include": ["scripts"]
+}

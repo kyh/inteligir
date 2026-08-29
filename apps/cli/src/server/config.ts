@@ -27,7 +27,10 @@ const DEV_INSTANCE_VAULT_DIR_NAME = "vault";
 const SQLITE_DATABASE_FILE_NAME = "inteligir.db";
 /** Under the PROD data dir in both modes — see `AppConfig.modelDir`. */
 const MODELS_DIR_NAME = "models";
-const CONFIG_FILE_NAME = "config.json";
+/** The managed config layer, in the data dir. Exported because it is WRITTEN
+ *  from outside this program — a file whose name only its reader knows is a
+ *  file a writer spells wrong once and never notices. */
+export const CONFIG_FILE_NAME = "config.json";
 export const PROD_SERVER_PORT = 4664;
 
 const DEV_HASH_LENGTH = 12;

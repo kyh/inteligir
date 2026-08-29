@@ -4,27 +4,20 @@
 // param — deep-linkable, back/forward works — mirrored to localStorage so a
 // fresh boot reopens where the user left off.
 
-import { docStem, isDocPath } from "@repo/notes/knowledge/doc-file";
-import { parseSearchQuery } from "@repo/notes/knowledge/vault-search";
+import { docStem } from "@repo/notes/knowledge/doc-file";
 import type { ViewContext } from "@repo/domain/view-context";
 import type { ViewContextSource } from "./chat-model";
 import type { Thread } from "@repo/api/local/threads/threads-schema";
 import type { VaultEntry } from "@repo/api/local/vault/vault-schema";
-import { ConfirmDialogHost, confirm } from "@repo/ui/components/confirm-dialog";
+import { ConfirmDialogHost } from "@repo/ui/components/confirm-dialog";
 import { Button } from "@repo/ui/components/button";
 import { XIcon } from "lucide-react";
 import { cn } from "@repo/ui/lib/utils";
-import { Toaster, toast } from "@repo/ui/components/sonner";
+import { Toaster } from "@repo/ui/components/sonner";
 import { useQueryClient } from "@tanstack/react-query";
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type PointerEvent as ReactPointerEvent,
-} from "react";
-import { orpc, refusalMessage } from "./api";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useStore } from "zustand";
+import { orpc } from "./api";
 import { setCommentActions } from "@repo/editor/comments/comment-store";
 import { ActionComposer } from "./actions/action-composer";
 import { ActionsPanel, type PanelTab } from "./actions/actions-panel";
@@ -41,18 +34,16 @@ import type { VaultActions } from "@repo/editor/host";
 import { dailyNotePath, dailyNoteTemplate } from "./note/daily";
 import { readNoteViewContext } from "./note/note-view-context";
 import { SplitPane, VaultProvider } from "./note/vault-provider";
-import type { PaneId, VaultPanesHandle } from "./note/split-view";
+import { createPaneCoordinator } from "./note/split-view";
+import { useNoteHistory } from "./note/note-history";
+import { useSplitRatio } from "./note/split-ratio";
 import { CommandPalette } from "./palette/command-palette";
-import {
-  NOTE_SEARCH_LIMIT,
-  searchNotesByFilename,
-  type NoteSearchSource,
-} from "./palette/note-search";
+import { createSearchSource, sortedNotePaths } from "./palette/search-source";
 import { TrashDialog } from "./sidebar/trash-dialog";
 import { Sidebar, SidebarInset, SidebarProvider, useSidebar } from "@repo/ui/components/sidebar";
 import { SidebarRailContent } from "./sidebar/sidebar";
+import { useTreeOps } from "./sidebar/tree-ops";
 import { useNavigate } from "@tanstack/react-router";
-import type { TreeOps } from "./sidebar/file-tree";
 import {
   canSyncNow,
   filePathsLowercased,
@@ -104,36 +95,30 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
   // never bytes. The FOCUSED pane is what the right panel, the composer and
   // every action-time read follow.
   const [splitPath, setSplitPath] = useState<string | null>(() => readSplitNote());
-  const [focusedPath, setFocusedPath] = useState<string | null>(null);
-  const [focusedPane, setFocusedPane] = useState<PaneId>("primary");
-  const panesRef = useRef<VaultPanesHandle | null>(null);
-  const focusedPathRef = useRef<string | null>(null);
-  focusedPathRef.current = focusedPath;
+  // The one focus channel: the panes publish into it, the shell selects the
+  // two fields it draws with, and action-time callers read it live.
+  const coordinator = useMemo(() => createPaneCoordinator(), []);
+  const focusedPath = useStore(coordinator.store, (focus) => focus.path);
+  const focusedPane = useStore(coordinator.store, (focus) => focus.pane);
 
-  // Split ratio (primary pane's share, 0.25..0.75) — session state only.
-  const [splitRatio, setSplitRatio] = useState(0.5);
-  const paneRowRef = useRef<HTMLDivElement | null>(null);
-  const onDividerPointerDown = useCallback((down: ReactPointerEvent<HTMLDivElement>): void => {
-    down.preventDefault();
-    const row = paneRowRef.current;
-    if (row === null) return;
-    const rect = row.getBoundingClientRect();
-    const onMove = (move: PointerEvent): void => {
-      const ratio = (move.clientX - rect.left) / rect.width;
-      setSplitRatio(Math.min(0.75, Math.max(0.25, ratio)));
-    };
-    const onUp = (): void => {
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", onUp);
-    };
-    window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerup", onUp);
-  }, []);
+  const { ratio: splitRatio, paneRowRef, onDividerPointerDown } = useSplitRatio();
 
-  const openInSplit = useCallback((path: string): void => {
-    setSplitPath(path);
-    writeSplitNote(path);
-  }, []);
+  // ONE note lives in ONE pane. Splitting a note the primary already holds
+  // would put two editors and two comment surfaces on one file — two writers
+  // racing the same bytes — so the request becomes a focus instead. The rule
+  // sits here because every caller reaches this: the palette picks from a list
+  // that does not exclude the open note, and a wiki chip can resolve to it.
+  const openInSplit = useCallback(
+    (path: string): void => {
+      if (coordinator.openPath("primary") === path) {
+        coordinator.focus("primary");
+        return;
+      }
+      setSplitPath(path);
+      writeSplitNote(path);
+    },
+    [coordinator],
+  );
   const closeSplit = useCallback((): void => {
     setSplitPath(null);
     writeSplitNote(null);
@@ -161,33 +146,13 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
     setPanelOpen(open);
     writePanelOpen(open);
   }, []);
-  // Mounted here, not in the panel: the hook also publishes the comment-tint
-  // meta, and a collapsed panel must not take the tints down with it. The
-  // panel's own call shares this query.
+  // Mounted here, not in the panel: the top bar's badge counts the focused
+  // note's open threads whether the panel is showing or collapsed. The panel's
+  // own call shares this query.
   const commentsQuery = useNoteComments(focusedPath);
   const openCommentCount = (commentsQuery.data?.threads ?? []).filter(
     (thread) => !thread.resolved,
   ).length;
-
-  // Back/forward over opened notes (the top bar's arrows) — session state.
-  const historyRef = useRef<{ stack: string[]; index: number }>({ stack: [], index: -1 });
-  const historyNavRef = useRef(false);
-  const [historyVersion, setHistoryVersion] = useState(0);
-  useEffect(() => {
-    if (openNote === null) return;
-    if (historyNavRef.current) {
-      historyNavRef.current = false;
-      return;
-    }
-    const history = historyRef.current;
-    if (history.stack[history.index] === openNote) return;
-    history.stack = [...history.stack.slice(0, history.index + 1), openNote];
-    history.index = history.stack.length - 1;
-    setHistoryVersion((version) => version + 1);
-  }, [openNote]);
-  void historyVersion;
-  const canBack = historyRef.current.index > 0;
-  const canForward = historyRef.current.index < historyRef.current.stack.length - 1;
 
   const openThread = useCallback((threadId: string | null): void => {
     setPanelThreadId(threadId);
@@ -205,7 +170,7 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
       create: async (id, text) => {
         // The FOCUSED pane's doc — a comment created in the split must land
         // in the split's sidecar, not the primary's.
-        const path = focusedPathRef.current;
+        const { path } = coordinator.store.getState();
         if (path === null) {
           return false;
         }
@@ -227,29 +192,33 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
     return () => {
       setCommentActions(null);
     };
-  }, [api, queryClient]);
+  }, [api, queryClient, coordinator]);
 
   // What the user is looking at, pulled at submit: the open note's buffer via
   // the store the editor publishes into. Selection offsets return with the
   // composer surface (#587) — until then the context names the note whole.
   const readViewContext = useCallback<ViewContextSource>(async (): Promise<ViewContext | null> => {
-    const panes = panesRef.current;
-    if (panes === null) return null;
-    const { editor } = panes.focusedState();
-    if (editor.path === null) {
+    // Null until a pane registers its store: a send fired in that window has
+    // no buffer to describe.
+    const focused = coordinator.focusedState();
+    if (focused === null || focused.editor.path === null) {
       return null;
     }
-    const path = editor.path;
+    const path = focused.editor.path;
     return readNoteViewContext(path, {
       flush: async () => {
         await flushOpenNote();
       },
       read: () => {
-        const { editor: current } = panes.focusedState();
-        return { content: current.path === path ? current.content : "", from: 0, to: 0 };
+        const current = coordinator.focusedState()?.editor;
+        return {
+          content: current?.path === path ? current.content : "",
+          from: 0,
+          to: 0,
+        };
       },
     });
-  }, []);
+  }, [coordinator]);
 
   // Deliberate opens go through the vault session (flush-then-switch); the
   // session's publishOpenPath mirrors back into the route + localStorage.
@@ -265,17 +234,7 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
     [onOpenNote],
   );
 
-  // Back/forward drive the SESSION (flush-then-switch), not the route: the
-  // route mirrors back from publishOpenPath like every other open.
-  const historyGo = useCallback((delta: -1 | 1): void => {
-    const history = historyRef.current;
-    const next = history.stack[history.index + delta];
-    if (next === undefined) return;
-    history.index += delta;
-    historyNavRef.current = true;
-    actionsRef.current?.openFile(next);
-    setHistoryVersion((version) => version + 1);
-  }, []);
+  const { canBack, canForward, go: historyGo } = useNoteHistory(openNote, setOpenNote);
 
   // The fluid sidebar owns collapse and drag-resize; the workspace owns what
   // they mean here: zen forces the rail shut without losing the user's own
@@ -306,61 +265,13 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
 
   const { syncNow, inFlight: syncInFlight } = useSyncNow();
 
-  const treeOps = useMemo<TreeOps>(
-    () => ({
-      createNote: (path) => {
-        void createNote(path);
-      },
-      createFolder: (path) => {
-        void (async () => {
-          try {
-            await api.vault.mkdir({ path });
-          } catch (error) {
-            toast.error(refusalMessage(error, `Could not create ${path}.`));
-          }
-        })();
-      },
-      renameEntry: (fromPath, toPath) => {
-        // The session flushes first, carries the open note, and toasts its own
-        // refusals. A rename of the open note's ANCESTOR folder still goes
-        // through the api (the session tracks files, not folders).
-        void (async () => {
-          const moved = await actionsRef.current?.renameEntry(fromPath, toPath);
-          if (
-            moved === true &&
-            openNote !== null &&
-            openNote !== fromPath &&
-            openNote.startsWith(`${fromPath}/`)
-          ) {
-            setOpenNote(`${toPath}/${openNote.slice(fromPath.length + 1)}`);
-          }
-        })();
-      },
-      removeEntry: (path, kind) => {
-        void (async () => {
-          const confirmed = await confirm({
-            title: kind === "dir" ? `Delete the folder ${path}?` : `Delete ${path}?`,
-            body:
-              kind === "dir"
-                ? "Everything inside it is deleted with it."
-                : "It moves to Trash and is kept for 30 days.",
-            confirmLabel: "Delete",
-            destructive: true,
-          });
-          if (!confirmed) {
-            return;
-          }
-          await actionsRef.current?.deleteEntry(path);
-          if (openNote !== null && openNote !== path && openNote.startsWith(`${path}/`)) {
-            // A folder delete swallowing the open note: the session only
-            // tracks the file itself; drop the stale selection.
-            onOpenNote(null);
-          }
-        })();
-      },
-    }),
-    [api, createNote, openNote, setOpenNote, onOpenNote],
-  );
+  const treeOps = useTreeOps({
+    api,
+    actions: actionsRef,
+    createNote,
+    openNote,
+    setOpenNote,
+  });
 
   const navigate = useNavigate();
   const onOpenSettings = useCallback((): void => {
@@ -418,48 +329,10 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
 
   const canSync = canSyncNow(statusQuery.data) && !syncInFlight;
 
-  // The palette's search source: the knowledge index's full-text + tag
-  // search (`tag:<name>` terms parse engine-side), with the filename tiers as
-  // the zero-query view and the fallback when the index answers nothing (a
-  // filename-shaped query FTS misses) or errors.
   const treeEntries = treeQuery.data?.entries ?? EMPTY_ENTRIES;
-  const sortedFilePaths = useMemo(
-    () =>
-      treeEntries
-        // Notes only: the tree also holds comment sidecars and assets, and the
-        // palette's fallback must answer the same question the index does.
-        .filter((entry) => entry.kind === "file" && isDocPath(entry.path))
-        .map((entry) => entry.path)
-        .toSorted(),
-    [treeEntries],
-  );
-  const searchSource = useCallback<NoteSearchSource>(
-    async (query, signal) => {
-      // A `tag:` term is a question only the index can answer, so it suppresses
-      // the filename fallback: fuzzy-matching the literal string "tag:foo"
-      // against paths answers a different question with a straight face.
-      const tagFiltered = parseSearchQuery(query).tag !== "";
-      const byFilename = () => (tagFiltered ? [] : searchNotesByFilename(query, sortedFilePaths));
-      if (query.trim() === "") {
-        return byFilename();
-      }
-      try {
-        const response = await api.knowledge.search(
-          { q: query, limit: NOTE_SEARCH_LIMIT },
-          { signal },
-        );
-        if (response.results.length === 0) {
-          return byFilename();
-        }
-        return response.results.map((result) => ({
-          path: result.path,
-          title: result.title,
-          snippet: result.snippet,
-        }));
-      } catch {
-        return byFilename();
-      }
-    },
+  const sortedFilePaths = useMemo(() => sortedNotePaths(treeEntries), [treeEntries]);
+  const searchSource = useMemo(
+    () => createSearchSource(api, sortedFilePaths),
     [api, sortedFilePaths],
   );
 
@@ -502,9 +375,7 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
       initialPath={openNote}
       onOpenPath={onOpenNote}
       actionsRef={actionsRef}
-      panesRef={panesRef}
-      onFocusedPathChange={setFocusedPath}
-      onFocusedPaneChange={setFocusedPane}
+      coordinator={coordinator}
       onOpenInSplit={openInSplit}
     >
       <SidebarProvider
@@ -576,12 +447,8 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
                     setPanelOpenPersisted(true);
                     setPanelTab("comments");
                   }}
-                  onOpenInSplit={() => {
-                    const path = focusedPathRef.current;
-                    if (path !== null) openInSplit(path);
-                  }}
                   onExportPdf={() => {
-                    const path = focusedPathRef.current;
+                    const { path } = coordinator.store.getState();
                     if (path !== null) exportNoteAsPdf(docStem(path));
                   }}
                 />
@@ -595,7 +462,9 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
                     splitPath !== null && focusedPane === "split" && "print:hidden",
                   )}
                   style={splitPath === null ? undefined : { width: `${String(splitRatio * 100)}%` }}
-                  onPointerDownCapture={() => panesRef.current?.focus("primary")}
+                  onPointerDownCapture={() => {
+                    coordinator.focus("primary");
+                  }}
                 >
                   <EditorPane />
                 </div>
@@ -613,9 +482,15 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
                       "flex min-h-0 min-w-0 flex-1 flex-col",
                       focusedPane === "primary" && "print:hidden",
                     )}
-                    onPointerDownCapture={() => panesRef.current?.focus("split")}
+                    onPointerDownCapture={() => {
+                      coordinator.focus("split");
+                    }}
                   >
-                    <SplitPane path={splitPath} onOpenPath={onSplitOpenPath}>
+                    <SplitPane
+                      path={splitPath}
+                      coordinator={coordinator}
+                      onOpenPath={onSplitOpenPath}
+                    >
                       <div className="flex items-center justify-end border-b border-line px-2 py-1 print:hidden">
                         <Button
                           variant="ghost"

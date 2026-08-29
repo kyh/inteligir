@@ -13,14 +13,18 @@ import {
   type RenderNodeWrapper,
 } from "platejs/react";
 
+import { openDocPath } from "@repo/editor/note/open-doc";
+import { useOpenNote } from "@repo/editor/note/open-note-context";
 import { cn } from "@repo/ui/lib/utils";
 
 import { holdsCommentMarkers, scanBlockComments } from "./comment-ranges";
-import { useCommentSurface } from "./comment-store";
+import { useCommentMeta, useCommentSurface } from "./comment-store";
 
 function CommentGutterBlock(props: PlateElementProps) {
   const editor = useEditorRef();
-  const { actions, resolvedIds } = useCommentSurface();
+  const actions = useCommentSurface((state) => state.actions);
+  const notePath = useOpenNote((s) => openDocPath(s.openDoc));
+  const { resolvedIds } = useCommentMeta(notePath);
   const path = props.path;
   const scan =
     path === undefined

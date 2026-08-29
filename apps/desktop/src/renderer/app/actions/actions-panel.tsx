@@ -30,7 +30,6 @@ import { ApprovalCard } from "./approval-card";
 import { THREAD_ACTIVITY_LABELS, threadActivity, type ThreadActivity } from "../chat-model";
 import { sendToThread } from "./send-to-thread";
 import { useThreadDetail, useThreads, useThreadTimeline } from "./thread-hooks";
-import { useNoteComments } from "./comment-hooks";
 import { RelatedInline } from "./related-section";
 import { CommentsTab } from "./comments-tab";
 import { TimelineRowView } from "./timeline-rows";
@@ -271,10 +270,6 @@ export function ActionsPanel({
   onSelectThread,
   onOpenDoc,
 }: ActionsPanelProps) {
-  // Mounted HERE rather than in the Comments tab: this hook is what pushes
-  // the sidecar's id sets into the editor's comment store, and the range
-  // tint must be true with any tab selected.
-  useNoteComments(docPath);
   const [propertiesOpen, setPropertiesOpen] = useState(true);
   const threadsQuery = useThreads();
   const threads = threadsQuery.data?.threads ?? [];

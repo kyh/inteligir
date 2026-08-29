@@ -16,7 +16,6 @@ import { useSidebar } from "@repo/ui/components/sidebar";
 import {
   ArrowLeftIcon,
   ArrowRightIcon,
-  ColumnsIcon,
   FileDownIcon,
   LinkIcon,
   MessageSquareTextIcon,
@@ -46,7 +45,6 @@ export interface NoteTopbarProps {
   /** Open (unresolved) comment threads on the focused note. */
   commentCount: number;
   onOpenComments: () => void;
-  onOpenInSplit: () => void;
   onExportPdf: () => void;
 }
 
@@ -80,7 +78,6 @@ export function NoteTopbar({
   onOpenSearch,
   commentCount,
   onOpenComments,
-  onOpenInSplit,
   onExportPdf,
 }: NoteTopbarProps) {
   // The link is built from the SERVER's origin, never the page's: under the
@@ -164,10 +161,6 @@ export function NoteTopbar({
             <MoreVerticalIcon />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={onOpenInSplit}>
-              <ColumnsIcon />
-              Open in split view
-            </DropdownMenuItem>
             <DropdownMenuItem onClick={onExportPdf}>
               <FileDownIcon />
               Export as PDF
