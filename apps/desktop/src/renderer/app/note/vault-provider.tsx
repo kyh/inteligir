@@ -26,6 +26,7 @@ import {
   type VaultEntry,
 } from "@repo/editor/host-io";
 import { createDebouncer } from "@repo/editor/lib/debounce";
+import { PaneCommentMeta } from "../actions/pane-comment-meta";
 import { useWikiTargets } from "../vault-hooks";
 import type { VaultIO } from "@repo/editor/vault-editor";
 import { registerOpenNoteStore } from "@repo/editor/note/open-note-flush";
@@ -51,7 +52,7 @@ import { vaultAssetUrl } from "@repo/api/local/routes";
 import { contentHashHex, type VaultTreeResponse } from "@repo/api/local/vault/vault-schema";
 import { toast } from "@repo/ui/components/sonner";
 import {
-  useContext,
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -62,12 +63,7 @@ import {
 
 import { isDefinedError, refusalMessage, safe } from "../api";
 import { readLastOpenNote, writeLastOpenNote } from "../prefs";
-import {
-  createPaneCoordinator,
-  PaneInfraContext,
-  type PaneId,
-  type VaultPanesHandle,
-} from "./split-view";
+import type { PaneCoordinator } from "./split-view";
 import { useWorkspace, type WorkspaceRuntime } from "../workspace-context";
 
 const FOCUS_REFRESH_DEBOUNCE_MS = 400;
@@ -105,11 +101,9 @@ export interface VaultProviderProps {
   /** The session's actions, handed to the shell's own callbacks (tree ops,
    * palette) — identity is fixed for the session's life. */
   actionsRef: RefObject<VaultActions | null>;
-  /** Imperative pane reads for action-time callers (view context, export). */
-  panesRef: RefObject<VaultPanesHandle | null>;
-  /** The FOCUSED pane's open path, mirrored on every focus/open change. */
-  onFocusedPathChange: (path: string | null) => void;
-  onFocusedPaneChange: (pane: PaneId) => void;
+  /** Focus and one-note-one-pane, owned by the workspace so both panes and the
+   * shell answer to the same rules. */
+  coordinator: PaneCoordinator;
   /** Open `path` in the split pane (the workspace owns the split's state). */
   onOpenInSplit: (path: string) => void;
 }
@@ -119,9 +113,7 @@ export function VaultProvider({
   initialPath,
   onOpenPath,
   actionsRef,
-  panesRef,
-  onFocusedPathChange,
-  onFocusedPaneChange,
+  coordinator,
   onOpenInSplit,
 }: VaultProviderProps) {
   // Captured once: the param mirrors back through onOpenPath after boot, and
@@ -165,39 +157,18 @@ export function VaultProvider({
   // One store per pane; the primary's lives for the provider's life.
   const primaryStore = useMemo(() => createOpenNoteStore(), []);
 
-  // Live pane paths + focus, coordinated here so an open landing on a note
-  // the OTHER pane holds focuses that pane instead of double-mounting it.
-  const onFocusedPathRef = useRef(onFocusedPathChange);
-  onFocusedPathRef.current = onFocusedPathChange;
-  const onFocusedPaneRef = useRef(onFocusedPaneChange);
-  onFocusedPaneRef.current = onFocusedPaneChange;
-
-  const coordinator = useMemo(
-    () =>
-      createPaneCoordinator((pane, path) => {
-        onFocusedPaneRef.current(pane);
-        onFocusedPathRef.current(path);
-      }),
-    [],
-  );
-
   useEffect(() => {
     coordinator.registerStore("primary", primaryStore);
+    // The deep link is announced for this pane before either pane has opened
+    // anything. The split restores its note from a pref synchronously while
+    // this pane still has to resolve its target against the tree, so an
+    // unannounced boot is the one moment the gate has nothing to refuse a
+    // second runtime over the same file against.
+    if (bootPath !== null) coordinator.reportOpenPath("primary", bootPath);
     return () => {
       coordinator.registerStore("primary", null);
     };
-  }, [coordinator, primaryStore]);
-
-  useEffect(() => {
-    panesRef.current = {
-      focusedState: () => {
-        const store = coordinator.store(coordinator.focusedPane()) ?? primaryStore;
-        return store.state();
-      },
-      focusedPane: () => coordinator.focusedPane(),
-      focus: coordinator.focus,
-    };
-  }, [panesRef, primaryStore, coordinator]);
+  }, [coordinator, primaryStore, bootPath]);
 
   const session = useMemo<VaultSession>(() => {
     const io = createGuardedVaultIo(api);
@@ -264,22 +235,14 @@ export function VaultProvider({
     actionsRef.current = guardedActions;
   }, [guardedActions, actionsRef]);
 
-  // The editor's split seam (wiki-chip right-click): the workspace owns the
-  // split's open state; the coordinator only vets the target first.
+  // The editor's split seam (wiki-chip right-click). The workspace owns the
+  // split's open state and vets the target, so this only forwards.
   useEffect(() => {
-    setSplitViewActions({
-      openInSplit: (path) => {
-        if (coordinator.openPath("primary") === path) {
-          coordinator.focus("primary");
-          return;
-        }
-        onOpenInSplit(path);
-      },
-    });
+    setSplitViewActions({ openInSplit: onOpenInSplit });
     return () => {
       setSplitViewActions(null);
     };
-  }, [coordinator, onOpenInSplit]);
+  }, [onOpenInSplit]);
 
   useEffect(() => {
     void session.start();
@@ -455,11 +418,10 @@ export function VaultProvider({
   );
 
   return (
-    <PaneInfraContext.Provider value={coordinator}>
-      <OpenNoteStoreProvider store={primaryStore}>
-        <EditorHostProvider host={host}>{children}</EditorHostProvider>
-      </OpenNoteStoreProvider>
-    </PaneInfraContext.Provider>
+    <OpenNoteStoreProvider store={primaryStore}>
+      <PaneCommentMeta />
+      <EditorHostProvider host={host}>{children}</EditorHostProvider>
+    </OpenNoteStoreProvider>
   );
 }
 
@@ -582,25 +544,22 @@ function buildPaneSession(cfg: PaneSessionConfig): VaultSession {
  */
 export function SplitPane({
   path,
+  coordinator,
   onOpenPath,
   children,
 }: {
   path: string;
+  coordinator: PaneCoordinator;
   onOpenPath: (path: string | null) => void;
   children: ReactNode;
 }) {
   const { api, docEvents } = useWorkspace();
-  const coordinator = useContext(PaneInfraContext);
-  if (coordinator === null) throw new Error("SplitPane used outside <VaultProvider>");
   const outerListing = useVaultListing();
   const store = useMemo(() => createOpenNoteStore(), []);
   const [bootTarget] = useState(path);
   const rootRef = useRef("");
   const onOpenPathRef = useRef(onOpenPath);
   onOpenPathRef.current = onOpenPath;
-  // Effects close over the coordinator identity from first render; it is
-  // provider-lifetime stable.
-  const coordinatorRef = useRef(coordinator);
 
   const session = useMemo<VaultSession>(() => {
     const io = createGuardedVaultIo(api);
@@ -609,10 +568,19 @@ export function SplitPane({
       io,
       boot: async () => {
         const tree = await api.vault.tree();
+        const entries = listingEntries(tree);
+        // The restored split asks like any other opener: a deep link and this
+        // pref can name the same note, and the primary is the pane that keeps
+        // it. Refused, there is nothing left for a second pane to show, so it
+        // closes rather than sitting empty.
+        if (!coordinator.requestOpen("split", bootTarget)) {
+          onOpenPathRef.current(null);
+          return { root: tree.root, entries, openNote: null };
+        }
         const content = await io.read(bootTarget).catch(() => null);
         return {
           root: tree.root,
-          entries: listingEntries(tree),
+          entries,
           openNote: content === null ? null : { path: bootTarget, content },
         };
       },
@@ -624,16 +592,15 @@ export function SplitPane({
       },
       publishOpenPath: (next, change) => {
         store.publishOpenPath(next, change);
-        coordinatorRef.current.reportOpenPath("split", next);
+        coordinator.reportOpenPath("split", next);
         onOpenPathRef.current(next);
       },
       publishEditor: store.publishEditor,
     });
-  }, [api, bootTarget, store]);
+  }, [api, bootTarget, store, coordinator]);
 
   useEffect(() => {
-    const paneCoordinator = coordinatorRef.current;
-    paneCoordinator.registerStore("split", store);
+    coordinator.registerStore("split", store);
     store.setFlush(session.actions.flush);
     const unregister = registerOpenNoteStore(store);
     void session.start();
@@ -641,15 +608,24 @@ export function SplitPane({
       session.stop();
       store.setFlush(null);
       unregister();
-      paneCoordinator.registerStore("split", null);
+      coordinator.registerStore("split", null);
     };
-  }, [session, store]);
+  }, [session, store, coordinator]);
 
-  // The workspace re-targets the split by prop (palette, wiki menu); the
-  // session's own flush-then-switch ordering applies as for any open.
+  // Every open into this pane, whichever door it came through: the coordinator
+  // vets it, then the session's own flush-then-switch ordering applies.
+  const openFile = useCallback(
+    (next: string): void => {
+      if (!coordinator.requestOpen("split", next)) return;
+      session.actions.openFile(next);
+    },
+    [coordinator, session],
+  );
+
+  // The workspace re-targets the split by prop (palette, wiki menu).
   useEffect(() => {
-    if (store.state().openPath !== path) session.actions.openFile(path);
-  }, [path, session, store]);
+    if (store.state().openPath !== path) openFile(path);
+  }, [path, store, openFile]);
 
   useEffect(
     () =>
@@ -663,21 +639,13 @@ export function SplitPane({
   );
 
   const host = useMemo<EditorHost>(
-    () => ({
-      actions: {
-        ...session.actions,
-        openFile: (next) => {
-          if (!coordinatorRef.current.requestOpen("split", next)) return;
-          session.actions.openFile(next);
-        },
-      },
-      listing: outerListing,
-    }),
-    [session, outerListing],
+    () => ({ actions: { ...session.actions, openFile }, listing: outerListing }),
+    [session, openFile, outerListing],
   );
 
   return (
     <OpenNoteStoreProvider store={store}>
+      <PaneCommentMeta />
       <EditorHostProvider host={host}>{children}</EditorHostProvider>
     </OpenNoteStoreProvider>
   );

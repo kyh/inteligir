@@ -16,7 +16,9 @@ import {
 } from "platejs";
 import { PlateLeaf, createPlatePlugin, useEditorRef, type PlateLeafProps } from "platejs/react";
 
+import { liveEditorPath } from "@repo/editor/live-editor";
 import { stringProp } from "@repo/editor/node-props";
+import { usePaneNotePath } from "@repo/editor/note/open-note-context";
 import { cn } from "@repo/ui/lib/utils";
 import { Button } from "@repo/ui/components/button";
 import { Textarea } from "@repo/ui/components/textarea";
@@ -28,13 +30,17 @@ import {
   mintCommentId,
   removeCommentMarkers,
 } from "./comment-markers";
-import { setPendingCreate, useCommentSurface } from "./comment-store";
+import { setPendingCreate, useCommentMeta, useCommentSurface } from "./comment-store";
 
 function CommentRangeLeaf(props: PlateLeafProps) {
   const raw = stringProp(props.leaf, "commentIds") ?? "";
   const ids = raw.split(",").filter((id) => id !== "");
   const orphan = props.leaf.commentOrphan === true;
-  const { actions, knownIds, resolvedIds } = useCommentSurface();
+  const actions = useCommentSurface((state) => state.actions);
+  // This pane's note, so a background pane's ranges are judged against the
+  // sidecar of the note they actually live in.
+  const notePath = usePaneNotePath();
+  const { knownIds, resolvedIds } = useCommentMeta(notePath);
   const resolved = ids.length > 0 && ids.every((id) => resolvedIds.has(id));
   const unknown = ids.length > 0 && ids.every((id) => !knownIds.has(id));
   return (
@@ -65,6 +71,11 @@ function CommentRangeLeaf(props: PlateLeafProps) {
 
 /** Begin the ⌘⇧A flow: markers in (one undo step), popover armed. */
 function beginCreate(editor: SlateEditor): boolean {
+  // The pane that will draw the popover IS the note this editor serves. With
+  // no note, no host would claim it and the marker pair would be stranded
+  // where nothing can cancel it — so refuse before minting anything.
+  const path = liveEditorPath(editor);
+  if (path === null) return false;
   const domSelection = window.getSelection();
   const rect =
     domSelection !== null && domSelection.rangeCount > 0
@@ -74,6 +85,7 @@ function beginCreate(editor: SlateEditor): boolean {
   if (!insertCommentMarkers(editor, id)) return false;
   setPendingCreate({
     id,
+    path,
     rect:
       rect === null
         ? { bottom: 120, left: 120, top: 100 }
@@ -84,18 +96,23 @@ function beginCreate(editor: SlateEditor): boolean {
 
 function CommentCreateHost() {
   const editor = useEditorRef();
-  const pending = useCommentSurface((state) => state.pendingCreate);
+  const notePath = usePaneNotePath();
+  const armed = useCommentSurface((state) => state.pendingCreate);
   const actions = useCommentSurface((state) => state.actions);
   const [text, setText] = useState("");
   const [saving, setSaving] = useState(false);
   const fieldRef = useRef<HTMLTextAreaElement | null>(null);
 
+  // Only the minting pane draws it: `editor` below is THIS pane's, and cancel
+  // and save both act on the document holding the marker pair.
+  const pending = armed !== null && armed.path === notePath ? armed : null;
+  const pendingId = pending?.id ?? null;
+
   useEffect(() => {
-    if (pending !== null) {
-      setText("");
-      requestAnimationFrame(() => fieldRef.current?.focus());
-    }
-  }, [pending]);
+    if (pendingId === null) return;
+    setText("");
+    requestAnimationFrame(() => fieldRef.current?.focus());
+  }, [pendingId]);
 
   if (pending === null) return null;
 

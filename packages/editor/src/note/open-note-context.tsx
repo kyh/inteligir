@@ -6,6 +6,7 @@
 import { createContext, useContext, type ReactNode } from "react";
 import { useStore } from "zustand";
 
+import { openDocPath } from "@repo/editor/note/open-doc";
 import type { OpenNoteState, OpenNoteStore } from "@repo/editor/note/open-note-store";
 
 const OpenNoteStoreContext = createContext<OpenNoteStore | null>(null);
@@ -33,4 +34,11 @@ export function useOpenNoteStore(): OpenNoteStore {
  * value changes — the seam that keeps a keystroke from re-rendering the app. */
 export function useOpenNote<T>(selector: (state: OpenNoteState) => T): T {
   return useStore(useOpenNoteStore().store, selector);
+}
+
+/** The note THIS pane holds — the identity everything under a pane keys off
+ * (its sidecar, its fold set, its live editor). Null when the pane holds no
+ * document; a note still loading already names its path. */
+export function usePaneNotePath(): string | null {
+  return useOpenNote((s) => openDocPath(s.openDoc));
 }

@@ -98,6 +98,7 @@ catalog:
   wrangler: ^4.114.0
   yaml: ^2.9.0
   zod: ^4.4.3
+  zustand: ^5.0.14
 
 # Supply-chain cooldown: never resolve a version published less than 24h ago,
 # so a compromised release has a window to be yanked before it can enter the

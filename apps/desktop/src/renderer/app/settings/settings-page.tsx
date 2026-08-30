@@ -10,7 +10,6 @@ import { Separator } from "@repo/ui/components/separator";
 import { useTheme, type Theme } from "@repo/ui/lib/theme";
 import { ArrowLeftIcon } from "lucide-react";
 import {
-  EDITOR_ACCENTS,
   EDITOR_FONTS,
   EDITOR_LEADINGS,
   EDITOR_MEASURES,
@@ -220,14 +219,6 @@ export function SettingsPage({ onBack }: { onBack: () => void }) {
                   options={EDITOR_MEASURES}
                   value={appearance.measure}
                   onChange={(measure) => setAppearance({ ...appearance, measure })}
-                />
-              </Row>
-              <Row label="Accent">
-                <ChoiceRow
-                  label="Accent"
-                  options={EDITOR_ACCENTS}
-                  value={appearance.accent}
-                  onChange={(accent) => setAppearance({ ...appearance, accent })}
                 />
               </Row>
             </dl>

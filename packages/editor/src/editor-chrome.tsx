@@ -30,11 +30,11 @@ const CONTAINER_CLASS =
  * PlateContent, the page-title <h1>, the Raw textarea, and the backlinks
  * section so they can't drift apart. 48px min padding keeps the -left-11
  * (44px) drag gutter inside the editable's clip with a 4px reveal. The inset
- * is the workspace's `--editor-column-inset` (Settings → Appearance picks
- * between the reading column and the full pane); its default keeps the ~700px
- * column. */
-export const EDITOR_COLUMN_PX =
-  "px-12 sm:px-[max(48px,var(--editor-column-inset,calc(50%-350px)))]";
+ * is the workspace's `--editor-column-inset`, which Settings → Appearance moves
+ * through the measure dial. No fallback: the inset is derived from the one
+ * measure three columns line up on, and a value here would be that measure
+ * spelled a second time, free to drift from it. */
+export const EDITOR_COLUMN_PX = "px-12 sm:px-[max(48px,var(--editor-column-inset))]";
 
 // Document typography comes from shadcn/typeset (typeset.css + the
 // .typeset-docs preset in @repo/ui globals) — element renderers carry only

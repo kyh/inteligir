@@ -96,9 +96,9 @@ export function writeTheme(theme: Theme): void {
   write(KEYS.theme, theme);
 }
 
-/** How the editor is set: the typeface, the size, the leading, the measure and
- *  the accent. One key holding one JSON record, because they are read and
- *  written together — and unparseable bytes are the same answer as none. */
+/** How the editor is set: the typeface, the size, the leading and the measure.
+ *  One key holding one JSON record, because they are read and written together
+ *  — and unparseable bytes are the same answer as none. */
 export function readAppearance(): Appearance {
   const raw = read(KEYS.appearance);
   if (raw === null) {

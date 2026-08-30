@@ -40,7 +40,6 @@ function copiedAfterClick(): string | undefined {
         onOpenSearch={vi.fn()}
         commentCount={0}
         onOpenComments={vi.fn()}
-        onOpenInSplit={vi.fn()}
         onExportPdf={vi.fn()}
       />
     </SidebarProvider>,
@@ -75,7 +74,6 @@ describe("the note's name in the bar", () => {
           onOpenSearch={vi.fn()}
           commentCount={0}
           onOpenComments={vi.fn()}
-          onOpenInSplit={vi.fn()}
           onExportPdf={vi.fn()}
         />
       </SidebarProvider>,

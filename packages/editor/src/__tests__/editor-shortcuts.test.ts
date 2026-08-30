@@ -3,19 +3,23 @@
 // the binding minus Plate's own editable plumbing (which jsdom cannot host —
 // slate's hasEditableTarget guard needs a real isContentEditable).
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createPlateEditor, type PlateEditor } from "platejs/react";
 import type { Value } from "platejs";
 
 import { handleEditorShortcut, type ShortcutKeyEvent } from "@repo/editor/editor-shortcuts";
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
+import { registerLiveEditor } from "@repo/editor/live-editor";
+import { registerNoteTitleFocus } from "@repo/editor/note-title-focus";
 
+/** Presses the chord and answers whether the batch claimed the key. */
 function press(
   editor: PlateEditor,
   key: string,
   keyCode: number,
   modifiers: { shift?: boolean } = {},
-): void {
+) {
+  let claimed = false;
   // is-hotkey resolves "mod" to CTRL wherever no Mac platform is detectable
   // (node has no navigator), so the headless press is a ctrl chord.
   const event: ShortcutKeyEvent = {
@@ -24,11 +28,14 @@ function press(
     key,
     keyCode,
     metaKey: false,
-    preventDefault: () => {},
+    preventDefault: () => {
+      claimed = true;
+    },
     shiftKey: modifiers.shift === true,
     which: keyCode,
   };
   handleEditorShortcut(editor, event);
+  return { claimed };
 }
 
 const PARAGRAPH: Value = [{ children: [{ text: "hello world" }], type: "p" }];
@@ -73,6 +80,39 @@ describe("editor shortcuts", () => {
     expect(editor.children[0]).toMatchObject({ checked: false, listStyleType: "todo" });
     press(editor, "c", 67, { shift: true });
     expect(editor.children[0]).not.toHaveProperty("listStyleType");
+  });
+
+  it("⌘T focuses the title of the pane whose editor was pressed", () => {
+    const primary = mount(PARAGRAPH);
+    const split = mount(PARAGRAPH);
+    const offEditors = [
+      registerLiveEditor("primary.md", primary),
+      registerLiveEditor("split.md", split),
+    ];
+    const focusPrimary = vi.fn();
+    const focusSplit = vi.fn();
+    const offPrimaryTitle = registerNoteTitleFocus("primary.md", focusPrimary);
+    const offSplitTitle = registerNoteTitleFocus("split.md", focusSplit);
+    try {
+      expect(press(split, "t", 84).claimed).toBe(true);
+      expect(focusSplit).toHaveBeenCalledTimes(1);
+      expect(focusPrimary).not.toHaveBeenCalled();
+
+      // Closing the split must not take ⌘T down with it.
+      offSplitTitle();
+      expect(press(primary, "t", 84).claimed).toBe(true);
+      expect(focusPrimary).toHaveBeenCalledTimes(1);
+      expect(focusSplit).toHaveBeenCalledTimes(1);
+    } finally {
+      offPrimaryTitle();
+      offSplitTitle();
+      for (const off of offEditors) off();
+    }
+  });
+
+  it("⌘T leaves the key alone when the pressed editor has no mounted title", () => {
+    const editor = mount(PARAGRAPH);
+    expect(press(editor, "t", 84).claimed).toBe(false);
   });
 
   it("⌘L and ⌘⇧L toggle bulleted and numbered lists", () => {

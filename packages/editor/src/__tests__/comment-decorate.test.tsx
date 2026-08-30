@@ -6,36 +6,21 @@
 // block-level decorate produced ranges no leaf ever claimed).
 
 import { render } from "@testing-library/react";
-import { Plate, PlateContent, usePlateEditor } from "platejs/react";
-import type { Value } from "platejs";
 import { describe, expect, it } from "vitest";
 
-import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
 import { parseMarkdown } from "@repo/editor/markdown/markdown-doc";
-import { OpenNoteStoreProvider } from "@repo/editor/note/open-note-context";
 import { createOpenNoteStore } from "@repo/editor/note/open-note-store";
 
-// The kit's own plugins read the pane they render in (heading collapse folds
-// per note), so the harness has to be a pane.
-const STORE = createOpenNoteStore();
+import { PaneHarness } from "./pane-harness";
 
-function Harness({ value }: { value: Value }) {
-  const editor = usePlateEditor({ plugins: EDITOR_KIT, value });
-  return (
-    <OpenNoteStoreProvider store={STORE}>
-      <Plate editor={editor}>
-        <PlateContent />
-      </Plate>
-    </OpenNoteStoreProvider>
-  );
-}
+const STORE = createOpenNoteStore();
 
 describe("comment range decoration", () => {
   it("tints the text between a marker pair and leaves the tail plain", () => {
     const parsed = parseMarkdown("%%i:abc:start%%tinted words%%i:abc:end%% and plain tail\n");
     expect(parsed.ok).toBe(true);
     if (!parsed.ok) return;
-    const view = render(<Harness value={parsed.value} />);
+    const view = render(<PaneHarness value={parsed.value} store={STORE} />);
     const tinted = view.getByText("tinted words");
     const tintedLeaf = tinted.closest('[data-slate-leaf="true"]');
     expect(tintedLeaf?.outerHTML ?? "").toContain("amber");

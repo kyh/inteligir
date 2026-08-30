@@ -32,6 +32,8 @@ export function isSkippedDir(name: string): boolean {
 
 const SOURCE_FILE = /\.(?:tsx?|mts|cts|mjs|cjs|jsx?)$/;
 
+const STYLE_FILE = /\.css$/;
+
 /** A dependency group that is not a name→range map is dropped rather than
  *  read partially — the original reader skipped malformed groups the same way. */
 const versionMapSchema = z.record(z.string(), z.string()).optional().catch(undefined);
@@ -159,14 +161,14 @@ export function manifestWorkspaceDeps(manifest: Manifest): Set<string> {
   return new Set(Object.keys(all).filter((name) => names.has(name)));
 }
 
-function walk(dir: string, out: string[]): void {
+function walk(dir: string, matches: RegExp, out: string[]): void {
   if (!fs.existsSync(dir)) return;
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) {
       if (isSkippedDir(entry.name)) continue;
-      walk(full, out);
-    } else if (SOURCE_FILE.test(entry.name)) {
+      walk(full, matches, out);
+    } else if (matches.test(entry.name)) {
       out.push(path.relative(REPO_ROOT, full));
     }
   }
@@ -198,7 +200,7 @@ export function workspaceFiles(workspace: Workspace): WorkspaceFiles {
   const cached = cachedFiles.get(workspace.name);
   if (cached !== undefined) return cached;
   const all: string[] = [];
-  walk(path.join(REPO_ROOT, workspace.dir, "src"), all);
+  walk(path.join(REPO_ROOT, workspace.dir, "src"), SOURCE_FILE, all);
   const files: WorkspaceFiles = {
     shipped: all.filter((file) => !isTestFile(file)),
     test: all.filter((file) => isTestFile(file)),
@@ -223,9 +225,28 @@ export function workspaceSourceFiles(workspace: Workspace): string[] {
   const cached = cachedWorkspaceSources.get(workspace.name);
   if (cached !== undefined) return cached;
   const found: string[] = [];
-  walk(path.join(REPO_ROOT, workspace.dir), found);
+  walk(path.join(REPO_ROOT, workspace.dir), SOURCE_FILE, found);
   const sorted = found.toSorted();
   cachedWorkspaceSources.set(workspace.name, sorted);
+  return sorted;
+}
+
+const cachedWorkspaceStyles = new Map<string, string[]>();
+
+/**
+ * Every stylesheet a workspace CONTAINS, on the same walk and the same skip
+ * list as its source. A guard that reads CSS is asking about the same tree as
+ * one that reads TypeScript — a token is declared in one and read from the
+ * other — so the two populations must be drawn the same way or a build output
+ * answers for one half of the pair.
+ */
+export function styleFiles(workspace: Workspace): string[] {
+  const cached = cachedWorkspaceStyles.get(workspace.name);
+  if (cached !== undefined) return cached;
+  const found: string[] = [];
+  walk(path.join(REPO_ROOT, workspace.dir), STYLE_FILE, found);
+  const sorted = found.toSorted();
+  cachedWorkspaceStyles.set(workspace.name, sorted);
   return sorted;
 }
 

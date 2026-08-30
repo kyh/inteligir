@@ -5,8 +5,7 @@ import { cn } from "@repo/ui/lib/utils";
 
 import { EDITOR_COLUMN_PX } from "@repo/editor/editor-chrome";
 import { MarkdownEditor } from "@repo/editor/markdown-editor";
-import { openDocPath } from "@repo/editor/note/open-doc";
-import { useOpenNote } from "@repo/editor/note/open-note-context";
+import { useOpenNote, usePaneNotePath } from "@repo/editor/note/open-note-context";
 import { registerNoteTitleFocus } from "@repo/editor/note-title-focus";
 import { useVaultActions } from "@repo/editor/host";
 import { checkNoteName, noteNameErrorMessage } from "@repo/notes/knowledge/note-name";
@@ -24,7 +23,7 @@ export function EditorPane() {
   // kind/path/surface — never on the content buffer, so typing re-renders
   // only the NotePane below.
   const kind = useOpenNote((s) => s.openDoc.kind);
-  const docPath = useOpenNote((s) => openDocPath(s.openDoc));
+  const docPath = usePaneNotePath();
   const showRich = useOpenNote(
     (s) => s.openDoc.kind === "markdown" && s.openDoc.surface.mode === "rich",
   );
@@ -75,14 +74,15 @@ function NotePane({ path, showRich }: { path: string; showRich: boolean }) {
     if (titleRef.current) titleRef.current.textContent = displayName;
   }, [displayName]);
 
-  // ⌘T (editor-shortcuts) reaches the title through the single-slot registry.
+  // ⌘T (editor-shortcuts) reaches THIS pane's title through the registry, so
+  // the pressed pane's editor and the title it focuses name the same note.
   useEffect(
     () =>
-      registerNoteTitleFocus(() => {
+      registerNoteTitleFocus(path, () => {
         titleRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
         titleRef.current?.focus();
       }),
-    [],
+    [path],
   );
 
   const ext = dot > 0 ? fileName.slice(dot) : "";
@@ -187,7 +187,7 @@ function NotePane({ path, showRich }: { path: string; showRich: boolean }) {
         onKeyDown={onTitleKeyDown}
         className={cn(
           EDITOR_COLUMN_PX,
-          "mb-1 w-full break-words font-[family-name:var(--editor-font-family)] text-[28px] font-semibold leading-[1.2] tracking-tight text-foreground outline-none empty:before:text-muted-foreground/40 empty:before:content-['Untitled']",
+          "mb-1 w-full break-words font-[family-name:var(--editor-font)] text-[28px] font-semibold leading-[1.2] tracking-tight text-foreground outline-none empty:before:text-muted-foreground/40 empty:before:content-['Untitled']",
         )}
       />
       {showRich ? (
@@ -204,7 +204,7 @@ function NotePane({ path, showRich }: { path: string; showRich: boolean }) {
           spellCheck={false}
           className={cn(
             EDITOR_COLUMN_PX,
-            "min-h-[60vh] flex-1 resize-none bg-transparent pt-4 font-[family-name:var(--editor-mono-family)] text-[length:var(--editor-font-size)] leading-[var(--editor-line-height)] text-foreground outline-none",
+            "min-h-[60vh] flex-1 resize-none bg-transparent pt-4 font-[family-name:var(--editor-mono)] text-[length:var(--editor-size)] leading-[var(--editor-line-height)] text-foreground outline-none",
           )}
           placeholder="Empty note"
         />

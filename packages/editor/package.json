@@ -160,7 +160,7 @@
     "react-lite-youtube-embed": "^3.6.0",
     "react-tweet": "^3.3.1",
     "zod": "catalog:",
-    "zustand": "^5.0.14"
+    "zustand": "catalog:"
   },
   "devDependencies": {
     "@testing-library/dom": "catalog:",

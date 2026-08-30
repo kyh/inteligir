@@ -21,8 +21,7 @@ import { z } from "zod";
 
 import { cn } from "@repo/ui/lib/utils";
 
-import { openDocPath } from "@repo/editor/note/open-doc";
-import { useOpenNote } from "@repo/editor/note/open-note-context";
+import { usePaneNotePath } from "@repo/editor/note/open-note-context";
 
 const STORAGE_KEY = "inteligir.collapsed-headings";
 
@@ -168,7 +167,7 @@ function CollapseProvider({ children }: { children: React.ReactNode }) {
   const editor = useEditorRef();
   // This PANE's note, subscribed once here rather than per block: the fold set
   // and every chevron under it must name the same file.
-  const path = useOpenNote((s) => openDocPath(s.openDoc));
+  const path = usePaneNotePath();
   const storeVersion = useSyncExternalStore(subscribe, () => version);
   // children identity tracks edits; the store clock tracks collapse toggles.
   const derived = useMemo(

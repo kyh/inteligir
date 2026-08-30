@@ -7,19 +7,20 @@
 @source "../../../../../packages/editor/src/**/*.{ts,tsx}";
 
 :root {
-  /* The editor's appearance, in the tokens `@repo/editor`'s theme already
-     reads. THIS BLOCK IS THE DEFAULT, and the only place each default value is
-     written: `app/appearance.tsx` sets an inline property for an option the
-     reader actually chose and clears it back to here otherwise, so no default
-     is spelled twice.
+  /* The editor's appearance, in the tokens the document reads — `.typeset-docs`
+     maps them onto the typeset scale, and the pane's title and Raw textarea
+     read them directly. THIS BLOCK IS THE DEFAULT, and the only place each
+     default value is written: `app/appearance.tsx` sets an inline property for
+     an option the reader actually chose and clears it back to here otherwise,
+     so no default is spelled twice.
 
-     `--editor-font` names the chrome's own face on purpose. Left unset it fell
-     through to the `-apple-system` stack baked into the editor theme, which put
-     two typefaces on one screen — Inter in the sidebar and the composer, the
-     system UI face in the document. */
+     `--editor-font` names the chrome's own face on purpose: a document set in
+     the system UI face beside a Geist sidebar is two typefaces on one screen.
+     `--editor-size` is the document's BASE size, which typeset scales its
+     headings, code and captions off. */
   --editor-font: var(--font-geist);
   --editor-mono: var(--font-geist-mono);
-  --editor-size: 1rem;
+  --editor-size: 14px;
   --editor-line-height: 1.75;
 
   /* THE header band. The pane's top bar and the right panel's tab row are the
@@ -45,8 +46,4 @@
   /* The Plate column centers itself from this inset; deriving it here keeps
      the appearance dial (--editor-width) the one measure everything obeys. */
   --editor-column-inset: calc(50% - var(--editor-width) / 2);
-
-  /* `--editor-accent` is deliberately absent: the editor theme carries its own
-     light and dark fallback, and a value here would flatten both into one. The
-     appearance funnel sets it only when the reader picks a hue. */
 }
