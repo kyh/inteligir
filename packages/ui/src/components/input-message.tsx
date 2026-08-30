@@ -589,7 +589,7 @@ const InputMessage = forwardRef<HTMLDivElement, InputMessageProps>(
       activeIndex: activeSuggestion,
       setActiveIndex: setActiveSuggestion,
       itemRects: suggestionRects,
-      sessionRef: suggestionSession,
+      session: suggestionSession,
       handlers: suggestionHandlers,
       registerItem: registerSuggestion,
       measureItems,
@@ -1373,7 +1373,7 @@ const InputMessage = forwardRef<HTMLDivElement, InputMessageProps>(
                     <AnimatePresence>
                       {activeSuggestion != null && suggestionRects[activeSuggestion] && (
                         <motion.div
-                          key={suggestionSession.current}
+                          key={suggestionSession}
                           className={cn("pointer-events-none absolute bg-hover", radius.bg)}
                           initial={{
                             opacity: 0,

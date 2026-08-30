@@ -78,7 +78,7 @@ const Dropdown = forwardRef<HTMLDivElement, DropdownProps>(
       activeIndex,
       setActiveIndex,
       itemRects,
-      sessionRef,
+      session,
       handlers,
       registerItem,
       measureItems,
@@ -182,7 +182,7 @@ const Dropdown = forwardRef<HTMLDivElement, DropdownProps>(
           <AnimatePresence>
             {activeRect && (
               <motion.div
-                key={sessionRef.current}
+                key={session}
                 className={`absolute ${radius.bg} bg-hover pointer-events-none`}
                 initial={{
                   opacity: 0,
@@ -393,7 +393,7 @@ const DropdownContent = forwardRef<HTMLDivElement, DropdownContentProps>(
       activeIndex,
       setActiveIndex,
       itemRects,
-      sessionRef,
+      session,
       handlers,
       registerItem,
       measureItems,
@@ -572,7 +572,7 @@ const DropdownContent = forwardRef<HTMLDivElement, DropdownContentProps>(
                 <AnimatePresence>
                   {activeRect && (
                     <motion.div
-                      key={sessionRef.current}
+                      key={session}
                       className={`absolute ${radius.bg} bg-hover pointer-events-none`}
                       initial={{
                         opacity: 0,

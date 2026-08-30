@@ -196,7 +196,7 @@ function tableAlign(node: TElement): AlignType[] | undefined {
 // editor's paragraph holding `[[a]]![[b]]` is [text"", wiki, text"", embed,
 // text""]). Plate's default p rule converts EVERY empty text child to a
 // zero-width space on serialize (its empty-PARAGRAPH preservation mechanism),
-// which would sprinkle invisible ​ bytes around chips/dates in user
+// which would sprinkle invisible U+200B bytes around chips/dates in user
 // files after any live edit. Element-adjacent empties are pure normalization
 // artifacts — parse never produces them — so they're dropped before the
 // default rule runs. A lone empty text (a genuinely empty paragraph, or the
@@ -517,13 +517,11 @@ export const MD_RULES: MdRules = {
   // conversion both ways, so anything a note can hold survives inside a tab.
   tabGroup: {
     deserialize: (node: TabGroup, deco, options): TElement => ({
-      children: node.children.map(
-        (panel): TElement => ({
-          children: ensureBlocks(convertChildrenDeserialize(panel.children, deco, options)),
-          label: panel.label,
-          type: "tab_panel",
-        }),
-      ),
+      children: node.children.map((panel): TElement => ({
+        children: ensureBlocks(convertChildrenDeserialize(panel.children, deco, options)),
+        label: panel.label,
+        type: "tab_panel",
+      })),
       type: "tab_group",
     }),
   },

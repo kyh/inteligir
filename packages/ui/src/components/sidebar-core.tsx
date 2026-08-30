@@ -225,7 +225,11 @@ const SidebarProvider = forwardRef<HTMLDivElement, SidebarProviderProps>(
     // Live width: the prop is the starting point, the rail's drag-resize
     // updates it at runtime.
     const [width, setWidth] = useState(widthProp);
-    useEffect(() => setWidth(widthProp), [widthProp]);
+    const [prevWidthProp, setPrevWidthProp] = useState(widthProp);
+    if (prevWidthProp !== widthProp) {
+      setPrevWidthProp(widthProp);
+      setWidth(widthProp);
+    }
     const [isResizing, setIsResizing] = useState(false);
 
     // Default shortcut mirrors the sidebar's edge: "[" left, "]" right.
@@ -238,19 +242,17 @@ const SidebarProvider = forwardRef<HTMLDivElement, SidebarProviderProps>(
 
     const [internalOpen, setInternalOpen] = useState(defaultOpen);
     const open = openProp ?? internalOpen;
-    const openRef = useRef(open);
-    openRef.current = open;
 
     const setOpen = useCallback(
       (value: boolean | ((prev: boolean) => boolean)) => {
-        const next = value instanceof Function ? value(openRef.current) : value;
+        const next = value instanceof Function ? value(open) : value;
         if (onOpenChange) onOpenChange(next);
         else setInternalOpen(next);
         if (persist) {
           document.cookie = `${SIDEBAR_COOKIE_NAME}=${next}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`;
         }
       },
-      [onOpenChange, persist],
+      [open, onOpenChange, persist],
     );
 
     const toggleSidebar = useCallback(() => {
@@ -261,9 +263,7 @@ const SidebarProvider = forwardRef<HTMLDivElement, SidebarProviderProps>(
     // Collapsed-peek overlay state. Pinning the sidebar open (or disabling
     // the mode) always dismisses the peek.
     const [isPeeking, setIsPeeking] = useState(false);
-    useEffect(() => {
-      if (open || peek === "none") setIsPeeking(false);
-    }, [open, peek]);
+    if (isPeeking && (open || peek === "none")) setIsPeeking(false);
 
     // The bare shortcut key toggles the sidebar app-wide. Bound to the
     // provider's lifetime (not a docs-only global), skipped while typing, and
@@ -1081,13 +1081,13 @@ const SidebarGroup = forwardRef<HTMLDivElement, SidebarGroupProps>(
     // changes underneath it instead — a nested sub-menu collapsing inside the
     // group — the wrapper must snap: a spring re-targeted every frame chases
     // the child's own animation, lands well after it, and drags everything
-    // below the group along late. Tracked with a ref so a controlled `open`
+    // below the group along late. Tracked in state so a controlled `open`
     // is covered too, and cleared once the toggle's animation lands.
-    const prevOpenRef = useRef(open);
-    const togglingRef = useRef(false);
-    if (prevOpenRef.current !== open) {
-      prevOpenRef.current = open;
-      togglingRef.current = true;
+    const [prevOpen, setPrevOpen] = useState(open);
+    const [toggling, setToggling] = useState(false);
+    if (prevOpen !== open) {
+      setPrevOpen(open);
+      setToggling(true);
     }
 
     // The label and any header actions stay put; everything else after the
@@ -1130,18 +1130,14 @@ const SidebarGroup = forwardRef<HTMLDivElement, SidebarGroupProps>(
                   : { opacity: open ? 1 : 0 }
               }
               // Do NOT simplify this to `open ? spring.moderate : …`. The
-              // togglingRef arm is what stops a re-measure from springing —
+              // `toggling` arm is what stops a re-measure from springing —
               // without it a nested collapse makes this wrapper chase its own
               // child and everything below the group moves late.
               transition={
-                togglingRef.current
-                  ? open
-                    ? spring.moderate
-                    : spring.moderate.exit
-                  : { duration: 0 }
+                toggling ? (open ? spring.moderate : spring.moderate.exit) : { duration: 0 }
               }
               onAnimationComplete={() => {
-                togglingRef.current = false;
+                setToggling(false);
                 if (open) setSettled(true);
               }}
             >

@@ -75,7 +75,7 @@ if (!gfmListItem) {
 // item emits as a bare `-` (the checkbox is inserted after the bullet's
 // following space, which empty content never produces) — so a just-created
 // todo silently loses its checkbox on the first save. Give empty checked
-// items the same ZWSP placeholder Plate uses for empty paragraphs: `- [ ] ​`
+// items the same ZWSP placeholder Plate uses for empty paragraphs: `- [ ] U+200B`
 // re-parses as an empty todo (micromark needs non-whitespace after `[ ]` —
 // matching GitHub's files behavior, which is also why a hand-WRITTEN bare
 // `- [ ]` is literal text per GFM, not a todo, and stays that way here).
@@ -88,7 +88,10 @@ const listItemEmptyTodoPlaceholder: Handle = (node: Nodes, parent, state, info) 
     if (headEmpty) {
       const placeholder: ListItem = {
         ...node,
-        children: [{ ...head, children: [{ type: "text", value: "​" }] }, ...node.children.slice(1)],
+        children: [
+          { ...head, children: [{ type: "text", value: "\u200B" }] },
+          ...node.children.slice(1),
+        ],
       };
       return gfmListItem(placeholder, parent, state, info);
     }

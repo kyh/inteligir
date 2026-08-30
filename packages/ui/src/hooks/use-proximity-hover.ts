@@ -40,7 +40,12 @@ interface UseProximityHoverReturn {
    * reads as the highlight sliding in from another row.
    */
   isMeasured: boolean;
-  sessionRef: RefObject<number>;
+  /**
+   * Bumped on each mouse-enter. Consumers use it as a React `key` to restart
+   * a hover overlay's enter animation per session, so it drives render and is
+   * state rather than a ref.
+   */
+  session: number;
   handlers: {
     onMouseMove: (e: MouseEvent) => void;
     onMouseEnter: () => void;
@@ -76,7 +81,7 @@ export function useProximityHover<T extends HTMLElement>(
   const [itemRects, setItemRects] = useState<ItemRect[]>([]);
   const [isMeasured, setIsMeasured] = useState(false);
   const itemRectsRef = useRef<ItemRect[]>([]);
-  const sessionRef = useRef(0);
+  const [session, setSession] = useState(0);
   const rafIdRef = useRef<number | null>(null);
   const remeasureRafIdRef = useRef<number | null>(null);
 
@@ -325,7 +330,7 @@ export function useProximityHover<T extends HTMLElement>(
   );
 
   const handleMouseEnter = useCallback(() => {
-    sessionRef.current += 1;
+    setSession((s) => s + 1);
   }, []);
 
   const handleMouseLeave = useCallback(() => {
@@ -368,7 +373,7 @@ export function useProximityHover<T extends HTMLElement>(
     setActiveIndex,
     itemRects,
     isMeasured,
-    sessionRef,
+    session,
     handlers: {
       onMouseMove: handleMouseMove,
       onMouseEnter: handleMouseEnter,

@@ -61,7 +61,14 @@ interface MenuScopeValue {
 const MenuScopeContext = createContext<MenuScopeValue | null>(null);
 
 interface MenuItemContextValue {
-  rowRef: RefObject<HTMLLIElement | null>;
+  /**
+   * The row element as STATE, not a ref: `isHovered` / `isActiveRow` compare it
+   * during render, and a ref read there is not reactive — the row would keep
+   * rendering the pre-attach value until something else re-rendered it.
+   */
+  rowEl: HTMLLIElement | null;
+  /** Callback ref that publishes the row element into that state. */
+  setRow: (el: HTMLLIElement | null) => void;
   isHovered: boolean;
   isActiveRow: boolean;
   /** True inside SidebarMenuSubItem — actions center on the shorter row. */
@@ -106,22 +113,25 @@ interface MenuScope {
 }
 
 function useMenuScope(containerRef: RefObject<HTMLElement | null>, isRoot: boolean): MenuScope {
-  const { activeIndex, setActiveIndex, itemRects, isMeasured, sessionRef, handlers, registerItem } =
+  const { activeIndex, setActiveIndex, itemRects, isMeasured, session, handlers, registerItem } =
     useProximityHover(containerRef);
 
   const rowsRef = useRef<Set<HTMLElement>>(new Set());
-  const rowButtonsRef = useRef<Map<HTMLElement, HTMLElement>>(new Map());
+  // State, not a ref: `overlayRect` reads this during render to clamp the
+  // highlight to the row's button box, so a button attaching must re-render
+  // — a ref would leave the first paint measuring the whole <li>.
+  const [rowButtons, setRowButtons] = useState<Map<HTMLElement, HTMLElement>>(new Map());
   const activeMapRef = useRef<Map<HTMLElement, boolean>>(new Map());
   const [orderedRows, setOrderedRows] = useState<HTMLElement[]>([]);
-  const orderedRowsRef = useRef(orderedRows);
-  orderedRowsRef.current = orderedRows;
   const registeredCountRef = useRef(0);
   const [activeRowEl, setActiveRowEl] = useState<HTMLElement | null>(null);
   const [focusedRowEl, setFocusedRowEl] = useState<HTMLElement | null>(null);
 
   const recomputeActive = useCallback(() => {
+    // Sorted here rather than read off a render-time mirror of `orderedRows`:
+    // this only runs from callbacks, and the ref-mirror was a render-phase write.
     let first: HTMLElement | null = null;
-    for (const el of orderedRowsRef.current) {
+    for (const el of [...rowsRef.current].toSorted(byDomOrder)) {
       if (activeMapRef.current.get(el)) {
         first = el;
         break;
@@ -149,7 +159,12 @@ function useMenuScope(containerRef: RefObject<HTMLElement | null>, isRoot: boole
       syncRows();
       return () => {
         rowsRef.current.delete(el);
-        rowButtonsRef.current.delete(el);
+        setRowButtons((prev) => {
+          if (!prev.has(el)) return prev;
+          const next = new Map(prev);
+          next.delete(el);
+          return next;
+        });
         activeMapRef.current.delete(el);
         syncRows();
       };
@@ -158,8 +173,13 @@ function useMenuScope(containerRef: RefObject<HTMLElement | null>, isRoot: boole
   );
 
   const setRowButton = useCallback((row: HTMLElement, button: HTMLElement | null) => {
-    if (button) rowButtonsRef.current.set(row, button);
-    else rowButtonsRef.current.delete(row);
+    setRowButtons((prev) => {
+      if (prev.get(row) === (button ?? undefined)) return prev;
+      const next = new Map(prev);
+      if (button) next.set(row, button);
+      else next.delete(row);
+      return next;
+    });
   }, []);
 
   const setRowActive = useCallback(
@@ -177,18 +197,18 @@ function useMenuScope(containerRef: RefObject<HTMLElement | null>, isRoot: boole
   const overlayRect = useCallback(
     (row: HTMLElement | null): ItemRect | null => {
       if (!row) return null;
-      const idx = orderedRowsRef.current.indexOf(row);
+      const idx = orderedRows.indexOf(row);
       const rect = idx === -1 ? null : itemRects[idx];
       if (!rect) return null;
       const button =
-        rowButtonsRef.current.get(row) ??
+        rowButtons.get(row) ??
         row.querySelector<HTMLElement>(
           ':scope > [data-sidebar="menu-button"], :scope > [data-sidebar="menu-sub-button"]',
         );
       const height = Math.min(rect.height, button?.offsetHeight ?? 48);
       return { ...rect, height };
     },
-    [itemRects],
+    [itemRects, orderedRows, rowButtons],
   );
 
   // Events that originate inside a nested sub-menu belong to that sub-menu's
@@ -242,12 +262,12 @@ function useMenuScope(containerRef: RefObject<HTMLElement | null>, isRoot: boole
       const rowEl = target.closest('[data-sidebar="menu-item"],[data-sidebar="menu-sub-item"]');
       const row = rowEl instanceof HTMLElement ? rowEl : null;
       if (!row) return;
-      const idx = orderedRowsRef.current.indexOf(row);
+      const idx = orderedRows.indexOf(row);
       if (idx === -1) return;
       setActiveIndex(idx);
       setFocusedRowEl(target.matches(":focus-visible") ? row : null);
     },
-    [isForeign, setActiveIndex],
+    [isForeign, setActiveIndex, orderedRows],
   );
 
   const onPointerDown = useCallback(() => {
@@ -342,7 +362,7 @@ function useMenuScope(containerRef: RefObject<HTMLElement | null>, isRoot: boole
       <AnimatePresence>
         {hoverRect && (
           <motion.div
-            key={sessionRef.current}
+            key={session}
             className={`absolute ${radius.bg} bg-hover pointer-events-none`}
             initial={{
               opacity: 0,
@@ -439,34 +459,35 @@ SidebarMenu.displayName = "SidebarMenu";
 
 export type SidebarMenuItemProps = LiHTMLAttributes<HTMLLIElement>;
 
-function useMenuRow(rowRef: RefObject<HTMLLIElement | null>, isSubRow = false) {
+function useMenuRow(isSubRow = false) {
   const scope = useContext(MenuScopeContext);
   const registerRow = scope?.registerRow;
   const setRowButton = scope?.setRowButton;
   const setRowActive = scope?.setRowActive;
 
+  const [rowEl, setRow] = useState<HTMLLIElement | null>(null);
+
   useIsoLayoutEffect(() => {
-    const el = rowRef.current;
-    if (!el || !registerRow) return;
-    return registerRow(el);
-  }, [registerRow, rowRef]);
+    if (!rowEl || !registerRow) return;
+    return registerRow(rowEl);
+  }, [registerRow, rowEl]);
 
   const setActive = useCallback(
     (active: boolean) => {
-      if (rowRef.current && setRowActive) setRowActive(rowRef.current, active);
+      if (rowEl && setRowActive) setRowActive(rowEl, active);
     },
-    [setRowActive, rowRef],
+    [setRowActive, rowEl],
   );
 
   const setButtonEl = useCallback(
     (el: HTMLElement | null) => {
-      if (rowRef.current && setRowButton) setRowButton(rowRef.current, el);
+      if (rowEl && setRowButton) setRowButton(rowEl, el);
     },
-    [setRowButton, rowRef],
+    [setRowButton, rowEl],
   );
 
-  const isHovered = rowRef.current !== null && scope?.hoveredRowEl === rowRef.current;
-  const isActiveRow = rowRef.current !== null && scope?.activeRowEl === rowRef.current;
+  const isHovered = rowEl !== null && scope?.hoveredRowEl === rowEl;
+  const isActiveRow = rowEl !== null && scope?.activeRowEl === rowEl;
 
   const [trailing, setTrailing] = useState({
     actionCount: 0,
@@ -490,7 +511,8 @@ function useMenuRow(rowRef: RefObject<HTMLLIElement | null>, isSubRow = false) {
 
   return useMemo(
     () => ({
-      rowRef,
+      rowEl,
+      setRow,
       isHovered,
       isActiveRow,
       isSubRow,
@@ -501,7 +523,8 @@ function useMenuRow(rowRef: RefObject<HTMLLIElement | null>, isSubRow = false) {
       setHasBadge,
     }),
     [
-      rowRef,
+      rowEl,
+      setRow,
       isHovered,
       isActiveRow,
       isSubRow,
@@ -541,12 +564,11 @@ function rowGutter(actionCount: number, hasBadge: boolean) {
 
 const SidebarMenuItem = forwardRef<HTMLLIElement, SidebarMenuItemProps>(
   ({ className, children, ...props }, ref) => {
-    const rowRef = useRef<HTMLLIElement>(null);
-    const item = useMenuRow(rowRef);
+    const item = useMenuRow();
     return (
       <MenuItemContext.Provider value={item}>
         <li
-          ref={composeRefs(rowRef, ref)}
+          ref={composeRefs(item.setRow, ref)}
           data-sidebar="menu-item"
           className={cn("group/menu-item relative", className)}
           {...props}
@@ -563,12 +585,11 @@ export type SidebarMenuSubItemProps = LiHTMLAttributes<HTMLLIElement>;
 
 const SidebarMenuSubItem = forwardRef<HTMLLIElement, SidebarMenuSubItemProps>(
   ({ className, children, ...props }, ref) => {
-    const rowRef = useRef<HTMLLIElement>(null);
-    const item = useMenuRow(rowRef, true);
+    const item = useMenuRow(true);
     return (
       <MenuItemContext.Provider value={item}>
         <li
-          ref={composeRefs(rowRef, ref)}
+          ref={composeRefs(item.setRow, ref)}
           data-sidebar="menu-sub-item"
           className={cn("group/menu-sub-item relative", className)}
           {...props}
@@ -738,7 +759,7 @@ const SidebarMenuButton = forwardRef<HTMLButtonElement, SidebarMenuButtonProps>(
 
     // Roving tabindex: the active row's button is the menu's tab stop; with no
     // active row, the root scope's first row keeps the menu keyboard-reachable.
-    const row = item?.rowRef.current ?? null;
+    const row = item?.rowEl ?? null;
     const tabIdx = effectiveActive
       ? 0
       : scope?.hasActive
@@ -1070,11 +1091,11 @@ const SidebarMenuSub = forwardRef<HTMLUListElement, SidebarMenuSubProps>(
     // toggles. A height change coming from a nested sub collapsing inside it
     // snaps, so the wrapper tracks its content instead of chasing it with a
     // second spring and moving everything below late.
-    const prevOpenRef = useRef(open);
-    const togglingRef = useRef(false);
-    if (prevOpenRef.current !== open) {
-      prevOpenRef.current = open;
-      togglingRef.current = true;
+    const [prevOpen, setPrevOpen] = useState(open);
+    const [toggling, setToggling] = useState(false);
+    if (prevOpen !== open) {
+      setPrevOpen(open);
+      setToggling(true);
     }
 
     return (
@@ -1092,13 +1113,11 @@ const SidebarMenuSub = forwardRef<HTMLUListElement, SidebarMenuSubProps>(
             : { opacity: open ? 1 : 0 }
         }
         // Do NOT simplify this to `open ? spring.moderate : …` — see the
-        // togglingRef note above. Springing on a re-measure stacks a second
+        // `toggling` note above. Springing on a re-measure stacks a second
         // spring on a nested sub's own collapse.
-        transition={
-          togglingRef.current ? (open ? spring.moderate : spring.moderate.exit) : { duration: 0 }
-        }
+        transition={toggling ? (open ? spring.moderate : spring.moderate.exit) : { duration: 0 }}
         onAnimationComplete={() => {
-          togglingRef.current = false;
+          setToggling(false);
         }}
       >
         <MenuScopeContext.Provider value={value}>

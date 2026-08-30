@@ -130,7 +130,7 @@ const CheckboxGroup = forwardRef<HTMLDivElement, CheckboxGroupProps>(
       activeIndex,
       setActiveIndex,
       itemRects,
-      sessionRef,
+      session,
       handlers,
       registerItem,
       measureItems,
@@ -255,7 +255,7 @@ const CheckboxGroup = forwardRef<HTMLDivElement, CheckboxGroupProps>(
           <AnimatePresence>
             {activeRect && (
               <motion.div
-                key={sessionRef.current}
+                key={session}
                 className={`absolute ${radius.bg} bg-hover pointer-events-none`}
                 initial={{
                   opacity: 0,
