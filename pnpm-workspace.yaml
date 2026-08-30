@@ -31,7 +31,12 @@ catalog:
   "sherpa-onnx-node": 1.13.6
   tar: ^7.5.22
   unbzip2-stream: ^1.4.3
-  "@cloudflare/vite-plugin": ^1.54.2
+  # Held with wrangler below on the last pair that deployed. wrangler 4.127.1
+  # + vite-plugin 1.54.2 upload the worker fine and then hang ~60s on
+  # POST /workers/scripts/inteligir-web/versions, failing with Cloudflare
+  # error 10002. Reproduced 3x; 4.114.0 + 1.47.0 deploys. The plugin peers on
+  # an exact wrangler line, so the two only move together.
+  "@cloudflare/vite-plugin": 1.47.0
   "@cloudflare/vitest-pool-workers": ^0.22.0
   # The mobile companion (issue #576). Expo SDK 57 uses `~57.0.x` unified
   # versioning across its own packages; the react-native peers carry their own
@@ -99,7 +104,7 @@ catalog:
   unified: ^11.0.5
   vite: ^8.2.2
   vitest: ^4.1.11
-  wrangler: ^4.127.1
+  wrangler: 4.114.0
   yaml: ^2.9.0
   zod: ^4.5.2
   zustand: ^5.0.15
