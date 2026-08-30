@@ -77,7 +77,12 @@ jobs:
       # the composition fails.
       - name: E2E browser
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: npm i -g agent-browser && agent-browser install --with-deps
+        # `pnpm add -g`, not `npm i -g`: pnpm/setup installs Node itself and only
+        # puts PNPM_HOME on PATH, so an npm global bin is unreachable. The harness
+        # execs `agent-browser` by name, and when it cannot launch it SKIPS every
+        # browser scenario while still reporting PASS — a green E2E that tested
+        # nothing. Keep this step and the suite honest together.
+        run: pnpm add -g agent-browser && agent-browser install --with-deps
 
       # ONE run, and that is what deleting the document server bought: the
       # workspace is a plain SPA built once and served as files, so the suite
