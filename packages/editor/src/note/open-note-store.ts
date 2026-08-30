@@ -98,12 +98,12 @@ function capped(stack: readonly string[]): string[] {
 }
 
 /**
- * One open note's state machine, INSTANCE-scoped so a split view can hold two
- * (#595). Everything below closes over this instance's zustand store and its
- * own pending-analysis token; nothing is module state, so two live panes
- * cannot cross-publish. React consumers reach an instance through
+ * One open note's state machine, INSTANCE-scoped. Everything below closes over
+ * this instance's zustand store and its own pending-analysis token; nothing is
+ * module state, so an ended session's in-flight analysis cannot publish into
+ * the next one's. React consumers reach an instance through
  * ./open-note-context (`useOpenNote(selector)`); non-React callers hold the
- * object the provider created.
+ * object the workspace created.
  */
 export type OpenNoteStore = {
   /** The raw store, for `useStore(store, selector)` subscriptions. */

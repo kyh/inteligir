@@ -29,8 +29,6 @@ function makeActions(): PaletteActions {
     syncNow: vi.fn(),
     openSettings: vi.fn(),
     openTrash: vi.fn(),
-    openInSplit: vi.fn(),
-    closeSplit: null,
     exportPdf: null,
   };
 }

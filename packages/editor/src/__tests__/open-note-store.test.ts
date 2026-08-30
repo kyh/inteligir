@@ -1,5 +1,5 @@
 // open-note-store's gate-analysis state machine (publishEditor) — the delicate
-// part of the workspace's cadence split. It runs outside a React render phase,
+// part of the workspace's high-cadence slice. It runs outside a React render,
 // where the re-render loop would implicitly supply the "one consistent
 // snapshot" guarantee, so the store has to supply it explicitly.
 // The pure half (deriveOpenDoc) is covered by open-doc.test.ts; this covers the
@@ -39,22 +39,22 @@ vi.mock("@repo/ui/components/sonner", () => ({
 const { toast } = await import("@repo/ui/components/sonner");
 const { createOpenNoteStore } = await import("@repo/editor/note/open-note-store");
 
-// A fresh instance per test (beforeEach below): the factory replaced the
-// module singleton (#595), so the machine under test is one pane's.
-let pane = createOpenNoteStore();
-const publishEditor: (typeof pane)["publishEditor"] = (editor) => pane.publishEditor(editor);
-const publishOpenPath: (typeof pane)["publishOpenPath"] = (path, change) =>
-  pane.publishOpenPath(path, change);
-const setOpenNoteMode: (typeof pane)["setMode"] = (mode) => pane.setMode(mode);
+// A fresh instance per test (beforeEach below): the store is a factory, so no
+// case inherits the previous one's analysis token or history.
+let store = createOpenNoteStore();
+const publishEditor: (typeof store)["publishEditor"] = (editor) => store.publishEditor(editor);
+const publishOpenPath: (typeof store)["publishOpenPath"] = (path, change) =>
+  store.publishOpenPath(path, change);
+const setOpenNoteMode: (typeof store)["setMode"] = (mode) => store.setMode(mode);
 const useOpenNote = {
-  getState: () => pane.state(),
-  getInitialState: () => pane.store.getInitialState(),
+  getState: () => store.state(),
+  getInitialState: () => store.store.getInitialState(),
   setState: (partial: Partial<OpenNoteState>, replace?: boolean) =>
     replace === true
-      ? pane.store.setState(pane.store.getInitialState(), true)
-      : pane.store.setState(partial),
+      ? store.store.setState(store.store.getInitialState(), true)
+      : store.store.setState(partial),
   subscribe: (listener: (state: OpenNoteState) => void) =>
-    pane.store.subscribe((state) => listener(state)),
+    store.store.subscribe((state) => listener(state)),
 };
 
 const ROOT = "/vault";
@@ -158,7 +158,7 @@ function richSnapshotsFor(seen: readonly OpenNoteState[], path: string): OpenNot
 
 describe("open-note-store publishEditor", () => {
   beforeEach(() => {
-    pane = createOpenNoteStore();
+    store = createOpenNoteStore();
     vi.clearAllMocks();
   });
 

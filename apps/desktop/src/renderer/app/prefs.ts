@@ -8,7 +8,6 @@ import { APPEARANCE_DEFAULTS, appearanceSchema, type Appearance } from "./appear
 const KEYS = {
   sidebarWidth: "inteligir.sidebar-width",
   lastOpenNote: "inteligir.last-open-note",
-  splitNote: "inteligir.split-note",
   panelOpen: "inteligir.panel-open",
   theme: "inteligir.theme",
   appearance: "inteligir.appearance",
@@ -58,16 +57,6 @@ export function readLastOpenNote(): string | null {
 
 export function writeLastOpenNote(path: string | null): void {
   write(KEYS.lastOpenNote, path);
-}
-
-/** The split pane's note (#595) — view state, session-persistent like the
- * primary's last-open note. */
-export function readSplitNote(): string | null {
-  return read(KEYS.splitNote);
-}
-
-export function writeSplitNote(path: string | null): void {
-  write(KEYS.splitNote, path);
 }
 
 export function readPanelOpen(): boolean {

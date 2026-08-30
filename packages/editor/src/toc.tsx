@@ -72,7 +72,8 @@ export function TableOfContents() {
   // Scrollspy: the last heading scrolled above the header line is "active". A
   // scroll listener rather than an IntersectionObserver, which never fires
   // against this scroller as a custom root. closest() from the TOC's own node
-  // finds THIS pane's stamped scroller, so split view spies per pane.
+  // finds the stamped scroller it actually sits in, never a document-wide
+  // first match.
   const rootRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const scroller = rootRef.current?.closest("[data-editor-scroller]");

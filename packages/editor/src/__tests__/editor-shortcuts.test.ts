@@ -82,30 +82,27 @@ describe("editor shortcuts", () => {
     expect(editor.children[0]).not.toHaveProperty("listStyleType");
   });
 
-  it("⌘T focuses the title of the pane whose editor was pressed", () => {
-    const primary = mount(PARAGRAPH);
-    const split = mount(PARAGRAPH);
-    const offEditors = [
-      registerLiveEditor("primary.md", primary),
-      registerLiveEditor("split.md", split),
-    ];
-    const focusPrimary = vi.fn();
-    const focusSplit = vi.fn();
-    const offPrimaryTitle = registerNoteTitleFocus("primary.md", focusPrimary);
-    const offSplitTitle = registerNoteTitleFocus("split.md", focusSplit);
+  it("⌘T focuses the title of the note the pressed editor serves", () => {
+    const editorA = mount(PARAGRAPH);
+    const editorB = mount(PARAGRAPH);
+    const offEditors = [registerLiveEditor("a.md", editorA), registerLiveEditor("b.md", editorB)];
+    const focusA = vi.fn();
+    const focusB = vi.fn();
+    const offTitleA = registerNoteTitleFocus("a.md", focusA);
+    const offTitleB = registerNoteTitleFocus("b.md", focusB);
     try {
-      expect(press(split, "t", 84).claimed).toBe(true);
-      expect(focusSplit).toHaveBeenCalledTimes(1);
-      expect(focusPrimary).not.toHaveBeenCalled();
+      expect(press(editorB, "t", 84).claimed).toBe(true);
+      expect(focusB).toHaveBeenCalledTimes(1);
+      expect(focusA).not.toHaveBeenCalled();
 
-      // Closing the split must not take ⌘T down with it.
-      offSplitTitle();
-      expect(press(primary, "t", 84).claimed).toBe(true);
-      expect(focusPrimary).toHaveBeenCalledTimes(1);
-      expect(focusSplit).toHaveBeenCalledTimes(1);
+      // One title going away must not take ⌘T down with it.
+      offTitleB();
+      expect(press(editorA, "t", 84).claimed).toBe(true);
+      expect(focusA).toHaveBeenCalledTimes(1);
+      expect(focusB).toHaveBeenCalledTimes(1);
     } finally {
-      offPrimaryTitle();
-      offSplitTitle();
+      offTitleA();
+      offTitleB();
       for (const off of offEditors) off();
     }
   });

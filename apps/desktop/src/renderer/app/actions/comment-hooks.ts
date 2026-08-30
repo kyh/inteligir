@@ -1,8 +1,7 @@
 // The open note's comment threads, query-cached and swept by the vault's own
-// files-changed invalidation (a sidecar is a vault file). A PANE additionally
-// pushes its own note's root/resolved id sets into the editor's comment store,
-// so the tint over a pane's bytes reads that note's sidecar rather than
-// whichever note happens to be focused.
+// files-changed invalidation (a sidecar is a vault file), plus the root/
+// resolved id sets pushed into the editor's comment store so the tint over the
+// document's bytes reads that note's own sidecar.
 
 import { clearCommentMeta, setCommentMeta } from "@repo/editor/comments/comment-store";
 import type { CommentsResponse } from "@repo/api/local/comments/comments-schema";
@@ -18,10 +17,11 @@ export function useNoteComments(path: string | null): UseQueryResult<CommentsRes
   });
 }
 
-/** Keep `path`'s tint meta published for as long as the calling pane shows it.
- * Every pane mounts its own; react-query answers them all from the one query
- * per path. */
-export function usePaneCommentMeta(path: string | null): void {
+/** Keep `path`'s tint meta published for as long as the editor shows it. Keyed
+ * on the LOADED document rather than the note being opened: a switch publishes
+ * the new note's ids only once its bytes are on screen, so the outgoing note's
+ * ranges are never measured against the incoming note's sidecar. */
+export function useNoteCommentMeta(path: string | null): void {
   const { data } = useNoteComments(path);
   useEffect(() => {
     if (path === null || data === undefined) return undefined;
