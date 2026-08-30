@@ -356,18 +356,40 @@ pull` from a hostile remote is enough to plant one.
   WHOLE, because a link into a note lives in another note's bytes, so a
   path-scoped invalidation is not expressible.
 
-- **ONE NOTE LIVES IN ONE PANE, and the open path IS the pane's identity.** The
-  pane coordinator is the single focus channel — the panes publish into it, the
-  shell selects from it, action-time callers read it live — and `openInSplit`
-  refuses a note the primary already holds, answering with a focus instead. That
-  refusal is not a nicety: two panes on one file means two vault sessions and two
-  guarded writers racing the same bytes. The rule reaches further than the shell,
-  which is why it is stated here rather than left in the coordinator: the editor
-  keys a pane's comment tint, its create popover and ⌘T off the open path, so
-  permitting the same note twice would silently move all three. The affordance
-  that could produce it — a top-bar "open THIS note in the split" — is gone
-  rather than guarded, because a control whose only outcome is a refusal is a
-  control that should not exist.
+- **ONE NOTE LIVES IN ONE PANE, and `requestOpen` IS the rule.** The pane
+  coordinator is the single focus channel — the panes publish into it, the shell
+  selects from it, action-time callers read it live — and every open asks
+  `coordinator.requestOpen(pane, path)`, which refuses a note the other pane
+  already holds and answers with a focus. The refusal is not a nicety: two panes
+  on one file means two vault sessions, two autosave debouncers and two guarded
+  writers racing the same bytes. The coordinator owns the DECISION and nothing
+  else: the shell keeps only the effect half (React state plus the localStorage
+  pref), which is why the coordinator exposes no reader for a caller to
+  re-decide over — a second copy of this rule is a second answer to it. The rule
+  reaches past the shell, which is why it is stated here: the editor keys a
+  pane's comment tint, its create popover and ⌘T off the open path
+  (`usePaneNotePath`), so permitting the same note twice would silently move all
+  three. The affordance that could only ever produce it — a top-bar "open THIS
+  note in the split" — is gone rather than guarded, because a control whose only
+  honest outcome is a refusal should not exist.
+
+- **AT BOOT THE DEEP LINK WINS.** The primary announces the route's note before
+  either pane opens, and a restored split naming that same note closes instead
+  of mounting a second runtime. The ordering is what forces this: React flushes
+  a child's effects before its parent's, so the split pane starts first, and its
+  target is a synchronous pref read while the primary's has to resolve against
+  the tree. Without the announcement the split always asks first, against a
+  coordinator that knows nothing, and both runtimes open one file. The cost is
+  stated: a refused restore discards `splitNote`, because the pane has nothing
+  to show either way.
+
+- **THE SPLIT DIVIDER'S RATIO IS A CSS CUSTOM PROPERTY, never React state.**
+  `--split-primary` is written to the pane row during the drag. Nothing below
+  Workspace is memoized, so a ratio in state redraws both editor panes, the
+  rail, the top bar and the palette on every pointer move — sixty times a second
+  to move one edge. The pointer is captured on the divider and move/up ride the
+  element, so a release outside the window cannot strand a handler that would
+  then re-render the workspace for the rest of the session.
 
 - **THE APPEARANCE DIALS ARE ONE DECLARATION, READ THROUGH `.typeset-docs`.** The
   funnel's tokens (`--editor-font`, `-mono`, `-size`, `-line-height`, `-width`)

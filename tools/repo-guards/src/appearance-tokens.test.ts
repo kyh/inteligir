@@ -10,14 +10,15 @@
 // So the lockstep is asserted over the SOURCES, and every name and value it
 // compares is read out of them. The readers are not listed here either: the
 // walk finds every `var(--editor-…)` in the repo, so a new file joins the
-// invariant by existing.
+// invariant by existing. That walk spans every workspace and both file kinds a
+// token can appear in, so it sits with the repo-wide guards rather than beside
+// either half of the funnel.
 // ---------------------------------------------------------------------------
 
-import { readdirSync, readFileSync } from "node:fs";
-import { join, relative, resolve } from "node:path";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 
-const REPO_ROOT = resolve(import.meta.dirname, "../../../../../..");
+import { REPO_ROOT, sourceOf, styleFiles, workspaceSourceFiles, workspaces } from "./repo";
 
 /** The ONE module that writes an appearance token. */
 const SETTER = "apps/desktop/src/renderer/app/appearance.tsx";
@@ -31,33 +32,8 @@ const DEFAULTS = "apps/desktop/src/renderer/styles/globals.css";
  *  one value. */
 const MEASURE = "--editor-width";
 
-const SOURCE_ROOTS = ["apps", "packages", "tools"];
-const SOURCE_EXTENSIONS = [".css", ".ts", ".tsx"];
-
-/** Sources only. A bundle carries whatever the tree said when it was built, so
- *  a stale build output would answer for the tree. */
-const isBuildDir = (name: string): boolean =>
-  name.startsWith(".") || ["node_modules", "dist", "build", "out", "coverage"].includes(name);
-
 /** This file names the tokens it polices, in regexes and failure messages. */
-const SELF = relative(REPO_ROOT, import.meta.filename);
-
-function sourceFiles(dir: string): string[] {
-  return readdirSync(join(REPO_ROOT, dir), { withFileTypes: true }).flatMap((entry) => {
-    if (entry.isDirectory()) {
-      return isBuildDir(entry.name) ? [] : sourceFiles(join(dir, entry.name));
-    }
-    const path = join(dir, entry.name);
-    return SOURCE_EXTENSIONS.some((ext) => entry.name.endsWith(ext)) && path !== SELF ? [path] : [];
-  });
-}
-
-function sourceOf(relativePath: string): string {
-  const text = readFileSync(join(REPO_ROOT, relativePath), "utf8");
-  // A commented-out declaration is not one, and a token named in prose is not
-  // a read.
-  return relativePath.endsWith(".css") ? text.replaceAll(/\/\*[\s\S]*?\*\//gu, "") : text;
-}
+const SELF = path.relative(REPO_ROOT, import.meta.filename);
 
 interface TokenRead {
   readonly file: string;
@@ -104,7 +80,10 @@ const declared = new Map(
   ]),
 );
 
-const reads = SOURCE_ROOTS.flatMap(sourceFiles).flatMap((file) => readsIn(file, sourceOf(file)));
+const reads = workspaces()
+  .flatMap((workspace) => workspaceSourceFiles(workspace).concat(styleFiles(workspace)))
+  .filter((file) => file !== SELF)
+  .flatMap((file) => readsIn(file, sourceOf(file)));
 const readTokens = new Set(reads.map((entry) => entry.token));
 
 describe("the appearance funnel's tokens", () => {

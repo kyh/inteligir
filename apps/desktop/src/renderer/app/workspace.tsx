@@ -35,8 +35,7 @@ import { dailyNotePath, dailyNoteTemplate } from "./note/daily";
 import { readNoteViewContext } from "./note/note-view-context";
 import { SplitPane, VaultProvider } from "./note/vault-provider";
 import { createPaneCoordinator } from "./note/split-view";
-import { useNoteHistory } from "./note/note-history";
-import { useSplitRatio } from "./note/split-ratio";
+import { SPLIT_PRIMARY_WIDTH, useSplitRatio } from "./note/split-ratio";
 import { CommandPalette } from "./palette/command-palette";
 import { createSearchSource, sortedNotePaths } from "./palette/search-source";
 import { TrashDialog } from "./sidebar/trash-dialog";
@@ -100,20 +99,20 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
   const coordinator = useMemo(() => createPaneCoordinator(), []);
   const focusedPath = useStore(coordinator.store, (focus) => focus.path);
   const focusedPane = useStore(coordinator.store, (focus) => focus.pane);
+  const backTarget = useStore(coordinator.store, (focus) => focus.back);
+  const forwardTarget = useStore(coordinator.store, (focus) => focus.forward);
 
-  const { ratio: splitRatio, paneRowRef, onDividerPointerDown } = useSplitRatio();
+  const { paneRowRef, dividerProps } = useSplitRatio();
 
-  // ONE note lives in ONE pane. Splitting a note the primary already holds
-  // would put two editors and two comment surfaces on one file — two writers
-  // racing the same bytes — so the request becomes a focus instead. The rule
-  // sits here because every caller reaches this: the palette picks from a list
-  // that does not exclude the open note, and a wiki chip can resolve to it.
+  // Every "open in split" is the coordinator's own ask — the palette picks
+  // from a list that does not exclude the open note and a wiki chip can
+  // resolve to it, so a refusal (the primary already holds the note, and two
+  // runtimes over one file would fight through CAS/diff3) focuses that pane
+  // instead. What stays here is the effect a grant has: React state and the
+  // pref that survives a reload.
   const openInSplit = useCallback(
     (path: string): void => {
-      if (coordinator.openPath("primary") === path) {
-        coordinator.focus("primary");
-        return;
-      }
+      if (!coordinator.requestOpen("split", path)) return;
       setSplitPath(path);
       writeSplitNote(path);
     },
@@ -234,7 +233,20 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
     [onOpenNote],
   );
 
-  const { canBack, canForward, go: historyGo } = useNoteHistory(openNote, setOpenNote);
+  // Back and Forward are ordinary opens on a remembered path: the focused
+  // pane's own stacks recognize the move by value, so the arrows carry no
+  // bookkeeping of their own. They step the pane the bar is naming.
+  const goTo = useCallback(
+    (target: string | null): void => {
+      if (target === null) return;
+      if (focusedPane === "split") {
+        openInSplit(target);
+        return;
+      }
+      actionsRef.current?.openFile(target);
+    },
+    [focusedPane, openInSplit],
+  );
 
   // The fluid sidebar owns collapse and drag-resize; the workspace owns what
   // they mean here: zen forces the rail shut without losing the user's own
@@ -430,13 +442,13 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
                     setZen(false);
                     setRailOpen((open) => !open);
                   }}
-                  canBack={canBack}
-                  canForward={canForward}
+                  canBack={backTarget !== null}
+                  canForward={forwardTarget !== null}
                   onBack={() => {
-                    historyGo(-1);
+                    goTo(backTarget);
                   }}
                   onForward={() => {
-                    historyGo(1);
+                    goTo(forwardTarget);
                   }}
                   onOpenSearch={() => {
                     setPaletteQuery("");
@@ -461,7 +473,7 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
                     splitPath === null ? "flex-1" : "print:w-full",
                     splitPath !== null && focusedPane === "split" && "print:hidden",
                   )}
-                  style={splitPath === null ? undefined : { width: `${String(splitRatio * 100)}%` }}
+                  style={splitPath === null ? undefined : { width: SPLIT_PRIMARY_WIDTH }}
                   onPointerDownCapture={() => {
                     coordinator.focus("primary");
                   }}
@@ -473,7 +485,7 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
                     role="separator"
                     aria-orientation="vertical"
                     className="w-1 shrink-0 cursor-col-resize bg-line hover:bg-border print:hidden"
-                    onPointerDown={onDividerPointerDown}
+                    {...dividerProps}
                   />
                 ) : null}
                 {splitPath !== null ? (

@@ -7,9 +7,7 @@
 // renders the background pane's comments as orphans and draws the popover
 // twice, over two different documents.
 
-import { useEffect } from "react";
 import { cleanup, fireEvent, render, within } from "@testing-library/react";
-import { Plate, PlateContent, usePlateEditor } from "platejs/react";
 import type { Value } from "platejs";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
@@ -19,11 +17,11 @@ import {
   setCommentMeta,
   setPendingCreate,
 } from "@repo/editor/comments/comment-store";
-import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
-import { getLiveEditor, registerLiveEditor } from "@repo/editor/live-editor";
+import { getLiveEditor } from "@repo/editor/live-editor";
 import { parseMarkdown } from "@repo/editor/markdown/markdown-doc";
-import { OpenNoteStoreProvider } from "@repo/editor/note/open-note-context";
 import { createOpenNoteStore, type OpenNoteStore } from "@repo/editor/note/open-note-store";
+
+import { PaneHarness } from "./pane-harness";
 
 const PRIMARY_PATH = "primary.md";
 const SPLIT_PATH = "split.md";
@@ -48,18 +46,10 @@ function paneValue(): Value {
 }
 
 function Pane({ store, path, label }: { store: OpenNoteStore; path: string; label: string }) {
-  const editor = usePlateEditor({ plugins: EDITOR_KIT, value: paneValue() });
-  // What the mounted rich editor does, and what makes the editor answer for
-  // its own note when a key handler asks.
-  useEffect(() => registerLiveEditor(path, editor), [path, editor]);
   return (
-    <OpenNoteStoreProvider store={store}>
-      <div data-testid={label}>
-        <Plate editor={editor}>
-          <PlateContent />
-        </Plate>
-      </div>
-    </OpenNoteStoreProvider>
+    <div data-testid={label}>
+      <PaneHarness value={paneValue()} store={store} livePath={path} />
+    </div>
   );
 }
 

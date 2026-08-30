@@ -10,11 +10,10 @@ afterEach(cleanup);
 const ROW_WIDTH = 1000;
 
 function PaneRow() {
-  const { ratio, paneRowRef, onDividerPointerDown } = useSplitRatio();
+  const { paneRowRef, dividerProps } = useSplitRatio();
   return (
     <div ref={paneRowRef}>
-      <div data-testid="divider" onPointerDown={onDividerPointerDown} />
-      <output>{String(ratio)}</output>
+      <div data-testid="divider" {...dividerProps} />
     </div>
   );
 }
@@ -23,21 +22,23 @@ function PaneRow() {
 function paneRow() {
   const view = render(<PaneRow />);
   const row = view.container.firstElementChild;
-  if (row !== null) {
-    row.getBoundingClientRect = () => new DOMRect(0, 0, ROW_WIDTH, 500);
-  }
-  const scope = within(view.container);
+  if (!(row instanceof HTMLElement)) throw new Error("the pane row did not mount");
+  row.getBoundingClientRect = () => new DOMRect(0, 0, ROW_WIDTH, 500);
+  const divider = within(row).getByTestId("divider");
   return {
     grab: (): void => {
-      fireEvent.pointerDown(scope.getByTestId("divider"));
+      fireEvent.pointerDown(divider, { pointerId: 1 });
     },
     moveTo: (clientX: number): void => {
-      fireEvent.pointerMove(window, { clientX });
+      fireEvent.pointerMove(divider, { pointerId: 1, clientX });
+    },
+    moveWindowTo: (clientX: number): void => {
+      fireEvent.pointerMove(window, { pointerId: 1, clientX });
     },
     release: (): void => {
-      fireEvent.pointerUp(window);
+      fireEvent.pointerUp(divider, { pointerId: 1 });
     },
-    ratio: (): string => scope.getByRole("status").textContent ?? "",
+    width: (): string => row.style.getPropertyValue("--split-primary"),
   };
 }
 
@@ -47,7 +48,7 @@ describe("the split divider's drag", () => {
     row.grab();
     row.moveTo(300);
     row.release();
-    expect(row.ratio()).toBe("0.3");
+    expect(row.width()).toBe("30%");
   });
 
   it("clamps at both ends, so neither pane can be dragged away", () => {
@@ -55,13 +56,13 @@ describe("the split divider's drag", () => {
     narrow.grab();
     narrow.moveTo(10);
     narrow.release();
-    expect(narrow.ratio()).toBe("0.25");
+    expect(narrow.width()).toBe("25%");
 
     const wide = paneRow();
     wide.grab();
     wide.moveTo(ROW_WIDTH - 10);
     wide.release();
-    expect(wide.ratio()).toBe("0.75");
+    expect(wide.width()).toBe("75%");
   });
 
   it("stops following the pointer once it is released", () => {
@@ -70,6 +71,15 @@ describe("the split divider's drag", () => {
     row.moveTo(300);
     row.release();
     row.moveTo(700);
-    expect(row.ratio()).toBe("0.3");
+    expect(row.width()).toBe("30%");
+  });
+
+  it("listens on the divider alone, so no drag can outlive the node", () => {
+    const row = paneRow();
+    row.grab();
+    row.moveWindowTo(700);
+    // Nothing on the window: a pointer released outside it, or a divider
+    // unmounted mid-drag, cannot leave a live handler resizing the workspace.
+    expect(row.width()).toBe("");
   });
 });

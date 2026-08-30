@@ -51,7 +51,15 @@ import type { KnowledgeWikiTargetsResponse } from "@repo/api/local/knowledge/kno
 import { vaultAssetUrl } from "@repo/api/local/routes";
 import { contentHashHex, type VaultTreeResponse } from "@repo/api/local/vault/vault-schema";
 import { toast } from "@repo/ui/components/sonner";
-import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+  type RefObject,
+} from "react";
 
 import { isDefinedError, refusalMessage, safe } from "../api";
 import { readLastOpenNote, writeLastOpenNote } from "../prefs";
@@ -151,10 +159,16 @@ export function VaultProvider({
 
   useEffect(() => {
     coordinator.registerStore("primary", primaryStore);
+    // The deep link is announced for this pane before either pane has opened
+    // anything. The split restores its note from a pref synchronously while
+    // this pane still has to resolve its target against the tree, so an
+    // unannounced boot is the one moment the gate has nothing to refuse a
+    // second runtime over the same file against.
+    if (bootPath !== null) coordinator.reportOpenPath("primary", bootPath);
     return () => {
       coordinator.registerStore("primary", null);
     };
-  }, [coordinator, primaryStore]);
+  }, [coordinator, primaryStore, bootPath]);
 
   const session = useMemo<VaultSession>(() => {
     const io = createGuardedVaultIo(api);
@@ -554,10 +568,19 @@ export function SplitPane({
       io,
       boot: async () => {
         const tree = await api.vault.tree();
+        const entries = listingEntries(tree);
+        // The restored split asks like any other opener: a deep link and this
+        // pref can name the same note, and the primary is the pane that keeps
+        // it. Refused, there is nothing left for a second pane to show, so it
+        // closes rather than sitting empty.
+        if (!coordinator.requestOpen("split", bootTarget)) {
+          onOpenPathRef.current(null);
+          return { root: tree.root, entries, openNote: null };
+        }
         const content = await io.read(bootTarget).catch(() => null);
         return {
           root: tree.root,
-          entries: listingEntries(tree),
+          entries,
           openNote: content === null ? null : { path: bootTarget, content },
         };
       },
@@ -589,11 +612,20 @@ export function SplitPane({
     };
   }, [session, store, coordinator]);
 
-  // The workspace re-targets the split by prop (palette, wiki menu); the
-  // session's own flush-then-switch ordering applies as for any open.
+  // Every open into this pane, whichever door it came through: the coordinator
+  // vets it, then the session's own flush-then-switch ordering applies.
+  const openFile = useCallback(
+    (next: string): void => {
+      if (!coordinator.requestOpen("split", next)) return;
+      session.actions.openFile(next);
+    },
+    [coordinator, session],
+  );
+
+  // The workspace re-targets the split by prop (palette, wiki menu).
   useEffect(() => {
-    if (store.state().openPath !== path) session.actions.openFile(path);
-  }, [path, session, store]);
+    if (store.state().openPath !== path) openFile(path);
+  }, [path, store, openFile]);
 
   useEffect(
     () =>
@@ -607,17 +639,8 @@ export function SplitPane({
   );
 
   const host = useMemo<EditorHost>(
-    () => ({
-      actions: {
-        ...session.actions,
-        openFile: (next) => {
-          if (!coordinator.requestOpen("split", next)) return;
-          session.actions.openFile(next);
-        },
-      },
-      listing: outerListing,
-    }),
-    [session, outerListing, coordinator],
+    () => ({ actions: { ...session.actions, openFile }, listing: outerListing }),
+    [session, openFile, outerListing],
   );
 
   return (

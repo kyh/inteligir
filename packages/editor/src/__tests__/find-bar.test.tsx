@@ -6,7 +6,6 @@
 
 import { render } from "@testing-library/react";
 import { act } from "react";
-import { Plate, PlateContent, usePlateEditor, type PlateEditor } from "platejs/react";
 import type { Value } from "platejs";
 import { beforeAll, describe, expect, it } from "vitest";
 
@@ -17,27 +16,11 @@ import {
   openFindBar,
   setFindQuery,
 } from "@repo/editor/find-bar";
-import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
-import { OpenNoteStoreProvider } from "@repo/editor/note/open-note-context";
 import { createOpenNoteStore } from "@repo/editor/note/open-note-store";
 
-type EditorHolder = { editor: PlateEditor | null };
+import { PaneHarness, type EditorHolder } from "./pane-harness";
 
-// The kit's own plugins read the pane they render in (heading collapse folds
-// per note), so the harness has to be a pane.
 const STORE = createOpenNoteStore();
-
-function Harness({ value, holder }: { value: Value; holder: EditorHolder }) {
-  const editor = usePlateEditor({ plugins: EDITOR_KIT, value });
-  holder.editor = editor;
-  return (
-    <OpenNoteStoreProvider store={STORE}>
-      <Plate editor={editor}>
-        <PlateContent />
-      </Plate>
-    </OpenNoteStoreProvider>
-  );
-}
 
 const VALUE: Value = [{ children: [{ text: "alpha beta ALPHA gamma" }], type: "p" }];
 
@@ -49,7 +32,7 @@ beforeAll(() => {
 describe("find bar", () => {
   it("highlights every case-insensitive match and tints the active one apart", () => {
     const holder: EditorHolder = { editor: null };
-    const view = render(<Harness value={VALUE} holder={holder} />);
+    const view = render(<PaneHarness value={VALUE} store={STORE} holder={holder} />);
     const editor = holder.editor;
     expect(editor).not.toBeNull();
     if (editor === null) return;

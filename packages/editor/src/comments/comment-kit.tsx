@@ -18,8 +18,7 @@ import { PlateLeaf, createPlatePlugin, useEditorRef, type PlateLeafProps } from 
 
 import { liveEditorPath } from "@repo/editor/live-editor";
 import { stringProp } from "@repo/editor/node-props";
-import { openDocPath } from "@repo/editor/note/open-doc";
-import { useOpenNote } from "@repo/editor/note/open-note-context";
+import { usePaneNotePath } from "@repo/editor/note/open-note-context";
 import { cn } from "@repo/ui/lib/utils";
 import { Button } from "@repo/ui/components/button";
 import { Textarea } from "@repo/ui/components/textarea";
@@ -40,7 +39,7 @@ function CommentRangeLeaf(props: PlateLeafProps) {
   const actions = useCommentSurface((state) => state.actions);
   // This pane's note, so a background pane's ranges are judged against the
   // sidecar of the note they actually live in.
-  const notePath = useOpenNote((s) => openDocPath(s.openDoc));
+  const notePath = usePaneNotePath();
   const { knownIds, resolvedIds } = useCommentMeta(notePath);
   const resolved = ids.length > 0 && ids.every((id) => resolvedIds.has(id));
   const unknown = ids.length > 0 && ids.every((id) => !knownIds.has(id));
@@ -97,7 +96,7 @@ function beginCreate(editor: SlateEditor): boolean {
 
 function CommentCreateHost() {
   const editor = useEditorRef();
-  const notePath = useOpenNote((s) => openDocPath(s.openDoc));
+  const notePath = usePaneNotePath();
   const armed = useCommentSurface((state) => state.pendingCreate);
   const actions = useCommentSurface((state) => state.actions);
   const [text, setText] = useState("");

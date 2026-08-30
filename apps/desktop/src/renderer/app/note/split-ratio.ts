@@ -1,44 +1,61 @@
-// The split divider's drag: the primary pane's share of the pane row, held as
-// session state. The row is measured once at pointer-down rather than on each
-// move — the element being measured is the one the drag is resizing.
+// The split divider's drag: the primary pane's share of the pane row, written
+// straight onto the row as a custom property. It never becomes React state —
+// nothing under the workspace is memoized, so a per-frame ratio would redraw
+// both editor panes, the notes rail, the top bar and the panel to move one
+// edge. The row is measured once at pointer-down rather than on each move: the
+// element being measured is the one the drag is resizing.
 
-import {
-  useCallback,
-  useRef,
-  useState,
-  type PointerEvent as ReactPointerEvent,
-  type RefObject,
-} from "react";
+import { useCallback, useRef, type PointerEvent as ReactPointerEvent, type RefObject } from "react";
 
 const MIN_RATIO = 0.25;
 const MAX_RATIO = 0.75;
+const RATIO_PROPERTY = "--split-primary";
+
+/** The primary pane's width while a split is open: the drag's own property,
+ * falling back to an even split before the divider has been touched. */
+export const SPLIT_PRIMARY_WIDTH = `var(${RATIO_PROPERTY}, 50%)`;
 
 interface SplitRatio {
-  /** The primary pane's share of the row, MIN_RATIO..MAX_RATIO. */
-  ratio: number;
-  /** Attached to the pane row; the divider measures against it. */
+  /** Attached to the pane row: the drag measures against it and writes the
+   * ratio onto it. */
   paneRowRef: RefObject<HTMLDivElement | null>;
-  onDividerPointerDown: (down: ReactPointerEvent<HTMLDivElement>) => void;
+  /** Spread onto the divider. Move and up are the DIVIDER's own handlers under
+   * pointer capture, so a pointer released outside the window, or a divider
+   * that unmounts mid-drag, takes them with it. */
+  dividerProps: {
+    onPointerDown: (event: ReactPointerEvent<HTMLDivElement>) => void;
+    onPointerMove: (event: ReactPointerEvent<HTMLDivElement>) => void;
+    onPointerUp: (event: ReactPointerEvent<HTMLDivElement>) => void;
+  };
 }
 
 export function useSplitRatio(): SplitRatio {
-  const [ratio, setRatio] = useState(0.5);
   const paneRowRef = useRef<HTMLDivElement | null>(null);
-  const onDividerPointerDown = useCallback((down: ReactPointerEvent<HTMLDivElement>): void => {
-    down.preventDefault();
+  // The row's geometry for the drag in flight; null when none is.
+  const dragRef = useRef<{ left: number; width: number } | null>(null);
+
+  const onPointerDown = useCallback((down: ReactPointerEvent<HTMLDivElement>): void => {
     const row = paneRowRef.current;
     if (row === null) return;
-    const rect = row.getBoundingClientRect();
-    const onMove = (move: PointerEvent): void => {
-      const next = (move.clientX - rect.left) / rect.width;
-      setRatio(Math.min(MAX_RATIO, Math.max(MIN_RATIO, next)));
-    };
-    const onUp = (): void => {
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", onUp);
-    };
-    window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerup", onUp);
+    down.preventDefault();
+    const { left, width } = row.getBoundingClientRect();
+    dragRef.current = { left, width };
+    down.currentTarget.setPointerCapture(down.pointerId);
   }, []);
-  return { ratio, paneRowRef, onDividerPointerDown };
+
+  const onPointerMove = useCallback((move: ReactPointerEvent<HTMLDivElement>): void => {
+    const drag = dragRef.current;
+    const row = paneRowRef.current;
+    if (drag === null || row === null) return;
+    const share = (move.clientX - drag.left) / drag.width;
+    const ratio = Math.min(MAX_RATIO, Math.max(MIN_RATIO, share));
+    row.style.setProperty(RATIO_PROPERTY, `${String(ratio * 100)}%`);
+  }, []);
+
+  const onPointerUp = useCallback((up: ReactPointerEvent<HTMLDivElement>): void => {
+    dragRef.current = null;
+    up.currentTarget.releasePointerCapture(up.pointerId);
+  }, []);
+
+  return { paneRowRef, dividerProps: { onPointerDown, onPointerMove, onPointerUp } };
 }

@@ -3,13 +3,12 @@
 // background pane would otherwise render its ranges against the focused note's
 // ids and call every one of them an orphan.
 
-import { openDocPath } from "@repo/editor/note/open-doc";
-import { useOpenNote } from "@repo/editor/note/open-note-context";
+import { usePaneNotePath } from "@repo/editor/note/open-note-context";
 
 import { usePaneCommentMeta } from "./comment-hooks";
 
 export function PaneCommentMeta() {
-  const path = useOpenNote((s) => openDocPath(s.openDoc));
+  const path = usePaneNotePath();
   usePaneCommentMeta(path);
   return null;
 }

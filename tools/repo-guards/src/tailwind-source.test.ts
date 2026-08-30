@@ -9,18 +9,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { REPO_ROOT, isSkippedDir, workspaces } from "./repo";
-
-function cssFiles(dir: string, out: string[]): void {
-  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    if (entry.isDirectory()) {
-      if (isSkippedDir(entry.name)) continue;
-      cssFiles(path.join(dir, entry.name), out);
-    } else if (entry.name.endsWith(".css")) {
-      out.push(path.join(dir, entry.name));
-    }
-  }
-}
+import { REPO_ROOT, styleFiles, workspaces } from "./repo";
 
 /**
  * `@source` rows a stylesheet can carry. `inline(...)` embeds candidates
@@ -44,24 +33,24 @@ function staticBase(glob: string): string {
 
 describe("tailwind @source bases", () => {
   it("every @source glob resolves to a directory that exists", () => {
-    const files: string[] = [];
-    for (const workspace of workspaces()) {
-      cssFiles(path.join(REPO_ROOT, workspace.dir), files);
-    }
+    const files = workspaces()
+      .flatMap((workspace) => styleFiles(workspace))
+      .toSorted();
 
     const violations: string[] = [];
-    for (const file of files.toSorted()) {
-      const text = fs.readFileSync(file, "utf8");
+    for (const file of files) {
+      const absolute = path.join(REPO_ROOT, file);
+      const text = fs.readFileSync(absolute, "utf8");
       for (const line of text.split("\n")) {
         if (SOURCE_INLINE.test(line)) continue;
         for (const match of line.matchAll(SOURCE_ROW)) {
           const glob = match[1];
           if (glob === undefined) continue;
           const base = staticBase(glob);
-          const resolved = path.resolve(path.dirname(file), base);
+          const resolved = path.resolve(path.dirname(absolute), base);
           if (!fs.existsSync(resolved)) {
             violations.push(
-              `${path.relative(REPO_ROOT, file)} — @source "${glob}" → ${path.relative(REPO_ROOT, resolved)} does not exist`,
+              `${file} — @source "${glob}" → ${path.relative(REPO_ROOT, resolved)} does not exist`,
             );
           }
         }

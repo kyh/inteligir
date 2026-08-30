@@ -5,8 +5,7 @@ import { cn } from "@repo/ui/lib/utils";
 
 import { EDITOR_COLUMN_PX } from "@repo/editor/editor-chrome";
 import { MarkdownEditor } from "@repo/editor/markdown-editor";
-import { openDocPath } from "@repo/editor/note/open-doc";
-import { useOpenNote } from "@repo/editor/note/open-note-context";
+import { useOpenNote, usePaneNotePath } from "@repo/editor/note/open-note-context";
 import { registerNoteTitleFocus } from "@repo/editor/note-title-focus";
 import { useVaultActions } from "@repo/editor/host";
 import { checkNoteName, noteNameErrorMessage } from "@repo/notes/knowledge/note-name";
@@ -24,7 +23,7 @@ export function EditorPane() {
   // kind/path/surface — never on the content buffer, so typing re-renders
   // only the NotePane below.
   const kind = useOpenNote((s) => s.openDoc.kind);
-  const docPath = useOpenNote((s) => openDocPath(s.openDoc));
+  const docPath = usePaneNotePath();
   const showRich = useOpenNote(
     (s) => s.openDoc.kind === "markdown" && s.openDoc.surface.mode === "rich",
   );

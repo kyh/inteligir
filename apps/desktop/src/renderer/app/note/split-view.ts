@@ -1,27 +1,36 @@
 // Split-view plumbing shared between the workspace and the panes: the pane
 // vocabulary, and the coordinator that enforces one-note-one-pane and
-// PUBLISHES the focused pane with its path. One channel, two ways to read it —
-// React selects off `store`, action-time callers ask `getState()` — so the
-// shell's focus state cannot drift from the panes' own.
+// PUBLISHES the focused pane with its path and its navigation targets. One
+// channel, two ways to read it — React selects off `store`, action-time callers
+// ask `getState()` — so the shell's focus state cannot drift from the panes'
+// own.
 
-import type { OpenNoteState, OpenNoteStore } from "@repo/editor/note/open-note-store";
+import {
+  backTarget,
+  forwardTarget,
+  type OpenNoteState,
+  type OpenNoteStore,
+} from "@repo/editor/note/open-note-store";
 import { createStore, type StoreApi } from "zustand/vanilla";
 
 type PaneId = "primary" | "split";
 
-/** The published fact: which pane has focus, and the note it holds. */
+/** The published fact: which pane has focus, the note it holds, and where that
+ * pane's Back and Forward would land (null when the direction is exhausted). */
 type PaneFocus = {
   pane: PaneId;
   path: string | null;
+  back: string | null;
+  forward: string | null;
 };
 
 export type PaneCoordinator = {
   /** The focus, subscribable: `useStore(coordinator.store, sel)` in React,
    * `coordinator.store.getState()` at action time. */
   readonly store: StoreApi<PaneFocus>;
-  /** A named pane's live open path (the focused one is in `store`). */
-  openPath: (pane: PaneId) => string | null;
-  /** A pane reports its open path on every publish. */
+  /** A pane reports its open path on every publish, and a boot target may be
+   * announced ahead of the pane that will hold it — until something says what
+   * is opening, the gate has nothing to refuse a colliding boot against. */
   reportOpenPath: (pane: PaneId, path: string | null) => void;
   /**
    * One note lives in ONE pane: an open targeting a path the other pane
@@ -45,15 +54,28 @@ export type PaneCoordinator = {
 export function createPaneCoordinator(): PaneCoordinator {
   const openPaths = new Map<PaneId, string | null>();
   const stores = new Map<PaneId, OpenNoteStore>();
-  const store = createStore<PaneFocus>()(() => ({ pane: "primary", path: null }));
+  const store = createStore<PaneFocus>()(() => ({
+    pane: "primary",
+    path: null,
+    back: null,
+    forward: null,
+  }));
 
+  // The arrows come from the FOCUSED pane's own stacks, because one top bar
+  // names one note: reading them off a fixed pane draws that pane's history
+  // beside the other pane's title.
   const publish = (pane: PaneId): void => {
-    store.setState({ pane, path: openPaths.get(pane) ?? null });
+    const paneState = stores.get(pane)?.state() ?? null;
+    store.setState({
+      pane,
+      path: openPaths.get(pane) ?? null,
+      back: paneState === null ? null : backTarget(paneState),
+      forward: paneState === null ? null : forwardTarget(paneState),
+    });
   };
 
   return {
     store,
-    openPath: (pane) => openPaths.get(pane) ?? null,
     focusedState: () => stores.get(store.getState().pane)?.state() ?? null,
     reportOpenPath: (pane, path) => {
       openPaths.set(pane, path);
