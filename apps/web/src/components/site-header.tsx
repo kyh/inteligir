@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 import { MoonIcon, SunIcon } from "lucide-react";
 import { useTheme } from "@repo/ui/lib/theme";
 
@@ -25,10 +25,16 @@ function XIcon({ className }: { className?: string }) {
   );
 }
 
+// Hydration gate: false through the server render and the hydrating one, true
+// from the first client render on. There is nothing to subscribe to — the
+// snapshot pair *is* the signal — so subscribe hands back a no-op unsubscribe.
+const neverChanges = () => () => {};
+const onClient = () => true;
+const onServer = () => false;
+
 function ThemeToggle() {
   const { resolved, setTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  const mounted = useSyncExternalStore(neverChanges, onClient, onServer);
 
   const isDark = resolved === "dark";
   return (

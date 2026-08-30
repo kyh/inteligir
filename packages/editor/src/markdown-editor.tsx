@@ -95,16 +95,15 @@ export function MarkdownEditor({ path, value, onChange, onRegisterSerializeFlush
     // this same path as an ordinary edit.
     scheduleFormulaRecompute(editor);
   }, [editor]);
-  const doSerializeRef = useRef(doSerialize);
   useLayoutEffect(() => {
     onChangeRef.current = onChange;
-    doSerializeRef.current = doSerialize;
-  }, [onChange, doSerialize]);
-  // One scheduler for the editor's lifetime; the closure re-reads the ref so it
-  // never goes stale even though doSerialize's identity is already stable.
-  const [scheduler] = useState(() =>
-    createDebouncer(() => doSerializeRef.current(), SERIALIZE_DEBOUNCE_MS),
-  );
+  }, [onChange]);
+  // One scheduler for the editor's lifetime. The Effect Event is the stable
+  // handle the debouncer holds, and it always dispatches to the latest
+  // render's doSerialize — so the scheduler cannot go stale even if that
+  // callback ever stops being identity-stable.
+  const runSerialize = useEffectEvent(() => doSerialize());
+  const [scheduler] = useState(() => createDebouncer(runSerialize, SERIALIZE_DEBOUNCE_MS));
 
   // Re-seed when `value` changes from the outside (e.g. the agent edited the
   // file and the panel reloaded it). Without this the Plate surface keeps the

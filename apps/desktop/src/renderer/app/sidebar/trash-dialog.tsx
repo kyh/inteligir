@@ -54,7 +54,10 @@ export function TrashDialog({ open, onOpenChange, onOpenNote }: TrashDialogProps
   });
 
   const entries = trashQuery.data?.entries ?? [];
-  const now = Date.now();
+  // Ages as of the listing on screen, not of whatever render drew it: reading
+  // the clock during render is impure, and this query refetches every time the
+  // dialog opens, so its own stamp is both pure and the freshest honest one.
+  const now = trashQuery.dataUpdatedAt;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

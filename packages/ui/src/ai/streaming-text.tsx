@@ -1,7 +1,7 @@
 "use client";
 // Vendored from Beautiful UI (beautifului.dev), MIT.
 
-import { forwardRef, useEffect, useRef, useState, type HTMLAttributes } from "react";
+import { forwardRef, useEffect, useState, type HTMLAttributes } from "react";
 
 import { cn } from "@repo/ui/lib/utils";
 
@@ -39,28 +39,29 @@ export interface StreamingTextProps extends HTMLAttributes<HTMLDivElement> {
 const StreamingText = forwardRef<HTMLDivElement, StreamingTextProps>(
   ({ text, streaming = false, animate = true, className, children, ...props }, ref) => {
     const words = splitWords(text);
-    const [revealed, setRevealed] = useState(() => (animate ? 0 : words.length));
-    // Revealing is a queue, not a subscription: the effect steps one word per
-    // tick toward the current length instead of restarting on every prop change.
-    const targetRef = useRef(words.length);
-    targetRef.current = words.length;
+    const target = words.length;
+    const [revealed, setRevealed] = useState(() => (animate ? 0 : target));
+
+    // Revealing is a queue, not a subscription: the interval steps one word per
+    // tick toward the current length instead of re-deriving the reveal from the
+    // prop. Two cases still have to be corrected before the queue is read — a
+    // shorter text is a different message (a retry, a switched thread) and the
+    // reveal must not read past its end, and turning the animation off shows
+    // everything at once.
+    if (revealed > target || (!animate && revealed !== target)) {
+      setRevealed(target);
+    }
 
     useEffect(() => {
-      if (!animate) {
-        setRevealed(targetRef.current);
-        return;
-      }
-      // A shorter text is a different message (a retry, a switched thread);
-      // clamping down keeps the reveal from reading past the end.
-      setRevealed((current) => Math.min(current, targetRef.current));
+      if (!animate) return;
       const timer = setInterval(() => {
-        setRevealed((current) => (current >= targetRef.current ? current : current + 1));
+        setRevealed((current) => (current >= target ? current : current + 1));
       }, WORD_MS);
       return () => clearInterval(timer);
-    }, [animate, text]);
+    }, [animate, target]);
 
     const shown = animate ? words.slice(0, revealed).join("") : text;
-    const caret = streaming || revealed < words.length;
+    const caret = streaming || revealed < target;
 
     return (
       <div ref={ref} data-slot="streaming-text" className={cn("w-full", className)} {...props}>

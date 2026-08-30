@@ -25,31 +25,32 @@ type VaultState = { kind: "loading" } | { kind: "ready"; url: string } | { kind:
 // Resolve a vault-relative asset to an object URL through the host's I/O seam,
 // revoking it on cleanup / path change. External srcs never enter here.
 function useVaultAsset(path: string, external: boolean): VaultState {
-  const [state, setState] = useState<VaultState>(
-    external ? { kind: "ready", url: path } : { kind: "loading" },
-  );
+  const [fetched, setFetched] = useState<VaultState>({ kind: "loading" });
+  // The fetch below is keyed by `path`; re-key during the render that changes
+  // it so no frame shows the previous file's object URL under the new path.
+  const [fetchedPath, setFetchedPath] = useState(path);
+  if (fetchedPath !== path) {
+    setFetchedPath(path);
+    setFetched({ kind: "loading" });
+  }
 
   useEffect(() => {
-    if (external) {
-      setState({ kind: "ready", url: path });
-      return;
-    }
+    if (external) return;
     const io = getEditorHostIo();
     let objectUrl: string | null = null;
     let cancelled = false;
-    setState({ kind: "loading" });
     void (async () => {
       try {
         const result = await io.readVaultAsset({ path });
         if (cancelled) return;
         if (!result.ok) {
-          setState({ kind: "error" });
+          setFetched({ kind: "error" });
           return;
         }
         objectUrl = URL.createObjectURL(result.bytes);
-        setState({ kind: "ready", url: objectUrl });
+        setFetched({ kind: "ready", url: objectUrl });
       } catch {
-        if (!cancelled) setState({ kind: "error" });
+        if (!cancelled) setFetched({ kind: "error" });
       }
     })();
     return () => {
@@ -58,7 +59,9 @@ function useVaultAsset(path: string, external: boolean): VaultState {
     };
   }, [path, external]);
 
-  return state;
+  // An external src is already a usable URL — it is state only in the sense
+  // that it never has to be fetched.
+  return external ? { kind: "ready", url: path } : fetched;
 }
 
 // Alt text lives in the img node's `caption` children (Plate's markdown img

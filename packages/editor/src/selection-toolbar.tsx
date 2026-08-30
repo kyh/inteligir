@@ -1,10 +1,4 @@
-import {
-  useMemo,
-  useRef,
-  useState,
-  type MouseEvent as ReactMouseEvent,
-  type ReactNode,
-} from "react";
+import { useMemo, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from "react";
 import {
   flip,
   offset,
@@ -221,11 +215,10 @@ export function SelectionToolbar() {
   // Remember the live selection at the moment an action starts — opening a
   // popover or the link input moves DOM focus off the editable and collapses
   // it. Captured when the menu opens (editor.selection has settled), not via
-  // an effect (which races Slate's throttled selection sync).
-  const savedSel = useRef<typeof editor.selection>(null);
-  const remember = () => {
-    savedSel.current = editor.selection;
-  };
+  // an effect (which races Slate's throttled selection sync). State, not a
+  // ref: the type indicator below reads it while rendering.
+  const [savedSel, setSavedSel] = useState<typeof editor.selection>(null);
+  const remember = () => setSavedSel(editor.selection);
 
   const focusedEditorId = useEventEditorValue("focus");
   const isSelectingSome = usePluginOption(BlockSelectionPlugin, "isSelectingSome");
@@ -257,10 +250,10 @@ export function SelectionToolbar() {
   // summary row reads as the toggle).
   const selection = useEditorSelection();
   const typeLabel = useMemo(() => {
-    const at = selection ?? savedSel.current ?? undefined;
+    const at = selection ?? savedSel ?? undefined;
     const entry = effectiveBlockEntry(editor, at);
     return entry ? turnIntoOptionFor(entry[0]).label : "Text";
-  }, [selection, editor]);
+  }, [selection, savedSel, editor]);
 
   if (hidden && !frozen) return null;
 
@@ -279,7 +272,7 @@ export function SelectionToolbar() {
               setLinkMode(false);
               // Wrap the remembered range directly (`at`), so we don't depend
               // on restoring editor focus/selection after the input stole it.
-              const at = savedSel.current;
+              const at = savedSel;
               if (url && at) {
                 wrapLink(editor, { url, at, split: true });
                 editor.tf.focus();
@@ -313,7 +306,7 @@ export function SelectionToolbar() {
                     <DropdownMenuItem
                       key={opt.id}
                       onClick={() => {
-                        turnIntoSelection(editor, opt, savedSel.current ?? undefined);
+                        turnIntoSelection(editor, opt, savedSel ?? undefined);
                         editor.tf.focus();
                       }}
                     >

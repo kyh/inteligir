@@ -106,6 +106,62 @@ interface CheckboxGroupContextValue {
 
 const CheckboxGroupContext = createContext<CheckboxGroupContextValue | null>(null);
 
+interface CheckedRun {
+  start: number;
+  end: number;
+  id: number;
+}
+
+interface CheckedRuns {
+  /** The checked set these runs were derived from, as a comparable key. */
+  key: string;
+  /** Last ID handed out, so a new run never reuses a live one. */
+  counter: number;
+  /** Row index → run ID, the memory a merge/split animation is keyed off. */
+  byIndex: Map<number, number>;
+  runs: CheckedRun[];
+}
+
+const noCheckedRuns: CheckedRuns = { key: "", counter: 0, byIndex: new Map(), runs: [] };
+
+/** Contiguous runs of checked rows, each carrying an ID that survives a merge
+ *  or a split: a run reuses the ID of any earlier run it still overlaps, so
+ *  the selection background animates between shapes instead of being replaced.
+ *  Pure and previous-value-threaded rather than a render-written ref, so the
+ *  IDs are stable under a re-run of render. */
+function assignRunIds(checkedIndices: Set<number>, prev: CheckedRuns): CheckedRuns {
+  const sorted = [...checkedIndices].toSorted((a, b) => a - b);
+  const key = sorted.join(",");
+  if (key === prev.key) return prev;
+
+  const spans: { start: number; end: number }[] = [];
+  for (const idx of sorted) {
+    const last = spans[spans.length - 1];
+    if (last && idx === last.end + 1) last.end = idx;
+    else spans.push({ start: idx, end: idx });
+  }
+
+  let counter = prev.counter;
+  const usedIds = new Set<number>();
+  const byIndex = new Map<number, number>();
+  const runs = spans.map((span) => {
+    let stableId: number | null = null;
+    for (let i = span.start; i <= span.end; i++) {
+      const prevId = prev.byIndex.get(i);
+      if (prevId !== undefined && !usedIds.has(prevId)) {
+        stableId = prevId;
+        break;
+      }
+    }
+    const id = stableId ?? ++counter;
+    usedIds.add(id);
+    for (let i = span.start; i <= span.end; i++) byIndex.set(i, id);
+    return { start: span.start, end: span.end, id };
+  });
+
+  return { key, counter, byIndex, runs };
+}
+
 function useCheckboxGroup() {
   const ctx = useContext(CheckboxGroupContext);
   if (!ctx) throw new Error("useCheckboxGroup must be used within a CheckboxGroup");
@@ -123,56 +179,15 @@ interface CheckboxGroupProps extends HTMLAttributes<HTMLDivElement> {
 const CheckboxGroup = forwardRef<HTMLDivElement, CheckboxGroupProps>(
   ({ children, checkedIndices, size, className, ...props }, ref) => {
     const containerRef = useRef<HTMLDivElement | null>(null);
-    const groupIdCounter = useRef(0);
-    const prevGroupMap = useRef(new Map<number, number>());
 
-    const {
-      activeIndex,
-      setActiveIndex,
-      itemRects,
-      session,
-      handlers,
-      registerItem,
-      measureItems,
-    } = useProximityHover(containerRef);
+    const { activeIndex, setActiveIndex, itemRects, session, handlers, registerItem } =
+      useProximityHover(containerRef);
 
-    // children is a deliberate dep: rows changing is what invalidates rects.
-    useEffect(() => {
-      measureItems();
-    }, [measureItems, children]);
-
-    // Group contiguous checked indices into runs with stable IDs
-    const runs: { start: number; end: number }[] = [];
-    const sortedChecked = [...checkedIndices].toSorted((a, b) => a - b);
-    for (const idx of sortedChecked) {
-      const last = runs[runs.length - 1];
-      if (last && idx === last.end + 1) {
-        last.end = idx;
-      } else {
-        runs.push({ start: idx, end: idx });
-      }
-    }
-
-    // Assign stable IDs: reuse previous ID if any member overlaps
-    const usedIds = new Set<number>();
-    const newGroupMap = new Map<number, number>();
-    const checkedGroups = runs.map((run) => {
-      let stableId: number | null = null;
-      for (let i = run.start; i <= run.end; i++) {
-        const prevId = prevGroupMap.current.get(i);
-        if (prevId !== undefined && !usedIds.has(prevId)) {
-          stableId = prevId;
-          break;
-        }
-      }
-      const id = stableId ?? ++groupIdCounter.current;
-      usedIds.add(id);
-      for (let i = run.start; i <= run.end; i++) {
-        newGroupMap.set(i, id);
-      }
-      return { start: run.start, end: run.end, id };
-    });
-    prevGroupMap.current = newGroupMap;
+    const [checkedRuns, setCheckedRuns] = useState(() =>
+      assignRunIds(checkedIndices, noCheckedRuns),
+    );
+    const nextCheckedRuns = assignRunIds(checkedIndices, checkedRuns);
+    if (nextCheckedRuns !== checkedRuns) setCheckedRuns(nextCheckedRuns);
 
     const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
 
@@ -187,7 +202,7 @@ const CheckboxGroup = forwardRef<HTMLDivElement, CheckboxGroupProps>(
 
     // Selected backgrounds, with the merge/split boundary animation when one
     // unchecked row bridges or splits two checked runs.
-    const blocks = useMergeSplitBlocks(checkedGroups, itemRects, radius.mergedRadius);
+    const blocks = useMergeSplitBlocks(nextCheckedRuns.runs, itemRects, radius.mergedRadius);
 
     const group = (
       <CheckboxGroupContext.Provider value={groupContextValue}>

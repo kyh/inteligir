@@ -29,9 +29,10 @@ export function MediaToolbar() {
   useEffect(() => {
     if (editing) inputRef.current?.select();
   }, [editing]);
-  useEffect(() => {
-    if (!selected) setEditing(false);
-  }, [selected]);
+
+  // Deselecting the node closes the URL editor — decided during render, so the
+  // toolbar never paints a frame of an open input on an unselected embed.
+  if (editing && !selected) setEditing(false);
 
   if (readOnly) return null;
 

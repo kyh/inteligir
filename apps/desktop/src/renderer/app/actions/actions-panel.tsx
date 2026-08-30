@@ -141,13 +141,17 @@ function ActionDetail({
   const thread = detailQuery.data?.thread ?? null;
   const pending = detailQuery.data?.pendingInteractions ?? [];
   const rowCount = timeline?.rows.length ?? 0;
+  const pendingCount = pending.length;
 
+  // Pin the transcript to its newest row whenever rows arrive. An empty
+  // transcript has no bottom to pin to.
   useEffect(() => {
     const scroller = scrollRef.current;
-    if (scroller !== null) {
-      scroller.scrollTop = scroller.scrollHeight;
+    if (scroller === null || rowCount + pendingCount === 0) {
+      return;
     }
-  }, [rowCount, pending.length]);
+    scroller.scrollTop = scroller.scrollHeight;
+  }, [rowCount, pendingCount]);
 
   const invalidate = (): void => {
     void queryClient.invalidateQueries({ queryKey: orpc.threads.key() });

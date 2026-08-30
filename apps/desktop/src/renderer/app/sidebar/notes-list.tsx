@@ -15,10 +15,31 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@repo/ui/components/sidebar";
+import { useEffect, useState } from "react";
 import { relativeTimeLabel } from "../relative-time";
 import { useWikiTargets } from "../vault-hooks";
 
 type FileEntry = Extract<VaultTreeResponse["entries"][number], { kind: "file" }>;
+
+/** A minute is the finest tier `relativeTimeLabel` distinguishes above "Just
+ *  now", so it is also how often these labels can go stale. */
+const CLOCK_TICK_MS = 60_000;
+
+/** The clock these labels read. A `Date.now()` during render is an impure read
+ *  — the age shown is whatever the last unrelated re-render happened to catch
+ *  — so the clock is state, advanced on its own tick. */
+function useNow(): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const tick = setInterval(() => {
+      setNow(Date.now());
+    }, CLOCK_TICK_MS);
+    return () => {
+      clearInterval(tick);
+    };
+  }, []);
+  return now;
+}
 
 /** Root notes group under "", folder notes under their FIRST path segment —
  *  the grain a sidebar can show without re-growing the file tree. */
@@ -66,7 +87,7 @@ export interface NotesListProps {
 
 export function NotesList({ entries, openPath, onOpenFile }: NotesListProps) {
   const pinnedPaths = usePinnedPaths();
-  const now = Date.now();
+  const now = useNow();
   const notes = entries
     // Trashed notes are restorable, not gone — but the notes LIST is the
     // living vault; Trash/ shows only in the file tree and the trash dialog.

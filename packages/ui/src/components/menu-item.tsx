@@ -112,7 +112,6 @@ const MenuItem = forwardRef<HTMLDivElement, MenuItemProps>(
     ref,
   ) => {
     const internalRef = useRef<HTMLDivElement | null>(null);
-    const hasMounted = useRef(false);
     const { registerItem, activeIndex, checkedIndex, renderMenuItem } = useDropdown();
 
     useEffect(() => {
@@ -120,12 +119,7 @@ const MenuItem = forwardRef<HTMLDivElement, MenuItemProps>(
       return () => registerItem(index, null);
     }, [index, registerItem]);
 
-    useEffect(() => {
-      hasMounted.current = true;
-    }, []);
-
     const isActive = activeIndex === index;
-    const skipAnimation = !hasMounted.current;
     const sizeClasses = useSize();
 
     const mergeRef = (node: HTMLDivElement | null) => {
@@ -190,7 +184,7 @@ const MenuItem = forwardRef<HTMLDivElement, MenuItemProps>(
             {label}
           </span>
         </span>
-        <AnimatePresence>
+        <AnimatePresence initial={false}>
           {checked && (
             <motion.svg
               key="check"
@@ -209,7 +203,7 @@ const MenuItem = forwardRef<HTMLDivElement, MenuItemProps>(
             >
               <motion.path
                 d="M4 12L9 17L20 6"
-                initial={{ pathLength: skipAnimation ? 1 : 0 }}
+                initial={{ pathLength: 0 }}
                 animate={{
                   pathLength: 1,
                   transition: { duration: 0.08, ease: "easeOut" },

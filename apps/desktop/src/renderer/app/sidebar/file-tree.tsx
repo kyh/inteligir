@@ -196,43 +196,57 @@ export function FileTree({
   const treeRef = useRef<HTMLDivElement>(null);
 
   // A header-initiated create arrives as a prop; adopt it into local editing
-  // state (expanding the target folder) and hand the token back.
+  // state (expanding the target folder) as the token arrives, then hand it
+  // back. Adopting in the render that brings it in rather than after the commit
+  // spares the input row a second paint; the handback stays an effect because
+  // it updates the SIDEBAR, and no component may set another component's state
+  // while rendering. Seeded as "nothing adopted" rather than as the current
+  // token, so a tree mounting on one already set still adopts it.
+  const [adoptedCreate, setAdoptedCreate] = useState<FileTreeProps["pendingCreate"]>(null);
+  if (adoptedCreate !== pendingCreate) {
+    setAdoptedCreate(pendingCreate);
+    if (pendingCreate !== null) {
+      setEditing({ mode: "create", kind: pendingCreate.kind, parentDir: pendingCreate.parentDir });
+      if (pendingCreate.parentDir !== "") {
+        setExpanded((current) => new Set(current).add(pendingCreate.parentDir));
+      }
+    }
+  }
   useEffect(() => {
-    if (pendingCreate === null) {
-      return;
+    if (pendingCreate !== null) {
+      onPendingCreateHandled();
     }
-    setEditing({ mode: "create", kind: pendingCreate.kind, parentDir: pendingCreate.parentDir });
-    if (pendingCreate.parentDir !== "") {
-      setExpanded((current) => new Set(current).add(pendingCreate.parentDir));
-    }
-    onPendingCreateHandled();
   }, [pendingCreate, onPendingCreateHandled]);
 
   // Reconcile the roving tab stop when the tree CHANGES (delete clears it,
   // a followed rename survives its refetch). Keyed on entries alone: running
   // on every activePath change would clear an optimistic rename-follow
   // before the refetched tree can confirm it.
-  useEffect(() => {
-    setActivePath((current) =>
-      current !== null && !entries.some((entry) => entry.path === current) ? null : current,
-    );
-  }, [entries]);
+  const [reconciledEntries, setReconciledEntries] = useState(entries);
+  if (reconciledEntries !== entries) {
+    setReconciledEntries(entries);
+    if (activePath !== null && !entries.some((entry) => entry.path === activePath)) {
+      setActivePath(null);
+    }
+  }
 
   // Keep the open note visible: expand its ancestor folders whenever it
   // changes (the user may still collapse them afterwards).
-  useEffect(() => {
-    if (openPath === null || !openPath.includes("/")) {
-      return;
+  // Seeded null so a tree mounting on an already-open note expands to it.
+  const [expandedFor, setExpandedFor] = useState<string | null>(null);
+  if (expandedFor !== openPath) {
+    setExpandedFor(openPath);
+    if (openPath !== null && openPath.includes("/")) {
+      setExpanded((current) => {
+        const next = new Set(current);
+        const segments = openPath.split("/");
+        for (let i = 1; i < segments.length; i += 1) {
+          next.add(segments.slice(0, i).join("/"));
+        }
+        return next;
+      });
     }
-    setExpanded((current) => {
-      const next = new Set(current);
-      const segments = openPath.split("/");
-      for (let i = 1; i < segments.length; i += 1) {
-        next.add(segments.slice(0, i).join("/"));
-      }
-      return next;
-    });
-  }, [openPath]);
+  }
 
   const rows: Row[] = [];
   visibleRows(roots, expanded, editing, 0, rows);

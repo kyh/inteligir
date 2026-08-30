@@ -31,12 +31,20 @@ function entryTimeMs(entry: CommentEntryWire): number {
   return entry.createdAt * 1000;
 }
 
-function CommentRow({ id, entry }: { id: string; entry: CommentEntryWire }) {
+function CommentRow({
+  id,
+  entry,
+  asOfMs,
+}: {
+  id: string;
+  entry: CommentEntryWire;
+  asOfMs: number;
+}) {
   return (
     <div key={id} className="px-2 py-1">
       <div className="flex items-baseline gap-2 text-[11px] text-muted-foreground">
         <span className="font-medium text-foreground/80">{sourceLabel(entry)}</span>
-        <span>{relativeTimeLabel(entryTimeMs(entry), Date.now())}</span>
+        <span>{relativeTimeLabel(entryTimeMs(entry), asOfMs)}</span>
       </div>
       <p className="text-sm whitespace-pre-wrap">{entry.text}</p>
     </div>
@@ -48,11 +56,13 @@ function ThreadCard({
   thread,
   focused,
   onDone,
+  asOfMs,
 }: {
   docPath: string;
   thread: CommentThreadWire;
   focused: boolean;
   onDone: () => void;
+  asOfMs: number;
 }) {
   const [draft, setDraft] = useState("");
 
@@ -120,11 +130,11 @@ function ThreadCard({
       )}
     >
       <button type="button" className="w-full text-left" onClick={jump}>
-        <CommentRow id={thread.rootId} entry={thread.root} />
+        <CommentRow id={thread.rootId} entry={thread.root} asOfMs={asOfMs} />
       </button>
       {thread.replies.map((row) => (
         <div key={row.id} className="border-t border-line/60 pl-3">
-          <CommentRow id={row.id} entry={row.entry} />
+          <CommentRow id={row.id} entry={row.entry} asOfMs={asOfMs} />
         </div>
       ))}
       {!thread.anchored ? (
@@ -213,6 +223,10 @@ export function CommentsTab({
 
   const open = data.threads.filter((thread) => !thread.resolved);
   const resolved = data.threads.filter((thread) => thread.resolved);
+  // Ages as of the sidecar read on screen, not of whatever render drew it:
+  // reading the clock during render is impure, and every verb below re-reads
+  // the sidecar, so this stamp moves whenever a comment does.
+  const asOfMs = query.dataUpdatedAt;
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto p-2">
@@ -228,6 +242,7 @@ export function CommentsTab({
           thread={thread}
           focused={focusIds.includes(thread.rootId)}
           onDone={refresh}
+          asOfMs={asOfMs}
         />
       ))}
       {resolved.length > 0 ? (
@@ -249,6 +264,7 @@ export function CommentsTab({
               thread={thread}
               focused={focusIds.includes(thread.rootId)}
               onDone={refresh}
+              asOfMs={asOfMs}
             />
           ))
         : null}

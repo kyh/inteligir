@@ -5,7 +5,7 @@
 // so the document isn't re-serialized on every keystroke; checkbox and tags
 // commit immediately.
 
-import { type KeyboardEvent, useEffect, useState } from "react";
+import { type KeyboardEvent, useState } from "react";
 import { XIcon } from "lucide-react";
 
 import type { TypedProperty } from "@repo/notes/markdown/frontmatter";
@@ -19,7 +19,14 @@ const FIELD_CLASS =
 // A text-like value buffered locally; commit only real changes, on blur/Enter.
 function useBuffer(value: string, commit: (next: string) => void) {
   const [local, setLocal] = useState(value);
-  useEffect(() => setLocal(value), [value]);
+  // A new `value` from the document (an agent write, a note switch) wins over
+  // whatever is buffered: re-key during render so the field never paints one
+  // frame of the previous property's text.
+  const [shown, setShown] = useState(value);
+  if (shown !== value) {
+    setShown(value);
+    setLocal(value);
+  }
   return {
     value: local,
     onChange: (e: { target: { value: string } }) => setLocal(e.target.value),

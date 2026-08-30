@@ -155,7 +155,9 @@ export function useProximityHover<T extends HTMLElement>(
    * true while another pass is still queued.
    */
   const scheduleMeasurement = useCallback(
-    (attemptsLeft: number) => {
+    // Named function expression: the retry recurses into the function itself,
+    // not into the `scheduleMeasurement` binding useCallback is still building.
+    function schedule(attemptsLeft: number): void {
       if (remeasureRafIdRef.current !== null) {
         cancelAnimationFrame(remeasureRafIdRef.current);
       }
@@ -164,7 +166,7 @@ export function useProximityHover<T extends HTMLElement>(
         if (runMeasurement()) {
           setIsMeasured(true);
         } else if (attemptsLeft > 1) {
-          scheduleMeasurement(attemptsLeft - 1);
+          schedule(attemptsLeft - 1);
         }
       });
     },

@@ -32,8 +32,13 @@ type FindBarState = {
 let state: FindBarState = { active: null, open: false, query: "" };
 const listeners = new Set<() => void>();
 
-function setState(next: Partial<FindBarState>): void {
+// Decorations read this module store rather than the document, so a store
+// change must also force Plate to re-run decorate — nothing in the document
+// changed, and every mutation here arrives from an event that already has the
+// editor in hand.
+function setState(editor: SlateEditor, next: Partial<FindBarState>): void {
   state = { ...state, ...next };
+  editor.api.redecorate();
   for (const listener of listeners) listener();
 }
 
@@ -68,11 +73,11 @@ export function collectFindMatches(editor: SlateEditor, query: string): MatchLoc
 
 export function openFindBar(editor: SlateEditor): void {
   const matches = collectFindMatches(editor, state.query);
-  setState({ active: matches[0] ?? null, open: true });
+  setState(editor, { active: matches[0] ?? null, open: true });
 }
 
 function closeFindBar(editor: SlateEditor): void {
-  setState({ active: null, open: false });
+  setState(editor, { active: null, open: false });
   editor.tf.focus();
 }
 
@@ -97,7 +102,7 @@ function scrollToMatch(editor: SlateEditor, match: MatchLocation, length: number
 export function cycleFindMatch(editor: SlateEditor, direction: 1 | -1): void {
   const matches = collectFindMatches(editor, state.query);
   if (matches.length === 0) {
-    setState({ active: null });
+    setState(editor, { active: null });
     return;
   }
   const current =
@@ -112,13 +117,13 @@ export function cycleFindMatch(editor: SlateEditor, direction: 1 | -1): void {
       : (current + direction + matches.length) % matches.length;
   const active = matches[next];
   if (active === undefined) return;
-  setState({ active });
+  setState(editor, { active });
   scrollToMatch(editor, active, state.query.length);
 }
 
 export function setFindQuery(editor: SlateEditor, query: string): void {
   const matches = collectFindMatches(editor, query);
-  setState({ active: matches[0] ?? null, query });
+  setState(editor, { active: matches[0] ?? null, query });
 }
 
 function FindMatchLeaf(props: PlateLeafProps) {
@@ -142,12 +147,6 @@ function FindBar() {
   const editor = useEditorRef();
   const snap = useSyncExternalStore(subscribe, getFindBarState);
   const inputRef = useRef<HTMLInputElement>(null);
-
-  // Decorations read the module store, so a store change must force Plate to
-  // re-run decorate — nothing in the document changed.
-  useEffect(() => {
-    editor.api.redecorate();
-  }, [editor, snap.open, snap.query, snap.active]);
 
   useEffect(() => {
     if (snap.open) inputRef.current?.focus();

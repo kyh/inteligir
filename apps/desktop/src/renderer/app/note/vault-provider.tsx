@@ -55,6 +55,10 @@ import { useWorkspace, type WorkspaceRuntime } from "../workspace-context";
 
 const FOCUS_REFRESH_DEBOUNCE_MS = 400;
 
+/** What a port's open-path mirror does until the provider installs the shell's
+ * own callback, which it does before the session is started. */
+const noOpenPathMirror = (): void => {};
+
 type Api = WorkspaceRuntime["api"];
 
 /** The session's flat listing from the tree response: files only (the tree is
@@ -107,10 +111,6 @@ export function VaultProvider({
 
   const [entries, setEntries] = useState<VaultEntry[]>([]);
   const [vaultName, setVaultName] = useState("");
-  // The session publishes the root; io subscriptions compose events with it
-  // outside render, so a ref keeps them honest without re-subscribing.
-  const rootRef = useRef("");
-  const entriesRef = useRef<VaultEntry[]>([]);
   // The bound-ref scan cache (readNoteFormulas below); dropped whole on any
   // vault change.
   const formulaScanRef = useRef<Promise<
@@ -134,79 +134,26 @@ export function VaultProvider({
     wikiTargetsRef.current = wikiTargets;
   }, [wikiTargets]);
 
-  // The mirror callback identity must not rebuild the session.
-  const onOpenPathRef = useRef(onOpenPath);
-  onOpenPathRef.current = onOpenPath;
+  const port = useMemo<VaultPort>(
+    () =>
+      createVaultPort({
+        api,
+        bootPath,
+        store,
+        publishEntries: setEntries,
+        publishVaultName: setVaultName,
+      }),
+    [api, bootPath, store],
+  );
+  const { session } = port;
 
-  const session = useMemo<VaultSession>(() => {
-    const io = createGuardedVaultIo(api);
-    return createVaultSession({
-      boot: async (): Promise<WorkspaceBoot> => {
-        const tree = await api.vault.tree();
-        setVaultName(tree.name);
-        const flat = listingEntries(tree);
-        // The deep link wins, then the last-open note, then the first doc — the
-        // app never lands on an empty editor when the vault has notes.
-        const known = (path: string | null): path is string =>
-          path !== null && flat.some((entry) => entry.path === path && entry.kind === "doc");
-        const last = readLastOpenNote();
-        // Among the virgin-boot seeds, Welcome is the front door — plain
-        // listing order would land on "Getting Started" first.
-        const target = known(bootPath)
-          ? bootPath
-          : known(last)
-            ? last
-            : known("Welcome.md")
-              ? "Welcome.md"
-              : (flat.find((entry) => entry.kind === "doc")?.path ?? null);
-        let openNote: WorkspaceBoot["openNote"] = null;
-        if (target !== null) {
-          const content = await io.read(target).catch(() => null);
-          if (content !== null) openNote = { path: target, content };
-        }
-        return { root: tree.root, entries: flat, openNote };
-      },
-      list: async () => listingEntries(await api.vault.tree()),
-      // No host re-announce over HTTP — a refresh IS a re-list, published
-      // through the same ordered path list() callers use.
-      refresh: () => Promise.resolve(),
-      // Any refusal reads as "not there", and that is safe because of what the
-      // caller does next: open-or-create re-attempts the same path with a write,
-      // which reports its own failure rather than truncating anything.
-      exists: async (path) => {
-        const { error } = await safe(api.vault.read({ path }));
-        return error === null;
-      },
-      rename: async (from, to) => {
-        try {
-          await api.vault.rename({ from, to });
-          return { ok: true };
-        } catch (error) {
-          return { ok: false, error: refusalMessage(error, `Could not rename ${from}.`) };
-        }
-      },
-      note: io,
-      publishListing: (next) => {
-        entriesRef.current = next;
-        setEntries(next);
-      },
-      publishRoot: (root) => {
-        rootRef.current = root;
-      },
-      publishOpenPath: (path, change) => {
-        store.publishOpenPath(path, change);
-        writeLastOpenNote(path);
-        onOpenPathRef.current(path);
-      },
-      publishEditor: store.publishEditor,
-      // One surface: the editor column is always up in this shell.
-      showEditor: () => {},
-      notify: (level, message) => {
-        if (level === "error") toast.error(message);
-        else toast.warning(message);
-      },
-    });
-  }, [api, bootPath, store]);
+  // Installed BEFORE the start effect below, so the first open path the session
+  // publishes already reaches the shell. It is re-pointed rather than passed in
+  // at construction because this callback's identity changes on every parent
+  // render, and rebuilding the session would re-boot the vault.
+  useEffect(() => {
+    port.setOnOpenPath(onOpenPath);
+  }, [port, onOpenPath]);
 
   useEffect(() => {
     actionsRef.current = session.actions;
@@ -228,11 +175,11 @@ export function VaultProvider({
       docEvents.subscribe((docId) => {
         formulaScanRef.current = null;
         session.handleVaultChanged({
-          root: rootRef.current,
+          root: port.root(),
           changed: docId === null ? null : { upserted: [docId], removed: [] },
         });
       }),
-    [docEvents, session],
+    [docEvents, port, session],
   );
 
   // Repairs a MISSED broadcast: a socket that dropped while the agent wrote
@@ -240,7 +187,7 @@ export function VaultProvider({
   // focus flurry closes that window.
   useEffect(() => {
     const refresh = createDebouncer(() => {
-      session.handleVaultChanged({ root: rootRef.current, changed: null });
+      session.handleVaultChanged({ root: port.root(), changed: null });
     }, FOCUS_REFRESH_DEBOUNCE_MS);
     const onFocus = (): void => {
       refresh.schedule();
@@ -250,7 +197,7 @@ export function VaultProvider({
       window.removeEventListener("focus", onFocus);
       refresh.cancel();
     };
-  }, [session]);
+  }, [port, session]);
 
   // Non-React callers (palette actions, shortcuts) persist the live buffer
   // through the store registry; the flush action itself lives in the store.
@@ -327,7 +274,7 @@ export function VaultProvider({
         if (scan === null) {
           scan = (async () => {
             const byId = new Map<string, { path: string; formulas: CollectedFormula[] }>();
-            for (const entry of entriesRef.current) {
+            for (const entry of port.entries()) {
               if (entry.kind !== "doc") continue;
               const content = await readFile(api, entry.path).catch(() => null);
               if (content === null) continue;
@@ -348,7 +295,7 @@ export function VaultProvider({
       onVaultChanged: (listener) =>
         docEvents.subscribe((docId) => {
           const event: VaultChangedEvent = {
-            root: rootRef.current,
+            root: port.root(),
             changed: docId === null ? null : { upserted: [docId], removed: [] },
           };
           listener(event);
@@ -360,7 +307,7 @@ export function VaultProvider({
         }),
     };
     setEditorHostIo(io);
-  }, [api, docEvents]);
+  }, [api, docEvents, port]);
 
   // The wiki resolver over the live listing — path tiers now, aliases with the
   // knowledge-served targets (#582).
@@ -390,6 +337,126 @@ export function VaultProvider({
       <EditorHostProvider host={host}>{children}</EditorHostProvider>
     </OpenNoteStoreProvider>
   );
+}
+
+/**
+ * The session plus the live values its non-React callers compose events with.
+ *
+ * The vault root, the last published listing and the shell's open-path mirror
+ * stay mutable for the session's whole life, and every reader of them runs
+ * outside render — the ws-bus handlers, the EditorHostIo subscriptions. They
+ * live in this closure rather than in the provider's refs because the session
+ * is BUILT during render, and a ref handed to a function that render calls is
+ * a ref render can read: exactly what React forbids. Their lifetime is the
+ * session's, which is what this port makes structural.
+ */
+type VaultPort = {
+  readonly session: VaultSession;
+  /** The root as last published — what a broadcast is composed with. */
+  root: () => string;
+  /** The listing as last published, for the bound-reference scan. */
+  entries: () => readonly VaultEntry[];
+  /** Re-point the shell's open-path mirror. The callback's identity changes on
+   * every parent render; the session's must not. */
+  setOnOpenPath: (next: (path: string | null) => void) => void;
+};
+
+type VaultPortInputs = {
+  api: Api;
+  /** A deep link's note, consulted once at boot ahead of the localStorage
+   * restore. */
+  bootPath: string | null;
+  store: OpenNoteStore;
+  publishEntries: (entries: VaultEntry[]) => void;
+  publishVaultName: (name: string) => void;
+};
+
+function createVaultPort({
+  api,
+  bootPath,
+  store,
+  publishEntries,
+  publishVaultName,
+}: VaultPortInputs): VaultPort {
+  let root = "";
+  let listing: readonly VaultEntry[] = [];
+  let mirrorOpenPath: (path: string | null) => void = noOpenPathMirror;
+  const io = createGuardedVaultIo(api);
+  const session = createVaultSession({
+    boot: async (): Promise<WorkspaceBoot> => {
+      const tree = await api.vault.tree();
+      publishVaultName(tree.name);
+      const flat = listingEntries(tree);
+      // The deep link wins, then the last-open note, then the first doc — the
+      // app never lands on an empty editor when the vault has notes.
+      const known = (path: string | null): path is string =>
+        path !== null && flat.some((entry) => entry.path === path && entry.kind === "doc");
+      const last = readLastOpenNote();
+      // Among the virgin-boot seeds, Welcome is the front door — plain
+      // listing order would land on "Getting Started" first.
+      const target = known(bootPath)
+        ? bootPath
+        : known(last)
+          ? last
+          : known("Welcome.md")
+            ? "Welcome.md"
+            : (flat.find((entry) => entry.kind === "doc")?.path ?? null);
+      let openNote: WorkspaceBoot["openNote"] = null;
+      if (target !== null) {
+        const content = await io.read(target).catch(() => null);
+        if (content !== null) openNote = { path: target, content };
+      }
+      return { root: tree.root, entries: flat, openNote };
+    },
+    list: async () => listingEntries(await api.vault.tree()),
+    // No host re-announce over HTTP — a refresh IS a re-list, published
+    // through the same ordered path list() callers use.
+    refresh: () => Promise.resolve(),
+    // Any refusal reads as "not there", and that is safe because of what the
+    // caller does next: open-or-create re-attempts the same path with a write,
+    // which reports its own failure rather than truncating anything.
+    exists: async (path) => {
+      const { error } = await safe(api.vault.read({ path }));
+      return error === null;
+    },
+    rename: async (from, to) => {
+      try {
+        await api.vault.rename({ from, to });
+        return { ok: true };
+      } catch (error) {
+        return { ok: false, error: refusalMessage(error, `Could not rename ${from}.`) };
+      }
+    },
+    note: io,
+    publishListing: (next) => {
+      listing = next;
+      publishEntries(next);
+    },
+    publishRoot: (next) => {
+      root = next;
+    },
+    publishOpenPath: (path, change) => {
+      store.publishOpenPath(path, change);
+      writeLastOpenNote(path);
+      mirrorOpenPath(path);
+    },
+    publishEditor: store.publishEditor,
+    // One surface: the editor column is always up in this shell.
+    showEditor: () => {},
+    notify: (level, message) => {
+      if (level === "error") toast.error(message);
+      else toast.warning(message);
+    },
+  });
+
+  return {
+    session,
+    root: () => root,
+    entries: () => listing,
+    setOnOpenPath: (next) => {
+      mirrorOpenPath = next;
+    },
+  };
 }
 
 /** The base-bytes-guarded VaultIO (CAS + diff3 retry). */

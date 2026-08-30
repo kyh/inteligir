@@ -54,8 +54,16 @@ export function useThreadTimeline(threadId: string | null): ThreadTimeline | nul
   const { api, threadEvents } = useWorkspace();
   const [timeline, setTimeline] = useState<ThreadTimeline | null>(null);
 
-  useEffect(() => {
+  // A switch drops the previous thread's rows as the new id arrives rather
+  // than one commit later: the caller must never be handed a timeline that
+  // belongs to a thread it has stopped showing.
+  const [shownFor, setShownFor] = useState(threadId);
+  if (shownFor !== threadId) {
+    setShownFor(threadId);
     setTimeline(null);
+  }
+
+  useEffect(() => {
     if (threadId === null) {
       return undefined;
     }

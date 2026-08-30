@@ -70,7 +70,7 @@ function NotePane({ path, showRich }: { path: string; showRich: boolean }) {
   }, []);
   useEffect(() => {
     if (titleRef.current) titleRef.current.textContent = displayName;
-  }, [displayName]);
+  }, [displayName, titleRef]);
 
   // ⌘T (editor-shortcuts) reaches this title through the registry, keyed so
   // the pressed editor and the title it focuses name the same note.
@@ -80,7 +80,7 @@ function NotePane({ path, showRich }: { path: string; showRich: boolean }) {
         titleRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
         titleRef.current?.focus();
       }),
-    [path],
+    [path, titleRef],
   );
 
   const ext = dot > 0 ? fileName.slice(dot) : "";
@@ -132,7 +132,7 @@ function NotePane({ path, showRich }: { path: string; showRich: boolean }) {
     };
     window.addEventListener("blur", onWindowBlur);
     return () => window.removeEventListener("blur", onWindowBlur);
-  }, []);
+  }, [titleRef]);
   useEffect(
     () => () => {
       if (editingRef.current) {
@@ -140,7 +140,7 @@ function NotePane({ path, showRich }: { path: string; showRich: boolean }) {
         commitTitleRef.current(titleRef.current?.textContent ?? "");
       }
     },
-    [],
+    [titleRef],
   );
 
   // Enter in the title drops the caret into the body (potion behavior): the

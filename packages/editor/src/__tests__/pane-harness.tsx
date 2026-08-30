@@ -6,7 +6,7 @@
 // the note's own sidecar — so a case that mounts one without a store asserts
 // against a surface the app never draws.
 
-import { useEffect } from "react";
+import { useEffect, useImperativeHandle, type Ref } from "react";
 import { Plate, PlateContent, usePlateEditor, type PlateEditor } from "platejs/react";
 import type { Value } from "platejs";
 
@@ -15,24 +15,24 @@ import { registerLiveEditor } from "@repo/editor/live-editor";
 import { OpenNoteStoreProvider } from "@repo/editor/note/open-note-context";
 import type { OpenNoteStore } from "@repo/editor/note/open-note-store";
 
-/** Where a case that must drive the editor directly reads it from. */
-export type EditorHolder = { editor: PlateEditor | null };
-
 export function PaneHarness({
   value,
   store,
-  holder,
+  ref,
   livePath,
 }: {
   value: Value;
   store: OpenNoteStore;
-  holder?: EditorHolder;
+  /** Where a case that must drive the editor directly reads it from — the
+   * harness hands the editor out the way any component hands out a handle,
+   * rather than writing into an object it was passed. */
+  ref?: Ref<PlateEditor>;
   /** The note this editor serves. Given, the pane registers it the way the
    * mounted rich editor does, so a non-React caller can find it by path. */
   livePath?: string;
 }) {
   const editor = usePlateEditor({ plugins: EDITOR_KIT, value });
-  if (holder !== undefined) holder.editor = editor;
+  useImperativeHandle(ref, () => editor, [editor]);
   useEffect(() => {
     if (livePath === undefined) return;
     return registerLiveEditor(livePath, editor);

@@ -5,8 +5,9 @@
 // distinct active tint, and the cycle all assert on rendered leaves.
 
 import { render } from "@testing-library/react";
-import { act } from "react";
+import { act, createRef } from "react";
 import type { Value } from "platejs";
+import type { PlateEditor } from "platejs/react";
 import { beforeAll, describe, expect, it } from "vitest";
 
 import {
@@ -18,7 +19,7 @@ import {
 } from "@repo/editor/find-bar";
 import { createOpenNoteStore } from "@repo/editor/note/open-note-store";
 
-import { PaneHarness, type EditorHolder } from "./pane-harness";
+import { PaneHarness } from "./pane-harness";
 
 const STORE = createOpenNoteStore();
 
@@ -31,9 +32,9 @@ beforeAll(() => {
 
 describe("find bar", () => {
   it("highlights every case-insensitive match and tints the active one apart", () => {
-    const holder: EditorHolder = { editor: null };
-    const view = render(<PaneHarness value={VALUE} store={STORE} holder={holder} />);
-    const editor = holder.editor;
+    const holder = createRef<PlateEditor>();
+    const view = render(<PaneHarness value={VALUE} store={STORE} ref={holder} />);
+    const editor = holder.current;
     expect(editor).not.toBeNull();
     if (editor === null) return;
 

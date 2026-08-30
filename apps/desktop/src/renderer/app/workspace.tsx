@@ -255,16 +255,23 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
   }, []);
 
   // The `#tag` chips' (and deep links') "open the palette on this query"
-  // seam: adopt-then-consume, so a later ⌘P opens on an empty box. Idempotent
-  // under StrictMode — consuming clears the store, and the paletteOpen guard
-  // keeps a re-fire from clobbering a box the user is already typing in.
+  // seam: adopt-then-consume, so a later ⌘P opens on an empty box. The
+  // paletteOpen guard keeps a re-fire from clobbering a box the user is already
+  // typing in; a request that lands while it IS open stays pending until it
+  // closes. Adopting during render and consuming after commit splits what was
+  // one effect, and the two halves are joined by the box itself: the request is
+  // honored — and cleared — only once the palette is open ON it, which is also
+  // what keeps a StrictMode re-fire idempotent.
   const searchRequest = useSearchRequest((state) => state.query);
-  useEffect(() => {
-    if (searchRequest === null || paletteOpen) return;
+  if (searchRequest !== null && !paletteOpen) {
     setPaletteQuery(searchRequest);
     setPaletteOpen(true);
-    consumeSearchRequest();
-  }, [searchRequest, paletteOpen]);
+  }
+  useEffect(() => {
+    if (searchRequest !== null && paletteOpen && paletteQuery === searchRequest) {
+      consumeSearchRequest();
+    }
+  }, [searchRequest, paletteOpen, paletteQuery]);
 
   useGlobalShortcuts(shortcutModifier, (action) => {
     switch (action) {

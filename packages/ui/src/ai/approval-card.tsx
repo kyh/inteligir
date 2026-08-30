@@ -37,12 +37,19 @@ export interface ApprovalAnswer {
   custom?: string;
 }
 
+/** An answer made in the same event as the submit, not yet in card state. */
+interface PendingAnswer {
+  questionId: string;
+  optionIds: string[];
+  custom: string;
+}
+
 interface ApprovalCardContextValue {
   register: (questionId: string) => void;
   answer: (questionId: string, optionIds: string[], custom: string) => void;
   picked: Record<string, string[]>;
   custom: Record<string, string>;
-  submit: () => void;
+  submit: (pending?: PendingAnswer) => void;
   hasAnswer: boolean;
 }
 
@@ -85,24 +92,6 @@ const ApprovalCard = forwardRef<HTMLDivElement, ApprovalCardProps>(
     const [picked, setPicked] = useState<Record<string, string[]>>({});
     const [custom, setCustom] = useState<Record<string, string>>({});
     const [sent, setSent] = useState(false);
-    /** A commit-on-pick answer must reach the caller AFTER the state that
-     *  produced it, so a pick raises this and the effect below sends. */
-    const [sending, setSending] = useState(false);
-
-    useEffect(() => {
-      if (!sending) {
-        return;
-      }
-      setSending(false);
-      setSent(true);
-      onSubmit(
-        order.map((questionId) => {
-          const text = (custom[questionId] ?? "").trim();
-          const entry: ApprovalAnswer = { questionId, optionIds: picked[questionId] ?? [] };
-          return text.length > 0 ? { ...entry, custom: text } : entry;
-        }),
-      );
-    }, [sending, order, picked, custom, onSubmit]);
 
     const answered = order.filter(
       (id) => (picked[id] ?? []).length > 0 || (custom[id] ?? "").trim().length > 0,
@@ -115,7 +104,26 @@ const ApprovalCard = forwardRef<HTMLDivElement, ApprovalCardProps>(
       setPicked((current) => ({ ...current, [questionId]: optionIds }));
       setCustom((current) => ({ ...current, [questionId]: nextCustom }));
     }, []);
-    const submit = useCallback(() => setSending(true), []);
+    const submit = useCallback(
+      (pending?: PendingAnswer) => {
+        // A commit-on-pick answer is sent in the same handler that made the
+        // pick, so the pick is folded in here rather than read back from the
+        // state it has not landed in yet.
+        const nextPicked =
+          pending === undefined ? picked : { ...picked, [pending.questionId]: pending.optionIds };
+        const nextCustom =
+          pending === undefined ? custom : { ...custom, [pending.questionId]: pending.custom };
+        setSent(true);
+        onSubmit(
+          order.map((questionId) => {
+            const text = (nextCustom[questionId] ?? "").trim();
+            const entry: ApprovalAnswer = { questionId, optionIds: nextPicked[questionId] ?? [] };
+            return text.length > 0 ? { ...entry, custom: text } : entry;
+          }),
+        );
+      },
+      [order, picked, custom, onSubmit],
+    );
     const hasAnswer = order.length > 0 && answered.length === order.length;
     const value = useMemo<ApprovalCardContextValue>(
       () => ({ register, answer, picked, custom, submit, hasAnswer }),
@@ -201,11 +209,13 @@ const ApprovalQuestion = forwardRef<HTMLDivElement, ApprovalQuestionProps>(
           : selected.includes(optionId)
             ? selected.filter((entry) => entry !== optionId)
             : [...selected, optionId];
-      card.answer(questionId, next, kind === "radio" ? "" : (card.custom[questionId] ?? ""));
+      const nextCustom = kind === "radio" ? "" : (card.custom[questionId] ?? "");
+      card.answer(questionId, next, nextCustom);
       // Single-choice commits itself: picking IS the answer, so a confirm
-      // button would ask again about a decision already made.
+      // button would ask again about a decision already made. The pick travels
+      // with the submit — card state only holds it from the next render on.
       if (kind === "radio") {
-        card.submit();
+        card.submit({ questionId, optionIds: next, custom: nextCustom });
       }
     };
 
@@ -363,7 +373,7 @@ const ApprovalActions = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement
           type="button"
           aria-label="Send answers"
           disabled={!hasAnswer}
-          onClick={submit}
+          onClick={() => submit()}
           className={cn(
             "-mr-0.5 flex size-7 items-center justify-center rounded-[8px] transition-[background-color,color,transform] duration-200 enabled:active:scale-[0.96]",
             hasAnswer ? "bg-ink text-background" : "bg-muted text-ink-3",

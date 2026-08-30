@@ -102,12 +102,18 @@ export function CommandPalette({
   const [page, setPage] = useState<Page>("root");
   const [noteHits, setNoteHits] = useState<NoteSearchHit[]>([]);
 
-  useEffect(() => {
+  // Every opening starts on the root page, in the box the caller asked for —
+  // including a caller that routes a fresh query into an already-open palette.
+  // Adjusting as the props arrive rather than after the commit means the box is
+  // never painted holding the previous opening's text.
+  const [openedAs, setOpenedAs] = useState({ open: false, query: initialQuery });
+  if (openedAs.open !== open || openedAs.query !== initialQuery) {
+    setOpenedAs({ open, query: initialQuery });
     if (open) {
       setQuery(initialQuery);
       setPage("root");
     }
-  }, [open, initialQuery]);
+  }
 
   // Async hits, debounced and abortable: a keystroke cancels the pending
   // timer AND aborts an in-flight request, and an aborted answer never

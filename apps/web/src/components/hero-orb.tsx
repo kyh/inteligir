@@ -1,12 +1,18 @@
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 import { useTheme } from "@repo/ui/lib/theme";
 
 import { GeometricOrb } from "./geometric-orb";
 
+// Hydration gate: false through the server render and the hydrating one, true
+// from the first client render on. There is nothing to subscribe to — the
+// snapshot pair *is* the signal — so subscribe hands back a no-op unsubscribe.
+const neverChanges = () => () => {};
+const onClient = () => true;
+const onServer = () => false;
+
 export function HeroOrb() {
   const { resolved } = useTheme();
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  const mounted = useSyncExternalStore(neverChanges, onClient, onServer);
 
   // Default to the dark-mode base before mount (matches the default theme),
   // then track the resolved theme so the orb stays legible on either bg.

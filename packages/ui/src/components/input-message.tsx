@@ -23,7 +23,7 @@ import { fontWeights } from "@repo/ui/lib/font-weight";
 import { spring } from "@repo/ui/lib/springs";
 import { useRadius } from "@repo/ui/lib/radius-context";
 import { SizeProvider, useSize, type SizeVariant } from "@repo/ui/lib/size-context";
-import { useIcon } from "@repo/ui/lib/icon-context";
+import { useIcon, type IconComponent, type IconComponentProps } from "@repo/ui/lib/icon-context";
 import { surfaceClasses } from "@repo/ui/lib/surface-classes";
 import { SurfaceProvider } from "@repo/ui/lib/surface-context";
 import { useProximityHover } from "@repo/ui/hooks/use-proximity-hover";
@@ -83,6 +83,21 @@ function useIsTouch() {
     return () => mq.removeEventListener("change", update);
   }, []);
   return isTouch;
+}
+
+/** Renders a glyph resolved from the icon registry. The tag lives here, where
+ *  it comes from a prop: a registry lookup is not a component React can see as
+ *  stable, so it must never be a JSX tag itself. */
+function Icon({ icon: Glyph, ...props }: { icon: IconComponent } & IconComponentProps) {
+  return <Glyph {...props} />;
+}
+
+/** `Ref` is a union of a callback and a mutable box, and the composer keeps its
+ *  own handle on the textarea while still honouring the consumer's — so both
+ *  shapes have to be written to. */
+function assignRef<T>(ref: Ref<T> | undefined, node: T | null) {
+  if (ref instanceof Function) ref(node);
+  else if (ref) ref.current = node;
 }
 
 const DEFAULT_ACCEPT = "image/png,image/jpeg,application/pdf";
@@ -199,26 +214,41 @@ interface InputMessageProps extends Omit<HTMLAttributes<HTMLDivElement>, "onChan
   suggestions?: string[];
 }
 
+/** The head of the queue auto-dispatches on the streaming → idle edge, whether
+ *  the response finished on its own or the user pressed Stop. Named once so the
+ *  send and its announcement can never drift apart. */
+function autoDispatchHead(
+  prev: InputMessageProps["status"],
+  next: InputMessageProps["status"],
+  supportsQueue: boolean,
+  queue: QueuedMessage[],
+): QueuedMessage | undefined {
+  if (!supportsQueue || prev !== "streaming" || next !== "idle") return undefined;
+  return queue[0];
+}
+
 /** Upstream renders previews through FileThumbnail, whose PDF path drags in
  * pdfjs-dist — not carried. Images preview via an object URL; everything else
  * shows a filename card. */
 function FilePreviewImage({ file, size }: { file: File; size: number }) {
-  const [url, setUrl] = useState<string | null>(null);
-  useEffect(() => {
-    if (!file.type.startsWith("image/")) {
-      setUrl(null);
-      return undefined;
-    }
-    const next = URL.createObjectURL(file);
-    setUrl(next);
-    return () => {
-      URL.revokeObjectURL(next);
-    };
-  }, [file]);
-  if (url !== null) {
+  // The object URL lives exactly as long as the <img> node: minted when React
+  // attaches it, revoked by the ref cleanup. Render has to stay side-effect
+  // free, and publishing the URL through state would mean a first paint with
+  // no `src` at all.
+  const bindImage = useCallback(
+    (node: HTMLImageElement) => {
+      const url = URL.createObjectURL(file);
+      node.src = url;
+      return () => {
+        URL.revokeObjectURL(url);
+      };
+    },
+    [file],
+  );
+  if (file.type.startsWith("image/")) {
     return (
       <img
-        src={url}
+        ref={bindImage}
         alt={file.name}
         style={{ width: size, height: size }}
         className="rounded-lg object-cover"
@@ -277,7 +307,7 @@ function FilePreviewTile({ file, onRemove, size }: FilePreviewTileProps) {
           // instead of flipping with the surrounding surface.
           className="absolute top-1 right-1 w-5 h-5 rounded-full bg-neutral-900 text-white opacity-0 group-hover/tile:opacity-100 transition-opacity duration-80 flex items-center justify-center cursor-pointer outline-none focus-visible:opacity-100 focus-visible:ring-1 focus-visible:ring-[color:var(--focus-ring,#6B97FF)]"
         >
-          <XIcon size={12} strokeWidth={2.5} />
+          <Icon icon={XIcon} size={12} strokeWidth={2.5} />
         </button>
       </Tooltip>
     </motion.div>
@@ -356,7 +386,7 @@ function QueuedRow({
     >
       {fileCount > 0 && (
         <span className="flex shrink-0 items-center gap-0.5 text-muted-foreground">
-          <ImageIcon size={13} />
+          <Icon icon={ImageIcon} size={13} />
           {item.text && <span className="tabular-nums">{fileCount}</span>}
         </span>
       )}
@@ -388,7 +418,7 @@ function QueuedRow({
             "focus-visible:ring-1 focus-visible:ring-[color:var(--focus-ring,#6B97FF)]",
           )}
         >
-          <XIcon size={13} strokeWidth={2.5} />
+          <Icon icon={XIcon} size={13} strokeWidth={2.5} />
         </button>
       </Tooltip>
     </Reorder.Item>
@@ -459,12 +489,14 @@ function SuggestionRow({
           takes the same slot while nothing is highlighted, signposting the
           keyboard path into the list. */}
       {!active && keyHint ? (
-        <ArrowDownIcon
+        <Icon
+          icon={ArrowDownIcon}
           size={13}
           className="shrink-0 text-muted-foreground/70 transition-opacity duration-80"
         />
       ) : (
-        <EnterIcon
+        <Icon
+          icon={EnterIcon}
           size={13}
           className={cn(
             "shrink-0 transition-opacity duration-80",
@@ -523,7 +555,9 @@ const InputMessage = forwardRef<HTMLDivElement, InputMessageProps>(
     const isTouch = useIsTouch();
 
     const textareaRef = useRef<HTMLTextAreaElement>(null);
-    const fileInputRef = useRef<HTMLInputElement>(null);
+    // State-backed callback ref: openFilePicker is handed to the consumer's
+    // slots during render, so it must not close over a ref.
+    const [fileInput, setFileInput] = useState<HTMLInputElement | null>(null);
     const [focusVisible, setFocusVisible] = useState(false);
     const [dragOver, setDragOver] = useState(false);
     const [hovered, setHovered] = useState(false);
@@ -547,11 +581,6 @@ const InputMessage = forwardRef<HTMLDivElement, InputMessageProps>(
     // Queue is active only when both the status is controlled and a change
     // handler is wired — same opt-in shape as `supportsFiles`.
     const queueArr = useMemo(() => queue ?? [], [queue]);
-    // Always-current view of the queue, so enqueue/edit/remove/move read the
-    // latest value even if a handler closure is stale (e.g. two submits land
-    // before the controlled `queue` prop round-trips back).
-    const queueRef = useRef(queueArr);
-    queueRef.current = queueArr;
     const supportsQueue = status !== undefined && onQueueChange !== undefined;
     const streaming = status === "streaming";
     const [liveMsg, setLiveMsg] = useState("");
@@ -595,13 +624,14 @@ const InputMessage = forwardRef<HTMLDivElement, InputMessageProps>(
       measureItems,
     } = useProximityHover(suggestionListRef);
 
-    // Publish row rects as soon as the list is (re)opened or its content
-    // changes — same as Dropdown. Row registration alone schedules the
-    // measurement on a rAF, which is not guaranteed to have run before the
-    // first highlight renders.
+    // Publish row rects as soon as the list is (re)opened — same as Dropdown.
+    // Row registration alone schedules the measurement on a rAF, which is not
+    // guaranteed to have run before the first highlight renders. Content
+    // changes need no entry here: adding or dropping a row re-registers it,
+    // and the hook remeasures on registration.
     useEffect(() => {
       if (suggestionsOpen) measureItems();
-    }, [suggestionsOpen, suggestionsArr, measureItems]);
+    }, [suggestionsOpen, measureItems]);
     const suggestionListId = useId();
     const ghostHintId = useId();
     const showGhost = !!placeholderSuggestion && value === "" && !(dragOver && supportsFiles);
@@ -703,7 +733,7 @@ const InputMessage = forwardRef<HTMLDivElement, InputMessageProps>(
           text: trimmed,
           files: filesArr,
         };
-        onQueueChange?.([...queueRef.current, item]);
+        onQueueChange?.([...queueArr, item]);
         onValueChange("");
         if (supportsFiles) onFilesChange?.([]);
         requestAnimationFrame(() => textareaRef.current?.focus());
@@ -717,6 +747,7 @@ const InputMessage = forwardRef<HTMLDivElement, InputMessageProps>(
       onSend,
       trimmed,
       filesArr,
+      queueArr,
       onQueueChange,
       onValueChange,
       supportsFiles,
@@ -725,23 +756,31 @@ const InputMessage = forwardRef<HTMLDivElement, InputMessageProps>(
 
     const handleStop = useCallback(() => onStop?.(), [onStop]);
 
-    // Auto-dispatch: on the streaming → idle edge (whether the response
-    // finished on its own or the user pressed Stop), fire the head of the
-    // queue and drop it. The consumer is expected to set status back to
-    // "streaming" inside onSend, which re-arms this for the next item.
+    // Auto-dispatch: fire the head of the queue on the streaming → idle edge
+    // and drop it. The consumer is expected to set status back to "streaming"
+    // inside onSend, which re-arms this for the next item. The edge lives in a
+    // ref so a re-run on a changed handler identity stays a no-op.
     const prevStatusRef = useRef(status);
     useEffect(() => {
       const prev = prevStatusRef.current;
       prevStatusRef.current = status;
-      if (!supportsQueue) return;
-      if (prev === "streaming" && status === "idle" && queueArr.length > 0) {
-        const [next, ...rest] = queueArr;
-        if (next === undefined) return;
-        onQueueChange?.(rest);
-        onSend?.(next.text, next.files, { queuedId: next.id });
-        setLiveMsg(`Message sent.${rest.length ? ` ${rest.length} still queued.` : ""}`);
-      }
+      const head = autoDispatchHead(prev, status, supportsQueue, queueArr);
+      if (head === undefined) return;
+      onQueueChange?.(queueArr.slice(1));
+      onSend?.(head.text, head.files, { queuedId: head.id });
     }, [status, supportsQueue, queueArr, onQueueChange, onSend]);
+
+    // The announcement for that dispatch is adjusted during render off the same
+    // edge — the effect above cannot publish it without cascading a second
+    // render — so it reads `status` as committed, one pass before the send.
+    const [prevStatus, setPrevStatus] = useState(status);
+    if (prevStatus !== status) {
+      setPrevStatus(status);
+      if (autoDispatchHead(prevStatus, status, supportsQueue, queueArr) !== undefined) {
+        const remaining = queueArr.length - 1;
+        setLiveMsg(`Message sent.${remaining ? ` ${remaining} still queued.` : ""}`);
+      }
+    }
 
     // ── Queue item actions ────────────────────────────────────────────
     const editQueued = useCallback(
@@ -754,7 +793,7 @@ const InputMessage = forwardRef<HTMLDivElement, InputMessageProps>(
         if (supportsFiles) {
           onFilesChange?.(maxFiles != null ? item.files.slice(0, maxFiles) : item.files);
         }
-        onQueueChange?.(queueRef.current.filter((q) => q.id !== item.id));
+        onQueueChange?.(queueArr.filter((q) => q.id !== item.id));
         requestAnimationFrame(() => {
           const el = textareaRef.current;
           if (!el) return;
@@ -762,17 +801,25 @@ const InputMessage = forwardRef<HTMLDivElement, InputMessageProps>(
           el.setSelectionRange(el.value.length, el.value.length);
         });
       },
-      [supportsQueue, supportsFiles, onValueChange, onFilesChange, maxFiles, onQueueChange],
+      [
+        supportsQueue,
+        supportsFiles,
+        onValueChange,
+        onFilesChange,
+        maxFiles,
+        onQueueChange,
+        queueArr,
+      ],
     );
 
     const removeQueued = useCallback(
-      (item: QueuedMessage) => onQueueChange?.(queueRef.current.filter((q) => q.id !== item.id)),
-      [onQueueChange],
+      (item: QueuedMessage) => onQueueChange?.(queueArr.filter((q) => q.id !== item.id)),
+      [onQueueChange, queueArr],
     );
 
     const moveQueued = useCallback(
       (item: QueuedMessage, dir: -1 | 1) => {
-        const cur = queueRef.current;
+        const cur = queueArr;
         const i = cur.findIndex((q) => q.id === item.id);
         const j = i + dir;
         if (i < 0 || j < 0 || j >= cur.length) return;
@@ -784,7 +831,7 @@ const InputMessage = forwardRef<HTMLDivElement, InputMessageProps>(
         next[j] = a;
         onQueueChange?.(next);
       },
-      [onQueueChange],
+      [onQueueChange, queueArr],
     );
 
     // Send button morph: Stop (streaming + empty draft) → Queue (streaming +
@@ -990,23 +1037,22 @@ const InputMessage = forwardRef<HTMLDivElement, InputMessageProps>(
 
     const openFilePicker = useCallback(
       (overrideAccept?: string) => {
-        const el = fileInputRef.current;
-        if (!el) return;
+        if (!fileInput) return;
         // Temporarily narrow `accept` for this invocation (e.g. "image/*").
         // Reset after the click so subsequent native invocations still honor
         // the component-level accept.
         if (overrideAccept) {
-          el.accept = overrideAccept;
-          el.click();
+          fileInput.setAttribute("accept", overrideAccept);
+          fileInput.click();
           // Restore on next tick — the picker dialog reads `accept` synchronously.
           queueMicrotask(() => {
-            if (fileInputRef.current) fileInputRef.current.accept = accept;
+            fileInput.setAttribute("accept", accept);
           });
           return;
         }
-        el.click();
+        fileInput.click();
       },
-      [accept],
+      [accept, fileInput],
     );
 
     // ── Slot rendering ────────────────────────────────────────────────
@@ -1083,7 +1129,7 @@ const InputMessage = forwardRef<HTMLDivElement, InputMessageProps>(
         <SurfaceProvider value={2}>
           {supportsFiles && (
             <input
-              ref={fileInputRef}
+              ref={setFileInput}
               type="file"
               accept={accept}
               multiple={maxFiles == null || maxFiles > 1}
@@ -1180,8 +1226,7 @@ const InputMessage = forwardRef<HTMLDivElement, InputMessageProps>(
             <textarea
               ref={(node) => {
                 textareaRef.current = node;
-                if (consumerTextareaRef instanceof Function) consumerTextareaRef(node);
-                else if (consumerTextareaRef) consumerTextareaRef.current = node;
+                assignRef(consumerTextareaRef, node);
               }}
               value={value}
               onChange={(e) => {
@@ -1312,7 +1357,8 @@ const InputMessage = forwardRef<HTMLDivElement, InputMessageProps>(
                       // Override icon-sm's small 14px svg — the send glyph reads
                       // better a touch larger. `size` matches the attribute to
                       // the CSS so the svg box stays centered.
-                      <ArrowUpIcon
+                      <Icon
+                        icon={ArrowUpIcon}
                         size={compactStep ? 15 : 19}
                         className={cn(
                           "block",

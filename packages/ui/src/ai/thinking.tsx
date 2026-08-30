@@ -7,7 +7,6 @@ import {
   useContext,
   useLayoutEffect,
   useMemo,
-  useRef,
   useState,
   type HTMLAttributes,
   type ReactNode,
@@ -66,13 +65,19 @@ const Thinking = forwardRef<HTMLDivElement, ThinkingProps>(
   ) => {
     const [manualExpanded, setManualExpanded] = useState<boolean | null>(null);
     const expanded = manualExpanded ?? defaultExpanded;
-    const traceRef = useRef<HTMLDivElement>(null);
+    const [traceEl, setTraceEl] = useState<HTMLDivElement | null>(null);
     const [ruleHeight, setRuleHeight] = useState(0);
     // The rule is drawn to the trace's measured height so it grows with the
-    // rows instead of overshooting the last one.
+    // rows instead of overshooting the last one. Observed rather than measured
+    // per render: the rows are children the caller streams in, and the trace
+    // also reflows on its own (a row's text wrapping, a font landing) with no
+    // render of this component to hang a measurement on.
     useLayoutEffect(() => {
-      if (traceRef.current !== null) setRuleHeight(traceRef.current.offsetHeight);
-    }, [children, expanded]);
+      if (traceEl === null) return;
+      const ro = new ResizeObserver(() => setRuleHeight(traceEl.offsetHeight));
+      ro.observe(traceEl);
+      return () => ro.disconnect();
+    }, [traceEl]);
 
     const context = useMemo(() => ({ working }), [working]);
 
@@ -142,7 +147,7 @@ const Thinking = forwardRef<HTMLDivElement, ThinkingProps>(
                 {/* The entrance stagger is CSS rather than a per-row index, so
                     rows stay ordinary children the caller composes. */}
                 <div
-                  ref={traceRef}
+                  ref={setTraceEl}
                   data-slot="thinking-trace"
                   className="flex flex-col gap-1 py-1 [&>*:nth-child(2)]:[animation-delay:120ms] [&>*:nth-child(3)]:[animation-delay:240ms] [&>*:nth-child(4)]:[animation-delay:360ms] [&>*:nth-child(5)]:[animation-delay:480ms] [&>*:nth-child(n+6)]:[animation-delay:600ms]"
                 >

@@ -74,19 +74,8 @@ interface DropdownProps extends ComponentProps<"div"> {
 const Dropdown = forwardRef<HTMLDivElement, DropdownProps>(
   ({ children, checkedIndex, size, className, ...props }, ref) => {
     const containerRef = useRef<HTMLDivElement | null>(null);
-    const {
-      activeIndex,
-      setActiveIndex,
-      itemRects,
-      session,
-      handlers,
-      registerItem,
-      measureItems,
-    } = useProximityHover(containerRef);
-
-    useEffect(() => {
-      measureItems();
-    }, [measureItems, children]);
+    const { activeIndex, setActiveIndex, itemRects, session, handlers, registerItem } =
+      useProximityHover(containerRef);
 
     const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
 

@@ -109,9 +109,17 @@ function CommentCreateHost() {
   const pending = armed !== null && armed.path === notePath ? armed : null;
   const pendingId = pending?.id ?? null;
 
+  // Each armed draft starts empty. The arming happens outside React (the
+  // module store), so there is no event to clear the field from — re-key it
+  // during render instead, before the popover paints.
+  const [draftId, setDraftId] = useState(pendingId);
+  if (draftId !== pendingId) {
+    setDraftId(pendingId);
+    setText("");
+  }
+
   useEffect(() => {
     if (pendingId === null) return;
-    setText("");
     requestAnimationFrame(() => fieldRef.current?.focus());
   }, [pendingId]);
 

@@ -21,6 +21,27 @@ const HEADING_DEPTH = new Map<string, number>([
 // Clearance for the sticky header so a scrolled-to heading isn't tucked under it.
 const HEADER_OFFSET = 64;
 
+const SCROLL_DURATION_MS = 200;
+
+// `behavior: "smooth"` is ignored by both scrollIntoView and scrollTo on this
+// scroller, so the offset is tweened by hand: a short rAF ease-out to the
+// target, leaving room for the sticky header. Module scope, not a closure in
+// the component: the tween is a DOM animation driven by a click, and reading
+// the clock is not something a render may do.
+function tweenScrollTo(scroller: Element, el: HTMLElement): void {
+  const from = scroller.scrollTop;
+  const to =
+    el.getBoundingClientRect().top - scroller.getBoundingClientRect().top + from - HEADER_OFFSET;
+  const start = performance.now();
+  const step = (now: number) => {
+    const t = Math.min(1, (now - start) / SCROLL_DURATION_MS);
+    const eased = 1 - (1 - t) ** 3; // easeOutCubic
+    scroller.scrollTop = from + (to - from) * eased;
+    if (t < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+
 function collectHeadings(editor: ReturnType<typeof useEditorRef>): HeadingItem[] {
   const out: HeadingItem[] = [];
   for (const [node, path] of editor.api.nodes<TElement>({
@@ -93,29 +114,10 @@ export function TableOfContents() {
 
   if (headings.length === 0) return null;
 
-  // `behavior: "smooth"` is ignored by both scrollIntoView and scrollTo on this
-  // scroller, so the offset is tweened by hand: a short rAF ease-out to the
-  // target, leaving room for the sticky header.
   const scrollTo = (index: number) => {
     const el = editorHeadingEls(editor)[index];
     const scroller = rootRef.current?.closest("[data-editor-scroller]");
-    if (el && scroller) {
-      const from = scroller.scrollTop;
-      const to =
-        el.getBoundingClientRect().top -
-        scroller.getBoundingClientRect().top +
-        from -
-        HEADER_OFFSET;
-      const start = performance.now();
-      const DURATION = 200;
-      const step = (now: number) => {
-        const t = Math.min(1, (now - start) / DURATION);
-        const eased = 1 - (1 - t) ** 3; // easeOutCubic
-        scroller.scrollTop = from + (to - from) * eased;
-        if (t < 1) requestAnimationFrame(step);
-      };
-      requestAnimationFrame(step);
-    }
+    if (el && scroller) tweenScrollTo(scroller, el);
     setActiveIndex(index);
   };
 

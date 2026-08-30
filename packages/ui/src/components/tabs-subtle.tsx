@@ -63,7 +63,9 @@ const TabsSubtle = forwardRef<HTMLDivElement, TabsSubtleProps>(
     ref,
   ) => {
     const containerRef = useRef<HTMLDivElement>(null);
-    const isMouseInside = useRef(false);
+    // State rather than a ref: the hover pill's `exit` is chosen during render
+    // from whether the pointer is still over the strip.
+    const [isMouseInside, setIsMouseInside] = useState(false);
     const radius = useRadius();
 
     const {
@@ -75,44 +77,42 @@ const TabsSubtle = forwardRef<HTMLDivElement, TabsSubtleProps>(
       measureItems: measureTabs,
     } = useProximityHover(containerRef, { axis: "x" });
 
-    // Track tab elements locally so we can observe their individual resizes
-    const tabElementsRef = useRef(new Map<number, HTMLElement>());
+    // Track tab elements locally so we can observe their individual resizes.
+    // State rather than a ref because the observer effect below is rebuilt from
+    // this map — a ref would give it nothing to depend on.
+    const [tabElements, setTabElements] = useState<ReadonlyMap<number, HTMLElement>>(new Map());
     const registerTab = useCallback(
       (index: number, element: HTMLElement | null) => {
         registerItem(index, element);
-        if (element) {
-          tabElementsRef.current.set(index, element);
-        } else {
-          tabElementsRef.current.delete(index);
-        }
+        setTabElements((prev) => {
+          const next = new Map(prev);
+          if (element) next.set(index, element);
+          else next.delete(index);
+          return next;
+        });
       },
       [registerItem],
     );
 
-    useEffect(() => {
-      measureTabs();
-    }, [measureTabs, children]);
-
     // Observe individual tab buttons for resize (label expand/collapse in activeLabel mode)
     useEffect(() => {
-      const elements = tabElementsRef.current;
-      if (elements.size === 0) return;
+      if (tabElements.size === 0) return;
       const ro = new ResizeObserver(() => measureTabs());
-      elements.forEach((el) => ro.observe(el));
+      tabElements.forEach((el) => ro.observe(el));
       return () => ro.disconnect();
-    }, [measureTabs, children]);
+    }, [measureTabs, tabElements]);
 
     // Wrap handlers to track isMouseInside
     const handleMouseMove = useCallback(
       (e: React.MouseEvent) => {
-        isMouseInside.current = true;
+        setIsMouseInside(true);
         handlers.onMouseMove(e);
       },
       [handlers],
     );
 
     const handleMouseLeave = useCallback(() => {
-      isMouseInside.current = false;
+      setIsMouseInside(false);
       handlers.onMouseLeave();
     }, [handlers]);
 
@@ -177,7 +177,7 @@ const TabsSubtle = forwardRef<HTMLDivElement, TabsSubtleProps>(
                 )
                   return;
                 setFocusedIndex(null);
-                if (isMouseInside.current) return;
+                if (isMouseInside) return;
                 setHoveredIndex(null);
               }}
               className={cn(
@@ -231,7 +231,7 @@ const TabsSubtle = forwardRef<HTMLDivElement, TabsSubtleProps>(
                       opacity: 0.4,
                     }}
                     exit={
-                      !isMouseInside.current && selectedRect
+                      !isMouseInside && selectedRect
                         ? {
                             left: selectedRect.left,
                             width: selectedRect.width,

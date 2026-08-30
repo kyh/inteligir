@@ -31,7 +31,7 @@ import { spring } from "@repo/ui/lib/springs";
 import { fontWeights } from "@repo/ui/lib/font-weight";
 import { useRadius } from "@repo/ui/lib/radius-context";
 import { useSize, useSizeVariant } from "@repo/ui/lib/size-context";
-import { useIcon } from "@repo/ui/lib/icon-context";
+import { useIcons } from "@repo/ui/lib/icon-context";
 import { useSurface, SurfaceProvider } from "@repo/ui/lib/surface-context";
 import { surfaceClasses } from "@repo/ui/lib/surface-classes";
 import { Button, type ButtonProps } from "@repo/ui/components/button";
@@ -751,9 +751,11 @@ const SidebarTrigger = forwardRef<HTMLButtonElement, SidebarTriggerProps>(
   ({ onClick, size, children, ...props }, ref) => {
     const { toggleSidebar, open, openMobile, isMobile, side } = useSidebar();
     const shortcutKey = useShortcutKey();
-    const PanelLeftIcon = useIcon("panel-left");
-    const PanelRightIcon = useIcon("panel-right");
-    const TriggerIcon = side === "right" ? PanelRightIcon : PanelLeftIcon;
+    // Taken off the icon map rather than through useIcon: a glyph read out of a
+    // map is data, while a hook that hands back a component reads as one built
+    // per render, which is the thing that would remount it.
+    const icons = useIcons();
+    const TriggerIcon = side === "right" ? icons["panel-right"] : icons["panel-left"];
     const iconSize = useSizeVariant() === "compact" ? ("icon-compact" as const) : ("icon" as const);
     const collapsed = isMobile ? !openMobile : !open;
 
@@ -1073,9 +1075,7 @@ const SidebarGroup = forwardRef<HTMLDivElement, SidebarGroupProps>(
     // clipped box shaves the 2px focus ring off a group's first and last
     // rows — so clipping lifts once an open group has settled.
     const [settled, setSettled] = useState(open);
-    useEffect(() => {
-      if (!open) setSettled(false);
-    }, [open]);
+    if (settled && !open) setSettled(false);
 
     // Height animates only when THIS group toggles. When the measured height
     // changes underneath it instead — a nested sub-menu collapsing inside the
@@ -1183,7 +1183,7 @@ const SidebarGroupLabel = forwardRef<HTMLDivElement, SidebarGroupLabelProps>(
     const sizeClasses = useSize();
     const group = useContext(SidebarGroupContext);
     const radius = useRadius();
-    const ChevronDownIcon = useIcon("chevron-down");
+    const ChevronDownIcon = useIcons()["chevron-down"];
     const { template, content } = resolveSlotTemplate(render, asChild, children);
 
     // Truncate only the leading text; element children (count badges,
