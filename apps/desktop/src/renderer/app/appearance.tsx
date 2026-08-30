@@ -92,14 +92,12 @@ function pick<Value extends string>(
 }
 
 /** Parse at the boundary: a stored record is user-writable data. */
-export const appearanceSchema = storedAppearanceSchema.transform(
-  (stored): Appearance => ({
-    font: pick(EDITOR_FONTS, stored.font, APPEARANCE_DEFAULTS.font),
-    size: pick(EDITOR_SIZES, stored.size, APPEARANCE_DEFAULTS.size),
-    leading: pick(EDITOR_LEADINGS, stored.leading, APPEARANCE_DEFAULTS.leading),
-    measure: pick(EDITOR_MEASURES, stored.measure, APPEARANCE_DEFAULTS.measure),
-  }),
-);
+export const appearanceSchema = storedAppearanceSchema.transform((stored): Appearance => ({
+  font: pick(EDITOR_FONTS, stored.font, APPEARANCE_DEFAULTS.font),
+  size: pick(EDITOR_SIZES, stored.size, APPEARANCE_DEFAULTS.size),
+  leading: pick(EDITOR_LEADINGS, stored.leading, APPEARANCE_DEFAULTS.leading),
+  measure: pick(EDITOR_MEASURES, stored.measure, APPEARANCE_DEFAULTS.measure),
+}));
 
 function cssOf<Value extends string>(
   options: readonly Option<Value>[],

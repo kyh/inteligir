@@ -67,8 +67,8 @@ const subscribeOptionsSchema = z
         }),
       ),
   })
-  .transform(
-    ({ ignore }): ParcelWatcherSubscribeOptions => (ignore === undefined ? {} : { ignore }),
+  .transform(({ ignore }): ParcelWatcherSubscribeOptions =>
+    ignore === undefined ? {} : { ignore },
   );
 
 /** node's IPC delivers an unparsed payload; both sides read one through these

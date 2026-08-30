@@ -224,13 +224,11 @@ function rewriteRoot(root: Root): void {
     if (collect.aborted || !collect.closed || collect.panels.length === 0) continue;
 
     const tabs: TabGroup = {
-      children: collect.panels.map(
-        (panel): TabPanel => ({
-          children: panel.children,
-          label: panel.label,
-          type: "tabPanel",
-        }),
-      ),
+      children: collect.panels.map((panel): TabPanel => ({
+        children: panel.children,
+        label: panel.label,
+        type: "tabPanel",
+      })),
       type: "tabGroup",
     };
     const replacement: RootChild[] = [tabs];

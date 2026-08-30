@@ -61,9 +61,10 @@ export type DocProjection = {
 export function projectDoc(path: string, content: string): DocProjection {
   const scan = scanDoc(content);
   const lines = splitLines(content);
-  const links = scan.links.map(
-    (link): StoredLink => ({ ...link, snippet: clipSnippet((lines[link.line - 1] ?? "").trim()) }),
-  );
+  const links = scan.links.map((link): StoredLink => ({
+    ...link,
+    snippet: clipSnippet((lines[link.line - 1] ?? "").trim()),
+  }));
   return {
     title: scan.title ?? docStem(path),
     headings: scan.headings,

@@ -4,7 +4,7 @@ packages:
   - tools/*
 
 catalog:
-  "@base-ui/react": ^1.6.0
+  "@base-ui/react": ^1.7.0
   # oRPC (issue #611): ONE contract package, two entry points, four callers.
   # The four halves are versioned together — a contract compiled by one minor
   # and served by another is exactly the drift the package exists to prevent.
@@ -31,19 +31,23 @@ catalog:
   "sherpa-onnx-node": 1.13.6
   tar: ^7.5.22
   unbzip2-stream: ^1.4.3
-  "@cloudflare/vite-plugin": ^1.47.0
-  "@cloudflare/vitest-pool-workers": ^0.18.8
+  "@cloudflare/vite-plugin": ^1.54.2
+  "@cloudflare/vitest-pool-workers": ^0.22.0
   # The mobile companion (issue #576). Expo SDK 57 uses `~57.0.x` unified
   # versioning across its own packages; the react-native peers carry their own
   # ranges. Recovered from the pre-purge catalog — the app is a sync-only
   # thread/capture client, no native module beyond the Keychain/Keystore.
   "@expo/metro-runtime": ~57.0.7
+  # Held on 1.x: @hono/node-ws peers on `@hono/node-server: ^1.19.11` and has no
+  # 2.x-compatible release. node-server 2.0 is otherwise drop-in for the `serve` /
+  # `serve-static` used here (public API unchanged; it drops the unused vercel
+  # adapter and needs Node 20+). Lift both together, never node-server alone.
   "@hono/node-server": ~1.19.17
   "@hono/node-ws": ^1.3.1
-  "@parcel/watcher": ^2.5.6
+  "@parcel/watcher": ^2.6.0
   "@tailwindcss/vite": ^4.3.3
   "@testing-library/dom": ^10.4.1
-  "@testing-library/react": ^16.3.2
+  "@testing-library/react": ^16.3.3
   # Pinned EXACT, and the codegen plugin with it: the generated route tree is
   # an artifact of the plugin's version, so a silent daily release would
   # rewrite a committed file under a build nobody asked to change. The plugin
@@ -55,17 +59,17 @@ catalog:
   "@tanstack/router-plugin": 1.168.35
   "@types/better-sqlite3": ^9.6.0
   "@types/mdast": ^4.0.4
-  "@types/node": ^26.1.1
+  "@types/node": ^26.4.0
   "@types/react": 19.2.17
-  "@types/react-dom": ^19.2.3
-  "@vitejs/plugin-react": ^6.0.4
-  better-auth: ^1.6.25
+  "@types/react-dom": ^19.2.5
+  "@vitejs/plugin-react": ^6.1.1
+  better-auth: ^1.7.2
   better-sqlite3: ^13.0.3
   citty: ^0.2.2
   consola: ^3.4.2
   drizzle-kit: ^0.31.10
   drizzle-orm: ^0.45.2
-  esbuild: ^0.28.1
+  esbuild: ^0.28.2
   expo: ~57.0.8
   expo-constants: ~57.0.7
   expo-crypto: ~57.0.1
@@ -77,10 +81,10 @@ catalog:
   expo-status-bar: ~57.0.1
   expo-system-ui: ~57.0.1
   expo-web-browser: ~57.0.2
-  hono: ^4.13.2
+  hono: ^4.13.5
   jsdom: ^30.0.1
-  lucide-react: ^1.26.0
-  nanoid: ^5.1.16
+  lucide-react: ^1.35.0
+  nanoid: ^6.0.1
   react: ^19.2.8
   react-dom: ^19.2.8
   react-native: ~0.86.0
@@ -93,12 +97,21 @@ catalog:
   tsx: ^4.23.12
   typescript: ^7.0.2
   unified: ^11.0.5
-  vite: ^8.1.5
-  vitest: ^4.1.10
-  wrangler: ^4.114.0
+  vite: ^8.2.2
+  vitest: ^4.1.11
+  wrangler: ^4.127.1
   yaml: ^2.9.0
-  zod: ^4.4.3
-  zustand: ^5.0.14
+  zod: ^4.5.2
+  zustand: ^5.0.15
+
+catalogs:
+  # Expo must hold an SDK-blessed React and TypeScript, which diverge from web's.
+  # Pinning them in a NAMED catalog keeps that constraint explicit and separately
+  # bumpable, instead of an unexplained version literal in apps/mobile/package.json
+  # that looks like drift. Bump only alongside an Expo SDK upgrade.
+  expo:
+    react: 19.2.3
+    typescript: ~6.0.3
 
 # Supply-chain cooldown: never resolve a version published less than 24h ago,
 # so a compromised release has a window to be yanked before it can enter the
@@ -116,9 +129,13 @@ minimumReleaseAgeExclude:
 # be exotic (a deliberate act); a subdep never should be.
 blockExoticSubdeps: true
 
-onlyBuiltDependencies:
-  - "@parcel/watcher"
-  - "@tailwindcss/oxide"
-  - better-sqlite3
-  - esbuild
-  - workerd
+allowBuilds:
+  "@parcel/watcher": true
+  "@tailwindcss/oxide": true
+  better-sqlite3: true
+  electron-winstaller: true
+  esbuild: true
+  workerd: true
+
+overrides:
+  "@types/react": "catalog:"

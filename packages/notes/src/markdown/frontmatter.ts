@@ -203,11 +203,10 @@ export function addFrontmatterAlias(content: string, alias: string): string | nu
   const nextProps: TypedProperty[] =
     existing === undefined
       ? [...props, { key, type: "tags", value: [trimmed] }]
-      : props.map(
-          (p): TypedProperty =>
-            p.key === key && p.type === "tags"
-              ? { key: p.key, type: "tags", value: [...p.value, trimmed] }
-              : p,
+      : props.map((p): TypedProperty =>
+          p.key === key && p.type === "tags"
+            ? { key: p.key, type: "tags", value: [...p.value, trimmed] }
+            : p,
         );
   const nextYaml = serializeProperties(nextProps, yaml ?? "");
   const body = splitFrontmatter(content).body;
@@ -239,11 +238,10 @@ export function addAbsentFrontmatterFields(
   if (absent.length === 0) return null;
   const nextProps: TypedProperty[] = [
     ...props,
-    ...absent.map(
-      (field): TypedProperty =>
-        field.kind === "tags"
-          ? { key: field.key, type: "tags", value: field.value }
-          : { key: field.key, type: "text", value: field.value },
+    ...absent.map((field): TypedProperty =>
+      field.kind === "tags"
+        ? { key: field.key, type: "tags", value: field.value }
+        : { key: field.key, type: "text", value: field.value },
     ),
   ];
   const nextYaml = serializeProperties(nextProps, yaml ?? "");

@@ -305,9 +305,11 @@ export class LinkGraphIndex {
       if (record.pinned) target.pinned = true;
       docs.push(target);
     }
-    const assets = [...this.others].map(
-      (path): WikiTarget => ({ path, title: basenamePath(path), type: "asset" }),
-    );
+    const assets = [...this.others].map((path): WikiTarget => ({
+      path,
+      title: basenamePath(path),
+      type: "asset",
+    }));
     return [...docs.toSorted(byPath), ...assets.toSorted(byPath)];
   }
 

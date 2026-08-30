@@ -26,7 +26,7 @@
     "expo-status-bar": "catalog:",
     "expo-system-ui": "catalog:",
     "expo-web-browser": "catalog:",
-    "react": "catalog:",
+    "react": "catalog:expo",
     "react-native": "catalog:",
     "react-native-safe-area-context": "catalog:",
     "react-native-screens": "catalog:",
@@ -36,7 +36,7 @@
     "@types/mdast": "catalog:",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
-    "typescript": "catalog:",
+    "typescript": "catalog:expo",
     "vitest": "catalog:"
   }
 }
