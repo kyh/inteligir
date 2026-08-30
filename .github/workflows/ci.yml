@@ -24,12 +24,14 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: pnpm/action-setup@v6
-
-      - uses: actions/setup-node@v7
+      # Installs pnpm (version from `packageManager`) and Node, replacing
+      # pnpm/action-setup + actions/setup-node. `install: false` keeps the
+      # explicit Install step below, whose `id` every later step gates on.
+      - uses: pnpm/setup@v2
         with:
-          node-version: 24
-          cache: pnpm
+          runtime: node@24
+          cache: true
+          install: false
 
       # Turbo's local cache across runs: typecheck/build are the slow steps and
       # are pure functions of their inputs, so an unchanged workspace restores

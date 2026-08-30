@@ -1,15 +1,14 @@
 # Deploys @repo/web to Cloudflare Workers on push to main.
 #
-# Repo secrets — two, both pre-existing:
+# Repo secret — one:
 #   CLOUDFLARE_API_TOKEN   Workers Scripts: Edit (account) + Workers Routes:
-#                          Edit (inteligir.com zone) to publish, plus D1: Edit
-#                          for the schema step below.
-#   CLOUDFLARE_ACCOUNT_ID  which account drizzle-kit's HTTP driver targets.
+#                          Edit (inteligir.com zone) to publish.
 #
-# One token serves both steps because a second one would not buy isolation:
-# they run in the same job on the same runner, so whatever reaches one reaches
-# the other. Splitting them only pays off once the schema step moves to a job
-# with its own environment — do it then, not now.
+# The D1 schema is NOT applied here. Schema reaches production only from a
+# local machine (`drizzle-kit push`), which is the rule across every repo.
+# Push the schema BEFORE merging a change that needs it: this deploy ships
+# code against whatever the database already is, and new code against an old
+# schema 500s until the push lands.
 name: Deploy
 
 # Gated on CI rather than on the push: a `push` trigger races the test run and
@@ -47,14 +46,10 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event.workflow_run.head_sha }}
 
-      - uses: pnpm/action-setup@v6
-
-      - uses: actions/setup-node@v7
+      - uses: pnpm/setup@v2
         with:
-          node-version: 24
-          cache: pnpm
-
-      - run: pnpm install --frozen-lockfile
+          runtime: node@24
+          cache: true
 
       # The base is what is DEPLOYED, not the previous commit. Comparing against
       # `HEAD^` answers "did this one commit touch web", so a push of several
@@ -107,52 +102,10 @@ jobs:
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
 
-      - uses: pnpm/action-setup@v6
-
-      - uses: actions/setup-node@v7
+      - uses: pnpm/setup@v2
         with:
-          node-version: 24
-          cache: pnpm
-
-      - run: pnpm install --frozen-lockfile
-
-      # THE SCHEMA GOES FIRST, and it is its own step so the ordering is
-      # visible rather than buried in a `&&` chain.
-      #
-      # This repo has no migration files — `drizzle-kit push` IS the documented
-      # flow (see apps/web/drizzle.config.ts for why: one deployer, an additive
-      # schema, and a test DDL derived from the same source). Nothing was
-      # applying it on the deploy path, so a merge that added a table shipped
-      # code against the old database and every request touching the new table
-      # 500'd until someone ran the push by hand.
-      #
-      # Order, stated: the schema is additive, so applying it before the
-      # publish leaves the OLD code running against a superset it ignores —
-      # harmless. The reverse order is not: new code against the old schema
-      # fails for real, for the whole window. A push that fails fails the job
-      # and nothing is published.
-      #
-      # `--force` because CI has no tty to answer drizzle's prompt. It is safe
-      # for exactly as long as the schema stays additive; a destructive column
-      # change is the trigger to adopt migration files, and it must not be
-      # discovered by this flag applying it unattended.
-      #
-      # The database id is the one in apps/web/wrangler.jsonc — an identifier,
-      # not a credential — so it is read from the config rather than carried as
-      # a fourth secret. The token is the deploy token this job already holds;
-      # it needs D1:Edit alongside the Workers scopes wrangler uses.
-      - name: Apply the D1 schema
-        run: |
-          CLOUDFLARE_DATABASE_ID=$(node -e "
-            const config = require('node:fs').readFileSync('apps/web/wrangler.jsonc', 'utf8');
-            const match = config.match(/\"database_id\":\s*\"([^\"]+)\"/);
-            if (match === null) { throw new Error('no database_id in apps/web/wrangler.jsonc'); }
-            process.stdout.write(match[1]);
-          ") \
-          pnpm -F @repo/web exec drizzle-kit push --force
-        env:
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          CLOUDFLARE_D1_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          runtime: node@24
+          cache: true
 
       - name: Build & deploy web
         run: pnpm turbo run build --filter=@repo/web... && pnpm -F @repo/web exec wrangler deploy
