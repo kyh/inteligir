@@ -33,7 +33,7 @@ import { useIsoLayoutEffect } from "@repo/ui/lib/use-iso-layout-effect";
 import {
   composeRefs,
   resolveSlotTemplate,
-  slotElement,
+  Slot,
   splitLeadingText,
 } from "@repo/ui/components/sidebar-core";
 
@@ -823,23 +823,22 @@ const SidebarMenuButton = forwardRef<HTMLButtonElement, SidebarMenuButtonProps>(
       </>
     );
 
-    return slotElement(
-      template,
-      "button",
-      {
-        ref: composeRefs(buttonRef, ref),
-        type: template ? undefined : "button",
-        "data-sidebar": "menu-button",
-        "data-size": size,
-        "data-active": effectiveActive ? "true" : undefined,
-        "data-status": status,
-        "aria-current": effectiveActive ? "page" : undefined,
-        tabIndex: tabIdx,
-        className: cn(sidebarMenuButtonVariants({ variant }), heightClass, radius.item, className),
-        ...props,
-        style: { ...gutterVars, ...props.style },
-      },
-      inner,
+    const slotProps = {
+      type: template ? undefined : "button",
+      "data-sidebar": "menu-button",
+      "data-size": size,
+      "data-active": effectiveActive ? "true" : undefined,
+      "data-status": status,
+      "aria-current": effectiveActive ? "page" : undefined,
+      tabIndex: tabIdx,
+      className: cn(sidebarMenuButtonVariants({ variant }), heightClass, radius.item, className),
+      ...props,
+      style: { ...gutterVars, ...props.style },
+    };
+    return (
+      <Slot template={template} tag="button" ref={composeRefs(buttonRef, ref)} {...slotProps}>
+        {inner}
+      </Slot>
     );
   },
 );
@@ -869,57 +868,56 @@ const SidebarMenuAction = forwardRef<HTMLButtonElement, SidebarMenuActionProps>(
       setActions(1, showOnHover);
       return () => setActions(0, false);
     }, [inCluster, setActions, showOnHover]);
-    return slotElement(
-      template,
-      "button",
-      {
-        ref,
-        type: template ? undefined : "button",
-        "data-sidebar": "menu-action",
-        "data-show-on-hover": showOnHover ? "" : undefined,
-        className: cn(
-          // right-1.5 centers the 24px hit-box on the same axis as the badge
-          // (right-2 + min-w-5): both land 18px from the row's right edge.
-          // With a badge on the same row the badge keeps that rightmost spot
-          // and the action slides left of it. Inside a cluster the wrapper
-          // owns the positioning and actions simply flow.
-          inCluster
-            ? "relative flex size-6 shrink-0 items-center justify-center text-muted-foreground outline-none"
-            : "absolute right-1.5 z-10 flex size-6 items-center justify-center text-muted-foreground outline-none",
-          !inCluster &&
-            (item?.isSubRow
-              ? "group-has-[>[data-sidebar=menu-badge]]/menu-sub-item:right-8"
-              : "group-has-[>[data-sidebar=menu-badge]]/menu-item:right-8"),
-          !inCluster && (item?.isSubRow || sizeClasses.variant === "compact" ? "top-0.5" : "top-1"),
-          "hover:bg-hover hover:text-foreground transition-[color,background-color,opacity] duration-80",
-          "focus-visible:ring-1 focus-visible:ring-[color:var(--focus-ring,#6B97FF)]",
-          // One icon size across the sidebar: row actions match the leading
-          // icons and the section header's actions, all on the size ladder.
-          "[&_svg]:size-[var(--icon-size)] [&_svg]:shrink-0",
-          radius.item,
-          // Reveal on the OWN row only. A sub action must not use the
-          // menu-item group — its nearest one is the parent li, which would
-          // light every sibling sub action on any hover inside the sub-tree.
-          !inCluster &&
-            showOnHover &&
-            (item?.isSubRow
-              ? "opacity-0 group-hover/menu-sub-item:opacity-100 group-focus-within/menu-sub-item:opacity-100 data-[state=open]:opacity-100 aria-expanded:opacity-100"
-              : // Tracks the row's own button (its peer), not the <li> — a row
-                // that hosts a sub-menu wraps its children too, and hovering a
-                // child should not light the parent's action.
-                "opacity-0 peer-hover/menu-button:opacity-100 peer-focus-visible/menu-button:opacity-100 hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100 aria-expanded:opacity-100"),
-          className,
-        ),
-        onClick: (event: React.MouseEvent<HTMLButtonElement>) => {
-          // The action often sits on a row composed via `render` — keep its
-          // click from also triggering the row.
-          event.stopPropagation();
-          onClick?.(event);
-        },
-        ...props,
-        style: { ...cssVars({ "--icon-size": `${sizeClasses.icon}px` }), ...props.style },
+    const slotProps = {
+      type: template ? undefined : "button",
+      "data-sidebar": "menu-action",
+      "data-show-on-hover": showOnHover ? "" : undefined,
+      className: cn(
+        // right-1.5 centers the 24px hit-box on the same axis as the badge
+        // (right-2 + min-w-5): both land 18px from the row's right edge.
+        // With a badge on the same row the badge keeps that rightmost spot
+        // and the action slides left of it. Inside a cluster the wrapper
+        // owns the positioning and actions simply flow.
+        inCluster
+          ? "relative flex size-6 shrink-0 items-center justify-center text-muted-foreground outline-none"
+          : "absolute right-1.5 z-10 flex size-6 items-center justify-center text-muted-foreground outline-none",
+        !inCluster &&
+          (item?.isSubRow
+            ? "group-has-[>[data-sidebar=menu-badge]]/menu-sub-item:right-8"
+            : "group-has-[>[data-sidebar=menu-badge]]/menu-item:right-8"),
+        !inCluster && (item?.isSubRow || sizeClasses.variant === "compact" ? "top-0.5" : "top-1"),
+        "hover:bg-hover hover:text-foreground transition-[color,background-color,opacity] duration-80",
+        "focus-visible:ring-1 focus-visible:ring-[color:var(--focus-ring,#6B97FF)]",
+        // One icon size across the sidebar: row actions match the leading
+        // icons and the section header's actions, all on the size ladder.
+        "[&_svg]:size-[var(--icon-size)] [&_svg]:shrink-0",
+        radius.item,
+        // Reveal on the OWN row only. A sub action must not use the
+        // menu-item group — its nearest one is the parent li, which would
+        // light every sibling sub action on any hover inside the sub-tree.
+        !inCluster &&
+          showOnHover &&
+          (item?.isSubRow
+            ? "opacity-0 group-hover/menu-sub-item:opacity-100 group-focus-within/menu-sub-item:opacity-100 data-[state=open]:opacity-100 aria-expanded:opacity-100"
+            : // Tracks the row's own button (its peer), not the <li> — a row
+              // that hosts a sub-menu wraps its children too, and hovering a
+              // child should not light the parent's action.
+              "opacity-0 peer-hover/menu-button:opacity-100 peer-focus-visible/menu-button:opacity-100 hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100 aria-expanded:opacity-100"),
+        className,
+      ),
+      onClick: (event: React.MouseEvent<HTMLButtonElement>) => {
+        // The action often sits on a row composed via `render` — keep its
+        // click from also triggering the row.
+        event.stopPropagation();
+        onClick?.(event);
       },
-      content,
+      ...props,
+      style: { ...cssVars({ "--icon-size": `${sizeClasses.icon}px` }), ...props.style },
+    };
+    return (
+      <Slot template={template} tag="button" ref={ref} {...slotProps}>
+        {content}
+      </Slot>
     );
   },
 );
@@ -1192,46 +1190,47 @@ const SidebarMenuSubButton = forwardRef<HTMLAnchorElement, SidebarMenuSubButtonP
 
     const { template, content } = resolveSlotTemplate(render, asChild, children);
 
-    return slotElement(
-      template,
-      "a",
-      {
-        ref: composeRefs(buttonRef, ref),
-        "data-sidebar": "menu-sub-button",
-        "data-size": size,
-        "data-active": isActive ? "true" : undefined,
-        "aria-current": isActive ? "page" : undefined,
-        tabIndex: tabIdx,
-        className: cn(
-          "relative z-10 flex w-full cursor-pointer select-none items-center gap-2 pl-2 text-left outline-none",
-          "transition-[padding] duration-80 pr-[var(--row-gutter)] group-hover/menu-sub-item:pr-[var(--row-gutter-hover)] group-focus-within/menu-sub-item:pr-[var(--row-gutter-hover)] group-has-[[data-sidebar=menu-action]:is([data-state=open],[data-popup-open],[aria-expanded=true])]/menu-sub-item:pr-[var(--row-gutter-hover)]",
-          size === "sm" ? "h-6" : sizeClasses.variant === "compact" ? "h-6" : "h-7",
-          radius.item,
-          className,
-        ),
-        ...props,
-        style: { ...gutterVars, ...props.style },
-      },
-      <>
-        {Icon && (
-          <Icon
-            size={sizeClasses.icon}
-            strokeWidth={lit ? 2 : 1.5}
-            className={cn(
-              "shrink-0 transition-[color,stroke-width] duration-80",
-              lit ? "text-foreground" : "text-muted-foreground",
+    const slotProps = {
+      "data-sidebar": "menu-sub-button",
+      "data-size": size,
+      "data-active": isActive ? "true" : undefined,
+      "aria-current": isActive ? "page" : undefined,
+      tabIndex: tabIdx,
+      className: cn(
+        "relative z-10 flex w-full cursor-pointer select-none items-center gap-2 pl-2 text-left outline-none",
+        "transition-[padding] duration-80 pr-[var(--row-gutter)] group-hover/menu-sub-item:pr-[var(--row-gutter-hover)] group-focus-within/menu-sub-item:pr-[var(--row-gutter-hover)] group-has-[[data-sidebar=menu-action]:is([data-state=open],[data-popup-open],[aria-expanded=true])]/menu-sub-item:pr-[var(--row-gutter-hover)]",
+        size === "sm" ? "h-6" : sizeClasses.variant === "compact" ? "h-6" : "h-7",
+        radius.item,
+        className,
+      ),
+      ...props,
+      style: { ...gutterVars, ...props.style },
+    };
+    return (
+      <Slot template={template} tag="a" ref={composeRefs(buttonRef, ref)} {...slotProps}>
+        {
+          <>
+            {Icon && (
+              <Icon
+                size={sizeClasses.icon}
+                strokeWidth={lit ? 2 : 1.5}
+                className={cn(
+                  "shrink-0 transition-[color,stroke-width] duration-80",
+                  lit ? "text-foreground" : "text-muted-foreground",
+                )}
+              />
             )}
-          />
-        )}
-        {/* Sub-rows keep the parent rows' type size — only the row height
-            steps down. */}
-        <MenuRowLabel
-          content={content}
-          lit={lit}
-          emphasized={isActive}
-          textClass={size === "sm" ? "text-[12px]" : sizeClasses.text}
-        />
-      </>,
+            {/* Sub-rows keep the parent rows' type size — only the row height
+          steps down. */}
+            <MenuRowLabel
+              content={content}
+              lit={lit}
+              emphasized={isActive}
+              textClass={size === "sm" ? "text-[12px]" : sizeClasses.text}
+            />
+          </>
+        }
+      </Slot>
     );
   },
 );

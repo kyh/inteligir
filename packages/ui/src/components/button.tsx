@@ -6,6 +6,7 @@ import {
   forwardRef,
   isValidElement,
   type CSSProperties,
+  type ReactElement,
   type ReactNode,
   type Ref,
 } from "react";
@@ -187,7 +188,38 @@ interface AsChildProps {
   children?: ReactNode;
   className?: string;
   style?: CSSProperties;
-  ref?: Ref<HTMLButtonElement>;
+  ref?: Ref<HTMLButtonElement> | undefined;
+}
+
+interface AsChildSlotProps extends Omit<ButtonPrimitive.Props, "className" | "style"> {
+  element: ReactElement<AsChildProps>;
+  ref?: Ref<HTMLButtonElement> | undefined;
+  className: string;
+  style?: CSSProperties | undefined;
+  children: ReactNode;
+}
+
+/** Clones the caller's `asChild` element as the button root, merging the
+ *  button's class/style under the element's own.
+ *
+ *  A component rather than an inline `cloneElement(el, { …, ref })`:
+ *  `react(refs)` only recognises a ref hand-off through a JSX `ref={…}`
+ *  attribute — a ref placed into a props object is reported as a ref read
+ *  during render, and the rule cannot see that cloneElement never dereferences
+ *  it. Same reason `Slot` in sidebar-core is a component; that one can't be
+ *  reused here because sidebar-core imports Button. */
+function AsChildSlot({ element, ref, className, style, children, ...rest }: AsChildSlotProps) {
+  const childProps = element.props;
+  return cloneElement(
+    element,
+    {
+      ...rest,
+      ref,
+      className: cn(className, childProps.className),
+      style: { ...style, ...childProps.style },
+    },
+    children,
+  );
 }
 
 const Button = forwardRef<HTMLButtonElement, ButtonProps>(
@@ -313,16 +345,16 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     );
 
     if (asChildElement) {
-      const childProps = asChildElement.props;
-      return cloneElement(
-        asChildElement,
-        {
-          ...props,
-          ref,
-          className: cn(rootClassName, childProps.className),
-          style: { ...style, ...childProps.style },
-        },
-        internals,
+      return (
+        <AsChildSlot
+          element={asChildElement}
+          ref={ref}
+          className={rootClassName}
+          style={style}
+          {...props}
+        >
+          {internals}
+        </AsChildSlot>
       );
     }
 

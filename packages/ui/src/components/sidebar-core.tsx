@@ -427,17 +427,29 @@ export function resolveSlotTemplate(
   return { template: null, content: children };
 }
 
-/** Renders `content` into the template element (merging class/style/handlers,
- *  composing refs) or into the default tag when there is no template. */
-export function slotElement(
-  template: SlotTemplate | null,
-  DefaultTag: ElementType,
-  props: SlotProps,
-  content: ReactNode,
-): ReactElement {
+interface SlotComponentProps extends SlotProps {
+  template: SlotTemplate | null;
+  tag: ElementType;
+}
+
+/** Renders `children` into the template element (merging class/style/handlers,
+ *  composing refs) or into the default tag when there is no template.
+ *
+ *  A COMPONENT rather than a `slotElement(template, tag, props, content)` call
+ *  on purpose: `react(refs)` only recognises a ref hand-off through a JSX
+ *  `ref={…}` attribute. Routed through a plain props object — or even as its
+ *  own positional argument — the rule cannot follow it into the helper and
+ *  reports every caller as reading a ref during render. */
+export function Slot({
+  template,
+  tag: DefaultTag,
+  children,
+  ...props
+}: SlotComponentProps): ReactElement {
   if (!template) {
-    return createElement(DefaultTag, props, content);
+    return createElement(DefaultTag, props, children);
   }
+  const content = children;
   const templateProps = template.props;
   // Chain duplicated event handlers, template's first (it owns the element).
   const chained: SlotEventHandlers = {};
@@ -1203,67 +1215,67 @@ const SidebarGroupLabel = forwardRef<HTMLDivElement, SidebarGroupLabelProps>(
     // treatment is unchanged — hover only raises the label's contrast and
     // reveals a chevron (kept visible while collapsed as the reopen cue).
     if (group) {
-      return slotElement(
-        template,
-        "button",
-        {
-          ref,
-          type: template ? undefined : "button",
-          "data-sidebar": "group-label",
-          "aria-expanded": group.open,
-          "aria-controls": group.contentId,
-          onClick: group.toggle,
-          // The action cluster overlays the label's right edge, so the label
-          // pads past it — far enough that the chevron lands one cluster gap
-          // (4px) to its left and the whole trailing run keeps a single
-          // rhythm. Cluster width is 24px per action plus 4px between them;
-          // add that gap again, less the 8px the group's padding already
-          // gives back: 28n + 6.
-          style: group.actionsCount > 0 ? { paddingRight: group.actionsCount * 28 + 6 } : undefined,
-          className: cn(
-            "group/group-label flex h-8 w-full shrink-0 cursor-pointer select-none items-center gap-2 px-2 text-left text-muted-foreground/70 outline-none",
-            "transition-colors duration-80 hover:text-muted-foreground",
-            "focus-visible:ring-1 focus-visible:ring-[color:var(--focus-ring,#6B97FF)]",
-            radius.item,
-            sizeVariant === "compact" ? "text-[11px]" : "text-[12px]",
-            className,
-          ),
-          ...props,
-        },
-        <>
-          {labelContent}
-          {/* The chevron occupies an action-sized box, so it reads as one more
-              icon in the row rather than a smaller glyph tacked on the end. */}
-          <span className="ml-auto flex size-6 shrink-0 items-center justify-center">
-            <ChevronDownIcon
-              size={sizeClasses.icon}
-              strokeWidth={1.5}
-              className={cn(
-                "shrink-0 transition-[opacity,transform] duration-80",
-                group.open
-                  ? "opacity-0 group-hover/group-label:opacity-100 group-focus-visible/group-label:opacity-100"
-                  : "-rotate-90 opacity-100",
-              )}
-            />
-          </span>
-        </>,
-      );
-    }
-
-    return slotElement(
-      template,
-      "div",
-      {
-        ref,
+      const slotProps = {
+        type: template ? undefined : "button",
         "data-sidebar": "group-label",
+        "aria-expanded": group.open,
+        "aria-controls": group.contentId,
+        onClick: group.toggle,
+        // The action cluster overlays the label's right edge, so the label
+        // pads past it — far enough that the chevron lands one cluster gap
+        // (4px) to its left and the whole trailing run keeps a single
+        // rhythm. Cluster width is 24px per action plus 4px between them;
+        // add that gap again, less the 8px the group's padding already
+        // gives back: 28n + 6.
+        style: group.actionsCount > 0 ? { paddingRight: group.actionsCount * 28 + 6 } : undefined,
         className: cn(
-          "flex h-8 shrink-0 items-center gap-2 px-2 text-muted-foreground/70 outline-none",
+          "group/group-label flex h-8 w-full shrink-0 cursor-pointer select-none items-center gap-2 px-2 text-left text-muted-foreground/70 outline-none",
+          "transition-colors duration-80 hover:text-muted-foreground",
+          "focus-visible:ring-1 focus-visible:ring-[color:var(--focus-ring,#6B97FF)]",
+          radius.item,
           sizeVariant === "compact" ? "text-[11px]" : "text-[12px]",
           className,
         ),
         ...props,
-      },
-      labelContent,
+      };
+      return (
+        <Slot template={template} tag="button" ref={ref} {...slotProps}>
+          {
+            <>
+              {labelContent}
+              {/* The chevron occupies an action-sized box, so it reads as one more
+            icon in the row rather than a smaller glyph tacked on the end. */}
+              <span className="ml-auto flex size-6 shrink-0 items-center justify-center">
+                <ChevronDownIcon
+                  size={sizeClasses.icon}
+                  strokeWidth={1.5}
+                  className={cn(
+                    "shrink-0 transition-[opacity,transform] duration-80",
+                    group.open
+                      ? "opacity-0 group-hover/group-label:opacity-100 group-focus-visible/group-label:opacity-100"
+                      : "-rotate-90 opacity-100",
+                  )}
+                />
+              </span>
+            </>
+          }
+        </Slot>
+      );
+    }
+
+    const slotProps = {
+      "data-sidebar": "group-label",
+      className: cn(
+        "flex h-8 shrink-0 items-center gap-2 px-2 text-muted-foreground/70 outline-none",
+        sizeVariant === "compact" ? "text-[11px]" : "text-[12px]",
+        className,
+      ),
+      ...props,
+    };
+    return (
+      <Slot template={template} tag="div" ref={ref} {...slotProps}>
+        {labelContent}
+      </Slot>
     );
   },
 );
@@ -1284,35 +1296,34 @@ const SidebarGroupAction = forwardRef<HTMLButtonElement, SidebarGroupActionProps
     const sizeClasses = useSize();
     const inCluster = useContext(GroupActionsContext);
     const { template, content } = resolveSlotTemplate(render, asChild, children);
-    return slotElement(
-      template,
-      "button",
-      {
-        ref,
-        type: template ? undefined : "button",
-        "data-sidebar": "group-action",
-        className: cn(
-          inCluster
-            ? "relative flex size-6 items-center justify-center text-muted-foreground outline-none"
-            : // size-6 matches the rows' action hit-box, and right-3.5 puts that
-              // 24px box's centre 26px from the sidebar's inner edge — the axis
-              // the rows' badges and actions already sit on.
-              "absolute right-3.5 top-3 flex size-6 items-center justify-center text-muted-foreground outline-none",
-          "hover:bg-hover hover:text-foreground transition-[color,background-color] duration-80",
-          "focus-visible:ring-1 focus-visible:ring-[color:var(--focus-ring,#6B97FF)]",
-          "[&_svg]:size-[var(--icon-size)] [&_svg]:shrink-0",
-          radius.item,
-          className,
-        ),
-        ...props,
-        // After ...props: the spread would otherwise replace this object
-        // wholesale and drop the icon-size the glyph is sized from.
-        style: {
-          ...cssVars({ "--icon-size": `${sizeClasses.icon}px` }),
-          ...props.style,
-        },
+    const slotProps = {
+      type: template ? undefined : "button",
+      "data-sidebar": "group-action",
+      className: cn(
+        inCluster
+          ? "relative flex size-6 items-center justify-center text-muted-foreground outline-none"
+          : // size-6 matches the rows' action hit-box, and right-3.5 puts that
+            // 24px box's centre 26px from the sidebar's inner edge — the axis
+            // the rows' badges and actions already sit on.
+            "absolute right-3.5 top-3 flex size-6 items-center justify-center text-muted-foreground outline-none",
+        "hover:bg-hover hover:text-foreground transition-[color,background-color] duration-80",
+        "focus-visible:ring-1 focus-visible:ring-[color:var(--focus-ring,#6B97FF)]",
+        "[&_svg]:size-[var(--icon-size)] [&_svg]:shrink-0",
+        radius.item,
+        className,
+      ),
+      ...props,
+      // After ...props: the spread would otherwise replace this object
+      // wholesale and drop the icon-size the glyph is sized from.
+      style: {
+        ...cssVars({ "--icon-size": `${sizeClasses.icon}px` }),
+        ...props.style,
       },
-      content,
+    };
+    return (
+      <Slot template={template} tag="button" ref={ref} {...slotProps}>
+        {content}
+      </Slot>
     );
   },
 );

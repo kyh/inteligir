@@ -78,7 +78,6 @@ export async function runVoiceWorker(request: VoiceWorkerRequest): Promise<Voice
       if (!settled) {
         settled = true;
         clearTimeout(budget);
-        // oxlint-disable-next-line promise/no-multiple-resolved -- see above
         resolve(response);
       }
     };
