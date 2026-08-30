@@ -37,8 +37,8 @@ function CommentRangeLeaf(props: PlateLeafProps) {
   const ids = raw.split(",").filter((id) => id !== "");
   const orphan = props.leaf.commentOrphan === true;
   const actions = useCommentSurface((state) => state.actions);
-  // This pane's note, so a background pane's ranges are judged against the
-  // sidecar of the note they actually live in.
+  // The open note, so these ranges are judged against the sidecar of the file
+  // they actually live in rather than whichever one published last.
   const notePath = usePaneNotePath();
   const { knownIds, resolvedIds } = useCommentMeta(notePath);
   const resolved = ids.length > 0 && ids.every((id) => resolvedIds.has(id));
@@ -71,9 +71,9 @@ function CommentRangeLeaf(props: PlateLeafProps) {
 
 /** Begin the ⌘⇧A flow: markers in (one undo step), popover armed. */
 function beginCreate(editor: SlateEditor): boolean {
-  // The pane that will draw the popover IS the note this editor serves. With
-  // no note, no host would claim it and the marker pair would be stranded
-  // where nothing can cancel it — so refuse before minting anything.
+  // The popover is claimed by the note this editor serves. With no note, no
+  // host would claim it and the marker pair would be stranded where nothing
+  // can cancel it — so refuse before minting anything.
   const path = liveEditorPath(editor);
   if (path === null) return false;
   const domSelection = window.getSelection();
@@ -103,8 +103,9 @@ function CommentCreateHost() {
   const [saving, setSaving] = useState(false);
   const fieldRef = useRef<HTMLTextAreaElement | null>(null);
 
-  // Only the minting pane draws it: `editor` below is THIS pane's, and cancel
-  // and save both act on the document holding the marker pair.
+  // Drawn only over the note that minted it: `editor` below is the open one,
+  // so cancel and save act on the document holding the marker pair. A note
+  // switch mid-flow drops the popover rather than aiming it at a stranger.
   const pending = armed !== null && armed.path === notePath ? armed : null;
   const pendingId = pending?.id ?? null;
 

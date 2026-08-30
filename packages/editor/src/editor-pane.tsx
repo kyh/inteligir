@@ -13,7 +13,7 @@ import { basenamePath } from "@repo/notes/knowledge/vault-path";
 
 /**
  * The editor body: the open note's page title + document. One mounted editor
- * per pane — opening another note replaces it (fresh undo history and scroll,
+ * — opening another note replaces it (fresh undo history and scroll,
  * potion-style). The per-file controls (raw/rich, delete, status) live in the
  * shell header; this is just the scrolling document. Bottom padding clears the
  * pinned composer.
@@ -63,9 +63,7 @@ function NotePane({ path, showRich }: { path: string; showRich: boolean }) {
   const paneRef = useRef<HTMLDivElement>(null);
 
   // A fresh pane (keyed by path) starts reading from the top: the stamped
-  // scroller ancestor survives the swap, so it must be reset explicitly —
-  // and closest() keeps the reset inside THIS pane's scroller under split
-  // view, where document-wide queries grab whichever pane rendered first.
+  // scroller ancestor survives the swap, so it must be reset explicitly.
   useLayoutEffect(() => {
     const scroller = paneRef.current?.closest("[data-editor-scroller]");
     if (scroller) scroller.scrollTop = 0;
@@ -74,8 +72,8 @@ function NotePane({ path, showRich }: { path: string; showRich: boolean }) {
     if (titleRef.current) titleRef.current.textContent = displayName;
   }, [displayName]);
 
-  // ⌘T (editor-shortcuts) reaches THIS pane's title through the registry, so
-  // the pressed pane's editor and the title it focuses name the same note.
+  // ⌘T (editor-shortcuts) reaches this title through the registry, keyed so
+  // the pressed editor and the title it focuses name the same note.
   useEffect(
     () =>
       registerNoteTitleFocus(path, () => {

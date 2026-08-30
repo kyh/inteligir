@@ -46,8 +46,8 @@ function toggleList(editor: PlateEditor, id: TurnIntoId): void {
  * DOM dispatch belongs to Plate's editable, not to this table). */
 export function handleEditorShortcut(editor: PlateEditor, event: ShortcutKeyEvent): void {
   if (isHotkey("mod+t", event)) {
-    // The pressed editor names its own pane, so a split hands ⌘T to the title
-    // above the document the user is typing in.
+    // The pressed editor names its own note, so ⌘T reaches the title above
+    // the document the user is typing in and nothing else.
     if (focusNoteTitle(liveEditorPath(editor))) event.preventDefault();
     return;
   }

@@ -13,7 +13,6 @@
 
 import {
   EditorHostProvider,
-  useVaultListing,
   type EditorHost,
   type VaultActions,
   type VaultListing,
@@ -26,17 +25,14 @@ import {
   type VaultEntry,
 } from "@repo/editor/host-io";
 import { createDebouncer } from "@repo/editor/lib/debounce";
-import { PaneCommentMeta } from "../actions/pane-comment-meta";
 import { useWikiTargets } from "../vault-hooks";
 import type { VaultIO } from "@repo/editor/vault-editor";
 import { registerOpenNoteStore } from "@repo/editor/note/open-note-flush";
 import { OpenNoteStoreProvider } from "@repo/editor/note/open-note-context";
-import { createOpenNoteStore } from "@repo/editor/note/open-note-store";
-import { setSplitViewActions } from "@repo/editor/split-request";
+import type { OpenNoteStore } from "@repo/editor/note/open-note-store";
 import {
   createVaultSession,
   type VaultSession,
-  type VaultSessionPorts,
   type WorkspaceBoot,
 } from "@repo/editor/note/vault-session";
 import {
@@ -51,19 +47,10 @@ import type { KnowledgeWikiTargetsResponse } from "@repo/api/local/knowledge/kno
 import { vaultAssetUrl } from "@repo/api/local/routes";
 import { contentHashHex, type VaultTreeResponse } from "@repo/api/local/vault/vault-schema";
 import { toast } from "@repo/ui/components/sonner";
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
-  type RefObject,
-} from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 
 import { isDefinedError, refusalMessage, safe } from "../api";
 import { readLastOpenNote, writeLastOpenNote } from "../prefs";
-import type { PaneCoordinator } from "./split-view";
 import { useWorkspace, type WorkspaceRuntime } from "../workspace-context";
 
 const FOCUS_REFRESH_DEBOUNCE_MS = 400;
@@ -101,11 +88,9 @@ export interface VaultProviderProps {
   /** The session's actions, handed to the shell's own callbacks (tree ops,
    * palette) — identity is fixed for the session's life. */
   actionsRef: RefObject<VaultActions | null>;
-  /** Focus and one-note-one-pane, owned by the workspace so both panes and the
-   * shell answer to the same rules. */
-  coordinator: PaneCoordinator;
-  /** Open `path` in the split pane (the workspace owns the split's state). */
-  onOpenInSplit: (path: string) => void;
+  /** The open note's store, owned by the workspace: the shell reads the open
+   * path and its history off the same instance this session publishes into. */
+  store: OpenNoteStore;
 }
 
 export function VaultProvider({
@@ -113,8 +98,7 @@ export function VaultProvider({
   initialPath,
   onOpenPath,
   actionsRef,
-  coordinator,
-  onOpenInSplit,
+  store,
 }: VaultProviderProps) {
   // Captured once: the param mirrors back through onOpenPath after boot, and
   // a later navigation must not re-run the boot preference.
@@ -154,53 +138,54 @@ export function VaultProvider({
   const onOpenPathRef = useRef(onOpenPath);
   onOpenPathRef.current = onOpenPath;
 
-  // One store per pane; the primary's lives for the provider's life.
-  const primaryStore = useMemo(() => createOpenNoteStore(), []);
-
-  useEffect(() => {
-    coordinator.registerStore("primary", primaryStore);
-    // The deep link is announced for this pane before either pane has opened
-    // anything. The split restores its note from a pref synchronously while
-    // this pane still has to resolve its target against the tree, so an
-    // unannounced boot is the one moment the gate has nothing to refuse a
-    // second runtime over the same file against.
-    if (bootPath !== null) coordinator.reportOpenPath("primary", bootPath);
-    return () => {
-      coordinator.registerStore("primary", null);
-    };
-  }, [coordinator, primaryStore, bootPath]);
-
   const session = useMemo<VaultSession>(() => {
     const io = createGuardedVaultIo(api);
-    const boot = async (): Promise<WorkspaceBoot> => {
-      const tree = await api.vault.tree();
-      setVaultName(tree.name);
-      const flat = listingEntries(tree);
-      // The deep link wins, then the last-open note, then the first doc — the
-      // app never lands on an empty pane when the vault has notes.
-      const known = (path: string | null): path is string =>
-        path !== null && flat.some((entry) => entry.path === path && entry.kind === "doc");
-      const last = readLastOpenNote();
-      // Among the virgin-boot seeds, Welcome is the front door — plain
-      // listing order would land on "Getting Started" first.
-      const target = known(bootPath)
-        ? bootPath
-        : known(last)
-          ? last
-          : known("Welcome.md")
-            ? "Welcome.md"
-            : (flat.find((entry) => entry.kind === "doc")?.path ?? null);
-      let openNote: WorkspaceBoot["openNote"] = null;
-      if (target !== null) {
-        const content = await io.read(target).catch(() => null);
-        if (content !== null) openNote = { path: target, content };
-      }
-      return { root: tree.root, entries: flat, openNote };
-    };
-    return buildPaneSession({
-      api,
-      io,
-      boot,
+    return createVaultSession({
+      boot: async (): Promise<WorkspaceBoot> => {
+        const tree = await api.vault.tree();
+        setVaultName(tree.name);
+        const flat = listingEntries(tree);
+        // The deep link wins, then the last-open note, then the first doc — the
+        // app never lands on an empty editor when the vault has notes.
+        const known = (path: string | null): path is string =>
+          path !== null && flat.some((entry) => entry.path === path && entry.kind === "doc");
+        const last = readLastOpenNote();
+        // Among the virgin-boot seeds, Welcome is the front door — plain
+        // listing order would land on "Getting Started" first.
+        const target = known(bootPath)
+          ? bootPath
+          : known(last)
+            ? last
+            : known("Welcome.md")
+              ? "Welcome.md"
+              : (flat.find((entry) => entry.kind === "doc")?.path ?? null);
+        let openNote: WorkspaceBoot["openNote"] = null;
+        if (target !== null) {
+          const content = await io.read(target).catch(() => null);
+          if (content !== null) openNote = { path: target, content };
+        }
+        return { root: tree.root, entries: flat, openNote };
+      },
+      list: async () => listingEntries(await api.vault.tree()),
+      // No host re-announce over HTTP — a refresh IS a re-list, published
+      // through the same ordered path list() callers use.
+      refresh: () => Promise.resolve(),
+      // Any refusal reads as "not there", and that is safe because of what the
+      // caller does next: open-or-create re-attempts the same path with a write,
+      // which reports its own failure rather than truncating anything.
+      exists: async (path) => {
+        const { error } = await safe(api.vault.read({ path }));
+        return error === null;
+      },
+      rename: async (from, to) => {
+        try {
+          await api.vault.rename({ from, to });
+          return { ok: true };
+        } catch (error) {
+          return { ok: false, error: refusalMessage(error, `Could not rename ${from}.`) };
+        }
+      },
+      note: io,
       publishListing: (next) => {
         entriesRef.current = next;
         setEntries(next);
@@ -209,40 +194,23 @@ export function VaultProvider({
         rootRef.current = root;
       },
       publishOpenPath: (path, change) => {
-        primaryStore.publishOpenPath(path, change);
-        coordinator.reportOpenPath("primary", path);
+        store.publishOpenPath(path, change);
         writeLastOpenNote(path);
         onOpenPathRef.current(path);
       },
-      publishEditor: primaryStore.publishEditor,
-    });
-  }, [api, bootPath, primaryStore, coordinator]);
-
-  // The shell's actions open into the PRIMARY pane, guarded by the
-  // coordinator: a path the split already holds focuses the split instead.
-  const guardedActions = useMemo<VaultActions>(
-    () => ({
-      ...session.actions,
-      openFile: (path) => {
-        if (!coordinator.requestOpen("primary", path)) return;
-        session.actions.openFile(path);
+      publishEditor: store.publishEditor,
+      // One surface: the editor column is always up in this shell.
+      showEditor: () => {},
+      notify: (level, message) => {
+        if (level === "error") toast.error(message);
+        else toast.warning(message);
       },
-    }),
-    [session, coordinator],
-  );
+    });
+  }, [api, bootPath, store]);
 
   useEffect(() => {
-    actionsRef.current = guardedActions;
-  }, [guardedActions, actionsRef]);
-
-  // The editor's split seam (wiki-chip right-click). The workspace owns the
-  // split's open state and vets the target, so this only forwards.
-  useEffect(() => {
-    setSplitViewActions({ openInSplit: onOpenInSplit });
-    return () => {
-      setSplitViewActions(null);
-    };
-  }, [onOpenInSplit]);
+    actionsRef.current = session.actions;
+  }, [session, actionsRef]);
 
   useEffect(() => {
     void session.start();
@@ -284,20 +252,20 @@ export function VaultProvider({
     };
   }, [session]);
 
-  // Non-React callers (palette actions, shortcuts) persist the live buffers
-  // through the pane registry; the flush action itself lives in the store.
+  // Non-React callers (palette actions, shortcuts) persist the live buffer
+  // through the store registry; the flush action itself lives in the store.
   // There is deliberately NO unload/pagehide last-gasp flush: a tab closed
   // mid-debounce loses that debounce window, an accepted trade rather than a
   // gap to plug — a `keepalive` write is best-effort and the desktop shell is
   // the real surface. This registry is the seam a real answer would hang off.
   useEffect(() => {
-    primaryStore.setFlush(session.actions.flush);
-    const unregister = registerOpenNoteStore(primaryStore);
+    store.setFlush(session.actions.flush);
+    const unregister = registerOpenNoteStore(store);
     return () => {
-      primaryStore.setFlush(null);
+      store.setFlush(null);
       unregister();
     };
-  }, [session, primaryStore]);
+  }, [session, store]);
 
   // The editor's I/O singleton, installed before any editor mounts. Reads ride
   // the same routes the app already serves; subscriptions ride the ws bus.
@@ -413,20 +381,18 @@ export function VaultProvider({
   }, [entries, vaultName, wikiTargets]);
 
   const host = useMemo<EditorHost>(
-    () => ({ actions: guardedActions, listing }),
-    [guardedActions, listing],
+    () => ({ actions: session.actions, listing }),
+    [session, listing],
   );
 
   return (
-    <OpenNoteStoreProvider store={primaryStore}>
-      <PaneCommentMeta />
+    <OpenNoteStoreProvider store={store}>
       <EditorHostProvider host={host}>{children}</EditorHostProvider>
     </OpenNoteStoreProvider>
   );
 }
 
-/** The base-bytes-guarded VaultIO (CAS + diff3 retry) — one per pane, which is
- * safe because the coordinator refuses the same path in two panes. */
+/** The base-bytes-guarded VaultIO (CAS + diff3 retry). */
 function createGuardedVaultIo(api: Api): VaultIO {
   // Base bytes per path, recorded at every read; what a guarded write's
   // expectedHash is computed FROM.
@@ -485,168 +451,4 @@ function createGuardedVaultIo(api: Api): VaultIO {
   };
 
   return { read, write, remove };
-}
-
-type PaneSessionConfig = {
-  api: Api;
-  io: ReturnType<typeof createGuardedVaultIo>;
-  boot: () => Promise<WorkspaceBoot>;
-  publishListing: (entries: VaultEntry[]) => void;
-  publishRoot: (root: string) => void;
-  publishOpenPath: VaultSessionPorts["publishOpenPath"];
-  publishEditor: VaultSessionPorts["publishEditor"];
-};
-
-/** One pane's session over this app's transports — ports identical across
- * panes except where each pane publishes. */
-function buildPaneSession(cfg: PaneSessionConfig): VaultSession {
-  const { api, io } = cfg;
-  return createVaultSession({
-    boot: cfg.boot,
-    list: async () => listingEntries(await api.vault.tree()),
-    // No host re-announce over HTTP — a refresh IS a re-list, published
-    // through the same ordered path list() callers use.
-    refresh: () => Promise.resolve(),
-    // Any refusal reads as "not there", and that is safe because of what the
-    // caller does next: open-or-create re-attempts the same path with a write,
-    // which reports its own failure rather than truncating anything.
-    exists: async (path) => {
-      const { error } = await safe(api.vault.read({ path }));
-      return error === null;
-    },
-    rename: async (from, to) => {
-      try {
-        await api.vault.rename({ from, to });
-        return { ok: true };
-      } catch (error) {
-        return { ok: false, error: refusalMessage(error, `Could not rename ${from}.`) };
-      }
-    },
-    note: io,
-    publishListing: cfg.publishListing,
-    publishRoot: cfg.publishRoot,
-    publishOpenPath: cfg.publishOpenPath,
-    publishEditor: cfg.publishEditor,
-    // One surface: the editor column is always up in this shell.
-    showEditor: () => {},
-    notify: (level, message) => {
-      if (level === "error") toast.error(message);
-      else toast.warning(message);
-    },
-  });
-}
-
-/**
- * The SECOND pane (#595): its own store + session over the same transports,
- * listing publications muted (the primary owns the shared listing state).
- * Mounted by the workspace only while a split is open; unmounting flushes and
- * unregisters, returning the workspace to singular.
- */
-export function SplitPane({
-  path,
-  coordinator,
-  onOpenPath,
-  children,
-}: {
-  path: string;
-  coordinator: PaneCoordinator;
-  onOpenPath: (path: string | null) => void;
-  children: ReactNode;
-}) {
-  const { api, docEvents } = useWorkspace();
-  const outerListing = useVaultListing();
-  const store = useMemo(() => createOpenNoteStore(), []);
-  const [bootTarget] = useState(path);
-  const rootRef = useRef("");
-  const onOpenPathRef = useRef(onOpenPath);
-  onOpenPathRef.current = onOpenPath;
-
-  const session = useMemo<VaultSession>(() => {
-    const io = createGuardedVaultIo(api);
-    return buildPaneSession({
-      api,
-      io,
-      boot: async () => {
-        const tree = await api.vault.tree();
-        const entries = listingEntries(tree);
-        // The restored split asks like any other opener: a deep link and this
-        // pref can name the same note, and the primary is the pane that keeps
-        // it. Refused, there is nothing left for a second pane to show, so it
-        // closes rather than sitting empty.
-        if (!coordinator.requestOpen("split", bootTarget)) {
-          onOpenPathRef.current(null);
-          return { root: tree.root, entries, openNote: null };
-        }
-        const content = await io.read(bootTarget).catch(() => null);
-        return {
-          root: tree.root,
-          entries,
-          openNote: content === null ? null : { path: bootTarget, content },
-        };
-      },
-      // The primary pane owns the shared listing; a second publisher would
-      // just race it with identical data.
-      publishListing: () => {},
-      publishRoot: (root) => {
-        rootRef.current = root;
-      },
-      publishOpenPath: (next, change) => {
-        store.publishOpenPath(next, change);
-        coordinator.reportOpenPath("split", next);
-        onOpenPathRef.current(next);
-      },
-      publishEditor: store.publishEditor,
-    });
-  }, [api, bootTarget, store, coordinator]);
-
-  useEffect(() => {
-    coordinator.registerStore("split", store);
-    store.setFlush(session.actions.flush);
-    const unregister = registerOpenNoteStore(store);
-    void session.start();
-    return () => {
-      session.stop();
-      store.setFlush(null);
-      unregister();
-      coordinator.registerStore("split", null);
-    };
-  }, [session, store, coordinator]);
-
-  // Every open into this pane, whichever door it came through: the coordinator
-  // vets it, then the session's own flush-then-switch ordering applies.
-  const openFile = useCallback(
-    (next: string): void => {
-      if (!coordinator.requestOpen("split", next)) return;
-      session.actions.openFile(next);
-    },
-    [coordinator, session],
-  );
-
-  // The workspace re-targets the split by prop (palette, wiki menu).
-  useEffect(() => {
-    if (store.state().openPath !== path) openFile(path);
-  }, [path, store, openFile]);
-
-  useEffect(
-    () =>
-      docEvents.subscribe((docId) => {
-        session.handleVaultChanged({
-          root: rootRef.current,
-          changed: docId === null ? null : { upserted: [docId], removed: [] },
-        });
-      }),
-    [docEvents, session],
-  );
-
-  const host = useMemo<EditorHost>(
-    () => ({ actions: { ...session.actions, openFile }, listing: outerListing }),
-    [session, openFile, outerListing],
-  );
-
-  return (
-    <OpenNoteStoreProvider store={store}>
-      <PaneCommentMeta />
-      <EditorHostProvider host={host}>{children}</EditorHostProvider>
-    </OpenNoteStoreProvider>
-  );
 }

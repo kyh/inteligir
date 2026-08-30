@@ -110,7 +110,6 @@
     "./search-request": "./src/search-request.ts",
     "./selection-toolbar": "./src/selection-toolbar.tsx",
     "./slash-menu": "./src/slash-menu.tsx",
-    "./split-request": "./src/split-request.ts",
     "./toc": "./src/toc.tsx",
     "./toolbar-button": "./src/toolbar-button.tsx",
     "./transclusion": "./src/transclusion.tsx",

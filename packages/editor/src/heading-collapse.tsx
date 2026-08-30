@@ -31,7 +31,7 @@ const HEADING_RANK = new Map<string, number>([
   ["h3", 3],
 ]);
 
-// ---- Store (one fold set per note path — two panes are two notes) ----------
+// ---- Store (one fold set per note path) ------------------------------------
 
 const folds = new Map<string, Set<string>>();
 let version = 0;
@@ -64,7 +64,7 @@ function readStorage(): Map<string, string[]> {
   return out;
 }
 
-// Re-read before every write: another pane's note is another entry in the same
+// Re-read before every write: every other note is another entry in the same
 // record, and a whole-record write built from this process's map alone would
 // drop the notes it never opened.
 function writeStorage(path: string, keys: ReadonlySet<string>): void {
@@ -110,7 +110,7 @@ function subscribe(listener: () => void): () => void {
 // ---- Derivation ------------------------------------------------------------
 
 type Derived = {
-  /** The note this walk was derived against — null when the pane holds none,
+  /** The note this walk was derived against — null when no note is held,
    * which is exactly when `keys` is empty and nothing on screen folds. */
   path: string | null;
   /** Top-level indices hidden under some collapsed heading. */
@@ -165,7 +165,7 @@ const DerivedContext = createContext<Derived>(NOTHING_FOLDED);
 
 function CollapseProvider({ children }: { children: React.ReactNode }) {
   const editor = useEditorRef();
-  // This PANE's note, subscribed once here rather than per block: the fold set
+  // The open note, subscribed once here rather than per block: the fold set
   // and every chevron under it must name the same file.
   const path = usePaneNotePath();
   const storeVersion = useSyncExternalStore(subscribe, () => version);

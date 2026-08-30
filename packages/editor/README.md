@@ -23,7 +23,7 @@ Deps: `@repo/notes` (the parse pipeline and the knowledge types), `@repo/ui`
 src/
   markdown-editor.tsx, editor-pane.tsx, editor-chrome.tsx
                        # the editor surface, its chrome, and the pane the app
-                       # mounts once per split
+                       # the editor column's note
   markdown/
     md-rules.ts        # the Slate↔mdast rules — one per node type
     markdown-doc.ts    # the round trip itself: parse → doc → serialize, run to
