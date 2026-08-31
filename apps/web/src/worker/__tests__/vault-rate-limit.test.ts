@@ -1,11 +1,14 @@
+import { DEVICE_API_PATHS } from "@repo/api/cloud/pairing/pairing-schema";
 import { VAULT_API_PATHS } from "@repo/api/cloud/vault/vault-schema";
 import { VAULT_GIT_PATH } from "@repo/api/cloud/vault/vault-git";
 import { cloudErrorSchema } from "@repo/api/cloud/errors";
 import { env, SELF } from "cloudflare:test";
+import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createDb } from "../db/client";
 import { rateLimit } from "../db/schema";
-import { deviceHeaders, ORIGIN, pairDevice, signUpUser } from "./cloud-helpers";
+import { deviceRateKey } from "../rate-limit";
+import { deviceHeaders, ORIGIN, pairDevice, sessionHeaders, signUpUser } from "./cloud-helpers";
 
 // A verified credential reads the whole vault — the account IS the entitlement
 // — so the budget on these two families is what bounds how fast a STOLEN one
@@ -28,11 +31,15 @@ async function spendBudget(key: string): Promise<void> {
 }
 
 describe("the hosted vault's per-device budgets", () => {
+  // The suite config keeps the limiter off so multi-user suites do not 429 on
+  // one another; this is the one that needs it on.
+  let wasDisabled = "";
   beforeEach(() => {
+    wasDisabled = env.RATE_LIMIT_DISABLED;
     env.RATE_LIMIT_DISABLED = "false";
   });
   afterEach(() => {
-    env.RATE_LIMIT_DISABLED = "true";
+    env.RATE_LIMIT_DISABLED = wasDisabled;
   });
 
   it("refuses vault reads once the device's budget is spent, and only that device's", async () => {
@@ -40,7 +47,7 @@ describe("the hosted vault's per-device budgets", () => {
     const phone = await pairDevice(bearer, "Phone");
     const laptop = await pairDevice(bearer, "Laptop");
 
-    await spendBudget(`vault-read:${phone.deviceId}`);
+    await spendBudget(deviceRateKey("vaultRead", phone.deviceId));
 
     const refused = await SELF.fetch(TREE, { headers: deviceHeaders(phone.credential) });
     expect(refused.status).toBe(429);
@@ -56,15 +63,38 @@ describe("the hosted vault's per-device budgets", () => {
     const { bearer } = await signUpUser("vault-budget-families@example.test");
     const device = await pairDevice(bearer, "Laptop");
 
-    await spendBudget(`vault-read:${device.deviceId}`);
+    await spendBudget(deviceRateKey("vaultRead", device.deviceId));
 
     const git = await SELF.fetch(GIT_REFS, { headers: deviceHeaders(device.credential) });
     expect(git.status).not.toBe(429);
 
-    await spendBudget(`vault-git:${device.deviceId}`);
+    await spendBudget(deviceRateKey("vaultGit", device.deviceId));
     const refused = await SELF.fetch(GIT_REFS, { headers: deviceHeaders(device.credential) });
     expect(refused.status).toBe(429);
-    expect(refused.headers.get("retry-after")).toBe("60");
+  });
+
+  it("drops a revoked device's rows — nothing else ever deletes one", async () => {
+    // The table carries no foreign key, so a pair-then-revoke loop would leave
+    // two rows behind per cycle with no liveness guarantee that anything prunes
+    // them.
+    const { bearer } = await signUpUser("vault-budget-revoke@example.test");
+    const device = await pairDevice(bearer, "Laptop");
+    const key = deviceRateKey("vaultRead", device.deviceId);
+    await spendBudget(key);
+
+    const revoked = await SELF.fetch(`${ORIGIN}${DEVICE_API_PATHS.revoke}`, {
+      method: "POST",
+      headers: { ...sessionHeaders(bearer), "content-type": "application/json" },
+      body: JSON.stringify({ deviceId: device.deviceId }),
+    });
+    expect(revoked.status).toBe(200);
+
+    const rows = await createDb(env.DB)
+      .select()
+      .from(rateLimit)
+      .where(eq(rateLimit.key, key))
+      .all();
+    expect(rows).toEqual([]);
   });
 
   it("spends nothing for a credential that never verified", async () => {

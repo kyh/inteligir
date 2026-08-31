@@ -561,16 +561,25 @@ body_stems` at the same bm25 weights, and `@repo/notes/knowledge/search-query`
   consume a fixed window keyed on the DEVICE, never the caller's address: what
   is being spent is a credential, a stolen one moves between addresses, and the
   device row is the thing `/app/devices` revokes. Two families, two keys, so a
-  drained read budget never takes a device's sync down with it. THE LIMIT IS
-  STATED HONESTLY: `/v1/git` hands a whole vault over in a couple of requests,
-  so a budget there cannot prevent a clone — it bounds the RATE, and what that
-  buys is the interval in which a person notices the device list and revokes.
-  The per-file read rows are where it bites, because draining a vault through
-  them is one request per note. A READ-SCOPED credential (read vs write) is the
-  deeper answer and is NOT implemented; the trigger to build it is a second
-  party ever holding a credential for someone else's account.
-  The `RATE_LIMIT_DISABLED` kill switch lives inside `allowInWindow` rather
-  than at each call site, so "is the limiter on" has one answer.
+  drained read budget never takes a device's sync down with it.
+  WHAT IT ACTUALLY BUYS, stated rather than implied: it BREAKS A RUNAWAY LOOP
+  and caps what one credential costs per minute. It does NOT meaningfully slow
+  a determined reader — `/v1/git` hands a whole vault over in a couple of
+  requests, and any per-minute read ceiling low enough to matter is one a real
+  client trips. Revocation is the control; this keeps abuse from being free.
+  BOTH CEILINGS ARE SET FROM THE WORST LEGITIMATE MINUTE, never from the common
+  case. An account may hold 20 devices, every push pings all the others, and a
+  pinged device syncs immediately — so one device can owe ~20 git passes in a
+  minute, around a hundred requests. On the read side the legitimate burst is
+  ONE NOTE'S EMBEDS, which the format does not bound at all; the residual is
+  that a note carrying more than the ceiling sees its tail answered 429. A
+  ceiling that refuses real work is worse than none, because the client reports
+  it as `offline` and the user has nothing to act on. REVOCATION AND ACCOUNT
+  DELETION DROP THE ROWS: the table carries no foreign key, so nothing else
+  ever would, and a pair-then-revoke loop would grow it forever. A READ-SCOPED
+  credential (read vs write) is the deeper answer and is NOT implemented; the
+  trigger to build it is a second party ever holding a credential for someone
+  else's account.
 - **PAIRING IS APPROVED IN A BROWSER, and the code survives only as plumbing**
   (issue #573). Nothing shows a `XXXX-XXXX` to a human any more and nothing
   accepts one: Settings has a button, the dashboard has a device table, the CLI

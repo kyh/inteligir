@@ -71,8 +71,10 @@ export async function handleInviteSignUp(request: Request, env: Env): Promise<Re
   const db = createDb(env.DB);
 
   const inviteKey = `${INVITE_RATE_KEY_PREFIX}${callerIp(request)}`;
-  if (!(await allowInWindow(env, db, inviteKey, Date.now(), INVITE_WINDOW))) {
-    return new Response("rate limited", { status: 429 });
+  if (!(await allowInWindow(env, db, inviteKey, INVITE_WINDOW))) {
+    // The page renders `{ message }`; a bare-text body is the one refusal it
+    // cannot explain.
+    return refuse(429, "Too many attempts — wait a minute.");
   }
 
   const body = signUpBodySchema.safeParse(await request.json().catch(() => null));

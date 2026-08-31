@@ -2,7 +2,7 @@ import { VAULT_GIT_PATH } from "@repo/api/cloud/vault/vault-git";
 import { createDurableGit, type Registry } from "durable-git";
 import { createDb } from "../db/client";
 import { deviceCredentialFromHeader, verifyDeviceCredentialValue } from "../device/device-auth";
-import { allowInWindow, type RateWindow } from "../rate-limit";
+import { allowInWindow, deviceRateKey, type RateWindow } from "../rate-limit";
 import { pingVaultAdvanced } from "../sync/routes";
 
 // ---------------------------------------------------------------------------
@@ -46,6 +46,16 @@ import { pingVaultAdvanced } from "../sync/routes";
 const AUTHORIZED_HEADER = "x-vault-authorized";
 
 /** The subpaths git smart HTTP actually uses; everything else 404s. */
+/**
+ * A device's budget on the git remote, set from the worst LEGITIMATE minute
+ * rather than from the once-a-minute common case: an account may hold 20
+ * devices, every push pings all the others, and a pinged device syncs
+ * immediately — so one device can owe ~20 passes in a minute, each a
+ * protocol-v2 fetch plus a push, around a hundred requests. A ceiling near
+ * that would refuse real sync and report it as `offline`.
+ */
+const VAULT_GIT_WINDOW: RateWindow = { max: 600, windowMs: 60_000 };
+
 const PROTOCOL_ROUTES = new Set([
   "GET /info/refs",
   "POST /git-upload-pack",
@@ -84,11 +94,6 @@ const handler = createDurableGit<Env>({
 
 /** Plain text + Basic challenge, not the JSON envelope: this is the git wire,
  *  and the challenge is what makes a stock client prompt. */
-/** A device's budget on the git remote. `git fetch`/`push` is a few requests
- *  per pass and the desktop syncs once a minute. */
-const VAULT_GIT_WINDOW: RateWindow = { max: 60, windowMs: 60_000 };
-const VAULT_GIT_RATE_KEY_PREFIX = "vault-git:";
-
 function unauthorized(): Response {
   return new Response("auth required\n", {
     status: 401,
@@ -112,13 +117,12 @@ export async function handleVaultGitRemote(
   const verified = credential === null ? null : await verifyDeviceCredentialValue(db, credential);
   if (verified === null) return unauthorized();
 
-  // A sync pass is a handful of requests a minute, so this ceiling is invisible
-  // to a real device and answers a loop with 429s instead. It bounds the RATE
-  // and nothing more — one clone carries the whole vault — which is the point:
-  // what it buys is the time the dashboard's revoke button needs to matter.
-  const budgetKey = `${VAULT_GIT_RATE_KEY_PREFIX}${verified.deviceId}`;
-  if (!(await allowInWindow(env, db, budgetKey, Date.now(), VAULT_GIT_WINDOW))) {
-    return new Response("too many requests\n", { status: 429, headers: { "retry-after": "60" } });
+  if (
+    !(await allowInWindow(env, db, deviceRateKey("vaultGit", verified.deviceId), VAULT_GIT_WINDOW))
+  ) {
+    // Plain text, like every other refusal on this wire: a JSON envelope in a
+    // git client's stderr is noise.
+    return new Response("too many requests\n", { status: 429 });
   }
 
   const repo = vaultRepoName(verified.userId);

@@ -13,9 +13,9 @@ import {
 } from "@repo/api/cloud/vault/vault-schema";
 import type { RepoCell } from "durable-git";
 import { refuse } from "../cloud-http";
-import { allowInWindow, type RateWindow } from "../rate-limit";
 import { createDb } from "../db/client";
 import { verifyDeviceCredential } from "../device/device-auth";
+import { allowInWindow, deviceRateKey, type RateWindow } from "../rate-limit";
 import { vaultRegistry, vaultRepoName } from "./git-remote";
 
 // ---------------------------------------------------------------------------
@@ -44,10 +44,15 @@ import { vaultRegistry, vaultRepoName } from "./git-remote";
  *  truncation would read as "covered everything". */
 const MAX_TREE_DIRS = 10_000;
 
-/** A device's read budget. A phone opening a note spends a handful; a caller
- *  draining the vault through this surface spends one per note. */
-const VAULT_READ_WINDOW: RateWindow = { max: 600, windowMs: 60_000 };
-const VAULT_READ_RATE_KEY_PREFIX = "vault-read:";
+/**
+ * A device's read budget. The legitimate burst here is ONE NOTE'S EMBEDS —
+ * the phone mounts every image in a note at once — and that has no bound in
+ * the format, so no ceiling can be both safe and generous. This one is set to
+ * break a runaway loop rather than to outrun a reader, and the residual is
+ * stated: a note carrying more embeds than this sees the tail answered 429,
+ * which the phone renders as "image unavailable" until it remounts.
+ */
+const VAULT_READ_WINDOW: RateWindow = { max: 3_000, windowMs: 60_000 };
 
 export async function handleVaultReadRoutes(
   request: Request,
@@ -60,13 +65,14 @@ export async function handleVaultReadRoutes(
   const verified = await verifyDeviceCredential(db, request.headers.get("authorization"));
   if (verified === null) return refuse("unauthorized", "No valid device credential.");
 
-  // Per-DEVICE, because what is being spent is a credential and a stolen one
-  // moves between addresses while the device row stays the thing the dashboard
-  // revokes. The ceiling is far above a phone reading notes (a tree page, a
-  // file, a handful of image embeds) and far below draining a vault one note
-  // at a time.
-  const budgetKey = `${VAULT_READ_RATE_KEY_PREFIX}${verified.deviceId}`;
-  if (!(await allowInWindow(env, db, budgetKey, Date.now(), VAULT_READ_WINDOW))) {
+  if (
+    !(await allowInWindow(
+      env,
+      db,
+      deviceRateKey("vaultRead", verified.deviceId),
+      VAULT_READ_WINDOW,
+    ))
+  ) {
     return refuse("rate-limited", "Too many vault reads from this device — wait a minute.");
   }
 
