@@ -180,6 +180,24 @@ describe("auto-commit", () => {
     await expectCleanRepo(root);
   });
 
+  it("names the file when the commit is one file — the log has to be answerable", async () => {
+    const { root, engine } = await makeEngine({ remoteUrl: null, quietMs: 50, maxWaitMs: 2_000 });
+    const before = await commitCount(root);
+
+    await writeFile(join(root, "a note.md"), "# One\n", "utf8");
+    engine.scheduleCommit(["a note.md"]);
+
+    await waitFor(async () => (await commitCount(root)) === before + 1);
+    expect(await lastMessage(root)).toBe("vault: update a note.md");
+  });
+
+  it("names the file on the unscoped sweep too, so the two paths agree", async () => {
+    const { root, engine } = await makeEngine({ remoteUrl: null });
+    await writeFile(join(root, "swept.md"), "# Swept\n", "utf8");
+    expect(await engine.commitNow()).toEqual({ files: 1 });
+    expect(await lastMessage(root)).toBe("vault: update swept.md");
+  });
+
   it("commitNow is a no-op on a clean tree and commits as the engine", async () => {
     const { root, engine } = await makeEngine({ remoteUrl: null });
     expect(await engine.commitNow()).toBeNull();

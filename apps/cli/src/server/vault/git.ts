@@ -8,17 +8,37 @@ import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
 import { appendFile, mkdir, readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import type { VaultConflict, VaultStatusResponse } from "@repo/api/local/vault/vault-schema";
+import type {
+  VaultConflict,
+  VaultRevision,
+  VaultStatusResponse,
+} from "@repo/api/local/vault/vault-schema";
 import { VAULT_TMP_PREFIX } from "@repo/notes/knowledge/vault-path";
 import type { VaultRemoteProvider, VaultRemoteSpec } from "../cloud/vault-remote";
+import { readNoteHistory, readNoteRevision, type NoteHistoryPage } from "./git-history";
 import { createDebouncedCallbackScheduler } from "./watcher/debounce";
 
 const LOCAL_GIT_TIMEOUT_MS = 30_000;
 const NETWORK_GIT_TIMEOUT_MS = 120_000;
 const GIT_MAX_BUFFER_BYTES = 32 * 1024 * 1024;
 
-const AUTO_COMMIT_QUIET_MS = 2_000;
-const AUTO_COMMIT_MAX_WAIT_MS = 10_000;
+/**
+ * SESSION-SHAPED COMMITS, and the numbers are the decision.
+ *
+ * The log has to be ANSWERABLE — "restore the version from before I rewrote
+ * the intro" cannot be served by thirty anonymous revisions a few seconds
+ * apart. So a pause of 15 seconds is what ends an editing session, and
+ * continuous typing still lands a revision every two minutes.
+ *
+ * What that trades is granularity against how long an edit sits UNCOMMITTED,
+ * and the second half is smaller than it looks: the editor's autosave is
+ * 600ms, so the bytes are on disk the whole time — what waits is the
+ * revision, not the data. Every other path closes the gap on its own besides:
+ * a sync pass commits the dirty tree before it pushes, `commitNow` and
+ * shutdown flush, and the boot sweep catches whatever a crash left.
+ */
+const AUTO_COMMIT_QUIET_MS = 15_000;
+const AUTO_COMMIT_MAX_WAIT_MS = 120_000;
 
 /** Past this many known paths a scoped commit stops being the cheap one: every
  *  path is an argv entry twice over, and the unscoped sweep has no such bound. */
@@ -94,6 +114,26 @@ export function parsePorcelain(stdout: string): PorcelainEntry[] {
     entries.push({ x, y, path: token.slice(3), origin });
   }
   return entries;
+}
+
+/** The paths a status entry names — BOTH sides of a rename, because both
+ *  belong to the commit that carries it. */
+export function entryPaths(entries: readonly PorcelainEntry[]): string[] {
+  return entries.flatMap((entry) =>
+    entry.origin === null ? [entry.path] : [entry.path, entry.origin],
+  );
+}
+
+/**
+ * The subject an auto-commit takes. A single-file commit NAMES ITS FILE:
+ * `vault: update 1 files` is browsable and unanswerable, and one word of the
+ * path is what makes `git log --follow --oneline` legible at a glance.
+ */
+export function autoCommitSubject(paths: readonly string[]): string {
+  const only = paths.length === 1 ? paths[0] : undefined;
+  return only === undefined
+    ? `vault: update ${String(paths.length)} files`
+    : `vault: update ${only}`;
 }
 
 /** The two status columns git uses for a halted merge: the honest conflict
@@ -405,6 +445,16 @@ export interface GitEngine {
    * Returns the release function.
    */
   holdCommits(): () => void;
+  /**
+   * The note's own commits, newest first, ACROSS RENAMES. Empty for a path
+   * git has never seen. Under the repo lock like every other call: a rebase
+   * in flight has HEAD detached at a replayed commit, which is a different
+   * history for the same note.
+   */
+  history(path: string, page: NoteHistoryPage): Promise<VaultRevision[]>;
+  /** The bytes the note held at one revision, read at that revision's own
+   *  path. Refuses `not_found` / `too_large` exactly as a disk read does. */
+  revision(path: string, sha: string): Promise<string>;
   /** One full sync pass; coalesces with an in-flight one. */
   syncNow(): Promise<VaultStatusResponse>;
   status(): Promise<VaultStatusResponse>;
@@ -499,31 +549,28 @@ export function createGitEngine(args: GitEngineArgs): GitEngine {
   }
 
   async function commitIfDirty(): Promise<{ files: number } | null> {
-    const files = await countDirtyPaths();
-    if (files === 0) {
+    const dirty = entryPaths(await porcelain());
+    if (dirty.length === 0) {
       return null;
     }
     // `add -A` unscoped, deliberately: the scoped form passes every path as an
     // argument, and the first commit of a large vault would exceed ARG_MAX.
     await run(["add", "-A"]);
-    await run(["-c", "commit.gpgsign=false", "commit", "-m", `vault: update ${files} files`], {
+    await run(["-c", "commit.gpgsign=false", "commit", "-m", autoCommitSubject(dirty)], {
       env: identityEnv(),
     });
-    return { files };
+    return { files: dirty.length };
   }
 
-  /** The paths git itself reports dirty (staged or not) under the pathspecs.
-   *  Both sides of a rename belong to the commit, so its origin comes too. */
+  /** The paths git itself reports dirty (staged or not) under the pathspecs. */
   async function dirtyPathsUnder(paths: readonly string[]): Promise<string[]> {
-    return (await porcelain(paths)).flatMap((entry) =>
-      entry.origin === null ? [entry.path] : [entry.path, entry.origin],
-    );
+    return entryPaths(await porcelain(paths));
   }
 
   async function commitPathsIfDirty(
     paths: readonly string[],
     author: CommitAuthor | undefined,
-    subject: string | ((files: number) => string),
+    subject: string | ((dirty: readonly string[]) => string),
   ): Promise<{ files: number } | null> {
     if (paths.length === 0) {
       return null;
@@ -543,7 +590,7 @@ export function createGitEngine(args: GitEngineArgs): GitEngine {
         "commit.gpgsign=false",
         "commit",
         "-m",
-        subject instanceof Function ? subject(dirty.length) : subject,
+        subject instanceof Function ? subject(dirty) : subject,
       ],
       { env: identityEnv(author) },
     );
@@ -594,7 +641,7 @@ export function createGitEngine(args: GitEngineArgs): GitEngine {
       void withRepoLock(() =>
         scoped === null
           ? commitIfDirty()
-          : commitPathsIfDirty([...scoped], undefined, (files) => `vault: update ${files} files`),
+          : commitPathsIfDirty([...scoped], undefined, autoCommitSubject),
       ).catch((cause: unknown) => {
         // Whatever failed is still dirty and its paths are spent, so the next
         // flush has to be the one that sweeps everything.
@@ -910,6 +957,12 @@ export function createGitEngine(args: GitEngineArgs): GitEngine {
       return withRepoLock(() => commitPathsIfDirty(paths, author, subject));
     },
     holdCommits,
+    history(path, page) {
+      return withRepoLock(() => readNoteHistory(run, path, page));
+    },
+    revision(path, sha) {
+      return withRepoLock(() => readNoteRevision(run, path, sha));
+    },
     syncNow,
     status: statusSnapshot,
     isSyncing: () => syncing,

@@ -5,6 +5,7 @@
 import {
   assetMediaType,
   VAULT_ASSET_MAX_BYTES,
+  VAULT_HISTORY_DEFAULT_LIMIT,
   type VaultRenameResponse,
 } from "@repo/api/local/vault/vault-schema";
 import { base, refusals } from "../orpc";
@@ -18,14 +19,27 @@ export type RenameNote = (from: string, to: string) => Promise<VaultRenameRespon
 
 /** Runs `work`, re-raising a vault refusal as the class the contract declares
  *  (`vault-refusals.ts` owns which). One wrapper rather than a try/catch per
- *  handler: thirteen handlers deciding it separately is thirteen answers that
- *  can disagree. */
+ *  handler: every handler deciding it separately is one answer per handler, and
+ *  they can disagree. */
 const refusing = refusals(vaultWireError);
 
 const tree = base.vault.tree.handler(({ context }) => context.vault.service.listTree());
 
 const read = base.vault.read.handler(({ context, input }) =>
   refusing(() => context.vault.service.read(input.path)),
+);
+
+const history = base.vault.history.handler(async ({ context, input }) => ({
+  revisions: await context.vault.git.history(input.path, {
+    skip: input.skip ?? 0,
+    limit: input.limit ?? VAULT_HISTORY_DEFAULT_LIMIT,
+  }),
+}));
+
+const revision = base.vault.revision.handler(({ context, input }) =>
+  refusing(async () => ({
+    content: await context.vault.git.revision(input.path, input.sha),
+  })),
 );
 
 const write = base.vault.write.handler(async ({ context, input, errors }) =>
@@ -109,6 +123,8 @@ const syncNow = base.vault.syncNow.handler(({ context }) => context.vault.syncNo
 export const vaultRouter = {
   tree,
   read,
+  history,
+  revision,
   write,
   assetWrite,
   rename,

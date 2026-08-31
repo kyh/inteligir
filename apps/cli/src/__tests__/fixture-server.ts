@@ -27,7 +27,12 @@ import type {
   QueuedThreadMessage,
   Thread,
 } from "@repo/api/local/threads/threads-schema";
-import type { VaultEntry, VaultStatusResponse } from "@repo/api/local/vault/vault-schema";
+import {
+  VAULT_HISTORY_DEFAULT_LIMIT,
+  type VaultEntry,
+  type VaultRevision,
+  type VaultStatusResponse,
+} from "@repo/api/local/vault/vault-schema";
 import type { ThreadStatus } from "@repo/domain/thread-status";
 import { z } from "zod";
 
@@ -61,6 +66,10 @@ export interface FixtureState {
   /** Refuse only threads.send — the window `action new` must not orphan in. */
   refuseSend: { code: "PROVIDER_UNAVAILABLE"; message: string } | null;
   vault: Map<string, string>;
+  /** Per-path history, newest first, each row carrying the bytes it held.
+   *  ONE table for both procedures, so the fixture cannot describe a revision
+   *  it cannot then read. */
+  revisions: Map<string, { revision: VaultRevision; content: string }[]>;
   searchResults: SearchResultWire[];
   tags: TagCountWire[];
   backlinks: BacklinkEntryWire[];
@@ -93,12 +102,29 @@ export function makeThread(overrides: Partial<Thread> & Pick<Thread, "id">): Thr
   };
 }
 
+/** The seeded revision every history/revision invocation acts on. */
+export const FIXTURE_REVISION_SHA = "0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c";
+
+export function makeRevision(
+  overrides: Partial<VaultRevision> & Pick<VaultRevision, "sha">,
+): VaultRevision {
+  return {
+    authoredAt: "2026-08-01T10:00:00+00:00",
+    authorName: "inteligir",
+    authorEmail: "vault@inteligir.local",
+    subject: "vault: update notes/hello.md",
+    path: "notes/hello.md",
+    ...overrides,
+  };
+}
+
 export function makeFixtureState(): FixtureState {
   return {
     dataDir: "/fixture/data",
     failWith: null,
     refuseSend: null,
     vault: new Map(),
+    revisions: new Map(),
     searchResults: [],
     tags: [],
     backlinks: [],
@@ -436,6 +462,24 @@ const vaultRouter = {
       throw errors.NOT_FOUND({ message: `No file at ${input.path}` });
     }
     return { path: input.path, content };
+  }),
+  history: base.vault.history.handler(({ context, input }) => {
+    const skip = input.skip ?? 0;
+    const rows = context.revisions.get(input.path) ?? [];
+    return {
+      revisions: rows
+        .slice(skip, skip + (input.limit ?? VAULT_HISTORY_DEFAULT_LIMIT))
+        .map((row) => row.revision),
+    };
+  }),
+  revision: base.vault.revision.handler(({ context, input, errors }) => {
+    const row = [...context.revisions.values()]
+      .flat()
+      .find(({ revision }) => revision.sha === input.sha && revision.path === input.path);
+    if (row === undefined) {
+      throw errors.NOT_FOUND({ message: `${input.path} does not exist at ${input.sha}` });
+    }
+    return { content: row.content };
   }),
   write: base.vault.write.handler(({ context, input }) => {
     context.vault.set(input.path, input.content);

@@ -13,12 +13,16 @@ import {
   vaultAssetWriteResponseSchema,
   vaultDeleteRequestSchema,
   vaultDeleteResponseSchema,
+  vaultHistoryRequestSchema,
+  vaultHistoryResponseSchema,
   vaultMkdirRequestSchema,
   vaultMkdirResponseSchema,
   vaultReadRequestSchema,
   vaultReadResponseSchema,
   vaultRenameRequestSchema,
   vaultRenameResponseSchema,
+  vaultRevisionRequestSchema,
+  vaultRevisionResponseSchema,
   vaultStatusResponseSchema,
   vaultTrashListResponseSchema,
   vaultTrashMoveResponseSchema,
@@ -35,6 +39,21 @@ export const vaultContract = {
     .input(vaultReadRequestSchema)
     .output(vaultReadResponseSchema)
     .errors({ INVALID_PATH, NOT_FOUND: {}, PAYLOAD_TOO_LARGE: {} }),
+
+  /** The note's own commits, newest first, across renames. A path git has
+   *  never seen answers an EMPTY page rather than refusing: a note created
+   *  inside the auto-commit's quiet window has no revisions yet, and that is
+   *  an ordinary state the surface renders. */
+  history: oc.input(vaultHistoryRequestSchema).output(vaultHistoryResponseSchema),
+
+  /** The bytes a note held at one revision. Restore is the CLIENT composing
+   *  this with `write` + `expectedHash` — there is deliberately no
+   *  `vault.restore`, which would be a second write path with its own CAS,
+   *  its own notification and its own chance to disagree with the first. */
+  revision: oc
+    .input(vaultRevisionRequestSchema)
+    .output(vaultRevisionResponseSchema)
+    .errors({ NOT_FOUND: {}, PAYLOAD_TOO_LARGE: {} }),
 
   write: oc
     .input(vaultWriteRequestSchema)

@@ -5,6 +5,7 @@
 import { buffer } from "node:stream/consumers";
 import {
   VAULT_MAX_CONTENT_LENGTH,
+  type VaultHistoryRequest,
   type VaultStatusResponse,
 } from "@repo/api/local/vault/vault-schema";
 import { defineCommand } from "citty";
@@ -51,6 +52,16 @@ async function readContentFromStdin(): Promise<string> {
   } catch {
     throw invalidUsage("stdin is not valid UTF-8; vault files are text");
   }
+}
+
+/** A count flag, parsed HERE rather than sent as a string: citty hands every
+ *  flag over as text, and the contract's own bound is what refuses the rest. */
+function positiveInteger(raw: string, flag: string, floor: number): number {
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value < floor) {
+    throw invalidUsage(`${flag} takes an integer of at least ${String(floor)}; got ${raw}`);
+  }
+  return value;
 }
 
 function assertContentWithinBound(content: string): void {
@@ -104,6 +115,68 @@ export function vaultCommand(deps: CliDeps) {
         run: async ({ args }) => {
           const api = apiFor(deps);
           const body = await api.vault.read({ path: args.path });
+          if (outputJson(args, body)) {
+            return;
+          }
+          writeOut(body.content);
+        },
+      }),
+
+      history: defineCommand({
+        meta: {
+          name: "history",
+          description: "List a note's commits, newest first, following renames",
+        },
+        args: {
+          path: { type: "positional", required: true, description: "The vault-relative path" },
+          skip: { type: "string", description: "Skip this many revisions" },
+          limit: { type: "string", description: "How many revisions to answer" },
+          ...jsonArg,
+        },
+        run: async ({ args }) => {
+          const request: VaultHistoryRequest = { path: args.path };
+          if (args.skip !== undefined) request.skip = positiveInteger(args.skip, "--skip", 0);
+          if (args.limit !== undefined) request.limit = positiveInteger(args.limit, "--limit", 1);
+          const api = apiFor(deps);
+          const body = await api.vault.history(request);
+          if (outputJson(args, body)) {
+            return;
+          }
+          // TAB-separated, one revision per line: the sha comes first because
+          // it is what `vault revision` takes, so `cut -f1` is the whole
+          // pipeline. The path is carried because `--follow` crosses renames
+          // and the read needs the path AT that revision.
+          writeLines(
+            body.revisions.map((revision) =>
+              [
+                revision.sha,
+                revision.authoredAt,
+                revision.authorName,
+                revision.path,
+                revision.subject,
+              ].join("\t"),
+            ),
+          );
+        },
+      }),
+
+      revision: defineCommand({
+        meta: {
+          name: "revision",
+          description: "Print what a note held at one revision (restore: pipe into `vault write`)",
+        },
+        args: {
+          path: {
+            type: "positional",
+            required: true,
+            description: "The path AT that revision, as `vault history` reports it",
+          },
+          sha: { type: "positional", required: true, description: "The revision's commit sha" },
+          ...jsonArg,
+        },
+        run: async ({ args }) => {
+          const api = apiFor(deps);
+          const body = await api.vault.revision({ path: args.path, sha: args.sha });
           if (outputJson(args, body)) {
             return;
           }

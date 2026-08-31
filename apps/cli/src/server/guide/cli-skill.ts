@@ -50,6 +50,15 @@ output; without it the output is compact human text.
   exactly, and anything over 10 MiB is refused). Parent folders are created.
 - \`inteligir vault rename <from> <to>\` — rename/move a note; wiki links into
   it are rewritten and the old name is recorded as an alias.
+- \`inteligir vault history <path> [--skip <n>] [--limit <n>]\` — the note's own
+  commits, newest first, following renames. One tab-separated line per
+  revision: sha, author date, author, the path AT that revision, subject.
+- \`inteligir vault revision <path> <sha>\` — print what the note held at that
+  revision. \`<path>\` is the path \`vault history\` reported for that row, not
+  necessarily today's name. TO RESTORE, pipe it into a write:
+  \`inteligir vault revision "N.md" <sha> | inteligir vault write "N.md"\` —
+  there is no restore verb, because a restore IS an ordinary write of older
+  bytes and a second one would be a second write path.
 - \`inteligir vault delete <path>\` — delete a file or folder.
 - \`inteligir vault mkdir <path>\` — create a folder.
 - \`inteligir trash list\` — notes in the trash (30-day retention).
