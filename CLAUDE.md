@@ -554,6 +554,23 @@ body_stems` at the same bm25 weights, and `@repo/notes/knowledge/search-query`
   no socket, arms no timer and makes no request (asserted, at the shipping
   cadence, in `cloud/__tests__/sync-runtime.test.ts`). The cost, accepted:
   "pause sync" is not expressible — you unpair, which discards the queue.
+- **THE HOSTED VAULT'S READ PATHS ARE BUDGETED PER DEVICE, and the budget buys
+  TIME rather than prevention.** The account is the entitlement, so a verified
+  credential reads every note — which makes a stolen `igd_` a vault-exfiltration
+  credential and not only a thread one. `/v1/vault/*` and `/v1/git/*` therefore
+  consume a fixed window keyed on the DEVICE, never the caller's address: what
+  is being spent is a credential, a stolen one moves between addresses, and the
+  device row is the thing `/app/devices` revokes. Two families, two keys, so a
+  drained read budget never takes a device's sync down with it. THE LIMIT IS
+  STATED HONESTLY: `/v1/git` hands a whole vault over in a couple of requests,
+  so a budget there cannot prevent a clone — it bounds the RATE, and what that
+  buys is the interval in which a person notices the device list and revokes.
+  The per-file read rows are where it bites, because draining a vault through
+  them is one request per note. A READ-SCOPED credential (read vs write) is the
+  deeper answer and is NOT implemented; the trigger to build it is a second
+  party ever holding a credential for someone else's account.
+  The `RATE_LIMIT_DISABLED` kill switch lives inside `allowInWindow` rather
+  than at each call site, so "is the limiter on" has one answer.
 - **PAIRING IS APPROVED IN A BROWSER, and the code survives only as plumbing**
   (issue #573). Nothing shows a `XXXX-XXXX` to a human any more and nothing
   accepts one: Settings has a button, the dashboard has a device table, the CLI

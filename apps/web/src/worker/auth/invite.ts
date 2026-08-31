@@ -70,11 +70,9 @@ export async function handleInviteSignUp(request: Request, env: Env): Promise<Re
   const url = new URL(request.url);
   const db = createDb(env.DB);
 
-  if (env.RATE_LIMIT_DISABLED !== "true") {
-    const key = `${INVITE_RATE_KEY_PREFIX}${callerIp(request)}`;
-    if (!(await allowInWindow(db, key, Date.now(), INVITE_WINDOW))) {
-      return new Response("rate limited", { status: 429 });
-    }
+  const inviteKey = `${INVITE_RATE_KEY_PREFIX}${callerIp(request)}`;
+  if (!(await allowInWindow(env, db, inviteKey, Date.now(), INVITE_WINDOW))) {
+    return new Response("rate limited", { status: 429 });
   }
 
   const body = signUpBodySchema.safeParse(await request.json().catch(() => null));

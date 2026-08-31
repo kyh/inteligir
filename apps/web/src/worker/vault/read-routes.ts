@@ -13,6 +13,7 @@ import {
 } from "@repo/api/cloud/vault/vault-schema";
 import type { RepoCell } from "durable-git";
 import { refuse } from "../cloud-http";
+import { allowInWindow, type RateWindow } from "../rate-limit";
 import { createDb } from "../db/client";
 import { verifyDeviceCredential } from "../device/device-auth";
 import { vaultRegistry, vaultRepoName } from "./git-remote";
@@ -43,6 +44,11 @@ import { vaultRegistry, vaultRepoName } from "./git-remote";
  *  truncation would read as "covered everything". */
 const MAX_TREE_DIRS = 10_000;
 
+/** A device's read budget. A phone opening a note spends a handful; a caller
+ *  draining the vault through this surface spends one per note. */
+const VAULT_READ_WINDOW: RateWindow = { max: 600, windowMs: 60_000 };
+const VAULT_READ_RATE_KEY_PREFIX = "vault-read:";
+
 export async function handleVaultReadRoutes(
   request: Request,
   env: Env,
@@ -50,11 +56,19 @@ export async function handleVaultReadRoutes(
 ): Promise<Response> {
   if (request.method !== "GET") return refuse("not-found", "No such route.");
 
-  const verified = await verifyDeviceCredential(
-    createDb(env.DB),
-    request.headers.get("authorization"),
-  );
+  const db = createDb(env.DB);
+  const verified = await verifyDeviceCredential(db, request.headers.get("authorization"));
   if (verified === null) return refuse("unauthorized", "No valid device credential.");
+
+  // Per-DEVICE, because what is being spent is a credential and a stolen one
+  // moves between addresses while the device row stays the thing the dashboard
+  // revokes. The ceiling is far above a phone reading notes (a tree page, a
+  // file, a handful of image embeds) and far below draining a vault one note
+  // at a time.
+  const budgetKey = `${VAULT_READ_RATE_KEY_PREFIX}${verified.deviceId}`;
+  if (!(await allowInWindow(env, db, budgetKey, Date.now(), VAULT_READ_WINDOW))) {
+    return refuse("rate-limited", "Too many vault reads from this device — wait a minute.");
+  }
 
   const repo = vaultRepoName(verified.userId);
   if (url.searchParams.get("ref") === null) {

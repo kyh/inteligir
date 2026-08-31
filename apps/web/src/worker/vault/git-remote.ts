@@ -2,6 +2,7 @@ import { VAULT_GIT_PATH } from "@repo/api/cloud/vault/vault-git";
 import { createDurableGit, type Registry } from "durable-git";
 import { createDb } from "../db/client";
 import { deviceCredentialFromHeader, verifyDeviceCredentialValue } from "../device/device-auth";
+import { allowInWindow, type RateWindow } from "../rate-limit";
 import { pingVaultAdvanced } from "../sync/routes";
 
 // ---------------------------------------------------------------------------
@@ -83,6 +84,11 @@ const handler = createDurableGit<Env>({
 
 /** Plain text + Basic challenge, not the JSON envelope: this is the git wire,
  *  and the challenge is what makes a stock client prompt. */
+/** A device's budget on the git remote. `git fetch`/`push` is a few requests
+ *  per pass and the desktop syncs once a minute. */
+const VAULT_GIT_WINDOW: RateWindow = { max: 60, windowMs: 60_000 };
+const VAULT_GIT_RATE_KEY_PREFIX = "vault-git:";
+
 function unauthorized(): Response {
   return new Response("auth required\n", {
     status: 401,
@@ -101,10 +107,19 @@ export async function handleVaultGitRemote(
     return new Response("not found\n", { status: 404 });
   }
 
+  const db = createDb(env.DB);
   const credential = deviceCredentialFromHeader(request.headers.get("authorization"));
-  const verified =
-    credential === null ? null : await verifyDeviceCredentialValue(createDb(env.DB), credential);
+  const verified = credential === null ? null : await verifyDeviceCredentialValue(db, credential);
   if (verified === null) return unauthorized();
+
+  // A sync pass is a handful of requests a minute, so this ceiling is invisible
+  // to a real device and answers a loop with 429s instead. It bounds the RATE
+  // and nothing more — one clone carries the whole vault — which is the point:
+  // what it buys is the time the dashboard's revoke button needs to matter.
+  const budgetKey = `${VAULT_GIT_RATE_KEY_PREFIX}${verified.deviceId}`;
+  if (!(await allowInWindow(env, db, budgetKey, Date.now(), VAULT_GIT_WINDOW))) {
+    return new Response("too many requests\n", { status: 429, headers: { "retry-after": "60" } });
+  }
 
   const repo = vaultRepoName(verified.userId);
   if (!REPO_NAME_SAFE.test(verified.userId)) {

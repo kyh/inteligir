@@ -45,11 +45,9 @@ export async function handleDeviceRoutes(request: Request, env: Env, url: URL): 
   const route = `${request.method} ${url.pathname}`;
 
   if (route === `POST ${DEVICE_API_PATHS.redeem}`) {
-    if (env.RATE_LIMIT_DISABLED !== "true") {
-      const key = `${REDEEM_RATE_KEY_PREFIX}${callerIp(request)}`;
-      if (!(await allowInWindow(db, key, Date.now(), REDEEM_WINDOW))) {
-        return refuse("rate-limited", "Too many attempts — wait a minute.");
-      }
+    const key = `${REDEEM_RATE_KEY_PREFIX}${callerIp(request)}`;
+    if (!(await allowInWindow(env, db, key, Date.now(), REDEEM_WINDOW))) {
+      return refuse("rate-limited", "Too many attempts — wait a minute.");
     }
     const body = redeemDeviceRequestSchema.safeParse(await request.json().catch(() => null));
     if (!body.success) return refuse("bad-request", "Send { code, deviceName, verifier }.");
