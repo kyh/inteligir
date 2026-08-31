@@ -37,7 +37,7 @@ catalog:
   # versioning across its own packages; the react-native peers carry their own
   # ranges. Recovered from the pre-purge catalog — the app is a sync-only
   # thread/capture client, no native module beyond the Keychain/Keystore.
-  "@expo/metro-runtime": ~57.0.7
+  "@expo/metro-runtime": ~57.0.14
   # Held on 1.x: @hono/node-ws peers on `@hono/node-server: ^1.19.11` and has no
   # 2.x-compatible release. node-server 2.0 is otherwise drop-in for the `serve` /
   # `serve-static` used here (public API unchanged; it drops the unused vercel
@@ -70,31 +70,31 @@ catalog:
   drizzle-kit: ^0.31.10
   drizzle-orm: ^0.45.2
   esbuild: ^0.28.2
-  expo: ~57.0.8
-  expo-constants: ~57.0.7
-  expo-crypto: ~57.0.1
-  expo-file-system: ~57.0.1
-  expo-linking: ~57.0.4
-  expo-router: ~57.0.8
-  expo-secure-store: ~57.0.1
-  expo-splash-screen: ~57.0.5
+  expo: ~57.0.18
+  expo-constants: ~57.0.16
+  expo-crypto: ~57.0.2
+  expo-file-system: ~57.0.6
+  expo-linking: ~57.0.8
+  expo-router: ~57.0.17
+  expo-secure-store: ~57.0.2
+  expo-splash-screen: ~57.0.8
   expo-status-bar: ~57.0.1
-  expo-system-ui: ~57.0.1
+  expo-system-ui: ~57.0.3
   expo-web-browser: ~57.0.2
   hono: ^4.13.5
   jsdom: ^30.0.1
-  lucide-react: ^1.35.0
+  lucide-react: ^1.37.0
   nanoid: ^6.0.1
   react: ^19.2.8
   react-dom: ^19.2.8
-  react-native: ~0.86.0
+  react-native: ~0.86.3
   react-native-safe-area-context: ~5.7.0
   react-native-screens: ~4.26.2
   remark-frontmatter: ^5.0.0
   remark-gfm: ^4.0.1
   remark-parse: ^11.0.0
   tailwindcss: ^4.3.3
-  tsx: ^4.23.12
+  tsx: ^4.23.13
   typescript: ^7.0.2
   unified: ^11.0.5
   # Held EXACT on 8.1.5 (rolldown 1.1.5). vite 8.2.2 ships rolldown 1.2.6, whose
@@ -109,7 +109,7 @@ catalog:
   vitest: ^4.1.11
   wrangler: ^4.127.1
   yaml: ^2.9.0
-  zod: ^4.5.2
+  zod: ^4.5.4
   zustand: ^5.0.15
 
 catalogs:
@@ -147,3 +147,9 @@ allowBuilds:
 
 overrides:
   "@types/react": "catalog:"
+  # @zed-industries/claude-code-acp pins minimatch EXACT on 10.2.1, which carries
+  # GHSA high (ReDoS, patched in 10.2.3). The rest of the tree already resolves
+  # 10.2.6, so this only dedupes the one lagging copy onto a patch release of the
+  # same major. Drop it once claude-code-acp (or its @agentclientprotocol
+  # successor) ships a non-vulnerable pin.
+  "minimatch@10": ^10.2.6
