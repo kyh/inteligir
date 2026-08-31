@@ -66,6 +66,11 @@ export function applyChangedMessage(
       if (message.changes.includes("files-changed")) {
         void queryClient.invalidateQueries({ queryKey: orpc.vault.tree.key() });
         void queryClient.invalidateQueries({ queryKey: orpc.vault.trashList.key() });
+        // A `read` query is never the OPEN note's source (the buffer is that);
+        // it is how a surface diffing against disk — the history tab — holds
+        // the bytes it compared, and a stale one shows a diff of a file that
+        // has moved.
+        void queryClient.invalidateQueries({ queryKey: orpc.vault.read.key() });
         void queryClient.invalidateQueries({ queryKey: orpc.knowledge.key() });
         void queryClient.invalidateQueries({ queryKey: orpc.comments.key() });
         // A NAMED change reaches only the notes it names; an unnamed one

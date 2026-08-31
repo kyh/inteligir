@@ -275,6 +275,34 @@ command is `db:push:local`.
   saving is imperceptible — while the cost is a second persisted table inside
   a cache whose recovery primitive is deleting the file, so every `nuke()`
   must re-create it and a missed re-create is a crash.
+- **NOTE HISTORY IS LOCAL, AND A RESTORE IS A WRITE** (#616). The per-note
+  history surface reads the vault's own git repo — `git log --follow` for the
+  rows, `git cat-file` for one revision's bytes — with no server component, no
+  new storage and no sync dependency, so it works offline and with no remote.
+  `--follow` is load-bearing rather than a nicety: the rename route moves notes
+  routinely, and without it a renamed note's history truncates silently at the
+  rename. RESTORING revision N means writing its bytes through the ORDINARY
+  write path with `expectedHash` — never `git checkout`, `git revert` or an
+  index manipulation, which would bypass the CAS under the repo lock, the
+  knowledge re-index, the `/ws` notification and the open buffer's own
+  convergence. It also keeps history linear: an undone restore is just another
+  restore, with no detached HEAD to explain. There is deliberately no
+  `vault.restore` procedure — the caller composes `revision` + `write`, and the
+  CLI composes it with a shell pipe — because a second write path is a second
+  CAS that can disagree with the first. Unlike every other CAS refusal in this
+  app, a restore's is REPORTED rather than diff3-merged: the user named exact
+  bytes, and merging them with whatever landed underneath yields a file that is
+  neither.
+- **THE AUTO-COMMIT IS SESSION-SHAPED (15s quiet / 60s max), because a log has
+  to be ANSWERABLE.** `vault: update 1 files` every two seconds is browsable
+  and useless — "restore the version from before I rewrote the intro" cannot be
+  served by thirty anonymous revisions. So a single-file commit NAMES ITS FILE,
+  and a pause of fifteen seconds is what ends an editing session. What the max
+  wait trades is granularity against how long an edit sits UNCOMMITTED, and
+  that half is smaller than it looks: the editor's autosave is 600ms, so the
+  bytes are on disk the whole time — what waits is the revision, not the data.
+  60s is the sync interval, and a sync pass commits the dirty tree before it
+  pushes, so with a remote configured that was already the bound.
 - **A write carries the base it was computed from.** `expectedHash` on the
   vault write route is compared under the repo lock; a mismatch answers 409
   WITH the current content, and the client merges (diff3) and retries. Creation

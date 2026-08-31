@@ -28,17 +28,19 @@ const GIT_MAX_BUFFER_BYTES = 32 * 1024 * 1024;
  * The log has to be ANSWERABLE — "restore the version from before I rewrote
  * the intro" cannot be served by thirty anonymous revisions a few seconds
  * apart. So a pause of 15 seconds is what ends an editing session, and
- * continuous typing still lands a revision every two minutes.
+ * continuous typing still lands a revision every minute.
  *
  * What that trades is granularity against how long an edit sits UNCOMMITTED,
  * and the second half is smaller than it looks: the editor's autosave is
  * 600ms, so the bytes are on disk the whole time — what waits is the
- * revision, not the data. Every other path closes the gap on its own besides:
- * a sync pass commits the dirty tree before it pushes, `commitNow` and
- * shutdown flush, and the boot sweep catches whatever a crash left.
+ * revision, not the data. The max wait is the SYNC INTERVAL, because a sync
+ * pass commits the dirty tree before it pushes — so with a remote configured
+ * that was already the bound, and this makes a local-only vault behave the
+ * same. Every other path closes the gap besides: `commitNow` and shutdown
+ * flush, and the boot sweep catches whatever a crash left.
  */
 const AUTO_COMMIT_QUIET_MS = 15_000;
-const AUTO_COMMIT_MAX_WAIT_MS = 120_000;
+const AUTO_COMMIT_MAX_WAIT_MS = 60_000;
 
 /** Past this many known paths a scoped commit stops being the cheap one: every
  *  path is an argv entry twice over, and the unscoped sweep has no such bound. */
@@ -118,7 +120,7 @@ export function parsePorcelain(stdout: string): PorcelainEntry[] {
 
 /** The paths a status entry names — BOTH sides of a rename, because both
  *  belong to the commit that carries it. */
-export function entryPaths(entries: readonly PorcelainEntry[]): string[] {
+function entryPaths(entries: readonly PorcelainEntry[]): string[] {
   return entries.flatMap((entry) =>
     entry.origin === null ? [entry.path] : [entry.path, entry.origin],
   );
@@ -129,7 +131,7 @@ export function entryPaths(entries: readonly PorcelainEntry[]): string[] {
  * `vault: update 1 files` is browsable and unanswerable, and one word of the
  * path is what makes `git log --follow --oneline` legible at a glance.
  */
-export function autoCommitSubject(paths: readonly string[]): string {
+function autoCommitSubject(paths: readonly string[]): string {
   const only = paths.length === 1 ? paths[0] : undefined;
   return only === undefined
     ? `vault: update ${String(paths.length)} files`

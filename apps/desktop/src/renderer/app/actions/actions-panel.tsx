@@ -1,4 +1,4 @@
-// The right panel: Actions | Comments tabs over the
+// The right panel: Actions | Comments | History tabs over the
 // open note, with the frontmatter properties inlined above them. Actions =
 // the note's own threads first, then the rest, each row expandable into its
 // live timeline with approvals answerable inline — the transcript surface
@@ -32,15 +32,17 @@ import { sendToThread } from "./send-to-thread";
 import { useThreadDetail, useThreads, useThreadTimeline } from "./thread-hooks";
 import { RelatedInline } from "./related-section";
 import { CommentsTab } from "./comments-tab";
+import { HistoryTab } from "./history-tab";
 import { TimelineRowView } from "./timeline-rows";
 import { useWorkspace } from "../workspace-context";
 
-export type PanelTab = "actions" | "comments";
+export type PanelTab = "actions" | "comments" | "history";
 
-const PANEL_TABS: readonly PanelTab[] = ["actions", "comments"];
+const PANEL_TABS: readonly PanelTab[] = ["actions", "comments", "history"];
 const PANEL_TAB_LABELS = {
   actions: "Actions",
   comments: "Comments",
+  history: "History",
 } satisfies Record<PanelTab, string>;
 
 export interface ActionsPanelProps {
@@ -310,6 +312,11 @@ export function ActionsPanel({
 
       {tab === "comments" ? (
         <CommentsTab docPath={docPath} focusIds={commentFocus?.ids ?? []} />
+      ) : tab === "history" ? (
+        // Keyed on the note: the selected revision belongs to the note it was
+        // listed under, and carrying it into another one would diff two
+        // different files.
+        <HistoryTab key={docPath} docPath={docPath} />
       ) : selectedThreadId !== null ? (
         <ActionDetail
           threadId={selectedThreadId}
