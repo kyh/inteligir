@@ -127,7 +127,7 @@ export const vaultRevisionShaSchema = z.string().regex(/^[0-9a-f]{7,64}$/u);
 /** One commit that touched a note, as `git log --follow` reports it. */
 export const vaultRevisionSchema = z
   .object({
-    sha: z.string().min(1),
+    sha: vaultRevisionShaSchema,
     /** Author date, ISO-8601 with offset — git's own `%aI`. */
     authoredAt: z.string().min(1),
     /** WHO wrote it. Engine commits say "inteligir"; an agent turn carries its
@@ -175,6 +175,10 @@ export type VaultRevisionRequest = z.infer<typeof vaultRevisionRequestSchema>;
 
 export const vaultRevisionResponseSchema = z.object({ content: z.string() }).strict();
 export type VaultRevisionResponse = z.infer<typeof vaultRevisionResponseSchema>;
+
+/** What a checkpoint committed; 0 when the tree was already clean. */
+export const vaultCommitResponseSchema = z.object({ files: z.number().int().min(0) }).strict();
+export type VaultCommitResponse = z.infer<typeof vaultCommitResponseSchema>;
 
 export const vaultWriteRequestSchema = z
   .object({

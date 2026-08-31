@@ -41,3 +41,42 @@ describe("what restoring a revision would change", () => {
     );
   });
 });
+
+describe("row identity", () => {
+  it("never emits one base line twice, and never repeats a row id", () => {
+    // Two hunks two lines apart: the first hunk's trailing context window and
+    // the second hunk's own lines overlap, and an unclamped window emits the
+    // same base line as context AND as removed — with the same id twice.
+    for (const [current, revision] of [
+      ["a\nkeep\nb", "A\nkeep\nB"],
+      ["a\na", "b\na\nb\na"],
+      ["one\ntwo\nthree\nfour", "ONE\ntwo\nthree\nFOUR"],
+      ["x\ny", "y\nx"],
+    ] as const) {
+      const rows = diffRows(current, revision);
+      const ids = rows.map((row) => row.id);
+      expect(new Set(ids).size).toBe(ids.length);
+      const baseLines = rows.flatMap((row) =>
+        row.kind === "context" || row.kind === "removed" ? [row.id] : [],
+      );
+      expect(new Set(baseLines).size).toBe(baseLines.length);
+    }
+  });
+});
+
+describe("bounds", () => {
+  it("reports a wholesale replacement instead of walking two long unrelated notes", () => {
+    const rows = diffRows("a\n".repeat(3000), "b\n".repeat(3000));
+    expect(rows.at(-1)).toEqual({ id: "truncated", kind: "truncated", lines: expect.any(Number) });
+    expect(rows.length).toBeLessThanOrEqual(401);
+  });
+
+  it("caps the rows it emits and says how many it withheld", () => {
+    const current = Array.from({ length: 600 }, (_, index) => `line ${String(index)}`).join("\n");
+    const revision = Array.from({ length: 600 }, (_, index) => `LINE ${String(index)}`).join("\n");
+    const rows = diffRows(current, revision);
+    const last = rows.at(-1);
+    expect(last?.kind).toBe("truncated");
+    expect(last?.kind === "truncated" && last.lines).toBeGreaterThan(0);
+  });
+});

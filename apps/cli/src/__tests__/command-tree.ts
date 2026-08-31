@@ -32,6 +32,7 @@ export const LEAF_INVOCATIONS = new Map<string, readonly string[]>([
   ["vault read", ["vault", "read", "notes/hello.md"]],
   ["vault history", ["vault", "history", "notes/hello.md", "--limit", "10"]],
   ["vault revision", ["vault", "revision", "notes/hello.md", FIXTURE_REVISION_SHA]],
+  ["vault restore", ["vault", "restore", "notes/hello.md", FIXTURE_REVISION_SHA]],
   ["vault write", ["vault", "write", "notes/written.md", "--content", "# Written\n"]],
   ["vault rename", ["vault", "rename", "notes/hello.md", "notes/renamed.md"]],
   ["vault delete", ["vault", "delete", "notes/hello.md"]],

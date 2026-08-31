@@ -55,6 +55,10 @@ describe("the vault routes", () => {
     expect(revisions).toHaveLength(2);
     expect(revisions[0]?.subject).toBe("vault: update notes/api.md");
     expect(revisions[0]?.path).toBe("notes/api.md");
+    // The engine's own identity, read back through the log rather than
+    // re-typed: it is what tells an agent revision from a human one.
+    expect(revisions[0]?.authorName).toBe("inteligir");
+    expect(revisions[0]?.authorEmail).toBe("vault@inteligir.local");
 
     const oldest = revisions[1];
     expect(

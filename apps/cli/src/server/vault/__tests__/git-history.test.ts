@@ -3,7 +3,7 @@
 // filenames are the two failures the surface exists to avoid: a truncated
 // history at a rename, and a C-quoted path read back as a path.
 
-import { mkdir, rename, writeFile } from "node:fs/promises";
+import { mkdir, rename, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { ensureVaultRepo, runGit } from "../git";
@@ -30,10 +30,10 @@ async function makeVault(): Promise<{
       await run(["add", "-A"]);
       await run(["-c", "commit.gpgsign=false", "commit", "-m", subject], {
         env: {
-          GIT_AUTHOR_NAME: "inteligir",
-          GIT_AUTHOR_EMAIL: "vault@inteligir.local",
-          GIT_COMMITTER_NAME: "inteligir",
-          GIT_COMMITTER_EMAIL: "vault@inteligir.local",
+          GIT_AUTHOR_NAME: "A",
+          GIT_AUTHOR_EMAIL: "a@b.c",
+          GIT_COMMITTER_NAME: "A",
+          GIT_COMMITTER_EMAIL: "a@b.c",
         },
       });
     },
@@ -91,8 +91,7 @@ describe("readNoteHistory", () => {
     ]);
     expect(revisions[1]?.renamedFrom).toBe("a note.md");
     expect(revisions[0]?.renamedFrom).toBeUndefined();
-    expect(revisions[0]?.authorName).toBe("inteligir");
-    expect(revisions[0]?.authorEmail).toBe("vault@inteligir.local");
+    expect(revisions[0]?.authorName).toBe("A");
     expect(revisions[0]?.authoredAt).toMatch(/^\d{4}-\d{2}-\d{2}T/u);
   });
 
@@ -104,6 +103,64 @@ describe("readNoteHistory", () => {
     }
     const page = await readNoteHistory(run, "Note.md", { skip: 1, limit: 1 });
     expect(page.map((revision) => revision.subject)).toEqual(["vault: update 2"]);
+  });
+
+  it("frames a commit that reports MORE THAN ONE status for the followed path", async () => {
+    // A note that became a folder and a note again: git reports `A Note.md`
+    // and `D Note.md/child` in the same commit. Consuming one tuple leaves a
+    // status where the next object name is expected, which drops every older
+    // revision on the floor.
+    const { root, run, commit } = await makeVault();
+    await writeFile(join(root, "Note.md"), "one\n", "utf8");
+    await commit("vault: first");
+    await rm(join(root, "Note.md"));
+    await mkdir(join(root, "Note.md"), { recursive: true });
+    await writeFile(join(root, "Note.md", "child"), "child\n", "utf8");
+    await commit("vault: folder");
+    await rm(join(root, "Note.md"), { recursive: true });
+    await writeFile(join(root, "Note.md"), "three\n", "utf8");
+    await commit("vault: file again");
+
+    const revisions = await readNoteHistory(run, "Note.md", { skip: 0, limit: 50 });
+    expect(revisions.map((revision) => revision.subject)).toEqual([
+      "vault: file again",
+      "vault: folder",
+      "vault: first",
+    ]);
+    expect(revisions[0]?.path).toBe("Note.md");
+  });
+
+  it("takes a note's name literally — a pathspec is otherwise a GLOB", async () => {
+    // `[a].md` as a pathspec matches `a.md`, and `*.md` matches the whole
+    // vault: the history would carry another note's revisions, whose bytes a
+    // restore then writes into this one.
+    const { root, run, commit } = await makeVault();
+    await writeFile(join(root, "a.md"), "plain\n", "utf8");
+    await writeFile(join(root, "[a].md"), "bracketed\n", "utf8");
+    await commit("vault: both");
+    await writeFile(join(root, "a.md"), "plain edited\n", "utf8");
+    await commit("vault: only a.md");
+
+    const revisions = await readNoteHistory(run, "[a].md", { skip: 0, limit: 50 });
+    expect(revisions.map((revision) => revision.subject)).toEqual(["vault: both"]);
+  });
+
+  it("drops a revision that only DELETED the note — every row it lists is readable", async () => {
+    const { root, run, commit } = await makeVault();
+    await writeFile(join(root, "Note.md"), "one\n", "utf8");
+    await commit("vault: create");
+    await rm(join(root, "Note.md"));
+    await commit("vault: delete");
+    await writeFile(join(root, "Note.md"), "again\n", "utf8");
+    await commit("vault: recreate");
+
+    const revisions = await readNoteHistory(run, "Note.md", { skip: 0, limit: 50 });
+    expect(revisions.map((revision) => revision.subject)).not.toContain("vault: delete");
+    for (const revision of revisions) {
+      await expect(readNoteRevision(run, revision.path, revision.sha)).resolves.toEqual(
+        expect.any(String),
+      );
+    }
   });
 
   it("answers an empty page for a path git has never seen", async () => {

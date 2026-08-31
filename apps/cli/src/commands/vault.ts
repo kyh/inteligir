@@ -4,10 +4,13 @@
 
 import { buffer } from "node:stream/consumers";
 import {
+  VAULT_HISTORY_MAX_LIMIT,
   VAULT_MAX_CONTENT_LENGTH,
+  contentHashHex,
   type VaultHistoryRequest,
   type VaultStatusResponse,
 } from "@repo/api/local/vault/vault-schema";
+import { parseBoundedInteger } from "../args";
 import { defineCommand } from "citty";
 import { invalidUsage } from "../cli-error";
 import { apiFor, type CliDeps } from "../context";
@@ -52,16 +55,6 @@ async function readContentFromStdin(): Promise<string> {
   } catch {
     throw invalidUsage("stdin is not valid UTF-8; vault files are text");
   }
-}
-
-/** A count flag, parsed HERE rather than sent as a string: citty hands every
- *  flag over as text, and the contract's own bound is what refuses the rest. */
-function positiveInteger(raw: string, flag: string, floor: number): number {
-  const value = Number(raw);
-  if (!Number.isInteger(value) || value < floor) {
-    throw invalidUsage(`${flag} takes an integer of at least ${String(floor)}; got ${raw}`);
-  }
-  return value;
 }
 
 function assertContentWithinBound(content: string): void {
@@ -135,8 +128,15 @@ export function vaultCommand(deps: CliDeps) {
         },
         run: async ({ args }) => {
           const request: VaultHistoryRequest = { path: args.path };
-          if (args.skip !== undefined) request.skip = positiveInteger(args.skip, "--skip", 0);
-          if (args.limit !== undefined) request.limit = positiveInteger(args.limit, "--limit", 1);
+          if (args.skip !== undefined) {
+            request.skip = parseBoundedInteger(args.skip, "--skip", { min: 0 });
+          }
+          if (args.limit !== undefined) {
+            request.limit = parseBoundedInteger(args.limit, "--limit", {
+              min: 1,
+              max: VAULT_HISTORY_MAX_LIMIT,
+            });
+          }
           const api = apiFor(deps);
           const body = await api.vault.history(request);
           if (outputJson(args, body)) {
@@ -181,6 +181,39 @@ export function vaultCommand(deps: CliDeps) {
             return;
           }
           writeOut(body.content);
+        },
+      }),
+
+      restore: defineCommand({
+        meta: {
+          name: "restore",
+          description: "Put a note back to what it held at one revision",
+        },
+        args: {
+          path: { type: "positional", required: true, description: "The note's path TODAY" },
+          sha: { type: "positional", required: true, description: "The revision's commit sha" },
+          ...jsonArg,
+        },
+        // A restore is an ordinary GUARDED write of older bytes, composed by
+        // the caller — never a server-side restore, which would be a second
+        // write path with its own CAS. The vault is checkpointed first so the
+        // bytes being replaced survive as a revision of their own, and the
+        // write carries the base it read, so an agent writing underneath is
+        // refused rather than silently overwritten.
+        run: async ({ args }) => {
+          const api = apiFor(deps);
+          const revision = await api.vault.revision({ path: args.path, sha: args.sha });
+          await api.vault.commitNow();
+          const current = await api.vault.read({ path: args.path });
+          const body = await api.vault.write({
+            path: args.path,
+            content: revision.content,
+            expectedHash: await contentHashHex(current.content),
+          });
+          if (outputJson(args, body)) {
+            return;
+          }
+          out.success(`Restored ${body.path} to ${args.sha}`);
         },
       }),
 

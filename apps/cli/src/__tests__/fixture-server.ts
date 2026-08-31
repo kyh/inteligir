@@ -28,7 +28,6 @@ import type {
   Thread,
 } from "@repo/api/local/threads/threads-schema";
 import {
-  VAULT_HISTORY_DEFAULT_LIMIT,
   type VaultEntry,
   type VaultRevision,
   type VaultStatusResponse,
@@ -463,24 +462,19 @@ const vaultRouter = {
     }
     return { path: input.path, content };
   }),
-  history: base.vault.history.handler(({ context, input }) => {
-    const skip = input.skip ?? 0;
-    const rows = context.revisions.get(input.path) ?? [];
-    return {
-      revisions: rows
-        .slice(skip, skip + (input.limit ?? VAULT_HISTORY_DEFAULT_LIMIT))
-        .map((row) => row.revision),
-    };
-  }),
+  history: base.vault.history.handler(({ context, input }) => ({
+    revisions: (context.revisions.get(input.path) ?? []).map((row) => row.revision),
+  })),
   revision: base.vault.revision.handler(({ context, input, errors }) => {
-    const row = [...context.revisions.values()]
-      .flat()
-      .find(({ revision }) => revision.sha === input.sha && revision.path === input.path);
+    const row = (context.revisions.get(input.path) ?? []).find(
+      ({ revision }) => revision.sha === input.sha,
+    );
     if (row === undefined) {
       throw errors.NOT_FOUND({ message: `${input.path} does not exist at ${input.sha}` });
     }
     return { content: row.content };
   }),
+  commitNow: base.vault.commitNow.handler(() => ({ files: 0 })),
   write: base.vault.write.handler(({ context, input }) => {
     context.vault.set(input.path, input.content);
     return { path: input.path };

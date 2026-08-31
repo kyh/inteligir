@@ -11,6 +11,7 @@ import { ALREADY_EXISTS, CAS_MISMATCH, INVALID_PATH } from "../local-errors";
 import {
   vaultAssetWriteRequestSchema,
   vaultAssetWriteResponseSchema,
+  vaultCommitResponseSchema,
   vaultDeleteRequestSchema,
   vaultDeleteResponseSchema,
   vaultHistoryRequestSchema,
@@ -96,6 +97,12 @@ export const vaultContract = {
     .input(vaultDeleteRequestSchema)
     .output(vaultDeleteResponseSchema)
     .errors({ INVALID_PATH, NOT_FOUND: {} }),
+
+  /** Checkpoint the vault now: commit whatever is dirty, as the engine.
+   *  What a restore calls before it overwrites the note — the auto-commit is
+   *  session-shaped, so bytes a user saved seconds ago are still uncommitted,
+   *  and overwriting them would leave them in no revision at all. */
+  commitNow: oc.output(vaultCommitResponseSchema),
 
   status: oc.output(vaultStatusResponseSchema),
 

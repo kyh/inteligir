@@ -1,28 +1,36 @@
-// The panel's History tab: every revision of the open note, what restoring
-// one would change, and the restore itself.
+// The panel's History tab: every revision of the open note, what restoring one
+// would change, and the restore itself. A READ over the vault's own git repo,
+// so it works offline and with no remote — the posture the vault already takes.
 //
-// The whole surface is a READ over the vault's own git repo — no new storage,
-// no sync dependency, no cloud call — so it works offline and with no remote
-// configured, which is the posture the vault already takes.
-//
-// Author is the agent-vs-human distinction, and it is the commit's own author
-// rather than a flag beside it: engine commits say "inteligir", an agent turn
-// carries its own name. Nothing here can drift out of step with the log.
+// The current side of the diff is the OPEN BUFFER, not a cached read: the
+// note's bytes are not query state (the buffer is the file), and the user must
+// be shown a diff against what is on their screen. The CAS base is that exact
+// snapshot, so a note that moved underneath refuses the restore instead of
+// blessing bytes the diff never showed.
 
-import type { VaultRevision } from "@repo/api/local/vault/vault-schema";
+import {
+  contentHashHex,
+  VAULT_HISTORY_DEFAULT_LIMIT,
+  VAULT_HISTORY_MAX_LIMIT,
+  type VaultRevision,
+} from "@repo/api/local/vault/vault-schema";
+import { useOpenNote } from "@repo/editor/note/open-note-context";
 import { flushOpenNote } from "@repo/editor/note/open-note-flush";
 import { Button } from "@repo/ui/components/button";
 import { toast } from "@repo/ui/components/sonner";
 import { cn } from "@repo/ui/lib/utils";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeftIcon } from "lucide-react";
 import { useMemo, useState } from "react";
 
-import { orpc } from "../api";
+import { isDefinedError, orpc, refusalMessage, safe } from "../api";
 import { relativeTimeLabel } from "../relative-time";
 import { useWorkspace } from "../workspace-context";
 import { diffRows, type DiffRow } from "./history-diff";
-import { restoreRevision } from "./restore-revision";
+
+type RestoreOutcome = { kind: "restored" } | { kind: "refused"; message: string };
+
+const RESTORE_REFUSED = "The restore was refused.";
 
 /** The abbreviation git itself shows, and what `inteligir vault revision`
  *  accepts back. */
@@ -62,99 +70,103 @@ function RevisionRow({
   );
 }
 
-const DIFF_ROW_CLASS = {
-  context: "text-muted-foreground",
-  removed: "bg-red-500/10 text-red-700 dark:text-red-300",
-  added: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
-} satisfies Record<Exclude<DiffRow["kind"], "gap">, string>;
+const DIFF_LINE = {
+  context: { mark: " ", className: "text-muted-foreground" },
+  removed: { mark: "-", className: "bg-red-500/10 text-red-700 dark:text-red-300" },
+  added: { mark: "+", className: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" },
+} satisfies Record<"context" | "removed" | "added", { mark: string; className: string }>;
 
-const DIFF_ROW_MARK = { context: " ", removed: "-", added: "+" } satisfies Record<
-  Exclude<DiffRow["kind"], "gap">,
-  string
->;
-
-function DiffView({ rows }: { rows: readonly DiffRow[] }) {
-  if (rows.length === 0) {
+function DiffRowView({ row }: { row: DiffRow }) {
+  if (row.kind === "gap") {
+    return <div className="py-1 text-center text-muted-foreground">⋯ {row.lines} unchanged</div>;
+  }
+  if (row.kind === "truncated") {
     return (
-      <p className="p-3 text-sm text-muted-foreground">
-        This revision is what the note holds right now.
-      </p>
+      <div className="py-1 text-center text-muted-foreground">
+        ⋯ {row.lines} more changed lines not shown
+      </div>
     );
   }
+  const line = DIFF_LINE[row.kind];
   return (
-    <div className="p-2 font-mono text-xs leading-5">
-      {rows.map((row) =>
-        row.kind === "gap" ? (
-          <div key={row.id} className="py-1 text-center text-muted-foreground">
-            ⋯ {row.lines} unchanged
-          </div>
-        ) : (
-          <div key={row.id} className={cn("px-1 whitespace-pre-wrap", DIFF_ROW_CLASS[row.kind])}>
-            {DIFF_ROW_MARK[row.kind]}
-            {row.text}
-          </div>
-        ),
-      )}
+    <div className={cn("px-1 whitespace-pre-wrap", line.className)}>
+      {line.mark}
+      {row.text}
     </div>
   );
 }
 
 function RevisionDetail({
   docPath,
+  current,
   revision,
   onBack,
 }: {
   docPath: string;
+  /** The open buffer's bytes — the diff's base and the restore's CAS base. */
+  current: string;
   revision: VaultRevision;
   onBack: () => void;
 }) {
   const { api } = useWorkspace();
-  const [restoring, setRestoring] = useState(false);
+  const queryClient = useQueryClient();
   const revisionQuery = useQuery(
     orpc.vault.revision.queryOptions({ input: { path: revision.path, sha: revision.sha } }),
   );
-  const currentQuery = useQuery(orpc.vault.read.queryOptions({ input: { path: docPath } }));
-
+  const content = revisionQuery.data?.content ?? null;
   const rows = useMemo(
-    () =>
-      revisionQuery.data === undefined || currentQuery.data === undefined
-        ? null
-        : diffRows(currentQuery.data.content, revisionQuery.data.content),
-    [revisionQuery.data, currentQuery.data],
+    () => (content === null ? null : diffRows(current, content)),
+    [current, content],
   );
 
-  const restore = (): void => {
-    if (restoring) {
-      return;
-    }
-    setRestoring(true);
-    void (async () => {
-      try {
-        // The buffer's own bytes land FIRST: the restore's CAS base is read
-        // from disk, so an unsaved edit would make this write claim a base
-        // that was never on it.
-        await flushOpenNote();
-        const outcome = await restoreRevision(api, {
-          docPath,
-          revisionPath: revision.path,
-          sha: revision.sha,
-        });
-        if (outcome.kind === "refused") {
-          toast.error(outcome.message);
-          return;
-        }
-        if (outcome.kind === "unchanged") {
-          toast.info("This revision is already what the note holds.");
-          return;
-        }
-        toast.success(`Restored ${docPath} to ${shortSha(revision.sha)}.`);
-        onBack();
-      } finally {
-        setRestoring(false);
+  const restore = useMutation({
+    mutationFn: async (bytes: string): Promise<RestoreOutcome> => {
+      // The buffer's own bytes have to be on disk before the CAS base below
+      // means anything, and a flush that failed leaves them where this write
+      // would silently discard them.
+      if (!(await flushOpenNote())) {
+        return {
+          kind: "refused",
+          message: "The note could not be saved, so nothing was restored.",
+        };
       }
-    })();
-  };
+      // Checkpoint what is about to be replaced: the auto-commit is
+      // session-shaped, so bytes saved seconds ago are in no revision yet and
+      // overwriting them would leave them in none at all.
+      await api.vault.commitNow();
+      const { error } = await safe(
+        api.vault.write({
+          path: docPath,
+          content: bytes,
+          expectedHash: await contentHashHex(current),
+        }),
+      );
+      if (error === null) {
+        return { kind: "restored" };
+      }
+      if (isDefinedError(error) && error.code === "CAS_MISMATCH") {
+        return {
+          kind: "refused",
+          message: "The note changed while this restore was in flight. Look again and retry.",
+        };
+      }
+      return { kind: "refused", message: refusalMessage(error, RESTORE_REFUSED) };
+    },
+    onSuccess: (outcome) => {
+      if (outcome.kind === "refused") {
+        toast.error(outcome.message);
+        return;
+      }
+      toast.success(`Restored ${docPath} to ${shortSha(revision.sha)}.`);
+      void queryClient.invalidateQueries({ queryKey: orpc.vault.history.key() });
+      onBack();
+    },
+    onError: (cause: unknown) => {
+      toast.error(refusalMessage(cause, RESTORE_REFUSED));
+    },
+  });
 
+  const identical = rows !== null && rows.length === 0;
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex items-center gap-1 border-b border-line px-2 py-1.5 text-sm">
@@ -162,7 +174,14 @@ function RevisionDetail({
           <ArrowLeftIcon />
         </Button>
         <span className="min-w-0 flex-1 truncate font-medium">{revision.subject}</span>
-        <Button size="xs" variant="outline" disabled={restoring || rows === null} onClick={restore}>
+        <Button
+          size="xs"
+          variant="outline"
+          disabled={restore.isPending || content === null || identical}
+          onClick={() => {
+            if (content !== null) restore.mutate(content);
+          }}
+        >
           Restore
         </Button>
       </div>
@@ -174,12 +193,18 @@ function RevisionDetail({
       <div className="min-h-0 flex-1 overflow-y-auto">
         {rows === null ? (
           <p className="p-3 text-sm text-muted-foreground">
-            {revisionQuery.isError || currentQuery.isError
-              ? "This revision could not be read."
-              : "Reading…"}
+            {revisionQuery.isError ? "This revision could not be read." : "Reading…"}
+          </p>
+        ) : identical ? (
+          <p className="p-3 text-sm text-muted-foreground">
+            This revision is what the note holds right now.
           </p>
         ) : (
-          <DiffView rows={rows} />
+          <div className="p-2 font-mono text-xs leading-5">
+            {rows.map((row) => (
+              <DiffRowView key={row.id} row={row} />
+            ))}
+          </div>
         )}
       </div>
     </div>
@@ -188,18 +213,29 @@ function RevisionDetail({
 
 export function HistoryTab({ docPath }: { docPath: string | null }) {
   const [selected, setSelected] = useState<VaultRevision | null>(null);
+  const [limit, setLimit] = useState(VAULT_HISTORY_DEFAULT_LIMIT);
+  // The buffer only answers for the note it has LOADED: a switch publishes the
+  // new path before its bytes arrive, and diffing the outgoing note's text
+  // against this note's revision would be a diff of two different files.
+  const current = useOpenNote((state) =>
+    state.editor.path === docPath ? state.editor.content : null,
+  );
+  // `staleTime` is Infinity app-wide, and a commit announces nothing — so this
+  // is the one query that has to re-ask whenever the tab is opened.
   const historyQuery = useQuery({
-    ...orpc.vault.history.queryOptions({ input: { path: docPath ?? "" } }),
+    ...orpc.vault.history.queryOptions({ input: { path: docPath ?? "", limit } }),
+    staleTime: 0,
     enabled: docPath !== null,
   });
 
   if (docPath === null) {
     return <p className="p-3 text-sm text-muted-foreground">Open a note to see its history.</p>;
   }
-  if (selected !== null) {
+  if (selected !== null && current !== null) {
     return (
       <RevisionDetail
         docPath={docPath}
+        current={current}
         revision={selected}
         onBack={() => {
           setSelected(null);
@@ -220,6 +256,22 @@ export function HistoryTab({ docPath }: { docPath: string | null }) {
           onSelect={setSelected}
         />
       ))}
+      {revisions.length < limit ? null : limit < VAULT_HISTORY_MAX_LIMIT ? (
+        <Button
+          size="xs"
+          variant="ghost"
+          className="mt-1 w-full"
+          onClick={() => {
+            setLimit(Math.min(limit * 2, VAULT_HISTORY_MAX_LIMIT));
+          }}
+        >
+          Show older revisions
+        </Button>
+      ) : (
+        <p className="p-2 text-[11px] text-muted-foreground">
+          Older revisions are in the vault's git log.
+        </p>
+      )}
       {revisions.length === 0 && !historyQuery.isPending ? (
         <p className="p-3 text-sm text-muted-foreground">
           No revisions yet. Edits are committed once you pause.

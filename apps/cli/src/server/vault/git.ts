@@ -449,9 +449,15 @@ export interface GitEngine {
   holdCommits(): () => void;
   /**
    * The note's own commits, newest first, ACROSS RENAMES. Empty for a path
-   * git has never seen. Under the repo lock like every other call: a rebase
-   * in flight has HEAD detached at a replayed commit, which is a different
-   * history for the same note.
+   * git has never seen.
+   *
+   * OFF THE REPO LOCK, unlike every mutation here. `log` and `cat-file` read
+   * the object database and never the index, so they can neither corrupt nor
+   * be corrupted by a commit — while the lock they would take is the same
+   * chain a whole sync pass holds, network calls and their 120-second timeout
+   * included. Queueing a click behind that is the worse answer. The residual
+   * is stated: a read landing inside a rebase sees that rebase's temporary
+   * HEAD, and the next refetch corrects it.
    */
   history(path: string, page: NoteHistoryPage): Promise<VaultRevision[]>;
   /** The bytes the note held at one revision, read at that revision's own
@@ -546,10 +552,6 @@ export function createGitEngine(args: GitEngineArgs): GitEngine {
     return parsePorcelain(stdout);
   }
 
-  async function countDirtyPaths(): Promise<number> {
-    return (await porcelain()).length;
-  }
-
   async function commitIfDirty(): Promise<{ files: number } | null> {
     const dirty = entryPaths(await porcelain());
     if (dirty.length === 0) {
@@ -564,11 +566,6 @@ export function createGitEngine(args: GitEngineArgs): GitEngine {
     return { files: dirty.length };
   }
 
-  /** The paths git itself reports dirty (staged or not) under the pathspecs. */
-  async function dirtyPathsUnder(paths: readonly string[]): Promise<string[]> {
-    return entryPaths(await porcelain(paths));
-  }
-
   async function commitPathsIfDirty(
     paths: readonly string[],
     author: CommitAuthor | undefined,
@@ -579,7 +576,7 @@ export function createGitEngine(args: GitEngineArgs): GitEngine {
     }
     // Restrict the pathspec to what is actually dirty: `git add` errors on a
     // pathspec matching nothing, and a reported write may have been reverted.
-    const dirty = await dirtyPathsUnder(paths);
+    const dirty = entryPaths(await porcelain(paths));
     if (dirty.length === 0) {
       return null;
     }
@@ -896,7 +893,9 @@ export function createGitEngine(args: GitEngineArgs): GitEngine {
     // The porcelain reads run behind the repo lock, so a status can never
     // report the half-way tree of a sync or commit in flight.
     return withRepoLock(async () => {
-      const dirtyPaths = await countDirtyPaths().catch(() => 0);
+      const dirtyPaths = await porcelain()
+        .then((entries) => entries.length)
+        .catch(() => 0);
       let unpushed = 0;
       if (dirtyPaths === 0) {
         const branch = await currentBranch();
@@ -960,10 +959,10 @@ export function createGitEngine(args: GitEngineArgs): GitEngine {
     },
     holdCommits,
     history(path, page) {
-      return withRepoLock(() => readNoteHistory(run, path, page));
+      return readNoteHistory(run, path, page);
     },
     revision(path, sha) {
-      return withRepoLock(() => readNoteRevision(run, path, sha));
+      return readNoteRevision(run, path, sha);
     },
     syncNow,
     status: statusSnapshot,

@@ -287,12 +287,31 @@ command is `db:push:local`.
   knowledge re-index, the `/ws` notification and the open buffer's own
   convergence. It also keeps history linear: an undone restore is just another
   restore, with no detached HEAD to explain. There is deliberately no
-  `vault.restore` procedure — the caller composes `revision` + `write`, and the
-  CLI composes it with a shell pipe — because a second write path is a second
-  CAS that can disagree with the first. Unlike every other CAS refusal in this
-  app, a restore's is REPORTED rather than diff3-merged: the user named exact
-  bytes, and merging them with whatever landed underneath yields a file that is
-  neither.
+  `vault.restore` PROCEDURE — a second server write path is a second CAS that
+  can disagree with the first — but BOTH clients run the same composition:
+  checkpoint (`vault.commitNow`), then `write` with the base the diff was
+  computed from. The checkpoint is not optional: the auto-commit is
+  session-shaped, so the bytes a restore replaces are typically in no revision
+  yet, and overwriting them would leave them in none at all. The CAS base is
+  the snapshot the user was SHOWN, never a fresh read — a fresh read would
+  bless bytes that landed after the diff was drawn. And unlike every other CAS
+  refusal in this app, a restore's is REPORTED rather than diff3-merged: the
+  user named exact bytes, and merging them with whatever landed underneath
+  yields a file that is neither.
+  READING the log is OFF THE REPO LOCK. `log` and `cat-file` touch the object
+  database and never the index, so they can neither corrupt nor be corrupted
+  by a commit — while the lock they would take is the chain a whole sync pass
+  holds, its 120-second network timeout included. The residual: a read landing
+  inside a rebase sees that rebase's temporary HEAD.
+  Three `git log` flags make the answer depend on the repo rather than the
+  user's git config, and each is load-bearing: `--literal-pathspecs` (a
+  pathspec is a GLOB — a note called `[a].md` otherwise reports `a.md`'s
+  history, and `*.md` reports the whole vault's, whose bytes a restore would
+  then write into it), `--root` and `--no-show-signature`. A commit reports
+  MORE THAN ONE name-status tuple for one followed path (a note that became a
+  folder and a note again), so the parse consumes the whole block; a commit
+  whose every tuple is a deletion is dropped, because every row this surface
+  lists must be one `revision` can read.
 - **THE AUTO-COMMIT IS SESSION-SHAPED (15s quiet / 60s max), because a log has
   to be ANSWERABLE.** `vault: update 1 files` every two seconds is browsable
   and useless — "restore the version from before I rewrote the intro" cannot be

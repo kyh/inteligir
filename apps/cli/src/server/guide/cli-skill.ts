@@ -55,10 +55,13 @@ output; without it the output is compact human text.
   revision: sha, author date, author, the path AT that revision, subject.
 - \`inteligir vault revision <path> <sha>\` — print what the note held at that
   revision. \`<path>\` is the path \`vault history\` reported for that row, not
-  necessarily today's name. TO RESTORE, pipe it into a write:
-  \`inteligir vault revision "N.md" <sha> | inteligir vault write "N.md"\` —
-  there is no restore verb, because a restore IS an ordinary write of older
-  bytes and a second one would be a second write path.
+  necessarily today's name.
+- \`inteligir vault restore <path> <sha>\` — put the note back to that
+  revision. \`<path>\` here is the note's path TODAY. It checkpoints the vault
+  first (so the bytes being replaced survive as their own revision) and writes
+  against the base it read, so a concurrent write is refused rather than
+  overwritten. Prefer this over piping \`revision\` into \`write\`, which
+  carries no such guard.
 - \`inteligir vault delete <path>\` — delete a file or folder.
 - \`inteligir vault mkdir <path>\` — create a folder.
 - \`inteligir trash list\` — notes in the trash (30-day retention).

@@ -116,6 +116,10 @@ const remove = base.vault.remove.handler(({ context, input }) =>
   }),
 );
 
+const commitNow = base.vault.commitNow.handler(async ({ context }) => ({
+  files: (await context.vault.git.commitNow())?.files ?? 0,
+}));
+
 const status = base.vault.status.handler(({ context }) => context.vault.status());
 
 const syncNow = base.vault.syncNow.handler(({ context }) => context.vault.syncNow());
@@ -134,6 +138,7 @@ export const vaultRouter = {
   trashRestore,
   trashPurge,
   remove,
+  commitNow,
   status,
   syncNow,
 };
