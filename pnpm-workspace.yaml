@@ -97,7 +97,15 @@ catalog:
   tsx: ^4.23.12
   typescript: ^7.0.2
   unified: ^11.0.5
-  vite: ^8.2.2
+  # Held EXACT on 8.1.5 (rolldown 1.1.5). vite 8.2.2 ships rolldown 1.2.6, whose
+  # tree-shaking drops `HOST_COOKIE_PREFIX` while still emitting the
+  # `cookies_exports` namespace that references it, so better-auth 1.7's cookies
+  # module throws `ReferenceError: HOST_COOKIE_PREFIX is not defined` at module
+  # scope and the Worker never starts. Cloudflare's version-creation startup check
+  # catches it and answers a bare 500 / error 10002, which reads like a platform
+  # outage rather than a broken bundle. A caret does NOT hold this — ^8.1.5
+  # resolves to 8.2.2. Verified: 8.1.5 boots (HTTP 200), 8.2.2 does not.
+  vite: 8.1.5
   vitest: ^4.1.11
   wrangler: ^4.127.1
   yaml: ^2.9.0
