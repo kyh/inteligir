@@ -21,13 +21,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { CAPTURE_INBOX_PATH, type CaptureVault } from "../captures";
 import type { CloudFetch, CloudSocket, OpenCloudSocketArgs } from "@repo/api/cloud/client";
 import { readDeviceCredential } from "../credential-store";
-import {
-  createCloudRuntime,
-  type CloudRuntime,
-  type CloudTransport,
-  type PairCompletion,
-  type SyncedEventSink,
-} from "../sync-runtime";
+import type { PairCompletion } from "../pair-flow";
+import type { SyncedEventSink } from "../sync-pass";
+import { createCloudRuntime, type CloudRuntime, type CloudTransport } from "../sync-runtime";
 import { VaultServiceError } from "../../vault/vault-service";
 import { makeTempDir } from "../../__tests__/temp-dir";
 import { FakeCloud } from "./fake-cloud";

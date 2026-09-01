@@ -8,7 +8,7 @@
 
 import { base } from "../orpc";
 import { pairCallbackUrlFor } from "./pair-callback";
-import type { BeginPairArgs } from "./sync-runtime";
+import type { BeginPairArgs } from "./pair-flow";
 
 const status = base.cloud.status.handler(({ context }) => context.cloud.status());
 

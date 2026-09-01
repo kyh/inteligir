@@ -28,7 +28,8 @@ import {
   pairRedirectUrlSchema,
 } from "@repo/api/cloud/pairing/pairing-schema";
 import { describeCloudFailure } from "@repo/api/cloud/client";
-import type { CloudRuntime, PairCompletion } from "./sync-runtime";
+import type { PairCompletion } from "./pair-flow";
+import type { CloudRuntime } from "./sync-runtime";
 import { loopbackRequestOrigin } from "../loopback-origin";
 import {
   INERT_CALLBACK_HEADERS,
