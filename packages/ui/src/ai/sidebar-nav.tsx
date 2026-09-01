@@ -11,14 +11,10 @@ import { GlideList } from "@repo/ui/ai/glide-list";
  * SIDEBAR NAV — a collapsible rail: workspace, nav rows, recents
  *
  * Note this is NOT the app's own sidebar (`components/sidebar*`,
- * which owns resize, peek and the mobile sheet). This is Beautiful
- * UI's lighter rail, carried for the gallery and for surfaces that
- * want a nav without the full apparatus.
- *
- * Upstream draws its icons from `@central-icons-react`, holds a
- * fixture workspace and recents list, and composes an internal
- * `GlideMenu` its payload does not ship. Icons are a SLOT here,
- * rows are children, and the sliding highlight is `glide-list.tsx`.
+ * which owns resize, peek and the mobile sheet). This is the
+ * lighter rail, carried for the gallery and for surfaces that
+ * want a nav without the full apparatus. Icons are a SLOT, rows
+ * are children, and the sliding highlight is `glide-list.tsx`.
  * ───────────────────────────────────────────────────────── */
 
 export interface SidebarRailProps extends HTMLAttributes<HTMLDivElement> {

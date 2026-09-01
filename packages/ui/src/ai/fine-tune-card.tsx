@@ -13,11 +13,8 @@ import { GlideList } from "@repo/ui/ai/glide-list";
  *
  * The piece worth carrying is the SCRUB FIELD: a label you drag
  * sideways to change the number, which also accepts typing and
- * arrow keys. Upstream owns a fixture of settings; here every
- * field is controlled by the caller.
- *
- * The card's menu uses `glide-list.tsx` — upstream composes an
- * internal `GlideMenu` its payload does not include.
+ * arrow keys. Every field is controlled by the caller, and the
+ * card's menu is `glide-list.tsx`.
  * ───────────────────────────────────────────────────────── */
 
 const FineTuneCard = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(

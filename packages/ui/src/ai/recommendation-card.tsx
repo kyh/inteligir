@@ -12,16 +12,15 @@ import { cn } from "@repo/ui/lib/utils";
  * RECOMMENDATION CARD — one suggestion, its confidence, and
  * the alternatives it beat
  *
- * Upstream holds three fixture options, promotes the picked one
- * and renders its own buttons. Here the CARD IS COMPOSED: the
- * recommendation, the drawer of alternatives and the footer are
- * children, and the actions are a SLOT the caller fills with its
- * own buttons — a card that shipped its own confirm control would
- * decide what confirming means.
+ * The CARD IS COMPOSED: the recommendation, the drawer of
+ * alternatives and the footer are children, and the actions are a
+ * SLOT the caller fills with its own buttons — a card that
+ * shipped its own confirm control would decide what confirming
+ * means.
  *
- * The confidence meter is monochrome. Upstream tints it green /
- * orange / grey; confidence is not a settled status, so this skin
- * says it with ink weight instead of inventing hues it lacks.
+ * The confidence meter is monochrome: confidence is not a settled
+ * status, so this skin says it with ink weight instead of
+ * inventing hues it lacks.
  * ───────────────────────────────────────────────────────── */
 
 const meterBarVariants = cva("w-1 rounded-full transition-colors duration-300", {

@@ -11,9 +11,8 @@ import { cn } from "@repo/ui/lib/utils";
  * DIFF TABLE — a proposed change set, row by row, each one
  * includable or not
  *
- * Upstream walks three fixture rows through a staged animation
- * and owns which are kept. Here ROWS ARE CHILDREN and inclusion
- * is the caller's state, because only they can apply it.
+ * ROWS ARE CHILDREN and inclusion is the caller's state,
+ * because only they can apply it.
  *
  * Removed and added ARE semantic status, so each keeps one accent
  * — the destructive and emerald the rest of this directory

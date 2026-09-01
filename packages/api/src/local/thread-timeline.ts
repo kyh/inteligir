@@ -1,6 +1,4 @@
 // Vendored from bb (github.com/get-bb/bb), MIT. © bb contributors.
-// Trimmed to the rows v1's grammar can produce; bb's full row set also
-// carries web activity, approvals, questions, delegation, and workflow rows.
 
 import {
   threadEventFileChangeKindSchema,

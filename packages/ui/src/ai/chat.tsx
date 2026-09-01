@@ -9,14 +9,10 @@ import { cn } from "@repo/ui/lib/utils";
 /* ─────────────────────────────────────────────────────────
  * CHAT — a panel of replies with tabs and a composer
  *
- * Upstream drives a canned reply sequence off a timer, owns its
- * own draft, and — this matters — fires a `posthog-js` analytics
- * event on send. THE ANALYTICS IS STRIPPED: this product ships no
- * telemetry, and a vendored capture call would be one.
- *
- * Here the MESSAGES ARE CHILDREN and the draft is the caller's,
- * so the panel renders a real conversation instead of replaying
- * a fixture.
+ * The MESSAGES ARE CHILDREN and the draft is the caller's, so
+ * the panel renders a real conversation. NO ANALYTICS on send:
+ * this product ships no telemetry, and a vendored capture call
+ * would be one.
  * ───────────────────────────────────────────────────────── */
 
 const ChatPanel = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(

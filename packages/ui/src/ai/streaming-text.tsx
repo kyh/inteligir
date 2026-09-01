@@ -10,8 +10,7 @@ import { cn } from "@repo/ui/lib/utils";
  * Words resolve one at a time behind a caret, then the
  * message's actions become usable.
  *
- * Upstream cycles a canned token array on a timer. Here the
- * TEXT IS THE INPUT: newly-arrived words reveal at the same
+ * The TEXT IS THE INPUT: newly-arrived words reveal at a fixed
  * cadence, so a provider that emits a paragraph in one chunk
  * still reads as typing, and a re-render never rewinds what
  * the reader already saw.

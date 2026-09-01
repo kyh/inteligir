@@ -11,12 +11,11 @@ import { cn } from "@repo/ui/lib/utils";
 /* ─────────────────────────────────────────────────────────
  * FILTER TABLE — status chips that filter the rows below them
  *
- * Upstream hardcodes four filters, five rows and a status
- * vocabulary tinted from its own palette. Here CHIPS AND ROWS ARE
- * CHILDREN and filtering belongs to the caller, who owns the data;
- * this file owns the LAYOUT (one grid template shared by header
- * and rows, through context so a caller states the columns once)
- * and the collapse transition a filtered-out row animates through.
+ * CHIPS AND ROWS ARE CHILDREN and filtering belongs to the
+ * caller, who owns the data; this file owns the LAYOUT (one grid
+ * template shared by header and rows, through context so a caller
+ * states the columns once) and the collapse transition a
+ * filtered-out row animates through.
  * ───────────────────────────────────────────────────────── */
 
 interface TableContextValue {
@@ -52,8 +51,8 @@ export interface FilterChipProps extends HTMLAttributes<HTMLButtonElement> {
   active?: boolean;
   /** Matching-row count shown at the chip's trailing edge. */
   count?: ReactNode;
-  /** A leading marker — upstream tinted this per status from a palette this
-   *  skin does not carry, so it is a slot the caller fills. */
+  /** A leading marker — a slot the caller fills; this skin carries no
+   *  per-status palette. */
   marker?: ReactNode;
 }
 

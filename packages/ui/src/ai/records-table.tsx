@@ -18,13 +18,9 @@ import { cn } from "@repo/ui/lib/utils";
 /* ─────────────────────────────────────────────────────────
  * RECORDS TABLE — a grid of records whose columns an agent fills
  *
- * Upstream's file is the largest in the set, and most of it is the
- * DEMO: a company fixture, a competitor pool, model names, and the
- * enrichment sequence that walks them. None of that is a component
- * — it is one app's data and one app's pipeline — so it is not
- * carried. What IS carried is the grid: resizable columns, a
- * header that names each column's type and the tool behind it,
- * tag cells, and the trailing add-column affordance.
+ * The grid: resizable columns, a header that names each column's
+ * type and the tool behind it, tag cells, and the trailing
+ * add-column affordance.
  *
  * Column widths live in context and are RESIZED IN PLACE by the
  * header's own handle, which is the interaction worth having: a
@@ -230,8 +226,8 @@ const recordTagVariants = cva(
   {
     variants: {
       tone: {
-        // Upstream carries a per-tag colour palette; this skin has none, so
-        // tags separate from the cell by surface rather than by hue.
+        // This skin carries no per-tag palette, so tags separate from the
+        // cell by surface rather than by hue.
         neutral: "bg-surface-inset text-ink-2",
         strong: "bg-line text-ink",
       },

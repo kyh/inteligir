@@ -18,18 +18,13 @@ import { GlideList } from "@repo/ui/ai/glide-list";
  * PROMPT BAR — a composer with @ sources, / commands and a
  * model picker
  *
- * Two things upstream ships are deliberately absent.
- *
- * `glimm` — a WebGL-shader and audio-sweep package — drove a
- * rainbow sweep across the bar's interior on model change, plus a
- * sound. THE DEPENDENCY IS NOT ADDED: it is decoration, this app
- * plays no sound, and this package has been shedding render
- * libraries, not gaining them. The model picker still changes; it
- * just does not paint a shader while doing it.
- *
- * And the brand marks (Figma, Slack, Gmail SVGs inlined as its @
- * sources) are gone — a design system should not carry other
- * companies' logos. Source rows take an `icon` instead.
+ * Two things are deliberately absent. `glimm` — a WebGL-shader
+ * and audio-sweep package that would paint a rainbow sweep on
+ * model change, plus a sound: it is decoration, this app plays no
+ * sound, and this package sheds render libraries rather than
+ * gaining them. And brand marks (Figma, Slack, Gmail SVGs) — a
+ * design system should not carry other companies' logos. Source
+ * rows take an `icon` instead.
  *
  * NOTE this is not the app's own composer: that one is built on
  * fluid's `InputMessage` and carries the dictation contract. This

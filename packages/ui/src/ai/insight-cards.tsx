@@ -10,12 +10,11 @@ import { cn } from "@repo/ui/lib/utils";
 /* ─────────────────────────────────────────────────────────
  * INSIGHT CARDS — a metric, its movement, and the trend behind it
  *
- * Upstream renders its chart with `liveline`, an external charting
- * package. THE CHART HERE IS OURS: a small SVG multi-series line
- * renderer, because a dependency for one sparkline is a poor trade
- * and this repo has been moving heavy render libraries OUT of the
- * design system, not in. What upstream gives is the CARD — metric,
- * delta, scrubbable chart with a tooltip — and that is carried.
+ * THE CHART IS OURS: a small SVG multi-series line renderer,
+ * because a dependency for one sparkline is a poor trade and this
+ * repo moves heavy render libraries OUT of the design system, not
+ * in. The CARD is metric, delta, and a scrubbable chart with a
+ * tooltip.
  *
  * Series are the input. Lines separate by dash pattern and ink
  * weight rather than hue, so a monochrome skin can still show two

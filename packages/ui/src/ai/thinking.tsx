@@ -14,12 +14,10 @@ import { cn } from "@repo/ui/lib/utils";
  * Header shimmers while working and settles to a summary;
  * the trace hangs off a vertical rule, one row per step.
  *
- * Upstream ships four fixture-driven variants on a canned
- * timer (Steps / Reasoning / Search / Coding). Here the ROWS
- * ARE CHILDREN and each part names its own kind, because a
- * real turn interleaves reasoning and tool calls in one trace
- * — upstream's Search variant is dropped whole: it renders
- * web sources this product has none of.
+ * The ROWS ARE CHILDREN and each part names its own kind,
+ * because a real turn interleaves reasoning and tool calls in
+ * one trace. There is no Search variant: it renders web
+ * sources this product has none of.
  * ───────────────────────────────────────────────────────── */
 
 interface ThinkingProps extends Omit<HTMLAttributes<HTMLDivElement>, "title"> {

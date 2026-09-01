@@ -23,12 +23,10 @@ import { cn } from "@repo/ui/lib/utils";
  * Single-choice questions commit on pick — the answer IS the
  * decision, so a second confirmation would be ceremony.
  *
- * Upstream drives a module fixture through a one-at-a-time
- * stepper. Here the QUESTIONS ARE CHILDREN, which a stepper
- * cannot count, so they stack instead: composition and a step
- * index only the parent could compute are incompatible, and
- * stacking is the composable equivalent. What survives is the
- * answer collection, commit-on-pick, and the sent state.
+ * The QUESTIONS ARE CHILDREN, which a stepper cannot count, so
+ * they stack instead: composition and a step index only the
+ * parent could compute are incompatible, and stacking is the
+ * composable equivalent.
  * ───────────────────────────────────────────────────────── */
 
 export interface ApprovalAnswer {
@@ -184,8 +182,8 @@ interface ApprovalQuestionProps extends HTMLAttributes<HTMLDivElement> {
   /** Stable id — the key this question's answer comes back under. */
   questionId: string;
   prompt: string;
-  /** A second, quieter line under the prompt — the reason a caller was asked.
-   *  Local extension: upstream's questions are one line. */
+  /** A second, quieter line under the prompt — the reason a caller was
+   *  asked. */
   detail?: string;
   kind?: "radio" | "check";
   /** Rendered beside the prompt — a dismiss control, usually. */

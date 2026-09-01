@@ -24,12 +24,11 @@ import { cn } from "@repo/ui/lib/utils";
  * check or cross once settled), the row carries the label and
  * a count, and each row expands to its own detail lines.
  *
- * Upstream walks a fixture through a canned tick sequence and
- * hardcodes its own status vocabulary. Here ROWS ARE THE INPUT
- * and `status` is the whole vocabulary, so the caller's own
- * lifecycle names map onto four visual states and stay the
- * source of truth. The status PILL is a slot for the same
- * reason: its wording belongs to the caller, not to this card.
+ * ROWS ARE THE INPUT and `status` is the whole vocabulary, so
+ * the caller's own lifecycle names map onto four visual states
+ * and stay the source of truth. The status PILL is a slot for
+ * the same reason: its wording belongs to the caller, not to
+ * this card.
  * ───────────────────────────────────────────────────────── */
 
 export type TaskStatus = "pending" | "running" | "done" | "failed";

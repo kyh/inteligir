@@ -1,10 +1,8 @@
 // Vendored from plate (github.com/udecode/plate), MIT. © Plate contributors.
-// Editor chrome: plate's registry editor.tsx container/content pair reduced
-// to its `default` variant (no comment/ai/select/demo/fullWidth variants, so
-// the cva wrappers collapse to plain class strings) and mapped onto this
-// app's design tokens (upstream's `brand` → `primary`).
+// Editor chrome: the container/content pair around PlateContent, on this
+// app's design tokens.
 //
-// Column geometry follows upstream's default variant: PlateContent itself carries the centered
+// Column geometry: PlateContent itself carries the centered
 // ~700px column padding (EDITOR_COLUMN_PX) so the block-drag hover gutter —
 // absolutely positioned at -left-11 inside each block — lands INSIDE the
 // editable's padding box and survives its overflow-x-hidden clip. The

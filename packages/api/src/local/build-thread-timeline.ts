@@ -365,8 +365,8 @@ function projectItem(accumulator: ItemAccumulator): PlacedRow | null {
       return { placement: "top-level", row };
     }
     case "reasoning": {
-      // Upstream's order: `summary` is the provider's VISIBLE thinking text
-      // (codex settles with content empty); raw content is the fallback.
+      // `summary` is the provider's VISIBLE thinking text (codex settles
+      // with content empty); raw content is the fallback.
       const completedText = (
         snapshot.summary.length > 0 ? snapshot.summary : snapshot.content
       ).join("\n\n");

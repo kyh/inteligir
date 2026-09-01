@@ -21,12 +21,9 @@ import { cn } from "@repo/ui/lib/utils";
  *
  * A collapsible run header over rows that each carry a chip
  * (the call's target) and expand to their own detail lines.
- *
- * Upstream animates a fixture in on a timer and ends with
- * hover-preview diff chips. The ROWS ARE THE INPUT here, and
- * the diff chips are dropped: they render hunks this
- * product's timeline does not carry, so they would be a
- * hover surface with nothing behind it.
+ * The ROWS ARE THE INPUT. Diff chips are deliberately absent:
+ * they render hunks this product's timeline does not carry, so
+ * they would be a hover surface with nothing behind it.
  * ───────────────────────────────────────────────────────── */
 
 const ICONS = {
@@ -144,8 +141,8 @@ interface ToolChipProps
   detailMono?: boolean;
 }
 
-/** Children are the chip's detail lines: a chip with none is not expandable,
- *  which is the same rule upstream applied to an empty detail array. */
+/** Children are the chip's detail lines: a chip with none is not
+ *  expandable. */
 const ToolChip = forwardRef<HTMLDivElement, ToolChipProps>(
   (
     {

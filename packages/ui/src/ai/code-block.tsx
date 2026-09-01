@@ -18,11 +18,9 @@ import { cn } from "@repo/ui/lib/utils";
 /* ─────────────────────────────────────────────────────────
  * CODE BLOCK — agent-written code with a live copy control
  *
- * Upstream streams a hardcoded snippet line by line on a timer
- * and colors its tokens from a palette this repo does not carry.
- * Here the LINES ARE CHILDREN and the copy text is the input, so
- * the block renders whatever the caller has; and tokens separate
- * by WEIGHT rather than hue, because the skin is monochrome and a
+ * The LINES ARE CHILDREN and the copy text is the input, so the
+ * block renders whatever the caller has; tokens separate by
+ * WEIGHT rather than hue, because the skin is monochrome and a
  * token vocabulary invented in colours we lack would be a lie.
  *
  * Line numbers come from a CSS counter rather than an index: the

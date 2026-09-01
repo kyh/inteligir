@@ -11,11 +11,10 @@ import { cn } from "@repo/ui/lib/utils";
  * A card is one retrieved passage: a title, how much of it was
  * taken, the passage itself, and a chip naming its source.
  *
- * Upstream animates two hardcoded chunks in on a timer. Here the
- * CARDS ARE CHILDREN, so a caller renders whatever the retrieval
- * actually returned, and the entrance is a CSS utility rather
- * than a mount-time timer — a list that re-renders when a query
- * settles must not replay its own introduction.
+ * The CARDS ARE CHILDREN, so a caller renders whatever the
+ * retrieval actually returned, and the entrance is a CSS utility
+ * rather than a mount-time timer — a list that re-renders when a
+ * query settles must not replay its own introduction.
  * ───────────────────────────────────────────────────────── */
 
 const LINES_ICON = (
@@ -134,8 +133,8 @@ const ContextCardBody = forwardRef<HTMLParagraphElement, HTMLAttributes<HTMLPara
 ContextCardBody.displayName = "ContextCardBody";
 
 export interface ContextCardSourceProps extends HTMLAttributes<HTMLButtonElement> {
-  /** Short kind marker — "PDF", "CSV". Monochrome by design: upstream tinted
-   *  it per file type from its own palette, which this one does not carry. */
+  /** Short kind marker — "PDF", "CSV". Monochrome by design: this skin
+   *  carries no per-file-type palette. */
   kind?: ReactNode;
 }
 

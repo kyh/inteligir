@@ -10,11 +10,8 @@ import { cn } from "@repo/ui/lib/utils";
  * SELECTION ACTIONS — the bar that appears over a selection,
  * and the result panel an action opens
  *
- * Upstream drives a scripted rewrite through a fixture and pulls
- * icons from `iconoir-react` plus two of its own atoms
- * (`Shimmer`, `StreamText`) that its payload does not ship. Icons
- * are now a SLOT — this package already has `lucide-react` and a
- * caller may want neither — the shimmer is the `shimmer-text`
+ * Icons are a SLOT — this package already has `lucide-react` and
+ * a caller may want neither — the shimmer is the `shimmer-text`
  * keyframe this directory already defines, and streamed text is
  * `streaming-text.tsx`, which is right here.
  * ───────────────────────────────────────────────────────── */

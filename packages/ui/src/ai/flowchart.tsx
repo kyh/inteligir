@@ -10,16 +10,11 @@ import { cn } from "@repo/ui/lib/utils";
  * FLOWCHART — an automation read as steps: trigger, condition,
  * the branches under it
  *
- * Upstream positions nodes on an absolute canvas from a fixture
- * of rows and normalized x offsets, measuring each card to draw
- * its edges. That machinery exists to place TWO known nodes; it
- * cannot lay out a chart a caller brings. So the layout here is a
- * FLOW: nodes stack, connectors sit between them, and a branch
- * renders its own rows. The visual result is upstream's; the
- * arrangement is one a caller can actually compose against.
- *
- * Kind pills are monochrome — upstream tints them purple and
- * amber from hues this skin does not carry.
+ * The layout is a FLOW: nodes stack, connectors sit between
+ * them, and a branch renders its own rows — an arrangement a
+ * caller can compose against, where an absolute canvas could
+ * only place nodes it had measured. Kind pills are monochrome:
+ * this skin carries no purple or amber.
  * ───────────────────────────────────────────────────────── */
 
 const Flowchart = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(

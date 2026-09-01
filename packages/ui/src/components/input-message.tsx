@@ -46,8 +46,7 @@ interface InputMessageProps extends Omit<HTMLAttributes<HTMLDivElement>, "onChan
   placeholder?: string;
   /** Content rendered in the bottom-left action area. */
   leftSlot?: ReactNode;
-  /** Content rendered inside the card ABOVE the textarea (context chips —
-   *  a local extension; upstream has no in-card top region). */
+  /** Content rendered inside the card ABOVE the textarea (context chips). */
   topSlot?: ReactNode;
   /** Content rendered in the bottom-right action area, before the built-in
    *  send button. */

@@ -2,7 +2,7 @@
   "name": "@repo/agent-runtime",
   "version": "0.1.0",
   "private": true,
-  "description": "Agent provider runtime vendored from bb, trimmed to the codex app-server adapter: newline JSON-RPC over stdio, provider process lifecycle, dual-id thread stamping, event translation into the runtime's provider grammar, and interactive (approval) requests. Consumers say \"start a thread, run a turn, give me events\" — they never touch processes or wire formats.",
+  "description": "The ACP agent runtime: one adapter speaks Zed's agent-client-protocol to claude-code-acp and codex-acp children; harnesses are data rows, and events translate into the runtime's own provider grammar. Consumers say \"start a session, run a turn, give me events\" — they never touch processes or wire formats.",
   "type": "module",
   "exports": {
     "./acp/acp-event-mapping": "./src/acp/acp-event-mapping.ts",

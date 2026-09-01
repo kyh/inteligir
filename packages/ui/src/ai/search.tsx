@@ -10,12 +10,9 @@ import { GlideList } from "@repo/ui/ai/glide-list";
 /* ─────────────────────────────────────────────────────────
  * SEARCH — a command field with its results directly below
  *
- * Upstream owns the query, filters a fixture, and composes an
- * internal `GlideMenu` its payload does not ship. Here the QUERY
- * AND RESULTS ARE THE CALLER'S — filtering is their business,
- * since only they know what is being searched — and the sliding
- * highlight comes from `glide-list.tsx`, written here to replace
- * the primitive that was referenced but never published.
+ * The QUERY AND RESULTS ARE THE CALLER'S — filtering is their
+ * business, since only they know what is being searched — and
+ * the sliding highlight comes from `glide-list.tsx`.
  * ───────────────────────────────────────────────────────── */
 
 const SEARCH_ICON = (

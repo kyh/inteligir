@@ -113,12 +113,11 @@ const DialogContent = forwardRef<HTMLDivElement, DialogContentProps>(
               onAnimationIteration: _onAnimationIteration,
               ...rest
             } = popupProps;
-            // Deviation from upstream fluid, which centers via motion
-            // x/y "-50%": centering rides the CSS translate utilities instead,
-            // so a consumer className can override one axis (the command
-            // palette pins `top-1/3 translate-y-0`). The CSS `translate`
-            // property composes before `transform`, so rendering is identical;
-            // motion animates opacity/scale only.
+            // Centering rides the CSS translate utilities rather than motion
+            // x/y "-50%", so a consumer className can override one axis (the
+            // command palette pins `top-1/3 translate-y-0`). The CSS
+            // `translate` property composes before `transform`, so rendering
+            // is identical; motion animates opacity/scale only.
             //
             // `data-slot="dialog-content"` stays on the popup: CommandItem
             // restyles itself inside a dialog through an
