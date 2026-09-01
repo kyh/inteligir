@@ -83,7 +83,7 @@ catalog:
   expo-web-browser: ~57.0.2
   hono: ^4.13.5
   jsdom: ^30.0.1
-  lucide-react: ^1.37.0
+  lucide-react: ^1.38.0
   nanoid: ^6.0.1
   react: ^19.2.8
   react-dom: ^19.2.8
