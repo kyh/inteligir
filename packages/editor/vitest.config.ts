@@ -15,8 +15,6 @@ const plugins = [react()];
 
 export default defineConfig({
   test: {
-    // Budgeted against the rest of the monorepo's suites, which turbo runs in
-    // parallel: uncapped pools exhaust the machine and kill workers mid-run.
     maxWorkers: 2,
     projects: [
       {
@@ -24,7 +22,6 @@ export default defineConfig({
         resolve: { alias },
         test: {
           name: "editor",
-          environment: "node",
           include: ["src/**/*.test.ts"],
           server: { deps: { inline: inlineDeps } },
         },

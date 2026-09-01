@@ -5,10 +5,7 @@
     // so it also runs on Hermes, which ships no ES2024+ stdlib
     // (facebook/hermes#1684). Raising it compiles clean and crashes on device.
     "lib": ["ES2023", "WebWorker"],
-    "types": [],
-    "paths": {
-      "@repo/notes/*": ["./src/*"]
-    }
+    "types": []
   },
-  "include": ["src"]
+  "include": ["src", "vitest.config.ts"]
 }

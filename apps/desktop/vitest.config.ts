@@ -8,17 +8,14 @@ const SETUP_FILES = ["src/renderer/app/__tests__/jsdom-stubs.ts"];
 
 export default defineConfig({
   test: {
-    // Budgeted against the rest of the monorepo's suites, which turbo runs in
-    // parallel: uncapped pools exhaust the machine and kill workers mid-run.
     maxWorkers: 2,
     projects: [
       {
         test: {
           name: "desktop",
-          // node by default (the main-process policy suites); the renderer's
-          // component tests opt into jsdom per file via an @vitest-environment
-          // docblock.
-          environment: "node",
+          // The renderer's component tests opt into jsdom per file via an
+          // @vitest-environment docblock; the main-process policy suites run
+          // on the node default.
           include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
           exclude: [...configDefaults.exclude, BOOTED_DOM_SUITES],
           setupFiles: SETUP_FILES,

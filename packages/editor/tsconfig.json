@@ -7,10 +7,7 @@
     "lib": ["ES2023", "dom", "dom.iterable"],
     "jsx": "react-jsx",
     // node: the roundtrip fixture matrix is read off disk by the markdown tests.
-    "types": ["node"],
-    "paths": {
-      "@repo/editor/*": ["./src/*"]
-    }
+    "types": ["node"]
   },
   "include": ["src", "vitest.config.ts"]
 }

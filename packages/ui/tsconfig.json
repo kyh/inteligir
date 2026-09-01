@@ -15,10 +15,7 @@
     // JSX resolution rules.
     "jsx": "react-jsx",
     // node: the orphan-component guard walks the repo from src/__tests__.
-    "types": ["node"],
-    "paths": {
-      "@repo/ui/*": ["./src/*"]
-    }
+    "types": ["node"]
   },
   "include": ["src", "vitest.config.ts"]
 }

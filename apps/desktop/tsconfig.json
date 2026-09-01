@@ -1,9 +1,7 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    // `dom` for the `fetch`/`URL`/`AbortSignal` the main process uses; Electron
-    // ships Chromium's globals in it.
-    "lib": ["ES2023", "dom"],
+    "lib": ["ES2023"],
     "types": ["node"],
     "tsBuildInfoFile": "${configDir}/.cache/tsbuildinfo.main.json"
   },

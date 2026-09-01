@@ -2,10 +2,7 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "lib": ["ES2023"],
-    "types": ["node"],
-    "paths": {
-      "@repo/db/*": ["./src/*"]
-    }
+    "types": ["node"]
   },
-  "include": ["src", "drizzle.config.ts"]
+  "include": ["src", "drizzle.config.ts", "vitest.config.ts"]
 }

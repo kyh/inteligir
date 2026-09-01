@@ -5,10 +5,7 @@
     // document — this contract loads in the Electron renderer, on node, on
     // workerd and in React Native.
     "lib": ["ES2023", "WebWorker"],
-    "types": [],
-    "paths": {
-      "@repo/api/*": ["./src/*"]
-    }
+    "types": []
   },
-  "include": ["src"]
+  "include": ["src", "vitest.config.ts"]
 }

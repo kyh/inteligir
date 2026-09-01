@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import { analyzeMarkdown, roundTrip } from "@repo/editor/markdown/markdown-doc";
-import { SAMPLE_NOTES } from "@repo/editor/__tests__/sample-notes";
+import { SAMPLE_NOTES } from "./sample-notes";
 
 // Legacy-corpus tripwire: real-world markdown from this repo + every dev
 // fixture-vault note gets an EXPLICIT expected classification. If a pipeline

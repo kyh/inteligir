@@ -6,21 +6,17 @@
     // share, so a leaf that forgets `lib` still lands on the same stdlib.
     "target": "ES2023",
     "module": "Preserve",
-    "moduleResolution": "Bundler",
     "moduleDetection": "force",
     "isolatedModules": true,
     // Strictly stronger than isolatedModules: a value-import of a type-only
     // symbol fails typecheck instead of silently pulling runtime code into the
     // renderer/RN bundle.
     "verbatimModuleSyntax": true,
-    "resolveJsonModule": true,
-    "esModuleInterop": true,
     "skipLibCheck": true,
     "noEmit": true,
     "incremental": true,
     "tsBuildInfoFile": "${configDir}/.cache/tsbuildinfo.json",
     "strict": true,
-    "noImplicitAny": true,
     "noUncheckedIndexedAccess": true,
     "noImplicitOverride": true,
     "noFallthroughCasesInSwitch": true,

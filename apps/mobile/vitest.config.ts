@@ -8,10 +8,7 @@ import { defineConfig } from "vitest/config";
 // react-native wiring, so no device or native module is needed.
 export default defineConfig({
   test: {
-    environment: "node",
     include: ["src/**/__tests__/**/*.test.ts"],
-    // Budgeted against the rest of the monorepo's suites, which turbo runs in
-    // parallel: uncapped pools exhaust the machine and kill workers mid-run.
     maxWorkers: 1,
   },
 });

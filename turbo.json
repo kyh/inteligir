@@ -11,9 +11,9 @@
   "globalDependencies": ["tsconfig.base.json"],
   // The local cache has no ceiling by default and this repo builds under
   // worktrees, which SHARE one cache dir — so every parallel branch adds
-  // entries and nothing ever removes them. Measured at 172 GB / 16,725 entries
-  // before this line existed. Eviction runs in a background thread at the start
-  // of `turbo run`, so it costs the build nothing.
+  // entries and nothing ever removes them (measured: 172 GB / 16,725 entries).
+  // Eviction runs in a background thread at the start of `turbo run`, so it
+  // costs the build nothing.
   "cacheMaxSize": "10GB",
   "cacheMaxAge": "14d",
   "tasks": {
@@ -39,17 +39,15 @@
       "dependsOn": ["^topo"],
       // tsc runs incremental (tsconfig.base.json `tsBuildInfoFile`), so the
       // incremental state IS this task's output — cache it or every restore
-      // re-checks from cold.
-      "outputs": [".cache/tsbuildinfo.json"]
+      // re-checks from cold. A glob, because a workspace with two programs
+      // writes two files (tsbuildinfo.main.json / tsbuildinfo.renderer.json).
+      "outputs": [".cache/tsbuildinfo*.json"]
     },
     "test": {
       "dependsOn": ["^topo"],
-      "cache": false
-    },
-    "clean": {
-      "cache": false
-    },
-    "//#clean": {
+      // Every vitest.config.ts caps its own maxWorkers because this task runs
+      // the suites in parallel (the root `test` script passes --concurrency=4):
+      // uncapped pools exhaust the machine and kill workers mid-run.
       "cache": false
     }
   },

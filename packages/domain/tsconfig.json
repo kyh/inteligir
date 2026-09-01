@@ -2,10 +2,7 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "lib": ["ES2023"],
-    "types": [],
-    "paths": {
-      "@repo/domain/*": ["./src/*"]
-    }
+    "types": []
   },
-  "include": ["src"]
+  "include": ["src", "vitest.config.ts"]
 }

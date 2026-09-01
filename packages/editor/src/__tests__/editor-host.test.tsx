@@ -12,10 +12,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { EditorHostProvider } from "@repo/editor/host";
 import WikiChip from "@repo/editor/wiki-chip";
-import {
-  fakeEditorHost,
-  type FakeEditorHostOptions,
-} from "@repo/editor/__tests__/fake-editor-host";
+import { fakeEditorHost, type FakeEditorHostOptions } from "./fake-editor-host";
 
 afterEach(cleanup);
 
