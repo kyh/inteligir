@@ -20,8 +20,9 @@ import {
   useSyncStatus,
   useThreads,
 } from "@/lib/app-runtime";
-import { RADIUS, SPACE, useTheme } from "@/lib/theme";
+import { RADIUS, SPACE, type Theme, useTheme } from "@/lib/theme";
 import type { SyncStatus } from "@/sync/sync-runtime";
+import { describeCloudFailure } from "@repo/api/cloud/client";
 
 // The home surface. Unpaired → a pairing screen; paired → the thread list with a
 // quick-capture box. Read-only on threads for v1 (the desktop runs turns).
@@ -180,12 +181,35 @@ function HomeScreen() {
   );
 }
 
+type CaptureNotice =
+  | { kind: "idle" }
+  | { kind: "sending" }
+  | { kind: "captured" }
+  | { kind: "failed"; message: string };
+
+function captureNoticeLine(
+  notice: CaptureNotice,
+  theme: Theme,
+): { text: string; color: string } | null {
+  switch (notice.kind) {
+    case "idle":
+    case "sending":
+      return null;
+    case "captured":
+      return { text: "Captured", color: theme.mutedForeground };
+    case "failed":
+      return { text: notice.message, color: theme.destructive };
+  }
+}
+
 // The phone's own job: capture into the inbox. The write POSTs to the cloud with
-// a retry-stable idempotency key; the desktop applies it to the vault.
+// a retry-stable idempotency key; the desktop applies it to the vault. The field
+// clears only once the POST is accepted — a refused one leaves the user's words
+// where they can be retried, and says so in the failure colour.
 function CaptureBox() {
   const theme = useTheme();
   const [text, setText] = useState("");
-  const [confirmation, setConfirmation] = useState<string | null>(null);
+  const [notice, setNotice] = useState<CaptureNotice>({ kind: "idle" });
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(
@@ -197,14 +221,20 @@ function CaptureBox() {
 
   const capture = useCallback(async () => {
     const value = text.trim();
-    if (value === "") return;
-    setText("");
-    const result = await submitCapture(value);
-    setConfirmation(result.message);
+    if (value === "" || notice.kind === "sending") return;
     if (timer.current !== null) clearTimeout(timer.current);
-    timer.current = setTimeout(() => setConfirmation(null), 2500);
-  }, [text]);
+    setNotice({ kind: "sending" });
+    const result = await submitCapture(value);
+    if (!result.ok) {
+      setNotice({ kind: "failed", message: describeCloudFailure(result.failure) });
+      return;
+    }
+    setText("");
+    setNotice({ kind: "captured" });
+    timer.current = setTimeout(() => setNotice({ kind: "idle" }), 2500);
+  }, [text, notice.kind]);
 
+  const line = captureNoticeLine(notice, theme);
   return (
     <View style={styles.captureBox}>
       <TextInput
@@ -220,8 +250,8 @@ function CaptureBox() {
         submitBehavior="blurAndSubmit"
         onSubmitEditing={() => void capture()}
       />
-      {confirmation !== null ? (
-        <Text style={[styles.captionText, { color: theme.mutedForeground }]}>{confirmation}</Text>
+      {line !== null ? (
+        <Text style={[styles.captionText, { color: line.color }]}>{line.text}</Text>
       ) : null}
     </View>
   );

@@ -32,7 +32,7 @@ import {
 import { createSyncRuntime, type SyncRuntime, type SyncStatus } from "../sync/sync-runtime";
 import type { SyncStore } from "../sync/sync-store";
 import { projectThread, type ThreadProjection } from "../sync/thread-projection";
-import type { VaultAssetSource } from "@repo/api/cloud/client";
+import type { CloudFailure, VaultAssetSource } from "@repo/api/cloud/client";
 import { getCloudUrl } from "./cloud-url";
 
 interface AppRuntime {
@@ -135,13 +135,14 @@ export function startPair(): Promise<void> {
 }
 
 /** POST a quick capture to the inbox. The desktop applies it to the vault. */
-export async function submitCapture(text: string): Promise<{ ok: boolean; message: string }> {
+export async function submitCapture(
+  text: string,
+): Promise<{ ok: true } | { ok: false; failure: CloudFailure }> {
   const result = await getRuntime().sync.createCapture({
     text,
     idempotencyKey: newIdempotencyKey(),
   });
-  if (!result.ok) return { ok: false, message: result.failure.message };
-  return { ok: true, message: "Captured" };
+  return result.ok ? { ok: true } : { ok: false, failure: result.failure };
 }
 
 /** A stable idempotency key for a capture retry — the contract wants ≥ 8 chars;
