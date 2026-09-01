@@ -4,7 +4,6 @@ import {
   CommandList,
   CommandGroup,
   CommandItem,
-  CommandSeparator,
   CommandShortcut,
   CommandEmpty,
 } from "@repo/ui";
@@ -26,7 +25,7 @@ export function Palette() {
             <CommandItem>
               <Search />
               Search vault
-              <CommandShortcut>⌘K</CommandShortcut>
+              <CommandShortcut>⌘P</CommandShortcut>
             </CommandItem>
             <CommandItem>
               <Moon />
@@ -34,16 +33,15 @@ export function Palette() {
               <CommandShortcut>⌘⇧L</CommandShortcut>
             </CommandItem>
           </CommandGroup>
-          <CommandSeparator />
-          <CommandGroup heading="Tasks">
+          <CommandGroup heading="Agent">
             <CommandItem>
               <Bot />
-              Delegate task to agent
-              <CommandShortcut>⌘D</CommandShortcut>
+              Ask agent
+              <CommandShortcut>⌘K</CommandShortcut>
             </CommandItem>
             <CommandItem>
               <RotateCcw />
-              Restore original
+              Restore version
             </CommandItem>
           </CommandGroup>
         </CommandList>

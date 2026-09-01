@@ -117,18 +117,6 @@ try {
 symlinkSync(UI, link); // absolute target — survives cwd changes
 log(`self-symlink @repo/ui -> packages/ui`);
 
-// 1b. fork node_modules symlink — .design-sync/overrides/source-kit.mjs imports
-// bare `ts-morph`; node resolves it from .design-sync/node_modules. Gitignored,
-// so recreate each clone.
-const forkNm = join(HERE, "node_modules");
-if (existsSync(join(DS, "node_modules"))) {
-  try {
-    rmSync(forkNm, { recursive: true, force: true });
-  } catch {}
-  symlinkSync(join(DS, "node_modules"), forkNm);
-  log(`fork node_modules -> .ds-sync/node_modules`);
-}
-
 // ── 2. fresh .d.ts (wipe dist first to kill any stale tree) ─────────────────
 rmSync(DIST, { recursive: true, force: true });
 mkdirSync(DIST, { recursive: true });

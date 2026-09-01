@@ -20,9 +20,9 @@ export function VaultField() {
 
 export function TaskRow() {
   return (
-    <Label htmlFor="delegate-task">
-      <Checkbox id="delegate-task" defaultChecked />
-      Delegate: summarize research notes
+    <Label htmlFor="task">
+      <Checkbox id="task" defaultChecked />
+      Task: summarize research notes
     </Label>
   );
 }

@@ -16,13 +16,7 @@ export function NoteActions() {
         <MenuItem index={0} icon={Pencil} label="Rename" onSelect={() => {}} />
         <MenuItem index={1} icon={Copy} label="Duplicate" onSelect={() => {}} />
         <MenuItem index={2} icon={ArrowUpRight} label="Move to…" onSelect={() => {}} />
-        <MenuItem
-          index={3}
-          icon={Sparkles}
-          label="Delegate to agent"
-          shortcut="⌘J"
-          onSelect={() => {}}
-        />
+        <MenuItem index={3} icon={Sparkles} label="Ask agent" shortcut="⌘K" onSelect={() => {}} />
         <DropdownSeparator />
         <MenuItem index={4} icon={Trash2} label="Delete note" destructive onSelect={() => {}} />
       </DropdownContent>

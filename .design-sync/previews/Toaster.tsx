@@ -44,7 +44,7 @@ export function Notifications() {
 
 export function WithDescriptionAndAction() {
   useEffect(() => {
-    toast.success("Task delegated to background agent", {
+    toast.success("Action started", {
       description: "“Summarize Q3 launch retro” — writing back to launch-retro.md",
       duration: Infinity,
       action: { label: "View", onClick: () => {} },
@@ -59,8 +59,8 @@ export function WithDescriptionAndAction() {
 
 export function GlassToast() {
   useEffect(() => {
-    toast("Delegation complete", {
-      description: "Restore original from the dock to undo the agent's edit.",
+    toast("Action complete", {
+      description: "Open the Actions panel to review the agent's edit.",
       duration: Infinity,
     });
   }, []);

@@ -1,12 +1,12 @@
 import { Tooltip, TooltipProvider, Button } from "@repo/ui";
 import { Sparkles } from "lucide-react";
 
-export function DelegateHint() {
+export function AskAgentHint() {
   return (
     <TooltipProvider>
       <div style={{ display: "flex", justifyContent: "center", padding: 48 }}>
-        <Tooltip content="Delegate this task to a background agent" side="top" forceOpen>
-          <Button size="icon" variant="secondary" aria-label="Delegate">
+        <Tooltip content="Ask the agent about this note" side="top" forceOpen>
+          <Button size="icon" variant="secondary" aria-label="Ask agent">
             <Sparkles />
           </Button>
         </Tooltip>
@@ -22,7 +22,7 @@ export function Sides() {
         <Tooltip content="Rename" side="top" forceOpen>
           <Button variant="secondary">Top</Button>
         </Tooltip>
-        <Tooltip content="Open in new pane" side="bottom" forceOpen>
+        <Tooltip content="Open daily note" side="bottom" forceOpen>
           <Button variant="secondary">Bottom</Button>
         </Tooltip>
       </div>

@@ -38,10 +38,10 @@ dropped optical sizing; app + design system now both self-host the full ttf.)
   (synth `export *` is independent of the card list) — the design agent can still use
   `window.InteligirUI.DialogContent` etc.; they just have no card/.d.ts. Compound composition is
   taught by each primary's authored preview + prompt.md and the conventions header.
-- Providers (`ShapeProvider`, `SurfaceProvider`, `ThemeProvider`, `SidebarProvider`,
+- Providers (`RadiusProvider`, `SurfaceProvider`, `ThemeProvider`, `SidebarProvider`,
   `TooltipProvider`) and imperative infra (`ConfirmDialogHost`, `GlobalAlertDialog`, `confirm()`,
   `toast()`) are in the bundle but not carded → document in conventions header.
-- Contexts have **safe defaults** (`useShape` → pill, `useSurface` → 1) so most components render
+- Contexts have **safe defaults** (`useRadius` → pill, `useSurface` → 1) so most components render
   provider-free.
 
 ## Verification
@@ -53,34 +53,25 @@ dropped optical sizing; app + design system now both self-host the full ttf.)
 
 ## Previews, contracts, grouping (first sync — uploaded 2026-07-04)
 
-- 20 authored previews (`.design-sync/previews/*.tsx`), all compiled to real cards (0 floor).
-- 15 wrapper components had empty extracted `.d.ts` (Base UI-backed) → hand-written prop bodies
-  in `cfg.dtsPropsFor` (Input/Textarea/Label/Checkbox/Spinner/Breadcrumb/Collapsible/Command/
-  AlertDialog/Popover/Menu/Tooltip/Sidebar/GeometricOrb/Toaster). Button/Badge/Switch/Dialog/Tabs
+- Authored previews (`.design-sync/previews/*.tsx`), all compiled to real cards (0 floor).
+- Wrapper components with empty extracted `.d.ts` (Base UI-backed) get hand-written prop
+  bodies in `cfg.dtsPropsFor` — the config is the list. Button/Badge/Switch/Dialog/Tabs
   extracted cleanly. If source props change, update the matching `dtsPropsFor` entry.
 - Overlays + special render as `cardMode:single` with sized viewports (`cfg.overrides`) — Base UI
   overlays portal to body, so grid mode collides multiple open overlays in one iframe.
 - Overlay triggers use the **`render` prop** (`<DialogTrigger render={<Button/>}/>`), NOT children.
-- All 20 cards are in ONE flat `general` group. To split into Actions/Forms/Overlays/… add
+- All cards are in ONE flat `general` group. To split into Actions/Forms/Overlays/… add
   `category` frontmatter via stub docs + `cfg.docsMap`, or `@category` JSDoc in source.
 
-## GeometricOrb DROPPED (scheduler crash — the bug that broke the first upload)
+## No second React reconciler in the bundle
 
-First upload rendered NOTHING in the live pane: `[BUNDLE_EXPORT] not a component on
-window.InteligirUI` for all 20, root cause `[SCHEDULER_MISSING]`. `geometric-orb.tsx` is the
-only file importing `@react-three/fiber` → it bundles its own `react-reconciler` which imports
-`scheduler` directly; the DS bundle externalizes react-dom and **stubs `scheduler` with a
-throwing shim** (`lib/bundle.mjs`, deliberate — assumes react-dom is the only scheduler user).
-That throw blew up the whole IIFE at load, so `window.InteligirUI` was never assigned and every
-component (and every preview importing them) came up empty.
-
-**Fix:** exclude react-three-fiber files from the synth entry via a committed fork
-`.design-sync/overrides/source-kit.mjs` (declared in `cfg.libOverrides`; the fork's bare
-`ts-morph` import resolves through the `.design-sync/node_modules` symlink prepare.mjs creates).
-`GeometricOrb` is also nulled in `componentSrcMap` (no card). Result: 19 components, bundle
-3768 KB → ~1521 KB, no scheduler. **Don't fork `lib/bundle.mjs`** to "fix" scheduler — the guidance
-forbids it and keeping the WebGL orb (which won't render in the 2D pane anyway) isn't worth the
-3 MB. If the orb is ever wanted, it needs a real scheduler bundled — a separate effort.
+The DS bundle externalizes react-dom and **stubs `scheduler` with a throwing shim**
+(`lib/bundle.mjs`, deliberate — assumes react-dom is the only scheduler user). A source file
+that imports `@react-three/fiber` or `react-reconciler` bundles its own reconciler, which
+imports `scheduler` directly; the throw blows up the whole IIFE at load, `window.InteligirUI`
+never assigns, and every card comes up empty. No such file exists in `@repo/ui`. If one ever
+appears, exclude it from the synth entry (a `.design-sync/overrides/source-kit.mjs` fork,
+declared in `cfg.libOverrides`) — **don't fork `lib/bundle.mjs`** to "fix" scheduler.
 
 ## Known render warns
 

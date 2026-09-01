@@ -6,7 +6,7 @@ export function States() {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
       <Switch label="Ghost-text completions" checked onToggle={noop} />
-      <Switch label="Auto-delegate checked tasks" checked={false} onToggle={noop} />
+      <Switch label="Infer note properties" checked={false} onToggle={noop} />
     </div>
   );
 }

@@ -13,7 +13,7 @@ defaults). Wrap only when you use these:
 - **Sidebar** → wrap the whole sidebar + its trigger in `<SidebarProvider>` (required — subparts call `useSidebar()`).
 - **Toasts** → mount **one** `<Toaster />` at the app root, then call `toast("Saved")` / `toast.success(...)` / `toast.error(...)` imperatively.
 - **Confirm dialogs** → mount **one** `<ConfirmDialogHost />` at the app root, then `await confirm({ title, body })` (returns `Promise<boolean>`).
-- **Corner style** (optional): `<ShapeProvider defaultShape="pill" | "rounded">` toggles every component's corner radius globally. Default is `pill`.
+- **Corner style** (optional): `<RadiusProvider defaultRadius="pill" | "rounded">` pins every component's corner radius globally. Default is `pill`.
 - **Dark mode**: add the class **`dark`** to an ancestor (e.g. `<html class="dark">`). Optional `<ThemeProvider>` owns OS-preference resolution and toggles that class for you.
 
 ## Styling idiom — token-backed Tailwind utilities
@@ -67,7 +67,7 @@ Read `styles.css` (and its `@import`ed `_ds_bundle.css`) for the full token + ut
       Active
     </Badge>
   </div>
-  <p className="text-sm text-muted-foreground">3 tasks delegated to the agent.</p>
+  <p className="text-sm text-muted-foreground">3 actions running on this note.</p>
   <div className="flex gap-2">
     <Button variant="primary" leadingIcon={Plus}>
       New task

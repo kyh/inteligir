@@ -22,7 +22,7 @@ export function Inline() {
       }}
     >
       <Spinner width={16} height={16} />
-      Delegating task to background agent…
+      Running action…
     </div>
   );
 }

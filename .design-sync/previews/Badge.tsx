@@ -6,7 +6,7 @@ export function Colors() {
       <Badge color="gray">Draft</Badge>
       <Badge color="blue">In Review</Badge>
       <Badge color="green">Published</Badge>
-      <Badge color="amber">Delegated</Badge>
+      <Badge color="amber">Pending</Badge>
       <Badge color="purple">Daily Note</Badge>
       <Badge color="red">Conflict</Badge>
     </div>
