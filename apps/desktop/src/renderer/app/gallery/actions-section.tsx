@@ -3,7 +3,6 @@
 import { Badge } from "@repo/ui/components/badge";
 import { Button } from "@repo/ui/components/button";
 import {
-  Dropdown,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -11,8 +10,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@repo/ui/components/dropdown-menu";
-import { MenuItem } from "@repo/ui/components/menu-item";
-import { ArchiveIcon, EyeIcon, PlusIcon, TrashIcon } from "lucide-react";
+import { ArchiveIcon, PlusIcon, TrashIcon } from "lucide-react";
 
 import { Demo, DemoCase, GallerySection } from "./gallery-chrome";
 
@@ -128,19 +126,6 @@ export function ActionsSection() {
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-      </Demo>
-
-      <Demo
-        name="Dropdown · MenuItem"
-        purpose="The menu's panel and row, used inline — the same rows a popup menu renders."
-        note="MenuItem takes its own `index`: the panel owns roving focus, so a row has to say where it sits."
-        stack
-      >
-        <Dropdown checkedIndex={1} className="w-56">
-          <MenuItem index={0} icon={EyeIcon} label="Show all notes" checked={false} />
-          <MenuItem index={1} icon={ArchiveIcon} label="Show archived" checked />
-          <MenuItem index={2} icon={TrashIcon} label="Show trashed" disabled />
-        </Dropdown>
       </Demo>
     </GallerySection>
   );
