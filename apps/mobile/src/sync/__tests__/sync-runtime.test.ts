@@ -2,7 +2,7 @@ import type { CloudResult } from "@repo/api/cloud/client";
 import type { PullResponse } from "@repo/api/cloud/sync/sync-schema";
 import { describe, expect, it } from "vitest";
 import { createMemorySyncStore } from "../memory-sync-store";
-import { createSyncRuntime } from "../sync-runtime";
+import { createSyncRuntime, type SyncRuntime, type SyncStatus } from "../sync-runtime";
 import { agentMessage, createFakeCloud, logRow, ok, userRequest } from "./fakes";
 
 const CRED = { deviceId: "dev_self", credential: `igd_${"a".repeat(64)}` };
@@ -12,6 +12,27 @@ const UNAUTHORIZED: CloudResult<PullResponse> = {
   ok: false,
   failure: { kind: "refused", code: "unauthorized", message: "unauthorized", deviceSeq: null },
 };
+
+const EMPTY_PAGE: CloudResult<PullResponse> = ok({ events: [], lastSeq: 0, hasMore: false });
+
+/** Resolves once the published snapshot satisfies `done` — through the
+ *  subscription alone, with no call into the runtime, so whatever settles it
+ *  ran on the runtime's own clock. */
+function published(
+  runtime: SyncRuntime,
+  done: (status: SyncStatus) => boolean,
+): Promise<SyncStatus> {
+  return new Promise((resolve) => {
+    const check = (): void => {
+      const status = runtime.get();
+      if (!done(status)) return;
+      unsubscribe();
+      resolve(status);
+    };
+    const unsubscribe = runtime.subscribe(check);
+    check();
+  });
+}
 
 describe("the sync runtime", () => {
   it("is off until a credential is set, and makes no request while off", async () => {
@@ -23,7 +44,7 @@ describe("the sync runtime", () => {
       createClient: () => cloud.client,
       pollIntervalMs: null,
     });
-    expect(runtime.status().state).toBe("off");
+    expect(runtime.get().state).toBe("off");
     await runtime.syncNow();
     expect(cloud.pushes).toHaveLength(0);
   });
@@ -57,7 +78,7 @@ describe("the sync runtime", () => {
 
     expect(store.snapshotThread("thr_x")?.events).toHaveLength(1);
     expect(store.readCursor()).toBe(1);
-    expect(runtime.status().state).toBe("paired");
+    expect(runtime.get()).toMatchObject({ state: "paired", cursor: 1, lastError: null });
     // The phone produces no thread event and applies no capture to a vault it
     // does not have, so a pass touches neither route.
     expect(cloud.pushes).toHaveLength(0);
@@ -78,8 +99,7 @@ describe("the sync runtime", () => {
 
     await runtime.syncNow();
 
-    const status = runtime.status();
-    expect(status.state).toBe("unauthorized");
+    expect(runtime.get().state).toBe("unauthorized");
   });
 
   it("resets the store on a re-pair — the old account's rows do not carry over", async () => {
@@ -108,5 +128,73 @@ describe("the sync runtime", () => {
     runtime.setCredential({ deviceId: "dev_new", credential: `igd_${"b".repeat(64)}` });
     expect(store.snapshotThreads()).toHaveLength(0);
     expect(store.readCursor()).toBe(0);
+    expect(runtime.get()).toMatchObject({ state: "paired", deviceId: "dev_new", cursor: 0 });
+
+    runtime.setCredential(null);
+    expect(runtime.get()).toStrictEqual({ state: "off" });
+  });
+
+  it("publishes a poll pass — the snapshot moves with no caller on this side", async () => {
+    const store = createMemorySyncStore();
+    const cloud = createFakeCloud();
+    cloud.pullResults.push(
+      EMPTY_PAGE,
+      ok({
+        events: [
+          logRow({
+            seq: 1,
+            deviceId: OTHER,
+            deviceSeq: 0,
+            event: agentMessage("thr_x", "t1", "m1", "landed in the background"),
+          }),
+        ],
+        lastSeq: 1,
+        hasMore: false,
+      }),
+    );
+    const runtime = createSyncRuntime({
+      store,
+      cloudUrl: "https://cloud.test",
+      createClient: () => cloud.client,
+      pollIntervalMs: 5,
+    });
+    runtime.setCredential(CRED);
+    runtime.start();
+
+    const booted = await published(
+      runtime,
+      (status) => status.state === "paired" && status.lastSyncedAt !== null,
+    );
+    expect(booted).toMatchObject({ state: "paired", cursor: 0 });
+    // Cached between changes — a snapshot rebuilt per read is an infinite
+    // render loop under useSyncExternalStore.
+    expect(runtime.get()).toBe(booted);
+
+    // Nothing calls syncNow from here; the timer is the only writer left.
+    const polled = await published(
+      runtime,
+      (status) => status.state === "paired" && status.cursor === 1,
+    );
+    expect(polled).toMatchObject({ state: "paired", cursor: 1, lastError: null });
+    expect(store.snapshotThread("thr_x")?.events).toHaveLength(1);
+
+    runtime.setCredential(null);
+  });
+
+  it("lands a revocation on the next poll pass — unauthorized, with no pull-to-refresh", async () => {
+    const store = createMemorySyncStore();
+    const cloud = createFakeCloud();
+    cloud.pullResults.push(EMPTY_PAGE, UNAUTHORIZED);
+    const runtime = createSyncRuntime({
+      store,
+      cloudUrl: "https://cloud.test",
+      createClient: () => cloud.client,
+      pollIntervalMs: 5,
+    });
+    runtime.setCredential(CRED);
+    runtime.start();
+
+    const revoked = await published(runtime, (status) => status.state === "unauthorized");
+    expect(revoked).toMatchObject({ state: "unauthorized", deviceId: CRED.deviceId });
   });
 });

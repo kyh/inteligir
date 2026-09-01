@@ -16,7 +16,7 @@
 // on the same OS receives the redirect, code included — is held by PKCE: the
 // verifier never leaves this app, and redeem refuses a code without it.
 // This module is pure and touches no `expo-*`: the browser + deep-link wiring is
-// expo-pairing.ts.
+// expo-pairing.ts, and the press-to-paired state machine is pairing-flow.ts.
 
 import {
   buildPairApproveUrl,
@@ -51,9 +51,15 @@ interface PendingPair {
   expiresAt: number;
 }
 
+/** The `code` + `state` a callback URL carries back. */
+export interface PairCallback {
+  code: string;
+  state: string;
+}
+
 /** What the callback did — each refusal its own member, because each is a
  *  different thing to tell the user. */
-export type PairCompletion =
+type PairCompletion =
   | { kind: "paired"; credential: DeviceCredential }
   | { kind: "no-pending" }
   | { kind: "state-mismatch" }
@@ -65,26 +71,17 @@ export interface PairingManagerArgs {
   /** The app's own deep-link redirect target, e.g. `inteligir://pair/callback`. */
   callbackUrl: string;
   crypto: PkceCrypto;
-  /** What this device calls itself when the user says nothing. */
-  defaultDeviceName: string;
+  /** What this device calls itself on the account. */
+  deviceName: string;
   fetch?: CloudFetch;
   now?: () => number;
 }
 
-interface BeginPairResult {
-  /** The account's approve page, to open in the system browser. */
-  approveUrl: string;
-  /** The redirect the browser will come back through. */
-  callbackUrl: string;
-  deviceName: string;
-  expiresInMs: number;
-}
-
 export interface PairingManager {
-  beginPair(deviceName?: string): Promise<BeginPairResult>;
-  completePair(args: { code: string; state: string }): Promise<PairCompletion>;
-  /** Whether an approval is currently armed — for the UI's "waiting…" state. */
-  isPending(): boolean;
+  /** Arm one approval; answers the account's approve page, to open in the
+   *  system browser. */
+  beginPair(): Promise<string>;
+  completePair(callback: PairCallback): Promise<PairCompletion>;
   /** Drop any armed approval (the user cancelled). */
   cancel(): void;
 }
@@ -101,11 +98,6 @@ function sameState(supplied: string, expected: string): boolean {
   return diff === 0;
 }
 
-function normalizeDeviceName(name: string, fallback: string): string {
-  const trimmed = name.trim().slice(0, DEVICE_NAME_MAX_LENGTH);
-  return trimmed.length === 0 ? fallback : trimmed;
-}
-
 export function createPairingManager(args: PairingManagerArgs): PairingManager {
   const now = args.now ?? Date.now;
   let pending: PendingPair | null = null;
@@ -117,11 +109,8 @@ export function createPairingManager(args: PairingManagerArgs): PairingManager {
   }
 
   return {
-    async beginPair(deviceName): Promise<BeginPairResult> {
-      const name = normalizeDeviceName(
-        deviceName ?? args.defaultDeviceName,
-        args.defaultDeviceName,
-      );
+    async beginPair(): Promise<string> {
+      const name = args.deviceName.trim().slice(0, DEVICE_NAME_MAX_LENGTH);
       const state = hexFromBytes(args.crypto.randomBytes(PAIR_STATE_BYTES));
       const pkce = await createPkcePair(args.crypto);
       pending = {
@@ -130,28 +119,22 @@ export function createPairingManager(args: PairingManagerArgs): PairingManager {
         deviceName: name,
         expiresAt: now() + PENDING_PAIR_TTL_MS,
       };
-      const approveUrl = buildPairApproveUrl(args.cloudUrl, {
+      return buildPairApproveUrl(args.cloudUrl, {
         redirect: args.callbackUrl,
         state,
         name,
         challenge: pkce.challenge,
       });
-      return {
-        approveUrl,
-        callbackUrl: args.callbackUrl,
-        deviceName: name,
-        expiresInMs: PENDING_PAIR_TTL_MS,
-      };
     },
 
-    async completePair(request): Promise<PairCompletion> {
+    async completePair(callback): Promise<PairCompletion> {
       const current = pending;
       if (current === null) return { kind: "no-pending" };
       if (now() > current.expiresAt) {
         pending = null;
         return { kind: "expired" };
       }
-      if (!sameState(request.state, current.state)) {
+      if (!sameState(callback.state, current.state)) {
         // NOT consumed: a wrong state is somebody else's traffic, and discarding
         // the slot for it would let any deep-link cancel a pairing in flight.
         return { kind: "state-mismatch" };
@@ -160,7 +143,7 @@ export function createPairingManager(args: PairingManagerArgs): PairingManager {
       // callback URL that could be replayed out of history.
       pending = null;
       const redeemed = await redeemDevice(endpoint(), {
-        code: request.code,
+        code: callback.code,
         deviceName: current.deviceName,
         verifier: current.verifier,
       });
@@ -169,10 +152,6 @@ export function createPairingManager(args: PairingManagerArgs): PairingManager {
         kind: "paired",
         credential: { deviceId: redeemed.value.deviceId, credential: redeemed.value.credential },
       };
-    },
-
-    isPending(): boolean {
-      return pending !== null && now() <= pending.expiresAt;
     },
 
     cancel(): void {

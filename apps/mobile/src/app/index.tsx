@@ -12,10 +12,11 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
+  startPair,
   submitCapture,
   syncNow,
   unpair,
-  usePairing,
+  usePairingState,
   useSyncStatus,
   useThreads,
 } from "@/lib/app-runtime";
@@ -31,7 +32,8 @@ export default function Index() {
 
 function PairScreen({ status }: { status: SyncStatus }) {
   const theme = useTheme();
-  const { phase, message, startPair } = usePairing();
+  const pairing = usePairingState();
+  const opening = pairing.kind === "pairing";
   const reason =
     status.state === "unauthorized"
       ? "This device was unpaired. Pair again to resume syncing."
@@ -43,20 +45,20 @@ function PairScreen({ status }: { status: SyncStatus }) {
       <View style={styles.pairBody}>
         <Text style={[styles.title, { color: theme.foreground }]}>inteligir</Text>
         <Text style={[styles.bodyText, { color: theme.mutedForeground }]}>{reason}</Text>
-        {message !== null ? (
-          <Text style={[styles.smallText, { color: theme.destructive }]}>{message}</Text>
+        {pairing.kind === "failed" ? (
+          <Text style={[styles.smallText, { color: theme.destructive }]}>{pairing.message}</Text>
         ) : null}
         <Pressable
           style={({ pressed }) => [
             styles.primaryButton,
             { backgroundColor: theme.primary },
             pressed && styles.pressed80,
-            phase === "opening" && styles.disabled,
+            opening && styles.disabled,
           ]}
-          disabled={phase === "opening"}
+          disabled={opening}
           onPress={() => void startPair()}
         >
-          {phase === "opening" ? (
+          {opening ? (
             <ActivityIndicator color={theme.primaryForeground} />
           ) : (
             <Text style={[styles.buttonLabel, { color: theme.primaryForeground }]}>

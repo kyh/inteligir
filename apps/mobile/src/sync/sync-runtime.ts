@@ -26,6 +26,13 @@
 // old pull's page would apply another account's events. The id is the fence;
 // cancellation covers the in-flight half, identity the half cancellation cannot
 // reach.
+//
+// THE STATUS IS PUBLISHED, NOT POLLED. Most passes run off the timer with no
+// caller to read their answer, so the runtime itself is the store the screen
+// subscribes to: the snapshot is rebuilt at every point the session, a pass or
+// the cursor moves, and cached between them — `useSyncExternalStore` treats a
+// fresh reference as new state, so a snapshot built per read is an infinite
+// render loop.
 
 import type { CaptureRequest, CaptureResponse } from "@repo/api/cloud/captures/captures-schema";
 import { SYNC_TERMINAL_CODES } from "@repo/api/cloud/errors";
@@ -36,9 +43,9 @@ import {
   describeCloudFailure,
   type CloudClient,
   type CloudFailure,
-  type CloudFetch,
   type CloudResult,
 } from "@repo/api/cloud/client";
+import { createExternalStore, type ReadableStore } from "../lib/external-store";
 import { applyPlan } from "./thread-log";
 import type { SyncStore } from "./sync-store";
 import type { DeviceCredential } from "../credential/credential-codec";
@@ -79,19 +86,15 @@ interface PassContext {
 export interface SyncRuntimeArgs {
   store: SyncStore;
   cloudUrl: string;
-  fetch?: CloudFetch;
   /** How the authed client is built for a credential. Injected so the suite can
    *  drive the whole loop with a fake client; production builds the real one
    *  over `fetch`. */
   createClient?: (credential: DeviceCredential) => CloudClient;
   /** null disables the poll timer — what a deterministic suite needs. */
   pollIntervalMs?: number | null;
-  now?: () => number;
-  onDebug?: (message: string) => void;
 }
 
-export interface SyncRuntime {
-  status(): SyncStatus;
+export interface SyncRuntime extends ReadableStore<SyncStatus> {
   /** Pair / re-pair / unpair. A different credential resets the store, because it
    *  describes an account this device may no longer be talking to. */
   setCredential(next: DeviceCredential | null): void;
@@ -99,17 +102,18 @@ export interface SyncRuntime {
    *  inbox. Refused (unreachable) while unpaired. */
   createCapture(request: CaptureRequest): Promise<CloudResult<CaptureResponse>>;
   start(): void;
-  syncNow(): Promise<SyncStatus>;
-  dispose(): Promise<void>;
+  syncNow(): Promise<void>;
 }
 
 function sameCredential(a: DeviceCredential, b: DeviceCredential): boolean {
   return a.deviceId === b.deviceId && a.credential === b.credential;
 }
 
+function debug(message: string): void {
+  console.warn(`sync: ${message}`);
+}
+
 export function createSyncRuntime(args: SyncRuntimeArgs): SyncRuntime {
-  const now = args.now ?? Date.now;
-  const debug = args.onDebug ?? ((message: string) => console.warn(`sync: ${message}`));
   const pollIntervalMs = args.pollIntervalMs === undefined ? POLL_INTERVAL_MS : args.pollIntervalMs;
 
   let sessionCounter = 0;
@@ -120,7 +124,30 @@ export function createSyncRuntime(args: SyncRuntimeArgs): SyncRuntime {
   let dirty = false;
   let lastError: string | null = null;
   let lastSyncedAt: number | null = null;
-  let disposed = false;
+  const status = createExternalStore<SyncStatus>({ state: "off" });
+
+  function publish(): void {
+    switch (session.kind) {
+      case "off":
+        status.set({ state: "off" });
+        return;
+      case "unauthorized":
+        status.set({
+          state: "unauthorized",
+          deviceId: session.credential.deviceId,
+          detail: session.detail,
+        });
+        return;
+      case "live":
+        status.set({
+          state: "paired",
+          deviceId: session.credential.deviceId,
+          cursor: args.store.readCursor(),
+          lastSyncedAt,
+          lastError,
+        });
+    }
+  }
 
   function closeSession(): void {
     sessionAbort.abort();
@@ -129,19 +156,18 @@ export function createSyncRuntime(args: SyncRuntimeArgs): SyncRuntime {
 
   function makeClient(credential: DeviceCredential): CloudClient {
     if (args.createClient !== undefined) return args.createClient(credential);
-    const clientArgs: Parameters<typeof createCloudClient>[0] = {
+    return createCloudClient({
       baseUrl: args.cloudUrl,
       credential: credential.credential,
       signal: sessionAbort.signal,
-    };
-    if (args.fetch !== undefined) clientArgs.fetch = args.fetch;
-    return createCloudClient(clientArgs);
+    });
   }
 
   function openSession(credential: DeviceCredential): void {
     closeSession();
     sessionCounter += 1;
     session = { kind: "live", id: sessionCounter, credential, client: makeClient(credential) };
+    publish();
   }
 
   function clearTimer(): void {
@@ -152,8 +178,7 @@ export function createSyncRuntime(args: SyncRuntimeArgs): SyncRuntime {
   }
 
   function armTimer(): void {
-    if (disposed || session.kind !== "live" || pollIntervalMs === null || pollTimer !== null)
-      return;
+    if (session.kind !== "live" || pollIntervalMs === null || pollTimer !== null) return;
     pollTimer = setInterval(() => {
       void syncNow();
     }, pollIntervalMs);
@@ -161,7 +186,7 @@ export function createSyncRuntime(args: SyncRuntimeArgs): SyncRuntime {
   }
 
   function fenced(context: PassContext): boolean {
-    return !disposed && session.kind === "live" && session.id === context.sessionId;
+    return session.kind === "live" && session.id === context.sessionId;
   }
 
   /** True when the failure ends this device's session; the caller stops. */
@@ -169,6 +194,7 @@ export function createSyncRuntime(args: SyncRuntimeArgs): SyncRuntime {
     lastError = describeCloudFailure(failure);
     if (failure.kind !== "refused" || !SYNC_TERMINAL_CODES.has(failure.code)) {
       debug(lastError);
+      publish();
       return false;
     }
     if (session.kind === "live") {
@@ -183,6 +209,7 @@ export function createSyncRuntime(args: SyncRuntimeArgs): SyncRuntime {
     closeSession();
     clearTimer();
     debug(`credential refused (${failure.code}): ${failure.message}`);
+    publish();
     return true;
   }
 
@@ -201,13 +228,14 @@ export function createSyncRuntime(args: SyncRuntimeArgs): SyncRuntime {
       const plan = planPage(result.value.events, context.deviceId);
       for (const message of plan.skipped) debug(message);
       applyPlan(args.store, plan.steps);
+      publish();
       if (!result.value.hasMore) return true;
     }
     return true;
   }
 
   async function runPass(): Promise<void> {
-    if (session.kind !== "live" || disposed) return;
+    if (session.kind !== "live") return;
     const context: PassContext = {
       sessionId: session.id,
       client: session.client,
@@ -215,59 +243,40 @@ export function createSyncRuntime(args: SyncRuntimeArgs): SyncRuntime {
     };
     if (!(await pullAndApply(context))) return;
     if (!fenced(context)) return;
-    lastSyncedAt = now();
+    lastSyncedAt = Date.now();
+    publish();
   }
 
-  async function syncNow(): Promise<SyncStatus> {
-    if (session.kind !== "live" || disposed) return status();
+  async function syncNow(): Promise<void> {
+    if (session.kind !== "live") return;
     if (inflight !== null) {
       // Coalesced rather than queued: one more pass after this covers whatever
       // arrived while it ran.
       dirty = true;
       await inflight;
-      return status();
+      return;
     }
     inflight = (async () => {
       try {
         for (;;) {
           dirty = false;
           await runPass();
-          if (!dirty || disposed || session.kind !== "live") break;
+          if (!dirty || session.kind !== "live") break;
         }
       } catch (error) {
         lastError = error instanceof Error ? error.message : String(error);
         debug(`sync pass failed: ${lastError}`);
+        publish();
       } finally {
         inflight = null;
       }
     })();
     await inflight;
-    return status();
-  }
-
-  function status(): SyncStatus {
-    switch (session.kind) {
-      case "off":
-        return { state: "off" };
-      case "unauthorized":
-        return {
-          state: "unauthorized",
-          deviceId: session.credential.deviceId,
-          detail: session.detail,
-        };
-      case "live":
-        return {
-          state: "paired",
-          deviceId: session.credential.deviceId,
-          cursor: args.store.readCursor(),
-          lastSyncedAt,
-          lastError,
-        };
-    }
   }
 
   return {
-    status,
+    subscribe: status.subscribe,
+    get: status.get,
 
     setCredential(next) {
       if (next !== null && session.kind === "live" && sameCredential(next, session.credential)) {
@@ -283,6 +292,7 @@ export function createSyncRuntime(args: SyncRuntimeArgs): SyncRuntime {
       if (next === null) {
         sessionCounter += 1;
         session = { kind: "off", id: sessionCounter };
+        publish();
         return;
       }
       openSession(next);
@@ -305,14 +315,5 @@ export function createSyncRuntime(args: SyncRuntimeArgs): SyncRuntime {
     },
 
     syncNow,
-
-    async dispose() {
-      disposed = true;
-      clearTimer();
-      // Cancels the requests in flight, so the teardown does not wait out every
-      // remaining round trip.
-      sessionAbort.abort();
-      await inflight?.catch(() => undefined);
-    },
   };
 }

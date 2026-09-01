@@ -12,6 +12,7 @@ import {
   PAIR_MOBILE_REDIRECT_SEGMENT,
 } from "@repo/api/cloud/pairing/pairing-schema";
 import { z } from "zod";
+import type { PairCallback } from "./pairing-manager";
 import type { PkceCrypto } from "./pkce";
 
 /** expo-crypto behind the injected primitives the PKCE assembly needs. */
@@ -48,7 +49,7 @@ const callbackParamsSchema = z.object({
 /** The code + state carried on a pairing callback URL, or null when it is not
  *  one — used both by the in-session browser return and the global deep-link
  *  listener (a redirect that arrives while the app is backgrounded). */
-export function parsePairCallback(url: string): { code: string; state: string } | null {
+export function parsePairCallback(url: string): PairCallback | null {
   const parsed = callbackParamsSchema.safeParse(Linking.parse(url).queryParams);
   if (!parsed.success) return null;
   return {
@@ -62,7 +63,7 @@ export function parsePairCallback(url: string): { code: string; state: string } 
 export async function openApproveAndAwait(
   approveUrl: string,
   callbackUrl: string,
-): Promise<{ code: string; state: string } | null> {
+): Promise<PairCallback | null> {
   const result = await WebBrowser.openAuthSessionAsync(approveUrl, callbackUrl);
   if (result.type !== "success") return null;
   return parsePairCallback(result.url);

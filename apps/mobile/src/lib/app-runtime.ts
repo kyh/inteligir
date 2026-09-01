@@ -1,17 +1,19 @@
 // The composition root: it binds the PURE sync client (src/sync), the credential
-// store (expo-secure-store) and the pairing manager into one process-wide
+// store (expo-secure-store) and the pairing flow into one process-wide
 // singleton, and exposes the React hooks the screens read. Everything device-
 // specific enters HERE; the modules it wires are unit-tested without it.
+//
+// EVERY HOOK READS A STORE ITS OWNER PUBLISHES. Sync status, the notes tree and
+// the pairing flow each move on their own clock — a poll pass, a page fetch, a
+// deep link — with no caller on this side to hand the answer to, so the module
+// that moves the value is the one that notifies; nothing here mirrors a value
+// it would then have to remember to refresh.
 
-import { useCallback, useMemo, useState, useSyncExternalStore } from "react";
-import type { DeviceCredential } from "../credential/credential-codec";
+import { useMemo, useSyncExternalStore } from "react";
 import { createSecureStoreCredential } from "../credential/secure-store-credential";
 import type { CredentialStore } from "../credential/credential-store";
-import {
-  createPairingManager,
-  type PairCompletion,
-  type PairingManager,
-} from "../pairing/pairing-manager";
+import { createPairingManager } from "../pairing/pairing-manager";
+import { createPairingFlow, type PairingFlow, type PairingState } from "../pairing/pairing-flow";
 import {
   defaultDeviceName,
   expoPkceCrypto,
@@ -31,17 +33,14 @@ import { createSyncRuntime, type SyncRuntime, type SyncStatus } from "../sync/sy
 import type { SyncStore } from "../sync/sync-store";
 import { projectThread, type ThreadProjection } from "../sync/thread-projection";
 import type { VaultAssetSource } from "@repo/api/cloud/client";
-import { createExternalStore, type ExternalStore } from "./external-store";
 import { getCloudUrl } from "./cloud-url";
 
 interface AppRuntime {
   store: SyncStore;
   sync: SyncRuntime;
   notes: NotesStore;
-  pairing: PairingManager;
+  pairing: PairingFlow;
   credentials: CredentialStore;
-  cloudUrl: string;
-  status: ExternalStore<SyncStatus>;
   removeDeepLink: (() => void) | null;
 }
 
@@ -62,61 +61,33 @@ function build(): AppRuntime {
   const store = createMemorySyncStore();
   const cloudUrl = resolveCloudUrl();
   const sync = createSyncRuntime({ store, cloudUrl });
-  const pairing = createPairingManager({
-    cloudUrl,
-    callbackUrl: pairCallbackUrl(),
-    crypto: expoPkceCrypto,
-    defaultDeviceName: defaultDeviceName(),
+  const notes = createNotesStore({ cloudUrl, cache: createExpoNoteCache() });
+  const credentials = createSecureStoreCredential();
+  const callbackUrl = pairCallbackUrl();
+  const pairing = createPairingFlow({
+    manager: createPairingManager({
+      cloudUrl,
+      callbackUrl,
+      crypto: expoPkceCrypto,
+      deviceName: defaultDeviceName(),
+    }),
+    openApprove: (approveUrl) => openApproveAndAwait(approveUrl, callbackUrl),
+    onPaired: async (credential) => {
+      await credentials.write(credential);
+      sync.setCredential(credential);
+      notes.setCredential({ credential, source: "paired" });
+      sync.start();
+      // The read model starts where sync does: a screen that reads the tree
+      // should not each carry its own "if it is cold, fetch it" effect.
+      void notes.refresh();
+    },
   });
-  return {
-    store,
-    sync,
-    notes: createNotesStore({ cloudUrl, cache: createExpoNoteCache() }),
-    pairing,
-    credentials: createSecureStoreCredential(),
-    cloudUrl,
-    status: createExternalStore<SyncStatus>({ state: "off" }),
-    removeDeepLink: null,
-  };
+  return { store, sync, notes, pairing, credentials, removeDeepLink: null };
 }
 
 function getRuntime(): AppRuntime {
   runtime ??= build();
   return runtime;
-}
-
-function refreshStatus(rt: AppRuntime): void {
-  rt.status.set(rt.sync.status());
-}
-
-async function finishPairing(rt: AppRuntime, credential: DeviceCredential): Promise<void> {
-  await rt.credentials.write(credential);
-  rt.sync.setCredential(credential);
-  rt.notes.setCredential({ credential, source: "paired" });
-  rt.sync.start();
-  // The read model starts where sync does: a screen that reads the tree
-  // should not each carry its own "if it is cold, fetch it" effect.
-  void rt.notes.refresh();
-  refreshStatus(rt);
-}
-
-/** The one place a pairing outcome becomes state — shared by the in-session
- *  browser return and the cold deep-link listener. Returns a user-facing line
- *  for a failure, or null on success. */
-async function applyCompletion(rt: AppRuntime, completion: PairCompletion): Promise<string | null> {
-  switch (completion.kind) {
-    case "paired":
-      await finishPairing(rt, completion.credential);
-      return null;
-    case "no-pending":
-      return null;
-    case "state-mismatch":
-      return "That approval did not match the pairing this app started.";
-    case "expired":
-      return "The pairing took too long — start another.";
-    case "refused":
-      return completion.failure.message;
-  }
 }
 
 /**
@@ -132,7 +103,7 @@ export async function ensureStarted(): Promise<void> {
   const subscription = addEventListener("url", (event) => {
     const parsed = parsePairCallback(event.url);
     if (parsed === null) return;
-    void rt.pairing.completePair(parsed).then((completion) => applyCompletion(rt, completion));
+    void rt.pairing.complete(parsed);
   });
   rt.removeDeepLink = () => {
     subscription.remove();
@@ -144,14 +115,11 @@ export async function ensureStarted(): Promise<void> {
     rt.sync.start();
     void rt.notes.refresh();
   }
-  refreshStatus(rt);
 }
 
 /** Run one sync pass now (foreground / pull-to-refresh). */
-export async function syncNow(): Promise<void> {
-  const rt = getRuntime();
-  await rt.sync.syncNow();
-  refreshStatus(rt);
+export function syncNow(): Promise<void> {
+  return getRuntime().sync.syncNow();
 }
 
 export async function unpair(): Promise<void> {
@@ -159,13 +127,19 @@ export async function unpair(): Promise<void> {
   await rt.credentials.clear();
   rt.sync.setCredential(null);
   rt.notes.setCredential(null);
-  refreshStatus(rt);
+}
+
+/** Begin a browser-approve pairing; `usePairingState` follows it. */
+export function startPair(): Promise<void> {
+  return getRuntime().pairing.startPair();
 }
 
 /** POST a quick capture to the inbox. The desktop applies it to the vault. */
 export async function submitCapture(text: string): Promise<{ ok: boolean; message: string }> {
-  const rt = getRuntime();
-  const result = await rt.sync.createCapture({ text, idempotencyKey: newIdempotencyKey() });
+  const result = await getRuntime().sync.createCapture({
+    text,
+    idempotencyKey: newIdempotencyKey(),
+  });
   if (!result.ok) return { ok: false, message: result.failure.message };
   return { ok: true, message: "Captured" };
 }
@@ -208,7 +182,12 @@ export function useNotesTree(): NotesTreeState {
 
 export function useSyncStatus(): SyncStatus {
   const rt = getRuntime();
-  return useSyncExternalStore(rt.status.subscribe, rt.status.get);
+  return useSyncExternalStore(rt.sync.subscribe, rt.sync.get);
+}
+
+export function usePairingState(): PairingState {
+  const rt = getRuntime();
+  return useSyncExternalStore(rt.pairing.subscribe, rt.pairing.get);
 }
 
 export function useThreads(): readonly ThreadProjection[] {
@@ -223,40 +202,4 @@ export function useThread(threadId: string): ThreadProjection | null {
     rt.store.snapshotThread(threadId),
   );
   return useMemo(() => (thread === null ? null : projectThread(thread)), [thread]);
-}
-
-type PairPhase = "idle" | "opening" | "error";
-
-export interface PairingControls {
-  phase: PairPhase;
-  message: string | null;
-  startPair: () => Promise<void>;
-}
-
-export function usePairing(): PairingControls {
-  const rt = getRuntime();
-  const [phase, setPhase] = useState<PairPhase>("idle");
-  const [message, setMessage] = useState<string | null>(null);
-
-  const startPair = useCallback(async () => {
-    setPhase("opening");
-    setMessage(null);
-    const begun = await rt.pairing.beginPair();
-    const back = await openApproveAndAwait(begun.approveUrl, begun.callbackUrl);
-    if (back === null) {
-      rt.pairing.cancel();
-      setPhase("idle");
-      return;
-    }
-    const completion = await rt.pairing.completePair(back);
-    const failure = await applyCompletion(rt, completion);
-    if (failure === null) {
-      setPhase("idle");
-    } else {
-      setMessage(failure);
-      setPhase("error");
-    }
-  }, [rt]);
-
-  return { phase, message, startPair };
 }

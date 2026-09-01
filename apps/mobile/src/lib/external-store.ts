@@ -8,6 +8,11 @@ export interface ExternalStore<T> {
   subscribe: (onChange: () => void) => () => void;
 }
 
+/** The read half — what a screen holds. A module that owns its state publishes
+ *  this and keeps `set` to itself, so the one writer is the one that knows when
+ *  the value moved. */
+export type ReadableStore<T> = Pick<ExternalStore<T>, "get" | "subscribe">;
+
 export function createExternalStore<T>(initial: T): ExternalStore<T> {
   let value = initial;
   const listeners = new Set<() => void>();
