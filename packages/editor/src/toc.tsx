@@ -5,12 +5,12 @@
 // (our scroll container is the workspace <main>, not a PlateContainer).
 
 import { useEffect, useRef, useState } from "react";
-import { ElementApi, KEYS, NodeApi, type TElement } from "platejs";
-import { useEditorRef, useEditorSelector } from "platejs/react";
+import { ElementApi, KEYS, NodeApi, type Path, type TElement } from "platejs";
+import { useEditorRef, useEditorSelector, type PlateEditor } from "platejs/react";
 
 import { cn } from "@repo/ui/lib/utils";
 
-type HeadingItem = { id: string; depth: number; title: string };
+type HeadingItem = { id: string; path: Path; depth: number; title: string };
 
 const HEADING_DEPTH = new Map<string, number>([
   [KEYS.h1, 1],
@@ -42,25 +42,46 @@ function tweenScrollTo(scroller: Element, el: HTMLElement): void {
   requestAnimationFrame(step);
 }
 
-function collectHeadings(editor: ReturnType<typeof useEditorRef>): HeadingItem[] {
+export function collectHeadings(editor: PlateEditor): HeadingItem[] {
   const out: HeadingItem[] = [];
   for (const [node, path] of editor.api.nodes<TElement>({
     at: [],
     match: (n) => ElementApi.isElement(n) && HEADING_DEPTH.has(n.type),
   })) {
     const title = NodeApi.string(node).trim();
-    if (title) out.push({ id: path.join("."), depth: HEADING_DEPTH.get(node.type) ?? 1, title });
+    if (title) {
+      out.push({ id: path.join("."), path, depth: HEADING_DEPTH.get(node.type) ?? 1, title });
+    }
   }
   return out;
 }
 
-// The heading elements in this editor's live editable, in document order —
-// the same order as collectHeadings, so index i lines up. Excludes the
-// page-title <h1>, which lives outside the Slate editable (hence the scope
-// to the editor's own DOM node rather than a bare h1/h2/h3 query).
-function editorHeadingEls(editor: ReturnType<typeof useEditorRef>): HTMLElement[] {
-  const root = editor.api.toDOMNode(editor);
-  return root ? [...root.querySelectorAll<HTMLElement>("h1, h2, h3")] : [];
+/** The DOM element one outline row targets, resolved through the row's own
+ *  NODE rather than by position among the editable's `<h*>`s: that DOM also
+ *  holds headings the outline skips (an empty one, mid-creation) and headings
+ *  it never listed (a transclusion's static render), so "the i-th heading
+ *  element" is the wrong element as soon as either exists. Null when the path
+ *  went stale under an edit — scroll nowhere rather than somewhere wrong. */
+export function headingElement(editor: PlateEditor, heading: HeadingItem): HTMLElement | null {
+  const entry = editor.api.node<TElement>(heading.path);
+  if (entry === undefined) return null;
+  const [node] = entry;
+  if (!ElementApi.isElement(node) || !HEADING_DEPTH.has(node.type)) return null;
+  return editor.api.toDOMNode(node) ?? null;
+}
+
+/** How many dashes the collapsed rail draws at once. */
+export const TOC_RAIL_CAP = 20;
+
+/** The outline slice the collapsed rail shows. The cap keeps a long doc's
+ *  rail a glanceable minimap, and the window slides just far enough that the
+ *  ACTIVE row is always inside it — cut at a fixed index instead, every
+ *  heading past the cap highlights nothing. A stale index (the doc shrank
+ *  under it) clamps rather than sliding the window off the end. */
+export function railWindow(count: number, activeIndex: number) {
+  const active = Math.max(0, Math.min(activeIndex, count - 1));
+  const start = Math.max(0, active - TOC_RAIL_CAP + 1);
+  return { start, end: start + TOC_RAIL_CAP };
 }
 
 // collectHeadings walks the whole document and returns a FRESH array, and
@@ -102,8 +123,9 @@ export function TableOfContents() {
     const onScroll = () => {
       const scannerY = scroller.getBoundingClientRect().top + HEADER_OFFSET + 8;
       let active = 0;
-      editorHeadingEls(editor).forEach((el, i) => {
-        if (el.getBoundingClientRect().top <= scannerY) active = i;
+      headings.forEach((heading, i) => {
+        const el = headingElement(editor, heading);
+        if (el !== null && el.getBoundingClientRect().top <= scannerY) active = i;
       });
       setActiveIndex(active);
     };
@@ -115,11 +137,14 @@ export function TableOfContents() {
   if (headings.length === 0) return null;
 
   const scrollTo = (index: number) => {
-    const el = editorHeadingEls(editor)[index];
+    const heading = headings[index];
+    const el = heading === undefined ? null : headingElement(editor, heading);
     const scroller = rootRef.current?.closest("[data-editor-scroller]");
-    if (el && scroller) tweenScrollTo(scroller, el);
+    if (el !== null && scroller) tweenScrollTo(scroller, el);
     setActiveIndex(index);
   };
+
+  const rail = railWindow(headings.length, activeIndex);
 
   return (
     <div
@@ -127,15 +152,13 @@ export function TableOfContents() {
       className="pointer-events-none fixed top-1/2 right-2 z-40 -translate-y-1/2 print:hidden"
     >
       <div className="group pointer-events-auto flex flex-col items-end py-2">
-        {/* Collapsed: dash ticks, one per heading, capped so a long doc's
-            rail stays a glanceable minimap (fade out on hover). */}
         <div className="flex flex-col items-end gap-2 pr-2 transition-opacity duration-300 group-hover:opacity-0">
-          {headings.slice(0, 20).map((h, i) => (
+          {headings.slice(rail.start, rail.end).map((h, offset) => (
             <div
               key={h.id}
               className={cn(
                 "h-0.5 rounded-full transition-colors",
-                i === activeIndex ? "bg-foreground" : "bg-muted-foreground/30",
+                rail.start + offset === activeIndex ? "bg-foreground" : "bg-muted-foreground/30",
               )}
               style={{ width: `${16 - 4 * (h.depth - 1)}px` }}
             />
