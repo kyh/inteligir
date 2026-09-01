@@ -1,26 +1,31 @@
-// The vault's git engine, over the SYSTEM git binary (execFile, no shell).
-// Owns repo init, the auto-commit debounce, and the sync loop
-// (fetch → rebase → push against the configured remote). A refused rebase is
-// always aborted — the repo is never left mid-rebase — and surfaces as a typed
-// conflict state instead.
+// One responsibility: the vault's git ENGINE — the auto-commit debounce, the
+// commit hold, and the sync loop (fetch → rebase → push against the
+// configured remote), serialized behind one repo lock. A refused rebase is
+// always aborted — the repo is never left mid-rebase — and surfaces as a
+// typed conflict state instead.
 
-import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
-import { appendFile, mkdir, readFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import type {
   VaultConflict,
   VaultRevision,
   VaultStatusResponse,
 } from "@repo/api/local/vault/vault-schema";
-import { VAULT_TMP_PREFIX } from "@repo/notes/knowledge/vault-path";
 import type { VaultRemoteProvider, VaultRemoteSpec } from "../cloud/vault-remote";
+import { ACCOUNT_MARKER_KEY } from "./git-bootstrap";
 import { readNoteHistory, readNoteRevision, type NoteHistoryPage } from "./git-history";
+import { entryPaths, isUnmerged, readPorcelain, type PorcelainEntry } from "./git-porcelain";
+import {
+  identityEnv,
+  isAuthRefusal,
+  isMissingRemoteRef,
+  NETWORK_GIT_TIMEOUT_MS,
+  redactRemoteUrl,
+  runGit,
+  type CommitAuthor,
+  type RunGitOptions,
+} from "./git-run";
 import { createDebouncedCallbackScheduler } from "./watcher/debounce";
-
-const LOCAL_GIT_TIMEOUT_MS = 30_000;
-const NETWORK_GIT_TIMEOUT_MS = 120_000;
-const GIT_MAX_BUFFER_BYTES = 32 * 1024 * 1024;
 
 /**
  * SESSION-SHAPED COMMITS, and the numbers are the decision.
@@ -46,86 +51,6 @@ const AUTO_COMMIT_MAX_WAIT_MS = 60_000;
  *  path is an argv entry twice over, and the unscoped sweep has no such bound. */
 const MAX_SCOPED_COMMIT_PATHS = 200;
 
-/** Commits the engine makes on its own carry this identity; an agent-attributed
- *  commit (#549) overrides the AUTHOR half only, so the committer always says
- *  which machine wrote it. */
-const ENGINE_IDENTITY = { name: "inteligir", email: "vault@inteligir.local" };
-
-/** The author seam: agent-attributed commits (#549) pass their own identity. */
-export interface CommitAuthor {
-  name: string;
-  email: string;
-}
-
-class GitError extends Error {
-  readonly stderr: string;
-
-  constructor(message: string, stderr: string) {
-    super(message);
-    this.stderr = stderr;
-  }
-}
-
-interface RunGitOptions {
-  timeoutMs?: number;
-  env?: Record<string, string>;
-}
-
-/** One entry of `git status --porcelain`: the two status columns, the path,
- *  and — for a rename or copy — the path it came FROM. */
-export interface PorcelainEntry {
-  x: string;
-  y: string;
-  path: string;
-  origin: string | null;
-}
-
-/**
- * THE reader of `git status --porcelain`, and the only one. Three callers used
- * to decode the same bytes three ways and disagreed about all of it: two split
- * on newlines and one on NUL, two required four characters and one accepted
- * any non-empty line, one understood rename entries and two did not. Two of
- * them therefore handed back git's C-QUOTED spelling (`"a\tb"`, and every
- * non-ASCII name) as if it were a path — a bug you cannot see until a vault
- * holds a filename with a space in it.
- *
- * `-z` is not an option here, it is the format: NUL-separated, never quoted,
- * with a rename's origin arriving as its own token. Every caller runs it, and
- * this is the one place that knows what comes back.
- */
-export function parsePorcelain(stdout: string): PorcelainEntry[] {
-  const tokens = stdout.split("\0");
-  const entries: PorcelainEntry[] = [];
-  for (let index = 0; index < tokens.length; index += 1) {
-    const token = tokens[index];
-    // `XY <path>`: two status columns, a space, then the path. Anything
-    // shorter is the trailing empty token, not an entry.
-    if (token === undefined || token.length < 4) {
-      continue;
-    }
-    const x = token[0] ?? " ";
-    const y = token[1] ?? " ";
-    let origin: string | null = null;
-    if (x === "R" || x === "C" || y === "R" || y === "C") {
-      const from = tokens[index + 1];
-      if (from !== undefined && from.length > 0) {
-        origin = from;
-        index += 1;
-      }
-    }
-    entries.push({ x, y, path: token.slice(3), origin });
-  }
-  return entries;
-}
-
-/** The paths a status entry names — BOTH sides of a rename, because both
- *  belong to the commit that carries it. */
-function entryPaths(entries: readonly PorcelainEntry[]): string[] {
-  return entries.flatMap((entry) =>
-    entry.origin === null ? [entry.path] : [entry.path, entry.origin],
-  );
-}
-
 /**
  * The subject an auto-commit takes. A single-file commit NAMES ITS FILE:
  * `vault: update 1 files` is browsable and unanswerable, and one word of the
@@ -136,253 +61,6 @@ function autoCommitSubject(paths: readonly string[]): string {
   return only === undefined
     ? `vault: update ${String(paths.length)} files`
     : `vault: update ${only}`;
-}
-
-/** The two status columns git uses for a halted merge: the honest conflict
- *  set, read from the rebase before it is aborted. */
-function isUnmerged(entry: PorcelainEntry): boolean {
-  return (
-    entry.x === "U" ||
-    entry.y === "U" ||
-    (entry.x === "A" && entry.y === "A") ||
-    (entry.x === "D" && entry.y === "D")
-  );
-}
-
-/**
- * git must NEVER ask this process a question. Nothing here has a terminal to
- * answer on, and every invocation runs under the repo lock — so a credential
- * prompt on an unreachable or auth-requiring remote does not fail, it BLOCKS,
- * holding the lock (and with it every vault write) until the call's timeout.
- *
- * `GIT_TERMINAL_PROMPT=0` covers git's own prompting. ssh does its own, which
- * only `BatchMode=yes` refuses — so an ssh remote gets it too, but only when
- * the environment carries no `GIT_SSH_COMMAND` of its own: a caller who set
- * one has chosen how ssh runs, and overriding it would break the setups that
- * exist to make these fetches work.
- */
-function nonInteractiveGitEnv(env: NodeJS.ProcessEnv) {
-  if (env.GIT_SSH_COMMAND === undefined) {
-    return { GIT_TERMINAL_PROMPT: "0", GIT_SSH_COMMAND: "ssh -o BatchMode=yes" };
-  }
-  return { GIT_TERMINAL_PROMPT: "0" };
-}
-
-/**
- * THE argv builder — every invocation passes through here, so this is where
- * `--literal-pathspecs` lives and the one place it can be forgotten. A
- * pathspec is a GLOB: `[a].md` names `a.md` too, and a commit scoped to one
- * note would stage its neighbour's edits under the wrong revision. Every path
- * this module passes is a filesystem name, never a pattern (git-history.ts's
- * header carries the full case for the read side).
- */
-export function runGit(
-  cwd: string,
-  gitArgs: readonly string[],
-  options: RunGitOptions = {},
-): Promise<{ stdout: string }> {
-  return new Promise((resolve, reject) => {
-    const child = execFile(
-      "git",
-      ["--literal-pathspecs", ...gitArgs],
-      {
-        cwd,
-        encoding: "utf8",
-        maxBuffer: GIT_MAX_BUFFER_BYTES,
-        timeout: options.timeoutMs ?? LOCAL_GIT_TIMEOUT_MS,
-        env: { ...process.env, ...nonInteractiveGitEnv(process.env), ...options.env },
-      },
-      (error, stdout, stderr) => {
-        if (error) {
-          reject(new GitError(`git ${gitArgs[0] ?? ""} failed: ${error.message}`, stderr));
-          return;
-        }
-        resolve({ stdout });
-      },
-    );
-    // execFile hands the child a stdin PIPE nobody ever writes to. No command
-    // this engine runs reads stdin, so closing it turns anything that asks
-    // anyway into an immediate EOF rather than a wait on the timeout.
-    child.stdin?.end();
-  });
-}
-
-/**
- * Strip userinfo before a remote URL reaches a log line or a status response:
- * an https remote is where a token rides (https://user:ghp_…@github.com/…).
- * Non-URL forms (scp-like git@host:path) pass through — that syntax has no
- * password slot.
- */
-export function redactRemoteUrl(url: string): string {
-  try {
-    const parsed = new URL(url);
-    if (parsed.username === "" && parsed.password === "") {
-      return url;
-    }
-    parsed.username = "";
-    parsed.password = "";
-    return parsed.toString();
-  } catch {
-    return url;
-  }
-}
-
-/**
- * Whether a failed network invocation was the remote REFUSING the credential,
- * as opposed to being unreachable. Three spellings, because git's own varies:
- * an explicit 401/403 from the HTTP layer, "Authentication failed", and —
- * the one this engine's non-interactive env actually produces — "could not
- * read Username … terminal prompts disabled", which is git answering a 401
- * challenge with a prompt this process forbids.
- */
-function isAuthRefusal(cause: unknown): boolean {
-  if (!(cause instanceof GitError)) {
-    return false;
-  }
-  return /authentication failed|returned error: 40[13]|could not read username/i.test(cause.stderr);
-}
-
-/** The remote itself is absent — the hosted repo before its first push
- *  (HTTP 404), or a path that names no repository. Distinct from
- *  unreachable/refused because only THIS class may fall through to the
- *  welcome seed: seeding beside a populated-but-unreachable remote plants a
- *  history the eventual first sync has to rebase through. */
-function isMissingRemoteRepo(cause: unknown): boolean {
-  if (!(cause instanceof GitError)) {
-    return false;
-  }
-  return /repository .+ (not found|does not exist)|returned error: 404|does not appear to be a git repository/i.test(
-    cause.stderr,
-  );
-}
-
-/** The vault-side account marker: which account's hosted repo this checkout
- *  has synced with. ONE spelling, read and written by the engine below and
- *  by the clone path. */
-const ACCOUNT_MARKER_KEY = "inteligir.account";
-
-function identityEnv(author?: CommitAuthor) {
-  return {
-    GIT_AUTHOR_NAME: author?.name ?? ENGINE_IDENTITY.name,
-    GIT_AUTHOR_EMAIL: author?.email ?? ENGINE_IDENTITY.email,
-    GIT_COMMITTER_NAME: ENGINE_IDENTITY.name,
-    GIT_COMMITTER_EMAIL: ENGINE_IDENTITY.email,
-  };
-}
-
-async function ensureLocalExclude(root: string): Promise<void> {
-  // .git/info/exclude, not a .gitignore: the staging pattern is machinery,
-  // and the vault's files belong to the user.
-  const excludePath = join(root, ".git", "info", "exclude");
-  const pattern = `${VAULT_TMP_PREFIX}*`;
-  const existing = await readFile(excludePath, "utf8").catch(() => "");
-  if (existing.split("\n").includes(pattern)) {
-    return;
-  }
-  await appendFile(excludePath, `${pattern}\n`, "utf8");
-}
-
-async function hasHeadCommit(root: string, env?: Record<string, string>): Promise<boolean> {
-  try {
-    await runGit(root, ["rev-parse", "--verify", "-q", "HEAD"], env ? { env } : {});
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-export interface EnsureVaultRepoArgs {
-  root: string;
-  /** Runs when the directory did not exist before this boot (the welcome seed). */
-  seed?: (root: string) => Promise<void>;
-  /** The remote as of boot. A NEW vault dir clones from it instead of
-   *  init+seed, which is what makes a second device join an existing vault
-   *  rather than colliding with it. */
-  remote?: VaultRemoteSpec | null;
-  env?: Record<string, string>;
-}
-
-/**
- * Try to clone the configured remote into a root that does not exist yet,
- * and SAY which way it failed — the caller's seeding decision hangs on it:
- *
- * - "missing": the remote holds no repository (the hosted repo before its
- *   first push, an absent BYO path). Nothing existed to join, so the welcome
- *   seed is safe — the first push creates the remote.
- * - "failed": the remote may exist but could not answer (offline boot, a
- *   refused credential). Seeding HERE is the trap cubic's review named: a
- *   populated remote comes back later and the seed's history has to rebase
- *   through it. The vault boots EMPTY instead (one empty init commit, which
- *   `--empty=drop` discards on the eventual first sync), and a revoked
- *   credential surfaces as `unauthorized` rather than failing the boot —
- *   which would take down the very server the user re-pairs through.
- *
- * git cleans up its own partially-cloned directory on failure, so every
- * fall-through starts from the same absent root.
- */
-async function tryCloneVault(
-  args: EnsureVaultRepoArgs,
-  remote: VaultRemoteSpec,
-): Promise<"cloned" | "missing" | "failed"> {
-  await mkdir(dirname(args.root), { recursive: true });
-  try {
-    await runGit(dirname(args.root), ["clone", "--", remote.url, args.root], {
-      timeoutMs: NETWORK_GIT_TIMEOUT_MS,
-      env: { ...args.env, ...remote.env },
-    });
-    return "cloned";
-  } catch (error) {
-    return isMissingRemoteRepo(error) ? "missing" : "failed";
-  }
-}
-
-/**
- * Create the vault directory if absent — cloning the remote when one is
- * configured, else `git init` + seed — and always leave it with a born HEAD:
- * the sync loop rebases, and a rebase needs a commit to stand on.
- *
- * An EXISTING local vault beside a populated remote is deliberately not
- * merged here: the first sync pass rebases, and unrelated histories surface
- * as its typed `conflict` state rather than any silent resolution.
- */
-export async function ensureVaultRepo(
-  args: EnsureVaultRepoArgs,
-): Promise<{ created: boolean; cloned: boolean }> {
-  const created = !existsSync(args.root);
-  const remote = args.remote ?? null;
-  const outcome =
-    created && remote !== null ? await tryCloneVault(args, remote) : ("missing" as const);
-  const cloned = outcome === "cloned";
-  await mkdir(args.root, { recursive: true });
-  const runOptions = args.env ? { env: args.env } : {};
-  if (!existsSync(join(args.root, ".git"))) {
-    await runGit(args.root, ["init", "-b", "main"], runOptions);
-  }
-  await ensureLocalExclude(args.root);
-  if (created && remote?.source === "paired" && remote.account !== undefined && cloned) {
-    // The clone came from this account's repo; pin it so a later re-pair to
-    // a DIFFERENT account refuses instead of pushing these notes into it.
-    await runGit(args.root, ["config", ACCOUNT_MARKER_KEY, remote.account], runOptions);
-  }
-  // The welcome seed runs with NO remote, or when the HOSTED remote itself
-  // answered "no repository" — which our Worker says only for a truly absent
-  // repo (auth precedes it). An EXPLICIT remote's "not found" is ambiguous:
-  // GitHub answers 404 for a private repo the credential cannot see, and
-  // seeding beside it plants the unrelated history the eventual first sync
-  // conflicts through. Those boot empty instead.
-  const seedable = remote === null || (outcome === "missing" && remote.source === "paired");
-  if (created && seedable && args.seed) {
-    await args.seed(args.root);
-  }
-  if (!(await hasHeadCommit(args.root, args.env))) {
-    await runGit(args.root, ["add", "-A"], runOptions);
-    await runGit(
-      args.root,
-      ["-c", "commit.gpgsign=false", "commit", "--allow-empty", "-m", "vault: initialize"],
-      { env: { ...args.env, ...identityEnv() } },
-    );
-  }
-  return { created, cloned };
 }
 
 export interface GitEngineArgs {
@@ -547,17 +225,8 @@ export function createGitEngine(args: GitEngineArgs): GitEngine {
     }
   }
 
-  /** The ONE invocation. Pathspecs narrow it; the format never varies. */
-  async function porcelain(paths: readonly string[] = []): Promise<PorcelainEntry[]> {
-    const pathspec = paths.length === 0 ? [] : ["--", ...paths];
-    const { stdout } = await run([
-      "--no-optional-locks",
-      "status",
-      "--porcelain",
-      "-z",
-      ...pathspec,
-    ]);
-    return parsePorcelain(stdout);
+  function porcelain(paths: readonly string[] = []): Promise<PorcelainEntry[]> {
+    return readPorcelain(run, paths);
   }
 
   async function commitIfDirty(): Promise<{ files: number } | null> {
@@ -721,20 +390,6 @@ export function createGitEngine(args: GitEngineArgs): GitEngine {
       .filter(isUnmerged)
       .map((entry) => entry.path)
       .toSorted();
-  }
-
-  /**
-   * A remote with nothing to fetch YET: the branch is missing ("couldn't find
-   * remote ref"), or the repository itself is (the hosted remote answers 404
-   * until the first push creates it). Both mean the same thing to the pass —
-   * rebase onto nothing, and let the push below create what was missing. A
-   * mistyped BYO remote also lands here and fails honestly at that push.
-   */
-  function isMissingRemoteRef(cause: unknown): boolean {
-    return (
-      cause instanceof GitError &&
-      /couldn't find remote ref|repository .+ not found|returned error: 404/i.test(cause.stderr)
-    );
   }
 
   /** The checkout's account marker, or null before the first paired sync. */
@@ -997,7 +652,10 @@ export function createGitEngine(args: GitEngineArgs): GitEngine {
       }
       // Flush, never cancel: dirt at shutdown is exactly what auto-commit
       // exists for, and the debounce it was waiting on dies with the process.
-      await withRepoLock(() => commitIfDirty()).catch(() => undefined);
+      // A failed flush REJECTS — the vault teardown step is the one this
+      // whole ordering protects, and the shutdown exit code has to be able
+      // to name it.
+      await withRepoLock(() => commitIfDirty());
     },
   };
 }

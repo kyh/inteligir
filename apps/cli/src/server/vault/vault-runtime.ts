@@ -9,13 +9,8 @@ import type { DbNotifier } from "@repo/domain/notifier";
 import type { VaultStatusResponse } from "@repo/api/local/vault/vault-schema";
 import type { VaultRemoteProvider } from "../cloud/vault-remote";
 import { assertVaultAndDataDirDisjoint } from "../path-containment";
-import {
-  createGitEngine,
-  ensureVaultRepo,
-  type EnsureVaultRepoArgs,
-  type GitEngine,
-  type GitEngineArgs,
-} from "./git";
+import { ensureVaultRepo, type EnsureVaultRepoArgs } from "./git-bootstrap";
+import { createGitEngine, type GitEngine, type GitEngineArgs } from "./git-engine";
 import { seedVault } from "./seed-vault";
 import { sweepExpiredTrash } from "./trash";
 import { createVaultService, sweepStaleTmpFiles, type VaultService } from "./vault-service";

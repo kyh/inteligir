@@ -19,7 +19,8 @@
 import { realpathSync } from "node:fs";
 import { isAbsolute, resolve } from "node:path";
 import { relativeUnder } from "../path-containment";
-import type { CommitAuthor, GitEngine } from "../vault/git";
+import type { GitEngine } from "../vault/git-engine";
+import type { CommitAuthor } from "../vault/git-run";
 
 const AGENT_COMMIT_AUTHOR: CommitAuthor = {
   name: "inteligir-agent",

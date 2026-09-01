@@ -203,11 +203,15 @@ export async function sweepExpiredTrash(
     if (entry.trashedAt === null) continue;
     const at = Date.parse(entry.trashedAt);
     if (Number.isNaN(at) || now - at < retentionMs) continue;
-    await purgeTrashedNote(service, entry.path).catch(() => {
+    const removed = await purgeTrashedNote(service, entry.path).then(
+      () => true,
       // A raced restore or hand-move is not a sweep failure; the next pass
-      // sees the current tree.
-    });
-    purged += 1;
+      // sees the current tree — but nothing was purged, so it is not counted.
+      () => false,
+    );
+    if (removed) {
+      purged += 1;
+    }
   }
   return purged;
 }

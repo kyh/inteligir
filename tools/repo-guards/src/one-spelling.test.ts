@@ -103,7 +103,7 @@ const PREDICATES: Predicate[] = [
   },
   {
     question: "what does `git status --porcelain` say?",
-    home: "apps/cli/src/server/vault/git.ts",
+    home: "apps/cli/src/server/vault/git-porcelain.ts",
     use: "parsePorcelain()",
     detect: (source) => (source.includes("--porcelain") ? ["runs `git status --porcelain`"] : []),
     elsewhere: {

@@ -3,7 +3,7 @@
 // origin, and the trailing empty token.
 
 import { describe, expect, it } from "vitest";
-import { parsePorcelain } from "../git";
+import { parsePorcelain } from "../git-porcelain";
 
 /** git's own framing: every entry NUL-terminated, so the split leaves a
  *  trailing empty token. */

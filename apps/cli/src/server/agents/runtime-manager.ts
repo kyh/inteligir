@@ -64,7 +64,7 @@ import type {
   TurnDriver,
   TurnDriverStartArgs,
 } from "../threads/turn-driver";
-import type { GitEngine } from "../vault/git";
+import type { GitEngine } from "../vault/git-engine";
 import {
   beginAgentTurnWrites,
   createVaultPathResolver,

@@ -19,10 +19,8 @@
 //   position.
 
 import { VAULT_MAX_CONTENT_LENGTH, type VaultRevision } from "@repo/api/local/vault/vault-schema";
+import type { RunGitCommand } from "./git-run";
 import { VaultServiceError } from "./vault-service";
-
-/** One git invocation, already bound to the repo and its environment. */
-export type RunGitCommand = (args: readonly string[]) => Promise<{ stdout: string }>;
 
 /**
  * NUL-separated fields, never newline-separated lines: git C-quotes any path

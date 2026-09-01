@@ -1,15 +1,11 @@
-import { existsSync } from "node:fs";
-import { readFile, writeFile } from "node:fs/promises";
+import { existsSync, mkdirSync } from "node:fs";
+import { readFile, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import {
-  createGitEngine,
-  ensureVaultRepo,
-  runGit,
-  type GitEngine,
-  type GitEngineArgs,
-} from "../git";
+import { ensureVaultRepo, type EnsureVaultRepoArgs } from "../git-bootstrap";
+import { createGitEngine, type GitEngine, type GitEngineArgs } from "../git-engine";
+import { GitError, runGit } from "../git-run";
 import { boundAddressSchema } from "../../__tests__/bound-address";
 import { hermeticGitEnv } from "./git-test-env";
 import { makeTempDir } from "../../__tests__/temp-dir";
@@ -655,6 +651,111 @@ describe("clone failure classes", () => {
     // Born HEAD, nothing else: one empty commit for the rebase to stand on.
     const count = await runGit(root, ["rev-list", "--count", "HEAD"], { env });
     expect(count.stdout.trim()).toBe("1");
+  });
+});
+
+describe("the bootstrap port", () => {
+  interface Invocation {
+    cwd: string;
+    args: string[];
+    timeoutMs: number | undefined;
+    env: Record<string, string> | undefined;
+  }
+
+  /** A fake `runGit`: no git binary, no repo — the port is the whole seam.
+   *  `init` creates `.git/info` because `ensureLocalExclude` appends there. */
+  function fakeGit(clone: "missing" | "failed") {
+    const calls: Invocation[] = [];
+    const run = (
+      cwd: string,
+      args: readonly string[],
+      options: { timeoutMs?: number; env?: Record<string, string> } = {},
+    ): Promise<{ stdout: string }> => {
+      calls.push({ cwd, args: [...args], timeoutMs: options.timeoutMs, env: options.env });
+      switch (args[0]) {
+        case "clone":
+          return Promise.reject(
+            new GitError(
+              "git clone failed",
+              clone === "missing"
+                ? "fatal: repository 'https://cloud.test/v1/git/me/' not found"
+                : "fatal: unable to access 'https://cloud.test/v1/git/me/': could not resolve host",
+            ),
+          );
+        case "init":
+          mkdirSync(join(cwd, ".git", "info"), { recursive: true });
+          return Promise.resolve({ stdout: "" });
+        case "rev-parse":
+          return Promise.reject(new GitError("git rev-parse failed", ""));
+        default:
+          return Promise.resolve({ stdout: "" });
+      }
+    };
+    return { calls, run };
+  }
+
+  it("drives clone-miss → init → seed → born HEAD through the injected run", async () => {
+    const root = join(scratchDir("inteligir-git-port-"), "vault");
+    const fake = fakeGit("missing");
+    let seeded = false;
+    const args: EnsureVaultRepoArgs = {
+      root,
+      remote: { url: "https://cloud.test/v1/git/me/", source: "paired", account: "user-x" },
+      seed: async () => {
+        seeded = true;
+      },
+      run: fake.run,
+    };
+    const { created, cloned } = await ensureVaultRepo(args);
+
+    expect(created).toBe(true);
+    expect(cloned).toBe(false);
+    expect(seeded).toBe(true);
+    expect(fake.calls.map((call) => call.args[0])).toEqual([
+      "clone",
+      "init",
+      "rev-parse",
+      "add",
+      "-c",
+    ]);
+    const clone = fake.calls[0];
+    expect(clone?.cwd).not.toBe(root);
+    expect(clone?.timeoutMs).toBe(120_000);
+    // The born-HEAD commit carries the engine identity, through the port too.
+    const commit = fake.calls.at(-1);
+    expect(commit?.args).toContain("vault: initialize");
+    expect(commit?.env?.GIT_AUTHOR_NAME).toBe("inteligir");
+  });
+
+  it("boots EMPTY on a clone failure that is not a missing repo", async () => {
+    const root = join(scratchDir("inteligir-git-port-fail-"), "vault");
+    const fake = fakeGit("failed");
+    let seeded = false;
+    await ensureVaultRepo({
+      root,
+      remote: { url: "https://cloud.test/v1/git/me/", source: "paired", account: "user-x" },
+      seed: async () => {
+        seeded = true;
+      },
+      run: fake.run,
+    });
+    expect(seeded).toBe(false);
+    expect(fake.calls.at(-1)?.args).toContain("vault: initialize");
+  });
+});
+
+describe("dispose", () => {
+  it("surfaces a failed shutdown flush instead of swallowing it", async () => {
+    const root = scratchDir("inteligir-git-dispose-");
+    await ensureVaultRepo({ root, env });
+    const engine = createGitEngine({ root, remote: () => null, env });
+    await writeFile(join(root, "pending.md"), "unflushed\n", "utf8");
+    // Break the repo under the engine: the flush's own git invocation now
+    // fails, and the vault teardown step has to be able to report that —
+    // a swallowed rejection here is a shutdown that exits 0 with edits in
+    // no revision at all.
+    await rm(join(root, ".git"), { recursive: true, force: true });
+    await expect(engine.dispose()).rejects.toThrow(/git/);
   });
 });
 

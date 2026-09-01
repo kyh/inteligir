@@ -101,7 +101,7 @@ const VOCABULARIES: Vocabulary[] = [
     members: syncStates,
     declaredIn: "packages/api/src/local/vault/vault-schema.ts",
     dispatchedIn: {
-      "apps/cli/src/server/vault/git.ts":
+      "apps/cli/src/server/vault/git-engine.ts":
         "the PRODUCER — `statusSnapshot` is the state machine that decides which state the vault is in; naming them all is what it is for",
       "apps/desktop/src/renderer/app/vault-hooks.ts":
         "the ONE client answer, four tables deliberately side by side so a ninth state cannot be answered in one and forgotten in another: `syncStateLabel` (the word), `syncStateDotClass` (the colour), `syncBlockedReason` (why a pass would not run — which `canSyncNow` reads as a boolean) and `syncNowNotice` (what the command owes the user afterwards)",

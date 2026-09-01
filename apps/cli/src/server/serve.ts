@@ -41,7 +41,7 @@ import {
   installShutdownSignals,
   type ShutdownStep,
 } from "./shutdown";
-import { redactRemoteUrl } from "./vault/git";
+import { redactRemoteUrl } from "./vault/git-run";
 
 /**
  * What `serve`'s own flags override, as the ENVIRONMENT the config layer

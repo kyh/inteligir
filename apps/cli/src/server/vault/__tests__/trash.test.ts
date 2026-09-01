@@ -135,6 +135,36 @@ describe("listTrash / sweepExpiredTrash", () => {
     expect(await service.statEntry("Trash/undated.md")).toBe("file");
   });
 
+  it("does not count a purge that failed as purged", async () => {
+    const { service } = bootService();
+    await service.write("refused.md", "# refused\n");
+    await service.write("removed.md", "# removed\n");
+    await trashNote(service, "refused.md");
+    await trashNote(service, "removed.md");
+    for (const path of ["Trash/refused.md", "Trash/removed.md"]) {
+      const content = (await service.read(path)).content;
+      const aged = content.replace(
+        /trashed-at: [^\n]+/,
+        `trashed-at: ${new Date(Date.now() - TRASH_RETENTION_MS - 1000).toISOString()}`,
+      );
+      await service.write(path, aged);
+    }
+
+    const refusing = {
+      ...service,
+      remove: (path: string) =>
+        path === "Trash/refused.md"
+          ? Promise.reject(new Error("disk refused the unlink"))
+          : service.remove(path),
+    };
+    const purged = await sweepExpiredTrash(refusing);
+    // One file is genuinely gone; the refused one is still there, and a count
+    // that included it would report a retention pass that did not happen.
+    expect(purged).toBe(1);
+    expect(await service.statEntry("Trash/refused.md")).toBe("file");
+    expect(await service.statEntry("Trash/removed.md")).toBeNull();
+  });
+
   it("purge removes the note and its sidecar", async () => {
     const { service } = bootService();
     await service.write("n.md", "# n\n");

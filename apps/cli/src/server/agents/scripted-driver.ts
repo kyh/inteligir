@@ -12,7 +12,7 @@
 // the same string, so nothing about the older scenarios moves.
 
 import { turnScope } from "@repo/domain/thread-event-scope";
-import type { GitEngine } from "../vault/git";
+import type { GitEngine } from "../vault/git-engine";
 import type { VaultService } from "../vault/vault-service";
 import type {
   CreateTurnDriver,

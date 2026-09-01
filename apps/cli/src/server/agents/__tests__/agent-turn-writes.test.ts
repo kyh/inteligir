@@ -8,7 +8,8 @@
 //   - a turn that wrote nothing makes NO commit — an empty commit is not a
 //     harmless artefact, it is a lie about what the agent did.
 
-import type { CommitAuthor, GitEngine } from "../../vault/git";
+import type { GitEngine } from "../../vault/git-engine";
+import type { CommitAuthor } from "../../vault/git-run";
 import { describe, expect, it } from "vitest";
 import { beginAgentTurnWrites, createVaultPathResolver } from "../agent-commits";
 

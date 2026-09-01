@@ -6,7 +6,8 @@
 import { mkdir, rename, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { ensureVaultRepo, runGit } from "../git";
+import { ensureVaultRepo } from "../git-bootstrap";
+import { runGit } from "../git-run";
 import { parseFollowLog, readNoteHistory, readNoteRevision } from "../git-history";
 import { VaultServiceError } from "../vault-service";
 import { hermeticGitEnv } from "./git-test-env";
