@@ -13,6 +13,7 @@ import {
 } from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 
+import { composeRefs } from "@repo/ui/components/sidebar-core";
 import { cn } from "@repo/ui/lib/utils";
 
 /* ─────────────────────────────────────────────────────────
@@ -182,9 +183,9 @@ const thinkingRowVariants = cva(
 );
 
 interface ThinkingRowProps
-  extends
-    Omit<HTMLAttributes<HTMLDivElement>, "onSelect">,
-    VariantProps<typeof thinkingRowVariants> {
+  // HTMLElement rather than HTMLDivElement: a selectable row renders a
+  // <button>, and the props and ref must fit whichever element the row is.
+  extends Omit<HTMLAttributes<HTMLElement>, "onSelect">, VariantProps<typeof thinkingRowVariants> {
   /** A path, a count, a target — shown dimmed after the row's own text. */
   secondary?: ReactNode;
   /** Render `secondary` in the mono face (paths, commands). */
@@ -229,7 +230,7 @@ function RowIcon({ kind, pending }: { kind: "step" | "reasoning" | "tool"; pendi
 /** The shared row body. `ThinkingStep`, `ThinkingReasoning` and `ThinkingTool`
  *  are this with their kind fixed, which is what makes the trace read as
  *  markup instead of as a discriminated array. */
-const ThinkingRow = forwardRef<HTMLDivElement, ThinkingRowProps>(
+const ThinkingRow = forwardRef<HTMLElement, ThinkingRowProps>(
   (
     {
       kind = "step",
@@ -277,7 +278,7 @@ const ThinkingRow = forwardRef<HTMLDivElement, ThinkingRowProps>(
     if (onSelect === undefined) {
       return (
         <div
-          ref={ref}
+          ref={composeRefs(ref)}
           data-slot={`thinking-${rowKind}`}
           className={cn(thinkingRowVariants({ kind: rowKind, selectable: false }), className)}
           {...props}
@@ -288,6 +289,7 @@ const ThinkingRow = forwardRef<HTMLDivElement, ThinkingRowProps>(
     }
     return (
       <button
+        ref={composeRefs(ref)}
         type="button"
         aria-pressed={selected}
         onClick={onSelect}
@@ -297,6 +299,7 @@ const ThinkingRow = forwardRef<HTMLDivElement, ThinkingRowProps>(
           selected ? "bg-surface-inset" : "hover:bg-hover",
           className,
         )}
+        {...props}
       >
         {body}
       </button>
@@ -307,17 +310,17 @@ ThinkingRow.displayName = "ThinkingRow";
 
 type ThinkingPartProps = Omit<ThinkingRowProps, "kind">;
 
-const ThinkingStep = forwardRef<HTMLDivElement, ThinkingPartProps>((props, ref) => (
+const ThinkingStep = forwardRef<HTMLElement, ThinkingPartProps>((props, ref) => (
   <ThinkingRow ref={ref} kind="step" {...props} />
 ));
 ThinkingStep.displayName = "ThinkingStep";
 
-const ThinkingReasoning = forwardRef<HTMLDivElement, ThinkingPartProps>((props, ref) => (
+const ThinkingReasoning = forwardRef<HTMLElement, ThinkingPartProps>((props, ref) => (
   <ThinkingRow ref={ref} kind="reasoning" {...props} />
 ));
 ThinkingReasoning.displayName = "ThinkingReasoning";
 
-const ThinkingTool = forwardRef<HTMLDivElement, ThinkingPartProps>((props, ref) => (
+const ThinkingTool = forwardRef<HTMLElement, ThinkingPartProps>((props, ref) => (
   <ThinkingRow ref={ref} kind="tool" {...props} />
 ));
 ThinkingTool.displayName = "ThinkingTool";

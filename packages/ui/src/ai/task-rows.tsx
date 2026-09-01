@@ -6,6 +6,7 @@ import {
   forwardRef,
   useCallback,
   useContext,
+  useLayoutEffect,
   useMemo,
   useState,
   type HTMLAttributes,
@@ -304,13 +305,12 @@ TaskStatusLabel.displayName = "TaskStatusLabel";
 const TaskItemDetails = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
   ({ className, children, ...props }, ref) => {
     const { open, setExpandable } = useTaskItem();
-    // Announce expandability during render of the first details part, so the
-    // row's chevron and its disabled state agree with what is actually here.
-    const [announced, setAnnounced] = useState(false);
-    if (!announced) {
-      setAnnounced(true);
+    // Announce expandability from an effect: the flag is the parent TaskItem's
+    // state, and a render-phase write to another component's store is illegal.
+    // Layout-timed so the chevron agrees with the row before first paint.
+    useLayoutEffect(() => {
       setExpandable(true);
-    }
+    }, [setExpandable]);
     return (
       <div
         className="grid transition-[grid-template-rows,opacity] duration-300 ease-[cubic-bezier(0.23,1,0.32,1)]"
