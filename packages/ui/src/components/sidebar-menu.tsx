@@ -180,16 +180,14 @@ function useMenuScope(containerRef: RefObject<HTMLElement | null>): MenuScope {
 
   // While a popup anchored in the sidebar is open (the header/footer rows'
   // dropdown), hover tracking freezes — otherwise a non-modal popup lets rows
-  // underneath keep highlighting. Popup triggers are detected by the
-  // primitives' open attributes (Radix data-state, Base UI data-popup-open);
-  // collapsible rows only set aria-expanded, so they never match.
+  // underneath keep highlighting. Popup triggers are detected by Base UI's
+  // data-popup-open; collapsible rows only set aria-expanded, so they never
+  // match.
   const popupOpen = useCallback(() => {
     const container = containerRef.current;
     if (!container) return false;
     const root = container.closest('[data-slot="sidebar-wrapper"]') ?? container;
-    return !!root.querySelector(
-      '[data-sidebar="menu-button"][data-state="open"], [data-sidebar="menu-button"][data-popup-open]',
-    );
+    return !!root.querySelector('[data-sidebar="menu-button"][data-popup-open]');
   }, [containerRef]);
 
   const onMouseMove = useCallback(

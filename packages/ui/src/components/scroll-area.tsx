@@ -15,7 +15,9 @@ import { useRadius } from "@repo/ui/lib/radius-context";
 import { useTouchPrimary } from "@repo/ui/hooks/use-touch-primary";
 
 interface ScrollAreaProps extends ComponentPropsWithoutRef<"div"> {
-  viewportClassName?: string;
+  /** `| undefined` spelled out so a caller may forward its own optional prop
+   *  under exactOptionalPropertyTypes. */
+  viewportClassName?: string | undefined;
 }
 
 const ScrollArea = forwardRef<ComponentRef<typeof ScrollAreaPrimitive.Root>, ScrollAreaProps>(

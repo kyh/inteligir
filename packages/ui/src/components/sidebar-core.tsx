@@ -458,9 +458,6 @@ const SidebarShell = forwardRef<HTMLDivElement, SidebarShellProps>(
           // Flex order (not DOM order) decides the side, so consumers can
           // keep Sidebar before SidebarInset regardless of `side`.
           side === "right" && "order-last",
-          // The inset rail has no card edge of its own, so its scroll hairline
-          // hugs the rows' 8px gutter instead of running panel-wide.
-          variant === "inset" && "[--scroll-divider-inset:8px]",
           BREAKPOINT_HIDDEN.get(mobileBreakpoint),
           className,
         )}
