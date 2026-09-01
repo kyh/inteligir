@@ -14,6 +14,7 @@ import {
 } from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 
+import { Collapse } from "@repo/ui/lib/collapse";
 import { cn } from "@repo/ui/lib/utils";
 
 /* ─────────────────────────────────────────────────────────
@@ -312,22 +313,17 @@ const TaskItemDetails = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement
       setExpandable(true);
     }, [setExpandable]);
     return (
-      <div
-        className="grid transition-[grid-template-rows,opacity] duration-300 ease-[cubic-bezier(0.23,1,0.32,1)]"
-        style={{ gridTemplateRows: open ? "1fr" : "0fr", opacity: open ? 1 : 0 }}
-      >
-        <div className="overflow-hidden">
-          <div
-            ref={ref}
-            data-slot="task-item-details"
-            className={cn("mb-2.5 grid grid-cols-[24px_1fr] gap-2.5 px-2.5", className)}
-            {...props}
-          >
-            <span aria-hidden className="mx-auto h-full w-px bg-line" />
-            <div className="flex flex-col gap-1.5">{children}</div>
-          </div>
+      <Collapse open={open}>
+        <div
+          ref={ref}
+          data-slot="task-item-details"
+          className={cn("mb-2.5 grid grid-cols-[24px_1fr] gap-2.5 px-2.5", className)}
+          {...props}
+        >
+          <span aria-hidden className="mx-auto h-full w-px bg-line" />
+          <div className="flex flex-col gap-1.5">{children}</div>
         </div>
-      </div>
+      </Collapse>
     );
   },
 );

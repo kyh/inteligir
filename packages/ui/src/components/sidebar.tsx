@@ -18,8 +18,8 @@ import { spring, exitFallbackMs } from "@repo/ui/lib/springs";
 import { useSurface, SurfaceProvider } from "@repo/ui/lib/surface-context";
 import { surfaceClasses } from "@repo/ui/lib/surface-classes";
 import { ScrollArea } from "@repo/ui/components/scroll-area";
+import { composeRefs } from "@repo/ui/lib/compose-refs";
 import {
-  composeRefs,
   useSidebar,
   SidebarShell,
   type SidebarSide,

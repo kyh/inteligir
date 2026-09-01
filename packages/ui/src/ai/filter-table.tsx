@@ -2,9 +2,10 @@
 // Vendored from Beautiful UI (beautifului.dev), MIT.
 
 import { createContext, forwardRef, useContext, useMemo } from "react";
-import type { CSSProperties, HTMLAttributes, ReactNode } from "react";
+import type { HTMLAttributes, ReactNode } from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 
+import { Collapse } from "@repo/ui/lib/collapse";
 import { cn } from "@repo/ui/lib/utils";
 
 /* ─────────────────────────────────────────────────────────
@@ -147,33 +148,22 @@ export interface DataTableRowProps extends HTMLAttributes<HTMLDivElement> {
 const DataTableRow = forwardRef<HTMLDivElement, DataTableRowProps>(
   ({ className, children, visible = true, style, ...props }, ref) => {
     const { columns } = useContext(TableContext);
-    const outer: CSSProperties = {
-      gridTemplateRows: visible ? "1fr" : "0fr",
-      opacity: visible ? 1 : 0,
-      transitionTimingFunction: "cubic-bezier(0.23, 1, 0.32, 1)",
-    };
     return (
-      <div
-        className="grid transition-[grid-template-rows,opacity] duration-300 motion-reduce:transition-none"
-        style={outer}
-        aria-hidden={visible ? undefined : true}
-      >
-        <div className="overflow-hidden">
-          <div
-            ref={ref}
-            data-slot="data-table-row"
-            className={cn(
-              "grid items-center border-b border-line px-3 py-2 text-[12px]",
-              "transition-colors duration-100 last:border-0 hover:bg-hover",
-              className,
-            )}
-            style={{ gridTemplateColumns: columns, ...style }}
-            {...props}
-          >
-            {children}
-          </div>
+      <Collapse open={visible}>
+        <div
+          ref={ref}
+          data-slot="data-table-row"
+          className={cn(
+            "grid items-center border-b border-line px-3 py-2 text-[12px]",
+            "transition-colors duration-100 last:border-0 hover:bg-hover",
+            className,
+          )}
+          style={{ gridTemplateColumns: columns, ...style }}
+          {...props}
+        >
+          {children}
         </div>
-      </div>
+      </Collapse>
     );
   },
 );

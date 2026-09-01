@@ -19,7 +19,7 @@ import {
   type ButtonHTMLAttributes,
   type RefObject,
 } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cssVars } from "@repo/ui/lib/css-vars";
 import { cn } from "@repo/ui/lib/utils";
@@ -27,15 +27,12 @@ import { spring } from "@repo/ui/lib/springs";
 import { fontWeights } from "@repo/ui/lib/font-weight";
 import { useRadius } from "@repo/ui/lib/radius-context";
 import { useSize, SizeProvider, type SizeVariant } from "@repo/ui/lib/size-context";
+import { ProximityOverlays } from "@repo/ui/hooks/proximity-overlays";
 import { useProximityHover, type ItemRect } from "@repo/ui/hooks/use-proximity-hover";
 import type { IconComponent } from "@repo/ui/lib/icon-context";
 import { useIsoLayoutEffect } from "@repo/ui/lib/use-iso-layout-effect";
-import {
-  composeRefs,
-  resolveSlotTemplate,
-  Slot,
-  splitLeadingText,
-} from "@repo/ui/components/sidebar-core";
+import { composeRefs } from "@repo/ui/lib/compose-refs";
+import { resolveSlotTemplate, Slot, splitLeadingText } from "@repo/ui/components/sidebar-core";
 
 // SSR-safe layout effect (client components still server-render in Next).
 
@@ -332,76 +329,17 @@ function useMenuScope(containerRef: RefObject<HTMLElement | null>, isRoot: boole
     [isRoot, registerRow, setRowButton, setRowActive, hoveredRowEl, activeRowEl, orderedRows],
   );
 
-  const radius = useRadius();
   const activeRect = overlayRect(activeRowEl);
   const hoverRect = overlayRect(hoveredRowEl);
   const focusRect = overlayRect(focusedRowEl);
 
   const overlays = isMeasured ? (
-    <>
-      {/* Active row background */}
-      <AnimatePresence>
-        {activeRect && (
-          <motion.div
-            className={`absolute ${radius.bg} bg-active pointer-events-none`}
-            initial={false}
-            animate={{
-              top: activeRect.top,
-              left: activeRect.left,
-              width: activeRect.width,
-              height: activeRect.height,
-              opacity: 1,
-            }}
-            exit={{ opacity: 0, transition: spring.moderate.exit }}
-            transition={{ ...spring.moderate, opacity: { duration: 0.08 } }}
-          />
-        )}
-      </AnimatePresence>
-
-      {/* Hover background */}
-      <AnimatePresence>
-        {hoverRect && (
-          <motion.div
-            key={session}
-            className={`absolute ${radius.bg} bg-hover pointer-events-none`}
-            initial={{
-              opacity: 0,
-              top: activeRect?.top ?? hoverRect.top,
-              left: activeRect?.left ?? hoverRect.left,
-              width: activeRect?.width ?? hoverRect.width,
-              height: activeRect?.height ?? hoverRect.height,
-            }}
-            animate={{
-              opacity: 1,
-              top: hoverRect.top,
-              left: hoverRect.left,
-              width: hoverRect.width,
-              height: hoverRect.height,
-            }}
-            exit={{ opacity: 0, transition: spring.fast.exit }}
-            transition={{ ...spring.fast, opacity: { duration: 0.08 } }}
-          />
-        )}
-      </AnimatePresence>
-
-      {/* Focus ring */}
-      <AnimatePresence>
-        {focusRect && (
-          <motion.div
-            className={`absolute ${radius.focusRing} pointer-events-none z-20 border border-[color:var(--focus-ring,#6B97FF)]`}
-            initial={false}
-            animate={{
-              left: focusRect.left - 2,
-              top: focusRect.top - 2,
-              width: focusRect.width + 4,
-              height: focusRect.height + 4,
-            }}
-            exit={{ opacity: 0, transition: spring.fast.exit }}
-            transition={{ ...spring.fast, opacity: { duration: 0.08 } }}
-          />
-        )}
-      </AnimatePresence>
-    </>
+    <ProximityOverlays
+      activeRect={activeRect}
+      hoverRect={hoverRect}
+      focusRect={focusRect}
+      session={session}
+    />
   ) : null;
 
   return {

@@ -22,9 +22,9 @@ import {
   type CSSProperties,
   type HTMLAttributes,
   type Ref,
-  type RefCallback,
 } from "react";
 import { motion, AnimatePresence, type HTMLMotionProps } from "framer-motion";
+import { composeRefs } from "@repo/ui/lib/compose-refs";
 import { cssVars } from "@repo/ui/lib/css-vars";
 import { cn } from "@repo/ui/lib/utils";
 import { spring } from "@repo/ui/lib/springs";
@@ -126,19 +126,6 @@ function useIsMobile(breakpoint: number): boolean {
 }
 
 // ─── Shared part helpers ─────────────────────────────────────────────────────
-
-/** `Ref` is a union of a callback and a mutable box, and a part keeps its own
- *  handle on a node while still honouring the forwarded one — so both shapes
- *  have to be written to. */
-export function composeRefs<T>(...refs: (Ref<T> | undefined)[]): RefCallback<T> {
-  return (node) => {
-    for (const ref of refs) {
-      if (ref == null) continue;
-      if (ref instanceof Function) ref(node);
-      else ref.current = node;
-    }
-  };
-}
 
 type TextChild = string | number;
 

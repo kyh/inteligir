@@ -5,6 +5,7 @@ import { forwardRef } from "react";
 import type { HTMLAttributes, ReactNode } from "react";
 import { cva } from "class-variance-authority";
 
+import { Collapse } from "@repo/ui/lib/collapse";
 import { cn } from "@repo/ui/lib/utils";
 
 /* ─────────────────────────────────────────────────────────
@@ -114,29 +115,19 @@ export interface RecommendationAlternativesProps extends HTMLAttributes<HTMLDivE
 
 const RecommendationAlternatives = forwardRef<HTMLDivElement, RecommendationAlternativesProps>(
   ({ className, children, open = false, label = "Other options", ...props }, ref) => (
-    <div
-      className="grid transition-[grid-template-rows,opacity] duration-300 motion-reduce:transition-none"
-      style={{
-        gridTemplateRows: open ? "1fr" : "0fr",
-        opacity: open ? 1 : 0,
-        transitionTimingFunction: "cubic-bezier(0.16, 1, 0.3, 1)",
-      }}
-      aria-hidden={open ? undefined : true}
-    >
-      <div className="overflow-hidden">
-        <div
-          ref={ref}
-          data-slot="recommendation-alternatives"
-          className={cn("border-t border-line px-2 py-2", className)}
-          {...props}
-        >
-          {label === undefined ? null : (
-            <p className="px-1.5 pb-1 text-[11px] font-medium text-ink-3">{label}</p>
-          )}
-          {children}
-        </div>
+    <Collapse open={open}>
+      <div
+        ref={ref}
+        data-slot="recommendation-alternatives"
+        className={cn("border-t border-line px-2 py-2", className)}
+        {...props}
+      >
+        {label === undefined ? null : (
+          <p className="px-1.5 pb-1 text-[11px] font-medium text-ink-3">{label}</p>
+        )}
+        {children}
       </div>
-    </div>
+    </Collapse>
   ),
 );
 RecommendationAlternatives.displayName = "RecommendationAlternatives";

@@ -13,7 +13,8 @@ import {
 } from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 
-import { composeRefs } from "@repo/ui/components/sidebar-core";
+import { Collapse } from "@repo/ui/lib/collapse";
+import { composeRefs } from "@repo/ui/lib/compose-refs";
 import { cn } from "@repo/ui/lib/utils";
 
 /* ─────────────────────────────────────────────────────────
@@ -133,30 +134,24 @@ const Thinking = forwardRef<HTMLDivElement, ThinkingProps>(
             </svg>
           </button>
 
-          {/* 0fr → 1fr keeps the collapse animatable without measuring content. */}
-          <div
-            className="grid transition-[grid-template-rows,opacity] duration-300 ease-[cubic-bezier(0.23,1,0.32,1)]"
-            style={{ gridTemplateRows: expanded ? "1fr" : "0fr", opacity: expanded ? 1 : 0 }}
-          >
-            <div className="overflow-hidden">
-              <div className="relative mt-1 ml-[5px] pl-4">
-                <span
-                  aria-hidden
-                  className="absolute left-[3px] w-px bg-line transition-[height] duration-500"
-                  style={{ top: -8, height: ruleHeight === 0 ? 0 : ruleHeight - 2 }}
-                />
-                {/* The entrance stagger is CSS rather than a per-row index, so
+          <Collapse open={expanded}>
+            <div className="relative mt-1 ml-[5px] pl-4">
+              <span
+                aria-hidden
+                className="absolute left-[3px] w-px bg-line transition-[height] duration-500"
+                style={{ top: -8, height: ruleHeight === 0 ? 0 : ruleHeight - 2 }}
+              />
+              {/* The entrance stagger is CSS rather than a per-row index, so
                     rows stay ordinary children the caller composes. */}
-                <div
-                  ref={setTraceEl}
-                  data-slot="thinking-trace"
-                  className="flex flex-col gap-1 py-1 [&>*:nth-child(2)]:[animation-delay:120ms] [&>*:nth-child(3)]:[animation-delay:240ms] [&>*:nth-child(4)]:[animation-delay:360ms] [&>*:nth-child(5)]:[animation-delay:480ms] [&>*:nth-child(n+6)]:[animation-delay:600ms]"
-                >
-                  {children}
-                </div>
+              <div
+                ref={setTraceEl}
+                data-slot="thinking-trace"
+                className="flex flex-col gap-1 py-1 [&>*:nth-child(2)]:[animation-delay:120ms] [&>*:nth-child(3)]:[animation-delay:240ms] [&>*:nth-child(4)]:[animation-delay:360ms] [&>*:nth-child(5)]:[animation-delay:480ms] [&>*:nth-child(n+6)]:[animation-delay:600ms]"
+              >
+                {children}
               </div>
             </div>
-          </div>
+          </Collapse>
         </div>
       </ThinkingContext.Provider>
     );

@@ -13,6 +13,7 @@ import {
 } from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 
+import { Collapse } from "@repo/ui/lib/collapse";
 import { cn } from "@repo/ui/lib/utils";
 
 /* ─────────────────────────────────────────────────────────
@@ -120,16 +121,11 @@ const ToolChipList = forwardRef<HTMLDivElement, ToolChipListProps>(
           <span className="tabular-nums">{summary}</span>
         </button>
 
-        <div
-          className="grid transition-[grid-template-rows,opacity] duration-300"
-          style={{ gridTemplateRows: open ? "1fr" : "0fr", opacity: open ? 1 : 0 }}
-        >
-          {/* -mx-1 + px-1.5 keeps content at the same x while giving the row
-              hover pills room inside this overflow-hidden clip box. */}
-          <div className="-mx-1 overflow-hidden px-1.5 pb-1">
-            <div className="mt-1.5 flex flex-col gap-1">{children}</div>
-          </div>
-        </div>
+        {/* -mx-1 + px-1.5 keeps content at the same x while giving the row
+            hover pills room inside the collapse's clip box. */}
+        <Collapse open={open} innerClassName="-mx-1 px-1.5 pb-1">
+          <div className="mt-1.5 flex flex-col gap-1">{children}</div>
+        </Collapse>
       </div>
     );
   },
@@ -230,18 +226,13 @@ const ToolChip = forwardRef<HTMLDivElement, ToolChipProps>(
         </button>
 
         {expandable ? (
-          <div
-            className="grid transition-[grid-template-rows,opacity] duration-300 ease-[cubic-bezier(0.23,1,0.32,1)]"
-            style={{ gridTemplateRows: open ? "1fr" : "0fr", opacity: open ? 1 : 0 }}
-          >
-            <div className="min-h-0 overflow-hidden">
-              <ToolChipContext.Provider value={detailContext}>
-                <div className="mt-0.5 mb-1 ml-2 flex flex-col gap-0.5 border-l border-line py-0.5 pl-3.5">
-                  {children}
-                </div>
-              </ToolChipContext.Provider>
-            </div>
-          </div>
+          <Collapse open={open} innerClassName="min-h-0">
+            <ToolChipContext.Provider value={detailContext}>
+              <div className="mt-0.5 mb-1 ml-2 flex flex-col gap-0.5 border-l border-line py-0.5 pl-3.5">
+                {children}
+              </div>
+            </ToolChipContext.Provider>
+          </Collapse>
         ) : null}
       </div>
     );
