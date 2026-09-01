@@ -24,7 +24,7 @@ function splitWords(text: string): string[] {
   return text.length === 0 ? [] : text.split(/(\s+)/u).filter((part) => part.length > 0);
 }
 
-export interface StreamingTextProps extends HTMLAttributes<HTMLDivElement> {
+interface StreamingTextProps extends HTMLAttributes<HTMLDivElement> {
   /** The message so far. Growing it reveals the new words; shrinking resets. */
   text: string;
   /** True while more text may still arrive — draws the caret. */
@@ -88,7 +88,7 @@ const StreamingText = forwardRef<HTMLDivElement, StreamingTextProps>(
 );
 StreamingText.displayName = "StreamingText";
 
-export interface StreamingActionProps extends HTMLAttributes<HTMLButtonElement> {
+interface StreamingActionProps extends HTMLAttributes<HTMLButtonElement> {
   label: string;
 }
 

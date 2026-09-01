@@ -13,7 +13,7 @@ import type { CSSProperties, FocusEvent, HTMLAttributes, PointerEvent } from "re
 
 import { cn } from "@repo/ui/lib/utils";
 
-export interface GlideListProps extends HTMLAttributes<HTMLDivElement> {
+interface GlideListProps extends HTMLAttributes<HTMLDivElement> {
   /** Classes for the moving highlight itself. */
   highlightClassName?: string;
 }

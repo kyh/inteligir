@@ -1,16 +1,7 @@
 "use client";
 // Vendored from Beautiful UI (beautifului.dev), MIT.
 
-import {
-  createContext,
-  forwardRef,
-  useContext,
-  useLayoutEffect,
-  useMemo,
-  useState,
-  type HTMLAttributes,
-  type ReactNode,
-} from "react";
+import { forwardRef, useLayoutEffect, useState, type HTMLAttributes, type ReactNode } from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 
 import { Collapse } from "@repo/ui/lib/collapse";
@@ -31,18 +22,7 @@ import { cn } from "@repo/ui/lib/utils";
  * web sources this product has none of.
  * ───────────────────────────────────────────────────────── */
 
-interface ThinkingContextValue {
-  working: boolean;
-}
-
-const ThinkingContext = createContext<ThinkingContextValue>({ working: false });
-
-/** Rows read the trace's own state rather than repeating it per row. */
-export function useThinking(): ThinkingContextValue {
-  return useContext(ThinkingContext);
-}
-
-export interface ThinkingProps extends Omit<HTMLAttributes<HTMLDivElement>, "title"> {
+interface ThinkingProps extends Omit<HTMLAttributes<HTMLDivElement>, "title"> {
   /** Shown, shimmering, while `working`. */
   label?: string;
   /** Shown once settled — "Thought for 4s", "Ran 3 tools". */
@@ -81,79 +61,75 @@ const Thinking = forwardRef<HTMLDivElement, ThinkingProps>(
       return () => ro.disconnect();
     }, [traceEl]);
 
-    const context = useMemo(() => ({ working }), [working]);
-
     return (
-      <ThinkingContext.Provider value={context}>
-        <div
-          ref={ref}
-          data-slot="thinking"
-          className={cn("flex w-full flex-col", className)}
-          {...props}
+      <div
+        ref={ref}
+        data-slot="thinking"
+        className={cn("flex w-full flex-col", className)}
+        {...props}
+      >
+        <button
+          type="button"
+          aria-expanded={expanded}
+          onClick={() => setManualExpanded(!expanded)}
+          data-slot="thinking-trigger"
+          className="-mx-1.5 flex w-fit items-center gap-2 rounded-md px-1.5 py-1 transition-colors duration-100 hover:bg-hover"
         >
-          <button
-            type="button"
-            aria-expanded={expanded}
-            onClick={() => setManualExpanded(!expanded)}
-            data-slot="thinking-trigger"
-            className="-mx-1.5 flex w-fit items-center gap-2 rounded-md px-1.5 py-1 transition-colors duration-100 hover:bg-hover"
+          <svg
+            aria-hidden
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill={working ? "var(--ink-2)" : "var(--ink-3)"}
           >
-            <svg
-              aria-hidden
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill={working ? "var(--ink-2)" : "var(--ink-3)"}
-            >
-              <path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8z" />
-            </svg>
-            <span role="status" className="contents">
-              {working ? (
-                <span className="bui-shimmer-text text-[13px] font-medium whitespace-nowrap">
-                  {label}
-                </span>
-              ) : (
-                <span className="animate-in fade-in text-[13px] font-medium whitespace-nowrap text-ink-2">
-                  {doneLabel}
-                </span>
-              )}
-            </span>
-            <svg
-              aria-hidden
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="var(--ink-3)"
-              strokeWidth="2.2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className={cn("transition-transform duration-300", expanded && "rotate-180")}
-            >
-              <path d="M6 9l6 6 6-6" />
-            </svg>
-          </button>
+            <path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8z" />
+          </svg>
+          <span role="status" className="contents">
+            {working ? (
+              <span className="bui-shimmer-text text-[13px] font-medium whitespace-nowrap">
+                {label}
+              </span>
+            ) : (
+              <span className="animate-in fade-in text-[13px] font-medium whitespace-nowrap text-ink-2">
+                {doneLabel}
+              </span>
+            )}
+          </span>
+          <svg
+            aria-hidden
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="var(--ink-3)"
+            strokeWidth="2.2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className={cn("transition-transform duration-300", expanded && "rotate-180")}
+          >
+            <path d="M6 9l6 6 6-6" />
+          </svg>
+        </button>
 
-          <Collapse open={expanded}>
-            <div className="relative mt-1 ml-[5px] pl-4">
-              <span
-                aria-hidden
-                className="absolute left-[3px] w-px bg-line transition-[height] duration-500"
-                style={{ top: -8, height: ruleHeight === 0 ? 0 : ruleHeight - 2 }}
-              />
-              {/* The entrance stagger is CSS rather than a per-row index, so
+        <Collapse open={expanded}>
+          <div className="relative mt-1 ml-[5px] pl-4">
+            <span
+              aria-hidden
+              className="absolute left-[3px] w-px bg-line transition-[height] duration-500"
+              style={{ top: -8, height: ruleHeight === 0 ? 0 : ruleHeight - 2 }}
+            />
+            {/* The entrance stagger is CSS rather than a per-row index, so
                     rows stay ordinary children the caller composes. */}
-              <div
-                ref={setTraceEl}
-                data-slot="thinking-trace"
-                className="flex flex-col gap-1 py-1 [&>*:nth-child(2)]:[animation-delay:120ms] [&>*:nth-child(3)]:[animation-delay:240ms] [&>*:nth-child(4)]:[animation-delay:360ms] [&>*:nth-child(5)]:[animation-delay:480ms] [&>*:nth-child(n+6)]:[animation-delay:600ms]"
-              >
-                {children}
-              </div>
+            <div
+              ref={setTraceEl}
+              data-slot="thinking-trace"
+              className="flex flex-col gap-1 py-1 [&>*:nth-child(2)]:[animation-delay:120ms] [&>*:nth-child(3)]:[animation-delay:240ms] [&>*:nth-child(4)]:[animation-delay:360ms] [&>*:nth-child(5)]:[animation-delay:480ms] [&>*:nth-child(n+6)]:[animation-delay:600ms]"
+            >
+              {children}
             </div>
-          </Collapse>
-        </div>
-      </ThinkingContext.Provider>
+          </div>
+        </Collapse>
+      </div>
     );
   },
 );
@@ -320,4 +296,4 @@ const ThinkingTool = forwardRef<HTMLElement, ThinkingPartProps>((props, ref) => 
 ));
 ThinkingTool.displayName = "ThinkingTool";
 
-export { Thinking, ThinkingStep, ThinkingReasoning, ThinkingTool, thinkingRowVariants };
+export { Thinking, ThinkingStep, ThinkingReasoning, ThinkingTool };

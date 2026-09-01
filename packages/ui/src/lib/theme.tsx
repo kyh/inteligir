@@ -8,7 +8,7 @@ import { createContext, useContext, useEffect, useMemo, useState } from "react";
 // class on <html>, and the shared context/API.
 
 export type Theme = "system" | "light" | "dark";
-export type ResolvedTheme = "light" | "dark";
+type ResolvedTheme = "light" | "dark";
 
 /** A stored theme preference, read back from wherever a surface persisted it
  *  (localStorage, the desktop bridge). Anything else is no preference. */
@@ -17,7 +17,7 @@ export function parseTheme(value: string | null | undefined): Theme | undefined 
   return undefined;
 }
 
-export function systemPrefersDark(): boolean {
+function systemPrefersDark(): boolean {
   return typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches;
 }
 

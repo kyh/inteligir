@@ -5,7 +5,7 @@
 // unlike an `as React.CSSProperties` cast) and returns a plain CSSProperties
 // for `style` props.
 
-export type CSSPropertiesWithVars = React.CSSProperties & {
+type CSSPropertiesWithVars = React.CSSProperties & {
   [key: `--${string}`]: string | number | undefined;
 };
 

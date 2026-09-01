@@ -1,14 +1,5 @@
 // Vendored from Fluid Functionalism (github.com/mickadesign/fluid-functionalism), MIT.
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
-} from "react";
+import { createContext, useContext, useEffect, type ReactNode } from "react";
 
 type RadiusVariant = "pill" | "rounded";
 
@@ -21,8 +12,8 @@ interface RadiusClasses {
   button: string;
   input: string;
   // Numeric counterparts of `bg` / `mergedBg`, in px. Needed where individual
-  // corners are animated (e.g. the selected-background merge/split animation),
-  // which requires per-corner numeric border-radii rather than a class.
+  // corners are animated, which requires per-corner numeric border-radii
+  // rather than a class.
   bgRadius: number;
   mergedRadius: number;
 }
@@ -55,26 +46,14 @@ const radiusMap = {
   },
 } satisfies Record<RadiusVariant, RadiusClasses>;
 
-interface RadiusContextValue {
-  radius: RadiusVariant;
-  setRadius: (radius: RadiusVariant) => void;
-  classes: RadiusClasses;
-}
-
-const RadiusContext = createContext<RadiusContextValue | null>(null);
+const RadiusContext = createContext<RadiusClasses | null>(null);
 
 function useRadius(): RadiusClasses {
-  const ctx = useContext(RadiusContext);
-  if (!ctx) return radiusMap.pill;
-  return ctx.classes;
+  return useContext(RadiusContext) ?? radiusMap.pill;
 }
 
-function useRadiusContext() {
-  const ctx = useContext(RadiusContext);
-  if (!ctx) throw new Error("useRadiusContext must be used within a RadiusProvider");
-  return ctx;
-}
-
+/** Pins the app's radius family. Static by design — the runtime dial was a
+ *  docs-site affordance; a surface picks its family once at the root. */
 function RadiusProvider({
   children,
   defaultRadius = "pill",
@@ -82,43 +61,21 @@ function RadiusProvider({
   children: ReactNode;
   defaultRadius?: RadiusVariant;
 }) {
-  const [radius, setRadiusState] = useState<RadiusVariant>(defaultRadius);
-  const transitionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Run a state change under the `.transitioning` guard (added + reflow-flushed
-  // first so the 180ms border-radius cross-fade applies). Clearing the previous
-  // timeout first keeps a double-press from removing the class mid-fade.
-  const transitionRadius = useCallback((callback: () => void) => {
-    const root = document.documentElement;
-    root.classList.add("transitioning");
-    void root.offsetHeight;
-    callback();
-    if (transitionTimeoutRef.current) clearTimeout(transitionTimeoutRef.current);
-    transitionTimeoutRef.current = setTimeout(() => root.classList.remove("transitioning"), 200);
-  }, []);
-
-  const setRadius = useCallback(
-    (next: RadiusVariant) => {
-      transitionRadius(() => setRadiusState(next));
-    },
-    [transitionRadius],
-  );
-
-  // Publish the current element radius as a CSS custom property so plain-CSS
+  // Publish the element radius as a CSS custom property so plain-CSS
   // consumers that can't read React context stay in sync with the radius
   // system — e.g. the @layer base :focus-visible fallback ring in
   // globals.css. Set on <html> so portalled content sees it too.
   useEffect(() => {
-    document.documentElement.style.setProperty("--input-radius", `${radiusMap[radius].bgRadius}px`);
-  }, [radius]);
+    document.documentElement.style.setProperty(
+      "--input-radius",
+      `${radiusMap[defaultRadius].bgRadius}px`,
+    );
+  }, [defaultRadius]);
 
-  const value = useMemo(
-    () => ({ radius, setRadius, classes: radiusMap[radius] }),
-    [radius, setRadius],
+  return (
+    <RadiusContext.Provider value={radiusMap[defaultRadius]}>{children}</RadiusContext.Provider>
   );
-
-  return <RadiusContext.Provider value={value}>{children}</RadiusContext.Provider>;
 }
 
-export { RadiusProvider, useRadius, useRadiusContext, radiusMap };
-export type { RadiusVariant, RadiusClasses };
+export { RadiusProvider, useRadius, radiusMap };
+export type { RadiusClasses };

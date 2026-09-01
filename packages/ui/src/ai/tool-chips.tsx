@@ -77,7 +77,7 @@ const toolChipVariants = cva(
   },
 );
 
-export type ToolIcon = NonNullable<VariantProps<typeof toolChipVariants>["icon"]>;
+type ToolIcon = NonNullable<VariantProps<typeof toolChipVariants>["icon"]>;
 
 interface ToolChipContextValue {
   open: boolean;
@@ -86,7 +86,7 @@ interface ToolChipContextValue {
 
 const ToolChipContext = createContext<ToolChipContextValue>({ open: false, mono: false });
 
-export interface ToolChipListProps extends HTMLAttributes<HTMLDivElement> {
+interface ToolChipListProps extends HTMLAttributes<HTMLDivElement> {
   /** The run header — "4 tool calls, 2 messages". */
   summary: string;
   defaultExpanded?: boolean;
@@ -132,7 +132,7 @@ const ToolChipList = forwardRef<HTMLDivElement, ToolChipListProps>(
 );
 ToolChipList.displayName = "ToolChipList";
 
-export interface ToolChipProps
+interface ToolChipProps
   extends HTMLAttributes<HTMLDivElement>, VariantProps<typeof toolChipVariants> {
   /** "Write 204 lines", "Rebuild and verify". */
   label: string;
@@ -240,7 +240,7 @@ const ToolChip = forwardRef<HTMLDivElement, ToolChipProps>(
 );
 ToolChip.displayName = "ToolChip";
 
-export interface ToolChipDetailProps extends HTMLAttributes<HTMLSpanElement> {
+interface ToolChipDetailProps extends HTMLAttributes<HTMLSpanElement> {
   /** An added line renders in the diff-add ink. */
   tone?: "add";
 }
@@ -267,4 +267,4 @@ const ToolChipDetail = forwardRef<HTMLSpanElement, ToolChipDetailProps>(
 );
 ToolChipDetail.displayName = "ToolChipDetail";
 
-export { ToolChipList, ToolChip, ToolChipDetail, toolChipVariants };
+export { ToolChipList, ToolChip, ToolChipDetail };

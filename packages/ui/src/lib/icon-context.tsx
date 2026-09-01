@@ -1,64 +1,6 @@
 // Vendored from Fluid Functionalism (github.com/mickadesign/fluid-functionalism), MIT.
-import { createContext, useContext, useMemo, type ComponentType, type ReactNode } from "react";
-import {
-  ArrowDown,
-  ArrowLeft,
-  ArrowRight,
-  ArrowUp,
-  Bell,
-  Brain,
-  Calendar,
-  Check,
-  ChevronDown,
-  ChevronRight,
-  ChevronsUpDown,
-  Circle,
-  Clock,
-  Copy,
-  CornerDownLeft,
-  CornerDownRight,
-  Dot,
-  Ellipsis,
-  Folder,
-  Globe,
-  Heart,
-  Home,
-  ImageIcon,
-  Inbox,
-  Lightbulb,
-  Link,
-  Loader,
-  Lock,
-  Mail,
-  Menu,
-  MessageCircle,
-  Monitor,
-  Moon,
-  Paintbrush,
-  Palette,
-  PanelLeft,
-  PanelRight,
-  Pause,
-  Pencil,
-  Pipette,
-  Play,
-  Plus,
-  RectangleHorizontal,
-  RotateCcw,
-  Rocket,
-  Scaling,
-  Search,
-  Settings,
-  Shield,
-  SkipForward,
-  SlidersHorizontal,
-  SquareLibrary,
-  Star,
-  Sun,
-  User,
-  Users,
-  X,
-} from "lucide-react";
+import type { ComponentType } from "react";
+import { ArrowUp, ChevronDown, X } from "lucide-react";
 
 export interface IconComponentProps {
   size?: number;
@@ -68,158 +10,25 @@ export interface IconComponentProps {
 
 export type IconComponent = ComponentType<IconComponentProps>;
 
-export type IconName =
-  | "chevron-right"
-  | "chevron-down"
-  | "x"
-  | "copy"
-  | "menu"
-  | "dot"
-  | "monitor"
-  | "sun"
-  | "moon"
-  | "rectangle-horizontal"
-  | "circle"
-  | "square-library"
-  | "clock"
-  | "star"
-  | "settings"
-  | "plus"
-  | "arrow-left"
-  | "arrow-right"
-  | "arrow-up"
-  | "arrow-down"
-  | "search"
-  | "loader"
-  | "users"
-  | "lock"
-  | "mail"
-  | "bell"
-  | "shield"
-  | "palette"
-  | "lightbulb"
-  | "rocket"
-  | "heart"
-  | "paintbrush"
-  | "brain"
-  | "globe"
-  | "user"
-  | "image"
-  | "link"
-  | "check"
-  | "rotate-ccw"
-  | "play"
-  | "pause"
-  | "pipette"
-  | "home"
-  | "message-circle"
-  | "inbox"
-  | "pencil"
-  | "scaling"
-  | "skip-forward"
-  | "corner-down-right"
-  | "corner-down-left"
-  | "panel-left"
-  | "panel-right"
-  | "chevrons-up-down"
-  | "more-horizontal"
-  | "calendar"
-  | "folder"
-  | "sliders-horizontal";
+/** The registry holds only the glyphs the components themselves draw; an app
+ *  surface imports lucide directly. The swap facility (IconProvider) had no
+ *  caller and is gone — one icon set, named in one place. */
+type IconName = "arrow-up" | "chevron-down" | "x";
 
-export const defaultIcons = {
-  "chevron-right": ChevronRight,
-  "chevron-down": ChevronDown,
-  pipette: Pipette,
-  x: X,
-  copy: Copy,
-  menu: Menu,
-  dot: Dot,
-  monitor: Monitor,
-  sun: Sun,
-  moon: Moon,
-  "rectangle-horizontal": RectangleHorizontal,
-  circle: Circle,
-  "square-library": SquareLibrary,
-  clock: Clock,
-  star: Star,
-  settings: Settings,
-  plus: Plus,
-  "arrow-left": ArrowLeft,
-  "arrow-right": ArrowRight,
+const icons = {
   "arrow-up": ArrowUp,
-  "arrow-down": ArrowDown,
-  search: Search,
-  loader: Loader,
-  users: Users,
-  lock: Lock,
-  mail: Mail,
-  bell: Bell,
-  shield: Shield,
-  palette: Palette,
-  lightbulb: Lightbulb,
-  rocket: Rocket,
-  heart: Heart,
-  paintbrush: Paintbrush,
-  brain: Brain,
-  globe: Globe,
-  user: User,
-  image: ImageIcon,
-  link: Link,
-  check: Check,
-  "rotate-ccw": RotateCcw,
-  play: Play,
-  pause: Pause,
-  home: Home,
-  "message-circle": MessageCircle,
-  inbox: Inbox,
-  pencil: Pencil,
-  scaling: Scaling,
-  "skip-forward": SkipForward,
-  "corner-down-right": CornerDownRight,
-  "corner-down-left": CornerDownLeft,
-  "panel-left": PanelLeft,
-  "panel-right": PanelRight,
-  "chevrons-up-down": ChevronsUpDown,
-  "more-horizontal": Ellipsis,
-  calendar: Calendar,
-  folder: Folder,
-  "sliders-horizontal": SlidersHorizontal,
+  "chevron-down": ChevronDown,
+  x: X,
 } satisfies Record<IconName, IconComponent>;
 
-const IconContext = createContext<Record<IconName, IconComponent> | null>(null);
-
-/**
- * Returns a single icon component for the given name.
- * Falls back to the default (Lucide) set if no provider is present.
- */
+/** Returns a single icon component for the given name. */
 function useIcon(name: IconName): IconComponent {
-  const icons = useContext(IconContext);
-  return (icons ?? defaultIcons)[name];
+  return icons[name];
 }
 
-/**
- * Returns the full icon map.
- * Falls back to the default (Lucide) set if no provider is present.
- */
-function useIcons(): Record<IconName, IconComponent> {
-  const icons = useContext(IconContext);
-  return icons ?? defaultIcons;
+/** Returns the full icon map. */
+function useIcons(): typeof icons {
+  return icons;
 }
 
-/**
- * Swap some or all icons for components from another library.
- * Names left out of `icons` keep their default (Lucide) component.
- */
-function IconProvider({
-  children,
-  icons,
-}: {
-  children: ReactNode;
-  icons?: Partial<Record<IconName, IconComponent>>;
-}) {
-  const value = useMemo(() => ({ ...defaultIcons, ...icons }), [icons]);
-  return <IconContext.Provider value={value}>{children}</IconContext.Provider>;
-}
-
-export { IconProvider, useIcon, useIcons };
+export { useIcon, useIcons };

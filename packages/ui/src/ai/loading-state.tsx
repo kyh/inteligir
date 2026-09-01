@@ -106,7 +106,7 @@ const loadingStateVariants = cva("flex w-fit items-center gap-2.5", {
   defaultVariants: { variant: "drive" },
 });
 
-export interface LoadingStateProps
+interface LoadingStateProps
   extends HTMLAttributes<HTMLDivElement>, VariantProps<typeof loadingStateVariants> {
   /** What is being waited on — "Thinking", "Reading the vault", … */
   label: string;
@@ -141,4 +141,4 @@ const LoadingState = forwardRef<HTMLDivElement, LoadingStateProps>(
 );
 LoadingState.displayName = "LoadingState";
 
-export { LoadingState, loadingStateVariants };
+export { LoadingState };

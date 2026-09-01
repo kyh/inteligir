@@ -128,26 +128,6 @@
   --color-line-strong: var(--line-strong);
 }
 
-/* Type-scale role utilities (size-context's typeScale). Fallbacks are the
-   default ladder step; a compact region overrides by publishing --fs-* (React
-   consumers read useTypeScale() instead). Registered as utilities so cn()'s
-   font-size class group and variants both see them. */
-@utility text-display {
-  font-size: var(--fs-display, 28px);
-}
-@utility text-title {
-  font-size: var(--fs-title, 16px);
-}
-@utility text-subtitle {
-  font-size: var(--fs-subtitle, 14px);
-}
-@utility text-body {
-  font-size: var(--fs-body, 13px);
-}
-@utility text-caption {
-  font-size: var(--fs-caption, 12px);
-}
-
 :root {
   /* Typeset font hooks — same faces the theme's font-sans/font-mono use
      (fontsource variable builds imported at the top of this file). Geist is

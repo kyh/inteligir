@@ -163,7 +163,7 @@ function useTaskItem(): TaskItemContextValue {
   return value;
 }
 
-export type TaskListProps = HTMLAttributes<HTMLDivElement> & VariantProps<typeof taskListVariants>;
+type TaskListProps = HTMLAttributes<HTMLDivElement> & VariantProps<typeof taskListVariants>;
 
 const TaskList = forwardRef<HTMLDivElement, TaskListProps>(
   ({ variant, className, children, ...props }, ref) => {
@@ -184,7 +184,7 @@ const TaskList = forwardRef<HTMLDivElement, TaskListProps>(
 );
 TaskList.displayName = "TaskList";
 
-export type TaskItemProps = HTMLAttributes<HTMLDivElement>;
+type TaskItemProps = HTMLAttributes<HTMLDivElement>;
 
 const TaskItem = forwardRef<HTMLDivElement, TaskItemProps>(
   ({ className, children, ...props }, ref) => {
@@ -221,7 +221,7 @@ const TaskItem = forwardRef<HTMLDivElement, TaskItemProps>(
 );
 TaskItem.displayName = "TaskItem";
 
-export interface TaskItemRowProps extends Omit<HTMLAttributes<HTMLButtonElement>, "onSelect"> {
+interface TaskItemRowProps extends Omit<HTMLAttributes<HTMLButtonElement>, "onSelect"> {
   status: TaskStatus;
   /** Shown inside the badge while the row is unsettled. */
   ordinal?: number;
@@ -329,7 +329,7 @@ const TaskItemDetails = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement
 );
 TaskItemDetails.displayName = "TaskItemDetails";
 
-export interface TaskDetailProps extends HTMLAttributes<HTMLDivElement> {
+interface TaskDetailProps extends HTMLAttributes<HTMLDivElement> {
   meta?: string;
 }
 
@@ -358,5 +358,4 @@ export {
   TaskStatusLabel,
   TaskItemDetails,
   TaskDetail,
-  taskListVariants,
 };

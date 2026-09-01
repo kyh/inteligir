@@ -80,7 +80,7 @@ function useApprovalQuestion(): ApprovalQuestionContextValue {
   return value;
 }
 
-export interface ApprovalCardProps extends Omit<HTMLAttributes<HTMLDivElement>, "onSubmit"> {
+interface ApprovalCardProps extends Omit<HTMLAttributes<HTMLDivElement>, "onSubmit"> {
   onSubmit: (answers: ApprovalAnswer[]) => void;
   /** Replaces the card once answered; the caller usually re-renders instead. */
   sentLabel?: string;
@@ -180,7 +180,7 @@ const ApprovalCard = forwardRef<HTMLDivElement, ApprovalCardProps>(
 );
 ApprovalCard.displayName = "ApprovalCard";
 
-export interface ApprovalQuestionProps extends HTMLAttributes<HTMLDivElement> {
+interface ApprovalQuestionProps extends HTMLAttributes<HTMLDivElement> {
   /** Stable id — the key this question's answer comes back under. */
   questionId: string;
   prompt: string;
@@ -252,7 +252,7 @@ const ApprovalQuestion = forwardRef<HTMLDivElement, ApprovalQuestionProps>(
 );
 ApprovalQuestion.displayName = "ApprovalQuestion";
 
-export interface ApprovalOptionProps extends HTMLAttributes<HTMLButtonElement> {
+interface ApprovalOptionProps extends HTMLAttributes<HTMLButtonElement> {
   /** The id this option answers with. */
   optionId: string;
 }
