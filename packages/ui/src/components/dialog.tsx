@@ -40,9 +40,6 @@ function Dialog({ children, open, defaultOpen, onOpenChange, modal }: DialogProp
   );
 }
 
-const DialogTrigger = DialogPrimitive.Trigger;
-const DialogClose = DialogPrimitive.Close;
-
 // framer's motion.div redefines the DOM drag/animation handlers, so they are
 // omitted from the public props rather than cast away at the spread.
 type MotionConflictHandler =
@@ -54,32 +51,13 @@ type MotionConflictHandler =
   | "onAnimationIteration";
 
 interface DialogContentProps extends Omit<HTMLAttributes<HTMLDivElement>, MotionConflictHandler> {
-  size?: "sm" | "lg";
-  /** Portal target. When set, the overlay and panel render inside this element
-   *  (positioned `absolute`) instead of covering the viewport (`fixed`). Pair
-   *  with a `position: relative; overflow: hidden` container — and usually
-   *  `<Dialog modal={false}>` — to scope a dialog to a bounded region, e.g. a
-   *  docs preview. Defaults to the document body / full-viewport behaviour. */
-  container?: HTMLElement | null;
   showCloseButton?: boolean;
   /** Forwarded to Base UI's Popup: the element focused when the dialog opens. */
   initialFocus?: DialogPrimitive.Popup.Props["initialFocus"];
 }
 
 const DialogContent = forwardRef<HTMLDivElement, DialogContentProps>(
-  (
-    {
-      className,
-      children,
-      size = "sm",
-      container,
-      showCloseButton = true,
-      initialFocus,
-      style,
-      ...props
-    },
-    ref,
-  ) => {
+  ({ className, children, showCloseButton = true, initialFocus, style, ...props }, ref) => {
     const XIcon = useIcon("x");
     const radius = useRadius();
     const substrate = useSurface();
@@ -93,7 +71,7 @@ const DialogContent = forwardRef<HTMLDivElement, DialogContentProps>(
     // tween below to finish (via `element.getAnimations()`) before unmounting.
     // Returning null early would short-circuit the closing animation.
     return (
-      <DialogPrimitive.Portal container={container ?? undefined}>
+      <DialogPrimitive.Portal>
         <DialogPrimitive.Backdrop
           render={(backdropProps, state) => {
             const exiting = state.transitionStatus === "ending";
@@ -112,10 +90,7 @@ const DialogContent = forwardRef<HTMLDivElement, DialogContentProps>(
             return (
               <motion.div
                 {...rest}
-                className={cn(
-                  container ? "absolute" : "fixed",
-                  "inset-0 z-50 bg-black/40 dark:bg-black/80",
-                )}
+                className="fixed inset-0 z-50 bg-black/40 dark:bg-black/80"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: exiting ? 0 : 1 }}
                 transition={exiting ? spring.slow.exit : spring.slow}
@@ -154,12 +129,10 @@ const DialogContent = forwardRef<HTMLDivElement, DialogContentProps>(
                 {...props}
                 data-slot="dialog-content"
                 className={cn(
-                  container ? "absolute" : "fixed",
-                  "top-1/2 left-1/2 z-50 w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2",
+                  "fixed top-1/2 left-1/2 z-50 w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2",
                   surfaceClasses(dialogLevel),
                   "p-6 focus:outline-none",
-                  size === "sm" && (compact ? "max-w-[360px]" : "max-w-[400px]"),
-                  size === "lg" && (compact ? "max-w-[480px]" : "max-w-[540px]"),
+                  compact ? "max-w-[360px]" : "max-w-[400px]",
                   radius.container,
                   className,
                 )}
@@ -193,10 +166,6 @@ DialogContent.displayName = "DialogContent";
 
 function DialogHeader({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return <div className={cn("mb-4 flex flex-col gap-1.5", className)} {...props} />;
-}
-
-function DialogFooter({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("mt-6 flex justify-end gap-2", className)} {...props} />;
 }
 
 const DialogTitle = forwardRef<HTMLHeadingElement, HTMLAttributes<HTMLHeadingElement>>(
@@ -233,13 +202,4 @@ const DialogDescription = forwardRef<HTMLParagraphElement, HTMLAttributes<HTMLPa
 );
 DialogDescription.displayName = "DialogDescription";
 
-export {
-  Dialog,
-  DialogTrigger,
-  DialogContent,
-  DialogHeader,
-  DialogFooter,
-  DialogTitle,
-  DialogDescription,
-  DialogClose,
-};
+export { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription };

@@ -2,24 +2,20 @@
 
 import {
   AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@repo/ui/components/alert-dialog";
 import { Button } from "@repo/ui/components/button";
 import {
-  Command,
+  CommandDialog,
   CommandEmpty,
   CommandGroup,
   CommandInput,
   CommandItem,
   CommandList,
-  CommandSeparator,
   CommandShortcut,
 } from "@repo/ui/components/command";
 import { confirm } from "@repo/ui/components/confirm-dialog";
@@ -27,19 +23,10 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@repo/ui/components/dialog";
-import {
-  Popover,
-  PopoverContent,
-  PopoverDescription,
-  PopoverHeader,
-  PopoverTitle,
-  PopoverTrigger,
-} from "@repo/ui/components/popover";
+import { Popover, PopoverContent, PopoverTrigger } from "@repo/ui/components/popover";
 import { Tooltip } from "@repo/ui/components/tooltip";
 import { FileTextIcon, SettingsIcon } from "lucide-react";
 import { useState } from "react";
@@ -48,12 +35,17 @@ import { Demo, GallerySection } from "./gallery-chrome";
 
 export function OverlaysSection() {
   const [confirmed, setConfirmed] = useState<boolean | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [alertOpen, setAlertOpen] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
 
   return (
     <GallerySection id="overlays" title="Overlays">
       <Demo name="Dialog" purpose="A focused task the reader opts into and can leave.">
-        <Dialog>
-          <DialogTrigger render={<Button variant="secondary">Open dialog</Button>} />
+        <Button variant="secondary" onClick={() => setDialogOpen(true)}>
+          Open dialog
+        </Button>
+        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogContent className="max-w-md">
             <DialogHeader>
               <DialogTitle>Rename note</DialogTitle>
@@ -61,10 +53,12 @@ export function OverlaysSection() {
                 The filename is the title — renaming rewrites the links that point here.
               </DialogDescription>
             </DialogHeader>
-            <DialogFooter>
-              <Button variant="tertiary">Cancel</Button>
-              <Button>Rename</Button>
-            </DialogFooter>
+            <div className="mt-6 flex justify-end gap-2">
+              <Button variant="tertiary" onClick={() => setDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={() => setDialogOpen(false)}>Rename</Button>
+            </div>
           </DialogContent>
         </Dialog>
       </Demo>
@@ -73,8 +67,10 @@ export function OverlaysSection() {
         name="AlertDialog"
         purpose="A dialog the reader cannot dismiss by accident, for a choice that costs something."
       >
-        <AlertDialog>
-          <AlertDialogTrigger render={<Button variant="destructive">Delete forever</Button>} />
+        <Button variant="destructive" onClick={() => setAlertOpen(true)}>
+          Delete forever
+        </Button>
+        <AlertDialog open={alertOpen} onOpenChange={setAlertOpen}>
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>Delete this note permanently?</AlertDialogTitle>
@@ -83,8 +79,12 @@ export function OverlaysSection() {
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel>Keep it</AlertDialogCancel>
-              <AlertDialogAction>Delete</AlertDialogAction>
+              <Button variant="secondary" onClick={() => setAlertOpen(false)}>
+                Keep it
+              </Button>
+              <Button variant="destructive" onClick={() => setAlertOpen(false)}>
+                Delete
+              </Button>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
@@ -114,12 +114,12 @@ export function OverlaysSection() {
         <Popover>
           <PopoverTrigger render={<Button variant="secondary">Open popover</Button>} />
           <PopoverContent className="w-64">
-            <PopoverHeader>
-              <PopoverTitle>Auto-commit</PopoverTitle>
-              <PopoverDescription>
+            <div className="flex flex-col gap-1 text-sm">
+              <p className="text-base font-medium">Auto-commit</p>
+              <p className="text-muted-foreground">
                 Writes are committed on a rolling window, not per keystroke.
-              </PopoverDescription>
-            </PopoverHeader>
+              </p>
+            </div>
           </PopoverContent>
         </Popover>
       </Demo>
@@ -141,11 +141,13 @@ export function OverlaysSection() {
       </Demo>
 
       <Demo
-        name="Command"
-        purpose="Filterable rows over a query — the palette's engine, shown inline here."
-        stack
+        name="CommandDialog"
+        purpose="Filterable rows over a query — the palette, exactly as the product opens it."
       >
-        <Command className="w-full max-w-md rounded-lg border border-line">
+        <Button variant="secondary" onClick={() => setPaletteOpen(true)}>
+          Open palette
+        </Button>
+        <CommandDialog open={paletteOpen} onOpenChange={setPaletteOpen}>
           <CommandInput placeholder="Search notes or commands…" />
           <CommandList>
             <CommandEmpty>Nothing matches.</CommandEmpty>
@@ -153,7 +155,6 @@ export function OverlaysSection() {
               <CommandItem>Release checklist</CommandItem>
               <CommandItem>Weekly review</CommandItem>
             </CommandGroup>
-            <CommandSeparator />
             <CommandGroup heading="Commands">
               <CommandItem>
                 New note
@@ -165,7 +166,7 @@ export function OverlaysSection() {
               </CommandItem>
             </CommandGroup>
           </CommandList>
-        </Command>
+        </CommandDialog>
       </Demo>
     </GallerySection>
   );

@@ -13,7 +13,7 @@ import {
   SidebarMenuItem,
   SidebarProvider,
 } from "@repo/ui/components/sidebar";
-import { TabsSubtle, TabsSubtleItem, TabsSubtlePanel } from "@repo/ui/components/tabs-subtle";
+import { TabsSubtle, TabsSubtleItem } from "@repo/ui/components/tabs-subtle";
 import { FileTextIcon, MessageSquareTextIcon } from "lucide-react";
 import { useState } from "react";
 
@@ -27,21 +27,20 @@ export function NavigationSection() {
   return (
     <GallerySection id="navigation" title="Navigation">
       <Demo
-        name="TabsSubtle · TabsSubtleItem · TabsSubtlePanel"
+        name="TabsSubtle · TabsSubtleItem"
         purpose="Switches which panel a fixed region shows. The selection is view state, never a route."
         stack
       >
         <div className="w-full max-w-sm rounded-lg border border-line">
-          <TabsSubtle selectedIndex={tab} onSelect={setTab} idPrefix="gallery-tabs">
+          <TabsSubtle selectedIndex={tab} onSelect={setTab}>
             <TabsSubtleItem index={0} icon={FileTextIcon} label="Actions" />
             <TabsSubtleItem index={1} icon={MessageSquareTextIcon} label="Comments" />
           </TabsSubtle>
-          <TabsSubtlePanel index={0} selectedIndex={tab} idPrefix="gallery-tabs">
+          {tab === 0 ? (
             <p className="p-3 text-sm text-muted-foreground">Two actions on this note.</p>
-          </TabsSubtlePanel>
-          <TabsSubtlePanel index={1} selectedIndex={tab} idPrefix="gallery-tabs">
+          ) : (
             <p className="p-3 text-sm text-muted-foreground">One unresolved comment.</p>
-          </TabsSubtlePanel>
+          )}
         </div>
       </Demo>
 

@@ -1,6 +1,6 @@
 // Actions: the things a reader clicks to make something happen.
 
-import { Badge, badgeColors, type BadgeColor } from "@repo/ui/components/badge";
+import { Badge } from "@repo/ui/components/badge";
 import { Button } from "@repo/ui/components/button";
 import {
   Dropdown,
@@ -16,7 +16,7 @@ import { ArchiveIcon, EyeIcon, PlusIcon, TrashIcon } from "lucide-react";
 
 import { Demo, DemoCase, GallerySection } from "./gallery-chrome";
 
-const BADGE_COLORS: readonly BadgeColor[] = ["gray", "red", "amber", "green", "teal", "violet"];
+const BADGE_COLORS = ["gray", "red", "amber", "green", "teal", "violet"] as const;
 
 export function ActionsSection() {
   return (
@@ -93,7 +93,7 @@ export function ActionsSection() {
       <Demo
         name="Badge — colors"
         purpose="The dot's hue is the caller's; the chrome stays monochrome."
-        note={`${String(Object.keys(badgeColors).length)} colors ship; the first six are shown.`}
+        note="Six of the shipped palette; every Tailwind hue family has a row."
       >
         {BADGE_COLORS.map((color) => (
           <DemoCase key={color} label={color}>

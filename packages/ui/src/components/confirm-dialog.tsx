@@ -21,7 +21,7 @@ import {
 } from "@repo/ui/components/alert-dialog";
 import { Button } from "@repo/ui/components/button";
 
-export type ConfirmOptions = {
+type ConfirmOptions = {
   title: React.ReactNode;
   body?: React.ReactNode;
   confirmLabel?: React.ReactNode;

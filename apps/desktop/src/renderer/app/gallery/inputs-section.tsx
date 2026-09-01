@@ -1,14 +1,8 @@
 // Inputs: everything that takes something from the reader.
 
-import { Checkbox, CheckboxGroup, CheckboxItem } from "@repo/ui/components/checkbox";
+import { Checkbox } from "@repo/ui/components/checkbox";
 import { Input } from "@repo/ui/components/input";
-import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupButton,
-  InputGroupInput,
-  InputGroupText,
-} from "@repo/ui/components/input-group";
+import { InputGroup, InputGroupAddon } from "@repo/ui/components/input-group";
 import { InputMessage } from "@repo/ui/components/input-message";
 import { Label } from "@repo/ui/components/label";
 import {
@@ -27,10 +21,6 @@ import { useState } from "react";
 
 import { Demo, DemoCase, GallerySection } from "./gallery-chrome";
 
-/** The group's rows are addressed by INDEX (the panel owns roving focus), so
- *  the labels live in one ordered list rather than beside each item. */
-const PANEL_ROWS = ["Show backlinks", "Show related notes", "Show properties"];
-
 /** The pinned-state demos are deliberately inert — they show a state, not a
  *  control the reader is meant to change. */
 const noop = (): void => undefined;
@@ -38,7 +28,6 @@ const noop = (): void => undefined;
 export function InputsSection() {
   const [checked, setChecked] = useState(true);
   const [enabled, setEnabled] = useState(true);
-  const [picked, setPicked] = useState<Set<number>>(new Set([0]));
   const [message, setMessage] = useState("");
   const [sent, setSent] = useState<string | null>(null);
   const [prompt, setPrompt] = useState("");
@@ -70,25 +59,17 @@ export function InputsSection() {
 
       <Demo
         name="InputGroup"
-        purpose="An input wearing attachments — an icon, a unit, or a button that acts on its value."
+        purpose="A field wearing an addon — how the palette wraps its own search input."
         stack
       >
         <InputGroup className="w-72">
+          <input
+            data-slot="input-group-control"
+            placeholder="Search notes"
+            className="w-full bg-transparent px-1 text-sm outline-none placeholder:text-muted-foreground"
+          />
           <InputGroupAddon>
-            <SearchIcon />
-          </InputGroupAddon>
-          <InputGroupInput placeholder="Search notes" />
-        </InputGroup>
-        <InputGroup className="w-72">
-          <InputGroupInput placeholder="Auto-commit every" defaultValue="30" />
-          <InputGroupAddon align="inline-end">
-            <InputGroupText>seconds</InputGroupText>
-          </InputGroupAddon>
-        </InputGroup>
-        <InputGroup className="w-72">
-          <InputGroupInput placeholder="Git remote" />
-          <InputGroupAddon align="inline-end">
-            <InputGroupButton>Test</InputGroupButton>
+            <SearchIcon className="size-4 shrink-0 opacity-50" />
           </InputGroupAddon>
         </InputGroup>
       </Demo>
@@ -103,31 +84,6 @@ export function InputsSection() {
         <DemoCase label="disabled">
           <Checkbox checked disabled />
         </DemoCase>
-      </Demo>
-
-      <Demo
-        name="CheckboxGroup · CheckboxItem"
-        purpose="Several yes/nos that belong together, sharing one value."
-        stack
-      >
-        <CheckboxGroup checkedIndices={picked}>
-          {PANEL_ROWS.map((label, index) => (
-            <CheckboxItem
-              key={label}
-              index={index}
-              label={label}
-              checked={picked.has(index)}
-              onToggle={() => {
-                setPicked((prior) => {
-                  const next = new Set(prior);
-                  if (next.has(index)) next.delete(index);
-                  else next.add(index);
-                  return next;
-                });
-              }}
-            />
-          ))}
-        </CheckboxGroup>
       </Demo>
 
       <Demo name="Switch" purpose="Flips a setting that takes effect immediately.">

@@ -17,6 +17,7 @@ import { Tabs } from "@base-ui/react/tabs";
 import { motion, AnimatePresence } from "framer-motion";
 import type { IconComponent } from "@repo/ui/lib/icon-context";
 import { cn } from "@repo/ui/lib/utils";
+import { composeRefs } from "@repo/ui/lib/compose-refs";
 import { spring } from "@repo/ui/lib/springs";
 import { fontWeights } from "@repo/ui/lib/font-weight";
 import { useRadius } from "@repo/ui/lib/radius-context";
@@ -32,8 +33,6 @@ interface TabsSubtleContextValue {
   registerTab: (index: number, element: HTMLElement | null) => void;
   hoveredIndex: number | null;
   selectedIndex: number;
-  idPrefix: string | undefined;
-  activeLabel: boolean;
 }
 
 const TabsSubtleContext = createContext<TabsSubtleContextValue | null>(null);
@@ -48,20 +47,13 @@ interface TabsSubtleProps extends Omit<HTMLAttributes<HTMLDivElement>, "onSelect
   children: ReactNode;
   selectedIndex: number;
   onSelect: (index: number) => void;
-  idPrefix?: string;
-  /** When true, only the selected tab shows its text label. Requires icons on tabs. */
-  activeLabel?: boolean;
   /** Pins the tabs to one step of the size ladder (default 36px, compact
-   *  28px — see /docs/sizes). Omitted, they follow the surrounding
-   *  SizeProvider. */
+   *  28px). Omitted, they follow the surrounding SizeProvider. */
   size?: SizeVariant;
 }
 
 const TabsSubtle = forwardRef<HTMLDivElement, TabsSubtleProps>(
-  (
-    { children, selectedIndex, onSelect, idPrefix, activeLabel = false, size, className, ...props },
-    ref,
-  ) => {
+  ({ children, selectedIndex, onSelect, size, className, ...props }, ref) => {
     const containerRef = useRef<HTMLDivElement>(null);
     // State rather than a ref: the hover pill's `exit` is chosen during render
     // from whether the pointer is still over the strip.
@@ -73,34 +65,8 @@ const TabsSubtle = forwardRef<HTMLDivElement, TabsSubtleProps>(
       setActiveIndex: setHoveredIndex,
       itemRects: tabRects,
       handlers,
-      registerItem,
-      measureItems: measureTabs,
+      registerItem: registerTab,
     } = useProximityHover(containerRef, { axis: "x" });
-
-    // Track tab elements locally so we can observe their individual resizes.
-    // State rather than a ref because the observer effect below is rebuilt from
-    // this map — a ref would give it nothing to depend on.
-    const [tabElements, setTabElements] = useState<ReadonlyMap<number, HTMLElement>>(new Map());
-    const registerTab = useCallback(
-      (index: number, element: HTMLElement | null) => {
-        registerItem(index, element);
-        setTabElements((prev) => {
-          const next = new Map(prev);
-          if (element) next.set(index, element);
-          else next.delete(index);
-          return next;
-        });
-      },
-      [registerItem],
-    );
-
-    // Observe individual tab buttons for resize (label expand/collapse in activeLabel mode)
-    useEffect(() => {
-      if (tabElements.size === 0) return;
-      const ro = new ResizeObserver(() => measureTabs());
-      tabElements.forEach((el) => ro.observe(el));
-      return () => ro.disconnect();
-    }, [measureTabs, tabElements]);
 
     // Wrap handlers to track isMouseInside
     const handleMouseMove = useCallback(
@@ -125,8 +91,8 @@ const TabsSubtle = forwardRef<HTMLDivElement, TabsSubtleProps>(
     const isHovering = hoveredIndex !== null && !isHoveringSelected;
 
     const contextValue = useMemo<TabsSubtleContextValue>(
-      () => ({ registerTab, hoveredIndex, selectedIndex, idPrefix, activeLabel }),
-      [registerTab, hoveredIndex, selectedIndex, idPrefix, activeLabel],
+      () => ({ registerTab, hoveredIndex, selectedIndex }),
+      [registerTab, hoveredIndex, selectedIndex],
     );
 
     const selectTab = useCallback(
@@ -138,22 +104,17 @@ const TabsSubtle = forwardRef<HTMLDivElement, TabsSubtleProps>(
 
     const root = (
       <TabsSubtleContext.Provider value={contextValue}>
-        {/* Root is merged into List via `render` so a single <div> is emitted,
-            matching the previous DOM structure. Base UI owns role="tablist",
-            roving tabindex, and Arrow/Home/End keyboard navigation.
-            `activateOnFocus={false}` keeps manual activation: arrows move
-            focus, Enter/Space selects. */}
+        {/* Root is merged into List via `render` so a single <div> is emitted.
+            Base UI owns role="tablist", roving tabindex, and Arrow/Home/End
+            keyboard navigation. `activateOnFocus={false}` keeps manual
+            activation: arrows move focus, Enter/Space selects. */}
         <Tabs.Root
           value={selectedIndex}
           onValueChange={selectTab}
           render={
             <Tabs.List
               activateOnFocus={false}
-              ref={(node: HTMLDivElement | null) => {
-                containerRef.current = node;
-                if (ref instanceof Function) ref(node);
-                else if (ref) ref.current = node;
-              }}
+              ref={composeRefs<HTMLDivElement>(containerRef, ref)}
               onMouseMove={handleMouseMove}
               onMouseLeave={handleMouseLeave}
               onFocus={(e: React.FocusEvent<HTMLDivElement>) => {
@@ -187,7 +148,7 @@ const TabsSubtle = forwardRef<HTMLDivElement, TabsSubtleProps>(
                 // parents size against the margin box (8px narrower than the
                 // border box), so a plain max-w-full would clamp the list 8px
                 // too small and clip the first/last tab's ring.
-                "relative flex items-center gap-0.5 select-none overflow-x-auto max-w-[calc(100%_+_8px)] scrollbar-hide -mx-1 px-1 -my-1 py-1",
+                "relative flex items-center gap-0.5 select-none overflow-x-auto max-w-[calc(100%_+_8px)] -mx-1 px-1 -my-1 py-1",
                 className,
               )}
               {...props}
@@ -297,26 +258,9 @@ interface TabsSubtleItemProps extends HTMLAttributes<HTMLButtonElement> {
 const TabsSubtleItem = forwardRef<HTMLButtonElement, TabsSubtleItemProps>(
   ({ icon: Icon, label, index, className, ...props }, ref) => {
     const internalRef = useRef<HTMLButtonElement | null>(null);
-    // The collapsing label animates to a MEASURED layout width, not "auto":
-    // framer resolves an "auto" target from the element's *visual*
-    // (transformed) size, so under a scaled ancestor (e.g. /demo's card) the
-    // spring overshoots to scale-x the real width and snaps when "auto"
-    // lands. offsetWidth and ResizeObserver are transform-immune — same
-    // setup as the accordions' height animation.
-    const [labelWidth, setLabelWidth] = useState<number | null>(null);
-    const labelRoRef = useRef<ResizeObserver | null>(null);
-    const measureLabel = useCallback((el: HTMLSpanElement | null) => {
-      labelRoRef.current?.disconnect();
-      labelRoRef.current = null;
-      if (!el) return;
-      const update = () => setLabelWidth(el.offsetWidth);
-      update();
-      labelRoRef.current = new ResizeObserver(update);
-      labelRoRef.current.observe(el);
-    }, []);
     const radius = useRadius();
     const sizeClasses = useSize();
-    const { registerTab, hoveredIndex, selectedIndex, idPrefix, activeLabel } = useTabsSubtle();
+    const { registerTab, hoveredIndex, selectedIndex } = useTabsSubtle();
 
     useEffect(() => {
       registerTab(index, internalRef.current);
@@ -325,51 +269,19 @@ const TabsSubtleItem = forwardRef<HTMLButtonElement, TabsSubtleItemProps>(
 
     const isSelected = selectedIndex === index;
     const isActive = hoveredIndex === index || isSelected;
-    const collapseLabel = activeLabel && !!Icon;
-    const showLabel = !collapseLabel || isSelected;
-
-    const labelContent = (
-      // Both stacked spans carry the text-box trim so the invisible bold
-      // sizer and the visible label keep identical boxes.
-      <span ref={measureLabel} className={cn("inline-grid whitespace-nowrap", sizeClasses.text)}>
-        <span
-          className="col-start-1 row-start-1 invisible [text-box:trim-both_cap_alphabetic]"
-          style={{ fontVariationSettings: fontWeights.semibold }}
-          aria-hidden="true"
-        >
-          {label}
-        </span>
-        <span
-          className={cn(
-            "col-start-1 row-start-1 transition-[color,font-variation-settings] duration-80 [text-box:trim-both_cap_alphabetic]",
-            isActive ? "text-foreground" : "text-muted-foreground",
-          )}
-          style={{
-            fontVariationSettings: isSelected ? fontWeights.semibold : fontWeights.normal,
-          }}
-        >
-          {label}
-        </span>
-      </span>
-    );
 
     return (
       // Base UI Tab renders a native <button type="button"> and wires
       // role="tab", aria-selected, roving tabindex, and activation for us.
-      // id/aria-controls are only overridden when an idPrefix is supplied so
-      // externally rendered TabsSubtlePanel elements stay linked.
       <Tabs.Tab
-        ref={(node: HTMLElement | null) => {
-          const button = node instanceof HTMLButtonElement ? node : null;
-          internalRef.current = button;
-          if (ref instanceof Function) ref(button);
-          else if (ref) ref.current = button;
-        }}
+        ref={(node: HTMLElement | null) =>
+          composeRefs<HTMLButtonElement>(
+            internalRef,
+            ref,
+          )(node instanceof HTMLButtonElement ? node : null)
+        }
         value={index}
         data-proximity-index={index}
-        id={idPrefix ? `${idPrefix}-tab-${index}` : undefined}
-        aria-controls={idPrefix ? `${idPrefix}-panel-${index}` : undefined}
-        aria-label={collapseLabel && !showLabel ? label : undefined}
         className={cn(
           // Fixed heights (was py-2 around a 19.5px line box ≈ 35.5px) so the
           // text-box trim on the label doesn't shrink the tab. Standalone
@@ -377,7 +289,7 @@ const TabsSubtleItem = forwardRef<HTMLButtonElement, TabsSubtleItemProps>(
           "relative z-10 flex items-center cursor-pointer bg-transparent border-none outline-none",
           sizeClasses.control,
           sizeClasses.px,
-          !collapseLabel && sizeClasses.gap,
+          sizeClasses.gap,
           radius.bg,
           className,
         )}
@@ -393,41 +305,28 @@ const TabsSubtleItem = forwardRef<HTMLButtonElement, TabsSubtleItemProps>(
             )}
           />
         )}
-        {collapseLabel ? (
-          <AnimatePresence initial={false}>
-            {showLabel && (
-              <motion.span
-                key="label"
-                className="overflow-hidden"
-                // Until the measurement lands, let CSS resolve the width
-                // instead of handing framer "auto": framer resolves an "auto"
-                // target from the element's *visual* size, so under a scaled
-                // ancestor (the /demo card, ~1.76x) it writes back a layout
-                // width that much too wide, then springs back down when the
-                // measured value arrives — the selected tab visibly pulses on
-                // arrival. Plain CSS auto is the true layout width, and the
-                // measured number that follows matches it exactly.
-                style={labelWidth == null ? { width: "auto" } : {}}
-                initial={{ width: 0, opacity: 0, marginLeft: 0 }}
-                animate={{
-                  ...(labelWidth != null ? { width: labelWidth } : null),
-                  opacity: 1,
-                  // Matches the ladder's icon-to-label gap (gap-2 / gap-1.5).
-                  marginLeft: sizeClasses.variant === "compact" ? 6 : 8,
-                }}
-                exit={{ width: 0, opacity: 0, marginLeft: 0 }}
-                transition={{
-                  ...spring.fast,
-                  opacity: { duration: 0.06 },
-                }}
-              >
-                {labelContent}
-              </motion.span>
+        {/* Both stacked spans carry the text-box trim so the invisible bold
+            sizer and the visible label keep identical boxes. */}
+        <span className={cn("inline-grid whitespace-nowrap", sizeClasses.text)}>
+          <span
+            className="col-start-1 row-start-1 invisible [text-box:trim-both_cap_alphabetic]"
+            style={{ fontVariationSettings: fontWeights.semibold }}
+            aria-hidden="true"
+          >
+            {label}
+          </span>
+          <span
+            className={cn(
+              "col-start-1 row-start-1 transition-[color,font-variation-settings] duration-80 [text-box:trim-both_cap_alphabetic]",
+              isActive ? "text-foreground" : "text-muted-foreground",
             )}
-          </AnimatePresence>
-        ) : (
-          labelContent
-        )}
+            style={{
+              fontVariationSettings: isSelected ? fontWeights.semibold : fontWeights.normal,
+            }}
+          >
+            {label}
+          </span>
+        </span>
       </Tabs.Tab>
     );
   },
@@ -435,38 +334,4 @@ const TabsSubtleItem = forwardRef<HTMLButtonElement, TabsSubtleItemProps>(
 
 TabsSubtleItem.displayName = "TabsSubtleItem";
 
-interface TabsSubtlePanelProps extends HTMLAttributes<HTMLDivElement> {
-  index: number;
-  selectedIndex: number;
-  idPrefix: string;
-  children: ReactNode;
-}
-
-// Rendered outside <TabsSubtle> at every call site, so it cannot use Base UI's
-// Tabs.Panel (which requires the Tabs.Root context). It stays a plain tabpanel
-// linked to its tab through the shared idPrefix.
-const TabsSubtlePanel = forwardRef<HTMLDivElement, TabsSubtlePanelProps>(
-  ({ index, selectedIndex, idPrefix, children, className, ...props }, ref) => {
-    const isSelected = selectedIndex === index;
-
-    return (
-      <div
-        ref={ref}
-        id={`${idPrefix}-panel-${index}`}
-        role="tabpanel"
-        aria-labelledby={`${idPrefix}-tab-${index}`}
-        hidden={!isSelected}
-        tabIndex={-1}
-        className={cn("outline-none", className)}
-        {...props}
-      >
-        {isSelected && children}
-      </div>
-    );
-  },
-);
-
-TabsSubtlePanel.displayName = "TabsSubtlePanel";
-
-export { TabsSubtle, TabsSubtleItem, TabsSubtlePanel };
-export default TabsSubtle;
+export { TabsSubtle, TabsSubtleItem };

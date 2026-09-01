@@ -9,7 +9,6 @@
     "./globals.css": "./src/styles/globals.css",
     "./hooks/*": "./src/hooks/*.ts",
     "./hooks/proximity-overlays": "./src/hooks/proximity-overlays.tsx",
-    "./hooks/use-merge-split": "./src/hooks/use-merge-split.tsx",
     "./hooks/use-touch-primary": "./src/hooks/use-touch-primary.tsx",
     "./lib/*": "./src/lib/*.ts",
     "./lib/collapse": "./src/lib/collapse.tsx",

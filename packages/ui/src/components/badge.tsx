@@ -50,19 +50,7 @@ const badgeVariants = cva("inline-flex items-center font-medium whitespace-nowra
   },
 });
 
-type BadgeSizeCanonical = "default" | "compact";
-
-/** Canonical two-size scale plus the pre-sizes-system aliases
- *  (sm → compact; md/lg → default), kept so call sites keep compiling. */
-type BadgeSize = BadgeSizeCanonical | "sm" | "md" | "lg";
-
-const canonicalSize = {
-  default: "default",
-  compact: "compact",
-  sm: "compact",
-  md: "default",
-  lg: "default",
-} satisfies Record<BadgeSize, BadgeSizeCanonical>;
+type BadgeSize = "default" | "compact";
 
 // text-box needs a block container — the badge root is a flex container, so
 // the label gets its own span. Height is fixed (h-*), so trimming only
@@ -74,8 +62,7 @@ interface BadgeProps
     Omit<HTMLAttributes<HTMLSpanElement>, "color">,
     Omit<VariantProps<typeof badgeVariants>, "size"> {
   color?: BadgeColor;
-  /** Omitted, the badge follows the surrounding SizeProvider. Legacy
-   *  sm/md/lg values still resolve. */
+  /** Omitted, the badge follows the surrounding SizeProvider. */
   size?: BadgeSize;
 }
 
@@ -87,11 +74,7 @@ const Badge = forwardRef<HTMLSpanElement, BadgeProps>(
     const radius = useRadius();
     // Resolve the size: explicit prop > surrounding SizeProvider > default.
     const contextSize = useSizeVariant();
-    const size: BadgeSizeCanonical = sizeProp
-      ? canonicalSize[sizeProp]
-      : contextSize === "compact"
-        ? "compact"
-        : "default";
+    const size: BadgeSize = sizeProp ?? (contextSize === "compact" ? "compact" : "default");
     const colorValue = badgeColors[color];
     const showDot = variant === "dot";
     const dotSize = size === "compact" ? 6 : 7;
@@ -133,5 +116,4 @@ const Badge = forwardRef<HTMLSpanElement, BadgeProps>(
 
 Badge.displayName = "Badge";
 
-export { Badge, badgeVariants, badgeColors };
-export type { BadgeProps, BadgeColor, BadgeSize };
+export { Badge };

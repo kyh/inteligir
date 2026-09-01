@@ -11,22 +11,6 @@ import { fontWeights } from "@repo/ui/lib/font-weight";
 import { useRadius } from "@repo/ui/lib/radius-context";
 import { spring } from "@repo/ui/lib/springs";
 
-const TooltipPortalContainerContext = React.createContext<HTMLElement | null>(null);
-
-function TooltipPortalContainer({
-  value,
-  children,
-}: {
-  value: HTMLElement | null;
-  children: React.ReactNode;
-}) {
-  return (
-    <TooltipPortalContainerContext.Provider value={value}>
-      {children}
-    </TooltipPortalContainerContext.Provider>
-  );
-}
-
 const DEFAULT_DELAY = 200;
 
 // Tracks whether an app-level <TooltipProvider> is above us. Each Tooltip
@@ -113,7 +97,6 @@ function Tooltip({
   const [internalOpen, setInternalOpen] = React.useState(false);
   const open = forceOpen !== undefined ? forceOpen : internalOpen;
   const radius = useRadius();
-  const portalContainer = React.useContext(TooltipPortalContainerContext);
   const hasAmbientProvider = React.useContext(TooltipGroupContext);
 
   const slideOffset = getSlideOffset(side);
@@ -144,7 +127,7 @@ function Tooltip({
         delay={delayDuration}
         onPointerMove={followCursor ? handleFollowMove : undefined}
       />
-      <TooltipPrimitive.Portal container={portalContainer ?? undefined}>
+      <TooltipPrimitive.Portal>
         <TooltipPrimitive.Positioner side={side} sideOffset={sideOffset} className="z-50">
           <TooltipPrimitive.Popup
             render={(props, state) => {
@@ -210,5 +193,4 @@ function Tooltip({
   );
 }
 
-export { Tooltip, TooltipPortalContainer, TooltipProvider };
-export type { TooltipProps, TooltipProviderProps, TooltipSide };
+export { Tooltip, TooltipProvider };

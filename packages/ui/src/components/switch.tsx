@@ -11,7 +11,7 @@ import {
   type HTMLAttributes,
 } from "react";
 import { Switch as SwitchPrimitive } from "@base-ui/react/switch";
-import { animate, motion, useMotionValue, type Transition } from "framer-motion";
+import { animate, motion, useMotionValue } from "framer-motion";
 
 import { useSize, type SizeVariant } from "@repo/ui/lib/size-context";
 import { motionStyle } from "@repo/ui/lib/motion-style";
@@ -24,7 +24,6 @@ interface SwitchProps extends HTMLAttributes<HTMLDivElement> {
   /** Visible label beside the track. Omitted, the control is named by `aria-label` alone. */
   label?: string;
   disabled?: boolean;
-  thumbTransition?: Transition;
   /** Pins the switch to one step of the size ladder (see /docs/sizes).
    *  Omitted, it follows the surrounding SizeProvider. */
   size?: SizeVariant;
@@ -61,7 +60,6 @@ const Switch = forwardRef<HTMLDivElement, SwitchProps>(
       onCheckedChange,
       label,
       disabled = false,
-      thumbTransition,
       size,
       className,
       "aria-label": ariaLabel,
@@ -105,9 +103,9 @@ const Switch = forwardRef<HTMLDivElement, SwitchProps>(
       if (!hasMounted.current) {
         motionX.set(thumbX);
       } else {
-        animate(motionX, thumbX, thumbTransition ?? spring.moderate);
+        animate(motionX, thumbX, spring.moderate);
       }
-    }, [thumbX, motionX, thumbTransition]);
+    }, [thumbX, motionX]);
 
     const handlePointerDown = useCallback(
       (e: React.PointerEvent<HTMLDivElement>) => {
@@ -164,7 +162,7 @@ const Switch = forwardRef<HTMLDivElement, SwitchProps>(
           onCheckedChange(shouldBeOn);
         } else {
           const snapTarget = checked ? THUMB_OFFSET + thumbTravel : THUMB_OFFSET;
-          animate(motionX, snapTarget, thumbTransition ?? spring.moderate);
+          animate(motionX, snapTarget, spring.moderate);
         }
 
         requestAnimationFrame(() => {
@@ -173,7 +171,7 @@ const Switch = forwardRef<HTMLDivElement, SwitchProps>(
       }
 
       pointerStart.current = null;
-    }, [checked, onCheckedChange, motionX, thumbTransition, m, thumbTravel]);
+    }, [checked, onCheckedChange, motionX, m, thumbTravel]);
 
     const handlePointerCancel = useCallback(() => {
       if (!pointerStart.current) return;
@@ -182,11 +180,11 @@ const Switch = forwardRef<HTMLDivElement, SwitchProps>(
       if (dragging.current) {
         dragging.current = false;
         const snapTarget = checked ? THUMB_OFFSET + thumbTravel : THUMB_OFFSET;
-        animate(motionX, snapTarget, thumbTransition ?? spring.moderate);
+        animate(motionX, snapTarget, spring.moderate);
       }
 
       pointerStart.current = null;
-    }, [checked, motionX, thumbTransition, thumbTravel]);
+    }, [checked, motionX, thumbTravel]);
 
     return (
       <div
@@ -268,9 +266,7 @@ const Switch = forwardRef<HTMLDivElement, SwitchProps>(
                     width: thumbWidth,
                     height: thumbHeight,
                   }}
-                  transition={
-                    hasMounted.current ? (thumbTransition ?? spring.moderate) : { duration: 0 }
-                  }
+                  transition={hasMounted.current ? spring.moderate : { duration: 0 }}
                 />
               );
             }}
@@ -299,4 +295,3 @@ const Switch = forwardRef<HTMLDivElement, SwitchProps>(
 Switch.displayName = "Switch";
 
 export { Switch };
-export type { SwitchProps };
