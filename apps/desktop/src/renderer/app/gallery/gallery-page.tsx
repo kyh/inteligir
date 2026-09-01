@@ -3,7 +3,7 @@
 // change to the design system shows itself before it reaches the product.
 //
 // Deliberately NOT a consumer for the orphan guard's purposes: see
-// packages/ui/src/__tests__/no-orphan-components.test.ts. A gallery proves a
+// tools/repo-guards/src/ui-orphan-exports.test.ts. A gallery proves a
 // component renders, not that the product needs it.
 
 import { Button } from "@repo/ui/components/button";

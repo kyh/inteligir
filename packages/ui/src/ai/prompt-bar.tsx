@@ -36,22 +36,6 @@ import { GlideList } from "@repo/ui/ai/glide-list";
  * is Beautiful UI's, carried whole for the gallery.
  * ───────────────────────────────────────────────────────── */
 
-/** The trailing `@thing` or `/thing` being typed, if any. Exported because
- *  it is the useful pure part: a caller needs it to drive its own menu. */
-export function parsePromptToken(
-  draft: string,
-): { kind: "at" | "slash"; query: string; start: number } | null {
-  const match = /(^|\s)([@/])([\w-]*)$/u.exec(draft);
-  if (match === null) return null;
-  const lead = match[1] ?? "";
-  const sigil = match[2];
-  return {
-    kind: sigil === "@" ? "at" : "slash",
-    query: (match[3] ?? "").toLowerCase(),
-    start: match.index + lead.length,
-  };
-}
-
 const promptBarVariants = cva(
   "flex w-full flex-col bg-surface-raised shadow-surface-2 transition-[border-radius] duration-200",
   {

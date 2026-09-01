@@ -99,8 +99,6 @@ const PREDICATES: Predicate[] = [
     elsewhere: {
       "packages/notes/src/knowledge/rename-links.ts":
         "a LOGICAL `/`-path between two vault folders, from @repo/notes' own pure relativePath, deciding how a link is SPELLED rather than whether a write is allowed — and @repo/notes is the platform-neutral seam, so a node-only module is not importable from it at all",
-      "packages/ui/src/__tests__/no-orphan-components.test.ts":
-        "compares two paths this walk built itself, in a browser-only leaf; packages may not import apps (dep-dag), so the home is out of reach and there is no vault behind it to escape",
     },
   },
   {

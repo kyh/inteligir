@@ -163,24 +163,20 @@
       "entry": ["src/**/*.test.ts"],
       "project": ["src/**/*.ts"]
     },
-    // The ONE package that keeps knip's default `includeEntryExports: false`,
-    // and the reason is the package rather than the findings: this is a
-    // component LIBRARY, deliberately ahead of the product that draws on it.
-    // Fourteen files under `src/ai` have no consumer yet and are held on
-    // purpose, so unused-export reporting here would report a component's
-    // whole surface as dead and answer "delete it" to a decision that was
-    // already made the other way.
-    //
-    // The invariant that actually has teeth here is coarser and lives as a
-    // test: src/__tests__/no-orphan-components.test.ts fails when a whole
-    // component file has no consumer (a real failure knip cannot see either,
-    // since the `./components/*` wildcard export makes every file an entry).
-    // Turning this on would only ever report members of files that guard
-    // already proves are in use.
+    // Same trade as packages/notes and packages/editor: every subpath is an
+    // entry, so without `includeEntryExports` an unused export hides behind
+    // the exports map. What knip CANNOT ask is the stricter question — the
+    // gallery imports everything by design and knip counts it as a consumer —
+    // so the per-export orphan guard
+    // (tools/repo-guards/src/ui-orphan-exports.test.ts) holds the
+    // gallery-is-not-a-consumer line, with the fourteen held `src/ai` files
+    // and the per-export allowances recorded there. knip's pass here catches
+    // what even the gallery does not import.
     "packages/ui": {
-      "entry": [],
+      "entry": ["src/**/__tests__/**/*.test.ts"],
       "project": ["src/**/*.{ts,tsx}", "src/**/*.css"],
-      "includeEntryExports": false
+      "includeEntryExports": true,
+      "ignoreExportsUsedInFile": true
     }
   }
 }
