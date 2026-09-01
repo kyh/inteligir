@@ -50,6 +50,12 @@ function recordingEngine(): RecordingEngine {
         state.releases += 1;
       };
     },
+    async history() {
+      return [];
+    },
+    async revision() {
+      return "";
+    },
     async syncNow() {
       return { state: "no-remote", lastSyncAt: null, lastError: null };
     },

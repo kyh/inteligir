@@ -13,7 +13,7 @@ import { createAuth } from "../auth/auth";
 import { jsonNoStore, refuse } from "../cloud-http";
 import { createDb } from "../db/client";
 import { device } from "../db/schema";
-import { allowInWindow, callerIp, type RateWindow } from "../rate-limit";
+import { allowInWindow, callerIp, forgetDeviceBudgets, type RateWindow } from "../rate-limit";
 import { severDeviceSockets } from "../sync/routes";
 
 // ---------------------------------------------------------------------------
@@ -45,11 +45,9 @@ export async function handleDeviceRoutes(request: Request, env: Env, url: URL): 
   const route = `${request.method} ${url.pathname}`;
 
   if (route === `POST ${DEVICE_API_PATHS.redeem}`) {
-    if (env.RATE_LIMIT_DISABLED !== "true") {
-      const key = `${REDEEM_RATE_KEY_PREFIX}${callerIp(request)}`;
-      if (!(await allowInWindow(db, key, Date.now(), REDEEM_WINDOW))) {
-        return refuse("rate-limited", "Too many attempts — wait a minute.");
-      }
+    const key = `${REDEEM_RATE_KEY_PREFIX}${callerIp(request)}`;
+    if (!(await allowInWindow(env, db, key, REDEEM_WINDOW))) {
+      return refuse("rate-limited", "Too many attempts — wait a minute.");
     }
     const body = redeemDeviceRequestSchema.safeParse(await request.json().catch(() => null));
     if (!body.success) return refuse("bad-request", "Send { code, deviceName, verifier }.");
@@ -109,6 +107,9 @@ export async function handleDeviceRoutes(request: Request, env: Env, url: URL): 
       .returning()
       .get();
     if (revoked === undefined) return refuse("not-found", "No such active device.");
+    // Nothing else deletes a limiter row, so a pair-then-revoke loop would
+    // leave two behind per cycle.
+    await forgetDeviceBudgets(db, [body.data.deviceId]);
     // The credential is already dead in D1 — this only closes the sockets it
     // still holds, which no per-request check can reach.
     await severDeviceSockets(env, userId, body.data.deviceId);

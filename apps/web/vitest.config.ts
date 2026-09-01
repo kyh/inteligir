@@ -47,8 +47,9 @@ export default defineConfig({
         bindings: {
           TEST_SCHEMA,
           BETTER_AUTH_SECRET: TEST_BETTER_AUTH_SECRET,
-          // Tests hit the in-process Worker from one IP; keep the auth limiter
-          // off so multi-user suites don't 429. Rate limiting is covered in prod.
+          // Tests hit the in-process Worker from one IP; keep the limiter off
+          // so multi-user suites don't 429 on each other. The suite that IS
+          // about a limiter (vault-rate-limit.test.ts) flips this per test.
           RATE_LIMIT_DISABLED: "true",
         },
       },

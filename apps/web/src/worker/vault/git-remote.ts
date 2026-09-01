@@ -2,6 +2,7 @@ import { VAULT_GIT_PATH } from "@repo/api/cloud/vault/vault-git";
 import { createDurableGit, type Registry } from "durable-git";
 import { createDb } from "../db/client";
 import { deviceCredentialFromHeader, verifyDeviceCredentialValue } from "../device/device-auth";
+import { allowInWindow, deviceRateKey, type RateWindow } from "../rate-limit";
 import { pingVaultAdvanced } from "../sync/routes";
 
 // ---------------------------------------------------------------------------
@@ -45,6 +46,16 @@ import { pingVaultAdvanced } from "../sync/routes";
 const AUTHORIZED_HEADER = "x-vault-authorized";
 
 /** The subpaths git smart HTTP actually uses; everything else 404s. */
+/**
+ * A device's budget on the git remote, set from the worst LEGITIMATE minute
+ * rather than from the once-a-minute common case: an account may hold 20
+ * devices, every push pings all the others, and a pinged device syncs
+ * immediately — so one device can owe ~20 passes in a minute, each a
+ * protocol-v2 fetch plus a push, around a hundred requests. A ceiling near
+ * that would refuse real sync and report it as `offline`.
+ */
+const VAULT_GIT_WINDOW: RateWindow = { max: 600, windowMs: 60_000 };
+
 const PROTOCOL_ROUTES = new Set([
   "GET /info/refs",
   "POST /git-upload-pack",
@@ -101,10 +112,18 @@ export async function handleVaultGitRemote(
     return new Response("not found\n", { status: 404 });
   }
 
+  const db = createDb(env.DB);
   const credential = deviceCredentialFromHeader(request.headers.get("authorization"));
-  const verified =
-    credential === null ? null : await verifyDeviceCredentialValue(createDb(env.DB), credential);
+  const verified = credential === null ? null : await verifyDeviceCredentialValue(db, credential);
   if (verified === null) return unauthorized();
+
+  if (
+    !(await allowInWindow(env, db, deviceRateKey("vaultGit", verified.deviceId), VAULT_GIT_WINDOW))
+  ) {
+    // Plain text, like every other refusal on this wire: a JSON envelope in a
+    // git client's stderr is noise.
+    return new Response("too many requests\n", { status: 429 });
+  }
 
   const repo = vaultRepoName(verified.userId);
   if (!REPO_NAME_SAFE.test(verified.userId)) {

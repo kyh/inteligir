@@ -41,6 +41,47 @@ describe("the vault routes", () => {
     });
   });
 
+  it("answers a note's history, and the bytes one revision held", async () => {
+    const { client, vault } = await bootTestApp();
+
+    await client.vault.write({ path: "notes/api.md", content: "# one\n" });
+    await vault.git.commitNow();
+    await client.vault.write({ path: "notes/api.md", content: "# one\n# two\n" });
+    await vault.git.commitNow();
+
+    const { revisions } = await client.vault.history({ path: "notes/api.md" });
+    // The vault's own `initialize` commit is in the log too, but it never
+    // touched this path, so `--follow` does not list it.
+    expect(revisions).toHaveLength(2);
+    expect(revisions[0]?.subject).toBe("vault: update notes/api.md");
+    expect(revisions[0]?.path).toBe("notes/api.md");
+    // The engine's own identity, read back through the log rather than
+    // re-typed: it is what tells an agent revision from a human one.
+    expect(revisions[0]?.authorName).toBe("inteligir");
+    expect(revisions[0]?.authorEmail).toBe("vault@inteligir.local");
+
+    const oldest = revisions[1];
+    expect(
+      await client.vault.revision({ path: oldest?.path ?? "", sha: oldest?.sha ?? "" }),
+    ).toEqual({ content: "# one\n" });
+
+    // A note git has never seen is an empty page, not a refusal: one created
+    // inside the auto-commit's quiet window has no revisions yet.
+    expect(await client.vault.history({ path: "notes/uncommitted.md" })).toEqual({
+      revisions: [],
+    });
+
+    const [absentError] = await safe(
+      client.vault.revision({ path: "notes/gone.md", sha: oldest?.sha ?? "" }),
+    );
+    expect(isDefinedError(absentError) && absentError.code).toBe("NOT_FOUND");
+
+    // The sha is a request value, so git's own revision grammar never reaches
+    // an argv slot.
+    const [shaError] = await safe(client.vault.revision({ path: "notes/api.md", sha: "HEAD" }));
+    expect(toORPCError(shaError).code).toBe("BAD_REQUEST");
+  });
+
   it("answers refusals with their declared classes", async () => {
     const { client } = await bootTestApp();
 

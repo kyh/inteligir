@@ -42,7 +42,8 @@
     "./markdown/remark-tabs": "./src/markdown/remark-tabs.ts",
     "./markdown/remark-wiki-link": "./src/markdown/remark-wiki-link.ts",
     "./markdown/table-pipes": "./src/markdown/table-pipes.ts",
-    "./text/diff3": "./src/text/diff3.ts"
+    "./text/diff3": "./src/text/diff3.ts",
+    "./text/line-diff": "./src/text/line-diff.ts"
   },
   "scripts": {
     "clean": "git clean -xdf .cache .turbo dist node_modules",

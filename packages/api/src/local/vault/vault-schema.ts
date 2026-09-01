@@ -113,6 +113,73 @@ export const vaultReadResponseSchema = z
   .strict();
 export type VaultReadResponse = z.infer<typeof vaultReadResponseSchema>;
 
+/**
+ * A git object name, as the history surface accepts one: hex, full or
+ * abbreviated. Validated at the boundary because it lands in a `<sha>:<path>`
+ * argv slot — `execFile` reaches no shell, but git's own revision grammar
+ * (`@{…}`, `^{}`, a `-`-leading name) is still a language this surface does
+ * not serve, and the narrow spelling is the one that cannot express it. The
+ * upper bound is 64 rather than 40 because a vault is `git init`ed under the
+ * user's own config, and a sha-256 repository names its objects in 64.
+ */
+export const vaultRevisionShaSchema = z.string().regex(/^[0-9a-f]{7,64}$/u);
+
+/** One commit that touched a note, as `git log --follow` reports it. */
+export const vaultRevisionSchema = z
+  .object({
+    sha: vaultRevisionShaSchema,
+    /** Author date, ISO-8601 with offset — git's own `%aI`. */
+    authoredAt: z.string().min(1),
+    /** WHO wrote it. Engine commits say "inteligir"; an agent turn carries its
+     *  own name (the CommitAuthor seam), which is the whole agent-vs-human
+     *  distinction the list renders — there is no flag beside it to drift. */
+    authorName: z.string(),
+    authorEmail: z.string(),
+    subject: z.string(),
+    /** The note's path AT this revision. `--follow` crosses renames, so it is
+     *  not necessarily the path asked for — and it is the one that reads the
+     *  bytes back. */
+    path: z.string().min(1),
+    /** The path this revision renamed the note FROM, when it did. */
+    renamedFrom: z.string().min(1).optional(),
+  })
+  .strict();
+export type VaultRevision = z.infer<typeof vaultRevisionSchema>;
+
+export const VAULT_HISTORY_DEFAULT_LIMIT = 50;
+export const VAULT_HISTORY_MAX_LIMIT = 200;
+
+export const vaultHistoryRequestSchema = z
+  .object({
+    path: vaultPathSchema,
+    skip: z.number().int().min(0).optional(),
+    limit: z.number().int().min(1).max(VAULT_HISTORY_MAX_LIMIT).optional(),
+  })
+  .strict();
+export type VaultHistoryRequest = z.infer<typeof vaultHistoryRequestSchema>;
+
+/** One page of history. Deliberately no `total`: a paginated log gets a
+ *  `limit` and no honest count of the rest — the same shape, and the same
+ *  reason, as the related route. */
+export const vaultHistoryResponseSchema = z
+  .object({ revisions: z.array(vaultRevisionSchema) })
+  .strict();
+export type VaultHistoryResponse = z.infer<typeof vaultHistoryResponseSchema>;
+
+/** `path` is the path AT that revision (a history row carries its own), which
+ *  is what makes a pre-rename revision readable at all. */
+export const vaultRevisionRequestSchema = z
+  .object({ path: vaultPathSchema, sha: vaultRevisionShaSchema })
+  .strict();
+export type VaultRevisionRequest = z.infer<typeof vaultRevisionRequestSchema>;
+
+export const vaultRevisionResponseSchema = z.object({ content: z.string() }).strict();
+export type VaultRevisionResponse = z.infer<typeof vaultRevisionResponseSchema>;
+
+/** What a checkpoint committed; 0 when the tree was already clean. */
+export const vaultCommitResponseSchema = z.object({ files: z.number().int().min(0) }).strict();
+export type VaultCommitResponse = z.infer<typeof vaultCommitResponseSchema>;
+
 export const vaultWriteRequestSchema = z
   .object({
     path: vaultPathSchema,

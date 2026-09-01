@@ -12,22 +12,14 @@ import {
   type KnowledgeSearchRequest,
 } from "@repo/api/local/knowledge/knowledge-schema";
 import { defineCommand } from "citty";
-import { invalidUsage } from "../cli-error";
+import { parseBoundedInteger } from "../args";
 import { apiFor, type CliDeps } from "../context";
 import { jsonArg, out, outputJson, writeLines } from "../output";
 
-/** Bounded HERE as well as server-side: an out-of-range limit is the caller's
- *  own mistake, and naming the ceiling beats relaying a 400. The ceiling is
- *  the contract's, per route — never a number this file picked. */
 function parseLimit(rawValue: string | undefined, max: number): number | undefined {
-  if (rawValue === undefined) {
-    return undefined;
-  }
-  const limit = Number(rawValue);
-  if (!Number.isInteger(limit) || limit < 1 || limit > max) {
-    throw invalidUsage(`--limit must be an integer between 1 and ${max} (got "${rawValue}")`);
-  }
-  return limit;
+  return rawValue === undefined
+    ? undefined
+    : parseBoundedInteger(rawValue, "--limit", { min: 1, max });
 }
 
 export function searchCommand(deps: CliDeps) {

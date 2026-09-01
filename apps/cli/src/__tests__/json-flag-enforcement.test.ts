@@ -22,7 +22,9 @@ import { afterEach, describe, expect, it } from "vitest";
 import { argsOf, collectLeafCommands, type LeafCommand } from "../command-tree";
 import { LEAF_INVOCATIONS, testProgram } from "./command-tree";
 import {
+  FIXTURE_REVISION_SHA,
   makeFixtureState,
+  makeRevision,
   makeThread,
   serveFixture,
   EMPTY_TIMELINE,
@@ -58,6 +60,9 @@ afterEach(async () => {
 function seedFixture(state: FixtureState): void {
   state.vault.clear();
   state.vault.set("notes/hello.md", "# Hello\n");
+  state.revisions.set("notes/hello.md", [
+    { revision: makeRevision({ sha: FIXTURE_REVISION_SHA }), content: "# Hello\n" },
+  ]);
   state.vault.set("Trash/notes/hello.md", "# Trashed\n");
   state.searchResults = [{ path: "notes/hello.md", title: "hello", snippet: "hi", score: 1 }];
   state.tags = [{ tag: "project", count: 2 }];

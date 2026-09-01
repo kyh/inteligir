@@ -11,6 +11,7 @@ import { and, eq, isNull, lt, or, sql } from "drizzle-orm";
 import { constantTimeEqual, sha256Hex } from "./device-auth";
 import type { createDb } from "../db/client";
 import { device, pairingCode } from "../db/schema";
+import { forgetDeviceBudgets } from "../rate-limit";
 
 // ---------------------------------------------------------------------------
 // Pairing-code mint and redeem over D1 (bb's connect-code pattern, MIT —
@@ -210,6 +211,18 @@ export async function redeemPairingCode(
  * reach the object the purge is about to empty.
  */
 export async function purgeDeviceRows(db: Db, userId: string): Promise<void> {
+  // The ids are read BEFORE the delete, and the budgets dropped after it: the
+  // device rows still have to go first, and once they are gone nothing else
+  // can name the limiter rows they left in the shared table.
+  const owned = await db
+    .select({ id: device.id })
+    .from(device)
+    .where(eq(device.userId, userId))
+    .all();
   await db.delete(device).where(eq(device.userId, userId));
   await db.delete(pairingCode).where(eq(pairingCode.userId, userId));
+  await forgetDeviceBudgets(
+    db,
+    owned.map((row) => row.id),
+  );
 }

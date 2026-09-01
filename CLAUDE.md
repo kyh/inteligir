@@ -275,6 +275,53 @@ command is `db:push:local`.
   saving is imperceptible — while the cost is a second persisted table inside
   a cache whose recovery primitive is deleting the file, so every `nuke()`
   must re-create it and a missed re-create is a crash.
+- **NOTE HISTORY IS LOCAL, AND A RESTORE IS A WRITE** (#616). The per-note
+  history surface reads the vault's own git repo — `git log --follow` for the
+  rows, `git cat-file` for one revision's bytes — with no server component, no
+  new storage and no sync dependency, so it works offline and with no remote.
+  `--follow` is load-bearing rather than a nicety: the rename route moves notes
+  routinely, and without it a renamed note's history truncates silently at the
+  rename. RESTORING revision N means writing its bytes through the ORDINARY
+  write path with `expectedHash` — never `git checkout`, `git revert` or an
+  index manipulation, which would bypass the CAS under the repo lock, the
+  knowledge re-index, the `/ws` notification and the open buffer's own
+  convergence. It also keeps history linear: an undone restore is just another
+  restore, with no detached HEAD to explain. There is deliberately no
+  `vault.restore` PROCEDURE — a second server write path is a second CAS that
+  can disagree with the first — but BOTH clients run the same composition:
+  checkpoint (`vault.commitNow`), then `write` with the base the diff was
+  computed from. The checkpoint is not optional: the auto-commit is
+  session-shaped, so the bytes a restore replaces are typically in no revision
+  yet, and overwriting them would leave them in none at all. The CAS base is
+  the snapshot the user was SHOWN, never a fresh read — a fresh read would
+  bless bytes that landed after the diff was drawn. And unlike every other CAS
+  refusal in this app, a restore's is REPORTED rather than diff3-merged: the
+  user named exact bytes, and merging them with whatever landed underneath
+  yields a file that is neither.
+  READING the log is OFF THE REPO LOCK. `log` and `cat-file` touch the object
+  database and never the index, so they can neither corrupt nor be corrupted
+  by a commit — while the lock they would take is the chain a whole sync pass
+  holds, its 120-second network timeout included. The residual: a read landing
+  inside a rebase sees that rebase's temporary HEAD.
+  Three `git log` flags make the answer depend on the repo rather than the
+  user's git config, and each is load-bearing: `--literal-pathspecs` (a
+  pathspec is a GLOB — a note called `[a].md` otherwise reports `a.md`'s
+  history, and `*.md` reports the whole vault's, whose bytes a restore would
+  then write into it), `--root` and `--no-show-signature`. A commit reports
+  MORE THAN ONE name-status tuple for one followed path (a note that became a
+  folder and a note again), so the parse consumes the whole block; a commit
+  whose every tuple is a deletion is dropped, because every row this surface
+  lists must be one `revision` can read.
+- **THE AUTO-COMMIT IS SESSION-SHAPED (15s quiet / 60s max), because a log has
+  to be ANSWERABLE.** `vault: update 1 files` every two seconds is browsable
+  and useless — "restore the version from before I rewrote the intro" cannot be
+  served by thirty anonymous revisions. So a single-file commit NAMES ITS FILE,
+  and a pause of fifteen seconds is what ends an editing session. What the max
+  wait trades is granularity against how long an edit sits UNCOMMITTED, and
+  that half is smaller than it looks: the editor's autosave is 600ms, so the
+  bytes are on disk the whole time — what waits is the revision, not the data.
+  60s is the sync interval, and a sync pass commits the dirty tree before it
+  pushes, so with a remote configured that was already the bound.
 - **A write carries the base it was computed from.** `expectedHash` on the
   vault write route is compared under the repo lock; a mismatch answers 409
   WITH the current content, and the client merges (diff3) and retries. Creation
@@ -507,6 +554,32 @@ body_stems` at the same bm25 weights, and `@repo/notes/knowledge/search-query`
   no socket, arms no timer and makes no request (asserted, at the shipping
   cadence, in `cloud/__tests__/sync-runtime.test.ts`). The cost, accepted:
   "pause sync" is not expressible — you unpair, which discards the queue.
+- **THE HOSTED VAULT'S READ PATHS ARE BUDGETED PER DEVICE, and the budget buys
+  TIME rather than prevention.** The account is the entitlement, so a verified
+  credential reads every note — which makes a stolen `igd_` a vault-exfiltration
+  credential and not only a thread one. `/v1/vault/*` and `/v1/git/*` therefore
+  consume a fixed window keyed on the DEVICE, never the caller's address: what
+  is being spent is a credential, a stolen one moves between addresses, and the
+  device row is the thing `/app/devices` revokes. Two families, two keys, so a
+  drained read budget never takes a device's sync down with it.
+  WHAT IT ACTUALLY BUYS, stated rather than implied: it BREAKS A RUNAWAY LOOP
+  and caps what one credential costs per minute. It does NOT meaningfully slow
+  a determined reader — `/v1/git` hands a whole vault over in a couple of
+  requests, and any per-minute read ceiling low enough to matter is one a real
+  client trips. Revocation is the control; this keeps abuse from being free.
+  BOTH CEILINGS ARE SET FROM THE WORST LEGITIMATE MINUTE, never from the common
+  case. An account may hold 20 devices, every push pings all the others, and a
+  pinged device syncs immediately — so one device can owe ~20 git passes in a
+  minute, around a hundred requests. On the read side the legitimate burst is
+  ONE NOTE'S EMBEDS, which the format does not bound at all; the residual is
+  that a note carrying more than the ceiling sees its tail answered 429. A
+  ceiling that refuses real work is worse than none, because the client reports
+  it as `offline` and the user has nothing to act on. REVOCATION AND ACCOUNT
+  DELETION DROP THE ROWS: the table carries no foreign key, so nothing else
+  ever would, and a pair-then-revoke loop would grow it forever. A READ-SCOPED
+  credential (read vs write) is the deeper answer and is NOT implemented; the
+  trigger to build it is a second party ever holding a credential for someone
+  else's account.
 - **PAIRING IS APPROVED IN A BROWSER, and the code survives only as plumbing**
   (issue #573). Nothing shows a `XXXX-XXXX` to a human any more and nothing
   accepts one: Settings has a button, the dashboard has a device table, the CLI
