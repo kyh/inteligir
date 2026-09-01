@@ -13,7 +13,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { createOpenNoteStore } from "@repo/editor/note/open-note-store";
 import { collectHeadings, headingElement, railWindow, TOC_RAIL_CAP } from "@repo/editor/toc";
-import { PaneHarness } from "./pane-harness";
+import { EditorHarness } from "./editor-harness";
 
 afterEach(cleanup);
 
@@ -22,7 +22,7 @@ const p = (text: string) => ({ type: "p", children: [{ text }] });
 
 function mountValue(value: Value): PlateEditor {
   const ref = createRef<PlateEditor>();
-  render(<PaneHarness value={value} store={createOpenNoteStore()} ref={ref} />);
+  render(<EditorHarness value={value} store={createOpenNoteStore()} ref={ref} />);
   if (ref.current === null) throw new Error("the editor did not mount");
   return ref.current;
 }

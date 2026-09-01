@@ -6,7 +6,7 @@
 
 import { docStem } from "@repo/notes/knowledge/doc-file";
 import type { ViewContext } from "@repo/domain/view-context";
-import type { ViewContextSource } from "./chat-model";
+import type { ViewContextSource } from "./thread-activity";
 import type { Thread } from "@repo/api/local/threads/threads-schema";
 import type { VaultEntry } from "@repo/api/local/vault/vault-schema";
 import { useQueryClient } from "@tanstack/react-query";
@@ -22,7 +22,7 @@ import { useThreads } from "./actions/thread-hooks";
 import { platformShortcutModifier, useGlobalShortcuts } from "./global-shortcuts";
 import { setAgentRequestActions } from "@repo/editor/agent-request";
 import { consumeSearchRequest, useSearchRequest } from "@repo/editor/search-request";
-import { EditorPane } from "@repo/editor/editor-pane";
+import { EditorColumn } from "@repo/editor/editor-column";
 import { flushOpenNote } from "@repo/editor/note/open-note-flush";
 import { openDocPath } from "@repo/editor/note/open-doc";
 import { backTarget, createOpenNoteStore, forwardTarget } from "@repo/editor/note/open-note-store";
@@ -406,7 +406,7 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
                 data-editor-scroller=""
                 className="min-h-0 flex-1 overflow-y-auto print:overflow-visible"
               >
-                <EditorPane />
+                <EditorColumn />
               </div>
               <ActionComposer
                 open={composerOpen}

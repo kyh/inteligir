@@ -27,7 +27,7 @@ import {
   PrinterIcon,
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { threadActivity, THREAD_ACTIVITY_LABELS } from "../chat-model";
+import { threadActivity, THREAD_ACTIVITY_LABELS } from "../thread-activity";
 import type { NoteSearchHit, NoteSearchSource } from "./note-search";
 
 export interface PaletteActions {

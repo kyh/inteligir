@@ -78,7 +78,7 @@ export function NavigationSection() {
               <div className="flex items-center gap-2 border-b border-line p-2">
                 <span className="text-sm text-muted-foreground">Release checklist</span>
               </div>
-              <p className="p-3 text-sm text-muted-foreground">The pane the rail sits beside.</p>
+              <p className="p-3 text-sm text-muted-foreground">The content the rail sits beside.</p>
             </SidebarInset>
           </SidebarProvider>
         </div>

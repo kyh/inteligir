@@ -1,5 +1,5 @@
 // Notion-style rich markdown editor built on Plate (platejs), used by the
-// editor pane for `.md` documents. Round-trips markdown: deserialize the file
+// editor surface for `.md` documents. Round-trips markdown: deserialize the file
 // text to Plate's value on mount, serialize back to markdown on every change
 // so the editor's autosave persists it.
 //

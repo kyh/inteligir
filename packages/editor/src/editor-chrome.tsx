@@ -10,9 +10,9 @@
 // editable's padding box and survives its overflow-x-hidden clip. The
 // filename-title <h1>, the Raw textarea, and the backlinks section apply the
 // same constant so all four surfaces share byte-exact column geometry (the
-// pane wrapper owns only the vertical padding). The workspace's stamped
+// column wrapper owns only the vertical padding). The workspace's stamped
 // [data-editor-scroller] ancestor is the scroll container (toc.tsx and the
-// pane's open-reset depend on the stamp), so the container deliberately
+// column's open-reset depend on the stamp), so the container deliberately
 // adds no overflow-y-auto.
 
 import type { HTMLAttributes } from "react";
@@ -54,7 +54,7 @@ export function EditorContainer({ className, ...props }: HTMLAttributes<HTMLDivE
   return <PlateContainer className={cn(CONTAINER_CLASS, className)} {...props} />;
 }
 
-/** The editable surface. Chrome only — padding/column live on the pane. */
+/** The editable surface. Chrome only — padding/column live on the column. */
 export function Editor({ className, ...props }: PlateContentProps) {
   return <PlateContent className={cn(EDITOR_CLASS, className)} disableDefaultStyles {...props} />;
 }

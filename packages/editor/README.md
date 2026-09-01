@@ -21,9 +21,9 @@ Deps: `@repo/notes` (the parse pipeline and the knowledge types), `@repo/ui`
 
 ```
 src/
-  markdown-editor.tsx, editor-pane.tsx, editor-chrome.tsx
-                       # the editor surface, its chrome, and the pane the app
-                       # the editor column's note
+  markdown-editor.tsx, editor-column.tsx, editor-chrome.tsx
+                       # the editor surface, its chrome, and the column that
+                       # shows the open note
   markdown/
     md-rules.ts        # the Slate↔mdast rules — one per node type
     markdown-doc.ts    # the round trip itself: parse → doc → serialize, run to
@@ -35,13 +35,12 @@ src/
   nodes/               # every node type as a Base (headless) + React pair
   note/
     open-note-store.ts, open-note-context.tsx
-                       # the per-pane open-note slice (zustand) and React's door
-                       # to one pane's store
+                       # the open-note store (zustand) and React's door to it
     vault-session.ts   # the open note's ORDERING, drivable without React
     note-runtime.ts    # controller + autosave debounce + vanish watcher
     open-doc.ts, markdown-gate.ts, open-note-flush.ts
                        # the open-document union, the raw/rich gate, the flush
-                       # that visits every registered pane
+                       # that visits every registered store
   comments/            # anchored-comment markers, ranges, gutter, store
   formulas/            # `{{…}}` pill entry, editing and recompute
   properties/          # the typed frontmatter panel
@@ -82,10 +81,11 @@ src/
   (`@repo/notes/markdown/remark-opaque`): shown as inert literal text and
   written back byte-for-byte. Only a real parse failure (a mismatched tag, an
   unbalanced brace) opens Raw, byte-exact, with the badge.
-- **View state is per pane, keyed by note path.** Two panes are two notes, so
-  the open-note store is an instance (`note/open-note-context.tsx`) and every
-  module holding view state — heading folds included — keys by the pane's own
-  path rather than a shared scope.
+- **View state keys by note path.** The workspace holds ONE open-note store
+  (an instance, `note/open-note-context.tsx`), and every module holding view
+  state — heading folds included — keys by the note's own path: a module
+  outlives the document it describes, so a late answer must not land on the
+  note that replaced it.
 
 ## Seams
 
@@ -95,8 +95,8 @@ src/
 - `host-io.ts` — the same boundary as a MODULE SINGLETON, because kit factories
   and paste handlers run outside React: vault reads, asset bytes in and out,
   the knowledge queries, and the change events that invalidate them.
-- `note/open-note-context.tsx` — ONE pane's open-note store. Every consumer
-  below a pane reads its own note through `useOpenNote(sel)`.
+- `note/open-note-context.tsx` — the open-note store. Every consumer under
+  the editor reads the open note through `useOpenNote(sel)`.
 
 ## Testing
 

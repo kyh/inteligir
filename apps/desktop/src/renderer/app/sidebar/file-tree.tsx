@@ -38,7 +38,7 @@ export interface FileTreeProps {
   entries: readonly VaultEntry[];
   loadState: TreeLoadState;
   /** Offered on `failed`, because a refusal the user cannot act on is a blank
-   *  pane with extra words. */
+   *  panel with extra words. */
   onRetry: () => void;
   openPath: string | null;
   onOpenFile: (path: string) => void;

@@ -1,5 +1,4 @@
-// The ⌘K Action Composer — fluid's ask-AI input floating over the note
-// a
+// The ⌘K Action Composer — fluid's ask-AI input floating over the note: a
 // prompt field with the open note attached as a removable context chip, more
 // notes @-mentionable into chips beside it, the mic riding along, send
 // starting the action. The action ATTACHES to the note
@@ -15,7 +14,7 @@ import { FileTextIcon, XIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { useWorkspace } from "../workspace-context";
-import type { ViewContextSource } from "../chat-model";
+import type { ViewContextSource } from "../thread-activity";
 import { spliceIntoComposer } from "../voice/dictation";
 import { MicButton } from "../voice/mic-button";
 import { useVoiceStatus } from "../voice-hooks";

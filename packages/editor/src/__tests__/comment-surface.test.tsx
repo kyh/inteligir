@@ -21,7 +21,7 @@ import { getLiveEditor } from "@repo/editor/live-editor";
 import { parseMarkdown } from "@repo/editor/markdown/markdown-doc";
 import { createOpenNoteStore } from "@repo/editor/note/open-note-store";
 
-import { PaneHarness } from "./pane-harness";
+import { EditorHarness } from "./editor-harness";
 
 const OPEN_PATH = "open.md";
 const OTHER_PATH = "other.md";
@@ -36,7 +36,7 @@ function openValue(): Value {
 function renderOpenNote() {
   const store = createOpenNoteStore();
   store.publishOpenPath(OPEN_PATH);
-  return render(<PaneHarness value={openValue()} store={store} livePath={OPEN_PATH} />);
+  return render(<EditorHarness value={openValue()} store={store} livePath={OPEN_PATH} />);
 }
 
 /** The rendered leaf carrying the commented words. */

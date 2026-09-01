@@ -39,6 +39,6 @@ export function useOpenNote<T>(selector: (state: OpenNoteState) => T): T {
 /** The note the editor currently holds — the identity everything under it
  * keys off (the sidecar, the fold set, the live editor). Null when no
  * document is held; a note still loading already names its path. */
-export function usePaneNotePath(): string | null {
+export function useOpenNotePath(): string | null {
   return useOpenNote((s) => openDocPath(s.openDoc));
 }

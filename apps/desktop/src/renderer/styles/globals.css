@@ -11,7 +11,7 @@
 
 :root {
   /* The editor's appearance, in the tokens the document reads — `.typeset-docs`
-     maps them onto the typeset scale, and the pane's title and Raw textarea
+     maps them onto the typeset scale, and the note title and Raw textarea
      read them directly. THIS BLOCK IS THE DEFAULT, and the only place each
      default value is written: `app/appearance.tsx` sets an inline property for
      an option the reader actually chose and clears it back to here otherwise,
@@ -26,7 +26,7 @@
   --editor-size: 14px;
   --editor-line-height: 1.75;
 
-  /* THE header band. The pane's top bar and the right panel's tab row are the
+  /* THE header band. The note's top bar and the right panel's tab row are the
      two headers that start at the shell's top edge, and their bottom borders
      read as one rule across the window — but they live in different stacking
      contexts (an inset and a positioned sidebar), so no ancestor can size them

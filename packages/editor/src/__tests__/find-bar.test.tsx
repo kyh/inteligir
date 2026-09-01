@@ -19,7 +19,7 @@ import {
 } from "@repo/editor/find-bar";
 import { createOpenNoteStore } from "@repo/editor/note/open-note-store";
 
-import { PaneHarness } from "./pane-harness";
+import { EditorHarness } from "./editor-harness";
 
 const STORE = createOpenNoteStore();
 
@@ -33,7 +33,7 @@ beforeAll(() => {
 describe("find bar", () => {
   it("highlights every case-insensitive match and tints the active one apart", () => {
     const holder = createRef<PlateEditor>();
-    const view = render(<PaneHarness value={VALUE} store={STORE} ref={holder} />);
+    const view = render(<EditorHarness value={VALUE} store={STORE} ref={holder} />);
     const editor = holder.current;
     expect(editor).not.toBeNull();
     if (editor === null) return;

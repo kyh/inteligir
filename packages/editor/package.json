@@ -19,7 +19,7 @@
     "./comments/comment-store": "./src/comments/comment-store.ts",
     "./cursor-overlay": "./src/cursor-overlay.tsx",
     "./editor-chrome": "./src/editor-chrome.tsx",
-    "./editor-pane": "./src/editor-pane.tsx",
+    "./editor-column": "./src/editor-column.tsx",
     "./editor-shortcuts": "./src/editor-shortcuts.ts",
     "./embed-url-dialog": "./src/embed-url-dialog.tsx",
     "./emoji-input": "./src/emoji-input.tsx",

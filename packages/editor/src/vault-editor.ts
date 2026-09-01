@@ -1,7 +1,7 @@
-// VaultEditorController — the open-file editing session for the Vault panel,
-// held outside React as a plain, synchronous, unit-testable state machine.
+// VaultEditorController — the open note's editing session, held outside React
+// as a plain, synchronous, unit-testable state machine.
 //
-// Why: inside the component this state is a pile of refs (selected/content/
+// Why: as component state this would be a pile of refs (selected/content/
 // dirty/saving/readSeq/root) that only sync on render, and every async edge
 // (save-vs-reload, open-vs-reload, root switch, delete-vs-save,
 // deleted-elsewhere) needs its own guard. Holding the canonical state in
@@ -10,8 +10,8 @@
 // deferred IO fakes.
 //
 // The controller owns: root, the open path, its content, dirty, and saving.
-// The React component owns pure UI (file list, filter, raw/rich mode) and the
-// autosave debounce, calling controller methods and subscribing for renders.
+// The note runtime above it owns the autosave debounce and the vanish
+// watcher, calling controller methods and subscribing for state.
 
 import type { DeleteVaultEntryResult } from "@repo/editor/host-io";
 

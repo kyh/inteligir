@@ -133,7 +133,7 @@ A nested tag #area/deep-dive lives here too.
 `,
   // WP2 vocabulary notes — every kit exercisable in the harness. All four are
   // CANONICAL (the corpus test pins that): editing them must never flip the
-  // pane to Raw.
+  // note to Raw.
   "components-playground.md": `# Components playground
 
 One of each vocabulary block, exercisable in the harness.

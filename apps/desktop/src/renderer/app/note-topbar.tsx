@@ -1,4 +1,4 @@
-// The pane's top bar: note navigation on the left, the note's
+// The note's top bar: note navigation on the left, the note's
 // utility cluster on the right. Share-with-agent and export live in the
 // overflow menu rather than as bar buttons — the bar carries only what a
 // reader touches constantly.
@@ -30,7 +30,7 @@ import { shareWithAgentText } from "./actions/share-with-agent";
 import { socketOrigin } from "./socket-origin";
 
 export interface NoteTopbarProps {
-  /** The focused note, or null when nothing is open. */
+  /** The open note, or null when nothing is open. */
   path: string | null;
   /** The LEFT rail's state and toggle, passed explicitly: this bar renders
    *  inside the right panel's provider, so `useSidebar()` here resolves to the
@@ -42,7 +42,7 @@ export interface NoteTopbarProps {
   onBack: () => void;
   onForward: () => void;
   onOpenSearch: () => void;
-  /** Open (unresolved) comment threads on the focused note. */
+  /** Open (unresolved) comment threads on the open note. */
   commentCount: number;
   onOpenComments: () => void;
   onExportPdf: () => void;

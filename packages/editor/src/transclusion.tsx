@@ -376,7 +376,7 @@ function TransclusionBody({ content }: { content: string }) {
 export default function Transclusion({ body }: { body: string }) {
   const { resolveWikiTarget } = useVaultListing();
   const { openFile } = useVaultActions();
-  // The cycle chain roots at the note HOSTING this embed — this pane's own
+  // The cycle chain roots at the note HOSTING this embed — this note's own
   // open note.
   const hostPath = useOpenNote((s) => s.editor.path);
   const scope = useContext(TransclusionScopeContext);

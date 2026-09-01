@@ -7,7 +7,7 @@ import type { Thread } from "@repo/api/local/threads/threads-schema";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CommandPalette } from "../palette/command-palette";
-import { THREAD_ACTIVITY_LABELS, threadActivity } from "../chat-model";
+import { THREAD_ACTIVITY_LABELS, threadActivity } from "../thread-activity";
 
 afterEach(cleanup);
 
@@ -86,7 +86,7 @@ describe("only one module reads a thread's lifecycle", () => {
     expect(sourceOf(relative)).not.toMatch(LIFECYCLE);
   });
 
-  it("names chat-model.ts as the one that does", () => {
-    expect(sourceOf("apps/desktop/src/renderer/app/chat-model.ts")).toMatch(LIFECYCLE);
+  it("names thread-activity.ts as the one that does", () => {
+    expect(sourceOf("apps/desktop/src/renderer/app/thread-activity.ts")).toMatch(LIFECYCLE);
   });
 });

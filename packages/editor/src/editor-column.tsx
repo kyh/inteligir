@@ -5,7 +5,7 @@ import { cn } from "@repo/ui/lib/utils";
 
 import { EDITOR_COLUMN_PX } from "@repo/editor/editor-chrome";
 import { MarkdownEditor } from "@repo/editor/markdown-editor";
-import { useOpenNote, usePaneNotePath } from "@repo/editor/note/open-note-context";
+import { useOpenNote, useOpenNotePath } from "@repo/editor/note/open-note-context";
 import { registerNoteTitleFocus } from "@repo/editor/note-title-focus";
 import { useVaultActions } from "@repo/editor/host";
 import { checkNoteName, noteNameErrorMessage } from "@repo/notes/knowledge/note-name";
@@ -14,16 +14,15 @@ import { basenamePath } from "@repo/notes/knowledge/vault-path";
 /**
  * The editor body: the open note's page title + document. One mounted editor
  * — opening another note replaces it (fresh undo history and scroll,
- * potion-style). The per-file controls (raw/rich, delete, status) live in the
- * shell header; this is just the scrolling document. Bottom padding clears the
- * pinned composer.
+ * potion-style). This is just the scrolling document; bottom padding clears
+ * the pinned composer.
  */
-export function EditorPane() {
-  // Narrow selectors: the pane's mount decision depends on the doc's
+export function EditorColumn() {
+  // Narrow selectors: the column's mount decision depends on the doc's
   // kind/path/surface — never on the content buffer, so typing re-renders
-  // only the NotePane below.
+  // only the NoteDocument below.
   const kind = useOpenNote((s) => s.openDoc.kind);
-  const docPath = usePaneNotePath();
+  const docPath = useOpenNotePath();
   const showRich = useOpenNote(
     (s) => s.openDoc.kind === "markdown" && s.openDoc.surface.mode === "rich",
   );
@@ -41,11 +40,11 @@ export function EditorPane() {
   // handled above — the guard keeps the narrowing explicit.)
   if (kind === "loading" || docPath === null) return null;
 
-  // Keyed by path: a fresh pane (undo history, title contentEditable) per note.
-  return <NotePane key={docPath} path={docPath} showRich={showRich} />;
+  // Keyed by path: a fresh document (undo history, title contentEditable) per note.
+  return <NoteDocument key={docPath} path={docPath} showRich={showRich} />;
 }
 
-function NotePane({ path, showRich }: { path: string; showRich: boolean }) {
+function NoteDocument({ path, showRich }: { path: string; showRich: boolean }) {
   // The ONE content subscriber: the editor legitimately re-renders per
   // keystroke (Raw) / serialize settle (Rich).
   const content = useOpenNote((s) => s.editor.content);
@@ -60,12 +59,12 @@ function NotePane({ path, showRich }: { path: string; showRich: boolean }) {
   // note switches). We set the text imperatively when the file (re)names;
   // the browser owns it while editing.
   const titleRef = useRef<HTMLHeadingElement>(null);
-  const paneRef = useRef<HTMLDivElement>(null);
+  const columnRef = useRef<HTMLDivElement>(null);
 
-  // A fresh pane (keyed by path) starts reading from the top: the stamped
+  // A fresh document (keyed by path) starts reading from the top: the stamped
   // scroller ancestor survives the swap, so it must be reset explicitly.
   useLayoutEffect(() => {
-    const scroller = paneRef.current?.closest("[data-editor-scroller]");
+    const scroller = columnRef.current?.closest("[data-editor-scroller]");
     if (scroller) scroller.scrollTop = 0;
   }, []);
   useEffect(() => {
@@ -105,7 +104,7 @@ function NotePane({ path, showRich }: { path: string; showRich: boolean }) {
       return;
     }
     void renameEntry(path, `${dir}${verdict.name}`).then((ok) => {
-      // On success the path changes and the renamed note mounts a fresh pane;
+      // On success the path changes and the renamed note mounts a fresh document;
       // on failure roll the contentEditable back to the real filename so the
       // title never shows a name that was never saved.
       if (!ok && titleRef.current) titleRef.current.textContent = displayName;
@@ -116,7 +115,7 @@ function NotePane({ path, showRich }: { path: string; showRich: boolean }) {
   // Title settle rails beyond blur/Enter: `editingRef` is armed on focus and
   // disarmed by the element's own blur-commit, so these only fire for edits
   // the normal path never saw. (1) Window blur — ⌘Tab away mid-edit routes
-  // through the element blur, i.e. the normal commit. (2) Pane unmount — an
+  // through the element blur, i.e. the normal commit. (2) Document unmount — an
   // external note switch/teardown while the title is still focused commits
   // the pending text directly. A ⌘Q straight from the title remains the
   // documented edge: the async rename can't finish during quit (content is
@@ -145,12 +144,14 @@ function NotePane({ path, showRich }: { path: string; showRich: boolean }) {
 
   // Enter in the title drops the caret into the body (potion behavior): the
   // editor's editable in Rich mode, the textarea in Raw. The body mounts as a
-  // sibling inside paneRef, so the query never escapes this pane.
+  // sibling inside columnRef, so the query never escapes this column.
   const onTitleKeyDown = (e: KeyboardEvent<HTMLHeadingElement>) => {
     if (e.key === "Enter") {
       e.preventDefault();
       e.currentTarget.blur();
-      paneRef.current?.querySelector<HTMLElement>('[data-slate-editor="true"], textarea')?.focus();
+      columnRef.current
+        ?.querySelector<HTMLElement>('[data-slate-editor="true"], textarea')
+        ?.focus();
     }
     if (e.key === "Escape") {
       e.preventDefault();
@@ -162,11 +163,11 @@ function NotePane({ path, showRich }: { path: string; showRich: boolean }) {
   // potion-style column: the editable (PlateContent) carries the centered
   // 700px column padding itself (EDITOR_COLUMN_PX — see editor-chrome.tsx:
   // the drag gutter must live inside its clip); the title and the Raw textarea
-  // apply the same constant so all three align byte-exact. The pane owns only
+  // apply the same constant so all three align byte-exact. The column owns only
   // the vertical padding — pb-72 is the breathing room below the last block
   // (spec §4.1).
   return (
-    <div ref={paneRef} className="flex w-full flex-1 cursor-text flex-col pt-10 pb-72 print:pb-0">
+    <div ref={columnRef} className="flex w-full flex-1 cursor-text flex-col pt-10 pb-72 print:pb-0">
       <h1
         ref={titleRef}
         contentEditable
@@ -176,7 +177,7 @@ function NotePane({ path, showRich }: { path: string; showRich: boolean }) {
           editingRef.current = true;
         }}
         onBlur={(e) => {
-          // Disarm BEFORE committing: a successful rename remounts the pane,
+          // Disarm BEFORE committing: a successful rename remounts the document,
           // and the unmount flush must not re-commit the same edit against
           // the now-stale old path.
           editingRef.current = false;

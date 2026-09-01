@@ -1,7 +1,7 @@
 // The editor's appearance: the CSS custom properties the document's typography
 // reads (`--editor-font`/`-size`/`-line-height`) plus the measure every column
 // lines up on (`--editor-width`). `.typeset-docs` maps the first three onto the
-// typeset scale the WYSIWYG renders through; the pane's title and its Raw
+// typeset scale the WYSIWYG renders through; the note title and its Raw
 // textarea read them directly.
 //
 // ONE funnel reaches the document. Each axis is a small table of named options,

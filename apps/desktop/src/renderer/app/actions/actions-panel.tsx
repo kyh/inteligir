@@ -27,7 +27,7 @@ import { useQueryClient } from "@tanstack/react-query";
 
 import { orpc } from "../api";
 import { ApprovalCard } from "./approval-card";
-import { THREAD_ACTIVITY_LABELS, threadActivity, type ThreadActivity } from "../chat-model";
+import { THREAD_ACTIVITY_LABELS, threadActivity, type ThreadActivity } from "../thread-activity";
 import { sendToThread } from "./send-to-thread";
 import { useThreadDetail, useThreads, useThreadTimeline } from "./thread-hooks";
 import { RelatedInline } from "./related-section";
