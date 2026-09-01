@@ -1,13 +1,10 @@
 import { ClientOnly, createFileRoute } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
-import { z } from "zod";
 
 import { HeroOrb } from "@/components/hero-orb";
+import { createDownloadUrlReader } from "@/lib/download-url";
 import { SiteHeader } from "@/components/site-header";
 import { ThemeProvider } from "@/components/theme-provider";
-
-const GITHUB_REPO = "kyh/inteligir";
-const CACHE_TTL_MS = 60 * 60 * 1000;
 
 /** Geometry shared by both arms of the download CTA; each arm adds its own
  *  palette. Themed tokens rather than literal hex — dark is the default theme,
@@ -23,53 +20,16 @@ function MacLogoIcon({ className }: { className?: string }) {
   );
 }
 
-// Isolate-local memo: one GitHub API hit per worker isolate per hour. A null
-// url means no downloadable release exists — the page renders "coming soon"
-// until the first desktop release is published.
-let cached: { url: string | null; expires: number } | null = null;
-
-/** A GitHub release, read for the only two asset fields this page uses. The
- * list is `unknown` element-wise on purpose: one malformed entry must not hide
- * the real `.dmg` behind a whole-payload refusal. */
-const releaseSchema = z.looseObject({ assets: z.array(z.unknown()) });
-const releaseAssetSchema = z.looseObject({
-  name: z.string(),
-  browser_download_url: z.string(),
+// Isolate-local memo: at most one GitHub API hit per TTL window, whichever
+// way each read settles (`download-url.ts` owns the policy and the reasons).
+// A null url means no downloadable release exists — the page renders "coming
+// soon" until the first desktop release is published.
+const readDownloadUrl = createDownloadUrlReader({
+  fetch: (input, init) => fetch(input, init),
+  now: () => Date.now(),
 });
 
-type Release = z.infer<typeof releaseSchema>;
-
-/** The `.dmg` asset's download URL from a parsed GitHub release, or null when
- * the release publishes no `.dmg`. */
-function findDmgUrl(release: Release): string | null {
-  for (const entry of release.assets) {
-    const asset = releaseAssetSchema.safeParse(entry);
-    if (asset.success && asset.data.name.endsWith(".dmg")) return asset.data.browser_download_url;
-  }
-  return null;
-}
-
-const getDownloadUrl = createServerFn().handler(async (): Promise<string | null> => {
-  if (cached && cached.expires > Date.now()) return cached.url;
-
-  try {
-    const res = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/releases/latest`, {
-      headers: { Accept: "application/vnd.github+json", "User-Agent": "inteligir-web" },
-    });
-    if (!res.ok) return null;
-
-    // GitHub's response is untrusted input: PARSE it rather than annotate it.
-    // Annotating `await res.json()` with the expected shape is an unchecked
-    // assertion — a shape change then surfaces as a TypeError swallowed by the
-    // outer catch, which reads as "GitHub is down" instead of "we mis-parsed".
-    const release = releaseSchema.safeParse(await res.json());
-    const url = release.success ? findDmgUrl(release.data) : null;
-    cached = { url, expires: Date.now() + CACHE_TTL_MS };
-    return url;
-  } catch {
-    return null;
-  }
-});
+const getDownloadUrl = createServerFn().handler(() => readDownloadUrl());
 
 export const Route = createFileRoute("/")({
   loader: () => getDownloadUrl(),
