@@ -56,10 +56,11 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
     // `/cloud` half is a deployed Worker answering installs that may be months
     // stale, and may never break.
     //
-    // The @repo/notes edge is one grammar the contract validates against —
-    // the vault path (`knowledge/vault-path`) — and it is narrow ON PURPOSE:
-    // the module is parser-free, so refusing a bad value in the contract
-    // cannot drag remark into every client bundle. Widening this edge to a
+    // The @repo/notes edge is the grammars the contract validates against —
+    // the vault path (`knowledge/vault-path`) and the comment id and source
+    // (`comments/sidecar-schema`) — and it is narrow ON PURPOSE: both modules
+    // are parser-free, so refusing a bad value in the contract cannot drag
+    // remark into every client bundle. Widening this edge to a
     // remark-carrying module is the regression to catch.
     // `/local` reaching `/cloud` inside this package is ONE fact, and it is a
     // wire fact: the device name `cloud.pairBegin` accepts is the name the

@@ -10,7 +10,13 @@ import {
   threadIds,
 } from "../comment-threads";
 import { markerRootIds } from "../marker-ids";
-import { parseSidecar, serializeSidecar, type CommentSidecar } from "../sidecar-schema";
+import {
+  COMMENT_ID_RE,
+  mintCommentId,
+  parseSidecar,
+  serializeSidecar,
+  type CommentSidecar,
+} from "../sidecar-schema";
 
 const AT = 1_707_900_000;
 
@@ -176,5 +182,16 @@ describe("transforms", () => {
     expect(deleted.removedIds.toSorted()).toEqual(["c1", "c1-r1", "c1-r2"]);
     expect(Object.keys(deleted.sidecar)).toEqual(["b9"]);
     expect(threadIds(SIDECAR, "c1").toSorted()).toEqual(["c1", "c1-r1", "c1-r2"]);
+  });
+});
+
+describe("mintCommentId", () => {
+  it("mints ids the marker grammar accepts, from the lowercase alphabet", () => {
+    const minted = Array.from({ length: 50 }, () => mintCommentId());
+    for (const id of minted) {
+      expect(id).toMatch(/^[a-z0-9]{10}$/);
+      expect(id).toMatch(COMMENT_ID_RE);
+    }
+    expect(new Set(minted).size).toBe(minted.length);
   });
 });

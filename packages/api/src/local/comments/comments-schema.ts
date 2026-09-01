@@ -15,14 +15,11 @@
 
 import { z } from "zod";
 
+import { commentIdSchema, commentSourceSchema } from "@repo/notes/comments/sidecar-schema";
+
 import { vaultPathSchema } from "../vault/vault-schema";
 
 export const COMMENTS_THREADS_MAX = 500;
-
-export const commentSourceSchema = z.enum(["user", "agent", "external"]);
-
-/** The marker grammar's own alphabet — every id could legally anchor. */
-export const commentIdSchema = z.string().regex(/^[A-Za-z0-9_-]+$/);
 
 export const commentEntryWireSchema = z
   .object({
@@ -73,6 +70,10 @@ export type CommentsResponse = z.infer<typeof commentsResponseSchema>;
 export const commentsListRequestSchema = z.object({ path: vaultPathSchema }).strict();
 export type CommentsListRequest = z.infer<typeof commentsListRequestSchema>;
 
+/** Who is writing. The CLI says `agent` from an agent shell; a caller that
+ * says nothing is signed `user` by the server. */
+const authorSource = commentSourceSchema.optional();
+
 export const commentsAddRequestSchema = z
   .object({
     path: vaultPathSchema,
@@ -80,6 +81,7 @@ export const commentsAddRequestSchema = z
      * before or after this call — `anchored` derives, so order cannot lie). */
     id: commentIdSchema,
     text: z.string().min(1),
+    source: authorSource,
   })
   .strict();
 export type CommentsAddRequest = z.infer<typeof commentsAddRequestSchema>;
@@ -90,6 +92,7 @@ export const commentsReplyRequestSchema = z
     id: commentIdSchema,
     parentId: commentIdSchema,
     text: z.string().min(1),
+    source: authorSource,
   })
   .strict();
 export type CommentsReplyRequest = z.infer<typeof commentsReplyRequestSchema>;
@@ -99,6 +102,7 @@ export const commentsResolveRequestSchema = z
     path: vaultPathSchema,
     id: commentIdSchema,
     resolved: z.boolean(),
+    source: authorSource,
   })
   .strict();
 export type CommentsResolveRequest = z.infer<typeof commentsResolveRequestSchema>;

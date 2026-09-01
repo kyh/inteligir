@@ -8,11 +8,7 @@ import { serializeMd } from "@platejs/markdown";
 
 import { BASE_KIT } from "@repo/editor/kits/base-kit";
 import { MD_STRINGIFY } from "@repo/notes/markdown/md-plugins";
-import {
-  insertCommentMarkers,
-  mintCommentId,
-  removeCommentMarkers,
-} from "@repo/editor/comments/comment-markers";
+import { insertCommentMarkers, removeCommentMarkers } from "@repo/editor/comments/comment-markers";
 import { holdsCommentMarkers, scanBlockComments } from "@repo/editor/comments/comment-ranges";
 import { parseMarkdown } from "@repo/editor/markdown/markdown-doc";
 
@@ -53,11 +49,6 @@ describe("comment markers", () => {
     );
     removeCommentMarkers(editor, ["a", "solo"]);
     expect(bytes(editor)).toBe("A %%i:b:start%%shared range%%i:b:end%% and one.\n");
-  });
-
-  it("mints ids in the marker alphabet", () => {
-    const id = mintCommentId();
-    expect(id).toMatch(/^[a-z0-9]{10}$/);
   });
 });
 

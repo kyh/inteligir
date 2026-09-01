@@ -6,6 +6,7 @@
 import type { ThreadTimeline } from "@repo/api/local/thread-timeline";
 import { VAULT_MAX_CONTENT_LENGTH } from "@repo/api/local/vault/vault-schema";
 import { afterEach, describe, expect, it } from "vitest";
+import { z } from "zod";
 import {
   FIXTURE_REVISION_SHA,
   makeFixtureState,
@@ -495,6 +496,70 @@ describe("status, guide and help", () => {
     expect(result.code).toBe(0);
     expect(result.stdout).toContain("INTELIGIR_DATA_DIR");
     expect(result.stdout).toContain("INTELIGIR_THREAD_ID:  thr_ctx");
+  });
+});
+
+/** Every source the fixture recorded on the seeded note, roots then replies,
+ *  in the order they were written. */
+function sourcesOn(state: FixtureState) {
+  return (state.comments.get("notes/hello.md") ?? []).flatMap((thread) =>
+    [thread.root.source].concat(thread.replies.map((reply) => reply.entry.source)),
+  );
+}
+
+const addedIdSchema = z.object({ id: z.string() });
+
+describe("comment verbs sign their entries", () => {
+  it("signs `agent` inside an agent shell and `user` from a plain one", async () => {
+    const state = seededState();
+    const server = await boot(state);
+
+    const fromAgent = await runCliForTest({
+      argv: ["comment", "add", "notes/hello.md", "Needs a second pass"],
+      baseUrl: server.baseUrl,
+      env: { INTELIGIR_THREAD_ID: "thr_ctx" },
+    });
+    expect(fromAgent.code).toBe(0);
+    const fromShell = await runCliForTest({
+      argv: ["comment", "add", "notes/hello.md", "I agree"],
+      baseUrl: server.baseUrl,
+    });
+    expect(fromShell.code).toBe(0);
+
+    expect(sourcesOn(state)).toEqual(["agent", "user"]);
+  });
+
+  it("takes --source over the shell's own answer, on replies too", async () => {
+    const state = seededState();
+    const server = await boot(state);
+
+    const added = await runCliForTest({
+      argv: ["comment", "add", "notes/hello.md", "scripted", "--source", "external", "--json"],
+      baseUrl: server.baseUrl,
+      env: { INTELIGIR_THREAD_ID: "thr_ctx" },
+    });
+    expect(added.code).toBe(0);
+    const rootId = addedIdSchema.parse(JSON.parse(added.stdout)).id;
+
+    const replied = await runCliForTest({
+      argv: ["comment", "reply", "notes/hello.md", rootId, "and again", "--source", "user"],
+      baseUrl: server.baseUrl,
+      env: { INTELIGIR_THREAD_ID: "thr_ctx" },
+    });
+    expect(replied.code).toBe(0);
+
+    expect(sourcesOn(state)).toEqual(["external", "user"]);
+  });
+
+  it("refuses a source outside the vocabulary before dialing", async () => {
+    const state = seededState();
+    const server = await boot(state);
+    const result = await runCliForTest({
+      argv: ["comment", "add", "notes/hello.md", "x", "--source", "robot"],
+      baseUrl: server.baseUrl,
+    });
+    expect(result.code).not.toBe(0);
+    expect(sourcesOn(state)).toEqual([]);
   });
 });
 

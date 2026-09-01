@@ -4,16 +4,35 @@
 // the sidecar, so `add` from here starts an UNANCHORED thread the panel
 // surfaces as such, and `remove` answers which marker ids the caller still
 // owes the note.
+//
+// Every writing verb SIGNS its entry: `agent` inside an agent shell, `user`
+// from a terminal, and `--source` for a script that is neither. The served
+// guide tells the agent to comment through these verbs, so a verb that could
+// not say who it is would attribute every review note to the user.
 
-import { randomBytes } from "node:crypto";
 import { defineCommand } from "citty";
 
 import type { CommentThreadWire } from "@repo/api/local/comments/comments-schema";
-import { apiFor, type CliDeps } from "../context";
+import {
+  COMMENT_SOURCES,
+  mintCommentId,
+  type CommentSource,
+} from "@repo/notes/comments/sidecar-schema";
+import { apiFor, isAgentShell, type CliDeps } from "../context";
 import { jsonArg, outputJson, writeLines } from "../output";
 
-function mintCommentId(): string {
-  return `c${randomBytes(5).toString("hex")}`;
+/** citty's enum type infers the parsed union off a MUTABLE options array, so
+ *  the readonly tuple is spread rather than passed. */
+const sourceArg = {
+  source: {
+    type: "enum" as const,
+    options: [...COMMENT_SOURCES],
+    description: "Who is writing (default: agent inside an agent shell, else user)",
+  },
+};
+
+function sourceFor(deps: CliDeps, override: CommentSource | undefined): CommentSource {
+  return override ?? (isAgentShell(deps.env) ? "agent" : "user");
 }
 
 function describeThread(thread: CommentThreadWire): string[] {
@@ -58,12 +77,18 @@ export function commentCommand(deps: CliDeps) {
         args: {
           path: { type: "positional", required: true, description: "Vault-relative note path" },
           text: { type: "positional", required: true, description: "The comment text" },
+          ...sourceArg,
           ...jsonArg,
         },
         run: async ({ args }) => {
           const api = apiFor(deps);
           const id = mintCommentId();
-          const body = await api.comments.add({ id, path: args.path, text: args.text });
+          const body = await api.comments.add({
+            id,
+            path: args.path,
+            source: sourceFor(deps, args.source),
+            text: args.text,
+          });
           if (outputJson(args, { id, ...body })) {
             return;
           }
@@ -77,6 +102,7 @@ export function commentCommand(deps: CliDeps) {
           path: { type: "positional", required: true, description: "Vault-relative note path" },
           parent: { type: "positional", required: true, description: "Root or reply id" },
           text: { type: "positional", required: true, description: "The reply text" },
+          ...sourceArg,
           ...jsonArg,
         },
         run: async ({ args }) => {
@@ -86,6 +112,7 @@ export function commentCommand(deps: CliDeps) {
             id,
             parentId: args.parent,
             path: args.path,
+            source: sourceFor(deps, args.source),
             text: args.text,
           });
           if (outputJson(args, { id, ...body })) {
@@ -101,12 +128,18 @@ export function commentCommand(deps: CliDeps) {
           path: { type: "positional", required: true, description: "Vault-relative note path" },
           id: { type: "positional", required: true, description: "The thread's root id" },
           reopen: { type: "boolean", description: "Reopen instead of resolving" },
+          ...sourceArg,
           ...jsonArg,
         },
         run: async ({ args }) => {
           const api = apiFor(deps);
           const resolved = args.reopen !== true;
-          const body = await api.comments.resolve({ id: args.id, path: args.path, resolved });
+          const body = await api.comments.resolve({
+            id: args.id,
+            path: args.path,
+            resolved,
+            source: sourceFor(deps, args.source),
+          });
           if (outputJson(args, body)) {
             return;
           }

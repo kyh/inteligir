@@ -56,6 +56,13 @@ export function contextThreadId(env: NodeJS.ProcessEnv): string | undefined {
   return trimmed.length === 0 ? undefined : trimmed;
 }
 
+/** Whether this invocation runs inside an agent's shell. The thread id is the
+ *  only signal — the runtime injects it there and nowhere else — so a verb
+ *  that signs its work reads authorship off it. */
+export function isAgentShell(env: NodeJS.ProcessEnv): boolean {
+  return contextThreadId(env) !== undefined;
+}
+
 /** The `--help` epilogue: what this invocation would actually dial and run in. */
 export function describeContext(env: NodeJS.ProcessEnv): string {
   const dataDir = env[DATA_DIR_ENV_VAR]?.trim();

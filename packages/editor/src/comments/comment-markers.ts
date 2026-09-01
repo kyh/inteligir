@@ -5,16 +5,6 @@ import { ElementApi, RangeApi, type SlateEditor, type TElement } from "platejs";
 
 import { stringProp } from "@repo/editor/node-props";
 
-const ID_ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789";
-
-/** A fresh root id in the marker grammar's alphabet — 10 chars of the
- * lowercase set, collision-checked by the caller against known ids only in
- * the statistical sense (36^10 makes a clash a non-event). */
-export function mintCommentId(): string {
-  const bytes = crypto.getRandomValues(new Uint8Array(10));
-  return [...bytes].map((byte) => ID_ALPHABET[byte % ID_ALPHABET.length]).join("");
-}
-
 function marker(id: string, edge: "start" | "end"): TElement {
   return { children: [{ text: "" }], edge, ids: id, type: "commentMarker" };
 }

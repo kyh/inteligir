@@ -22,14 +22,10 @@ import { usePaneNotePath } from "@repo/editor/note/open-note-context";
 import { cn } from "@repo/ui/lib/utils";
 import { Button } from "@repo/ui/components/button";
 import { Textarea } from "@repo/ui/components/textarea";
+import { mintCommentId } from "@repo/notes/comments/sidecar-schema";
 
 import { holdsCommentMarkers, scanBlockComments } from "./comment-ranges";
-import {
-  findCommentMarker,
-  insertCommentMarkers,
-  mintCommentId,
-  removeCommentMarkers,
-} from "./comment-markers";
+import { findCommentMarker, insertCommentMarkers, removeCommentMarkers } from "./comment-markers";
 import { setPendingCreate, useCommentMeta, useCommentSurface } from "./comment-store";
 
 function CommentRangeLeaf(props: PlateLeafProps) {

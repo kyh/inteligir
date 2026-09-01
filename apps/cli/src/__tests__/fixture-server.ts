@@ -198,7 +198,7 @@ const commentsRouter = {
       anchored: false,
       replies: [],
       resolved: false,
-      root: { createdAt: 1, source: "user", text: input.text, updatedAt: 1 },
+      root: { createdAt: 1, source: input.source ?? "user", text: input.text, updatedAt: 1 },
       rootId: input.id,
     });
     context.comments.set(input.path, threads);
@@ -211,7 +211,7 @@ const commentsRouter = {
       throw errors.NOT_FOUND({ message: `no thread ${input.parentId}` });
     }
     thread.replies.push({
-      entry: { createdAt: 2, source: "user", text: input.text, updatedAt: 2 },
+      entry: { createdAt: 2, source: input.source ?? "user", text: input.text, updatedAt: 2 },
       id: input.id,
     });
     return commentsBody(context, input.path);

@@ -123,6 +123,9 @@ editing files directly).
 - \`inteligir comment reply <path> <parent-id> <text>\` — reply in a thread.
 - \`inteligir comment resolve <path> <id>\` — resolve a thread
   (\`--reopen\` reverses it).
+- Each of those three signs its entry: \`agent\` inside an agent shell
+  (\`INTELIGIR_THREAD_ID\` set), \`user\` otherwise;
+  \`--source <user|agent|external>\` overrides.
 - \`inteligir comment remove <path> <id>\` — delete a thread's entries; the
   answer names the marker ids you still owe the note body.
 

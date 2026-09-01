@@ -4,24 +4,25 @@
 // the ids whose markers the editor must strip.
 //
 // ONE TRANSLATION, not one per handler. Every refusal these procedures can
-// raise is a `SidecarInvalidError`, a `CommentRefusedError`, or one the VAULT
-// raised — the sidecar is a file in it — and the vault's half is deferred to
-// `vault-refusals.ts` rather than restated here. Restating it is what made a
-// sidecar `conflict` answer 500 while `vault.write` answered 409 for the same
-// error. WHICH classes a given procedure can raise is still declared per row —
-// in the contract, where the client reads it.
+// raise is a `SidecarInvalidError`, a `SidecarConflictError`, a
+// `CommentRefusedError`, or one the VAULT raised — the sidecar is a file in
+// it — and the vault's half is deferred to `vault-refusals.ts` rather than
+// restated here. Restating it is what made a sidecar `conflict` answer 500
+// while `vault.write` answered 409 for the same error. WHICH classes a given
+// procedure can raise is still declared per row — in the contract, where the
+// client reads it.
 
 import { ORPCError } from "@orpc/server";
 
 import { base, refusals } from "../orpc";
 import { vaultWireError } from "../vault/vault-refusals";
 import { VaultServiceError } from "../vault/vault-service";
-import { CommentRefusedError, SidecarInvalidError } from "./comments-service";
+import { CommentRefusedError, SidecarConflictError, SidecarInvalidError } from "./comments-service";
 
 /** A comments refusal as the wire class, or null for anything neither this
  *  layer nor the vault has a name for — which is a 500, and should be. */
 function asWireError(cause: unknown) {
-  if (cause instanceof SidecarInvalidError) {
+  if (cause instanceof SidecarInvalidError || cause instanceof SidecarConflictError) {
     return new ORPCError("CONFLICT", { message: cause.message });
   }
   if (cause instanceof CommentRefusedError) {

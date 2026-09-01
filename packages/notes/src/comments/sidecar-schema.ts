@@ -21,6 +21,19 @@ export type CommentSource = z.infer<typeof commentSourceSchema>;
 export const COMMENT_ID_RE = /^[A-Za-z0-9_-]+$/;
 export const commentIdSchema = z.string().regex(COMMENT_ID_RE);
 
+const MINTED_ID_ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789";
+const MINTED_ID_LENGTH = 10;
+
+/** A fresh comment id: 10 chars of the lowercase marker alphabet, minted the
+ * same way by the editor and the CLI so every client's ids share one grammar.
+ * Collision is a non-event in the statistical sense (36^10), so no caller
+ * checks. `globalThis.crypto` rather than `node:crypto` because this package
+ * is platform-neutral. */
+export function mintCommentId(): string {
+  const bytes = globalThis.crypto.getRandomValues(new Uint8Array(MINTED_ID_LENGTH));
+  return [...bytes].map((byte) => MINTED_ID_ALPHABET[byte % MINTED_ID_ALPHABET.length]).join("");
+}
+
 export const commentEntrySchema = z.looseObject({
   text: z.string(),
   /** Unix seconds; never changed after creation. */
