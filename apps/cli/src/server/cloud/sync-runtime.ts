@@ -34,17 +34,13 @@
 // — except a credential the cloud has refused, which is the one failure a
 // retry cannot fix.
 
-import { randomBytes } from "node:crypto";
 import { hostname } from "node:os";
 import { CLAIM_DEFAULT_LIMIT } from "@repo/api/cloud/captures/captures-schema";
 import { SYNC_OUTBOX_CODES, SYNC_TERMINAL_CODES } from "@repo/api/cloud/errors";
 import {
-  buildPairApproveUrl,
-  DEVICE_NAME_MAX_LENGTH,
-  generatePkceVerifier,
-  PAIR_STATE_BYTES,
-  pkceChallengeS256,
-} from "@repo/api/cloud/pairing/pairing-schema";
+  createPairingFlow,
+  type PairCompletion as PairingMachineCompletion,
+} from "@repo/api/cloud/pairing/pairing-flow";
 import { planPage, type LogPlanStep } from "@repo/api/cloud/sync/plan-page";
 import { PULL_DEFAULT_LIMIT } from "@repo/api/cloud/sync/sync-schema";
 import type { DbConnection, DbTransaction } from "@repo/db/connection";
@@ -70,7 +66,6 @@ import { appendToInbox, APPLIED_CAPTURE_RETENTION_MS, type CaptureVault } from "
 import {
   createCloudClient,
   describeCloudFailure,
-  redeemDevice,
   type CloudClient,
   type CloudEndpoint,
   type CloudFailure,
@@ -87,7 +82,6 @@ import {
 } from "./credential-store";
 import { ackPushBatch, enqueueThreadEvents, takePushBatch } from "./outbox";
 import { messageOf } from "../error-message";
-import { constantTimeEqual } from "../constant-time-equal";
 
 /** The fallback cadence. The socket is what makes sync feel immediate; this is
  *  what makes it CORRECT when the socket is down, so it is deliberately slow. */
@@ -135,41 +129,13 @@ export interface SyncedEventSink {
 }
 
 /**
- * How long an approval this app started stays completable.
- *
- * Its own constant rather than the code's TTL: the two bound different things.
- * The code's clock starts when the user presses Approve; this one starts a
- * whole sign-in round trip earlier, and the reason it is bounded at all is that
- * a `state` left armed forever is a callback URL that keeps working long after
- * the user forgot they asked for one.
- */
-const PENDING_PAIR_TTL_MS = 10 * 60_000;
-
-/** The approval this app is waiting on. ONE slot: a second `begin` is the user
- *  pressing the button again, and two live states would mean an approval could
- *  complete a request nobody remembers making. */
-interface PendingPair {
-  state: string;
-  /** The PKCE secret. Kept HERE, never on the wire the browser rides: the
-   *  challenge it hashes to is all that travels, and redeem needs this back to
-   *  prove the code reached the app that began the pairing. */
-  verifier: string;
-  deviceName: string;
-  expiresAt: number;
-}
-
-/**
- * What the loopback callback did. Each refusal is its own member because each
- * one gets its own sentence on the page a browser lands on — "nothing was
- * waiting for this" and "that took too long" are different things to have done
- * wrong, and a single `false` would render as the same shrug for both.
+ * What the loopback callback did — the machine's own refusals, each of which
+ * gets its own sentence on the page a browser lands on, with the paired arm
+ * carrying this runtime's status instead of the bare credential.
  */
 export type PairCompletion =
   | { kind: "paired"; status: CloudStatusResponse }
-  | { kind: "no-pending" }
-  | { kind: "state-mismatch" }
-  | { kind: "expired" }
-  | { kind: "refused"; failure: CloudFailure };
+  | Exclude<PairingMachineCompletion, { kind: "paired" }>;
 
 /** The seams a suite replaces to drive this whole runtime without a network.
  *  Absent in production, where every default is the real thing. */
@@ -258,19 +224,6 @@ interface PassContext {
   deviceId: string;
 }
 
-/**
- * What this machine calls itself on the account, when nobody says otherwise.
- *
- * Bounded and defaulted rather than trusted: `hostname()` can answer an empty
- * string on a misconfigured box and can exceed the cloud's own ceiling, and
- * either one would be refused by a schema several steps later — as a shape
- * error about a name the user never typed.
- */
-function defaultDeviceName(): string {
-  const name = hostname().trim().slice(0, DEVICE_NAME_MAX_LENGTH);
-  return name.length === 0 ? "this device" : name;
-}
-
 export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
   const transport = args.transport ?? {};
   const debug = args.onDebug ?? ((message: string) => console.error(`cloud: ${message}`));
@@ -299,7 +252,15 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
   let socketGeneration = 0;
   let inflight: Promise<void> | null = null;
   let dirty = false;
-  let pendingPair: PendingPair | null = null;
+  /** The pairing handshake — the slot, the TTL, the constant-time state
+   *  compare and the PKCE-bound redeem are the contract's machine; this
+   *  runtime wraps it with the disposed guard, the browser opener and the
+   *  session it opens on success. */
+  const pairing = createPairingFlow(
+    transport.fetch === undefined
+      ? { cloudUrl: args.cloudUrl }
+      : { cloudUrl: args.cloudUrl, fetch: transport.fetch },
+  );
   /** Whose account this session syncs as — fetched best-effort when a session
    *  opens, so Settings can name the account rather than a hostname. Null
    *  until the fetch lands (or when a stale cloud has no account row); a
@@ -885,29 +846,26 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
     },
 
     async beginPair(request) {
-      const deviceName = request.deviceName ?? defaultDeviceName();
-      const state = randomBytes(PAIR_STATE_BYTES).toString("hex");
-      const verifier = generatePkceVerifier();
-      const challenge = await pkceChallengeS256(verifier);
-      const url = buildPairApproveUrl(args.cloudUrl, {
+      // `hostname()` raw: the machine bounds and defaults the name, so an
+      // empty or oversized one never reaches the cloud as a shape error about
+      // a name the user never typed.
+      const { url, deviceName, expiresInMs } = await pairing.begin({
         redirect: request.callbackUrl,
-        state,
-        name: deviceName,
-        challenge,
+        deviceName: request.deviceName ?? hostname(),
       });
       if (disposed) {
         // Teardown has started: arm nothing and open nothing. The URL is still
         // answered so an in-flight caller gets a coherent reply, but no slot
         // outlives the process — and `completePair` refuses a disposed runtime
         // regardless.
-        return { url, opened: false, deviceName, expiresInMs: PENDING_PAIR_TTL_MS };
+        pairing.cancel();
+        return { url, opened: false, deviceName, expiresInMs };
       }
-      pendingPair = { state, verifier, deviceName, expiresAt: Date.now() + PENDING_PAIR_TTL_MS };
       // Awaited, so `opened` is observed rather than assumed — and false is an
       // ordinary answer here, since the caller may have asked for no window at
       // all.
       const opened = request.openBrowser ? await openExternalUrl(url) : false;
-      return { url, opened, deviceName, expiresInMs: PENDING_PAIR_TTL_MS };
+      return { url, opened, deviceName, expiresInMs };
     },
 
     async completePair(request) {
@@ -917,39 +875,14 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
         // unarmed slot: nothing was completable.
         return { kind: "no-pending" };
       }
-      const pending = pendingPair;
-      if (pending === null) {
-        // Any local page can navigate a browser at this loopback route, so with
-        // nothing armed the callback must do nothing at all.
-        return { kind: "no-pending" };
+      const completion = await pairing.complete(request);
+      if (completion.kind !== "paired") {
+        return completion;
       }
-      if (Date.now() > pending.expiresAt) {
-        pendingPair = null;
-        return { kind: "expired" };
-      }
-      if (!constantTimeEqual(request.state, pending.state)) {
-        // NOT consumed: a wrong state is somebody else's traffic, and throwing
-        // the slot away for it would let any local page cancel a pairing the
-        // user is halfway through.
-        return { kind: "state-mismatch" };
-      }
-      // CONSUMED BEFORE THE REDEEM. A state that survived its own redeem is a
-      // callback URL that can be replayed — out of the browser's history, out
-      // of a shoulder-surfed address bar — and the whole point of binding the
-      // two is that the pairing this app started happens once.
-      pendingPair = null;
-      const redeemed = await redeemDevice(endpoint(), {
-        code: request.code,
-        deviceName: pending.deviceName,
-        verifier: pending.verifier,
-      });
       if (disposed) {
         // Teardown ran during the redeem round trip: do not write a credential
         // or open a session after the process was told to stop.
         return { kind: "no-pending" };
-      }
-      if (!redeemed.ok) {
-        return { kind: "refused", failure: redeemed.failure };
       }
       // A fresh pairing starts from a clean slate whether or not one was held
       // before: the outbox and both positions describe an account this device
@@ -959,10 +892,7 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
       closeSocket();
       clearTimers();
       resetSyncState(args.db);
-      const credential: DeviceCredential = {
-        deviceId: redeemed.value.deviceId,
-        credential: redeemed.value.credential,
-      };
+      const credential: DeviceCredential = completion.credential;
       writeDeviceCredential(args.dataDir, credential);
       openSession(credential);
       lastError = null;
@@ -983,7 +913,7 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
       // An armed approval outlives the credential it was meant to replace
       // otherwise, and "stop syncing this device" followed by a silent re-pair
       // a minute later is not what the button said.
-      pendingPair = null;
+      pairing.cancel();
       clearDeviceCredential(args.dataDir);
       resetSyncState(args.db);
       sessionCounter += 1;
@@ -1002,7 +932,7 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
       // Drop any armed approval: a callback arriving mid-teardown must find
       // nothing to complete (completePair also guards on `disposed`, but the
       // slot itself should not outlive the runtime that owns it).
-      pendingPair = null;
+      pairing.cancel();
       // Cancels the requests in flight. Without it the teardown step's budget
       // is a hope: `await inflight` would wait out every remaining round trip,
       // and the pass would keep writing — the vault included — after the

@@ -1,11 +1,17 @@
 import type { CloudFetch } from "@repo/api/cloud/client";
 import { describe, expect, it } from "vitest";
-import type { DeviceCredential } from "@repo/api/cloud/pairing/pairing-schema";
+import {
+  createPairingFlow as createPairingMachine,
+  type PairCallback,
+} from "@repo/api/cloud/pairing/pairing-flow";
+import {
+  pairRedirectUrlSchema,
+  type DeviceCredential,
+} from "@repo/api/cloud/pairing/pairing-schema";
 import { createPairingFlow, type PairingFlow } from "../pairing-flow";
-import { createPairingManager, type PairCallback } from "../pairing-manager";
 import { CALLBACK, fakeCrypto, REDEEMED, redeemOk, redeemRefused, stateOf } from "./fakes";
 
-// The flow over the REAL manager: what the screen sees between the press and
+// The flow over the REAL machine: what the screen sees between the press and
 // the credential landing, on both the in-session and the deep-link path.
 
 /** A browser the test drives by hand: `opened` settles with the approve URL
@@ -55,13 +61,13 @@ function harness(args: {
   const browser = fakeBrowser();
   const paired: DeviceCredential[] = [];
   const flow = createPairingFlow({
-    manager: createPairingManager({
+    machine: createPairingMachine({
       cloudUrl: "https://cloud.test",
-      callbackUrl: CALLBACK,
       crypto: fakeCrypto,
-      deviceName: "Test Phone",
       fetch: args.fetch,
     }),
+    redirect: CALLBACK,
+    deviceName: "Test Phone",
     openApprove: browser.open,
     onPaired:
       args.onPaired ??
@@ -72,6 +78,18 @@ function harness(args: {
   });
   return { browser, paired, flow };
 }
+
+describe("the callback this app registers", () => {
+  it("is a shape the production approve page admits", () => {
+    // The cross-package lockstep that makes this flow real: CALLBACK is
+    // COMPOSED the way the app composes it — the registered scheme from
+    // app.config.js plus the contract's own segment (what expo-pairing hands
+    // `Linking.createURL`) — and must pass the contract's redirect allowlist,
+    // or production refuses the pairing at parse. A scheme rename or a
+    // segment edit on either side fails here, not on a user's phone.
+    expect(pairRedirectUrlSchema.safeParse(CALLBACK).success).toBe(true);
+  });
+});
 
 describe("the pairing flow", () => {
   it("is pairing while the browser is open, and idle once the credential is this device's", async () => {

@@ -6,10 +6,10 @@ import { createRequire } from "node:module";
 import {
   PAIR_APPROVE_PARAMS,
   PAIR_MOBILE_REDIRECT_SEGMENT,
+  type PkceCrypto,
 } from "@repo/api/cloud/pairing/pairing-schema";
 import { z } from "zod";
 import type { CloudFetch } from "@repo/api/cloud/client";
-import type { PkceCrypto } from "../pkce";
 
 /**
  * The scheme THIS APP registers, read from its own config — what

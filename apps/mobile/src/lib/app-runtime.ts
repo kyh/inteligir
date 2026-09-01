@@ -10,9 +10,9 @@
 // it would then have to remember to refresh.
 
 import { useMemo, useSyncExternalStore } from "react";
+import { createPairingFlow as createPairingMachine } from "@repo/api/cloud/pairing/pairing-flow";
 import { createSecureStoreCredential } from "../credential/secure-store-credential";
 import type { CredentialStore } from "../credential/credential-store";
-import { createPairingManager } from "../pairing/pairing-manager";
 import { createPairingFlow, type PairingFlow, type PairingState } from "../pairing/pairing-flow";
 import {
   defaultDeviceName,
@@ -66,12 +66,9 @@ function build(): AppRuntime {
   const credentials = createSecureStoreCredential();
   const callbackUrl = pairCallbackUrl();
   const pairing = createPairingFlow({
-    manager: createPairingManager({
-      cloudUrl,
-      callbackUrl,
-      crypto: expoPkceCrypto,
-      deviceName: defaultDeviceName(),
-    }),
+    machine: createPairingMachine({ cloudUrl, crypto: expoPkceCrypto }),
+    redirect: callbackUrl,
+    deviceName: defaultDeviceName(),
     openApprove: (approveUrl) => openApproveAndAwait(approveUrl, callbackUrl),
     onPaired: async (credential) => {
       await credentials.write(credential);

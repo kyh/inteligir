@@ -5,13 +5,20 @@
 // `complete`, so a failure computed on either path is SHOWN — a state local to
 // the screen's own call could only see the path that ran inside it.
 //
-// Pure: the browser and the credential handover are injected ports, so the
-// suite drives the whole flow over the real manager with a fake redeem.
+// The handshake itself — the slot, the TTL, the constant-time state compare,
+// consume-before-redeem, PKCE — is the contract's own machine
+// (`@repo/api/cloud/pairing/pairing-flow`); what this store owns is what the
+// SCREEN sees between the press and the credential landing. The browser and
+// the credential handover stay injected ports, so the suite drives the whole
+// flow over the real machine with a fake redeem.
 
 import { describeCloudFailure } from "@repo/api/cloud/client";
+import type {
+  PairCallback,
+  PairingFlow as PairingMachine,
+} from "@repo/api/cloud/pairing/pairing-flow";
 import type { DeviceCredential } from "@repo/api/cloud/pairing/pairing-schema";
 import { createExternalStore, type ReadableStore } from "../lib/external-store";
-import type { PairCallback, PairingManager } from "./pairing-manager";
 
 export type PairingState =
   | { kind: "idle" }
@@ -20,7 +27,11 @@ export type PairingState =
   | { kind: "failed"; message: string };
 
 export interface PairingFlowArgs {
-  manager: PairingManager;
+  machine: PairingMachine;
+  /** This app's own deep-link callback, e.g. `inteligir://pair/callback`. */
+  redirect: string;
+  /** What this device calls itself on the account. */
+  deviceName: string;
   /** Open the approve page and wait for the browser to come back through the
    *  callback; null when the user closed it. */
   openApprove: (approveUrl: string) => Promise<PairCallback | null>;
@@ -53,7 +64,7 @@ export function createPairingFlow(args: PairingFlowArgs): PairingFlow {
 
   function complete(callback: PairCallback): Promise<void> {
     return guarded(async () => {
-      const completion = await args.manager.completePair(callback);
+      const completion = await args.machine.complete(callback);
       switch (completion.kind) {
         case "paired":
           await args.onPaired(completion.credential);
@@ -82,10 +93,13 @@ export function createPairingFlow(args: PairingFlowArgs): PairingFlow {
     if (state.get().kind === "pairing") return Promise.resolve();
     state.set({ kind: "pairing" });
     return guarded(async () => {
-      const approveUrl = await args.manager.beginPair();
-      const callback = await args.openApprove(approveUrl);
+      const begun = await args.machine.begin({
+        redirect: args.redirect,
+        deviceName: args.deviceName,
+      });
+      const callback = await args.openApprove(begun.url);
       if (callback === null) {
-        args.manager.cancel();
+        args.machine.cancel();
         // The deep-link path may have settled this pairing while the browser
         // was open; its outcome stands.
         if (state.get().kind === "pairing") state.set({ kind: "idle" });

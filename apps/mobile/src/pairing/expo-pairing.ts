@@ -1,19 +1,21 @@
 // The Expo wiring for pairing: the crypto primitives, the deep-link callback
-// URL, and opening the approve page. Everything in here touches a native module;
-// the pure handshake is pairing-manager.ts.
+// URL, and opening the approve page. Everything in here touches a native
+// module; the pure handshake is the contract's own machine
+// (`@repo/api/cloud/pairing/pairing-flow`), and the press-to-paired state
+// machine is pairing-flow.ts.
 
 import Constants from "expo-constants";
 import * as Crypto from "expo-crypto";
 import * as Linking from "expo-linking";
 import * as WebBrowser from "expo-web-browser";
 import { Platform } from "react-native";
+import type { PairCallback } from "@repo/api/cloud/pairing/pairing-flow";
 import {
   PAIR_CALLBACK_PARAMS,
   PAIR_MOBILE_REDIRECT_SEGMENT,
+  type PkceCrypto,
 } from "@repo/api/cloud/pairing/pairing-schema";
 import { z } from "zod";
-import type { PairCallback } from "./pairing-manager";
-import type { PkceCrypto } from "./pkce";
 
 /** expo-crypto behind the injected primitives the PKCE assembly needs. */
 export const expoPkceCrypto: PkceCrypto = {

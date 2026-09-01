@@ -8,6 +8,7 @@ import { cloudError, cloudErrorSchema } from "../cloud-errors";
 import {
   buildPairApproveUrl,
   buildPairCallbackUrl,
+  createPkcePair,
   DEVICE_CREDENTIAL_PATTERN,
   generatePkceVerifier,
   mintPairingCodeRequestSchema,
@@ -19,6 +20,7 @@ import {
   PKCE_S256_PATTERN,
   pkceChallengeS256,
   redeemDeviceRequestSchema,
+  type PkceCrypto,
 } from "../pairing/pairing-schema";
 import { createCloudClient } from "../cloud-client";
 import { EVENT_MAX_BYTES, pullQuerySchema, pushRequestSchema } from "../sync/sync-schema";
@@ -494,6 +496,21 @@ describe("PKCE (S256)", () => {
     // Appendix B: verifier "dBjft...v-a" -> challenge "E9Melhoa...M".
     const verifier = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk";
     expect(await pkceChallengeS256(verifier)).toBe("E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM");
+  });
+
+  it("assembles the same challenge through injected primitives as its own transform", async () => {
+    // The phone injects expo-crypto here; if the assembly drifts from the
+    // transform the cloud computes at redeem, an intercepted code becomes
+    // spendable. Node's web crypto stands in for the injected pair.
+    const injected: PkceCrypto = {
+      randomBytes: (length) => crypto.getRandomValues(new Uint8Array(length)),
+      sha256: async (input) =>
+        new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(input))),
+    };
+    for (const pair of [await createPkcePair(injected), await createPkcePair()]) {
+      expect(pair.verifier).toMatch(PKCE_S256_PATTERN);
+      expect(pair.challenge).toBe(await pkceChallengeS256(pair.verifier));
+    }
   });
 
   it("mint demands an S256 challenge, and refuses a plain or absent one", () => {

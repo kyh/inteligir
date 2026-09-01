@@ -22,7 +22,7 @@
 import { readFileSync, rmSync } from "node:fs";
 import { stagedWriteFileSync } from "../staged-write";
 import { join } from "node:path";
-import { DEVICE_CREDENTIAL_PATTERN } from "@repo/api/cloud/pairing/pairing-schema";
+import { deviceCredentialSchema } from "@repo/api/cloud/pairing/pairing-schema";
 import { z } from "zod";
 import { errnoCode } from "../errno";
 
@@ -32,23 +32,17 @@ export const DEVICE_CREDENTIAL_FILE_NAME = "device-credential";
 const CREDENTIAL_FILE_MODE = 0o600;
 
 /**
- * What the file holds. Parsed rather than trusted: this is the boundary
- * between bytes on a disk anyone with the user's account can edit and a value
- * the sync runtime puts in an `Authorization` header, and a malformed file
- * must read as "not paired" rather than as a credential the cloud will refuse
- * on every request forever.
+ * What the file holds: the contract's own at-rest shape, parsed rather than
+ * trusted for the reason it states, plus the one fact only this platform
+ * keeps.
  */
-const storedCredentialSchema = z
-  .object({
-    deviceId: z.string().min(1),
-    credential: z.string().regex(DEVICE_CREDENTIAL_PATTERN),
-    /** The account this credential belongs to, learned from `/v1/account`
-     *  after the session opens (the redeem answers no identity — its wire
-     *  predates the field and may never break). Absent until that fetch
-     *  lands; the vault's cross-account fence stays inert without it. */
-    userId: z.string().min(1).optional(),
-  })
-  .strict();
+const storedCredentialSchema = deviceCredentialSchema.extend({
+  /** The account this credential belongs to, learned from `/v1/account`
+   *  after the session opens (the redeem answers no identity — its wire
+   *  predates the field and may never break). Absent until that fetch
+   *  lands; the vault's cross-account fence stays inert without it. */
+  userId: z.string().min(1).optional(),
+});
 
 export type DeviceCredential = z.infer<typeof storedCredentialSchema>;
 
