@@ -1,22 +1,21 @@
 // The OAuth authorize dance for hosted MCP connectors (issue #602), in the
-// pairing discipline exactly (cloud/sync-runtime.ts): ONE pending
-// slot, 128-bit state compared in constant time, the slot CONSUMED before the
-// code is exchanged, PKCE S256 so an intercepted loopback redirect holds a
-// code nobody else can spend, and a `disposed` guard so a callback in flight
-// during shutdown exchanges nothing. The provider is the other side here, not
-// this product's cloud — but the reasons transfer whole: the callback URL is
-// reachable by anything on the machine, and state + PKCE are what make that
-// an open port instead of a hole.
+// pairing discipline exactly: the SAME pending slot device pairing runs
+// (`@repo/api/cloud/pairing/approval-slot` — one armed approval, 128-bit
+// state compared in constant time, CONSUMED before the code is exchanged),
+// PKCE S256 so an intercepted loopback redirect holds a code nobody else can
+// spend, and a `disposed` guard so a callback in flight during shutdown
+// exchanges nothing. The provider is the other side here, not this product's
+// cloud — but the reasons transfer whole: the callback URL is reachable by
+// anything on the machine, and state + PKCE are what make that an open port
+// instead of a hole.
 
-import { randomBytes } from "node:crypto";
+import { createApprovalSlot } from "@repo/api/cloud/pairing/approval-slot";
 import { generatePkceVerifier, pkceChallengeS256 } from "@repo/api/cloud/pairing/pairing-schema";
 import { z } from "zod";
 
 import type { ConnectorsStore, StoredOauthTokens } from "./connectors-store";
 import { ConnectorConflictError } from "./connectors-service";
-import { constantTimeEqual } from "../constant-time-equal";
 
-const STATE_BYTES = 16;
 const PENDING_TTL_MS = 10 * 60 * 1000;
 /** Refresh a token this close to expiry as if it had expired: a token that
  *  dies mid-turn is worse than one refresh early. */
@@ -38,12 +37,11 @@ export type OauthCompletion =
   | { kind: "expired" }
   | { kind: "refused"; detail: string };
 
+/** What the slot holds for the authorize this app is waiting on. */
 interface PendingAuthorize {
   name: string;
-  state: string;
   verifier: string;
   redirectUri: string;
-  expiresAt: number;
 }
 
 export interface ConnectorOauthFlow {
@@ -71,7 +69,7 @@ export function createConnectorOauthFlow(
   store: ConnectorsStore,
   fetchImpl: typeof fetch = fetch,
 ): ConnectorOauthFlow {
-  let pending: PendingAuthorize | null = null;
+  const pending = createApprovalSlot<PendingAuthorize>({ ttlMs: PENDING_TTL_MS });
   let disposed = false;
 
   const requireOauthRow = (name: string): OauthRow => {
@@ -152,9 +150,9 @@ export function createConnectorOauthFlow(
         throw new ConnectorConflictError("not-found", "This app is shutting down");
       }
       const transport = requireOauthRow(name);
-      const state = randomBytes(STATE_BYTES).toString("hex");
       const verifier = generatePkceVerifier();
       const challenge = await pkceChallengeS256(verifier);
+      const state = pending.arm({ name, verifier, redirectUri });
       const url = new URL(transport.authorizationEndpoint);
       url.searchParams.set("response_type", "code");
       url.searchParams.set("client_id", transport.clientId);
@@ -165,25 +163,18 @@ export function createConnectorOauthFlow(
       url.searchParams.set("state", state);
       url.searchParams.set("code_challenge", challenge);
       url.searchParams.set("code_challenge_method", "S256");
-      pending = { name, state, verifier, redirectUri, expiresAt: Date.now() + PENDING_TTL_MS };
       return url.toString();
     },
 
     async complete({ code, state }): Promise<OauthCompletion> {
-      if (disposed || pending === null) {
+      if (disposed) {
         return { kind: "no-pending" };
       }
-      if (Date.now() > pending.expiresAt) {
-        pending = null;
-        return { kind: "expired" };
+      const claim = pending.claim(state);
+      if (claim.kind !== "claimed") {
+        return { kind: claim.kind };
       }
-      // A wrong state does NOT consume the slot — otherwise any local page
-      // could cancel an authorize mid-flight (the pairing rule).
-      if (!constantTimeEqual(state, pending.state)) {
-        return { kind: "state-mismatch" };
-      }
-      const claimed = pending;
-      pending = null;
+      const claimed = claim.payload;
       const transport = requireOauthRow(claimed.name);
       const exchange = await exchangeAtTokenEndpoint(
         transport,
@@ -262,7 +253,7 @@ export function createConnectorOauthFlow(
 
     dispose(): void {
       disposed = true;
-      pending = null;
+      pending.clear();
     },
   };
 }
