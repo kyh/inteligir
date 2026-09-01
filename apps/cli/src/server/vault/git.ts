@@ -168,6 +168,14 @@ function nonInteractiveGitEnv(env: NodeJS.ProcessEnv) {
   return { GIT_TERMINAL_PROMPT: "0" };
 }
 
+/**
+ * THE argv builder — every invocation passes through here, so this is where
+ * `--literal-pathspecs` lives and the one place it can be forgotten. A
+ * pathspec is a GLOB: `[a].md` names `a.md` too, and a commit scoped to one
+ * note would stage its neighbour's edits under the wrong revision. Every path
+ * this module passes is a filesystem name, never a pattern (git-history.ts's
+ * header carries the full case for the read side).
+ */
 export function runGit(
   cwd: string,
   gitArgs: readonly string[],
@@ -176,7 +184,7 @@ export function runGit(
   return new Promise((resolve, reject) => {
     const child = execFile(
       "git",
-      [...gitArgs],
+      ["--literal-pathspecs", ...gitArgs],
       {
         cwd,
         encoding: "utf8",

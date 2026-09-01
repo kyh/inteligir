@@ -127,6 +127,28 @@ describe("what a scheduled commit costs", () => {
     expect(await engine.commitNow()).toEqual({ files: 1 });
   });
 
+  it("stages `[a].md` alone — a note's name is a path, never a glob for `a.md`", async () => {
+    const { root, engine } = await makeEngine({ remoteUrl: null, quietMs: 50, maxWaitMs: 2_000 });
+    await writeFile(join(root, "a.md"), "plain\n", "utf8");
+    await writeFile(join(root, "[a].md"), "bracketed\n", "utf8");
+    await engine.commitNow();
+    const before = await commitCount(root);
+
+    // The bracketed note is what the app announced; the neighbour's edit is
+    // one nobody claimed, and a glob pathspec would sweep it in.
+    await writeFile(join(root, "[a].md"), "bracketed edit\n", "utf8");
+    engine.scheduleCommit(["[a].md"]);
+    await writeFile(join(root, "a.md"), "user edit\n", "utf8");
+
+    await waitFor(async () => (await commitCount(root)) === before + 1);
+    const { stdout } = await runGit(root, ["show", "--name-status", "--format=", "HEAD"], { env });
+    expect(stdout.trim()).toBe("M\t[a].md");
+    expect(await lastMessage(root)).toBe("vault: update [a].md");
+    // The neighbour waits for its own commit, and is named as itself.
+    expect(await engine.commitNow()).toEqual({ files: 1 });
+    expect(await lastMessage(root)).toBe("vault: update a.md");
+  });
+
   it("falls back to the whole tree when one scheduler named no paths", async () => {
     const { root, engine } = await makeEngine({ remoteUrl: null, quietMs: 50, maxWaitMs: 2_000 });
     const before = await commitCount(root);
@@ -421,6 +443,21 @@ describe("runGit", () => {
     await ensureVaultRepo({ root, env });
     expect(await gitEnvValue(root, "GIT_TERMINAL_PROMPT")).toBe("0");
     expect(await gitEnvValue(root, "GIT_SSH_COMMAND")).toBe("ssh -o BatchMode=yes");
+  });
+
+  it("passes every pathspec literally — the builder carries the flag, not each caller", async () => {
+    const { root, engine } = await makeEngine({ remoteUrl: null });
+    await writeFile(join(root, "a.md"), "plain\n", "utf8");
+    await writeFile(join(root, "[a].md"), "bracketed\n", "utf8");
+    await engine.commitNow();
+
+    // TRACKED files: the glob reaches through the index, where an untracked
+    // walk happens to match by name.
+    await writeFile(join(root, "a.md"), "plain edit\n", "utf8");
+    await writeFile(join(root, "[a].md"), "bracketed edit\n", "utf8");
+    await runGit(root, ["add", "-A", "--", "[a].md"], { env });
+    const { stdout } = await runGit(root, ["diff", "--cached", "--name-only"], { env });
+    expect(stdout.trim()).toBe("[a].md");
   });
 
   it("leaves a caller's own GIT_SSH_COMMAND alone", async () => {
