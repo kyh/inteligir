@@ -39,6 +39,7 @@ import { classNameSlateElement } from "@repo/editor/kits/kit-utils";
 import { TABLE_CELL_CLASS, TABLE_HEADER_CELL_CLASS } from "@repo/editor/kits/table-kit";
 import { parseMarkdown } from "@repo/editor/markdown/markdown-doc";
 import { stringProp } from "@repo/editor/node-props";
+import { CALLOUT_ALERT } from "@repo/editor/style-hooks";
 import {
   alertMarkerPrefix,
   alertPresentation,
@@ -243,7 +244,7 @@ function BlockquoteStatic(props: SlateElementProps) {
     <SlateElement
       {...props}
       as="blockquote"
-      className={cn("callout-alert rounded-md border-l-[3px] py-2 pr-3 pl-4 [&>*]:my-0", accent)}
+      className={cn(CALLOUT_ALERT, "rounded-md border-l-[3px] py-2 pr-3 pl-4 [&>*]:my-0", accent)}
     >
       <div
         className={cn(

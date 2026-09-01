@@ -1,5 +1,8 @@
 /* Geist + the theme tokens both come from @repo/ui/globals.css. */
 @import "@repo/ui/globals.css";
+/* The editor's behaviour rules: toggle collapse, callout markers, the code
+   highlight theme. */
+@import "@repo/editor/styles.css";
 @import "./print.css";
 /* The editor package renders inside this app but is outside its scan root,
    so its classes only exist when named here — an editor-only utility (the

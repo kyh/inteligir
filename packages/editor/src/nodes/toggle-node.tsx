@@ -21,6 +21,7 @@ import { useToggleButton, useToggleButtonState } from "@platejs/toggle/react";
 import { cn } from "@repo/ui/lib/utils";
 
 import { stringProp } from "@repo/editor/node-props";
+import { TOGGLE_COLLAPSED_ATTR } from "@repo/editor/style-hooks";
 
 export function ToggleElement(props: PlateElementProps) {
   const element = useElement();
@@ -48,7 +49,7 @@ export function ToggleElement(props: PlateElementProps) {
       className="relative pl-6"
       attributes={{
         ...props.attributes,
-        "data-toggle-collapsed": open ? undefined : "",
+        [TOGGLE_COLLAPSED_ATTR]: open ? undefined : "",
       }}
     >
       <button

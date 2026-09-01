@@ -22,6 +22,8 @@ import { PlateElement, useSelected, type PlateElementProps } from "platejs/react
 
 import { cn } from "@repo/ui/lib/utils";
 
+import { CALLOUT_ALERT, CALLOUT_EDITING } from "@repo/editor/style-hooks";
+
 const ALERT_VARIANTS = ["NOTE", "TIP", "IMPORTANT", "WARNING", "CAUTION"] as const;
 
 type AlertVariant = (typeof ALERT_VARIANTS)[number];
@@ -124,9 +126,10 @@ export function BlockquoteElement(props: PlateElementProps) {
         {...props}
         as="blockquote"
         className={cn(
-          "callout-alert rounded-md border-l-[3px] py-2 pr-3 pl-4 [&>*]:my-0",
+          CALLOUT_ALERT,
+          "rounded-md border-l-[3px] py-2 pr-3 pl-4 [&>*]:my-0",
           accent,
-          selected && "callout-editing",
+          selected && CALLOUT_EDITING,
         )}
       >
         {/* The badge swaps with the raw marker line: hidden while editing so

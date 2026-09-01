@@ -1,0 +1,119 @@
+/* The editor's behaviour rules — what a utility class on one element cannot
+   say, because each subject is a RELATION: a toggle's body relative to its
+   summary, a callout's marker relative to the caret, a code token relative to
+   the theme. Every class and data-attribute selected here is spelled in
+   style-hooks.ts, and __tests__/style-hooks.test.ts pins the two together —
+   which is also why this file stays FLAT (top-level rules only, no nesting,
+   no at-rules): the guard reads it with a flat-rule parser. Reaches the app
+   through the desktop renderer's globals.css `@import`. */
+
+/* Toggle body (nodes/toggle-node.tsx): every Slate block after the first —
+   the always-visible summary — collapses in CSS rather than by splitting
+   React children, because Plate hands the element ALL of its rendered
+   children as a single child. Blocks stay mounted (Slate needs their DOM) but
+   take no space and stay invisible; padding is zeroed because this applies
+   per block instead of on a plain wrapper. */
+[data-toggle-collapsed] > [data-slate-node="element"] ~ [data-slate-node="element"] {
+  height: 0;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  visibility: hidden;
+}
+
+/* GitHub-alert callouts (nodes/blockquote-node.tsx + the calloutMarker
+   decoration in kits/basic-blocks-kit.tsx). The literal `> [!TIP]` marker
+   STAYS in the bytes — it is only hidden at render behind the variant badge,
+   and the caret anywhere inside the quote reveals it, Obsidian-live-preview
+   style. The marker leaf needs display:none (its hidden span carries the soft
+   break — anything layout-preserving would keep a blank first line); a
+   marker-ONLY first paragraph collapses with the toggle recipe instead, since
+   Slate keeps measurable DOM for block-level APIs. */
+.callout-alert:not(.callout-editing) .callout-marker {
+  display: none;
+}
+.callout-alert:not(.callout-editing) .callout-marker-line {
+  height: 0;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  visibility: hidden;
+}
+
+/* Code-block syntax colours for lowlight's `.hljs-*` token classes (emitted
+   by CodeSyntaxPlugin, kits/code-block-kit.tsx). Six roles, desaturated to
+   sit inside the monochrome UI: chroma low enough that a code block reads as
+   part of the page, lightness set per theme's ground. The theme names EVERY
+   scope the shipped grammars emit — pinned by the guard — because a scope
+   left unnamed renders colourless by accident, so the ones that deliberately
+   ride the foreground say so. */
+:root {
+  --syntax-keyword: oklch(0.5 0.12 20);
+  --syntax-string: oklch(0.47 0.09 155);
+  --syntax-constant: oklch(0.5 0.12 255);
+  --syntax-title: oklch(0.5 0.12 300);
+  --syntax-annotation: oklch(0.56 0.12 55);
+}
+.dark {
+  --syntax-keyword: oklch(0.78 0.1 20);
+  --syntax-string: oklch(0.8 0.09 155);
+  --syntax-constant: oklch(0.78 0.1 255);
+  --syntax-title: oklch(0.8 0.1 300);
+  --syntax-annotation: oklch(0.8 0.11 55);
+}
+.hljs-comment,
+.hljs-quote {
+  color: var(--muted-foreground);
+  font-style: italic;
+}
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-built_in,
+.hljs-name,
+.hljs-tag {
+  color: var(--syntax-keyword);
+}
+.hljs-string,
+.hljs-attr,
+.hljs-addition,
+.hljs-doctag,
+.hljs-regexp,
+.hljs-code {
+  color: var(--syntax-string);
+}
+.hljs-number,
+.hljs-literal,
+.hljs-variable,
+.hljs-type {
+  color: var(--syntax-constant);
+}
+.hljs-title,
+.hljs-section,
+.hljs-attribute,
+.hljs-selector-id,
+.hljs-selector-class,
+.hljs-selector-attr,
+.hljs-selector-pseudo {
+  color: var(--syntax-title);
+}
+.hljs-symbol,
+.hljs-bullet,
+.hljs-link,
+.hljs-meta,
+.hljs-deletion {
+  color: var(--syntax-annotation);
+}
+.hljs-emphasis {
+  font-style: italic;
+}
+.hljs-strong {
+  font-weight: 600;
+}
+/* Deliberately on the foreground: colouring every token leaves nothing to
+   stand out. */
+.hljs-function,
+.hljs-params,
+.hljs-punctuation,
+.hljs-subst {
+  color: inherit;
+}

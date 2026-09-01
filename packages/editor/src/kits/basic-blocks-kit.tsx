@@ -46,6 +46,7 @@ import { cn } from "@repo/ui/lib/utils";
 
 import { BlockquoteElement, alertMarkerPrefix } from "@repo/editor/nodes/blockquote-node";
 import { HrElement } from "@repo/editor/nodes/hr-node";
+import { CALLOUT_MARKER, CALLOUT_MARKER_LINE } from "@repo/editor/style-hooks";
 
 export const BasicBlocksBaseKit = [
   BaseH1Plugin,
@@ -104,7 +105,7 @@ function ParagraphElement(props: PlateElementProps) {
       as={hostsBlockContent(props.element) ? "div" : "p"}
       className={cn(
         "px-0.5",
-        isAlertMarkerLine(props.editor, props.element, props.path) && "callout-marker-line",
+        isAlertMarkerLine(props.editor, props.element, props.path) && CALLOUT_MARKER_LINE,
       )}
     />
   );
@@ -117,7 +118,7 @@ function heading(as: "h1" | "h2" | "h3") {
 }
 
 function CalloutMarkerLeaf(props: PlateLeafProps) {
-  return <PlateLeaf {...props} className="callout-marker text-muted-foreground" />;
+  return <PlateLeaf {...props} className={cn(CALLOUT_MARKER, "text-muted-foreground")} />;
 }
 
 // Render-only leaf decoration over the `[!TYPE]` marker (plus its soft break)
