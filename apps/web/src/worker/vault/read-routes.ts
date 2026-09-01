@@ -1,6 +1,6 @@
 import {
   assetMediaType,
-  isReservedVaultSegment,
+  isIgnoredEntryName,
   VAULT_API_PATHS,
   VAULT_ASSET_MAX_BYTES,
   VAULT_FILE_MAX_BYTES,
@@ -176,7 +176,7 @@ async function answerTree(stub: DurableObjectStub<RepoCell>, url: URL): Promise<
         return refuse("not-found", "This vault has no content at that revision.");
       }
       for (const entry of tree.entries) {
-        if (isReservedVaultSegment(entry.name)) continue;
+        if (isIgnoredEntryName(entry.name)) continue;
         const path = dir === "" ? entry.name : `${dir}/${entry.name}`;
         if (entry.type === "tree") {
           if (subtreeReaches(path, after)) next.push(path);

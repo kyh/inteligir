@@ -1,4 +1,4 @@
-import { VAULT_TMP_PREFIX } from "@repo/notes/knowledge/vault-path";
+import { isIgnoredEntryName, parseVaultPath } from "@repo/notes/knowledge/vault-path";
 import { z } from "zod";
 import { assetMediaType, VAULT_ASSET_MEDIA_TYPES } from "./vault-asset-media-types";
 
@@ -51,40 +51,38 @@ const gitOidSchema = z.string().regex(/^[0-9a-f]{40}$/u, "must be a full lowerca
 const commitShaSchema = gitOidSchema;
 
 /**
- * A segment the vault's own grammar hides: git's machinery and the write
- * path's staging files. A git push can place them in the hosted tree, and
- * the read routes must not surface what the local engine would never list.
- * The tmp prefix is the engine's one spelling; `.git` is git's own.
+ * Entries the vault's own grammar hides: git's machinery and the write
+ * path's staging files. The spelling is the vault engine's own — a git push
+ * can place them in the hosted tree, and the read routes must not surface
+ * what the local engine would never list, so the two must agree on what is
+ * hidden (case-insensitive `.git` included).
  */
-export function isReservedVaultSegment(segment: string): boolean {
-  return segment === ".git" || segment.startsWith(VAULT_TMP_PREFIX);
-}
+export { isIgnoredEntryName };
 
 /**
- * A vault-relative file path as git holds it: no leading slash, no empty or
- * dot-dot segments, no NUL, no reserved segments. Deliberately a shape
- * check, not the vault engine's containment ladder — the Worker resolves
- * paths inside a git tree, where traversal has nothing to escape into.
+ * A vault-relative file path as git holds it, judged by THE vault-path
+ * grammar (`parseVaultPath`) — one grammar, every surface, because a
+ * boundary with its own copy admits what another rejects (this one had
+ * drifted: it took `.GIT/hooks/x` and `a\b`). Deliberately not the vault
+ * engine's containment ladder — the Worker resolves paths inside a git
+ * tree, where traversal has nothing to escape into. The parse must be the
+ * IDENTITY: a path the grammar would normalize (empty segments, a trailing
+ * slash) is refused rather than silently renamed, since these values
+ * address git trees verbatim.
  */
-const vaultPathSchema = z
-  .string()
-  .min(1)
-  .max(1024)
-  .refine(
-    (path) =>
-      !path.includes("\0") &&
-      !path.startsWith("/") &&
-      path
-        .split("/")
-        .every(
-          (segment) =>
-            segment.length > 0 &&
-            segment !== "." &&
-            segment !== ".." &&
-            !isReservedVaultSegment(segment),
-        ),
-    "must be a vault-relative path with no empty, '.', '..', or reserved segments",
-  );
+const vaultPathSchema = z.string().superRefine((value, ctx) => {
+  const parsed = parseVaultPath(value);
+  if (!parsed.ok) {
+    ctx.addIssue({ code: "custom", message: parsed.message });
+    return;
+  }
+  if (parsed.path !== value) {
+    ctx.addIssue({
+      code: "custom",
+      message: "path must be already normal — no empty segments or trailing slash",
+    });
+  }
+});
 
 export const vaultTreeQuerySchema = z
   .object({
