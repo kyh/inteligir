@@ -25,6 +25,10 @@ export interface CreateActionArgs {
   /** The note this action is about; null composes an unattached action. */
   docPath: string | null;
   viewContext: ViewContext | null;
+  /** A thread a refused first send already created. Given, the send lands in
+   * it: minting another on retry would leave an empty action behind every
+   * refusal. */
+  threadId?: string;
 }
 
 export interface CreateActionResult {
@@ -32,15 +36,20 @@ export interface CreateActionResult {
   send: ComposerSendOutcome;
 }
 
-export async function createAction(
-  api: typeof client,
-  args: CreateActionArgs,
-): Promise<CreateActionResult> {
+async function createActionThread(api: typeof client, args: CreateActionArgs): Promise<string> {
   const createBody: CreateThreadRequest = { title: actionTitle(args.prompt) };
   if (args.docPath !== null) {
     createBody.originDocPath = args.docPath;
   }
   const { thread } = await api.threads.create(createBody);
+  return thread.id;
+}
+
+export async function createAction(
+  api: typeof client,
+  args: CreateActionArgs,
+): Promise<CreateActionResult> {
+  const threadId = args.threadId ?? (await createActionThread(api, args));
   const contextPaths = args.contextPaths ?? [];
   const text =
     contextPaths.length === 0
@@ -49,11 +58,11 @@ export async function createAction(
   const sendArgs: Parameters<typeof sendToThread>[1] = {
     activeTurnId: null,
     text,
-    threadId: thread.id,
+    threadId,
   };
   if (args.viewContext !== null) {
     sendArgs.viewContext = args.viewContext;
   }
   const send = await sendToThread(api, sendArgs);
-  return { send, threadId: thread.id };
+  return { send, threadId };
 }

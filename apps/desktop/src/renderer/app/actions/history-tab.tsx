@@ -244,6 +244,21 @@ export function HistoryTab({ docPath }: { docPath: string | null }) {
     );
   }
 
+  // A refused read is a FAILURE, never an empty history: "No revisions yet"
+  // is a claim about the user's data, and a repo that could not answer (git
+  // missing, mid-rebase) has not made it.
+  if (historyQuery.isError) {
+    const detail = refusalMessage(historyQuery.error, "");
+    return (
+      <div className="p-3 text-sm">
+        <p className="text-destructive">The history could not be read.</p>
+        {detail === "" ? null : (
+          <p className="mt-1 text-xs break-words text-muted-foreground">{detail}</p>
+        )}
+      </div>
+    );
+  }
+
   const revisions = historyQuery.data?.revisions ?? [];
   const asOfMs = historyQuery.dataUpdatedAt;
   return (

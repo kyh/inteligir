@@ -16,7 +16,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { CheckIcon, Trash2Icon, Undo2Icon } from "lucide-react";
 import { useState } from "react";
 
-import { orpc } from "../api";
+import { orpc, refusalMessage } from "../api";
 import { relativeTimeLabel } from "../relative-time";
 import { useNoteComments } from "./comment-hooks";
 
@@ -211,6 +211,20 @@ export function CommentsTab({
 
   if (docPath === null) {
     return <p className="p-3 text-sm text-muted-foreground">No note open.</p>;
+  }
+  // A refused read is a FAILURE, not a slow one: without this arm a malformed
+  // sidecar renders "Loading…" forever. The server's own sentence follows the
+  // lead because it names the sidecar file, which is what the user can act on.
+  if (query.isError) {
+    const detail = refusalMessage(query.error, "");
+    return (
+      <div className="p-3 text-sm">
+        <p className="text-destructive">The comments could not be read.</p>
+        {detail === "" ? null : (
+          <p className="mt-1 text-xs break-words text-muted-foreground">{detail}</p>
+        )}
+      </div>
+    );
   }
   const data = query.data;
   if (data === undefined) {

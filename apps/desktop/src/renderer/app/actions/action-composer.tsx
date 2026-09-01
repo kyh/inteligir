@@ -20,7 +20,7 @@ import { spliceIntoComposer } from "../voice/dictation";
 import { MicButton } from "../voice/mic-button";
 import { useVoiceStatus } from "../voice-hooks";
 import { useWikiTargets } from "../vault-hooks";
-import { createAction } from "./action-service";
+import { createAction, type CreateActionArgs } from "./action-service";
 import {
   activeMentionAt,
   filterMentionTargets,
@@ -52,6 +52,10 @@ export function ActionComposer({
   const { api } = useWorkspace();
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
+  /** The thread a refused first send already created. The retry sends into
+   * it — minting another would leave an empty action behind every refusal —
+   * and it clears only when a send lands, the draft's own lifetime. */
+  const [pendingThreadId, setPendingThreadId] = useState<string | null>(null);
   // The chip is armed per OPEN: dismissing it composes an unattached action;
   // the next open re-offers the note.
   const [attached, setAttached] = useState(true);
@@ -146,15 +150,24 @@ export function ActionComposer({
         // The context describes the screen the action LEFT FROM; an action
         // detached from its note carries none.
         const viewContext = attachedPath === null ? null : await readViewContext();
-        const created = await createAction(api, {
+        const args: CreateActionArgs = {
           contextPaths: mentions,
           docPath: attachedPath,
           prompt: trimmed,
           viewContext,
-        });
-        if (created.send.kind === "refused") {
-          toast.error(created.send.message);
+        };
+        if (pendingThreadId !== null) {
+          args.threadId = pendingThreadId;
         }
+        const created = await createAction(api, args);
+        if (created.send.kind === "refused") {
+          // A refusal costs nothing: the prompt stays, the composer stays
+          // open, and the created thread is kept for the retry.
+          setPendingThreadId(created.threadId);
+          toast.error(created.send.message);
+          return;
+        }
+        setPendingThreadId(null);
         setText("");
         setMentions([]);
         onOpenChange(false);
