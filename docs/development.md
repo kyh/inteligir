@@ -96,7 +96,8 @@ red format cannot hide test regressions behind it.
   parse/opaque-nodes/frontmatter.
 - `pnpm --filter @repo/web test` — the Worker, against real in-process
   miniflare (D1 + Better Auth): the invite gate and the password-reset flow.
-- `pnpm --filter @repo/ui test` — no-orphan-components.
+- `pnpm --filter @repo/ui test` — the lib helpers (compose-refs). The orphan
+  invariant moved to `@repo/repo-guards` (ui-orphan-exports, per export).
 
 End-to-end: `pnpm e2e` boots real app instances on scratch dirs (fixture
 vaults, scratch git remotes, a headless browser) and is deliberately outside
