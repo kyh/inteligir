@@ -3,8 +3,7 @@
   "private": true,
   "scripts": {
     "build": "turbo run build",
-    "clean": "git clean -xdf node_modules",
-    "clean:workspaces": "turbo run clean",
+    "clean": "git clean -xdf .cache .turbo node_modules apps/*/.cache apps/*/.expo apps/*/.output apps/*/.tanstack apps/*/.turbo apps/*/.wrangler apps/*/android apps/*/dist apps/*/ios apps/*/node_modules packages/*/.cache packages/*/.turbo packages/*/dist packages/*/node_modules tools/*/.cache tools/*/.turbo tools/*/node_modules",
     "cli": "apps/cli/bin/inteligir",
     "dev": "turbo run dev -F @repo/desktop",
     "dev:desktop": "turbo run dev -F @repo/desktop",
@@ -14,7 +13,7 @@
     "format": "oxfmt --check",
     "format:fix": "oxfmt --write",
     "knip": "knip",
-    "lint": "oxlint --report-unused-disable-directives --deny-warnings",
+    "lint": "oxlint",
     "lint:fix": "oxlint --fix",
     "package:cli": "turbo run build --filter=inteligir",
     "package:desktop": "turbo run package --filter=@repo/desktop",

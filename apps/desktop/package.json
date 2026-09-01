@@ -8,7 +8,6 @@
   "main": "./.output/app/main/index.js",
   "scripts": {
     "build": "electron-vite build",
-    "clean": "git clean -xdf .cache .output .turbo dist node_modules",
     "dev": "electron-vite dev",
     "package": "electron-builder --mac --arm64 --publish never",
     "smoke": "node scripts/smoke-packaged.mjs",

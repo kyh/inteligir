@@ -5,7 +5,6 @@
   "description": "Derived fitness tests over the repo ITSELF: invariants that span workspaces and belong to none of them — the package dependency DAG and platform-purity rules, workspace coverage, ws change-kind reachability, one total dispatch per domain vocabulary, one spelling per cross-cutting predicate, one spelling per API route path, the staged install layout, environment contracts, CI, and smoke wiring.",
   "type": "module",
   "scripts": {
-    "clean": "git clean -xdf .cache .turbo node_modules",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },

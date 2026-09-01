@@ -21,13 +21,13 @@ catalog:
   # codex-acp deliberately held (its bundled core is live-broken upstream, #594).
   "@zed-industries/claude-code-acp": 0.16.2
   "@zed-industries/codex-acp": 0.16.0
-  # Dictation (issue #578): streaming Parakeet through sherpa-onnx. Pinned EXACT
-  # for the reason the whisper pin it replaces stated — the binary arrives
-  # through 6 per-platform optionalDependencies and there is NO install/build
-  # script (a prebuilt N-API addon), which is the property `npx inteligir`'s
-  # zero-rebuild install depends on, so the version verified against is the one
-  # that ships. `tar` + `unbzip2-stream` extract the `.tar.bz2` model archive in
-  # pure JS (Node has no bzip2, and Windows' tar.exe cannot do `-j`).
+  # Dictation (issue #578): streaming Parakeet through sherpa-onnx. Pinned
+  # EXACT: the binary arrives through 6 per-platform optionalDependencies and
+  # there is NO install/build script (a prebuilt N-API addon), which is the
+  # property `npx inteligir`'s zero-rebuild install depends on, so the version
+  # verified against is the one that ships. `tar` + `unbzip2-stream` extract
+  # the `.tar.bz2` model archive in pure JS (Node has no bzip2, and Windows'
+  # tar.exe cannot do `-j`).
   "sherpa-onnx-node": 1.13.6
   tar: ^7.5.22
   unbzip2-stream: ^1.4.3
@@ -35,8 +35,7 @@ catalog:
   "@cloudflare/vitest-pool-workers": ^0.22.0
   # The mobile companion (issue #576). Expo SDK 57 uses `~57.0.x` unified
   # versioning across its own packages; the react-native peers carry their own
-  # ranges. Recovered from the pre-purge catalog — the app is a sync-only
-  # thread/capture client, no native module beyond the Keychain/Keystore.
+  # ranges.
   "@expo/metro-runtime": ~57.0.7
   # Held on 1.x: @hono/node-ws peers on `@hono/node-server: ^1.19.11` and has no
   # 2.x-compatible release. node-server 2.0 is otherwise drop-in for the `serve` /
@@ -59,7 +58,10 @@ catalog:
   "@tanstack/router-plugin": 1.168.35
   "@types/better-sqlite3": ^9.6.0
   "@types/mdast": ^4.0.4
-  "@types/node": ^26.4.0
+  # Held to the major every targeted runtime actually is (engines.node 24.x,
+  # esbuild target node24, CI node@24): a newer major's types let a 25/26-only
+  # API typecheck and then throw at runtime.
+  "@types/node": ^24.13.3
   "@types/react": 19.2.17
   "@types/react-dom": ^19.2.5
   "@vitejs/plugin-react": ^6.1.1
@@ -123,8 +125,7 @@ catalogs:
 
 # Supply-chain cooldown: never resolve a version published less than 24h ago,
 # so a compromised release has a window to be yanked before it can enter the
-# lockfile. pnpm 11 makes 1440 the default — adopting it now de-risks half of
-# that major. CI installs --frozen-lockfile, so this only affects resolution
+# lockfile. CI installs --frozen-lockfile, so this only affects resolution
 # during a local `pnpm add`/`pnpm update`.
 minimumReleaseAge: 1440
 # First-party packages: we publish them, so the cooldown protects nothing and
@@ -147,3 +148,8 @@ allowBuilds:
 
 overrides:
   "@types/react": "catalog:"
+  # The catalog entry alone is not a hold: only apps/web and apps/desktop spell
+  # `vite: catalog:`, and every other importer would let vitest resolve its own
+  # newer vite. The override is what makes the catalog's exact pin bind
+  # tree-wide.
+  vite: "catalog:"

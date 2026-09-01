@@ -17,10 +17,9 @@
     "./threads": "./src/threads.ts"
   },
   "scripts": {
-    "clean": "git clean -xdf .cache .turbo dist node_modules",
     "db:generate": "drizzle-kit generate",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit --emitDeclarationOnly false"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@repo/domain": "workspace:*",

@@ -50,7 +50,6 @@
   },
   "scripts": {
     "build": "node scripts/build.mjs",
-    "clean": "git clean -xdf .cache .turbo dist node_modules",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "smoke": "node scripts/smoke.mjs"

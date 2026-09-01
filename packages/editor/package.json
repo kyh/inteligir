@@ -124,7 +124,6 @@
     "./wiki-target": "./src/wiki-target.ts"
   },
   "scripts": {
-    "clean": "git clean -xdf .cache .turbo dist node_modules",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },

@@ -46,9 +46,8 @@
     "./text/line-diff": "./src/text/line-diff.ts"
   },
   "scripts": {
-    "clean": "git clean -xdf .cache .turbo dist node_modules",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit --emitDeclarationOnly false"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "estree-util-is-identifier-name": "^3.0.0",

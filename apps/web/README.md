@@ -176,21 +176,18 @@ wrangler email sending enable <verified-domain>   # then the DKIM/SPF DNS
 # 6. The vault pack bucket (once — the R2 binding refuses to deploy without it)
 wrangler r2 bucket create inteligir-vault
 
-# 7. Deploy
-pnpm --filter @repo/web deploy       # == vite build && wrangler deploy
+# 7. Deploy — the exact command the `Deploy` workflow runs
+pnpm turbo run build --filter=@repo/web... && pnpm -F @repo/web exec wrangler deploy
 
 # (optional) tail logs
 wrangler tail inteligir-web
 ```
 
-The GitHub `Deploy` workflow does the same on push to main, gated on CI — and
-it applies the schema (step 3) BEFORE it publishes, as its own step. That
-ordering is the whole point: the schema here is additive, so an old Worker
-against a new database ignores what it does not know, while a new Worker
-against an old database 500s on every request touching a table that isn't
-there. It runs on the two repo secrets that already exist —
-`CLOUDFLARE_API_TOKEN` (which must carry `D1: Edit` alongside its Workers
-scopes) and `CLOUDFLARE_ACCOUNT_ID`; the database id is read out of
-`wrangler.jsonc`, being an identifier rather than a credential. Without the D1
-scope the deploy fails at the schema step rather than shipping code against a
-database it does not match.
+The GitHub `Deploy` workflow runs the same command on push to main, gated on
+CI. It does NOT apply the schema: the schema reaches production only from a
+local machine (step 3), so push it BEFORE merging a change that needs it — the
+schema is additive, so an old Worker against a new database ignores what it
+does not know, while a new Worker against an old database 500s on every
+request touching a table that isn't there. The workflow's one secret is
+`CLOUDFLARE_API_TOKEN` (Workers Scripts: Edit, plus Workers Routes: Edit on
+the inteligir.com zone).
