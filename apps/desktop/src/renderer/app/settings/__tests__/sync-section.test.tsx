@@ -6,7 +6,10 @@
 // doing rather than implying a live connection it may not have.
 
 import { cleanup, render, screen } from "@testing-library/react";
-import type { CloudPairBeginResponse } from "@repo/api/local/cloud/cloud-schema";
+import type {
+  CloudPairBeginResponse,
+  CloudStatusResponse,
+} from "@repo/api/local/cloud/cloud-schema";
 import { afterEach, describe, expect, it } from "vitest";
 import { describeBegun, PairPrompt, PairedDetails } from "../sync-section";
 
@@ -65,25 +68,32 @@ describe("the pair prompt", () => {
   });
 });
 
+const NOW_MS = 1_756_600_000_000;
+
+const PAIRED: Extract<CloudStatusResponse, { state: "paired" }> = {
+  state: "paired",
+  cloudUrl: "https://cloud.test",
+  accountEmail: "k@example.test",
+  deviceId: "dev_1",
+  connected: false,
+  pending: 3,
+  cursor: 12,
+  lastSyncedAt: null,
+  lastError: null,
+};
+
 describe("the paired details", () => {
   it("says POLLING when no socket is up, rather than implying a live follow", () => {
-    render(
-      <PairedDetails
-        status={{
-          state: "paired",
-          cloudUrl: "https://cloud.test",
-          accountEmail: "k@example.test",
-          deviceId: "dev_1",
-          connected: false,
-          pending: 3,
-          cursor: 12,
-          lastSyncedAt: null,
-          lastError: null,
-        }}
-      />,
-    );
+    render(<PairedDetails status={PAIRED} nowMs={NOW_MS} />);
     expect(screen.getByText(/Polling/u)).toBeDefined();
     expect(screen.getByText(/3 queued/u)).toBeDefined();
     expect(screen.getByText(/synced never/u)).toBeDefined();
+  });
+
+  it("dates the last sync from the clock it is handed, never its own", () => {
+    // A Date.now() inside the render is exactly the impure read the React
+    // Compiler would freeze at whatever the last re-render caught.
+    render(<PairedDetails status={{ ...PAIRED, lastSyncedAt: NOW_MS - 40_000 }} nowMs={NOW_MS} />);
+    expect(screen.getByText(/synced 40s ago/u)).toBeDefined();
   });
 });

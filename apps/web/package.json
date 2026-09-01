@@ -41,6 +41,7 @@
     "@types/three": "^0.185.4",
     "@vitejs/plugin-react": "catalog:",
     "drizzle-kit": "catalog:",
+    "oxc-transform-react": "catalog:",
     "tailwindcss": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",

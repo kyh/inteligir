@@ -28,7 +28,7 @@ import { confirm } from "@repo/ui/components/confirm-dialog";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { orpc } from "../api";
-import { relativeTimeLabel } from "../relative-time";
+import { relativeTimeLabel, useNow } from "../relative-time";
 import { useVaultStatus } from "../vault-hooks";
 import { failed, Row, SectionHeading } from "./settings-chrome";
 
@@ -52,9 +52,13 @@ function useCloudStatus() {
 /** The seconds tier is on here and nowhere else: this row renders beside the
  *  button that refreshes it, so "Just now" would hide the freshness it exists
  *  to report. */
-function lastSyncedLabel(epochMs: number | null): string {
-  return epochMs === null ? "never" : relativeTimeLabel(epochMs, Date.now(), { seconds: true });
+function lastSyncedLabel(epochMs: number | null, nowMs: number): string {
+  return epochMs === null ? "never" : relativeTimeLabel(epochMs, nowMs, { seconds: true });
 }
+
+/** A clock matching that tier: the default minute tick would freeze "40s ago"
+ *  until it flips to "1m ago". */
+const LAST_SYNCED_TICK_MS = 1_000;
 
 /**
  * What the section says once an approval is armed. Pure and total, so the
@@ -106,9 +110,10 @@ export function PairPrompt({ cloudUrl, begun, onBegin, pending }: PairPromptProp
 
 export interface PairedDetailsProps {
   status: Extract<CloudStatusResponse, { state: "paired" }>;
+  nowMs: number;
 }
 
-export function PairedDetails({ status }: PairedDetailsProps) {
+export function PairedDetails({ status, nowMs }: PairedDetailsProps) {
   return (
     <dl className="space-y-1.5">
       <Row label="Account">
@@ -122,7 +127,7 @@ export function PairedDetails({ status }: PairedDetailsProps) {
       <Row label="State">
         <span className="text-xs">
           {status.connected ? "Following" : "Polling"} · {status.pending} queued · synced{" "}
-          {lastSyncedLabel(status.lastSyncedAt)}
+          {lastSyncedLabel(status.lastSyncedAt, nowMs)}
         </span>
       </Row>
       {status.lastError === null ? null : (
@@ -138,6 +143,7 @@ export function SyncSection() {
   const queryClient = useQueryClient();
   const { data: vaultStatus } = useVaultStatus();
   const statusQuery = useCloudStatus();
+  const now = useNow(LAST_SYNCED_TICK_MS);
   const [begun, setBegun] = useState<CloudPairBeginResponse | null>(null);
 
   // Unpair and sync each answer with the WHOLE status, so success is a cache
@@ -228,7 +234,7 @@ export function SyncSection() {
         </div>
       ) : (
         <div className="space-y-2">
-          <PairedDetails status={status} />
+          <PairedDetails status={status} nowMs={now} />
           <div className="flex gap-2">
             <Button
               size="xs"

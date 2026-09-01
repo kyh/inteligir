@@ -86,7 +86,9 @@ export default defineConfig({
         generatedRouteTree: resolve(here, "src/renderer/routeTree.gen.ts"),
         autoCodeSplitting: true,
       }),
-      viteReact(),
+      // `compiler: true` loads the optional peer `oxc-transform-react` — that
+      // peer is the devDependency's only consumer.
+      viteReact({ compiler: true }),
       tailwindcss(),
     ],
     build: {

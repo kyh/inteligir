@@ -31,6 +31,8 @@ catalog:
   "sherpa-onnx-node": 1.13.6
   tar: ^7.5.22
   unbzip2-stream: ^1.4.3
+  # The transform @vitejs/plugin-react's `compiler: true` loads (its optional peer).
+  oxc-transform-react: ^0.147.0
   "@cloudflare/vite-plugin": ^1.54.2
   "@cloudflare/vitest-pool-workers": ^0.22.0
   # The mobile companion (issue #576). Expo SDK 57 uses `~57.0.x` unified

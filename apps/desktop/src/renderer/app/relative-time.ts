@@ -9,6 +9,8 @@
 // with no compile error. A caller whose value speaks seconds converts at its
 // own boundary.
 
+import { useEffect, useState } from "react";
+
 export interface RelativeTimeOptions {
   /** Render a sub-minute gap as `40s ago` rather than "Just now" — for a
    *  surface whose whole claim is freshness (the sync row renders right beside
@@ -36,4 +38,25 @@ export function relativeTimeLabel(
   if (elapsed < DAY_MS) return `${String(Math.floor(elapsed / HOUR_MS))}h ago`;
   if (elapsed < WEEK_MS) return `${String(Math.floor(elapsed / DAY_MS))}d ago`;
   return new Date(atMs).toLocaleDateString();
+}
+
+/** A minute is the finest tier `relativeTimeLabel` distinguishes above "Just
+ *  now", so it is the default cadence; a surface rendering the seconds tier
+ *  passes a tick to match. */
+const CLOCK_TICK_MS = 60_000;
+
+/** The clock these labels read. A `Date.now()` during render is an impure read
+ *  — the age shown is whatever the last unrelated re-render happened to catch
+ *  — so the clock is state, advanced on its own tick. */
+export function useNow(tickMs: number = CLOCK_TICK_MS): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const tick = setInterval(() => {
+      setNow(Date.now());
+    }, tickMs);
+    return () => {
+      clearInterval(tick);
+    };
+  }, [tickMs]);
+  return now;
 }

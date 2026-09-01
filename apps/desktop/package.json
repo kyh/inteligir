@@ -42,6 +42,7 @@
     "electron-vite": "^5.0.0",
     "jsdom": "catalog:",
     "lucide-react": "catalog:",
+    "oxc-transform-react": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
     "tailwindcss": "catalog:",

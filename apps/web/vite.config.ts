@@ -24,7 +24,9 @@ export default defineConfig({
     // own tsconfig program (see src/worker/tsconfig.json) — and the entry,
     // which names `Env`, has to be inside it.
     tanstackStart({ server: { entry: "./worker/server.ts" } }),
-    viteReact(),
+    // `compiler: true` loads the optional peer `oxc-transform-react` — that
+    // peer is the devDependency's only consumer.
+    viteReact({ compiler: true }),
     tailwindcss(),
   ],
 });
