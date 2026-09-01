@@ -9,8 +9,6 @@ import type { ViewContext } from "@repo/domain/view-context";
 import type { ViewContextSource } from "./chat-model";
 import type { Thread } from "@repo/api/local/threads/threads-schema";
 import type { VaultEntry } from "@repo/api/local/vault/vault-schema";
-import { ConfirmDialogHost } from "@repo/ui/components/confirm-dialog";
-import { Toaster } from "@repo/ui/components/sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "zustand";
@@ -443,8 +441,6 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
           actions={paletteActions}
         />
         <TrashDialog open={trashOpen} onOpenChange={setTrashOpen} onOpenNote={setOpenNote} />
-        <ConfirmDialogHost />
-        <Toaster position="bottom-right" />
       </SidebarProvider>
     </VaultProvider>
   );

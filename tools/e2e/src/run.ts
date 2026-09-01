@@ -19,6 +19,7 @@ import { editorConstructsBrowser } from "./scenarios/editor-constructs-browser";
 import { externalEditBrowser } from "./scenarios/external-edit-browser";
 import { hostedVaultSync } from "./scenarios/hosted-vault-sync";
 import { noteCreateBrowser } from "./scenarios/note-create-browser";
+import { settingsBrowser } from "./scenarios/settings-browser";
 import { slashMenuBrowser } from "./scenarios/slash-menu-browser";
 import { threadsScripted } from "./scenarios/threads-scripted";
 import { vaultCrud } from "./scenarios/vault-crud";
@@ -39,6 +40,7 @@ const SCENARIOS: readonly Scenario[] = [
   externalEditBrowser,
   viewContextBrowser,
   dictationBrowser,
+  settingsBrowser,
 ];
 
 const USAGE = `Usage: pnpm e2e [--only <names>] [--keep] [--list]
