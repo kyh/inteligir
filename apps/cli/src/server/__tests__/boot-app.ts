@@ -1,36 +1,32 @@
-// ONE parameterized boot for the in-process app suites: a scratch instance
-// dir, migrated db, vault runtime with hermetic git, knowledge runtime wired
-// to the vault's change announcements, the composed hono app and the typed
-// in-process client — the same graph serve.ts builds, minus listen. Every
-// booted runtime (and an injected driver's dispose) is torn down by this
-// module's own afterEach, LIFO, so consumers register no cleanup of their own.
+// ONE parameterized boot for the in-process app suites: the SAME composition
+// root serve.ts runs (`composeRuntime`), over a scratch instance dir and the
+// hermetic ports — no watcher fork, hermetic git, no remote, the scripted
+// transcriber, an injectable turn driver — plus the wired hono app and the
+// typed in-process client. The composed teardown is run whole by this
+// module's own afterEach, so consumers register no cleanup of their own.
 
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { createConnection, type DbConnection } from "@repo/db/connection";
-import { getSchemaVersion } from "@repo/db/meta";
-import { runMigrations } from "@repo/db/migrate";
+import type { DbConnection } from "@repo/db/connection";
 import type { AgentStatus } from "@repo/api/local/system/system-schema";
 import { createRouterClient, type RouterClient } from "@orpc/server";
 import { afterEach } from "vitest";
-import { createApp, type CreateAppArgs } from "../app";
-import { localRouter } from "../root-router";
-import { createConnectorsService } from "../connectors/connectors-service";
-import { createFoldersService } from "../folders/folders-service";
-import { createFoldersStore } from "../folders/folders-store";
-import { createConnectorsStore } from "../connectors/connectors-store";
-import { createConnectorOauthFlow } from "../connectors/oauth-flow";
-import { createNoteIntelligence } from "../note-intelligence/note-intelligence";
-import { createNoteIntelligenceSettingsStore } from "../note-intelligence/settings-store";
+import { createApp } from "../app";
 import type { OpenExternalUrl } from "../cloud/browser-opener";
 import type { CloudTransport } from "../cloud/sync-runtime";
+import {
+  composeRuntime,
+  type ComposedRuntime,
+  type ComposePorts,
+  type ComposeRuntimeArgs,
+} from "../compose";
 import type { AppConfig } from "../config";
-import { createKnowledgeRuntime, type KnowledgeRuntime } from "../knowledge/knowledge-runtime";
+import { localRouter } from "../root-router";
+import { authorizationHeader } from "../server-file";
 import { unavailableTurnDriver, type CreateTurnDriver } from "../threads/turn-driver";
 import { hermeticGitEnv } from "../vault/__tests__/git-test-env";
-import { createVaultRuntime, type VaultRuntime } from "../vault/vault-runtime";
-import { authorizationHeader } from "../server-file";
-import { WsBus } from "../ws-bus";
+import type { VaultRuntime } from "../vault/vault-runtime";
+import type { WsBus } from "../ws-bus";
 import { makeTempDir } from "./temp-dir";
 
 // Re-exported so a consumer outside this package reaches the whole harness
@@ -72,8 +68,9 @@ export interface BootTestAppOptions {
 }
 
 export interface BootedTestApp {
-  args: CreateAppArgs;
-  composed: ReturnType<typeof createApp>;
+  /** The composed runtime plus the app wired over it — the same value shape
+   *  serve.ts boots, minus listen. */
+  composed: ComposedRuntime & ReturnType<typeof createApp>;
   bus: WsBus;
   /** The typed client, calling procedures IN-PROCESS — no socket, no HTTP.
    *  A refusal arrives as a thrown ORPCError, which is what `safe()` narrows. */
@@ -82,6 +79,7 @@ export interface BootedTestApp {
    *  privileged surface requires. Tests that are ABOUT the gate call
    *  `composed.app.request` directly and present whatever they mean to. */
   request: (input: string, init?: RequestInit) => Promise<Response>;
+  config: AppConfig;
   db: DbConnection;
   vault: VaultRuntime;
   vaultDir: string;
@@ -96,87 +94,78 @@ export async function bootTestApp(options: BootTestAppOptions = {}): Promise<Boo
   // starter seed so listing/knowledge expectations see only their own docs.
   mkdirSync(vaultDir, { recursive: true });
   mkdirSync(dataDir, { recursive: true });
-  const databasePath = join(dataDir, "inteligir.db");
-  const db = createConnection(databasePath);
-  const knownSchemaVersion = runMigrations(db);
-
-  const bus = new WsBus();
-  let knowledgeSink: KnowledgeRuntime | null = null;
-  const vault = await createVaultRuntime({
-    vaultDir,
-    remote: () => null,
-    dataDir,
-    notifier: bus,
-    onFilesChanged: (change) => knowledgeSink?.noteVaultChange(change),
-    watch: false,
-    syncIntervalMs: null,
-    gitEnv: hermeticGitEnv(),
-  });
-  cleanups.push(() => vault.dispose());
-  const knowledge = createKnowledgeRuntime({ dataDir, vault: vault.service, vaultRoot: vaultDir });
-  knowledgeSink = knowledge;
-  cleanups.push(() => knowledge.dispose());
-
-  const driver = options.makeDriver?.({ db, bus, vault, vaultDir });
-  if (driver?.dispose !== undefined) {
-    const dispose = driver.dispose;
-    cleanups.push(() => dispose());
-  }
 
   const agent = options.agent ?? { mode: "off", runtime: "off", detail: null };
-  const args: CreateAppArgs = {
-    agent,
-    bus,
-    connectors: createConnectorsService(createConnectorsStore(dataDir)),
-    connectorsOauth: createConnectorOauthFlow(createConnectorsStore(dataDir)),
-    folders: createFoldersService({
-      store: createFoldersStore(dataDir),
-      vaultDir,
-      dataDir,
-    }),
-    noteIntelligence: createNoteIntelligence({
-      availability: { kind: "available" },
-      infer: () => Promise.resolve(null),
-      settings: createNoteIntelligenceSettingsStore(dataDir),
-      vault: vault.service,
-    }),
-    config: {
-      databasePath,
-      dataDir,
-      dataDirSource: "env",
-      mode: "dev",
-      port: options.port ?? 0,
-      portSource: "env",
-      vaultDir,
-      vaultRemote: null,
-      // Under the instance dir rather than ~/.inteligir/models: a suite that
-      // shared the machine's real model cache could delete a model a developer
-      // downloaded, and `remove` is one of the routes under test.
-      modelDir: join(instanceDir, "models"),
-      // Never `auto` in a suite: the real runtime dlopens a native binding and
-      // would make every route test a claim about this machine's platform.
-      voice: options.voice ?? "scripted",
-      agent: agent.mode,
-      agentModel: null,
-      cloudUrl: "https://cloud.test",
-    },
-    createTurnDriver: driver?.createTurnDriver ?? (() => unavailableTurnDriver),
-    db,
-    clientDir: options.clientDir ?? null,
-    serverToken: TEST_SERVER_TOKEN,
-    knowledge,
-    schemaVersion: getSchemaVersion(db, knownSchemaVersion),
-    startedAt: Date.now(),
-    vault,
-    version: "0.1.0-test",
+  const config: AppConfig = {
+    databasePath: join(dataDir, "inteligir.db"),
+    dataDir,
+    dataDirSource: "env",
+    mode: "dev",
+    port: options.port ?? 0,
+    portSource: "env",
+    vaultDir,
+    vaultRemote: null,
+    // Tests drive syncNow directly; a timer would race the assertions.
+    vaultSyncIntervalMs: null,
+    // Under the instance dir rather than ~/.inteligir/models: a suite that
+    // shared the machine's real model cache could delete a model a developer
+    // downloaded, and `remove` is one of the routes under test.
+    modelDir: join(instanceDir, "models"),
+    // Never `auto` in a suite: the real runtime dlopens a native binding and
+    // would make every route test a claim about this machine's platform.
+    voice: options.voice ?? "scripted",
+    agent: agent.mode,
+    agentModel: null,
+    cloudUrl: "https://cloud.test",
   };
-  if (options.cloudTransport !== undefined) args.cloudTransport = options.cloudTransport;
-  if (options.openExternalUrl !== undefined) args.openExternalUrl = options.openExternalUrl;
-  const composed = createApp(args);
-  cleanups.push(() => composed.cloud.dispose());
+
+  const ports: ComposePorts = {
+    inference: { availability: { kind: "available" }, infer: () => Promise.resolve(null) },
+    vault: { watch: false, gitEnv: hermeticGitEnv(), remote: () => null },
+  };
+  if (options.openExternalUrl !== undefined) ports.openExternalUrl = options.openExternalUrl;
+
+  const composeArgs: ComposeRuntimeArgs = {
+    config,
+    env: {},
+    version: "0.1.0-test",
+    ports,
+    driver: (deps) => {
+      const made = options.makeDriver?.({
+        db: deps.db,
+        bus: deps.bus,
+        vault: deps.vault,
+        vaultDir,
+      });
+      return {
+        status: agent,
+        createTurnDriver: made?.createTurnDriver ?? (() => unavailableTurnDriver),
+        dispose: made?.dispose ?? (() => Promise.resolve()),
+      };
+    },
+  };
+  if (options.cloudTransport !== undefined) composeArgs.cloudTransport = options.cloudTransport;
+  const runtime = await composeRuntime(composeArgs);
+  // The composed teardown IS the cleanup, in its own order — the same steps
+  // serve.ts's shutdown runs, minus the listener no test binds.
+  cleanups.push(async () => {
+    for (const step of runtime.teardown) {
+      await step.run();
+    }
+  });
+
+  const wired = createApp({
+    context: runtime.context,
+    bus: runtime.bus,
+    voiceStreamHub: runtime.voiceStreamHub,
+    serverToken: TEST_SERVER_TOKEN,
+    clientDir: options.clientDir ?? null,
+    configuredPort: config.port,
+  });
+  const composed = { ...runtime, ...wired };
   const client = createRouterClient(localRouter, {
     context: {
-      ...composed.services,
+      ...runtime.context,
       // No request reached this client, so nothing composed a callback URL
       // from a Host header; the two procedures that need one refuse.
       requestHost: undefined,
@@ -187,5 +176,15 @@ export async function bootTestApp(options: BootTestAppOptions = {}): Promise<Boo
     headers.set("authorization", authorizationHeader(TEST_SERVER_TOKEN));
     return composed.app.request(input, { ...init, headers });
   };
-  return { args, composed, bus, client, db, vault, vaultDir, dataDir, request };
+  return {
+    composed,
+    bus: runtime.bus,
+    client,
+    request,
+    config,
+    db: runtime.db,
+    vault: runtime.context.vault,
+    vaultDir,
+    dataDir,
+  };
 }

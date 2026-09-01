@@ -1,105 +1,61 @@
 // Vendored from bb (github.com/get-bb/bb), MIT. © bb contributors.
 
-// One Hono root splitting /rpc (the oRPC handler), the four routes that are
-// deliberately not procedures (`@repo/api/local/routes` says why), the
-// two browser landings, and — when this install ships one — the built
-// workspace UI as static files. Everything but /health and the landings is
-// behind the device token (server-file.ts).
+// ROUTE WIRING over an injected context — compose.ts is the composition root
+// that builds it. One Hono root splitting /rpc (the oRPC handler), the four
+// routes that are deliberately not procedures (`@repo/api/local/routes` says
+// why), the two browser landings, and — when this install ships one — the
+// built workspace UI as static files. Everything but /health and the landings
+// is behind the device token (server-file.ts).
 
 import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { createNodeWebSocket } from "@hono/node-ws";
 import { serveStatic } from "@hono/node-server/serve-static";
-import type { DbConnection } from "@repo/db/connection";
-import { rebindThreadOrigins } from "@repo/db/threads";
 import {
   HEALTH_PATH,
   RPC_PREFIX,
   VAULT_ASSET_PATH,
   VOICE_STREAM_PATH,
+  websocketOrigin,
   WS_PATH,
 } from "@repo/api/local/routes";
-import type { AgentStatus } from "@repo/api/local/system/system-schema";
 import { onError, ORPCError } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
 import { Hono, type Context, type MiddlewareHandler, type Next } from "hono";
 import { PAIR_CALLBACK_PATH } from "@repo/api/cloud/pairing/pairing-schema";
 import { CONNECTOR_OAUTH_CALLBACK_PATH } from "@repo/api/local/connectors/connectors-schema";
-import type { OpenExternalUrl } from "./cloud/browser-opener";
+import { isSameOriginBrowserRequest } from "./browser-request";
 import { handlePairCallback } from "./cloud/pair-callback";
-import {
-  createCloudRuntime,
-  type CloudRuntimeArgs,
-  type CloudTransport,
-} from "./cloud/sync-runtime";
-import type { AppConfig } from "./config";
-import type { ConnectorsService } from "./connectors/connectors-service";
+import type { AppServices } from "./compose";
 import { handleConnectorOauthCallback } from "./connectors/oauth-callback";
-import type { ConnectorOauthFlow } from "./connectors/oauth-flow";
-import { systemOpenExternalUrl } from "./cloud/browser-opener";
-import type { FoldersService } from "./folders/folders-service";
-import type { NoteIntelligence } from "./note-intelligence/note-intelligence";
-import { websocketOrigin } from "@repo/api/local/routes";
 import { documentSecurityHeaders } from "./csp";
 import { ERROR_STATUS_MAP, errorStatus } from "./error-status";
 import { loopbackRequestOrigin } from "./loopback-origin";
-import { isSameOriginBrowserRequest } from "./browser-request";
-import { presentedCredential, serverTokenCookie, tokenAccepted } from "./server-file";
-import type { KnowledgeRuntime } from "./knowledge/knowledge-runtime";
-import { renameNoteWithLinkRewrite } from "./knowledge/rename";
-import { createCommentsService } from "./comments/comments-service";
-import type { AppContext } from "./orpc";
 import { localRouter } from "./root-router";
-import { ThreadService } from "./threads/service";
-import type { CreateTurnDriver } from "./threads/turn-driver";
+import { presentedCredential, serverTokenCookie, tokenAccepted } from "./server-file";
 import { handleVaultAsset } from "./vault/asset-route";
-import type { VaultRuntime } from "./vault/vault-runtime";
-import {
-  ScriptedVoiceService,
-  ParakeetVoiceService,
-  type VoiceService,
-} from "./voice/voice-service";
-import { VoiceStreamHub, type VoiceStreamConnection } from "./voice/voice-stream-hub";
+import type { VoiceStreamConnection, VoiceStreamHub } from "./voice/voice-stream-hub";
 import type { WsBus } from "./ws-bus";
 
 export interface CreateAppArgs {
-  /** What the boot-time driver resolution decided; served on system.status. */
-  agent: AgentStatus;
+  /** Everything a handler reaches, built once by the composition root. */
+  context: AppServices;
+  /** The invalidation bus `/ws` subscribes clients to. */
   bus: WsBus;
-  /** The sync loop's wire. serve.ts supplies the real dial; injectable so a
-   *  suite drives the whole loop without a network — and inert either way
-   *  until someone pairs, since an install with no credential opens nothing. */
-  cloudTransport?: CloudTransport;
-  /** The app-owned MCP registry (issue #591); the connectors procedures edit
-   *  what sessions get. */
-  connectors: ConnectorsService;
-  /** The OAuth dance for hosted rows (issue #602); the callback route's owner. */
-  connectorsOauth: ConnectorOauthFlow;
-  /** Connected folders (issue #601): reference dirs sessions are told about. */
-  folders: FoldersService;
-  noteIntelligence: NoteIntelligence;
-  config: AppConfig;
-  /** The provider seam (agent-driver.ts resolves which driver boots). */
-  createTurnDriver: CreateTurnDriver;
-  /** The thread procedures' store; system.status reads nothing from it. */
-  db: DbConnection;
+  /** The dictation hub `/voice/stream` opens connections on; it tracks every
+   *  one so the listener teardown can close them by name. */
+  voiceStreamHub: VoiceStreamHub;
+  /** This boot's bearer (server-file.ts). Every privileged surface requires
+   *  it; the data dir it was written into is what makes holding it meaningful. */
+  serverToken: string;
   /** The workspace UI this server answers, or null when it has none. The
    *  bundle is the DESKTOP renderer's build, staged beside this program so
    *  `inteligir serve --open` lands a browser in the product; null is a
    *  checkout that has not built one, and every route suite. */
   clientDir: string | null;
-  /** This boot's bearer (server-file.ts). Every privileged surface requires
-   *  it; the data dir it was written into is what makes holding it meaningful. */
-  serverToken: string;
-  knowledge: KnowledgeRuntime;
-  /** Tests: watch a pairing send the user to their browser without a window
-   *  opening on whoever ran the suite. */
-  openExternalUrl?: OpenExternalUrl;
-  /** Resolved once at boot, after migrate — not a SELECT per status request. */
-  schemaVersion: number;
-  startedAt: number;
-  vault: VaultRuntime;
-  version: string;
+  /** The CONFIGURED port — only the document policy's fallback for a request
+   *  naming no loopback Host; the bound port comes from the request itself. */
+  configuredPort: number;
 }
 
 const STATIC_ASSET_CACHE_CONTROL = "public, max-age=31536000, immutable";
@@ -176,76 +132,6 @@ export function createApp(args: CreateAppArgs) {
     return undefined;
   };
 
-  // `scripted` is selected by INTELIGIR_VOICE and is the whole reason the
-  // scenario suite can drive a microphone: it answers `ready` with no model on
-  // disk and no native binding loaded, so everything ABOVE the decode — the
-  // permission, the capture, the wire, the composer insertion — is real.
-  const voice: VoiceService =
-    args.config.voice === "scripted"
-      ? new ScriptedVoiceService()
-      : new ParakeetVoiceService({ modelDir: args.config.modelDir });
-  const voiceStreamHub = new VoiceStreamHub(voice);
-
-  // Built BEFORE the thread service, which needs its outbox hook at
-  // construction; the ingest sink goes back the other way once that service
-  // exists. An install with no credential in its data dir starts nothing here.
-  const cloudArgs: CloudRuntimeArgs = {
-    db: args.db,
-    dataDir: args.config.dataDir,
-    cloudUrl: args.config.cloudUrl,
-    vault: args.vault.service,
-    // Another device pushed vault bytes (or a pairing just completed): run a
-    // vault sync pass. The rebase's consolidated files-changed notification
-    // then carries the applied changes to the renderer on its own.
-    onVaultPing: () => {
-      void args.vault.syncNow();
-    },
-  };
-  if (args.cloudTransport !== undefined) cloudArgs.transport = args.cloudTransport;
-  if (args.openExternalUrl !== undefined) cloudArgs.openExternalUrl = args.openExternalUrl;
-  const cloud = createCloudRuntime(cloudArgs);
-  const threads = new ThreadService({
-    db: args.db,
-    notifier: args.bus,
-    createTurnDriver: args.createTurnDriver,
-    sync: cloud,
-  });
-  cloud.attach(threads);
-
-  // Everything a handler can reach, built once. The comments sidecar rides the
-  // vault service, so containment, the watcher ping, auto-commit and sync come
-  // with it; its timestamps are unix seconds minted at this boundary (#583).
-  const services = {
-    cloud,
-    comments: createCommentsService(args.vault.service, () => Math.floor(Date.now() / 1000)),
-    connectors: args.connectors,
-    connectorsOauth: args.connectorsOauth,
-    folders: args.folders,
-    knowledge: args.knowledge,
-    noteIntelligence: args.noteIntelligence,
-    openExternalUrl: args.openExternalUrl ?? systemOpenExternalUrl,
-    renameNote: (from: string, to: string) =>
-      renameNoteWithLinkRewrite({
-        service: args.vault.service,
-        knowledge: args.knowledge,
-        rebindThreads: (movedFrom, movedTo) =>
-          rebindThreadOrigins(args.db, args.bus, { from: movedFrom, to: movedTo }),
-        from,
-        to,
-      }),
-    system: {
-      version: args.version,
-      dataDir: args.config.dataDir,
-      vaultDir: args.config.vaultDir,
-      schemaVersion: args.schemaVersion,
-      startedAt: args.startedAt,
-      agent: args.agent,
-    },
-    threads,
-    vault: args.vault,
-    voice,
-  } satisfies Omit<AppContext, "requestHost">;
-
   const rpc = new RPCHandler(localRouter, {
     // oRPC v2 carries no status on the error; the handler maps code → status
     // here. Custom codes (INVALID_PATH, ALREADY_EXISTS, …) plus oRPC's built-ins,
@@ -269,14 +155,16 @@ export function createApp(args: CreateAppArgs) {
   app.all(`${RPC_PREFIX}/*`, async (c) => {
     const { response } = await rpc.handle(c.req.raw, {
       prefix: RPC_PREFIX,
-      context: { ...services, requestHost: c.req.header("host") },
+      context: { ...args.context, requestHost: c.req.header("host") },
     });
     return response ?? c.text("Not found", 404);
   });
 
   app.get(HEALTH_PATH, (c) => c.json({ ok: true } as const));
 
-  app.get(VAULT_ASSET_PATH, requireServerToken, (c) => handleVaultAsset(c, args.vault.service));
+  app.get(VAULT_ASSET_PATH, requireServerToken, (c) =>
+    handleVaultAsset(c, args.context.vault.service),
+  );
 
   app.get(
     WS_PATH,
@@ -300,7 +188,7 @@ export function createApp(args: CreateAppArgs) {
       let connection: VoiceStreamConnection | null = null;
       return {
         onOpen: (_event, socket) => {
-          connection = voiceStreamHub.open(socket);
+          connection = args.voiceStreamHub.open(socket);
         },
         onMessage: (event) => {
           connection?.receive(event.data);
@@ -321,14 +209,17 @@ export function createApp(args: CreateAppArgs) {
   // is holding stands in its place. `cloud/pair-callback.ts` states the whole
   // argument.
   app.get(PAIR_CALLBACK_PATH, async (c) => {
-    const answer = await handlePairCallback(cloud, new URL(c.req.url));
+    const answer = await handlePairCallback(args.context.cloud, new URL(c.req.url));
     return c.body(answer.body, answer.status, answer.headers);
   });
 
   // The connectors' own browser landing (issue #602) — same argument, same
   // shape, a different provider on the far side (`connectors/oauth-callback.ts`).
   app.get(CONNECTOR_OAUTH_CALLBACK_PATH, async (c) => {
-    const answer = await handleConnectorOauthCallback(args.connectorsOauth, new URL(c.req.url));
+    const answer = await handleConnectorOauthCallback(
+      args.context.connectorsOauth,
+      new URL(c.req.url),
+    );
     return c.body(answer.body, answer.status, answer.headers);
   });
 
@@ -343,7 +234,7 @@ export function createApp(args: CreateAppArgs) {
     // Read ONCE: the bundle is staged at build time and immutable for this
     // process's life, so re-reading it is a disk hit per deep link.
     const shellDocument = readFileSync(join(clientDir, "index.html"), "utf8");
-    const configuredOrigin = `http://127.0.0.1:${String(args.config.port)}`;
+    const configuredOrigin = `http://127.0.0.1:${String(args.configuredPort)}`;
     const documentHeadersFor = (host: string | undefined): Record<string, string> =>
       documentSecurityHeaders({
         wsOrigin: websocketOrigin(loopbackRequestOrigin(host) ?? configuredOrigin),
@@ -403,10 +294,7 @@ export function createApp(args: CreateAppArgs) {
 
   // Last, so nothing dials the cloud until the surfaces it will announce
   // invalidations through are mounted.
-  cloud.start();
+  args.context.cloud.start();
 
-  // `services` is returned so a suite can call procedures IN-PROCESS through
-  // `createRouterClient` instead of over a socket — the same graph, minus the
-  // wire.
-  return { app, cloud, injectWebSocket, services, voice, voiceStreamHub };
+  return { app, injectWebSocket };
 }

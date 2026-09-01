@@ -1,6 +1,9 @@
 // `inteligir serve` — the whole local server, in the process that ran the
-// command. Boot order: config → db open+migrate → createApp → serve →
-// injectWebSocket.
+// command. Boot order: config → composeRuntime (every service, compose.ts) →
+// createApp (route wiring) → listen → server.json → injectWebSocket. What
+// stays HERE is exactly what needs a process or a bound port: the single-owner
+// guard, the listener and its teardown step, the published discovery file,
+// signals, and the exit code.
 //
 // IN-PROCESS, not supervised, and the reason is the failure this shape has: a
 // boot that throws. A supervisor around a single child would buy
@@ -12,32 +15,18 @@
 // that must outlive it.)
 
 import { mkdirSync } from "node:fs";
-import { closeConnection, createConnection } from "@repo/db/connection";
-import { getSchemaVersion } from "@repo/db/meta";
-import { runMigrations } from "@repo/db/migrate";
-import { resolveMigrationsFolder, resolveUiDir } from "../paths";
+import { resolveUiDir } from "../paths";
 import { resolveAgentDriver } from "./agents/agent-driver";
-import { binaryOnPath } from "./agents/binary-on-path";
-import { createConnectorsService } from "./connectors/connectors-service";
-import { createConnectorOauthFlow } from "./connectors/oauth-flow";
-import { composeSessionMcpServers } from "./connectors/session-servers";
-import { createCliInferenceRunner, INFERENCE_BINARY } from "./note-intelligence/infer";
-import {
-  createNoteIntelligence,
-  type NoteIntelligence,
-} from "./note-intelligence/note-intelligence";
-import { createNoteIntelligenceSettingsStore } from "./note-intelligence/settings-store";
-import { createConnectorsStore } from "./connectors/connectors-store";
-import { createFoldersService } from "./folders/folders-service";
-import { createFoldersStore } from "./folders/folders-store";
 import { resolveCliBinDir, resolveSkillsDir } from "./agents/agent-shell-env";
 import { createApp } from "./app";
 import { openCloudSocket } from "./cloud/cloud-socket";
+import { composeRuntime, teardownStep } from "./compose";
+import { composeSessionMcpServers } from "./connectors/session-servers";
 import { resolveAppConfig, resolveCheckoutRoot } from "./config";
 import { ensureDevDataDirOwnership } from "./data-dir";
 import { errnoCode } from "./errno";
-import { createKnowledgeRuntime, type KnowledgeRuntime } from "./knowledge/knowledge-runtime";
 import { closeServer, listenWithRetry, type UpgradedSockets } from "./listen";
+import { createLocalClient } from "./local-client";
 import {
   mintServerToken,
   readServerFile,
@@ -45,19 +34,13 @@ import {
   writeServerFile,
   type ServerFile,
 } from "./server-file";
-import { createLocalClient } from "./local-client";
 import {
   createGracefulShutdown,
   installFatalErrorHandlers,
   installShutdownSignals,
-  TEARDOWN_BUDGETS_MS,
   type ShutdownStep,
-  type TeardownStepName,
 } from "./shutdown";
-import { createVaultRemoteProvider } from "./cloud/vault-remote";
 import { redactRemoteUrl } from "./vault/git";
-import { createVaultRuntime, type VaultRuntimeArgs } from "./vault/vault-runtime";
-import { WsBus } from "./ws-bus";
 
 /**
  * What `serve`'s own flags override, as the ENVIRONMENT the config layer
@@ -78,26 +61,6 @@ export interface ServeResult {
    *  a checkout that has not been built. `--open` says so rather than opening
    *  a window on nothing. */
   uiUrl: string | null;
-}
-
-/**
- * The teardown, accumulated AS THE BOOT PROCEEDS.
- *
- * `unshift` rather than `push`, and the two orders coincide on purpose:
- * resources come up db → vault → knowledge → intelligence → agent → cloud →
- * voice → listener, so reversing creation yields exactly the teardown order
- * shutdown.ts states (listener → voice → cloud → agent → intelligence →
- * knowledge → vault → db).
- *
- * Registering each step the moment its resource exists is also what makes a
- * FAILED boot survivable: a listen that throws EADDRINUSE still has a vault
- * watcher forked and a database open, and without this the process would sit
- * there holding both, alive on the watcher's IPC channel and listening to
- * nothing.
- */
-const teardownSteps: ShutdownStep[] = [];
-function registerTeardown(name: TeardownStepName, run: () => Promise<void>): void {
-  teardownSteps.unshift({ name, timeoutMs: TEARDOWN_BUDGETS_MS[name], run });
 }
 
 /** How long the row's owner gets to answer before it counts as wedged rather
@@ -177,7 +140,11 @@ export async function assertNoLiveServer(dataDir: string): Promise<void> {
   throw new Error(`${what} Stop it first, or select another instance with INTELIGIR_DATA_DIR.`);
 }
 
-async function boot(version: string, env: NodeJS.ProcessEnv): Promise<ServeResult> {
+async function boot(
+  version: string,
+  env: NodeJS.ProcessEnv,
+  teardown: ShutdownStep[],
+): Promise<ServeResult> {
   const checkoutPath = resolveCheckoutRoot();
   const config = resolveAppConfig({ checkoutPath, env });
   await assertNoLiveServer(config.dataDir);
@@ -186,137 +153,51 @@ async function boot(version: string, env: NodeJS.ProcessEnv): Promise<ServeResul
     ensureDevDataDirOwnership(config.dataDir, checkoutPath);
   }
 
-  const db = createConnection(config.databasePath);
-  registerTeardown("db", async () => {
-    closeConnection(db);
-  });
-  const schemaVersion = getSchemaVersion(db, runMigrations(db, resolveMigrationsFolder()));
-
   // Minted before anything is served and published only once the port is
   // BOUND (below), so a reader never learns an address before it answers.
   const serverToken = mintServerToken();
-  const bus = new WsBus();
-  // The knowledge runtime needs the vault service the runtime hands back, so
-  // the hook late-binds; changes before it exists are covered by the boot
-  // reconcile the first pass always runs.
-  let knowledgeRef: KnowledgeRuntime | null = null;
-  let noteIntelligenceRef: NoteIntelligence | null = null;
-  const vaultRemote = createVaultRemoteProvider({
-    explicitRemote: config.vaultRemote,
-    cloudUrl: config.cloudUrl,
-    dataDir: config.dataDir,
-  });
-  const vaultArgs: VaultRuntimeArgs = {
-    vaultDir: config.vaultDir,
-    remote: vaultRemote,
-    dataDir: config.dataDir,
-    notifier: bus,
-    onFilesChanged: (change) => {
-      knowledgeRef?.noteVaultChange(change);
-      noteIntelligenceRef?.noteVaultChange();
-    },
-  };
-  if (config.vaultSyncIntervalMs !== undefined) {
-    vaultArgs.syncIntervalMs = config.vaultSyncIntervalMs;
-  }
-  const vault = await createVaultRuntime(vaultArgs);
-  registerTeardown("vault", () => vault.dispose());
-  const knowledge = createKnowledgeRuntime({
-    dataDir: config.dataDir,
-    vault: vault.service,
-    vaultRoot: config.vaultDir,
-  });
-  registerTeardown("knowledge", () => knowledge.dispose());
-  knowledgeRef = knowledge;
-  const clientDir = resolveUiDir();
 
-  // The layout's two facts about agent sessions, resolved once; the folders
-  // below are the one that moves (agent-shell-env.ts).
-  const cliBinDir = resolveCliBinDir();
-  const skillsDir = resolveSkillsDir();
-  // The connectors registry (issue #591): ONE service, consumed twice — the
-  // routes edit it, session launch composes its enabled rows into every
-  // harness's mcpServers.
-  const connectorsStore = createConnectorsStore(config.dataDir);
-  const connectors = createConnectorsService(connectorsStore);
-  // The OAuth dance for hosted rows (issue #602): the pairing discipline over
-  // the same store — one pending slot, tokens landing beside the row.
-  const connectorsOauth = createConnectorOauthFlow(connectorsStore);
-  // Connected Folders (issue #601): reference dirs sessions are told about —
-  // an affordance and an instructions line, never a permission grant.
-  const folders = createFoldersService({
-    store: createFoldersStore(config.dataDir),
-    vaultDir: config.vaultDir,
-    dataDir: config.dataDir,
-  });
-  // Note Intelligence (issue #590): OFF until the Settings toggle turns it
-  // on; the files-changed hook below only ever schedules, never spawns, while
-  // disabled. The PATH probe is the agent driver's, one spelling
-  // (`binaryOnPath`) — an install without the vendor CLI says so in status
-  // rather than spawning a command that is not there once per note.
-  const noteIntelligence = createNoteIntelligence({
-    availability:
-      binaryOnPath(INFERENCE_BINARY, env) === null
-        ? {
-            kind: "unavailable",
-            detail: `\`${INFERENCE_BINARY}\` was not found on PATH — note intelligence infers fields by running it.`,
-          }
-        : { kind: "available" },
-    infer: createCliInferenceRunner({ cwd: config.dataDir }),
-    settings: createNoteIntelligenceSettingsStore(config.dataDir),
-    vault: vault.service,
-    onLog: (message) => {
-      console.error(message);
-    },
-  });
-  registerTeardown("intelligence", async () => {
-    noteIntelligence.dispose();
-  });
-  noteIntelligenceRef = noteIntelligence;
-
-  const agentDriver = resolveAgentDriver({
+  const runtime = await composeRuntime({
     config,
-    db,
-    notifier: bus,
-    vault,
-    mcpServers: () => composeSessionMcpServers(connectors, connectorsOauth),
-    sessionFacts: () => ({
-      dataDir: config.dataDir,
-      cliBinDir,
-      skillsDir,
-      connectedDirs: folders.list(),
-    }),
-  });
-  registerTeardown("agent", () => {
-    // The oauth flow serves agent sessions; it stops when they do — a
-    // callback landing after this exchanges nothing and writes nothing.
-    connectorsOauth.dispose();
-    return agentDriver.dispose();
-  });
-
-  const { app, cloud, injectWebSocket, voice, voiceStreamHub } = createApp({
-    connectors,
-    connectorsOauth,
-    folders,
-    noteIntelligence,
-    agent: agentDriver.status,
-    bus,
-    // The real dial, injected because it cannot be imported from `app.ts` —
-    // see `cloud/cloud-socket.ts`. This is the ONE place that supplies it.
-    cloudTransport: { openSocket: openCloudSocket },
-    config,
-    createTurnDriver: agentDriver.createTurnDriver,
-    db,
-    clientDir,
-    serverToken,
-    knowledge,
-    schemaVersion,
-    startedAt: Date.now(),
-    vault,
+    env,
     version,
+    teardown,
+    // The real dial, injected because it cannot be imported from the composed
+    // graph — see `cloud/cloud-socket.ts`. This is the ONE place that supplies
+    // it, and the same goes for the agent resolver below.
+    cloudTransport: { openSocket: openCloudSocket },
+    driver: ({ config: driverConfig, db, bus, vault, connectors, connectorsOauth, folders }) => {
+      // The layout's two facts about agent sessions, resolved once; the
+      // folders below are the one that moves (agent-shell-env.ts).
+      const cliBinDir = resolveCliBinDir();
+      const skillsDir = resolveSkillsDir();
+      return resolveAgentDriver({
+        config: driverConfig,
+        db,
+        notifier: bus,
+        vault,
+        // The connectors registry consumed the second time: session launch
+        // composes its enabled rows into every harness's mcpServers.
+        mcpServers: () => composeSessionMcpServers(connectors, connectorsOauth),
+        sessionFacts: () => ({
+          dataDir: driverConfig.dataDir,
+          cliBinDir,
+          skillsDir,
+          connectedDirs: folders.list(),
+        }),
+      });
+    },
   });
-  registerTeardown("cloud", () => cloud.dispose());
-  registerTeardown("voice", () => voice.dispose());
+
+  const clientDir = resolveUiDir();
+  const { app, injectWebSocket } = createApp({
+    context: runtime.context,
+    bus: runtime.bus,
+    voiceStreamHub: runtime.voiceStreamHub,
+    serverToken,
+    clientDir,
+    configuredPort: config.port,
+  });
 
   const { port, server } = await listenWithRetry({
     fetch: app.fetch,
@@ -330,21 +211,24 @@ async function boot(version: string, env: NodeJS.ProcessEnv): Promise<ServeResul
   // stall `server.close()` past the vault flush behind it.
   const upgradedSockets: UpgradedSockets = {
     closeAllClients: () => {
-      bus.closeAllClients();
-      voiceStreamHub.closeAllClients();
+      runtime.bus.closeAllClients();
+      runtime.voiceStreamHub.closeAllClients();
     },
     terminateAllClients: () => {
-      bus.terminateAllClients();
-      voiceStreamHub.terminateAllClients();
+      runtime.bus.terminateAllClients();
+      runtime.voiceStreamHub.terminateAllClients();
     },
   };
   // The file names this listener, so it dies with it — inside the step rather
   // than as one of its own, because a row pointing at a port that is closing
-  // is worse than no row at all.
-  registerTeardown("listener", async () => {
-    removeServerFile(config.dataDir);
-    await closeServer(server, upgradedSockets);
-  });
+  // is worse than no row at all. Unshifted onto the composed teardown, so the
+  // listener closes before any service behind it.
+  teardown.unshift(
+    teardownStep("listener", async () => {
+      removeServerFile(config.dataDir);
+      await closeServer(server, upgradedSockets);
+    }),
+  );
   // The BOUND port, never the configured one: a derived dev port may have been
   // probed upward, and a caller that dialled the configured value would find
   // whichever neighbour won the race.
@@ -359,17 +243,16 @@ async function boot(version: string, env: NodeJS.ProcessEnv): Promise<ServeResul
   // in front of whichever query settled first — the user's first ⌘K. Kicked
   // here rather than before `listen`, because it is not what the port waits on:
   // an unsettled index only delays the searches that ask for it.
-  void knowledge.settle().catch(() => {
+  void runtime.context.knowledge.settle().catch(() => {
     // Logged inside the pass; a rebuild that fails again fails the query that
     // needs it, and boot is not that query.
   });
-  const bootRemote = vaultRemote();
+  const bootRemote = runtime.vaultRemote();
+  const agent = runtime.context.system.agent;
   console.log(
     `inteligir ${version} (${config.mode}) listening on http://127.0.0.1:${port} — data: ${config.dataDir} — vault: ${config.vaultDir}${bootRemote === null ? "" : ` ⇄ ${redactRemoteUrl(bootRemote.url)}${bootRemote.source === "paired" ? " (paired)" : ""}`}`,
   );
-  console.log(
-    `agent: ${agentDriver.status.runtime}${agentDriver.status.detail === null ? "" : ` — ${agentDriver.status.detail}`}`,
-  );
+  console.log(`agent: ${agent.runtime}${agent.detail === null ? "" : ` — ${agent.detail}`}`);
   const serverUrl = `http://127.0.0.1:${port}`;
   return { serverUrl, uiUrl: clientDir === null ? null : `${serverUrl}/` };
 }
@@ -380,7 +263,8 @@ async function boot(version: string, env: NodeJS.ProcessEnv): Promise<ServeResul
  * Every handler is installed around the boot rather than at module scope: this
  * module is one branch of a CLI, so nothing may run merely because it was
  * imported. The ORDER inside is still load-bearing — BOTH installers go on
- * BEFORE the boot. A ^C during a slow first boot (a cold vault reconcile, a
+ * BEFORE the boot, over the LIVE steps array the composition fills as its
+ * resources come up. A ^C during a slow first boot (a cold vault reconcile, a
  * clone) tears down what exists instead of being ignored, and a fatal event
  * raised while the boot is still running reports itself and leaves through the
  * same teardown rather than by Node's default exit. `run()` is idempotent, so
@@ -391,8 +275,9 @@ export async function runServe(
   version: string,
   overrides: ServeOverrides = {},
 ): Promise<ServeResult> {
+  const teardown: ShutdownStep[] = [];
   const shutdown = createGracefulShutdown({
-    steps: teardownSteps,
+    steps: teardown,
     onStepFailed: (name, error) => {
       console.error(`shutdown: ${name} failed`, error);
     },
@@ -423,7 +308,7 @@ export async function runServe(
     },
   });
 
-  const booted = await boot(version, env).catch(async (cause: unknown) => {
+  const booted = await boot(version, env, teardown).catch(async (cause: unknown) => {
     console.error(
       `inteligir failed to start: ${cause instanceof Error ? (cause.stack ?? cause.message) : String(cause)}`,
     );

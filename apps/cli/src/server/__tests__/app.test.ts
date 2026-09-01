@@ -72,16 +72,16 @@ describe("the API over the in-process app", () => {
   });
 
   it("answers system.status from the migrated database", async () => {
-    const { args, client } = await bootTestApp();
+    const { composed, config, client } = await bootTestApp();
     const status = systemStatusResponseSchema.parse(await client.system.status());
     expect(status.version).toBe("0.1.0-test");
-    expect(status.dataDir).toBe(args.config.dataDir);
+    expect(status.dataDir).toBe(config.dataDir);
     // The instance IDENTITY the CLI's discovery compares against.
-    expect(status.vaultDir).toBe(args.config.vaultDir);
+    expect(status.vaultDir).toBe(config.vaultDir);
     // The point is that migrate-on-boot RAN, not which generation it reached;
     // pinning the number here makes every migration an edit to this suite,
     // and @repo/db's schema-agreement test already owns that pin.
-    expect(status.schemaVersion).toBe(args.schemaVersion);
+    expect(status.schemaVersion).toBe(composed.context.system.schemaVersion);
     expect(status.schemaVersion).toBeGreaterThan(0);
     expect(status.uptimeMs).toBeGreaterThanOrEqual(0);
   });
@@ -328,7 +328,7 @@ describe("the device token", () => {
 
 describe("the real socket upgrade", () => {
   it("serves the typed client and a live ws round-trip", async () => {
-    const { args, composed } = await bootTestApp();
+    const { bus, composed, config } = await bootTestApp();
 
     const server = serve({
       fetch: composed.app.fetch,
@@ -364,7 +364,7 @@ describe("the real socket upgrade", () => {
     const wireClient: RouterClient<typeof localRouter> = createORPCClient(link);
     const status = await wireClient.system.status();
     expect(status.version).toBe("0.1.0-test");
-    expect(status.dataDir).toBe(args.config.dataDir);
+    expect(status.dataDir).toBe(config.dataDir);
 
     const socket = new WebSocket(`ws://127.0.0.1:${address.port}${WS_PATH}`, {
       headers: { authorization: authorizationHeader(TEST_SERVER_TOKEN) },
@@ -415,7 +415,7 @@ describe("the real socket upgrade", () => {
       if (Date.now() > deadline) {
         throw new Error("timed out waiting for the changed frame");
       }
-      args.bus.notifyDoc("d1", ["content-changed"]);
+      bus.notifyDoc("d1", ["content-changed"]);
       if (frames.length > 0) {
         changed = frames.shift();
         break;

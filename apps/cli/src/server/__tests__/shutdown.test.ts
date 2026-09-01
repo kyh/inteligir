@@ -1,6 +1,5 @@
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
 import { describe, expect, it, vi } from "vitest";
+import { bootTestApp } from "./boot-app";
 import {
   createGracefulShutdown,
   FATAL_EVENTS,
@@ -360,41 +359,29 @@ describe("installFatalErrorHandlers", () => {
 });
 
 // ---------------------------------------------------------------------------
-// The boot's registration order against the budgets table.
-//
-// `serve.ts` claims its `unshift` yields "exactly the teardown order shutdown.ts
-// states", and `shutdown.ts` writes that order out in prose above a table that
-// is ALSO in that order. Three artifacts, one fact, and nothing held them
-// together — the `cloud` step went in and both comments kept saying five.
-//
-// So the order is DERIVED from the two places it is real: the sequence of
-// `registerTeardown` calls in the boot, and the key order of the budgets table.
-// A step added to one and not the other fails here.
+// The composed teardown against the budgets table — asserted over the VALUE
+// the composition root returns, because compose.ts fills the list as each
+// resource comes up and both production callers (serve.ts, boot-app.ts) run
+// exactly that list. The one step the composition cannot register is the
+// listener, which needs a bound port and is serve.ts's own.
 // ---------------------------------------------------------------------------
-describe("the boot registers every teardown step, in the budgets table's order", () => {
-  const bootSource = readFileSync(fileURLToPath(new URL("../serve.ts", import.meta.url)), "utf8");
-
-  /** Every `registerTeardown("<name>", …)` in the boot, in source order — which
-   *  IS the order they come up, because each is registered the moment its
-   *  resource exists. */
-  function registeredInBootOrder(): string[] {
-    return [...bootSource.matchAll(/registerTeardown\(\s*"([a-z]+)"/gu)].map((match) => {
-      const name = match[1];
-      if (name === undefined) {
-        throw new Error("unreachable: the capture group is required");
-      }
-      return name;
-    });
-  }
-
-  it("registers each budgeted step exactly once", () => {
-    expect(registeredInBootOrder().toSorted()).toEqual(Object.keys(TEARDOWN_BUDGETS_MS).toSorted());
+describe("the composed teardown", () => {
+  it("holds every budgeted step except the listener, in the budgets table's order", async () => {
+    const { composed } = await bootTestApp();
+    expect(
+      composed.teardown.map((step) => step.name),
+      "compose.ts must register every step TEARDOWN_BUDGETS_MS budgets (except `listener`, which only serve.ts can add once a port is bound), in the table's own order — the table is written in teardown order",
+    ).toEqual(Object.keys(TEARDOWN_BUDGETS_MS).filter((name) => name !== "listener"));
   });
 
-  it("tears down in the reverse of the order things came up", () => {
-    // `registerTeardown` unshifts, so the teardown sequence is the reverse of
-    // the boot's registrations — and the budgets table is written in teardown
-    // order, which is what makes reading the two side by side honest.
-    expect(registeredInBootOrder().toReversed()).toEqual(Object.keys(TEARDOWN_BUDGETS_MS));
+  it("carries each step's budget from the one table", async () => {
+    const { composed } = await bootTestApp();
+    const budgets: Record<string, number> = TEARDOWN_BUDGETS_MS;
+    for (const step of composed.teardown) {
+      expect(
+        step.timeoutMs,
+        `compose.ts step "${step.name}" must carry the budget TEARDOWN_BUDGETS_MS assigns that name — a step cannot arrive with a number of its own`,
+      ).toBe(budgets[step.name]);
+    }
   });
 });

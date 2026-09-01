@@ -56,7 +56,7 @@ async function pair(install: BootedTestApp, cloud: FakeCloud, code: string): Pro
   // a pairing that names no callback address is refused, so this one call gets
   // a client standing where a loopback caller would.
   const fromLoopback = createRouterClient(localRouter, {
-    context: { ...install.composed.services, requestHost: LOOPBACK_HOST },
+    context: { ...install.composed.context, requestHost: LOOPBACK_HOST },
   });
   const begun = await fromLoopback.cloud.pairBegin({
     deviceName: `device-${code}`,
