@@ -54,7 +54,12 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
     // `/local` half is the desktop renderer and the CLI talking to the local
     // server, whose two ends ship in one bundle and may break freely; its
     // `/cloud` half is a deployed Worker answering installs that may be months
-    // stale, and may never break.
+    // stale, and may never break. `/cloud` is more than schemas and paths: it
+    // carries the pure CLIENT MACHINE too — the pairing flow's slot and
+    // PKCE-bound redeem, the sync session's fence and page loop — because
+    // those are security-bearing disciplines every platform must run
+    // identically, and a machine with a copy per platform is one per platform
+    // to audit.
     //
     // The @repo/notes edge is the grammars the contract validates against —
     // the vault path (`knowledge/vault-path`) and the comment id and source
@@ -98,10 +103,12 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
     // captures — over React Native storage instead of better-sqlite3. It never
     // pushes a thread event and never claims a capture: the desktop runs the
     // turns and owns applying a capture to the vault, so each of those halves
-    // has exactly one client. What both readers of the log DO share is the page
-    // planner, which is the contract's own (`@repo/api/cloud/sync/plan-page`) —
-    // two copies of it would be two answers to "did this row move the cursor?",
-    // and a mis-set cursor is a duplicated conversation. The @repo/domain edge
+    // has exactly one client. What both readers of the log DO share is the
+    // contract's client machine — the page planner (`cloud/sync/plan-page`),
+    // the session fence (`cloud/sync/sync-session`) and the pairing flow
+    // (`cloud/pairing/pairing-flow`) — two copies of any of them would be two
+    // answers to "did this row move the cursor?" or two security machines to
+    // audit, and a mis-set cursor is a duplicated conversation. The @repo/domain edge
     // is the ThreadEvent grammar the planner hands back and this client folds
     // into display rows. Both are zod-only leaves, so the edge costs the RN
     // bundle only the schemas it already parses.
