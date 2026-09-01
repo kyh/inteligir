@@ -43,6 +43,10 @@ export const Route = createRootRoute({
       { rel: "manifest", href: "/favicon/site.webmanifest" },
     ],
   }),
+  // The shell wraps component, errorComponent and notFoundComponent alike, so
+  // a 404 or a root error still ships as a full document — without it those
+  // views render with no <html>, no stylesheet and no scripts.
+  shellComponent: RootDocument,
   errorComponent: ErrorBoundary,
   notFoundComponent: NotFound,
   component: RootComponent,
@@ -71,13 +75,11 @@ function NotFound() {
 
 function RootComponent() {
   return (
-    <RootDocument>
-      <RadiusProvider defaultRadius="rounded">
-        <SizeProvider defaultSize="compact">
-          <Outlet />
-        </SizeProvider>
-      </RadiusProvider>
-    </RootDocument>
+    <RadiusProvider defaultRadius="rounded">
+      <SizeProvider defaultSize="compact">
+        <Outlet />
+      </SizeProvider>
+    </RadiusProvider>
   );
 }
 

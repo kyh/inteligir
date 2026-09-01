@@ -34,6 +34,12 @@ const TEST_SCHEMA = execFileSync("pnpm", ["run", "--silent", "db:export"], {
 const TEST_BETTER_AUTH_SECRET = "test-better-auth-secret-000000000000";
 
 export default defineConfig({
+  // `@/*` is declared in tsconfig paths only, and this config does not run
+  // the start plugin that reads it — the same reason vite.config.ts declares
+  // it by hand.
+  resolve: {
+    alias: { "@": `${HERE}/src` },
+  },
   plugins: [
     cloudflareTest({
       wrangler: { configPath: "./wrangler.jsonc" },
