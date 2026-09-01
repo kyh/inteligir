@@ -4,6 +4,7 @@
 // implementation — rather than once per platform.
 
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 import type { CloudFetch } from "../cloud-client";
 import {
   createPairingFlow,
@@ -30,16 +31,15 @@ interface RecordedRedeem {
 }
 
 /** A fetch that answers the redeem with a durable credential and records what
- *  it was asked. */
-function redeemOk(): { fetch: CloudFetch; calls: RecordedRedeem[] } {
+ *  it was asked. The machine only ever sends string bodies — parsed as such
+ *  at this boundary. */
+function redeemOk() {
   const calls: RecordedRedeem[] = [];
-  return {
-    calls,
-    fetch: (input, init) => {
-      calls.push({ url: input, body: typeof init?.body === "string" ? init.body : "" });
-      return Promise.resolve(Response.json(REDEEMED));
-    },
+  const fetch: CloudFetch = (input, init) => {
+    calls.push({ url: input, body: z.string().parse(init?.body) });
+    return Promise.resolve(Response.json(REDEEMED));
   };
+  return { fetch, calls };
 }
 
 const redeemRefused: CloudFetch = () =>

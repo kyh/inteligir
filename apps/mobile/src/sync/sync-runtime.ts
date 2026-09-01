@@ -1,6 +1,8 @@
 // The RN sync loop: page the account's merged thread log forward and apply into
 // the store the UI reads. The node twin is apps/cli/src/server/cloud/sync-runtime.ts;
-// this is the same wire and the same disciplines over React Native storage.
+// both ride the contract's own session machinery
+// (`@repo/api/cloud/sync/sync-session`) — the session fence, the single-flight
+// pass and the page loop — over React Native storage here.
 //
 // THE PHONE ONLY PULLS THREADS. The desktop runs the turns, so this device
 // produces no thread event and pushes none — the outbox half of the wire is the
@@ -17,16 +19,6 @@
 // clears the account's state. There is no second "enabled" flag, for the reason
 // the desktop states: two values that must agree are two that can disagree.
 //
-// A PASS IS SINGLE-FLIGHT AND COALESCING. A trigger that lands mid-pass marks
-// the pass dirty rather than starting a second one — two concurrent pulls would
-// apply the same page twice.
-//
-// EVERY STEP RE-CHECKS THE SESSION ID after every await. "Is a session live?" is
-// the wrong question when the answer can be yes about a DIFFERENT pairing: an
-// old pull's page would apply another account's events. The id is the fence;
-// cancellation covers the in-flight half, identity the half cancellation cannot
-// reach.
-//
 // THE STATUS IS PUBLISHED, NOT POLLED. Most passes run off the timer with no
 // caller to read their answer, so the runtime itself is the store the screen
 // subscribes to: the snapshot is rebuilt at every point the session, a pass or
@@ -35,9 +27,12 @@
 // render loop.
 
 import type { CaptureRequest, CaptureResponse } from "@repo/api/cloud/captures/captures-schema";
-import { SYNC_TERMINAL_CODES } from "@repo/api/cloud/errors";
-import { planPage } from "@repo/api/cloud/sync/plan-page";
-import { PULL_DEFAULT_LIMIT } from "@repo/api/cloud/sync/sync-schema";
+import type { DeviceCredential } from "@repo/api/cloud/pairing/pairing-schema";
+import {
+  createSingleFlight,
+  createSyncSession,
+  pullPages,
+} from "@repo/api/cloud/sync/sync-session";
 import {
   createCloudClient,
   describeCloudFailure,
@@ -48,7 +43,6 @@ import {
 import { createExternalStore, type ReadableStore } from "../lib/external-store";
 import { applyPlan } from "./thread-log";
 import type { SyncStore } from "./sync-store";
-import type { DeviceCredential } from "@repo/api/cloud/pairing/pairing-schema";
 
 export type SyncStatus =
   | { state: "off" }
@@ -65,23 +59,6 @@ export type SyncStatus =
  *  most one interval behind. (The invalidation socket is a later round; until it
  *  lands the poll is what makes sync correct.) */
 const POLL_INTERVAL_MS = 60_000;
-
-/** Bound on one pass's pull, so a backlog cannot hold a teardown open. What is
- *  left rides the next pass. */
-const MAX_PULL_PAGES_PER_PASS = 25;
-
-type Session =
-  | { kind: "off"; id: number }
-  | { kind: "live"; id: number; credential: DeviceCredential; client: CloudClient }
-  | { kind: "unauthorized"; id: number; credential: DeviceCredential; detail: string };
-
-/** What one pass runs under, captured once at the top so no step reads a newer
- *  session. */
-interface PassContext {
-  sessionId: number;
-  client: CloudClient;
-  deviceId: string;
-}
 
 export interface SyncRuntimeArgs {
   store: SyncStore;
@@ -116,58 +93,49 @@ function debug(message: string): void {
 export function createSyncRuntime(args: SyncRuntimeArgs): SyncRuntime {
   const pollIntervalMs = args.pollIntervalMs === undefined ? POLL_INTERVAL_MS : args.pollIntervalMs;
 
-  let sessionCounter = 0;
-  let session: Session = { kind: "off", id: 0 };
-  let sessionAbort = new AbortController();
   let pollTimer: ReturnType<typeof setInterval> | null = null;
-  let inflight: Promise<void> | null = null;
-  let dirty = false;
   let lastError: string | null = null;
   let lastSyncedAt: number | null = null;
   const status = createExternalStore<SyncStatus>({ state: "off" });
 
+  const session = createSyncSession<DeviceCredential>({
+    makeClient: (credential, signal) => {
+      if (args.createClient !== undefined) return args.createClient(credential);
+      return createCloudClient({
+        baseUrl: args.cloudUrl,
+        credential: credential.credential,
+        signal,
+      });
+    },
+    onEnded: (failure) => {
+      clearTimer();
+      debug(`credential refused (${failure.code}): ${failure.message}`);
+    },
+  });
+  const flight = createSingleFlight();
+
   function publish(): void {
-    switch (session.kind) {
+    const current = session.current();
+    switch (current.kind) {
       case "off":
         status.set({ state: "off" });
         return;
       case "unauthorized":
         status.set({
           state: "unauthorized",
-          deviceId: session.credential.deviceId,
-          detail: session.detail,
+          deviceId: current.credential.deviceId,
+          detail: current.detail,
         });
         return;
       case "live":
         status.set({
           state: "paired",
-          deviceId: session.credential.deviceId,
+          deviceId: current.credential.deviceId,
           cursor: args.store.readCursor(),
           lastSyncedAt,
           lastError,
         });
     }
-  }
-
-  function closeSession(): void {
-    sessionAbort.abort();
-    sessionAbort = new AbortController();
-  }
-
-  function makeClient(credential: DeviceCredential): CloudClient {
-    if (args.createClient !== undefined) return args.createClient(credential);
-    return createCloudClient({
-      baseUrl: args.cloudUrl,
-      credential: credential.credential,
-      signal: sessionAbort.signal,
-    });
-  }
-
-  function openSession(credential: DeviceCredential): void {
-    closeSession();
-    sessionCounter += 1;
-    session = { kind: "live", id: sessionCounter, credential, client: makeClient(credential) };
-    publish();
   }
 
   function clearTimer(): void {
@@ -178,100 +146,57 @@ export function createSyncRuntime(args: SyncRuntimeArgs): SyncRuntime {
   }
 
   function armTimer(): void {
-    if (session.kind !== "live" || pollIntervalMs === null || pollTimer !== null) return;
+    if (session.current().kind !== "live" || pollIntervalMs === null || pollTimer !== null) return;
     pollTimer = setInterval(() => {
       void syncNow();
     }, pollIntervalMs);
     pollTimer.unref?.();
   }
 
-  function fenced(context: PassContext): boolean {
-    return session.kind === "live" && session.id === context.sessionId;
-  }
-
-  /** True when the failure ends this device's session; the caller stops. */
-  function recordFailure(failure: CloudFailure): boolean {
+  function recordFailure(failure: CloudFailure): "continue" | "ended" {
     lastError = describeCloudFailure(failure);
-    if (failure.kind !== "refused" || !SYNC_TERMINAL_CODES.has(failure.code)) {
-      debug(lastError);
-      publish();
-      return false;
-    }
-    if (session.kind === "live") {
-      sessionCounter += 1;
-      session = {
-        kind: "unauthorized",
-        id: sessionCounter,
-        credential: session.credential,
-        detail: failure.message,
-      };
-    }
-    closeSession();
-    clearTimer();
-    debug(`credential refused (${failure.code}): ${failure.message}`);
+    const outcome = session.recordFailure(failure);
+    if (outcome === "continue") debug(lastError);
     publish();
-    return true;
-  }
-
-  /** Page the log forward and apply everything this device did not write. Returns
-   *  false when the session ended. */
-  async function pullAndApply(context: PassContext): Promise<boolean> {
-    for (let page = 0; page < MAX_PULL_PAGES_PER_PASS; page += 1) {
-      if (!fenced(context)) return false;
-      const cursor = args.store.readCursor();
-      const result = await context.client.pull({ afterSeq: cursor, limit: PULL_DEFAULT_LIMIT });
-      // This page belongs to the account this pass started under. Applying it
-      // after a re-pair would write another account's events into this one.
-      if (!fenced(context)) return false;
-      if (!result.ok) return !recordFailure(result.failure);
-      lastError = null;
-      const plan = planPage(result.value.events, context.deviceId);
-      for (const message of plan.skipped) debug(message);
-      applyPlan(args.store, plan.steps);
-      publish();
-      if (!result.value.hasMore) return true;
-    }
-    return true;
+    return outcome;
   }
 
   async function runPass(): Promise<void> {
-    if (session.kind !== "live") return;
-    const context: PassContext = {
-      sessionId: session.id,
-      client: session.client,
-      deviceId: session.credential.deviceId,
-    };
-    if (!(await pullAndApply(context))) return;
-    if (!fenced(context)) return;
+    const current = session.current();
+    if (current.kind !== "live") return;
+    const sessionId = current.id;
+    const done = await pullPages({
+      client: current.client,
+      deviceId: current.credential.deviceId,
+      fenced: () => session.fenced(sessionId),
+      readCursor: () => args.store.readCursor(),
+      applyPlan: (steps) => {
+        applyPlan(args.store, steps);
+      },
+      recordFailure,
+      onPage: () => {
+        lastError = null;
+        publish();
+      },
+      onSkipped: debug,
+    });
+    if (!done) return;
+    if (!session.fenced(sessionId)) return;
     lastSyncedAt = Date.now();
     publish();
   }
 
-  async function syncNow(): Promise<void> {
-    if (session.kind !== "live") return;
-    if (inflight !== null) {
-      // Coalesced rather than queued: one more pass after this covers whatever
-      // arrived while it ran.
-      dirty = true;
-      await inflight;
-      return;
-    }
-    inflight = (async () => {
-      try {
-        for (;;) {
-          dirty = false;
-          await runPass();
-          if (!dirty || session.kind !== "live") break;
-        }
-      } catch (error) {
-        lastError = error instanceof Error ? error.message : String(error);
-        debug(`sync pass failed: ${lastError}`);
+  function syncNow(): Promise<void> {
+    if (session.current().kind !== "live") return Promise.resolve();
+    return flight.run({
+      pass: runPass,
+      repeat: () => session.current().kind === "live",
+      onError: (message) => {
+        lastError = message;
+        debug(`sync pass failed: ${message}`);
         publish();
-      } finally {
-        inflight = null;
-      }
-    })();
-    await inflight;
+      },
+    });
   }
 
   return {
@@ -279,10 +204,10 @@ export function createSyncRuntime(args: SyncRuntimeArgs): SyncRuntime {
     get: status.get,
 
     setCredential(next) {
-      if (next !== null && session.kind === "live" && sameCredential(next, session.credential)) {
+      const current = session.current();
+      if (next !== null && current.kind === "live" && sameCredential(next, current.credential)) {
         return;
       }
-      closeSession();
       clearTimer();
       // A fresh pairing starts from a clean slate: the cursor and the applied
       // log describe an account this device may no longer be talking to.
@@ -290,26 +215,26 @@ export function createSyncRuntime(args: SyncRuntimeArgs): SyncRuntime {
       lastError = null;
       lastSyncedAt = null;
       if (next === null) {
-        sessionCounter += 1;
-        session = { kind: "off", id: sessionCounter };
-        publish();
-        return;
+        session.close();
+      } else {
+        session.open(next);
       }
-      openSession(next);
+      publish();
     },
 
     createCapture(request) {
-      if (session.kind !== "live") {
+      const current = session.current();
+      if (current.kind !== "live") {
         return Promise.resolve({
           ok: false,
           failure: { kind: "unreachable", message: "not paired" },
         });
       }
-      return session.client.createCapture(request);
+      return current.client.createCapture(request);
     },
 
     start() {
-      if (session.kind !== "live") return;
+      if (session.current().kind !== "live") return;
       armTimer();
       void syncNow();
     },

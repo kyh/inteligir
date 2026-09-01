@@ -36,13 +36,17 @@
 
 import { hostname } from "node:os";
 import { CLAIM_DEFAULT_LIMIT } from "@repo/api/cloud/captures/captures-schema";
-import { SYNC_OUTBOX_CODES, SYNC_TERMINAL_CODES } from "@repo/api/cloud/errors";
+import { SYNC_OUTBOX_CODES } from "@repo/api/cloud/errors";
 import {
   createPairingFlow,
   type PairCompletion as PairingMachineCompletion,
 } from "@repo/api/cloud/pairing/pairing-flow";
-import { planPage, type LogPlanStep } from "@repo/api/cloud/sync/plan-page";
-import { PULL_DEFAULT_LIMIT } from "@repo/api/cloud/sync/sync-schema";
+import type { LogPlanStep } from "@repo/api/cloud/sync/plan-page";
+import {
+  createSingleFlight,
+  createSyncSession,
+  pullPages,
+} from "@repo/api/cloud/sync/sync-session";
 import type { DbConnection, DbTransaction } from "@repo/db/connection";
 import type { SyncedEventInput } from "@repo/db/events";
 import {
@@ -98,10 +102,9 @@ const POLL_INTERVAL_MS = 60_000;
 const PUSH_DEBOUNCE_MS = 1_500;
 
 /** Bound on one pass's drain, so a huge backlog cannot starve the pull half
- *  (or hold a shutdown open). What is left rides the next pass. */
+ *  (or hold a shutdown open). What is left rides the next pass; the pull
+ *  half's twin bound is the page loop's own. */
 const MAX_PUSH_BATCHES_PER_PASS = 25;
-/** The same bound for the pull half. */
-const MAX_PULL_PAGES_PER_PASS = 25;
 
 const RECONNECT_BASE_MS = 1_000;
 const RECONNECT_MAX_MS = 60_000;
@@ -202,20 +205,6 @@ export interface CloudRuntime {
   dispose(): Promise<void>;
 }
 
-/**
- * `id` is the fence. Every session gets a fresh one, and a pass captures the id
- * it started under and re-checks it after EVERY await — because "is a session
- * live?" is the wrong question when the answer can be yes about a DIFFERENT
- * session. Two ways that bites, both of them writes into the wrong account:
- * an in-flight push whose ack deletes the outbox rows a re-pairing has since
- * queued, and an in-flight pull whose page applies into the new pairing and
- * drags the cursor past rows it never saw.
- */
-type Session =
-  | { kind: "off"; id: number }
-  | { kind: "live"; id: number; credential: DeviceCredential; client: CloudClient }
-  | { kind: "unauthorized"; id: number; credential: DeviceCredential; detail: string };
-
 /** What one pass runs under: the session it belongs to, and the credential's
  *  own identity. Captured once at the top so no step can read a newer one. */
 interface PassContext {
@@ -233,12 +222,6 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
     transport.pollIntervalMs === undefined ? POLL_INTERVAL_MS : transport.pollIntervalMs;
 
   let sink: SyncedEventSink | null = null;
-  let sessionCounter = 0;
-  let session: Session = { kind: "off", id: 0 };
-  /** Aborted whenever the session ends — a pair, an unpair, a refused
-   *  credential, or dispose — so a request belonging to it stops being paid
-   *  for the moment it stops mattering. */
-  let sessionAbort = new AbortController();
   let socket: CloudSocket | null = null;
   let connected = false;
   let lastError: string | null = null;
@@ -250,8 +233,7 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
   let reconnectAttempt = 0;
   /** Which dial the live callbacks belong to — see `connect`. */
   let socketGeneration = 0;
-  let inflight: Promise<void> | null = null;
-  let dirty = false;
+  const flight = createSingleFlight();
   /** The pairing handshake — the slot, the TTL, the constant-time state
    *  compare and the PKCE-bound redeem are the contract's machine; this
    *  runtime wraps it with the disposed guard, the browser opener and the
@@ -284,24 +266,23 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
     return { ...endpoint(), credential, signal };
   }
 
-  /** End the current session and hand back a fresh, un-aborted controller.
-   *  Called by every transition, so no path can forget to cancel. */
-  function closeSession(): void {
-    sessionAbort.abort();
-    sessionAbort = new AbortController();
-  }
+  /** The session machine — the union, the fence and the abort rotation are
+   *  the contract's (`@repo/api/cloud/sync/sync-session`); what this runtime
+   *  adds around a transition is its own: the socket, the timers and the
+   *  account-identity fetch. */
+  const session = createSyncSession<DeviceCredential>({
+    makeClient: (credential, signal) =>
+      createCloudClient(clientArgs(credential.credential, signal)),
+    onEnded: (failure) => {
+      closeSocket();
+      clearTimers();
+      debug(`credential refused (${failure.code}): ${failure.message}`);
+    },
+  });
 
   function openSession(credential: DeviceCredential): void {
-    closeSession();
-    sessionCounter += 1;
     accountEmail = null;
-    const client = createCloudClient(clientArgs(credential.credential, sessionAbort.signal));
-    session = {
-      kind: "live",
-      id: sessionCounter,
-      credential,
-      client,
-    };
+    session.open(credential);
     void learnAccountIdentity().catch(() => undefined);
   }
 
@@ -318,9 +299,10 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
    * re-kicks the vault pass the fence deferred.
    */
   function learnAccountIdentity(): Promise<void> {
-    if (session.kind !== "live") return Promise.resolve();
-    const { client, credential } = session;
-    const sessionId = session.id;
+    const current = session.current();
+    if (current.kind !== "live") return Promise.resolve();
+    const { client, credential } = current;
+    const sessionId = current.id;
     if (learningIdentity?.sessionId === sessionId) return learningIdentity.pass;
     const pass = (async () => {
       const result = await client.account();
@@ -331,9 +313,7 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
       if (result.ok && credential.userId !== result.value.id) {
         const updated = { ...credential, userId: result.value.id };
         writeDeviceCredential(args.dataDir, updated);
-        // Rebuilt rather than spread: `sessionAlive` has already established
-        // that this id names the live session these two values came from.
-        session = { kind: "live", id: sessionId, credential: updated, client };
+        session.replaceCredential(sessionId, updated);
         args.onVaultPing?.();
       }
     })().finally(() => {
@@ -346,7 +326,7 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
   /** True while `sessionId` is still the session this runtime is running, and
    *  this runtime is still running at all. */
   function sessionAlive(sessionId: number): boolean {
-    return !disposed && session.kind === "live" && session.id === sessionId;
+    return !disposed && session.fenced(sessionId);
   }
 
   /** {@link sessionAlive} for a pass. Checked after EVERY await, immediately
@@ -385,7 +365,12 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
   }
 
   function scheduleReconnect(): void {
-    if (disposed || session.kind !== "live" || openSocket === null || reconnectTimer !== null) {
+    if (
+      disposed ||
+      session.current().kind !== "live" ||
+      openSocket === null ||
+      reconnectTimer !== null
+    ) {
       return;
     }
     const delay = Math.min(RECONNECT_MAX_MS, RECONNECT_BASE_MS * 2 ** reconnectAttempt);
@@ -398,10 +383,11 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
   }
 
   function connect(): void {
-    if (disposed || session.kind !== "live" || socket !== null || openSocket === null) {
+    const current = session.current();
+    if (disposed || current.kind !== "live" || socket !== null || openSocket === null) {
       return;
     }
-    const credential = session.credential.credential;
+    const credential = current.credential.credential;
     // A generation, because an opener may report a terminal failure BEFORE it
     // returns: the assignment below would then overwrite the null its own
     // `onClose` just wrote, and this runtime would hold a dead handle it never
@@ -461,7 +447,12 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
   }
 
   function armTimers(): void {
-    if (disposed || session.kind !== "live" || pollIntervalMs === null || pollTimer !== null) {
+    if (
+      disposed ||
+      session.current().kind !== "live" ||
+      pollIntervalMs === null ||
+      pollTimer !== null
+    ) {
       return;
     }
     pollTimer = setInterval(() => {
@@ -472,7 +463,12 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
   }
 
   function scheduleDrain(): void {
-    if (disposed || session.kind !== "live" || pollIntervalMs === null || debounceTimer !== null) {
+    if (
+      disposed ||
+      session.current().kind !== "live" ||
+      pollIntervalMs === null ||
+      debounceTimer !== null
+    ) {
       return;
     }
     debounceTimer = setTimeout(() => {
@@ -484,27 +480,14 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
 
   // -- failure handling -----------------------------------------------------
 
-  /** True when the failure ends this device's session; the caller stops. */
+  /** True when the failure ends this device's session; the caller stops. The
+   *  verdict and the unauthorized transition are the session machine's;
+   *  `onEnded` above closes the socket and the timers. */
   function recordFailure(failure: CloudFailure): boolean {
     lastError = describeCloudFailure(failure);
-    if (failure.kind !== "refused" || !SYNC_TERMINAL_CODES.has(failure.code)) {
-      debug(lastError);
-      return false;
-    }
-    if (session.kind === "live") {
-      sessionCounter += 1;
-      session = {
-        kind: "unauthorized",
-        id: sessionCounter,
-        credential: session.credential,
-        detail: failure.message,
-      };
-    }
-    closeSession();
-    closeSocket();
-    clearTimers();
-    debug(`credential refused (${failure.code}): ${failure.message}`);
-    return true;
+    const outcome = session.recordFailure(failure);
+    if (outcome === "continue") debug(lastError);
+    return outcome === "ended";
   }
 
   // -- the pass -------------------------------------------------------------
@@ -599,41 +582,30 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
     }
   }
 
-  /** Page the log forward and apply everything this device did not write.
-   *  Returns false when the session ended. */
-  async function pullAndApply(context: PassContext): Promise<boolean> {
-    for (let page = 0; page < MAX_PULL_PAGES_PER_PASS; page += 1) {
-      if (!fenced(context)) {
-        return false;
-      }
-      const cursor = readSyncState(args.db).cursor;
-      const result = await context.client.pull({ afterSeq: cursor, limit: PULL_DEFAULT_LIMIT });
-      // This page belongs to the account this pass started under. Applying it
-      // after a re-pair would write another account's events into this one and
-      // move the new cursor past rows it never saw.
-      if (!fenced(context)) {
-        return false;
-      }
-      if (!result.ok) {
-        return !recordFailure(result.failure);
-      }
-      lastError = null;
-      const plan = planPage(result.value.events, context.deviceId);
-      for (const message of plan.skipped) {
-        debug(message);
-      }
-      for (const step of plan.steps) {
-        if (step.kind === "apply") {
-          applyStep(step);
-        } else {
-          writeSyncCursor(args.db, step.cursor);
+  /** Page the log forward and apply everything this device did not write —
+   *  the contract's own loop, over this platform's store. Returns false when
+   *  the session ended. */
+  function pullAndApply(context: PassContext): Promise<boolean> {
+    return pullPages({
+      client: context.client,
+      deviceId: context.deviceId,
+      fenced: () => fenced(context),
+      readCursor: () => readSyncState(args.db).cursor,
+      applyPlan: (steps) => {
+        for (const step of steps) {
+          if (step.kind === "apply") {
+            applyStep(step);
+          } else {
+            writeSyncCursor(args.db, step.cursor);
+          }
         }
-      }
-      if (!result.value.hasMore) {
-        return true;
-      }
-    }
-    return true;
+      },
+      recordFailure: (failure) => (recordFailure(failure) ? "ended" : "continue"),
+      onPage: () => {
+        lastError = null;
+      },
+      onSkipped: debug,
+    });
   }
 
   /**
@@ -715,18 +687,19 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
   }
 
   async function runPass(): Promise<void> {
-    if (session.kind !== "live" || disposed) {
+    const current = session.current();
+    if (current.kind !== "live" || disposed) {
       return;
     }
-    // Captured ONCE. Every step below re-checks it rather than re-reading
-    // `session`, so a pass can never finish its work against a session that is
+    // Captured ONCE. Every step below re-checks it rather than re-reading the
+    // session, so a pass can never finish its work against a session that is
     // no longer the one it started under.
     const context: PassContext = {
-      sessionId: session.id,
-      client: session.client,
-      deviceId: session.credential.deviceId,
+      sessionId: current.id,
+      client: current.client,
+      deviceId: current.credential.deviceId,
     };
-    if (session.credential.userId === undefined) {
+    if (current.credential.userId === undefined) {
       // A no-op once learned, so this is the poll interval's own recovery
       // cadence for the one fetch nothing else retries.
       await learnAccountIdentity();
@@ -755,15 +728,16 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
   // -- the surface ----------------------------------------------------------
 
   function status(): CloudStatusResponse {
-    switch (session.kind) {
+    const current = session.current();
+    switch (current.kind) {
       case "off":
         return { state: "off", cloudUrl: args.cloudUrl };
       case "unauthorized":
         return {
           state: "unauthorized",
           cloudUrl: args.cloudUrl,
-          deviceId: session.credential.deviceId,
-          detail: session.detail,
+          deviceId: current.credential.deviceId,
+          detail: current.detail,
         };
       case "live": {
         const state = readSyncState(args.db);
@@ -771,7 +745,7 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
           state: "paired",
           cloudUrl: args.cloudUrl,
           accountEmail,
-          deviceId: session.credential.deviceId,
+          deviceId: current.credential.deviceId,
           connected,
           pending: countSyncOutbox(args.db),
           cursor: state.cursor,
@@ -783,36 +757,17 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
   }
 
   async function syncNow(): Promise<CloudStatusResponse> {
-    if (session.kind !== "live" || disposed) {
+    if (session.current().kind !== "live" || disposed) {
       return status();
     }
-    if (inflight !== null) {
-      // Coalesced rather than queued: a second pass would push the batch the
-      // first one is already pushing. One more pass after this one covers
-      // whatever arrived while it ran.
-      dirty = true;
-      await inflight;
-      return status();
-    }
-    inflight = (async () => {
-      try {
-        for (;;) {
-          dirty = false;
-          await runPass();
-          // Read AFTER the await: every one of these can have moved while the
-          // pass ran, which is the whole reason the loop exists.
-          if (!dirty || disposed || session.kind !== "live") {
-            break;
-          }
-        }
-      } catch (error) {
-        lastError = messageOf(error);
-        debug(`sync pass failed: ${lastError}`);
-      } finally {
-        inflight = null;
-      }
-    })();
-    await inflight;
+    await flight.run({
+      pass: runPass,
+      repeat: () => !disposed && session.current().kind === "live",
+      onError: (message) => {
+        lastError = message;
+        debug(`sync pass failed: ${message}`);
+      },
+    });
     return status();
   }
 
@@ -820,7 +775,7 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
     status,
 
     enqueue(tx, events) {
-      if (session.kind !== "live" || events.length === 0) {
+      if (session.current().kind !== "live" || events.length === 0) {
         // An unpaired install queues nothing. The trade, stated: pairing later
         // syncs from that moment rather than backfilling — the log is the
         // account's history, not this device's, and a device that queued for
@@ -837,7 +792,7 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
     },
 
     start() {
-      if (session.kind !== "live") {
+      if (session.current().kind !== "live") {
         return;
       }
       armTimers();
@@ -907,7 +862,7 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
     },
 
     unpair() {
-      closeSession();
+      session.close();
       closeSocket();
       clearTimers();
       // An armed approval outlives the credential it was meant to replace
@@ -916,8 +871,6 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
       pairing.cancel();
       clearDeviceCredential(args.dataDir);
       resetSyncState(args.db);
-      sessionCounter += 1;
-      session = { kind: "off", id: sessionCounter };
       lastError = null;
       reconnectAttempt = 0;
       return status();
@@ -934,13 +887,13 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
       // slot itself should not outlive the runtime that owns it).
       pairing.cancel();
       // Cancels the requests in flight. Without it the teardown step's budget
-      // is a hope: `await inflight` would wait out every remaining round trip,
-      // and the pass would keep writing — the vault included — after the
+      // is a hope: awaiting the pass would wait out every remaining round
+      // trip, and it would keep writing — the vault included — after the
       // process was told to stop.
-      sessionAbort.abort();
+      session.abort();
       // A pass mid-flight owns a transaction and a request; letting it finish
       // is what keeps the outbox's ack and its push in agreement.
-      await inflight?.catch(() => undefined);
+      await flight.inflight()?.catch(() => undefined);
     },
   };
 }

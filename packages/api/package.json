@@ -13,6 +13,7 @@
     "./cloud/pairing/pairing-flow": "./src/cloud/pairing/pairing-flow.ts",
     "./cloud/pairing/pairing-schema": "./src/cloud/pairing/pairing-schema.ts",
     "./cloud/sync/plan-page": "./src/cloud/sync/plan-page.ts",
+    "./cloud/sync/sync-session": "./src/cloud/sync/sync-session.ts",
     "./cloud/sync/sync-schema": "./src/cloud/sync/sync-schema.ts",
     "./cloud/sync/sync-ws": "./src/cloud/sync/sync-ws.ts",
     "./cloud/vault/vault-git": "./src/cloud/vault/vault-git.ts",
