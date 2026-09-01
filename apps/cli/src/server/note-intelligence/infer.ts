@@ -4,6 +4,9 @@
 // cwd is the DATA DIR on purpose: `claude` loads CLAUDE.md from its cwd, and
 // running in the vault would inject the vault's own agent instructions into a
 // task that must read the note as CONTENT, not as a workspace.
+// The body rides STDIN, never argv: argv is readable by every process on the
+// machine (`ps`), and a note is private. The CLI appends piped input after
+// the `-p` prompt, so the prompt says the body follows.
 
 import { execFile } from "node:child_process";
 import { HARNESSES } from "@repo/agent-runtime/acp/harness-registry";
@@ -31,17 +34,14 @@ export type InferenceRunner = (body: string) => Promise<InferredFields | null>;
 // matters here.
 const cliEnvelopeSchema = z.object({ result: z.string() }).loose();
 
-function buildInferencePrompt(body: string): string {
-  return [
-    "Classify this markdown note. Answer with STRICT JSON only — no prose, no code fences:",
-    '{"description": "<=140 chars, one sentence, what the note is about",',
-    ' "tags": ["<=5 kebab-case topical tags"],',
-    ' "status": "draft" | "active" | "reference" | "archived"}',
-    "",
-    "Note body:",
-    body,
-  ].join("\n");
-}
+const INFERENCE_PROMPT = [
+  "Classify this markdown note. Answer with STRICT JSON only — no prose, no code fences:",
+  '{"description": "<=140 chars, one sentence, what the note is about",',
+  ' "tags": ["<=5 kebab-case topical tags"],',
+  ' "status": "draft" | "active" | "reference" | "archived"}',
+  "",
+  "The note body follows, piped on stdin:",
+].join("\n");
 
 /** Pull the first JSON object out of the model's text — models fence or
  *  preface despite instructions, and a parse failure is a SKIP, not an error. */
@@ -77,13 +77,18 @@ function parseCliStdout(stdout: string): InferredFields | null {
 export function createCliInferenceRunner(args: CliInferenceArgs): InferenceRunner {
   return (body) =>
     new Promise((resolvePromise) => {
-      execFile(
+      const child = execFile(
         INFERENCE_BINARY,
-        ["-p", buildInferencePrompt(body), "--output-format", "json", "--model", "haiku"],
+        ["-p", INFERENCE_PROMPT, "--output-format", "json", "--model", "haiku"],
         { cwd: args.cwd, timeout: args.timeoutMs ?? DEFAULT_TIMEOUT_MS },
         (error, stdout) => {
           resolvePromise(error === null ? parseCliStdout(stdout) : null);
         },
       );
+      // A child that exits before draining its stdin (a missing binary, a
+      // refused login) answers through the callback; the write's own EPIPE
+      // must not surface as an unhandled stream error.
+      child.stdin?.on("error", () => {});
+      child.stdin?.end(body);
     });
 }
