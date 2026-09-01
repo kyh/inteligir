@@ -3,7 +3,7 @@
 
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
-import { launchCloudWorker, type CloudWorker } from "./cloud-worker";
+import { launchCloudWorker, type CloudWorker, type LaunchCloudWorkerArgs } from "./cloud-worker";
 import { exec, hermeticProcessEnv } from "./exec";
 import { launchApp, type AppInstance, type LaunchAppArgs } from "./instance";
 import type { TrackedProcess } from "./tracked-child";
@@ -31,8 +31,10 @@ export interface ScenarioContext {
   /** A scratch bare git repo; returns the file:// URL for INTELIGIR_VAULT_REMOTE. */
   bareRemote(name?: string): Promise<string>;
   /** The product Worker on a scratch persist dir — the REAL cloud, for the
-   *  scenarios that need one. Registered for teardown like an instance. */
-  cloudWorker(): Promise<CloudWorker>;
+   *  scenarios that need one. Registered for teardown like an instance.
+   *  `builtConfig` boots the vite-emitted deploy artifact instead of the
+   *  source entry. */
+  cloudWorker(options?: { builtConfig?: string }): Promise<CloudWorker>;
 }
 
 export interface Scenario {
@@ -81,13 +83,16 @@ export function createScenarioContext(args: CreateScenarioContextArgs): Scenario
       if (options.extraEnv !== undefined) launchArgs.extraEnv = options.extraEnv;
       return launchApp(launchArgs);
     },
-    cloudWorker() {
-      return launchCloudWorker({
+    cloudWorker(options) {
+      const launch: LaunchCloudWorkerArgs = {
         repoRoot: args.repoRoot,
         scratchDir: args.scratchDir,
         onLog: args.log,
         register: (process) => args.instances.push(process),
-      });
+      };
+      // Assigned only when set — same rule as boot() above.
+      if (options?.builtConfig !== undefined) launch.builtConfig = options.builtConfig;
+      return launchCloudWorker(launch);
     },
     async bareRemote(name = "remote") {
       const remoteDir = join(args.scratchDir, `${name}.git`);

@@ -49,6 +49,11 @@ export interface LaunchCloudWorkerArgs {
   onLog: (line: string) => void;
   /** The runner's teardown registry, handed the worker at SPAWN. */
   register: (process: TrackedProcess) => void;
+  /** Boot the vite-EMITTED config (dist/server/wrangler.json) instead of the
+   *  source entry — the deploy artifact itself, bundle and all. No positional
+   *  entry is passed then: the emitted config's own `main` names the built
+   *  module, which is the thing under test. */
+  builtConfig?: string;
 }
 
 function workerEnv(): NodeJS.ProcessEnv {
@@ -118,10 +123,11 @@ export async function launchCloudWorker(args: LaunchCloudWorkerArgs): Promise<Cl
 
   // An EXPLICIT --config everywhere: after a build, .wrangler/deploy/config.json
   // redirects wrangler to dist/server/wrangler.json — whose `no_bundle: true`
-  // would hand workerd the raw TypeScript entry. Naming the source config is
-  // what an explicit path turns off (resolveWranglerConfigPath skips the
-  // redirect when one is given).
-  const configPath = join(webDir, "wrangler.jsonc");
+  // would hand workerd the raw TypeScript entry. An explicit path is what
+  // turns the redirect off (resolveWranglerConfigPath skips it when one is
+  // given): the source config by default, or the emitted config itself when
+  // the caller asked for the BUILT bundle.
+  const configPath = args.builtConfig ?? join(webDir, "wrangler.jsonc");
   await applySchema(webDir, binDir, args, { stateDir, configPath });
 
   const worker = await bootWithPorts<CloudWorker>({
@@ -139,7 +145,7 @@ export async function launchCloudWorker(args: LaunchCloudWorkerArgs): Promise<Cl
         file: join(binDir, "wrangler"),
         argv: [
           "dev",
-          "src/worker/index.ts",
+          ...(args.builtConfig === undefined ? ["src/worker/index.ts"] : []),
           "--config",
           configPath,
           "--ip",

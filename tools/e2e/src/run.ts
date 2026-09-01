@@ -13,6 +13,7 @@ import { killAllLiveGroups, type TrackedProcess } from "./harness/tracked-child"
 import { createScenarioContext, type Scenario } from "./harness/scenario";
 import { actionScripted } from "./scenarios/action-scripted";
 import { browserSmoke } from "./scenarios/browser-smoke";
+import { builtWorkerBoot } from "./scenarios/built-worker-boot";
 import { cliDrive } from "./scenarios/cli-drive";
 import { dictationBrowser } from "./scenarios/dictation-browser";
 import { editorConstructsBrowser } from "./scenarios/editor-constructs-browser";
@@ -30,6 +31,7 @@ const SCENARIOS: readonly Scenario[] = [
   vaultCrud,
   vaultSync,
   hostedVaultSync,
+  builtWorkerBoot,
   threadsScripted,
   actionScripted,
   cliDrive,
