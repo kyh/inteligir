@@ -22,7 +22,7 @@ const TooltipGroupContext = React.createContext(false);
 interface TooltipProviderProps {
   children: React.ReactNode;
   /** Hover delay before tooltips open, in ms. Defaults to 200. */
-  delayDuration?: number;
+  delay?: number;
   /** After a tooltip closes, adjacent tooltips opened within this window
    *  skip the hover delay, in ms. Defaults to 300. */
   skipDelayDuration?: number;
@@ -34,12 +34,12 @@ interface TooltipProviderProps {
  *  it via a per-instance fallback. */
 function TooltipProvider({
   children,
-  delayDuration = DEFAULT_DELAY,
+  delay = DEFAULT_DELAY,
   skipDelayDuration = 300,
 }: TooltipProviderProps) {
   return (
     <TooltipGroupContext.Provider value={true}>
-      <TooltipPrimitive.Provider delay={delayDuration} timeout={skipDelayDuration}>
+      <TooltipPrimitive.Provider delay={delay} timeout={skipDelayDuration}>
         {children}
       </TooltipPrimitive.Provider>
     </TooltipGroupContext.Provider>
@@ -54,8 +54,8 @@ interface TooltipProps {
   side?: TooltipSide;
   sideOffset?: number;
   /** Hover delay before this tooltip opens, in ms. Defaults to 200, or to the
-   *  ambient TooltipProvider's delayDuration when one is present. */
-  delayDuration?: number;
+   *  ambient TooltipProvider's delay when one is present. */
+  delay?: number;
   className?: string;
   /** When true, forces the tooltip open. When false, forces it closed. When
    *  undefined, uses default hover/focus behavior — `| undefined` is spelled
@@ -88,7 +88,7 @@ function Tooltip({
   children,
   side = "top",
   sideOffset = 8,
-  delayDuration,
+  delay,
   className,
   forceOpen,
   onOpenChange: onOpenChangeProp,
@@ -124,7 +124,7 @@ function Tooltip({
     >
       <TooltipPrimitive.Trigger
         render={children}
-        delay={delayDuration}
+        delay={delay}
         onPointerMove={followCursor ? handleFollowMove : undefined}
       />
       <TooltipPrimitive.Portal>
@@ -187,9 +187,7 @@ function Tooltip({
   if (hasAmbientProvider) return tooltip;
 
   return (
-    <TooltipPrimitive.Provider delay={delayDuration ?? DEFAULT_DELAY}>
-      {tooltip}
-    </TooltipPrimitive.Provider>
+    <TooltipPrimitive.Provider delay={delay ?? DEFAULT_DELAY}>{tooltip}</TooltipPrimitive.Provider>
   );
 }
 
