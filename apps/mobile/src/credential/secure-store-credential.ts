@@ -4,11 +4,8 @@
 // screen — the standard accessibility for a token a background task presents.
 
 import * as SecureStore from "expo-secure-store";
-import {
-  parseStoredCredential,
-  serializeCredential,
-  type DeviceCredential,
-} from "./credential-codec";
+import type { DeviceCredential } from "@repo/api/cloud/pairing/pairing-schema";
+import { parseStoredCredential, serializeCredential } from "./credential-codec";
 import type { CredentialStore } from "./credential-store";
 
 const CREDENTIAL_KEY = "device-credential";

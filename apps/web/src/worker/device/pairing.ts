@@ -7,8 +7,8 @@ import {
   type MintPairingCodeResponse,
   type RedeemDeviceResponse,
 } from "@repo/api/cloud/pairing/pairing-schema";
+import { constantTimeEqual, sha256Hex } from "@repo/api/cloud/bytes";
 import { and, eq, isNull, lt, or, sql } from "drizzle-orm";
-import { constantTimeEqual, sha256Hex } from "./device-auth";
 import type { createDb } from "../db/client";
 import { device, pairingCode } from "../db/schema";
 import { forgetDeviceBudgets } from "../rate-limit";

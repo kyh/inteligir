@@ -3,7 +3,7 @@
 // Keystore), NEVER AsyncStorage: the credential is a bearer secret, and
 // AsyncStorage is plaintext in the app sandbox. The unit suite drives a fake.
 
-import type { DeviceCredential } from "./credential-codec";
+import type { DeviceCredential } from "@repo/api/cloud/pairing/pairing-schema";
 
 export interface CredentialStore {
   /** The stored credential, or null when unpaired / unreadable. */

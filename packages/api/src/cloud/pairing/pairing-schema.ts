@@ -64,12 +64,49 @@ export const PKCE_VERIFIER_BYTES = 32;
  *  challenge (SHA-256 is 32 bytes → 43 base64url chars). */
 export const PKCE_S256_PATTERN = /^[A-Za-z0-9_-]{43}$/;
 
-function base64UrlFromBytes(bytes: Uint8Array): string {
+/** Byte array → base64url with no padding — the exact encoding
+ *  `PKCE_S256_PATTERN` admits. `btoa` is a global on workerd, node, the
+ *  browser and Hermes (RN 0.74+), so this one spelling runs everywhere the
+ *  contract does. */
+export function base64UrlFromBytes(bytes: Uint8Array): string {
   let binary = "";
   for (const byte of bytes) {
     binary += String.fromCharCode(byte);
   }
   return btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
+}
+
+/** The two crypto primitives a PKCE pair needs, and the byte source for the
+ *  pairing `state`. Injectable because React Native's Hermes carries neither
+ *  `crypto.getRandomValues` nor `crypto.subtle` reliably — the phone injects
+ *  expo-crypto; every other platform takes {@link webPkceCrypto}. */
+export interface PkceCrypto {
+  /** Cryptographically-random bytes. */
+  randomBytes(length: number): Uint8Array;
+  /** `SHA-256(utf8(input))` as raw bytes. */
+  sha256(input: string): Promise<Uint8Array>;
+}
+
+export const webPkceCrypto: PkceCrypto = {
+  randomBytes: (length) => crypto.getRandomValues(new Uint8Array(length)),
+  sha256: async (input) =>
+    new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(input))),
+};
+
+export interface PkcePair {
+  /** The secret kept in the pending slot, presented at redeem. */
+  verifier: string;
+  /** `BASE64URL(SHA-256(ASCII(verifier)))` — what the browser carries to the mint. */
+  challenge: string;
+}
+
+/** A fresh verifier + its S256 challenge over the injected primitives —
+ *  pinned against {@link pkceChallengeS256}, so the two spellings of the
+ *  transform cannot drift. */
+export async function createPkcePair(crypto: PkceCrypto = webPkceCrypto): Promise<PkcePair> {
+  const verifier = base64UrlFromBytes(crypto.randomBytes(PKCE_VERIFIER_BYTES));
+  const challenge = base64UrlFromBytes(await crypto.sha256(verifier));
+  return { verifier, challenge };
 }
 
 /** A fresh code verifier — the secret that never leaves the app. */
@@ -139,6 +176,20 @@ export const redeemDeviceResponseSchema = z
   })
   .strict();
 export type RedeemDeviceResponse = z.infer<typeof redeemDeviceResponseSchema>;
+
+/** The device credential AT REST — parsed rather than trusted on every read,
+ * because the boundary is between bytes on a store anyone with the machine
+ * could edit and a value a runtime puts in an `Authorization` header: a
+ * malformed record must read as "not paired", never as a credential the cloud
+ * refuses on every request forever. The CLI extends it with the account id
+ * its vault fence learns later; the phone stores exactly this. */
+export const deviceCredentialSchema = z
+  .object({
+    deviceId: z.string().min(1),
+    credential: z.string().regex(DEVICE_CREDENTIAL_PATTERN),
+  })
+  .strict();
+export type DeviceCredential = z.infer<typeof deviceCredentialSchema>;
 
 // GET /v1/device/list (session-authed). Revoked devices stay listed — the
 // dashboard is the audit surface, and a row vanishing on revoke would erase

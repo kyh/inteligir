@@ -2,6 +2,7 @@
 // git sync surface. Paths are vault-relative POSIX strings, refused at the
 // input boundary by `vaultPathSchema` below.
 
+import { hexFromBytes } from "@repo/api/cloud/bytes";
 import { parseVaultPath } from "@repo/notes/knowledge/vault-path";
 import { z } from "zod";
 
@@ -91,7 +92,8 @@ export async function contentHashBytesHex(
   bytes: ArrayBuffer | Uint8Array<ArrayBuffer>,
 ): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", bytes);
-  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+  // local→cloud is the sanctioned direction (see the asset allowlist below).
+  return hexFromBytes(new Uint8Array(digest));
 }
 
 // The asset allowlist is shared with the cloud asset route — one table, one

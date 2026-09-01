@@ -48,7 +48,7 @@ import {
 import { createExternalStore, type ReadableStore } from "../lib/external-store";
 import { applyPlan } from "./thread-log";
 import type { SyncStore } from "./sync-store";
-import type { DeviceCredential } from "../credential/credential-codec";
+import type { DeviceCredential } from "@repo/api/cloud/pairing/pairing-schema";
 
 export type SyncStatus =
   | { state: "off" }

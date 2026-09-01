@@ -9,7 +9,7 @@
 // suite drives the whole flow over the real manager with a fake redeem.
 
 import { describeCloudFailure } from "@repo/api/cloud/client";
-import type { DeviceCredential } from "../credential/credential-codec";
+import type { DeviceCredential } from "@repo/api/cloud/pairing/pairing-schema";
 import { createExternalStore, type ReadableStore } from "../lib/external-store";
 import type { PairCallback, PairingManager } from "./pairing-manager";
 

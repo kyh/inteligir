@@ -17,7 +17,6 @@ import {
   signUpUser,
   userIdOf,
 } from "./cloud-helpers";
-import { constantTimeEqual } from "../device/device-auth";
 import { createDb } from "../db/client";
 import { device, pairingCode } from "../db/schema";
 
@@ -317,17 +316,5 @@ describe("device pairing", () => {
       headers: sessionHeaders(bearer),
     });
     expect(response.status).toBe(401);
-  });
-});
-
-// The PKCE challenge compare workerd has no `timingSafeEqual` for.
-describe("constantTimeEqual", () => {
-  it("is true only for identical strings, length differences included", () => {
-    expect(constantTimeEqual("abc", "abc")).toBe(true);
-    expect(constantTimeEqual("abc", "abd")).toBe(false);
-    expect(constantTimeEqual("abc", "abcd")).toBe(false);
-    expect(constantTimeEqual("", "")).toBe(true);
-    expect(constantTimeEqual("a".repeat(43), "a".repeat(43))).toBe(true);
-    expect(constantTimeEqual(`${"a".repeat(42)}b`, "a".repeat(43))).toBe(false);
   });
 });

@@ -1,6 +1,6 @@
 import type { CloudFetch } from "@repo/api/cloud/client";
 import { describe, expect, it } from "vitest";
-import type { DeviceCredential } from "../../credential/credential-codec";
+import type { DeviceCredential } from "@repo/api/cloud/pairing/pairing-schema";
 import { createPairingFlow, type PairingFlow } from "../pairing-flow";
 import { createPairingManager, type PairCallback } from "../pairing-manager";
 import { CALLBACK, fakeCrypto, REDEEMED, redeemOk, redeemRefused, stateOf } from "./fakes";

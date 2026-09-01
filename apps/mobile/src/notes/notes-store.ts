@@ -20,7 +20,7 @@
 
 import { buildResolver, type TargetResolver } from "@repo/notes/knowledge/link-resolve";
 import type { VaultTreeResponse } from "@repo/api/cloud/vault/vault-schema";
-import type { DeviceCredential } from "../credential/credential-codec";
+import type { DeviceCredential } from "@repo/api/cloud/pairing/pairing-schema";
 import {
   createCloudClient,
   describeCloudFailure,

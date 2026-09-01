@@ -23,7 +23,7 @@ import {
   DEVICE_NAME_MAX_LENGTH,
   PAIR_STATE_BYTES,
 } from "@repo/api/cloud/pairing/pairing-schema";
-import type { DeviceCredential } from "../credential/credential-codec";
+import type { DeviceCredential } from "@repo/api/cloud/pairing/pairing-schema";
 import {
   redeemDevice,
   type CloudEndpoint,

@@ -32,6 +32,7 @@ import {
 import { createSyncRuntime, type SyncRuntime, type SyncStatus } from "../sync/sync-runtime";
 import type { SyncStore } from "../sync/sync-store";
 import { projectThread, type ThreadProjection } from "../sync/thread-projection";
+import { hexFromBytes } from "@repo/api/cloud/bytes";
 import type { CloudFailure, VaultAssetSource } from "@repo/api/cloud/client";
 import { getCloudUrl } from "./cloud-url";
 
@@ -148,10 +149,7 @@ export async function submitCapture(
 /** A stable idempotency key for a capture retry — the contract wants ≥ 8 chars;
  *  16 random bytes as hex is 32. */
 function newIdempotencyKey(): string {
-  const bytes = expoPkceCrypto.randomBytes(16);
-  let hex = "";
-  for (const byte of bytes) hex += byte.toString(16).padStart(2, "0");
-  return hex;
+  return hexFromBytes(expoPkceCrypto.randomBytes(16));
 }
 
 /** Fetch (or re-fetch) the vault tree; the hook below re-renders on it. */
