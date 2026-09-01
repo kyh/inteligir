@@ -6,7 +6,7 @@ import type {
 } from "@repo/domain/thread-lifecycle";
 import { evaluateThreadLifecycleEvent } from "@repo/domain/thread-lifecycle";
 import { and, desc, eq, isNotNull, isNull, like } from "drizzle-orm";
-import type { DbConnection, DbTransaction } from "./connection";
+import { writeTransaction, type DbConnection, type DbTransaction } from "./connection";
 import { createThreadId } from "./ids";
 import type { DbNotifier } from "@repo/domain/notifier";
 import { threads } from "./schema";
@@ -280,9 +280,7 @@ export function applyThreadLifecycleEvent(
   notifier: DbNotifier,
   args: ApplyThreadLifecycleEventArgs,
 ): ApplyThreadLifecycleEventOutcome {
-  const outcome = db.transaction((tx) => applyThreadLifecycleEventRecord(tx, args), {
-    behavior: "immediate",
-  });
+  const outcome = writeTransaction(db, (tx) => applyThreadLifecycleEventRecord(tx, args));
   if (outcome.applied) {
     notifier.notifyThread(args.threadId, ["status-changed"]);
   }

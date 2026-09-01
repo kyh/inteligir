@@ -27,6 +27,17 @@ export function createConnection(dbPath: string) {
 }
 
 /**
+ * Every WRITE transaction in this codebase, one spelling. `BEGIN IMMEDIATE`
+ * takes the write lock up front, so a read-then-write inside the transaction
+ * cannot hit SQLITE_BUSY upgrading midway — and the one-transaction-ingest
+ * law is structural rather than a per-call-site option a new writer can
+ * forget.
+ */
+export function writeTransaction<T>(db: DbConnection, work: (tx: DbTransaction) => T): T {
+  return db.transaction((tx) => work(tx), { behavior: "immediate" });
+}
+
+/**
  * Close the underlying handle. WAL leaves a `-wal` sidecar that only a clean
  * close checkpoints away, so the shutdown path calls this rather than letting
  * process exit drop the file descriptor.

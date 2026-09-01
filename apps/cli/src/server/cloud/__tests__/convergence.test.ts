@@ -286,15 +286,16 @@ describe("two installs against one account", () => {
     const pulled = await b.client.threads.get({ threadId: thread.id });
     expect(pulled.thread.status).toBe("active");
 
-    // A REBOOT of B: a second ThreadService over the same database runs
-    // `recoverWedgedThreads` at construction. It must not declare a provider it
-    // does not own to be dead — that failure would be fabricated here and then
+    // A REBOOT of B: a second ThreadService over the same database runs the
+    // wedged-thread sweep at boot(). It must not declare a provider it does
+    // not own to be dead — that failure would be fabricated here and then
     // pushed back to the machine still doing the work.
     const rebooted = new ThreadService({
       db: b.db,
       notifier: new NotificationBuffer(),
       createTurnDriver: () => unavailableTurnDriver,
     });
+    rebooted.boot();
     expect(rebooted.list().some((row) => row.id === thread.id)).toBe(true);
     expect(eventOrder(b, thread.id).some((row) => row.startsWith("provider/error"))).toBe(false);
     const afterReboot = await b.client.threads.get({ threadId: thread.id });

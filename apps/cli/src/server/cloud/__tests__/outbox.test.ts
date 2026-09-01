@@ -8,7 +8,12 @@
 // shape moves between the enqueue and the push, which is exactly what a
 // restart spans.
 
-import { closeConnection, createConnection, type DbConnection } from "@repo/db/connection";
+import {
+  closeConnection,
+  createConnection,
+  writeTransaction,
+  type DbConnection,
+} from "@repo/db/connection";
 import { runMigrations } from "@repo/db/migrate";
 import { readSyncState } from "@repo/db/sync-outbox";
 import type { ThreadEvent } from "@repo/domain/provider-event";
@@ -25,7 +30,9 @@ function openStore(dataDir: string): DbConnection {
 }
 
 function enqueue(db: DbConnection, events: readonly ThreadEvent[]): void {
-  db.transaction((tx) => enqueueThreadEvents(tx, events), { behavior: "immediate" });
+  writeTransaction(db, (tx) => {
+    enqueueThreadEvents(tx, events);
+  });
 }
 
 function message(threadId: string, text: string): ThreadEvent {

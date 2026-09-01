@@ -1,7 +1,7 @@
 // Vendored from bb (github.com/get-bb/bb), MIT. © bb contributors.
 
 import { and, asc, desc, eq, isNotNull, isNull } from "drizzle-orm";
-import type { DbConnection, DbTransaction } from "./connection";
+import { writeTransaction, type DbConnection, type DbTransaction } from "./connection";
 import { createPrefixedId, createQueuedThreadMessageId } from "./ids";
 import type { DbNotifier } from "@repo/domain/notifier";
 import { queuedThreadMessages } from "./schema";
@@ -75,9 +75,7 @@ export function createQueuedThreadMessage(
   notifier: DbNotifier,
   input: CreateQueuedThreadMessageInput,
 ): QueuedThreadMessageRow {
-  const row = db.transaction((tx) => createQueuedThreadMessageInTransaction(tx, input), {
-    behavior: "immediate",
-  });
+  const row = writeTransaction(db, (tx) => createQueuedThreadMessageInTransaction(tx, input));
   notifier.notifyThread(input.threadId, ["queue-changed"]);
   return row;
 }
@@ -148,9 +146,9 @@ export function claimNextQueuedThreadMessage(
   notifier: DbNotifier,
   threadId: string,
 ): ClaimedQueuedThreadMessageRow | null {
-  const claimed = db.transaction((tx) => claimNextQueuedThreadMessageInTransaction(tx, threadId), {
-    behavior: "immediate",
-  });
+  const claimed = writeTransaction(db, (tx) =>
+    claimNextQueuedThreadMessageInTransaction(tx, threadId),
+  );
   if (claimed) {
     notifier.notifyThread(claimed.threadId, ["queue-changed"]);
   }

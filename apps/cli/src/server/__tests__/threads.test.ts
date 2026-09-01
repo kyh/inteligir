@@ -372,6 +372,7 @@ describe("the queue drain", () => {
       notifier: noopNotifier,
       createTurnDriver: () => unavailableTurnDriver,
     });
+    revived.boot();
     expect(revived.get(threadId)?.queuedMessages.map((message) => message.text)).toEqual([
       "queued",
     ]);
@@ -463,13 +464,14 @@ describe("turn identity and crash recovery", () => {
       payload: "{}",
     });
 
-    // A fresh service on the same db is a process restart: no driver claim
-    // is live, so the running thread is an orphan and settles to error.
+    // A fresh booted service on the same db is a process restart: no driver
+    // claim is live, so the running thread is an orphan and settles to error.
     const revived = new ThreadService({
       db,
       notifier: noopNotifier,
       createTurnDriver: () => unavailableTurnDriver,
     });
+    revived.boot();
     expect(revived.get(threadId)?.thread.status).toBe("error");
     expect(await getThreadStatus(client, threadId)).toBe("error");
     const rows = timelineRows(await fetchTimeline(client, threadId));

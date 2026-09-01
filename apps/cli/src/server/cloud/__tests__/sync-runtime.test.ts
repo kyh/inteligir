@@ -5,7 +5,12 @@
 import { ACCOUNT_API_PATHS } from "@repo/api/cloud/account/account-schema";
 import { CAPTURE_API_PATHS } from "@repo/api/cloud/captures/captures-schema";
 import { SYNC_API_PATHS } from "@repo/api/cloud/sync/sync-schema";
-import { closeConnection, createConnection, type DbConnection } from "@repo/db/connection";
+import {
+  closeConnection,
+  createConnection,
+  writeTransaction,
+  type DbConnection,
+} from "@repo/db/connection";
 import { runMigrations } from "@repo/db/migrate";
 import { countSyncOutbox, readSyncState, writeSyncCursor } from "@repo/db/sync-outbox";
 import type { CloudPairBeginResponse } from "@repo/api/local/cloud/cloud-schema";
@@ -170,7 +175,9 @@ function message(threadId: string, text: string): ThreadEvent {
 }
 
 function append(harness: Harness, events: readonly ThreadEvent[]): void {
-  harness.db.transaction((tx) => harness.runtime.enqueue(tx, events), { behavior: "immediate" });
+  writeTransaction(harness.db, (tx) => {
+    harness.runtime.enqueue(tx, events);
+  });
 }
 
 /** The approve page's act: mint the code BOUND to the PKCE challenge `beginPair`

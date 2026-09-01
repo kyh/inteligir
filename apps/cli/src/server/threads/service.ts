@@ -20,7 +20,7 @@ import {
   parseApprovalResolution,
   type ApprovalPendingInteractionPayload,
 } from "@repo/domain/pending-interactions";
-import type { DbConnection, DbTransaction } from "@repo/db/connection";
+import { writeTransaction, type DbConnection, type DbTransaction } from "@repo/db/connection";
 import {
   appendEventsInTransaction,
   appendSyncedEventsInTransaction,
@@ -195,11 +195,20 @@ export class ThreadService implements ProviderEventSink {
     this.sync = args.sync ?? null;
     this.timelines = new ThreadTimelineProjector(args.db);
     this.driver = args.createTurnDriver(this);
+  }
+
+  /**
+   * Crash recovery, run once per process by the composition root — a method
+   * rather than constructor work, because it WRITES: it frees claims,
+   * appends settle events, notifies, and enqueues to the outbox, and a side
+   * effect that big belongs where the boot order is decided.
+   */
+  boot(): void {
     // Before the wedged-thread sweep: a claim held by the dead process is
     // invisible to both the queue read and the next drain, so a message left
     // claimed would be lost rather than shown. A swept row does NOT
     // auto-dispatch — the drain fires only when a thread settles idle.
-    releaseAllQueuedMessageClaims(args.db);
+    releaseAllQueuedMessageClaims(this.db);
     this.recoverWedgedThreads();
   }
 
@@ -259,9 +268,8 @@ export class ThreadService implements ProviderEventSink {
 
   send(request: SendMessageRequest): SendOutcome {
     const buffer = new NotificationBuffer();
-    const decision = this.db.transaction(
-      (tx) => this.resolveSendInTransaction(tx, request, buffer),
-      { behavior: "immediate" },
+    const decision = writeTransaction(this.db, (tx) =>
+      this.resolveSendInTransaction(tx, request, buffer),
     );
     buffer.flushTo(this.notifier);
     if (decision.kind === "dispatch") {
@@ -413,20 +421,17 @@ export class ThreadService implements ProviderEventSink {
    */
   private failTurnlessRun(threadId: string, message: string): void {
     const buffer = new NotificationBuffer();
-    this.db.transaction(
-      (tx) => {
-        this.appendLocal(tx, [{ type: "provider/error", threadId, message, scope: threadScope() }]);
-        buffer.notifyThread(threadId, ["events-appended"]);
-        const outcome = applyThreadLifecycleEventInTransaction(tx, {
-          threadId,
-          event: { type: "run.failed", turnId: null },
-        });
-        if (outcome.applied) {
-          buffer.notifyThread(threadId, ["status-changed"]);
-        }
-      },
-      { behavior: "immediate" },
-    );
+    writeTransaction(this.db, (tx) => {
+      this.appendLocal(tx, [{ type: "provider/error", threadId, message, scope: threadScope() }]);
+      buffer.notifyThread(threadId, ["events-appended"]);
+      const outcome = applyThreadLifecycleEventInTransaction(tx, {
+        threadId,
+        event: { type: "run.failed", turnId: null },
+      });
+      if (outcome.applied) {
+        buffer.notifyThread(threadId, ["status-changed"]);
+      }
+    });
     buffer.flushTo(this.notifier);
   }
 
@@ -537,61 +542,58 @@ export class ThreadService implements ProviderEventSink {
     }
     const buffer = new NotificationBuffer();
     const drains: ClaimedQueuedThreadMessageRow[] = [];
-    this.db.transaction(
-      (tx) => {
-        // What lifecycle actually projects over: the rows that LANDED. For a
-        // local batch that is all of them; for a synced one it is the input
-        // minus whatever this database already held, which is what makes a
-        // re-pair's full replay a no-op rather than a status flap.
-        let projected: readonly ThreadEvent[] = events;
-        if (args.origin === "remote") {
-          if (ensureThreadInTransaction(tx, threadId).created) {
-            buffer.notifyThread(threadId, ["thread-created"]);
-          }
-          const landed = appendSyncedEventsInTransaction(tx, args.rows);
-          projected = landed.applied.map((row) => row.event);
-          // IN THIS TRANSACTION, which is what makes a pulled event land
-          // exactly once — advancing the cursor as a second write leaves a
-          // window where a crash replays the page into duplicate rows. And it
-          // advances even when nothing landed: the point of the cursor is that
-          // this device has SEEN the row, not that the row was new.
-          writeSyncCursor(tx, args.cursor);
-          if (projected.length === 0) {
-            return;
-          }
-        } else {
-          this.appendLocal(tx, events);
+    writeTransaction(this.db, (tx) => {
+      // What lifecycle actually projects over: the rows that LANDED. For a
+      // local batch that is all of them; for a synced one it is the input
+      // minus whatever this database already held, which is what makes a
+      // re-pair's full replay a no-op rather than a status flap.
+      let projected: readonly ThreadEvent[] = events;
+      if (args.origin === "remote") {
+        if (ensureThreadInTransaction(tx, threadId).created) {
+          buffer.notifyThread(threadId, ["thread-created"]);
         }
-        buffer.notifyThread(threadId, ["events-appended"]);
-        for (const event of projected) {
-          const lifecycleEvent = lifecycleEventFor(event);
-          if (lifecycleEvent === null) {
-            continue;
-          }
-          const outcome = applyThreadLifecycleEventInTransaction(tx, {
-            threadId,
-            event: lifecycleEvent,
-          });
-          if (!outcome.applied) {
-            // A late completion for a superseded turn is expected traffic —
-            // logged, never thrown, and it settles nothing.
-            console.warn(
-              `thread ${threadId}: ${lifecycleEvent.type} not applied (${outcome.reason}): ${outcome.detail}`,
-            );
-            continue;
-          }
-          buffer.notifyThread(threadId, ["status-changed"]);
-          if (outcome.thread.status === "idle" && args.origin === "local") {
-            const claimed = claimNextQueuedThreadMessageInTransaction(tx, threadId);
-            if (claimed !== null) {
-              buffer.notifyThread(threadId, ["queue-changed"]);
-              drains.push(claimed);
-            }
+        const landed = appendSyncedEventsInTransaction(tx, args.rows);
+        projected = landed.applied.map((row) => row.event);
+        // IN THIS TRANSACTION, which is what makes a pulled event land
+        // exactly once — advancing the cursor as a second write leaves a
+        // window where a crash replays the page into duplicate rows. And it
+        // advances even when nothing landed: the point of the cursor is that
+        // this device has SEEN the row, not that the row was new.
+        writeSyncCursor(tx, args.cursor);
+        if (projected.length === 0) {
+          return;
+        }
+      } else {
+        this.appendLocal(tx, events);
+      }
+      buffer.notifyThread(threadId, ["events-appended"]);
+      for (const event of projected) {
+        const lifecycleEvent = lifecycleEventFor(event);
+        if (lifecycleEvent === null) {
+          continue;
+        }
+        const outcome = applyThreadLifecycleEventInTransaction(tx, {
+          threadId,
+          event: lifecycleEvent,
+        });
+        if (!outcome.applied) {
+          // A late completion for a superseded turn is expected traffic —
+          // logged, never thrown, and it settles nothing.
+          console.warn(
+            `thread ${threadId}: ${lifecycleEvent.type} not applied (${outcome.reason}): ${outcome.detail}`,
+          );
+          continue;
+        }
+        buffer.notifyThread(threadId, ["status-changed"]);
+        if (outcome.thread.status === "idle" && args.origin === "local") {
+          const claimed = claimNextQueuedThreadMessageInTransaction(tx, threadId);
+          if (claimed !== null) {
+            buffer.notifyThread(threadId, ["queue-changed"]);
+            drains.push(claimed);
           }
         }
-      },
-      { behavior: "immediate" },
-    );
+      }
+    });
     buffer.flushTo(this.notifier);
     for (const claimed of drains) {
       this.dispatchQueuedMessage(threadId, claimed);
@@ -612,22 +614,19 @@ export class ThreadService implements ProviderEventSink {
    */
   private dispatchQueuedMessage(threadId: string, claimed: ClaimedQueuedThreadMessageRow): void {
     const buffer = new NotificationBuffer();
-    const decision = this.db.transaction(
-      (tx): SendDecision => {
-        const thread = getThread(tx, threadId);
-        if (thread === null) {
-          return { kind: "done", outcome: { kind: "not-found" } };
-        }
-        // No view context: the row never held one — see queueInTransaction.
-        const prepared = this.prepareTurnInTransaction(tx, thread, claimed.text, undefined, buffer);
-        if (prepared.kind === "dispatch") {
-          deleteClaimedQueuedThreadMessageInTransaction(tx, claimed);
-          buffer.notifyThread(threadId, ["queue-changed"]);
-        }
-        return prepared;
-      },
-      { behavior: "immediate" },
-    );
+    const decision = writeTransaction(this.db, (tx): SendDecision => {
+      const thread = getThread(tx, threadId);
+      if (thread === null) {
+        return { kind: "done", outcome: { kind: "not-found" } };
+      }
+      // No view context: the row never held one — see queueInTransaction.
+      const prepared = this.prepareTurnInTransaction(tx, thread, claimed.text, undefined, buffer);
+      if (prepared.kind === "dispatch") {
+        deleteClaimedQueuedThreadMessageInTransaction(tx, claimed);
+        buffer.notifyThread(threadId, ["queue-changed"]);
+      }
+      return prepared;
+    });
     buffer.flushTo(this.notifier);
     if (decision.kind !== "dispatch") {
       // Prepare appended nothing (e.g. the thread was archived between the

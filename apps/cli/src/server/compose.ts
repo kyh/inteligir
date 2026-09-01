@@ -277,6 +277,10 @@ export async function composeRuntime(args: ComposeRuntimeArgs): Promise<Composed
     createTurnDriver: agentDriver.createTurnDriver,
     sync: cloud,
   });
+  // Crash recovery is a WRITE (it settles orphaned turns, frees claims and
+  // enqueues to the outbox), so it runs here, where the boot order is
+  // decided, rather than as a constructor side effect.
+  threads.boot();
   cloud.attach(threads);
 
   // `scripted` is selected by INTELIGIR_VOICE and is the whole reason the
