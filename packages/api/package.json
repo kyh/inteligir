@@ -10,6 +10,7 @@
     "./cloud/captures/captures-schema": "./src/cloud/captures/captures-schema.ts",
     "./cloud/client": "./src/cloud/cloud-client.ts",
     "./cloud/errors": "./src/cloud/cloud-errors.ts",
+    "./cloud/pairing/approval-slot": "./src/cloud/pairing/approval-slot.ts",
     "./cloud/pairing/pairing-flow": "./src/cloud/pairing/pairing-flow.ts",
     "./cloud/pairing/pairing-schema": "./src/cloud/pairing/pairing-schema.ts",
     "./cloud/sync/plan-page": "./src/cloud/sync/plan-page.ts",
