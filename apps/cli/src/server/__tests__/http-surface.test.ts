@@ -3,9 +3,7 @@
 //
 // The procedures need no guard any more: `base.router({...})` in
 // `root-router.ts` is a compile-time totality check, so a contract row nobody
-// implemented — and a handler that drifts from its row — fails the build. That
-// is what the vendored route table's completeness test used to have to do at
-// runtime.
+// implemented — and a handler that drifts from its row — fails the build.
 //
 // What no compiler can see is the OTHER surface: the routes mounted by hand
 // beside the handler. Each one is a deliberate exception to "everything is a

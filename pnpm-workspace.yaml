@@ -5,7 +5,7 @@ packages:
 
 catalog:
   "@base-ui/react": ^1.7.0
-  # oRPC (issue #611): ONE contract package, two entry points, four callers.
+  # oRPC: ONE contract package, two entry points, four callers.
   # The four halves are versioned together — a contract compiled by one minor
   # and served by another is exactly the drift the package exists to prevent.
   # Pinned EXACT on the v2 beta: a pre-release breaks between patches, so a
@@ -14,14 +14,14 @@ catalog:
   "@orpc/contract": 2.0.0-beta.31
   "@orpc/server": 2.0.0-beta.31
   "@orpc/tanstack-query": 2.0.0-beta.31
-  # The ACP adapters (issue #588) are CHILD PROCESSES, not imports: agent-runtime
+  # The ACP adapters are CHILD PROCESSES, not imports: agent-runtime
   # spawns them in dev, apps/cli ships them as real dependencies of the published
   # binary, and the two manifests must agree on the version the wire was verified
   # against — pinned EXACT, and
   # codex-acp deliberately held (its bundled core is live-broken upstream, #594).
   "@zed-industries/claude-code-acp": 0.16.2
   "@zed-industries/codex-acp": 0.16.0
-  # Dictation (issue #578): streaming Parakeet through sherpa-onnx. Pinned
+  # Dictation: streaming Parakeet through sherpa-onnx. Pinned
   # EXACT: the binary arrives through 6 per-platform optionalDependencies and
   # there is NO install/build script (a prebuilt N-API addon), which is the
   # property `npx inteligir`'s zero-rebuild install depends on, so the version
@@ -35,7 +35,7 @@ catalog:
   oxc-transform-react: ^0.147.0
   "@cloudflare/vite-plugin": ^1.54.2
   "@cloudflare/vitest-pool-workers": ^0.22.0
-  # The mobile companion (issue #576). Expo SDK 57 uses `~57.0.x` unified
+  # The mobile companion. Expo SDK 57 uses `~57.0.x` unified
   # versioning across its own packages; the react-native peers carry their own
   # ranges.
   "@expo/metro-runtime": ~57.0.7

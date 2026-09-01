@@ -35,8 +35,8 @@
   // Durable Object migration history. APPEND a tag per change; never edit a
   // tag that has shipped. v5 is what removes the retired classes (and their
   // stored state) from the deployed namespace on the next deploy; v6 is the
-  // v3 thread-sync object (issue #554); v7 is the hosted vault git remote
-  // (issue #618) — durable-git's repo cells and their name index.
+  // v3 thread-sync object; v7 is the hosted vault git remote —
+  // durable-git's repo cells and their name index.
   "migrations": [
     { "tag": "v1", "new_sqlite_classes": ["VaultCoordinator"] },
     { "tag": "v2", "new_sqlite_classes": ["UserHost"] },

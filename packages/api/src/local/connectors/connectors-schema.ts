@@ -1,7 +1,7 @@
 // The connectors payload vocabulary: the MCP servers every agent session gets.
 //
-// The registry is THIS APP'S OWN (issue #591, reversing the codex-owned
-// decision — its premise, codex as the only harness, died with ACP). One
+// The registry is THIS APP'S OWN, never a harness's: with more than one
+// harness, a registry one of them owns is one the others cannot read. One
 // store in the data dir; session creation composes the enabled rows into
 // ACP `session/new`'s mcpServers, identically for every harness, so
 // "configured once, shared by every agent" is a property of the launch path

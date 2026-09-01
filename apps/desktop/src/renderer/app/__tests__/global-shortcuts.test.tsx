@@ -1,9 +1,8 @@
 // @vitest-environment jsdom
 
-// The app's window-level shortcut table: the matcher's platform rules are the
-// half that survives the editor swap. The old CM-keymap collision guard died
-// with CodeMirror; when the Plate editor grows its own keymap table, a derived
-// no-overlap guard belongs here again.
+// The app's window-level shortcut table: the matcher's platform rules. When
+// the Plate editor grows its own keymap table, a derived no-overlap guard
+// against it belongs here.
 
 import { cleanup, fireEvent, render } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";

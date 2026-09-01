@@ -116,7 +116,7 @@ const VOCABULARIES: Vocabulary[] = [
         "the FSM — which transition each status permits, and the only table that may say so",
       "apps/cli/src/server/threads/service.ts":
         "server POLICY — what a send does in each status (start, queue, refuse), which is a different question from what the status is called",
-      "apps/desktop/src/renderer/app/chat-model.ts":
+      "apps/desktop/src/renderer/app/thread-activity.ts":
         "the client's ONE derivation into `ThreadActivity`; every React surface reads its labels, dots and tones from there rather than from the lifecycle word",
     },
   },

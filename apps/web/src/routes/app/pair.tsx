@@ -18,7 +18,7 @@ import { currentSession } from "@/lib/session-guard";
 import { siteConfig } from "@/lib/site-config";
 
 // ---------------------------------------------------------------------------
-// `/app/pair` — the one screen in browser-approve pairing (issue #573).
+// `/app/pair` — the one screen in browser-approve pairing.
 //
 // A local install sent the user here with four values: where to send the
 // browser back to, the single-use `state` that binds the answer to the request

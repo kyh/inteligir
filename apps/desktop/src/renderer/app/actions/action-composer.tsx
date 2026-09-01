@@ -179,10 +179,10 @@ export function ActionComposer({
     })();
   };
 
+  // The scrim is invisible: a click anywhere off the composer dismisses it
+  // without dimming the note.
   return (
     <>
-      {/* Scrim: invisible, but a click anywhere off the composer dismisses it
-          — the pre-rework wrapper's behavior, kept without dimming the note. */}
       <div
         className="absolute inset-0 z-30"
         onPointerDown={() => {

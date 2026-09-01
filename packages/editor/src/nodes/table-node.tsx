@@ -45,6 +45,11 @@ export function TableElement(props: PlateElementProps) {
     insertTableColumn(editor, { fromCell: [...at, 0, cols - 1] });
   };
 
+  // Grid styling comes from the shared .typeset table rules; mt-0 because the
+  // wrapper div already carries the block's flow margin.
+  // The sliver affordances override the stock height/width (h-2 / w-2) and
+  // keep a solid bg-muted resting fill, so hover only shifts the text color —
+  // same in dark (hence the dark:hover override).
   return (
     // max-w-full + the inner overflow-x-auto: a wide table scrolls inside its
     // own block instead of being clipped by the editable's overflow-x-hidden
@@ -74,15 +79,10 @@ export function TableElement(props: PlateElementProps) {
         </DropdownMenuContent>
       </DropdownMenu>
       <div className="overflow-x-auto">
-        {/* Grid styling comes from the shared .typeset table rules; mt-0
-            because the wrapper div already carries the block's flow margin. */}
         <PlateElement {...props} as="table" className="mt-0">
           <tbody>{props.children}</tbody>
         </PlateElement>
       </div>
-      {/* The sliver affordances override the stock height/width (h-2 / w-2)
-          and keep a solid bg-muted resting fill, so hover only shifts the
-          text color — same in dark (hence the dark:hover override). */}
       <Button
         variant="ghost"
         size="compact"

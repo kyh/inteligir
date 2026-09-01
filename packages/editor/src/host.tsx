@@ -54,8 +54,8 @@ export type VaultActions = {
   renameEntry: (from: string, to: string) => Promise<boolean>;
   /** Delete a file (closes it if open). */
   deleteEntry: (path: string) => Promise<void>;
-  /** Persist the open note's pending edits now (e.g. before delegating a
-   * checkbox). Resolves `true` once the buffer is clean. */
+  /** Persist the open note's pending edits now (e.g. before a send hashes the
+   * note's revision). Resolves `true` once the buffer is clean. */
   flush: () => Promise<boolean>;
   /** Re-list the vault now (re-list + reindex). */
   refreshVault: () => void;

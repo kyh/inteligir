@@ -1,4 +1,4 @@
-// Note Intelligence (#590): background frontmatter inference over the vault's
+// Note Intelligence: background frontmatter inference over the vault's
 // notes. The sweep CONVERGES BY CONSTRUCTION: it only ever ADDS fields a note
 // lacks, so its own writes disqualify their notes from the next pass, and a
 // files-changed echo re-scans to a zero-update sweep rather than looping.

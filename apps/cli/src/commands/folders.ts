@@ -1,4 +1,4 @@
-// `inteligir folders` — Connected Folders (issue #601): the directories agent
+// `inteligir folders` — Connected Folders: the directories agent
 // sessions are told about as read-only reference context. Parity verbs for
 // what Settings → Connected folders does; not a permission surface — the
 // rows only name what the user offers as reference.

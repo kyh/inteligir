@@ -1,4 +1,4 @@
-// The harness table (issue #588): every per-harness fact the ACP runtime and
+// The harness table: every per-harness fact the ACP runtime and
 // the detection surface need, as DATA. A third harness is a row here — the
 // runtime itself knows only ACP.
 

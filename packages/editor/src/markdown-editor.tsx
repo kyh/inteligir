@@ -160,6 +160,14 @@ export function MarkdownEditor({ path, value, onChange, onRegisterSerializeFlush
   // ride this same serialize path to disk.
   useEffect(() => registerLiveEditor(path, editor), [path, editor]);
 
+  // EditorContainer is the relative wrapper the cursor overlay's selection
+  // ghost and the floating toolbar (afterEditable renders) position against;
+  // the toolbar itself renders from FloatingToolbarKit.
+  // The editor-level placeholder covers the pristine-empty doc —
+  // BlockPlaceholderPlugin deliberately skips that state (its
+  // isPristineEmptyEditor gate) and only handles empty blocks in non-empty
+  // docs. Same copy as the kit's `p` entry so the hint reads identically in
+  // both states.
   return (
     <Plate
       editor={editor}
@@ -175,15 +183,7 @@ export function MarkdownEditor({ path, value, onChange, onRegisterSerializeFlush
         scheduler.schedule();
       }}
     >
-      {/* EditorContainer is the relative wrapper the cursor overlay's
-          selection ghost and the floating toolbar (afterEditable renders)
-          position against. The toolbar itself renders from FloatingToolbarKit. */}
       <EditorContainer>
-        {/* The editor-level placeholder covers the pristine-empty doc —
-            BlockPlaceholderPlugin deliberately skips that state (its
-            isPristineEmptyEditor gate) and only handles empty blocks in
-            non-empty docs. Same copy as the kit's `p` entry so the hint
-            reads identically in both states. */}
         <Editor placeholder={WRITE_PLACEHOLDER} spellCheck={false} />
       </EditorContainer>
       <TableOfContents />

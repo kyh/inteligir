@@ -16,7 +16,7 @@ import { z } from "zod";
  *  boot and the spawn here can never name different binaries. */
 export const INFERENCE_BINARY = HARNESSES.claude.vendorBinary;
 
-/** The closed field set — the ONLY keys inference may produce (#590). */
+/** The closed field set — the ONLY keys inference may produce. */
 const inferredFieldsSchema = z
   .object({
     description: z.string().min(1).max(140),

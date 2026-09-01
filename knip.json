@@ -47,7 +47,7 @@
       "ignore": ["src/renderer/routeTree.gen.ts"],
       "ignoreDependencies": ["tailwindcss"]
     },
-    // The mobile companion (issue #576). The expo-router file routes under
+    // The mobile companion. The expo-router file routes under
     // src/app are the UI roots; the tests are the sync/credential/pairing
     // suites. app.config.js declares `updates: { enabled: false }`, which is
     // what stops knip's Expo plugin synthesizing an `expo-updates` dependency

@@ -6,7 +6,7 @@ import type { PendingInteraction } from "@repo/api/local/threads/threads-schema"
  * The provider seam. A driver ACCEPTS work synchronously and reports
  * everything the turn produces later, as ThreadEvents into the sink it was
  * constructed with — the same append path a report over any transport ends
- * in, so the scripted test driver and the real adapter (#549) are
+ * in, so the scripted test driver and the real adapter are
  * indistinguishable below this line.
  */
 export interface TurnDriver {

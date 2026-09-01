@@ -119,7 +119,7 @@ export interface AcpRuntimeManagerDeps {
   defaultProviderId: HarnessId;
   /** Tests: replace the adapter child spawn (the fake ACP agent). */
   spawnAdapter?: AcpAgentRuntimeOptions["spawnAdapter"];
-  /** The enabled connector rows every session gets (issue #591). */
+  /** The enabled connector rows every session gets. */
   mcpServers: () => AcpMcpServerConfig[] | Promise<AcpMcpServerConfig[]>;
   /** Tests: observe/replace runtime construction (the shellEnv wiring test). */
   createRuntime?: typeof createAcpAgentRuntime;

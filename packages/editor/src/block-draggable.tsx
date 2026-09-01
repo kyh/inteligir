@@ -143,6 +143,8 @@ function Draggable(props: PlateElementProps) {
     editor.getApi(BlockMenuPlugin).blockMenu.show(id, { x: rect.left, y: rect.bottom + 4 });
   };
 
+  // The drop line marks where the dragged block lands relative to THIS block
+  // — below it when dragging down, above it when dragging up.
   return (
     <div
       ref={setNodeRef}
@@ -203,8 +205,6 @@ function Draggable(props: PlateElementProps) {
 
       {children}
 
-      {/* Drop line: where the dragged block lands relative to THIS block —
-          below it when dragging down, above it when dragging up. */}
       {isOver && activeIndex !== index && (
         <div
           contentEditable={false}

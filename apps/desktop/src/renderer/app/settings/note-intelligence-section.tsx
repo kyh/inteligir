@@ -1,4 +1,4 @@
-// Settings → Note intelligence (#590): the switch for background frontmatter
+// Settings → Note intelligence: the switch for background frontmatter
 // inference. The server owns the toggle (it is the process that spawns the
 // inference children), so this section renders the server's own status and
 // nothing it does not have. What the feature MAY write is stated beside the

@@ -262,7 +262,6 @@ describe("the vault routes", () => {
     // The client sends the raw path (only URL-encoded, `vaultAssetUrl`) and the
     // SERVER decides: a name that needs encoding round-trips to disk, and a
     // traversal is refused by the vault's own containment, not by the builder.
-    // This is the narrowing that replaced the old client-side decode/normalize.
     const { request, vaultDir } = await bootTestApp();
     await writeFile(join(vaultDir, "my picture.png"), "png-bytes", "utf8");
 

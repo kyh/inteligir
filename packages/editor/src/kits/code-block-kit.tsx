@@ -84,10 +84,10 @@ function MermaidCodeBlock(props: PlateElementProps) {
 function CodeBlockElement(props: PlateElementProps) {
   if (props.element.lang === "mermaid") return <MermaidCodeBlock {...props} />;
   const lang = stringProp(props.element, "lang");
+  // The hover-reveal language label is display-only — the fence's lang is set
+  // at creation — and a <span>, because <pre> hosts phrasing.
   return (
     <PlateElement {...props} as="pre" className="group/code relative">
-      {/* Hover-reveal language label (display-only header — the fence's lang
-          is edited in Raw / at creation). A <span>: <pre> hosts phrasing. */}
       {lang ? (
         <span
           contentEditable={false}

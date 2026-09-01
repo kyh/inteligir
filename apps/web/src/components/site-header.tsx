@@ -37,6 +37,8 @@ function ThemeToggle() {
   const mounted = useSyncExternalStore(neverChanges, onClient, onServer);
 
   const isDark = resolved === "dark";
+  // The theme icon renders invisible before mount to avoid a hydration
+  // mismatch while the theme provider reconciles from localStorage.
   return (
     <Button
       variant="secondary"
@@ -45,8 +47,6 @@ function ThemeToggle() {
       onClick={() => setTheme(isDark ? "light" : "dark")}
       aria-label="Toggle theme"
     >
-      {/* Render an invisible icon before mount to avoid a hydration mismatch
-          while the theme provider reconciles from localStorage. */}
       {mounted && !isDark ? (
         <MoonIcon />
       ) : (
@@ -57,11 +57,11 @@ function ThemeToggle() {
 }
 
 export function SiteHeader() {
+  // Social links are plain anchors styled to match the icon buttons beside
+  // them: they navigate, so the semantics are an anchor's.
   return (
     <header className="fixed top-4 right-4 z-50 flex items-center gap-1">
       <ThemeToggle />
-      {/* Social links are plain anchors styled to match the icon buttons
-          beside them: they navigate, so the semantics are an anchor's. */}
       <a
         href={GITHUB_URL}
         target="_blank"

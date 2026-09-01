@@ -92,6 +92,8 @@ export function decisionFromAnswers(
 
 export function ApprovalCard({ interaction, onAnswer, disabled = false }: ApprovalCardProps) {
   const offer = approvalOffer(interaction);
+  // One radio question: picking IS the answer, which is what the card's
+  // single-choice path commits on — so a decision stays one click.
   return (
     <ApprovalCardView
       onSubmit={(answers) => {
@@ -107,8 +109,6 @@ export function ApprovalCard({ interaction, onAnswer, disabled = false }: Approv
       }}
       sentLabel="Answer sent"
     >
-      {/* One radio question: picking IS the answer, which is what the card's
-          single-choice path commits on — so a decision stays one click. */}
       <ApprovalQuestion
         questionId={interaction.id}
         prompt={offer.summary}

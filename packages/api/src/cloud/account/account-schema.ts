@@ -2,7 +2,7 @@ import { z } from "zod";
 
 // ---------------------------------------------------------------------------
 // `GET /v1/account` (device-authed): whose account this credential syncs as.
-// The account is the entitlement (owner decision 2026-08-25, issue #618), so
+// The account is the entitlement, so
 // the product must be able to SAY which account an install is entitled by —
 // after the approve page closes, this row is the only place that fact can
 // come from.

@@ -1,4 +1,4 @@
-// The rich fence blocks (#586): chart_block / canvas_block / html_block,
+// The rich fence blocks: chart_block / canvas_block / html_block,
 // each a BLOCK VOID whose `value` holds the fence payload verbatim —
 // byte-exactness by construction, with a degraded code view (never data
 // loss) when a renderer refuses its payload. md-rules' code_block dispatch

@@ -325,7 +325,7 @@ function configureApplicationMenu(target: ServerTarget, server: LiveServer): voi
       label: "File",
       submenu: [
         {
-          // The in-app browser (issue #598) — a SEPARATE shell-owned window
+          // The in-app browser — a SEPARATE shell-owned window
           // (browser-window.ts), so this window's origin pin is untouched.
           label: "Browser",
           accelerator: BROWSER_ACCELERATOR,

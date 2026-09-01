@@ -143,8 +143,8 @@ describe("a frame during a streaming turn", () => {
       }
       sequence = next.delta.maxSequence;
     }
-    // The delta branch used to build the timeline TWICE per frame: once for
-    // the log and once for the base prefix it diffs against.
+    // Once per frame: the base is the projection served last, never a second
+    // build of the prefix the delta diffs against.
     expect(projections.calls).toBe(30);
   });
 

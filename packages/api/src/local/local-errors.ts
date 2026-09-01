@@ -11,14 +11,14 @@
 // A CODE IS A CLASS; ITS HTTP STATUS IS DECIDED ONCE, AT THE HANDLER. oRPC v2
 // carries no `status` on an error or its contract definition — `defined` (does
 // the code match a `.errors` row) is decoupled from the status entirely, so a
-// custom class no longer has to restate a number to be a defined refusal. The
+// custom class need not restate a number to be a defined refusal. The
 // built-in codes (BAD_REQUEST, NOT_FOUND, CONFLICT, PAYLOAD_TOO_LARGE,
 // SERVICE_UNAVAILABLE …) get their status from oRPC's own COMMON_ERROR_STATUS_MAP;
 // the custom codes below get theirs from `LOCAL_ERROR_STATUS_MAP`, the ONE place
 // the handler's `errorStatusMap` and the non-procedure asset route both read.
 //
 // SPREAD, NEVER INHERITED WHOLESALE. Each contract row names the classes IT
-// can raise — the same claim the old per-row status list made — so a client's
+// can raise, so a client's
 // switch stays exhaustive over what can actually arrive. A base carrying every
 // class would make every switch carry branches no handler can reach.
 

@@ -92,6 +92,8 @@ interface ToolChipListProps extends HTMLAttributes<HTMLDivElement> {
 const ToolChipList = forwardRef<HTMLDivElement, ToolChipListProps>(
   ({ summary, defaultExpanded = true, className, children, ...props }, ref) => {
     const [open, setOpen] = useState(defaultExpanded);
+    // -mx-1 + px-1.5 keeps content at the same x while giving the row hover
+    // pills room inside the collapse's clip box.
     return (
       <div ref={ref} data-slot="tool-chip-list" className={cn("w-full pb-1", className)} {...props}>
         <button
@@ -118,8 +120,6 @@ const ToolChipList = forwardRef<HTMLDivElement, ToolChipListProps>(
           <span className="tabular-nums">{summary}</span>
         </button>
 
-        {/* -mx-1 + px-1.5 keeps content at the same x while giving the row
-            hover pills room inside the collapse's clip box. */}
         <Collapse open={open} innerClassName="-mx-1 px-1.5 pb-1">
           <div className="mt-1.5 flex flex-col gap-1">{children}</div>
         </Collapse>

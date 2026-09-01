@@ -42,7 +42,7 @@ describe("isSameOriginNavigation", () => {
   });
 });
 
-// The SHIPPED window is pinned to `inteligir://app` (issue #611), so the
+// The SHIPPED window is pinned to `inteligir://app`, so the
 // custom-scheme arm of `comparableOrigin` — the `URL.origin === "null"` trap the
 // header spends its length on, plus the username and empty-hostname refusals —
 // is the PRODUCTION path. The matrix above pins an http origin (the in-app

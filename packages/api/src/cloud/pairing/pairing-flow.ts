@@ -1,11 +1,11 @@
-// The app half of browser-approve pairing (issue #573), as ONE machine every
-// platform runs: mint a PKCE verifier, arm the approval slot, compose the
-// account's approve page, and complete only the approval THIS app is waiting
-// on — the slot's constant-time state compare and consume-before-exchange
+// The app half of browser-approve pairing, as ONE machine every platform
+// runs: mint a PKCE verifier, arm the approval slot, compose the account's
+// approve page, and complete only the approval THIS app is waiting on — the
+// slot's constant-time state compare and consume-before-exchange
 // (`approval-slot.ts`), then a redeem carrying the secret verifier so an
-// intercepted code alone cannot be spent. The CLI and the phone used to each
-// spell this; a security-bearing state machine with two implementations is
-// two implementations to audit.
+// intercepted code alone cannot be spent. The CLI and the phone both run it;
+// a security-bearing state machine with two implementations is two
+// implementations to audit.
 //
 // What stays platform code is everything around the handshake: opening the
 // browser, where the callback lands (a loopback route, a deep link), writing

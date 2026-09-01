@@ -1,8 +1,8 @@
 // The composer's microphone: hold the state machine, draw one button, stream
 // the words as they are spoken. It never sends — dictation is input, not a
 // command channel, so the words land in the composer for the user to read and
-// edit. Live now (issue #578): frames go up a websocket as the user speaks,
-// partials come back for the dock to preview, and the final splices in on stop.
+// edit. Live: frames go up a websocket as the user speaks, partials come back
+// for the composer to preview, and the final splices in on stop.
 //
 // THE BUTTON NEVER HIDES. With no model it is disabled and its label says what
 // it needs, because an affordance that disappears asks the reader to already

@@ -267,9 +267,9 @@ export function createVaultService(args: VaultServiceArgs): VaultService {
    *
    * `created` is what separates the two announcements. Overwriting a file
    * changes its bytes and NOTHING a tree row carries, so a content-only write
-   * says `content-changed` alone — it used to say both, and a `vault`
-   * subscriber received one write as two events, which cost the open note two
-   * reads and the workspace a full re-walk per keystroke's save.
+   * says `content-changed` alone: saying both hands a `vault` subscriber one
+   * write as two events, which costs the open note two reads and the
+   * workspace a full re-walk per keystroke's save.
    */
   async function performAtomicWrite(
     relPath: string,

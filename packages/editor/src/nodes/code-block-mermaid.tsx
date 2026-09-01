@@ -61,6 +61,8 @@ export function MermaidPreview({ code }: { code: string }) {
     };
   }, [code, dark, renderId]);
 
+  // The container matches the code fence's surface (PRE_CLASS family) so the
+  // block reads as one object across preview/source modes.
   return (
     <div contentEditable={false} className="my-1 select-none">
       {error ? (
@@ -69,8 +71,6 @@ export function MermaidPreview({ code }: { code: string }) {
           <span className="truncate">{error}</span>
         </div>
       ) : null}
-      {/* Container matches the code fence's surface (PRE_CLASS family) so the
-          block reads as one object across preview/source modes. */}
       <div
         ref={hostRef}
         className={

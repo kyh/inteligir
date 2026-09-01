@@ -10,7 +10,7 @@
 //     formulas/formula-recompute.ts.
 //   %%i:ids:start/end%%      → commentMarker — an anchored-comment
 //     boundary. Renders nothing visible: the marker is plumbing for the
-//     comment surface (#583), and drawing brackets in prose would put the
+//     comment surface, and drawing brackets in prose would put the
 //     mechanism where the annotation belongs. The bytes stay exact.
 
 import { useState } from "react";

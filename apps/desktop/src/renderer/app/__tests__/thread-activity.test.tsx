@@ -73,8 +73,8 @@ const sourceOf = (relative: string): string => readFileSync(join(REPO_ROOT, rela
 
 describe("only one module reads a thread's lifecycle", () => {
   // The lifecycle literals are the fingerprint of a surface deriving activity
-  // for itself. A fourth vocabulary is how the same thread came to read
-  // "running" in the palette while the dock painted it amber — and the editor
+  // for itself. A fourth vocabulary is how one thread reads "running" in the
+  // palette while another surface paints it amber — and the editor
   // must not carry one at all, being a package with no domain to have it in.
   const LIFECYCLE = /["'](?:starting|stopping)["']/u;
 

@@ -22,7 +22,7 @@ export const THREAD_CHANGE_KINDS = [
   "archived-changed",
   "queue-changed",
   "interactions-changed",
-  /** The doc a delegation is bound to moved (a rename followed it). */
+  /** The doc a thread is attached to moved (a rename followed it). */
   "origin-changed",
 ] as const;
 export type ThreadChangeKind = (typeof THREAD_CHANGE_KINDS)[number];

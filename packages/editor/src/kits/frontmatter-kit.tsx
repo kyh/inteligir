@@ -1,6 +1,6 @@
 // Frontmatter kit. A void element holding the raw yaml source (`value`),
-// read-only in Rich for v1 (edit via Raw — locked decision); the React half
-// renders the yaml dimmed behind a `---` frame. Block selection and the
+// read-only in Rich — the properties panel is its editing surface; the React
+// half renders the yaml dimmed behind a `---` frame. Block selection and the
 // block draggable must exclude it (position pin below).
 //
 // The normalizer pins the node to path [0]: mdast-util-frontmatter emits the
@@ -41,8 +41,8 @@ const FrontmatterBasePlugin = createSlatePlugin({
 export const FrontmatterBaseKit = [FrontmatterBasePlugin];
 
 // The frontmatter's user-facing surface is the typed properties panel
-// (editor/properties/), hosted in the header's "Page details" popover (Raw
-// mode edits the block directly). The node itself stays in the value (it
+// (editor/properties/), hosted in the right panel's Properties tab. The node
+// itself stays in the value (it
 // serializes the `---` block byte-for-byte) but renders invisibly —
 // zero-height and non-interactive, so it keeps its DOM point for Slate while
 // the caret and block chrome skip past it.

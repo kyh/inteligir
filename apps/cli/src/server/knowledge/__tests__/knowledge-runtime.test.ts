@@ -255,7 +255,7 @@ describe("the knowledge runtime", () => {
     const found = await knowledge.search({ query: "ocelot", limit: 10 });
     expect(found.map((h) => h.path)).toEqual(["big.md"]);
 
-    // The step that used to leave stale state: back over the cap, the doc
+    // The step that must not leave stale state: back over the cap, the doc
     // bookkeeping (hash + search row) must be left, not shadowed.
     writeFileSync(join(dirs.root, "big.md"), oversized);
     knowledge.noteVaultChange({ kind: "paths", paths: ["big.md"] });

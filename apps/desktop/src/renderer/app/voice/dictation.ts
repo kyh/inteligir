@@ -8,8 +8,8 @@
 // and explains nothing. A toggle has an unambiguous start and an unambiguous
 // stop, so the prompt simply happens between them.
 //
-// FRAMES ARE STREAMED, NOT RECORDED. Dictation is live now (issue #578): raw
-// PCM chunks go up a websocket as the user speaks, and partials come back. That
+// FRAMES ARE STREAMED, NOT RECORDED. Dictation is live: raw PCM chunks go up
+// a websocket as the user speaks, and partials come back. That
 // needs the audio graph's own frames, which a `ScriptProcessorNode` delivers on
 // the main thread — deliberately NOT an `AudioWorklet`, whose module the page
 // would have to fetch as a script, and this app's production CSP names

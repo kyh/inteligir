@@ -78,7 +78,7 @@ export async function mintPairingCode(
     purpose: DEVICE_PAIR_PURPOSE,
     // The PKCE challenge is bound to the code here, at mint, so redeem can
     // demand the matching verifier — the whole of what stops an intercepted
-    // code from being spent (issue #573).
+    // code from being spent.
     challenge,
     expiresAt: new Date(now.getTime() + PAIRING_CODE_TTL_MS),
     createdAt: now,

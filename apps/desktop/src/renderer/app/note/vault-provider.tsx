@@ -301,7 +301,7 @@ export function VaultProvider({
   }, [api, docEvents, port]);
 
   // The wiki resolver over the live listing — path tiers now, aliases with the
-  // knowledge-served targets (#582).
+  // knowledge-served targets.
   const listing = useMemo<VaultListing>(() => {
     const aliasEntries: Array<readonly [string, string]> = [];
     for (const target of wikiTargets) {

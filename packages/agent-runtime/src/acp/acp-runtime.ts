@@ -1,4 +1,4 @@
-// The ACP agent runtime (issue #588): the AgentRuntime interface — the seam
+// The ACP agent runtime: the AgentRuntime interface — the seam
 // runtime-manager and the scripted driver already share — implemented over
 // Zed's agent-client-protocol. One adapter CHILD PER THREAD (the session is
 // the process), the official client lib owning the wire, and every harness
@@ -74,8 +74,8 @@ export type AcpMcpServerConfig =
 export interface AcpAgentRuntimeOptions extends AgentRuntimeOptions {
   /** Model override routed into every adapter child, each harness's own way. */
   model?: string;
-  /** The enabled connector rows every session gets (issue #591). Async so an
-   *  OAuth row can refresh its token at compose time (issue #602). */
+  /** The enabled connector rows every session gets. Async so an
+   *  OAuth row can refresh its token at compose time. */
   mcpServers?: () => AcpMcpServerConfig[] | Promise<AcpMcpServerConfig[]>;
   /** Test seam: replace the child spawn with an in-memory adapter. */
   spawnAdapter?: (harness: HarnessDefinition, env: Record<string, string>) => AcpSpawnedAdapter;

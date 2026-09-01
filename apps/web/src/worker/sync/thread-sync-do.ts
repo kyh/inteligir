@@ -44,7 +44,7 @@ import { refuse } from "../cloud-http";
 //     deletes by that claim's token. `@repo/api/cloud/captures/captures-schema` states
 //     the guarantee that buys (at-least-once delivery, exactly-once deletion).
 //
-// HIBERNATION RULES (the old codebase's law, carried): sockets are accepted
+// HIBERNATION RULES: sockets are accepted
 // with `ctx.acceptWebSocket`, per-socket identity lives in the socket's own
 // attachment, the broadcast set is rebuilt from `ctx.getWebSockets()` on every
 // push, and NO instance field holds anything a later message needs. There is

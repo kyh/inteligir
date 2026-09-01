@@ -87,9 +87,10 @@ const serverFileSchema = z.object({
   port: z.number().int().min(1).max(65_535),
   token: z.string().min(1),
   /** What this instance is serving. DIAGNOSTIC only — the CLI prints it in
-   *  `status` and nothing branches on it. The instance-identity check is the
-   *  desktop shell's, and it compares `system.status`'s data dir against its own
-   *  resolution (server-instance.ts), not this field. */
+   *  `status` and nothing branches on it. Whether a responder is this
+   *  instance's server is the desktop shell's question, answered by comparing
+   *  `system.status`'s data dir against its own resolution (server-instance.ts),
+   *  never by this field. */
   vaultDir: z.string().min(1),
   /** Whose file this is: what makes a stale row after a crash identifiable —
    *  by a human reading it, and by the second-boot guard, which asks the OS

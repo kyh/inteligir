@@ -11,11 +11,11 @@ export const NETWORK_GIT_TIMEOUT_MS = 120_000;
 const GIT_MAX_BUFFER_BYTES = 32 * 1024 * 1024;
 
 /** Commits the engine makes on its own carry this identity; an agent-attributed
- *  commit (#549) overrides the AUTHOR half only, so the committer always says
+ *  commit overrides the AUTHOR half only, so the committer always says
  *  which machine wrote it. */
 const ENGINE_IDENTITY = { name: "inteligir", email: "vault@inteligir.local" };
 
-/** The author seam: agent-attributed commits (#549) pass their own identity. */
+/** The author seam: agent-attributed commits pass their own identity. */
 export interface CommitAuthor {
   name: string;
   email: string;

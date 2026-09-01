@@ -1,5 +1,5 @@
 // The file-properties panel — typed controls over the open note's YAML
-// frontmatter, hosted in the shell header's "Page details" drawer. The
+// frontmatter, hosted in the right panel's Properties tab. The
 // markdown file is the ONLY property store (CLAUDE.md § Decisions): there is no
 // metadata DB. Edits flow through the frontmatter NODE (properties-node.ts)
 // and out the editor's normal serialize path, so a property edit and a body

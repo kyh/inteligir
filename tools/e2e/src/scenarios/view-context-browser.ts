@@ -22,7 +22,7 @@ import type { Scenario } from "../harness/scenario";
 
 const agentBrowser = agentBrowserSession("view-context");
 const DOC_PATH = "Plans.md";
-const PARAGRAPH = "First paragraph to delegate.";
+const PARAGRAPH = "First paragraph to send.";
 const DOC = `# Plans
 
 ${PARAGRAPH}

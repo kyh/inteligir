@@ -1,4 +1,4 @@
-// Anchored comments over the vault (issue #583). The sidecar
+// Anchored comments over the vault. The sidecar
 // (`<note>.md.comments.json`) is an ORDINARY vault file, read and written
 // through the VaultService — which is what gives it containment, the watcher's
 // files-changed ping, auto-commit and sync for free, and is why this service

@@ -39,6 +39,7 @@ export const Route = createFileRoute("/")({
 function Page() {
   const downloadUrl = Route.useLoaderData();
 
+  // The three.js canvas is client-only — no SSR in the worker.
   return (
     // The theme provider lives on the page, not in the document shell — see
     // __root.tsx.
@@ -47,7 +48,6 @@ function Page() {
       <main className="flex min-h-dvh w-full flex-col">
         <div className="flex flex-1 flex-col items-center justify-center">
           <div className="h-48 w-48">
-            {/* three.js canvas — client-only (no SSR in the worker) */}
             <ClientOnly fallback={null}>
               <HeroOrb />
             </ClientOnly>

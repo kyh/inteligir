@@ -195,7 +195,7 @@ describe("closeServer", () => {
     await closeServer(server, sockets);
     expect(closeFrames).toBe(1);
     // Under the vault step's own budget, which is the property that matters:
-    // the teardown is no longer hostage to an open tab.
+    // an open tab cannot hold the teardown hostage.
     expect(Date.now() - startedAt).toBeLessThan(6_000);
   });
 

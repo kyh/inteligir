@@ -13,7 +13,7 @@
 // unpaired. A separate on/off beside that would be a second value that can
 // disagree with the credential on disk.
 //
-// THERE IS NOTHING TO TYPE (issue #573). Pairing is one button: the server
+// THERE IS NOTHING TO TYPE. Pairing is one button: the server
 // arms an approval, opens the browser at the account's approve page, and the
 // browser brings the answer back to the loopback. The URL is shown beside the
 // button because the auto-open is best-effort — a headless box or a machine

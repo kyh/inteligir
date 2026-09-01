@@ -1,4 +1,4 @@
-// Settings → Agents: detect + guide (issue #588). Per harness — is the vendor
+// Settings → Agents: detect + guide. Per harness — is the vendor
 // CLI on PATH, does a login credential exist, and the exact command that logs
 // in. Nothing here installs anything: the ACP adapters ship WITH the app, and
 // the vendor CLIs (and their logins) are the user's own.

@@ -229,7 +229,7 @@ export const revokeDeviceResponseSchema = z
 export type RevokeDeviceResponse = z.infer<typeof revokeDeviceResponseSchema>;
 
 // ---------------------------------------------------------------------------
-// Browser-approve pairing (issue #573).
+// Browser-approve pairing.
 //
 // Nobody types the code any more; the browser carries it. The local app IS a
 // loopback HTTP server, so the dance a CLI tool stands a callback server up for

@@ -1,8 +1,8 @@
 // The right panel: Actions | Comments | History tabs over the
 // open note, with the frontmatter properties inlined above them. Actions =
 // the note's own threads first, then the rest, each row expandable into its
-// live timeline with approvals answerable inline — the transcript surface
-// the chat dock used to be. The tab is CONTROLLED by the workspace so the
+// live timeline with approvals answerable inline — the transcript surface.
+// The tab is CONTROLLED by the workspace so the
 // top bar's comment button can aim the panel.
 
 import { getLiveEditor } from "@repo/editor/live-editor";

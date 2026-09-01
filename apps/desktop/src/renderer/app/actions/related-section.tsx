@@ -1,6 +1,5 @@
 // Related — the notes connected to the open one — as one collapsible section
-// in the right panel, below Properties (the owner's 2026-08-22 placement,
-// reversing the under-document foot sections; CLAUDE.md records it).
+// in the right panel, below Properties (CLAUDE.md records the placement).
 //
 // One list, two kinds of row, and the DETAIL line is what keeps them honest:
 // linked mentions are counted facts and lead the list carrying "Links here"
@@ -74,7 +73,7 @@ export function groupBacklinks(
   return [...groups.values()];
 }
 
-/** "3 linked mentions (2 shown)" keeps the old summary's truncation honesty;
+/** "3 linked mentions (2 shown)" keeps the truncation honest;
  *  suggestions carry no count clause — a ranked top-N has no honest count of
  *  the rest. */
 export function linkedMentionsSummary(shown: number, total: number): string {
@@ -174,7 +173,7 @@ export function RelatedInline({
 }
 
 /** The unfolded list — pure, so the surface is testable without a query
- *  client (the old foot sections' own split). */
+ *  client. */
 export function RelatedRows({
   rows,
   settledEmpty,

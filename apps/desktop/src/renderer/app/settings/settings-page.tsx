@@ -1,7 +1,6 @@
 // Settings is a PAGE (/settings), not a modal — the owner's call: the
-// sections outgrew a dialog twice over. The queries below still mount only
-// while settings is LOOKED AT, because a route renders only when visited —
-// the same property the dialog's mounted-only-while-open body used to carry
+// sections outgrew a dialog twice over. The queries below mount only while
+// settings is LOOKED AT, because a route renders only when visited
 // (`useSystemStatus` has no other subscriber, so leaving this page is what
 // stops the app fetching it).
 

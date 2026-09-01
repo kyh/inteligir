@@ -48,6 +48,7 @@ const ScrollArea = forwardRef<ComponentRef<typeof ScrollAreaPrimitive.Root>, Scr
       );
     }
 
+    // Content gives Base UI an intrinsic size to measure overflow against.
     return (
       <ScrollAreaPrimitive.Root
         ref={ref}
@@ -59,8 +60,6 @@ const ScrollArea = forwardRef<ComponentRef<typeof ScrollAreaPrimitive.Root>, Scr
           data-slot="scroll-area-viewport"
           className={cn("size-full rounded-[inherit]", viewportClassName)}
         >
-          {/* Content gives Base UI an intrinsic size to measure overflow
-              against. */}
           <ScrollAreaPrimitive.Content>{children}</ScrollAreaPrimitive.Content>
         </ScrollAreaPrimitive.Viewport>
         <ScrollBar />

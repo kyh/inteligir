@@ -177,10 +177,10 @@ export function createApp(args: CreateAppArgs) {
   );
 
   // Beside `/ws`, behind the SAME gate, but its OWN endpoint: a dictation
-  // socket carries PCM16 frames UP and `partial`/`final`/`error` messages DOWN
-  // (issue #578) — a PAYLOAD, which the invalidation bus carries none of by
-  // decision. The hub tracks every connection so the listener teardown can
-  // close them by name.
+  // socket carries PCM16 frames UP and `partial`/`final`/`error` messages
+  // DOWN — a PAYLOAD, which the invalidation bus carries none of by decision.
+  // The hub tracks every connection so the listener teardown can close them
+  // by name.
   app.get(
     VOICE_STREAM_PATH,
     requireServerToken,
@@ -213,7 +213,7 @@ export function createApp(args: CreateAppArgs) {
     return c.body(answer.body, answer.status, answer.headers);
   });
 
-  // The connectors' own browser landing (issue #602) — same argument, same
+  // The connectors' own browser landing — same argument, same
   // shape, a different provider on the far side (`connectors/oauth-callback.ts`).
   app.get(CONNECTOR_OAUTH_CALLBACK_PATH, async (c) => {
     const answer = await handleConnectorOauthCallback(

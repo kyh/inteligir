@@ -4,7 +4,7 @@
 // The pipeline is normalizing but IDEMPOTENT: once a document is in canonical
 // form (roundTrip(raw) === raw), re-serializing it is stable, so editing one
 // block in Rich mode and saving the whole document produces a MINIMAL diff.
-// Non-canonical files edit as Raw (byte-exact) until the user Formats them.
+// A file the pipeline cannot round-trip losslessly edits as Raw (byte-exact).
 //
 // Only a document that cannot be PARSED is refused. Constructs the editor has
 // no node for are not refused — they become opaque nodes
@@ -35,7 +35,7 @@ export type DocAnalysis = {
   richSafe: boolean;
   /** Byte-canonical: parse ok && scan ok && round-trip byte-equal (trailing-\n-insensitive). */
   canonical: boolean;
-  /** Why the file is Raw-only, for the mode badge; null when rich-capable. */
+  /** Why the file is Raw-only; null when rich-capable. */
   rawReason: RawReason | null;
 };
 
@@ -221,7 +221,7 @@ export function roundTrip(md: string): string {
   return fixpoint.at;
 }
 
-/** Canonicalize `md` (the one-time Format action). Idempotent thereafter.
+/** Canonicalize `md`. Idempotent thereafter.
  * Throws ParseFailedError when there is nothing safe to format to. */
 export function toCanonical(md: string): string {
   return roundTrip(md).trimEnd() + "\n";

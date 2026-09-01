@@ -487,7 +487,7 @@ export const MD_RULES: MdRules = {
     },
   },
 
-  // Rich fence blocks (#586): the payload is VERBATIM on the node, so
+  // Rich fence blocks: the payload is VERBATIM on the node, so
   // serialization is the identity fence — always in OUR spelling, which is
   // what canonicalizes a legacy note on its first save.
   chart_block: {

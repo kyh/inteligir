@@ -1,4 +1,4 @@
-// The registry's policy over the store (issue #591). Three decisions live
+// The registry's policy over the store. Three decisions live
 // here and nowhere else:
 //
 // - EVERY READ IS REDACTED. Header values reduce to `hasAuth`; the full rows

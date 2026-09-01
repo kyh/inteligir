@@ -2,12 +2,12 @@
 // What the guards can SEE: the tree walk every other guard in this workspace
 // is built on, held against pnpm's own workspace manifest.
 //
-// `repo.ts` used to carry the workspace globs as a literal. That is the one
-// failure mode a fitness test may not have: adding a workspace group means
-// every guard quietly stops covering it, and the symptom is a green run over a
-// smaller tree. Nothing else in the repo notices — turbo reads
-// pnpm-workspace.yaml, pnpm reads pnpm-workspace.yaml, and the guards read a
-// copy that no longer agreed with either.
+// A literal copy of the workspace globs in `repo.ts` is the one failure mode
+// a fitness test may not have: adding a workspace group means every guard
+// quietly stops covering it, and the symptom is a green run over a smaller
+// tree. Nothing else in the repo notices — turbo reads pnpm-workspace.yaml,
+// pnpm reads pnpm-workspace.yaml, and the guards would read a copy that
+// agrees with neither.
 //
 // So the globs come from the manifest, an unreadable glob shape THROWS rather
 // than being skipped, and the walk is checked from the other end too: a

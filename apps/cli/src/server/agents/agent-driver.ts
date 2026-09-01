@@ -21,7 +21,7 @@ import { createScriptedTurnDriverFactory, type ScriptedDriverDeps } from "./scri
 
 export interface ResolveAgentDriverArgs {
   config: Pick<AppConfig, "agent" | "agentModel" | "vaultDir">;
-  /** The enabled connector rows every session gets (issue #591). */
+  /** The enabled connector rows every session gets. */
   mcpServers: () => AcpMcpServerConfig[] | Promise<AcpMcpServerConfig[]>;
   db: DbConnection;
   notifier: DbNotifier;

@@ -17,7 +17,7 @@ import { siteConfig } from "@/lib/site-config";
 // revoke that cuts one off on its next request (the credential check is never
 // cached).
 //
-// NOTHING HERE SHOWS A CODE TO A HUMAN (issue #573). Codes still exist and are
+// NOTHING HERE SHOWS A CODE TO A HUMAN. Codes still exist and are
 // still the artifact a pairing turns on, but the only thing that ever sees one
 // is `/app/pair`, which mints it on an approval and puts it straight in a
 // redirect. A "mint a code" button here would be a second way to pair whose

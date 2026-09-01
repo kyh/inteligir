@@ -530,7 +530,7 @@ describe("PKCE (S256)", () => {
     ).toBe(false);
   });
 
-  it("redeem requires the verifier — the code alone no longer parses", () => {
+  it("redeem requires the verifier — the code alone does not parse", () => {
     const base = { code: "ABCD-EFGH", deviceName: "Laptop" };
     expect(redeemDeviceRequestSchema.safeParse(base).success).toBe(false);
     expect(redeemDeviceRequestSchema.safeParse({ ...base, verifier: "d".repeat(43) }).success).toBe(

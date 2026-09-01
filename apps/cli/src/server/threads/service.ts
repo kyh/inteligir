@@ -123,7 +123,7 @@ export class ThreadEventThreadIdMismatchError extends Error {
  * call the sync runtime makes afterwards: an event is owed to the account's
  * log exactly when it is in the local one.
  *
- * Absent when this install is not paired, which is the default (issue #572).
+ * Absent when this install is not paired, which is the default.
  */
 export interface ThreadSyncHooks {
   enqueue(tx: DbTransaction, events: readonly ThreadEvent[]): void;

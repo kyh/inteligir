@@ -62,6 +62,8 @@ const StreamingText = forwardRef<HTMLDivElement, StreamingTextProps>(
     const shown = animate ? words.slice(0, revealed).join("") : text;
     const caret = streaming || revealed < target;
 
+    // Actions compose as children and wait for the text to settle: an action
+    // offered mid-stream acts on a message that is still moving.
     return (
       <div ref={ref} data-slot="streaming-text" className={cn("w-full", className)} {...props}>
         <p className="text-[13px] leading-relaxed whitespace-pre-wrap text-ink">
@@ -74,8 +76,6 @@ const StreamingText = forwardRef<HTMLDivElement, StreamingTextProps>(
           ) : null}
         </p>
 
-        {/* Actions compose as children and wait for the text to settle: an
-            action offered mid-stream acts on a message that is still moving. */}
         {children !== undefined && !caret ? (
           <div data-slot="streaming-text-actions" className="mt-2 flex items-center gap-0.5">
             {children}

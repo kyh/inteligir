@@ -28,7 +28,7 @@ export const threads = sqliteTable(
     // The vault doc this thread is ABOUT: an action attaches to the note it
     // was composed over.
     originDocPath: text("origin_doc_path"),
-    // The provider session this thread resumes into (issue #549): which
+    // The provider session this thread resumes into: which
     // provider ran it and the provider's own thread id. Written together by
     // the one writer (setThreadProviderSession) once the runtime resolves the
     // session; no CHECK pairs them because SQLite cannot ADD a checked column
@@ -76,7 +76,7 @@ export const events = sqliteTable(
     itemId: text("item_id"),
     itemKind: text("item_kind").$type<ThreadEventItemType>(),
     data: text("data").notNull().default("{}"),
-    // WHOSE outbox position this row arrived as (issue #572): the writing
+    // WHOSE outbox position this row arrived as: the writing
     // device and that device's own counter, server-stamped on the merged log
     // row. Both null for an event THIS process produced.
     //

@@ -315,7 +315,7 @@ describe("vault search — the retrieval measurement", () => {
     expect(after(query, K)).toContain("work/hiring.md");
   });
 
-  it("recovers the plan's lexical probe, which used to answer with nothing", () => {
+  it("recovers the plan's lexical probe where the unstemmed plan answers nothing", () => {
     const query = "how do I stop feeling burnt out at work";
     expect(before(query, K)).toEqual([]);
     expect(after(query, K)).toContain("health/burnout.md");
@@ -347,9 +347,9 @@ describe("vault search — the retrieval measurement", () => {
   });
 
   it("answers a short lookup the stem alone recovers, without relaxing it", () => {
-    // `bm25 ranking` against a note reading "ranked by bm25": the conjunction
-    // used to find nothing, because it could not stem. Now it can, and the
-    // relaxed plan behind it never runs.
+    // `bm25 ranking` against a note reading "ranked by bm25": unstemmed, the
+    // conjunction finds nothing; stemmed, it matches, and the relaxed plan
+    // behind it never runs.
     expect(before("bm25 ranking", K)).toEqual([]);
     expect(unstemmed("bm25 ranking", K)).toEqual(["projects/vault-search.md"]);
     expect(after("bm25 ranking", K)).toEqual(["projects/vault-search.md"]);
@@ -436,8 +436,8 @@ describe("vault search — the retrieval measurement", () => {
   });
 
   it("shows a stemmed hit at the word that actually matched", () => {
-    // FTS5's snippet() cuts one column from THAT column's offsets, so a hit in
-    // the stem shadow used to render the note's opening filler instead.
+    // FTS5's snippet() cuts one column from THAT column's offsets, so a snippet
+    // it cut for a stem-shadow hit renders the note's opening filler instead.
     const docs = {
       "late.md": `# Late\n\n${"filler ".repeat(30)}\n\nI have been exhausted lately.\n`,
     };

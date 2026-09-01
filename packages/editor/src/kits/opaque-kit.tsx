@@ -2,8 +2,8 @@
 // understand still open in Rich. Node shape: { type, value, children:[{text:""}] }
 // with `value` the construct's markdown verbatim (round-trip contract lives in
 // @repo/notes/markdown/remark-opaque). Raw HTML, `{…}` expressions and JSX that
-// is not one of the app's components land here instead of pushing the whole
-// document into Raw mode.
+// is not one of the app's components land here instead of gating the whole
+// document to Raw.
 //
 // Both halves are VOID: nothing inside is editable, so no keystroke can produce
 // a half-valid tag, and the bytes leave exactly as they arrived. The block half
@@ -32,7 +32,7 @@ function OpaqueBlockElement(props: PlateElementProps) {
     <PlateElement {...props}>
       <pre
         contentEditable={false}
-        title="Not editable here — switch to Raw mode to change it"
+        title="Not editable here — preserved byte-for-byte"
         className="overflow-x-auto rounded-md border border-dashed border-muted-foreground/30 bg-muted/40 px-3 py-2 font-mono text-muted-foreground text-sm whitespace-pre select-none"
       >
         {stringProp(props.element, "value") ?? ""}
@@ -47,7 +47,7 @@ function OpaqueInlineElement(props: PlateElementProps) {
     <PlateElement {...props} as="span">
       <span
         contentEditable={false}
-        title="Not editable here — switch to Raw mode to change it"
+        title="Not editable here — preserved byte-for-byte"
         className="rounded-sm bg-muted/60 px-1 font-mono text-muted-foreground text-[0.9em] whitespace-pre-wrap select-none"
       >
         {stringProp(props.element, "value") ?? ""}

@@ -89,7 +89,7 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
     inteligir: [
       "@repo/agent-runtime",
       // ONE edge, BOTH entry points: `/local` is the contract this program
-      // serves, and `/cloud` is the wire it is a CLIENT of (issue #572) — the
+      // serves, and `/cloud` is the wire it is a CLIENT of — the
       // sync client parses the same push/pull/capture schemas, ws ping frames
       // and error envelope apps/web produces, so the contract has two
       // implementations and no second reading.
@@ -98,7 +98,7 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
       "@repo/domain",
       "@repo/notes",
     ],
-    // The mobile companion (issue #576). It is a PARTIAL client of the cloud
+    // The mobile companion. It is a PARTIAL client of the cloud
     // wire — a reader of the account's merged thread log and a producer of
     // captures — over React Native storage instead of better-sqlite3. It never
     // pushes a thread event and never claims a capture: the desktop runs the
@@ -113,9 +113,8 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
     // into display rows. Both are zod-only leaves, so the edge costs the RN
     // bundle only the schemas it already parses.
     //
-    // The @repo/notes edge is the vault READ surface (#618, owner's call
-    // 2026-08-25, revising the earlier "no @repo/notes" line): the phone
-    // renders notes from the hosted vault through the dialect's OWN parse and
+    // The @repo/notes edge is the vault READ surface: the phone renders notes
+    // from the hosted vault through the dialect's OWN parse and
     // resolves wiki links with the same pickBest as the desktop — a second
     // parser or resolver would drift per device. The package is guard-pure
     // (no node/react — the platform rules below), so the edge carries only

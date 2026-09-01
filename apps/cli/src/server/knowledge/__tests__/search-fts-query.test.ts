@@ -51,8 +51,8 @@ const VAULT = {
 };
 
 describe("FTS5 over the shared query policy", () => {
-  it("answers the sentence that used to return nothing", () => {
-    // The headline bug: every token was required, `how` and `do` included.
+  it("answers a long sentence without requiring every token", () => {
+    // Requiring every token, `how` and `do` included, answers nothing.
     expect(hits(storeWith(VAULT), "how do I stop feeling burnt out at work")).toEqual([
       "burnout.md",
     ]);

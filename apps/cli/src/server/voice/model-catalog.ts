@@ -1,12 +1,12 @@
 // THE model dictation runs on, pinned by size and digest.
 //
-// STREAMING PARAKEET (issue #578), restored from before the rewrite. The model
-// is NeMo's streaming fast-conformer transducer (English), run by sherpa-onnx:
-// it emits partials as audio arrives and a final on release, which is the whole
-// point of the feature — the words appear as you speak. The tradeoff is stated
-// in `CLAUDE.md`: the final has no punctuation and no capitalization. That is
-// inherent to this model and is NOT to be "fixed" by bolting whisper back on;
-// #574 already made that trade the other way and lost the live partials.
+// STREAMING PARAKEET. The model is NeMo's streaming fast-conformer transducer
+// (English), run by sherpa-onnx: it emits partials as audio arrives and a
+// final on release, which is the whole point of the feature — the words
+// appear as you speak. The tradeoff is stated in `CLAUDE.md`: the final has
+// no punctuation and no capitalization. That is inherent to this model and is
+// NOT to be "fixed" by bolting whisper back on: whisper's punctuated final
+// costs the live partials, and CLAUDE.md records which side won.
 //
 // ONE MODEL, not a picker — a second entry means a second control in Settings
 // beside the switch, and the two can disagree (a model chosen but not

@@ -51,6 +51,8 @@ export function HtmlElement(props: PlateElementProps) {
     </button>
   );
 
+  // A sandboxed srcdoc frame prints blank on some engines; paper gets the
+  // source, which is the block's honest byte content.
   return (
     <PlateElement {...props}>
       <RichBlockCard
@@ -97,8 +99,6 @@ export function HtmlElement(props: PlateElementProps) {
               sandbox={mode === "run" ? "allow-scripts" : ""}
               className="h-96 w-full border-0 bg-white print:hidden"
             />
-            {/* A sandboxed srcdoc frame prints blank on some engines; paper
-                gets the source, which is the block's honest byte content. */}
             <div className="hidden print:block">
               <SourceView value={value} />
             </div>

@@ -257,6 +257,11 @@ export function SelectionToolbar() {
 
   if (hidden && !frozen) return null;
 
+  // ignore-click-outside/toolbar: the portaled popup escapes the hook's
+  // clickOutsideRef; without the ignore class a mousedown on a menu item
+  // flips the hook's open state, display:none-s the bar, and the popup
+  // (anchored to the hidden trigger) jumps away before mouseup — items become
+  // unclickable.
   return (
     <div ref={clickOutsideRef}>
       <div
@@ -290,11 +295,6 @@ export function SelectionToolbar() {
               }}
             >
               <TurnIntoTrigger>{typeLabel}</TurnIntoTrigger>
-              {/* ignore-click-outside/toolbar: the portaled popup escapes the
-                  hook's clickOutsideRef; without the ignore class a mousedown
-                  on a menu item flips the hook's open state, display:none-s
-                  the bar, and the popup (anchored to the hidden trigger)
-                  jumps away before mouseup — items become unclickable. */}
               <DropdownMenuContent
                 side="bottom"
                 align="start"

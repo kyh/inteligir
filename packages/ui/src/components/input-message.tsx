@@ -209,6 +209,9 @@ const InputMessage = forwardRef<HTMLDivElement, InputMessageProps>(
       [clickToFocus, disabled],
     );
 
+    // The send glyph overrides icon-compact's small 14px svg — it reads
+    // better a touch larger, and `size` matches the attribute to the CSS so
+    // the svg box stays centered.
     const composer = (
       <div
         ref={ref}
@@ -292,9 +295,6 @@ const InputMessage = forwardRef<HTMLDivElement, InputMessageProps>(
                 disabled={!canSend}
                 aria-label={sendLabel}
               >
-                {/* Override icon-compact's small 14px svg — the send glyph
-                    reads better a touch larger. `size` matches the attribute
-                    to the CSS so the svg box stays centered. */}
                 <Icon
                   icon={ArrowUpIcon}
                   size={compactStep ? 15 : 19}

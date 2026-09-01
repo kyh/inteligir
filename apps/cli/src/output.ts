@@ -4,7 +4,7 @@
 // THE chokepoint every command goes through: `outputJson` is the only way JSON
 // is printed, so stdout stays one JSON value without any command having to
 // remember it. The other invariant — a refusal must never print as an answer —
-// no longer needs a helper at all: a refused procedure THROWS, so there is no
+// needs no helper at all: a refused procedure THROWS, so there is no
 // body for a command to reach (`program.ts` states where that lands).
 //
 // Stdout has TWO writers and which one a line takes is decided by what the

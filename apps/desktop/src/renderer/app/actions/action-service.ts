@@ -1,5 +1,5 @@
 // Creating an ACTION: one thread, attached to the note it was composed over
-// (originDocPath, no anchor — markers retired with the delegation surface),
+// (originDocPath alone — no anchor into the bytes),
 // first message sent in the same breath. The view context rides the send, not
 // the thread, per the view-context decision.
 

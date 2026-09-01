@@ -629,7 +629,7 @@ describe("a fake-provider turn end-to-end", () => {
 
     // The invalidation contract: the client acts on ws frames only — it never
     // polls the API on a timer. Waiting for a specific change kind before
-    // each fetch is exactly what the workspace UI (#552) will do.
+    // each fetch is exactly what the workspace UI will do.
     async function waitForThreadChange(kind: string): Promise<void> {
       const deadline = Date.now() + 5_000;
       for (;;) {

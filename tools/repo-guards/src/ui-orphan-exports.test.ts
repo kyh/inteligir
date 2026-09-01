@@ -11,9 +11,8 @@
 // every file is a public entry whose exports knip trusts as API (its
 // includeEntryExports pass still counts the gallery as a consumer).
 //
-// A file none of whose exports has a consumer is the old per-file orphan,
-// reported here with every export listed — this guard subsumes the per-file
-// one.
+// A file none of whose exports has a consumer is reported here with every
+// export listed, so no per-file orphan guard is needed beside this one.
 //
 // Adding an export you have not wired up yet? Wire it up, add its file to
 // AWAITING_CONSUMER (a whole component held for a coming surface), or add an

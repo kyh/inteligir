@@ -13,9 +13,9 @@
 // a second instance can install or delete under this one. The one thing held
 // in memory is the download in flight, which is this process's own fact.
 //
-// THE ENGINE IS STREAMING PARAKEET (sherpa-onnx), restored from before the
-// rewrite (issue #578) — one model, both paths: a whole clip through
-// `transcribe`, and a live hold through `createStreamSession`.
+// THE ENGINE IS STREAMING PARAKEET (sherpa-onnx) — one model, both paths: a
+// whole clip through `transcribe`, and a live hold through
+// `createStreamSession`.
 
 import {
   VOICE_BYTES_PER_SAMPLE,

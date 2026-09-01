@@ -1,9 +1,8 @@
 // `inteligir connectors` — the app-owned MCP registry every agent session
-// gets (issue #591). List, add and remove, under the parity principle:
-// everything a user can do in Settings → Connectors, the agent can do here.
-// The old list-only rule was reasoned from codex owning the store; the store
-// is this app's now, so a CLI write races nothing and hides nothing —
-// Settings shows the same rows the moment they change.
+// gets. List, add and remove, under the parity principle: everything a user
+// can do in Settings → Connectors, the agent can do here. The store is this
+// app's own, so a CLI write races nothing and hides nothing — Settings shows
+// the same rows the moment they change.
 
 import {
   connectorTarget,

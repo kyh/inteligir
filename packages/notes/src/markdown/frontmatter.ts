@@ -122,7 +122,7 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 // The branch order is the classification precedence; each zod check replaces
 // a typeof/shape test one-for-one (z.number() already rejects NaN/±Infinity,
-// matching the old Number.isFinite gate).
+// so no Number.isFinite gate is needed).
 function classify(key: string, value: YamlValue, rawYaml: string): TypedProperty {
   const checkbox = z.boolean().safeParse(value);
   if (checkbox.success) return { key, type: "checkbox", value: checkbox.data };

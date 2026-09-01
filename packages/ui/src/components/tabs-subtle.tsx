@@ -102,12 +102,12 @@ const TabsSubtle = forwardRef<HTMLDivElement, TabsSubtleProps>(
       [onSelect],
     );
 
+    // Root is merged into List via `render` so a single <div> is emitted.
+    // Base UI owns role="tablist", roving tabindex, and Arrow/Home/End
+    // keyboard navigation. `activateOnFocus={false}` keeps manual activation:
+    // arrows move focus, Enter/Space selects.
     const root = (
       <TabsSubtleContext.Provider value={contextValue}>
-        {/* Root is merged into List via `render` so a single <div> is emitted.
-            Base UI owns role="tablist", roving tabindex, and Arrow/Home/End
-            keyboard navigation. `activateOnFocus={false}` keeps manual
-            activation: arrows move focus, Enter/Space selects. */}
         <Tabs.Root
           value={selectedIndex}
           onValueChange={selectTab}
@@ -153,7 +153,6 @@ const TabsSubtle = forwardRef<HTMLDivElement, TabsSubtleProps>(
               )}
               {...props}
             >
-              {/* Selected pill */}
               {selectedRect && (
                 <motion.div
                   className={cn("absolute bg-active pointer-events-none", radius.bg)}
@@ -172,7 +171,6 @@ const TabsSubtle = forwardRef<HTMLDivElement, TabsSubtleProps>(
                 />
               )}
 
-              {/* Hover pill */}
               <AnimatePresence>
                 {hoverRect && !isHoveringSelected && selectedRect && (
                   <motion.div
@@ -211,7 +209,6 @@ const TabsSubtle = forwardRef<HTMLDivElement, TabsSubtleProps>(
                 )}
               </AnimatePresence>
 
-              {/* Focus ring */}
               <AnimatePresence>
                 {focusRect && (
                   <motion.div
@@ -270,6 +267,8 @@ const TabsSubtleItem = forwardRef<HTMLButtonElement, TabsSubtleItemProps>(
     const isSelected = selectedIndex === index;
     const isActive = hoveredIndex === index || isSelected;
 
+    // Both stacked spans carry the text-box trim so the invisible bold sizer
+    // and the visible label keep identical boxes.
     return (
       // Base UI Tab renders a native <button type="button"> and wires
       // role="tab", aria-selected, roving tabindex, and activation for us.
@@ -305,8 +304,6 @@ const TabsSubtleItem = forwardRef<HTMLButtonElement, TabsSubtleItemProps>(
             )}
           />
         )}
-        {/* Both stacked spans carry the text-box trim so the invisible bold
-            sizer and the visible label keep identical boxes. */}
         <span className={cn("inline-grid whitespace-nowrap", sizeClasses.text)}>
           <span
             className="col-start-1 row-start-1 invisible [text-box:trim-both_cap_alphabetic]"

@@ -92,18 +92,19 @@ function RootDocument({ children }: { children: React.ReactNode }) {
   //
   // suppressHydrationWarning: the inline script below sets the theme class on
   // <html> before hydration, so the server markup and client differ by design.
+  // The inline theme script applies the saved/system theme before first paint
+  // — no flash.
+  // Both theme-color metas render as plain tags: HeadContent's meta dedupes
+  // by name, which would drop one of the media-queried pair.
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        {/* Apply the saved/system theme before first paint — no flash. */}
         <script
           dangerouslySetInnerHTML={{
             __html: noFlashThemeScript(THEME_STORAGE_KEY, THEME_FALLBACK),
           }}
         />
         <HeadContent />
-        {/* Both theme-color variants — HeadContent's meta dedupes by name,
-            which would drop one of the media-queried pair. */}
         <meta name="theme-color" media="(prefers-color-scheme: light)" content="#ffffff" />
         <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#09090b" />
       </head>

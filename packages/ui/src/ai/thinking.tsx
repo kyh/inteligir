@@ -59,6 +59,8 @@ const Thinking = forwardRef<HTMLDivElement, ThinkingProps>(
       return () => ro.disconnect();
     }, [traceEl]);
 
+    // The entrance stagger is CSS rather than a per-row index, so rows stay
+    // ordinary children the caller composes.
     return (
       <div
         ref={ref}
@@ -116,8 +118,6 @@ const Thinking = forwardRef<HTMLDivElement, ThinkingProps>(
               className="absolute left-[3px] w-px bg-line transition-[height] duration-500"
               style={{ top: -8, height: ruleHeight === 0 ? 0 : ruleHeight - 2 }}
             />
-            {/* The entrance stagger is CSS rather than a per-row index, so
-                    rows stay ordinary children the caller composes. */}
             <div
               ref={setTraceEl}
               data-slot="thinking-trace"

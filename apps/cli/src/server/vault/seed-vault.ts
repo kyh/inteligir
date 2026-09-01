@@ -12,8 +12,8 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 /** The one seed the app can always produce: a resolver miss on a broken
- *  staging must degrade to the old single-file welcome, never to an empty
- *  vault whose first open is a blank pane. */
+ *  staging must degrade to this single-file welcome, never to an empty vault
+ *  whose first open is blank. */
 const FALLBACK_WELCOME = `# Welcome to inteligir
 
 This folder is your vault: plain markdown files that belong to you, versioned with git. Edit them here or with any other tool — changes show up either way.

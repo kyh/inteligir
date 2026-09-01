@@ -150,8 +150,8 @@ interface Failure {
  * THE one place a refusal becomes an exit. A server refusal arrives as a
  * thrown `ORPCError` carrying the contract's own class, so it passes through
  * with its class intact — and because it is thrown rather than returned, no
- * command can reach a body that does not exist. That invariant used to need a
- * status-checking chokepoint every command had to remember to call.
+ * command can reach a body that does not exist. Without that, the invariant
+ * needs a status-checking chokepoint every command has to remember to call.
  *
  * citty raises a missing argument, an unknown command and a bad enum as its
  * own `CLIError`, which it does not export — so the class is recognised by

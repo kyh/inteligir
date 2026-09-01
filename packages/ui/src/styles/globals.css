@@ -131,11 +131,11 @@
 :root {
   /* Typeset font hooks — same faces the theme's font-sans/font-mono use
      (fontsource variable builds imported at the top of this file). Geist is
-     the UI face — the proliferate-language pair (#593). */
+     the UI face — the proliferate-language pair. */
   --font-geist: "Geist Variable", system-ui, sans-serif;
   --font-geist-mono: "Geist Mono Variable", ui-monospace, monospace;
 
-  /* Proliferate-language monochrome (#593): a white sheet over a soft ground,
+  /* Proliferate-language monochrome: a white sheet over a soft ground,
      hairline borders, pill neutrals, near-black ink. Reimplemented as our own
      values — the reference is a look, not a stylesheet. */
   --background: oklch(1 0 0);

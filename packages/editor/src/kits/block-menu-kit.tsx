@@ -1,6 +1,6 @@
 // Block selection + block menu + cursor overlay. Constraint:
-// block selection excludes `frontmatter` (pinned at [0], edited via
-// Raw only), `column` (column internals move with their group), `codeLine`,
+// block selection excludes `frontmatter` (pinned at [0], edited through the
+// properties panel), `column` (column internals move with their group), `codeLine`,
 // and `td`. The context menu and the drag-grip menu are ONE implementation
 // (block-menu.tsx) driven by BlockMenuPlugin's openId/position.
 

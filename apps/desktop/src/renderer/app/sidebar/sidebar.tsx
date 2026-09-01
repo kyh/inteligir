@@ -103,6 +103,9 @@ export function SidebarRailContent({
   const [showTree, setShowTree] = useState(false);
   const modifier = platformShortcutModifier();
 
+  // The palette IS the search surface (⌘P); the search input is its rail
+  // affordance, so it opens the palette instead of growing a second search
+  // UI, and readOnly keeps the caret out of a field that never holds text.
   return (
     <>
       <SidebarHeader className="gap-2">
@@ -135,10 +138,6 @@ export function SidebarRailContent({
             />
           </Button>
         </div>
-        {/* The palette IS the search surface (⌘P); the input is its rail
-            affordance, so it opens the palette instead of growing a second
-            search UI. readOnly keeps the caret out of a field that never
-            holds text. */}
         <div className="relative">
           <SidebarInput
             readOnly

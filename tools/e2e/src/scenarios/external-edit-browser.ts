@@ -8,7 +8,7 @@
 // The reload refuses (unsaved edits win the buffer), and the autosave's
 // guarded write meets the CAS 409 instead — the port three-way merges and
 // retries, so DISK ends up holding both changes. No silent clobber in either
-// direction is the invariant; the attribution tint died with the CM editor.
+// direction is the invariant.
 
 import { readFile, writeFile } from "node:fs/promises";
 import { setTimeout as delay } from "node:timers/promises";

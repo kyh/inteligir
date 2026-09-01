@@ -83,6 +83,9 @@ function SidebarSheet({ side, open, onClose, children }: SidebarSheetProps) {
 
   const offscreen = side === "left" ? "-100%" : "100%";
 
+  // The scrim is an always-on bg-black/40 base that stays visible for system-
+  // dark users (`dark:` only matches the explicit .dark class), boosted to
+  // /80 in explicit dark mode.
   return (
     <DialogPrimitive.Root
       open={open || closing}
@@ -91,9 +94,6 @@ function SidebarSheet({ side, open, onClose, children }: SidebarSheetProps) {
       }}
     >
       <DialogPrimitive.Portal>
-        {/* Scrim: an always-on bg-black/40 base that stays visible for
-            system-dark users (`dark:` only matches the explicit .dark class),
-            boosted to /80 in explicit dark mode. */}
         <DialogPrimitive.Backdrop
           render={(backdropProps) => {
             const {

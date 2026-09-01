@@ -18,12 +18,11 @@
 //   4. record the old stem as a frontmatter alias on the moved doc — the
 //      fallback for any link the surgery missed OR skipped, so it must never
 //      be suppressed by an unrelated skip;
-//   5. rebind the delegation threads bound to the moved doc. A thread's
+//   5. rebind the threads attached to the moved doc. A thread's
 //      `originDocPath` is a link into the vault exactly like a wiki-link, and
-//      it rots the same way: the anchor marker travels with the bytes, so a
-//      rename that did not follow it leaves every chip in the file unable to
-//      find its thread. It belongs here, in the one operation that already
-//      knows both paths.
+//      it rots the same way: a rename that did not follow it leaves the
+//      note's actions unable to find their note. It belongs here, in the one
+//      operation that already knows both paths.
 //
 // Every write goes through the vault service, so git, the watcher's echo
 // suppression, the notifier and the knowledge projection all see ordinary
@@ -72,7 +71,7 @@ export async function renameNoteWithLinkRewrite(
     tree.entries.find((entry) => entry.path.toLowerCase() === requested.toLowerCase());
   if (source === undefined || source.kind !== "file") {
     // A directory move (or a path the listing does not know) still carries
-    // every delegation under it.
+    // every attached thread under it.
     const plain = await service.rename(requested, toPath);
     args.rebindThreads(requested, plain.path);
     return { path: plain.path, rewritten: [], skipped: [] };

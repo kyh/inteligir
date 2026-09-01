@@ -1,4 +1,4 @@
-// Detect + guide (issue #588): what Settings needs to say per harness — is
+// Detect + guide: what Settings needs to say per harness — is
 // the vendor CLI on PATH, does a credential exist, and what command logs in.
 // FACTS, not verdicts: a keychain we cannot read without prompting reports
 // "unknown" rather than guessing, and nothing here installs anything — the

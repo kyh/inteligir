@@ -1,7 +1,7 @@
 // The bits every settings section is built out of: the label/value row, the
 // section heading, the one-of-N control, and the way a section reports a
-// refusal. Their own module because the dialog is no longer the only file that
-// draws a section — and a second copy of the radiogroup would be a second
+// refusal. Their own module because more than one file draws a section — and
+// a second copy of the radiogroup would be a second
 // answer to which element carries `aria-checked`, which is the kind of
 // divergence only a screen reader notices.
 

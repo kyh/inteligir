@@ -121,6 +121,8 @@ export function BlockquoteElement(props: PlateElementProps) {
   const marker = alertQuoteMarker(props.editor, props.element);
   if (marker) {
     const { Icon, accent, icon, label } = ALERTS[marker.variant];
+    // The badge swaps with the raw marker line: hidden while editing so the
+    // variant label never doubles up with its own bytes.
     return (
       <PlateElement
         {...props}
@@ -132,8 +134,6 @@ export function BlockquoteElement(props: PlateElementProps) {
           selected && CALLOUT_EDITING,
         )}
       >
-        {/* The badge swaps with the raw marker line: hidden while editing so
-            the variant label never doubles up with its own bytes. */}
         <div
           contentEditable={false}
           className={cn(

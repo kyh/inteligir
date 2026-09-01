@@ -177,7 +177,7 @@ export function appWindowWebPreferences(preloadPath: string, partition: string) 
 
 /**
  * The ONE web permission this product uses: `media`, for the composer's
- * dictation microphone (issue #574). Electron's default is to grant most
+ * dictation microphone. Electron's default is to grant most
  * permissions to whatever a window loads, so an unset handler is a standing
  * grant to whatever the window ends up rendering — the policy below is the
  * whole answer, and it denies everything not named here.

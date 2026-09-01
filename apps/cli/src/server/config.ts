@@ -304,7 +304,7 @@ export interface AppConfig {
    *  only); a positive number = the cadence in ms. */
   vaultSyncIntervalMs?: number | null;
   /**
-   * Where downloaded models live (issue #574). NOT under the data dir: a model
+   * Where downloaded models live. NOT under the data dir: a model
    * is a cache of the network keyed by its own id, so every checkout on this
    * machine shares one copy rather than each paying the download.
    */
@@ -315,7 +315,7 @@ export interface AppConfig {
   agent: AgentMode;
   /** Model passed through to the provider; null means the provider's default. */
   agentModel: string | null;
-  /** Origin of the hosted deployment cloud sync pairs against (issue #572).
+  /** Origin of the hosted deployment cloud sync pairs against.
    *  Says WHERE, never WHETHER — the credential in the data dir is the switch. */
   cloudUrl: string;
 }

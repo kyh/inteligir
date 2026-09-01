@@ -430,15 +430,14 @@ function MenuRowLabel({
     );
   }
 
+  // Ghost: reserves width at the heaviest weight, hidden from AT. Both cells
+  // truncate so a long label clips with an ellipsis instead of wrapping the
+  // row. The trim box spans cap height to baseline, so the overflow clip
+  // would shave ascenders and descenders — symmetric padding extends the clip
+  // box past both and the negative margins cancel it out of the row's height.
   return (
     <>
       <span className={cn("inline-grid min-w-0 text-left", textClass)}>
-        {/* Ghost: reserves width at the heaviest weight, hidden from AT.
-            Both cells truncate so a long label clips with an ellipsis
-            instead of wrapping the row. The trim box spans cap height to
-            baseline, so the overflow clip would shave ascenders and
-            descenders — symmetric padding extends the clip box past both
-            and the negative margins cancel it out of the row's height. */}
         <span
           className="col-start-1 row-start-1 invisible truncate pt-[0.25em] -mt-[0.25em] pb-[0.25em] -mb-[0.25em] [text-box:trim-both_cap_alphabetic]"
           style={{ fontVariationSettings: fontWeights.semibold }}
@@ -446,7 +445,6 @@ function MenuRowLabel({
         >
           {text}
         </span>
-        {/* Visible: animates between weights in the same cell */}
         <span
           className={cn(
             "col-start-1 row-start-1 truncate pt-[0.25em] -mt-[0.25em] pb-[0.25em] -mb-[0.25em] transition-[color,font-variation-settings] duration-80 [text-box:trim-both_cap_alphabetic]",

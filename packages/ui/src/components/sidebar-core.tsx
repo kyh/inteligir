@@ -438,6 +438,9 @@ const SidebarShell = forwardRef<HTMLDivElement, SidebarShellProps>(
         ? spring.moderate
         : spring.moderate.exit;
 
+    // The edge strip is the collapsed sidebar's reveal affordance: a thin
+    // hairline that brightens on hover; hover mode peeks after a short intent
+    // delay, click mode on press.
     return (
       <motion.div
         ref={composeRefs(shellRef, ref)}
@@ -481,9 +484,6 @@ const SidebarShell = forwardRef<HTMLDivElement, SidebarShellProps>(
       >
         {peekEnabled ? (
           <>
-            {/* Edge strip: the collapsed sidebar's reveal affordance. A thin
-                hairline brightens on hover; hover mode peeks after a short
-                intent delay, click mode on press. */}
             <button
               type="button"
               aria-label="Peek sidebar"
@@ -998,6 +998,8 @@ const SidebarGroupLabel = forwardRef<HTMLElement, SidebarGroupLabelProps>(
     // treatment is unchanged — hover only raises the label's contrast and
     // reveals a chevron (kept visible while collapsed as the reopen cue).
     if (group) {
+      // The chevron occupies an action-sized box, so it reads as one more
+      // icon in the row rather than a smaller glyph tacked on the end.
       return (
         <button
           ref={composeRefs(ref)}
@@ -1017,8 +1019,6 @@ const SidebarGroupLabel = forwardRef<HTMLElement, SidebarGroupLabelProps>(
           {...props}
         >
           {labelContent}
-          {/* The chevron occupies an action-sized box, so it reads as one more
-              icon in the row rather than a smaller glyph tacked on the end. */}
           <span className="ml-auto flex size-6 shrink-0 items-center justify-center">
             <ChevronDownIcon
               size={sizeClasses.icon}

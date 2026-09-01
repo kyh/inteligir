@@ -1,4 +1,4 @@
-// Settings → Connectors: the app-owned MCP registry (issue #591). What is
+// Settings → Connectors: the app-owned MCP registry. What is
 // listed here is what EVERY agent session gets — session launch composes the
 // enabled rows into ACP's mcpServers, identically for Claude Code and Codex —
 // so this surface is the registry's real editor, not a face over someone

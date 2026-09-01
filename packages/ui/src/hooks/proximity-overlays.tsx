@@ -34,9 +34,11 @@ export function ProximityOverlays({
 }: ProximityOverlaysProps) {
   const ambientRadius = useRadius();
   const resolved = radius ?? ambientRadius;
+  // The hover background enters at the active rect when there is one, so the
+  // highlight reads as lifting off the selection; the focus ring sits 2px
+  // outside the row so the corners stay concentric.
   return (
     <>
-      {/* Active / selected background */}
       <AnimatePresence>
         {activeRect && (
           <motion.div
@@ -55,8 +57,6 @@ export function ProximityOverlays({
         )}
       </AnimatePresence>
 
-      {/* Hover background — enters at the active rect when there is one, so
-          the highlight reads as lifting off the selection. */}
       <AnimatePresence>
         {hoverRect && (
           <motion.div
@@ -82,7 +82,6 @@ export function ProximityOverlays({
         )}
       </AnimatePresence>
 
-      {/* Focus ring — 2px outside the row so the corners stay concentric. */}
       <AnimatePresence>
         {focusRect && (
           <motion.div

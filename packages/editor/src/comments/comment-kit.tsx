@@ -1,4 +1,4 @@
-// The comment surface's editor half (issue #583): the anchored-range tint,
+// The comment surface's editor half: the anchored-range tint,
 // ⌘⇧A create-from-selection with its inline first-comment popover, and the
 // scroll-to-thread helper the panel calls. The SIDECAR stays the app's (its
 // routes own entries); this kit owns only what lives in the buffer — marker

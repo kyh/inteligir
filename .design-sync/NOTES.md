@@ -113,12 +113,10 @@ node .ds-sync/resync.mjs --config .design-sync/config.json \
   InputMessage (cardMode column), TabsSubtle, ScrollArea (previews authored). Every other
   existing preview still compiles against the fluid components — the swap kept prop compat
   (Button even keeps `leadingIcon`/`md`/`icon-sm` aliases).
-- componentSrcMap grew to 135 entries: fluid subparts (sidebar's widened surface, checkbox
-  group forms, dropdown compat names, tabs-subtle/scroll-area subparts), the system layer
-  (IconProvider/SizeProvider/SelectionBackgrounds), and the August-era chat/product families
-  (Attachment/Bubble/Message*/NativeSelect/InputGroup/Sheet/Separator) are ALL nulled —
-  bundle-only until deliberately carded. Popover gained Header/Title/Description exports and
-  Sidebar gained SidebarInset — null them or they card (they leaked on the first run).
+- componentSrcMap nulls every export that is not a carded primary (fluid subparts, the
+  system layer, the InputGroup/Separator family) — bundle-only until deliberately carded. A
+  new export needs a null row or it cards (Popover's Header/Title/Description and
+  SidebarInset leaked on the first run).
 - dtsPropsFor: Sidebar/Tooltip/Checkbox/Menu entries DELETED — the fluid sources export real
   prop interfaces and extraction now beats the stale hand-written bodies (Sidebar's said
   `collapsible: icon` — pre-fluid API). The remaining entries cover still-stock components.
@@ -128,8 +126,7 @@ node .ds-sync/resync.mjs --config .design-sync/config.json \
   an ORPHAN pnpm-store entry, resolved by a store glob fallback; if a store prune drops it,
   add @fontsource-variable/inter somewhere real). Remote `fonts/InterVariable.ttf` is dead —
   delete on upload.
-- Bundle 1848 KB (was ~1521) — framer-motion's cost; syntax OK, no scheduler regression
-  (react-three exclusion override still applies).
+- Bundle 1848 KB (was ~1521) — framer-motion's cost; syntax OK, no scheduler regression.
 - validate warnings accepted: TOKENS_MISSING for --scroll-area-thumb-* (runtime-set),
   --editor-* (app appearance provider), --tw (tailwind internal); RENDER_SKIPPED (browser-
   graded instead — all 21 cards mounted, overlays verified in screenshots).
