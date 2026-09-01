@@ -170,13 +170,13 @@ function RevisionDetail({
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex items-center gap-1 border-b border-line px-2 py-1.5 text-sm">
-        <Button size="icon-xs" variant="ghost" aria-label="Back to history" onClick={onBack}>
+        <Button size="icon-compact" variant="ghost" aria-label="Back to history" onClick={onBack}>
           <ArrowLeftIcon />
         </Button>
         <span className="min-w-0 flex-1 truncate font-medium">{revision.subject}</span>
         <Button
-          size="xs"
-          variant="outline"
+          size="compact"
+          variant="tertiary"
           disabled={restore.isPending || content === null || identical}
           onClick={() => {
             if (content !== null) restore.mutate(content);
@@ -273,7 +273,7 @@ export function HistoryTab({ docPath }: { docPath: string | null }) {
       ))}
       {revisions.length < limit ? null : limit < VAULT_HISTORY_MAX_LIMIT ? (
         <Button
-          size="xs"
+          size="compact"
           variant="ghost"
           className="mt-1 w-full"
           onClick={() => {

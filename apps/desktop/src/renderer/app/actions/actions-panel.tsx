@@ -214,7 +214,7 @@ function ActionDetail({
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex items-center gap-1 border-b border-line px-2 py-1.5 text-sm">
-        <Button size="icon-xs" variant="ghost" aria-label="Back to actions" onClick={onBack}>
+        <Button size="icon-compact" variant="ghost" aria-label="Back to actions" onClick={onBack}>
           <ArrowLeftIcon />
         </Button>
         <span className="min-w-0 flex-1 truncate font-medium">{thread?.title ?? "Action"}</span>
@@ -229,7 +229,7 @@ function ActionDetail({
             {thread.originDocPath}
           </button>
         ) : null}
-        <Button size="icon-xs" variant="ghost" aria-label="Archive action" onClick={archive}>
+        <Button size="icon-compact" variant="ghost" aria-label="Archive action" onClick={archive}>
           <ArchiveIcon />
         </Button>
       </div>

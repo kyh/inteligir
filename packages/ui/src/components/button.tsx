@@ -1,15 +1,7 @@
 "use client";
 // Vendored from Fluid Functionalism (github.com/mickadesign/fluid-functionalism), MIT.
 
-import {
-  cloneElement,
-  forwardRef,
-  isValidElement,
-  type CSSProperties,
-  type ReactElement,
-  type ReactNode,
-  type Ref,
-} from "react";
+import { forwardRef, type CSSProperties } from "react";
 import { Button as ButtonPrimitive } from "@base-ui/react/button";
 import { cva } from "class-variance-authority";
 
@@ -59,50 +51,9 @@ const buttonStructure = cva(
   },
 );
 
-type ButtonVariantCanonical = "primary" | "secondary" | "tertiary" | "ghost" | "destructive";
+type ButtonVariant = "primary" | "secondary" | "tertiary" | "ghost" | "destructive";
 
-/** Public variant values: fluid's own names plus the shadcn spellings this
- *  repo's call sites speak (default → primary, outline → tertiary). */
-type ButtonVariant = ButtonVariantCanonical | "default" | "outline";
-
-const variantAliases = {
-  primary: "primary",
-  secondary: "secondary",
-  tertiary: "tertiary",
-  ghost: "ghost",
-  destructive: "destructive",
-  default: "primary",
-  outline: "tertiary",
-} satisfies Record<ButtonVariant, ButtonVariantCanonical>;
-
-type ButtonSizeCanonical = "default" | "compact" | "icon" | "icon-compact";
-
-/** Public size values: the canonical two-size scale plus the shadcn ladder's
- *  spellings. Density is the SizeProvider's job now, so the four-step ladder
- *  resolves onto the two-step one (xs/sm → compact; md/lg → default). */
-type ButtonSize =
-  | ButtonSizeCanonical
-  | "xs"
-  | "sm"
-  | "md"
-  | "lg"
-  | "icon-xs"
-  | "icon-sm"
-  | "icon-lg";
-
-const sizeAliases = {
-  default: "default",
-  compact: "compact",
-  icon: "icon",
-  "icon-compact": "icon-compact",
-  xs: "compact",
-  sm: "compact",
-  md: "default",
-  lg: "default",
-  "icon-xs": "icon-compact",
-  "icon-sm": "icon-compact",
-  "icon-lg": "icon",
-} satisfies Record<ButtonSize, ButtonSizeCanonical>;
+type ButtonSize = "default" | "compact" | "icon" | "icon-compact";
 
 /* Press effect: the surface layer sits 1px inside the button and a
    same-color box-shadow spread fills it back out to the full bounds.
@@ -129,7 +80,7 @@ const bgVariants = {
   // over the destructive tokens, for confirm-style dangerous actions.
   destructive:
     "[--btn-bg:var(--destructive)] group-hover:[--btn-bg:color-mix(in_oklab,var(--destructive)_90%,var(--background))] group-active:[--btn-bg:color-mix(in_oklab,var(--destructive)_80%,var(--background))] bg-[var(--btn-bg)] shadow-[0_0_0_1px_var(--btn-bg)] group-active:shadow-[0_0_0_0px_var(--btn-bg)]",
-} satisfies Record<ButtonVariantCanonical, string>;
+} satisfies Record<ButtonVariant, string>;
 
 /* Forced-active (`active` prop): pressed colors at full size; the
    geometric press-collapse still reacts on top. */
@@ -143,7 +94,7 @@ const activeBgVariants = {
   ghost: "bg-active shadow-[0_0_0_1px_var(--active)] group-active:shadow-[0_0_0_0px_var(--active)]",
   destructive:
     "[--btn-bg:color-mix(in_oklab,var(--destructive)_80%,var(--background))] bg-[var(--btn-bg)] shadow-[0_0_0_1px_var(--btn-bg)] group-active:shadow-[0_0_0_0px_var(--btn-bg)]",
-} satisfies Record<ButtonVariantCanonical, string>;
+} satisfies Record<ButtonVariant, string>;
 
 /* The layered press surface can't ride a class string, so class-string
    consumers (calendar's DayPicker buttons) get a flat rendition: the same
@@ -154,15 +105,15 @@ const flatBgVariants = {
   tertiary: "bg-transparent shadow-[inset_0_0_0_1px_var(--border)] hover:bg-hover active:bg-active",
   ghost: "bg-transparent hover:bg-hover active:bg-active",
   destructive: "bg-destructive hover:bg-destructive/90",
-} satisfies Record<ButtonVariantCanonical, string>;
+} satisfies Record<ButtonVariant, string>;
 
 function buttonVariants(props?: {
   variant?: ButtonVariant | null;
   size?: ButtonSize | null;
   className?: string;
 }): string {
-  const variant = variantAliases[props?.variant ?? "primary"];
-  const size = sizeAliases[props?.size ?? "default"];
+  const variant = props?.variant ?? "primary";
+  const size = props?.size ?? "default";
   return cn(buttonStructure({ variant, size }), flatBgVariants[variant], props?.className);
 }
 
@@ -171,10 +122,8 @@ interface ButtonProps extends Omit<ButtonPrimitive.Props, "className" | "style">
   style?: CSSProperties;
   variant?: ButtonVariant;
   /** Omitted, the button follows the surrounding SizeProvider (default 36px,
-   *  compact 28px). The shadcn-ladder values resolve through sizeAliases. */
+   *  compact 28px). */
   size?: ButtonSize;
-  /** When true, the given single React-element child becomes the rendered element (slot-style). */
-  asChild?: boolean;
   loading?: boolean;
   leadingIcon?: IconComponent;
   trailingIcon?: IconComponent;
@@ -184,51 +133,12 @@ interface ButtonProps extends Omit<ButtonPrimitive.Props, "className" | "style">
   active?: boolean;
 }
 
-interface AsChildProps {
-  children?: ReactNode;
-  className?: string;
-  style?: CSSProperties;
-  ref?: Ref<HTMLButtonElement> | undefined;
-}
-
-interface AsChildSlotProps extends Omit<ButtonPrimitive.Props, "className" | "style"> {
-  element: ReactElement<AsChildProps>;
-  ref?: Ref<HTMLButtonElement> | undefined;
-  className: string;
-  style?: CSSProperties | undefined;
-  children: ReactNode;
-}
-
-/** Clones the caller's `asChild` element as the button root, merging the
- *  button's class/style under the element's own.
- *
- *  A component rather than an inline `cloneElement(el, { …, ref })`:
- *  `react(refs)` only recognises a ref hand-off through a JSX `ref={…}`
- *  attribute — a ref placed into a props object is reported as a ref read
- *  during render, and the rule cannot see that cloneElement never dereferences
- *  it. Same reason `Slot` in sidebar-core is a component; that one can't be
- *  reused here because sidebar-core imports Button. */
-function AsChildSlot({ element, ref, className, style, children, ...rest }: AsChildSlotProps) {
-  const childProps = element.props;
-  return cloneElement(
-    element,
-    {
-      ...rest,
-      ref,
-      className: cn(className, childProps.className),
-      style: { ...style, ...childProps.style },
-    },
-    children,
-  );
-}
-
 const Button = forwardRef<HTMLButtonElement, ButtonProps>(
   (
     {
       className,
       variant,
       size,
-      asChild = false,
       loading = false,
       leadingIcon: LeadingIcon,
       trailingIcon: TrailingIcon,
@@ -240,23 +150,11 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     },
     ref,
   ) => {
-    // asChild: the user's element becomes the root while the button's internal
-    // structure (bg layer, content wrapper, spinner, icons) survives as its
-    // children — the element's own children become the label. We clone the
-    // element directly instead of routing through ButtonPrimitive's `render`:
-    // Base UI would bolt button semantics (role="button", Space activation)
-    // onto e.g. a link, where plain-link output is wanted.
-    const asChildElement = asChild && isValidElement<AsChildProps>(children) ? children : null;
-    const label = asChildElement ? asChildElement.props.children : children;
-    // Resolve the size: explicit prop (aliases mapped onto the canonical
-    // ladder) > surrounding SizeProvider > default.
+    const label = children;
+    // Resolve the size: explicit prop > surrounding SizeProvider > default.
     const contextSize = useSizeVariant();
-    const resolvedSize: ButtonSizeCanonical = size
-      ? sizeAliases[size]
-      : contextSize === "compact"
-        ? "compact"
-        : "default";
-    const resolvedVariant = variantAliases[variant ?? "primary"];
+    const resolvedSize: ButtonSize = size ?? (contextSize === "compact" ? "compact" : "default");
+    const resolvedVariant = variant ?? "primary";
     const isIconOnly = resolvedSize === "icon" || resolvedSize === "icon-compact";
     const isCompact = resolvedSize === "compact" || resolvedSize === "icon-compact";
     const iconSize = isCompact ? 14 : 16;
@@ -344,20 +242,6 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       className,
     );
 
-    if (asChildElement) {
-      return (
-        <AsChildSlot
-          element={asChildElement}
-          ref={ref}
-          className={rootClassName}
-          style={style}
-          {...props}
-        >
-          {internals}
-        </AsChildSlot>
-      );
-    }
-
     return (
       <ButtonPrimitive
         ref={ref}
@@ -375,4 +259,3 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
 Button.displayName = "Button";
 
 export { Button, buttonVariants };
-export type { ButtonProps, ButtonSize, ButtonVariant };

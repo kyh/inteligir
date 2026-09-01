@@ -12,7 +12,7 @@ import { buttonVariants } from "@repo/ui/components/button";
 // DayPicker renders its own <button>s, so the stock Button styling arrives as
 // buttonVariants class strings rather than the component.
 const NAV_BUTTON = cn(
-  buttonVariants({ variant: "outline", size: "icon-sm" }),
+  buttonVariants({ variant: "tertiary", size: "icon-compact" }),
   "rounded-md bg-transparent opacity-60 hover:opacity-100 disabled:opacity-30",
 );
 

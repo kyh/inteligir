@@ -123,7 +123,12 @@ function DeviceList({
             </div>
           </div>
           {device.revokedAt !== null ? null : (
-            <Button type="button" variant="outline" size="sm" onClick={() => onRevoke(device.id)}>
+            <Button
+              type="button"
+              variant="tertiary"
+              size="compact"
+              onClick={() => onRevoke(device.id)}
+            >
               Revoke
             </Button>
           )}

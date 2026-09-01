@@ -32,7 +32,7 @@ function PopoverButton({
   return (
     <Button
       variant="ghost"
-      size="icon-sm"
+      size="icon-compact"
       title={title}
       onClick={onClick}
       className="rounded-md text-foreground/80"

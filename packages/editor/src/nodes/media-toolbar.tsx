@@ -71,7 +71,7 @@ export function MediaToolbar() {
           />
           <Button
             variant="ghost"
-            size="icon-xs"
+            size="icon-compact"
             title="Apply URL"
             className={BUTTON_CLASS}
             onClick={commitUrl}
@@ -83,7 +83,7 @@ export function MediaToolbar() {
         <>
           <Button
             variant="ghost"
-            size="icon-xs"
+            size="icon-compact"
             title="Edit URL"
             className={BUTTON_CLASS}
             onMouseDown={(e) => e.preventDefault()}
@@ -93,7 +93,7 @@ export function MediaToolbar() {
           </Button>
           <Button
             variant="ghost"
-            size="icon-xs"
+            size="icon-compact"
             title="Open original"
             className={BUTTON_CLASS}
             onClick={() => {
@@ -104,7 +104,7 @@ export function MediaToolbar() {
           </Button>
           <Button
             variant="ghost"
-            size="icon-xs"
+            size="icon-compact"
             title="Delete embed"
             className={cn(
               BUTTON_CLASS,

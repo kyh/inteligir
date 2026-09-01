@@ -118,7 +118,7 @@ export function ConfirmDialogHost() {
           </Button>
           <Button
             ref={confirmButtonRef}
-            variant={options?.destructive ? "destructive" : "default"}
+            variant={options?.destructive ? "destructive" : "primary"}
             onClick={() => settle(true)}
           >
             {options?.confirmLabel ?? "Confirm"}

@@ -322,7 +322,7 @@ function ConnectorRow({
         </div>
         {oauth !== null ? (
           <Button
-            size="xs"
+            size="compact"
             variant="ghost"
             disabled={busy}
             onClick={() => {
@@ -334,7 +334,7 @@ function ConnectorRow({
         ) : null}
         {oauth !== null && oauth.status !== "needs-auth" ? (
           <Button
-            size="xs"
+            size="compact"
             variant="ghost"
             disabled={busy}
             onClick={() => {
@@ -345,7 +345,7 @@ function ConnectorRow({
           </Button>
         ) : null}
         <Button
-          size="xs"
+          size="compact"
           variant="ghost"
           disabled={busy}
           onClick={() => {
@@ -354,7 +354,7 @@ function ConnectorRow({
         >
           {server.enabled ? "Disable" : "Enable"}
         </Button>
-        <Button size="xs" variant="ghost" disabled={busy} onClick={remove}>
+        <Button size="compact" variant="ghost" disabled={busy} onClick={remove}>
           Remove
         </Button>
       </div>
@@ -613,7 +613,7 @@ export function ConnectorsSection() {
           ) : (
             <span className="flex-1" />
           )}
-          <Button size="sm" disabled={!verdict.ok || addServer.isPending} onClick={submit}>
+          <Button size="compact" disabled={!verdict.ok || addServer.isPending} onClick={submit}>
             Add
           </Button>
         </div>
@@ -638,7 +638,7 @@ export function ConnectorsSection() {
               <p className="truncate text-xs text-muted-foreground">{entry.description}</p>
             </div>
             <Button
-              size="xs"
+              size="compact"
               variant="ghost"
               onClick={() => {
                 prefill(entry);

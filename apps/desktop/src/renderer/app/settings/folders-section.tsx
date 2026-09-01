@@ -97,7 +97,7 @@ export function FoldersSection() {
               </span>
               <Button
                 variant="ghost"
-                size="xs"
+                size="compact"
                 disabled={busy}
                 onClick={() => {
                   removeFolder.mutate({ path: folder });
@@ -125,7 +125,12 @@ export function FoldersSection() {
           aria-label="Folder path"
           className="h-7 flex-1 font-mono text-xs"
         />
-        <Button type="submit" variant="outline" size="xs" disabled={busy || draft.trim() === ""}>
+        <Button
+          type="submit"
+          variant="tertiary"
+          size="compact"
+          disabled={busy || draft.trim() === ""}
+        >
           Connect
         </Button>
       </form>

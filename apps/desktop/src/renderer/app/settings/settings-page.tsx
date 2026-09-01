@@ -70,7 +70,7 @@ export function SettingsPage({ onBack }: { onBack: () => void }) {
     <div className="min-h-dvh overflow-y-auto bg-surface text-ink">
       <div className="mx-auto flex max-w-3xl gap-10 px-6 py-10">
         <nav className="sticky top-10 hidden w-40 shrink-0 self-start md:block">
-          <Button variant="ghost" size="sm" className="-ml-2 mb-6 gap-1.5" onClick={onBack}>
+          <Button variant="ghost" size="compact" className="-ml-2 mb-6 gap-1.5" onClick={onBack}>
             <ArrowLeftIcon />
             Notes
           </Button>
@@ -92,7 +92,7 @@ export function SettingsPage({ onBack }: { onBack: () => void }) {
           <header className="flex items-center gap-2">
             <Button
               variant="ghost"
-              size="icon-sm"
+              size="icon-compact"
               aria-label="Back to notes"
               className="md:hidden"
               onClick={onBack}
@@ -128,7 +128,12 @@ export function SettingsPage({ onBack }: { onBack: () => void }) {
                 <span className="flex items-center gap-2">
                   {status === undefined ? "…" : syncStateLabel(status)}
                   {canSyncNow(status) ? (
-                    <Button variant="outline" size="xs" disabled={syncInFlight} onClick={syncNow}>
+                    <Button
+                      variant="tertiary"
+                      size="compact"
+                      disabled={syncInFlight}
+                      onClick={syncNow}
+                    >
                       Sync now
                     </Button>
                   ) : null}

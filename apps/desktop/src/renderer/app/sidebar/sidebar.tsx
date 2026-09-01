@@ -112,7 +112,7 @@ export function SidebarRailContent({
           </h2>
           <Button
             variant="ghost"
-            size="icon-sm"
+            size="icon-compact"
             aria-label="New folder"
             onClick={() => {
               setShowTree(true);
@@ -123,7 +123,7 @@ export function SidebarRailContent({
           </Button>
           <Button
             variant="ghost"
-            size="icon-sm"
+            size="icon-compact"
             aria-label={showTree ? "Show notes list" : "Show file tree"}
             aria-pressed={showTree}
             onClick={() => {
@@ -200,10 +200,15 @@ export function SidebarRailContent({
       <SidebarFooter className="flex-row items-center justify-between">
         <SyncStatusRow onSyncNow={onSyncNow} />
         <div className="flex items-center">
-          <Button variant="ghost" size="icon-sm" aria-label="Trash" onClick={onOpenTrash}>
+          <Button variant="ghost" size="icon-compact" aria-label="Trash" onClick={onOpenTrash}>
             <Trash2Icon className="size-4 text-muted-foreground" />
           </Button>
-          <Button variant="ghost" size="icon-sm" aria-label="Settings" onClick={onOpenSettings}>
+          <Button
+            variant="ghost"
+            size="icon-compact"
+            aria-label="Settings"
+            onClick={onOpenSettings}
+          >
             <SettingsIcon className="size-4 text-muted-foreground" />
           </Button>
         </div>

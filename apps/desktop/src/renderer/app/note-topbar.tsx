@@ -56,7 +56,7 @@ function PanelToggle() {
   return (
     <Button
       variant="ghost"
-      size="icon-xs"
+      size="icon-compact"
       aria-label="Toggle panel"
       onClick={() => {
         toggleSidebar();
@@ -107,19 +107,25 @@ export function NoteTopbar({
     <header className="flex h-[var(--app-header-h)] shrink-0 items-center gap-0.5 border-b border-line px-1.5 print:hidden">
       <Button
         variant="ghost"
-        size="icon-xs"
+        size="icon-compact"
         aria-label={railOpen ? "Collapse the sidebar" : "Expand the sidebar"}
         aria-expanded={railOpen}
         onClick={onToggleRail}
       >
         <PanelLeftIcon />
       </Button>
-      <Button variant="ghost" size="icon-xs" aria-label="Back" disabled={!canBack} onClick={onBack}>
+      <Button
+        variant="ghost"
+        size="icon-compact"
+        aria-label="Back"
+        disabled={!canBack}
+        onClick={onBack}
+      >
         <ArrowLeftIcon />
       </Button>
       <Button
         variant="ghost"
-        size="icon-xs"
+        size="icon-compact"
         aria-label="Forward"
         disabled={!canForward}
         onClick={onForward}
@@ -130,12 +136,12 @@ export function NoteTopbar({
         {path === null ? "" : docStem(path)}
       </span>
       <div className="ml-auto flex shrink-0 items-center gap-0.5">
-        <Button variant="ghost" size="icon-xs" aria-label="Search" onClick={onOpenSearch}>
+        <Button variant="ghost" size="icon-compact" aria-label="Search" onClick={onOpenSearch}>
           <SearchIcon />
         </Button>
         <Button
           variant="ghost"
-          size="icon-xs"
+          size="icon-compact"
           aria-label="Copy link"
           disabled={path === null}
           onClick={copyLink}

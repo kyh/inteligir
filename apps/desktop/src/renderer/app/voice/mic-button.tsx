@@ -192,8 +192,8 @@ export function MicButton({ status, onTranscript, onPartial, disabled }: MicButt
 
   return (
     <Button
-      size="icon-sm"
-      variant={recording ? "default" : "ghost"}
+      size="icon-compact"
+      variant={recording ? "primary" : "ghost"}
       aria-label={label}
       title={label}
       aria-pressed={recording}

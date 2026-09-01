@@ -89,8 +89,8 @@ export function TrashDialog({ open, onOpenChange, onOpenNote }: TrashDialogProps
                     </p>
                   </div>
                   <Button
-                    variant="outline"
-                    size="xs"
+                    variant="tertiary"
+                    size="compact"
                     disabled={restore.isPending}
                     onClick={() => restore.mutate(entry.path)}
                   >
@@ -98,7 +98,7 @@ export function TrashDialog({ open, onOpenChange, onOpenNote }: TrashDialogProps
                   </Button>
                   <Button
                     variant="ghost"
-                    size="xs"
+                    size="compact"
                     className="text-destructive"
                     disabled={purge.isPending}
                     onClick={() => purge.mutate(entry.path)}

@@ -171,10 +171,10 @@ function CommentCreateHost() {
         }}
       />
       <div className="flex justify-end gap-1.5">
-        <Button size="xs" variant="ghost" onClick={cancel}>
+        <Button size="compact" variant="ghost" onClick={cancel}>
           Cancel
         </Button>
-        <Button size="xs" disabled={saving || text.trim() === ""} onClick={save}>
+        <Button size="compact" disabled={saving || text.trim() === ""} onClick={save}>
           Save
         </Button>
       </div>

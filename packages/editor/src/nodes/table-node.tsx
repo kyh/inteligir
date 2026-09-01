@@ -52,7 +52,7 @@ export function TableElement(props: PlateElementProps) {
     <div className="group/table relative w-fit max-w-full">
       <Button
         variant="ghost"
-        size="icon-xs"
+        size="icon-compact"
         contentEditable={false}
         ref={menuBtnRef}
         onMouseDown={(e) => e.preventDefault()}
@@ -85,7 +85,7 @@ export function TableElement(props: PlateElementProps) {
           text color — same in dark (hence the dark:hover override). */}
       <Button
         variant="ghost"
-        size="xs"
+        size="compact"
         contentEditable={false}
         onClick={addRow}
         title="Add row"
@@ -95,7 +95,7 @@ export function TableElement(props: PlateElementProps) {
       </Button>
       <Button
         variant="ghost"
-        size="xs"
+        size="compact"
         contentEditable={false}
         onClick={addColumn}
         title="Add column"

@@ -88,7 +88,7 @@ export function PairPrompt({ cloudUrl, begun, onBegin, pending }: PairPromptProp
         vault then sync through your account — unless this machine is configured with its own git
         remote.
       </p>
-      <Button type="button" size="xs" onClick={onBegin} disabled={pending}>
+      <Button type="button" size="compact" onClick={onBegin} disabled={pending}>
         Pair with browser
       </Button>
       {begun === null ? null : (
@@ -228,7 +228,7 @@ export function SyncSection() {
           <p className="text-xs text-muted-foreground">
             {status.detail} Sync is stopped. Unpair, then pair this device again.
           </p>
-          <Button size="xs" variant="outline" onClick={unpair} disabled={pending}>
+          <Button size="compact" variant="tertiary" onClick={unpair} disabled={pending}>
             Unpair
           </Button>
         </div>
@@ -237,8 +237,8 @@ export function SyncSection() {
           <PairedDetails status={status} nowMs={now} />
           <div className="flex gap-2">
             <Button
-              size="xs"
-              variant="outline"
+              size="compact"
+              variant="tertiary"
               disabled={pending}
               onClick={() => {
                 syncThreads.mutate();
@@ -246,7 +246,7 @@ export function SyncSection() {
             >
               Sync threads now
             </Button>
-            <Button size="xs" variant="ghost" onClick={unpair} disabled={pending}>
+            <Button size="compact" variant="ghost" onClick={unpair} disabled={pending}>
               Unpair
             </Button>
           </div>

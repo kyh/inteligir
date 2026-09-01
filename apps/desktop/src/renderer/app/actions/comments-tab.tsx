@@ -159,7 +159,7 @@ function ThreadCard({
         />
         {thread.resolved ? (
           <Button
-            size="icon-xs"
+            size="icon-compact"
             variant="ghost"
             aria-label="Reopen comment"
             disabled={busy}
@@ -171,7 +171,7 @@ function ThreadCard({
           </Button>
         ) : (
           <Button
-            size="icon-xs"
+            size="icon-compact"
             variant="ghost"
             aria-label="Resolve comment"
             disabled={busy}
@@ -183,7 +183,7 @@ function ThreadCard({
           </Button>
         )}
         <Button
-          size="icon-xs"
+          size="icon-compact"
           variant="ghost"
           aria-label="Delete comment thread"
           disabled={busy}

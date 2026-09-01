@@ -73,7 +73,7 @@ export function EmbedUrlDialogHost() {
               if (e.key === "Enter") submit();
             }}
           />
-          <Button variant="default" size="sm" onClick={submit} disabled={!trimmed}>
+          <Button variant="primary" size="compact" onClick={submit} disabled={!trimmed}>
             Embed
           </Button>
         </div>

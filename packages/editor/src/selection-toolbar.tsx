@@ -105,7 +105,7 @@ function IconButton({
   return (
     <Button
       variant="ghost"
-      size="icon-sm"
+      size="icon-compact"
       title={title}
       aria-pressed={pressed}
       onMouseDown={onMouseDown}
