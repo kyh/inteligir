@@ -25,6 +25,7 @@ import { createAcpRuntimeManager, type AcpRuntimeManagerDeps } from "../runtime-
 import { bootTestApp, type BootedTestApp } from "../../__tests__/boot-app";
 import {
   createThread,
+  fakeSessionFacts,
   fetchTimelineRows,
   flattenTimelineRows,
   getThreadDetail,
@@ -40,8 +41,14 @@ type FakeAcpMode = "message" | "fileChange" | "approval" | "promptEcho" | "silen
 
 interface ManagerOptions {
   cliBinDir?: string;
+  skillsDir?: string;
   filePath?: string;
   turnIdleTimeoutMs?: number;
+  /** Mutable on purpose: the Settings-edited fact, read per session open. */
+  connectedDirs?: string[];
+  /** Every adapter spawn's env, in spawn order — what the agent's shell
+   *  inherits, one entry per provider session. */
+  spawnedEnvs?: Record<string, string>[];
 }
 
 function fakeSpawn(
@@ -49,6 +56,7 @@ function fakeSpawn(
   options: ManagerOptions,
 ): AcpAgentRuntimeOptions["spawnAdapter"] {
   return (_harness, env) => {
+    options.spawnedEnvs?.push(env);
     const childEnv: AgentRuntimeShellEnvironment = { ...env, FAKE_ACP_MODE: mode };
     if (options.filePath !== undefined) childEnv.FAKE_ACP_FILE = options.filePath;
     const child = spawn(process.execPath, [FAKE_AGENT], {
@@ -73,9 +81,13 @@ async function bootWithManager(
         git: vault.git,
         model: null,
         mcpServers: () => [],
-        shellEnv: () => ({}),
-        cliBinDir: options.cliBinDir ?? null,
-        connectedDirs: () => [],
+        sessionFacts: () =>
+          fakeSessionFacts({
+            cliBinDir: options.cliBinDir ?? null,
+            skillsDir: options.skillsDir ?? null,
+            connectedDirs: [...(options.connectedDirs ?? [])],
+          }),
+        hostEnv: {},
         defaultProviderId: "codex",
         spawnAdapter: fakeSpawn(mode, options),
         reapIntervalMs: null,
@@ -159,7 +171,7 @@ describe("the ACP runtime manager over real HTTP", () => {
     // The provider session is persisted for resume across restarts/reaps.
     expect(getThread(harness.db, threadId)).toMatchObject({
       providerId: "codex",
-      providerThreadId: "fakeacp_1",
+      providerThreadId: expect.stringMatching(/^fakeacp_\d+_1$/),
       status: "idle",
       activeTurnId: null,
     });
@@ -170,7 +182,10 @@ describe("the ACP runtime manager over real HTTP", () => {
     // leading text block is the only channel they have. The fake echoes that
     // block back, which is what makes this an assertion about the wire rather
     // than about a recording double.
-    const harness = await bootWithManager("promptEcho", { cliBinDir: "/repo/apps/cli/bin" });
+    const harness = await bootWithManager("promptEcho", {
+      cliBinDir: "/repo/apps/cli/bin",
+      skillsDir: "/repo/packages/agent-skills/skills",
+    });
     const threadId = await createThread(harness.client);
     await sendMessage(harness.client, threadId, "hello agent");
     await awaitThreadStatus(harness, threadId, "idle");
@@ -183,6 +198,40 @@ describe("the ACP runtime manager over real HTTP", () => {
     expect(echoed.text).toContain(CLI_POINTER_INSTRUCTIONS);
     expect(echoed.text).toContain("$INTELIGIR_SKILLS_DIR");
     expect(echoed.text).not.toContain("hello agent");
+  });
+
+  it("reads the session facts at every session open: a folder added after the first turn reaches the next session's env AND prompt", async () => {
+    // The runtime is built on the first turn and lives for the process, while
+    // the Connected Folders are Settings-mutable — so the facts must be read
+    // per session open, and both projections of them must move together: the
+    // env the adapter spawn inherits and the instructions the first turn
+    // carries. A value captured at construction freezes the env at the first
+    // session's set while the prompt keeps promising the current one.
+    const connectedDirs: string[] = [];
+    const spawnedEnvs: Record<string, string>[] = [];
+    const harness = await bootWithManager("promptEcho", { connectedDirs, spawnedEnvs });
+
+    const first = await createThread(harness.client);
+    await sendMessage(harness.client, first, "first session");
+    await awaitThreadStatus(harness, first, "idle");
+
+    connectedDirs.push("/ref/added-in-settings");
+    const second = await createThread(harness.client);
+    await sendMessage(harness.client, second, "second session");
+    await awaitThreadStatus(harness, second, "idle");
+
+    expect(spawnedEnvs.map((env) => env.INTELIGIR_CONNECTED_DIRS)).toEqual([
+      undefined,
+      "/ref/added-in-settings",
+    ]);
+    const rows = flattenTimelineRows(await fetchTimelineRows(harness.client, second));
+    const echoedPrompt = rows.find(
+      (row) => row.kind === "conversation" && row.role === "assistant",
+    );
+    if (echoedPrompt?.kind !== "conversation") {
+      throw new Error("expected the echoed prompt");
+    }
+    expect(echoedPrompt.text).toContain("/ref/added-in-settings");
   });
 
   it("stages a fileChange item's write set as the agent-attributed commit", async () => {

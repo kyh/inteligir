@@ -9,7 +9,7 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
-import { buildAgentShellEnv, resolveCliBinDir } from "inteligir/server/agent-shell-env";
+import { resolveCliBinDir, toShellEnv } from "inteligir/server/agent-shell-env";
 import { z } from "zod";
 import { expect, expectEq } from "../harness/assert";
 import { exec, hermeticProcessEnv, type ExecResult } from "../harness/exec";
@@ -45,11 +45,10 @@ export const cliDrive: Scenario = {
     // against this checkout — so a broken PATH or a missing bin fails HERE.
     const cliBinDir = resolveCliBinDir(join(ctx.repoRoot, "apps", "cli", "bin"));
     expect(cliBinDir !== null, "the app resolves a CLI bin directory for the agent's PATH");
-    const agentShellEnv = buildAgentShellEnv({
-      dataDir: app.dataDir,
-      env: hermeticProcessEnv(),
-      cliBinDir,
-    });
+    const agentShellEnv = toShellEnv(
+      { dataDir: app.dataDir, cliBinDir, skillsDir: null, connectedDirs: [] },
+      hermeticProcessEnv(),
+    );
 
     // `inteligir`, not a path: found through PATH exactly as an agent's bash
     // would find it. `shell: false` still resolves a bare name via PATH.

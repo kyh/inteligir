@@ -12,8 +12,11 @@
 //                message chunk, so a caller can assert what it actually sent
 //   silent       accepts the prompt and never settles it (watchdog food)
 //
-// Session ids are minted `fakeacp_<n>`; loadSession echoes the requested id
-// so resume paths can assert identity survival.
+// Session ids are minted `fakeacp_<pid>_<n>` — unique across adapter
+// processes, as every real harness's ids are, because the runtime routes
+// sessionUpdate frames by provider session id and one adapter runs per
+// thread. loadSession echoes the requested id so resume paths can assert
+// identity survival.
 
 import { writeFileSync } from "node:fs";
 import { Readable, Writable } from "node:stream";
@@ -39,7 +42,7 @@ function buildAgent(client) {
     },
     async newSession() {
       sessionCounter += 1;
-      return { sessionId: `fakeacp_${String(sessionCounter)}` };
+      return { sessionId: `fakeacp_${String(process.pid)}_${String(sessionCounter)}` };
     },
     async loadSession(params) {
       return { sessionId: params.sessionId };

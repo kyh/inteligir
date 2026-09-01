@@ -30,12 +30,7 @@ import { createNoteIntelligenceSettingsStore } from "./note-intelligence/setting
 import { createConnectorsStore } from "./connectors/connectors-store";
 import { createFoldersService } from "./folders/folders-service";
 import { createFoldersStore } from "./folders/folders-store";
-import {
-  buildAgentShellEnv,
-  resolveCliBinDir,
-  withConnectedDirs,
-  type AgentShellEnv,
-} from "./agents/agent-shell-env";
+import { resolveCliBinDir, resolveSkillsDir } from "./agents/agent-shell-env";
 import { createApp } from "./app";
 import { openCloudSocket } from "./cloud/cloud-socket";
 import { resolveAppConfig, resolveCheckoutRoot } from "./config";
@@ -235,12 +230,10 @@ async function boot(version: string, env: NodeJS.ProcessEnv): Promise<ServeResul
   knowledgeRef = knowledge;
   const clientDir = resolveUiDir();
 
-  // Rebuilt after listen, when the CLI bin dir and the skills dir have been
-  // resolved; read lazily by the agent runtime on the first turn, which an
-  // HTTP request precedes. The data dir is known here, so a turn that somehow
-  // raced the rebuild still names the right instance.
-  let agentShellEnv: AgentShellEnv = { INTELIGIR_DATA_DIR: config.dataDir };
+  // The layout's two facts about agent sessions, resolved once; the folders
+  // below are the one that moves (agent-shell-env.ts).
   const cliBinDir = resolveCliBinDir();
+  const skillsDir = resolveSkillsDir();
   // The connectors registry (issue #591): ONE service, consumed twice — the
   // routes edit it, session launch composes its enabled rows into every
   // harness's mcpServers.
@@ -286,10 +279,13 @@ async function boot(version: string, env: NodeJS.ProcessEnv): Promise<ServeResul
     db,
     notifier: bus,
     vault,
-    cliBinDir,
     mcpServers: () => composeSessionMcpServers(connectors, connectorsOauth),
-    shellEnv: () => ({ ...withConnectedDirs(agentShellEnv, folders.list()) }),
-    connectedDirs: () => folders.list(),
+    sessionFacts: () => ({
+      dataDir: config.dataDir,
+      cliBinDir,
+      skillsDir,
+      connectedDirs: folders.list(),
+    }),
   });
   registerTeardown("agent", () => {
     // The oauth flow serves agent sessions; it stops when they do — a
@@ -366,11 +362,6 @@ async function boot(version: string, env: NodeJS.ProcessEnv): Promise<ServeResul
   void knowledge.settle().catch(() => {
     // Logged inside the pass; a rebuild that fails again fails the query that
     // needs it, and boot is not that query.
-  });
-  agentShellEnv = buildAgentShellEnv({
-    dataDir: config.dataDir,
-    env: process.env,
-    cliBinDir,
   });
   const bootRemote = vaultRemote();
   console.log(

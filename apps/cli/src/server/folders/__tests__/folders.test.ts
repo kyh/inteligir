@@ -1,8 +1,7 @@
 import { mkdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
-import { delimiter, join } from "node:path";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { withConnectedDirs, type AgentShellEnv } from "../../agents/agent-shell-env";
 import { createFoldersService, FolderRefusedError } from "../folders-service";
 import { createFoldersStore, FoldersStoreError } from "../folders-store";
 import { makeTempDir } from "../../__tests__/temp-dir";
@@ -104,16 +103,5 @@ describe("folders service validation", () => {
 
   it("remove refuses an unknown path", () => {
     expect(refusalKind(() => service().remove(refDir))).toBe("not-found");
-  });
-});
-
-describe("shell env composition", () => {
-  const base: AgentShellEnv = { INTELIGIR_DATA_DIR: "/instances/one/data" };
-
-  it("is absent with no folders and os-delimited with some", () => {
-    expect(withConnectedDirs(base, [])).toEqual(base);
-    const composed = withConnectedDirs(base, ["/a", "/b"]);
-    expect(composed.INTELIGIR_CONNECTED_DIRS).toBe(`/a${delimiter}/b`);
-    expect(composed.INTELIGIR_DATA_DIR).toBe(base.INTELIGIR_DATA_DIR);
   });
 });

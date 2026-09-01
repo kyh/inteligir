@@ -8,8 +8,21 @@ import type {
 } from "@repo/api/local/threads/threads-schema";
 import type { TimelineRow } from "@repo/api/local/thread-timeline";
 import type { BootedTestApp } from "../../__tests__/boot-app";
+import type { AgentSessionFacts } from "../agent-shell-env";
 
 type ThreadClient = BootedTestApp["client"];
+
+/** A fake instance's session facts: no CLI, no skills, no folders — unless
+ *  the test says otherwise. */
+export function fakeSessionFacts(overrides: Partial<AgentSessionFacts> = {}): AgentSessionFacts {
+  return {
+    dataDir: "/instances/test/data",
+    cliBinDir: null,
+    skillsDir: null,
+    connectedDirs: [],
+    ...overrides,
+  };
+}
 
 export async function createThread(
   client: ThreadClient,

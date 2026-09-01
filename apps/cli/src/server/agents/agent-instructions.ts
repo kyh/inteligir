@@ -1,16 +1,18 @@
 // The standing instructions a provider session opens with: a short built-in
 // pointer at the CLI — only when the CLI is actually reachable from the
 // agent's PATH — then the vault's own AGENTS.md, the user's standing
-// instructions. Loaded at session construction and delivered on that session's
-// first turn (view-context-prompt.ts), so an edit applies from the next
-// session rather than mid-turn. Head-capped: instruction bytes are a prompt
-// cost, which is also why the CLI pointer is three sentences and the manual
-// lives behind `inteligir guide` instead.
+// instructions. Composed at session open from the same `AgentSessionFacts`
+// the shell env is projected from (agent-shell-env.ts), and delivered on that
+// session's first turn (view-context-prompt.ts), so an edit applies from the
+// next session rather than mid-turn. Head-capped: instruction bytes are a
+// prompt cost, which is also why the CLI pointer is three sentences and the
+// manual lives behind `inteligir guide` instead.
 
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { errnoCode } from "../errno";
 import { headCapUtf8 } from "../head-cap-utf8";
+import type { AgentSessionFacts } from "./agent-shell-env";
 
 const AGENT_INSTRUCTIONS_FILE = "AGENTS.md";
 const AGENT_INSTRUCTIONS_MAX_BYTES = 32_768;
@@ -58,27 +60,23 @@ function loadVaultInstructions(vaultDir: string): string | undefined {
 }
 
 /**
- * `cliBinDir` is the resolved CLI location (null when this deployment ships
- * none): the pointer is a PROMISE about the agent's shell, so it is stated
- * only when the binary is really on the PATH the shell env builds.
+ * Every pointer is a PROMISE about the agent's shell, stated only when the
+ * env `toShellEnv` builds from the same facts keeps it: the CLI when the
+ * binary is really on PATH, the skills when the directory resolved, the
+ * folders when some are connected.
  */
-export function loadAgentInstructions(
-  vaultDir: string,
-  cliBinDir: string | null,
-  skillsDir?: string | null,
-  connectedDirs?: readonly string[],
-): string | undefined {
-  const vaultInstructions = loadVaultInstructions(vaultDir);
+export function toInstructions(facts: AgentSessionFacts, vaultDir: string): string | undefined {
   const parts: string[] = [];
-  if (cliBinDir !== null) {
+  if (facts.cliBinDir !== null) {
     parts.push(CLI_POINTER_INSTRUCTIONS);
   }
-  if (skillsDir !== undefined && skillsDir !== null) {
+  if (facts.skillsDir !== null) {
     parts.push(SKILLS_POINTER_INSTRUCTIONS);
   }
-  if (connectedDirs !== undefined && connectedDirs.length > 0) {
-    parts.push(connectedFoldersInstructions(connectedDirs));
+  if (facts.connectedDirs.length > 0) {
+    parts.push(connectedFoldersInstructions(facts.connectedDirs));
   }
+  const vaultInstructions = loadVaultInstructions(vaultDir);
   if (vaultInstructions !== undefined) {
     parts.push(vaultInstructions);
   }

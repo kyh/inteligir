@@ -15,6 +15,13 @@
 // existence and the execute bit rather than assumed: npm strips the execute
 // bit from a packed file it does not name in `bin`, and the failure mode is
 // the command silently disappearing from a model's PATH.
+//
+// ONE SET OF FACTS, TWO PROJECTIONS. A session is told about this instance
+// twice — through the env its shell inherits (`toShellEnv`) and through the
+// prompt that describes that env (`toInstructions`, agent-instructions.ts).
+// Both are pure functions of one `AgentSessionFacts`, so a variable the
+// instructions name is one the env carries and vice versa; two independent
+// resolutions would be two answers that can drift.
 
 import { accessSync, constants, statSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -69,55 +76,55 @@ export function resolveCliBinDir(binDir: string = packageFile("bin")): string | 
   return isExecutableFile(join(binDir, CLI_BIN_NAME)) ? binDir : null;
 }
 
-export interface AgentShellEnvArgs {
+/**
+ * What a session is told about this instance. Read ONCE per session open —
+ * the Connected Folders are Settings-mutable, so a value captured when the
+ * runtime is built would freeze the list for every later session in the
+ * process — and projected by `toShellEnv` and `toInstructions` alone.
+ */
+export interface AgentSessionFacts {
   /** WHICH instance — the data dir holding this boot's `server.json`. */
   dataDir: string;
-  /** The host process's environment, whose PATH the agent shell inherits. */
-  env: NodeJS.ProcessEnv;
+  /** Where `inteligir` lives, or null when this install ships none. */
   cliBinDir: string | null;
+  /** The vendored dialect skills, or null when this layout staged none. */
+  skillsDir: string | null;
+  /** Absolute dirs the user offers as read-only reference context (issue
+   *  #601). Not a grant — the shell could already read them; this only names
+   *  them. */
+  connectedDirs: readonly string[];
 }
 
-/** The Connected Folders rows composed onto a built env. A separate step
- *  because the list is Settings-mutable while the rest of the env is fixed at
- *  listen — the shellEnv thunk calls this with a fresh read. */
-export function withConnectedDirs(env: AgentShellEnv, dirs: readonly string[]): AgentShellEnv {
-  if (dirs.length === 0) {
-    return env;
-  }
-  return { ...env, INTELIGIR_CONNECTED_DIRS: dirs.join(delimiter) };
-}
-
-/**
- * The env the runtime injects into the agent's shell. PATH is PREPENDED, not
- * replaced: the agent still needs git, node and everything else it inherits —
- * this only makes `inteligir` win over nothing.
- */
 /** What the agent's shell inherits from this app, and nothing else. */
 export interface AgentShellEnv {
   INTELIGIR_DATA_DIR: string;
   /** Present when the vendored dialect skills resolved on this layout. */
   INTELIGIR_SKILLS_DIR?: string;
-  /** Present when Connected Folders are configured: os-delimited absolute
-   *  dirs the user offers as read-only reference context (issue #601). Not a
-   *  grant — the shell could already read them; this only names them. */
+  /** Present when Connected Folders are configured: os-delimited. */
   INTELIGIR_CONNECTED_DIRS?: string;
   /** Present when the CLI's bin dir resolved — the PATH that reaches it. */
   PATH?: string;
 }
 
-export function buildAgentShellEnv(args: AgentShellEnvArgs): AgentShellEnv {
-  const skillsDir = resolveSkillsDir();
-  const base: AgentShellEnv = {
-    INTELIGIR_DATA_DIR: args.dataDir,
-  };
-  if (skillsDir !== null) {
-    base.INTELIGIR_SKILLS_DIR = skillsDir;
+/**
+ * The env the runtime injects into the agent's shell. PATH is PREPENDED to the
+ * host's, not replaced: the agent still needs git, node and everything else it
+ * inherits — this only makes `inteligir` win over nothing.
+ */
+export function toShellEnv(facts: AgentSessionFacts, hostEnv: NodeJS.ProcessEnv): AgentShellEnv {
+  const env: AgentShellEnv = { INTELIGIR_DATA_DIR: facts.dataDir };
+  if (facts.skillsDir !== null) {
+    env.INTELIGIR_SKILLS_DIR = facts.skillsDir;
   }
-  if (args.cliBinDir === null) {
-    return base;
+  if (facts.connectedDirs.length > 0) {
+    env.INTELIGIR_CONNECTED_DIRS = facts.connectedDirs.join(delimiter);
   }
-  const inheritedPath = args.env.PATH ?? "";
-  base.PATH =
-    inheritedPath.length === 0 ? args.cliBinDir : `${args.cliBinDir}${delimiter}${inheritedPath}`;
-  return base;
+  if (facts.cliBinDir !== null) {
+    const inheritedPath = hostEnv.PATH ?? "";
+    env.PATH =
+      inheritedPath.length === 0
+        ? facts.cliBinDir
+        : `${facts.cliBinDir}${delimiter}${inheritedPath}`;
+  }
+  return env;
 }

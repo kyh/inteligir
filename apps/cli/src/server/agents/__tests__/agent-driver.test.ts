@@ -7,7 +7,7 @@ import { isDefinedError, safe } from "@orpc/client";
 import { describe, expect, it } from "vitest";
 import { resolveAgentDriver } from "../agent-driver";
 import { bootTestApp } from "../../__tests__/boot-app";
-import { createThread } from "./agent-test-harness";
+import { createThread, fakeSessionFacts } from "./agent-test-harness";
 
 describe("agent driver resolution", () => {
   it("binary-absent boot surfaces unavailable and 503s a send, without crashing", async () => {
@@ -21,9 +21,7 @@ describe("agent driver resolution", () => {
           notifier: bus,
           vault,
           mcpServers: () => [],
-          shellEnv: () => ({}),
-          cliBinDir: null,
-          connectedDirs: () => [],
+          sessionFacts: () => fakeSessionFacts(),
           env: { PATH: "/nonexistent-dir" },
         });
         expect(resolved.status.runtime).toBe("unavailable");
@@ -49,9 +47,7 @@ describe("agent driver resolution", () => {
           notifier: bus,
           vault,
           mcpServers: () => [],
-          shellEnv: () => ({}),
-          cliBinDir: null,
-          connectedDirs: () => [],
+          sessionFacts: () => fakeSessionFacts(),
         });
         return { createTurnDriver: resolved.createTurnDriver, dispose: resolved.dispose };
       },

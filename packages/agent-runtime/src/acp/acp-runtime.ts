@@ -145,7 +145,10 @@ export function createAcpAgentRuntime(options: AcpAgentRuntimeOptions): AgentRun
     for (const key of harness.envOmit) delete env[key];
     // The agent's shell inherits the adapter child's env — that is the whole
     // route by which the server URL and the CLI's PATH reach `inteligir …`.
-    Object.assign(env, buildThreadShellEnvironment({ baseShellEnv: options.shellEnv, threadId }));
+    Object.assign(
+      env,
+      buildThreadShellEnvironment({ baseShellEnv: options.shellEnv?.(), threadId }),
+    );
     const args = [...harness.adapterArgs];
     if (options.model !== undefined) {
       harness.applyModel(options.model, env, args);

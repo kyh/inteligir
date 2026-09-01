@@ -14,6 +14,7 @@ import type { AcpMcpServerConfig } from "@repo/agent-runtime/acp/acp-runtime";
 import type { AppConfig } from "../config";
 import type { VaultRuntime } from "../vault/vault-runtime";
 import { createBoundedAgentLog } from "./agent-log";
+import type { AgentSessionFacts } from "./agent-shell-env";
 import { binaryOnPath } from "./binary-on-path";
 import { createAcpRuntimeManager, type AcpRuntimeManagerDeps } from "./runtime-manager";
 import { createScriptedTurnDriverFactory, type ScriptedDriverDeps } from "./scripted-driver";
@@ -25,17 +26,12 @@ export interface ResolveAgentDriverArgs {
   db: DbConnection;
   notifier: DbNotifier;
   vault: VaultRuntime;
-  /** Env injected into the agent's shell (the server URL and a PATH that
-   *  reaches the CLI); a getter because the bound port exists only after
-   *  listen. */
-  shellEnv: () => Record<string, string>;
-  /** Where `inteligir` lives, or null when none ships — decides whether the
-   *  session instructions may promise the command. */
-  cliBinDir: string | null;
-  /** Connected Folders (issue #601), read fresh per session open so a
-   *  Settings edit reaches the next session without a reboot. */
-  connectedDirs: () => readonly string[];
-  /** The environment the PATH probes read; the tests' seam. */
+  /** What a session is told about this instance (agent-shell-env.ts); a
+   *  getter, read fresh per session open so a Settings edit reaches the next
+   *  session without a reboot. */
+  sessionFacts: () => AgentSessionFacts;
+  /** The environment the PATH probes read and the agent's shell extends; the
+   *  tests' seam. */
   env?: NodeJS.ProcessEnv;
 }
 
@@ -98,9 +94,8 @@ export function resolveAgentDriver(args: ResolveAgentDriverArgs): ResolvedAgentD
     git: args.vault.git,
     model: args.config.agentModel,
     mcpServers: args.mcpServers,
-    shellEnv: args.shellEnv,
-    cliBinDir: args.cliBinDir,
-    connectedDirs: args.connectedDirs,
+    sessionFacts: args.sessionFacts,
+    hostEnv: env,
     defaultProviderId: claudeBinary === null ? "codex" : "claude",
     onDebug,
   };

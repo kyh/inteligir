@@ -13,6 +13,7 @@ import { scriptedNotePath } from "../scripted-driver";
 import { bootTestApp } from "../../__tests__/boot-app";
 import {
   createThread,
+  fakeSessionFacts,
   fetchTimelineRows,
   flattenTimelineRows,
   getThreadDetail,
@@ -47,9 +48,7 @@ describe("the scripted driver over real HTTP", () => {
           notifier: bus,
           vault,
           mcpServers: () => [],
-          shellEnv: () => ({}),
-          cliBinDir: null,
-          connectedDirs: () => [],
+          sessionFacts: () => fakeSessionFacts(),
         });
         expect(resolved.status).toEqual({ mode: "scripted", runtime: "scripted", detail: null });
         return { createTurnDriver: resolved.createTurnDriver, dispose: resolved.dispose };

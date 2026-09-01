@@ -50,8 +50,10 @@ export interface AgentRuntimeOptions {
   /** Environment variables passed to ALL provider processes. */
   env?: Record<string, string>;
 
-  /** Environment variables injected into agent shell execution via adapters. */
-  shellEnv?: AgentRuntimeShellEnvironment;
+  /** Environment variables injected into agent shell execution via adapters.
+   *  A getter, read at every adapter spawn, so a host-side edit reaches the
+   *  NEXT session without rebuilding the runtime — the mcpServers rule. */
+  shellEnv?: () => AgentRuntimeShellEnvironment;
 
   /** Called when a provider emits a translated event.
    *  Every event has `threadId` (host id) and `providerThreadId` (provider's internal id). */

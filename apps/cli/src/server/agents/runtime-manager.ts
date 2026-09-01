@@ -36,7 +36,7 @@ import {
   type AcpAgentRuntimeOptions,
   type AcpMcpServerConfig,
 } from "@repo/agent-runtime/acp/acp-runtime";
-import type { AgentRuntime, AgentRuntimeShellEnvironment } from "@repo/agent-runtime/types";
+import type { AgentRuntime } from "@repo/agent-runtime/types";
 import type { HarnessId } from "@repo/agent-runtime/acp/harness-registry";
 import type { ProviderEvent } from "@repo/agent-runtime/vocabulary/provider-event";
 import {
@@ -71,8 +71,8 @@ import {
   type AgentTurnWrites,
   type VaultPathResolver,
 } from "./agent-commits";
-import { loadAgentInstructions } from "./agent-instructions";
-import { resolveSkillsDir } from "./agent-shell-env";
+import { toInstructions } from "./agent-instructions";
+import { toShellEnv, type AgentSessionFacts } from "./agent-shell-env";
 import { ProviderEventCoalescer } from "./event-coalescer";
 import { mapProviderEvent } from "./event-mapping";
 import { turnPromptInput } from "./view-context-prompt";
@@ -107,21 +107,16 @@ export interface AcpRuntimeManagerDeps {
   /** null means the provider's default model. */
   model: string | null;
   /**
-   * Env injected into the agent's SHELL (the runtime adds INTELIGIR_THREAD_ID
-   * per thread) — the seam that names the instance so the harness can drive
-   * the product through the CLI. A getter, because the values it carries (the
-   * resolved CLI bin dir, the Connected Folders) settle after listen while
-   * this manager is constructed before; it is read on the first turn.
+   * What a session is told about this instance (agent-shell-env.ts) — the
+   * seam that names the instance so the harness can drive the product through
+   * the CLI. A getter read at EVERY session open, never a value: the Connected
+   * Folders are Settings-mutable, and the runtime spawns each session's
+   * adapter from the env this projects, so a value read once would tell every
+   * later session the set the first one saw.
    */
-  shellEnv: () => AgentRuntimeShellEnvironment;
-  /**
-   * Where the `inteligir` binary lives, or null when this deployment ships
-   * none. The instructions only PROMISE the CLI when the shell env can
-   * really reach it — see agent-shell-env.ts.
-   */
-  cliBinDir: string | null;
-  /** Connected Folders, read at session open (issue #601). */
-  connectedDirs: () => readonly string[];
+  sessionFacts: () => AgentSessionFacts;
+  /** The host environment whose PATH the agent's shell extends. */
+  hostEnv: NodeJS.ProcessEnv;
   /** The harness a NEW thread runs on; a resumed thread keeps its own. */
   defaultProviderId: HarnessId;
   /** Tests: replace the adapter child spawn (the fake ACP agent). */
@@ -235,7 +230,9 @@ class AcpTurnDriver implements TurnDriver {
         }
       },
     };
-    runtimeOptions.shellEnv = this.deps.shellEnv();
+    runtimeOptions.shellEnv = () => ({
+      ...toShellEnv(this.deps.sessionFacts(), this.deps.hostEnv),
+    });
     if (this.deps.model !== null) runtimeOptions.model = this.deps.model;
     runtimeOptions.mcpServers = this.deps.mcpServers;
     if (this.deps.spawnAdapter !== undefined) runtimeOptions.spawnAdapter = this.deps.spawnAdapter;
@@ -363,12 +360,7 @@ class AcpTurnDriver implements TurnDriver {
     runtime: AgentRuntime,
     threadId: string,
   ): Promise<string | undefined> {
-    const instructions = loadAgentInstructions(
-      this.deps.vaultDir,
-      this.deps.cliBinDir,
-      resolveSkillsDir(),
-      this.deps.connectedDirs(),
-    );
+    const instructions = toInstructions(this.deps.sessionFacts(), this.deps.vaultDir);
     const row = getThread(this.deps.db, threadId);
     const persisted = row?.providerThreadId ?? null;
     // A thread that ever ran keeps its harness; a new one adopts the default.

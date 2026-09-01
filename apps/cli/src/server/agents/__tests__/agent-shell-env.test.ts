@@ -8,7 +8,10 @@ import { accessSync, constants, mkdirSync, statSync, writeFileSync } from "node:
 import { delimiter, join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { makeTempDir } from "../../__tests__/temp-dir";
-import { buildAgentShellEnv, resolveCliBinDir } from "../agent-shell-env";
+import { resolveCliBinDir, toShellEnv } from "../agent-shell-env";
+import { fakeSessionFacts } from "./agent-test-harness";
+
+const CLI_BIN_DIR = "/repo/apps/cli/bin";
 
 describe("resolveCliBinDir", () => {
   it("finds a directory holding an EXECUTABLE inteligir", () => {
@@ -41,36 +44,38 @@ describe("resolveCliBinDir", () => {
   });
 });
 
-describe("buildAgentShellEnv", () => {
+describe("toShellEnv", () => {
   it("prepends the bin dir to the inherited PATH and names the instance", () => {
-    const env = buildAgentShellEnv({
-      dataDir: "/instances/one/data",
-      env: { PATH: `/usr/bin${delimiter}/bin` },
-      cliBinDir: "/repo/apps/cli/bin",
+    const env = toShellEnv(
+      fakeSessionFacts({ dataDir: "/instances/one/data", cliBinDir: CLI_BIN_DIR }),
+      {
+        PATH: `/usr/bin${delimiter}/bin`,
+      },
+    );
+    expect(env).toEqual({
+      INTELIGIR_DATA_DIR: "/instances/one/data",
+      PATH: `${CLI_BIN_DIR}${delimiter}/usr/bin${delimiter}/bin`,
     });
-    expect(env.INTELIGIR_DATA_DIR).toBe("/instances/one/data");
-    expect(env.PATH).toBe(`/repo/apps/cli/bin${delimiter}/usr/bin${delimiter}/bin`);
   });
 
   it("is the bin dir alone when the host process has no PATH", () => {
-    const env = buildAgentShellEnv({
-      dataDir: "/instances/one/data",
-      env: {},
-      cliBinDir: "/repo/apps/cli/bin",
-    });
-    expect(env.PATH).toBe("/repo/apps/cli/bin");
+    const env = toShellEnv(fakeSessionFacts({ cliBinDir: CLI_BIN_DIR }), {});
+    expect(env.PATH).toBe(CLI_BIN_DIR);
   });
 
   it("leaves PATH untouched when no CLI resolved — never a dangling entry", () => {
-    const env = buildAgentShellEnv({
-      dataDir: "/instances/one/data",
-      env: { PATH: "/usr/bin" },
-      cliBinDir: null,
-    });
-    // The claim is about PATH, not the whole env: whether the vendored skills
-    // resolve is a property of the layout the test runs in, and asserting the
-    // object whole made this fail the day they started resolving.
-    expect(env.PATH).toBeUndefined();
-    expect(env.INTELIGIR_DATA_DIR).toBe("/instances/one/data");
+    const env = toShellEnv(fakeSessionFacts(), { PATH: "/usr/bin" });
+    expect(env).toEqual({ INTELIGIR_DATA_DIR: "/instances/test/data" });
+  });
+
+  it("names the skills dir and the connected folders only when there are some", () => {
+    expect(toShellEnv(fakeSessionFacts(), {})).not.toHaveProperty("INTELIGIR_SKILLS_DIR");
+    expect(toShellEnv(fakeSessionFacts(), {})).not.toHaveProperty("INTELIGIR_CONNECTED_DIRS");
+    const env = toShellEnv(
+      fakeSessionFacts({ skillsDir: "/repo/skills", connectedDirs: ["/a", "/b"] }),
+      {},
+    );
+    expect(env.INTELIGIR_SKILLS_DIR).toBe("/repo/skills");
+    expect(env.INTELIGIR_CONNECTED_DIRS).toBe(`/a${delimiter}/b`);
   });
 });
