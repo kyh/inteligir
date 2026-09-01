@@ -17,15 +17,6 @@
 import { z } from "zod";
 
 /**
- * How much of a selection a composed prompt may carry, in UTF-8 BYTES. The
- * schema deliberately does not enforce it: refusing a send because the user
- * selected a large block is a worse answer than sending its head, so the value
- * on the wire is whole and every composer of a view context into prompt text
- * caps against this instead.
- */
-export const VIEW_CONTEXT_EXCERPT_MAX_BYTES = 2_000;
-
-/**
  * A single-member `discriminatedUnion` rather than a bare literal: adding a
  * second surface then makes every non-exhaustive consumer a compile error, and
  * the wire stays additive.
@@ -37,25 +28,8 @@ export const viewContextSchema = z.discriminatedUnion("surface", [
      *  boundary, where that grammar lives — this leaf carries zod and nothing
      *  else, so it can only ask for a non-empty string. */
     resource: z.string().min(1),
-    /** sha-256 hex of the bytes `selection` was taken from. */
+    /** sha-256 hex of the note's bytes when the message was sent. */
     revision: z.string().min(1),
-    /**
-     * Omitted when nothing was selected. ONE object rather than an `excerpt`
-     * and a `range` that can disagree: text with no offsets, or offsets with
-     * no text, are states this shape cannot represent.
-     *
-     * `text` is AUTHORITATIVE and the offsets are ADVISORY. Coordinates are
-     * valid only against the revision they were computed from, so a consumer
-     * that cannot match the revision falls back to the text and never guesses —
-     * which is why the text is carried at all instead of just the offsets.
-     */
-    selection: z
-      .object({
-        from: z.number().int().nonnegative(),
-        to: z.number().int().nonnegative(),
-        text: z.string(),
-      })
-      .optional(),
   }),
 ]);
 export type ViewContext = z.infer<typeof viewContextSchema>;

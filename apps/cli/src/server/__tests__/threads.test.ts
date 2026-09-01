@@ -203,7 +203,6 @@ describe("the view context a message carries", () => {
     surface: "doc",
     resource: "Notes/Plans.md",
     revision: "a".repeat(64),
-    selection: { from: 12, to: 41, text: "First paragraph to delegate." },
   } as const;
 
   it("reaches the driver, is recorded beside the text, and never becomes the text", async () => {

@@ -39,11 +39,9 @@ function firstLine(text: string): string {
  * hidden context is a message the user cannot debug.
  */
 function ViewContextAttribution({ context }: { context: ViewContext }) {
-  const selected = context.selection;
   return (
     <div className="max-w-[85%] truncate px-3 text-xs text-muted-foreground">
       {context.resource}
-      {selected === undefined ? null : ` · “${firstLine(selected.text)}”`}
     </div>
   );
 }

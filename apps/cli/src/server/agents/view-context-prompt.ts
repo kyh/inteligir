@@ -22,39 +22,15 @@
 // the agent can read.
 
 import type { PromptInput } from "@repo/agent-runtime/types";
-import { VIEW_CONTEXT_EXCERPT_MAX_BYTES, type ViewContext } from "@repo/domain/view-context";
-import { headCapUtf8 } from "../head-cap-utf8";
-
-function quoted(text: string): string {
-  return text
-    .split("\n")
-    .map((line) => `> ${line}`)
-    .join("\n");
-}
+import type { ViewContext } from "@repo/domain/view-context";
 
 /**
  * The block, as the model reads it. It states the referent (which is the whole
- * point — "this" and "here" have to resolve to something), the revision the
- * claim was true of (checkable: the agent has a shell and the file), and which
- * half of the selection is authoritative.
+ * point — "this" and "here" have to resolve to something) and the revision the
+ * claim was true of (checkable: the agent has a shell and the file).
  */
 export function composeViewContextBlock(context: ViewContext): string {
-  const parts = [
-    `The user sent this while looking at ${context.resource} in the editor — "this", "here" and "the note" refer to that file. It hashed to sha-256 ${context.revision} when they sent it; if it no longer does, it changed afterwards.`,
-  ];
-  const selection = context.selection;
-  if (selection !== undefined) {
-    const excerpt = headCapUtf8(selection.text, VIEW_CONTEXT_EXCERPT_MAX_BYTES);
-    const cut =
-      excerpt.length === selection.text.length
-        ? ""
-        : `, cut here to its first ${VIEW_CONTEXT_EXCERPT_MAX_BYTES} bytes`;
-    parts.push(
-      `They had this selected (characters ${selection.from}–${selection.to} of that revision${cut} — the quoted text is authoritative, the offsets are advisory):`,
-      quoted(excerpt),
-    );
-  }
-  return parts.join("\n\n");
+  return `The user sent this while looking at ${context.resource} in the editor — "this", "here" and "the note" refer to that file. It hashed to sha-256 ${context.revision} when they sent it; if it no longer does, it changed afterwards.`;
 }
 
 /** Narrower than `PromptInput` on purpose: a turn this host dispatches is made

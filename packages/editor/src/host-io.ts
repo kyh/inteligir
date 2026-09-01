@@ -24,10 +24,6 @@ export type VaultEntry = {
   kind: "doc" | "other";
 };
 
-/** stat facts for the properties panel; `null` when the file cannot be
- * described (missing, escaping the vault). */
-export type VaultFileFacts = { sizeBytes: number; modifiedMs: number };
-
 /** readVaultAsset result: an in-vault file's bytes, or an error. Rendering a
  * broken image is a UI state, not an exception — hence a Result, not a throw.
  * A Blob rather than base64 because the host's asset route already answers the
@@ -106,7 +102,6 @@ export type EditorHostIo = {
   writeVaultAsset(payload: { dir: string; baseName: string; file: Blob }): Promise<{
     path: string;
   }>;
-  getVaultFileFacts(payload: { path: string }): Promise<VaultFileFacts | null>;
   /** Every linkable target for the `[[`-autocomplete picker: notes first,
    * then attachments. */
   listWikiTargets(): Promise<WikiTarget[]>;

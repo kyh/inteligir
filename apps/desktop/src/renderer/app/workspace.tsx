@@ -148,8 +148,7 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
   }, [api, queryClient, noteStore]);
 
   // What the user is looking at, pulled at submit: the open note's buffer via
-  // the store the editor publishes into. Selection offsets return with the
-  // composer surface (#587) — until then the context names the note whole.
+  // the store the editor publishes into. The context names the note whole.
   const readViewContext = useCallback<ViewContextSource>(async (): Promise<ViewContext | null> => {
     const path = noteStore.state().editor.path;
     if (path === null) {
@@ -161,11 +160,7 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
       },
       read: () => {
         const current = noteStore.state().editor;
-        return {
-          content: current.path === path ? current.content : "",
-          from: 0,
-          to: 0,
-        };
+        return { content: current.path === path ? current.content : "" };
       },
     });
   }, [noteStore]);

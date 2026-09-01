@@ -88,7 +88,6 @@ describe("the view context a composer send carries", () => {
     surface: "doc",
     resource: "Notes/Plans.md",
     revision: "c".repeat(64),
-    selection: { from: 6, to: 10, text: "beta" },
   } as const;
 
   it("reaches the provider dispatch through the real send path", async () => {

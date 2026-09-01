@@ -14,30 +14,23 @@ export interface OpenNoteView {
   /** Make the buffer durable. Rejection is the caller's own toast, not this
    *  seam's decision — see `readNoteViewContext`. */
   flush: () => Promise<void>;
-  /** The buffer as the editor holds it, with the main selection's offsets
-   *  INTO that same string. */
-  read: () => { content: string; from: number; to: number };
+  /** The buffer as the editor holds it. */
+  read: () => { content: string };
 }
 
 /**
  * `revision` always hashes the BUFFER, which is what the user is actually
  * looking at — the flush is what usually makes disk agree with it. A flush
- * that fails is therefore not a reason to withhold the context: the excerpt is
- * still true, and the mismatch a failed save leaves is precisely what carrying
- * a revision lets the agent notice.
+ * that fails is therefore not a reason to withhold the context: the mismatch
+ * a failed save leaves is precisely what carrying a revision lets the agent
+ * notice.
  */
 export async function readNoteViewContext(path: string, view: OpenNoteView): Promise<ViewContext> {
   await view.flush().catch(() => {});
-  const { content, from, to } = view.read();
-  const context: ViewContext = {
+  const { content } = view.read();
+  return {
     surface: "doc",
     resource: path,
     revision: await contentHashHex(content),
   };
-  // A caret is not a selection: an empty range would claim the agent was
-  // pointed at nothing in particular.
-  if (from !== to) {
-    context.selection = { from, to, text: content.slice(from, to) };
-  }
-  return context;
 }

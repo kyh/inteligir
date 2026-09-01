@@ -120,20 +120,17 @@ it("attributes a user message to what the sender was looking at", () => {
           surface: "doc",
           resource: "Notes/Plans.md",
           revision: "a".repeat(64),
-          selection: { from: 12, to: 41, text: "First paragraph.\nAnd a second." },
         }),
       ]}
     />,
   );
 
-  // The bubble is what was typed; the file and the selection's first line ride
-  // beneath it, so the user can see what the agent was told.
+  // The bubble is what was typed; the file rides beneath it, so the user can
+  // see what the agent was told.
   expect(view.container.textContent).toContain("make this shorter");
   expect(view.container.textContent).toContain("Notes/Plans.md");
-  expect(view.container.textContent).toContain("First paragraph.");
-  // Never the revision, and never the rest of a multi-line selection.
+  // Never the revision.
   expect(view.container.textContent).not.toContain("a".repeat(64));
-  expect(view.container.textContent).not.toContain("And a second.");
 });
 
 it("renders a message with no context as the bubble alone", () => {

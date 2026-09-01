@@ -235,9 +235,6 @@ export function VaultProvider({
         const bytesBase64 = toBase64(new Uint8Array(await file.arrayBuffer()));
         return api.vault.assetWrite({ dir, baseName, bytesBase64 });
       },
-      // The listing carries no stat facts; the properties surface that asks
-      // returns with #587's right panel, with its route.
-      getVaultFileFacts: () => Promise.resolve(null),
       listWikiTargets: () =>
         // exactOptionalPropertyTypes: the wire's optional members must drop
         // the explicit-undefined member to satisfy the notes type.

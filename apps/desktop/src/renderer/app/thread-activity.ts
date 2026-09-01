@@ -43,9 +43,9 @@ export const THREAD_ACTIVITY_LABELS = {
  * How the composer learns what the user is looking at: ONE slot the workspace
  * holds, filled by whichever surface is open and PULLED at submit.
  *
- * A getter rather than a subscription, deliberately — a selection change must
- * re-render nothing, in a surface whose chat state is kept beside the editor
- * precisely so nothing remounts it. Async because producing the value flushes
+ * A getter rather than a subscription, deliberately — what the user looks at
+ * must re-render nothing, in a surface whose chat state is kept beside the
+ * editor precisely so nothing remounts it. Async because producing the value flushes
  * the buffer first (`note-view-context.ts` says why). null when nothing is
  * open, which is also every send from the palette or the CLI.
  */

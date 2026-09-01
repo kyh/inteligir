@@ -8,8 +8,8 @@
 // echoes what `turnPromptInput` handed it, which is the only place an e2e can
 // see what a real provider would have received.
 //
-// The context names the WHOLE note: selection offsets return with the Action
-// Composer (#587) — the Plate surface publishes content, not a selection.
+// The context names the WHOLE note — the Plate surface publishes content, not
+// a selection.
 
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -104,7 +104,6 @@ export const viewContextBrowser: Scenario = {
       const context = sent.viewContext;
       expect(context !== null, "the send carried no view context");
       expectEq(context.resource, DOC_PATH, "the doc the user was looking at");
-      expectEq(context.selection, undefined, "no selection rides the context yet (#587)");
       // The revision names the bytes on disk, which is what the flush before
       // the send is for.
       expectEq(
