@@ -8,22 +8,13 @@ import {
   useCallback,
   useMemo,
   useRef,
-  useId,
   forwardRef,
-  Children,
-  type ReactNode,
-  type ReactElement,
-  type HTMLAttributes,
   type LiHTMLAttributes,
-  type AnchorHTMLAttributes,
   type ButtonHTMLAttributes,
+  type ReactNode,
   type RefObject,
 } from "react";
-import { motion } from "framer-motion";
-import { cva, type VariantProps } from "class-variance-authority";
-import { cssVars } from "@repo/ui/lib/css-vars";
 import { cn } from "@repo/ui/lib/utils";
-import { spring } from "@repo/ui/lib/springs";
 import { fontWeights } from "@repo/ui/lib/font-weight";
 import { useRadius } from "@repo/ui/lib/radius-context";
 import { useSize, SizeProvider, type SizeVariant } from "@repo/ui/lib/size-context";
@@ -32,20 +23,15 @@ import { useProximityHover, type ItemRect } from "@repo/ui/hooks/use-proximity-h
 import type { IconComponent } from "@repo/ui/lib/icon-context";
 import { useIsoLayoutEffect } from "@repo/ui/lib/use-iso-layout-effect";
 import { composeRefs } from "@repo/ui/lib/compose-refs";
-import { resolveSlotTemplate, Slot, splitLeadingText } from "@repo/ui/components/sidebar-core";
-
-// SSR-safe layout effect (client components still server-render in Next).
+import { splitLeadingText } from "@repo/ui/components/sidebar-core";
 
 // ─── Menu scope ──────────────────────────────────────────────────────────────
 //
-// Each menu level (SidebarMenu, and every SidebarMenuSub) runs its own scope:
-// one proximity-hover system plus the three traveling overlays — hover
-// background, active background, focus ring — that glide between its rows.
-// Sub-menus need their own scope because their rows live inside a positioned
-// parent row, so they can't share the parent's offset coordinate space.
+// One proximity-hover system per SidebarMenu, plus the traveling overlays —
+// hover background, active background, focus ring — that glide between its
+// rows.
 
 interface MenuScopeValue {
-  isRoot: boolean;
   registerRow: (el: HTMLElement) => () => void;
   setRowButton: (row: HTMLElement, button: HTMLElement | null) => void;
   setRowActive: (row: HTMLElement, active: boolean) => void;
@@ -68,24 +54,11 @@ interface MenuItemContextValue {
   setRow: (el: HTMLLIElement | null) => void;
   isHovered: boolean;
   isActiveRow: boolean;
-  /** True inside SidebarMenuSubItem — actions center on the shorter row. */
-  isSubRow: boolean;
   setActive: (active: boolean) => void;
   setButtonEl: (el: HTMLElement | null) => void;
-  /** Trailing controls on this row, registered by the action / badge parts.
-   *  The button turns them into an exact padding-right reservation. */
-  actionCount: number;
-  actionsShowOnHover: boolean;
-  hasBadge: boolean;
-  setActions: (count: number, showOnHover: boolean) => void;
-  setHasBadge: (hasBadge: boolean) => void;
 }
 
 const MenuItemContext = createContext<MenuItemContextValue | null>(null);
-
-/** True while rendering inside a SidebarMenuActions cluster, where each
- *  action flows in the wrapper's row instead of positioning itself. */
-const MenuActionsClusterContext = createContext(false);
 
 function byDomOrder(a: HTMLElement, b: HTMLElement) {
   return a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1;
@@ -104,12 +77,12 @@ interface MenuScope {
     onFocus: (e: React.FocusEvent) => void;
     onBlur: (e: React.FocusEvent) => void;
     onPointerDown: () => void;
-    onKeyDown?: ((e: React.KeyboardEvent) => void) | undefined;
+    onKeyDown: (e: React.KeyboardEvent) => void;
   };
   overlays: ReactNode;
 }
 
-function useMenuScope(containerRef: RefObject<HTMLElement | null>, isRoot: boolean): MenuScope {
+function useMenuScope(containerRef: RefObject<HTMLElement | null>): MenuScope {
   const { activeIndex, setActiveIndex, itemRects, isMeasured, session, handlers, registerItem } =
     useProximityHover(containerRef);
 
@@ -187,10 +160,9 @@ function useMenuScope(containerRef: RefObject<HTMLElement | null>, isRoot: boole
     [recomputeActive],
   );
 
-  // A row's rect spans the whole <li> — which grows when it hosts an expanded
-  // sub-menu — so overlay heights are clamped to the row's button box. The
-  // 48px fallback (the tallest row, size="lg") guarantees the highlight can
-  // never cover an expanded sub-tree even if the button lookup misses.
+  // A row's rect spans the whole <li>, so overlay heights are clamped to the
+  // row's button box. The 32px fallback (the tallest row) guarantees the
+  // highlight can never balloon even if the button lookup misses.
   const overlayRect = useCallback(
     (row: HTMLElement | null): ItemRect | null => {
       if (!row) return null;
@@ -199,64 +171,46 @@ function useMenuScope(containerRef: RefObject<HTMLElement | null>, isRoot: boole
       if (!rect) return null;
       const button =
         rowButtons.get(row) ??
-        row.querySelector<HTMLElement>(
-          ':scope > [data-sidebar="menu-button"], :scope > [data-sidebar="menu-sub-button"]',
-        );
-      const height = Math.min(rect.height, button?.offsetHeight ?? 48);
+        row.querySelector<HTMLElement>(':scope > [data-sidebar="menu-button"]');
+      const height = Math.min(rect.height, button?.offsetHeight ?? 32);
       return { ...rect, height };
     },
     [itemRects, orderedRows, rowButtons],
   );
 
-  // Events that originate inside a nested sub-menu belong to that sub-menu's
-  // own scope; this scope steps aside so the two sets of overlays never fight.
-  const isForeign = useCallback(
-    (target: HTMLElement) => {
-      const sub = target.closest('[data-sidebar="menu-sub"]');
-      return !!sub && sub !== containerRef.current;
-    },
-    [containerRef],
-  );
-
-  // While a popup anchored in the sidebar is open (a row action's or the
-  // header/footer rows' dropdown), hover tracking freezes across every menu
-  // scope — otherwise a non-modal popup lets rows underneath keep
-  // highlighting. Popup triggers are detected by the primitives' open
-  // attributes (Radix data-state, Base UI data-popup-open); collapsible rows
-  // only set aria-expanded, so they never match.
+  // While a popup anchored in the sidebar is open (the header/footer rows'
+  // dropdown), hover tracking freezes — otherwise a non-modal popup lets rows
+  // underneath keep highlighting. Popup triggers are detected by the
+  // primitives' open attributes (Radix data-state, Base UI data-popup-open);
+  // collapsible rows only set aria-expanded, so they never match.
   const popupOpen = useCallback(() => {
     const container = containerRef.current;
     if (!container) return false;
     const root = container.closest('[data-slot="sidebar-wrapper"]') ?? container;
     return !!root.querySelector(
-      '[data-sidebar="menu-button"][data-state="open"], [data-sidebar="menu-button"][data-popup-open], [data-sidebar="menu-action"][data-state="open"], [data-sidebar="menu-action"][data-popup-open]',
+      '[data-sidebar="menu-button"][data-state="open"], [data-sidebar="menu-button"][data-popup-open]',
     );
   }, [containerRef]);
 
   const onMouseMove = useCallback(
     (e: React.MouseEvent) => {
       if (popupOpen()) return;
-      if (!(e.target instanceof HTMLElement) || isForeign(e.target)) {
-        setActiveIndex(null);
-        return;
-      }
       handlers.onMouseMove(e);
     },
-    [popupOpen, isForeign, setActiveIndex, handlers],
+    [popupOpen, handlers],
   );
 
   const onFocus = useCallback(
     (e: React.FocusEvent) => {
       const target = e.target;
-      if (!(target instanceof HTMLElement) || isForeign(target)) {
+      if (!(target instanceof HTMLElement)) {
         setFocusedRowEl(null);
         setActiveIndex(null);
         return;
       }
-      // Only the row's main button drives the traveling highlight and ring —
-      // actions keep their own static focus rings.
-      if (!target.closest('[data-sidebar="menu-button"],[data-sidebar="menu-sub-button"]')) return;
-      const rowEl = target.closest('[data-sidebar="menu-item"],[data-sidebar="menu-sub-item"]');
+      // Only the row's main button drives the traveling highlight and ring.
+      if (!target.closest('[data-sidebar="menu-button"]')) return;
+      const rowEl = target.closest('[data-sidebar="menu-item"]');
       const row = rowEl instanceof HTMLElement ? rowEl : null;
       if (!row) return;
       const idx = orderedRows.indexOf(row);
@@ -264,7 +218,7 @@ function useMenuScope(containerRef: RefObject<HTMLElement | null>, isRoot: boole
       setActiveIndex(idx);
       setFocusedRowEl(target.matches(":focus-visible") ? row : null);
     },
-    [isForeign, setActiveIndex, orderedRows],
+    [setActiveIndex, orderedRows],
   );
 
   const onPointerDown = useCallback(() => {
@@ -281,8 +235,7 @@ function useMenuScope(containerRef: RefObject<HTMLElement | null>, isRoot: boole
     [containerRef, setActiveIndex],
   );
 
-  // Arrow/Home/End over every button in DOM order, sub rows included — only
-  // the root scope binds it so nested scopes don't double-handle.
+  // Arrow/Home/End over every button in DOM order.
   const onKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (!["ArrowDown", "ArrowUp", "ArrowRight", "ArrowLeft", "Home", "End"].includes(e.key))
@@ -290,16 +243,14 @@ function useMenuScope(containerRef: RefObject<HTMLElement | null>, isRoot: boole
       const container = containerRef.current;
       if (!container) return;
       const items = Array.from(
-        container.querySelectorAll<HTMLElement>(
-          '[data-sidebar="menu-button"], [data-sidebar="menu-sub-button"]',
-        ),
-      ).filter((el) => !el.closest('[data-sidebar="menu-sub"][data-state="closed"]'));
+        container.querySelectorAll<HTMLElement>('[data-sidebar="menu-button"]'),
+      );
       if (!(e.target instanceof HTMLElement)) return;
       const currentIdx = items.indexOf(e.target);
       if (currentIdx === -1) return;
       e.preventDefault();
-      // Keep handled arrows from also reaching window-level listeners (the
-      // docs site's ←/→ page navigation) — same rule as AskUserQuestions.
+      // Keep handled arrows from also reaching window-level listeners — same
+      // rule as AskUserQuestions.
       e.stopPropagation();
       if (e.key === "Home") items[0]?.focus();
       else if (e.key === "End") items[items.length - 1]?.focus();
@@ -317,7 +268,6 @@ function useMenuScope(containerRef: RefObject<HTMLElement | null>, isRoot: boole
 
   const value = useMemo<MenuScopeValue>(
     () => ({
-      isRoot,
       registerRow,
       setRowButton,
       setRowActive,
@@ -326,18 +276,14 @@ function useMenuScope(containerRef: RefObject<HTMLElement | null>, isRoot: boole
       firstRowEl: orderedRows[0] ?? null,
       hasActive: activeRowEl !== null,
     }),
-    [isRoot, registerRow, setRowButton, setRowActive, hoveredRowEl, activeRowEl, orderedRows],
+    [registerRow, setRowButton, setRowActive, hoveredRowEl, activeRowEl, orderedRows],
   );
-
-  const activeRect = overlayRect(activeRowEl);
-  const hoverRect = overlayRect(hoveredRowEl);
-  const focusRect = overlayRect(focusedRowEl);
 
   const overlays = isMeasured ? (
     <ProximityOverlays
-      activeRect={activeRect}
-      hoverRect={hoverRect}
-      focusRect={focusRect}
+      activeRect={overlayRect(activeRowEl)}
+      hoverRect={overlayRect(hoveredRowEl)}
+      focusRect={overlayRect(focusedRowEl)}
       session={session}
     />
   ) : null;
@@ -354,7 +300,7 @@ function useMenuScope(containerRef: RefObject<HTMLElement | null>, isRoot: boole
       // already-focused row never re-fires focus, so without this the
       // keyboard ring would stick until focus left the menu.
       onPointerDown,
-      onKeyDown: isRoot ? onKeyDown : undefined,
+      onKeyDown,
     },
     overlays,
   };
@@ -362,7 +308,7 @@ function useMenuScope(containerRef: RefObject<HTMLElement | null>, isRoot: boole
 
 // ─── SidebarMenu ─────────────────────────────────────────────────────────────
 
-export interface SidebarMenuProps extends HTMLAttributes<HTMLUListElement> {
+interface SidebarMenuProps extends LiHTMLAttributes<HTMLUListElement> {
   /** Pins the menu's rows to one step of the size ladder. Omitted, they
    *  follow the surrounding SizeProvider. */
   size?: SizeVariant;
@@ -371,7 +317,7 @@ export interface SidebarMenuProps extends HTMLAttributes<HTMLUListElement> {
 const SidebarMenu = forwardRef<HTMLUListElement, SidebarMenuProps>(
   ({ className, size, children, ...props }, ref) => {
     const containerRef = useRef<HTMLUListElement>(null);
-    const { value, containerProps, overlays } = useMenuScope(containerRef, true);
+    const { value, containerProps, overlays } = useMenuScope(containerRef);
 
     const content = (
       <MenuScopeContext.Provider value={value}>
@@ -393,11 +339,11 @@ const SidebarMenu = forwardRef<HTMLUListElement, SidebarMenuProps>(
 );
 SidebarMenu.displayName = "SidebarMenu";
 
-// ─── SidebarMenuItem / SidebarMenuSubItem ────────────────────────────────────
+// ─── SidebarMenuItem ─────────────────────────────────────────────────────────
 
-export type SidebarMenuItemProps = LiHTMLAttributes<HTMLLIElement>;
+type SidebarMenuItemProps = LiHTMLAttributes<HTMLLIElement>;
 
-function useMenuRow(isSubRow = false) {
+function useMenuRow(): MenuItemContextValue {
   const scope = useContext(MenuScopeContext);
   const registerRow = scope?.registerRow;
   const setRowButton = scope?.setRowButton;
@@ -427,77 +373,10 @@ function useMenuRow(isSubRow = false) {
   const isHovered = rowEl !== null && scope?.hoveredRowEl === rowEl;
   const isActiveRow = rowEl !== null && scope?.activeRowEl === rowEl;
 
-  const [trailing, setTrailing] = useState({
-    actionCount: 0,
-    actionsShowOnHover: false,
-    hasBadge: false,
-  });
-  const setActions = useCallback(
-    (count: number, showOnHover: boolean) =>
-      setTrailing((prev) =>
-        prev.actionCount === count && prev.actionsShowOnHover === showOnHover
-          ? prev
-          : { ...prev, actionCount: count, actionsShowOnHover: showOnHover },
-      ),
-    [],
-  );
-  const setHasBadge = useCallback(
-    (hasBadge: boolean) =>
-      setTrailing((prev) => (prev.hasBadge === hasBadge ? prev : { ...prev, hasBadge })),
-    [],
-  );
-
   return useMemo(
-    () => ({
-      rowEl,
-      setRow,
-      isHovered,
-      isActiveRow,
-      isSubRow,
-      setActive,
-      setButtonEl,
-      ...trailing,
-      setActions,
-      setHasBadge,
-    }),
-    [
-      rowEl,
-      setRow,
-      isHovered,
-      isActiveRow,
-      isSubRow,
-      setActive,
-      setButtonEl,
-      trailing,
-      setActions,
-      setHasBadge,
-    ],
+    () => ({ rowEl, setRow, isHovered, isActiveRow, setActive, setButtonEl }),
+    [rowEl, setRow, isHovered, isActiveRow, setActive, setButtonEl],
   );
-}
-
-// ─── Trailing-gutter math ────────────────────────────────────────────────────
-//
-// The label reserves exactly the trailing run it has to clear, plus one gap
-// — the same rule the section header's label follows, so a row's chevron and
-// a section header's chevron each sit one 4px gap from their action run.
-// A run is: the badge's 24px slot (rightmost when present), the action
-// cluster (24px apiece, 4px between), and a gap where both appear.
-const ROW_BASE_PAD = 8;
-const ROW_SLOT = 24;
-const ROW_GAP = 4;
-/** Where the run's rightmost element sits, measured from the row's right
- *  edge: a badge at right-2, an action cluster at right-1.5 (its wider box
- *  puts both on the same centre line). */
-const ROW_BADGE_INSET = 8;
-const ROW_ACTION_INSET = 6;
-
-function rowGutter(actionCount: number, hasBadge: boolean) {
-  if (!actionCount && !hasBadge) return ROW_BASE_PAD;
-  const actionsWidth = actionCount ? actionCount * ROW_SLOT + (actionCount - 1) * ROW_GAP : 0;
-  const runWidth =
-    (hasBadge ? ROW_SLOT : 0) + actionsWidth + (hasBadge && actionCount ? ROW_GAP : 0);
-  const inset = hasBadge ? ROW_BADGE_INSET : ROW_ACTION_INSET;
-  return inset + runWidth + ROW_GAP;
 }
 
 const SidebarMenuItem = forwardRef<HTMLLIElement, SidebarMenuItemProps>(
@@ -518,27 +397,6 @@ const SidebarMenuItem = forwardRef<HTMLLIElement, SidebarMenuItemProps>(
   },
 );
 SidebarMenuItem.displayName = "SidebarMenuItem";
-
-export type SidebarMenuSubItemProps = LiHTMLAttributes<HTMLLIElement>;
-
-const SidebarMenuSubItem = forwardRef<HTMLLIElement, SidebarMenuSubItemProps>(
-  ({ className, children, ...props }, ref) => {
-    const item = useMenuRow(true);
-    return (
-      <MenuItemContext.Provider value={item}>
-        <li
-          ref={composeRefs(item.setRow, ref)}
-          data-sidebar="menu-sub-item"
-          className={cn("group/menu-sub-item relative", className)}
-          {...props}
-        >
-          {children}
-        </li>
-      </MenuItemContext.Provider>
-    );
-  },
-);
-SidebarMenuSubItem.displayName = "SidebarMenuSubItem";
 
 // ─── Row label (ghost-span weight animation) ─────────────────────────────────
 
@@ -610,25 +468,7 @@ function MenuRowLabel({
 
 // ─── SidebarMenuButton ───────────────────────────────────────────────────────
 
-export const sidebarMenuButtonVariants = cva(
-  // The trailing gutter is an exact reservation published by the row (see
-  // rowGutter): --row-gutter at rest, --row-gutter-hover once hover-revealed
-  // actions are showing. One rule per state instead of a class per
-  // count/badge/reveal combination.
-  "peer/menu-button relative z-10 flex w-full cursor-pointer select-none items-center gap-2 pl-2 text-left outline-none transition-[padding] duration-80 pr-[var(--row-gutter)] group-hover/menu-item:pr-[var(--row-gutter-hover)] group-focus-within/menu-item:pr-[var(--row-gutter-hover)] group-hover/menu-sub-item:pr-[var(--row-gutter-hover)] group-focus-within/menu-sub-item:pr-[var(--row-gutter-hover)] group-has-[[data-sidebar=menu-action]:is([data-state=open],[data-popup-open],[aria-expanded=true])]/menu-item:pr-[var(--row-gutter-hover)] group-has-[[data-sidebar=menu-action]:is([data-state=open],[data-popup-open],[aria-expanded=true])]/menu-sub-item:pr-[var(--row-gutter-hover)]",
-  {
-    variants: {
-      variant: {
-        default: "",
-        outline: "border border-border bg-background",
-      },
-    },
-    defaultVariants: { variant: "default" },
-  },
-);
-
-export interface SidebarMenuButtonProps
-  extends ButtonHTMLAttributes<HTMLButtonElement>, VariantProps<typeof sidebarMenuButtonVariants> {
+interface SidebarMenuButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   isActive?: boolean;
   size?: "default" | "sm" | "lg";
   icon?: IconComponent;
@@ -641,25 +481,11 @@ export interface SidebarMenuButtonProps
    *  semantic `status` vocabulary doesn't fit. Overrides the dot derived
    *  from `status`. Ignored when `icon` is set. */
   dot?: "filled" | "ring";
-  render?: ReactElement;
-  asChild?: boolean;
 }
 
 const SidebarMenuButton = forwardRef<HTMLButtonElement, SidebarMenuButtonProps>(
   (
-    {
-      isActive = false,
-      size = "default",
-      variant,
-      icon: Icon,
-      status,
-      dot,
-      render,
-      asChild,
-      className,
-      children,
-      ...props
-    },
+    { isActive = false, size = "default", icon: Icon, status, dot, className, children, ...props },
     ref,
   ) => {
     const scope = useContext(MenuScopeContext);
@@ -696,32 +522,34 @@ const SidebarMenuButton = forwardRef<HTMLButtonElement, SidebarMenuButtonProps>(
     const textClass = size === "sm" ? "text-[12px]" : sizeClasses.text;
 
     // Roving tabindex: the active row's button is the menu's tab stop; with no
-    // active row, the root scope's first row keeps the menu keyboard-reachable.
+    // active row, the first row keeps the menu keyboard-reachable.
     const row = item?.rowEl ?? null;
     const tabIdx = effectiveActive
       ? 0
       : scope?.hasActive
         ? -1
-        : scope?.isRoot && row !== null && row === scope.firstRowEl
+        : scope !== null && row !== null && row === scope.firstRowEl
           ? 0
           : -1;
 
-    // Exact trailing reservation: at rest, hover-revealed actions claim no
-    // width (the label owns the row); once revealed the row widens to
-    // --row-gutter-hover.
-    const gutterHover = rowGutter(item?.actionCount ?? 0, item?.hasBadge ?? false);
-    const gutterRest = item?.actionsShowOnHover
-      ? rowGutter(0, item?.hasBadge ?? false)
-      : gutterHover;
-    const gutterVars = cssVars({
-      "--row-gutter": `${gutterRest}px`,
-      "--row-gutter-hover": `${gutterHover}px`,
-    });
-
-    const { template, content } = resolveSlotTemplate(render, asChild, children);
-
-    const inner = (
-      <>
+    return (
+      <button
+        ref={composeRefs(buttonRef, ref)}
+        type="button"
+        data-sidebar="menu-button"
+        data-size={size}
+        data-active={effectiveActive ? "true" : undefined}
+        data-status={status}
+        aria-current={effectiveActive ? "page" : undefined}
+        tabIndex={tabIdx}
+        className={cn(
+          "peer/menu-button relative z-10 flex w-full cursor-pointer select-none items-center gap-2 px-2 text-left outline-none",
+          heightClass,
+          radius.item,
+          className,
+        )}
+        {...props}
+      >
         {Icon && (
           <Icon
             size={sizeClasses.icon}
@@ -752,437 +580,16 @@ const SidebarMenuButton = forwardRef<HTMLButtonElement, SidebarMenuButtonProps>(
           </span>
         )}
         <MenuRowLabel
-          content={content}
+          content={children}
           lit={lit}
           emphasized={effectiveActive}
           textClass={textClass}
         />
         {status === "unread" && <span className="sr-only">, unread</span>}
-      </>
-    );
-
-    const slotProps = {
-      type: template ? undefined : "button",
-      "data-sidebar": "menu-button",
-      "data-size": size,
-      "data-active": effectiveActive ? "true" : undefined,
-      "data-status": status,
-      "aria-current": effectiveActive ? "page" : undefined,
-      tabIndex: tabIdx,
-      className: cn(sidebarMenuButtonVariants({ variant }), heightClass, radius.item, className),
-      ...props,
-      style: { ...gutterVars, ...props.style },
-    };
-    return (
-      <Slot template={template} tag="button" ref={composeRefs(buttonRef, ref)} {...slotProps}>
-        {inner}
-      </Slot>
+      </button>
     );
   },
 );
 SidebarMenuButton.displayName = "SidebarMenuButton";
 
-// ─── SidebarMenuAction ───────────────────────────────────────────────────────
-
-export interface SidebarMenuActionProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  showOnHover?: boolean;
-  render?: ReactElement;
-  asChild?: boolean;
-}
-
-const SidebarMenuAction = forwardRef<HTMLButtonElement, SidebarMenuActionProps>(
-  ({ className, showOnHover = false, render, asChild, children, onClick, ...props }, ref) => {
-    const radius = useRadius();
-    const sizeClasses = useSize();
-    const item = useContext(MenuItemContext);
-    const inCluster = useContext(MenuActionsClusterContext);
-    const { template, content } = resolveSlotTemplate(render, asChild, children);
-
-    // A lone action registers its own slot; inside a cluster the wrapper
-    // registers the whole count and each action flows in its row.
-    const setActions = item?.setActions;
-    useIsoLayoutEffect(() => {
-      if (inCluster || !setActions) return;
-      setActions(1, showOnHover);
-      return () => setActions(0, false);
-    }, [inCluster, setActions, showOnHover]);
-    const slotProps = {
-      type: template ? undefined : "button",
-      "data-sidebar": "menu-action",
-      "data-show-on-hover": showOnHover ? "" : undefined,
-      className: cn(
-        // right-1.5 centers the 24px hit-box on the same axis as the badge
-        // (right-2 + min-w-5): both land 18px from the row's right edge.
-        // With a badge on the same row the badge keeps that rightmost spot
-        // and the action slides left of it. Inside a cluster the wrapper
-        // owns the positioning and actions simply flow.
-        inCluster
-          ? "relative flex size-6 shrink-0 items-center justify-center text-muted-foreground outline-none"
-          : "absolute right-1.5 z-10 flex size-6 items-center justify-center text-muted-foreground outline-none",
-        !inCluster &&
-          (item?.isSubRow
-            ? "group-has-[>[data-sidebar=menu-badge]]/menu-sub-item:right-8"
-            : "group-has-[>[data-sidebar=menu-badge]]/menu-item:right-8"),
-        !inCluster && (item?.isSubRow || sizeClasses.variant === "compact" ? "top-0.5" : "top-1"),
-        "hover:bg-hover hover:text-foreground transition-[color,background-color,opacity] duration-80",
-        "focus-visible:ring-1 focus-visible:ring-[color:var(--focus-ring,#6B97FF)]",
-        // One icon size across the sidebar: row actions match the leading
-        // icons and the section header's actions, all on the size ladder.
-        "[&_svg]:size-[var(--icon-size)] [&_svg]:shrink-0",
-        radius.item,
-        // Reveal on the OWN row only. A sub action must not use the
-        // menu-item group — its nearest one is the parent li, which would
-        // light every sibling sub action on any hover inside the sub-tree.
-        !inCluster &&
-          showOnHover &&
-          (item?.isSubRow
-            ? "opacity-0 group-hover/menu-sub-item:opacity-100 group-focus-within/menu-sub-item:opacity-100 data-[state=open]:opacity-100 aria-expanded:opacity-100"
-            : // Tracks the row's own button (its peer), not the <li> — a row
-              // that hosts a sub-menu wraps its children too, and hovering a
-              // child should not light the parent's action.
-              "opacity-0 peer-hover/menu-button:opacity-100 peer-focus-visible/menu-button:opacity-100 hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100 aria-expanded:opacity-100"),
-        className,
-      ),
-      onClick: (event: React.MouseEvent<HTMLButtonElement>) => {
-        // The action often sits on a row composed via `render` — keep its
-        // click from also triggering the row.
-        event.stopPropagation();
-        onClick?.(event);
-      },
-      ...props,
-      style: { ...cssVars({ "--icon-size": `${sizeClasses.icon}px` }), ...props.style },
-    };
-    return (
-      <Slot template={template} tag="button" ref={ref} {...slotProps}>
-        {content}
-      </Slot>
-    );
-  },
-);
-SidebarMenuAction.displayName = "SidebarMenuAction";
-
-// ─── SidebarMenuActions ──────────────────────────────────────────────────────
-
-export interface SidebarMenuActionsProps extends HTMLAttributes<HTMLDivElement> {
-  /** Hide the cluster until the row is hovered or focused. */
-  showOnHover?: boolean;
-}
-
-/** Row-level cluster for more than one SidebarMenuAction. It owns the
- *  positioning and publishes the whole count to the row, so the button
- *  reserves the exact gutter the cluster occupies. */
-const SidebarMenuActions = forwardRef<HTMLDivElement, SidebarMenuActionsProps>(
-  ({ className, showOnHover = false, children, ...props }, ref) => {
-    const item = useContext(MenuItemContext);
-    const sizeClasses = useSize();
-    const count = Children.count(children);
-
-    const setActions = item?.setActions;
-    useIsoLayoutEffect(() => {
-      setActions?.(count, showOnHover);
-      return () => setActions?.(0, false);
-    }, [setActions, count, showOnHover]);
-
-    return (
-      <div
-        ref={ref}
-        data-sidebar="menu-actions"
-        className={cn(
-          "absolute right-1.5 z-10 flex items-center gap-1",
-          // The badge keeps the rightmost slot; the cluster sits left of it.
-          item?.isSubRow
-            ? "group-has-[>[data-sidebar=menu-badge]]/menu-sub-item:right-8"
-            : "group-has-[>[data-sidebar=menu-badge]]/menu-item:right-8",
-          item?.isSubRow || sizeClasses.variant === "compact" ? "top-0.5" : "top-1",
-          showOnHover &&
-            (item?.isSubRow
-              ? "opacity-0 transition-opacity duration-80 group-hover/menu-sub-item:opacity-100 group-focus-within/menu-sub-item:opacity-100 has-[[data-state=open]]:opacity-100 has-[[data-popup-open]]:opacity-100"
-              : // Peer-scoped for the same reason as a lone action: the row's
-                // <li> also wraps its sub-menu.
-                "opacity-0 transition-opacity duration-80 peer-hover/menu-button:opacity-100 peer-focus-visible/menu-button:opacity-100 hover:opacity-100 focus-within:opacity-100 has-[[data-state=open]]:opacity-100 has-[[data-popup-open]]:opacity-100"),
-          className,
-        )}
-        {...props}
-      >
-        <MenuActionsClusterContext.Provider value={true}>
-          {children}
-        </MenuActionsClusterContext.Provider>
-      </div>
-    );
-  },
-);
-SidebarMenuActions.displayName = "SidebarMenuActions";
-
-// ─── SidebarMenuBadge ────────────────────────────────────────────────────────
-
-export type SidebarMenuBadgeProps = HTMLAttributes<HTMLDivElement>;
-
-const SidebarMenuBadge = forwardRef<HTMLDivElement, SidebarMenuBadgeProps>(
-  ({ className, ...props }, ref) => {
-    const item = useContext(MenuItemContext);
-    const sizeClasses = useSize();
-    const lit = item?.isActiveRow ?? false;
-
-    const setHasBadge = item?.setHasBadge;
-    useIsoLayoutEffect(() => {
-      setHasBadge?.(true);
-      return () => setHasBadge?.(false);
-    }, [setHasBadge]);
-    return (
-      <div
-        ref={ref}
-        data-sidebar="menu-badge"
-        className={cn(
-          "pointer-events-none absolute right-2 z-10 flex h-5 min-w-5 items-center justify-center px-1 tabular-nums",
-          sizeClasses.variant === "compact" ? "top-1 text-[10px]" : "top-1.5 text-[11px]",
-          "transition-[color,font-variation-settings] duration-80",
-          lit ? "text-foreground" : "text-muted-foreground",
-          className,
-        )}
-        style={{
-          fontVariationSettings: lit ? fontWeights.semibold : fontWeights.normal,
-        }}
-        {...props}
-      />
-    );
-  },
-);
-SidebarMenuBadge.displayName = "SidebarMenuBadge";
-
-// ─── SidebarMenuSkeleton ─────────────────────────────────────────────────────
-
-export interface SidebarMenuSkeletonProps extends HTMLAttributes<HTMLDivElement> {
-  showIcon?: boolean;
-}
-
-// Deterministic width cycle (not Math.random) so server and client render the
-// same markup — a random width per render is a hydration mismatch.
-const SKELETON_WIDTHS = ["62%", "74%", "55%", "82%", "68%"];
-
-const SidebarMenuSkeleton = forwardRef<HTMLDivElement, SidebarMenuSkeletonProps>(
-  ({ className, showIcon = false, ...props }, ref) => {
-    const sizeClasses = useSize();
-    const id = useId();
-    let sum = 0;
-    for (let i = 0; i < id.length; i++) sum += id.charCodeAt(i);
-    const width = SKELETON_WIDTHS[sum % SKELETON_WIDTHS.length];
-    return (
-      <div
-        ref={ref}
-        data-sidebar="menu-skeleton"
-        className={cn(
-          "flex items-center gap-2 px-2",
-          sizeClasses.variant === "compact" ? "h-7" : "h-8",
-          className,
-        )}
-        {...props}
-      >
-        {showIcon && (
-          <div
-            data-sidebar="menu-skeleton-icon"
-            className="size-4 shrink-0 animate-pulse rounded-md bg-hover"
-          />
-        )}
-        <div
-          data-sidebar="menu-skeleton-text"
-          className="h-4 flex-1 animate-pulse rounded-md bg-hover"
-          style={{ maxWidth: width }}
-        />
-      </div>
-    );
-  },
-);
-SidebarMenuSkeleton.displayName = "SidebarMenuSkeleton";
-
-// ─── SidebarMenuSub ──────────────────────────────────────────────────────────
-
-export interface SidebarMenuSubProps extends HTMLAttributes<HTMLUListElement> {
-  /** Built-in measured-height collapse. Omitted, the sub-menu is always
-   *  visible; wire it to state (with a toggling SidebarMenuButton) for a
-   *  collapsible tree. */
-  open?: boolean;
-}
-
-const SidebarMenuSub = forwardRef<HTMLUListElement, SidebarMenuSubProps>(
-  ({ className, open = true, children, ...props }, ref) => {
-    const containerRef = useRef<HTMLUListElement>(null);
-    const { value, containerProps, overlays } = useMenuScope(containerRef, false);
-
-    // Measured-height collapse: animate between 0 and the content's real
-    // offsetHeight — never to "auto", which framer measures wrong under a
-    // scaled ancestor.
-    const [contentHeight, setContentHeight] = useState<number | null>(null);
-    useIsoLayoutEffect(() => {
-      const el = containerRef.current;
-      if (!el) return;
-      const measure = () => setContentHeight(el.offsetHeight);
-      measure();
-      const ro = new ResizeObserver(measure);
-      ro.observe(el);
-      return () => ro.disconnect();
-    }, []);
-    const measured = contentHeight !== null;
-
-    // Same rule as SidebarGroup: spring only when this sub-tree itself
-    // toggles. A height change coming from a nested sub collapsing inside it
-    // snaps, so the wrapper tracks its content instead of chasing it with a
-    // second spring and moving everything below late.
-    const [prevOpen, setPrevOpen] = useState(open);
-    const [toggling, setToggling] = useState(false);
-    if (prevOpen !== open) {
-      setPrevOpen(open);
-      setToggling(true);
-    }
-
-    return (
-      <motion.div
-        data-slot="sidebar-menu-sub-wrapper"
-        // `animate` stays defined from the first render — framer ignores an
-        // animate prop that appears later in the element's life. Until the
-        // content is measured, a closed sub collapses via the h-0 class and
-        // an open one keeps its natural height.
-        className={cn("overflow-hidden", !measured && !open && "h-0")}
-        initial={false}
-        animate={
-          measured
-            ? { height: open ? contentHeight : 0, opacity: open ? 1 : 0 }
-            : { opacity: open ? 1 : 0 }
-        }
-        // Do NOT simplify this to `open ? spring.moderate : …` — see the
-        // `toggling` note above. Springing on a re-measure stacks a second
-        // spring on a nested sub's own collapse.
-        transition={toggling ? (open ? spring.moderate : spring.moderate.exit) : { duration: 0 }}
-        onAnimationComplete={() => {
-          setToggling(false);
-        }}
-      >
-        <MenuScopeContext.Provider value={value}>
-          <ul
-            ref={composeRefs(containerRef, ref)}
-            data-sidebar="menu-sub"
-            data-state={open ? "open" : "closed"}
-            aria-hidden={open ? undefined : true}
-            className={cn(
-              // pl-2 lands the sub-row label (pl-2 + the row's own px-2 = 24px
-              // + border/translate) exactly on the parent label's x (px-2 +
-              // 16px icon + gap-2 = 32px).
-              "relative ml-3.5 flex min-w-0 translate-x-px flex-col gap-0.5 border-l border-border py-0.5 pl-2 select-none",
-              className,
-            )}
-            {...containerProps}
-            {...props}
-          >
-            {overlays}
-            {children}
-          </ul>
-        </MenuScopeContext.Provider>
-      </motion.div>
-    );
-  },
-);
-SidebarMenuSub.displayName = "SidebarMenuSub";
-
-// ─── SidebarMenuSubButton ────────────────────────────────────────────────────
-
-export interface SidebarMenuSubButtonProps extends AnchorHTMLAttributes<HTMLAnchorElement> {
-  isActive?: boolean;
-  size?: "sm" | "md";
-  icon?: IconComponent;
-  render?: ReactElement;
-  asChild?: boolean;
-}
-
-const SidebarMenuSubButton = forwardRef<HTMLAnchorElement, SidebarMenuSubButtonProps>(
-  (
-    { isActive = false, size = "md", icon: Icon, render, asChild, className, children, ...props },
-    ref,
-  ) => {
-    const item = useContext(MenuItemContext);
-    const radius = useRadius();
-    const sizeClasses = useSize();
-    const buttonRef = useRef<HTMLAnchorElement | null>(null);
-
-    const setActive = item?.setActive;
-    useIsoLayoutEffect(() => {
-      setActive?.(isActive);
-      return () => setActive?.(false);
-    }, [isActive, setActive]);
-
-    const setButtonEl = item?.setButtonEl;
-    useIsoLayoutEffect(() => {
-      setButtonEl?.(buttonRef.current);
-      return () => setButtonEl?.(null);
-    }, [setButtonEl]);
-
-    const lit = isActive || (item?.isHovered ?? false);
-    const tabIdx = isActive ? 0 : -1;
-
-    const gutterHover = rowGutter(item?.actionCount ?? 0, item?.hasBadge ?? false);
-    const gutterRest = item?.actionsShowOnHover
-      ? rowGutter(0, item?.hasBadge ?? false)
-      : gutterHover;
-    const gutterVars = cssVars({
-      "--row-gutter": `${gutterRest}px`,
-      "--row-gutter-hover": `${gutterHover}px`,
-    });
-
-    const { template, content } = resolveSlotTemplate(render, asChild, children);
-
-    const slotProps = {
-      "data-sidebar": "menu-sub-button",
-      "data-size": size,
-      "data-active": isActive ? "true" : undefined,
-      "aria-current": isActive ? "page" : undefined,
-      tabIndex: tabIdx,
-      className: cn(
-        "relative z-10 flex w-full cursor-pointer select-none items-center gap-2 pl-2 text-left outline-none",
-        "transition-[padding] duration-80 pr-[var(--row-gutter)] group-hover/menu-sub-item:pr-[var(--row-gutter-hover)] group-focus-within/menu-sub-item:pr-[var(--row-gutter-hover)] group-has-[[data-sidebar=menu-action]:is([data-state=open],[data-popup-open],[aria-expanded=true])]/menu-sub-item:pr-[var(--row-gutter-hover)]",
-        size === "sm" ? "h-6" : sizeClasses.variant === "compact" ? "h-6" : "h-7",
-        radius.item,
-        className,
-      ),
-      ...props,
-      style: { ...gutterVars, ...props.style },
-    };
-    return (
-      <Slot template={template} tag="a" ref={composeRefs(buttonRef, ref)} {...slotProps}>
-        {
-          <>
-            {Icon && (
-              <Icon
-                size={sizeClasses.icon}
-                strokeWidth={lit ? 2 : 1.5}
-                className={cn(
-                  "shrink-0 transition-[color,stroke-width] duration-80",
-                  lit ? "text-foreground" : "text-muted-foreground",
-                )}
-              />
-            )}
-            {/* Sub-rows keep the parent rows' type size — only the row height
-          steps down. */}
-            <MenuRowLabel
-              content={content}
-              lit={lit}
-              emphasized={isActive}
-              textClass={size === "sm" ? "text-[12px]" : sizeClasses.text}
-            />
-          </>
-        }
-      </Slot>
-    );
-  },
-);
-SidebarMenuSubButton.displayName = "SidebarMenuSubButton";
-
-export {
-  SidebarMenu,
-  SidebarMenuItem,
-  SidebarMenuButton,
-  SidebarMenuAction,
-  SidebarMenuActions,
-  SidebarMenuBadge,
-  SidebarMenuSkeleton,
-  SidebarMenuSub,
-  SidebarMenuSubItem,
-  SidebarMenuSubButton,
-};
+export { SidebarMenu, SidebarMenuItem, SidebarMenuButton };

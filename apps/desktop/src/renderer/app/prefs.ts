@@ -2,6 +2,7 @@
 // server persistence yet (deliberate: the server's config surface is the
 // vault, not chrome state). Every reader tolerates a missing or broken store.
 
+import { SIDEBAR_MAX_WIDTH, SIDEBAR_MIN_WIDTH } from "@repo/ui/components/sidebar";
 import { parseTheme, type Theme } from "@repo/ui/lib/theme";
 import { APPEARANCE_DEFAULTS, appearanceSchema, type Appearance } from "./appearance";
 
@@ -35,16 +36,17 @@ function write(key: string, value: string | null): void {
 }
 
 const SIDEBAR_WIDTH_DEFAULT = 260;
-const SIDEBAR_WIDTH_MIN = 180;
-const SIDEBAR_WIDTH_MAX = 480;
 
+// The rail's own drag clamp is the ONE spelling of the width bounds — a
+// second pair here would let a stored width the rail can never produce
+// come back on reload.
 export function readSidebarWidth(): number {
   const raw = read(KEYS.sidebarWidth);
   const parsed = raw === null ? Number.NaN : Number(raw);
   if (!Number.isFinite(parsed)) {
     return SIDEBAR_WIDTH_DEFAULT;
   }
-  return Math.min(SIDEBAR_WIDTH_MAX, Math.max(SIDEBAR_WIDTH_MIN, Math.round(parsed)));
+  return Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, Math.round(parsed)));
 }
 
 export function writeSidebarWidth(px: number): void {

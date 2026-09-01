@@ -12,7 +12,6 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarProvider,
-  SidebarTrigger,
 } from "@repo/ui/components/sidebar";
 import { TabsSubtle, TabsSubtleItem, TabsSubtlePanel } from "@repo/ui/components/tabs-subtle";
 import { FileTextIcon, MessageSquareTextIcon } from "lucide-react";
@@ -78,7 +77,6 @@ export function NavigationSection() {
             </Sidebar>
             <SidebarInset className="bg-surface">
               <div className="flex items-center gap-2 border-b border-line p-2">
-                <SidebarTrigger />
                 <span className="text-sm text-muted-foreground">Release checklist</span>
               </div>
               <p className="p-3 text-sm text-muted-foreground">The pane the rail sits beside.</p>

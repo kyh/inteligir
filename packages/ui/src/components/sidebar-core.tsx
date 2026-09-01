@@ -11,17 +11,10 @@ import {
   useRef,
   useId,
   forwardRef,
-  cloneElement,
-  createElement,
   isValidElement,
   Children,
   type ReactNode,
-  type ReactElement,
-  type ReactEventHandler,
-  type ElementType,
-  type CSSProperties,
   type HTMLAttributes,
-  type Ref,
 } from "react";
 import { motion, AnimatePresence, type HTMLMotionProps } from "framer-motion";
 import { composeRefs } from "@repo/ui/lib/compose-refs";
@@ -34,27 +27,27 @@ import { useSize, useSizeVariant } from "@repo/ui/lib/size-context";
 import { useIcons } from "@repo/ui/lib/icon-context";
 import { useSurface, SurfaceProvider } from "@repo/ui/lib/surface-context";
 import { surfaceClasses } from "@repo/ui/lib/surface-classes";
-import { Button, type ButtonProps } from "@repo/ui/components/button";
 import { Tooltip } from "@repo/ui/components/tooltip";
 import { useIsoLayoutEffect } from "@repo/ui/lib/use-iso-layout-effect";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-export const SIDEBAR_COOKIE_NAME = "sidebar_state";
-export const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7;
-export const SIDEBAR_WIDTH = "16rem";
-export const SIDEBAR_WIDTH_MOBILE = "18rem";
+const SIDEBAR_COOKIE_NAME = "sidebar_state";
+const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7;
+const SIDEBAR_WIDTH = "16rem";
+const SIDEBAR_WIDTH_MOBILE = "18rem";
 /** Bare-key toggle defaults: "[" for a left sidebar, "]" for a right one.
  *  Bare (no ⌘/Ctrl) so the browser's history shortcuts stay untouched. */
-export const SIDEBAR_KEYBOARD_SHORTCUT = "[";
-export const SIDEBAR_KEYBOARD_SHORTCUT_RIGHT = "]";
-/** Drag-resize clamp for the built-in rail handle (px). */
+const SIDEBAR_KEYBOARD_SHORTCUT = "[";
+const SIDEBAR_KEYBOARD_SHORTCUT_RIGHT = "]";
+/** Drag-resize clamp for the built-in rail handle (px) — and, exported, the
+ *  ONE spelling of the width bounds every persisted preference clamps to. */
 export const SIDEBAR_MIN_WIDTH = 192;
 export const SIDEBAR_MAX_WIDTH = 360;
 /** Dragging this far past the minimum width collapses the sidebar instead of
  *  bottoming out — the same "throw it at the edge to dismiss" affordance
  *  native apps use. */
-export const SIDEBAR_COLLAPSE_SLOP = 56;
+const SIDEBAR_COLLAPSE_SLOP = 56;
 
 // ─── Context ─────────────────────────────────────────────────────────────────
 
@@ -62,7 +55,7 @@ export type SidebarSide = "left" | "right";
 export type SidebarVariant = "sidebar" | "floating" | "inset";
 export type SidebarCollapsible = "offcanvas" | "none";
 
-export interface SidebarContextValue {
+interface SidebarContextValue {
   state: "expanded" | "collapsed";
   open: boolean;
   setOpen: (open: boolean | ((prev: boolean) => boolean)) => void;
@@ -134,7 +127,7 @@ function isTextChild(node: ReactNode): node is TextChild {
   return typeof node === "string" || typeof node === "number";
 }
 
-export interface LeadingText {
+interface LeadingText {
   text: string;
   rest: ReactNode[];
 }
@@ -154,12 +147,14 @@ export function splitLeadingText(content: ReactNode): LeadingText {
 
 // ─── SidebarProvider ─────────────────────────────────────────────────────────
 
-export interface SidebarProviderProps extends HTMLAttributes<HTMLDivElement> {
+interface SidebarProviderProps extends HTMLAttributes<HTMLDivElement> {
   defaultOpen?: boolean;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   /** Persist the desktop open state to the `sidebar_state` cookie so a server
-   *  layout can read it back into `defaultOpen`. Mobile state never persists. */
+   *  layout can read it back into `defaultOpen`. Off by default: nothing in
+   *  this repo serves a layout that could read the cookie back, so writing it
+   *  is opt-in for the surface that grows one. Mobile state never persists. */
   persist?: boolean;
   /** Bare-key toggle shortcut. Defaults to "[" for a left sidebar and "]"
    *  for a right one; `null` disables it. */
@@ -180,7 +175,7 @@ const SidebarProvider = forwardRef<HTMLDivElement, SidebarProviderProps>(
       defaultOpen = true,
       open: openProp,
       onOpenChange,
-      persist = true,
+      persist = false,
       shortcut: shortcutProp,
       mobileBreakpoint = 768,
       peek = "none",
@@ -357,111 +352,6 @@ const SidebarProvider = forwardRef<HTMLDivElement, SidebarProviderProps>(
 );
 SidebarProvider.displayName = "SidebarProvider";
 
-// ─── Slot helpers (render / asChild polymorphism) ────────────────────────────
-//
-// A local slot rather than a primitive library's, so the parts answer BOTH
-// spellings — Base UI's `render={<Link/>}` and shadcn's `asChild` — and a
-// caller from either convention composes without a second copy of every part.
-
-/** What a part hands a slot template, and everything this file reads by name.
- *  The `on*`, `data-*` and `aria-*` families stay open because every part
- *  stamps some of them; a part's own element attributes ride through in the
- *  spread, and nothing here reads one. */
-interface SlotProps {
-  className?: string | undefined;
-  style?: CSSProperties | undefined;
-  children?: ReactNode;
-  ref?: Ref<HTMLElement> | undefined;
-  type?: string | undefined;
-  tabIndex?: number | undefined;
-  [handler: `on${string}`]: ReactEventHandler | undefined;
-  [attribute: `data-${string}`]: string | undefined;
-  [attribute: `aria-${string}`]: string | number | boolean | undefined;
-}
-
-type SlotTemplate = ReactElement<SlotProps>;
-
-type SlotEventHandlers = { [handler: `on${string}`]: ReactEventHandler };
-
-export interface SlotResolution {
-  template: SlotTemplate | null;
-  content: ReactNode;
-}
-
-function isEventProp(key: string): key is `on${string}` {
-  return /^on[A-Z]/.test(key);
-}
-
-/** Resolves the element to clone: `render` wins, else `asChild`'s single
- *  element child. `content` is what should render inside it — for `asChild`
- *  the child element's own children, otherwise the caller's. */
-export function resolveSlotTemplate(
-  render: ReactElement | undefined,
-  asChild: boolean | undefined,
-  children: ReactNode,
-): SlotResolution {
-  // Any element is a legal template — SlotProps is the shallow merge contract
-  // this file honours on it, not a claim about the element's own props.
-  if (isValidElement<SlotProps>(render)) {
-    return { template: render, content: children };
-  }
-  if (asChild) {
-    const only = Children.toArray(children)[0];
-    if (isValidElement<SlotProps>(only)) {
-      return { template: only, content: only.props.children };
-    }
-  }
-  return { template: null, content: children };
-}
-
-interface SlotComponentProps extends SlotProps {
-  template: SlotTemplate | null;
-  tag: ElementType;
-}
-
-/** Renders `children` into the template element (merging class/style/handlers,
- *  composing refs) or into the default tag when there is no template.
- *
- *  A COMPONENT rather than a `slotElement(template, tag, props, content)` call
- *  on purpose: `react(refs)` only recognises a ref hand-off through a JSX
- *  `ref={…}` attribute. Routed through a plain props object — or even as its
- *  own positional argument — the rule cannot follow it into the helper and
- *  reports every caller as reading a ref during render. */
-export function Slot({
-  template,
-  tag: DefaultTag,
-  children,
-  ...props
-}: SlotComponentProps): ReactElement {
-  if (!template) {
-    return createElement(DefaultTag, props, children);
-  }
-  const content = children;
-  const templateProps = template.props;
-  // Chain duplicated event handlers, template's first (it owns the element).
-  const chained: SlotEventHandlers = {};
-  for (const key of Object.keys(props)) {
-    if (!isEventProp(key)) continue;
-    const ours = props[key];
-    const theirs = templateProps[key];
-    if (ours && theirs) {
-      chained[key] = (event) => {
-        theirs(event);
-        ours(event);
-      };
-    }
-  }
-  const merged = {
-    ...props,
-    ...templateProps,
-    ...chained,
-    className: cn(props.className, templateProps.className),
-    style: { ...props.style, ...templateProps.style },
-    ref: composeRefs(props.ref, templateProps.ref),
-  };
-  return cloneElement(template, merged, content);
-}
-
 // ─── SidebarShell (shared desktop DOM for both flavors) ──────────────────────
 
 // Literal map so Tailwind's scanner emits the utilities: for the standard
@@ -482,7 +372,7 @@ type MotionSafeDivProps = Omit<HTMLMotionProps<"div">, "ref" | "children"> & {
   children?: ReactNode;
 };
 
-export interface SidebarShellProps extends MotionSafeDivProps {
+interface SidebarShellProps extends MotionSafeDivProps {
   side: SidebarSide;
   variant: SidebarVariant;
   /** The `sidebar` variant's inner-edge border. Default true. */
@@ -721,9 +611,7 @@ const SidebarShell = forwardRef<HTMLDivElement, SidebarShellProps>(
 );
 SidebarShell.displayName = "SidebarShell";
 
-// ─── SidebarTrigger ──────────────────────────────────────────────────────────
-
-export type SidebarTriggerProps = ButtonProps;
+// ─── SidebarRail ─────────────────────────────────────────────────────────────
 
 /** Keystroke chip rendered inside the (inverted) tooltip surface. */
 function ShortcutKbd({ children }: { children: ReactNode }) {
@@ -743,59 +631,7 @@ function useShortcutKey(): string {
   );
 }
 
-/** Ghost icon button calling toggleSidebar(). The icon mirrors the
- *  sidebar's side, and its tooltip names the action with the toggle
- *  keystroke by default. */
-const SidebarTrigger = forwardRef<HTMLButtonElement, SidebarTriggerProps>(
-  ({ onClick, size, children, ...props }, ref) => {
-    const { toggleSidebar, open, openMobile, isMobile, side } = useSidebar();
-    const shortcutKey = useShortcutKey();
-    // Taken off the icon map rather than through useIcon: a glyph read out of a
-    // map is data, while a hook that hands back a component reads as one built
-    // per render, which is the thing that would remount it.
-    const icons = useIcons();
-    const TriggerIcon = side === "right" ? icons["panel-right"] : icons["panel-left"];
-    const iconSize = useSizeVariant() === "compact" ? ("icon-compact" as const) : ("icon" as const);
-    const collapsed = isMobile ? !openMobile : !open;
-
-    return (
-      <Tooltip
-        side="bottom"
-        content={
-          <span className="flex items-center gap-1.5">
-            {/* A flex row escapes the surface's text-box trim, so the label
-                re-applies it — otherwise the shortcut row would sit taller
-                than a tooltip without a chip. */}
-            <span className="[text-box:trim-both_cap_alphabetic]">
-              {collapsed ? "Expand sidebar" : "Collapse sidebar"}
-            </span>
-            <ShortcutKbd>{shortcutKey}</ShortcutKbd>
-          </span>
-        }
-      >
-        <Button
-          ref={ref}
-          variant="ghost"
-          size={size ?? iconSize}
-          data-sidebar="trigger"
-          aria-label="Toggle Sidebar"
-          onClick={(event) => {
-            onClick?.(event);
-            toggleSidebar();
-          }}
-          {...props}
-        >
-          {children ?? <TriggerIcon />}
-        </Button>
-      </Tooltip>
-    );
-  },
-);
-SidebarTrigger.displayName = "SidebarTrigger";
-
-// ─── SidebarRail ─────────────────────────────────────────────────────────────
-
-export type SidebarRailProps = HTMLAttributes<HTMLButtonElement>;
+type SidebarRailProps = HTMLAttributes<HTMLButtonElement>;
 
 /** The grab strip on the sidebar's inner edge, rendered by default inside
  *  the desktop shell: drag it to resize (clamped), click it to collapse, and
@@ -905,7 +741,7 @@ SidebarRail.displayName = "SidebarRail";
 
 // ─── SidebarInset ────────────────────────────────────────────────────────────
 
-export type SidebarInsetProps = HTMLAttributes<HTMLElement>;
+type SidebarInsetProps = HTMLAttributes<HTMLElement>;
 
 const SidebarInset = forwardRef<HTMLElement, SidebarInsetProps>(({ className, ...props }, ref) => {
   const radius = useRadius();
@@ -936,7 +772,7 @@ SidebarInset.displayName = "SidebarInset";
 
 // ─── SidebarInput ────────────────────────────────────────────────────────────
 
-export type SidebarInputProps = React.InputHTMLAttributes<HTMLInputElement>;
+type SidebarInputProps = React.InputHTMLAttributes<HTMLInputElement>;
 
 const SidebarInput = forwardRef<HTMLInputElement, SidebarInputProps>(
   ({ className, ...props }, ref) => {
@@ -968,7 +804,7 @@ SidebarInput.displayName = "SidebarInput";
 
 // ─── SidebarHeader / SidebarFooter / SidebarSeparator ────────────────────────
 
-export type SidebarSectionProps = HTMLAttributes<HTMLDivElement>;
+type SidebarSectionProps = HTMLAttributes<HTMLDivElement>;
 
 const SidebarHeader = forwardRef<HTMLDivElement, SidebarSectionProps>(
   ({ className, ...props }, ref) => (
@@ -994,20 +830,6 @@ const SidebarFooter = forwardRef<HTMLDivElement, SidebarSectionProps>(
 );
 SidebarFooter.displayName = "SidebarFooter";
 
-const SidebarSeparator = forwardRef<HTMLDivElement, SidebarSectionProps>(
-  ({ className, ...props }, ref) => (
-    <div
-      ref={ref}
-      data-sidebar="separator"
-      role="separator"
-      aria-orientation="horizontal"
-      className={cn("mx-2 h-px shrink-0 bg-border", className)}
-      {...props}
-    />
-  ),
-);
-SidebarSeparator.displayName = "SidebarSeparator";
-
 // ─── SidebarGroup family ─────────────────────────────────────────────────────
 
 // SSR-safe layout effect (client components still server-render in Next).
@@ -1016,14 +838,11 @@ interface SidebarGroupContextValue {
   open: boolean;
   toggle: () => void;
   contentId: string;
-  /** How many header action buttons overlay the label's right edge — the
-   *  collapsible label pads itself so its chevron clears them. */
-  actionsCount: number;
 }
 
 const SidebarGroupContext = createContext<SidebarGroupContextValue | null>(null);
 
-export interface SidebarGroupProps extends SidebarSectionProps {
+interface SidebarGroupProps extends SidebarSectionProps {
   /** Makes the group's SidebarGroupLabel a toggle that collapses everything
    *  rendered after it — a group-level accordion. Uncontrolled by default;
    *  pass `open`/`onOpenChange` to control it. */
@@ -1089,32 +908,17 @@ const SidebarGroup = forwardRef<HTMLDivElement, SidebarGroupProps>(
       setToggling(true);
     }
 
-    // The label and any header actions stay put; everything else after the
-    // label rides in the collapse wrapper. If no SidebarGroupLabel child is
-    // found the group renders untouched.
-    const isHeaderAction = (k: ReactNode) =>
-      isValidElement(k) && (k.type === SidebarGroupAction || k.type === SidebarGroupActions);
+    // The label stays put; everything after it rides in the collapse wrapper.
+    // If no SidebarGroupLabel child is found the group renders untouched.
     let inner: ReactNode = children;
-    let actionsCount = 0;
     if (collapsible) {
       const kids = Children.toArray(children);
       const labelIdx = kids.findIndex((k) => isValidElement(k) && k.type === SidebarGroupLabel);
       if (labelIdx !== -1) {
-        const tail = kids.slice(labelIdx + 1);
-        const headerActions = tail.filter(isHeaderAction);
-        const rest = tail.filter((k) => !isHeaderAction(k));
-        actionsCount = headerActions.reduce<number>(
-          (n, k) =>
-            n +
-            (isValidElement<{ children?: ReactNode }>(k) && k.type === SidebarGroupActions
-              ? Children.count(k.props.children)
-              : 1),
-          0,
-        );
+        const rest = kids.slice(labelIdx + 1);
         inner = (
           <>
             {kids.slice(0, labelIdx + 1)}
-            {headerActions}
             <motion.div
               id={contentId}
               aria-hidden={open ? undefined : true}
@@ -1149,10 +953,7 @@ const SidebarGroup = forwardRef<HTMLDivElement, SidebarGroupProps>(
       }
     }
 
-    const ctx = useMemo(
-      () => ({ open, toggle, contentId, actionsCount }),
-      [open, toggle, contentId, actionsCount],
-    );
+    const ctx = useMemo(() => ({ open, toggle, contentId }), [open, toggle, contentId]);
 
     return (
       <div
@@ -1171,196 +972,97 @@ const SidebarGroup = forwardRef<HTMLDivElement, SidebarGroupProps>(
 );
 SidebarGroup.displayName = "SidebarGroup";
 
-export interface SidebarGroupLabelProps extends HTMLAttributes<HTMLDivElement> {
-  render?: ReactElement;
-  asChild?: boolean;
-}
+// HTMLElement rather than HTMLDivElement: inside a collapsible group the
+// label renders a <button>, and the props and ref must fit either element.
+type SidebarGroupLabelProps = HTMLAttributes<HTMLElement>;
 
-const SidebarGroupLabel = forwardRef<HTMLDivElement, SidebarGroupLabelProps>(
-  ({ className, render, asChild, children, ...props }, ref) => {
+const SidebarGroupLabel = forwardRef<HTMLElement, SidebarGroupLabelProps>(
+  ({ className, children, ...props }, ref) => {
     const sizeVariant = useSizeVariant();
     const sizeClasses = useSize();
     const group = useContext(SidebarGroupContext);
     const radius = useRadius();
     const ChevronDownIcon = useIcons()["chevron-down"];
-    const { template, content } = resolveSlotTemplate(render, asChild, children);
 
     // Truncate only the leading text; element children (count badges,
     // trailing controls) stay flex siblings so the row's gap keeps spacing
     // them — same split MenuRowLabel does for menu rows.
-    const { text, rest } = splitLeadingText(content);
+    const { text, rest } = splitLeadingText(children);
     const labelContent = text ? (
       <>
         <span className="min-w-0 truncate">{text}</span>
         {rest}
       </>
     ) : (
-      content
+      children
     );
 
     // Inside a collapsible group the label becomes the toggle. Design
     // treatment is unchanged — hover only raises the label's contrast and
     // reveals a chevron (kept visible while collapsed as the reopen cue).
     if (group) {
-      const slotProps = {
-        type: template ? undefined : "button",
-        "data-sidebar": "group-label",
-        "aria-expanded": group.open,
-        "aria-controls": group.contentId,
-        onClick: group.toggle,
-        // The action cluster overlays the label's right edge, so the label
-        // pads past it — far enough that the chevron lands one cluster gap
-        // (4px) to its left and the whole trailing run keeps a single
-        // rhythm. Cluster width is 24px per action plus 4px between them;
-        // add that gap again, less the 8px the group's padding already
-        // gives back: 28n + 6.
-        style: group.actionsCount > 0 ? { paddingRight: group.actionsCount * 28 + 6 } : undefined,
-        className: cn(
-          "group/group-label flex h-8 w-full shrink-0 cursor-pointer select-none items-center gap-2 px-2 text-left text-muted-foreground/70 outline-none",
-          "transition-colors duration-80 hover:text-muted-foreground",
-          "focus-visible:ring-1 focus-visible:ring-[color:var(--focus-ring,#6B97FF)]",
-          radius.item,
-          sizeVariant === "compact" ? "text-[11px]" : "text-[12px]",
-          className,
-        ),
-        ...props,
-      };
       return (
-        <Slot template={template} tag="button" ref={ref} {...slotProps}>
-          {
-            <>
-              {labelContent}
-              {/* The chevron occupies an action-sized box, so it reads as one more
-            icon in the row rather than a smaller glyph tacked on the end. */}
-              <span className="ml-auto flex size-6 shrink-0 items-center justify-center">
-                <ChevronDownIcon
-                  size={sizeClasses.icon}
-                  strokeWidth={1.5}
-                  className={cn(
-                    "shrink-0 transition-[opacity,transform] duration-80",
-                    group.open
-                      ? "opacity-0 group-hover/group-label:opacity-100 group-focus-visible/group-label:opacity-100"
-                      : "-rotate-90 opacity-100",
-                  )}
-                />
-              </span>
-            </>
-          }
-        </Slot>
+        <button
+          ref={composeRefs(ref)}
+          type="button"
+          data-sidebar="group-label"
+          aria-expanded={group.open}
+          aria-controls={group.contentId}
+          onClick={group.toggle}
+          className={cn(
+            "group/group-label flex h-8 w-full shrink-0 cursor-pointer select-none items-center gap-2 px-2 text-left text-muted-foreground/70 outline-none",
+            "transition-colors duration-80 hover:text-muted-foreground",
+            "focus-visible:ring-1 focus-visible:ring-[color:var(--focus-ring,#6B97FF)]",
+            radius.item,
+            sizeVariant === "compact" ? "text-[11px]" : "text-[12px]",
+            className,
+          )}
+          {...props}
+        >
+          {labelContent}
+          {/* The chevron occupies an action-sized box, so it reads as one more
+              icon in the row rather than a smaller glyph tacked on the end. */}
+          <span className="ml-auto flex size-6 shrink-0 items-center justify-center">
+            <ChevronDownIcon
+              size={sizeClasses.icon}
+              strokeWidth={1.5}
+              className={cn(
+                "shrink-0 transition-[opacity,transform] duration-80",
+                group.open
+                  ? "opacity-0 group-hover/group-label:opacity-100 group-focus-visible/group-label:opacity-100"
+                  : "-rotate-90 opacity-100",
+              )}
+            />
+          </span>
+        </button>
       );
     }
 
-    const slotProps = {
-      "data-sidebar": "group-label",
-      className: cn(
-        "flex h-8 shrink-0 items-center gap-2 px-2 text-muted-foreground/70 outline-none",
-        sizeVariant === "compact" ? "text-[11px]" : "text-[12px]",
-        className,
-      ),
-      ...props,
-    };
     return (
-      <Slot template={template} tag="div" ref={ref} {...slotProps}>
+      <div
+        ref={composeRefs(ref)}
+        data-sidebar="group-label"
+        className={cn(
+          "flex h-8 shrink-0 items-center gap-2 px-2 text-muted-foreground/70 outline-none",
+          sizeVariant === "compact" ? "text-[11px]" : "text-[12px]",
+          className,
+        )}
+        {...props}
+      >
         {labelContent}
-      </Slot>
+      </div>
     );
   },
 );
 SidebarGroupLabel.displayName = "SidebarGroupLabel";
 
-export interface SidebarGroupActionProps extends HTMLAttributes<HTMLButtonElement> {
-  render?: ReactElement;
-  asChild?: boolean;
-}
-
-/** True while rendering inside a SidebarGroupActions cluster, where each
- *  action sits in the flex row instead of positioning itself absolutely. */
-const GroupActionsContext = createContext(false);
-
-const SidebarGroupAction = forwardRef<HTMLButtonElement, SidebarGroupActionProps>(
-  ({ className, render, asChild, children, ...props }, ref) => {
-    const radius = useRadius();
-    const sizeClasses = useSize();
-    const inCluster = useContext(GroupActionsContext);
-    const { template, content } = resolveSlotTemplate(render, asChild, children);
-    const slotProps = {
-      type: template ? undefined : "button",
-      "data-sidebar": "group-action",
-      className: cn(
-        inCluster
-          ? "relative flex size-6 items-center justify-center text-muted-foreground outline-none"
-          : // size-6 matches the rows' action hit-box, and right-3.5 puts that
-            // 24px box's centre 26px from the sidebar's inner edge — the axis
-            // the rows' badges and actions already sit on.
-            "absolute right-3.5 top-3 flex size-6 items-center justify-center text-muted-foreground outline-none",
-        "hover:bg-hover hover:text-foreground transition-[color,background-color] duration-80",
-        "focus-visible:ring-1 focus-visible:ring-[color:var(--focus-ring,#6B97FF)]",
-        "[&_svg]:size-[var(--icon-size)] [&_svg]:shrink-0",
-        radius.item,
-        className,
-      ),
-      ...props,
-      // After ...props: the spread would otherwise replace this object
-      // wholesale and drop the icon-size the glyph is sized from.
-      style: {
-        ...cssVars({ "--icon-size": `${sizeClasses.icon}px` }),
-        ...props.style,
-      },
-    };
-    return (
-      <Slot template={template} tag="button" ref={ref} {...slotProps}>
-        {content}
-      </Slot>
-    );
-  },
-);
-SidebarGroupAction.displayName = "SidebarGroupAction";
-
-/** Header action cluster: 1–3 SidebarGroupActions laid out in a row over the
- *  group label's right edge. Use instead of a lone SidebarGroupAction when a
- *  section needs several controls. */
-export type SidebarGroupActionsProps = HTMLAttributes<HTMLDivElement>;
-
-const SidebarGroupActions = forwardRef<HTMLDivElement, SidebarGroupActionsProps>(
-  ({ className, children, ...props }, ref) => (
-    <div
-      ref={ref}
-      data-sidebar="group-actions"
-      className={cn(
-        // right-3.5 lands the last 24px action's centre 26px from the
-        // sidebar's inner edge — the rows' badge/action axis, so the header's
-        // controls line up with the column below them.
-        "absolute right-3.5 top-2 z-10 flex h-8 items-center gap-1",
-        className,
-      )}
-      {...props}
-    >
-      <GroupActionsContext.Provider value={true}>{children}</GroupActionsContext.Provider>
-    </div>
-  ),
-);
-SidebarGroupActions.displayName = "SidebarGroupActions";
-
-const SidebarGroupContent = forwardRef<HTMLDivElement, SidebarSectionProps>(
-  ({ className, ...props }, ref) => (
-    <div ref={ref} data-sidebar="group-content" className={cn("w-full", className)} {...props} />
-  ),
-);
-SidebarGroupContent.displayName = "SidebarGroupContent";
-
 export {
   SidebarProvider,
   SidebarShell,
-  SidebarTrigger,
-  SidebarRail,
   SidebarInset,
   SidebarInput,
   SidebarHeader,
   SidebarFooter,
-  SidebarSeparator,
   SidebarGroup,
   SidebarGroupLabel,
-  SidebarGroupAction,
-  SidebarGroupActions,
-  SidebarGroupContent,
 };
