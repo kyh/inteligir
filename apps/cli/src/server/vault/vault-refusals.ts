@@ -14,14 +14,16 @@
 // can raise is still declared per row, in the contract, where the client
 // reads it. The HTTP status a class answers is NOT here any more — oRPC v2
 // keeps none on the error, so the asset route reads `errorStatus` from the one
-// map the handler also uses (`error-status.ts`).
+// map the handler also uses (`error-status.ts`). The table is exported for
+// exactly one reader: `__tests__/vault-contract-errors.test.ts`, which holds
+// every class a row declares to a producer — this table, or an explicit throw.
 
 import { VaultPathError } from "@repo/notes/knowledge/vault-path";
 import { ORPCError } from "@orpc/server";
 import { errorStatus } from "../error-status";
 import { VaultServiceError, type VaultServiceErrorCode } from "./vault-service";
 
-const VAULT_REFUSALS = {
+export const VAULT_REFUSALS = {
   not_found: "NOT_FOUND",
   conflict: "CONFLICT",
   too_large: "PAYLOAD_TOO_LARGE",

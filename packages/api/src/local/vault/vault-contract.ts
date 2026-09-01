@@ -56,6 +56,9 @@ export const vaultContract = {
     .output(vaultRevisionResponseSchema)
     .errors({ NOT_FOUND: {}, PAYLOAD_TOO_LARGE: {} }),
 
+  /** `ALREADY_EXISTS` is `ifAbsent`'s refusal and this row's alone: every
+   *  other collision in the vault answers `CONFLICT`, so a row declaring it
+   *  would hand a client a branch no handler can reach. */
   write: oc
     .input(vaultWriteRequestSchema)
     .output(vaultWriteResponseSchema)
@@ -69,24 +72,24 @@ export const vaultContract = {
   rename: oc
     .input(vaultRenameRequestSchema)
     .output(vaultRenameResponseSchema)
-    .errors({ INVALID_PATH, ALREADY_EXISTS, NOT_FOUND: {}, CONFLICT: {} }),
+    .errors({ INVALID_PATH, NOT_FOUND: {}, CONFLICT: {} }),
 
   mkdir: oc
     .input(vaultMkdirRequestSchema)
     .output(vaultMkdirResponseSchema)
-    .errors({ INVALID_PATH, ALREADY_EXISTS, CONFLICT: {} }),
+    .errors({ INVALID_PATH, CONFLICT: {} }),
 
   trashList: oc.output(vaultTrashListResponseSchema),
 
   trash: oc
     .input(vaultTrashRequestSchema)
     .output(vaultTrashMoveResponseSchema)
-    .errors({ INVALID_PATH, ALREADY_EXISTS, NOT_FOUND: {}, CONFLICT: {} }),
+    .errors({ INVALID_PATH, NOT_FOUND: {}, CONFLICT: {} }),
 
   trashRestore: oc
     .input(vaultTrashRequestSchema)
     .output(vaultTrashMoveResponseSchema)
-    .errors({ INVALID_PATH, ALREADY_EXISTS, NOT_FOUND: {}, CONFLICT: {} }),
+    .errors({ INVALID_PATH, NOT_FOUND: {}, CONFLICT: {} }),
 
   trashPurge: oc
     .input(vaultTrashRequestSchema)

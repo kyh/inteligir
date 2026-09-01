@@ -3,13 +3,9 @@
 // published to the editor package through EditorHostProvider and the
 // EditorHostIo singleton.
 //
-// THE WRITE IS GUARDED HERE. The session's VaultIO.write carries no base, so
-// this port remembers the last content it READ per path and writes with that
-// base's hash; a CAS refusal carries the disk's truth, which is three-way
-// merged (diff3, buffer preferred on overlap) and retried ONCE against the
-// disk content's own hash. The buffer converges through the runtime's normal
-// reload on the write's own files-changed broadcast — the user's bytes are in
-// the merged write either way, so nothing is ever silently clobbered.
+// The note port itself — the CAS-guarded write, the exclusive create and the
+// diff3 retry — is `guarded-vault-io.ts`, framework-free so its policy
+// unit-tests against the real vault.
 
 import {
   EditorHostProvider,
@@ -19,14 +15,12 @@ import {
 } from "@repo/editor/host";
 import {
   setEditorHostIo,
-  type DeleteVaultEntryResult,
   type EditorHostIo,
   type VaultChangedEvent,
   type VaultEntry,
 } from "@repo/editor/host-io";
 import { createDebouncer } from "@repo/editor/lib/debounce";
 import { useWikiTargets } from "../vault-hooks";
-import type { VaultIO } from "@repo/editor/vault-editor";
 import { registerOpenNoteStore } from "@repo/editor/note/open-note-flush";
 import { OpenNoteStoreProvider } from "@repo/editor/note/open-note-context";
 import type { OpenNoteStore } from "@repo/editor/note/open-note-store";
@@ -40,18 +34,18 @@ import {
   noteIdOf,
   type CollectedFormula,
 } from "@repo/notes/formulas/collect-formulas";
-import { isDocPath, isNotePath } from "@repo/notes/knowledge/doc-file";
+import { isDocPath } from "@repo/notes/knowledge/doc-file";
 import { buildResolver } from "@repo/notes/knowledge/link-resolve";
-import { diff3 } from "@repo/notes/text/diff3";
 import type { KnowledgeWikiTargetsResponse } from "@repo/api/local/knowledge/knowledge-schema";
 import { vaultAssetUrl } from "@repo/api/local/routes";
-import { contentHashHex, type VaultTreeResponse } from "@repo/api/local/vault/vault-schema";
+import type { VaultTreeResponse } from "@repo/api/local/vault/vault-schema";
 import { toast } from "@repo/ui/components/sonner";
 import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 
-import { isDefinedError, refusalMessage, safe } from "../api";
+import { refusalMessage, safe } from "../api";
 import { readLastOpenNote, writeLastOpenNote } from "../prefs";
 import { useWorkspace, type WorkspaceRuntime } from "../workspace-context";
+import { createGuardedVaultIo } from "./guarded-vault-io";
 
 const FOCUS_REFRESH_DEBOUNCE_MS = 400;
 
@@ -457,65 +451,4 @@ function createVaultPort({
       mirrorOpenPath = next;
     },
   };
-}
-
-/** The base-bytes-guarded VaultIO (CAS + diff3 retry). */
-function createGuardedVaultIo(api: Api): VaultIO {
-  // Base bytes per path, recorded at every read; what a guarded write's
-  // expectedHash is computed FROM.
-  const bases = new Map<string, string>();
-
-  const read = async (path: string): Promise<string> => {
-    const content = await readFile(api, path);
-    bases.set(path, content);
-    return content;
-  };
-
-  const write = async (path: string, content: string): Promise<void> => {
-    const base = bases.get(path) ?? content;
-    const expectedHash = await contentHashHex(base);
-    const { error } = await safe(api.vault.write({ path, content, expectedHash }));
-    if (error === null) {
-      bases.set(path, content);
-      return;
-    }
-    // A CAS refusal with no `current` is a delete that raced the write: there
-    // is nothing on disk to merge against, so it refuses like any other.
-    if (
-      isDefinedError(error) &&
-      error.code === "CAS_MISMATCH" &&
-      error.data.current !== undefined
-    ) {
-      const disk = error.data.current.content;
-      const { merged } = diff3(base, content, disk);
-      const retryHash = await contentHashHex(disk);
-      const retry = await safe(api.vault.write({ path, content: merged, expectedHash: retryHash }));
-      if (retry.error === null) {
-        bases.set(path, merged);
-        return;
-      }
-      throw new Error(
-        `write ${path}: conflict retry refused (${refusalMessage(retry.error, "no reason given")})`,
-      );
-    }
-    throw error;
-  };
-
-  const remove = async (path: string): Promise<DeleteVaultEntryResult> => {
-    // A note deletes into the vault's Trash/ (restorable for
-    // 30 days); anything else, and anything already in the trash, deletes
-    // for real. The port answers "trashed" either way: the session only
-    // needs to know the row is gone from the listing.
-    const isNote = isNotePath(path);
-    const inTrash = path === "Trash" || path.startsWith("Trash/");
-    const { error } =
-      isNote && !inTrash
-        ? await safe(api.vault.trash({ path }))
-        : await safe(api.vault.remove({ path }));
-    if (error === null) return { outcome: "trashed" };
-    if (isDefinedError(error) && error.code === "NOT_FOUND") return { outcome: "absent" };
-    throw error;
-  };
-
-  return { read, write, remove };
 }

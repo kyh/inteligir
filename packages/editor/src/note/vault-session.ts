@@ -59,6 +59,14 @@ export type RenameResult = { ok: true } | { ok: false; error: string };
  * failure; `warning` is a refusal that left the file exactly where it was. */
 export type NoticeLevel = "error" | "warning";
 
+/** The controller's read/write/remove, plus the one verb it never needs:
+ * `create` puts bytes where there are none, and REFUSES where there are —
+ * a write with a base cannot say that, because a path with no bytes on disk
+ * has no base to name. */
+export type VaultNoteIO = VaultIO & {
+  create: (path: string, content: string) => Promise<void>;
+};
+
 export type VaultSessionPorts = {
   // ---- what the session asks of the vault --------------------------------
   /** The whole first paint in one invoke: root, listing, and the bytes of the
@@ -73,9 +81,9 @@ export type VaultSessionPorts = {
   exists: (path: string) => Promise<boolean>;
   /** Move a file, answering with the host's verdict. */
   rename: (from: string, to: string) => Promise<RenameResult>;
-  /** Read, write and delete. The open note's runtime acts through this, and so
-   * do the writes and deletes that never open one. */
-  note: VaultIO;
+  /** Read, write, create and delete. The open note's runtime acts through
+   * this, and so do the creates and deletes that never open one. */
+  note: VaultNoteIO;
 
   // ---- what the session publishes ----------------------------------------
   /** The listing changed structurally (a path arrived or left). */
@@ -266,10 +274,12 @@ export function createVaultSession(ports: VaultSessionPorts): VaultSession {
     const path = verdict.path;
     // Don't truncate an existing file — it already satisfies "exists".
     // Open-or-create seeds only when the file is genuinely new, so a second
-    // "open today's note" reopens the existing note byte-for-byte.
+    // "open today's note" reopens the existing note byte-for-byte. The create
+    // is exclusive on its own, so a file that lands between this check and
+    // the create is refused rather than overwritten.
     if (await ports.exists(path)) return path;
     const created = await ports.note
-      .write(path, seedContent)
+      .create(path, seedContent)
       .then(() => true)
       .catch(() => false);
     if (!created) {
