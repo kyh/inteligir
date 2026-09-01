@@ -32,11 +32,8 @@
 import { createHash } from "node:crypto";
 import { join } from "node:path";
 import type { SystemStatusResponse } from "@repo/api/local/system/system-schema";
-import {
-  resolveAppConfig,
-  resolveCheckoutRoot,
-  type ResolveAppConfigArgs,
-} from "inteligir/server/config";
+import { resolveAppConfig, type ResolveAppConfigArgs } from "inteligir/server/config";
+import { resolveCheckoutRoot } from "inteligir/server/dev-instance";
 import { toErrorMessage } from "../types";
 import { createLocalClient } from "inteligir/server/local-client";
 import { readServerFile } from "inteligir/server/server-file";

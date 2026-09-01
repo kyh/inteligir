@@ -1,15 +1,15 @@
 // Vendored from bb (github.com/get-bb/bb), MIT. © bb contributors.
 
-import { createHash } from "node:crypto";
-import { existsSync, readFileSync, realpathSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, isAbsolute, join, resolve } from "node:path";
+import { isAbsolute, join, resolve } from "node:path";
 import { z } from "zod";
 import {
   agentModeSchema,
   agentModeValues,
   type AgentMode,
 } from "@repo/api/local/system/system-schema";
+import { resolveDevDefaultPort, resolveDevInstanceId } from "./dev-instance";
 import { errnoCode } from "./errno";
 import { assertModelDirOutsideVault, assertVaultAndDataDirDisjoint } from "./path-containment";
 
@@ -32,18 +32,6 @@ const MODELS_DIR_NAME = "models";
  *  file a writer spells wrong once and never notices. */
 export const CONFIG_FILE_NAME = "config.json";
 export const PROD_SERVER_PORT = 4664;
-
-const DEV_HASH_LENGTH = 12;
-const DEV_PORT_BASE = 21_000;
-const DEV_PORT_BUCKETS = 8_000;
-
-/**
- * Bound for the upward probe on a busy DERIVED dev port: `listen.ts` probes
- * this many ports when binding. Nothing probes when DIALING — a caller reads
- * the bound port straight out of `<dataDir>/server.json`, so there is no range
- * for the two ends to disagree about.
- */
-export const DEV_PORT_PROBE_LIMIT = 10;
 
 interface EnvVarDefinition<TValue> {
   description: string;
@@ -295,64 +283,6 @@ function readManagedConfig(dataDir: string): z.infer<typeof managedConfigSchema>
     throw new Error(`${CONFIG_FILE_NAME} is not valid JSON`);
   }
   return managedConfigSchema.parse(parsed);
-}
-
-function createCheckoutHash(checkoutPath: string): string {
-  return createHash("sha256").update(checkoutPath).digest("hex");
-}
-
-/**
- * THE dev-instance derivation, whole scheme in one place. One dev instance
- * per checkout, keyed by sha256 of the checkout path, so parallel worktrees
- * never share a database or collide on a socket:
- *
- *   instance  = ~/.inteligir-dev/<hash truncated to 12 hex chars>
- *   data dir  = <instance>/data     (vault default = <instance>/vault — siblings,
- *                                    because the two must be disjoint)
- *   port      = 21000 + (hex chars 0–8 of hash % 8000)       → 21000–28999
- *
- * A derived port that turns out taken is probed upward at listen time
- * (`listen.ts`), bounded; env/managed-config ports are never probed — a
- * configured port that is busy is an error the user asked to see.
- */
-/** What makes a directory THE checkout: the file the workspace is defined by. */
-const CHECKOUT_MARKER = "pnpm-workspace.yaml";
-
-/**
- * The checkout the running process belongs to — the top of the tree, never the
- * directory a script happened to start in.
- *
- * Every caller of the derivation above goes through this, because the two ends
- * start from different places: `pnpm dev` runs the shell from `apps/desktop`
- * and `pnpm cli …` runs from wherever the developer stands, and hashing those
- * raw would give the CLI a different instance than the server it is looking
- * for. Realpath'd for the same reason — a symlinked path hashes differently
- * from the one it points at. A tree with no marker (a packaged install) has no
- * checkout, and the value is unused there: it feeds the DEV derivation only.
- */
-export function resolveCheckoutRoot(startDir: string = process.cwd()): string {
-  let current: string;
-  try {
-    current = realpathSync(startDir);
-  } catch {
-    current = startDir;
-  }
-  const anchor = current;
-  for (;;) {
-    if (existsSync(join(current, CHECKOUT_MARKER))) return current;
-    const parent = dirname(current);
-    if (parent === current) return anchor;
-    current = parent;
-  }
-}
-
-export function resolveDevInstanceId(checkoutPath: string): string {
-  return createCheckoutHash(checkoutPath).slice(0, DEV_HASH_LENGTH);
-}
-
-export function resolveDevDefaultPort(checkoutPath: string): number {
-  const hash = createCheckoutHash(checkoutPath);
-  return DEV_PORT_BASE + (Number.parseInt(hash.slice(0, 8), 16) % DEV_PORT_BUCKETS);
 }
 
 export interface AppConfig {

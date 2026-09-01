@@ -5,7 +5,7 @@
 
 import type { ContractRouterClient } from "@orpc/contract";
 import type { LocalContract } from "@repo/api/local";
-import { resolveCheckoutRoot } from "./server/config";
+import { resolveCheckoutRoot } from "./server/dev-instance";
 import { createLocalClient } from "./server/local-client";
 import { DATA_DIR_ENV_VAR, resolveServer, type ResolvedServer } from "./server-discovery";
 

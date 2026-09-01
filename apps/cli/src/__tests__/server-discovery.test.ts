@@ -5,7 +5,8 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { DEV_DATA_ROOT_DIR, PROD_DATA_DIR_NAME, resolveDevInstanceId } from "../server/config";
+import { DEV_DATA_ROOT_DIR, PROD_DATA_DIR_NAME } from "../server/config";
+import { resolveDevInstanceId } from "../server/dev-instance";
 import { SERVER_FILE_NAME, type ServerFile } from "../server/server-file";
 import { afterEach, describe, expect, it } from "vitest";
 import { CliExitError, EXIT_UNREACHABLE } from "../cli-error";

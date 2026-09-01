@@ -36,6 +36,7 @@
     "./server/cloud/credential-store": "./src/server/cloud/credential-store.ts",
     "./server/config": "./src/server/config.ts",
     "./server/csp": "./src/server/csp.ts",
+    "./server/dev-instance": "./src/server/dev-instance.ts",
     "./server/local-client": "./src/server/local-client.ts",
     "./server/path-containment": "./src/server/path-containment.ts",
     "./server/server-file": "./src/server/server-file.ts",

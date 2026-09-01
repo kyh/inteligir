@@ -1,5 +1,5 @@
 import { serve } from "@hono/node-server";
-import { DEV_PORT_PROBE_LIMIT } from "./config";
+import { DEV_PORT_PROBE_LIMIT } from "./dev-instance";
 import { errnoCode } from "./errno";
 
 type ServeOptions = Parameters<typeof serve>[0];
