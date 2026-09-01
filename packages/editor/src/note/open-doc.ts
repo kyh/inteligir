@@ -1,9 +1,9 @@
 // OpenDoc — the open document modeled as ONE discriminated union, derived per
-// render by the VaultProvider (deriveOpenDoc below). ONE union instead of the
-// correlated flat view fields (openPath / isMarkdownOpen / richAvailable /
-// rawReason / mode), so the illegal combinations those would allow — rich mode
-// on a non-markdown file, a gate reason without a markdown note — are
-// unrepresentable. Consumers switch on `openDoc.kind`.
+// render by the VaultProvider (deriveOpenDoc below). ONE union instead of
+// correlated flat view fields (openPath / isMarkdownOpen / rawReason), so the
+// illegal combinations those would allow — rich mode on a non-markdown file, a
+// gate reason without a markdown note — are unrepresentable. Consumers switch
+// on `openDoc.kind`.
 
 import type { GateReason } from "@repo/editor/note/markdown-gate";
 
@@ -17,19 +17,16 @@ export function isMarkdownPath(path: string): boolean {
 }
 
 /**
- * The EFFECTIVE editing surface of an open markdown note:
- * - `rich`: the Plate editor is showing — rich is available by construction.
- * - `raw`: the byte-exact textarea is showing. `reason === null` means the
- *   user chose Raw on a rich-capable note (the header toggle); a non-null
- *   reason means the note is gated to Raw (parse error / round-trip content
- *   loss — the header's Raw badge tooltip).
+ * The editing surface of an open markdown note:
+ * - `rich`: the Plate editor is showing.
+ * - `raw`: the byte-exact textarea is showing, with the gate's reason (parse
+ *   error / round-trip content loss).
  *
- * The user's underlying raw/rich pick stays provider state (`setMode`), NOT
- * part of this union: a mid-session gate flip keeps the pick, so a note that
- * recovers (an external edit removed the unrepresentable construct) pops back
- * to the surface the user chose — consumers only ever see the effective one.
+ * The surface is the gate's alone: anything that parses is edited richly, and
+ * a note that recovers (an external edit removed the unrepresentable
+ * construct) pops back to Rich.
  */
-type MarkdownSurface = { mode: "rich" } | { mode: "raw"; reason: GateReason | null };
+type MarkdownSurface = { mode: "rich" } | { mode: "raw"; reason: GateReason };
 
 /**
  * The open document:
@@ -62,17 +59,13 @@ export function deriveOpenDoc(args: {
   loadedPath: string | null;
   /** The last SAVED-content gate verdict (analysis lags typing on purpose). */
   rawReason: GateReason | null;
-  /** The user's per-open raw/rich pick (honored only when rich is available). */
-  chosenMode: "raw" | "rich";
 }): OpenDoc {
-  const { openPath, loadedPath, rawReason, chosenMode } = args;
+  const { openPath, loadedPath, rawReason } = args;
   if (openPath === null) return { kind: "none" };
   if (loadedPath === null) return { kind: "loading", path: openPath };
   if (!isMarkdownPath(loadedPath)) return { kind: "non-markdown", path: loadedPath };
   const surface: MarkdownSurface =
-    rawReason === null && chosenMode === "rich"
-      ? { mode: "rich" }
-      : { mode: "raw", reason: rawReason };
+    rawReason === null ? { mode: "rich" } : { mode: "raw", reason: rawReason };
   return {
     kind: "markdown",
     path: loadedPath,
@@ -83,10 +76,4 @@ export function deriveOpenDoc(args: {
 /** The open document's path, if any (`loading` included — highlights use it). */
 export function openDocPath(doc: OpenDoc): string | null {
   return doc.kind === "none" ? null : doc.path;
-}
-
-/** Whether Rich editing is available: a markdown note whose saved content
- * passes the parse + round-trip gate. Drives the header's raw/rich toggle. */
-export function richAvailable(doc: OpenDoc): boolean {
-  return doc.kind === "markdown" && (doc.surface.mode === "rich" || doc.surface.reason === null);
 }

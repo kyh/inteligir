@@ -71,7 +71,7 @@ export function gateReasonFor(analysis: DocAnalysis): GateReason | null {
   return { kind: "roundtrip-loss" };
 }
 
-/** Human-readable form of a GateReason (mode badge tooltip). */
+/** Human-readable form of a GateReason (the switched-to-Raw toast). */
 export function describeGateReason(reason: GateReason): string {
   if (reason.kind === "roundtrip-loss") {
     return "Rich editing would change this file's content — opened in Raw to protect it";

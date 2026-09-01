@@ -1,7 +1,7 @@
 // React's door to the open-note store. The store is an INSTANCE, not module
 // state, so the workspace mounts a provider around the editor subtree and
 // every consumer below reads through `useOpenNote(selector)` — which means a
-// test can drive a fresh machine and a session can drop its own whole.
+// test can drive a fresh machine.
 
 import { createContext, useContext, type ReactNode } from "react";
 import { useStore } from "zustand";

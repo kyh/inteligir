@@ -32,7 +32,7 @@ import { TableOfContents } from "@repo/editor/toc";
 const SERIALIZE_DEBOUNCE_MS = 150;
 
 // Seed markdown → Plate value through the owned pipeline. Unparseable content
-// is impossible behind the richAvailable parse gate, but never crash the
+// is impossible behind the parse gate, but never crash the
 // surface: fall back to an empty paragraph and log.
 function seedValue(md: string): Value {
   const parsed = parseMarkdown(md);

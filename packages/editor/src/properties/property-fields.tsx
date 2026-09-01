@@ -159,7 +159,7 @@ export function UnsupportedField({
   return (
     <div className="flex min-h-7 items-center px-1.5">
       <pre
-        title="Unsupported YAML — preserved byte-for-byte. Edit it in Raw mode."
+        title="Unsupported YAML — preserved byte-for-byte."
         className={cn(
           "max-w-full overflow-x-auto rounded-[6px] bg-muted/60 px-1.5 py-0.5",
           "font-mono text-xs whitespace-pre text-muted-foreground",

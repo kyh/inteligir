@@ -1,8 +1,7 @@
 // OpenNote store — the HIGH-CADENCE slice of the vault workspace.
 //
-// The open note's exposed state (editor snapshot, derived OpenDoc, raw/rich
-// mode) changes on every keystroke (Raw) / serialize settle
-// (Rich) / autosave `saving` flip. Carrying that in the VaultContext value
+// The open note's exposed state (editor snapshot, derived OpenDoc) changes on
+// every keystroke (Raw) / serialize settle (Rich) / autosave `saving` flip. Carrying that in the VaultContext value
 // re-renders ALL of its consumers per keystroke; a zustand store lets each
 // consumer subscribe to exactly the field it reads
 // (`useOpenNote((s) => s.editor.path)`), so typing re-renders only the editor.
@@ -54,12 +53,9 @@ export type OpenNoteState = {
   editor: VaultEditorState;
   /** Gate verdict for the last analyzed saved content (see Analyzed). */
   analyzed: Analyzed;
-  /** The user's raw/rich pick for the open note (honored only while rich is
-   * available — deriveOpenDoc exposes the EFFECTIVE surface). */
-  mode: "raw" | "rich";
   /** The open document as ONE discriminated union — derived in lockstep with
-   * (openPath, editor, analysis, mode) inside every store update, so it can
-   * never disagree with the values it came from. */
+   * (openPath, editor, analysis) inside every store update, so it can never
+   * disagree with the values it came from. */
   openDoc: OpenDoc;
   /** Where the user has been, newest LAST. `back.at(-1)` is what Back opens. */
   back: string[];
@@ -82,7 +78,6 @@ const INITIAL_STATE: OpenNoteState = {
   openPath: null,
   editor: NO_NOTE_STATE,
   analyzed: INITIAL_ANALYZED,
-  mode: "raw",
   openDoc: { kind: "none" },
   back: [],
   forward: [],
@@ -113,19 +108,9 @@ export type OpenNoteStore = {
   state: () => OpenNoteState;
   publishEditor: (editor: VaultEditorState) => void;
   publishOpenPath: (path: string | null, change?: OpenPathChange) => void;
-  /** The user's raw/rich pick for a rich-capable markdown note. */
-  setMode: (mode: "raw" | "rich") => void;
   /** Wire (or clear, with null) the live session's flush. The session owns
    * the only implementation. */
   setFlush: (flush: (() => Promise<boolean>) | null) => void;
-  /**
-   * Drop everything belonging to the session that just ended. REPLACES rather
-   * than merges: every field is the previous session's, and a merge would
-   * leave whichever ones a later shape adds. `flush` goes with it, so the
-   * fail-closed read (./open-note-flush) sees no live session until one
-   * mounts.
-   */
-  reset: () => void;
 };
 
 /**
@@ -145,23 +130,19 @@ export function createOpenNoteStore(): OpenNoteStore {
   /** Merge a partial update and recompute the derived fields in the same set,
    * keeping `openDoc` referentially stable when none of its inputs changed, so
    * a consumer selecting it doesn't re-render on unrelated updates. */
-  function apply(
-    partial: Partial<Pick<OpenNoteState, "openPath" | "editor" | "analyzed" | "mode">>,
-  ): void {
+  function apply(partial: Partial<Pick<OpenNoteState, "openPath" | "editor" | "analyzed">>): void {
     store.setState((s) => {
       const merged = { ...s, ...partial };
       const sameDocInputs =
         merged.openPath === s.openPath &&
         merged.editor.path === s.editor.path &&
-        merged.analyzed.rawReason === s.analyzed.rawReason &&
-        merged.mode === s.mode;
+        merged.analyzed.rawReason === s.analyzed.rawReason;
       merged.openDoc = sameDocInputs
         ? s.openDoc
         : deriveOpenDoc({
             openPath: merged.openPath,
             loadedPath: merged.editor.path,
             rawReason: merged.analyzed.rawReason,
-            chosenMode: merged.mode,
           });
       return merged;
     });
@@ -178,11 +159,6 @@ export function createOpenNoteStore(): OpenNoteStore {
    * - Path change: analyzed synchronously WITH the editor update (one setState),
    *   so the gate and the content can never disagree — a freshly opened
    *   Raw-only file must never mount the rich editor against unparseable bytes.
-   *   The mode (raw/rich) is the user's choice, picked once per file open — a
-   *   post-save flush (dirty→false, content unchanged) and an external/agent
-   *   reload of the same file must not yank the user out of the surface they
-   *   picked. (deriveOpenDoc shows rich only while the gate is clear, so a file
-   *   that turns unparseable out from under us still falls back to raw.)
    * - Same-path content change (every 600ms autosave settle): deferred to a
    *   microtask (bounded latency; analyzeMarkdown is a full Slate construct +
    *   remark parse + serialize, up to 3 passes — running it synchronously
@@ -205,7 +181,6 @@ export function createOpenNoteStore(): OpenNoteStore {
         apply({
           editor,
           analyzed: { rawReason, content: editor.content, path: editor.path },
-          mode: isMarkdownOpen && rawReason === null ? "rich" : "raw",
         });
         return;
       }
@@ -234,12 +209,11 @@ export function createOpenNoteStore(): OpenNoteStore {
           // serializer bug, or an external reload landed unrepresentable
           // content) swaps Plate for the textarea under the user's cursor —
           // explain the yank once. Fresh opens (the path-change branch above)
-          // don't toast: the badge covers them.
+          // don't toast: the file opens straight into the textarea.
           if (
             live.analyzed.path === target.path &&
             live.analyzed.rawReason === null &&
-            rawReason !== null &&
-            live.mode === "rich"
+            rawReason !== null
           ) {
             toast.warning(`Switched to Raw editing — ${describeGateReason(rawReason)}`);
           }
@@ -278,14 +252,8 @@ export function createOpenNoteStore(): OpenNoteStore {
     state: () => store.getState(),
     publishEditor,
     publishOpenPath,
-    setMode: (mode) => {
-      apply({ mode });
-    },
     setFlush: (flush) => {
       store.setState({ flush });
-    },
-    reset: () => {
-      store.setState(INITIAL_STATE, true);
     },
   };
 }

@@ -244,7 +244,7 @@ export function PropertiesPanel({ editor }: { editor: SlateEditor }) {
     return (
       <p className="rounded-[8px] bg-muted/50 px-2.5 py-1.5 text-xs text-muted-foreground">
         Properties unavailable — this note&rsquo;s frontmatter isn&rsquo;t a valid property list.
-        Edit it in Raw mode; it&rsquo;s preserved untouched.
+        It&rsquo;s preserved untouched; edit it in the document.
       </p>
     );
   }

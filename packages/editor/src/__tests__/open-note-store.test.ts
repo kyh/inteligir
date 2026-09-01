@@ -5,17 +5,17 @@
 // The pure half (deriveOpenDoc) is covered by open-doc.test.ts; this covers the
 // TIMING half, which is where the real hazards live:
 //
-//   1. A path change must land gate verdict + editor + mode in ONE store
-//      update. A torn intermediate — the new file's bytes paired with the old
-//      file's verdict — would mount Plate against unparseable content, and the
-//      first Rich save would write mangled bytes over the user's file.
+//   1. A path change must land gate verdict + editor in ONE store update. A
+//      torn intermediate — the new file's bytes paired with the old file's
+//      verdict — would mount Plate against unparseable content, and the first
+//      Rich save would write mangled bytes over the user's file.
 //   2. A same-path settle defers the (expensive) analysis to a microtask and
 //      must DROP itself when the world moved on — superseded content, a path
 //      change, or a buffer that went dirty again. A stale pass applying would
 //      pin a verdict to bytes that are no longer in the buffer.
 //   3. The Rich→Raw flip toast explains a surface swap the user did not ask
-//      for. It must not fire on a fresh open (the Raw badge covers that) or
-//      while the user is already looking at the textarea.
+//      for. It must not fire on a fresh open (the file opens straight into the
+//      textarea) or while the user is already looking at it.
 //
 // The real markdown gate runs here on purpose: mocking analyzeMarkdown would
 // turn "is the verdict for these bytes?" into "was the mock called?", and the
@@ -45,7 +45,6 @@ let store = createOpenNoteStore();
 const publishEditor: (typeof store)["publishEditor"] = (editor) => store.publishEditor(editor);
 const publishOpenPath: (typeof store)["publishOpenPath"] = (path, change) =>
   store.publishOpenPath(path, change);
-const setOpenNoteMode: (typeof store)["setMode"] = (mode) => store.setMode(mode);
 const useOpenNote = {
   getState: () => store.state(),
   getInitialState: () => store.store.getInitialState(),
@@ -67,6 +66,7 @@ const RICH_MD_2 = "# Hello\n\nA plain paragraph, revised.\n";
 // Raw-only: the closing tag does not match, so the document does not parse at
 // all and the gate refuses Rich. Asserted below rather than assumed.
 const GATED_MD = "<Foo>centered</Bar>\n";
+const GATED_MD_2 = "<Foo>again</Bar>\n";
 const GATED_REASON = {
   kind: "parse-error",
   line: 1,
@@ -182,12 +182,11 @@ describe("open-note-store publishEditor", () => {
   });
 
   describe("path change", () => {
-    it("lands verdict + editor + mode in ONE update — a Raw-only file is never shown rich", () => {
+    it("lands verdict + editor in ONE update — a Raw-only file is never shown rich", () => {
       // Start on a rich file so the state being replaced is the dangerous one:
-      // rawReason null and mode "rich" carried over would render Plate against
-      // the next file's unparseable bytes.
+      // rawReason null carried over would render Plate against the next
+      // file's unparseable bytes.
       openNote(RICH_PATH, RICH_MD);
-      expect(useOpenNote.getState().mode).toBe("rich");
 
       const { seen, stop } = recordStates();
       // Switch files exactly as the provider does (dispose → fresh runtime →
@@ -198,8 +197,8 @@ describe("open-note-store publishEditor", () => {
       controller.emit({ path: OTHER_PATH, content: GATED_MD, dirty: false });
       stop();
 
-      // The load is ONE store update: verdict, bytes and mode arrive together,
-      // so there is no frame in which a subscriber could read a stale pairing.
+      // The load is ONE store update: verdict and bytes arrive together, so
+      // there is no frame in which a subscriber could read a stale pairing.
       expect(seen.length - beforeLoad).toBe(1);
 
       const landed = seen[seen.length - 1];
@@ -210,7 +209,6 @@ describe("open-note-store publishEditor", () => {
         content: GATED_MD,
         path: OTHER_PATH,
       });
-      expect(landed?.mode).toBe("raw");
       expect(landed?.openDoc).toEqual({
         kind: "markdown",
         path: OTHER_PATH,
@@ -227,7 +225,6 @@ describe("open-note-store publishEditor", () => {
       // launder the carried-over "rich + no reason" pair, so a two-step apply
       // would put Plate on top of unparseable bytes for one observable frame.
       const controller = openNote(RICH_PATH, RICH_MD);
-      expect(useOpenNote.getState().mode).toBe("rich");
 
       const { seen, stop } = recordStates();
       publishOpenPath(OTHER_PATH);
@@ -236,22 +233,24 @@ describe("open-note-store publishEditor", () => {
 
       expect(richSnapshotsFor(seen, OTHER_PATH)).toEqual([]);
       expectGateInLockstep(seen);
-      expect(useOpenNote.getState().mode).toBe("raw");
     });
 
-    it("keeps the user's Raw pick across a post-save flush and an external reload", () => {
-      // The mode is picked once per OPEN. A dirty→clean flush and an
-      // agent/external reload of the same file both re-publish the same path;
-      // neither may yank the user back to Rich.
-      const controller = openNote(RICH_PATH, RICH_MD);
-      setOpenNoteMode("raw");
+    it("pops back to Rich when a settle clears the gate — the surface is the gate's alone", async () => {
+      const controller = openNote(RICH_PATH, GATED_MD);
+      expect(useOpenNote.getState().openDoc).toEqual({
+        kind: "markdown",
+        path: RICH_PATH,
+        surface: { mode: "raw", reason: GATED_REASON },
+      });
 
-      controller.emit({ content: RICH_MD_2, dirty: true });
-      controller.emit({ dirty: false });
-      expect(useOpenNote.getState().mode).toBe("raw");
-
-      controller.emit({ content: RICH_MD, dirty: false }); // external reload
-      expect(useOpenNote.getState().mode).toBe("raw");
+      // An external edit removes the unrepresentable construct.
+      controller.emit({ content: RICH_MD, dirty: false });
+      await drain();
+      expect(useOpenNote.getState().openDoc).toEqual({
+        kind: "markdown",
+        path: RICH_PATH,
+        surface: { mode: "rich" },
+      });
     });
   });
 
@@ -380,7 +379,6 @@ describe("open-note-store publishEditor", () => {
   describe("Rich→Raw flip toast", () => {
     it("fires once when a mid-session settle yanks Plate out from under the user", async () => {
       const controller = openNote(RICH_PATH, RICH_MD);
-      expect(useOpenNote.getState().mode).toBe("rich");
 
       controller.emit({ content: GATED_MD, dirty: false });
       await drain();
@@ -389,9 +387,6 @@ describe("open-note-store publishEditor", () => {
       expect(vi.mocked(toast.warning)).toHaveBeenCalledWith(
         `Switched to Raw editing — ${describeGateReason(GATED_REASON)}`,
       );
-      // The pick is retained (a recovering file pops back to Rich) — only the
-      // EFFECTIVE surface flipped.
-      expect(useOpenNote.getState().mode).toBe("rich");
       expect(useOpenNote.getState().openDoc).toEqual({
         kind: "markdown",
         path: RICH_PATH,
@@ -399,23 +394,23 @@ describe("open-note-store publishEditor", () => {
       });
     });
 
-    it("stays silent on a fresh open of a Raw-only file — the badge covers that", async () => {
+    it("stays silent on a fresh open of a Raw-only file — it opens into the textarea", async () => {
       openNote(OTHER_PATH, GATED_MD);
       await drain();
 
       expect(useOpenNote.getState().analyzed.rawReason).toEqual(GATED_REASON);
-      expect(useOpenNote.getState().mode).toBe("raw");
       expect(vi.mocked(toast.warning)).not.toHaveBeenCalled();
     });
 
-    it("stays silent when the user is already in Raw — nothing visibly moved", async () => {
-      const controller = openNote(RICH_PATH, RICH_MD);
-      setOpenNoteMode("raw"); // header toggle
-
-      controller.emit({ content: GATED_MD, dirty: false });
+    it("stays silent when the note is already Raw — nothing visibly moved", async () => {
+      const controller = openNote(RICH_PATH, GATED_MD);
       await drain();
 
-      expect(useOpenNote.getState().analyzed.rawReason).toEqual(GATED_REASON);
+      controller.emit({ content: GATED_MD_2, dirty: false });
+      await drain();
+
+      expect(useOpenNote.getState().analyzed.content).toBe(GATED_MD_2);
+      expect(useOpenNote.getState().analyzed.rawReason).not.toBeNull();
       expect(vi.mocked(toast.warning)).not.toHaveBeenCalled();
     });
   });
