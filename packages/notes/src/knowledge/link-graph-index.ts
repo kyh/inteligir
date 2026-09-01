@@ -23,10 +23,9 @@
 // basename ambiguous).
 // ---------------------------------------------------------------------------
 
-import { isUuidWikiAlias } from "../markdown/remark-wiki-link";
 import { isDocPath } from "./doc-file";
 import type { LinkKind } from "./link-extract";
-import { buildResolver, pickBest, type TargetResolver } from "./link-resolve";
+import { buildResolver, type TargetResolver } from "./link-resolve";
 import type { DocProjection, StoredLink } from "./projection";
 import { TagIndex, type TagCount } from "./tag-index";
 import { basenamePath, extnamePath } from "./vault-path";
@@ -118,10 +117,9 @@ type ResolvedLink = { link: StoredLink; targetPath: string | null };
 type Occurrence = { sourcePath: string; link: StoredLink; seq: number };
 
 type ResolvedState = {
-  /** Valid for exactly as long as the path/alias/id namespace is unchanged. */
+  /** Valid for exactly as long as the path/alias/id namespace is unchanged —
+   * the id tier rides the resolver itself. */
   resolver: TargetResolver;
-  /** Frontmatter id → owning paths, the `[[Title|uuid]]` tier's lookup. */
-  idOwners: Map<string, string[]>;
   forward: Map<string, ResolvedLink[]>;
   /** target path → inbound occurrences, in corpus order. */
   backlinks: Map<string, Occurrence[]>;
@@ -347,18 +345,15 @@ export class LinkGraphIndex {
     for (const [path, record] of this.docs) {
       for (const alias of record.aliases) aliasEntries.push([alias, path]);
     }
-    const resolver = buildResolver([...this.docs.keys(), ...this.others], aliasEntries);
-    const idOwners = new Map<string, string[]>();
+    const idEntries: Array<readonly [string, string]> = [];
     for (const [path, record] of this.docs) {
-      if (record.noteId === null) continue;
-      const owners = idOwners.get(record.noteId);
-      if (owners) owners.push(path);
-      else idOwners.set(record.noteId, [path]);
+      if (record.noteId !== null) idEntries.push([record.noteId, path]);
     }
+    const resolver = buildResolver([...this.docs.keys(), ...this.others], aliasEntries, idEntries);
     const forward = new Map<string, ResolvedLink[]>();
     const backlinks: ResolvedState["backlinks"] = new Map();
     for (const [sourcePath, record] of this.docs) {
-      const resolvedLinks = this.resolveLinks(resolver, idOwners, sourcePath, record);
+      const resolvedLinks = this.resolveLinks(resolver, sourcePath, record);
       forward.set(sourcePath, resolvedLinks);
       for (const { link, targetPath } of resolvedLinks) {
         if (targetPath === null) continue;
@@ -368,14 +363,13 @@ export class LinkGraphIndex {
         else backlinks.set(targetPath, [occurrence]);
       }
     }
-    this.resolved = { resolver, idOwners, forward, backlinks };
+    this.resolved = { resolver, forward, backlinks };
     this.pendingDocs.clear();
     return this.resolved;
   }
 
   private resolveLinks(
     resolver: TargetResolver,
-    idOwners: ReadonlyMap<string, string[]>,
     sourcePath: string,
     record: DocRecord,
   ): ResolvedLink[] {
@@ -383,24 +377,9 @@ export class LinkGraphIndex {
       link,
       targetPath:
         link.kind === "wiki"
-          ? this.resolveWikiLink(resolver, idOwners, link)
+          ? resolver.resolveWiki(link.target, link.alias)
           : resolver.resolveMd(link.target, sourcePath),
     }));
-  }
-
-  /** Inteligir's resolved-link tier first: a uuid-shaped alias names the target by
-   * frontmatter `id:`, surviving a title the writer never updated. The title
-   * tiers remain the fallback so an id nothing owns still resolves as text. */
-  private resolveWikiLink(
-    resolver: TargetResolver,
-    idOwners: ReadonlyMap<string, string[]>,
-    link: StoredLink,
-  ): string | null {
-    if (link.alias !== undefined && isUuidWikiAlias(link.alias)) {
-      const owned = pickBest(idOwners.get(link.alias) ?? []);
-      if (owned !== null) return owned;
-    }
-    return resolver.resolveWiki(link.target);
   }
 
   /** Fold the pending docs into an otherwise-valid `state`, producing exactly
@@ -428,7 +407,7 @@ export class LinkGraphIndex {
       }
       // …then re-resolve and re-file at the doc's own corpus position. The
       // Map keeps its slot, so `forward` iteration order is untouched.
-      const links = this.resolveLinks(state.resolver, state.idOwners, path, record);
+      const links = this.resolveLinks(state.resolver, path, record);
       state.forward.set(path, links);
       for (const { link, targetPath } of links) {
         if (targetPath === null) continue;

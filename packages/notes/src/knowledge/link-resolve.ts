@@ -1,8 +1,12 @@
 // ---------------------------------------------------------------------------
 // Obsidian-style link-target resolution over a vault file listing.
 //
-// Wiki targets resolve root-relative through five tiers, path tiers each
-// case-sensitive first with a case-insensitive fallback:
+// Wiki targets resolve root-relative through six tiers. Tier 0 is inteligir's
+// resolved-link identity: a uuid-shaped ALIAS (`[[Title|uuid]]`) names the
+// target by frontmatter `id:`, surviving a title the writer never updated —
+// the tiers below remain the fallback so an id nothing owns still resolves
+// as text. The path tiers run each case-sensitive first with a
+// case-insensitive fallback:
 //   1. exact path   — `dir/note` / `dir/note.md`
 //   2. basename     — `note` matches any `**/note.md` (extension-less targets
 //                     imply `.md`; other extensions must be written out)
@@ -21,19 +25,22 @@
 // are wiki-only — md urls are literal paths.
 // ---------------------------------------------------------------------------
 
+import { isUuidWikiAlias } from "../markdown/remark-wiki-link";
 import { basenamePath, dirnamePath, extnamePath, joinPath, normalizePath } from "./vault-path";
 
 export type TargetResolver = {
-  /** Resolve a wiki target (`[[target]]`) to a vault path, or null. */
-  resolveWiki: (target: string) => string | null;
+  /** Resolve a wiki target (`[[target]]`) to a vault path, or null. The
+   * alias, when the link carries one, feeds the id tier — a uuid-shaped
+   * alias is identity plumbing, never display text. */
+  resolveWiki: (target: string, alias?: string) => string | null;
   /** Resolve an md url path (decoded, fragment-stripped) from `fromPath`. */
   resolveMd: (target: string, fromPath: string) => string | null;
 };
 
-/** The deterministic ambiguity break every tier shares (fewest segments,
- * shortest, lexicographic) — exported so the id tier in link-graph-index
- * breaks a duplicated frontmatter id the same way. */
-export function pickBest(candidates: readonly string[]): string | null {
+/** The deterministic ambiguity break every tier shares — the id tier
+ * included, so a duplicated frontmatter id breaks the same way (fewest
+ * segments, shortest, lexicographic). */
+function pickBest(candidates: readonly string[]): string | null {
   if (candidates.length === 0) return null;
   let best: string | null = null;
   let bestSegments = Number.POSITIVE_INFINITY;
@@ -62,10 +69,12 @@ function push(map: Map<string, string[]>, key: string, path: string): void {
  * `[[diagram.png]]` embed resolves too). `aliasEntries` — (alias, owner path)
  * pairs from the docs' frontmatter `aliases:` — feed the two below-path
  * tiers; alias keys are normalized like written targets so an alias
- * containing `/` matches the same clean form. */
+ * containing `/` matches the same clean form. `idEntries` — (frontmatter
+ * `id:`, owner path) pairs — feed the id tier. */
 export function buildResolver(
   paths: Iterable<string>,
   aliasEntries?: Iterable<readonly [alias: string, path: string]>,
+  idEntries?: Iterable<readonly [id: string, path: string]>,
 ): TargetResolver {
   const exact = new Set<string>();
   const exactLower = new Map<string, string[]>();
@@ -73,6 +82,9 @@ export function buildResolver(
   const byNameLower = new Map<string, string[]>();
   const aliasCs = new Map<string, string[]>();
   const aliasCi = new Map<string, string[]>();
+  /** Frontmatter id → owning paths — the `[[Title|uuid]]` tier's lookup,
+   * exact on the id (an id is minted, never typed). */
+  const idOwners = new Map<string, string[]>();
 
   for (const raw of paths) {
     const path = normalizePath(raw);
@@ -99,13 +111,27 @@ export function buildResolver(
     }
   }
 
+  if (idEntries) {
+    for (const [id, rawOwner] of idEntries) {
+      const owner = normalizePath(rawOwner);
+      if (id === "" || owner === "") continue;
+      push(idOwners, id, owner);
+    }
+  }
+
   /** cs → ci lookup of one exact path candidate. */
   const lookupExact = (candidate: string): string | null => {
     if (exact.has(candidate)) return candidate;
     return pickBest(exactLower.get(candidate.toLowerCase()) ?? []);
   };
 
-  const resolveWiki = (target: string): string | null => {
+  const resolveWiki = (target: string, alias?: string): string | null => {
+    // Tier 0 — the resolved-link identity. Only the uuid SHAPE consults it:
+    // a display alias is a below-path tier, never an identity.
+    if (alias !== undefined && isUuidWikiAlias(alias)) {
+      const owned = pickBest(idOwners.get(alias) ?? []);
+      if (owned !== null) return owned;
+    }
     const clean = normalizePath(target);
     if (clean === "" || clean.startsWith("..")) return null;
 

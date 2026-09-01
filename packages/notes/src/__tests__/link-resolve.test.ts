@@ -130,6 +130,52 @@ describe("resolveWiki — alias tiers", () => {
   });
 });
 
+describe("resolveWiki — the id tier", () => {
+  const UUID = "0f8fad5b-d9cb-469f-a165-70867728950e";
+
+  it("a uuid-shaped alias resolves by frontmatter id, surviving a renamed title", () => {
+    const r = buildResolver(["notes/New Title.md"], [], [[UUID, "notes/New Title.md"]]);
+    expect(r.resolveWiki("Old Title", UUID)).toBe("notes/New Title.md");
+  });
+
+  it("identity beats every text tier — an exact path elsewhere does not shadow it", () => {
+    const r = buildResolver(
+      ["target.md", "moved/owner.md"],
+      [["target", "moved/owner.md"]],
+      [[UUID, "moved/owner.md"]],
+    );
+    expect(r.resolveWiki("target", UUID)).toBe("moved/owner.md");
+    // Without the identity, the path tier wins as ever.
+    expect(r.resolveWiki("target")).toBe("target.md");
+  });
+
+  it("an id nothing owns falls through to the title tiers", () => {
+    const r = buildResolver(
+      ["target.md"],
+      [],
+      [["ffffffff-ffff-ffff-ffff-ffffffffffff", "elsewhere.md"]],
+    );
+    expect(r.resolveWiki("target", UUID)).toBe("target.md");
+  });
+
+  it("a display alias never consults the tier — only the uuid shape is identity", () => {
+    const r = buildResolver(["a.md"], [], [["not-a-uuid", "a.md"]]);
+    expect(r.resolveWiki("missing", "not-a-uuid")).toBeNull();
+  });
+
+  it("a duplicated id breaks deterministically, like every tier", () => {
+    const r = buildResolver(
+      ["z/deep/nested.md", "a.md"],
+      [],
+      [
+        [UUID, "z/deep/nested.md"],
+        [UUID, "a.md"],
+      ],
+    );
+    expect(r.resolveWiki("whatever", UUID)).toBe("a.md");
+  });
+});
+
 describe("resolveMd", () => {
   const r = buildResolver(["a/b.md", "a/c.md", "x.md", "docs/guide.md", "a/img.png"]);
 
