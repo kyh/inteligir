@@ -39,21 +39,13 @@ import {
 import type { AgentRuntime } from "@repo/agent-runtime/types";
 import type { HarnessId } from "@repo/agent-runtime/acp/harness-registry";
 import type { ProviderEvent } from "@repo/agent-runtime/vocabulary/provider-event";
-import {
-  approvalPendingInteractionPayloadSchema,
-  parseApprovalResolution,
-  type PendingInteractionCreate,
-  type PendingInteractionPayload,
-  type PendingInteractionResolution,
+import type {
+  PendingInteractionCreate,
+  PendingInteractionResolution,
 } from "@repo/domain/pending-interactions";
 import type { DbConnection } from "@repo/db/connection";
 import type { DbNotifier } from "@repo/domain/notifier";
-import {
-  createPendingInteraction,
-  interruptOpenPendingInteractions,
-  interruptPendingInteraction,
-  type CreatePendingInteractionInput,
-} from "@repo/db/pending-interactions";
+import { interruptOpenPendingInteractions } from "@repo/db/pending-interactions";
 import { getThread, setThreadProviderSession } from "@repo/db/threads";
 import type { ThreadEvent } from "@repo/domain/provider-event";
 import { threadScope, turnScope } from "@repo/domain/thread-event-scope";
@@ -75,6 +67,7 @@ import { toInstructions } from "./agent-instructions";
 import { toShellEnv, type AgentSessionFacts } from "./agent-shell-env";
 import { ProviderEventCoalescer } from "./event-coalescer";
 import { mapProviderEvent } from "./event-mapping";
+import { createInteractionWaiters, type InteractionWaiters } from "./interaction-waiters";
 import { turnPromptInput } from "./view-context-prompt";
 
 /** Statically-always-dropped kinds that arrive on every token tick: the
@@ -87,17 +80,22 @@ const SILENTLY_DROPPED_EVENT_TYPES: ReadonlySet<ProviderEvent["type"]> = new Set
 
 const DEFAULT_REAP_INTERVAL_MS = 60_000;
 const DEFAULT_IDLE_REAP_MS = 10 * 60_000;
-const INTERACTION_TIMEOUT_MS = 30 * 60_000;
 
 /**
  * How long a dispatched turn may produce NOTHING before it is failed. Idle
  * time, not wall time: a turn that streams for an hour is working, and a turn
- * parked on an approval is waiting on the user (that wait has its own clock,
- * INTERACTION_TIMEOUT_MS, and this one is disarmed for its duration). What is
- * left is a provider that accepted a turn and then went silent, which no other
- * path settles — the process is alive, so `onProcessExit` never fires.
+ * parked on an approval is waiting on the user (that wait has its own clock —
+ * the waiters' INTERACTION_TIMEOUT_MS — and the sweep skips a parked thread
+ * for its duration). What is left is a provider that accepted a turn and then
+ * went silent, which no other path settles — the process is alive, so
+ * `onProcessExit` never fires.
  */
 const DEFAULT_TURN_IDLE_TIMEOUT_MS = 10 * 60_000;
+
+/** The idle check is a SWEEP over per-turn timestamps, not a timer per
+ *  provider event: a streaming turn produces thousands of frames, and
+ *  re-arming a timeout for each buys nothing over a bounded-lag check. */
+const WATCHDOG_SWEEP_INTERVAL_MS = 1_000;
 
 export interface AcpRuntimeManagerDeps {
   db: DbConnection;
@@ -152,15 +150,9 @@ interface ActiveTurn {
   acceptedGeneration: number | null;
   settled: boolean;
   writes: AgentTurnWrites;
-  /** The idle watchdog, re-armed by every provider event and disarmed while
-   *  an approval is parked. Null means unarmed, not "no budget". */
-  idleTimer: ReturnType<typeof setTimeout> | null;
-}
-
-interface InteractionWaiter {
-  threadId: string;
-  payload: PendingInteractionPayload;
-  resolve: (resolution: PendingInteractionResolution) => void;
+  /** When the provider last said anything for this turn — what the idle
+   *  sweep measures silence against. */
+  lastEventAt: number;
 }
 
 class AcpTurnDriver implements TurnDriver {
@@ -176,13 +168,30 @@ class AcpTurnDriver implements TurnDriver {
   private readonly turnsByThreadId = new Map<string, ActiveTurn>();
   /** Bumped on every provider-process exit that hosted the thread. */
   private readonly exitGenerationByThreadId = new Map<string, number>();
-  private readonly waitersByInteractionId = new Map<string, InteractionWaiter>();
+  private readonly waiters: InteractionWaiters;
+  private watchdogTimer: ReturnType<typeof setInterval> | null = null;
   private disposed = false;
 
   constructor(sink: ProviderEventSink, deps: AcpRuntimeManagerDeps) {
     this.sink = sink;
     this.deps = deps;
     this.resolveVaultPath = createVaultPathResolver(deps.vaultDir);
+    this.waiters = createInteractionWaiters({
+      db: deps.db,
+      notifier: deps.notifier,
+      debug: (message) => this.debug(message),
+      onWaitSettled: (threadId) => this.noteTurnActivity(threadId),
+    });
+    const budgetMs = deps.turnIdleTimeoutMs ?? DEFAULT_TURN_IDLE_TIMEOUT_MS;
+    if (deps.turnIdleTimeoutMs !== null) {
+      this.watchdogTimer = setInterval(
+        () => this.sweepIdleTurns(budgetMs),
+        // A budget below the sweep cadence still fails within ~2x its own
+        // bound rather than waiting out the coarser tick.
+        Math.min(budgetMs, WATCHDOG_SWEEP_INTERVAL_MS),
+      );
+      this.watchdogTimer.unref();
+    }
   }
 
   private debug(message: string): void {
@@ -283,56 +292,49 @@ class AcpTurnDriver implements TurnDriver {
         threadId: args.threadId,
         turnId: args.turnId,
       }),
-      idleTimer: null,
+      lastEventAt: Date.now(),
     });
-    this.armWatchdog(args.threadId);
     void this.dispatchTurn(args).catch((cause: unknown) => {
       this.failTurn(args.threadId, cause);
     });
   }
 
-  /** True while an approval for this thread is parked on the user's answer. */
-  private hasParkedApproval(threadId: string): boolean {
-    for (const waiter of this.waitersByInteractionId.values()) {
-      if (waiter.threadId === threadId) {
-        return true;
-      }
+  /**
+   * (Re)start a thread's silence clock — at dispatch, on every provider
+   * event, and when a parked approval settles, so the budget measures
+   * SILENCE rather than duration.
+   */
+  private noteTurnActivity(threadId: string): void {
+    const state = this.turnsByThreadId.get(threadId);
+    if (state === undefined || state.settled) {
+      return;
     }
-    return false;
+    state.lastEventAt = Date.now();
   }
 
   /**
-   * (Re)start the idle budget for a thread's turn — called at dispatch and on
-   * every provider event, so the budget measures SILENCE rather than duration.
-   * A parked approval leaves it disarmed: that wait belongs to the user and to
-   * INTERACTION_TIMEOUT_MS, and the deny that clock produces re-arms this one.
+   * Fail every turn whose silence has outgrown the budget. A parked approval
+   * is exempt: that wait belongs to the user and to the waiters' own clock,
+   * and the deny that clock produces restarts this one (`onWaitSettled`).
    */
-  private armWatchdog(threadId: string): void {
-    const state = this.turnsByThreadId.get(threadId);
-    if (state === undefined || state.settled || this.disposed) {
+  private sweepIdleTurns(budgetMs: number): void {
+    if (this.disposed) {
       return;
     }
-    this.disarmWatchdog(state);
-    const budgetMs = this.deps.turnIdleTimeoutMs ?? DEFAULT_TURN_IDLE_TIMEOUT_MS;
-    if (this.deps.turnIdleTimeoutMs === null || this.hasParkedApproval(threadId)) {
-      return;
-    }
-    const timer = setTimeout(() => {
+    const now = Date.now();
+    for (const [threadId, state] of this.turnsByThreadId) {
+      if (state.settled || this.waiters.hasParked(threadId)) {
+        continue;
+      }
+      if (now - state.lastEventAt <= budgetMs) {
+        continue;
+      }
       this.failTurn(
         threadId,
         new Error(
           `The agent produced nothing for ${budgetMs}ms; the turn was abandoned so the vault can commit and sync again`,
         ),
       );
-    }, budgetMs);
-    timer.unref();
-    state.idleTimer = timer;
-  }
-
-  private disarmWatchdog(state: ActiveTurn): void {
-    if (state.idleTimer !== null) {
-      clearTimeout(state.idleTimer);
-      state.idleTimer = null;
     }
   }
 
@@ -399,23 +401,7 @@ class AcpTurnDriver implements TurnDriver {
   }
 
   onInteractionResolved(interaction: PendingInteraction): void {
-    const waiter = this.waitersByInteractionId.get(interaction.id);
-    if (waiter === undefined) {
-      return;
-    }
-    this.waitersByInteractionId.delete(interaction.id);
-    const parsed =
-      interaction.resolution === null
-        ? null
-        : parseApprovalResolution(interaction.resolution, waiter.payload);
-    if (parsed === null || !parsed.ok) {
-      this.debug(
-        `interaction ${interaction.id} resolved with an unparseable resolution; denying the provider`,
-      );
-      waiter.resolve({ decision: "deny" });
-      return;
-    }
-    waiter.resolve(parsed.resolution);
+    this.waiters.resolve(interaction);
   }
 
   private onRuntimeEvent(event: ProviderEvent): void {
@@ -426,8 +412,8 @@ class AcpTurnDriver implements TurnDriver {
     }
     const state = this.turnsByThreadId.get(threadId);
     // ANY frame for this thread is the provider proving it is alive; the
-    // budget below measures silence, so every one of them resets it.
-    this.armWatchdog(threadId);
+    // budget measures silence, so every one of them resets the clock.
+    this.noteTurnActivity(threadId);
 
     if (event.type === "turn/started") {
       if (state === undefined || state.settled || state.started) {
@@ -500,78 +486,15 @@ class AcpTurnDriver implements TurnDriver {
     this.events.push(threadId, mapped.event);
   }
 
-  private async onInteractiveRequest(
+  private onInteractiveRequest(
     create: PendingInteractionCreate,
   ): Promise<PendingInteractionResolution> {
-    const payload = approvalPendingInteractionPayloadSchema.parse(create.payload);
     const state = this.turnsByThreadId.get(create.threadId);
     const hostTurnId =
       state !== undefined && !state.settled && state.providerTurnId === create.turnId
         ? state.ourTurnId
         : null;
-    const pending: CreatePendingInteractionInput = {
-      threadId: create.threadId,
-      requestKey: create.providerRequestId,
-      payload: JSON.stringify(payload),
-    };
-    if (hostTurnId !== null) pending.turnId = hostTurnId;
-    const row = createPendingInteraction(this.deps.db, this.deps.notifier, pending);
-    if (row.status === "resolved" && row.resolution !== null) {
-      const parsed = parseApprovalResolution(row.resolution, payload);
-      return parsed.ok ? parsed.resolution : { decision: "deny" };
-    }
-    if (row.status === "interrupted") {
-      return { decision: "deny" };
-    }
-    return new Promise<PendingInteractionResolution>((resolve) => {
-      let settled = false;
-      const settle = (resolution: PendingInteractionResolution): void => {
-        if (settled) {
-          return;
-        }
-        settled = true;
-        resolve(resolution);
-      };
-      const timer = setTimeout(() => {
-        if (this.waitersByInteractionId.delete(row.id)) {
-          interruptPendingInteraction(this.deps.db, this.deps.notifier, {
-            id: row.id,
-            threadId: create.threadId,
-          });
-          settle({ decision: "deny" });
-          this.armWatchdog(create.threadId);
-        }
-      }, INTERACTION_TIMEOUT_MS);
-      timer.unref();
-      this.waitersByInteractionId.set(row.id, {
-        threadId: create.threadId,
-        payload,
-        resolve: (resolution) => {
-          clearTimeout(timer);
-          settle(resolution);
-          // The provider is free to work again, so its silence starts counting
-          // again from here.
-          this.armWatchdog(create.threadId);
-        },
-      });
-      // Parked on the user: disarm, or the turn budget would quietly become
-      // the approval budget.
-      this.armWatchdog(create.threadId);
-    });
-  }
-
-  /** Deny every parked approval — for one thread (a settle; its rows are
-   *  interrupted by the caller) or for all of them (dispose). */
-  private cancelWaiters(threadId?: string): void {
-    // Snapshot first: the loop deletes entries mid-iteration.
-    const waiters = Array.from(this.waitersByInteractionId);
-    for (const [id, waiter] of waiters) {
-      if (threadId !== undefined && waiter.threadId !== threadId) {
-        continue;
-      }
-      this.waitersByInteractionId.delete(id);
-      waiter.resolve({ decision: "deny" });
-    }
+    return this.waiters.park(create, hostTurnId);
   }
 
   private settleTurn(threadId: string): void {
@@ -583,9 +506,8 @@ class AcpTurnDriver implements TurnDriver {
       return;
     }
     state.settled = true;
-    this.disarmWatchdog(state);
     this.turnsByThreadId.delete(threadId);
-    this.cancelWaiters(threadId);
+    this.waiters.cancel(threadId);
     interruptOpenPendingInteractions(this.deps.db, this.deps.notifier, threadId);
     void state.writes.finish().catch((cause: unknown) => {
       this.debug(
@@ -633,12 +555,11 @@ class AcpTurnDriver implements TurnDriver {
       clearInterval(this.reapTimer);
       this.reapTimer = null;
     }
-    this.cancelWaiters();
-    // After the waiters, not before: resolving one re-arms its thread's
-    // budget, and `disposed` above is what stops that from outliving us.
-    for (const state of this.turnsByThreadId.values()) {
-      this.disarmWatchdog(state);
+    if (this.watchdogTimer !== null) {
+      clearInterval(this.watchdogTimer);
+      this.watchdogTimer = null;
     }
+    this.waiters.cancel();
     if (this.runtime !== null) {
       await this.runtime.shutdown();
       this.runtime = null;
