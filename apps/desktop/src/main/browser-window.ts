@@ -42,7 +42,7 @@ interface BrowserWindowHandle {
 }
 
 let browserHandle: BrowserWindowHandle | null = null;
-let ipcRegistered = false;
+let sessionPrepared = false;
 
 /** The browser partition denies EVERY web permission — the content view
  *  renders arbitrary pages, and none of them is owed a microphone or a
@@ -158,11 +158,6 @@ function apiClientFor(server: LiveServer): ContractRouterClient<LocalContract> {
 /** One registration for the process; each handler re-resolves the live handle
  *  and refuses any sender that is not the shell's own chrome bar. */
 function registerBrowserIpc(server: LiveServer): void {
-  if (ipcRegistered) {
-    return;
-  }
-  ipcRegistered = true;
-
   const fromChrome = (event: IpcMainInvokeEvent): BrowserWindowHandle | null => {
     if (browserHandle === null || event.sender !== browserHandle.chrome.webContents) {
       return null;
@@ -206,9 +201,24 @@ function guardContentNavigation(event: Electron.Event, url: string): void {
   }
 }
 
-function createBrowserWindow(server: LiveServer): BrowserWindowHandle {
+/**
+ * The browser session and its IPC are set up ONCE per launch, not once per
+ * window — the shape `index.ts` gives the app window's session.
+ * `session.fromPartition` answers the same process-lifetime Session on every
+ * call and `.on` APPENDS, so a per-window lock-down makes one download
+ * attempt fire a warning — and a preventDefault — per reopen.
+ */
+function prepareBrowserSession(server: LiveServer): void {
+  if (sessionPrepared) {
+    return;
+  }
+  sessionPrepared = true;
   lockDownBrowserSession();
   registerBrowserIpc(server);
+}
+
+function createBrowserWindow(server: LiveServer): BrowserWindowHandle {
+  prepareBrowserSession(server);
 
   const window = new BaseWindow({
     width: 1100,
