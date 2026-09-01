@@ -45,8 +45,7 @@ mac:
   hardenedRuntime: false
 dmg:
   sign: false
-# There is NO update feed. The old one was yanked, and a shell that checks an
-# empty channel is worse than one that does not check: it reports failures the
-# user cannot act on. Wiring electron-updater is a follow-up that starts with
-# choosing the channel.
+# There is NO update feed: a shell that checks an empty channel is worse than
+# one that does not check — it reports failures the user cannot act on. Wiring
+# electron-updater is a follow-up that starts with choosing the channel.
 publish: null

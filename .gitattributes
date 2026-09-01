@@ -1,1 +1,2 @@
 apps/web/src/worker/worker-configuration.d.ts linguist-generated=true -diff
+routeTree.gen.ts linguist-generated=true -diff
