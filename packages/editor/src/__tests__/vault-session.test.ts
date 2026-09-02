@@ -5,7 +5,7 @@
 
 import type { VaultEntry } from "@repo/editor/host-io";
 import { describe, expect, it } from "vitest";
-import { createVaultSession, type VaultSessionPorts } from "../note/vault-session";
+import { createVaultSession, type VaultSessionPorts } from "@repo/editor/note/vault-session";
 
 type NoteCall = readonly ["create" | "write", string, string];
 
