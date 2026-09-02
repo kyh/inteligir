@@ -7,7 +7,7 @@ import { motion } from "framer-motion";
 import { XIcon } from "lucide-react";
 
 import { Button } from "@repo/ui/components/button";
-import { motionStyle } from "@repo/ui/lib/motion-style";
+import { motionProps, motionStyle, type MotionConflictHandler } from "@repo/ui/lib/motion-style";
 import { useRadius } from "@repo/ui/lib/radius-context";
 import { useSize, useSizeVariant } from "@repo/ui/lib/size-context";
 import { spring } from "@repo/ui/lib/springs";
@@ -40,16 +40,6 @@ function Dialog({ children, open, defaultOpen, onOpenChange, modal }: DialogProp
   );
 }
 
-// framer's motion.div redefines the DOM drag/animation handlers, so they are
-// omitted from the public props rather than cast away at the spread.
-type MotionConflictHandler =
-  | "onDrag"
-  | "onDragStart"
-  | "onDragEnd"
-  | "onAnimationStart"
-  | "onAnimationEnd"
-  | "onAnimationIteration";
-
 interface DialogContentProps extends Omit<HTMLAttributes<HTMLDivElement>, MotionConflictHandler> {
   showCloseButton?: boolean;
   /** Forwarded to Base UI's Popup: the element focused when the dialog opens. */
@@ -74,18 +64,7 @@ const DialogContent = forwardRef<HTMLDivElement, DialogContentProps>(
         <DialogPrimitive.Backdrop
           render={(backdropProps, state) => {
             const exiting = state.transitionStatus === "ending";
-            // framer's motion.div redefines the drag/animation handlers, so
-            // Base UI's DOM-typed ones are dropped before the spread.
-            const {
-              style: _style,
-              onDrag: _onDrag,
-              onDragStart: _onDragStart,
-              onDragEnd: _onDragEnd,
-              onAnimationStart: _onAnimationStart,
-              onAnimationEnd: _onAnimationEnd,
-              onAnimationIteration: _onAnimationIteration,
-              ...rest
-            } = backdropProps;
+            const { style: _style, ...rest } = motionProps(backdropProps);
             return (
               <motion.div
                 {...rest}
@@ -102,16 +81,7 @@ const DialogContent = forwardRef<HTMLDivElement, DialogContentProps>(
           initialFocus={initialFocus}
           render={(popupProps, state) => {
             const exiting = state.transitionStatus === "ending";
-            const {
-              style: baseStyle,
-              onDrag: _onDrag,
-              onDragStart: _onDragStart,
-              onDragEnd: _onDragEnd,
-              onAnimationStart: _onAnimationStart,
-              onAnimationEnd: _onAnimationEnd,
-              onAnimationIteration: _onAnimationIteration,
-              ...rest
-            } = popupProps;
+            const { style: baseStyle, ...rest } = motionProps(popupProps);
             // Centering rides the CSS translate utilities rather than motion
             // x/y "-50%", so a consumer className can override one axis (the
             // command palette pins `top-1/3 translate-y-0`). The CSS

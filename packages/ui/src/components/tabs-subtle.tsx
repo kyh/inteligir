@@ -22,6 +22,7 @@ import { spring } from "@repo/ui/lib/springs";
 import { fontWeights } from "@repo/ui/lib/font-weight";
 import { useRadius } from "@repo/ui/lib/radius-context";
 import { SizeProvider, useSize, type SizeVariant } from "@repo/ui/lib/size-context";
+import { ProximityFocusRing } from "@repo/ui/hooks/proximity-overlays";
 import { useProximityHover } from "@repo/ui/hooks/use-proximity-hover";
 
 /** Base UI leaves a tab's value untyped. Every tab here carries its own index,
@@ -209,28 +210,7 @@ const TabsSubtle = forwardRef<HTMLDivElement, TabsSubtleProps>(
                 )}
               </AnimatePresence>
 
-              <AnimatePresence>
-                {focusRect && (
-                  <motion.div
-                    className={cn(
-                      "absolute pointer-events-none z-20 border border-[color:var(--focus-ring,#6B97FF)]",
-                      radius.focusRing,
-                    )}
-                    initial={false}
-                    animate={{
-                      left: focusRect.left - 2,
-                      top: focusRect.top - 2,
-                      width: focusRect.width + 4,
-                      height: focusRect.height + 4,
-                    }}
-                    exit={{ opacity: 0, transition: spring.fast.exit }}
-                    transition={{
-                      ...spring.fast,
-                      opacity: { duration: 0.08 },
-                    }}
-                  />
-                )}
-              </AnimatePresence>
+              <ProximityFocusRing rect={focusRect} />
 
               {children}
             </Tabs.List>

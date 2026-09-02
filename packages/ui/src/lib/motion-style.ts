@@ -7,7 +7,7 @@
 // returned object honestly fits MotionStyle's spelling.
 
 import type { MotionStyle } from "framer-motion";
-import type { CSSProperties } from "react";
+import type { CSSProperties, HTMLAttributes } from "react";
 
 type MotionStyleValue = Exclude<
   CSSProperties[keyof CSSProperties] | MotionStyle[keyof MotionStyle],
@@ -23,4 +23,32 @@ export function motionStyle(...styles: (CSSProperties | MotionStyle | undefined)
     }
   }
   return merged;
+}
+
+/** The DOM handlers framer's motion elements redefine with their own
+ *  signatures. A component that renders a motion element omits these from its
+ *  public props and strips them from what it spreads in. */
+export type MotionConflictHandler =
+  | "onDrag"
+  | "onDragStart"
+  | "onDragEnd"
+  | "onAnimationStart"
+  | "onAnimationEnd"
+  | "onAnimationIteration";
+
+type DomHandlerProps = Pick<HTMLAttributes<HTMLElement>, MotionConflictHandler>;
+
+/** A primitive's render props with the DOM-typed drag/animation handlers
+ *  dropped, so the rest spreads into a motion element without a cast. */
+export function motionProps<P extends DomHandlerProps>(props: P): Omit<P, MotionConflictHandler> {
+  const {
+    onDrag: _onDrag,
+    onDragStart: _onDragStart,
+    onDragEnd: _onDragEnd,
+    onAnimationStart: _onAnimationStart,
+    onAnimationEnd: _onAnimationEnd,
+    onAnimationIteration: _onAnimationIteration,
+    ...rest
+  } = props;
+  return rest;
 }

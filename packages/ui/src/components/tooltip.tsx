@@ -6,7 +6,7 @@ import { Tooltip as TooltipPrimitive } from "@base-ui/react/tooltip";
 import { motion, useMotionValue } from "framer-motion";
 
 import { cn } from "@repo/ui/lib/utils";
-import { motionStyle } from "@repo/ui/lib/motion-style";
+import { motionProps, motionStyle } from "@repo/ui/lib/motion-style";
 import { fontWeights } from "@repo/ui/lib/font-weight";
 import { useRadius } from "@repo/ui/lib/radius-context";
 import { spring } from "@repo/ui/lib/springs";
@@ -128,18 +128,7 @@ function Tooltip({
           <TooltipPrimitive.Popup
             render={(props, state) => {
               const exiting = state.transitionStatus === "ending";
-              const {
-                style: baseStyle,
-                // motion.div has incompatible drag/animation event signatures —
-                // strip the React-DOM versions so they don't fight motion's own.
-                onDrag: _onDrag,
-                onDragStart: _onDragStart,
-                onDragEnd: _onDragEnd,
-                onAnimationStart: _onAnimationStart,
-                onAnimationEnd: _onAnimationEnd,
-                onAnimationIteration: _onAnimationIteration,
-                ...rest
-              } = props;
+              const { style: baseStyle, ...rest } = motionProps(props);
               const followStyle =
                 followCursor === "y"
                   ? { y: followOffset }

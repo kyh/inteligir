@@ -12,7 +12,7 @@ import {
 } from "react";
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { motion } from "framer-motion";
-import { motionStyle } from "@repo/ui/lib/motion-style";
+import { motionProps, motionStyle, type MotionConflictHandler } from "@repo/ui/lib/motion-style";
 import { cn } from "@repo/ui/lib/utils";
 import { spring, exitFallbackMs } from "@repo/ui/lib/springs";
 import { useSurface, SurfaceProvider } from "@repo/ui/lib/surface-context";
@@ -96,16 +96,7 @@ function SidebarSheet({ side, open, onClose, children }: SidebarSheetProps) {
       <DialogPrimitive.Portal>
         <DialogPrimitive.Backdrop
           render={(backdropProps) => {
-            const {
-              style: _style,
-              onDrag: _onDrag,
-              onDragStart: _onDragStart,
-              onDragEnd: _onDragEnd,
-              onAnimationStart: _onAnimationStart,
-              onAnimationEnd: _onAnimationEnd,
-              onAnimationIteration: _onAnimationIteration,
-              ...rest
-            } = backdropProps;
+            const { style: _style, ...rest } = motionProps(backdropProps);
             return (
               <motion.div
                 {...rest}
@@ -122,17 +113,7 @@ function SidebarSheet({ side, open, onClose, children }: SidebarSheetProps) {
           aria-label="Sidebar"
           initialFocus={panelRef}
           render={(popupProps) => {
-            const {
-              style: baseStyle,
-              ref: baseRef,
-              onDrag: _onDrag,
-              onDragStart: _onDragStart,
-              onDragEnd: _onDragEnd,
-              onAnimationStart: _onAnimationStart,
-              onAnimationEnd: _onAnimationEnd,
-              onAnimationIteration: _onAnimationIteration,
-              ...rest
-            } = popupProps;
+            const { style: baseStyle, ref: baseRef, ...rest } = motionProps(popupProps);
             return (
               <motion.div
                 {...rest}
@@ -172,15 +153,7 @@ function SidebarSheet({ side, open, onClose, children }: SidebarSheetProps) {
 
 // ─── Sidebar ─────────────────────────────────────────────────────────────────
 
-interface SidebarProps extends Omit<
-  HTMLAttributes<HTMLDivElement>,
-  | "onDrag"
-  | "onDragStart"
-  | "onDragEnd"
-  | "onAnimationStart"
-  | "onAnimationEnd"
-  | "onAnimationIteration"
-> {
+interface SidebarProps extends Omit<HTMLAttributes<HTMLDivElement>, MotionConflictHandler> {
   side?: SidebarSide;
   variant?: SidebarVariant;
   /** `"icon"` collapse is intentionally not supported — offcanvas or none. */

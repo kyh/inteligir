@@ -14,7 +14,7 @@ import { Switch as SwitchPrimitive } from "@base-ui/react/switch";
 import { animate, motion, useMotionValue } from "framer-motion";
 
 import { useSize, type SizeVariant } from "@repo/ui/lib/size-context";
-import { motionStyle } from "@repo/ui/lib/motion-style";
+import { motionProps, motionStyle } from "@repo/ui/lib/motion-style";
 import { spring } from "@repo/ui/lib/springs";
 import { cn } from "@repo/ui/lib/utils";
 
@@ -243,18 +243,7 @@ const Switch = forwardRef<HTMLDivElement, SwitchProps>(
         >
           <SwitchPrimitive.Thumb
             render={(thumbProps) => {
-              // framer's motion.span redefines the drag/animation handlers, so
-              // Base UI's DOM-typed ones are dropped before the spread.
-              const {
-                style: baseStyle,
-                onDrag: _onDrag,
-                onDragStart: _onDragStart,
-                onDragEnd: _onDragEnd,
-                onAnimationStart: _onAnimationStart,
-                onAnimationEnd: _onAnimationEnd,
-                onAnimationIteration: _onAnimationIteration,
-                ...rest
-              } = thumbProps;
+              const { style: baseStyle, ...rest } = motionProps(thumbProps);
               return (
                 <motion.span
                   {...rest}

@@ -35,8 +35,7 @@ export function ProximityOverlays({
   const ambientRadius = useRadius();
   const resolved = radius ?? ambientRadius;
   // The hover background enters at the active rect when there is one, so the
-  // highlight reads as lifting off the selection; the focus ring sits 2px
-  // outside the row so the corners stay concentric.
+  // highlight reads as lifting off the selection.
   return (
     <>
       <AnimatePresence>
@@ -82,22 +81,40 @@ export function ProximityOverlays({
         )}
       </AnimatePresence>
 
-      <AnimatePresence>
-        {focusRect && (
-          <motion.div
-            className={`absolute ${resolved.focusRing} pointer-events-none z-20 border border-[color:var(--focus-ring,#6B97FF)]`}
-            initial={false}
-            animate={{
-              left: focusRect.left - 2,
-              top: focusRect.top - 2,
-              width: focusRect.width + 4,
-              height: focusRect.height + 4,
-            }}
-            exit={{ opacity: 0, transition: spring.fast.exit }}
-            transition={{ ...spring.fast, opacity: { duration: 0.08 } }}
-          />
-        )}
-      </AnimatePresence>
+      <ProximityFocusRing rect={focusRect} radius={resolved} />
     </>
+  );
+}
+
+interface ProximityFocusRingProps {
+  /** `| undefined` spelled out for the same sparse `itemRects[i]` read. */
+  rect: ItemRect | null | undefined;
+  radius?: RadiusClasses;
+}
+
+/** The trio's keyboard focus ring on its own, for a list whose highlight
+ *  pills are a different design (the subtle tabs) but whose ring must not
+ *  drift from every other list's: 2px outside the row, so the corners stay
+ *  concentric with the row's own radius. */
+export function ProximityFocusRing({ rect, radius }: ProximityFocusRingProps) {
+  const ambientRadius = useRadius();
+  const resolved = radius ?? ambientRadius;
+  return (
+    <AnimatePresence>
+      {rect && (
+        <motion.div
+          className={`absolute ${resolved.focusRing} pointer-events-none z-20 border border-[color:var(--focus-ring,#6B97FF)]`}
+          initial={false}
+          animate={{
+            left: rect.left - 2,
+            top: rect.top - 2,
+            width: rect.width + 4,
+            height: rect.height + 4,
+          }}
+          exit={{ opacity: 0, transition: spring.fast.exit }}
+          transition={{ ...spring.fast, opacity: { duration: 0.08 } }}
+        />
+      )}
+    </AnimatePresence>
   );
 }
