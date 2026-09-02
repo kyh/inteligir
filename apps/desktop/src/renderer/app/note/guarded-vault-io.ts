@@ -21,6 +21,7 @@
 import type { DeleteVaultEntryResult } from "@repo/editor/host-io";
 import type { VaultNoteIO } from "@repo/editor/note/vault-session";
 import { isNotePath } from "@repo/notes/knowledge/doc-file";
+import { isTrashedPath } from "@repo/notes/knowledge/vault-path";
 import { diff3 } from "@repo/notes/text/diff3";
 import { contentHashHex } from "@repo/api/local/vault/vault-schema";
 import { isDefinedError, refusalMessage, safe, type client } from "../api";
@@ -90,7 +91,7 @@ export function createGuardedVaultIo(api: GuardedVaultApi): VaultNoteIO {
     // The port answers "trashed" either way: the session only needs to know
     // the row is gone from the listing.
     const isNote = isNotePath(path);
-    const inTrash = path === "Trash" || path.startsWith("Trash/");
+    const inTrash = isTrashedPath(path);
     const { error } =
       isNote && !inTrash
         ? await safe(api.vault.trash({ path }))
