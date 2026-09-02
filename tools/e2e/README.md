@@ -30,17 +30,16 @@ sweep), but its scenarios boot processes and a browser, so they run only via
 Each scenario receives a context (`src/harness/scenario.ts`) that owns its
 scratch dir and tears everything down afterwards:
 
-- `boot({ name, vaultRemote?, extraEnv?, seedVault? })` — a fresh instance:
-  scratch `data/` + `vault/` siblings, a reserved free port (bind races retry
-  with a fresh port, bounded), health-gated on `/health` answering
+- `boot({ name, vaultRemote?, extraEnv?, seedVault?, seedData? })` — a fresh
+  instance: scratch `data/` + `vault/` siblings, a reserved free port (bind
+  races retry with a fresh port, bounded), health-gated on `/health` answering
   `{ok:true}`. Registered for teardown at SPAWN, before the health wait, and
   torn down as a process group that is polled to verified-dead (SIGTERM →
   SIGKILL → ESRCH) before its scratch is removed; Ctrl-C kills every live
   group. `extraEnv` may not touch harness-owned keys (paths, port, NODE_ENV,
   `GIT_*`) — collisions are refused loudly. `seedVault` writes fixture files
-  before boot; the app's repo init commits them.
-  `seedData` does the same for the data dir — a device credential, so the
-  instance boots already paired.
+  before boot; the app's repo init commits them. `seedData` does the same for
+  the data dir — a device credential, so the instance boots already paired.
 - `bareRemote()` — a scratch bare git repo, returned as the `file://` URL for
   `INTELIGIR_VAULT_REMOTE`.
 - `cloudWorker()` — the product Worker (apps/web) under `wrangler dev` on a
@@ -63,6 +62,10 @@ what each one is FOR.
 |                           | propagation, then a typed conflict + git-verified repo integrity          |
 | hosted-vault-sync         | the hosted loop for real: a wrangler-dev Worker, production pairing,      |
 |                           | convergence through the derived remote, boot clone, revoke → unauthorized |
+| built-worker-boot         | the vite-built bundle — what `wrangler deploy` ships — boots under        |
+|                           | wrangler dev and answers; built through turbo on every run, so it is the  |
+|                           | current source, and the one place a module-scope crash of the emitted     |
+|                           | module can show                                                           |
 | threads-scripted          | a turn through the scripted driver: send, settle, timeline                |
 | action-scripted           | an action attaches to its note; a scripted turn writes the vault; the     |
 |                           | CAS write guards the save (typed conflict, current bytes in the body);    |
@@ -71,6 +74,8 @@ what each one is FOR.
 |                           | resolves against this checkout                                            |
 | browser-smoke             | headless page load: the REAL policy on the served document, SPA mount,    |
 |                           | API reached, the palette chord safe, clean console after a settle window  |
+| note-create-browser       | a note created through the session — the sidebar's New note, the inline   |
+|                           | name, Enter — lands on disk as the file a user would go looking for       |
 | editor-constructs-browser | every live-preview construct renders in a real browser (jsdom has no      |
 |                           | layout, so the unit suite cannot prove a widget survived the bundle and   |
 |                           | a measure pass), and the file is re-read to prove rendering wrote no      |
@@ -80,6 +85,8 @@ what each one is FOR.
 |                           | clobbering                                                                |
 | view-context-browser      | the agent is told which note the message left from, and at what revision  |
 | dictation-browser         | the composer's mic captures, transcribes and inserts — never sends        |
+| settings-browser          | /settings hosts the window-level surfaces: Unpair opens its confirm       |
+|                           | dialog on that route, and a refused connector add toasts there            |
 
 ## Adding a scenario
 
@@ -118,12 +125,15 @@ accounts on any EXTERNAL service — hosted-vault-sync signs up a real account,
 but against its own scratch wrangler-dev Worker (apps/web's wrangler, local
 mode, state under the scenario's scratch dir; secrets ride `--var`, so no
 `.dev.vars` is needed). The one setup step beyond `pnpm install` is the
-browser binary for browser-smoke: `npm i -g agent-browser && agent-browser
-install` (Linux: `--with-deps`). browser-smoke probes the environment with `about:blank`
-first — only a failure THERE (the browser cannot launch at all) reports SKIP,
-with the exact launcher error; opening the app and everything after is a real
-assertion.
+browser binary every browser scenario needs: `npm i -g agent-browser@X.Y.Z &&
+agent-browser install` (Linux: `--with-deps`), at the version
+`.github/workflows/ci.yml` pins so a local run drives the browser CI drives.
+Every browser scenario probes the environment with `about:blank` first — only
+a failure THERE (the browser cannot launch at all) reports SKIP, with the exact
+launcher error; opening the app and everything after is a real assertion.
 
 `pnpm build` must have run: the harness refuses to boot without
 `apps/cli/dist/ui`, because a server with no workspace UI answers the API and
 serves a 404 to the browser — a green API run beside a page that never loads.
+built-worker-boot is the one scenario that builds for itself (apps/web,
+through turbo), because the bundle it boots is the thing under test.

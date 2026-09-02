@@ -81,9 +81,11 @@ jobs:
         # puts PNPM_HOME on PATH, so an npm global bin is unreachable. The harness
         # execs `agent-browser` by name, and when it cannot launch it SKIPS every
         # browser scenario while still reporting PASS — a green E2E that tested
-        # nothing. Keep this step and the suite honest together. Pinned exact:
-        # a global install rides no lockfile and no cooldown, so the version is
-        # named here.
+        # nothing. Keep this step and the suite honest together. Pinned exact,
+        # and BY HAND to a release older than pnpm-workspace.yaml's
+        # minimumReleaseAge: a global install rides no lockfile and no cooldown,
+        # so naming the newest release here admits exactly the version the
+        # workspace would refuse.
         run: pnpm add -g agent-browser@0.36.0 && agent-browser install --with-deps
 
       # ONE run, and that is what deleting the document server bought: the
