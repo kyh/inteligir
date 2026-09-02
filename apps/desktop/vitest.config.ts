@@ -24,13 +24,9 @@ export default defineConfig({
       {
         test: {
           name: "desktop-booted-dom",
-          // The builtin jsdom environment transforms every import in "client"
-          // mode, where vite rewrites `import.meta.url` to an http URL — and
-          // the server graph these suites boot resolves real files from it
-          // (`@repo/db/migrate`'s drizzle folder), so the boot dies at import.
-          // This environment keeps jsdom's globals with the ssr transform the
-          // node suites already run under.
-          environment: "./src/renderer/app/actions/__tests__/jsdom-ssr-environment.ts",
+          // jsdom's globals over the ssr transform; the file states why the
+          // builtin jsdom environment cannot boot the server graph.
+          environment: "./src/renderer/app/__tests__/jsdom-ssr-environment.ts",
           include: [BOOTED_DOM_SUITES],
           setupFiles: SETUP_FILES,
         },

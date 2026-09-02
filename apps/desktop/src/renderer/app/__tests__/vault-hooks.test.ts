@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { ORPCError } from "@orpc/client";
 import { DEFAULT_DOC_EXTENSION } from "@repo/notes/knowledge/doc-file";
@@ -15,6 +15,7 @@ import {
   untitledNotePath,
   type RenameVaultApi,
 } from "../vault-hooks";
+import { rendererSources } from "./renderer-sources";
 
 const REPO_ROOT = resolve(import.meta.dirname, "../../../../../..");
 
@@ -27,16 +28,6 @@ const tree = (...paths: string[]): VaultTreeResponse => ({
       : { kind: "file" as const, path },
   ),
 });
-
-/** Every renderer source file, tests excluded — a walk rather than a list, so
- *  a surface written tomorrow is covered the day it appears. */
-function rendererSources(dir: string): string[] {
-  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
-    const full = join(dir, entry.name);
-    if (entry.isDirectory()) return entry.name === "__tests__" ? [] : rendererSources(full);
-    return /\.tsx?$/u.test(entry.name) ? [full] : [];
-  });
-}
 
 /**
  * The shapes of a client re-deciding what a doc is, derived from the extension

@@ -9,17 +9,11 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { InertSocket } from "../../__tests__/inert-socket";
 import { WorkspaceProvider } from "../../workspace-context";
 import { ActionComposer } from "../action-composer";
 import { routeRendererFetch } from "./booted-fetch";
 import { bootThreadHarness } from "./thread-harness";
-
-/** The provider's invalidation socket, inert: nothing under test rides it. */
-class InertSocket {
-  addEventListener(): void {}
-  send(): void {}
-  close(): void {}
-}
 
 afterEach(() => {
   cleanup();

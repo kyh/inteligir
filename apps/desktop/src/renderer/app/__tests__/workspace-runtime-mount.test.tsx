@@ -5,8 +5,6 @@
 // "/" -> "/settings" -> "/" a cold vault walk, a `git status` and a second
 // socket handshake — the exact cost the bus-driven cache exists to avoid.
 
-import { readFileSync, readdirSync } from "node:fs";
-import { join, resolve } from "node:path";
 import { useQuery } from "@tanstack/react-query";
 import {
   RouterProvider,
@@ -98,15 +96,5 @@ describe("the workspace runtime", () => {
     // was torn down and rebuilt on the way there and back.
     expect(vaultReads).toBe(1);
     expect(dialled).toHaveLength(1);
-  });
-
-  it("is mounted by the root route alone", () => {
-    const routesDir = resolve(import.meta.dirname, "../../routes");
-    const mounts = readdirSync(routesDir)
-      .filter((file) => file.endsWith(".tsx"))
-      .filter((file) => readFileSync(join(routesDir, file), "utf8").includes("<WorkspaceProvider"));
-    // A second mount below the router is not a second opinion, it is a second
-    // runtime — and the route that holds it disposes it on the way out.
-    expect(mounts).toEqual(["__root.tsx"]);
   });
 });

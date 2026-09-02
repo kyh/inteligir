@@ -15,6 +15,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
+import { rendererSources } from "../../__tests__/renderer-sources";
+
 const GALLERY_DIR = path.resolve(import.meta.dirname, "..");
 const REPO_ROOT = path.resolve(GALLERY_DIR, "../../../../../..");
 const UI_SRC = path.join(REPO_ROOT, "packages", "ui", "src");
@@ -52,20 +54,9 @@ function componentNames(dir: string): string[] {
 }
 
 function gallerySource(): string {
-  const files: string[] = [];
-  const walk = (dir: string): void => {
-    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-      const full = path.join(dir, entry.name);
-      if (entry.isDirectory()) {
-        if (entry.name === "__tests__") continue;
-        walk(full);
-      } else if (entry.name.endsWith(".tsx")) {
-        files.push(full);
-      }
-    }
-  };
-  walk(GALLERY_DIR);
-  return files.map((file) => fs.readFileSync(file, "utf8")).join("\n");
+  return rendererSources(GALLERY_DIR)
+    .map((file) => fs.readFileSync(file, "utf8"))
+    .join("\n");
 }
 
 describe("gallery coverage", () => {

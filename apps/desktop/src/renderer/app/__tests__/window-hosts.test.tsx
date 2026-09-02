@@ -6,8 +6,8 @@
 // its refusals deferred until the user navigates back to "/". The hosts are
 // driven here from a route that is NOT the index, through the real root.
 
-import { readFileSync, readdirSync, statSync } from "node:fs";
-import { join, relative, resolve } from "node:path";
+import { readFileSync } from "node:fs";
+import { relative, resolve } from "node:path";
 import { confirm } from "@repo/ui/components/confirm-dialog";
 import { toast } from "@repo/ui/components/sonner";
 import {
@@ -20,12 +20,8 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Route as rootRoute } from "../../routes/__root";
-
-class InertSocket {
-  addEventListener(): void {}
-  send(): void {}
-  close(): void {}
-}
+import { InertSocket } from "./inert-socket";
+import { rendererSources } from "./renderer-sources";
 
 const CONFIRM_TITLE = "Stop syncing this device?";
 const REFUSAL = "Could not unpair this device.";
@@ -75,13 +71,6 @@ function mountAtSettings() {
   render(<RouterProvider router={router} />);
 }
 
-function walk(dir: string): string[] {
-  return readdirSync(dir).flatMap((name) => {
-    const path = join(dir, name);
-    return statSync(path).isDirectory() ? walk(path) : [path];
-  });
-}
-
 beforeEach(() => {
   answered = null;
   vi.stubGlobal("WebSocket", InertSocket);
@@ -111,20 +100,24 @@ describe("the window-level hosts", () => {
     expect(await screen.findByText(REFUSAL)).toBeDefined();
   });
 
-  it("are mounted by the root route alone", () => {
-    // A second host is a second answer to the same call: two confirm dialogs
-    // over one store, two toasters painting every toast twice, and a nested
-    // TooltipProvider re-waiting the delay the outer one already grouped.
-    const HOSTS = ["<ConfirmDialogHost", "<Toaster", "<TooltipProvider"];
+  // A second mount is a second answer to the same call, never a second
+  // opinion — each row says what the second copy would be.
+  const ROOT_ALONE = [
+    ["<ConfirmDialogHost", "two confirm dialogs over one store"],
+    ["<Toaster", "two toasters painting every toast twice"],
+    ["<TooltipProvider", "a nested provider re-waiting the delay the outer one already grouped"],
+    [
+      "<WorkspaceProvider",
+      "a second runtime — its own socket and cold cache — disposed by whichever route holds it",
+    ],
+  ] as const;
+
+  it.each(ROOT_ALONE)("%s is mounted by the root route alone", (host, second) => {
     const rendererDir = resolve(import.meta.dirname, "../..");
-    const mounts = walk(rendererDir)
-      .filter((file) => file.endsWith(".tsx") && !file.includes("__tests__"))
-      .filter((file) => {
-        const source = readFileSync(file, "utf8");
-        return HOSTS.some((host) => source.includes(host));
-      })
+    const mounts = rendererSources(rendererDir)
+      .filter((file) => readFileSync(file, "utf8").includes(host))
       .map((file) => relative(rendererDir, file));
-    expect(mounts, `the hosts ${HOSTS.join(", ")} belong to routes/__root.tsx alone`).toEqual([
+    expect(mounts, `a second ${host} is ${second}; routes/__root.tsx alone mounts it`).toEqual([
       "routes/__root.tsx",
     ]);
   });
