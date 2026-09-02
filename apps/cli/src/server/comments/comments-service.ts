@@ -28,7 +28,11 @@ import {
 } from "@repo/notes/comments/sidecar-schema";
 import type {
   CommentEntryWire,
+  CommentsAddRequest,
+  CommentsRemoveRequest,
   CommentsRemoveResponse,
+  CommentsReplyRequest,
+  CommentsResolveRequest,
   CommentsResponse,
 } from "@repo/api/local/comments/comments-schema";
 import { COMMENTS_THREADS_MAX } from "@repo/api/local/comments/comments-schema";
@@ -38,29 +42,15 @@ import { VaultServiceError, type VaultService } from "../vault/vault-service";
 /** Unix seconds — the sidecar's own timestamp unit. */
 export type CommentsClock = () => number;
 
-/** `source` absent means the caller did not say, and the server signs `user`. */
+/** Each mutation takes the contract's own request shape — the router hands
+ *  `input` through verbatim. `source` absent means the caller did not say,
+ *  and the server signs `user`. */
 export interface CommentsService {
   list(path: string): Promise<CommentsResponse>;
-  add(args: {
-    path: string;
-    id: string;
-    text: string;
-    source?: CommentSource | undefined;
-  }): Promise<CommentsResponse>;
-  reply(args: {
-    path: string;
-    id: string;
-    parentId: string;
-    text: string;
-    source?: CommentSource | undefined;
-  }): Promise<CommentsResponse>;
-  resolve(args: {
-    path: string;
-    id: string;
-    resolved: boolean;
-    source?: CommentSource | undefined;
-  }): Promise<CommentsResponse>;
-  remove(args: { path: string; id: string }): Promise<CommentsRemoveResponse>;
+  add(args: CommentsAddRequest): Promise<CommentsResponse>;
+  reply(args: CommentsReplyRequest): Promise<CommentsResponse>;
+  resolve(args: CommentsResolveRequest): Promise<CommentsResponse>;
+  remove(args: CommentsRemoveRequest): Promise<CommentsRemoveResponse>;
 }
 
 /** A sidecar that exists but does not parse. Refused as a conflict rather
