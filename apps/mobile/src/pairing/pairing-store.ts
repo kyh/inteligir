@@ -13,10 +13,7 @@
 // flow over the real machine with a fake redeem.
 
 import { describeCloudFailure } from "@repo/api/cloud/client";
-import type {
-  PairCallback,
-  PairingFlow as PairingMachine,
-} from "@repo/api/cloud/pairing/pairing-flow";
+import type { PairCallback, PairingFlow } from "@repo/api/cloud/pairing/pairing-flow";
 import type { DeviceCredential } from "@repo/api/cloud/pairing/pairing-schema";
 import { createExternalStore, type ReadableStore } from "../lib/external-store";
 
@@ -26,8 +23,8 @@ export type PairingState =
   | { kind: "pairing" }
   | { kind: "failed"; message: string };
 
-export interface PairingFlowArgs {
-  machine: PairingMachine;
+export interface PairingStoreArgs {
+  machine: PairingFlow;
   /** This app's own deep-link callback, e.g. `inteligir://pair/callback`. */
   redirect: string;
   /** What this device calls itself on the account. */
@@ -39,14 +36,13 @@ export interface PairingFlowArgs {
   onPaired: (credential: DeviceCredential) => Promise<void>;
 }
 
-export interface PairingFlow extends ReadableStore<PairingState> {
-  // Property-function types because the screen passes them by reference.
-  startPair: () => Promise<void>;
+export interface PairingStore extends ReadableStore<PairingState> {
+  startPair(): Promise<void>;
   /** A callback that arrived outside the browser session. */
-  complete: (callback: PairCallback) => Promise<void>;
+  complete(callback: PairCallback): Promise<void>;
 }
 
-export function createPairingFlow(args: PairingFlowArgs): PairingFlow {
+export function createPairingStore(args: PairingStoreArgs): PairingStore {
   const state = createExternalStore<PairingState>({ kind: "idle" });
 
   /** A port that throws (the Keychain write, the browser) lands as a failure

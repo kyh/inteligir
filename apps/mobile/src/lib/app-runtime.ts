@@ -10,10 +10,10 @@
 // it would then have to remember to refresh.
 
 import { useMemo, useSyncExternalStore } from "react";
-import { createPairingFlow as createPairingMachine } from "@repo/api/cloud/pairing/pairing-flow";
+import { createPairingFlow } from "@repo/api/cloud/pairing/pairing-flow";
 import { createSecureStoreCredential } from "../credential/secure-store-credential";
 import type { CredentialStore } from "../credential/credential-store";
-import { createPairingFlow, type PairingFlow, type PairingState } from "../pairing/pairing-flow";
+import { createPairingStore, type PairingState, type PairingStore } from "../pairing/pairing-store";
 import {
   defaultDeviceName,
   expoPkceCrypto,
@@ -25,6 +25,7 @@ import { createMemorySyncStore } from "../sync/memory-sync-store";
 import { createExpoNoteCache } from "../notes/expo-note-cache";
 import {
   createNotesStore,
+  type CredentialHandover,
   type NoteRead,
   type NotesStore,
   type NotesTreeState,
@@ -40,9 +41,19 @@ interface AppRuntime {
   store: SyncStore;
   sync: SyncRuntime;
   notes: NotesStore;
-  pairing: PairingFlow;
+  pairing: PairingStore;
   credentials: CredentialStore;
   removeDeepLink: (() => void) | null;
+}
+
+/** A credential is now this device's: the thread log and the read model
+ *  switch on together. The read model starts where sync does, so no screen
+ *  that reads the tree carries its own "if it is cold, fetch it" effect. */
+function activate(rt: Pick<AppRuntime, "sync" | "notes">, handover: CredentialHandover): void {
+  rt.sync.setCredential(handover.credential);
+  rt.notes.setCredential(handover);
+  rt.sync.start();
+  void rt.notes.refresh();
 }
 
 let runtime: AppRuntime | null = null;
@@ -65,19 +76,14 @@ function build(): AppRuntime {
   const notes = createNotesStore({ cloudUrl, cache: createExpoNoteCache() });
   const credentials = createSecureStoreCredential();
   const callbackUrl = pairCallbackUrl();
-  const pairing = createPairingFlow({
-    machine: createPairingMachine({ cloudUrl, crypto: expoPkceCrypto }),
+  const pairing = createPairingStore({
+    machine: createPairingFlow({ cloudUrl, crypto: expoPkceCrypto }),
     redirect: callbackUrl,
     deviceName: defaultDeviceName(),
     openApprove: (approveUrl) => openApproveAndAwait(approveUrl, callbackUrl),
     onPaired: async (credential) => {
       await credentials.write(credential);
-      sync.setCredential(credential);
-      notes.setCredential({ credential, source: "paired" });
-      sync.start();
-      // The read model starts where sync does: a screen that reads the tree
-      // should not each carry its own "if it is cold, fetch it" effect.
-      void notes.refresh();
+      activate({ sync, notes }, { credential, source: "paired" });
     },
   });
   return { store, sync, notes, pairing, credentials, removeDeepLink: null };
@@ -107,12 +113,7 @@ export async function ensureStarted(): Promise<void> {
     subscription.remove();
   };
   const stored = await rt.credentials.read();
-  if (stored !== null) {
-    rt.sync.setCredential(stored);
-    rt.notes.setCredential({ credential: stored, source: "restored" });
-    rt.sync.start();
-    void rt.notes.refresh();
-  }
+  if (stored !== null) activate(rt, { credential: stored, source: "restored" });
 }
 
 /** Run one sync pass now (foreground / pull-to-refresh). */

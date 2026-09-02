@@ -27,7 +27,7 @@ import {
   type CloudFetch,
   type VaultAssetSource,
 } from "@repo/api/cloud/client";
-import { createExternalStore, type ExternalStore } from "../lib/external-store";
+import { createExternalStore, type ReadableStore } from "../lib/external-store";
 import { createMemoryNoteCache, type CachedNote, type NoteCache } from "./note-cache";
 
 /** The default (memory) cache's bound: a note re-fetches on a miss, and the
@@ -55,7 +55,7 @@ export type NoteRead = ({ ok: true } & CachedNote) | { ok: false; message: strin
  * keeping a second copy of the bearer to compare against) answers a question
  * the caller already answered.
  */
-interface CredentialHandover {
+export interface CredentialHandover {
   credential: DeviceCredential;
   /** `restored` is the boot read of a credential this device already had —
    *  the durable rows on disk are this same pairing's, and that launch is
@@ -69,7 +69,7 @@ export interface NotesStore {
   setCredential(next: CredentialHandover | null): void;
   /** Fetch the whole tree (paged) and rebuild the resolver. */
   refresh(): Promise<void>;
-  tree: ExternalStore<NotesTreeState>;
+  tree: ReadableStore<NotesTreeState>;
   readNote(path: string): Promise<NoteRead>;
   /** A wiki target's vault path over the LAST refreshed tree, or null. */
   resolveWiki(target: string): string | null;

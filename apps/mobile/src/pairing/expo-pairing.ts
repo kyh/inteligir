@@ -1,8 +1,8 @@
 // The Expo wiring for pairing: the crypto primitives, the deep-link callback
 // URL, and opening the approve page. Everything in here touches a native
 // module; the pure handshake is the contract's own machine
-// (`@repo/api/cloud/pairing/pairing-flow`), and the press-to-paired state
-// machine is pairing-flow.ts.
+// (`@repo/api/cloud/pairing/pairing-flow`), and what the screen sees between
+// the press and the credential landing is pairing-store.ts.
 
 import Constants from "expo-constants";
 import * as Crypto from "expo-crypto";

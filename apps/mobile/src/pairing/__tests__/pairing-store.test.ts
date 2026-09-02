@@ -1,14 +1,11 @@
 import type { CloudFetch } from "@repo/api/cloud/client";
 import { describe, expect, it } from "vitest";
-import {
-  createPairingFlow as createPairingMachine,
-  type PairCallback,
-} from "@repo/api/cloud/pairing/pairing-flow";
+import { createPairingFlow, type PairCallback } from "@repo/api/cloud/pairing/pairing-flow";
 import {
   pairRedirectUrlSchema,
   type DeviceCredential,
 } from "@repo/api/cloud/pairing/pairing-schema";
-import { createPairingFlow, type PairingFlow } from "../pairing-flow";
+import { createPairingStore, type PairingStore } from "../pairing-store";
 import { CALLBACK, fakeCrypto, REDEEMED, redeemOk, redeemRefused, stateOf } from "./fakes";
 
 // The flow over the REAL machine: what the screen sees between the press and
@@ -51,7 +48,7 @@ function approvalOf(approveUrl: string): PairCallback {
 interface Harness {
   browser: FakeBrowser;
   paired: DeviceCredential[];
-  flow: PairingFlow;
+  flow: PairingStore;
 }
 
 function harness(args: {
@@ -60,8 +57,8 @@ function harness(args: {
 }): Harness {
   const browser = fakeBrowser();
   const paired: DeviceCredential[] = [];
-  const flow = createPairingFlow({
-    machine: createPairingMachine({
+  const flow = createPairingStore({
+    machine: createPairingFlow({
       cloudUrl: "https://cloud.test",
       crypto: fakeCrypto,
       fetch: args.fetch,
