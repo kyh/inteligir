@@ -86,9 +86,11 @@ export default defineConfig({
         generatedRouteTree: resolve(here, "src/renderer/routeTree.gen.ts"),
         autoCodeSplitting: true,
       }),
-      // `compiler: true` loads the optional peer `oxc-transform-react` — that
-      // peer is the devDependency's only consumer.
-      viteReact({ compiler: true }),
+      // The React Compiler is what the `oxc-transform-react` devDependency is
+      // for: nothing imports it, this flag loads it. Its recoverable
+      // diagnostics are logged, or a component it silently bails out of ships
+      // unmemoized with no sign in the build.
+      viteReact({ compiler: { logDiagnostics: true } }),
       tailwindcss(),
     ],
     build: {

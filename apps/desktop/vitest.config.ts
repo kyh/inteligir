@@ -1,3 +1,4 @@
+import viteReact from "@vitejs/plugin-react";
 import { configDefaults, defineConfig } from "vitest/config";
 
 // Suites that BOOT the server graph inside a DOM test carry the `.booted.`
@@ -11,6 +12,16 @@ export default defineConfig({
     maxWorkers: 2,
     projects: [
       {
+        // The suites run the React Compiler's output, the code the renderer
+        // bundle ships: a component it memoizes wrongly would otherwise pass
+        // every unit test and fail only in the built app. The suites' own
+        // files stay uncompiled — a fixture hook minted per test inside a
+        // factory is a shape no source takes, and one the compiler hoists
+        // wrongly (its closure lands at module scope, where the factory's
+        // counter does not exist) with no diagnostic. The booted-dom project
+        // below cannot share this — its ssr transform is the server consumer,
+        // where the compiler plugin skips compilation.
+        plugins: [viteReact({ compiler: true, exclude: [/\/node_modules\//, /\/__tests__\//] })],
         test: {
           name: "desktop",
           // The renderer's component tests opt into jsdom per file via an
