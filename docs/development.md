@@ -1,8 +1,10 @@
 # Development guide
 
-How to run, verify, and change inteligir. `CLAUDE.md` holds the architecture
-summary, `apps/web/README.md` the Worker's own routes and deploy, `AGENTS.md`
-the runnable quickstart for coding agents.
+How to run, verify, and change inteligir — the ONE home for the commands, the
+ports, where state lives and the gate; `README.md`, `AGENTS.md` and
+`CLAUDE.md` link here rather than restating them. `CLAUDE.md` holds the
+architecture summary and the decisions, `apps/web/README.md` the Worker's own
+routes and deploy, `AGENTS.md` the runnable quickstart for coding agents.
 
 ## Prerequisites
 
@@ -12,13 +14,28 @@ the runnable quickstart for coding agents.
   then set `BETTER_AUTH_SECRET` to anything. Without it every `/api/auth/*`
   request fails.
 
-## Running
+## Commands
 
 ```bash
-pnpm dev             # THE PRODUCT: the shell over its own server
-pnpm cli serve       # the server ALONE, from source, no window
-pnpm dev:web         # vite + miniflare — the marketing/auth Worker, :5174
+pnpm dev              # THE PRODUCT — the shell over its own server
+pnpm dev:desktop      # Alias of dev, kept deliberately (owner call 2026-08-26)
+pnpm dev:mobile       # apps/mobile: expo start
+pnpm cli serve        # The server ALONE, from source, no window; a shell adopts it
+pnpm cli <verb>       # Every other verb, against this checkout's instance
+pnpm dev:web          # apps/web: vite + miniflare on :5174 (pinned, strictPort)
+pnpm package:cli      # The npm artifact (apps/cli) — `npx inteligir serve`
+pnpm package:desktop  # An UNSIGNED macOS arm64 dmg
+pnpm smoke:cli        # Pack, install into a scratch prefix, boot, probe, stop
+pnpm smoke:desktop    # Package the .app, boot its server, drive it, SIGTERM (macOS only)
+pnpm build            # Build all
+pnpm typecheck        # Type check all
+pnpm lint             # Lint all   (oxlint)
+pnpm format:fix       # Format     (oxfmt) — run BEFORE gates, never after
+pnpm verify           # The static gate (CI adds the e2e suite on top)
+pnpm e2e              # The scenario suite (one mode — the SPA is a static build)
 ```
+
+## Running
 
 `pnpm dev` runs electron-vite: the renderer with HMR, the main process, and
 the CLI's bundle rebuilt first — because the shell FORKS that bundle, so a
@@ -78,6 +95,19 @@ six steps CI runs. It is check-only on purpose — `format:fix` is a separate
 first step, never folded in. Format before gates, commit after gates. CI runs
 every gate independently (each step runs even if an earlier one fails), so a
 red format cannot hide test regressions behind it.
+
+CI then runs a few more that `verify` cannot: it installs agent-browser
+(pinned) and runs the scenario suite. ONE run, because there is one build —
+the workspace is a plain SPA served as files, so the suite drives the same
+bytes and the same policy a user gets. So a green `verify` is not a green CI;
+run `pnpm e2e` too before claiming one.
+
+That "plus a few more" is a CLAIM, and
+`tools/repo-guards/src/ci-verify-parity.test.ts` is what keeps it one: every
+gate workflow runs `pnpm verify` or its chain in verify's own order, and every
+step on top of that is a row in `DECLARED_CI_EXTRAS` with its reason. A step
+nobody declared fails the guard rather than quietly becoming a build a
+developer cannot reproduce.
 
 ## Tests
 

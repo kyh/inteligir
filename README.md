@@ -41,39 +41,24 @@ pnpm dev              # the desktop shell over a server on a per-checkout port
 
 ## Layout
 
+One line per workspace; [`CLAUDE.md`](./CLAUDE.md) § Workspace Structure is
+the owned description of each.
+
 ```
-apps/
-  desktop/           @repo/desktop — THE SHIPPED PRODUCT: the window (main,
-                     the inteligir:// protocol, the forked server) and the SPA
-                     inside it
-  cli/               inteligir — THE PUBLISHED BINARY: `serve` is the whole
-                     local server (vault, index, agent, API); every other verb
-                     is a client of one, and how agents drive it from bash
-  web/               @repo/web — ONE Cloudflare Worker: the marketing site,
-                     Better Auth on D1, device pairing, the thread-sync
-                     Durable Object and the capture inbox
-  mobile/            @repo/mobile — the Expo client: synced threads, quick
-                     capture and a read-only notes surface over the hosted
-                     vault, all over the cloud contract
-packages/
-  api/               @repo/api — ONE contract, TWO entry points: /local (the
-                     renderer and the CLI → the local server) and /cloud (the
-                     local server and mobile → the Worker)
-  notes/             @repo/notes — pure platform-neutral domain: markdown
-                     pipeline, knowledge engine (links, tags, tasks, search)
-  editor/            @repo/editor — the Plate.js WYSIWYG over the fixpoint
-                     serializer: kits/nodes for every dialect construct,
-                     wiki chips, formula pills, comments, tag chips
-  ui/                @repo/ui — the shared component vocabulary on Base UI;
-                     vendored once, this repo's own code now
-  domain/            @repo/domain — zod-only leaf vocabulary (view context,
-                     provider events)
-  db/                @repo/db — drizzle + better-sqlite3, migrations, notifier
-  agent-runtime/     @repo/agent-runtime — the ACP adapter over the harnesses
-  agent-skills/      @repo/agent-skills — the dialect spec, as files agents read
-tools/
-  repo-guards/       structural invariant tests over the repo itself
-  e2e/               scenario harness driving a real instance
+apps/desktop            @repo/desktop — THE SHIPPED PRODUCT: the window and the SPA in it
+apps/cli                inteligir — THE PUBLISHED BINARY: `serve` is the server, every other verb a client
+apps/web                @repo/web — ONE Cloudflare Worker: site, auth, pairing, thread sync, captures, hosted vault
+apps/mobile             @repo/mobile — the Expo client: threads, captures, read-only notes
+packages/domain         @repo/domain — zod-only leaf vocabulary
+packages/api            @repo/api — ONE contract, TWO entries: /local and /cloud
+packages/db             @repo/db — drizzle + better-sqlite3, migrations, notifier
+packages/notes          @repo/notes — the pure, platform-neutral domain
+packages/editor         @repo/editor — the Plate WYSIWYG over the fixpoint serializer
+packages/agent-runtime  @repo/agent-runtime — the ACP runtime over the harnesses
+packages/agent-skills   @repo/agent-skills — the dialect spec, as files agents read
+packages/ui             @repo/ui — the shared component vocabulary on Base UI
+tools/repo-guards       @repo/repo-guards — fitness tests over the repo itself
+tools/e2e               @repo/e2e — the scenario suite `pnpm e2e` runs
 ```
 
 Boundaries are enforced, not documented: `tools/repo-guards` derives the
@@ -86,27 +71,12 @@ neither node nor react).
 the runnable recipes. `CLAUDE.md` (root) holds the architecture summary,
 conventions, and the durable decisions; `CONTEXT.md` is the domain glossary.
 
-## Common commands
+## Develop
 
-```bash
-pnpm dev              # the product — the shell over its own server
-pnpm dev:web          # the marketing + auth Worker (localhost:5174)
-pnpm cli              # the CLI against a running instance
-pnpm cli serve        # the server alone, from source — the shell adopts it
-pnpm e2e              # scenario suite against real instances
-pnpm verify           # typecheck, lint, knip, format, test, build — CI's order
-pnpm package:cli      # build the npm artifact
-pnpm smoke:cli        # pack it, install it, boot it, kill it
-pnpm package:desktop  # build the unsigned desktop app
-pnpm smoke:desktop    # package it, boot its server, drive it, SIGTERM
-```
-
-## Quality gates
-
-Before committing:
+[`docs/development.md`](./docs/development.md) owns the commands, the ports,
+where state lives and the gate. The one line every change runs before it is
+committed:
 
 ```bash
 pnpm format:fix && pnpm verify
 ```
-
-`format:fix` runs FIRST and never after the gates.

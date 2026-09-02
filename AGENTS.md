@@ -103,15 +103,13 @@ the limiter.
 
 ## Verify a change
 
-Static gate — mirrors CI exactly (typecheck · lint · knip · format · test ·
-build):
-
 ```sh
 pnpm format:fix && pnpm verify
 ```
 
 `format:fix` runs **FIRST and never after the gates**; `verify` is check-only
-for exactly that reason.
+for exactly that reason. `docs/development.md` owns the full command list,
+the ports, where state lives, and what CI runs on top of `verify`.
 
 Runtime — drive the running site with
 [agent-browser](https://github.com/vercel-labs/agent-browser):
@@ -143,29 +141,24 @@ rather than moving the app somewhere the docs don't name.
 
 ## Map
 
+One line per workspace; `CLAUDE.md` § Workspace Structure is the owned
+description of each.
+
 ```
-apps/desktop             THE SHIPPED PRODUCT: the window, the
-                         inteligir:// protocol, and the SPA         @repo/desktop
-apps/cli                 THE PUBLISHED BINARY: `serve` is the whole
-                         server; every other verb is a client        inteligir
-apps/web                 ONE CF Worker: marketing + Better Auth (D1) @repo/web
-apps/mobile              Expo: threads, captures and a read-only
-                         notes surface over the hosted vault    @repo/mobile
-packages/domain          zod-only leaf vocabulary: view context,
-                         provider events                           @repo/domain
-packages/api             ONE contract, TWO entries: /local and
-                         /cloud                                      @repo/api
-packages/db              drizzle + better-sqlite3, migrations,
-                         DbNotifier, ids                             @repo/db
-packages/agent-runtime   The ACP runtime: one adapter, harness rows @repo/agent-runtime
-packages/agent-skills    The dialect spec, as files agents read   @repo/agent-skills
-packages/notes           Pure domain — knowledge + markdown          @repo/notes
-packages/editor          The Plate WYSIWYG over the serializer      @repo/editor
-packages/ui              Shared components on Base UI — this repo's
-                         own code, MIT headers kept                  @repo/ui
-tools/repo-guards        Fitness tests over the repo: the dep DAG, ws
-                         change kinds, CI parity, dangling refs     @repo/repo-guards
-tools/e2e                The scenario suite `pnpm e2e` drives           @repo/e2e
+apps/desktop            @repo/desktop — THE SHIPPED PRODUCT: the window and the SPA in it
+apps/cli                inteligir — THE PUBLISHED BINARY: `serve` is the server, every other verb a client
+apps/web                @repo/web — ONE Cloudflare Worker: site, auth, pairing, thread sync, captures, hosted vault
+apps/mobile             @repo/mobile — the Expo client: threads, captures, read-only notes
+packages/domain         @repo/domain — zod-only leaf vocabulary
+packages/api            @repo/api — ONE contract, TWO entries: /local and /cloud
+packages/db             @repo/db — drizzle + better-sqlite3, migrations, notifier
+packages/notes          @repo/notes — the pure, platform-neutral domain
+packages/editor         @repo/editor — the Plate WYSIWYG over the fixpoint serializer
+packages/agent-runtime  @repo/agent-runtime — the ACP runtime over the harnesses
+packages/agent-skills   @repo/agent-skills — the dialect spec, as files agents read
+packages/ui             @repo/ui — the shared component vocabulary on Base UI
+tools/repo-guards       @repo/repo-guards — fitness tests over the repo itself
+tools/e2e               @repo/e2e — the scenario suite `pnpm e2e` runs
 ```
 
 - `CLAUDE.md` — architecture and § Decisions.
