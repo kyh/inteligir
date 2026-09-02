@@ -2,7 +2,7 @@
 // state machine the screen reads through `useSyncExternalStore`. Two paths feed
 // it: the in-session browser return, and the deep-link listener (a redirect that
 // lands after the app was backgrounded during approval). Both converge on
-// `complete`, so a failure computed on either path is SHOWN — a state local to
+// `settle`, so a failure computed on either path is SHOWN — a state local to
 // the screen's own call could only see the path that ran inside it.
 //
 // The handshake itself — the slot, the TTL, the constant-time state compare,
@@ -22,6 +22,10 @@ export type PairingState =
   /** From the press until the credential is this device's, or the flow ends. */
   | { kind: "pairing" }
   | { kind: "failed"; message: string };
+
+/** Where a callback came from: the browser this store opened, or the deep-link
+ *  listener any app or site can reach. */
+type CallbackOrigin = "browser" | "deep-link";
 
 export interface PairingStoreArgs {
   machine: PairingFlow;
@@ -58,31 +62,40 @@ export function createPairingStore(args: PairingStoreArgs): PairingStore {
     }
   }
 
+  async function settle(callback: PairCallback, origin: CallbackOrigin): Promise<void> {
+    const completion = await args.machine.complete(callback);
+    switch (completion.kind) {
+      case "paired":
+        await args.onPaired(completion.credential);
+        state.set({ kind: "idle" });
+        return;
+      case "no-pending":
+        // A redirect can arrive both in-session and as a deep link; whichever
+        // path took the approval owns its outcome, and this one is a replay.
+        return;
+      case "state-mismatch":
+        // The machine leaves the armed approval untouched on a mismatch, so a
+        // foreign deep link while this store's own browser is still open
+        // settles nothing — and showing it as a failure would re-enable the
+        // button, whose press REPLACES the slot the real approval still
+        // expects. The browser bringing back a wrong state is that session
+        // over, and is shown.
+        if (origin === "deep-link" && state.get().kind === "pairing") return;
+        state.set({
+          kind: "failed",
+          message: "That approval did not match the pairing this app started.",
+        });
+        return;
+      case "expired":
+        state.set({ kind: "failed", message: "The pairing took too long — start another." });
+        return;
+      case "refused":
+        state.set({ kind: "failed", message: describeCloudFailure(completion.failure) });
+    }
+  }
+
   function complete(callback: PairCallback): Promise<void> {
-    return guarded(async () => {
-      const completion = await args.machine.complete(callback);
-      switch (completion.kind) {
-        case "paired":
-          await args.onPaired(completion.credential);
-          state.set({ kind: "idle" });
-          return;
-        case "no-pending":
-          // A redirect can arrive both in-session and as a deep link; whichever
-          // path took the approval owns its outcome, and this one is a replay.
-          return;
-        case "state-mismatch":
-          state.set({
-            kind: "failed",
-            message: "That approval did not match the pairing this app started.",
-          });
-          return;
-        case "expired":
-          state.set({ kind: "failed", message: "The pairing took too long — start another." });
-          return;
-        case "refused":
-          state.set({ kind: "failed", message: describeCloudFailure(completion.failure) });
-      }
-    });
+    return guarded(() => settle(callback, "deep-link"));
   }
 
   function startPair(): Promise<void> {
@@ -101,7 +114,7 @@ export function createPairingStore(args: PairingStoreArgs): PairingStore {
         if (state.get().kind === "pairing") state.set({ kind: "idle" });
         return;
       }
-      await complete(callback);
+      await settle(callback, "browser");
     });
   }
 

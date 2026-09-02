@@ -135,12 +135,13 @@ describe("the pairing flow", () => {
     const run = flow.startPair();
     const approveUrl = await browser.opened;
 
-    // Someone else's traffic on the deep link: shown, and the approval stays armed.
+    // Someone else's traffic on the deep link: the approval stays armed and the
+    // screen stays in the flow — a shown failure would re-enable the button,
+    // whose press would replace the approval the browser still holds.
     await flow.complete({ code: "ABCD-EFGH", state: "0".repeat(32) });
-    expect(flow.get()).toStrictEqual({
-      kind: "failed",
-      message: "That approval did not match the pairing this app started.",
-    });
+    expect(flow.get()).toStrictEqual({ kind: "pairing" });
+    await flow.startPair();
+    expect(browser.opens).toBe(1);
 
     // The real redirect lands as a deep link while the browser is still open.
     await flow.complete(approvalOf(approveUrl));
@@ -152,6 +153,19 @@ describe("the pairing flow", () => {
     await run;
     expect(paired).toHaveLength(1);
     expect(flow.get()).toStrictEqual({ kind: "idle" });
+  });
+
+  it("shows a mismatch the browser itself brought back — that session is over", async () => {
+    const { browser, paired, flow } = harness({ fetch: redeemOk });
+    const run = flow.startPair();
+    await browser.opened;
+    browser.comeBack({ code: "ABCD-EFGH", state: "0".repeat(32) });
+    await run;
+    expect(paired).toHaveLength(0);
+    expect(flow.get()).toStrictEqual({
+      kind: "failed",
+      message: "That approval did not match the pairing this app started.",
+    });
   });
 
   it("lands a thrown port as a failure, not a spinner that never ends", async () => {
