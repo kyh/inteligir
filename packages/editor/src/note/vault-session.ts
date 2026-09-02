@@ -76,8 +76,9 @@ export type VaultSessionPorts = {
   list: () => Promise<VaultEntry[]>;
   /** Ask the host to re-announce its manifest. */
   refresh: () => Promise<void>;
-  /** Whether `path` already names a document — open-or-create never truncates
-   * a note the user already has. */
+  /** Whether `path` already names a document — the open half of
+   * open-or-create, since `note.create` refuses an existing file rather than
+   * opening it. */
   exists: (path: string) => Promise<boolean>;
   /** Move a file, answering with the host's verdict. */
   rename: (from: string, to: string) => Promise<RenameResult>;
@@ -272,11 +273,11 @@ export function createVaultSession(ports: VaultSessionPorts): VaultSession {
       return null;
     }
     const path = verdict.path;
-    // Don't truncate an existing file — it already satisfies "exists".
-    // Open-or-create seeds only when the file is genuinely new, so a second
-    // "open today's note" reopens the existing note byte-for-byte. The create
-    // is exclusive on its own, so a file that lands between this check and
-    // the create is refused rather than overwritten.
+    // An existing file already satisfies open-or-create: it opens with no
+    // notice, so a second "open today's note" is byte-for-byte the first. The
+    // create below is exclusive and its refusal is reported as a FAILURE, so
+    // "is it there?" is answered here — and a file landing between the check
+    // and the create is refused, never overwritten.
     if (await ports.exists(path)) return path;
     const created = await ports.note
       .create(path, seedContent)
