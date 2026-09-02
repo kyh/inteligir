@@ -62,13 +62,12 @@ export { isIgnoredEntryName };
 /**
  * A vault-relative file path as git holds it, judged by THE vault-path
  * grammar (`parseVaultPath`) — one grammar, every surface, because a
- * boundary with its own copy admits what another rejects (this one had
- * drifted: it took `.GIT/hooks/x` and `a\b`). Deliberately not the vault
- * engine's containment ladder — the Worker resolves paths inside a git
- * tree, where traversal has nothing to escape into. The parse must be the
- * IDENTITY: a path the grammar would normalize (empty segments, a trailing
- * slash) is refused rather than silently renamed, since these values
- * address git trees verbatim.
+ * boundary with its own copy admits what another rejects. Deliberately not
+ * the vault engine's containment ladder — the Worker resolves paths inside a
+ * git tree, where traversal has nothing to escape into. The parse must be
+ * the IDENTITY: a path the grammar would normalize (empty segments, a
+ * trailing slash) is refused rather than silently renamed, since these
+ * values address git trees verbatim.
  */
 const vaultPathSchema = z.string().superRefine((value, ctx) => {
   const parsed = parseVaultPath(value);

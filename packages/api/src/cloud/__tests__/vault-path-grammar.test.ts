@@ -1,7 +1,5 @@
 // The cloud wire's vault-path grammar IS the vault engine's own
-// (`parseVaultPath`, taken verbatim) — this schema was once a hand-rolled
-// copy, and the copy drifted: it admitted `.GIT/hooks/x` and `a\b` where the
-// engine refuses both. One corpus through both deciders keeps them in
+// (`parseVaultPath`, verbatim). One corpus through both deciders keeps them in
 // lockstep; the expectation is DERIVED from the engine, so a value they
 // disagree on is named rather than hand-listed.
 
@@ -55,7 +53,7 @@ describe("the vault-path grammar has one spelling", () => {
     }
   });
 
-  it("pins the two values the drifted copy admitted", () => {
+  it("refuses case-folded .git and backslash separators absolutely", () => {
     // Case-folded `.git` reaches git's machinery on a case-insensitive
     // filesystem, and a backslash path means different files per platform.
     expect(wireAdmits(".GIT/hooks/x")).toBe(false);

@@ -25,9 +25,10 @@ export async function sha256Hex(value: string): Promise<string> {
  *
  * Every caller compares a value a counterparty is guessing at (a pairing
  * state, a PKCE challenge), so equality is compared the way a secret is —
- * and it is spelled by hand because two of the platforms this leaf serves
- * have nothing to call: workerd carries no `crypto.timingSafeEqual` (that is
- * node's) and React Native carries no `node:crypto` at all. The length
+ * spelled by hand because Hermes (React Native) has no timing-safe compare
+ * at all, and one spelling that runs on workerd, node, the browser and Hermes
+ * beats platform branches over node's `crypto.timingSafeEqual` and workerd's
+ * `crypto.subtle.timingSafeEqual` for two 43-char compares. The length
  * difference folds into the accumulator and the loop runs the longer
  * string's length whatever the inputs are, so the guard does not depend on
  * both operands being fixed-width.

@@ -11,16 +11,16 @@
 // over stored links, no re-parsing.
 //
 // That rebuild is whole-corpus, so it is scoped by what actually invalidates
-// it. Resolution depends on exactly two things: the set of vault paths and the
-// docs' `aliases:` (link-resolve's five tiers read nothing else). Re-projecting
-// a KNOWN doc with an unchanged alias list therefore leaves every OTHER doc's
-// resolution — and the resolver itself — correct, so only that doc's own links
-// are re-resolved and re-filed. That is the steady state (a note being edited),
-// and it is the difference between a per-edit fold over the whole vault and a
-// fold over eight links. Anything that moves a path or an alias still forces
-// the full rebuild, because it can silently re-point links anywhere in the
-// vault (a new `note.md` resolves another doc's dangling `[[note]]`, or makes a
-// basename ambiguous).
+// it. Resolution depends on exactly three things: the set of vault paths, the
+// docs' `aliases:` and their frontmatter `id:` (link-resolve's six tiers read
+// nothing else). Re-projecting a KNOWN doc with an unchanged alias list and id
+// therefore leaves every OTHER doc's resolution — and the resolver itself —
+// correct, so only that doc's own links are re-resolved and re-filed. That is
+// the steady state (a note being edited), and it is the difference between a
+// per-edit fold over the whole vault and a fold over eight links. Anything that
+// moves a path, an alias or an id still forces the full rebuild, because it
+// can silently re-point links anywhere in the vault (a new `note.md` resolves
+// another doc's dangling `[[note]]`, or makes a basename ambiguous).
 // ---------------------------------------------------------------------------
 
 import { isDocPath } from "./doc-file";
