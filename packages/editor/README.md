@@ -15,7 +15,11 @@ The product's privacy posture lives in `docs/privacy.md`.
 
 Deps: `@repo/notes` (the parse pipeline and the knowledge types), `@repo/ui`
 (the components). No node, no electron. The host contract is this package's own
-`host.tsx` / `host-io.ts`; the app implements it.
+`host.tsx` / `host-io.ts`; the app implements it. The package also ships ONE
+stylesheet, `styles.css` (toggle collapse, the callout marker swap, the hljs
+theme), inert until the host `@import`s `@repo/editor/styles.css` —
+`style-hooks.ts` spells the selectors it reads, and
+`__tests__/style-hooks.test.ts` pins the two together.
 
 ## Layout
 
@@ -58,6 +62,9 @@ src/
                        # the in-document affordances — every surface a node can
                        # be inserted from, and the transforms behind them
   wiki-*.ts(x)         # the `[[` picker, chips, insertion, key handling
+  style-hooks.ts, styles.css
+                       # the behaviour rules the host @imports, and the one
+                       # spelling of every selector hook they read
   __tests__/fixtures/  # THE BYTE-PINNED ROUND-TRIP MATRIX (see below)
 ```
 
