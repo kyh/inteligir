@@ -20,7 +20,7 @@ import { useRadius } from "@repo/ui/lib/radius-context";
 import { useSize, SizeProvider, type SizeVariant } from "@repo/ui/lib/size-context";
 import { ProximityOverlays } from "@repo/ui/hooks/proximity-overlays";
 import { useProximityHover, type ItemRect } from "@repo/ui/hooks/use-proximity-hover";
-import type { IconComponent } from "@repo/ui/lib/icon-context";
+import type { IconComponent } from "@repo/ui/lib/icon";
 import { useIsoLayoutEffect } from "@repo/ui/lib/use-iso-layout-effect";
 import { composeRefs } from "@repo/ui/lib/compose-refs";
 import { splitLeadingText } from "@repo/ui/components/sidebar-core";

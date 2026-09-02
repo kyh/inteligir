@@ -17,6 +17,7 @@ import {
   type HTMLAttributes,
 } from "react";
 import { motion, AnimatePresence, type HTMLMotionProps } from "framer-motion";
+import { ChevronDownIcon } from "lucide-react";
 import { composeRefs } from "@repo/ui/lib/compose-refs";
 import { cssVars } from "@repo/ui/lib/css-vars";
 import { cn } from "@repo/ui/lib/utils";
@@ -24,7 +25,6 @@ import { spring } from "@repo/ui/lib/springs";
 import { fontWeights } from "@repo/ui/lib/font-weight";
 import { useRadius } from "@repo/ui/lib/radius-context";
 import { useSize, useSizeVariant } from "@repo/ui/lib/size-context";
-import { useIcons } from "@repo/ui/lib/icon-context";
 import { useSurface, SurfaceProvider } from "@repo/ui/lib/surface-context";
 import { surfaceClasses } from "@repo/ui/lib/surface-classes";
 import { Tooltip } from "@repo/ui/components/tooltip";
@@ -968,7 +968,6 @@ const SidebarGroupLabel = forwardRef<HTMLElement, SidebarGroupLabelProps>(
     const sizeClasses = useSize();
     const group = useContext(SidebarGroupContext);
     const radius = useRadius();
-    const ChevronDownIcon = useIcons()["chevron-down"];
 
     // Truncate only the leading text; element children (count badges,
     // trailing controls) stay flex siblings so the row's gap keeps spacing

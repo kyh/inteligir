@@ -13,7 +13,6 @@
     "./lib/*": "./src/lib/*.ts",
     "./lib/collapse": "./src/lib/collapse.tsx",
     "./lib/elevated": "./src/lib/elevated.tsx",
-    "./lib/icon-context": "./src/lib/icon-context.tsx",
     "./lib/radius-context": "./src/lib/radius-context.tsx",
     "./lib/size-context": "./src/lib/size-context.tsx",
     "./lib/surface-context": "./src/lib/surface-context.tsx",

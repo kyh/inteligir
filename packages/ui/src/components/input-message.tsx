@@ -17,19 +17,12 @@ import { cn } from "@repo/ui/lib/utils";
 import { fontWeights } from "@repo/ui/lib/font-weight";
 import { useRadius } from "@repo/ui/lib/radius-context";
 import { SizeProvider, useSize, type SizeVariant } from "@repo/ui/lib/size-context";
-import { useIcon, type IconComponent, type IconComponentProps } from "@repo/ui/lib/icon-context";
+import { ArrowUpIcon } from "lucide-react";
 import { surfaceClasses } from "@repo/ui/lib/surface-classes";
 import { SurfaceProvider } from "@repo/ui/lib/surface-context";
 import { composeRefs } from "@repo/ui/lib/compose-refs";
 import { Button } from "@repo/ui/components/button";
 import { useIsoLayoutEffect } from "@repo/ui/lib/use-iso-layout-effect";
-
-/** Renders a glyph resolved from the icon registry. The tag lives here, where
- *  it comes from a prop: a registry lookup is not a component React can see as
- *  stable, so it must never be a JSX tag itself. */
-function Icon({ icon: Glyph, ...props }: { icon: IconComponent } & IconComponentProps) {
-  return <Glyph {...props} />;
-}
 
 interface InputMessageProps extends Omit<HTMLAttributes<HTMLDivElement>, "onChange"> {
   /** Step on the size ladder. Wins over the surrounding SizeProvider and
@@ -97,7 +90,6 @@ const InputMessage = forwardRef<HTMLDivElement, InputMessageProps>(
   ) => {
     const radius = useRadius();
     const compactStep = useSize(size).variant === "compact";
-    const ArrowUpIcon = useIcon("arrow-up");
 
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const [focusVisible, setFocusVisible] = useState(false);
@@ -295,8 +287,7 @@ const InputMessage = forwardRef<HTMLDivElement, InputMessageProps>(
                 disabled={!canSend}
                 aria-label={sendLabel}
               >
-                <Icon
-                  icon={ArrowUpIcon}
+                <ArrowUpIcon
                   size={compactStep ? 15 : 19}
                   className={cn(
                     "block",

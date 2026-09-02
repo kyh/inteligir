@@ -5,7 +5,7 @@ import { forwardRef, type CSSProperties } from "react";
 import { Button as ButtonPrimitive } from "@base-ui/react/button";
 import { cva } from "class-variance-authority";
 
-import type { IconComponent } from "@repo/ui/lib/icon-context";
+import type { IconComponent } from "@repo/ui/lib/icon";
 import { useRadius } from "@repo/ui/lib/radius-context";
 import { useSizeVariant } from "@repo/ui/lib/size-context";
 import { cn } from "@repo/ui/lib/utils";

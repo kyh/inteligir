@@ -4,9 +4,9 @@
 import { forwardRef, type HTMLAttributes, type ReactNode } from "react";
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { motion } from "framer-motion";
+import { XIcon } from "lucide-react";
 
 import { Button } from "@repo/ui/components/button";
-import { useIcon } from "@repo/ui/lib/icon-context";
 import { motionStyle } from "@repo/ui/lib/motion-style";
 import { useRadius } from "@repo/ui/lib/radius-context";
 import { useSize, useSizeVariant } from "@repo/ui/lib/size-context";
@@ -58,7 +58,6 @@ interface DialogContentProps extends Omit<HTMLAttributes<HTMLDivElement>, Motion
 
 const DialogContent = forwardRef<HTMLDivElement, DialogContentProps>(
   ({ className, children, showCloseButton = true, initialFocus, style, ...props }, ref) => {
-    const XIcon = useIcon("x");
     const radius = useRadius();
     const substrate = useSurface();
     const dialogLevel = Math.min(substrate + DIALOG_OFFSET, 8);
