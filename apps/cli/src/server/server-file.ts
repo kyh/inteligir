@@ -31,7 +31,7 @@ import { chmodSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import { join } from "node:path";
 import { z } from "zod";
-import { constantTimeEqual } from "./constant-time-equal";
+import { constantTimeEqual } from "@repo/api/cloud/bytes";
 import { errnoCode } from "./errno";
 import { stagedWriteFileSync } from "./staged-write";
 
