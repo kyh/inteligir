@@ -221,7 +221,7 @@ function consumerFiles(): string[] {
 describe("no orphan @repo/ui exports", () => {
   const files = uiFiles();
   const sweptDirs = sweptRoots()
-    .map((root) => `src/${root}`)
+    .map((root) => `src/${root.dir}`)
     .join(", ");
 
   it(`every export under ${sweptDirs} has a consumer outside the gallery`, () => {
