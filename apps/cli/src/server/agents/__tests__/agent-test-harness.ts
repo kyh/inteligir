@@ -7,10 +7,16 @@ import type {
   PendingInteraction,
 } from "@repo/api/local/threads/threads-schema";
 import type { TimelineRow } from "@repo/api/local/thread-timeline";
+import { expect, vi } from "vitest";
 import type { BootedTestApp } from "../../__tests__/boot-app";
 import type { AgentSessionFacts } from "../agent-shell-env";
 
 type ThreadClient = BootedTestApp["client"];
+
+/** `vi.waitFor` options for a wait on a spawned provider: the runner's
+ *  one-second default is sized for in-process state, and an adapter child
+ *  answers in seconds. */
+export const PROVIDER_WAIT = { timeout: 5_000, interval: 25 };
 
 /** A fake instance's session facts: no CLI, no skills, no folders — unless
  *  the test says otherwise. */
@@ -54,6 +60,29 @@ export async function getThreadDetail(
   return { status: detail.thread.status, pendingInteractions: detail.pendingInteractions };
 }
 
+export async function awaitThreadStatus(
+  client: ThreadClient,
+  threadId: string,
+  wanted: string,
+): Promise<void> {
+  await vi.waitFor(
+    async () => expect((await getThreadDetail(client, threadId)).status).toBe(wanted),
+    PROVIDER_WAIT,
+  );
+}
+
+/** The first pending interaction, once the provider has parked on one. */
+export async function awaitPendingInteraction(
+  client: ThreadClient,
+  threadId: string,
+): Promise<PendingInteraction> {
+  return await vi.waitFor(async () => {
+    const [interaction] = (await getThreadDetail(client, threadId)).pendingInteractions;
+    if (interaction === undefined) throw new Error("no pending interaction yet");
+    return interaction;
+  }, PROVIDER_WAIT);
+}
+
 export async function fetchTimelineRows(
   client: ThreadClient,
   threadId: string,
@@ -68,22 +97,4 @@ export async function fetchTimelineRows(
 /** Work rows nest as children of their turn row; flatten for assertions. */
 export function flattenTimelineRows(rows: TimelineRow[]): TimelineRow[] {
   return rows.flatMap((row) => (row.kind === "turn" ? [row, ...row.children] : [row]));
-}
-
-export async function waitFor<T>(
-  probe: () => Promise<T | undefined> | T | undefined,
-  what: string,
-  timeoutMs = 5000,
-): Promise<T> {
-  const deadline = Date.now() + timeoutMs;
-  for (;;) {
-    const value = await probe();
-    if (value !== undefined) {
-      return value;
-    }
-    if (Date.now() > deadline) {
-      throw new Error(`Timed out waiting for ${what}`);
-    }
-    await new Promise((resolve) => setTimeout(resolve, 25));
-  }
 }

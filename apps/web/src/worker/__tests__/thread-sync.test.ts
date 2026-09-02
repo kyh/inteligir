@@ -13,12 +13,12 @@ import {
 import { env, runInDurableObject, SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 import {
+  awaitFrames,
   deviceHeaders,
   openSocket,
   ORIGIN,
   pairDevice,
   sessionHeaders,
-  settled,
   signUpUser,
   userIdOf,
 } from "./cloud-helpers";
@@ -215,14 +215,17 @@ describe("thread sync log", () => {
     // The user files it as a desktop dispatch, then changes their mind.
     await push(phone.credential, { events: [], threads: [meta("th_1", "desktop", 1000, "First")] });
     await push(phone.credential, { events: [], threads: [meta("th_1", "any", 2000, "Second")] });
-    await settled();
-    const afterMoveOff = desktopWs.frames.length;
+    await awaitFrames(desktopWs, [{ type: "dispatch", threadId: "th_1" }]);
 
     // The stale retry of the FIRST change lands late. It must not resurrect
-    // the desktop lane — if it did, the dispatch would fire again here.
+    // the desktop lane — if it did, a second dispatch would sit between the
+    // first and the sync ping the push after it earns.
     await push(phone.credential, { events: [], threads: [meta("th_1", "desktop", 1000, "First")] });
-    await settled();
-    expect(desktopWs.frames).toHaveLength(afterMoveOff);
+    await push(phone.credential, { events: [event("th_1", 1, "after the retry")] });
+    await awaitFrames(desktopWs, [
+      { type: "dispatch", threadId: "th_1" },
+      { type: "sync", seq: 1 },
+    ]);
 
     desktopWs.socket.close();
   });
@@ -242,15 +245,14 @@ describe("thread sync log", () => {
       events: [event("th_dispatch", 1, "run this")],
       threads: [meta("th_dispatch", "desktop", 1000, "Do the thing")],
     });
-    await settled();
 
     // The desktop socket hears both the sync ping and the dispatch poke.
-    expect(desktopWs.frames).toEqual([
+    await awaitFrames(desktopWs, [
       { type: "sync", seq: 1 },
       { type: "dispatch", threadId: "th_dispatch" },
     ]);
     // A non-desktop socket hears only the sync ping.
-    expect(tabletWs.frames).toEqual([{ type: "sync", seq: 1 }]);
+    await awaitFrames(tabletWs, [{ type: "sync", seq: 1 }]);
     // The pusher's own socket hears nothing — it holds what it pushed.
     expect(phoneWs.frames).toEqual([]);
 
@@ -259,10 +261,15 @@ describe("thread sync log", () => {
       events: [event("th_chat", 2, "hello")],
       threads: [meta("th_chat", "any", 1000)],
     });
-    await settled();
-    expect(desktopWs.frames).toHaveLength(3);
-    expect(desktopWs.frames[2]).toEqual({ type: "sync", seq: 2 });
-    expect(tabletWs.frames).toHaveLength(2);
+    await awaitFrames(desktopWs, [
+      { type: "sync", seq: 1 },
+      { type: "dispatch", threadId: "th_dispatch" },
+      { type: "sync", seq: 2 },
+    ]);
+    await awaitFrames(tabletWs, [
+      { type: "sync", seq: 1 },
+      { type: "sync", seq: 2 },
+    ]);
     expect(phoneWs.frames).toEqual([]);
 
     desktopWs.socket.close();
@@ -286,10 +293,9 @@ describe("thread sync log", () => {
       ).json(),
     );
     expect(response).toEqual({ accepted: 0, duplicates: 0, lastSeq: 0 });
-    await settled();
 
     // No sync ping — nothing was appended to pull — but the poke lands.
-    expect(desktopWs.frames).toEqual([{ type: "dispatch", threadId: "th_later" }]);
+    await awaitFrames(desktopWs, [{ type: "dispatch", threadId: "th_later" }]);
     desktopWs.socket.close();
   });
 
@@ -316,8 +322,7 @@ describe("thread sync log", () => {
       events: [event("th_x", 1, "after")],
       threads: [meta("th_x", "desktop", 1000)],
     });
-    await settled();
-    expect(desktopWs.frames).toEqual([
+    await awaitFrames(desktopWs, [
       { type: "sync", seq: 1 },
       { type: "dispatch", threadId: "th_x" },
     ]);
@@ -433,9 +438,8 @@ describe("capture inbox", () => {
     const laptopWs = await openSocket(laptop.credential, "desktop");
 
     await capture(phone.credential, "remember the thing", "key-ping-1");
-    await settled();
 
-    expect(laptopWs.frames).toEqual([{ type: "capture" }]);
+    await awaitFrames(laptopWs, [{ type: "capture" }]);
     laptopWs.socket.close();
   });
 

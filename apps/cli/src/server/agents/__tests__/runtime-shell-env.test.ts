@@ -12,11 +12,11 @@
 
 import type { AgentRuntime } from "@repo/agent-runtime/types";
 import type { createAcpAgentRuntime } from "@repo/agent-runtime/acp/acp-runtime";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { delimiter } from "node:path";
 import { createAcpRuntimeManager } from "../runtime-manager";
 import { bootTestApp } from "../../__tests__/boot-app";
-import { createThread, fakeSessionFacts, waitFor } from "./agent-test-harness";
+import { createThread, fakeSessionFacts, PROVIDER_WAIT } from "./agent-test-harness";
 
 type RuntimeOptions = Parameters<typeof createAcpAgentRuntime>[0];
 
@@ -66,7 +66,11 @@ describe("ACP runtime shell env wiring", () => {
     });
     expect(send.kind).toBe("started");
 
-    const options = await waitFor(() => recorded[0], "the runtime to be constructed");
+    const options = await vi.waitFor(() => {
+      const [first] = recorded;
+      if (first === undefined) throw new Error("the runtime has not been constructed yet");
+      return first;
+    }, PROVIDER_WAIT);
     // A GETTER, never a value: the runtime reads it at every adapter spawn,
     // which is what lets a Settings edit reach the next session.
     if (options.shellEnv === undefined) throw new Error("runtime has no shell env");

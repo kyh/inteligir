@@ -6,7 +6,7 @@ import {
 } from "@repo/api/cloud/pairing/pairing-schema";
 import { syncPingSchema, type SyncPing } from "@repo/api/cloud/sync/sync-ws";
 import { env, SELF } from "cloudflare:test";
-import { expect } from "vitest";
+import { expect, vi } from "vitest";
 import { z } from "zod";
 import { createDb } from "../db/client";
 import { inviteCode } from "../db/schema";
@@ -108,8 +108,13 @@ export async function openSocket(
   return { frames, socket };
 }
 
-/** The pings are sent inside the push's own invocation; one macrotask later
- * they have crossed the in-process pair. */
-export function settled(): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, 100));
+/** The pings are sent inside the push's own invocation and cross the
+ *  in-process pair a macrotask later, so a socket's frames are awaited rather
+ *  than read straight after the push. Exact: a frame that must NOT arrive is
+ *  proven absent by a later frame that did. */
+export async function awaitFrames(
+  socket: { frames: SyncPing[] },
+  expected: readonly SyncPing[],
+): Promise<void> {
+  await vi.waitFor(() => expect(socket.frames).toEqual(expected));
 }

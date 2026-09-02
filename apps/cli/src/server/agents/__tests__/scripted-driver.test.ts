@@ -12,13 +12,12 @@ import { resolveAgentDriver } from "../agent-driver";
 import { scriptedNotePath } from "../scripted-driver";
 import { bootTestApp } from "../../__tests__/boot-app";
 import {
+  awaitThreadStatus,
   createThread,
   fakeSessionFacts,
   fetchTimelineRows,
   flattenTimelineRows,
-  getThreadDetail,
   sendMessage,
-  waitFor,
 } from "./agent-test-harness";
 import { hermeticGitEnv } from "../../vault/__tests__/git-test-env";
 
@@ -58,11 +57,7 @@ describe("the scripted driver over real HTTP", () => {
     const threadId = await createThread(harness.client);
     const turnId = await sendMessage(harness.client, threadId, "remember the milk");
 
-    await waitFor(
-      async () =>
-        (await getThreadDetail(harness.client, threadId)).status === "idle" ? true : undefined,
-      "the scripted turn to settle",
-    );
+    await awaitThreadStatus(harness.client, threadId, "idle");
 
     const rows = flattenTimelineRows(await fetchTimelineRows(harness.client, threadId));
     const user = rows.find((row) => row.kind === "conversation" && row.role === "user");

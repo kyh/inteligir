@@ -5,7 +5,7 @@
 import { existsSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { setTimeout as delay } from "node:timers/promises";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { makeTempDir } from "../../__tests__/temp-dir";
 import { VOICE_MODEL } from "../model-catalog";
 import { modelDirFor, resolveModelFiles } from "../model-store";
@@ -18,18 +18,6 @@ import {
 } from "../voice-service";
 import type { VoiceStreamWorkerCallbacks, VoiceStreamWorkerHandle } from "../voice-worker-host";
 import type { VoiceModelFiles, VoiceWorkerResponse } from "../worker-protocol";
-
-/** Poll until a condition holds — the stream session's setup is async (a probe
- *  and a filesystem check), so a single tick can land before it settles. */
-async function until(predicate: () => boolean, ms = 2_000): Promise<void> {
-  const deadline = Date.now() + ms;
-  while (!predicate()) {
-    if (Date.now() > deadline) {
-      throw new Error("condition not met in time");
-    }
-    await new Promise((resolve) => setTimeout(resolve, 5));
-  }
-}
 
 const workerOk = async (): Promise<VoiceWorkerResponse> => ({ kind: "probed" });
 
@@ -273,7 +261,7 @@ describe("ParakeetVoiceService", () => {
       onFinal: () => undefined,
       onError: (message) => errors.push(message),
     });
-    await until(() => errors.length > 0);
+    await vi.waitFor(() => expect(errors).not.toHaveLength(0));
     expect(spawn.spawnCount()).toBe(0);
     expect(errors[0]).toMatch(/Settings/u);
   });
@@ -293,7 +281,7 @@ describe("ParakeetVoiceService", () => {
       onFinal: (text) => finals.push(text),
       onError: () => undefined,
     });
-    await until(() => spawn.spawnCount() === 1);
+    await vi.waitFor(() => expect(spawn.spawnCount()).toBe(1));
     expect(spawn.latest()?.model.encoder).toContain(VOICE_MODEL.files.encoder);
     spawn.latest()?.callbacks.onFinal("streamed text");
     expect(finals).toEqual(["streamed text"]);
@@ -315,9 +303,9 @@ describe("ParakeetVoiceService", () => {
       onFinal: () => undefined,
       onError: (message) => errors.push(message),
     });
-    await until(() => spawn.latest() !== null);
+    await vi.waitFor(() => expect(spawn.latest()).not.toBeNull());
     spawn.latest()?.callbacks.onError("could not open the model", true);
-    await until(() => errors.length > 0);
+    await vi.waitFor(() => expect(errors).not.toHaveLength(0));
     expect(existsSync(modelDirFor(modelDir, VOICE_MODEL))).toBe(false);
     expect(errors[0]).toMatch(/removed/u);
   });

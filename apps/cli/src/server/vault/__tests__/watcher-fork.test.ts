@@ -8,7 +8,7 @@ import { once } from "node:events";
 import { writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { childToParentMessageSchema, type ChildToParentMessage } from "../watcher/messages";
 import { makeTempDir } from "../../__tests__/temp-dir";
 
@@ -50,22 +50,28 @@ describe("the forked watcher child", () => {
         failed = error;
       });
 
+      /** The first message of a kind, or null once the child failed or the
+       *  window closed — null rather than a throw because the two probes
+       *  below read it as "this environment cannot", not as a failure. */
       async function waitForMessage<TKind extends ChildToParentMessage["kind"]>(
         kind: TKind,
         timeoutMs: number,
       ): Promise<Extract<ChildToParentMessage, { kind: TKind }> | null> {
-        const deadline = Date.now() + timeoutMs;
-        while (Date.now() < deadline) {
-          const match = inbox.find(
-            (message): message is Extract<ChildToParentMessage, { kind: TKind }> =>
-              message.kind === kind,
+        try {
+          return await vi.waitFor(
+            () => {
+              const match = inbox.find(
+                (message): message is Extract<ChildToParentMessage, { kind: TKind }> =>
+                  message.kind === kind,
+              );
+              if (match === undefined && failed === null) throw new Error(`no ${kind} yet`);
+              return match ?? null;
+            },
+            { timeout: timeoutMs, interval: 50 },
           );
-          if (match || failed !== null) {
-            return match ?? null;
-          }
-          await new Promise((resolvePromise) => setTimeout(resolvePromise, 50));
+        } catch {
+          return null;
         }
-        return null;
       }
 
       // No ready = the environment cannot fork a tsx child (or run the native

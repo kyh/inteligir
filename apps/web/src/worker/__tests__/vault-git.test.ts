@@ -1,12 +1,11 @@
 import { env, runInDurableObject, SELF } from "cloudflare:test";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   deviceHeaders,
   openSocket,
   ORIGIN,
   pairDevice,
   sessionHeaders,
-  settled,
   signUpUser,
   userIdOf,
 } from "./cloud-helpers";
@@ -118,9 +117,10 @@ describe("vault git remote round-trip", () => {
     );
     expect(first.response.status).toBe(200);
     expect(await first.response.text()).toContain("unpack ok");
-    await settled();
 
-    expect(otherSocket.frames).toContainEqual({ type: "vault" });
+    // Both pings leave in the push's own invocation, so the other device's
+    // arrival bounds the pusher's absence.
+    await vi.waitFor(() => expect(otherSocket.frames).toContainEqual({ type: "vault" }));
     expect(pusherSocket.frames).not.toContainEqual({ type: "vault" });
 
     // The fetch leg now advertises the pushed head — the clone path is live.

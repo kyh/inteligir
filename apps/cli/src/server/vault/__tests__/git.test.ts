@@ -2,7 +2,8 @@ import { existsSync, mkdirSync } from "node:fs";
 import { readFile, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { setTimeout as delay } from "node:timers/promises";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { ensureVaultRepo, type EnsureVaultRepoArgs } from "../git-bootstrap";
 import { createGitEngine, type GitEngine, type GitEngineArgs } from "../git-engine";
 import { GitError, runGit } from "../git-run";
@@ -31,10 +32,17 @@ async function makeBareRemote(): Promise<string> {
   return dir;
 }
 
+/** The auto-commit's debounce, compressed for a suite. */
+interface AutoCommitTiming {
+  quietMs: number;
+  maxWaitMs: number;
+}
+
+const FAST_COMMIT: AutoCommitTiming = { quietMs: 50, maxWaitMs: 500 };
+
 async function makeEngine(args: {
   remoteUrl: string | null;
-  quietMs?: number;
-  maxWaitMs?: number;
+  timing?: AutoCommitTiming;
 }): Promise<{ root: string; engine: GitEngine; statusChanges: () => number }> {
   const root = scratchDir("inteligir-git-vault-");
   await ensureVaultRepo({ root, env });
@@ -46,9 +54,8 @@ async function makeEngine(args: {
     onStatusChanged: () => {
       statusChanges += 1;
     },
+    ...args.timing,
   };
-  if (args.quietMs !== undefined) engineArgs.quietMs = args.quietMs;
-  if (args.maxWaitMs !== undefined) engineArgs.maxWaitMs = args.maxWaitMs;
   const engine = createGitEngine(engineArgs);
   cleanups.push(() => engine.dispose());
   return { root, engine, statusChanges: () => statusChanges };
@@ -72,14 +79,16 @@ async function expectCleanRepo(root: string): Promise<void> {
   await runGit(root, ["fsck", "--no-progress"], { env });
 }
 
-async function waitFor(predicate: () => Promise<boolean>, timeoutMs = 5_000): Promise<void> {
-  const deadline = Date.now() + timeoutMs;
-  while (!(await predicate())) {
-    if (Date.now() > deadline) {
-      throw new Error("timed out waiting for condition");
-    }
-    await new Promise((resolve) => setTimeout(resolve, 25));
-  }
+async function awaitCommitCount(root: string, count: number): Promise<void> {
+  await vi.waitFor(async () => expect(await commitCount(root)).toBe(count), { timeout: 5_000 });
+}
+
+/** Long enough that every flush the scheduler could still owe has fired: a
+ *  re-armed quiet timer lands at quietMs, and maxWaitMs is the latest a
+ *  pushed-back one can. Only a NEGATIVE — "no commit follows" — needs to
+ *  wait this out; a commit that is coming is awaited by count. */
+function debounceSettled(timing: AutoCommitTiming): Promise<void> {
+  return delay(timing.maxWaitMs + timing.quietMs);
 }
 
 describe("ensureVaultRepo", () => {
@@ -105,7 +114,7 @@ describe("ensureVaultRepo", () => {
 
 describe("what a scheduled commit costs", () => {
   it("stages the union of the paths it was told about, and nothing else", async () => {
-    const { root, engine } = await makeEngine({ remoteUrl: null, quietMs: 50, maxWaitMs: 2_000 });
+    const { root, engine } = await makeEngine({ remoteUrl: null, timing: FAST_COMMIT });
     const before = await commitCount(root);
 
     // Two saves the app announced, and one file it never heard about.
@@ -115,7 +124,7 @@ describe("what a scheduled commit costs", () => {
     engine.scheduleCommit(["told-b.md"]);
     await writeFile(join(root, "untold.md"), "c\n", "utf8");
 
-    await waitFor(async () => (await commitCount(root)) === before + 1);
+    await awaitCommitCount(root, before + 1);
     const { stdout } = await runGit(root, ["show", "--name-only", "--format=", "HEAD"], { env });
     expect(stdout.trim().split("\n").toSorted()).toEqual(["told-a.md", "told-b.md"]);
     // A whole-tree `status` + `add -A` per quiet window is what this replaces;
@@ -124,7 +133,7 @@ describe("what a scheduled commit costs", () => {
   });
 
   it("stages `[a].md` alone — a note's name is a path, never a glob for `a.md`", async () => {
-    const { root, engine } = await makeEngine({ remoteUrl: null, quietMs: 50, maxWaitMs: 2_000 });
+    const { root, engine } = await makeEngine({ remoteUrl: null, timing: FAST_COMMIT });
     await writeFile(join(root, "a.md"), "plain\n", "utf8");
     await writeFile(join(root, "[a].md"), "bracketed\n", "utf8");
     await engine.commitNow();
@@ -136,7 +145,7 @@ describe("what a scheduled commit costs", () => {
     engine.scheduleCommit(["[a].md"]);
     await writeFile(join(root, "a.md"), "user edit\n", "utf8");
 
-    await waitFor(async () => (await commitCount(root)) === before + 1);
+    await awaitCommitCount(root, before + 1);
     const { stdout } = await runGit(root, ["show", "--name-status", "--format=", "HEAD"], { env });
     expect(stdout.trim()).toBe("M\t[a].md");
     expect(await lastMessage(root)).toBe("vault: update [a].md");
@@ -146,7 +155,7 @@ describe("what a scheduled commit costs", () => {
   });
 
   it("falls back to the whole tree when one scheduler named no paths", async () => {
-    const { root, engine } = await makeEngine({ remoteUrl: null, quietMs: 50, maxWaitMs: 2_000 });
+    const { root, engine } = await makeEngine({ remoteUrl: null, timing: FAST_COMMIT });
     const before = await commitCount(root);
 
     await writeFile(join(root, "told.md"), "a\n", "utf8");
@@ -155,7 +164,7 @@ describe("what a scheduled commit costs", () => {
     // The boot sweep and the post-sync drain both mean "whatever is dirty".
     engine.scheduleCommit();
 
-    await waitFor(async () => (await commitCount(root)) === before + 1);
+    await awaitCommitCount(root, before + 1);
     expect(await engine.commitNow()).toBeNull();
     await expectCleanRepo(root);
   });
@@ -163,13 +172,12 @@ describe("what a scheduled commit costs", () => {
   it("announces no status change: a commit is not a transition", async () => {
     const { root, engine, statusChanges } = await makeEngine({
       remoteUrl: null,
-      quietMs: 50,
-      maxWaitMs: 2_000,
+      timing: FAST_COMMIT,
     });
     const before = await commitCount(root);
     await writeFile(join(root, "saved.md"), "a\n", "utf8");
     engine.scheduleCommit(["saved.md"]);
-    await waitFor(async () => (await commitCount(root)) === before + 1);
+    await awaitCommitCount(root, before + 1);
 
     // Every listener answers this by re-fetching the status, and every fetch
     // is a `git status --porcelain` plus a `rev-list` under the repo lock —
@@ -182,7 +190,7 @@ describe("what a scheduled commit costs", () => {
 
 describe("auto-commit", () => {
   it("lands a burst of writes as ONE commit with the file count", async () => {
-    const { root, engine } = await makeEngine({ remoteUrl: null, quietMs: 50, maxWaitMs: 2_000 });
+    const { root, engine } = await makeEngine({ remoteUrl: null, timing: FAST_COMMIT });
     const before = await commitCount(root);
 
     for (const name of ["a.md", "b.md", "c.md"]) {
@@ -190,22 +198,22 @@ describe("auto-commit", () => {
       engine.scheduleCommit([name]);
     }
 
-    await waitFor(async () => (await commitCount(root)) === before + 1);
+    await awaitCommitCount(root, before + 1);
     expect(await lastMessage(root)).toBe("vault: update 3 files");
     // The quiet window keeps draining: no second commit follows.
-    await new Promise((resolve) => setTimeout(resolve, 200));
+    await debounceSettled(FAST_COMMIT);
     expect(await commitCount(root)).toBe(before + 1);
     await expectCleanRepo(root);
   });
 
   it("names the file when the commit is one file — the log has to be answerable", async () => {
-    const { root, engine } = await makeEngine({ remoteUrl: null, quietMs: 50, maxWaitMs: 2_000 });
+    const { root, engine } = await makeEngine({ remoteUrl: null, timing: FAST_COMMIT });
     const before = await commitCount(root);
 
     await writeFile(join(root, "a note.md"), "# One\n", "utf8");
     engine.scheduleCommit(["a note.md"]);
 
-    await waitFor(async () => (await commitCount(root)) === before + 1);
+    await awaitCommitCount(root, before + 1);
     expect(await lastMessage(root)).toBe("vault: update a note.md");
   });
 
@@ -227,7 +235,7 @@ describe("auto-commit", () => {
   });
 
   it("interleaved turns attribute separately: each commits ITS write set only", async () => {
-    const { root, engine } = await makeEngine({ remoteUrl: null, quietMs: 50, maxWaitMs: 500 });
+    const { root, engine } = await makeEngine({ remoteUrl: null, timing: FAST_COMMIT });
     const before = await commitCount(root);
 
     // Two overlapping turns hold commits; a user edit rides neither.
@@ -266,7 +274,7 @@ describe("auto-commit", () => {
 
     // The file no turn claimed lands in the re-armed debounce commit, as the
     // engine identity.
-    await waitFor(async () => (await commitCount(root)) === before + 3);
+    await awaitCommitCount(root, before + 3);
     files = (await runGit(root, ["show", "--name-only", "--format=%an", "HEAD"], { env })).stdout;
     expect(files).toContain("inteligir");
     expect(files).toContain("user.md");
@@ -279,14 +287,14 @@ describe("auto-commit", () => {
   });
 
   it("a commit hold defers the debounce flush; release re-arms it", async () => {
-    const { root, engine } = await makeEngine({ remoteUrl: null, quietMs: 50, maxWaitMs: 500 });
+    const { root, engine } = await makeEngine({ remoteUrl: null, timing: FAST_COMMIT });
     const before = await commitCount(root);
 
     const release = engine.holdCommits();
     await writeFile(join(root, "mid-turn.md"), "agent writing\n", "utf8");
     engine.scheduleCommit();
     // Past the quiet window and the max wait: still no engine commit.
-    await new Promise((resolve) => setTimeout(resolve, 700));
+    await debounceSettled(FAST_COMMIT);
     expect(await commitCount(root)).toBe(before);
 
     // The turn's own commit runs under the hold — that IS the release path.
@@ -299,7 +307,7 @@ describe("auto-commit", () => {
     release();
 
     // The re-armed flush finds a clean tree: no second commit.
-    await new Promise((resolve) => setTimeout(resolve, 200));
+    await debounceSettled(FAST_COMMIT);
     expect(await commitCount(root)).toBe(before + 1);
     expect(await lastMessage(root)).toBe("agent: vault update");
     const identity = await runGit(root, ["log", "-1", "--format=%an <%ae>|%cn"], { env });
@@ -774,7 +782,7 @@ describe("a live remote provider", () => {
     });
     cleanups.push(() => engine.dispose());
     engine.startAutoSync(50);
-    await waitFor(async () => Promise.resolve(reads >= 2));
+    await vi.waitFor(() => expect(reads).toBeGreaterThanOrEqual(2));
     // ensureOriginRemote is reachable only inside a pass; a pass that ran
     // would have persisted `origin` into .git/config.
     await expect(runGit(root, ["remote", "get-url", "origin"], { env })).rejects.toThrow();

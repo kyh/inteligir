@@ -10,7 +10,7 @@ import { serverMessageLenientSchema, type ServerMessage } from "@repo/api/local/
 import { RPC_PREFIX, WS_PATH } from "@repo/api/local/routes";
 import type { TimelineResponse } from "@repo/api/local/threads/threads-schema";
 import { applyTimelineDelta, type TimelineRow } from "@repo/api/local/thread-timeline";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { ThreadEventThreadIdMismatchError, ThreadService } from "../threads/service";
 import { unavailableTurnDriver } from "../threads/turn-driver";
@@ -629,27 +629,23 @@ describe("a fake-provider turn end-to-end", () => {
 
     // The invalidation contract: the client acts on ws frames only — it never
     // polls the API on a timer. Waiting for a specific change kind before
-    // each fetch is exactly what the workspace UI will do.
+    // each fetch is exactly what the workspace UI does. Every frame up to and
+    // including the match is consumed, so the next wait starts after it.
     async function waitForThreadChange(kind: string): Promise<void> {
-      const deadline = Date.now() + 5_000;
-      for (;;) {
-        while (frames.length > 0) {
-          const frame = frames.shift();
-          if (frame === undefined) continue;
-          if (
-            frame.type === "changed" &&
-            frame.entity === "thread" &&
-            frame.id === threadId &&
-            frame.changes.some((change) => change === kind)
-          ) {
-            return;
-          }
-        }
-        if (Date.now() > deadline) {
-          throw new Error(`timed out waiting for a ${kind} frame`);
-        }
-        await new Promise((resolve) => setTimeout(resolve, 10));
-      }
+      await vi.waitFor(
+        () => {
+          const index = frames.findIndex(
+            (frame) =>
+              frame.type === "changed" &&
+              frame.entity === "thread" &&
+              frame.id === threadId &&
+              frame.changes.some((change) => change === kind),
+          );
+          if (index === -1) throw new Error(`no ${kind} frame yet`);
+          frames.splice(0, index + 1);
+        },
+        { timeout: 5_000, interval: 10 },
+      );
     }
 
     const send = await client.threads.send({

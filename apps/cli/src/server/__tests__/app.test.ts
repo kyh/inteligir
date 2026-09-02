@@ -23,7 +23,7 @@ import {
   voiceStreamDownMessageSchema,
   type VoiceStreamDownMessage,
 } from "@repo/api/local/voice/voice-schema";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { closeServer } from "../listen";
 import { localRouter } from "../root-router";
@@ -372,31 +372,22 @@ describe("the real socket upgrade", () => {
     cleanups.push(() => socket.close());
 
     const frames: ServerMessage[] = [];
-    let announceFrame: (() => void) | undefined;
     socket.addEventListener("message", (event) => {
       const text = z.string().safeParse(event.data);
       if (text.success) {
         frames.push(serverMessageLenientSchema.parse(JSON.parse(text.data)));
       }
-      announceFrame?.();
     });
 
     async function nextFrame(): Promise<ServerMessage> {
-      const deadline = Date.now() + 5_000;
-      while (frames.length === 0) {
-        if (Date.now() > deadline) {
-          throw new Error("timed out waiting for a ws frame");
-        }
-        await new Promise<void>((resolve) => {
-          announceFrame = resolve;
-          setTimeout(resolve, 50);
-        });
-      }
-      const frame = frames.shift();
-      if (frame === undefined) {
-        throw new Error("timed out waiting for a ws frame");
-      }
-      return frame;
+      return await vi.waitFor(
+        () => {
+          const frame = frames.shift();
+          if (frame === undefined) throw new Error("no ws frame yet");
+          return frame;
+        },
+        { timeout: 5_000 },
+      );
     }
 
     await new Promise<void>((resolve, reject) => {
@@ -408,20 +399,17 @@ describe("the real socket upgrade", () => {
     expect(hello).toEqual({ type: "hello" });
 
     socket.send(JSON.stringify({ type: "subscribe", target: { kind: "doc-detail", docId: "d1" } }));
-    // Subscription is processed on receipt; poll until the broadcast lands.
-    const deadline = Date.now() + 5_000;
-    let changed: ServerMessage | undefined;
-    while (changed === undefined) {
-      if (Date.now() > deadline) {
-        throw new Error("timed out waiting for the changed frame");
-      }
-      bus.notifyDoc("d1", ["content-changed"]);
-      if (frames.length > 0) {
-        changed = frames.shift();
-        break;
-      }
-      await new Promise((resolve) => setTimeout(resolve, 25));
-    }
+    // Subscription is processed on receipt, so a notification sent before it
+    // lands is dropped: re-notify on every probe until the broadcast arrives.
+    const changed = await vi.waitFor(
+      () => {
+        bus.notifyDoc("d1", ["content-changed"]);
+        const frame = frames.shift();
+        if (frame === undefined) throw new Error("no changed frame yet");
+        return frame;
+      },
+      { timeout: 5_000, interval: 25 },
+    );
     expect(changed).toEqual({
       type: "changed",
       entity: "doc",
@@ -458,13 +446,11 @@ describe("the dictation stream socket", () => {
     });
     socket.binaryType = "arraybuffer";
     const frames: VoiceStreamDownMessage[] = [];
-    let announce: (() => void) | undefined;
     socket.addEventListener("message", (event) => {
       const text = z.string().safeParse(event.data);
       if (text.success) {
         frames.push(voiceStreamDownMessageSchema.parse(JSON.parse(text.data)));
       }
-      announce?.();
     });
     await new Promise<void>((resolve, reject) => {
       socket.addEventListener("open", () => resolve());
@@ -475,16 +461,9 @@ describe("the dictation stream socket", () => {
     socket.send(new Uint8Array([1, 0, 2, 0]).buffer);
     socket.send(JSON.stringify({ type: "finalize" }));
 
-    const deadline = Date.now() + 5_000;
-    while (!frames.some((frame) => frame.type === "final")) {
-      if (Date.now() > deadline) {
-        throw new Error(`no final; frames: ${JSON.stringify(frames)}`);
-      }
-      await new Promise<void>((resolve) => {
-        announce = resolve;
-        setTimeout(resolve, 50);
-      });
-    }
+    await vi.waitFor(() => expect(frames.map((frame) => frame.type)).toContain("final"), {
+      timeout: 5_000,
+    });
 
     const partial = frames.find((frame) => frame.type === "partial");
     const final = frames.find((frame) => frame.type === "final");

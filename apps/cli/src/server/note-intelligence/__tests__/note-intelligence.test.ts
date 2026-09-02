@@ -7,7 +7,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { noopNotifier } from "@repo/domain/notifier";
 import type { NoteIntelligenceAvailability } from "@repo/api/local/note-intelligence/note-intelligence-schema";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { makeTempDir } from "../../__tests__/temp-dir";
 import { createVaultService } from "../../vault/vault-service";
 import { parseInferenceOutput } from "../infer";
@@ -32,6 +32,17 @@ function boot(infer: InferenceRunner, availability: NoteIntelligenceAvailability
   const settings = createNoteIntelligenceSettingsStore(join(dir, "data"));
   const service = createNoteIntelligence({ availability, infer, settings, vault });
   return { root, service, settings, vault };
+}
+
+/** A vault change that must schedule nothing — proven by the timer count
+ *  under fake timers rather than by outwaiting a debounce. */
+function expectNoSweepArmed(service: ReturnType<typeof boot>["service"]): void {
+  vi.useFakeTimers();
+  onTestFinished(() => {
+    vi.useRealTimers();
+  });
+  service.noteVaultChange();
+  expect(vi.getTimerCount()).toBe(0);
 }
 
 describe("note intelligence", () => {
@@ -102,8 +113,7 @@ describe("note intelligence", () => {
     writeFileSync(join(root, "note.md"), "# N\n\nBody.\n");
 
     expect(service.status().enabled).toBe(false);
-    service.noteVaultChange();
-    await new Promise((resolve) => setTimeout(resolve, 20));
+    expectNoSweepArmed(service);
     service.dispose();
 
     expect(calls).toBe(0);
@@ -153,8 +163,7 @@ describe("note intelligence", () => {
 
     const status = service.setEnabled(true);
     await service.sweepNow();
-    service.noteVaultChange();
-    await new Promise((resolve) => setTimeout(resolve, 20));
+    expectNoSweepArmed(service);
     service.dispose();
 
     expect(status.availability).toEqual({

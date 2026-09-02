@@ -18,19 +18,21 @@ import {
 } from "@repo/domain/pending-interactions";
 import { getThread } from "@repo/db/threads";
 import { isDefinedError, safe } from "@orpc/client";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { hermeticGitEnv } from "../../vault/__tests__/git-test-env";
 import { CLI_POINTER_INSTRUCTIONS } from "../agent-instructions";
 import { createAcpRuntimeManager, type AcpRuntimeManagerDeps } from "../runtime-manager";
 import { bootTestApp, type BootedTestApp } from "../../__tests__/boot-app";
 import {
+  awaitPendingInteraction,
+  awaitThreadStatus,
   createThread,
   fakeSessionFacts,
   fetchTimelineRows,
   flattenTimelineRows,
   getThreadDetail,
+  PROVIDER_WAIT,
   sendMessage,
-  waitFor,
 } from "./agent-test-harness";
 
 const execFileAsync = promisify(execFile);
@@ -104,18 +106,6 @@ async function bootWithManager(
   });
 }
 
-async function awaitThreadStatus(
-  harness: BootedTestApp,
-  threadId: string,
-  wanted: string,
-): Promise<void> {
-  await waitFor(
-    async () =>
-      (await getThreadDetail(harness.client, threadId)).status === wanted ? true : undefined,
-    `the thread to reach ${wanted}`,
-  );
-}
-
 /** The HEAD commit's author name, author email and file list. */
 async function headCommit(
   vaultDir: string,
@@ -162,7 +152,7 @@ describe("the ACP runtime manager over real HTTP", () => {
     const threadId = await createThread(harness.client);
     const turnId = await sendMessage(harness.client, threadId, "hello agent");
 
-    await awaitThreadStatus(harness, threadId, "idle");
+    await awaitThreadStatus(harness.client, threadId, "idle");
 
     const rows = flattenTimelineRows(await fetchTimelineRows(harness.client, threadId));
     const assistant = rows.find((row) => row.kind === "conversation" && row.role === "assistant");
@@ -188,7 +178,7 @@ describe("the ACP runtime manager over real HTTP", () => {
     });
     const threadId = await createThread(harness.client);
     await sendMessage(harness.client, threadId, "hello agent");
-    await awaitThreadStatus(harness, threadId, "idle");
+    await awaitThreadStatus(harness.client, threadId, "idle");
 
     const rows = flattenTimelineRows(await fetchTimelineRows(harness.client, threadId));
     const echoed = rows.find((row) => row.kind === "conversation" && row.role === "assistant");
@@ -213,12 +203,12 @@ describe("the ACP runtime manager over real HTTP", () => {
 
     const first = await createThread(harness.client);
     await sendMessage(harness.client, first, "first session");
-    await awaitThreadStatus(harness, first, "idle");
+    await awaitThreadStatus(harness.client, first, "idle");
 
     connectedDirs.push("/ref/added-in-settings");
     const second = await createThread(harness.client);
     await sendMessage(harness.client, second, "second session");
-    await awaitThreadStatus(harness, second, "idle");
+    await awaitThreadStatus(harness.client, second, "idle");
 
     expect(spawnedEnvs.map((env) => env.INTELIGIR_CONNECTED_DIRS)).toEqual([
       undefined,
@@ -242,12 +232,13 @@ describe("the ACP runtime manager over real HTTP", () => {
     managerOptions.filePath = join(harness.vaultDir, "agent-note.md");
     const threadId = await createThread(harness.client);
     await sendMessage(harness.client, threadId, "edit the note");
-    await awaitThreadStatus(harness, threadId, "idle");
+    await awaitThreadStatus(harness.client, threadId, "idle");
 
-    const head = await waitFor(async () => {
+    const head = await vi.waitFor(async () => {
       const commit = await headCommit(harness.vaultDir);
-      return commit.author === "inteligir-agent" ? commit : undefined;
-    }, "the agent-attributed commit");
+      expect(commit.author).toBe("inteligir-agent");
+      return commit;
+    }, PROVIDER_WAIT);
     expect(head.email).toBe("agent@inteligir.local");
     expect(head.files).toEqual(["agent-note.md"]);
   });
@@ -257,10 +248,7 @@ describe("the ACP runtime manager over real HTTP", () => {
     const threadId = await createThread(harness.client);
     const turnId = await sendMessage(harness.client, threadId, "please run it");
 
-    const interaction = await waitFor(async () => {
-      const detail = await getThreadDetail(harness.client, threadId);
-      return detail.pendingInteractions[0];
-    }, "the approval row");
+    const interaction = await awaitPendingInteraction(harness.client, threadId);
     expect(interaction).toMatchObject({
       threadId,
       turnId,
@@ -288,7 +276,7 @@ describe("the ACP runtime manager over real HTTP", () => {
       resolution: "allow_once",
     });
 
-    await awaitThreadStatus(harness, threadId, "idle");
+    await awaitThreadStatus(harness.client, threadId, "idle");
     const rows = flattenTimelineRows(await fetchTimelineRows(harness.client, threadId));
     const approvedChunk = rows.find(
       (row) =>
@@ -303,10 +291,7 @@ describe("the ACP runtime manager over real HTTP", () => {
     const threadId = await createThread(harness.client);
     await sendMessage(harness.client, threadId, "first");
 
-    const interaction = await waitFor(async () => {
-      const detail = await getThreadDetail(harness.client, threadId);
-      return detail.pendingInteractions[0];
-    }, "the approval row");
+    const interaction = await awaitPendingInteraction(harness.client, threadId);
 
     // Queue B while A is parked on the approval; answering A completes it,
     // and the drain dispatches B onto the same session.
@@ -322,14 +307,14 @@ describe("the ACP runtime manager over real HTTP", () => {
       resolution: "allow_once",
     });
 
-    await waitFor(async () => {
+    await vi.waitFor(async () => {
       const rows = flattenTimelineRows(await fetchTimelineRows(harness.client, threadId));
       const completedTurns = rows.filter(
         (row) => row.kind === "turn" && row.status === "completed",
       );
-      return completedTurns.length === 2 ? true : undefined;
-    }, "both turns to complete");
-    await awaitThreadStatus(harness, threadId, "idle");
+      expect(completedTurns).toHaveLength(2);
+    }, PROVIDER_WAIT);
+    await awaitThreadStatus(harness.client, threadId, "idle");
   });
 
   it("fails a turn the provider accepted and then went silent on", async () => {
@@ -337,7 +322,7 @@ describe("the ACP runtime manager over real HTTP", () => {
     const threadId = await createThread(harness.client);
     const turnId = await sendMessage(harness.client, threadId, "wedge me");
 
-    await awaitThreadStatus(harness, threadId, "error");
+    await awaitThreadStatus(harness.client, threadId, "error");
 
     const rows = flattenTimelineRows(await fetchTimelineRows(harness.client, threadId));
     expect(rows.find((row) => row.kind === "turn")).toMatchObject({ turnId, status: "error" });
