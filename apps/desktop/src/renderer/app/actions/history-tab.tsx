@@ -27,6 +27,7 @@ import { isDefinedError, orpc, refusalMessage, safe } from "../api";
 import { relativeTimeLabel } from "../relative-time";
 import { useWorkspace } from "../workspace-context";
 import { diffRows, type DiffRow } from "./history-diff";
+import { ReadRefusal } from "./read-refusal";
 
 type RestoreOutcome = { kind: "restored" } | { kind: "refused"; message: string };
 
@@ -248,15 +249,7 @@ export function HistoryTab({ docPath }: { docPath: string | null }) {
   // is a claim about the user's data, and a repo that could not answer (git
   // missing, mid-rebase) has not made it.
   if (historyQuery.isError) {
-    const detail = refusalMessage(historyQuery.error, "");
-    return (
-      <div className="p-3 text-sm">
-        <p className="text-destructive">The history could not be read.</p>
-        {detail === "" ? null : (
-          <p className="mt-1 text-xs break-words text-muted-foreground">{detail}</p>
-        )}
-      </div>
-    );
+    return <ReadRefusal lead="The history could not be read." error={historyQuery.error} />;
   }
 
   const revisions = historyQuery.data?.revisions ?? [];
