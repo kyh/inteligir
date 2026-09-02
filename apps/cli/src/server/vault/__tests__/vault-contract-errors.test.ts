@@ -7,8 +7,14 @@
 // Derived from both sides rather than listed: the codes come from the contract
 // rows themselves, and a producer is either an explicit `errors.<CODE>(` in
 // that row's handler or, for a handler running under `refusing`, a class
-// `vaultWireError`'s table can answer. The compiler already holds the other
-// direction — `errors.X` for an undeclared X does not build.
+// `vaultWireError`'s table can answer.
+//
+// The other direction is held only for explicit throws — `errors.X(` for an
+// undeclared X does not build. `refusing` throws OUTSIDE the row's typed
+// `errors`, so a handler under it can answer a table class its row never
+// declared (a `trash` of an oversize note answers PAYLOAD_TOO_LARGE); which
+// classes a service call can actually raise is not derivable from source here,
+// and that gap is the stated residual.
 
 import { localContract } from "@repo/api/local";
 import { readFileSync } from "node:fs";
@@ -18,6 +24,11 @@ import { VAULT_REFUSALS } from "../vault-refusals";
 
 const ROUTER_FILE = fileURLToPath(new URL("../vault-router.ts", import.meta.url));
 const CONTRACT_FILE = "packages/api/src/local/vault/vault-contract.ts";
+const ROUTER_ANCHOR = "\nexport const vaultRouter";
+
+/** The CALL shape, not the token: a comment that mentions `refusing(` must
+ *  not hand its block the whole translation table. */
+const REFUSING_CALL = /\brefusing\(\s*(?:async\s*)?\(/u;
 
 /** One handler's source, keyed by its contract row. A block runs from its
  *  `base.vault.<row>.handler(` to the next handler's, or to the router. */
@@ -25,7 +36,13 @@ function handlerBlocks(source: string): Map<string, string> {
   const starts = [...source.matchAll(/^const \w+ = base\.vault\.(\w+)\.handler\(/gmu)].flatMap(
     (match) => (match[1] === undefined ? [] : [{ row: match[1], at: match.index }]),
   );
-  const routerAt = source.indexOf("\nexport const vaultRouter");
+  const routerAt = source.indexOf(ROUTER_ANCHOR);
+  if (routerAt === -1) {
+    throw new Error(
+      `vault-router.ts: no \`${ROUTER_ANCHOR.trim()}\` anchor — the last handler block has no end, ` +
+        "and a parse with no end proves nothing",
+    );
+  }
   const blocks = new Map<string, string>();
   starts.forEach(({ row, at }, index) => {
     blocks.set(row, source.slice(at, starts[index + 1]?.at ?? routerAt));
@@ -40,7 +57,7 @@ function producibleCodes(block: string): Set<string> {
   for (const match of block.matchAll(/\berrors\.([A-Z_]+)\(/gu)) {
     if (match[1] !== undefined) codes.add(match[1]);
   }
-  if (block.includes("refusing(")) {
+  if (REFUSING_CALL.test(block)) {
     for (const wireClass of Object.values(VAULT_REFUSALS)) codes.add(wireClass);
   }
   return codes;
@@ -67,7 +84,7 @@ describe("the vault contract's declared errors", () => {
       unreachable,
       `${CONTRACT_FILE}: row "${row}" declares ${unreachable.join(", ")} but vault-router.ts's ` +
         `handler has no \`errors.<CODE>(\` for it and ` +
-        (block.includes("refusing(")
+        (REFUSING_CALL.test(block)
           ? `\`refusing\` answers only ${Object.values(VAULT_REFUSALS).join(", ")}`
           : "runs outside `refusing`") +
         " — a declared class is a promise a client narrows on; drop it or add a producer",
