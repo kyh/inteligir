@@ -66,4 +66,18 @@ describe("the download-url memo", () => {
     await memo.read();
     expect(memo.calls()).toBe(2);
   });
+
+  it.each([403, 503])(
+    "treats a %i as a read that never settled — only a 404 is an answer about the release",
+    async (status) => {
+      const memo = reader(() => new Response("{}", { status }));
+      expect(await memo.read()).toBeNull();
+      memo.advance(4 * 60 * 1000);
+      await memo.read();
+      expect(memo.calls()).toBe(1);
+      memo.advance(2 * 60 * 1000);
+      await memo.read();
+      expect(memo.calls()).toBe(2);
+    },
+  );
 });

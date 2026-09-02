@@ -24,10 +24,7 @@ function MacLogoIcon({ className }: { className?: string }) {
 // way each read settles (`download-url.ts` owns the policy and the reasons).
 // A null url means no downloadable release exists — the page renders "coming
 // soon" until the first desktop release is published.
-const readDownloadUrl = createDownloadUrlReader({
-  fetch: (input, init) => fetch(input, init),
-  now: () => Date.now(),
-});
+const readDownloadUrl = createDownloadUrlReader();
 
 const getDownloadUrl = createServerFn().handler(() => readDownloadUrl());
 

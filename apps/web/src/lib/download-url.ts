@@ -11,12 +11,14 @@ const GITHUB_REPO = "kyh/inteligir";
 /** How long any settled answer stands — a release lands rarely. */
 const SETTLED_TTL_MS = 60 * 60 * 1000;
 
-/** A read that never settled (network, a body that dies mid-parse) retries
- *  sooner: pinning a transient failure for the full hour hides a release
- *  that exists. */
+/** A read that never settled retries sooner: pinning a transient failure for
+ *  the full hour hides a release that exists. That is a rejected fetch, a body
+ *  that dies mid-parse, and every status but 200 and 404 — only 404 is an
+ *  answer ABOUT the release; a 403 is GitHub's quota, which the Worker's
+ *  shared egress can exhaust without this app asking once. */
 const FAILED_TTL_MS = 5 * 60 * 1000;
 
-/** A GitHub release, read for the only two asset fields this page uses. The
+/** A GitHub release, read for the only two asset fields the CTA reads. The
  * list is `unknown` element-wise on purpose: one malformed entry must not hide
  * the real `.dmg` behind a whole-payload refusal. */
 const releaseSchema = z.looseObject({ assets: z.array(z.unknown()) });
@@ -35,32 +37,43 @@ function findDmgUrl(release: z.infer<typeof releaseSchema>): string | null {
   return null;
 }
 
+/** Test seams over the network and the clock; production runs on the globals. */
 export interface DownloadUrlDeps {
-  fetch: (input: string, init: RequestInit) => Promise<Response>;
-  now: () => number;
+  fetch?: (input: string, init: RequestInit) => Promise<Response>;
+  now?: () => number;
 }
 
 /** One reader per isolate: at most one GitHub request per TTL window,
  *  whichever way each read settles. */
-export function createDownloadUrlReader(deps: DownloadUrlDeps): () => Promise<string | null> {
+export function createDownloadUrlReader(deps: DownloadUrlDeps = {}): () => Promise<string | null> {
+  const now = deps.now ?? Date.now;
+  const read: NonNullable<DownloadUrlDeps["fetch"]> =
+    deps.fetch ?? ((input, init) => fetch(input, init));
   let cached: { url: string | null; expires: number } | null = null;
   return async () => {
-    if (cached !== null && cached.expires > deps.now()) return cached.url;
+    if (cached !== null && cached.expires > now()) return cached.url;
     try {
-      const res = await deps.fetch(`https://api.github.com/repos/${GITHUB_REPO}/releases/latest`, {
+      const res = await read(`https://api.github.com/repos/${GITHUB_REPO}/releases/latest`, {
         headers: { Accept: "application/vnd.github+json", "User-Agent": "inteligir-web" },
       });
+      if (!res.ok) {
+        cached = {
+          url: null,
+          expires: now() + (res.status === 404 ? SETTLED_TTL_MS : FAILED_TTL_MS),
+        };
+        return null;
+      }
       // GitHub's response is untrusted input: PARSE it rather than annotate
       // it. Annotating `await res.json()` with the expected shape is an
       // unchecked assertion — a shape change then surfaces as a TypeError
       // swallowed by the catch below, which reads as "GitHub is down" instead
       // of "we mis-parsed".
-      const release = res.ok ? releaseSchema.safeParse(await res.json()) : null;
-      const url = release !== null && release.success ? findDmgUrl(release.data) : null;
-      cached = { url, expires: deps.now() + SETTLED_TTL_MS };
+      const release = releaseSchema.safeParse(await res.json());
+      const url = release.success ? findDmgUrl(release.data) : null;
+      cached = { url, expires: now() + SETTLED_TTL_MS };
       return url;
     } catch {
-      cached = { url: null, expires: deps.now() + FAILED_TTL_MS };
+      cached = { url: null, expires: now() + FAILED_TTL_MS };
       return null;
     }
   };
