@@ -15,10 +15,14 @@
 // vault location (a missing one lands a zero-install run in a cwd-keyed dev
 // instance).
 //
-// The real entry is a CHILD, and signals are FORWARDED to it: Ctrl+C and an
-// explicit SIGTERM both reach the server's ordered shutdown (the vault flush),
-// and this mirror-exits with the child's own code — 128+n when the child died
-// by signal n.
+// The real entry is a CHILD, and this mirror-exits with its code — 128+n when
+// the child died by signal n. Ctrl+C reaches the child ON ITS OWN: a terminal
+// signals the whole foreground process group, so SIGINT (and SIGHUP, a closed
+// terminal) is only LISTENED for here and never relayed. Relaying would hand
+// the server a SECOND copy, which it reads as impatience and answers by
+// leaving before the vault flush; not listening would let Node's default kill
+// this wrapper and orphan the server. SIGTERM is a supervisor's by-pid verb
+// that reaches this process alone, so that one is forwarded — once.
 
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
@@ -52,16 +56,16 @@ const env = useSource ? process.env : { ...process.env, NODE_ENV: "production" }
 
 const child = spawn(process.execPath, commandArgs, { stdio: "inherit", env, windowsHide: true });
 
-for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"]) {
-  process.on(signal, () => child.kill(signal));
-}
+process.on("SIGINT", () => {});
+process.on("SIGHUP", () => {});
+process.on("SIGTERM", () => child.kill("SIGTERM"));
 
 child.on("exit", (code, signal) => {
   // A child killed by a signal exits this wrapper 128+n — the encoding a
   // shell reports and Node's own default signal handlers use — NEVER by
-  // re-raising the signal at this process: with the relay handlers above
-  // installed, a re-raised relayed signal runs the relay against a dead
-  // child and the wrapper exits 0, and one outside the relayed set (a
+  // re-raising the signal at this process: with the listeners above
+  // installed, a re-raised signal is swallowed, or relayed against a dead
+  // child, and the wrapper exits 0, and one outside the listened-for set (a
   // native SIGABRT, an OOM kill) would take this wrapper down with a core
   // dump of its own. The exit code is the truth about the child.
   if (signal) {
