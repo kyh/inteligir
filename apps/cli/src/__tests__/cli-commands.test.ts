@@ -5,7 +5,7 @@
 
 import type { ThreadTimeline } from "@repo/api/local/thread-timeline";
 import { VAULT_MAX_CONTENT_LENGTH } from "@repo/api/local/vault/vault-schema";
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it, onTestFinished } from "vitest";
 import { z } from "zod";
 import {
   FIXTURE_REVISION_SHA,
@@ -28,17 +28,9 @@ function boxedLines(stdout: string): string[] {
     .filter((line) => line.length > 0);
 }
 
-const cleanups: Array<() => Promise<void>> = [];
-
-afterEach(async () => {
-  for (const cleanup of cleanups.splice(0).toReversed()) {
-    await cleanup();
-  }
-});
-
 async function boot(state: FixtureState): Promise<FixtureServer> {
   const server = await serveFixture(state);
-  cleanups.push(() => server.close());
+  onTestFinished(() => server.close());
   return server;
 }
 

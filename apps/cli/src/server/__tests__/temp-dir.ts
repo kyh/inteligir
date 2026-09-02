@@ -1,21 +1,35 @@
 import { mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach } from "vitest";
+import { afterAll, onTestFinished } from "vitest";
 
-const tempDirs: string[] = [];
+const suiteDirs: string[] = [];
 
-afterEach(() => {
-  for (const dir of tempDirs.splice(0)) {
-    rmSync(dir, { recursive: true, force: true });
-  }
+afterAll(() => {
+  for (const dir of suiteDirs.splice(0)) remove(dir);
 });
 
-/** A fresh temp dir, removed automatically after the current test.
- *  `realpath` resolves the created dir (macOS /var → /private/var) for a
- *  suite whose assertions compare realpathed outputs against it. */
-export function makeTempDir(prefix: string, options?: { realpath?: boolean }): string {
+function remove(dir: string): void {
+  rmSync(dir, { recursive: true, force: true });
+}
+
+export interface TempDirOptions {
+  /** Resolve the created dir (macOS /var → /private/var) for a suite whose
+   *  assertions compare realpathed outputs against it. */
+  realpath?: boolean;
+  /** `test` (the default) removes the dir when the current test finishes —
+   *  registered before anything created inside it, so it runs after them.
+   *  `suite` is for a `beforeAll` fixture, removed after the file's last test. */
+  lifetime?: "test" | "suite";
+}
+
+/** A fresh temp dir, removed automatically. */
+export function makeTempDir(prefix: string, options?: TempDirOptions): string {
   const dir = mkdtempSync(join(tmpdir(), prefix));
-  tempDirs.push(dir);
+  if (options?.lifetime === "suite") {
+    suiteDirs.push(dir);
+  } else {
+    onTestFinished(() => remove(dir));
+  }
   return options?.realpath === true ? realpathSync(dir) : dir;
 }

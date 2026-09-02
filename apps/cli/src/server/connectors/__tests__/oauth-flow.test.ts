@@ -6,7 +6,7 @@
 
 import { createHash } from "node:crypto";
 import { createServer, type Server } from "node:http";
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it, onTestFinished } from "vitest";
 
 import { createConnectorsService } from "../connectors-service";
 import { createConnectorsStore, type ConnectorsStore } from "../connectors-store";
@@ -53,7 +53,7 @@ async function startFakeProvider(): Promise<FakeProvider> {
   if (port === null) {
     throw new Error("fake provider did not bind");
   }
-  return {
+  const started: FakeProvider = {
     server,
     tokenEndpoint: `http://127.0.0.1:${String(port)}/oauth/token`,
     requests,
@@ -68,6 +68,8 @@ async function startFakeProvider(): Promise<FakeProvider> {
         server.close((error) => (error ? reject(error) : resolve()));
       }),
   };
+  onTestFinished(() => started.close());
+  return started;
 }
 
 function storeWithOauthRow(tokenEndpoint: string): ConnectorsStore {
@@ -92,15 +94,9 @@ function s256(verifier: string): string {
   return createHash("sha256").update(verifier, "ascii").digest("base64url");
 }
 
-const providers: FakeProvider[] = [];
-afterEach(async () => {
-  await Promise.all(providers.splice(0).map((provider) => provider.close()));
-});
-
 describe("the connector OAuth flow", () => {
   it("runs the whole dance: authorize URL, callback, PKCE-checked exchange, stored tokens", async () => {
     const provider = await startFakeProvider();
-    providers.push(provider);
     const store = storeWithOauthRow(provider.tokenEndpoint);
     const flow = createConnectorOauthFlow(store);
 
@@ -144,7 +140,6 @@ describe("the connector OAuth flow", () => {
 
   it("a wrong state consumes nothing — the real callback still lands", async () => {
     const provider = await startFakeProvider();
-    providers.push(provider);
     const flow = createConnectorOauthFlow(storeWithOauthRow(provider.tokenEndpoint));
     const url = new URL(await flow.begin("linear", REDIRECT_URI));
     const state = url.searchParams.get("state");
@@ -162,7 +157,6 @@ describe("the connector OAuth flow", () => {
 
   it("a refused exchange answers refused and stores nothing", async () => {
     const provider = await startFakeProvider();
-    providers.push(provider);
     provider.respondWith = { status: 400, body: { error: "invalid_grant" } };
     const store = storeWithOauthRow(provider.tokenEndpoint);
     const flow = createConnectorOauthFlow(store);
@@ -177,7 +171,6 @@ describe("the connector OAuth flow", () => {
 
   it("refreshes an expired token and keeps an unrotated refresh token", async () => {
     const provider = await startFakeProvider();
-    providers.push(provider);
     // expires_in 1s with the 60s skew means the token is born stale.
     provider.respondWith = {
       status: 200,
@@ -209,7 +202,6 @@ describe("the connector OAuth flow", () => {
 
   it("a refused refresh marks needs-reauth and excludes the row, not the boot", async () => {
     const provider = await startFakeProvider();
-    providers.push(provider);
     provider.respondWith = {
       status: 200,
       body: { access_token: "at-stale", refresh_token: "rt-dead", expires_in: 1 },
@@ -235,7 +227,6 @@ describe("the connector OAuth flow", () => {
 
   it("redacts tokens from every read and disconnect returns the row to needs-auth", async () => {
     const provider = await startFakeProvider();
-    providers.push(provider);
     const store = storeWithOauthRow(provider.tokenEndpoint);
     const service = createConnectorsService(store);
     const flow = createConnectorOauthFlow(store);
@@ -259,7 +250,6 @@ describe("the connector OAuth flow", () => {
 
   it("an endpoint update keeps stored tokens (no edit forces re-consent)", async () => {
     const provider = await startFakeProvider();
-    providers.push(provider);
     const store = storeWithOauthRow(provider.tokenEndpoint);
     const service = createConnectorsService(store);
     const flow = createConnectorOauthFlow(store);
@@ -284,7 +274,6 @@ describe("the connector OAuth flow", () => {
 
   it("dispose makes a late callback inert", async () => {
     const provider = await startFakeProvider();
-    providers.push(provider);
     const flow = createConnectorOauthFlow(storeWithOauthRow(provider.tokenEndpoint));
     const url = new URL(await flow.begin("linear", REDIRECT_URI));
     const state = url.searchParams.get("state");

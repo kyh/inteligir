@@ -34,7 +34,7 @@ import {
   type SqlKnowledgeStore,
 } from "@repo/notes/knowledge/sql-knowledge-store";
 import { planSearchQuery, type SearchQueryPlan } from "@repo/notes/knowledge/search-query";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, onTestFinished } from "vitest";
 import { makeTempDir } from "../../__tests__/temp-dir";
 import { createSqliteDriver } from "../sqlite-driver";
 import { EVAL_QUERIES, EVAL_VAULT, type EvalQuery } from "./search-eval-vault";
@@ -163,7 +163,9 @@ let store: SqlKnowledgeStore;
 let pure: KnowledgeIndex;
 
 beforeAll(() => {
-  driver = createSqliteDriver(join(makeTempDir("inteligir-search-eval-"), "knowledge.db"));
+  driver = createSqliteDriver(
+    join(makeTempDir("inteligir-search-eval-", { lifetime: "suite" }), "knowledge.db"),
+  );
   store = createSqlKnowledgeStore(driver, "/vault");
   pure = new KnowledgeIndex();
   for (const [path, content] of Object.entries(EVAL_VAULT)) {
@@ -181,7 +183,6 @@ beforeAll(() => {
 
 afterAll(() => {
   store.dispose();
-  for (const built of tierStores.splice(0)) built.dispose();
 });
 
 function probe(match: string, limit: number): string[] {
@@ -216,7 +217,7 @@ function storeOf(docs: Readonly<Record<string, string>>): SqlKnowledgeStore {
     createSqliteDriver(join(makeTempDir("inteligir-search-tier-"), "knowledge.db")),
     "/vault",
   );
-  tierStores.push(built);
+  onTestFinished(() => built.dispose());
   for (const [path, content] of Object.entries(docs)) {
     built.upsertDoc(
       {
@@ -236,8 +237,6 @@ function pureOf(docs: Readonly<Record<string, string>>): KnowledgeIndex {
   for (const [path, content] of Object.entries(docs)) index.setDoc(path, content);
   return index;
 }
-
-const tierStores: SqlKnowledgeStore[] = [];
 
 /** Every note the current policy can reach for this query, at any rank. */
 function reachable(query: string): Set<string> {

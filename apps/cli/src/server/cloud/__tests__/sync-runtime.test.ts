@@ -17,7 +17,7 @@ import type { CloudPairBeginResponse } from "@repo/api/local/cloud/cloud-schema"
 import type { ThreadEvent } from "@repo/domain/provider-event";
 import { threadScope } from "@repo/domain/thread-event-scope";
 import { join } from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { CAPTURE_INBOX_PATH, type CaptureVault } from "../captures";
 import type { CloudFetch, CloudSocket, OpenCloudSocketArgs } from "@repo/api/cloud/client";
 import { readDeviceCredential } from "../credential-store";
@@ -34,11 +34,7 @@ const CODE = "ABCD-EFGH";
  *  matters is that it is a shape `pairRedirectUrlSchema` admits. */
 const CALLBACK_URL = "http://127.0.0.1:4664/pair/callback";
 
-const teardown: Array<() => void> = [];
 afterEach(() => {
-  for (const undo of teardown.splice(0).toReversed()) {
-    undo();
-  }
   vi.useRealTimers();
 });
 
@@ -149,7 +145,7 @@ function makeHarness(
     transport,
   });
   runtime.attach(sink);
-  teardown.push(() => {
+  onTestFinished(() => {
     void runtime.dispose();
     closeConnection(db);
   });

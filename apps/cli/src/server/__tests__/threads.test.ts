@@ -10,7 +10,7 @@ import { serverMessageLenientSchema, type ServerMessage } from "@repo/api/local/
 import { RPC_PREFIX, WS_PATH } from "@repo/api/local/routes";
 import type { TimelineResponse } from "@repo/api/local/threads/threads-schema";
 import { applyTimelineDelta, type TimelineRow } from "@repo/api/local/thread-timeline";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { z } from "zod";
 import { ThreadEventThreadIdMismatchError, ThreadService } from "../threads/service";
 import { unavailableTurnDriver } from "../threads/turn-driver";
@@ -19,15 +19,6 @@ import { authorizationHeader } from "../server-file";
 import { bootTestApp, TEST_SERVER_TOKEN, type BootedTestApp } from "./boot-app";
 import { boundAddressSchema } from "./bound-address";
 import { FakeTurnDriver, type FakeTurnDriverOptions } from "./fake-turn-driver";
-
-const cleanups: Array<() => void | Promise<void>> = [];
-
-afterEach(async () => {
-  // LIFO: the ws client must close before the server that holds it.
-  for (const cleanup of cleanups.splice(0).toReversed()) {
-    await cleanup();
-  }
-});
 
 /** The router's client type, shared by the in-process caller and the one
  *  speaking to a real socket — the same procedures either way. */
@@ -585,7 +576,7 @@ describe("a fake-provider turn end-to-end", () => {
 
     const server = serve({ fetch: composed.app.fetch, hostname: "127.0.0.1", port: 0 });
     composed.injectWebSocket(server);
-    cleanups.push(
+    onTestFinished(
       () =>
         new Promise<void>((resolve, reject) => {
           server.close((error) => {
@@ -613,7 +604,7 @@ describe("a fake-provider turn end-to-end", () => {
     const socket = new WebSocket(`ws://127.0.0.1:${address.port}${WS_PATH}`, {
       headers: { authorization: authorizationHeader(TEST_SERVER_TOKEN) },
     });
-    cleanups.push(() => socket.close());
+    onTestFinished(() => socket.close());
     const frames: ServerMessage[] = [];
     socket.addEventListener("message", (event) => {
       const text = z.string().safeParse(event.data);

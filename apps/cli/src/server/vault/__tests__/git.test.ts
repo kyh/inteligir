@@ -3,21 +3,13 @@ import { readFile, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { ensureVaultRepo, type EnsureVaultRepoArgs } from "../git-bootstrap";
 import { createGitEngine, type GitEngine, type GitEngineArgs } from "../git-engine";
 import { GitError, runGit } from "../git-run";
 import { boundAddressSchema } from "../../__tests__/bound-address";
 import { hermeticGitEnv } from "./git-test-env";
 import { makeTempDir } from "../../__tests__/temp-dir";
-
-const cleanups: Array<() => void | Promise<void>> = [];
-
-afterEach(async () => {
-  for (const cleanup of cleanups.splice(0).toReversed()) {
-    await cleanup();
-  }
-});
 
 const env = hermeticGitEnv();
 
@@ -57,7 +49,7 @@ async function makeEngine(args: {
     ...args.timing,
   };
   const engine = createGitEngine(engineArgs);
-  cleanups.push(() => engine.dispose());
+  onTestFinished(() => engine.dispose());
   return { root, engine, statusChanges: () => statusChanges };
 }
 
@@ -551,7 +543,7 @@ describe("the cross-account fence", () => {
       remote: () => ({ url: remote, source: "paired", account }),
       env,
     });
-    cleanups.push(() => engine.dispose());
+    onTestFinished(() => engine.dispose());
 
     await writeFile(join(root, "note.md"), "# a\n");
     await engine.commitNow();
@@ -590,7 +582,7 @@ describe("the cross-account fence", () => {
       remote: () => ({ url: remote, source: "paired", account }),
       env,
     });
-    cleanups.push(() => engine.dispose());
+    onTestFinished(() => engine.dispose());
 
     await a.engine.syncNow();
     await engine.syncNow();
@@ -619,7 +611,7 @@ describe("a refused credential", () => {
       response.end("auth required\n");
     });
     await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
-    cleanups.push(() => new Promise<void>((resolve) => server.close(() => resolve())));
+    onTestFinished(() => new Promise<void>((resolve) => server.close(() => resolve())));
     const { port } = boundAddressSchema.parse(server.address());
 
     const { engine } = await makeEngine({
@@ -640,7 +632,7 @@ describe("clone failure classes", () => {
       response.end("auth required\n");
     });
     await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
-    cleanups.push(() => new Promise<void>((resolve) => server.close(() => resolve())));
+    onTestFinished(() => new Promise<void>((resolve) => server.close(() => resolve())));
     const { port } = boundAddressSchema.parse(server.address());
 
     const root = join(scratchDir("inteligir-git-clone-fail-"), "vault");
@@ -780,7 +772,7 @@ describe("a live remote provider", () => {
       },
       env,
     });
-    cleanups.push(() => engine.dispose());
+    onTestFinished(() => engine.dispose());
     engine.startAutoSync(50);
     await vi.waitFor(() => expect(reads).toBeGreaterThanOrEqual(2));
     // ensureOriginRemote is reachable only inside a pass; a pass that ran
@@ -794,7 +786,7 @@ describe("a live remote provider", () => {
     await ensureVaultRepo({ root, env });
     let current: { url: string; source: "paired"; account: string } | null = null;
     const engine = createGitEngine({ root, remote: () => current, env });
-    cleanups.push(() => engine.dispose());
+    onTestFinished(() => engine.dispose());
 
     expect((await engine.status()).state).toBe("no-remote");
 

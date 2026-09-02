@@ -6,27 +6,24 @@
 
 import { spawn } from "node:child_process";
 import { createServer, type Server } from "node:http";
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it, onTestFinished } from "vitest";
 import { boundAddressSchema } from "./bound-address";
 import { makeTempDir } from "./temp-dir";
 import { writeServerFile } from "../server-file";
 import { assertNoLiveServer } from "../serve";
 
-const servers: Server[] = [];
-
-afterEach(async () => {
-  for (const server of servers.splice(0)) {
-    server.closeAllConnections();
-    await new Promise<void>((resolve) => server.close(() => resolve()));
-  }
-});
+/** Close a listener whose connections were never answered. */
+function closeWedged(server: Server): Promise<void> {
+  server.closeAllConnections();
+  return new Promise<void>((resolve) => server.close(() => resolve()));
+}
 
 /** A listener that accepts and never answers — the wedged owner. */
 async function wedgedListener(): Promise<number> {
   const server = createServer(() => {
     // Deliberately no response: the connection stays open.
   });
-  servers.push(server);
+  onTestFinished(() => closeWedged(server));
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   return boundAddressSchema.parse(server.address()).port;
 }

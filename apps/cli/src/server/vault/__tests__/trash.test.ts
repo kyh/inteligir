@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { VaultPathError } from "@repo/notes/knowledge/vault-path";
 import {
   listTrash,
@@ -12,14 +12,6 @@ import { createVaultService } from "../vault-service";
 import { createNotifierRecorder } from "./notifier-recorder";
 import { identityLock } from "../../__tests__/identity-lock";
 import { makeTempDir } from "../../__tests__/temp-dir";
-
-const cleanups: Array<() => void> = [];
-
-afterEach(() => {
-  for (const cleanup of cleanups.splice(0)) {
-    cleanup();
-  }
-});
 
 function bootService() {
   const root = makeTempDir("inteligir-trash-test-");

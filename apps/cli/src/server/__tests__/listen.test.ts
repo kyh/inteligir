@@ -1,17 +1,9 @@
 import { createServer as createHttpServer, type Server as HttpServer } from "node:http";
 import { connect, createServer, type Server, type Socket } from "node:net";
 import type { Duplex } from "node:stream";
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it, onTestFinished } from "vitest";
 import { closeServer, listenWithRetry, type ListenResult } from "../listen";
 import { boundAddressSchema } from "./bound-address";
-
-const cleanups: Array<() => Promise<void>> = [];
-
-afterEach(async () => {
-  for (const cleanup of cleanups.splice(0)) {
-    await cleanup();
-  }
-});
 
 function closeNetServer(server: Server): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -28,12 +20,12 @@ function closeNetServer(server: Server): Promise<void> {
 async function occupyPort(): Promise<number> {
   const blocker = createServer();
   await new Promise<void>((resolve) => blocker.listen(0, "127.0.0.1", resolve));
-  cleanups.push(() => closeNetServer(blocker));
+  onTestFinished(() => closeNetServer(blocker));
   return boundAddressSchema.parse(blocker.address()).port;
 }
 
 function trackResult(result: ListenResult): ListenResult {
-  cleanups.push(
+  onTestFinished(
     () =>
       new Promise<void>((resolve, reject) => {
         result.server.close((error) => {
@@ -109,7 +101,7 @@ async function upgradeAgainst(port: number): Promise<Socket> {
     client.once("connect", resolve);
     client.once("error", reject);
   });
-  cleanups.push(async () => {
+  onTestFinished(async () => {
     client.destroy();
   });
   const answered = new Promise<void>((resolve) => client.once("data", () => resolve()));
@@ -146,7 +138,7 @@ function upgradingServer(): UpgradingServer {
       resolve(address.success ? address.data.port : 0);
     });
   });
-  cleanups.push(async () => {
+  onTestFinished(async () => {
     for (const socket of serverSockets) socket.destroy();
     server.close();
   });

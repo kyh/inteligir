@@ -23,7 +23,7 @@ import {
   voiceStreamDownMessageSchema,
   type VoiceStreamDownMessage,
 } from "@repo/api/local/voice/voice-schema";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { z } from "zod";
 import { closeServer } from "../listen";
 import { localRouter } from "../root-router";
@@ -31,8 +31,6 @@ import { authorizationHeader, SERVER_TOKEN_COOKIE, serverTokenCookie } from "../
 import { bootTestApp, TEST_SERVER_TOKEN } from "./boot-app";
 import { boundAddressSchema } from "./bound-address";
 import { makeTempDir } from "./temp-dir";
-
-const cleanups: Array<() => void | Promise<void>> = [];
 
 /** A procedure behind the gate, spelled as the wire call the handler answers —
  *  what the token tests present a credential (or none) to. POST, because the
@@ -42,13 +40,6 @@ const statusRpcRequest = (headers: Record<string, string>): RequestInit => ({
   method: "POST",
   headers: { "content-type": "application/json", ...headers },
   body: JSON.stringify({ json: {} }),
-});
-
-afterEach(async () => {
-  // LIFO: the ws client must close before the server that holds it.
-  for (const cleanup of cleanups.splice(0).toReversed()) {
-    await cleanup();
-  }
 });
 
 /** A staged UI bundle over a fresh dir, holding the shell the server answers
@@ -285,7 +276,7 @@ describe("the device token", () => {
     const { composed } = await bootTestApp();
     const server = serve({ fetch: composed.app.fetch, hostname: "127.0.0.1", port: 0 });
     composed.injectWebSocket(server);
-    cleanups.push(
+    onTestFinished(
       () =>
         new Promise<void>((resolve, reject) => {
           server.close((error) => {
@@ -336,7 +327,7 @@ describe("the real socket upgrade", () => {
       port: 0,
     });
     composed.injectWebSocket(server);
-    cleanups.push(
+    onTestFinished(
       () =>
         new Promise<void>((resolve, reject) => {
           server.close((error) => {
@@ -369,7 +360,7 @@ describe("the real socket upgrade", () => {
     const socket = new WebSocket(`ws://127.0.0.1:${address.port}${WS_PATH}`, {
       headers: { authorization: authorizationHeader(TEST_SERVER_TOKEN) },
     });
-    cleanups.push(() => socket.close());
+    onTestFinished(() => socket.close());
 
     const frames: ServerMessage[] = [];
     socket.addEventListener("message", (event) => {
@@ -439,7 +430,7 @@ function closeServerOnce(server: ReturnType<typeof serve>): Promise<void> {
 describe("the dictation stream socket", () => {
   it("streams a scripted partial and a final over the socket, then closes", async () => {
     const { server, port } = await serveVoiceApp();
-    cleanups.push(() => closeServerOnce(server));
+    onTestFinished(() => closeServerOnce(server));
 
     const socket = new WebSocket(`ws://127.0.0.1:${port}${VOICE_STREAM_PATH}`, {
       headers: { authorization: authorizationHeader(TEST_SERVER_TOKEN) },

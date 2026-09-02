@@ -11,20 +11,14 @@ import {
   type SqlKnowledgeStore,
 } from "@repo/notes/knowledge/sql-knowledge-store";
 import { searchVaultNotes } from "@repo/notes/knowledge/vault-search";
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it, onTestFinished } from "vitest";
 import { makeTempDir } from "../../__tests__/temp-dir";
 import { createSqliteDriver } from "../sqlite-driver";
-
-const cleanups: Array<() => void> = [];
-
-afterEach(() => {
-  for (const cleanup of cleanups.splice(0).toReversed()) cleanup();
-});
 
 function storeWith(docs: Record<string, string>): SqlKnowledgeStore {
   const dbPath = join(makeTempDir("inteligir-fts-query-"), "knowledge.db");
   const store = createSqlKnowledgeStore(createSqliteDriver(dbPath), "/vault");
-  cleanups.push(() => store.dispose());
+  onTestFinished(() => store.dispose());
   for (const [path, content] of Object.entries(docs)) {
     store.upsertDoc(
       {

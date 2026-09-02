@@ -7,18 +7,12 @@ import { join } from "node:path";
 import { noopNotifier } from "@repo/domain/notifier";
 import { PROJECTION_VERSION } from "@repo/notes/knowledge/projection";
 import { VAULT_MAX_CONTENT_LENGTH } from "@repo/api/local/vault/vault-schema";
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it, onTestFinished } from "vitest";
 import { makeTempDir } from "../../__tests__/temp-dir";
 import { createVaultService, type VaultService } from "../../vault/vault-service";
 import { createKnowledgeRuntime, type KnowledgeRuntime } from "../knowledge-runtime";
 import { createSqliteDriver } from "../sqlite-driver";
 import { identityLock } from "../../__tests__/identity-lock";
-
-const cleanups: Array<() => void | Promise<void>> = [];
-
-afterEach(async () => {
-  for (const cleanup of cleanups.splice(0).toReversed()) await cleanup();
-});
 
 function makeDirs() {
   const instanceDir = makeTempDir("inteligir-knowledge-runtime-");
@@ -45,7 +39,7 @@ function boot(dirs: ReturnType<typeof makeDirs>) {
     vaultRoot: dirs.root,
   });
   sink = knowledge;
-  cleanups.push(() => knowledge.dispose());
+  onTestFinished(() => knowledge.dispose());
   return { service, knowledge };
 }
 
@@ -133,7 +127,7 @@ describe("the knowledge runtime", () => {
       vault: counted,
       vaultRoot: dirs.root,
     });
-    cleanups.push(() => knowledge.dispose());
+    onTestFinished(() => knowledge.dispose());
     // The boot reconcile is the one listing; everything after it is targeted.
     await knowledge.settle();
     const afterBoot = listTreeCalls;
@@ -289,7 +283,7 @@ describe("the knowledge runtime", () => {
       vault: flaky,
       vaultRoot: dirs.root,
     });
-    cleanups.push(() => knowledge.dispose());
+    onTestFinished(() => knowledge.dispose());
     await knowledge.settle();
 
     writeFileSync(join(dirs.root, "b.md"), "# B\n\nHeron notes.\n");

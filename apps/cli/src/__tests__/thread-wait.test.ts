@@ -1,7 +1,7 @@
 // `thread wait` exit codes ARE the contract a shell script branches on:
 // 0 settled idle, 1 settled in error (or not found), 2 timeout.
 
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it, onTestFinished } from "vitest";
 import {
   makeFixtureState,
   makeThread,
@@ -12,14 +12,6 @@ import {
   type FixtureThread,
 } from "./fixture-server";
 import { runCliForTest } from "./run-cli";
-
-const cleanups: Array<() => Promise<void>> = [];
-
-afterEach(async () => {
-  for (const cleanup of cleanups.splice(0).toReversed()) {
-    await cleanup();
-  }
-});
 
 async function bootWithThread(
   statusSequence: FixtureState["threads"][number]["statusSequence"],
@@ -35,7 +27,7 @@ async function bootWithThread(
   }
   state.threads.push(entry);
   const server = await serveFixture(state);
-  cleanups.push(() => server.close());
+  onTestFinished(() => server.close());
   return server;
 }
 

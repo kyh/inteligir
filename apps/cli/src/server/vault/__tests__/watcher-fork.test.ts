@@ -8,17 +8,9 @@ import { once } from "node:events";
 import { writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { childToParentMessageSchema, type ChildToParentMessage } from "../watcher/messages";
 import { makeTempDir } from "../../__tests__/temp-dir";
-
-const cleanups: Array<() => void> = [];
-
-afterEach(() => {
-  for (const cleanup of cleanups.splice(0)) {
-    cleanup();
-  }
-});
 
 const testDir = dirname(fileURLToPath(import.meta.url));
 const childEntry = join(testDir, "..", "watcher", "parcel-child-entry.ts");
@@ -36,7 +28,9 @@ describe("the forked watcher child", () => {
         execArgv: ["--import", "tsx"],
         stdio: ["ignore", "ignore", "ignore", "ipc"],
       });
-      cleanups.push(() => child.kill("SIGKILL"));
+      onTestFinished(() => {
+        child.kill("SIGKILL");
+      });
 
       const inbox: ChildToParentMessage[] = [];
       let failed: Error | null = null;

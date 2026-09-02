@@ -18,7 +18,7 @@ import type {
   PendingInteractionCreate,
 } from "@repo/domain/pending-interactions";
 import type { PendingInteraction } from "@repo/api/local/threads/threads-schema";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import {
   createInteractionWaiters,
   INTERACTION_TIMEOUT_MS,
@@ -26,12 +26,7 @@ import {
 } from "../interaction-waiters";
 import { makeTempDir } from "../../__tests__/temp-dir";
 
-const cleanups: Array<() => void> = [];
-
 afterEach(() => {
-  for (const cleanup of cleanups.splice(0)) {
-    cleanup();
-  }
   vi.useRealTimers();
 });
 
@@ -53,7 +48,7 @@ interface Harness {
 function makeHarness(): Harness {
   const db = createConnection(join(makeTempDir("inteligir-waiters-"), "test.db"));
   runMigrations(db);
-  cleanups.push(() => {
+  onTestFinished(() => {
     closeConnection(db);
   });
   const threadId = createThread(db, noopNotifier, {}).id;

@@ -18,7 +18,7 @@ import { z } from "zod";
 /** The failure envelope every leaf owes a `--json` caller on stderr: the class
  *  (the server's own, or one of the CLI's) and a sentence. */
 const cliErrorEnvelopeSchema = z.object({ error: z.string().min(1), message: z.string() });
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it, onTestFinished } from "vitest";
 import { argsOf, collectLeafCommands, type LeafCommand } from "../command-tree";
 import { LEAF_INVOCATIONS, testProgram } from "./command-tree";
 import {
@@ -45,14 +45,6 @@ const EXCLUDED_COMMANDS = new Map<string, string>([
     "it IS the server rather than a caller of one — it answers no document, it never returns while it is working, and the fixture it would be run against is the very thing it replaces",
   ],
 ]);
-
-const cleanups: Array<() => Promise<void>> = [];
-
-afterEach(async () => {
-  for (const cleanup of cleanups.splice(0).toReversed()) {
-    await cleanup();
-  }
-});
 
 /** Enough state that every leaf's invocation has something real to act on.
  *  Re-applied BETWEEN leaves, because the leaves mutate it (rename moves the
@@ -118,7 +110,7 @@ function driveableState(): FixtureState {
 
 async function boot(state: FixtureState): Promise<FixtureServer> {
   const server = await serveFixture(state);
-  cleanups.push(() => server.close());
+  onTestFinished(() => server.close());
   return server;
 }
 

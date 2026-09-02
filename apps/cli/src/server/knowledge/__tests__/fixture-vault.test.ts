@@ -5,19 +5,13 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { noopNotifier } from "@repo/domain/notifier";
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it, onTestFinished } from "vitest";
 import { makeTempDir } from "../../__tests__/temp-dir";
 import { createVaultService } from "../../vault/vault-service";
 import { createKnowledgeRuntime } from "../knowledge-runtime";
 import { identityLock } from "../../__tests__/identity-lock";
 
 const FILE_COUNT = 300;
-
-const cleanups: Array<() => void | Promise<void>> = [];
-
-afterEach(async () => {
-  for (const cleanup of cleanups.splice(0).toReversed()) await cleanup();
-});
 
 describe("a 300-file vault", () => {
   it("boots, reconciles once, and answers search/backlinks/tags", async () => {
@@ -38,7 +32,7 @@ describe("a 300-file vault", () => {
 
     const service = createVaultService({ lock: identityLock, notifier: noopNotifier, root });
     const knowledge = createKnowledgeRuntime({ dataDir, vault: service, vaultRoot: root });
-    cleanups.push(() => knowledge.dispose());
+    onTestFinished(() => knowledge.dispose());
 
     await knowledge.settle();
     expect(knowledge.lastReconcile).toEqual({

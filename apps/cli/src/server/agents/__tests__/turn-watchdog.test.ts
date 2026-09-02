@@ -15,7 +15,7 @@ import { createThread } from "@repo/db/threads";
 import { noopNotifier } from "@repo/domain/notifier";
 import type { ThreadEvent } from "@repo/domain/provider-event";
 import { turnScope } from "@repo/domain/thread-event-scope";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import type { TurnDriver } from "../../threads/turn-driver";
 import type { GitEngine } from "../../vault/git-engine";
 import { createAcpRuntimeManager, type AcpRuntimeManager } from "../runtime-manager";
@@ -25,12 +25,7 @@ import { fakeSessionFacts } from "./agent-test-harness";
 const BUDGET_MS = 200;
 const PROVIDER_TURN_ID = "pturn_1";
 
-const cleanups: Array<() => void | Promise<void>> = [];
-
-afterEach(async () => {
-  for (const cleanup of cleanups.splice(0).toReversed()) {
-    await cleanup();
-  }
+afterEach(() => {
   vi.useRealTimers();
 });
 
@@ -103,8 +98,8 @@ function makeHarness(): Harness {
       ingested.push(...events);
     },
   });
-  cleanups.push(() => manager.dispose());
-  cleanups.push(() => {
+  onTestFinished(() => manager.dispose());
+  onTestFinished(() => {
     closeConnection(db);
   });
   return {

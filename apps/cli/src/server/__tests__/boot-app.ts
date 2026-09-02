@@ -2,15 +2,15 @@
 // root serve.ts runs (`composeRuntime`), over a scratch instance dir and the
 // hermetic ports — no watcher fork, hermetic git, no remote, the scripted
 // transcriber, an injectable turn driver — plus the wired hono app and the
-// typed in-process client. The composed teardown is run whole by this
-// module's own afterEach, so consumers register no cleanup of their own.
+// typed in-process client. The composed teardown is registered on the
+// booting test, so consumers register no cleanup of their own.
 
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import type { DbConnection } from "@repo/db/connection";
 import type { AgentStatus } from "@repo/api/local/system/system-schema";
 import { createRouterClient, type RouterClient } from "@orpc/server";
-import { afterEach } from "vitest";
+import { onTestFinished } from "vitest";
 import { createApp } from "../app";
 import type { OpenExternalUrl } from "../cloud/browser-opener";
 import type { CloudTransport } from "../cloud/sync-runtime";
@@ -39,14 +39,6 @@ export { FakeTurnDriver, type FakeTurnDriverOptions } from "./fake-turn-driver";
  *  and comparison, and a per-boot value here would only make the client's
  *  header harder to read in a failure. */
 export const TEST_SERVER_TOKEN = "test-server-token";
-
-const cleanups: Array<() => void | Promise<void>> = [];
-
-afterEach(async () => {
-  for (const cleanup of cleanups.splice(0).toReversed()) {
-    await cleanup();
-  }
-});
 
 export interface BootTestAppOptions {
   agent?: AgentStatus;
@@ -133,7 +125,7 @@ export async function bootTestApp(options: BootTestAppOptions = {}): Promise<Boo
   // and a vault runtime up, and the steps already on the array are what
   // release them.
   const teardown: ShutdownStep[] = [];
-  cleanups.push(async () => {
+  onTestFinished(async () => {
     for (const step of teardown) {
       await step.run();
     }

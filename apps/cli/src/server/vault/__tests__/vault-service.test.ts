@@ -1,19 +1,11 @@
 import { mkdir, readdir, readFile, stat, symlink, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { VaultPathError, VAULT_TMP_PREFIX } from "@repo/notes/knowledge/vault-path";
 import { createVaultService, sweepStaleTmpFiles, VaultServiceError } from "../vault-service";
 import { createNotifierRecorder } from "./notifier-recorder";
 import { identityLock } from "../../__tests__/identity-lock";
 import { makeTempDir } from "../../__tests__/temp-dir";
-
-const cleanups: Array<() => void> = [];
-
-afterEach(() => {
-  for (const cleanup of cleanups.splice(0)) {
-    cleanup();
-  }
-});
 
 function deferred() {
   let release: (() => void) | undefined;

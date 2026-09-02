@@ -15,21 +15,15 @@ import {
   type SqlDriver,
   type SqlKnowledgeStore,
 } from "@repo/notes/knowledge/sql-knowledge-store";
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it, onTestFinished } from "vitest";
 import { makeTempDir } from "../../__tests__/temp-dir";
 import { createSqliteDriver } from "../sqlite-driver";
 
-const cleanups: Array<() => void> = [];
-
-afterEach(() => {
-  for (const cleanup of cleanups.splice(0).toReversed()) cleanup();
-});
-
 function makeDbDir(): string {
   const dir = makeTempDir("inteligir-knowledge-driver-");
-  // A test drops the dir's write bit; restore it here (this hook runs before
-  // the shared temp-dir removal) so the removal can succeed.
-  cleanups.push(() => chmodSync(dir, 0o755));
+  // A test drops the dir's write bit; registered after the dir, this restore
+  // runs before the dir's own removal, so the removal can succeed.
+  onTestFinished(() => chmodSync(dir, 0o755));
   return dir;
 }
 
@@ -43,7 +37,7 @@ function sha256Hex(content: string): string {
 
 function openStore(dbPath: string, vaultRoot = "/vault"): SqlKnowledgeStore {
   const store = createSqlKnowledgeStore(createSqliteDriver(dbPath), vaultRoot);
-  cleanups.push(() => {
+  onTestFinished(() => {
     try {
       store.dispose();
     } catch {
@@ -71,19 +65,19 @@ function seed(store: SqlKnowledgeStore): void {
   store.upsertOther("img/pic.png");
 }
 
-describe("the sqlite driver", () => {
-  function openDriver(dbPath: string): SqlDriver {
-    const driver = createSqliteDriver(dbPath);
-    cleanups.push(() => {
-      try {
-        driver.close();
-      } catch {
-        // already closed by the test
-      }
-    });
-    return driver;
-  }
+function openDriver(dbPath: string): SqlDriver {
+  const driver = createSqliteDriver(dbPath);
+  onTestFinished(() => {
+    try {
+      driver.close();
+    } catch {
+      // already closed by the test
+    }
+  });
+  return driver;
+}
 
+describe("the sqlite driver", () => {
   it("binds null, integer, float and text and reads them back", () => {
     const driver = openDriver(makeDbPath());
     driver.exec("CREATE TABLE t (a, b, c, d)");
