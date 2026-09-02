@@ -7,7 +7,7 @@ import {
   type MintPairingCodeResponse,
   type RedeemDeviceResponse,
 } from "@repo/api/cloud/pairing/pairing-schema";
-import { constantTimeEqual, sha256Hex } from "@repo/api/cloud/bytes";
+import { constantTimeEqual, hexFromBytes, sha256Hex } from "@repo/api/cloud/bytes";
 import { and, eq, isNull, lt, or, sql } from "drizzle-orm";
 import type { createDb } from "../db/client";
 import { device, pairingCode } from "../db/schema";
@@ -41,9 +41,7 @@ function generatePairingCode(): string {
 function generateDeviceCredential(): string {
   const buf = new Uint8Array(32);
   crypto.getRandomValues(buf);
-  let hex = "";
-  for (const b of buf) hex += b.toString(16).padStart(2, "0");
-  return DEVICE_CREDENTIAL_PREFIX + hex;
+  return DEVICE_CREDENTIAL_PREFIX + hexFromBytes(buf);
 }
 
 /**

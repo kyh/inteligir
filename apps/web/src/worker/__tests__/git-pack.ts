@@ -1,3 +1,4 @@
+import { hexFromBytes } from "@repo/api/cloud/bytes";
 import { SELF } from "cloudflare:test";
 import { deviceHeaders, ORIGIN } from "./cloud-helpers";
 
@@ -27,12 +28,6 @@ async function sha1(bytes: Uint8Array): Promise<Uint8Array> {
   return new Uint8Array(await crypto.subtle.digest("SHA-1", bytes));
 }
 
-function hex(bytes: Uint8Array): string {
-  let out = "";
-  for (const b of bytes) out += b.toString(16).padStart(2, "0");
-  return out;
-}
-
 /** zlib-wrapped DEFLATE, the per-object encoding inside a pack. */
 async function deflate(bytes: Uint8Array): Promise<Uint8Array> {
   const stream = new CompressionStream("deflate");
@@ -57,7 +52,7 @@ const TYPE_NAMES = { 1: "commit", 2: "tree", 3: "blob" } as const;
 
 async function gitObject(type: 1 | 2 | 3, raw: Uint8Array): Promise<GitObject> {
   const header = encoder.encode(`${TYPE_NAMES[type]} ${raw.length}\0`);
-  return { type, oid: hex(await sha1(concat([header, raw]))), raw };
+  return { type, oid: hexFromBytes(await sha1(concat([header, raw]))), raw };
 }
 
 function oidBytes(oid: string): Uint8Array {
