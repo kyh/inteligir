@@ -281,14 +281,14 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
 
   // -- failure handling -----------------------------------------------------
 
-  /** True when the failure ends this device's session; the caller stops. The
-   *  verdict and the unauthorized transition are the session machine's;
-   *  `onEnded` above halts the transport. */
-  function recordFailure(failure: CloudFailure): boolean {
+  /** The session machine's verdict, passed through: "ended" means the failure
+   *  ended this device's session and the caller stops. The unauthorized
+   *  transition is the machine's too; `onEnded` above halts the transport. */
+  function recordFailure(failure: CloudFailure): "continue" | "ended" {
     lastError = describeCloudFailure(failure);
     const outcome = session.recordFailure(failure);
     if (outcome === "continue") debug(lastError);
-    return outcome === "ended";
+    return outcome;
   }
 
   // -- the pass -------------------------------------------------------------

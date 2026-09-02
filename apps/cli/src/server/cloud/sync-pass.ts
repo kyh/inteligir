@@ -71,8 +71,8 @@ export interface SyncPassDeps {
   /** True while `context`'s session is still the live one. Checked after
    *  EVERY await, immediately before any write. */
   fenced(context: PassContext): boolean;
-  /** Records the failure; true when it ended the session and the pass stops. */
-  recordFailure(failure: CloudFailure): boolean;
+  /** Records the failure; "ended" when it ended the session and the pass stops. */
+  recordFailure(failure: CloudFailure): "continue" | "ended";
   setLastError(message: string | null): void;
 }
 
@@ -121,7 +121,7 @@ async function drain(deps: SyncPassDeps, context: PassContext): Promise<boolean>
         deps.setLastError(describeCloudFailure(result.failure));
         continue;
       }
-      return !deps.recordFailure(result.failure);
+      return deps.recordFailure(result.failure) === "continue";
     }
     ackPushBatch(deps.db, batch);
     deps.setLastError(null);
@@ -184,7 +184,7 @@ function pullAndApply(deps: SyncPassDeps, context: PassContext): Promise<boolean
         }
       }
     },
-    recordFailure: (failure) => (deps.recordFailure(failure) ? "ended" : "continue"),
+    recordFailure: (failure) => deps.recordFailure(failure),
     onPage: () => {
       deps.setLastError(null);
     },
@@ -223,7 +223,7 @@ async function applyCaptures(deps: SyncPassDeps, context: PassContext): Promise<
     return false;
   }
   if (!claimed.ok) {
-    return !deps.recordFailure(claimed.failure);
+    return deps.recordFailure(claimed.failure) === "continue";
   }
   const captures = claimed.value.captures;
   if (captures.length === 0) {
@@ -259,7 +259,7 @@ async function applyCaptures(deps: SyncPassDeps, context: PassContext): Promise<
     return false;
   }
   if (!acked.ok) {
-    return !deps.recordFailure(acked.failure);
+    return deps.recordFailure(acked.failure) === "continue";
   }
   for (const outcome of acked.value.results) {
     if (outcome.outcome === "reclaimed") {
