@@ -270,12 +270,10 @@ Sidebar.displayName = "Sidebar";
 
 // ─── SidebarContent ──────────────────────────────────────────────────────────
 
-interface SidebarContentProps extends HTMLAttributes<HTMLDivElement> {
-  viewportClassName?: string;
-}
+type SidebarContentProps = HTMLAttributes<HTMLDivElement>;
 
 const SidebarContent = forwardRef<HTMLDivElement, SidebarContentProps>(
-  ({ className, viewportClassName, children, ...props }, ref) => {
+  ({ className, children, ...props }, ref) => {
     const { isMobile } = useSidebar();
 
     // Inside the mobile sheet, the sheet's flex column owns layout and this
@@ -294,10 +292,7 @@ const SidebarContent = forwardRef<HTMLDivElement, SidebarContentProps>(
     }
 
     return (
-      <ScrollArea
-        className={cn("min-h-0 w-full flex-1", className)}
-        viewportClassName={viewportClassName}
-      >
+      <ScrollArea className={cn("min-h-0 w-full flex-1", className)}>
         <div ref={ref} data-sidebar="content" className="flex w-full min-w-0 flex-col" {...props}>
           {children}
         </div>

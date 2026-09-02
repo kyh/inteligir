@@ -51,12 +51,7 @@ export function NavigationSection() {
         stack
       >
         <div className="h-[260px] w-full overflow-hidden rounded-lg border border-line">
-          <SidebarProvider
-            className="h-full min-h-0"
-            persist={false}
-            width="12rem"
-            style={{ minHeight: "100%" }}
-          >
+          <SidebarProvider className="h-full min-h-0" width="12rem" style={{ minHeight: "100%" }}>
             <Sidebar variant="floating">
               <SidebarHeader>
                 <SidebarInput placeholder="Search…" readOnly />

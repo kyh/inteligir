@@ -12,6 +12,9 @@ import { useRadius } from "@repo/ui/lib/radius-context";
 import { spring } from "@repo/ui/lib/springs";
 
 const DEFAULT_DELAY = 200;
+/** After a tooltip closes, adjacent tooltips opened within this window skip
+ *  the hover delay, in ms. */
+const SKIP_DELAY_TIMEOUT = 300;
 
 // Tracks whether an app-level <TooltipProvider> is above us. Each Tooltip
 // only wraps itself in a local primitive Provider when there isn't one —
@@ -23,23 +26,16 @@ interface TooltipProviderProps {
   children: React.ReactNode;
   /** Hover delay before tooltips open, in ms. Defaults to 200. */
   delay?: number;
-  /** After a tooltip closes, adjacent tooltips opened within this window
-   *  skip the hover delay, in ms. Defaults to 300. */
-  skipDelayDuration?: number;
 }
 
 /** Groups descendant Tooltips so that once one opens, moving to an adjacent
  *  trigger shows its tooltip instantly instead of re-waiting the full delay.
  *  Wrap once at the app (or section) level; bare Tooltips still work without
  *  it via a per-instance fallback. */
-function TooltipProvider({
-  children,
-  delay = DEFAULT_DELAY,
-  skipDelayDuration = 300,
-}: TooltipProviderProps) {
+function TooltipProvider({ children, delay = DEFAULT_DELAY }: TooltipProviderProps) {
   return (
     <TooltipGroupContext.Provider value={true}>
-      <TooltipPrimitive.Provider delay={delay} timeout={skipDelayDuration}>
+      <TooltipPrimitive.Provider delay={delay} timeout={SKIP_DELAY_TIMEOUT}>
         {children}
       </TooltipPrimitive.Provider>
     </TooltipGroupContext.Provider>

@@ -466,61 +466,35 @@ function MenuRowLabel({
 
 interface SidebarMenuButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   isActive?: boolean;
-  size?: "default" | "sm" | "lg";
   icon?: IconComponent;
-  /** Semantic thread state for status-dot navigation. Drives the dot
-   *  visuals (`active`/`unread` → filled, `idle` → ring), stamps
-   *  `data-status` on the button, appends visually-hidden "unread" text for
-   *  screen readers, and `"active"` implies `isActive`. */
-  status?: "active" | "unread" | "idle";
-  /** Visual-only dot in the icon column — the escape hatch when the
-   *  semantic `status` vocabulary doesn't fit. Overrides the dot derived
-   *  from `status`. Ignored when `icon` is set. */
-  dot?: "filled" | "ring";
 }
 
 const SidebarMenuButton = forwardRef<HTMLButtonElement, SidebarMenuButtonProps>(
-  (
-    { isActive = false, size = "default", icon: Icon, status, dot, className, children, ...props },
-    ref,
-  ) => {
+  ({ isActive = false, icon: Icon, className, children, ...props }, ref) => {
     const scope = useContext(MenuScopeContext);
     const item = useContext(MenuItemContext);
     const radius = useRadius();
     const sizeClasses = useSize();
     const buttonRef = useRef<HTMLButtonElement | null>(null);
 
-    // status="active" implies the row-active treatment; an explicit dot
-    // overrides the status-derived one.
-    const effectiveActive = isActive || status === "active";
-
     const setActive = item?.setActive;
     useIsoLayoutEffect(() => {
-      setActive?.(effectiveActive);
+      setActive?.(isActive);
       return () => setActive?.(false);
-    }, [effectiveActive, setActive]);
+    }, [isActive, setActive]);
 
     const setButtonEl = item?.setButtonEl;
     useIsoLayoutEffect(() => {
       setButtonEl?.(buttonRef.current);
       return () => setButtonEl?.(null);
     }, [setButtonEl]);
-    const resolvedDot = dot ?? (status ? (status === "idle" ? "ring" : "filled") : undefined);
-    const lit = effectiveActive || (item?.isHovered ?? false);
-    const heightClass =
-      size === "sm"
-        ? "h-7"
-        : size === "lg"
-          ? "h-12"
-          : sizeClasses.variant === "compact"
-            ? "h-7"
-            : "h-8";
-    const textClass = size === "sm" ? "text-[12px]" : sizeClasses.text;
+    const lit = isActive || (item?.isHovered ?? false);
+    const heightClass = sizeClasses.variant === "compact" ? "h-7" : "h-8";
 
     // Roving tabindex: the active row's button is the menu's tab stop; with no
     // active row, the first row keeps the menu keyboard-reachable.
     const row = item?.rowEl ?? null;
-    const tabIdx = effectiveActive
+    const tabIdx = isActive
       ? 0
       : scope?.hasActive
         ? -1
@@ -533,10 +507,8 @@ const SidebarMenuButton = forwardRef<HTMLButtonElement, SidebarMenuButtonProps>(
         ref={composeRefs(buttonRef, ref)}
         type="button"
         data-sidebar="menu-button"
-        data-size={size}
-        data-active={effectiveActive ? "true" : undefined}
-        data-status={status}
-        aria-current={effectiveActive ? "page" : undefined}
+        data-active={isActive ? "true" : undefined}
+        aria-current={isActive ? "page" : undefined}
         tabIndex={tabIdx}
         className={cn(
           "peer/menu-button relative z-10 flex w-full cursor-pointer select-none items-center gap-2 px-2 text-left outline-none",
@@ -556,32 +528,12 @@ const SidebarMenuButton = forwardRef<HTMLButtonElement, SidebarMenuButtonProps>(
             )}
           />
         )}
-        {!Icon && resolvedDot && (
-          <span
-            className="flex shrink-0 items-center justify-center"
-            style={{ width: sizeClasses.icon, height: sizeClasses.icon }}
-          >
-            <span
-              className={cn(
-                "size-2 rounded-full transition-colors duration-80",
-                resolvedDot === "filled"
-                  ? lit
-                    ? "bg-foreground/60"
-                    : "bg-muted-foreground/50"
-                  : lit
-                    ? "border border-foreground/60"
-                    : "border border-muted-foreground/50",
-              )}
-            />
-          </span>
-        )}
         <MenuRowLabel
           content={children}
           lit={lit}
-          emphasized={effectiveActive}
-          textClass={textClass}
+          emphasized={isActive}
+          textClass={sizeClasses.text}
         />
-        {status === "unread" && <span className="sr-only">, unread</span>}
       </button>
     );
   },

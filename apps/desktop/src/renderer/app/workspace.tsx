@@ -331,7 +331,6 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
           }
           setRailOpen(nextOpen);
         }}
-        persist={false}
         peek="click"
         width={initialSidebarWidth}
       >
@@ -362,7 +361,6 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
               }
               setPanelOpenPersisted(nextOpen);
             }}
-            persist={false}
             width="20rem"
           >
             <SidebarInset className="relative bg-surface">

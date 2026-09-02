@@ -150,7 +150,6 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     },
     ref,
   ) => {
-    const label = children;
     // Resolve the size: explicit prop > surrounding SizeProvider > default.
     const contextSize = useSizeVariant();
     const resolvedSize: ButtonSize = size ?? (contextSize === "compact" ? "compact" : "default");
@@ -184,7 +183,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
             <>
               <span className="flex items-center justify-center gap-[inherit] opacity-0">
                 {LeadingIcon && !isIconOnly && <LeadingIcon size={iconSize} strokeWidth={2} />}
-                {label}
+                {children}
                 {TrailingIcon && !isIconOnly && <TrailingIcon size={iconSize} strokeWidth={2} />}
               </span>
               <span className="absolute inset-0 flex items-center justify-center">
@@ -206,7 +205,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
             </>
           ) : isIconOnly ? (
             <span className="[&_svg]:transition-[stroke-width] [&_svg]:duration-80 [&_svg]:stroke-[1.5] group-hover:[&_svg]:stroke-[2]">
-              {label}
+              {children}
             </span>
           ) : (
             <>
@@ -217,7 +216,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
                   className="transition-[stroke-width] duration-80 group-hover:stroke-[2]"
                 />
               )}
-              <span className={labelTrimClass}>{label}</span>
+              <span className={labelTrimClass}>{children}</span>
               {TrailingIcon && (
                 <TrailingIcon
                   size={iconSize}

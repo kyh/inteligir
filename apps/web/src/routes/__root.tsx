@@ -75,8 +75,8 @@ function NotFound() {
 
 function RootComponent() {
   return (
-    <RadiusProvider defaultRadius="rounded">
-      <SizeProvider defaultSize="compact">
+    <RadiusProvider radius="rounded">
+      <SizeProvider size="compact">
         <Outlet />
       </SizeProvider>
     </RadiusProvider>

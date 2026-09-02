@@ -14,14 +14,10 @@ import { cn } from "@repo/ui/lib/utils";
 import { useRadius } from "@repo/ui/lib/radius-context";
 import { useTouchPrimary } from "@repo/ui/hooks/use-touch-primary";
 
-interface ScrollAreaProps extends ComponentPropsWithoutRef<"div"> {
-  /** `| undefined` spelled out so a caller may forward its own optional prop
-   *  under exactOptionalPropertyTypes. */
-  viewportClassName?: string | undefined;
-}
+type ScrollAreaProps = ComponentPropsWithoutRef<"div">;
 
 const ScrollArea = forwardRef<ComponentRef<typeof ScrollAreaPrimitive.Root>, ScrollAreaProps>(
-  ({ className, children, viewportClassName, ...props }, ref) => {
+  ({ className, children, ...props }, ref) => {
     // On touch-primary devices the Base UI machinery is skipped entirely in
     // favour of native overflow scrolling (better physics, momentum,
     // rubber-banding).
@@ -39,7 +35,7 @@ const ScrollArea = forwardRef<ComponentRef<typeof ScrollAreaPrimitive.Root>, Scr
         >
           <div
             data-slot="scroll-area-viewport"
-            className={cn("size-full overflow-y-auto rounded-[inherit]", viewportClassName)}
+            className="size-full overflow-y-auto rounded-[inherit]"
             tabIndex={0}
           >
             {children}
@@ -58,7 +54,7 @@ const ScrollArea = forwardRef<ComponentRef<typeof ScrollAreaPrimitive.Root>, Scr
       >
         <ScrollAreaPrimitive.Viewport
           data-slot="scroll-area-viewport"
-          className={cn("size-full rounded-[inherit]", viewportClassName)}
+          className="size-full rounded-[inherit]"
         >
           <ScrollAreaPrimitive.Content>{children}</ScrollAreaPrimitive.Content>
         </ScrollAreaPrimitive.Viewport>

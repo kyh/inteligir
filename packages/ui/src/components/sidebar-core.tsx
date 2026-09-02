@@ -32,8 +32,6 @@ import { useIsoLayoutEffect } from "@repo/ui/lib/use-iso-layout-effect";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-const SIDEBAR_COOKIE_NAME = "sidebar_state";
-const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7;
 const SIDEBAR_WIDTH = "16rem";
 const SIDEBAR_WIDTH_MOBILE = "18rem";
 /** Bare-key toggle defaults: "[" for a left sidebar, "]" for a right one.
@@ -151,11 +149,6 @@ interface SidebarProviderProps extends HTMLAttributes<HTMLDivElement> {
   defaultOpen?: boolean;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
-  /** Persist the desktop open state to the `sidebar_state` cookie so a server
-   *  layout can read it back into `defaultOpen`. Off by default: nothing in
-   *  this repo serves a layout that could read the cookie back, so writing it
-   *  is opt-in for the surface that grows one. Mobile state never persists. */
-  persist?: boolean;
   /** Bare-key toggle shortcut. Defaults to "[" for a left sidebar and "]"
    *  for a right one; `null` disables it. */
   shortcut?: string | null;
@@ -163,7 +156,7 @@ interface SidebarProviderProps extends HTMLAttributes<HTMLDivElement> {
   mobileBreakpoint?: number;
   /** While collapsed, reveal the sidebar as a floating overlay from the
    *  edge — on hover (with intent delay) or on click of the edge strip.
-   *  Peeking never pins the sidebar or writes the cookie. @default "none" */
+   *  Peeking never pins the sidebar. @default "none" */
   peek?: "hover" | "click" | "none";
   width?: string;
   widthMobile?: string;
@@ -175,7 +168,6 @@ const SidebarProvider = forwardRef<HTMLDivElement, SidebarProviderProps>(
       defaultOpen = true,
       open: openProp,
       onOpenChange,
-      persist = false,
       shortcut: shortcutProp,
       mobileBreakpoint = 768,
       peek = "none",
@@ -230,11 +222,8 @@ const SidebarProvider = forwardRef<HTMLDivElement, SidebarProviderProps>(
         const next = value instanceof Function ? value(open) : value;
         if (onOpenChange) onOpenChange(next);
         else setInternalOpen(next);
-        if (persist) {
-          document.cookie = `${SIDEBAR_COOKIE_NAME}=${next}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`;
-        }
       },
-      [open, onOpenChange, persist],
+      [open, onOpenChange],
     );
 
     const toggleSidebar = useCallback(() => {

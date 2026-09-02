@@ -81,17 +81,9 @@ function useSize(override?: SizeVariant | null): SizeClasses {
   return sizeMap[useSizeVariant(override)];
 }
 
-function SizeProvider({
-  children,
-  size,
-  defaultSize = "default",
-}: {
-  children: ReactNode;
-  /** Pin a whole region to one size (e.g. a compact filter bar). */
-  size?: SizeVariant;
-  defaultSize?: SizeVariant;
-}) {
-  return <SizeContext.Provider value={size ?? defaultSize}>{children}</SizeContext.Provider>;
+/** Pins a whole region to one size — the app root, or a compact filter bar. */
+function SizeProvider({ children, size }: { children: ReactNode; size: SizeVariant }) {
+  return <SizeContext.Provider value={size}>{children}</SizeContext.Provider>;
 }
 
 export { SizeProvider, useSize, useSizeVariant };

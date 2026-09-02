@@ -52,14 +52,6 @@ interface UseProximityHoverReturn {
     onMouseLeave: () => void;
   };
   registerItem: (index: number, element: HTMLElement | null) => void;
-  /**
-   * Invalidates the published rects and runs the hook's coalesced measurement
-   * pass again, holding `isMeasured` false until it settles. Reach for it when
-   * something other than item registration invalidates layout — a popup that
-   * stays mounted between opens keeps its items registered, so nothing else
-   * would notice that its rects were taken while it was hidden.
-   */
-  remeasure: () => void;
   measureItems: () => void;
 }
 
@@ -382,7 +374,6 @@ export function useProximityHover<T extends HTMLElement>(
       onMouseLeave: handleMouseLeave,
     },
     registerItem,
-    remeasure,
     measureItems,
   };
 }

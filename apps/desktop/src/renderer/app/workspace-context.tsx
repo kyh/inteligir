@@ -224,8 +224,8 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   return (
     <ThemeProvider theme={theme} setTheme={setTheme}>
       <EditorThemeCarrier />
-      <RadiusProvider defaultRadius="rounded">
-        <SizeProvider defaultSize="compact">
+      <RadiusProvider radius="rounded">
+        <SizeProvider size="compact">
           <AppearanceProvider>
             <QueryClientProvider client={runtime.queryClient}>
               <WorkspaceContext value={runtime.contextValue}>{children}</WorkspaceContext>
