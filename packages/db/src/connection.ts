@@ -34,7 +34,7 @@ export function createConnection(dbPath: string) {
  * forget.
  */
 export function writeTransaction<T>(db: DbConnection, work: (tx: DbTransaction) => T): T {
-  return db.transaction((tx) => work(tx), { behavior: "immediate" });
+  return db.transaction(work, { behavior: "immediate" });
 }
 
 /**
