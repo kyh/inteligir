@@ -117,6 +117,19 @@ function encodeGitPath(path: string): string {
   return path.split("/").map(encodeURIComponent).join("/");
 }
 
+/**
+ * The tree lists only what the file route would answer — the same path
+ * grammar, asked the way that route asks it. Git holds any byte but NUL and
+ * `/` in a name, and the desktop's whole-tree sweep commits whatever the
+ * checkout holds — so a pushed `a\b.md` would otherwise ride a 200 whose body
+ * the phone's own parse refuses WHOLE, and one filename would take the
+ * account's entire notes list down. A refused directory is pruned, since
+ * every path under it is refused too.
+ */
+function servable(path: string): boolean {
+  return vaultFileQuerySchema.safeParse({ path }).success;
+}
+
 function byPath(a: { path: string }, b: { path: string }): number {
   return a.path < b.path ? -1 : a.path > b.path ? 1 : 0;
 }
@@ -178,6 +191,7 @@ async function answerTree(stub: DurableObjectStub<RepoCell>, url: URL): Promise<
       for (const entry of tree.entries) {
         if (isIgnoredEntryName(entry.name)) continue;
         const path = dir === "" ? entry.name : `${dir}/${entry.name}`;
+        if (!servable(path)) continue;
         if (entry.type === "tree") {
           if (subtreeReaches(path, after)) next.push(path);
         } else if (entry.type === "blob" && (after === undefined || path > after)) {

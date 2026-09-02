@@ -70,6 +70,21 @@ describe("vault read rows", () => {
     expect(pageTwo.next).toBeNull();
   });
 
+  it("omits an entry the contract's path grammar refuses, rather than failing the page", async () => {
+    // Git accepts these names and a push carries them; the wire's own parse
+    // does not, so emitting them would hand the phone a 200 it refuses whole.
+    const { credential } = await pairAndPush("vault-read-grammar@example.test", [
+      { path: "a.md", content: "# a\n" },
+      { path: "a\\b.md", content: "# backslash\n" },
+      { path: "2024\\q1/c.md", content: "# under a refused directory\n" },
+    ]);
+    const tree = await SELF.fetch(TREE, { headers: deviceHeaders(credential) });
+    expect(tree.status).toBe(200);
+    expect(
+      vaultTreeResponseSchema.parse(await tree.json()).entries.map((entry) => entry.path),
+    ).toEqual(["a.md"]);
+  });
+
   it("answers a file's text with the commit and blob oid", async () => {
     const { credential, commit } = await pairAndPush("vault-read-file@example.test", [
       { path: "notes/hello.md", content: "# hello\n\nfrom the vault\n" },
