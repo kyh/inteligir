@@ -99,6 +99,16 @@ function packageSources(dir: string): string[] {
   });
 }
 
+/** Tailwind's arbitrary-variant spellings of a hook — `data-[x]:`,
+ *  `group-data-[x]:`, `[[data-x]_&]:`, `[.cls_&]:`, `group-[.cls]:` — split
+ *  on the bracket, so the token sweep alone cannot see them. */
+function variantSpellings(hook: string): string[] {
+  const DATA = "data-";
+  return hook.startsWith(DATA)
+    ? [`${DATA}[${hook.slice(DATA.length)}]`, `[${hook}]`]
+    : [`[.${hook}`];
+}
+
 describe("editor style hooks", () => {
   it("styles.css stays flat, so the lockstep can read it", () => {
     expect(
@@ -126,7 +136,9 @@ describe("editor style hooks", () => {
         .replace(/^\s*\/\/.*$/gm, "");
       const tokens = new Set(stripped.split(/[^A-Za-z0-9_-]+/u));
       for (const hook of DECLARED_HOOKS) {
-        if (tokens.has(hook)) violations.push(`  ${path.relative(SRC, file)}  ${hook}`);
+        const spelled =
+          tokens.has(hook) || variantSpellings(hook).some((variant) => stripped.includes(variant));
+        if (spelled) violations.push(`  ${path.relative(SRC, file)}  ${hook}`);
       }
     }
     expect(
