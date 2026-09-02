@@ -42,8 +42,8 @@ export const DEFAULT_STEP_TIMEOUT_MS = 5_000;
 
 /**
  * EVERY step this process can register, with the budget it gets — the one
- * place a teardown budget is written. `registerTeardown` takes a name from
- * this table, so a step cannot arrive carrying a number of its own, and the
+ * place a teardown budget is written. `teardownStep` takes a name from this
+ * table, so a step cannot arrive carrying a number of its own, and the
  * deadlines below are sums over it rather than opinions about it.
  *
  * The order is the teardown order stated in the header; the sums do not
@@ -73,6 +73,12 @@ export const TEARDOWN_BUDGETS_MS = {
 } as const satisfies Record<string, number>;
 
 export type TeardownStepName = keyof typeof TEARDOWN_BUDGETS_MS;
+
+/** A step with the budget its name is assigned in the table above — the one
+ *  way a step is made, so none arrives carrying a number of its own. */
+export function teardownStep(name: TeardownStepName, run: () => Promise<void>): ShutdownStep {
+  return { name, timeoutMs: TEARDOWN_BUDGETS_MS[name], run };
+}
 
 /** Slack for the machinery between steps (the loop, the failure reporting),
  *  so the backstop cannot land ON a step's own deadline. */

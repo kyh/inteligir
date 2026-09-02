@@ -26,11 +26,11 @@ import { PAIR_CALLBACK_PATH } from "@repo/api/cloud/pairing/pairing-schema";
 import { CONNECTOR_OAUTH_CALLBACK_PATH } from "@repo/api/local/connectors/connectors-schema";
 import { isSameOriginBrowserRequest } from "./browser-request";
 import { handlePairCallback } from "./cloud/pair-callback";
-import type { AppServices } from "./compose";
 import { handleConnectorOauthCallback } from "./connectors/oauth-callback";
 import { documentSecurityHeaders } from "./csp";
 import { ERROR_STATUS_MAP, errorStatus } from "./error-status";
 import { loopbackRequestOrigin } from "./loopback-origin";
+import type { AppServices } from "./orpc";
 import { localRouter } from "./root-router";
 import { presentedCredential, serverTokenCookie, tokenAccepted } from "./server-file";
 import { handleVaultAsset } from "./vault/asset-route";
@@ -291,10 +291,6 @@ export function createApp(args: CreateAppArgs) {
       (c) => c.html(shellDocument),
     );
   }
-
-  // Last, so nothing dials the cloud until the surfaces it will announce
-  // invalidations through are mounted.
-  args.context.cloud.start();
 
   return { app, injectWebSocket };
 }

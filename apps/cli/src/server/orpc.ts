@@ -75,6 +75,11 @@ export interface AppContext {
   voice: VoiceService;
 }
 
+/** Everything a handler reaches — the context minus the one per-request
+ *  value, which only a live request can supply. What the composition root
+ *  builds and the route wiring is handed. */
+export type AppServices = Omit<AppContext, "requestHost">;
+
 /** The base implementer. Every domain router builds on it; `root-router.ts`
  *  is where the composition is checked. */
 export const base = implement(localContract).$context<AppContext>();

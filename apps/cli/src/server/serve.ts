@@ -20,7 +20,7 @@ import { resolveAgentDriver } from "./agents/agent-driver";
 import { resolveCliBinDir, resolveSkillsDir } from "./agents/agent-shell-env";
 import { createApp } from "./app";
 import { openCloudSocket } from "./cloud/cloud-socket";
-import { composeRuntime, teardownStep } from "./compose";
+import { composeRuntime, registerListener } from "./compose";
 import { composeSessionMcpServers } from "./connectors/session-servers";
 import { resolveAppConfig } from "./config";
 import { ensureDevDataDirOwnership } from "./data-dir";
@@ -222,14 +222,11 @@ async function boot(
   };
   // The file names this listener, so it dies with it — inside the step rather
   // than as one of its own, because a row pointing at a port that is closing
-  // is worse than no row at all. Unshifted onto the composed teardown, so the
-  // listener closes before any service behind it.
-  teardown.unshift(
-    teardownStep("listener", async () => {
-      removeServerFile(config.dataDir);
-      await closeServer(server, upgradedSockets);
-    }),
-  );
+  // is worse than no row at all.
+  registerListener(teardown, async () => {
+    removeServerFile(config.dataDir);
+    await closeServer(server, upgradedSockets);
+  });
   // The BOUND port, never the configured one: a derived dev port may have been
   // probed upward, and a caller that dialled the configured value would find
   // whichever neighbour won the race.

@@ -44,8 +44,8 @@ import {
   type NoteIntelligenceDeps,
 } from "./note-intelligence/note-intelligence";
 import { createNoteIntelligenceSettingsStore } from "./note-intelligence/settings-store";
-import type { AppContext } from "./orpc";
-import { TEARDOWN_BUDGETS_MS, type ShutdownStep, type TeardownStepName } from "./shutdown";
+import type { AppServices } from "./orpc";
+import { teardownStep, type ShutdownStep, type TeardownStepName } from "./shutdown";
 import { ThreadService } from "./threads/service";
 import {
   createVaultRuntime,
@@ -60,14 +60,14 @@ import {
 import { VoiceStreamHub } from "./voice/voice-stream-hub";
 import { WsBus } from "./ws-bus";
 
-/** Everything a handler reaches — the oRPC context minus the one per-request
- *  value (`requestHost`), which only a live request can supply. */
-export type AppServices = Omit<AppContext, "requestHost">;
-
-/** A step with the budget its name is assigned in the one budgets table, so a
- *  step cannot arrive carrying a number of its own. */
-export function teardownStep(name: TeardownStepName, run: () => Promise<void>): ShutdownStep {
-  return { name, timeoutMs: TEARDOWN_BUDGETS_MS[name], run };
+/**
+ * The one step this composition cannot register — it needs a bound port —
+ * placed where the teardown order requires it: at the FRONT, so the listener
+ * closes the sockets before any service behind it, the vault flush included.
+ * One spelling, so the position is never a caller's choice.
+ */
+export function registerListener(teardown: ShutdownStep[], run: () => Promise<void>): void {
+  teardown.unshift(teardownStep("listener", run));
 }
 
 interface ComposeDriverDeps {
@@ -127,8 +127,8 @@ export interface ComposedRuntime {
   vaultRemote: VaultRemoteProvider;
   /**
    * The ordered teardown, in the budgets table's order minus `listener` —
-   * which only the caller that binds a port can register, by unshifting it
-   * onto this array. Each step was registered the moment its resource came
+   * which only the caller that binds a port can add, through
+   * `registerListener`. Each step was registered the moment its resource came
    * up (unshift, so reversing creation yields the teardown order shutdown.ts
    * states), which is what makes a FAILED boot survivable: a listen that
    * throws EADDRINUSE still has a vault watcher forked and a database open,
@@ -138,7 +138,8 @@ export interface ComposedRuntime {
 }
 
 /** Every service, boot-ordered: db → vault → knowledge → intelligence →
- *  agent → cloud/threads/comments → voice. No listen, no process, no signals. */
+ *  agent → cloud/threads/comments → voice, then the cloud loop starts. No
+ *  listen, no process, no signals. */
 export async function composeRuntime(args: ComposeRuntimeArgs): Promise<ComposedRuntime> {
   const { config, env } = args;
   const ports = args.ports ?? {};
@@ -293,6 +294,12 @@ export async function composeRuntime(args: ComposeRuntimeArgs): Promise<Composed
       : new ParakeetVoiceService({ modelDir: config.modelDir });
   register("voice", () => voice.dispose());
   const voiceStreamHub = new VoiceStreamHub(voice);
+
+  // Started LAST, once every service it announces through exists — and here,
+  // so one place starts it for both callers. Nothing is lost by starting
+  // before the routes mount: the bus has no clients until a socket is
+  // injected, and a client that connects later reads fresh state anyway.
+  cloud.start();
 
   // Everything a handler can reach, built once. The comments sidecar rides the
   // vault service, so containment, the watcher ping, auto-commit and sync come
