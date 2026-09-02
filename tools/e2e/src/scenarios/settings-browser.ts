@@ -10,7 +10,7 @@
 import { setTimeout as delay } from "node:timers/promises";
 import { writeDeviceCredential } from "inteligir/server/cloud/credential-store";
 import { z } from "zod";
-import { agentBrowserSession, probeHeadlessOrSkip } from "../harness/agent-browser";
+import { agentBrowserSession, parseEval, probeHeadlessOrSkip } from "../harness/agent-browser";
 import { expect } from "../harness/assert";
 import type { Scenario } from "../harness/scenario";
 
@@ -37,10 +37,6 @@ const CLICK_ADD = `(() => {
   return "clicked";
 })()`;
 
-function parseEval<T>(raw: string, schema: z.ZodType<T>): T {
-  return schema.parse(JSON.parse(raw));
-}
-
 export const settingsBrowser: Scenario = {
   name: "settings-browser",
   description: "/settings hosts the dialog and the toaster: Unpair confirms, a refused add toasts",
@@ -48,13 +44,11 @@ export const settingsBrowser: Scenario = {
     const app = await ctx.boot({
       name: "solo",
       extraEnv: { INTELIGIR_CLOUD_URL: DEAD_CLOUD_URL, INTELIGIR_SYNC_INTERVAL_MS: "0" },
-      seedData: (dataDir) => {
+      seedData: (dataDir) =>
         writeDeviceCredential(dataDir, {
           deviceId: "dev_settings_e2e",
           credential: `igd_${"0".repeat(64)}`,
-        });
-        return Promise.resolve();
-      },
+        }),
     });
     // The row the form's add will collide with — the one refusal this page
     // reports through a toast rather than beside the field.

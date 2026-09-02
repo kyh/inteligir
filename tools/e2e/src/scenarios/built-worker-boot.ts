@@ -4,6 +4,11 @@
 // tree-shaken binding still referenced by an emitted namespace): the unit
 // suites and the source-entry harness both boot src/worker/index.ts and stay
 // green while every deployed request 500s.
+//
+// The bundle is built THROUGH TURBO on every run rather than looked for on
+// disk: turbo's hash is what says the artifact matches the source, while a
+// present artifact says only that some build once ran — a stale one boots
+// last week's Worker and passes for it. Fresh, the run is a cache hit.
 
 import { existsSync } from "node:fs";
 import { join } from "node:path";
@@ -11,26 +16,24 @@ import { expect, expectEq } from "../harness/assert";
 import { exec, hermeticProcessEnv } from "../harness/exec";
 import type { Scenario } from "../harness/scenario";
 
-/** A cold `vite build` of the whole Worker, durable-git included. */
+/** A cold `vite build` of the whole Worker, durable-git included; a cached
+ *  one returns at once. */
 const BUILD_TIMEOUT_MS = 300_000;
 
 export const builtWorkerBoot: Scenario = {
   name: "built-worker-boot",
   description: "the vite-built Worker bundle boots under wrangler dev and answers its routes",
   async run(context) {
+    await exec("pnpm", ["turbo", "run", "build", "--filter=@repo/web"], {
+      cwd: context.repoRoot,
+      env: hermeticProcessEnv(),
+      timeoutMs: BUILD_TIMEOUT_MS,
+    });
     // The vite plugin emits the deploy config beside the bundle; the harness
     // passes it explicitly (see cloud-worker.ts on the .wrangler/deploy
     // redirect), and its own `main` names the built module.
     const builtConfig = join(context.repoRoot, "apps", "web", "dist", "server", "wrangler.json");
-    if (!existsSync(builtConfig)) {
-      context.log("no built bundle on disk — running the web build");
-      await exec("pnpm", ["--filter", "@repo/web", "build"], {
-        cwd: context.repoRoot,
-        env: hermeticProcessEnv(),
-        timeoutMs: BUILD_TIMEOUT_MS,
-      });
-      expect(existsSync(builtConfig), `the web build emitted no ${builtConfig}`);
-    }
+    expect(existsSync(builtConfig), `the web build emitted no ${builtConfig}`);
 
     const worker = await context.cloudWorker({ builtConfig });
 

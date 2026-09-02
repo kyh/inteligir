@@ -11,7 +11,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { z } from "zod";
-import { agentBrowserSession, probeHeadlessOrSkip } from "../harness/agent-browser";
+import { agentBrowserSession, parseEval, probeHeadlessOrSkip } from "../harness/agent-browser";
 import { expect, expectEq } from "../harness/assert";
 import type { Scenario } from "../harness/scenario";
 
@@ -22,14 +22,6 @@ const DOC = `# Plans
 
 ${PARAGRAPH}
 `;
-
-/** agent-browser eval answers a JSON-encoded string (page evals always yield
- *  strings via String()/JSON.stringify); unwrap, then parse the payload at
- *  this boundary against the schema the caller expects. */
-function parseEval<T>(raw: string, schema: z.ZodType<T>): T {
-  const text = z.string().parse(JSON.parse(raw));
-  return schema.parse(/^[{[]/u.test(text) ? JSON.parse(text) : text);
-}
 
 const HEADING = "Slash heading";
 const SAVE_DEADLINE_MS = 15_000;

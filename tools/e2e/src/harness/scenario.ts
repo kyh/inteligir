@@ -19,7 +19,7 @@ interface BootOptions {
   /** Seeds the data dir BEFORE boot — a device credential, so the instance
    *  boots already paired. A hook rather than a path the scenario builds,
    *  because the instance layout is the launcher's own. */
-  seedData?: (dataDir: string) => Promise<void>;
+  seedData?: (dataDir: string) => void | Promise<void>;
 }
 
 export interface ScenarioContext {

@@ -8,6 +8,7 @@
 // reason this lives in the harness: it is a property of the suite, and six
 // copies of it are six chances for one scenario to fail where the others skip.
 
+import { z } from "zod";
 import { skip } from "./assert";
 import { exec, ExecError } from "./exec";
 
@@ -23,6 +24,14 @@ export function agentBrowserSession(label: string): AgentBrowser {
     const result = await exec("agent-browser", ["--session", session, ...args], { timeoutMs });
     return result.stdout.trim();
   };
+}
+
+/** agent-browser eval answers a JSON-encoded string (page evals always yield
+ *  strings via String()/JSON.stringify); unwrap, then parse the payload at
+ *  this boundary against the schema the caller expects. */
+export function parseEval<T>(raw: string, schema: z.ZodType<T>): T {
+  const text = z.string().parse(JSON.parse(raw));
+  return schema.parse(/^[{[]/u.test(text) ? JSON.parse(text) : text);
 }
 
 /** An error with the output it captured — a CLI that failed says why on its

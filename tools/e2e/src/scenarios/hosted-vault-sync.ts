@@ -245,10 +245,7 @@ export const hostedVaultSync: Scenario = {
       // Through the harness's own hook: the instance layout is the
       // launcher's, and a path rebuilt here would silently send B down the
       // init+seed path the assertions below exist to refuse.
-      seedData: (dataDir) => {
-        writeDeviceCredential(dataDir, { ...deviceB, userId });
-        return Promise.resolve();
-      },
+      seedData: (dataDir) => writeDeviceCredential(dataDir, { ...deviceB, userId }),
     });
 
     expect(
