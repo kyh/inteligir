@@ -220,7 +220,10 @@ const TaskItem = forwardRef<HTMLDivElement, TaskItemProps>(
 );
 TaskItem.displayName = "TaskItem";
 
-interface TaskItemRowProps extends Omit<HTMLAttributes<HTMLButtonElement>, "onSelect"> {
+// `onClick` is withheld with `onSelect`: the row has one activation channel,
+// and a forwarded onClick would replace it while the chevron and
+// `aria-expanded` still promised the toggle.
+interface TaskItemRowProps extends Omit<HTMLAttributes<HTMLButtonElement>, "onSelect" | "onClick"> {
   status: TaskStatus;
   /** Shown inside the badge while the row is unsettled. */
   ordinal?: number;
@@ -307,9 +310,11 @@ const TaskItemDetails = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement
     const { open, setExpandable } = useTaskItem();
     // Announce expandability from an effect: the flag is the parent TaskItem's
     // state, and a render-phase write to another component's store is illegal.
-    // Layout-timed so the chevron agrees with the row before first paint.
+    // Layout-timed so the chevron agrees with the row before first paint, and
+    // retracted on unmount so a row whose details leave stops being a toggle.
     useLayoutEffect(() => {
       setExpandable(true);
+      return () => setExpandable(false);
     }, [setExpandable]);
     return (
       <Collapse open={open}>

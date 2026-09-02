@@ -918,7 +918,7 @@ const SidebarGroup = forwardRef<HTMLDivElement, SidebarGroupProps>(
             {kids.slice(0, labelIdx + 1)}
             <motion.div
               id={contentId}
-              aria-hidden={open ? undefined : true}
+              inert={open ? undefined : true}
               className={cn(
                 open && settled ? "overflow-visible" : "overflow-hidden",
                 !measured && !open && "h-0",

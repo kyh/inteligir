@@ -12,11 +12,14 @@ interface CollapseProps {
 }
 
 /** The 0fr → 1fr grid collapse: animatable without measuring content, one
- *  easing for every fold in the system so expands read as one gesture. */
+ *  easing for every fold in the system so expands read as one gesture.
+ *  A closed fold is `inert`, never `aria-hidden`: the content it clips still
+ *  holds live controls (tool-chip toggles, selectable rows), and aria-hidden
+ *  alone leaves them in the tab order while hiding them from the reader. */
 export function Collapse({ open, className, innerClassName, children }: CollapseProps) {
   return (
     <div
-      aria-hidden={open ? undefined : true}
+      inert={open ? undefined : true}
       className={cn(
         "grid transition-[grid-template-rows,opacity] duration-300 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:transition-none",
         className,

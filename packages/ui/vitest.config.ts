@@ -4,7 +4,7 @@ import { defineConfig } from "vitest/config";
 // relative paths; cross-package imports resolve through workspace exports.
 export default defineConfig({
   test: {
-    include: ["src/**/*.test.ts"],
+    include: ["src/**/*.test.{ts,tsx}"],
     maxWorkers: 2,
   },
 });

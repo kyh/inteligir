@@ -154,7 +154,12 @@ const thinkingRowVariants = cva(
 interface ThinkingRowProps
   // HTMLElement rather than HTMLDivElement: a selectable row renders a
   // <button>, and the props and ref must fit whichever element the row is.
-  extends Omit<HTMLAttributes<HTMLElement>, "onSelect">, VariantProps<typeof thinkingRowVariants> {
+  // `onClick` is withheld with `onSelect`: a selectable row has one activation
+  // channel, and a forwarded onClick would replace it while `aria-pressed`
+  // still reflected `selected`.
+  extends
+    Omit<HTMLAttributes<HTMLElement>, "onSelect" | "onClick">,
+    VariantProps<typeof thinkingRowVariants> {
   /** A path, a count, a target — shown dimmed after the row's own text. */
   secondary?: ReactNode;
   /** Render `secondary` in the mono face (paths, commands). */
