@@ -204,8 +204,9 @@ function captureNoticeLine(
 
 // The phone's own job: capture into the inbox. The write POSTs to the cloud with
 // a retry-stable idempotency key; the desktop applies it to the vault. The field
-// clears only once the POST is accepted — a refused one leaves the user's words
-// where they can be retried, and says so in the failure colour.
+// clears only once the POST is accepted, and only of the words that were sent —
+// a refused one leaves the user's words where they can be retried, and says so
+// in the failure colour; words typed while the POST was in flight stay.
 function CaptureBox() {
   const theme = useTheme();
   const [text, setText] = useState("");
@@ -229,7 +230,7 @@ function CaptureBox() {
       setNotice({ kind: "failed", message: describeCloudFailure(result.failure) });
       return;
     }
-    setText("");
+    setText((current) => (current === text ? "" : current));
     setNotice({ kind: "captured" });
     timer.current = setTimeout(() => setNotice({ kind: "idle" }), 2500);
   }, [text, notice.kind]);
