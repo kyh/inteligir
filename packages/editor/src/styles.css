@@ -61,6 +61,17 @@
   --syntax-title: oklch(0.8 0.1 300);
   --syntax-annotation: oklch(0.8 0.11 55);
 }
+/* Deliberately on the foreground: colouring every token leaves nothing to
+   stand out. FIRST, because Plate flattens ancestor scopes onto every leaf
+   (`hljs-function hljs-keyword`, `hljs-params hljs-type`) and these are the
+   container scopes — at equal specificity the cascade is source order, so a
+   container's rule placed last would uncolour everything inside it. */
+.hljs-function,
+.hljs-params,
+.hljs-punctuation,
+.hljs-subst {
+  color: inherit;
+}
 .hljs-comment,
 .hljs-quote {
   color: var(--muted-foreground);
@@ -108,12 +119,4 @@
 }
 .hljs-strong {
   font-weight: 600;
-}
-/* Deliberately on the foreground: colouring every token leaves nothing to
-   stand out. */
-.hljs-function,
-.hljs-params,
-.hljs-punctuation,
-.hljs-subst {
-  color: inherit;
 }

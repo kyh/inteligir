@@ -154,6 +154,25 @@ describe("editor style hooks", () => {
     ).toEqual([...emitted].toSorted());
   });
 
+  it("the foreground group leads the theme, so a scope nested in it keeps its colour", () => {
+    const theme = readStylesheet().rules.filter((rule) =>
+      rule.selector.includes(`.${HLJS_PREFIX}`),
+    );
+    const colourOf = (rule: Rule) => /(?:^|;)\s*color\s*:\s*([^;]+)/u.exec(rule.body)?.[1]?.trim();
+    const lastInherit = theme.findLastIndex((rule) => colourOf(rule) === "inherit");
+    const firstColoured = theme.findIndex((rule) => {
+      const colour = colourOf(rule);
+      return colour !== undefined && colour !== "inherit";
+    });
+    expect(
+      lastInherit < firstColoured,
+      `packages/editor/src/styles.css puts a \`color: inherit\` theme rule after a coloured one.\n` +
+        `  rule: Plate flattens ancestor scopes onto each leaf, so a leaf carries its container's class too — at equal specificity the later rule wins, and an inherit rule placed after the palette uncolours every token inside a function, params or subst scope\n` +
+        `  inherit rule at ${lastInherit}: ${theme[lastInherit]?.selector.replaceAll(/\s+/gu, " ")}\n` +
+        `  coloured rule at ${firstColoured}: ${theme[firstColoured]?.selector.replaceAll(/\s+/gu, " ")}\n`,
+    ).toBe(true);
+  });
+
   it("the desktop renderer imports the sheet, so the rules actually ship", () => {
     const globals = fs.readFileSync(
       path.join(REPO_ROOT, "apps/desktop/src/renderer/styles/globals.css"),
