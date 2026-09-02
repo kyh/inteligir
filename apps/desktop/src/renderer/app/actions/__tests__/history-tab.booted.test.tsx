@@ -11,7 +11,8 @@ import { OpenNoteStoreProvider } from "@repo/editor/note/open-note-context";
 import { createOpenNoteStore } from "@repo/editor/note/open-note-store";
 
 import { HistoryTab } from "../history-tab";
-import { routeRendererFetch, testQueryClient } from "./booted-fetch";
+import { createWorkspaceQueryClient } from "../../workspace-context";
+import { routeRendererFetch } from "./booted-fetch";
 
 afterEach(() => {
   cleanup();
@@ -20,7 +21,7 @@ afterEach(() => {
 
 function mountTab(docPath: string): void {
   render(
-    <QueryClientProvider client={testQueryClient()}>
+    <QueryClientProvider client={createWorkspaceQueryClient()}>
       <OpenNoteStoreProvider store={createOpenNoteStore()}>
         <HistoryTab docPath={docPath} />
       </OpenNoteStoreProvider>

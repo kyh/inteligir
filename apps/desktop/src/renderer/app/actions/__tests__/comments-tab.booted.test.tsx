@@ -10,7 +10,8 @@ import { bootTestApp } from "inteligir/server/testing";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { CommentsTab } from "../comments-tab";
-import { routeRendererFetch, testQueryClient } from "./booted-fetch";
+import { createWorkspaceQueryClient } from "../../workspace-context";
+import { routeRendererFetch } from "./booted-fetch";
 
 afterEach(() => {
   cleanup();
@@ -19,7 +20,7 @@ afterEach(() => {
 
 function mountTab(docPath: string): void {
   render(
-    <QueryClientProvider client={testQueryClient()}>
+    <QueryClientProvider client={createWorkspaceQueryClient()}>
       <CommentsTab docPath={docPath} focusIds={[]} />
     </QueryClientProvider>,
   );

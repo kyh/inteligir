@@ -14,6 +14,11 @@ export function useNoteComments(path: string | null): UseQueryResult<CommentsRes
   return useQuery({
     ...orpc.comments.list.queryOptions({ input: { path: path ?? "" } }),
     enabled: path !== null,
+    // A refusal here is a sidecar the schema cannot parse, which the same
+    // request cannot fix: the default three retries show "Loading…" for
+    // seconds over an answer that will not change. The files-changed sweep
+    // re-asks once the file does.
+    retry: false,
   });
 }
 

@@ -222,11 +222,14 @@ export function HistoryTab({ docPath }: { docPath: string | null }) {
     state.editor.path === docPath ? state.editor.content : null,
   );
   // `staleTime` is Infinity app-wide, and a commit announces nothing — so this
-  // is the one query that has to re-ask whenever the tab is opened.
+  // is the one query that has to re-ask whenever the tab is opened. No
+  // retries: the log is an off-lock `git log`, so a refusal is deterministic
+  // and three backoff rounds would show "Loading…" for seconds over it.
   const historyQuery = useQuery({
     ...orpc.vault.history.queryOptions({ input: { path: docPath ?? "", limit } }),
     staleTime: 0,
     enabled: docPath !== null,
+    retry: false,
   });
 
   if (docPath === null) {
@@ -247,7 +250,7 @@ export function HistoryTab({ docPath }: { docPath: string | null }) {
 
   // A refused read is a FAILURE, never an empty history: "No revisions yet"
   // is a claim about the user's data, and a repo that could not answer (git
-  // missing, mid-rebase) has not made it.
+  // missing, a path the vault refuses) has not made it.
   if (historyQuery.isError) {
     return <ReadRefusal lead="The history could not be read." error={historyQuery.error} />;
   }

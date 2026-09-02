@@ -4,7 +4,6 @@
 // The surfaces under test then run against the server's real refusals rather
 // than a mock of them.
 
-import { QueryClient } from "@tanstack/react-query";
 import type { BootedTestApp } from "inteligir/server/testing";
 import { vi } from "vitest";
 
@@ -16,12 +15,4 @@ export function routeRendererFetch(booted: BootedTestApp): void {
   vi.stubGlobal("fetch", (input: string | URL, init?: RequestInit) =>
     booted.request(String(input), { ...init, signal: null }),
   );
-}
-
-/** No retries: a refused read must settle as the failure the surface renders,
- *  not spin the suite through the default backoff. */
-export function testQueryClient(): QueryClient {
-  return new QueryClient({
-    defaultOptions: { queries: { retry: false, staleTime: Infinity } },
-  });
 }
