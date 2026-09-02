@@ -16,9 +16,7 @@ import { RPC_PREFIX } from "@repo/api/local/routes";
 import { authorizationHeader } from "../../server-file";
 import { bootTestApp, TEST_SERVER_TOKEN, type BootedTestApp } from "../../__tests__/boot-app";
 import { FakeCloud } from "./fake-cloud";
-
-const LOOPBACK_HOST = "127.0.0.1:4664";
-const CODE = "ABCD-EFGH";
+import { approveMint, callbackFor, LOOPBACK_HOST, PAIR_CODE, stateOf } from "./pair-fixtures";
 
 async function boot(cloud: FakeCloud): Promise<BootedTestApp> {
   return await bootTestApp({
@@ -57,20 +55,6 @@ function begin(app: BootedTestApp, options: { host?: string; openBrowser?: boole
   return beginClient(app, options.host ?? LOOPBACK_HOST).cloud.pairBegin({
     openBrowser: options.openBrowser ?? false,
   });
-}
-
-function callbackFor(approveUrl: string, code: string, state: string): string {
-  const approve = new URL(approveUrl);
-  const callback = new URL(approve.searchParams.get("redirect") ?? "");
-  callback.searchParams.set("code", code);
-  callback.searchParams.set("state", state);
-  return callback.toString();
-}
-
-/** The approve page's mint, bound to the PKCE challenge on the URL — so the
- *  callback's redeem finds a code whose challenge the app's verifier matches. */
-function approveMint(cloud: FakeCloud, approveUrl: string, code: string): void {
-  cloud.mintCode(code, new URL(approveUrl).searchParams.get("challenge") ?? "");
 }
 
 describe("where a pairing is told to come back to", () => {
@@ -117,10 +101,10 @@ describe("the loopback callback", () => {
     const app = await boot(cloud);
 
     const { url } = await begin(app);
-    const state = new URL(url).searchParams.get("state") ?? "";
-    approveMint(cloud, url, CODE);
+    const state = stateOf(url);
+    approveMint(cloud, url, PAIR_CODE);
 
-    const landed = await app.composed.app.request(callbackFor(url, CODE, state));
+    const landed = await app.composed.app.request(callbackFor(url, PAIR_CODE, state));
     expect(landed.status).toBe(200);
     expect(landed.headers.get("content-type")).toBe("text/html; charset=utf-8");
     // The URL that reached this route carried a live pairing code.
@@ -133,7 +117,7 @@ describe("the loopback callback", () => {
 
     // The same link again — out of a history, out of a shoulder-surfed address
     // bar. The state was consumed, so it is no-pending before any redeem.
-    const replay = await app.composed.app.request(callbackFor(url, CODE, state));
+    const replay = await app.composed.app.request(callbackFor(url, PAIR_CODE, state));
     expect(replay.status).toBe(400);
     expect(await replay.text()).toContain("Nothing to approve");
   });
@@ -150,7 +134,7 @@ describe("the loopback callback", () => {
     expect(await bare.text()).toContain("Nothing to approve");
 
     const guessed = await app.composed.app.request(
-      `${PAIR_CALLBACK_PATH}?code=${CODE}&state=${"0".repeat(32)}`,
+      `${PAIR_CALLBACK_PATH}?code=${PAIR_CODE}&state=${"0".repeat(32)}`,
     );
     expect(guessed.status).toBe(400);
     expect(await guessed.text()).toContain("Nothing to approve");
@@ -163,7 +147,7 @@ describe("the loopback callback", () => {
     const app = await boot(cloud);
     const { url } = await begin(app);
 
-    const wrong = await app.composed.app.request(callbackFor(url, CODE, "f".repeat(32)));
+    const wrong = await app.composed.app.request(callbackFor(url, PAIR_CODE, "f".repeat(32)));
     expect(wrong.status).toBe(400);
     expect(await wrong.text()).toContain("was for something else");
     expect(cloud.requests).toEqual([]);

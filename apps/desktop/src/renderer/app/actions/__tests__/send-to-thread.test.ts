@@ -7,7 +7,7 @@ import { createPendingInteraction } from "@repo/db/pending-interactions";
 import { isDefinedError, safe } from "@orpc/client";
 import { describe, expect, it } from "vitest";
 import { sendToThread } from "../send-to-thread";
-import { bootThreadHarness } from "./thread-harness";
+import { bootThreadHarness } from "inteligir/server/testing";
 
 describe("sendToThread", () => {
   it("starts a turn on an idle thread", async () => {

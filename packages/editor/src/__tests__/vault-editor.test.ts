@@ -1,53 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import type { DeleteVaultEntryResult } from "@repo/editor/host-io";
-
-import { VaultEditorController, type VaultIO } from "@repo/editor/vault-editor";
-
-// A controllable fake filesystem: reads/writes resolve only when the test
-// releases them, so we can interleave async operations deterministically and
-// assert the controller never clobbers newer data with a slower result.
-type Deferred<T> = { resolve: (v: T) => void; promise: Promise<T> };
-function defer<T>(): Deferred<T> {
-  let resolve!: (v: T) => void;
-  const promise = new Promise<T>((res) => {
-    resolve = res;
-  });
-  return { resolve, promise };
-}
-
-class FakeVault implements VaultIO {
-  files = new Map<string, string>();
-  pendingReads: Deferred<string>[] = [];
-  pendingWrites: Deferred<void>[] = [];
-  manualRead = false;
-  manualWrite = false;
-
-  read = (path: string): Promise<string> => {
-    if (!this.manualRead) {
-      const v = this.files.get(path);
-      return v === undefined ? Promise.reject(new Error("ENOENT")) : Promise.resolve(v);
-    }
-    const d = defer<string>();
-    this.pendingReads.push(d);
-    return d.promise;
-  };
-  write = (path: string, content: string): Promise<void> => {
-    this.files.set(path, content);
-    if (!this.manualWrite) return Promise.resolve();
-    const d = defer<void>();
-    this.pendingWrites.push(d);
-    return d.promise;
-  };
-  /** What the host answers. `held` is the deletion gate refusing whole — the
-   * file stays, and so must the open note. */
-  removeOutcome: DeleteVaultEntryResult = { outcome: "trashed" };
-  remove = (path: string): Promise<DeleteVaultEntryResult> => {
-    if (this.removeOutcome.outcome === "held") return Promise.resolve(this.removeOutcome);
-    this.files.delete(path);
-    return Promise.resolve(this.removeOutcome);
-  };
-}
+import { VaultEditorController } from "@repo/editor/vault-editor";
+import { FakeVault } from "./fake-vault";
 
 const tick = () => new Promise((r) => setTimeout(r, 0));
 

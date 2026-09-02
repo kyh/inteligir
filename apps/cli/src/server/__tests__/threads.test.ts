@@ -1,63 +1,28 @@
-import { serve } from "@hono/node-server";
-import { createORPCClient, isDefinedError, ORPCError, safe } from "@orpc/client";
-import { RPCLink } from "@orpc/client/fetch";
-import type { DbConnection } from "@repo/db/connection";
+import { isDefinedError, ORPCError, safe } from "@orpc/client";
 import { noopNotifier } from "@repo/domain/notifier";
 import { createPendingInteraction, getPendingInteraction } from "@repo/db/pending-interactions";
 import { claimNextQueuedThreadMessage, listQueuedThreadMessages } from "@repo/db/queued-messages";
 import { applyThreadLifecycleEvent } from "@repo/db/threads";
 import { serverMessageLenientSchema, type ServerMessage } from "@repo/api/local/notifications";
-import { RPC_PREFIX, WS_PATH } from "@repo/api/local/routes";
+import { WS_PATH } from "@repo/api/local/routes";
 import type { TimelineResponse } from "@repo/api/local/threads/threads-schema";
 import { applyTimelineDelta, type TimelineRow } from "@repo/api/local/thread-timeline";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { z } from "zod";
 import { ThreadEventThreadIdMismatchError, ThreadService } from "../threads/service";
 import { unavailableTurnDriver } from "../threads/turn-driver";
-import { WsBus } from "../ws-bus";
 import { authorizationHeader } from "../server-file";
-import { bootTestApp, TEST_SERVER_TOKEN, type BootedTestApp } from "./boot-app";
-import { boundAddressSchema } from "./bound-address";
-import { FakeTurnDriver, type FakeTurnDriverOptions } from "./fake-turn-driver";
+import {
+  bootTestApp,
+  bootThreadHarness,
+  listenTestApp,
+  TEST_SERVER_TOKEN,
+  type BootedTestApp,
+} from "./boot-app";
 
 /** The router's client type, shared by the in-process caller and the one
  *  speaking to a real socket — the same procedures either way. */
 type ThreadsClient = BootedTestApp["client"];
-
-interface ThreadsHarness {
-  bus: WsBus;
-  client: ThreadsClient;
-  composed: BootedTestApp["composed"];
-  db: DbConnection;
-  driver: FakeTurnDriver | null;
-}
-
-async function bootThreadsApp(
-  driverOptions: FakeTurnDriverOptions | null,
-): Promise<ThreadsHarness> {
-  // Per-boot closure: two tests boot two harnesses concurrently, so the
-  // captured driver must be this call's, never a module-level slot.
-  let driver: FakeTurnDriver | null = null;
-  const harness = await bootTestApp(
-    driverOptions === null
-      ? {}
-      : {
-          makeDriver: () => ({
-            createTurnDriver: (sink) => {
-              driver = new FakeTurnDriver(sink, driverOptions);
-              return driver;
-            },
-          }),
-        },
-  );
-  return {
-    bus: harness.bus,
-    client: harness.client,
-    composed: harness.composed,
-    db: harness.db,
-    driver,
-  };
-}
 
 async function createThread(client: ThreadsClient): Promise<string> {
   const { thread } = await client.threads.create({});
@@ -82,7 +47,7 @@ function timelineRows(response: TimelineResponse): TimelineRow[] {
 
 describe("the send policy", () => {
   it("starts a turn when the thread is idle", async () => {
-    const { client } = await bootThreadsApp({ mode: "manual" });
+    const { client } = await bootThreadHarness({ mode: "manual" });
     const threadId = await createThread(client);
     const started = await client.threads.send({ threadId, text: "hello" });
     expect(started.kind).toBe("started");
@@ -90,7 +55,7 @@ describe("the send policy", () => {
   });
 
   it("refuses a send naming a turn that is not the open one", async () => {
-    const { client } = await bootThreadsApp({ mode: "manual" });
+    const { client } = await bootThreadHarness({ mode: "manual" });
     const threadId = await createThread(client);
     const started = await client.threads.send({ threadId, text: "start" });
     if (started.kind !== "started") {
@@ -108,7 +73,7 @@ describe("the send policy", () => {
   });
 
   it("refuses a stale expectedTurnId once the turn settled", async () => {
-    const { client, driver } = await bootThreadsApp({ mode: "manual" });
+    const { client, driver } = await bootThreadHarness({ mode: "manual" });
     const threadId = await createThread(client);
     const started = await client.threads.send({
       threadId,
@@ -131,7 +96,7 @@ describe("the send policy", () => {
   });
 
   it("queues while active, starting and stopping", async () => {
-    const activeHarness = await bootThreadsApp({ mode: "manual" });
+    const activeHarness = await bootThreadHarness({ mode: "manual" });
     const activeThread = await createThread(activeHarness.client);
     await activeHarness.client.threads.send({
       threadId: activeThread,
@@ -154,7 +119,7 @@ describe("the send policy", () => {
     });
     expect(queuedWhileStopping.kind).toBe("queued");
 
-    const inertHarness = await bootThreadsApp({ mode: "inert" });
+    const inertHarness = await bootThreadHarness({ mode: "inert" });
     const startingThread = await createThread(inertHarness.client);
     await inertHarness.client.threads.send({
       threadId: startingThread,
@@ -169,7 +134,7 @@ describe("the send policy", () => {
   });
 
   it("refuses unknown and archived threads", async () => {
-    const { client } = await bootThreadsApp({ mode: "manual" });
+    const { client } = await bootThreadHarness({ mode: "manual" });
     const [missing] = await safe(client.threads.send({ threadId: "thr_missing", text: "hi" }));
     expect(isDefinedError(missing) && missing.code).toBe("NOT_FOUND");
 
@@ -181,7 +146,7 @@ describe("the send policy", () => {
   });
 
   it("refuses PROVIDER_UNAVAILABLE and lands the thread in error when none is configured", async () => {
-    const { client } = await bootThreadsApp(null);
+    const { client } = await bootTestApp();
     const threadId = await createThread(client);
     const [send] = await safe(client.threads.send({ threadId, text: "hi" }));
     expect(isDefinedError(send) && send.code).toBe("PROVIDER_UNAVAILABLE");
@@ -197,7 +162,7 @@ describe("the view context a message carries", () => {
   } as const;
 
   it("reaches the driver, is recorded beside the text, and never becomes the text", async () => {
-    const { client, driver } = await bootThreadsApp({ mode: "manual" });
+    const { client, driver } = await bootThreadHarness({ mode: "manual" });
     const threadId = await createThread(client);
     const send = await client.threads.send({
       threadId,
@@ -220,7 +185,7 @@ describe("the view context a message carries", () => {
   });
 
   it("is DROPPED by a queued send, which drains onto a screen the user has left", async () => {
-    const { client, driver } = await bootThreadsApp({ mode: "manual" });
+    const { client, driver } = await bootThreadHarness({ mode: "manual" });
     if (!driver) {
       throw new Error("expected the fake driver");
     }
@@ -253,7 +218,7 @@ describe("the view context a message carries", () => {
   });
 
   it("refuses a resource that is not a vault path", async () => {
-    const { client } = await bootThreadsApp({ mode: "manual" });
+    const { client } = await bootThreadHarness({ mode: "manual" });
     const threadId = await createThread(client);
     const [error] = await safe(
       client.threads.send({
@@ -270,7 +235,7 @@ describe("the view context a message carries", () => {
 
 describe("the queue drain", () => {
   it("drains queued messages one turn at a time as the thread settles idle", async () => {
-    const { client, db, driver } = await bootThreadsApp({ mode: "manual" });
+    const { client, db, driver } = await bootThreadHarness({ mode: "manual" });
     if (!driver) {
       throw new Error("expected the fake driver");
     }
@@ -317,7 +282,7 @@ describe("the queue drain", () => {
   });
 
   it("appends a drained message exactly once, even when its dispatch fails", async () => {
-    const { client, db, driver } = await bootThreadsApp({ mode: "manual" });
+    const { client, db, driver } = await bootThreadHarness({ mode: "manual" });
     if (!driver) {
       throw new Error("expected the fake driver");
     }
@@ -347,7 +312,7 @@ describe("the queue drain", () => {
   });
 
   it("frees a claim the previous process held, so its message is visible again", async () => {
-    const { client, db } = await bootThreadsApp({ mode: "manual" });
+    const { client, db } = await bootThreadHarness({ mode: "manual" });
     const threadId = await createThread(client);
     await client.threads.send({ threadId, text: "first" });
     await client.threads.send({ threadId, text: "queued" });
@@ -370,7 +335,7 @@ describe("the queue drain", () => {
   });
 
   it("releases the claim when the thread was archived before the drain could start", async () => {
-    const { client, db, driver } = await bootThreadsApp({ mode: "manual" });
+    const { client, db, driver } = await bootThreadHarness({ mode: "manual" });
     if (!driver) {
       throw new Error("expected the fake driver");
     }
@@ -396,7 +361,7 @@ describe("the queue drain", () => {
 
 describe("turn identity and crash recovery", () => {
   it("ignores a late completion for a superseded turn", async () => {
-    const { client, driver } = await bootThreadsApp({ mode: "manual" });
+    const { client, driver } = await bootThreadHarness({ mode: "manual" });
     if (!driver) {
       throw new Error("expected the fake driver");
     }
@@ -420,7 +385,7 @@ describe("turn identity and crash recovery", () => {
   });
 
   it("refuses an ingest batch carrying another thread's event, persisting nothing", async () => {
-    const { client, db } = await bootThreadsApp({ mode: "manual" });
+    const { client, db } = await bootThreadHarness({ mode: "manual" });
     const threadId = await createThread(client);
     const other = await createThread(client);
     const service = new ThreadService({
@@ -443,7 +408,7 @@ describe("turn identity and crash recovery", () => {
   });
 
   it("recovers threads a previous process left running", async () => {
-    const { client, db } = await bootThreadsApp({ mode: "manual" });
+    const { client, db } = await bootThreadHarness({ mode: "manual" });
     const threadId = await createThread(client);
     await client.threads.send({ threadId, text: "start" });
     expect(await getThreadStatus(client, threadId)).toBe("active");
@@ -489,7 +454,7 @@ describe("turn identity and crash recovery", () => {
   });
 
   it("folds any dispatch throw into error status with a recorded provider/error", async () => {
-    const { client, driver } = await bootThreadsApp({ mode: "manual" });
+    const { client, driver } = await bootThreadHarness({ mode: "manual" });
     if (!driver) {
       throw new Error("expected the fake driver");
     }
@@ -509,7 +474,7 @@ describe("turn identity and crash recovery", () => {
 
 describe("thread detail", () => {
   it("thread detail carries the unclaimed queue for pending bubbles", async () => {
-    const { client } = await bootThreadsApp({ mode: "manual" });
+    const { client } = await bootThreadHarness({ mode: "manual" });
     const threadId = await createThread(client);
     await client.threads.send({ threadId, text: "start" });
     await client.threads.send({ threadId, text: "bubble me" });
@@ -520,7 +485,7 @@ describe("thread detail", () => {
 
 describe("pending interactions over the API", () => {
   it("lists open interactions on the thread and answers them exactly once", async () => {
-    const { bus, client, db } = await bootThreadsApp({ mode: "manual" });
+    const { bus, client, db } = await bootThreadHarness({ mode: "manual" });
     const threadId = await createThread(client);
     const payload = {
       kind: "approval",
@@ -572,36 +537,10 @@ describe("pending interactions over the API", () => {
 
 describe("a fake-provider turn end-to-end", () => {
   it("streams into a rendered timeline over real HTTP, driven by ws invalidation only", async () => {
-    const { composed } = await bootThreadsApp({ mode: "scripted" });
-
-    const server = serve({ fetch: composed.app.fetch, hostname: "127.0.0.1", port: 0 });
-    composed.injectWebSocket(server);
-    onTestFinished(
-      () =>
-        new Promise<void>((resolve, reject) => {
-          server.close((error) => {
-            if (error) {
-              reject(error);
-              return;
-            }
-            resolve();
-          });
-        }),
-    );
-    if (server.address() === null) {
-      await new Promise<void>((resolve) => server.once("listening", resolve));
-    }
-    const address = boundAddressSchema.parse(server.address());
-    const client: ThreadsClient = createORPCClient(
-      new RPCLink({
-        origin: `http://127.0.0.1:${address.port}`,
-        url: RPC_PREFIX,
-        headers: { authorization: authorizationHeader(TEST_SERVER_TOKEN) },
-      }),
-    );
+    const { client, port } = await listenTestApp(await bootThreadHarness({ mode: "scripted" }));
     const threadId = await createThread(client);
 
-    const socket = new WebSocket(`ws://127.0.0.1:${address.port}${WS_PATH}`, {
+    const socket = new WebSocket(`ws://127.0.0.1:${port}${WS_PATH}`, {
       headers: { authorization: authorizationHeader(TEST_SERVER_TOKEN) },
     });
     onTestFinished(() => socket.close());

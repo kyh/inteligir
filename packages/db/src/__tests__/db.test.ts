@@ -1,17 +1,15 @@
-import { cpSync, mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { cpSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { sql } from "drizzle-orm";
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { createConnection, type DbConnection } from "../connection";
 import { createPrefixedId, GENERATED_ID_SUFFIX_LENGTH } from "../ids";
 import { getMetaValue, getSchemaVersion } from "../meta";
 import { runMigrations } from "../migrate";
 import { parseMigrationJournal } from "../migration-journal";
 import { noopNotifier } from "@repo/domain/notifier";
-
-const tempDirs: string[] = [];
+import { makeTempDir } from "./open-temp-db";
 
 const MIGRATIONS_DIR = fileURLToPath(new URL("../../drizzle", import.meta.url));
 
@@ -32,17 +30,10 @@ function latestGeneration(): number {
 
 const LATEST = latestGeneration();
 
+/** An UN-migrated database — the migrator is what these suites test. */
 function openTempDb(): DbConnection {
-  const dir = mkdtempSync(join(tmpdir(), "inteligir-db-test-"));
-  tempDirs.push(dir);
-  return createConnection(join(dir, "test.db"));
+  return createConnection(join(makeTempDir("inteligir-db-test-"), "test.db"));
 }
-
-afterEach(() => {
-  for (const dir of tempDirs.splice(0)) {
-    rmSync(dir, { recursive: true, force: true });
-  }
-});
 
 /**
  * A copy of the shipped migrations folder cut off after `generations` — an
@@ -77,8 +68,7 @@ describe("boot", () => {
   });
 
   it("upgrades a POPULATED v2 database in place: child rows survive, FKs hold", () => {
-    const v2Migrations = mkdtempSync(join(tmpdir(), "inteligir-db-migrations-v2-"));
-    tempDirs.push(v2Migrations);
+    const v2Migrations = makeTempDir("inteligir-db-migrations-v2-");
     freezeMigrationsAt(v2Migrations, 2);
 
     const db = openTempDb();
@@ -137,8 +127,7 @@ describe("boot", () => {
     const db = openTempDb();
     runMigrations(db);
 
-    const older = mkdtempSync(join(tmpdir(), "inteligir-db-migrations-old-"));
-    tempDirs.push(older);
+    const older = makeTempDir("inteligir-db-migrations-old-");
     freezeMigrationsAt(older, 2);
 
     const known = runMigrations(db, older);

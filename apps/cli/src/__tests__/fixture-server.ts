@@ -33,7 +33,7 @@ import {
   type VaultStatusResponse,
 } from "@repo/api/local/vault/vault-schema";
 import type { ThreadStatus } from "@repo/domain/thread-status";
-import { z } from "zod";
+import { boundAddressSchema } from "../server/__tests__/bound-address";
 
 /** The device token this fixture requires. The CLI attaches it from
  *  `<dataDir>/server.json`; the gate is here so a command that somehow reached
@@ -41,10 +41,6 @@ import { z } from "zod";
 export const FIXTURE_SERVER_TOKEN = "fixture-server-token";
 
 const FIXTURE_CLOUD_URL = "https://cloud.fixture";
-
-/** `net.Server#address()` answers a pipe name, an AddressInfo, or null — this
- *  server bound a TCP port, so the union is parsed rather than narrowed. */
-const boundAddressSchema = z.object({ port: z.number() });
 
 export interface FixtureThread {
   thread: Thread;

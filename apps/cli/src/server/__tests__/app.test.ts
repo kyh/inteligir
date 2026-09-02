@@ -1,12 +1,8 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { request as httpRequest } from "node:http";
 import { join } from "node:path";
-import { serve } from "@hono/node-server";
 import { createConnection } from "@repo/db/connection";
 import { getSchemaVersion } from "@repo/db/meta";
-import { createORPCClient } from "@orpc/client";
-import { RPCLink } from "@orpc/client/fetch";
-import type { RouterClient } from "@orpc/server";
 import {
   HEALTH_PATH,
   healthResponseSchema,
@@ -26,10 +22,8 @@ import {
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { z } from "zod";
 import { closeServer } from "../listen";
-import { localRouter } from "../root-router";
 import { authorizationHeader, SERVER_TOKEN_COOKIE, serverTokenCookie } from "../server-file";
-import { bootTestApp, TEST_SERVER_TOKEN } from "./boot-app";
-import { boundAddressSchema } from "./bound-address";
+import { bootTestApp, listenTestApp, TEST_SERVER_TOKEN } from "./boot-app";
 import { makeTempDir } from "./temp-dir";
 
 /** A procedure behind the gate, spelled as the wire call the handler answers —
@@ -273,30 +267,12 @@ describe("the device token", () => {
   });
 
   it("refuses a real unauthenticated upgrade over the wire", async () => {
-    const { composed } = await bootTestApp();
-    const server = serve({ fetch: composed.app.fetch, hostname: "127.0.0.1", port: 0 });
-    composed.injectWebSocket(server);
-    onTestFinished(
-      () =>
-        new Promise<void>((resolve, reject) => {
-          server.close((error) => {
-            if (error) {
-              reject(error);
-              return;
-            }
-            resolve();
-          });
-        }),
-    );
-    if (server.address() === null) {
-      await new Promise<void>((resolve) => server.once("listening", resolve));
-    }
-    const address = boundAddressSchema.parse(server.address());
+    const { port } = await listenTestApp(await bootTestApp());
 
     const status = await new Promise<number | undefined>((resolve, reject) => {
       const request = httpRequest({
         host: "127.0.0.1",
-        port: address.port,
+        port,
         path: WS_PATH,
         headers: {
           connection: "Upgrade",
@@ -319,45 +295,15 @@ describe("the device token", () => {
 
 describe("the real socket upgrade", () => {
   it("serves the typed client and a live ws round-trip", async () => {
-    const { bus, composed, config } = await bootTestApp();
+    const booted = await bootTestApp();
+    const { bus, config } = booted;
+    const { client: wireClient, port } = await listenTestApp(booted);
 
-    const server = serve({
-      fetch: composed.app.fetch,
-      hostname: "127.0.0.1",
-      port: 0,
-    });
-    composed.injectWebSocket(server);
-    onTestFinished(
-      () =>
-        new Promise<void>((resolve, reject) => {
-          server.close((error) => {
-            if (error) {
-              reject(error);
-              return;
-            }
-            resolve();
-          });
-        }),
-    );
-
-    if (server.address() === null) {
-      await new Promise<void>((resolve) => server.once("listening", resolve));
-    }
-    const address = boundAddressSchema.parse(server.address());
-
-    // The typed client against the live server — contract → handler → wire →
-    // client, which the in-process client cannot prove.
-    const link = new RPCLink({
-      origin: `http://127.0.0.1:${address.port}`,
-      url: RPC_PREFIX,
-      headers: { authorization: authorizationHeader(TEST_SERVER_TOKEN) },
-    });
-    const wireClient: RouterClient<typeof localRouter> = createORPCClient(link);
     const status = await wireClient.system.status();
     expect(status.version).toBe("0.1.0-test");
     expect(status.dataDir).toBe(config.dataDir);
 
-    const socket = new WebSocket(`ws://127.0.0.1:${address.port}${WS_PATH}`, {
+    const socket = new WebSocket(`ws://127.0.0.1:${port}${WS_PATH}`, {
       headers: { authorization: authorizationHeader(TEST_SERVER_TOKEN) },
     });
     onTestFinished(() => socket.close());
@@ -410,27 +356,9 @@ describe("the real socket upgrade", () => {
   });
 });
 
-async function serveVoiceApp() {
-  const booted = await bootTestApp();
-  const server = serve({ fetch: booted.composed.app.fetch, hostname: "127.0.0.1", port: 0 });
-  booted.composed.injectWebSocket(server);
-  if (server.address() === null) {
-    await new Promise<void>((resolve) => server.once("listening", resolve));
-  }
-  const address = boundAddressSchema.parse(server.address());
-  return { booted, server, port: address.port };
-}
-
-function closeServerOnce(server: ReturnType<typeof serve>): Promise<void> {
-  return new Promise<void>((resolve, reject) => {
-    server.close((error) => (error ? reject(error) : resolve()));
-  });
-}
-
 describe("the dictation stream socket", () => {
   it("streams a scripted partial and a final over the socket, then closes", async () => {
-    const { server, port } = await serveVoiceApp();
-    onTestFinished(() => closeServerOnce(server));
+    const { port } = await listenTestApp(await bootTestApp());
 
     const socket = new WebSocket(`ws://127.0.0.1:${port}${VOICE_STREAM_PATH}`, {
       headers: { authorization: authorizationHeader(TEST_SERVER_TOKEN) },
@@ -463,7 +391,8 @@ describe("the dictation stream socket", () => {
   });
 
   it("does not stall teardown while a dictation socket is open", async () => {
-    const { booted, server, port } = await serveVoiceApp();
+    const booted = await bootTestApp();
+    const { server, port } = await listenTestApp(booted);
 
     const socket = new WebSocket(`ws://127.0.0.1:${port}${VOICE_STREAM_PATH}`, {
       headers: { authorization: authorizationHeader(TEST_SERVER_TOKEN) },

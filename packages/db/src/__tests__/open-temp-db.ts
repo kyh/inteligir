@@ -1,23 +1,25 @@
-// The suites' shared migrated-database fixture. db.test.ts deliberately does
-// NOT use it — it opens un-migrated databases to test the migrator itself.
+// The suites' shared scratch directory and migrated-database fixture.
+// db.test.ts opens its OWN databases — un-migrated, to test the migrator
+// itself — over the same directory helper.
 
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach } from "vitest";
+import { onTestFinished } from "vitest";
 import { createConnection, type DbConnection } from "../connection";
 import { runMigrations } from "../migrate";
 
-const tempDirs: string[] = [];
-
-afterEach(() => {
-  for (const dir of tempDirs.splice(0)) {
+/** A fresh temp dir, removed when the current test finishes — after anything
+ *  the test created inside it, since those register their disposal later. */
+export function makeTempDir(prefix: string): string {
+  const dir = mkdtempSync(join(tmpdir(), prefix));
+  onTestFinished(() => {
     rmSync(dir, { recursive: true, force: true });
-  }
-});
+  });
+  return dir;
+}
 
-/** A fresh, fully-migrated database in its own temp dir, removed after the
- *  current test. */
+/** A fresh, fully-migrated database in its own temp dir. */
 export function openTempDb(): DbConnection {
   return openTempDbWithPath().db;
 }
@@ -30,9 +32,7 @@ export interface TempDb {
 
 /** Same, and WHERE it lives — for a suite that reopens the same file. */
 export function openTempDbWithPath(): TempDb {
-  const dir = mkdtempSync(join(tmpdir(), "inteligir-db-test-"));
-  tempDirs.push(dir);
-  const databasePath = join(dir, "test.db");
+  const databasePath = join(makeTempDir("inteligir-db-test-"), "test.db");
   const db = createConnection(databasePath);
   runMigrations(db);
   return { db, databasePath };

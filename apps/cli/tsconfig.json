@@ -1,7 +1,7 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "lib": ["ES2023"],
+    "lib": ["ES2024"],
     "types": ["node"],
     // This program is a node process and both of its runtimes (tsx in a
     // checkout, the esbuild bundle when packaged) resolve the `node` export

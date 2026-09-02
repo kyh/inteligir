@@ -4,7 +4,8 @@ import { describe, expect, it } from "vitest";
 import worker from "../index";
 import { sendResetEmail } from "../auth/reset-email";
 import { createDb } from "../db/client";
-import { inviteCode, verification } from "../db/schema";
+import { verification } from "../db/schema";
+import { ORIGIN, signUpUser } from "./cloud-helpers";
 
 // The password-reset flow, driven against the real in-process Worker +
 // D1. Email delivery is the ONE piece that can't run here (it needs the
@@ -12,8 +13,6 @@ import { inviteCode, verification } from "../db/schema";
 // through `worker.fetch` with the pool env's bindings plus a MOCK `EMAIL`
 // whose `.send` records the message-builder — everything else (token mint,
 // consume, page serve, sign-in checks) is the production code path via SELF.
-const ORIGIN = "https://inteligir-web.workers.dev";
-const OLD_PASSWORD = "old-password-1234";
 const NEW_PASSWORD = "new-password-5678";
 
 /** What the Worker hands `EMAIL.send` — the message-builder object (the mock
@@ -45,31 +44,6 @@ function recordingEmail(): EmailRecorder {
 /** The pool env with the mock EMAIL swapped in — same D1 as SELF. */
 function envWith(EMAIL: SendEmail): Env {
   return { ...env, EMAIL };
-}
-
-/** Mint an invite and hand back its code. A UUID rather than a counter: these
- * suites share one D1 per file and `code` is the primary key. */
-async function mintInvite(): Promise<string> {
-  const code = crypto.randomUUID();
-  await createDb(env.DB).insert(inviteCode).values({ code });
-  return code;
-}
-
-/** An account, through the invite gate — the only route that creates one. */
-async function signUp(email: string): Promise<void> {
-  const response = await SELF.fetch(ORIGIN + "/v1/auth/sign-up", {
-    method: "POST",
-    headers: { "content-type": "application/json", origin: ORIGIN },
-    body: JSON.stringify({
-      email,
-      password: OLD_PASSWORD,
-      name: "user",
-      inviteCode: await mintInvite(),
-    }),
-  });
-  if (response.status !== 200) {
-    throw new Error(`sign-up failed: ${String(response.status)} ${await response.text()}`);
-  }
 }
 
 /** POST /api/auth/request-password-reset through the mock-EMAIL env. Called
@@ -134,7 +108,7 @@ async function issueToken(email: string): Promise<string> {
 
 describe("password reset", () => {
   it("a known email gets ONE reset email carrying the URL, from the configured sender", async () => {
-    await signUp("known@example.com");
+    await signUpUser("known@example.com");
     const { EMAIL, sent } = recordingEmail();
 
     const response = await requestReset("known@example.com", envWith(EMAIL));
@@ -156,7 +130,7 @@ describe("password reset", () => {
   });
 
   it("an UNKNOWN email gets the byte-identical neutral response and NO email", async () => {
-    await signUp("oracle-probe@example.com");
+    await signUpUser("oracle-probe@example.com");
     const { EMAIL, sent } = recordingEmail();
     const testEnv = envWith(EMAIL);
 
@@ -174,7 +148,7 @@ describe("password reset", () => {
   });
 
   it("the emailed link's GET leg lands on /auth/reset with the token; the page serves no-store", async () => {
-    await signUp("page@example.com");
+    await signUpUser("page@example.com");
     const { EMAIL, sent } = recordingEmail();
     await requestReset("page@example.com", envWith(EMAIL));
 
@@ -193,7 +167,7 @@ describe("password reset", () => {
   });
 
   it("a valid token changes the password: new sign-in works, old fails", async () => {
-    await signUp("happy-path@example.com");
+    const { password } = await signUpUser("happy-path@example.com");
     const token = await issueToken("happy-path@example.com");
 
     const reset = await SELF.fetch(ORIGIN + "/api/auth/reset-password", {
@@ -204,12 +178,12 @@ describe("password reset", () => {
     expect(reset.status).toBe(200);
     expect(await reset.json()).toMatchObject({ status: true });
 
-    expect((await signIn("happy-path@example.com", OLD_PASSWORD)).status).toBe(401);
+    expect((await signIn("happy-path@example.com", password)).status).toBe(401);
     expect((await signIn("happy-path@example.com", NEW_PASSWORD)).status).toBe(200);
   });
 
   it("a token is SINGLE-USE — the second consume is rejected", async () => {
-    await signUp("single-use@example.com");
+    await signUpUser("single-use@example.com");
     const token = await issueToken("single-use@example.com");
     const body = JSON.stringify({ newPassword: NEW_PASSWORD, token });
     const post = () =>
@@ -232,7 +206,7 @@ describe("password reset", () => {
     expect(invalid.status).toBe(400);
 
     // Expired: issue a real token, then age its verification row past TTL.
-    await signUp("expired@example.com");
+    const { password } = await signUpUser("expired@example.com");
     const { EMAIL, sent } = recordingEmail();
     await requestReset("expired@example.com", envWith(EMAIL));
     const link = extractResetLink(firstEmail(sent));
@@ -256,7 +230,7 @@ describe("password reset", () => {
     expect(landing.searchParams.get("token")).toBeNull();
 
     // The password is unchanged by either rejection.
-    expect((await signIn("expired@example.com", OLD_PASSWORD)).status).toBe(200);
+    expect((await signIn("expired@example.com", password)).status).toBe(200);
   });
 
   it("an ABSENT EMAIL binding degrades to a warning, and the from-address knob is honored", async () => {

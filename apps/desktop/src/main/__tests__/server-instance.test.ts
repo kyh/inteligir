@@ -1,10 +1,10 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { DEV_DATA_ROOT_DIR, PROD_DATA_DIR_NAME } from "inteligir/server/config";
 import { SERVER_FILE_NAME } from "inteligir/server/server-file";
+import { makeTempDir } from "inteligir/server/testing";
 import type { SystemStatusResponse } from "@repo/api/local/system/system-schema";
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
   describeServerVerdict,
   planServerStart,
@@ -17,18 +17,8 @@ import {
   type ProbeStatus,
 } from "../server-instance";
 
-const scratchDirs: string[] = [];
-
-afterEach(() => {
-  for (const dir of scratchDirs.splice(0)) {
-    rmSync(dir, { recursive: true, force: true });
-  }
-});
-
 function scratchHome(): string {
-  const dir = mkdtempSync(join(tmpdir(), "inteligir-shell-home-"));
-  scratchDirs.push(dir);
-  return dir;
+  return makeTempDir("inteligir-shell-home-");
 }
 
 /** The managed config the app reads from `<dataDir>/config.json` — only the
@@ -105,8 +95,7 @@ const TOKEN = "device-token";
 
 /** A data dir holding a `server.json` that names `port`, or nothing at all. */
 function dataDirWithServer(port: number | null): string {
-  const dir = mkdtempSync(join(tmpdir(), "inteligir-shell-data-"));
-  scratchDirs.push(dir);
+  const dir = makeTempDir("inteligir-shell-data-");
   if (port !== null) {
     writeFileSync(
       join(dir, SERVER_FILE_NAME),

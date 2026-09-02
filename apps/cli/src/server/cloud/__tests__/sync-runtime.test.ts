@@ -27,12 +27,9 @@ import { createCloudRuntime, type CloudRuntime, type CloudTransport } from "../s
 import { VaultServiceError } from "../../vault/vault-service";
 import { makeTempDir } from "../../__tests__/temp-dir";
 import { FakeCloud } from "./fake-cloud";
+import { approveMint, CALLBACK_URL, PAIR_CODE, stateOf } from "./pair-fixtures";
 
 const CLOUD_URL = "https://cloud.test";
-const CODE = "ABCD-EFGH";
-/** Where this app would send the browser back to. The port is arbitrary — what
- *  matters is that it is a shape `pairRedirectUrlSchema` admits. */
-const CALLBACK_URL = "http://127.0.0.1:4664/pair/callback";
 
 afterEach(() => {
   vi.useRealTimers();
@@ -172,14 +169,10 @@ function append(harness: Harness, events: readonly ThreadEvent[]): void {
   });
 }
 
-/** The approve page's act: mint the code BOUND to the PKCE challenge `beginPair`
- *  put on the URL, and hand back the `state` the callback carries. Registered
- *  after begin because the challenge only exists then — the app kept the
- *  verifier, the browser only ever saw the hash. */
+/** The approve page's act, then the `state` the callback carries. */
 function approve(cloud: FakeCloud, begun: CloudPairBeginResponse, code: string): string {
-  const url = new URL(begun.url);
-  cloud.mintCode(code, url.searchParams.get("challenge") ?? "");
-  return url.searchParams.get("state") ?? "";
+  approveMint(cloud, begun.url, code);
+  return stateOf(begun.url);
 }
 
 async function pairWithCode(
@@ -198,7 +191,7 @@ async function pairWithCode(
 }
 
 async function pair(harness: Harness): Promise<string> {
-  const outcome = await pairWithCode(harness.runtime, harness.cloud, CODE, "Laptop");
+  const outcome = await pairWithCode(harness.runtime, harness.cloud, PAIR_CODE, "Laptop");
   if (outcome.kind !== "paired") {
     throw new Error(`pairing refused: ${JSON.stringify(outcome)}`);
   }
@@ -359,22 +352,22 @@ describe("the pending approval", () => {
       deviceName: "Laptop",
       openBrowser: false,
     });
-    const state = approve(harness.cloud, begun, CODE);
+    const state = approve(harness.cloud, begun, PAIR_CODE);
 
-    expect((await harness.runtime.completePair({ code: CODE, state })).kind).toBe("paired");
+    expect((await harness.runtime.completePair({ code: PAIR_CODE, state })).kind).toBe("paired");
     const credential = readDeviceCredential(harness.dataDir);
     expect(credential).not.toBeNull();
 
     // The same URL out of a browser history: the state was consumed, so this
     // is no-pending before any redeem — no second credential.
-    const replayed = await harness.runtime.completePair({ code: CODE, state });
+    const replayed = await harness.runtime.completePair({ code: PAIR_CODE, state });
     expect(replayed.kind).toBe("no-pending");
     expect(readDeviceCredential(harness.dataDir)).toEqual(credential);
   });
 
   it("is inert with nothing armed — any local page can reach this route", async () => {
     const harness = makeHarness({ pollIntervalMs: null });
-    const outcome = await harness.runtime.completePair({ code: CODE, state: "0".repeat(32) });
+    const outcome = await harness.runtime.completePair({ code: PAIR_CODE, state: "0".repeat(32) });
     expect(outcome.kind).toBe("no-pending");
     expect(harness.cloud.requests).toEqual([]);
     expect(readDeviceCredential(harness.dataDir)).toBeNull();
@@ -386,15 +379,15 @@ describe("the pending approval", () => {
       callbackUrl: CALLBACK_URL,
       openBrowser: false,
     });
-    const state = approve(harness.cloud, begun, CODE);
+    const state = approve(harness.cloud, begun, PAIR_CODE);
 
-    expect((await harness.runtime.completePair({ code: CODE, state: "f".repeat(32) })).kind).toBe(
-      "state-mismatch",
-    );
+    expect(
+      (await harness.runtime.completePair({ code: PAIR_CODE, state: "f".repeat(32) })).kind,
+    ).toBe("state-mismatch");
     expect(harness.cloud.requests).toEqual([]);
     // Otherwise any local page could cancel a pairing the user is halfway
     // through, just by guessing wrong.
-    expect((await harness.runtime.completePair({ code: CODE, state })).kind).toBe("paired");
+    expect((await harness.runtime.completePair({ code: PAIR_CODE, state })).kind).toBe("paired");
   });
 
   it("expires, and redeems nothing once it has", async () => {
@@ -404,10 +397,10 @@ describe("the pending approval", () => {
       callbackUrl: CALLBACK_URL,
       openBrowser: false,
     });
-    const state = approve(harness.cloud, begun, CODE);
+    const state = approve(harness.cloud, begun, PAIR_CODE);
 
     vi.setSystemTime(Date.now() + begun.expiresInMs + 1);
-    expect((await harness.runtime.completePair({ code: CODE, state })).kind).toBe("expired");
+    expect((await harness.runtime.completePair({ code: PAIR_CODE, state })).kind).toBe("expired");
     expect(harness.cloud.requests).toEqual([]);
     expect(readDeviceCredential(harness.dataDir)).toBeNull();
   });
@@ -423,13 +416,15 @@ describe("the pending approval", () => {
       callbackUrl: CALLBACK_URL,
       openBrowser: false,
     });
-    const live = approve(harness.cloud, second, CODE);
+    const live = approve(harness.cloud, second, PAIR_CODE);
     expect(stale).not.toBe(live);
 
-    expect((await harness.runtime.completePair({ code: CODE, state: stale })).kind).toBe(
+    expect((await harness.runtime.completePair({ code: PAIR_CODE, state: stale })).kind).toBe(
       "state-mismatch",
     );
-    expect((await harness.runtime.completePair({ code: CODE, state: live })).kind).toBe("paired");
+    expect((await harness.runtime.completePair({ code: PAIR_CODE, state: live })).kind).toBe(
+      "paired",
+    );
   });
 
   it("is dropped by an unpair — that button said stop", async () => {
@@ -438,9 +433,11 @@ describe("the pending approval", () => {
       callbackUrl: CALLBACK_URL,
       openBrowser: false,
     });
-    const state = approve(harness.cloud, begun, CODE);
+    const state = approve(harness.cloud, begun, PAIR_CODE);
     harness.runtime.unpair();
-    expect((await harness.runtime.completePair({ code: CODE, state })).kind).toBe("no-pending");
+    expect((await harness.runtime.completePair({ code: PAIR_CODE, state })).kind).toBe(
+      "no-pending",
+    );
   });
 
   it("is inert after dispose — a callback in flight during shutdown redeems nothing", async () => {
@@ -449,10 +446,10 @@ describe("the pending approval", () => {
       callbackUrl: CALLBACK_URL,
       openBrowser: false,
     });
-    const state = approve(harness.cloud, begun, CODE);
+    const state = approve(harness.cloud, begun, PAIR_CODE);
 
     await harness.runtime.dispose();
-    const outcome = await harness.runtime.completePair({ code: CODE, state });
+    const outcome = await harness.runtime.completePair({ code: PAIR_CODE, state });
 
     // No redeem over the network, and no credential written after teardown.
     expect(outcome.kind).toBe("no-pending");
@@ -502,7 +499,7 @@ describe("a capture delivered twice", () => {
     const harness = makeHarness({ pollIntervalMs: null, fetch: fetchWithLapse });
     // The harness's own FakeCloud is unused here; pair against the one the
     // wrapped fetch talks to, so the challenge binds where the redeem lands.
-    const outcome = await pairWithCode(harness.runtime, cloud, CODE, "Laptop");
+    const outcome = await pairWithCode(harness.runtime, cloud, PAIR_CODE, "Laptop");
     expect(outcome.kind).toBe("paired");
 
     cloud.capture("buy oat milk");
@@ -688,7 +685,7 @@ describe("a session that changes mid-pass", () => {
     const cloud = new FakeCloud();
     const gate = gatedFetch(cloud, SYNC_API_PATHS.push, "after");
     const harness = makeHarness({ pollIntervalMs: null, fetch: gate.fetch, cloud });
-    await pairWithCode(harness.runtime, cloud, CODE, "Laptop");
+    await pairWithCode(harness.runtime, cloud, PAIR_CODE, "Laptop");
     append(harness, [message("thr_1", "belongs to the first pairing")]);
 
     gate.arm();
@@ -784,7 +781,7 @@ describe("dispose", () => {
     const cloud = new FakeCloud();
     const gate = gatedFetch(cloud, SYNC_API_PATHS.pull);
     const harness = makeHarness({ pollIntervalMs: null, fetch: gate.fetch, cloud });
-    await pairWithCode(harness.runtime, cloud, CODE, "Laptop");
+    await pairWithCode(harness.runtime, cloud, PAIR_CODE, "Laptop");
     cloud.capture("something the inbox is holding");
 
     gate.arm();

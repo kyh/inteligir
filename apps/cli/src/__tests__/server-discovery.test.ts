@@ -2,28 +2,18 @@
 // CLI decides it means, and that a missing or unreadable row fails closed with
 // a sentence a user can act on rather than dialing something.
 
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { DEV_DATA_ROOT_DIR, PROD_DATA_DIR_NAME } from "../server/config";
 import { resolveDevInstanceId } from "../server/dev-instance";
 import { SERVER_FILE_NAME, type ServerFile } from "../server/server-file";
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { CliExitError, EXIT_UNREACHABLE } from "../cli-error";
 import { DATA_DIR_ENV_VAR, resolveDataDir, resolveServer } from "../server-discovery";
-
-const scratchDirs: string[] = [];
-
-afterEach(() => {
-  for (const dir of scratchDirs.splice(0)) {
-    rmSync(dir, { recursive: true, force: true });
-  }
-});
+import { makeTempDir } from "../server/__tests__/temp-dir";
 
 function scratch(): string {
-  const dir = mkdtempSync(join(tmpdir(), "inteligir-cli-discovery-"));
-  scratchDirs.push(dir);
-  return dir;
+  return makeTempDir("inteligir-cli-discovery-");
 }
 
 /** A row on disk, including the truncated shapes a reader must refuse — this

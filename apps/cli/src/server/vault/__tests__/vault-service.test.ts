@@ -7,14 +7,6 @@ import { createNotifierRecorder } from "./notifier-recorder";
 import { identityLock } from "../../__tests__/identity-lock";
 import { makeTempDir } from "../../__tests__/temp-dir";
 
-function deferred() {
-  let release: (() => void) | undefined;
-  const promise = new Promise<void>((resolvePromise) => {
-    release = resolvePromise;
-  });
-  return { promise, release: () => release?.() };
-}
-
 function bootService() {
   const root = makeTempDir("inteligir-vault-test-");
   const notifier = createNotifierRecorder();
@@ -138,13 +130,13 @@ describe("vault CRUD", () => {
 
     // Hold the lock (a sync in flight); a write issued under it must not
     // touch disk until the holder releases.
-    const holder = deferred();
+    const holder = Promise.withResolvers<void>();
     void lock(() => holder.promise);
     const write = service.write("held.md", "waited for the lock");
     await new Promise((resolvePromise) => setTimeout(resolvePromise, 50));
     await expect(stat(join(root, "held.md"))).rejects.toThrow();
 
-    holder.release();
+    holder.resolve();
     await write;
     expect(await readFile(join(root, "held.md"), "utf8")).toBe("waited for the lock");
   });

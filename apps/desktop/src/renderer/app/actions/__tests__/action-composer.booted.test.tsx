@@ -13,7 +13,7 @@ import { InertSocket } from "../../__tests__/inert-socket";
 import { WorkspaceProvider } from "../../workspace-context";
 import { ActionComposer } from "../action-composer";
 import { routeRendererFetch } from "./booted-fetch";
-import { bootThreadHarness } from "./thread-harness";
+import { bootThreadHarness } from "inteligir/server/testing";
 
 afterEach(() => {
   cleanup();

@@ -2,12 +2,18 @@
 // root serve.ts runs (`composeRuntime`), over a scratch instance dir and the
 // hermetic ports — no watcher fork, hermetic git, no remote, the scripted
 // transcriber, an injectable turn driver — plus the wired hono app and the
-// typed in-process client. The composed teardown is registered on the
-// booting test, so consumers register no cleanup of their own.
+// typed in-process client. Beside it: the same boot over the fake provider,
+// and a loopback listener for the suites that must cross a real socket. Every
+// teardown is registered on the booting test, so consumers register no
+// cleanup of their own.
 
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
+import { serve } from "@hono/node-server";
+import { createORPCClient } from "@orpc/client";
+import { RPCLink } from "@orpc/client/fetch";
 import type { DbConnection } from "@repo/db/connection";
+import { RPC_PREFIX } from "@repo/api/local/routes";
 import type { AgentStatus } from "@repo/api/local/system/system-schema";
 import { createRouterClient, type RouterClient } from "@orpc/server";
 import { onTestFinished } from "vitest";
@@ -28,12 +34,15 @@ import { unavailableTurnDriver, type CreateTurnDriver } from "../threads/turn-dr
 import { hermeticGitEnv } from "../vault/__tests__/git-test-env";
 import type { VaultRuntime } from "../vault/vault-runtime";
 import type { WsBus } from "../ws-bus";
+import { boundAddressSchema } from "./bound-address";
+import { FakeTurnDriver, type FakeTurnDriverOptions } from "./fake-turn-driver";
 import { makeTempDir } from "./temp-dir";
 
 // Re-exported so a consumer outside this package reaches the whole harness
-// through ONE specifier — the fake provider is half of what makes a booted
-// app drivable, and two subpaths for one seam is two things to keep in sync.
-export { FakeTurnDriver, type FakeTurnDriverOptions } from "./fake-turn-driver";
+// through ONE specifier — the fake provider and the scratch dir are what make
+// a booted app drivable, and two subpaths for one seam is two things to keep
+// in sync.
+export { FakeTurnDriver, type FakeTurnDriverOptions, makeTempDir };
 
 /** One fixed token for every booted suite: the file's own tests cover minting
  *  and comparison, and a per-boot value here would only make the client's
@@ -186,4 +195,70 @@ export async function bootTestApp(options: BootTestAppOptions = {}): Promise<Boo
     vaultDir,
     dataDir,
   };
+}
+
+export interface ThreadHarness extends BootedTestApp {
+  driver: FakeTurnDriver;
+}
+
+/** The boot over the fake provider, so every send is proven against the
+ *  server's own lifecycle transitions rather than a mock of them. The driver
+ *  is captured per call — two harnesses booted concurrently each hold theirs,
+ *  never a module-level slot. */
+export async function bootThreadHarness(
+  driverOptions: FakeTurnDriverOptions,
+  options: Omit<BootTestAppOptions, "makeDriver"> = {},
+): Promise<ThreadHarness> {
+  let driver: FakeTurnDriver | null = null;
+  const booted = await bootTestApp({
+    ...options,
+    makeDriver: () => ({
+      createTurnDriver: (sink) => {
+        driver = new FakeTurnDriver(sink, driverOptions);
+        return driver;
+      },
+    }),
+  });
+  if (driver === null) {
+    throw new Error("the fake driver was not constructed");
+  }
+  return { ...booted, driver };
+}
+
+export interface ListeningTestApp {
+  server: ReturnType<typeof serve>;
+  port: number;
+  /** The typed client OVER THE WIRE, carrying the boot's bearer: contract →
+   *  handler → socket → client, which the in-process client cannot prove. */
+  client: RouterClient<typeof localRouter>;
+}
+
+/** A booted app on a loopback port with its websocket upgrade wired, closed
+ *  when the test finishes — after any socket the test opened against it. */
+export async function listenTestApp(booted: BootedTestApp): Promise<ListeningTestApp> {
+  const server = serve({ fetch: booted.composed.app.fetch, hostname: "127.0.0.1", port: 0 });
+  booted.composed.injectWebSocket(server);
+  onTestFinished(
+    () =>
+      new Promise<void>((resolve, reject) => {
+        // A suite that is ABOUT the listener's teardown closes it itself.
+        if (!server.listening) {
+          resolve();
+          return;
+        }
+        server.close((error) => (error ? reject(error) : resolve()));
+      }),
+  );
+  if (server.address() === null) {
+    await new Promise<void>((resolve) => server.once("listening", resolve));
+  }
+  const { port } = boundAddressSchema.parse(server.address());
+  const client: RouterClient<typeof localRouter> = createORPCClient(
+    new RPCLink({
+      origin: `http://127.0.0.1:${port}`,
+      url: RPC_PREFIX,
+      headers: { authorization: authorizationHeader(TEST_SERVER_TOKEN) },
+    }),
+  );
+  return { server, port, client };
 }

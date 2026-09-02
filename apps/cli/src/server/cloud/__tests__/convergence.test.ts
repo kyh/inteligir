@@ -17,12 +17,12 @@ import { createRouterClient } from "@orpc/server";
 import { listStoredThreadEvents } from "@repo/db/events";
 import { NotificationBuffer } from "@repo/domain/notifier";
 import { describe, expect, it } from "vitest";
-import { bootTestApp, type BootedTestApp } from "../../__tests__/boot-app";
-import { FakeTurnDriver } from "../../__tests__/fake-turn-driver";
+import { bootThreadHarness, type BootedTestApp } from "../../__tests__/boot-app";
 import { localRouter } from "../../root-router";
 import { ThreadService } from "../../threads/service";
 import { unavailableTurnDriver } from "../../threads/turn-driver";
 import { FakeCloud } from "./fake-cloud";
+import { approveMint, callbackFor, LOOPBACK_HOST, stateOf } from "./pair-fixtures";
 
 /** An install with its own data dir, vault and database, wired to `cloud`.
  *  `pollIntervalMs: null` leaves the sync procedure the only trigger, so the
@@ -31,10 +31,10 @@ async function bootInstall(
   cloud: FakeCloud,
   mode: "scripted" | "manual" = "scripted",
 ): Promise<BootedTestApp> {
-  return await bootTestApp({
-    cloudTransport: { fetch: cloud.fetch, pollIntervalMs: null },
-    makeDriver: () => ({ createTurnDriver: (sink) => new FakeTurnDriver(sink, { mode }) }),
-  });
+  return await bootThreadHarness(
+    { mode },
+    { cloudTransport: { fetch: cloud.fetch, pollIntervalMs: null } },
+  );
 }
 
 /**
@@ -46,11 +46,6 @@ async function bootInstall(
  * `openBrowser: false`, because a suite that popped a window on whoever ran it
  * would be the last thing anyone wants from `pnpm test`.
  */
-/** The loopback address these installs pretend to be reached on. The begin
- *  procedure composes the callback from the request's own Host, because
- *  `listen` may have probed past the configured port. */
-const LOOPBACK_HOST = "127.0.0.1:4664";
-
 async function pair(install: BootedTestApp, cloud: FakeCloud, code: string): Promise<void> {
   // The harness's client carries no Host — nothing reached it over HTTP — and
   // a pairing that names no callback address is refused, so this one call gets
@@ -62,18 +57,12 @@ async function pair(install: BootedTestApp, cloud: FakeCloud, code: string): Pro
     deviceName: `device-${code}`,
     openBrowser: false,
   });
-  const approve = new URL(begun.url);
-  const state = approve.searchParams.get("state") ?? "";
-  // The approve page's mint, bound to the PKCE challenge begin put on the URL —
-  // registered here because the app kept the verifier and only the hash travels.
-  cloud.mintCode(code, approve.searchParams.get("challenge") ?? "");
-  const callback = new URL(approve.searchParams.get("redirect") ?? "");
-  expect(callback.origin).toBe(`http://${LOOPBACK_HOST}`);
-  callback.searchParams.set("code", code);
-  callback.searchParams.set("state", state);
+  approveMint(cloud, begun.url, code);
+  const callback = callbackFor(begun.url, code, stateOf(begun.url));
+  expect(new URL(callback).origin).toBe(`http://${LOOPBACK_HOST}`);
 
   // What the browser does next, and the only thing that completes a pairing.
-  const landed = await install.composed.app.request(callback.toString());
+  const landed = await install.composed.app.request(callback);
   expect(landed.status).toBe(200);
   expect(await landed.text()).toContain("Paired");
   expect((await install.client.cloud.status()).state).toBe("paired");

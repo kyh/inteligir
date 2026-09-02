@@ -1,37 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { DeleteVaultEntryResult } from "@repo/editor/host-io";
-
-import { type VaultIO } from "@repo/editor/vault-editor";
 import { createNoteRuntime } from "@repo/editor/note/note-runtime";
-
-// Map-backed fake vault. Reads resolve from the map (reject when absent);
-// `hangReads` makes reads never resolve, so a test can hold the open() chain
-// open and observe the runtime BEFORE its first successful load.
-class FakeVault implements VaultIO {
-  files = new Map<string, string>();
-  writes = 0;
-  removes = 0;
-  hangReads = false;
-
-  read = (path: string): Promise<string> => {
-    if (this.hangReads) return new Promise<string>(() => {});
-    const v = this.files.get(path);
-    return v === undefined ? Promise.reject(new Error("ENOENT")) : Promise.resolve(v);
-  };
-  write = (path: string, content: string): Promise<void> => {
-    this.writes++;
-    this.files.set(path, content);
-    return Promise.resolve();
-  };
-  removeOutcome: DeleteVaultEntryResult = { outcome: "trashed" };
-  remove = (path: string): Promise<DeleteVaultEntryResult> => {
-    this.removes++;
-    if (this.removeOutcome.outcome === "held") return Promise.resolve(this.removeOutcome);
-    this.files.delete(path);
-    return Promise.resolve(this.removeOutcome);
-  };
-}
+import { FakeVault } from "./fake-vault";
 
 // Fake timers leave microtasks untouched, so flushing the controller's async
 // open/read/write chains is just draining the microtask queue a few hops.
