@@ -1,7 +1,3 @@
-// The one tree walk the renderer's own guards share: every source file under
-// a directory, tests excluded — a walk rather than a list, so a surface
-// written tomorrow is covered the day it appears.
-
 import { readdirSync } from "node:fs";
 import { join } from "node:path";
 

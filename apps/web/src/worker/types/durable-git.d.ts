@@ -1,19 +1,8 @@
 import { DurableObject } from "cloudflare:workers";
 
-// ---------------------------------------------------------------------------
-// Hand-authored types for `durable-git`, mapped over the package by the
-// worker tsconfig's `paths`. The package publishes TypeScript SOURCE with no
-// .d.ts, so without this stub tsc pulls the library's own code into the
-// program and rejects it under this repo's stricter flags
-// (noUncheckedIndexedAccess, verbatimModuleSyntax — the library is not
-// written against them). The bundler ignores `paths` and keeps resolving the
-// real source, so this file types the boundary and changes nothing at runtime.
-//
-// Declarations are transcribed from durable-git@0.0.8 `src/mod.ts`,
-// `src/repo.ts`, `src/registry.ts`, `src/env.ts` and cover the surface this
-// Worker uses. On a version bump, re-check them against the new source — the
-// drift risk is this file's cost, stated here so it is looked for.
-// ---------------------------------------------------------------------------
+// durable-git publishes TypeScript source with no .d.ts, which tsc rejects under this repo's
+// stricter flags, so the worker tsconfig's `paths` maps the package here; the bundler ignores
+// `paths` and resolves the real source. Transcribed from durable-git@0.0.8; re-check on a bump.
 
 export interface Env {
   REPO: DurableObjectNamespace<RepoCell>;
@@ -50,7 +39,7 @@ export interface RefUpdate {
 export interface PushEvent {
   repo: string;
   updates: RefUpdate[];
-  /** unix millis of the newest committer date after the push */
+  /** unix millis */
   commitTime: number;
 }
 
@@ -124,11 +113,10 @@ export type RepoInfo = {
   desc: string;
   owner: string;
   section: string;
-  /** 1 = requires auth for all access, hidden from index */
+  /** 1 = requires auth for all access */
   priv: number;
-  /** unix millis of the newest commit; the index sort key */
+  /** unix millis */
   idle: number;
-  /** bumped on every push/config change; the page-cache version */
   ver: number;
 };
 
@@ -139,8 +127,6 @@ export type RepoConfig = {
   priv?: boolean;
 };
 
-/** One git repository. `fetch` speaks the protocol/admin routes the library's
- *  handler forwards; the named methods are the JSON surface over RPC. */
 export declare class RepoCell extends DurableObject<Env> {
   fetch(req: Request): Promise<Response>;
   listRefs(): Promise<RefsResult>;
@@ -150,7 +136,7 @@ export declare class RepoCell extends DurableObject<Env> {
   readBlob(ref: string | undefined, path: string): Promise<BlobResult | null>;
 }
 
-/** Site-wide list of repositories (one instance, name "registry"). */
+// one instance, named "registry"
 export declare class Registry extends DurableObject<Env> {
   upsert(name: string, idle: number): void;
   setConfig(name: string, cfg: RepoConfig, idle?: number): void;

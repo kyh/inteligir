@@ -1,12 +1,7 @@
-// The one decoder of `git status --porcelain`, against the shapes the three
-// hand-rolled readers it replaced disagreed about: a quoted path, a rename's
-// origin, and the trailing empty token.
-
 import { describe, expect, it } from "vitest";
 import { parsePorcelain } from "../git-porcelain";
 
-/** git's own framing: every entry NUL-terminated, so the split leaves a
- *  trailing empty token. */
+// git's framing: every entry NUL-terminated, so the split leaves a trailing empty token.
 function porcelainBytes(...entries: string[]): string {
   return entries.map((entry) => `${entry}\0`).join("");
 }
@@ -20,9 +15,7 @@ describe("parsePorcelain", () => {
   });
 
   it("leaves a path with spaces and tabs alone", () => {
-    // The reason `-z` is the format rather than an option: without it git
-    // C-QUOTES this name, and two of the three readers handed the quotes back
-    // as part of the path.
+    // without -z git C-quotes this name.
     expect(parsePorcelain(porcelainBytes(" M notes/a b\tc.md"))).toEqual([
       { x: " ", y: "M", path: "notes/a b\tc.md", origin: null },
     ]);

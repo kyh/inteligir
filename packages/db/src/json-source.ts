@@ -1,7 +1,3 @@
-// Reading JSON-shaped data this package did not type: generated files on disk
-// and the untyped rows better-sqlite3 hands back. A field is established
-// before it is read rather than assumed.
-
 export type JsonValue = string | number | boolean | null | JsonValue[] | JsonObject;
 export interface JsonObject {
   [key: string]: JsonValue | undefined;

@@ -1,11 +1,3 @@
-// The hub's bounds and its teardown by name, driven with fake sockets and a
-// fake service so nothing spawns a real worker.
-//
-// The teardown case is the one the review caught: `closeAllClients` must SEND
-// the going-away frame WITHOUT forgetting the connection, so the terminate pass
-// still reaches a socket that ignores the frame — the exact failure a
-// synchronous forget hid.
-
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   MAX_CONCURRENT_STREAM_SESSIONS,
@@ -23,7 +15,7 @@ interface FakeSocket {
   terminated: () => number;
 }
 
-/** A socket that RECORDS its close but never fires onClose — a stuck client. */
+// records its close but never fires onClose: a stuck client.
 function fakeSocket(): FakeSocket {
   const sent: string[] = [];
   const closes: Array<{ code: number | undefined; reason: string | undefined }> = [];
@@ -99,15 +91,11 @@ describe("VoiceStreamHub teardown", () => {
     const session = sessions[0];
     if (session === undefined) throw new Error("no session");
 
-    // Step one: the going-away frame goes out; the worker is reaped; the
-    // connection STAYS registered and nothing is terminated yet.
     hub.closeAllClients();
     expect(fake.closes.at(-1)?.code).toBe(1001);
     expect(session.disposed).toBe(true);
     expect(fake.terminated()).toBe(0);
 
-    // Step two: the socket ignored its close frame, so the transport is
-    // destroyed — the assertion that was 0 before the fix.
     hub.terminateAllClients();
     expect(fake.terminated()).toBe(1);
   });
@@ -125,7 +113,6 @@ describe("VoiceStreamHub cap", () => {
 
     const overflow = fakeSocket();
     hub.open(overflow.socket);
-    // No new session, an error frame, and a policy close.
     expect(created()).toBe(MAX_CONCURRENT_STREAM_SESSIONS);
     expect(hub.size).toBe(MAX_CONCURRENT_STREAM_SESSIONS);
     expect(overflow.sent.some((frame) => frame.includes("Too many"))).toBe(true);
@@ -158,7 +145,6 @@ describe("VoiceStreamHub idle reap", () => {
     vi.advanceTimersByTime(STREAM_IDLE_TIMEOUT_MS - 1);
     connection.receive(new ArrayBuffer(4));
     vi.advanceTimersByTime(STREAM_IDLE_TIMEOUT_MS - 1);
-    // Total elapsed exceeds the window, but the frame rearmed it.
     expect(fake.terminated()).toBe(0);
   });
 });

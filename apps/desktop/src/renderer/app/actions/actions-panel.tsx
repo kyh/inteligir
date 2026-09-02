@@ -1,10 +1,3 @@
-// The right panel: Actions | Comments | History tabs over the
-// open note, with the frontmatter properties inlined above them. Actions =
-// the note's own threads first, then the rest, each row expandable into its
-// live timeline with approvals answerable inline — the transcript surface.
-// The tab is CONTROLLED by the workspace so the
-// top bar's comment button can aim the panel.
-
 import { getLiveEditor } from "@repo/editor/live-editor";
 import {
   TaskItem,
@@ -46,14 +39,11 @@ const PANEL_TAB_LABELS = {
 } satisfies Record<PanelTab, string>;
 
 export interface ActionsPanelProps {
-  /** The open note — its actions list first. */
   docPath: string | null;
   tab: PanelTab;
   onTabChange: (tab: PanelTab) => void;
-  /** A clicked tinted range: switch to Comments and highlight these roots.
-   * The nonce distinguishes two clicks on the same range. */
+  // the nonce distinguishes two clicks on the same range.
   commentFocus: { ids: readonly string[]; nonce: number } | null;
-  /** The action a launch or a palette pick selected; null shows the list. */
   selectedThreadId: string | null;
   onSelectThread: (threadId: string | null) => void;
   onOpenDoc: (path: string) => void;
@@ -95,10 +85,7 @@ function InlineProperties({
   );
 }
 
-/** Our seven activities onto the card's four-state visual vocabulary. The
- *  WORDING stays THREAD_ACTIVITY_LABELS — this only picks the badge. An
- *  archived action reads as settled, which is what it is; its pill carries
- *  the difference. */
+// picks the badge only; the wording stays THREAD_ACTIVITY_LABELS.
 const ACTIVITY_TASK_STATUS = {
   running: "running",
   done: "done",
@@ -145,8 +132,6 @@ function ActionDetail({
   const rowCount = timeline?.rows.length ?? 0;
   const pendingCount = pending.length;
 
-  // Pin the transcript to its newest row whenever rows arrive. An empty
-  // transcript has no bottom to pin to.
   useEffect(() => {
     const scroller = scrollRef.current;
     if (scroller === null || rowCount + pendingCount === 0) {
@@ -313,9 +298,6 @@ export function ActionsPanel({
       {tab === "comments" ? (
         <CommentsTab docPath={docPath} focusIds={commentFocus?.ids ?? []} />
       ) : tab === "history" ? (
-        // Keyed on the note: the selected revision belongs to the note it was
-        // listed under, and carrying it into another one would diff two
-        // different files.
         <HistoryTab key={docPath} docPath={docPath} />
       ) : selectedThreadId !== null ? (
         <ActionDetail

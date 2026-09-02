@@ -1,7 +1,3 @@
-// The composer's send flow against the REAL thread service (in-process app,
-// typed client): start-or-queue, the stale-guard recovery, and the approval
-// answer the inline card emits.
-
 import { noopNotifier } from "@repo/domain/notifier";
 import { createPendingInteraction } from "@repo/db/pending-interactions";
 import { isDefinedError, safe } from "@orpc/client";
@@ -60,7 +56,6 @@ describe("sendToThread", () => {
     if (second.kind !== "started") {
       throw new Error(`expected started, got ${second.kind}`);
     }
-    // The client still believes FIRST is running; the retry lands on SECOND.
     const recovered = await sendToThread(client, {
       threadId: thread.id,
       text: "stale view",
@@ -139,7 +134,6 @@ describe("the inline approval card's answer", () => {
   it("round-trips the card's decision verb through the answer route", async () => {
     const { client, db } = await bootThreadHarness({ mode: "manual" });
     const thread = (await client.threads.create({})).thread;
-    // The payload shape the card renders from: only allow_once is offered.
     const interaction = createPendingInteraction(db, noopNotifier, {
       threadId: thread.id,
       requestKey: "req-card",
@@ -159,9 +153,6 @@ describe("the inline approval card's answer", () => {
     const detail = await client.threads.get({ threadId: thread.id });
     expect(detail.pendingInteractions.map((row) => row.id)).toEqual([interaction.id]);
 
-    // A decision the card would never render is refused server-side, which is
-    // what keeps the card's availableDecisions filter honest rather than
-    // decorative.
     const [unoffered] = await safe(
       client.threads.answerInteraction({
         threadId: thread.id,
@@ -177,7 +168,6 @@ describe("the inline approval card's answer", () => {
       resolution: "allow_once",
     });
 
-    // Answered rows leave the open list, so the card stops rendering.
     const after = await client.threads.get({ threadId: thread.id });
     expect(after.pendingInteractions).toEqual([]);
   });

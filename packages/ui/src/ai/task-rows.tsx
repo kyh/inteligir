@@ -17,20 +17,6 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { Collapse } from "@repo/ui/lib/collapse";
 import { cn } from "@repo/ui/lib/utils";
 
-/* ─────────────────────────────────────────────────────────
- * TASK ROWS — live status for a list of agent tasks
- *
- * A badge carries the state (numbered ring while working, a
- * check or cross once settled), the row carries the label and
- * a count, and each row expands to its own detail lines.
- *
- * ROWS ARE THE INPUT and `status` is the whole vocabulary, so
- * the caller's own lifecycle names map onto four visual states
- * and stay the source of truth. The status PILL is a slot for
- * the same reason: its wording belongs to the caller, not to
- * this card.
- * ───────────────────────────────────────────────────────── */
-
 export type TaskStatus = "pending" | "running" | "done" | "failed";
 
 function SpinnerRing({ active, children }: { active: boolean; children: ReactNode }) {
@@ -106,9 +92,7 @@ const X_ICON = (
   </svg>
 );
 
-/** The row's one splash of hue: settled states read at a glance in a list that
- *  is otherwise monochrome. `text-white` on the done fill is a contrast
- *  requirement — the palette has no success-foreground token to reach for. */
+// text-white on the done fill: the palette has no success-foreground token
 function StatusBadge({ status, ordinal }: { status: TaskStatus; ordinal: number }) {
   if (status === "done") {
     return (
@@ -130,9 +114,7 @@ function StatusBadge({ status, ordinal }: { status: TaskStatus; ordinal: number 
 const taskListVariants = cva("flex w-full flex-col", {
   variants: {
     variant: {
-      /** Each row floats on its own card. */
       capsules: "gap-2",
-      /** One bordered stack. */
       list: "gap-0 overflow-hidden rounded-xl bg-surface-raised shadow-surface-2",
     },
   },
@@ -189,8 +171,6 @@ const TaskItem = forwardRef<HTMLDivElement, TaskItemProps>(
   ({ className, children, ...props }, ref) => {
     const { list } = useContext(TaskListContext);
     const [open, setOpen] = useState(false);
-    // A row learns it is expandable from its own details part rather than
-    // from a prop the caller has to keep in sync with what it rendered.
     const [expandable, setExpandable] = useState(false);
     const toggle = useCallback(() => setOpen((value) => !value), []);
     const context = useMemo(
@@ -220,14 +200,10 @@ const TaskItem = forwardRef<HTMLDivElement, TaskItemProps>(
 );
 TaskItem.displayName = "TaskItem";
 
-// `onClick` is withheld with `onSelect`: the row has one activation channel,
-// and a forwarded onClick would replace it while the chevron and
-// `aria-expanded` still promised the toggle.
+// onClick is omitted: a forwarded one would replace the toggle while aria-expanded still promised it
 interface TaskItemRowProps extends Omit<HTMLAttributes<HTMLButtonElement>, "onSelect" | "onClick"> {
   status: TaskStatus;
-  /** Shown inside the badge while the row is unsettled. */
   ordinal?: number;
-  /** Open this row's subject. Absent, the row toggles its own details. */
   onSelect?: () => void;
 }
 
@@ -289,8 +265,6 @@ const TaskItemLabel = forwardRef<HTMLSpanElement, HTMLAttributes<HTMLSpanElement
 );
 TaskItemLabel.displayName = "TaskItemLabel";
 
-/** The trailing word for a row. The CALLER owns the wording — this part only
- *  owns where it sits and how quiet it reads. */
 const TaskStatusLabel = forwardRef<HTMLSpanElement, HTMLAttributes<HTMLSpanElement>>(
   ({ className, children, ...props }, ref) => (
     <span
@@ -308,10 +282,7 @@ TaskStatusLabel.displayName = "TaskStatusLabel";
 const TaskItemDetails = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
   ({ className, children, ...props }, ref) => {
     const { open, setExpandable } = useTaskItem();
-    // Announce expandability from an effect: the flag is the parent TaskItem's
-    // state, and a render-phase write to another component's store is illegal.
-    // Layout-timed so the chevron agrees with the row before first paint, and
-    // retracted on unmount so a row whose details leave stops being a toggle.
+    // layout-timed so the chevron agrees with the row before first paint; a render-phase write to the parent's state is illegal
     useLayoutEffect(() => {
       setExpandable(true);
       return () => setExpandable(false);

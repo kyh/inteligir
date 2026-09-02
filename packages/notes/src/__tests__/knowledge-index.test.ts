@@ -95,7 +95,6 @@ describe("KnowledgeIndex — graph", () => {
     expect(phantom).toMatchObject({ id: "phantom:missing note", title: "missing note" });
     expect(phantom?.path).toBeUndefined();
 
-    // Two wiki links hub -> target collapse into one counted edge.
     const hubToTarget = graph.edges.find(
       (e) => e.source === "wiki/hub.md" && e.target === "wiki/target note.md",
     );
@@ -106,8 +105,7 @@ describe("KnowledgeIndex — graph", () => {
     expect(mdEdge?.kind).toBe("md");
 
     const hub = graph.nodes.find((n) => n.id === "wiki/hub.md");
-    // hub edges: ->target, ->phantom, ->other, <-other = 4 touching (asset
-    // references stay off the graph).
+    // ->target, ->phantom, ->other, <-other; asset references stay off the graph
     expect(hub?.degree).toBe(4);
   });
 
@@ -116,9 +114,7 @@ describe("KnowledgeIndex — graph", () => {
     index.setDoc("gallery.md", "![](../diagram.png) and ![gone](missing.png) and [[lost.pdf]]\n");
     const graph = index.graph();
     const ids = graph.nodes.map((n) => n.id);
-    // Resolved asset target: excluded even for the wiki embed in hub.md.
     expect(ids).not.toContain("diagram.png");
-    // Dangling asset-extension targets never become phantom "create" nodes.
     expect(ids.filter((id) => id.startsWith("phantom:"))).toEqual(["phantom:missing note"]);
     expect(graph.edges.some((e) => e.source === "gallery.md")).toBe(false);
   });
@@ -141,8 +137,7 @@ describe("KnowledgeIndex — graph", () => {
 });
 
 describe("KnowledgeIndex — case-colliding paths", () => {
-  // Engine-level: a case-insensitive fs can't produce both, but a
-  // case-sensitive vault (linux) can — no double counting, cs beats ci.
+  // a case-sensitive fs (linux) can hold both
   it("keeps Note.md and note.md distinct without double-counting links", () => {
     const index = new KnowledgeIndex();
     index.setDoc("Note.md", "# Big\n");

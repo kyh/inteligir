@@ -1,6 +1,3 @@
-// The vault API surface over the composed app: contract row → handler →
-// service → disk, plus the ws invalidation a mutation must produce.
-
 import { realpathSync } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -27,8 +24,7 @@ describe("the vault routes", () => {
     expect(await readFile(join(vaultDir, "notes", "api.md"), "utf8")).toBe("# via API\n");
 
     const tree = await client.vault.tree();
-    // The service reports its PHYSICAL root (symlinks resolved) — on macOS
-    // tmpdir() itself is spelled through /var → /private/var.
+    // on macOS tmpdir() is spelled through /var → /private/var.
     expect(tree.root).toBe(realpathSync(vaultDir));
     expect(tree.entries).toEqual([
       { kind: "dir", path: "notes" },
@@ -50,13 +46,10 @@ describe("the vault routes", () => {
     await vault.git.commitNow();
 
     const { revisions } = await client.vault.history({ path: "notes/api.md" });
-    // The vault's own `initialize` commit is in the log too, but it never
-    // touched this path, so `--follow` does not list it.
+    // the initialize commit never touched this path, so --follow does not list it.
     expect(revisions).toHaveLength(2);
     expect(revisions[0]?.subject).toBe("vault: update notes/api.md");
     expect(revisions[0]?.path).toBe("notes/api.md");
-    // The engine's own identity, read back through the log rather than
-    // re-typed: it is what tells an agent revision from a human one.
     expect(revisions[0]?.authorName).toBe("inteligir");
     expect(revisions[0]?.authorEmail).toBe("vault@inteligir.local");
 
@@ -65,8 +58,6 @@ describe("the vault routes", () => {
       await client.vault.revision({ path: oldest?.path ?? "", sha: oldest?.sha ?? "" }),
     ).toEqual({ content: "# one\n" });
 
-    // A note git has never seen is an empty page, not a refusal: one created
-    // inside the auto-commit's quiet window has no revisions yet.
     expect(await client.vault.history({ path: "notes/uncommitted.md" })).toEqual({
       revisions: [],
     });
@@ -76,8 +67,6 @@ describe("the vault routes", () => {
     );
     expect(isDefinedError(absentError) && absentError.code).toBe("NOT_FOUND");
 
-    // The sha is a request value, so git's own revision grammar never reaches
-    // an argv slot.
     const [shaError] = await safe(client.vault.revision({ path: "notes/api.md", sha: "HEAD" }));
     expect(toORPCError(shaError).code).toBe("BAD_REQUEST");
   });
@@ -88,8 +77,6 @@ describe("the vault routes", () => {
     const [missError] = await safe(client.vault.read({ path: "nope.md" }));
     expect(isDefinedError(missError) && missError.code).toBe("NOT_FOUND");
 
-    // The path grammar is on the request schema, so a traversal is refused by
-    // the validator before a handler can be entered with it.
     const [traversalError] = await safe(client.vault.read({ path: "../escape.md" }));
     expect(toORPCError(traversalError).code).toBe("BAD_REQUEST");
 
@@ -111,8 +98,6 @@ describe("the vault routes", () => {
     );
     expect(toORPCError(oversizedError).code).toBe("BAD_REQUEST");
 
-    // An asset the write gate accepted but the read route would refuse forever
-    // is the one failure with no recovery — the two caps are one number.
     const [oversizedAsset] = await safe(
       client.vault.assetWrite({
         dir: "assets",
@@ -164,8 +149,6 @@ describe("the vault routes", () => {
       client.vault.write({ path: "cas.md", content: "v3", expectedHash: v1Hash }),
     );
     expect(isDefinedError(staleError) && staleError.code).toBe("CAS_MISMATCH");
-    // The refusal carries what the file holds now, which is what the client
-    // merges (diff3) and retries against.
     expect(
       isDefinedError(staleError) && staleError.code === "CAS_MISMATCH" && staleError.data,
     ).toEqual({ current: { content: "v2", hash: await contentHashHex("v2") } });
@@ -174,7 +157,6 @@ describe("the vault routes", () => {
       client.vault.write({ path: "ghost.md", content: "x", expectedHash: v1Hash }),
     );
     expect(isDefinedError(ghostError) && ghostError.code).toBe("CAS_MISMATCH");
-    // A file that no longer exists has nothing to merge against.
     expect(
       isDefinedError(ghostError) && ghostError.code === "CAS_MISMATCH" && ghostError.data,
     ).toEqual({});
@@ -233,8 +215,7 @@ describe("the vault routes", () => {
     expect(asset.status).toBe(200);
     expect(asset.headers.get("content-type")).toBe("image/svg+xml");
     expect(asset.headers.get("x-content-type-options")).toBe("nosniff");
-    // Without the sandbox, NAVIGATING to this URL would run the SVG's script
-    // on the app's own origin — with a vault a git remote can write into.
+    // without the sandbox, navigating to this URL runs the SVG's script on the app's origin.
     expect(asset.headers.get("content-security-policy")).toBe("default-src 'none'; sandbox");
     expect(await asset.text()).toBe(svg);
 
@@ -259,20 +240,14 @@ describe("the vault routes", () => {
   });
 
   it("passes the markdown path VERBATIM to containment — no client-side normalization", async () => {
-    // The client sends the raw path (only URL-encoded, `vaultAssetUrl`) and the
-    // SERVER decides: a name that needs encoding round-trips to disk, and a
-    // traversal is refused by the vault's own containment, not by the builder.
     const { request, vaultDir } = await bootTestApp();
     await writeFile(join(vaultDir, "my picture.png"), "png-bytes", "utf8");
 
-    // encodeURIComponent in the builder, decoded back by the handler's
-    // searchParams — the two must agree or a spaced name 404s.
     const encoded = vaultAssetUrl("", "my picture.png");
     expect(encoded).toBe(`${VAULT_ASSET_PATH}?path=my%20picture.png`);
     const spaced = await request(encoded);
     expect(spaced.status).toBe(200);
 
-    // A traversal is a .png (media check passes) that containment refuses.
     const traversal = await request(vaultAssetUrl("", "../escape.png"));
     expect(traversal.status).toBe(400);
   });
@@ -280,9 +255,6 @@ describe("the vault routes", () => {
   it("refuses an asset request that carries no device token", async () => {
     const { composed, vaultDir } = await bootTestApp();
     await writeFile(join(vaultDir, "picture.png"), "not really a png", "utf8");
-    // The bytes come from a vault a git remote can write into and are served
-    // from this origin, so the asset route is behind the same gate as the rest
-    // — a page that guessed the port cannot even learn that a path exists.
     const anonymous = await composed.app.request(`${VAULT_ASSET_PATH}?path=picture.png`);
     expect(anonymous.status).toBe(401);
   });

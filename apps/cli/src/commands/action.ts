@@ -1,7 +1,3 @@
-// `inteligir action …` — the agent surface: create/send, the compact
-// timeline, and the poll-until-settled `wait` whose exit code is the outcome
-// (0 idle, 1 error, 2 timeout) so a shell script can branch on it.
-
 import { setTimeout as delay } from "node:timers/promises";
 import { ORPCError } from "@orpc/client";
 import type { Thread } from "@repo/api/local/threads/threads-schema";
@@ -41,8 +37,7 @@ function describeSendOutcome(outcome: SendOutcome): string {
   }
 }
 
-/** A refusal keeps its own class through the re-wrap, so a `--json` caller
- *  branches on the same vocabulary a bare `send` would have handed it. */
+// the re-wrap keeps the refusal's own class so a --json caller branches on the same vocabulary a bare send gives.
 function sendFailureCode(cause: unknown): string {
   if (cause instanceof ORPCError || cause instanceof CliExitError) {
     return cause.code;
@@ -89,9 +84,7 @@ export function actionCommand(deps: CliDeps) {
               text: args.prompt,
             });
           } catch (error) {
-            // The thread EXISTS now. Failing without naming it would leave an
-            // empty thread the user cannot resume or archive because they never
-            // learned its id.
+            // the thread exists now; failing without its id leaves one the user cannot resume or archive.
             throw new CliExitError(
               `Action ${createdThread.id} was created but its first turn failed: ${getErrorMessage(error)}. ` +
                 `Retry with \`inteligir action send ${createdThread.id} …\` or archive it.`,
@@ -206,9 +199,7 @@ export function actionCommand(deps: CliDeps) {
             if (remainingMs <= 0) {
               throw expire();
             }
-            // --timeout is a WALL-CLOCK bound, so the request carries it too: a
-            // server that accepts the connection and never answers must not park
-            // the wait past its deadline.
+            // the request carries the deadline too: a server that accepts and never answers must not park the wait past it.
             const { thread: current } = await api.threads
               .get({ threadId: args.id }, { signal: AbortSignal.timeout(remainingMs) })
               .catch((cause: unknown) => {

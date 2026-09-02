@@ -1,27 +1,12 @@
 import site from "@tanstack/react-start/server-entry";
 import api, { ownsPath } from "./index";
 
-// ---------------------------------------------------------------------------
-// The Worker entry: ONE script serving the marketing site and the auth API from
-// ONE origin, which is what makes the two same-origin to each other.
-//
-// The split is by path and nothing else — `ownsPath` (declared beside the API
-// route table, so the two cannot drift) sends /api/*, /v1/* and /auth/* to the
-// Better Auth surface, and everything else to TanStack Start's SSR handler.
-//
-// The default export is a plain `ExportedHandler<Env>` rather than Start's
-// `createServerEntry(...)`: Cloudflare calls it with the bindings, and a
-// `ServerEntry`'s `(request, opts?)` signature has nowhere to put them. Start's
-// own default entry is already a `{ fetch }`, so it composes here as-is.
-//
-// wrangler.jsonc's `main` must name THIS FILE by path. Pointing it at the
-// `@tanstack/react-start/server-entry` package export instead builds that
-// default entry alone and silently drops everything here
-// (cloudflare/workers-sdk#11100).
-// ---------------------------------------------------------------------------
+// A plain ExportedHandler rather than Start's createServerEntry: Cloudflare calls fetch with the
+// bindings, and a ServerEntry's (request, opts?) has nowhere to put them. wrangler.jsonc's `main`
+// must name this file by path; pointing it at the @tanstack/react-start/server-entry export builds
+// that entry alone and silently drops everything here (cloudflare/workers-sdk#11100).
 
-// The runtime instantiates Durable Objects from the DEPLOYED entry's exports,
-// so the classes ride through here as well as ./index.ts (the test entry).
+// the runtime instantiates Durable Objects from the deployed entry's exports
 export { ThreadSyncDO } from "./sync/thread-sync-do";
 export { RepoCell, Registry } from "durable-git";
 

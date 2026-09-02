@@ -1,6 +1,4 @@
-// The only module that imports katex (JS + CSS). equation-node.tsx loads it
-// with React.lazy, so the ~280KB renderer and its stylesheet live in an async
-// chunk that only downloads when a document actually shows an equation.
+// The only module importing katex (JS + CSS), so the ~280KB lands in a lazy chunk.
 
 import { useEffect, useRef } from "react";
 import katex from "katex";

@@ -1,8 +1,3 @@
-// The vault's one filesystem watch: external edits (another app, a git pull)
-// become debounced change batches. The native watcher runs in a forked child
-// (see watcher/) so a native-addon failure can be SIGKILLed and respawned
-// without taking the server down.
-
 import { realpathSync } from "node:fs";
 import { resolve } from "node:path";
 import { isIgnoredEntryName } from "@repo/notes/knowledge/vault-path";
@@ -19,13 +14,9 @@ const RESUBSCRIBE_BASE_DELAY_MS = 500;
 const RESUBSCRIBE_MAX_DELAY_MS = 30_000;
 
 export interface VaultWatcherArgs {
-  /** Absolute vault root; must exist before start(). */
   root: string;
-  /** Vault-relative paths that changed, deduplicated, after the debounce window. */
   onChanged: (paths: readonly string[]) => void;
   onError?: (message: string) => void;
-  /** Tests inject the in-process @parcel/watcher module or a fake; production
-   *  defaults to the forked-child proxy. */
   backend?: ParcelWatcherBackend;
 }
 
@@ -35,9 +26,8 @@ export interface VaultWatcher {
 }
 
 export function createVaultWatcher(args: VaultWatcherArgs): VaultWatcher {
-  // realpath, not resolve: FSEvents reports paths with symlinks expanded
-  // (macOS /var → /private/var), and a root that kept the symlink spelling
-  // would make every event compute as outside the vault.
+  // realpath, not resolve: fsevents reports paths with symlinks expanded (macos /var →
+  // /private/var), so a root keeping the symlink spelling computes every event as outside.
   const root = realpathSync(resolve(args.root));
 
   let ownedProxy: ParcelWatcherProxy | null = null;
@@ -102,8 +92,7 @@ export function createVaultWatcher(args: VaultWatcherArgs): VaultWatcher {
               return;
             }
             if (error) {
-              // The proxy self-heals backend deaths; an error surfacing here
-              // is an establish failure, so back off and re-subscribe.
+              // the proxy self-heals backend deaths, so an error here is an establish failure.
               args.onError?.(toWatchErrorMessage(error));
               subscription = null;
               scheduleResubscribe();

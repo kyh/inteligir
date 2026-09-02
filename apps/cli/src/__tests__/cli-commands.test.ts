@@ -1,8 +1,3 @@
-// Command output goldens against an in-process served contract app: exact
-// stdout bytes for the human renderings, parsed JSON for --json, and the
-// error paths' exit codes. The timeline fixture exercises the shared
-// the timeline renderer end to end through `thread show`.
-
 import type { ThreadTimeline } from "@repo/api/local/thread-timeline";
 import { VAULT_MAX_CONTENT_LENGTH } from "@repo/api/local/vault/vault-schema";
 import { describe, expect, it, onTestFinished } from "vitest";
@@ -19,7 +14,6 @@ import {
 } from "./fixture-server";
 import { runCliForTest } from "./run-cli";
 
-/** The rows inside a consola box, stripped of its border and its padding. */
 function boxedLines(stdout: string): string[] {
   return stdout
     .split("\n")
@@ -251,8 +245,6 @@ describe("knowledge commands", () => {
   });
 
   it("renders a related note with the reasons it is related", async () => {
-    // The reasons are the row's second line, verbatim — a bare list of paths
-    // would throw away the only part a reader can check.
     const server = await boot(seededState());
     const related = await runCliForTest({
       argv: ["related", "notes/hello.md"],
@@ -271,7 +263,6 @@ describe("knowledge commands", () => {
       argv: ["related", "notes/hello.md"],
       baseUrl: server.baseUrl,
     });
-    // An outcome, so consola writes it — not a silent zero-line answer.
     expect(related.stdout).toBe("ℹ No related notes.\n");
     expect(related.code).toBe(0);
   });
@@ -458,10 +449,7 @@ describe("status, guide and help", () => {
       env: { INTELIGIR_THREAD_ID: "thr_ctx" },
     });
     expect(result.code).toBe(0);
-    // `status` is the one surface printed as a consola box, whose width is
-    // derived from its widest line — and the fixture's port is random, so the
-    // chrome cannot be pinned. The FACTS still are, in order: the assertion
-    // reads the box's own rows back out.
+    // the consola box's width follows its widest line and the port is random, so only the rows are pinned.
     expect(boxedLines(result.stdout)).toEqual([
       `inteligir 9.9.9-fixture — ${server.baseUrl}`,
       "Data dir: /fixture/data",
@@ -491,8 +479,6 @@ describe("status, guide and help", () => {
   });
 });
 
-/** Every source the fixture recorded on the seeded note, roots then replies,
- *  in the order they were written. */
 function sourcesOn(state: FixtureState) {
   return (state.comments.get("notes/hello.md") ?? []).flatMap((thread) =>
     [thread.root.source].concat(thread.replies.map((reply) => reply.entry.source)),
@@ -556,9 +542,6 @@ describe("comment verbs sign their entries", () => {
 });
 
 describe("argv the CLI refuses", () => {
-  // citty parses with node's `parseArgs` in non-strict mode, so an undeclared
-  // flag is dropped rather than refused: `--contentt` would leave `vault write`
-  // reading stdin and exiting 0. commander refused this for free.
   it("names an undeclared flag instead of ignoring it", async () => {
     const server = await boot(seededState());
     const result = await runCliForTest({
@@ -639,8 +622,6 @@ describe("action new never orphans a thread silently", () => {
   it("names the created thread when its first turn fails", async () => {
     const state = seededState();
     const server = await boot(state);
-    // The thread is created, THEN the send refuses — exactly the window where
-    // the id would otherwise be lost.
     state.refuseSend = { code: "PROVIDER_UNAVAILABLE", message: "no agent" };
     const result = await runCliForTest({
       argv: ["action", "new", "do a thing"],
@@ -725,12 +706,7 @@ describe("--json failures", () => {
 
 describe("a server that stopped answering", () => {
   it("classifies a refused dial as SERVER_UNREACHABLE / exit 3", async () => {
-    // The stale-file path: a crash leaves server.json behind, so
-    // discovery finds a row and the dial reaches a DEAD port. The refused
-    // connection must read as SERVER_UNREACHABLE (exit 3) — the class the served
-    // guide teaches agents to branch on — not the raw ECONNREFUSED it rests on,
-    // nor UNEXPECTED/exit 1. Booting then closing a fixture is exactly that
-    // state: a real bound port, then nothing listening on it.
+    // boot then close: a real bound port with nothing listening, the state a stale server.json leaves.
     const server = await serveFixture(makeFixtureState());
     const { baseUrl } = server;
     await server.close();

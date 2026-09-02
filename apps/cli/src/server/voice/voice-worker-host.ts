@@ -1,20 +1,5 @@
-// Running the transcription worker: resolve its entry, and either hand it one
-// request and take one answer (a probe, a batch clip), or hold it open for the
-// life of a dictation hold (the streaming session).
-//
-// THE ENTRY IS RESOLVED AS A SIBLING of the running module, the same walk
-// `vault/watcher/fork-channel.ts` makes for the watcher child and for the same
-// reason: in dev this module runs from source and its sibling is the `.ts`
-// entry, in a build it is inside `dist/index.js` and the sibling is the
-// separately-bundled `.mjs`. The two resolvers are deliberately not shared —
-// `fork-channel.ts` is vendored; keep house helpers out of it.
-//
-// EVERY EXIT PATH TERMINATES THE WORKER. A native decode that wedges would
-// otherwise hold a thread and the model's memory for the life of the process —
-// so the one-shot path enforces a budget here, and the streaming handle's
-// `dispose` (release / cancel / disconnect / app teardown) always terminates.
-// A streaming worker that fails or exits before its final reports it through
-// `onError` rather than escaping as an unhandled rejection.
+// the entry walk duplicates vault/watcher/fork-channel.ts's on purpose: that file is vendored,
+// so house helpers stay out of it.
 
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -28,13 +13,8 @@ import type {
   VoiceWorkerResponse,
 } from "./worker-protocol";
 
-/**
- * Generous against the work a ONE-SHOT bounds: the longest clip the contract
- * accepts is two minutes, which sherpa decodes in a few seconds, and a model
- * load is under a second. Anything near this budget is a wedged runtime, not a
- * slow one. The streaming session is NOT bounded by this — it is open for as
- * long as the user holds the mic and is torn down by its own `dispose`.
- */
+// a one-shot's work is bounded (two minutes of audio decodes in seconds, a load is under a
+// second), so anything near this is a wedged runtime. the streaming session is not bounded by it.
 const WORKER_BUDGET_MS = 60_000;
 
 function resolveWorkerEntry(): string {
@@ -54,24 +34,14 @@ function resolveWorkerEntry(): string {
   );
 }
 
-/**
- * Run one request to completion. Resolves with whatever the worker said —
- * including its `failed` answer, which is a refusal rather than an exception —
- * and rejects only when the worker never got to speak.
- */
 export async function runVoiceWorker(request: VoiceWorkerRequest): Promise<VoiceWorkerResponse> {
   const worker = new Worker(resolveWorkerEntry(), {
     workerData: request,
-    // The samples move rather than copy: the parent has no use for the buffer
-    // once the worker holds it.
+    // transferred, not copied: the parent has no use for the buffer once the worker holds it.
     transferList: request.kind === "transcribe" ? [request.pcm] : [],
   });
 
-  // Four things race to answer — a message, an error, an early exit and the
-  // budget — and only the FIRST of them may, which is the whole job of
-  // `settled`. oxlint's promise/no-multiple-resolved cannot see that guard and
-  // reads the several call sites of `settle` as several resolutions; there is
-  // exactly one `resolve` in this function and it is reached at most once.
+  // four things race to answer (message, error, exit, budget); settled lets only the first through.
   const answer = await new Promise<VoiceWorkerResponse>((resolve) => {
     let settled = false;
     const settle = (response: VoiceWorkerResponse): void => {
@@ -81,11 +51,8 @@ export async function runVoiceWorker(request: VoiceWorkerRequest): Promise<Voice
         resolve(response);
       }
     };
-    // These three are HOST-side failures — the worker never sent a message — so
-    // `modelUnusable` is false: a timeout, a crash or an early exit could be a
-    // wedged decode, an OOM or a segfault, none of which means the bytes on disk
-    // are bad. The worker itself reports `modelUnusable: true` for the one case
-    // that IS about the files (sherpa refusing to open the model).
+    // host-side failures (timeout, crash, early exit) say nothing about the bytes on disk, so
+    // modelUnusable is false; only the worker's own answer can say otherwise.
     const budget = setTimeout(() => {
       settle({
         kind: "failed",
@@ -114,26 +81,17 @@ export interface VoiceStreamWorkerCallbacks {
   onReady(): void;
   onPartial(text: string): void;
   onFinal(text: string): void;
-  /** A refusal for a person, plus whether the MODEL is the fault (nuke it). */
   onError(message: string, modelUnusable: boolean): void;
 }
 
 export interface VoiceStreamWorkerHandle {
-  /** A PCM16 chunk, transferred to the worker. */
   pushPcm(pcm: ArrayBuffer): void;
-  /** Stop capturing and ask for the final. */
   finalize(): void;
-  /** Terminate the worker. Idempotent — every exit path calls it. */
   dispose(): Promise<void>;
 }
 
-/**
- * Spawn a persistent streaming worker: load the model once, then feed it frames
- * and take partials/final. NEVER throws — a spawn failure is reported through
- * `onError` and a dead handle is returned, so no caller has to catch here and
- * no rejection escapes. Exactly one of `onFinal`/`onError` is delivered; after
- * it, further frames and finalizes are ignored.
- */
+// never throws: a spawn failure is reported through onError with a dead handle. exactly one of
+// onFinal/onError is delivered.
 export function spawnVoiceStreamWorker(
   model: VoiceModelFiles,
   callbacks: VoiceStreamWorkerCallbacks,
@@ -151,13 +109,12 @@ export function spawnVoiceStreamWorker(
 
   let worker: Worker;
   try {
-    // `workerData` is `any`, so the literal is annotated here: an unannotated
-    // one with a mistyped `kind` compiles, falls through to the one-shot path
-    // and answers `modelUnusable`, which nukes the model cache.
+    // workerData is any: an unannotated literal with a mistyped kind falls through to the
+    // one-shot path and answers modelUnusable, which nukes the model cache.
     const init: VoiceStreamInit = { kind: "stream", model };
     worker = new Worker(resolveWorkerEntry(), { workerData: init });
   } catch (error) {
-    // A missing worker bundle is a packaging fault, not a corrupt model.
+    // a missing worker bundle is a packaging fault, not a corrupt model.
     callbacks.onError(error instanceof Error ? error.message : String(error), false);
     return { pushPcm: () => undefined, finalize: () => undefined, dispose: async () => undefined };
   }

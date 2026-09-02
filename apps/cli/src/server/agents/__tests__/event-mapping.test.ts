@@ -1,8 +1,3 @@
-// Golden mapping from the runtime's provider grammar onto @repo/domain's
-// persisted grammar: what survives (with the host's turn id stamped), what
-// drops (with a stated reason), and that every mapped event still parses
-// under the persisted schema — the same parse the append path runs.
-
 import { threadEventSchema } from "@repo/domain/provider-event";
 import { threadScope, turnScope } from "@repo/domain/thread-event-scope";
 import { describe, expect, it } from "vitest";

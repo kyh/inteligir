@@ -1,13 +1,3 @@
-// The hosted loop, end to end and for real: one wrangler-dev Worker (real
-// workerd, real D1, a real durable-git repo cell), one account through the
-// invite gate, and two instances whose vaults converge through the DERIVED
-// hosted remote — no INTELIGIR_VAULT_REMOTE anywhere, the credential is the
-// switch. Instance A pairs through the production browser flow (pairBegin →
-// approve-page mint → its own /pair/callback); instance B gets its credential
-// BEFORE boot, which is what makes it take the real clone path instead of
-// init+seed. Two refusals get their own pins: a revoked credential reads
-// "unauthorized" (never "offline"), and no token ever lands in .git/config.
-
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -39,16 +29,14 @@ const IDENTITY_DEADLINE_MS = 15_000;
 const SYNC_DEADLINE_MS = 20_000;
 const POLL_INTERVAL_MS = 200;
 
-/** Auto-sync off on both instances: every sync below is an explicit call, so
- *  the state each assertion reads is the state the previous line produced. */
+// auto-sync off: every sync is an explicit call, so each assertion reads the state the previous
+// line produced.
 function cloudEnv(origin: string) {
   return { INTELIGIR_CLOUD_URL: origin, INTELIGIR_SYNC_INTERVAL_MS: "0" };
 }
 
 const sessionUserSchema = z.looseObject({ user: z.looseObject({ id: z.string() }) });
 
-/** An account through the production invite gate; the bearer is what the
- *  approve page's session would hold. */
 async function signUp(origin: string): Promise<{ bearer: string; userId: string }> {
   const response = await fetch(`${origin}/v1/auth/sign-up`, {
     method: "POST",
@@ -72,8 +60,6 @@ async function signUp(origin: string): Promise<{ bearer: string; userId: string 
   return { bearer, userId: parsed.data.user.id };
 }
 
-/** The approve page's act: mint a code with the session, bound to a PKCE
- *  challenge. */
 async function mintCode(origin: string, bearer: string, challenge: string): Promise<string> {
   const response = await fetch(`${origin}/v1/device/code`, {
     method: "POST",
@@ -84,8 +70,6 @@ async function mintCode(origin: string, bearer: string, challenge: string): Prom
   return mintPairingCodeResponseSchema.parse(await response.json()).code;
 }
 
-/** A second device credential, minted wholly over HTTP — what a phone or
- *  another machine's own redeem would hold. */
 async function redeemDevice(
   origin: string,
   bearer: string,
@@ -111,16 +95,12 @@ async function revokeDevice(origin: string, bearer: string, deviceId: string): P
   expect(response.ok, `revoke answered ${response.status}`);
 }
 
-/** A parameter the approve URL must carry — asserted where it is read, so a
- *  missing one fails HERE rather than as a 400 one call later. */
 function requiredParam(url: URL, key: string): string {
   const value = url.searchParams.get(key);
   expect(value !== null, `the approve URL carries ${key}`);
   return value;
 }
 
-/** Drive the production pairing loop for a booted instance: pairBegin, the
- *  approve page's mint, then the browser's own GET of the local callback. */
 async function pairThroughBrowserFlow(
   api: InstanceApi,
   origin: string,
@@ -140,8 +120,8 @@ async function pairThroughBrowserFlow(
   expect(answered.ok, `the pair callback answered ${answered.status}`);
 }
 
-/** The account identity lands asynchronously after pairing (`/v1/account`),
- *  and the vault's cross-account fence fails closed until it does. */
+// the account identity lands asynchronously after pairing, and the cross-account fence fails closed
+// until it does.
 async function untilIdentityKnown(api: InstanceApi, label: string): Promise<void> {
   const deadline = Date.now() + IDENTITY_DEADLINE_MS;
   for (;;) {
@@ -157,15 +137,9 @@ async function untilIdentityKnown(api: InstanceApi, label: string): Promise<void
   }
 }
 
-/**
- * Sync until the engine settles on `wanted`. A single call is not enough on
- * purpose: `syncNow` is single-flight, so a call landing while a background
- * pass runs (the identity re-kick, a ws ping from the other device's push)
- * JOINS that pass and reports the state it left — which can be "dirty" for a
- * write the joined pass never saw. Retrying issues a real pass. Every state
- * outside the transitional set fails immediately: "offline" after a revoke is
- * exactly the misreading this scenario exists to pin out.
- */
+// syncNow is single-flight: a call landing during a background pass joins it and reports the state
+// it left, which can be "dirty" for a write that pass never saw, so retry; any other state fails at
+// once.
 async function syncUntil(
   api: InstanceApi,
   label: string,
@@ -194,11 +168,8 @@ async function syncUntil(
   }
 }
 
-/** The epic's acceptance line verbatim: no token in any .git/config — not as
- *  the credential, not as URL userinfo. The credential compared is the LIVE
- *  one read back from the instance's own data dir, and the prefix sweep is
- *  the contract's constant — a hand-copied "igd_" would keep passing after a
- *  prefix change while the real secret sat in the config. */
+// compares the live credential read back from the data dir and the contract's prefix constant: a
+// hand-copied "igd_" would keep passing after a prefix change.
 async function expectNoTokenInGitConfig(
   vaultDir: string,
   dataDir: string,
@@ -242,9 +213,8 @@ export const hostedVaultSync: Scenario = {
     const b = await ctx.boot({
       name: "b",
       extraEnv: cloudEnv(worker.origin),
-      // Through the harness's own hook: the instance layout is the
-      // launcher's, and a path rebuilt here would silently send B down the
-      // init+seed path the assertions below exist to refuse.
+      // through the harness hook: a path rebuilt here would send B down the init+seed path instead
+      // of the clone.
       seedData: (dataDir) => writeDeviceCredential(dataDir, { ...deviceB, userId }),
     });
 
@@ -257,8 +227,7 @@ export const hostedVaultSync: Scenario = {
       FROM_A,
       "B's on-disk content",
     );
-    // A CLONE, not a seed-then-merge: B's history IS A's history, byte for
-    // byte — a seeded B would hold its own root commit that no rebase erases.
+    // a clone, not seed-then-merge: a seeded B would hold its own root commit no rebase erases.
     const headA = await exec("git", ["-C", a.vaultDir, "rev-parse", "HEAD"], {
       env: hermeticProcessEnv(),
     });

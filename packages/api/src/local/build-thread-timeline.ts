@@ -1,12 +1,4 @@
-// Folds stored thread events into the timeline rows the contract declares —
-// beside the grammar it produces and the delta algebra that diffs those rows,
-// so the three can be read as one concept.
-// The row grammar is bb's (github.com/get-bb/bb, MIT) and the row constructors
-// follow its idiom, but the fold is this repo's: bb projects events into
-// messages through a stateful multi-module pipeline and converts those to
-// rows, where this is one pass over accumulators keyed by turn and item. v1's
-// grammar also has no web activity, background tasks, compaction or goals to
-// fold.
+// the row grammar is bb's (github.com/get-bb/bb, MIT); the fold is this repo's own
 
 import type {
   ThreadEvent,
@@ -25,10 +17,7 @@ import type {
   TimelineWorkRow,
 } from "./thread-timeline";
 
-/** A stored event with the server-assigned metadata rows are ordered and
- *  keyed by. Matches @repo/db/events' StoredThreadEvent structurally rather
- *  than importing it: this package is platform-neutral and db-free, so the
- *  same fold runs on the server and in any client. */
+// matches @repo/db/events' StoredThreadEvent structurally, not by import: this package is db-free
 export interface ThreadTimelineEvent {
   sequence: number;
   createdAt: number;
@@ -65,11 +54,8 @@ interface ItemAccumulator {
   itemId: string;
   started: ThreadEventItem | null;
   completed: ThreadEventItem | null;
-  /** agentMessage / plan deltas since item/started. */
   textBuffer: string;
-  /** reasoning textDeltas since item/started. */
   reasoningBuffer: string;
-  /** commandExecution outputDeltas since item/started (reset-aware). */
   outputBuffer: string;
   sourceSeqStart: number;
   sourceSeqEnd: number;
@@ -82,24 +68,11 @@ interface TurnAccumulator {
   status: TimelineRowStatus;
   completedAt: number | null;
   sourceSeqStart: number;
-  /** The turn's OWN last contributing sequence — started and completed. The
-   *  row's `sourceSeqEnd` takes the max of this and its children's at assembly;
-   *  see the note on that loop for why it is not every turn-scoped event. */
   ownSeqEnd: number;
   createdAt: number;
 }
 
-/**
- * Fold an ordered event log into the timeline read model. Pure and total: the
- * same events always produce the same rows with the same ids, which is what
- * lets the server diff two projections into a delta the client can apply.
- *
- * Row placement: user messages, assistant messages and thread-scoped errors
- * are top-level conversation rows; everything else an agent does inside a
- * turn (commands, tools, file changes, reasoning, plans, in-turn errors)
- * groups as children of that turn's row. Ordering is by first contributing
- * sequence throughout.
- */
+// must be deterministic, ids included: the server diffs two projections into a delta
 export function buildThreadTimeline(events: readonly ThreadTimelineEvent[]): ThreadTimeline {
   const ordered = events.toSorted((left, right) => left.sequence - right.sequence);
 
@@ -155,8 +128,6 @@ export function buildThreadTimeline(events: readonly ThreadTimelineEvent[]): Thr
           threadId: event.threadId,
           turnId: null,
           text: event.text,
-          // The one row that can carry one: the send path records what the
-          // sender was looking at beside their text, never folded into it.
           viewContext: event.viewContext ?? null,
           sourceSeqStart: entry.sequence,
           sourceSeqEnd: entry.sequence,
@@ -284,12 +255,8 @@ export function buildThreadTimeline(events: readonly ThreadTimelineEvent[]): Thr
     const children = (turnChildren.get(turnId) ?? []).toSorted(
       (left, right) => left.seq - right.seq,
     );
-    // The turn row's last contributing sequence is its own plus its children's,
-    // NOT every turn-scoped event. A streaming assistant message is turn-scoped
-    // and lands as a TOP-LEVEL row, so counting it here moved this row on every
-    // delta — and a turn row carries its whole subtree, so the diff resent every
-    // child of the active turn per token. What the field means and what the
-    // delta needs are the same thing once it names only real contributors.
+    // own plus children's, not every turn-scoped event: a streaming assistant message is
+    // turn-scoped but lands top-level, and counting it moved this row per token, resending the subtree
     let sourceSeqEnd = turn.ownSeqEnd;
     for (const child of children) {
       sourceSeqEnd = Math.max(sourceSeqEnd, child.row.sourceSeqEnd);
@@ -324,8 +291,7 @@ type PlacedRow =
 function projectItem(accumulator: ItemAccumulator): PlacedRow | null {
   const snapshot = accumulator.completed ?? accumulator.started;
   if (snapshot === null) {
-    // Deltas for an item that never sent item/started cannot be typed; bb
-    // drops such orphans too rather than inventing a row kind for them.
+    // deltas for an item that never sent item/started cannot be typed
     return null;
   }
   const base = {
@@ -346,8 +312,7 @@ function projectItem(accumulator: ItemAccumulator): PlacedRow | null {
         kind: "conversation",
         role: "user",
         text: snapshot.text,
-        // A provider's own echo of the user's message; the context belongs to
-        // the send that recorded it, not to what came back.
+        // a provider's echo of the user's message: the context belongs to the send that recorded it
         viewContext: null,
       };
       return { placement: "top-level", row };
@@ -357,16 +322,13 @@ function projectItem(accumulator: ItemAccumulator): PlacedRow | null {
         ...base,
         kind: "conversation",
         role: "assistant",
-        // While streaming, the visible text is the started snapshot plus its
-        // buffered deltas; the completed item's text supersedes the buffer.
         text: settled ? snapshot.text : snapshot.text + accumulator.textBuffer,
         viewContext: null,
       };
       return { placement: "top-level", row };
     }
     case "reasoning": {
-      // `summary` is the provider's VISIBLE thinking text (codex settles
-      // with content empty); raw content is the fallback.
+      // summary is the provider's visible thinking text (codex settles with content empty)
       const completedText = (
         snapshot.summary.length > 0 ? snapshot.summary : snapshot.content
       ).join("\n\n");

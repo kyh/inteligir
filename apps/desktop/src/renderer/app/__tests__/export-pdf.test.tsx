@@ -1,8 +1,4 @@
 // @vitest-environment jsdom
-// The export IS window.print over a print stylesheet; what this app owns is
-// the frame around the call — the filename the browser suggests (document
-// title), the forced-light print (the `.dark` lift), and that both restore
-// even when print throws.
 
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";

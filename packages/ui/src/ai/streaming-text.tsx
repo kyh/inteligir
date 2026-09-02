@@ -5,33 +5,16 @@ import { forwardRef, useEffect, useState, type HTMLAttributes } from "react";
 
 import { cn } from "@repo/ui/lib/utils";
 
-/* ─────────────────────────────────────────────────────────
- * STREAMING TEXT
- * Words resolve one at a time behind a caret, then the
- * message's actions become usable.
- *
- * The TEXT IS THE INPUT: newly-arrived words reveal at a fixed
- * cadence, so a provider that emits a paragraph in one chunk
- * still reads as typing, and a re-render never rewinds what
- * the reader already saw.
- * ───────────────────────────────────────────────────────── */
-
 const WORD_MS = 55;
 
-/** Split keeping the separators, so re-joining a prefix is byte-faithful. */
+// keeps the separators so a re-joined prefix is byte-faithful
 function splitWords(text: string): string[] {
   return text.length === 0 ? [] : text.split(/(\s+)/u).filter((part) => part.length > 0);
 }
 
 interface StreamingTextProps extends HTMLAttributes<HTMLDivElement> {
-  /** The message so far. Growing it reveals the new words; shrinking resets. */
   text: string;
-  /** True while more text may still arrive — draws the caret. */
   streaming?: boolean;
-  /**
-   * Reveal word-by-word. Off renders `text` whole — the right choice for
-   * history, where a replayed typing animation is a lie about what is live.
-   */
   animate?: boolean;
 }
 
@@ -41,12 +24,7 @@ const StreamingText = forwardRef<HTMLDivElement, StreamingTextProps>(
     const target = words.length;
     const [revealed, setRevealed] = useState(() => (animate ? 0 : target));
 
-    // Revealing is a queue, not a subscription: the interval steps one word per
-    // tick toward the current length instead of re-deriving the reveal from the
-    // prop. Two cases still have to be corrected before the queue is read — a
-    // shorter text is a different message (a retry, a switched thread) and the
-    // reveal must not read past its end, and turning the animation off shows
-    // everything at once.
+    // a shorter text is a different message: clamp before the reveal queue is read
     if (revealed > target || (!animate && revealed !== target)) {
       setRevealed(target);
     }
@@ -62,8 +40,7 @@ const StreamingText = forwardRef<HTMLDivElement, StreamingTextProps>(
     const shown = animate ? words.slice(0, revealed).join("") : text;
     const caret = streaming || revealed < target;
 
-    // Actions compose as children and wait for the text to settle: an action
-    // offered mid-stream acts on a message that is still moving.
+    // actions wait for the text to settle: one offered mid-stream acts on a moving message
     return (
       <div ref={ref} data-slot="streaming-text" className={cn("w-full", className)} {...props}>
         <p className="text-[13px] leading-relaxed whitespace-pre-wrap text-ink">

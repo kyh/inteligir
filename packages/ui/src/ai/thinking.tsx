@@ -8,25 +8,10 @@ import { Collapse } from "@repo/ui/lib/collapse";
 import { composeRefs } from "@repo/ui/lib/compose-refs";
 import { cn } from "@repo/ui/lib/utils";
 
-/* ─────────────────────────────────────────────────────────
- * THINKING — a collapsible trace of what the agent did
- *
- * Header shimmers while working and settles to a summary;
- * the trace hangs off a vertical rule, one row per step.
- *
- * The ROWS ARE CHILDREN and each part names its own kind,
- * because a real turn interleaves reasoning and tool calls in
- * one trace. There is no Search variant: it renders web
- * sources this product has none of.
- * ───────────────────────────────────────────────────────── */
-
 interface ThinkingProps extends Omit<HTMLAttributes<HTMLDivElement>, "title"> {
-  /** Shown, shimmering, while `working`. */
   label?: string;
-  /** Shown once settled — "Thought for 4s", "Ran 3 tools". */
   doneLabel: string;
   working?: boolean;
-  /** Open on first render; the reader's own toggle wins afterwards. */
   defaultExpanded?: boolean;
 }
 
@@ -47,11 +32,7 @@ const Thinking = forwardRef<HTMLDivElement, ThinkingProps>(
     const expanded = manualExpanded ?? defaultExpanded;
     const [traceEl, setTraceEl] = useState<HTMLDivElement | null>(null);
     const [ruleHeight, setRuleHeight] = useState(0);
-    // The rule is drawn to the trace's measured height so it grows with the
-    // rows instead of overshooting the last one. Observed rather than measured
-    // per render: the rows are children the caller streams in, and the trace
-    // also reflows on its own (a row's text wrapping, a font landing) with no
-    // render of this component to hang a measurement on.
+    // observed rather than measured per render: the trace reflows (wrapping, fonts) with no render of this component
     useLayoutEffect(() => {
       if (traceEl === null) return;
       const ro = new ResizeObserver(() => setRuleHeight(traceEl.offsetHeight));
@@ -59,8 +40,6 @@ const Thinking = forwardRef<HTMLDivElement, ThinkingProps>(
       return () => ro.disconnect();
     }, [traceEl]);
 
-    // The entrance stagger is CSS rather than a per-row index, so rows stay
-    // ordinary children the caller composes.
     return (
       <div
         ref={ref}
@@ -152,22 +131,14 @@ const thinkingRowVariants = cva(
 );
 
 interface ThinkingRowProps
-  // HTMLElement rather than HTMLDivElement: a selectable row renders a
-  // <button>, and the props and ref must fit whichever element the row is.
-  // `onClick` is withheld with `onSelect`: a selectable row has one activation
-  // channel, and a forwarded onClick would replace it while `aria-pressed`
-  // still reflected `selected`.
+  // HTMLElement: a selectable row renders a <button>; onClick is omitted so it cannot replace onSelect
   extends
     Omit<HTMLAttributes<HTMLElement>, "onSelect" | "onClick">,
     VariantProps<typeof thinkingRowVariants> {
-  /** A path, a count, a target — shown dimmed after the row's own text. */
   secondary?: ReactNode;
-  /** Render `secondary` in the mono face (paths, commands). */
   mono?: boolean;
-  /** Diff counts for an edit row. */
   added?: number;
   removed?: number;
-  /** A row still in flight draws the spinner instead of the check. */
   pending?: boolean;
   onSelect?: () => void;
   selected?: boolean;
@@ -201,9 +172,6 @@ function RowIcon({ kind, pending }: { kind: "step" | "reasoning" | "tool"; pendi
   );
 }
 
-/** The shared row body. `ThinkingStep`, `ThinkingReasoning` and `ThinkingTool`
- *  are this with their kind fixed, which is what makes the trace read as
- *  markup instead of as a discriminated array. */
 const ThinkingRow = forwardRef<HTMLElement, ThinkingRowProps>(
   (
     {

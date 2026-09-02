@@ -7,20 +7,6 @@ import { cva, type VariantProps } from "class-variance-authority";
 
 import { cn } from "@repo/ui/lib/utils";
 
-/* ─────────────────────────────────────────────────────────
- * INSIGHT CARDS — a metric, its movement, and the trend behind it
- *
- * THE CHART IS OURS: a small SVG multi-series line renderer,
- * because a dependency for one sparkline is a poor trade and this
- * repo moves heavy render libraries OUT of the design system, not
- * in. The CARD is metric, delta, and a scrubbable chart with a
- * tooltip.
- *
- * Series are the input. Lines separate by dash pattern and ink
- * weight rather than hue, so a monochrome skin can still show two
- * of them at once.
- * ───────────────────────────────────────────────────────── */
-
 const InsightCardGrid = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
     <div
@@ -49,7 +35,6 @@ const InsightCard = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
 InsightCard.displayName = "InsightCard";
 
 export interface InsightCardHeaderProps extends HTMLAttributes<HTMLDivElement> {
-  /** Trailing control or legend. */
   actions?: ReactNode;
 }
 
@@ -80,7 +65,6 @@ const insightDeltaVariants = cva("text-[12px] font-medium tabular-nums", {
 });
 
 export interface InsightCardMetricProps extends HTMLAttributes<HTMLDivElement> {
-  /** Movement since the comparison period. */
   delta?: ReactNode;
   direction?: "up" | "down" | "flat";
 }
@@ -107,7 +91,7 @@ InsightCardMetric.displayName = "InsightCardMetric";
 export interface InsightSeries {
   id: string;
   label: string;
-  /** Y values, oldest first. Every series must share a length. */
+  /** oldest first; every series must share a length */
   points: readonly number[];
 }
 
@@ -129,9 +113,7 @@ function pathFor(points: readonly number[], width: number, height: number, pad: 
 export interface InsightChartProps extends Omit<HTMLAttributes<HTMLDivElement>, "onScrub"> {
   series: readonly InsightSeries[];
   height?: number;
-  /** Called with the hovered index, or null on leave. */
   onScrub?: (index: number | null) => void;
-  /** Rendered at the scrub position — the caller formats its own values. */
   tooltip?: (index: number) => ReactNode;
 }
 
@@ -191,8 +173,6 @@ const InsightChart = forwardRef<HTMLDivElement, InsightChartProps>(
               strokeWidth={2.25}
               strokeLinecap="round"
               strokeLinejoin="round"
-              // Two series in a monochrome skin separate by weight and dash,
-              // not by hue.
               stroke={index === 0 ? "var(--ink)" : "var(--ink-3)"}
               strokeDasharray={index === 0 ? undefined : "4 3"}
             />
@@ -260,7 +240,6 @@ InsightChartTooltipRow.displayName = "InsightChartTooltipRow";
 
 export interface InsightChartLegendItemProps
   extends HTMLAttributes<HTMLSpanElement>, VariantProps<typeof insightDeltaVariants> {
-  /** Which series this names — matches the chart's stroke order. */
   index?: number;
 }
 

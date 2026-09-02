@@ -18,13 +18,6 @@ export interface ItemRect {
 }
 
 interface UseProximityHoverOptions {
-  /**
-   * Which direction to resolve the nearest item along.
-   *   "y"  — vertical lists (default): closest by top/height
-   *   "x"  — horizontal strips: closest by left/width
-   *   "xy" — 2-D grids: closest card across both rows AND columns,
-   *          measured by Euclidean distance to each item's center
-   */
   axis?: "x" | "y" | "xy";
 }
 
@@ -32,19 +25,9 @@ interface UseProximityHoverReturn {
   activeIndex: number | null;
   setActiveIndex: Dispatch<SetStateAction<number | null>>;
   itemRects: ItemRect[];
-  /**
-   * True once every registered item has been measured and no remeasure is
-   * pending, i.e. `itemRects` describes the current item set. Gate absolutely
-   * positioned overlays on it: an overlay that mounts against a rect a later
-   * pass still corrects animates from the wrong place to the right one, which
-   * reads as the highlight sliding in from another row.
-   */
+  // gate positioned overlays on this: one mounted against a rect a later pass corrects animates in
+  // from the wrong row
   isMeasured: boolean;
-  /**
-   * Bumped on each mouse-enter. Consumers use it as a React `key` to restart
-   * a hover overlay's enter animation per session, so it drives render and is
-   * state rather than a ref.
-   */
   session: number;
   handlers: {
     onMouseMove: (e: MouseEvent) => void;
@@ -55,12 +38,8 @@ interface UseProximityHoverReturn {
   measureItems: () => void;
 }
 
-/**
- * How many frames the coalesced remeasure retries while the registered items
- * still have no layout box. A popup can be in the DOM one frame before it is
- * laid out; retrying beats publishing zeroed rects, and the cap keeps a list
- * that stays hidden for good from spinning frames forever.
- */
+// a popup can be in the DOM a frame before it is laid out, so the remeasure retries rather than
+// publishing zeroed rects; the cap keeps a list hidden for good from spinning forever
 const measurementAttempts = 3;
 
 export function useProximityHover<T extends HTMLElement>(
@@ -77,34 +56,23 @@ export function useProximityHover<T extends HTMLElement>(
   const rafIdRef = useRef<number | null>(null);
   const remeasureRafIdRef = useRef<number | null>(null);
 
-  /**
-   * Publishes a rect for every registered item. Returns false when the
-   * measurement could not be completed (no container, or an item without a
-   * layout box) — nothing is published in that case, so the last complete
-   * measurement stands instead of being overwritten with zeroes.
-   */
   const runMeasurement = useCallback(() => {
     const container = containerRef.current;
     if (!container) return false;
     const rects: ItemRect[] = [];
     let everyItemHasLayout = true;
     itemsRef.current.forEach((element, index) => {
-      // An element inside a display:none / not-yet-laid-out popup has no
-      // offsetParent and reports every offset as 0. Publishing that would pin
-      // overlays to the top of the list, so treat the whole pass as
-      // incomplete. A boxless element is the only case: `position: fixed`
-      // items also have no offsetParent but do have a size.
+      // an element in a display:none or not-yet-laid-out popup has no offsetParent and reports 0
+      // for every offset, which would pin overlays to the top; position: fixed items also lack an
+      // offsetParent but do have a size, so the box is the test
       const hasLayoutBox =
         element.offsetParent !== null || element.offsetWidth > 0 || element.offsetHeight > 0;
       if (!hasLayoutBox) {
         everyItemHasLayout = false;
         return;
       }
-      // Use offset* instead of getBoundingClientRect so measurements are
-      // unaffected by CSS transforms (e.g. scaleY animation on the parent
-      // motion.div). offsetTop/offsetLeft are layout values relative to the
-      // offsetParent (the scroll container), matching the coordinate space
-      // used by `position: absolute` children.
+      // offset*, not getBoundingClientRect: layout values ignore the parent motion.div's scale
+      // transform and match the space position: absolute children use
       rects[index] = {
         top: element.offsetTop,
         height: element.offsetHeight,
@@ -113,8 +81,6 @@ export function useProximityHover<T extends HTMLElement>(
       };
     });
     if (!everyItemHasLayout) return false;
-    // Skip the state update when nothing moved (a cheap top/left/width/height
-    // compare) so redundant remeasures don't churn re-renders.
     const prev = itemRectsRef.current;
     let changed = prev.length !== rects.length;
     for (let i = 0; !changed && i < rects.length; i++) {
@@ -140,15 +106,9 @@ export function useProximityHover<T extends HTMLElement>(
     runMeasurement();
   }, [runMeasurement]);
 
-  /**
-   * The hook's single measurement pass: coalesces every trigger (item
-   * registration, container resize) into one remeasure on the next frame and
-   * is the only place readiness is reported, so `isMeasured` can never turn
-   * true while another pass is still queued.
-   */
+  // the only place readiness is reported, so isMeasured cannot turn true while another pass is queued
   const scheduleMeasurement = useCallback(
-    // Named function expression: the retry recurses into the function itself,
-    // not into the `scheduleMeasurement` binding useCallback is still building.
+    // named so the retry recurses into the function itself, not the binding useCallback is still building
     function schedule(attemptsLeft: number): void {
       if (remeasureRafIdRef.current !== null) {
         cancelAnimationFrame(remeasureRafIdRef.current);
@@ -166,18 +126,14 @@ export function useProximityHover<T extends HTMLElement>(
   );
 
   const remeasure = useCallback(() => {
-    // Readiness drops first: until the pass below settles, the published rects
-    // may not describe what is on screen, and an overlay positioned from them
-    // would be corrected after mounting — which animates as a slide.
+    // readiness drops first: an overlay positioned from the stale rects would be corrected after
+    // mounting, which animates as a slide
     setIsMeasured(false);
     scheduleMeasurement(measurementAttempts);
   }, [scheduleMeasurement]);
 
-  // Observes the registered items themselves (not just the container): rows
-  // that change size in place — e.g. the site-wide size step flipping while a
-  // selection background is up — must invalidate the published rects even when
-  // the container the effect below captured has since been remounted and the
-  // ref points at a different element than the one being observed.
+  // observes the items themselves, not only the container: a row changing size in place must
+  // invalidate the rects even after the container remounted under a different element
   const itemRoRef = useRef<ResizeObserver | null>(null);
   const getItemRo = useCallback(() => {
     if (itemRoRef.current === null && globalThis.ResizeObserver !== undefined) {
@@ -196,10 +152,6 @@ export function useProximityHover<T extends HTMLElement>(
         if (previous) itemRoRef.current?.unobserve(previous);
         itemsRef.current.delete(index);
       }
-      // Coalesce rapid register/unregister calls (e.g. when an AnimatePresence
-      // remounts a list of rows) into a single remeasure on the next frame,
-      // so consumers don't have to manually call measureItems after the
-      // container's children swap.
       remeasure();
     },
     [remeasure, getItemRo],
@@ -221,11 +173,6 @@ export function useProximityHover<T extends HTMLElement>(
 
         const containerRect = container.getBoundingClientRect();
 
-        // ── 2-D grid path ──────────────────────────────────────────
-        // When items wrap into rows and columns, a single-axis nearest
-        // pick can't tell which card the cursor is closest to. Resolve
-        // by Euclidean distance to each item's center, and prefer any
-        // item the cursor is actually inside (point-in-rect).
         if (axis === "xy") {
           let closestIndex: number | null = null;
           let closestDistance = Infinity;
@@ -236,9 +183,7 @@ export function useProximityHover<T extends HTMLElement>(
           const scrollY = container.scrollTop;
           const borderX = container.clientLeft;
           const borderY = container.clientTop;
-          // Map layout coords into visual/viewport space, accounting for any
-          // cumulative ancestor transform: scale (see the single-axis note
-          // below). X and Y scale independently.
+          // map layout coords into viewport space, correcting for ancestor scale on each axis
           const scaleX =
             container.offsetWidth > 0 ? containerRect.width / container.offsetWidth : 1;
           const scaleY =
@@ -283,14 +228,11 @@ export function useProximityHover<T extends HTMLElement>(
         let containingIndex: number | null = null;
 
         const rects = itemRectsRef.current;
-        // Convert content-relative rects to viewport coords using live scroll
         const scrollOffset = axis === "x" ? container.scrollLeft : container.scrollTop;
         const borderOffset = axis === "x" ? container.clientLeft : container.clientTop;
         const containerEdge = axis === "x" ? containerRect.left : containerRect.top;
-        // Item rects are layout values (offset*); the container's bounding rect
-        // reflects any cumulative ancestor transform: scale. Compute the scale
-        // factor so we can map layout coords into the same visual viewport
-        // space the mouse cursor lives in.
+        // item rects are layout values while the container rect carries any ancestor scale, so
+        // the factor maps them into the cursor's space
         const layoutSize = axis === "x" ? container.offsetWidth : container.offsetHeight;
         const visualSize = axis === "x" ? containerRect.width : containerRect.height;
         const scale = layoutSize > 0 ? visualSize / layoutSize : 1;
@@ -335,11 +277,8 @@ export function useProximityHover<T extends HTMLElement>(
     setActiveIndex(null);
   }, []);
 
-  // Remeasure when the container resizes — a reflow moves items even though
-  // the registered set is unchanged, which would otherwise leave itemRects
-  // stale. Coalesced through the same rAF as register/unregister. Readiness is
-  // deliberately not dropped: the item set is unchanged, so the published rects
-  // stay usable, and hiding overlays on every reflow would flicker them.
+  // readiness is not dropped on a container resize: the item set is unchanged, and hiding the
+  // overlays on every reflow would flicker them
   useEffect(() => {
     const container = containerRef.current;
     if (!container || globalThis.ResizeObserver === undefined) return;
@@ -348,7 +287,6 @@ export function useProximityHover<T extends HTMLElement>(
     return () => ro.disconnect();
   }, [containerRef, scheduleMeasurement]);
 
-  // Clean up rAF and the item observer on unmount
   useEffect(() => {
     return () => {
       if (rafIdRef.current !== null) {

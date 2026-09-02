@@ -26,11 +26,7 @@ export const timelineConversationRowSchema = timelineRowBaseSchema.extend({
   kind: z.literal("conversation"),
   role: z.enum(["user", "assistant"]),
   text: z.string(),
-  /**
-   * What the sender was looking at, so the user can SEE what the agent was
-   * told. Nullable rather than optional: every constructor of a conversation
-   * row has to answer, and most of them answer null.
-   */
+  // nullable rather than optional: every constructor of a conversation row has to answer
   viewContext: viewContextSchema.nullable(),
 });
 export type TimelineConversationRow = z.infer<typeof timelineConversationRowSchema>;
@@ -135,30 +131,14 @@ export const timelineRowSchema: z.ZodType<TimelineRow> = z.lazy(() =>
 
 export const threadTimelineSchema = z.object({
   rows: z.array(timelineRowSchema),
-  /** High-water mark of the projected events; the client's next `afterSequence`. */
   maxSequence: z.number().int().nonnegative(),
   tokenUsage: threadEventTokenUsageSchema.nullable(),
 });
 export type ThreadTimeline = z.infer<typeof threadTimelineSchema>;
 
-/**
- * Incremental update to a previously-fetched timeline. The server computes it
- * by reprojecting the full timeline (correct by construction — grouping and
- * finalize semantics are preserved) and diffing it against the timeline the
- * base prefix projects to — a base it can reconstruct EXACTLY, or it answers
- * full instead (bb's rule).
- *
- * `fromSequence` names that base: the maxSequence of the timeline the client
- * said it holds. `applyTimelineDelta` refuses a delta whose base is not the
- * held timeline, so a stale or reordered response can never overwrite newer
- * rows — the caller falls back to a full fetch.
- *
- * `upsertRows` carries the full body of every row that was added or changed.
- * `rowOrder`, when present, is the complete, ordered id list of the current
- * timeline, so the client reconstructs exact ordering and membership. It is
- * omitted when both are unchanged, which avoids repeatedly sending every row
- * id while an active row is merely streaming new content.
- */
+// fromSequence names the base timeline; applyTimelineDelta refuses a delta whose base is not
+// the held one. rowOrder is omitted when order and membership are unchanged, so a streaming
+// row does not resend every id.
 export const timelineDeltaSchema = z.object({
   fromSequence: z.number().int().nonnegative(),
   maxSequence: z.number().int().nonnegative(),
@@ -168,18 +148,10 @@ export const timelineDeltaSchema = z.object({
 });
 export type TimelineDelta = z.infer<typeof timelineDeltaSchema>;
 
-/**
- * Diff a freshly-projected timeline against the one its base prefix projects
- * to. Pure; used by the server to build a {@link TimelineDelta}.
- */
 export function computeTimelineDelta(base: ThreadTimeline, current: ThreadTimeline): TimelineDelta {
-  // A row's `sourceSeqEnd` is the last sequence that contributed to it (a turn
-  // row's counts its children), so when `current` EXTENDS `base` a row that has
-  // not moved past `base.maxSequence` is byte-identical to the one base holds —
-  // and serializing it to discover that is the whole cost of this function on a
-  // long thread. The precondition matters: for an arbitrary pair (a shorter
-  // `current`, which the server never asks for but this pure function still
-  // has to answer) the reasoning inverts, so the filter stands down.
+  // when current extends base, a row whose sourceSeqEnd has not passed base.maxSequence is
+  // identical to base's, and serializing it to learn that is this function's whole cost on a
+  // long thread; for a shorter current the reasoning inverts, so the filter stands down
   const extendsBase = current.maxSequence >= base.maxSequence;
   const prevById = new Map<string, TimelineRow>();
   for (const row of base.rows) {
@@ -209,13 +181,7 @@ export function computeTimelineDelta(base: ThreadTimeline, current: ThreadTimeli
   return orderChanged ? { ...envelope, upsertRows, rowOrder } : { ...envelope, upsertRows };
 }
 
-/**
- * Apply a {@link TimelineDelta} to the timeline the client currently holds,
- * yielding the new full timeline. Returns `null` — refetch in full — when the
- * delta's base is not the held timeline (`fromSequence` mismatch), or when it
- * references a row the client neither holds nor was sent. Applying a delta to
- * its own base is always identical to a full rebuild.
- */
+// null means refetch in full: the base does not match, or a row is neither held nor sent
 export function applyTimelineDelta(
   held: ThreadTimeline,
   delta: TimelineDelta,

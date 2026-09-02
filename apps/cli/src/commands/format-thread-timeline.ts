@@ -1,9 +1,5 @@
-// Compact text rendering of a ThreadTimeline for `inteligir action show`.
-// Terminal presentation, not a shared read model, so it lives beside its one
-// caller rather than in the contract. The shape follows bb's format-timeline-text
-// (github.com/get-bb/bb, MIT) trimmed to v1's row grammar. Deliberately
-// deterministic: no timestamps, no color — the same timeline always renders
-// the same bytes, so CLI output tests can pin it.
+// shape follows bb's format-timeline-text (github.com/get-bb/bb, MIT).
+// deterministic on purpose (no timestamps, no colour) so output tests can pin the bytes.
 
 import type {
   ThreadTimeline,
@@ -15,7 +11,6 @@ import type {
 const CHILD_INDENT = "  ";
 const SNIPPET_LIMIT = 100;
 
-/** First line of a possibly-multiline text, bounded, with a cut marker. */
 function snippet(text: string): string {
   const firstLine = text.split("\n", 1)[0] ?? "";
   if (firstLine.length <= SNIPPET_LIMIT) {
@@ -57,8 +52,6 @@ function formatRow(row: TimelineRow): string[] {
     case "error":
       return [`── error ──`, row.detail === null ? row.message : `${row.message}\n${row.detail}`];
     case "work":
-      // A work row outside a turn (the projection's orphan fallback) keeps
-      // the same one-line shape it would have had as a child.
       return formatWorkRow(row);
     case "turn": {
       const children = row.children

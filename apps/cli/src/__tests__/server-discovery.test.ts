@@ -1,7 +1,3 @@
-// Discovery is a FILE READ, so what there is to pin is which data dir the
-// CLI decides it means, and that a missing or unreadable row fails closed with
-// a sentence a user can act on rather than dialing something.
-
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { DEV_DATA_ROOT_DIR, PROD_DATA_DIR_NAME } from "../server/config";
@@ -16,8 +12,6 @@ function scratch(): string {
   return makeTempDir("inteligir-cli-discovery-");
 }
 
-/** A row on disk, including the truncated shapes a reader must refuse — this
- *  helper only serializes; `readServerFile` is what decides admissibility. */
 function writeServerRow(dataDir: string, row: Partial<ServerFile>): void {
   mkdirSync(dataDir, { recursive: true });
   writeFileSync(join(dataDir, SERVER_FILE_NAME), JSON.stringify(row), "utf8");
@@ -25,8 +19,6 @@ function writeServerRow(dataDir: string, row: Partial<ServerFile>): void {
 
 const CHECKOUT = "/repo";
 
-/** The CliExitError `work` throws — narrowed by a predicate rather than an
- *  assertion, so a different failure fails the test instead of being cast. */
 function captureExit(work: () => void): CliExitError {
   try {
     work();
@@ -111,8 +103,6 @@ describe("resolveServer", () => {
   });
 
   it("treats a row it cannot parse as no server at all", () => {
-    // A truncated write or a newer build's shape must fail closed rather than
-    // send a credential at whatever port happened to parse out of it.
     const homeDir = scratch();
     const dataDir = join(homeDir, "data");
     writeServerRow(dataDir, { port: 24911 });

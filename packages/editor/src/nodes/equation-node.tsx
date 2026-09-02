@@ -1,8 +1,4 @@
 // Vendored from plate (github.com/udecode/plate), MIT. © Plate contributors.
-// Equation nodes ($$ block / $$x$$ inline): KaTeX preview (lazy chunk — see
-// equation-katex.tsx) with click-to-edit raw TeX in a popover textarea.
-// Editing writes the node's `texExpression`; Enter/Done commits and closes,
-// Escape restores the expression the popover opened with.
 
 import { Suspense, lazy, useEffect, useRef, useState } from "react";
 import { RadicalIcon } from "lucide-react";
@@ -28,8 +24,7 @@ function tex(element: TElement): string {
   return stringProp(element, "texExpression") ?? "";
 }
 
-// Re-derivation of @platejs/math's useEquationInput (the package is not a
-// dependency — its base plugin eagerly imports katex; see math-kit.tsx).
+// re-derives @platejs/math's useEquationInput; the package eagerly imports katex (math-kit.tsx).
 function EquationEditor({
   isInline,
   onClose,
@@ -96,7 +91,6 @@ function useEquationPopover() {
 
   const close = () => {
     setOpen(false);
-    // Put the caret after the node so typing continues naturally.
     editor.tf.select(element, { focus: true, next: true });
   };
   return { close, open, setOpen };
@@ -108,11 +102,11 @@ export function EquationElement(props: PlateElementProps) {
   const { close, open, setOpen } = useEquationPopover();
   const expression = tex(props.element);
 
+  // the trigger is a div: a <button> cannot contain KaTeX's block-level display markup.
   return (
     <PlateElement {...props} className="my-1">
       <Popover open={open} onOpenChange={(next) => !readOnly && setOpen(next)}>
         <PopoverTrigger
-          // A <button> can't contain KaTeX's block-level display markup.
           render={<div role="button" />}
           nativeButton={false}
           className={cn(
@@ -158,7 +152,6 @@ export function InlineEquationElement(props: PlateElementProps) {
     <PlateElement {...props} as="span" className="mx-px inline-block rounded-sm select-none">
       <Popover open={open} onOpenChange={(next) => !readOnly && setOpen(next)}>
         <PopoverTrigger
-          // Inline chip stays a span (a nested <button> would break the line).
           render={<span role="button" />}
           nativeButton={false}
           className={cn(

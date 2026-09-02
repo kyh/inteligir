@@ -1,7 +1,4 @@
-// The hover preview's text: a note's head as PLAIN prose — frontmatter and
-// dialect plumbing dropped, formatting characters stripped — never a nested
-// editor. Regex-level on purpose: a hover tooltip earns a cheap
-// approximation, not a parse.
+// regex-level on purpose: a hover tooltip earns a cheap approximation, not a parse.
 
 const PREVIEW_MAX_LINES = 20;
 
@@ -19,7 +16,6 @@ function wikiBodyLabel(body: string): string {
   return pipe === -1 ? body : body.slice(pipe + 1);
 }
 
-/** The first ~20 content lines of `markdown`, as stripped plain text. */
 export function notePreviewHead(markdown: string): string {
   const body = markdown.replace(FRONTMATTER_RE, "");
   const lines: string[] = [];

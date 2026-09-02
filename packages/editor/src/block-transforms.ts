@@ -1,8 +1,4 @@
-// "Turn into" block-type conversions + block move operations, shared by the
-// slash menu, the block menu (context/grip), and the selection toolbar — one
-// source per decision #8: paragraph/H1-3/quote/callout([!NOTE] marker)/code/
-// toggle/todo/bullet/numbered; columns are NOT a turn-into target. Lists are
-// indent-based (a paragraph carrying `listStyleType` + `indent`).
+// Lists are indent-based paragraphs (`listStyleType` + `indent`); columns are not a turn-into target.
 
 import { ElementApi, KEYS, NodeApi, PathApi, type Path, type TElement, type TRange } from "platejs";
 import type { PlateEditor } from "platejs/react";
@@ -10,10 +6,7 @@ import type { PlateEditor } from "platejs/react";
 import { wrapBlockInToggle } from "@repo/editor/kits/toggle-kit";
 import { stringProp } from "@repo/editor/node-props";
 
-/** The menu's vocabulary. Every caller names a row by this id, never by its
- * display label — a label is what a person reads, and looking one up by string
- * made "rename the menu entry" a silent behaviour change three call sites
- * away. */
+// Callers name rows by id, never by label: a label lookup made renaming a menu entry a silent behaviour change.
 export type TurnIntoId =
   | "text"
   | "heading-1"
@@ -32,11 +25,9 @@ export type TurnIntoOption = {
   label: string;
   type: string;
   listStyleType?: string;
-  /** GitHub-alert marker inserted at block start (the product's callout). */
   marker?: string;
 };
 
-/** Closed over the vocabulary: a new id must declare its row here. */
 const TURN_INTO_ROWS = {
   text: { id: "text", label: "Text", type: KEYS.p },
   "heading-1": { id: "heading-1", label: "Heading 1", type: KEYS.h1 },
@@ -61,7 +52,6 @@ const TURN_INTO_ROWS = {
   toggle: { id: "toggle", label: "Toggle", type: KEYS.toggle },
 } satisfies Record<TurnIntoId, TurnIntoOption>;
 
-/** Menu order — the rows' own record has none. */
 const TURN_INTO_ORDER: readonly TurnIntoId[] = [
   "text",
   "heading-1",
@@ -78,20 +68,13 @@ const TURN_INTO_ORDER: readonly TurnIntoId[] = [
 
 export const TURN_INTO: readonly TurnIntoOption[] = TURN_INTO_ORDER.map((id) => TURN_INTO_ROWS[id]);
 
-/** The row an id names. Total — every id has a row, so no caller carries a
- *  "not found" branch. */
 export function turnIntoOption(id: TurnIntoId): TurnIntoOption {
   return TURN_INTO_ROWS[id];
 }
 
 const ALERT_MARKER_RE = /^\[!(?:NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s?/;
 
-/**
- * The block a turn-into acts on for a selection sitting at `at`: normally the
- * lowest block, but a toggle's SUMMARY row (first nested child) stands for
- * the toggle itself — converting "Toggle → Text" from the toolbar must
- * unwrap the toggle, not no-op on the paragraph inside it.
- */
+// A toggle's summary row (first child) stands for the toggle: "Toggle → Text" must unwrap it, not no-op on the inner paragraph.
 export function effectiveBlockEntry(editor: PlateEditor, at?: TRange): [TElement, Path] | null {
   const block = editor.api.block(at ? { at } : {});
   if (!block || !ElementApi.isElement(block[0])) return null;
@@ -113,8 +96,6 @@ function retargetToggleSummary(editor: PlateEditor, entry: [TElement, Path]): [T
   return entry;
 }
 
-/** The TURN_INTO row describing `node` — the toolbar's type indicator reads
- *  its label, the shortcut batch its id. */
 export function turnIntoOptionFor(node: TElement): TurnIntoOption {
   const listStyleType = stringProp(node, "listStyleType");
   if (listStyleType !== undefined) {
@@ -127,9 +108,7 @@ export function turnIntoOptionFor(node: TElement): TurnIntoOption {
   return match ?? TURN_INTO_ROWS.text;
 }
 
-// Strip a leading GitHub-alert marker (unless the target wants one). Only
-// when the block's first leaf carries the whole marker — a marker split
-// across marks is left alone rather than half-deleted.
+// Only when the first leaf carries the whole marker; one split across marks is left alone rather than half-deleted.
 function stripAlertMarker(editor: PlateEditor, at: Path): void {
   const start = editor.api.start(at);
   if (!start) return;
@@ -142,28 +121,19 @@ function stripAlertMarker(editor: PlateEditor, at: Path): void {
   });
 }
 
-/**
- * Convert the block at `at` to the given target. Structural sources unwrap
- * first (toggle promotes its children and converts the summary; a code block
- * becomes one paragraph per code line), then the target applies.
- */
 export function turnIntoAt(editor: PlateEditor, at: Path, opt: TurnIntoOption): void {
   editor.tf.withoutNormalizing(() => {
     const entry = editor.api.node(at);
     if (!entry || !ElementApi.isElement(entry[0])) return;
     let node = entry[0];
 
-    // Source: toggle → promote children; the summary (first child, now at
-    // `at`) is what converts.
     if (node.type === editor.getType(KEYS.toggle)) {
       if (opt.type === KEYS.toggle) return;
       editor.tf.unwrapNodes({ at });
       const summary = editor.api.node(at);
       if (!summary || !ElementApi.isElement(summary[0])) return;
       node = summary[0];
-    }
-    // Source: code block → one paragraph per code line, then convert each.
-    else if (node.type === editor.getType(KEYS.codeBlock)) {
+    } else if (node.type === editor.getType(KEYS.codeBlock)) {
       if (opt.type === KEYS.codeBlock) return;
       const index = at[at.length - 1];
       if (index === undefined) return;
@@ -180,8 +150,6 @@ export function turnIntoAt(editor: PlateEditor, at: Path, opt: TurnIntoOption): 
       return;
     }
 
-    // Source: alert blockquote → drop the marker unless the target is the
-    // callout itself (its marker is re-ensured below).
     if (node.type === editor.getType(KEYS.blockquote)) {
       if (!opt.marker) stripAlertMarker(editor, at);
     }
@@ -207,15 +175,13 @@ function applyTarget(editor: PlateEditor, at: Path, opt: TurnIntoOption): void {
           .map((line) => ({ children: [{ text: line }], type: editor.getType(KEYS.codeLine) })),
         type: editor.getType(KEYS.codeBlock),
       },
-      // select: the caret lands in the new code block (slash-mermaid seeds
-      // its graph through the selection right after converting).
+      // slash-mermaid seeds its graph through the selection right after converting
       { at, select: true },
     );
     return;
   }
   if (opt.listStyleType) {
-    // Todo items need `checked` so the serializer emits `- [ ]` (without it
-    // the item round-trips to a plain bullet).
+    // without `checked` the serializer emits a plain bullet
     const props =
       opt.listStyleType === "todo"
         ? { checked: false, indent: 1, listStyleType: opt.listStyleType, type: KEYS.p }
@@ -234,19 +200,13 @@ function applyTarget(editor: PlateEditor, at: Path, opt: TurnIntoOption): void {
   }
 }
 
-/**
- * Convert every block intersecting `at` (a remembered range), or the current
- * selection if omitted. Taking an explicit range avoids depending on
- * editor.selection being restored after a popover stole focus.
- */
+// Takes an explicit range so it does not depend on editor.selection being restored after a popover stole focus.
 export function turnIntoSelection(editor: PlateEditor, opt: TurnIntoOption, at?: TRange): void {
   const entries = editor.api.blocks(at ? { at, mode: "lowest" } : { mode: "lowest" });
   editor.tf.withoutNormalizing(() => {
     const seen = new Set<string>();
     for (const [node, path] of entries) {
       if (!ElementApi.isElement(node)) continue;
-      // A toggle's summary row stands for the toggle itself (dedupe so a
-      // range spanning summary + body doesn't convert the toggle twice).
       const [, target] = retargetToggleSummary(editor, [node, path]);
       const key = target.join(".");
       if (seen.has(key)) continue;
@@ -256,18 +216,12 @@ export function turnIntoSelection(editor: PlateEditor, opt: TurnIntoOption, at?:
   });
 }
 
-/** Convert the blocks at `paths` (block-menu path: acts on block selection). */
 export function turnIntoBlocks(editor: PlateEditor, paths: Path[], opt: TurnIntoOption): void {
   editor.tf.withoutNormalizing(() => {
     for (const path of paths) turnIntoAt(editor, path, opt);
   });
 }
 
-/**
- * Move the span of blocks from the first to the last of `paths` one step
- * up/down among their siblings, implemented as a single move of the flanking
- * sibling across the group (no per-block path shifting). No-ops at the edges.
- */
 export function moveBlocks(editor: PlateEditor, paths: Path[], direction: "up" | "down"): void {
   if (paths.length === 0) return;
   const sorted = paths.toSorted(PathApi.compare);
@@ -280,8 +234,7 @@ export function moveBlocks(editor: PlateEditor, paths: Path[], direction: "up" |
   if (direction === "up") {
     if (firstIndex === 0) return;
     const prev = [...first.slice(0, -1), firstIndex - 1];
-    // `to` is the node's FINAL index (post-removal): the previous sibling
-    // lands where the group's last block was, i.e. directly below it.
+    // moveNodes' `to` is the post-removal index, so the previous sibling lands just below the group
     const to = [...last.slice(0, -1), lastIndex];
     editor.tf.moveNodes({ at: prev, to });
     return;

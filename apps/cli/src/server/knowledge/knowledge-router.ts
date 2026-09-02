@@ -1,10 +1,3 @@
-// The knowledge handlers. Read-only: every one settles the index (via the
-// runtime) and answers from it. `tag:<name>` terms are parsed ENGINE-side
-// (parseSearchQuery), so the grammar here is the same one every other search
-// surface gets. Paths arrive already parsed and normalized by
-// `vaultPathSchema`, so nothing here can be handed a traversal to refuse —
-// which is why no handler below names a refusal class.
-
 import { SEARCH_DEFAULT_LIMIT } from "@repo/notes/knowledge/knowledge-index";
 import { RELATED_DEFAULT_LIMIT } from "@repo/notes/knowledge/related-notes";
 import { parseSearchQuery } from "@repo/notes/knowledge/vault-search";

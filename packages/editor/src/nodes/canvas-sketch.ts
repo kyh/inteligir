@@ -1,9 +1,5 @@
-// Cell-wise edits over the canvas text grid. A stroke rewrites ONLY the
-// cells it touched: untouched cells keep their exact original characters
-// (existing payloads draw with arbitrary ink glyphs), the header and the
-// labels line pass through verbatim, and short rows are padded with `.` only
-// as far as a painted cell requires. `#` is the ink the vendored skill's own
-// example writes.
+// A stroke rewrites only the cells it touched: untouched cells keep their original glyphs
+// (existing payloads use arbitrary ink), and rows are padded only as far as a painted cell requires.
 
 import {
   GRID_HEADER,
@@ -30,8 +26,6 @@ function splitPayload(value: string): SplitPayload | null {
   if (!isGridHeader(lines[0])) return null;
   const labelPrefix = labelLinePrefix(lines[1]);
   const gridStart = labelPrefix === null ? 1 : 2;
-  // The head is rewritten through the shared constants. Serialization keeps a
-  // rich block's payload verbatim.
   const labelLine = lines[1];
   const head =
     labelPrefix === null || labelLine === undefined
@@ -40,12 +34,7 @@ function splitPayload(value: string): SplitPayload | null {
   return { head, rows: lines.slice(gridStart) };
 }
 
-/**
- * Paint `cells` as ink (`#`) or empty (`.`). Off-grid cells are ignored, not
- * clamped — clamping would ink a border cell the pointer never touched.
- * Answers the input unchanged when the payload has no v2 header (the raw
- * editor owns that case) or no cell survives the bounds check.
- */
+// off-grid cells are ignored, not clamped: clamping would ink a border cell the pointer never touched.
 export function paintCanvasCells(
   value: string,
   cells: readonly CanvasCell[],
@@ -73,17 +62,12 @@ export function paintCanvasCells(
   return [...split.head, ...rows].join("\n");
 }
 
-/** Drop every grid row; the header and labels line survive. */
 export function clearCanvasGrid(value: string): string {
   const split = splitPayload(value);
   if (split === null) return value;
   return split.head.join("\n");
 }
 
-/**
- * The cells a pointer segment covers, linearly interpolated so a fast stroke
- * has no gaps. Both endpoints included; duplicates folded.
- */
 export function strokeSegmentCells(from: CanvasCell, to: CanvasCell): CanvasCell[] {
   const steps = Math.max(Math.abs(to.col - from.col), Math.abs(to.row - from.row));
   const seen = new Set<string>();

@@ -1,14 +1,3 @@
-// The composer's microphone: hold the state machine, draw one button, stream
-// the words as they are spoken. It never sends — dictation is input, not a
-// command channel, so the words land in the composer for the user to read and
-// edit. Live: frames go up a websocket as the user speaks, partials come back
-// for the composer to preview, and the final splices in on stop.
-//
-// THE BUTTON NEVER HIDES. With no model it is disabled and its label says what
-// it needs, because an affordance that disappears asks the reader to already
-// suspect it existed; on a machine with no usable runtime it says that instead.
-// Both are the sentence the server sent, not one this file invented.
-
 import { Button } from "@repo/ui/components/button";
 import { Spinner } from "@repo/ui/components/spinner";
 import { toast } from "@repo/ui/components/sonner";
@@ -27,28 +16,19 @@ import {
   type StreamCaptureHandle,
 } from "./dictation";
 
-/** Fast enough to read as live, slow enough that a meter costs a handful of
- *  renders a second rather than sixty. */
 const METER_INTERVAL_MS = 100;
 
-/** A finalize that never answers (a wedged worker) must not strand the button
- *  in `finalizing` forever — far longer than a tail decode, short enough that a
- *  user is not left waiting on nothing. */
+// A finalize a wedged worker never answers must not strand the button in
+// `finalizing`.
 const FINALIZE_TIMEOUT_MS = 15_000;
 
 export interface MicButtonProps {
   status: VoiceStatusResponse | undefined;
-  /** Called with the authoritative transcript on release; the composer decides
-   *  where it lands. */
   onTranscript: (transcript: string) => void;
-  /** The live partial to preview while recording, or null when dictation ends
-   *  (final, cancel, or error) — the composer renders it outside the field. */
   onPartial: (partial: string | null) => void;
-  /** The composer is mid-send; a dictation would race its own insertion. */
   disabled: boolean;
 }
 
-/** What the button says it needs, or null when it can be pressed. */
 export function micBlockedReason(status: VoiceStatusResponse | undefined): string | null {
   if (status === undefined) {
     return "Checking whether this machine can transcribe…";
@@ -73,9 +53,7 @@ export function MicButton({ status, onTranscript, onPartial, disabled }: MicButt
   const clientRef = useRef<DictationStreamClient | null>(null);
   const finalizeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Stop the microphone, drop the socket, and clear the live preview — the
-  // teardown every exit path runs. It touches only refs and props, never state,
-  // so a caller pairs it with its own `setState`.
+  // Touches refs and props only; each caller pairs it with its own setState.
   const stopSession = (): void => {
     if (finalizeTimerRef.current !== null) {
       clearTimeout(finalizeTimerRef.current);
@@ -88,8 +66,8 @@ export function MicButton({ status, onTranscript, onPartial, disabled }: MicButt
     onPartial(null);
   };
 
-  // The unmount cleanup must run the LATEST teardown (a stale `onPartial` would
-  // leave the preview orphaned), so it reaches it through a ref kept current.
+  // The unmount cleanup needs the latest teardown: a stale `onPartial` would
+  // leave the preview orphaned.
   const stopSessionRef = useRef(stopSession);
   useEffect(() => {
     stopSessionRef.current = stopSession;
@@ -146,8 +124,7 @@ export function MicButton({ status, onTranscript, onPartial, disabled }: MicButt
         // The session may have been cancelled while permission was pending.
         if (clientRef.current === client) {
           setState({ kind: "recording", level: 0 });
-          // Show the preview immediately ("Listening…") — the first real partial
-          // replaces the empty string as soon as words are recognized.
+          // "" shows the preview as "Listening…" until the first partial.
           onPartial("");
         } else {
           captureRef.current?.stop();
@@ -168,8 +145,7 @@ export function MicButton({ status, onTranscript, onPartial, disabled }: MicButt
       setState({ kind: "idle" });
       return;
     }
-    // Stop the microphone first, so no frame arrives after the finalize; the
-    // socket stays open until the server answers the final.
+    // Microphone first, so no frame arrives after the finalize.
     captureRef.current?.stop();
     captureRef.current = null;
     onPartial(null);

@@ -1,8 +1,3 @@
-// The `[[` picker's editor semantics, headless: the second `[` swaps in the
-// trigger element, completion consumes the literal first `[` (and a `!` for
-// embeds) and inserts the chip, cancel restores plain text, and a mid-picker
-// autosave serializes cleanly (wiki_input is structurally excluded).
-
 import { describe, expect, it } from "vitest";
 import { ElementApi, createSlateEditor, type TElement } from "platejs";
 import { serializeMd } from "@platejs/markdown";
@@ -35,7 +30,6 @@ function findByType(editor: Editor, type: string): TElement | null {
   return null;
 }
 
-/** Type `[[` at the end of block 0, returning the trigger element. */
 function openWikiPicker(editor: Editor): TElement {
   const end = editor.api.end([0]);
   if (!end) throw new Error("no end point");
@@ -66,7 +60,6 @@ describe("[[ trigger", () => {
   it("a mid-picker autosave serializes without the trigger element", () => {
     const editor = makeEditor("see ");
     openWikiPicker(editor);
-    // The literal first `[` serializes escaped; the element contributes nothing.
     expect(out(editor)).toBe("see \\[\n");
   });
 });
@@ -142,8 +135,7 @@ describe("body composition", () => {
   });
 
   it("falls back to the full (extension-less) path on ambiguity", () => {
-    // Two hub.md files: the bare stem resolves to exactly one of them
-    // (shortest path wins the tie), so the OTHER file must link by path.
+    // two hub.md files: the bare stem resolves to the shortest path, so the other must link by path.
     expect(resolve("hub")).toBe("wiki/hub.md");
     expect(wikiBodyForPath("wiki/hub.md", resolve)).toBe("hub");
     expect(wikiBodyForPath("notes/hub.md", resolve)).toBe("notes/hub");

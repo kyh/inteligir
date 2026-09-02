@@ -1,10 +1,6 @@
-// framer-motion's MotionStyle spells its optional properties without
-// `| undefined`, so under exactOptionalPropertyTypes React's CSSProperties
-// (whose optionals all carry it) can never be spread into a motion `style` —
-// even though the runtime meaning is identical, since motion, like React,
-// skips undefined entries. So the merge lives here, mirroring lib/css-vars.ts:
-// combine plain CSS with motion values, dropping undefined entries so the
-// returned object honestly fits MotionStyle's spelling.
+// MotionStyle spells its optionals without `| undefined`, so under exactOptionalPropertyTypes
+// React's CSSProperties cannot be spread into a motion style; dropping undefined entries makes
+// the merge fit
 
 import type { MotionStyle } from "framer-motion";
 import type { CSSProperties, HTMLAttributes } from "react";
@@ -25,9 +21,7 @@ export function motionStyle(...styles: (CSSProperties | MotionStyle | undefined)
   return merged;
 }
 
-/** The DOM handlers framer's motion elements redefine with their own
- *  signatures. A component that renders a motion element omits these from its
- *  public props and strips them from what it spreads in. */
+// the DOM handlers framer redefines with its own signatures
 export type MotionConflictHandler =
   | "onDrag"
   | "onDragStart"
@@ -38,8 +32,6 @@ export type MotionConflictHandler =
 
 type DomHandlerProps = Pick<HTMLAttributes<HTMLElement>, MotionConflictHandler>;
 
-/** A primitive's render props with the DOM-typed drag/animation handlers
- *  dropped, so the rest spreads into a motion element without a cast. */
 export function motionProps<P extends DomHandlerProps>(props: P): Omit<P, MotionConflictHandler> {
   const {
     onDrag: _onDrag,

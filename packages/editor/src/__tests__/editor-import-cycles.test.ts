@@ -1,23 +1,7 @@
-// Machine-enforce the editor-kit import acyclicity that the kit files also
-// assert in prose.
-//
-// The kit roots compose the Plate kit files, so a kit that EAGERLY imports
-// back into the shell seams (the editor host, the open-note store,
-// transclusion) closes a cycle around the kits. The failure mode is vicious:
-// a kit export evaluates to `undefined` at module-init time, so the editor
-// breaks intermittently, far from the import that caused it. The comments in
-// `transclusion.tsx`, `wiki-chip.tsx`, `block-list.tsx`, `wiki-link-kit.tsx`
-// and `wiki-input-key.ts` state the rule but cannot enforce it — oxlint and
-// knip do not detect cycles, so this test is the only thing in CI that does.
-//
-// The rule the code actually relies on is that those reach-backs are LAZY
-// (`React.lazy(() => import(...))`), which breaks the cycle at runtime. So this
-// walks only EAGER edges:
-//   - `import type` / `import { type X }` are erased by the compiler and cannot
-//     create a runtime cycle — excluded, or every type reference is a false
-//     positive.
-//   - dynamic `import(...)` is the deliberate escape hatch — excluded.
-// ---------------------------------------------------------------------------
+// A kit that eagerly imports back into the shell seams closes a cycle around the
+// kits, and a kit export then evaluates to undefined at module-init time; oxlint
+// and knip do not detect cycles. Only eager edges count: type-only imports are
+// erased and dynamic import() is the escape hatch.
 
 import { describe, expect, it } from "vitest";
 import fs from "node:fs";
@@ -25,16 +9,9 @@ import path from "node:path";
 
 const EDITOR = path.resolve(import.meta.dirname, "..");
 
-/**
- * BOTH kit roots, because they are not the same graph. `base-kit.ts` composes
- * the shared nodes; `EDITOR_KIT` is what the SHIPPED editor runs, and the kits
- * only it pulls in (the host, the comment store, the slash menu, the find bar,
- * the autocompletes) are exactly the reach-back surface this guard exists for.
- * Walking base-kit alone leaves that half unwatched.
- */
+// both roots: EDITOR_KIT pulls in the reach-back surface (host, comment store, slash menu) base-kit never sees
 const ENTRIES = ["kits/base-kit.ts", "kits/editor-kit.ts"] as const;
 
-/** Resolve a specifier to a file inside @repo/editor, or null if it leaves. */
 function resolve(specifier: string, fromFile: string): string | null {
   let base: string;
   if (specifier.startsWith("@repo/editor/")) {
@@ -42,7 +19,7 @@ function resolve(specifier: string, fromFile: string): string | null {
   } else if (specifier.startsWith(".")) {
     base = path.resolve(path.dirname(fromFile), specifier);
   } else {
-    return null; // node_modules / other workspaces — cannot close a local cycle
+    return null;
   }
   for (const candidate of [
     base,
@@ -56,8 +33,7 @@ function resolve(specifier: string, fromFile: string): string | null {
   return null;
 }
 
-/** Eager (value) import specifiers of a module. Strips comments first so a
- * specifier quoted in prose never counts as an edge. */
+// comments are stripped first so a specifier quoted in prose never counts as an edge
 function eagerImports(file: string): string[] {
   const source = fs
     .readFileSync(file, "utf8")
@@ -65,18 +41,14 @@ function eagerImports(file: string): string[] {
     .replace(/^\s*\/\/.*$/gm, "");
 
   const specifiers: string[] = [];
-  // `import ... from "x"` and bare `import "x"`. The `from` clause is captured
-  // so the type-only check can inspect what precedes it.
   const importRe = /import\s+(?:(type)\s+)?([\s\S]*?)\s*from\s*["']([^"']+)["']/g;
   for (const match of source.matchAll(importRe)) {
     const typeKeyword = match[1];
     const clause = match[2] ?? "";
     const specifier = match[3];
     if (specifier === undefined) continue;
-    // `import type X from` — fully erased.
     if (typeKeyword !== undefined) continue;
-    // `import { type A, type B } from` — erased only if EVERY binding is a
-    // type; a single value binding keeps the module edge.
+    // erased only if every binding is a type
     const named = clause.match(/^\{([\s\S]*)\}$/);
     if (named?.[1] !== undefined) {
       const bindings = named[1]
@@ -93,8 +65,6 @@ function eagerImports(file: string): string[] {
   return specifiers;
 }
 
-/** Depth-first search from `entry` over eager edges, returning the first cycle
- * as a path of repo-relative files. */
 function findCycle(entry: string): string[] | null {
   const onStack = new Set<string>();
   const done = new Set<string>();
@@ -139,8 +109,6 @@ describe("editor kit import graph", () => {
   });
 
   it.each(ENTRIES)("still walks a meaningful graph from %s (no-op resolver guard)", (relative) => {
-    // If resolution silently stopped working, the cycle check above would pass
-    // vacuously. Assert the entry really does reach a good chunk of the editor.
     const seen = new Set<string>();
     const queue = [path.join(EDITOR, relative)];
     while (queue.length > 0) {

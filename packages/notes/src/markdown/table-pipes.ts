@@ -1,13 +1,6 @@
-// Inteligir leaves a formula pill's pipes raw inside GFM table cells; stock
-// GFM would split `| {{5|5}} |`
-// split the pill across two cells. This pre-parse pass escapes pipes that sit
-// inside `{{…}}` spans on table-shaped lines to `\|` — the form the GFM cell
-// reader unescapes and our serializer already emits — so existing bytes
-// parse to the same tree ours do. Idempotent over canonical output (already-
-// escaped pipes are left alone), which keeps the fixpoint a fixpoint.
-//
-// Deliberately NOT applied to the knowledge scan (scan-parse.ts): its tree
-// positions drive rename byte-surgery, and this pass shifts columns.
+// stock gfm splits `| {{5|5}} |` across two cells, so pipes inside `{{…}}` on table-shaped lines
+// are escaped to `\|` ahead of micromark; idempotent over canonical output. not applied to the
+// knowledge scan: its tree positions drive rename byte-surgery and this pass shifts columns.
 
 import { activeLineMask, codeSpanRanges, inAnyRange, isEscapedAt } from "./line-scan";
 import type { Range } from "./line-scan";
@@ -25,8 +18,7 @@ function escapeLine(line: string): string {
     }
   }
   if (pillRanges.length === 0) return line;
-  // Only a pipe OUTSIDE every pill marks a table cell boundary: a lone pill
-  // on a prose line has nothing to protect and keeps its bytes.
+  // only a pipe outside every pill marks a cell boundary; a lone pill on a prose line keeps its bytes.
   let hasCellBoundary = false;
   for (let i = 0; i < line.length; i++) {
     if (line[i] === "|" && !isEscapedAt(line, i) && !inAnyRange(pillRanges, i)) {
@@ -51,8 +43,6 @@ function escapeLine(line: string): string {
   return out + line.slice(cursor);
 }
 
-/** Escape raw pipes inside `{{…}}` pills on table-shaped lines, skipping the
- * frontmatter block and code fences (their bytes are verbatim by contract). */
 export function escapePillPipesInTables(md: string): string {
   if (!md.includes("{{")) return md;
   const lines = md.split("\n");

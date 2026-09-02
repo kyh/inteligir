@@ -1,6 +1,4 @@
-// Renders the selection toolbar from the plugin tree (afterEditable) instead
-// of markdown-editor.tsx JSX, so it sits inside the editor's relative
-// positioning context that @platejs/floating computes against.
+// Rendered from the plugin tree so it sits inside the positioning context @platejs/floating computes against.
 
 import { createPlatePlugin } from "platejs/react";
 

@@ -1,27 +1,14 @@
-// A controlled `EditorHost` for tests.
-//
-// Editor components reach the shell through ONE injected value, which is what
-// makes them drivable without a vault, a Bridge or a workspace: mount them
-// under `EditorHostProvider` with this host and the assertion is what they
-// asked the shell to do. Every action records its call and answers with the
-// benign result its type promises, so a case names only the parts it is about.
-
 import type { VaultEntry } from "@repo/editor/host-io";
 import type { EditorHost, VaultActions } from "@repo/editor/host";
 
-/** One thing an editor component asked the shell for. */
 export type HostCall = { readonly action: keyof VaultActions; readonly args: readonly unknown[] };
 
 export type FakeEditorHostOptions = {
-  /** How `[[wiki targets]]` resolve. Default: nothing exists yet, which is the
-   * branch every create-on-click affordance hangs off. */
   readonly resolveWikiTarget?: (target: string) => string | null;
   readonly entries?: VaultEntry[];
   readonly folderName?: string;
-  /** The shell's panel under the editor column. Default: renders nothing. */
 };
 
-/** The injected host paired with the log of what was asked of it. */
 export type FakeEditorHost = { readonly host: EditorHost; readonly calls: HostCall[] };
 
 export function fakeEditorHost(options: FakeEditorHostOptions = {}): FakeEditorHost {

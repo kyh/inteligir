@@ -1,12 +1,3 @@
-// /settings is its own route, and the window-level hosts must answer there:
-// Unpair awaits `confirm()`, so the dialog has to OPEN on this route, and a
-// refused verb has to TOAST here rather than wait for the next visit to "/".
-// Both are driven through the real page against a real instance.
-//
-// The instance boots PAIRED against a cloud nothing answers on. The credential
-// file alone is what puts the Unpair button on screen — the sync loop's
-// refusals are beside the point, and a refused connection fails fast.
-
 import { setTimeout as delay } from "node:timers/promises";
 import { writeDeviceCredential } from "inteligir/server/cloud/credential-store";
 import { z } from "zod";
@@ -15,20 +6,18 @@ import { expect } from "../harness/assert";
 import type { Scenario } from "../harness/scenario";
 
 const agentBrowser = agentBrowserSession("settings");
-/** Nothing listens on port 1, so every request the pairing makes is refused
- *  at once rather than hanging on a timeout. */
+// nothing listens on port 1, so every cloud request is refused at once; the credential file alone
+// puts Unpair on screen.
 const DEAD_CLOUD_URL = "http://127.0.0.1:1";
 const CONNECTOR_NAME = "dupe";
 const CONNECTOR_URL = "https://mcp.example.com/mcp";
 const STATUS_DEADLINE_MS = 30_000;
 const ALERT_DIALOG = '[role="alertdialog"]';
 const TOAST = "[data-sonner-toast]";
-/** The add-connector form's fields, by the placeholders the page shows —
- *  their ids are React-minted per mount. */
+// by placeholder: the ids are React-minted per mount.
 const NAME_INPUT = 'input[placeholder="context7"]';
 const URL_INPUT = `input[placeholder="${CONNECTOR_URL}"]`;
-/** The form's own Add button by its exact label: `find text` would also
- *  match the "Add a connector" heading beside it. */
+// exact label: `find text` would also match the "Add a connector" heading beside it.
 const CLICK_ADD = `(() => {
   const button = [...document.querySelectorAll("button")].find((el) => el.textContent.trim() === "Add");
   if (!button) return "missing";
@@ -50,8 +39,7 @@ export const settingsBrowser: Scenario = {
           credential: `igd_${"0".repeat(64)}`,
         }),
     });
-    // The row the form's add will collide with — the one refusal this page
-    // reports through a toast rather than beside the field.
+    // the row the form's add will collide with.
     await app.api.connectors.add({
       name: CONNECTOR_NAME,
       transport: { kind: "http", url: CONNECTOR_URL },

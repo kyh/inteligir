@@ -96,9 +96,6 @@ describe("a tree with no rows says WHY it has none", () => {
   });
 
   it("says a FAILED read failed, and offers the retry", () => {
-    // The entries default to [] on failure, which is indistinguishable from an
-    // empty vault — so a user whose vault is unreadable gets told they have no
-    // notes.
     const onRetry = vi.fn();
     renderTree({ entries: [], loadState: "failed", onRetry });
     expect(screen.queryByText("The vault is empty.")).toBeNull();

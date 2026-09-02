@@ -25,9 +25,7 @@ import { SizeProvider, useSize, type SizeVariant } from "@repo/ui/lib/size-conte
 import { ProximityFocusRing } from "@repo/ui/hooks/proximity-overlays";
 import { useProximityHover } from "@repo/ui/hooks/use-proximity-hover";
 
-/** Base UI leaves a tab's value untyped. Every tab here carries its own index,
- *  and Base UI answers `null` when no tab is active — that is the whole domain,
- *  named once so both ends of the Base UI boundary agree on it. */
+// Base UI leaves the value untyped and answers null when no tab is active
 type TabValue = number | null;
 
 interface TabsSubtleContextValue {
@@ -48,16 +46,13 @@ interface TabsSubtleProps extends Omit<HTMLAttributes<HTMLDivElement>, "onSelect
   children: ReactNode;
   selectedIndex: number;
   onSelect: (index: number) => void;
-  /** Pins the tabs to one step of the size ladder (default 36px, compact
-   *  28px). Omitted, they follow the surrounding SizeProvider. */
   size?: SizeVariant;
 }
 
 const TabsSubtle = forwardRef<HTMLDivElement, TabsSubtleProps>(
   ({ children, selectedIndex, onSelect, size, className, ...props }, ref) => {
     const containerRef = useRef<HTMLDivElement>(null);
-    // State rather than a ref: the hover pill's `exit` is chosen during render
-    // from whether the pointer is still over the strip.
+    // state, not a ref: the hover pill's `exit` is chosen during render from this
     const [isMouseInside, setIsMouseInside] = useState(false);
     const radius = useRadius();
 
@@ -69,7 +64,6 @@ const TabsSubtle = forwardRef<HTMLDivElement, TabsSubtleProps>(
       registerItem: registerTab,
     } = useProximityHover(containerRef, { axis: "x" });
 
-    // Wrap handlers to track isMouseInside
     const handleMouseMove = useCallback(
       (e: React.MouseEvent) => {
         setIsMouseInside(true);
@@ -103,10 +97,6 @@ const TabsSubtle = forwardRef<HTMLDivElement, TabsSubtleProps>(
       [onSelect],
     );
 
-    // Root is merged into List via `render` so a single <div> is emitted.
-    // Base UI owns role="tablist", roving tabindex, and Arrow/Home/End
-    // keyboard navigation. `activateOnFocus={false}` keeps manual activation:
-    // arrows move focus, Enter/Space selects.
     const root = (
       <TabsSubtleContext.Provider value={contextValue}>
         <Tabs.Root
@@ -143,12 +133,9 @@ const TabsSubtle = forwardRef<HTMLDivElement, TabsSubtleProps>(
                 setHoveredIndex(null);
               }}
               className={cn(
-                // -mx-1 px-1 / -my-1 py-1 give the 2px-outset focus ring room
-                // to draw without being clipped by overflow-x-auto. The
-                // max-width allows for the negative margins: fit-content
-                // parents size against the margin box (8px narrower than the
-                // border box), so a plain max-w-full would clamp the list 8px
-                // too small and clip the first/last tab's ring.
+                // -m-1/p-1 give the focus ring room inside overflow-x-auto; fit-content parents
+                // size against the margin box, so a plain max-w-full would clamp the list 8px too
+                // small and clip the end tabs' rings.
                 "relative flex items-center gap-0.5 select-none overflow-x-auto max-w-[calc(100%_+_8px)] -mx-1 px-1 -my-1 py-1",
                 className,
               )}
@@ -219,7 +206,6 @@ const TabsSubtle = forwardRef<HTMLDivElement, TabsSubtleProps>(
       </TabsSubtleContext.Provider>
     );
 
-    // A size prop pins every tab to one ladder step.
     return size ? <SizeProvider size={size}>{root}</SizeProvider> : root;
   },
 );
@@ -247,11 +233,8 @@ const TabsSubtleItem = forwardRef<HTMLButtonElement, TabsSubtleItemProps>(
     const isSelected = selectedIndex === index;
     const isActive = hoveredIndex === index || isSelected;
 
-    // Both stacked spans carry the text-box trim so the invisible bold sizer
-    // and the visible label keep identical boxes.
+    // both stacked spans carry the text-box trim so the bold sizer and the label keep identical boxes
     return (
-      // Base UI Tab renders a native <button type="button"> and wires
-      // role="tab", aria-selected, roving tabindex, and activation for us.
       <Tabs.Tab
         ref={(node: HTMLElement | null) =>
           composeRefs<HTMLButtonElement>(
@@ -262,9 +245,7 @@ const TabsSubtleItem = forwardRef<HTMLButtonElement, TabsSubtleItemProps>(
         value={index}
         data-proximity-index={index}
         className={cn(
-          // Fixed heights (was py-2 around a 19.5px line box ≈ 35.5px) so the
-          // text-box trim on the label doesn't shrink the tab. Standalone
-          // pills sit directly on the ladder's control height.
+          // fixed heights so the label's text-box trim cannot shrink the tab
           "relative z-10 flex items-center cursor-pointer bg-transparent border-none outline-none",
           sizeClasses.control,
           sizeClasses.px,

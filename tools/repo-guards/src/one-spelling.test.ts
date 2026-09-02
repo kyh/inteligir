@@ -1,29 +1,6 @@
-// ---------------------------------------------------------------------------
-// One spelling per cross-cutting predicate.
-//
-// Every other guard in this repo checks REACHABILITY — does a declared thing
-// have a producer, a consumer, a row. None of them fails when a SECOND answer
-// to a question that already has one appears, and that is how this repo's most
-// expensive bugs arrive: "is path P under root R" was answered five ways with
-// four different edge-case sets (two of them byte-identical, refusal message
-// included), and one file decoded `git status --porcelain` three ways that
-// disagreed about framing, quoting and renames. A traversal that one gate
-// admits and another refuses reaches the second gate believing it passed the
-// first; a path spelling one reader unquotes and another does not is a file
-// silently left out of a commit.
-//
-// So each predicate below names the question, the ONE file that answers it,
-// and what a re-implementation LOOKS like. Everything the detector finds
-// outside that home is either a violation naming both sites, or a row in
-// `elsewhere` with the reason it is allowed to spell it too — and a row that
-// stops matching fails, so an exception cannot outlive its reason.
-//
-// Detection is textual and therefore a lower bound, stated rather than
-// implied: it finds the shapes these predicates were actually re-spelled in,
-// not every shape they could be. A guard that tried to find all of them would
-// have to fail OPEN on the ones it could not parse, and a fitness test may
-// not do that. What it buys is that the KNOWN shape cannot come back.
-// ---------------------------------------------------------------------------
+// a second answer to a question that already has one is how the expensive bugs arrive: a traversal
+// one gate admits and another refuses, a porcelain path one reader unquotes and another does not.
+// detection is textual and a lower bound: it finds the shapes these were actually re-spelled in.
 
 import fs from "node:fs";
 import path from "node:path";
@@ -32,32 +9,20 @@ import { REPO_ROOT, sourceOf, workspaceFiles, workspaces } from "./repo";
 
 interface Hit {
   file: string;
-  /** What was found, quoted back so the failure shows the offending shape. */
   what: string;
 }
 
 interface Predicate {
-  /** The question, as a sentence — the failure states it. */
   question: string;
-  /** The repo-relative file that answers it, and the symbols to reach for. */
   home: string;
   use: string;
-  /** Every re-spelling in a file, or [] when the file does not answer it. */
   detect: (source: string) => string[];
-  /**
-   * Files allowed to spell it anyway, and why. Each is drained below: a row
-   * whose file no longer matches the detector fails, so an exception cannot
-   * outlive the thing it excused.
-   */
   elsewhere: Record<string, string>;
 }
 
-/** `x.startsWith(<something built with a separator>)` — the prefix compare
- *  that IS containment, and the one whose separator is so easy to forget that
- *  `/vault-backup` reads as inside `/vault`. */
+// the prefix compare whose separator is so easy to forget that `/vault-backup` reads as inside
+// `/vault`.
 const JOINED_PREFIX = /\.startsWith\(\s*([^;\n]*)/g;
-/** `const rel = relative(a, b)` … `rel.startsWith("..")` — the other spelling,
- *  and the one whose refusal set is never the same twice. */
 const RELATIVE_BINDING = /(?:const|let|var)\s+(\w+)\s*=\s*(?:await\s+)?[\w.]*[Rr]elative\w*\s*\(/g;
 
 function containmentRespellings(source: string): string[] {
@@ -115,13 +80,10 @@ const PREDICATES: Predicate[] = [
   },
 ];
 
-/** This file, which spells every shape it searches for and would otherwise
- *  always find itself. Derived, so moving this guard cannot silently stop the
- *  exclusion — otherwise the guard would always find itself. */
+// this file spells every shape it searches for and would otherwise always find itself.
 const SELF = path.relative(REPO_ROOT, import.meta.filename);
 
-/** Every source file in the repo, shipped and test alike. A containment bug in
- *  a guard is still a containment bug. */
+// tests included: a containment bug in a guard is still a containment bug.
 function allSourceFiles(): string[] {
   return workspaces()
     .flatMap((workspace) => {
@@ -140,8 +102,6 @@ describe("one spelling per cross-cutting predicate", () => {
   const files = allSourceFiles();
 
   it("every declared home exists and still answers its question", () => {
-    // A home that moved, or a detector that stopped matching it, would let
-    // every assertion below pass by finding nothing anywhere.
     const violations: string[] = [];
     for (const predicate of PREDICATES) {
       if (!fs.existsSync(path.join(REPO_ROOT, predicate.home))) {

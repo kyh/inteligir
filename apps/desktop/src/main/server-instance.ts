@@ -1,34 +1,3 @@
-// WHICH INSTANCE this shell serves, where its server actually answers, and how
-// a stranger on the port is told from it.
-//
-// The shell does NOT decide which instance itself: it asks the server's own
-// resolver (`inteligir/server/config`, the same module the CLI's discovery
-// reuses), because a second, partial copy of that layering is how a window
-// ends up on a dead port. `resolveAppConfig` layers env →
-// `<dataDir>/config.json` → default.
-//
-// A spawned child is handed the two facts that DEFINE the instance — its data
-// dir and its vault dir — plus the mode, so it cannot re-derive a different
-// vault. It is NOT handed the port: `<dataDir>/server.json` names the port that
-// actually answered, so the child derives-and-binds (probing upward off a busy
-// dev default), and the shell reads back where it landed rather than dictating
-// it. Pinning the port would only disable that recovery.
-//
-// AND WHAT ANSWERS THERE STILL HAS TO PROVE ITSELF. A loopback port is
-// first-come-first-served and unauthenticated, so "something answered /health"
-// identifies nothing. Adoption is a deliberate capability — a user with
-// `inteligir serve` already running should get a window on the vault they are
-// already using rather than a second process fighting for the port — and that
-// is exactly why the responder has to EARN it.
-//
-// BOTH HALVES ARE REQUIRED, and `<dataDir>/server.json` carries them together.
-// Reading the file proves THIS process can read the data dir; presenting its
-// token back and being answered proves the RESPONDER is what wrote it. Either
-// half alone is not enough: a squatter on the port has no token, and a file
-// this shell cannot read names nothing it may adopt. The responder must also
-// still name the data dir this resolution derived — a real inteligir server
-// for a DIFFERENT vault is exactly the wrong window.
-
 import { createHash } from "node:crypto";
 import { join } from "node:path";
 import type { SystemStatusResponse } from "@repo/api/local/system/system-schema";
@@ -38,16 +7,11 @@ import { toErrorMessage } from "../types";
 import { createLocalClient } from "inteligir/server/local-client";
 import { readServerFile } from "inteligir/server/server-file";
 
-/** Loopback, never `localhost`: the name resolves to ::1 or 127.0.0.1
- *  depending on the machine, and the two are different ORIGINS to the pin. */
+// never `localhost`: it resolves to ::1 or 127.0.0.1 per machine, and those are different origins to the pin.
 export function serverOrigin(port: number): string {
   return `http://127.0.0.1:${port}`;
 }
 
-/** One resolution, carried whole: the two facts a spawned child is handed so
- *  it cannot resolve them again and disagree. The ORIGIN is not among them —
- *  it is what the server that answered says it is (`verifyServer`), because an
- *  adopted one may sit on a port this resolution never named. */
 export interface ServerTarget {
   dataDir: string;
   vaultDir: string;
@@ -55,8 +19,6 @@ export interface ServerTarget {
 
 export type ServerTargetResult =
   | { kind: "resolved"; target: ServerTarget }
-  /** A configuration the app itself refuses (a bad port, nested dirs); shown
-   *  rather than silently replaced by a default the user did not ask for. */
   | { kind: "refused"; error: string };
 
 export interface ResolveServerTargetArgs {
@@ -68,16 +30,9 @@ export interface ResolveServerTargetArgs {
 export function resolveServerTarget(args: ResolveServerTargetArgs): ServerTargetResult {
   try {
     const configArgs: ResolveAppConfigArgs = {
-      // The dev derivation hashes THE CHECKOUT, walked up to from wherever
-      // this process started — which is what lets `pnpm dev` (started in
-      // apps/desktop) and `pnpm cli …` (started wherever the developer stands)
-      // name the same instance. A packaged resolution derives nothing from it.
       checkoutPath: resolveCheckoutRoot(),
-      // `app.isPackaged` decides the mode, never the ambient NODE_ENV: a
-      // packaged install IS the production one and a checkout is not, and
-      // neither is something the launching environment may reinterpret. A
-      // shell that ran as production from a checkout would drive the
-      // developer's own ~/.inteligir and ~/Inteligir.
+      // `isPackaged` decides the mode, never the ambient NODE_ENV: a checkout run as
+      // production would drive the developer's real ~/.inteligir and ~/Inteligir.
       env: { ...args.env, NODE_ENV: args.isPackaged ? "production" : "development" },
     };
     if (args.homeDir !== undefined) {
@@ -96,10 +51,7 @@ export function resolveServerTarget(args: ResolveServerTargetArgs): ServerTarget
   }
 }
 
-/** The server that is actually listening for this data dir. `origin` is built
- *  from the BOUND port the file names, never from the configured one — a dev
- *  instance may have probed upward, and a window pinned to the derived value
- *  would be pinned to nothing. */
+// `origin` carries the bound port server.json names, not the configured one: a dev instance may have probed upward.
 export interface LiveServer {
   origin: string;
   token: string;
@@ -107,18 +59,12 @@ export interface LiveServer {
 
 export type ServerVerdict =
   | { kind: "verified"; live: LiveServer }
-  /** No server has published itself for this data dir. */
   | { kind: "no-server" }
-  /** A row exists but nothing usable answered on it. */
   | { kind: "unreachable"; origin: string }
-  /** Something answered, holding the token, but serving somewhere else. */
   | { kind: "wrong-data-dir"; origin: string; claimed: string };
 
 const PROBE_TIMEOUT_MS = 2_000;
 
-/** Asks one responder what it is serving, or null when it did not answer or
- *  refused the token. Injected so the verdicts below are drivable without a
- *  process on a port. */
 export type ProbeStatus = (server: LiveServer) => Promise<SystemStatusResponse | null>;
 
 const probeStatusOverRpc: ProbeStatus = async (server) => {
@@ -134,15 +80,9 @@ const probeStatusOverRpc: ProbeStatus = async (server) => {
   }
 };
 
-/**
- * Ask the data dir who is serving it, then make that answer prove itself.
- *
- * `system.status` is the probe because it is behind the token AND names the
- * data dir: one round trip settles "can this responder read what I read" and
- * "is it serving what I mean". A responder that never answers and one that
- * refuses the token are indistinguishable from here, and both are `not-ours`
- * in the only sense that matters — the shell will not adopt either.
- */
+// a loopback port is first-come-first-served, so a responder must answer this data dir's
+// token and name the data dir back; reading the file proves this process can read the
+// data dir, being answered proves the responder wrote it.
 export async function verifyServer(
   dataDir: string,
   probeStatus: ProbeStatus = probeStatusOverRpc,
@@ -162,8 +102,6 @@ export async function verifyServer(
   return { kind: "verified", live };
 }
 
-/** One sentence per verdict, for the log line and the dialog. A refusal the
- *  user cannot read is a refusal they will work around. */
 export function describeServerVerdict(verdict: ServerVerdict, dataDir: string): string {
   switch (verdict.kind) {
     case "verified":
@@ -177,29 +115,14 @@ export function describeServerVerdict(verdict: ServerVerdict, dataDir: string): 
   }
 }
 
-/**
- * What to do about the server, given whether a VERIFIED one already answered.
- *
- * The distinction is also what teardown depends on: the shell kills only the
- * child it started, and quitting must never stop a server it merely borrowed.
- */
 export type ServerPlan = "adopt" | "spawn";
 
 export function planServerStart(verified: boolean): ServerPlan {
   return verified ? "adopt" : "spawn";
 }
 
-/**
- * The environment a spawned child is handed: the instance's identity and its
- * mode, never its port.
- *
- * `NODE_ENV` is stated from `isPackaged` — the same fact `resolveServerTarget`
- * used above — because a Finder-launched packaged app inherits no `NODE_ENV`,
- * and a child that read the ambient one would resolve `dev` inside a production
- * install. The PORT is deliberately absent: pinning it sets the child's
- * `portSource` to `env`, which turns off the upward probe a busy dev default
- * relies on — and the shell learns the real port from `server.json` regardless.
- */
+// no port: pinning one sets the child's `portSource` to `env`, which turns off its upward probe.
+// NODE_ENV is stated because a Finder-launched app inherits none.
 export function serverProcessEnv(target: ServerTarget, isPackaged: boolean) {
   return {
     INTELIGIR_DATA_DIR: target.dataDir,
@@ -208,48 +131,18 @@ export function serverProcessEnv(target: ServerTarget, isPackaged: boolean) {
   };
 }
 
-/**
- * The CLI package to fork, derived from Electron's `app.getAppPath()`.
- *
- * ONE derivation serves both layouts. In a checkout, `node_modules/inteligir`
- * is pnpm's link to `apps/cli`; in a packaged app the same relative path lives
- * inside the asar — and an asar is not a filesystem a process can be forked
- * from, so `asarUnpack` puts node_modules beside it and the path is rewritten
- * to the unpacked twin. The negative lookahead makes the rewrite idempotent: an
- * appPath that already names the unpacked tree is left alone rather than turned
- * into `app.asar.unpacked.unpacked`.
- */
+// a process cannot be forked from inside an asar, so the path is rewritten to the `asarUnpack` twin.
 export function serverPackageDir(appPath: string): string {
   const unpacked = appPath.replace(/app\.asar(?!\.unpacked)/u, "app.asar.unpacked");
   return join(unpacked, "node_modules", "inteligir");
 }
 
-/**
- * The BUNDLE, in both layouts, and never the TypeScript source: Electron's
- * `utilityProcess` gives its child no module-customization loader thread, so
- * `--import tsx` registers nothing there and the first extensionless relative
- * import fails. `@repo/desktop#dev` therefore depends on `inteligir#build`, so
- * a checkout's bundle is current whenever the shell starts one — and a server
- * iterated on save is `pnpm cli serve` in its own terminal, which this shell
- * ADOPTS rather than fights.
- */
+// always the bundle: `utilityProcess` gives its child no loader thread, so `--import tsx` registers nothing there.
 export function serverEntryPath(appPath: string): string {
   return join(serverPackageDir(appPath), "dist", "index.js");
 }
 
-/**
- * The window's storage partition, keyed by the DATA DIR it serves.
- *
- * Never the default session, for two reasons. Electron's default session is
- * shared with anything else this process ever loads, and — the one that
- * matters — the shell's own scheme is ONE origin whatever vault is behind it:
- * two different vaults would otherwise read each other's localStorage,
- * IndexedDB and cookies. Keying the partition to the data dir makes the storage
- * follow the vault, which is what a user means by "my notes".
- *
- * `persist:` so it survives a restart; a per-boot partition would throw away
- * the workspace's own UI state on every launch.
- */
+// keyed by data dir: the app scheme is one origin whatever vault is behind it, so two vaults would share localStorage.
 export function sessionPartition(dataDir: string): string {
   const digest = createHash("sha256").update(dataDir).digest("hex").slice(0, 16);
   return `persist:inteligir-${digest}`;

@@ -1,7 +1,3 @@
-// Threads: the agent conversation surface — the thread row itself, the sends
-// that drive a turn, the timeline projection a client renders, and the pending
-// interactions a turn blocks on.
-
 import { pendingInteractionStatusSchema } from "@repo/domain/pending-interaction-status";
 import { approvalPendingInteractionPayloadSchema } from "@repo/domain/pending-interactions";
 import { threadStatusSchema } from "@repo/domain/thread-status";
@@ -15,12 +11,8 @@ export const threadSchema = z
     id: z.string().min(1),
     title: z.string().nullable(),
     status: threadStatusSchema,
-    /** The turn the status describes — the client's `expectedTurnId` source. */
     activeTurnId: z.string().nullable(),
-    /** The note this action was composed over; null for a plain chat. */
     originDocPath: z.string().nullable(),
-    /** The harness this thread runs on, once one ever dispatched; null adopts
-     *  the default at next dispatch. */
     providerId: z.string().nullable(),
     archivedAt: z.number().nullable(),
     createdAt: z.number(),
@@ -36,10 +28,8 @@ export const pendingInteractionSchema = z
     turnId: z.string().nullable(),
     requestKey: z.string().min(1),
     status: pendingInteractionStatusSchema,
-    /** The approval grammar, parsed server-side out of the row's JSON column.
-     *  null when those bytes do not match it: the card is still answerable —
-     *  deny is the one decision every request accepts — and a whole thread
-     *  must not fail to load because one payload is unreadable. */
+    // null when the stored json does not parse: the card stays answerable (deny), and one bad
+    // payload must not fail the thread load.
     payload: approvalPendingInteractionPayloadSchema.nullable(),
     resolution: z.string().nullable(),
     createdAt: z.number(),
@@ -53,14 +43,12 @@ const MAX_THREAD_TITLE_LENGTH = 200;
 export const createThreadRequestSchema = z
   .object({
     title: z.string().min(1).max(MAX_THREAD_TITLE_LENGTH).optional(),
-    /** A thread's origin is a stored path nothing else re-validates, so a bad
-     *  one would sit in the database forever, pointing at nothing. */
+    // a stored path nothing downstream re-validates.
     originDocPath: vaultPathSchema.optional(),
   })
   .strict();
 export type CreateThreadRequest = z.infer<typeof createThreadRequestSchema>;
 
-/** The single-thread answer of a create or an archive. */
 export const threadResponseSchema = z.object({ thread: threadSchema }).strict();
 export type ThreadResponse = z.infer<typeof threadResponseSchema>;
 
@@ -87,17 +75,11 @@ export const getThreadResponseSchema = z
   .object({
     thread: threadSchema,
     pendingInteractions: z.array(pendingInteractionSchema),
-    /** Unclaimed queued sends, drain order — the composer's pending bubbles. */
     queuedMessages: z.array(queuedThreadMessageSchema),
   })
   .strict();
 export type GetThreadResponse = z.infer<typeof getThreadResponseSchema>;
 
-/**
- * `threadId` narrows to one thread; omitted, the answer is every OPEN
- * interaction this host holds. One request either way — a client must never
- * have to walk the thread list to find what is waiting on it.
- */
 export const listInteractionsQuerySchema = z
   .object({
     threadId: z.string().min(1).optional(),
@@ -117,11 +99,7 @@ export const archiveThreadRequestSchema = z
   .strict();
 export type ArchiveThreadRequest = z.infer<typeof archiveThreadRequestSchema>;
 
-/**
- * The domain shape with its `resource` held to the vault path grammar, exactly
- * as `createThreadRequestSchema` holds `originDocPath`: a path nothing
- * downstream re-validates would otherwise reach a prompt unchecked.
- */
+// the resource reaches a prompt with no further validation.
 const wireViewContextSchema = viewContextSchema.transform((value, ctx): ViewContext => {
   const resource = vaultPathSchema.safeParse(value.resource);
   if (!resource.success) {
@@ -135,24 +113,13 @@ const wireViewContextSchema = viewContextSchema.transform((value, ctx): ViewCont
   return { ...value, resource: resource.data };
 });
 
-/**
- * ONE send policy: start the turn when the thread is idle, queue the message
- * when it is busy. There is no mode to negotiate — a message is never lost and
- * never lands in a turn nobody asked for.
- *
- * `expectedTurnId` is the staleness guard: the turn the client believes is
- * running. When it no longer names the open turn — it settled, or another
- * client started a new one — the send is refused with 409 instead of starting
- * a turn the caller believed was already under way.
- */
 export const sendMessageRequestSchema = z
   .object({
     threadId: z.string().min(1),
     text: z.string().min(1),
+    // the turn the client believes is running; when it no longer names the open turn the send
+    // answers 409 rather than starting one.
     expectedTurnId: z.string().min(1).optional(),
-    /** What the sender was looking at. Optional because most senders are
-     *  looking at nothing this host can name — the CLI, the palette, a chat
-     *  with no note open. */
     viewContext: wireViewContextSchema.optional(),
   })
   .strict();
@@ -164,16 +131,11 @@ export const sendMessageResponseSchema = z.discriminatedUnion("kind", [
 ]);
 export type SendMessageResponse = z.infer<typeof sendMessageResponseSchema>;
 
-/**
- * `afterSequence` is the client's own `maxSequence` from its last fetch;
- * omitted, the server answers the full timeline. Sent, the server answers a
- * delta based on exactly that prefix — or the full timeline when it cannot
- * reconstruct the named base — and the client applies it with
- * `applyTimelineDelta`, refetching in full if that returns null.
- */
 export const timelineQuerySchema = z
   .object({
     threadId: z.string().min(1),
+    // the client's last maxSequence; the server answers a delta from it, or the full timeline
+    // when it cannot reconstruct that base.
     afterSequence: z.number().int().nonnegative().optional(),
   })
   .strict();
@@ -199,14 +161,8 @@ export const answerInteractionRequestSchema = z
   .object({
     threadId: z.string().min(1),
     interactionId: z.string().min(1),
-    /**
-     * The approval-resolution grammar, owned by
-     * `@repo/domain/pending-interactions` (`parseApprovalResolution` is the one
-     * parser, shared by the route's 400 gate and the runtime): a bare decision
-     * verb — `"allow_once"`, `"allow_for_session"`, `"deny"` — or the JSON of
-     * `approvalPendingInteractionResolutionSchema`. Anything else answers 400;
-     * it stays a string here because the row stores and replays it verbatim.
-     */
+    // stays a string: the row stores and replays it verbatim; `parseApprovalResolution` is the
+    // one parser.
     resolution: z.string().min(1),
   })
   .strict();

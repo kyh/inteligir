@@ -1,9 +1,5 @@
 // @vitest-environment jsdom
 
-// ⌘G's highlight is a decoration reading a module store, so this mounts the
-// real kit and drives the store's own transforms — the match tint, the
-// distinct active tint, and the cycle all assert on rendered leaves.
-
 import { render } from "@testing-library/react";
 import { act, createRef } from "react";
 import type { Value } from "platejs";

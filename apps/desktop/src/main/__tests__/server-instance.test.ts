@@ -21,8 +21,6 @@ function scratchHome(): string {
   return makeTempDir("inteligir-shell-home-");
 }
 
-/** The managed config the app reads from `<dataDir>/config.json` — only the
- *  field these cases pin. */
 interface ManagedConfig {
   vaultDir: string;
 }
@@ -62,8 +60,6 @@ describe("resolveServerTarget", () => {
   });
 
   it("a checkout resolves the per-checkout dev instance, whatever NODE_ENV says", () => {
-    // `pnpm dev:desktop` must never drive the developer's real ~/.inteligir
-    // and ~/Inteligir; `app.isPackaged` decides the mode, not the ambient env.
     const homeDir = scratchHome();
     const resolved = resolveServerTarget({
       isPackaged: false,
@@ -93,7 +89,6 @@ describe("resolveServerTarget", () => {
 });
 const TOKEN = "device-token";
 
-/** A data dir holding a `server.json` that names `port`, or nothing at all. */
 function dataDirWithServer(port: number | null): string {
   const dir = makeTempDir("inteligir-shell-data-");
   if (port !== null) {
@@ -117,8 +112,6 @@ function systemStatus(dataDir: string): SystemStatusResponse {
   };
 }
 
-/** A responder that names `dataDir`, and only for the right bearer — a wrong
- *  one answers nothing, which is what a squatter looks like from here. */
 function respondingServer(
   dataDir: string,
   options: { token?: string; claims?: string } = {},
@@ -131,8 +124,6 @@ function respondingServer(
 
 describe("serverOrigin", () => {
   it("is loopback by address, never by name", () => {
-    // `localhost` resolves to ::1 on some machines and 127.0.0.1 on others,
-    // and the two are different origins to the pin.
     expect(serverOrigin(4664)).toBe("http://127.0.0.1:4664");
   });
 });
@@ -147,8 +138,6 @@ describe("verifyServer", () => {
   });
 
   it("follows the BOUND port the file names, not the configured one", async () => {
-    // A dev instance probes upward when its derived port is taken; a window
-    // pinned to the derived value would be pinned to nothing.
     const dataDir = dataDirWithServer(24911);
     const verdict = await verifyServer(dataDir, respondingServer(dataDir));
     expect(verdict.kind === "verified" && verdict.live.origin).toBe("http://127.0.0.1:24911");
@@ -161,8 +150,6 @@ describe("verifyServer", () => {
   });
 
   it("refuses a real server that serves a different vault", async () => {
-    // It can read the token (same user, same file) but it is not the instance
-    // this shell means — adopting it points the window at the wrong notes.
     const dataDir = dataDirWithServer(4700);
     const verdict = await verifyServer(
       dataDir,
@@ -226,9 +213,6 @@ describe("the server entry", () => {
   });
 
   it("rewrites an asar path to the unpacked twin, idempotently", () => {
-    // An asar is not a filesystem a process can be forked from, so the entry
-    // has to name the unpacked tree — and doing it twice must not produce
-    // `app.asar.unpacked.unpacked`.
     const packed = "/Applications/Inteligir.app/Contents/Resources/app.asar";
     const once = serverPackageDir(packed);
     expect(once).toContain("app.asar.unpacked/node_modules/inteligir");
@@ -236,8 +220,6 @@ describe("the server entry", () => {
   });
 
   it("names the bundle, in a checkout as in a packaged install", () => {
-    // utilityProcess gives its child no loader thread, so there is no arm that
-    // runs src/ — the dev task keeps the bundle current instead.
     expect(serverEntryPath("/repo/apps/desktop")).toBe(
       "/repo/apps/desktop/node_modules/inteligir/dist/index.js",
     );
@@ -246,8 +228,6 @@ describe("the server entry", () => {
 
 describe("sessionPartition", () => {
   it("follows the VAULT rather than a name two vaults could share", () => {
-    // The shell's own scheme is ONE origin whatever is behind it, so keying
-    // storage on it would let two vaults read each other's localStorage.
     expect(sessionPartition("/a/data")).not.toBe(sessionPartition("/b/data"));
     expect(sessionPartition("/a/data")).toBe(sessionPartition("/a/data"));
     expect(sessionPartition("/a/data").startsWith("persist:")).toBe(true);

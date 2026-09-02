@@ -1,11 +1,5 @@
-// Frontmatter kit. A void element holding the raw yaml source (`value`),
-// read-only in Rich — the properties panel is its editing surface; the React
-// half renders the yaml dimmed behind a `---` frame. Block selection and the
-// block draggable must exclude it (position pin below).
-//
-// The normalizer pins the node to path [0]: mdast-util-frontmatter emits the
-// `---` fence wherever the node sits, and a mid-document fence re-parses as a
-// thematic break — the position pin is what keeps idempotency.
+// Pinned to [0]: mdast-util-frontmatter emits the `---` fence wherever the node sits, and a
+// mid-document fence re-parses as a thematic break.
 
 import { ElementApi, createSlatePlugin } from "platejs";
 import { PlateElement, type PlateElementProps } from "platejs/react";
@@ -24,9 +18,7 @@ const FrontmatterBasePlugin = createSlatePlugin({
       ) {
         const first = editor.children[0];
         if (ElementApi.isElement(first) && first.type === "frontmatter") {
-          // A frontmatter block already sits at [0] — a document has exactly
-          // one, so a stray duplicate (paste) is removed, not shuffled
-          // (move-to-front for both would normalize-loop).
+          // a duplicate is removed, not moved: move-to-front for both would normalize-loop.
           editor.tf.removeNodes({ at: path });
         } else {
           editor.tf.moveNodes({ at: path, to: [0] });
@@ -40,12 +32,7 @@ const FrontmatterBasePlugin = createSlatePlugin({
 
 export const FrontmatterBaseKit = [FrontmatterBasePlugin];
 
-// The frontmatter's user-facing surface is the typed properties panel
-// (editor/properties/), hosted in the right panel's Properties tab. The node
-// itself stays in the value (it
-// serializes the `---` block byte-for-byte) but renders invisibly —
-// zero-height and non-interactive, so it keeps its DOM point for Slate while
-// the caret and block chrome skip past it.
+// Zero-height rather than unmounted: Slate needs the node's DOM point.
 function FrontmatterElement(props: PlateElementProps) {
   return (
     <PlateElement {...props} className="h-0 overflow-hidden select-none">

@@ -8,18 +8,7 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { Collapse } from "@repo/ui/lib/collapse";
 import { cn } from "@repo/ui/lib/utils";
 
-/* ─────────────────────────────────────────────────────────
- * FILTER TABLE — status chips that filter the rows below them
- *
- * CHIPS AND ROWS ARE CHILDREN and filtering belongs to the
- * caller, who owns the data; this file owns the LAYOUT (one grid
- * template shared by header and rows, through context so a caller
- * states the columns once) and the collapse transition a
- * filtered-out row animates through.
- * ───────────────────────────────────────────────────────── */
-
 interface TableContextValue {
-  /** A CSS grid-template-columns value shared by the header and every row. */
   columns: string;
 }
 
@@ -49,10 +38,7 @@ FilterChips.displayName = "FilterChips";
 
 export interface FilterChipProps extends HTMLAttributes<HTMLButtonElement> {
   active?: boolean;
-  /** Matching-row count shown at the chip's trailing edge. */
   count?: ReactNode;
-  /** A leading marker — a slot the caller fills; this skin carries no
-   *  per-status palette. */
   marker?: ReactNode;
 }
 
@@ -90,9 +76,7 @@ const FilterChip = forwardRef<HTMLButtonElement, FilterChipProps>(
 FilterChip.displayName = "FilterChip";
 
 export interface DataTableProps extends HTMLAttributes<HTMLDivElement> {
-  /** grid-template-columns for the header and every row. */
   columns: string;
-  /** Width below which the table scrolls sideways instead of crushing. */
   minWidth?: number;
   label?: string;
 }
@@ -139,8 +123,6 @@ const DataTableHeader = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement
 DataTableHeader.displayName = "DataTableHeader";
 
 export interface DataTableRowProps extends HTMLAttributes<HTMLDivElement> {
-  /** False collapses the row to zero height rather than unmounting it, so a
-   *  filter change reads as the table settling instead of rows teleporting. */
   visible?: boolean;
 }
 
@@ -199,8 +181,6 @@ const statusPillVariants = cva(
   {
     variants: {
       tone: {
-        // Monochrome by default; `done` keeps the one accent the app's own
-        // activity dots already use, so settled reads at a glance.
         neutral: "bg-surface-inset text-ink-2",
         active: "bg-line text-ink",
         done: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",

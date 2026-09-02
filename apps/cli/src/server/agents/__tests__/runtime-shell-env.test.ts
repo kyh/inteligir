@@ -1,15 +1,3 @@
-// The CLI-driving seam: the manager must hand the runtime the shellEnv the
-// host resolved — INTELIGIR_DATA_DIR, the instance an agent's CLI dials, and a
-// PATH that reaches the binary. The runtime's own halves are covered elsewhere
-// (buildThreadShellEnvironment adds INTELIGIR_THREAD_ID; the adapter child's
-// env is what the agent's shell inherits) — what this suite pins is the wiring
-// in between, which no type forces because the field is optional.
-//
-// The instructions half is NOT here: it rides the first turn's prompt over the
-// real wire, and acp-manager.test.ts asserts it there rather than against a
-// recording double that could agree with a broken delivery — and it is there
-// that the env and the prompt are shown to move together across sessions.
-
 import type { AgentRuntime } from "@repo/agent-runtime/types";
 import type { createAcpAgentRuntime } from "@repo/agent-runtime/acp/acp-runtime";
 import { describe, expect, it, vi } from "vitest";
@@ -71,8 +59,7 @@ describe("ACP runtime shell env wiring", () => {
       if (first === undefined) throw new Error("the runtime has not been constructed yet");
       return first;
     }, PROVIDER_WAIT);
-    // A GETTER, never a value: the runtime reads it at every adapter spawn,
-    // which is what lets a Settings edit reach the next session.
+    // a getter, never a value: the runtime reads it at every adapter spawn.
     if (options.shellEnv === undefined) throw new Error("runtime has no shell env");
     const shellEnv = options.shellEnv();
     expect(shellEnv.INTELIGIR_DATA_DIR).toBe("/instances/one/data");

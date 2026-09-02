@@ -14,7 +14,6 @@ function stored(events: readonly ThreadEvent[]): ThreadTimelineEvent[] {
   }));
 }
 
-/** A full streamed turn: request, work, streamed answer, usage, completion. */
 function streamedTurnEvents(): ThreadEvent[] {
   const turn = turnScope("turn_1");
   return [
@@ -175,7 +174,6 @@ describe("buildThreadTimeline", () => {
     if (reasoning.workKind !== "reasoning" || command.workKind !== "command") {
       throw new Error("unexpected work kinds");
     }
-    // Summary is the provider's visible thinking text; it wins over content.
     expect(reasoning.text).toBe("scanned");
     expect(command.output).toBe("abc123 fix\ndef456 feat\n");
     expect(command.exitCode).toBe(0);
@@ -249,20 +247,13 @@ describe("buildThreadTimeline", () => {
     const events = stored(streamedTurnEvents());
     const full = buildThreadTimeline(events);
     const held = buildThreadTimeline(events.slice(0, 8));
-    // The delta was computed against a different prefix than the one held.
     const staleDelta = computeTimelineDelta(buildThreadTimeline(events.slice(0, 5)), full);
     expect(applyTimelineDelta(held, staleDelta)).toBeNull();
-    // And a matching base still applies cleanly.
     const freshDelta = computeTimelineDelta(buildThreadTimeline(events.slice(0, 8)), full);
     expect(applyTimelineDelta(held, freshDelta)).toEqual(full);
   });
 
   it("converges to the full rebuild under any interleaving of stale and fresh responses", () => {
-    // The client protocol under test: hold a timeline, apply whatever delta
-    // arrives; a null application means refetch in full. Deltas here are
-    // computed against arbitrary bases — many of them stale — in a seeded
-    // random interleaving, and every accepted state must equal the rebuild of
-    // SOME event prefix (never a chimera), converging to the full rebuild.
     const events = stored(streamedTurnEvents());
     const prefixes = Array.from({ length: events.length + 1 }, (_, cut) =>
       buildThreadTimeline(events.slice(0, cut)),
@@ -306,21 +297,17 @@ describe("buildThreadTimeline", () => {
 
   it("a streaming delta carries ONLY the row that streamed", () => {
     const events = stored(streamedTurnEvents());
-    // Between deltas 10 and 11 only the assistant row's text changes.
+    // between events 10 and 11 only the assistant row's text changes
     const before = buildThreadTimeline(events.slice(0, 10));
     const after = buildThreadTimeline(events.slice(0, 11));
     const delta = computeTimelineDelta(before, after);
-    // Membership and order stay implicit.
     expect(delta.rowOrder).toBeUndefined();
-    // The turn row must NOT ride along. It carries its whole subtree — the
-    // reasoning and command rows of this turn — so sending it per token is a
-    // full resend of the active turn on every frame.
     expect(delta.upsertRows.map((row) => row.id)).toEqual(["item:turn_1:item_a"]);
   });
 
   it("a turn row still upserts when one of its own children changes", () => {
     const events = stored(streamedTurnEvents());
-    // Event 7 is the command's outputDelta — a child of the turn row.
+    // event 7 is the command's outputDelta, a child of the turn row
     const before = buildThreadTimeline(events.slice(0, 6));
     const after = buildThreadTimeline(events.slice(0, 7));
     const delta = computeTimelineDelta(before, after);
@@ -374,7 +361,6 @@ describe("reasoning text preference", () => {
 
     expect(findReasoningText(build({ summary: ["visible"], content: ["raw"] }))).toBe("visible");
     expect(findReasoningText(build({ summary: [], content: ["raw"] }))).toBe("raw");
-    // Codex-shaped: settles with both empty — the streamed summary buffer stands.
     expect(findReasoningText(build({ summary: [], content: [] }))).toBe("streaming");
   });
 });

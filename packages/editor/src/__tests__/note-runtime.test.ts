@@ -3,13 +3,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createNoteRuntime } from "@repo/editor/note/note-runtime";
 import { FakeVault } from "./fake-vault";
 
-// Fake timers leave microtasks untouched, so flushing the controller's async
-// open/read/write chains is just draining the microtask queue a few hops.
+// fake timers leave microtasks alone, so a few hops drain the controller's chains.
 const settle = async (): Promise<void> => {
   for (let i = 0; i < 10; i++) await Promise.resolve();
 };
 
-// Fire the pending debounce timer, then let the write it kicks off land.
 const runDebounce = async (): Promise<void> => {
   vi.advanceTimersByTime(600);
   await settle();
@@ -32,8 +30,8 @@ describe("createNoteRuntime", () => {
     runtime.edit("v1");
     runtime.edit("v2");
     runtime.edit("v3");
-    expect(io.writes).toBe(0); // still debouncing — nothing written yet
-    expect(vi.getTimerCount()).toBe(1); // one coalesced timer
+    expect(io.writes).toBe(0);
+    expect(vi.getTimerCount()).toBe(1);
 
     await runDebounce();
     expect(io.writes).toBe(1);
@@ -46,9 +44,9 @@ describe("createNoteRuntime", () => {
     const runtime = createNoteRuntime("a.md", "root", io, { onVanished: () => {} });
     await settle();
 
-    runtime.edit("same"); // identical to the loaded content
+    runtime.edit("same");
     expect(runtime.controller.getState().dirty).toBe(false);
-    expect(vi.getTimerCount()).toBe(0); // no timer scheduled
+    expect(vi.getTimerCount()).toBe(0);
 
     await runDebounce();
     expect(io.writes).toBe(0);
@@ -67,10 +65,10 @@ describe("createNoteRuntime", () => {
     expect(clean).toBe(true);
     expect(io.writes).toBe(1);
     expect(io.files.get("a.md")).toBe("v1");
-    expect(vi.getTimerCount()).toBe(0); // debounce cleared
+    expect(vi.getTimerCount()).toBe(0);
 
     await runDebounce();
-    expect(io.writes).toBe(1); // the pending timer never fired a second write
+    expect(io.writes).toBe(1);
   });
 
   it("fires onVanished once when the file vanishes after a successful load", async () => {
@@ -81,11 +79,9 @@ describe("createNoteRuntime", () => {
       onVanished: (p) => vanished.push(p),
     });
     await settle();
-    expect(runtime.controller.getState().path).toBe("a.md"); // loaded
+    expect(runtime.controller.getState().path).toBe("a.md");
     expect(vanished).toEqual([]);
 
-    // File deleted out from under the open note; a vault-changed reload finds
-    // it gone → controller emits path:null → vanish watcher fires.
     io.files.delete("a.md");
     runtime.controller.externalChange("root");
     await settle();
@@ -94,16 +90,14 @@ describe("createNoteRuntime", () => {
 
   it("does NOT fire onVanished for a transient path:null before the first successful load", async () => {
     const io = new FakeVault();
-    io.hangReads = true; // open() never resolves → `opened` stays false, .then never runs
+    io.hangReads = true;
     const vanished: string[] = [];
     const runtime = createNoteRuntime("a.md", "root", io, {
       onVanished: (p) => vanished.push(p),
     });
     await settle();
-    expect(runtime.controller.getState().path).toBe(null); // never loaded
+    expect(runtime.controller.getState().path).toBe(null);
 
-    // A root switch emits an EMPTY (path:null) state. The opened gate must keep
-    // the vanish watcher from treating it as the note disappearing.
     runtime.controller.externalChange("other-root");
     await settle();
     expect(vanished).toEqual([]);
@@ -131,14 +125,12 @@ describe("createNoteRuntime", () => {
     const runtime = createNoteRuntime("a.md", "root", io, { onVanished: () => {} });
     await settle();
 
-    // Models the Rich editor's serialize flush: a keystroke still sitting in
-    // the serialize debounce is drained into the buffer as an edit.
     runtime.registerPreFlush(() => runtime.edit("drained"));
 
     const clean = await runtime.flush();
     expect(clean).toBe(true);
-    expect(io.files.get("a.md")).toBe("drained"); // the drained bytes were what flushed
-    expect(vi.getTimerCount()).toBe(0); // the drained edit's debounce timer was cleared, not left behind
+    expect(io.files.get("a.md")).toBe("drained");
+    expect(vi.getTimerCount()).toBe(0);
   });
 
   it("registerPreFlush: the hook runs before remove()", async () => {
@@ -170,12 +162,12 @@ describe("createNoteRuntime", () => {
     runtime.registerPreFlush(() => firstRuns++);
     runtime.registerPreFlush(() => secondRuns++);
     await runtime.flush();
-    expect(firstRuns).toBe(0); // replaced before it ever ran
+    expect(firstRuns).toBe(0);
     expect(secondRuns).toBe(1);
 
     runtime.registerPreFlush(null);
     await runtime.flush();
-    expect(secondRuns).toBe(1); // cleared — nothing ran
+    expect(secondRuns).toBe(1);
   });
 
   it("remove() deletes the file and clears a pending debounce timer", async () => {
@@ -193,7 +185,7 @@ describe("createNoteRuntime", () => {
     expect(vi.getTimerCount()).toBe(0);
 
     await runDebounce();
-    expect(io.writes).toBe(0); // the discarded edit never wrote
+    expect(io.writes).toBe(0);
   });
 
   it("hands a held delete back to the caller instead of closing the note", async () => {
@@ -211,8 +203,6 @@ describe("createNoteRuntime", () => {
 
     expect(await runtime.remove()).toMatchObject({ outcome: "held" });
     await settle();
-    // The file is still there, so the note is: nothing vanished, and the
-    // provider gets the outcome to toast rather than a silent close.
     expect(vanished).toEqual([]);
     expect(runtime.controller.getState().path).toBe("a.md");
   });

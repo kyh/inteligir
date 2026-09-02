@@ -1,9 +1,3 @@
-// The dictation session's lifecycle, driven with a FAKE worker so every path is
-// deterministic — no thread, no native binding, no timing bet. This is the pin
-// the task called out: one worker per hold, torn down on EVERY exit (finalize,
-// cancel/disconnect, model-unusable, disposed-mid-prepare), no leak, and a
-// bounded buffer over a long hold.
-
 import { describe, expect, it } from "vitest";
 import {
   ScriptedStreamSession,
@@ -86,7 +80,6 @@ describe("WorkerStreamSession", () => {
       onModelUnusable: async () => "removed",
     });
 
-    // A frame before the worker exists is queued, not lost.
     session.pushPcm(pcm(10));
     await tick();
     expect(spawned.length).toBe(1);
@@ -109,7 +102,6 @@ describe("WorkerStreamSession", () => {
     await tick();
     expect(worker.disposeCount).toBe(1);
 
-    // Idempotent: nothing after the final reaches the worker or disposes twice.
     session.pushPcm(pcm(10));
     session.finalize();
     await session.dispose();
@@ -136,7 +128,6 @@ describe("WorkerStreamSession", () => {
     expect(worker.disposeCount).toBe(1);
     expect(rec.finals).toEqual([]);
 
-    // A partial that arrives after teardown is dropped.
     worker.callbacks.onPartial("late");
     expect(rec.partials).toEqual(["partial"]);
   });
@@ -158,7 +149,6 @@ describe("WorkerStreamSession", () => {
     await session.dispose();
     release?.();
     await tick();
-    // Prepare resolved after dispose, so the worker was never spawned.
     expect(spawned.length).toBe(0);
     expect(rec.errors).toEqual([]);
   });
@@ -222,7 +212,6 @@ describe("WorkerStreamSession", () => {
     await tick();
     expect(spawned.length).toBe(0);
     expect(rec.errors).toEqual(["needs the model"]);
-    // A refused session still disposes cleanly.
     await session.dispose();
   });
 
@@ -235,7 +224,6 @@ describe("WorkerStreamSession", () => {
       spawn,
       onModelUnusable: async () => "removed",
     });
-    // Queue the whole cap, then a frame past it — before the worker even exists.
     session.pushPcm(pcm(STREAM_MAX_SAMPLES));
     session.pushPcm(pcm(1000));
     await tick();

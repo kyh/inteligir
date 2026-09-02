@@ -1,8 +1,3 @@
-// A chat turn end to end through the scripted agent driver, whose env
-// contract is INTELIGIR_AGENT=scripted. Under it the driver is wired at
-// boot, so ANY refusal on send — provider_unavailable included — is a
-// regression and fails loudly.
-
 import { setTimeout as delay } from "node:timers/promises";
 import { expect } from "../harness/assert";
 import type { Scenario } from "../harness/scenario";

@@ -11,17 +11,12 @@ export type PendingInteractionRow = typeof pendingInteractions.$inferSelect;
 export interface CreatePendingInteractionInput {
   threadId: string;
   turnId?: string;
-  /** The provider's own request identity — see the schema's unique index. */
   requestKey: string;
-  /** JSON-serialized interaction subject; the contract parses it back out. */
   payload: string;
 }
 
-/**
- * Idempotent on (threadId, requestKey): a provider retrying a request it
- * never saw answered gets its existing row back instead of raising a second
- * prompt.
- */
+// idempotent on (threadId, requestKey): a provider retrying a request gets its row back, not a
+// second prompt.
 export function createPendingInteraction(
   db: DbConnection,
   notifier: DbNotifier,
@@ -86,9 +81,6 @@ export function listOpenPendingInteractions(
     .all();
 }
 
-/** Every open interaction this host holds, across threads — what a client
- *  asking "what is waiting on me?" needs in ONE query instead of a walk of
- *  the thread list. Same order as the per-thread listing. */
 export function listAllOpenPendingInteractions(db: DbConnection): PendingInteractionRow[] {
   return db
     .select()
@@ -98,7 +90,6 @@ export function listAllOpenPendingInteractions(db: DbConnection): PendingInterac
     .all();
 }
 
-/** Settle ONE still-open interaction as interrupted (e.g. its wait timed out). */
 export function interruptPendingInteraction(
   db: DbConnection,
   notifier: DbNotifier,
@@ -124,11 +115,6 @@ export function interruptPendingInteraction(
   return false;
 }
 
-/**
- * Settle every still-open interaction for a thread as interrupted — the turn
- * they belonged to ended (completed, failed, or the provider went away), so
- * there is nothing left to answer.
- */
 export function interruptOpenPendingInteractions(
   db: DbConnection,
   notifier: DbNotifier,
@@ -163,7 +149,6 @@ export interface ResolvePendingInteractionArgs {
   resolution: string;
 }
 
-/** CAS on status: only a pending row can be answered, exactly once. */
 export function resolvePendingInteraction(
   db: DbConnection,
   notifier: DbNotifier,

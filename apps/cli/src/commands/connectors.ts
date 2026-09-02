@@ -1,9 +1,3 @@
-// `inteligir connectors` — the app-owned MCP registry every agent session
-// gets. List, add and remove, under the parity principle: everything a user
-// can do in Settings → Connectors, the agent can do here. The store is this
-// app's own, so a CLI write races nothing and hides nothing — Settings shows
-// the same rows the moment they change.
-
 import {
   connectorTarget,
   type ConnectorsResponse,
@@ -14,9 +8,7 @@ import { invalidUsage } from "../cli-error";
 import { apiFor, type CliDeps } from "../context";
 import { jsonArg, out, outputJson, writeLines } from "../output";
 
-/** The tokens after `--`, or null when there is no `--` at all. An empty array
- *  (a bare trailing `--`) is distinct from null: the caller MEANT stdio but
- *  named no program, which is a usage error rather than "http was intended". */
+// an empty array (a bare trailing `--`) is not null: the caller meant stdio and named no program.
 function commandAfterDoubleDash(rawArgs: readonly string[]): string[] | null {
   const index = rawArgs.indexOf("--");
   return index === -1 ? null : rawArgs.slice(index + 1);
@@ -68,12 +60,8 @@ export function connectorsCommand(deps: CliDeps) {
           },
           ...jsonArg,
         },
-        // The stdio command is taken verbatim after `--`, never through repeated
-        // `--arg` flags: citty's `parseArgs` runs `strict: false` with no
-        // `multiple`, so repeats keep only the last value and a single-dash
-        // token like `npx -y` vanishes entirely — the canonical stdio connector
-        // could not be expressed. Everything past `--` is a payload the gate
-        // and the parser both leave untouched.
+        // stdio args ride after `--`, not repeated `--arg` flags: citty's parseArgs has no `multiple`,
+        // so repeats keep only the last value and a token like `-y` vanishes.
         run: async ({ args, rawArgs }) => {
           const stdioCommand = commandAfterDoubleDash(rawArgs);
           if ((args.url === undefined) === (stdioCommand === null)) {

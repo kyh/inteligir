@@ -1,26 +1,17 @@
-// One responsibility: RUNNING the system git binary (execFile, no shell) —
-// the argv builder every invocation passes through, the env that keeps git
-// from ever asking this process a question, the identity commits run under,
-// and the classifiers that read an invocation's stderr back into a typed
-// answer. Nothing here knows about the vault's repo, its lock or its state.
-
 import { execFile } from "node:child_process";
 
 const LOCAL_GIT_TIMEOUT_MS = 30_000;
 export const NETWORK_GIT_TIMEOUT_MS = 120_000;
 const GIT_MAX_BUFFER_BYTES = 32 * 1024 * 1024;
 
-/** Commits the engine makes on its own carry this identity; an agent-attributed
- *  commit overrides the AUTHOR half only, so the committer always says
- *  which machine wrote it. */
 const ENGINE_IDENTITY = { name: "inteligir", email: "vault@inteligir.local" };
 
-/** The author seam: agent-attributed commits pass their own identity. */
 export interface CommitAuthor {
   name: string;
   email: string;
 }
 
+// the committer stays the engine so a commit always says which machine wrote it.
 export function identityEnv(author?: CommitAuthor) {
   return {
     GIT_AUTHOR_NAME: author?.name ?? ENGINE_IDENTITY.name,
@@ -44,25 +35,13 @@ export interface RunGitOptions {
   env?: Record<string, string>;
 }
 
-/** One git invocation, already bound to the repo and its environment. */
 export type RunGitCommand = (args: readonly string[]) => Promise<{ stdout: string }>;
 
-/** The full invocation surface, for a caller that picks its own cwd and
- *  options per call — the bootstrap's injectable port. */
 export type RunGit = typeof runGit;
 
-/**
- * git must NEVER ask this process a question. Nothing here has a terminal to
- * answer on, and every invocation runs under the repo lock — so a credential
- * prompt on an unreachable or auth-requiring remote does not fail, it BLOCKS,
- * holding the lock (and with it every vault write) until the call's timeout.
- *
- * `GIT_TERMINAL_PROMPT=0` covers git's own prompting. ssh does its own, which
- * only `BatchMode=yes` refuses — so an ssh remote gets it too, but only when
- * the environment carries no `GIT_SSH_COMMAND` of its own: a caller who set
- * one has chosen how ssh runs, and overriding it would break the setups that
- * exist to make these fetches work.
- */
+// git must never prompt: every invocation runs under the repo lock, so a credential prompt
+// blocks every vault write until the timeout. GIT_TERMINAL_PROMPT=0 covers git; ssh prompts on
+// its own and only BatchMode=yes refuses it, but a caller's own GIT_SSH_COMMAND wins.
 function nonInteractiveGitEnv(env: NodeJS.ProcessEnv) {
   if (env.GIT_SSH_COMMAND === undefined) {
     return { GIT_TERMINAL_PROMPT: "0", GIT_SSH_COMMAND: "ssh -o BatchMode=yes" };
@@ -70,14 +49,8 @@ function nonInteractiveGitEnv(env: NodeJS.ProcessEnv) {
   return { GIT_TERMINAL_PROMPT: "0" };
 }
 
-/**
- * THE argv builder — every invocation passes through here, so this is where
- * `--literal-pathspecs` lives and the one place it can be forgotten. A
- * pathspec is a GLOB: `[a].md` names `a.md` too, and a commit scoped to one
- * note would stage its neighbour's edits under the wrong revision. Every path
- * a caller passes is a filesystem name, never a pattern (git-history.ts's
- * header carries the full case for the read side).
- */
+// --literal-pathspecs on every invocation: a pathspec is a glob, so a commit scoped to
+// `[a].md` would also stage `a.md`, and a log for it would report `a.md`'s history.
 export function runGit(
   cwd: string,
   gitArgs: readonly string[],
@@ -102,19 +75,13 @@ export function runGit(
         resolve({ stdout });
       },
     );
-    // execFile hands the child a stdin PIPE nobody ever writes to. No command
-    // the vault runs reads stdin, so closing it turns anything that asks
-    // anyway into an immediate EOF rather than a wait on the timeout.
+    // execFile hands the child a stdin pipe nobody writes to; closing it turns a read into eof
+    // rather than a wait on the timeout.
     child.stdin?.end();
   });
 }
 
-/**
- * Strip userinfo before a remote URL reaches a log line or a status response:
- * an https remote is where a token rides (https://user:ghp_…@github.com/…).
- * Non-URL forms (scp-like git@host:path) pass through — that syntax has no
- * password slot.
- */
+// scp-like git@host:path is not a url and has no password slot, so it passes through.
 export function redactRemoteUrl(url: string): string {
   try {
     const parsed = new URL(url);
@@ -129,14 +96,8 @@ export function redactRemoteUrl(url: string): string {
   }
 }
 
-/**
- * Whether a failed network invocation was the remote REFUSING the credential,
- * as opposed to being unreachable. Three spellings, because git's own varies:
- * an explicit 401/403 from the HTTP layer, "Authentication failed", and —
- * the one the non-interactive env above actually produces — "could not
- * read Username … terminal prompts disabled", which is git answering a 401
- * challenge with a prompt this process forbids.
- */
+// "could not read username" is git answering a 401 challenge with the prompt
+// GIT_TERMINAL_PROMPT=0 forbids.
 export function isAuthRefusal(cause: unknown): boolean {
   if (!(cause instanceof GitError)) {
     return false;
@@ -144,11 +105,6 @@ export function isAuthRefusal(cause: unknown): boolean {
   return /authentication failed|returned error: 40[13]|could not read username/i.test(cause.stderr);
 }
 
-/** The remote itself is absent — the hosted repo before its first push
- *  (HTTP 404), or a path that names no repository. Distinct from
- *  unreachable/refused because only THIS class may fall through to the
- *  welcome seed: seeding beside a populated-but-unreachable remote plants a
- *  history the eventual first sync has to rebase through. */
 export function isMissingRemoteRepo(cause: unknown): boolean {
   if (!(cause instanceof GitError)) {
     return false;
@@ -158,13 +114,8 @@ export function isMissingRemoteRepo(cause: unknown): boolean {
   );
 }
 
-/**
- * A remote with nothing to fetch YET: the branch is missing ("couldn't find
- * remote ref"), or the repository itself is (the hosted remote answers 404
- * until the first push creates it). Both mean the same thing to a sync pass —
- * rebase onto nothing, and let the sync pass's push create what was missing.
- * A mistyped BYO remote also lands here and fails honestly at that push.
- */
+// a missing branch, or the hosted repo before its first push (404): both mean rebase onto
+// nothing and let the push create it.
 export function isMissingRemoteRef(cause: unknown): boolean {
   return (
     cause instanceof GitError &&

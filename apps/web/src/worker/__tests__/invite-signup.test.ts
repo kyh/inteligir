@@ -5,10 +5,6 @@ import { createAuth } from "../auth/auth";
 import { createDb } from "../db/client";
 import { inviteCode } from "../db/schema";
 
-// The invite gate in front of sign-up (src/worker/auth/invite.ts), driven
-// against the real in-process Worker + D1. Everything here is the production
-// path: the claim is a real D1 statement and the account is created by Better
-// Auth's own handler, reached through the forward.
 const ORIGIN = "https://inteligir-web.workers.dev";
 const PASSWORD = "test-password-1234";
 
@@ -39,8 +35,6 @@ describe("invite-gated sign-up", () => {
     });
 
     expect(response.status).toBe(200);
-    // Better Auth's own response, forwarded untouched: the session credential
-    // both a browser (cookie) and a non-browser client (bearer) need.
     expect(response.headers.get("set-auth-token")).not.toBeNull();
     expect(response.headers.getSetCookie().some((c) => c.includes("session_token="))).toBe(true);
 
@@ -83,7 +77,6 @@ describe("invite-gated sign-up", () => {
       inviteCode: "INVITE-ONCE",
     });
     expect(second.status).toBe(403);
-    // Still the first redeemer's — a loser never rewrites the winner's claim.
     expect((await readCode("INVITE-ONCE"))?.redeemedBy).toBe("first@example.test");
   });
 
@@ -109,10 +102,6 @@ describe("invite-gated sign-up", () => {
     expect((await readCode("INVITE-UNTOUCHED"))?.redeemedAt).toBeNull();
   });
 
-  // The gate is only a gate if there is no way past it. Better Auth's own
-  // sign-up route is reachable on this origin and takes no invite field, so
-  // without `disableSignUp` on the instance that serves `/api/auth/*` it
-  // creates an account for anyone who types the path.
   it("refuses Better Auth's own sign-up route, which takes no code", async () => {
     const response = await SELF.fetch(ORIGIN + "/api/auth/sign-up/email", {
       method: "POST",
@@ -126,7 +115,6 @@ describe("invite-gated sign-up", () => {
     expect(response.status).toBe(400);
     expect(await response.json()).toMatchObject({ code: "EMAIL_PASSWORD_SIGN_UP_DISABLED" });
 
-    // Refused, not merely unacknowledged: no account came out of it.
     const signIn = await SELF.fetch(ORIGIN + "/api/auth/sign-in/email", {
       method: "POST",
       headers: { "content-type": "application/json", origin: ORIGIN },
@@ -135,11 +123,7 @@ describe("invite-gated sign-up", () => {
     expect(signIn.status).not.toBe(200);
   });
 
-  // The other door into sign-up, and the one no route table shows: an OAuth
-  // callback creates an account from the provider's profile, having asked no
-  // code. Asserted over the built config rather than by driving a callback,
-  // because the provider is the party that would have to answer — and the flag
-  // is the whole of what Better Auth reads (`provider.options.disableSignUp`).
+  // asserted over the built config: driving a callback needs the provider to answer
   it("refuses account creation through every social provider it can serve", () => {
     const configured = createAuth(
       {
@@ -162,8 +146,6 @@ describe("invite-gated sign-up", () => {
     }
   });
 
-  // Sign-IN is untouched by the flag — the same instance still serves it, and
-  // an account that spent a code has to be able to come back.
   it("still signs an invited account back in through Better Auth", async () => {
     await mintCode("INVITE-RETURNS");
     expect(

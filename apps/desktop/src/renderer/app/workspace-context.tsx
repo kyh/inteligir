@@ -1,9 +1,3 @@
-// The workspace runtime: ONE typed client, ONE QueryClient, ONE invalidation
-// socket — constructed together, threaded through context. Changed messages
-// land here and become query invalidations (list/status/system) plus a doc
-// event the open note listens to; the note's buffer is deliberately NOT
-// query-cached (the buffer IS the file — see note-view).
-
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { THREAD_CHANGE_KINDS } from "@repo/domain/change-kinds";
 import { ThemeProvider, useTheme, type Theme } from "@repo/ui/lib/theme";
@@ -18,16 +12,14 @@ import { socketOrigin } from "./socket-origin";
 import { browserInvalidationSocket, InvalidationClient } from "./invalidation-client";
 import { readTheme, writeTheme } from "./prefs";
 
-/** null = an unnamed vault change (the filesystem watcher does not attribute
- *  paths); the open note re-checks its own file either way. */
+// null: an unnamed vault change — the watcher could not attribute a path.
 type DocListener = (docId: string | null) => void;
 
 interface DocEvents {
   subscribe: (listener: DocListener) => () => void;
 }
 
-/** `id` is undefined for a synthetic sweep (reconnect gap): listeners filter
- *  by id, so undefined reads as "any thread may have changed". */
+// An undefined `id` is a synthetic sweep: any thread may have changed.
 type ThreadListener = (message: ThreadChangedMessage) => void;
 
 interface ThreadEvents {
@@ -50,11 +42,6 @@ export function useWorkspace(): WorkspaceRuntime {
   return runtime;
 }
 
-/** What one changed message means for this client: which query families go
- *  stale, and who is told directly. Exported for `__tests__/changed-message`,
- *  which pins that a doc change reaches the open note's reader and nothing
- *  else — a cache invalidation riding alongside is a second read of bytes one
- *  reader already fetched. */
 export function applyChangedMessage(
   queryClient: QueryClient,
   notifyDoc: (docId: string | null) => void,
@@ -68,8 +55,6 @@ export function applyChangedMessage(
         void queryClient.invalidateQueries({ queryKey: orpc.vault.trashList.key() });
         void queryClient.invalidateQueries({ queryKey: orpc.knowledge.key() });
         void queryClient.invalidateQueries({ queryKey: orpc.comments.key() });
-        // A NAMED change reaches only the notes it names; an unnamed one
-        // asserts nothing, so every open note re-checks its own file.
         if (message.paths === undefined) {
           notifyDoc(null);
         } else {
@@ -83,45 +68,25 @@ export function applyChangedMessage(
       }
       break;
     case "doc":
-      // The two doc kinds reach DIFFERENT readers, which is the reason they
-      // are two kinds. The note's bytes are not query state (the buffer IS the
-      // file), so `content-changed` goes to the open note's own reader and
-      // invalidates no read of those bytes — a `vaultFile` query alongside it
-      // bought a second read of the same ones.
-      //
-      // Knowledge is the other kind of derived state a doc's OWN bytes move:
-      // the links this doc holds are someone else's backlinks, and which
-      // someone is not knowable from here — so the family is swept whole,
-      // never per path. Related notes are that same argument over a wider
-      // input (links, tags AND text), which is why one prefix sweep covers
-      // both; neither needs a `knowledge` change kind of its own, because
-      // every knowledge query settles the index before answering.
+      // The note's bytes are not query state, so content-changed goes to the
+      // open note's reader alone; a query alongside bought a second read of the
+      // same bytes. Knowledge is swept whole: this doc's links are some other
+      // note's backlinks, and which note is not knowable here.
       if (message.changes.includes("content-changed")) {
         notifyDoc(message.id);
         void queryClient.invalidateQueries({ queryKey: orpc.knowledge.key() });
       }
       break;
     case "thread":
-      // One sweep for the whole family (list, detail); the timeline is not
-      // query-cached — its hook listens on threadEvents instead.
       void queryClient.invalidateQueries({ queryKey: orpc.threads.key() });
       notifyThread(message);
       break;
   }
 }
 
-/**
- * The invalidation model of this app is the ws bus, whole and entire: every
- * cached family above is swept by a changed message and again on reconnect. So
- * react-query's own defaults are not a second opinion, they are pure cost —
- * `staleTime: 0` plus refetch-on-focus/mount/reconnect re-ran every live query
- * on every alt-tab back, including a full vault walk and a `git status`, to
- * arrive at the answer the socket had already delivered.
- *
- * A query the bus does NOT cover opts out per call (`useSystemStatus`), which
- * is the honest shape: a fresh-forever default is only safe where something
- * else says when it went stale.
- */
+// The ws bus sweeps every cached family, so react-query's defaults are pure
+// cost: refetch-on-focus re-ran a full vault walk and a `git status` on every
+// alt-tab back. A query the bus does not cover opts out per call.
 export function createWorkspaceQueryClient(): QueryClient {
   return new QueryClient({
     defaultOptions: {
@@ -130,13 +95,7 @@ export function createWorkspaceQueryClient(): QueryClient {
   });
 }
 
-/**
- * What a reconnect implies for threads: anything may have changed — spelled as
- * the whole vocabulary rather than a list of it, because a list is a CLAIM
- * about which kinds a gap can hide and this one was already wrong (it named
- * four of seven, silently asserting that no thread was created, archived or
- * re-anchored while the socket was down).
- */
+// The whole vocabulary, not a list: a list claims which kinds a gap can hide.
 const THREAD_RECONNECT_SWEEP: ThreadChangedMessage = {
   type: "changed",
   entity: "thread",
@@ -144,8 +103,6 @@ const THREAD_RECONNECT_SWEEP: ThreadChangedMessage = {
 };
 
 export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
-  // The runtime — client, query cache, doc-event hub, the context value —
-  // is built ONCE here; nothing about it depends on a render.
   const [runtime] = useState(() => {
     const queryClient = createWorkspaceQueryClient();
     const docListeners = new Set<DocListener>();
@@ -184,20 +141,15 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     return { queryClient, notifyDoc, notifyThread, contextValue };
   });
 
-  // The client is constructed INSIDE the effect, symmetric with its
-  // teardown: dispose() is permanent, so a client held in state would be
-  // killed for good by the first cleanup a double-invoked dev effect runs.
+  // Constructed inside the effect: dispose() is permanent, so a client held in
+  // state would be killed for good by a double-invoked dev effect's cleanup.
   useEffect(() => {
     const invalidation = new InvalidationClient({
       createSocket: () => browserInvalidationSocket(workspaceSocketUrl(socketOrigin())),
       onChanged: (message) =>
         applyChangedMessage(runtime.queryClient, runtime.notifyDoc, runtime.notifyThread, message),
-      // Mutations during a connection gap produced no frames; on reconnect,
-      // invalidate everything the subscriptions cover — the vault and thread
-      // key families — and make the open note and any live timeline re-check
-      // their state. System status is swept alongside them for a different
-      // reason: a socket that dropped most likely means the server restarted,
-      // which changes every field on it.
+      // System status is swept too: a dropped socket most likely means the
+      // server restarted.
       onReconnected: () => {
         void runtime.queryClient.invalidateQueries({ queryKey: orpc.vault.key() });
         void runtime.queryClient.invalidateQueries({ queryKey: orpc.knowledge.key() });
@@ -237,10 +189,8 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
-/** The editor's palette keys off `data-theme` on :root; the app chrome keys
- *  off the `.dark` class the shared ThemeProvider owns. Stamping the RESOLVED
- *  theme (never "system") keeps the two carriers agreeing in all three states
- *  without relying on the editor's own media-query fallback. */
+// The editor keys off `data-theme` on :root, the chrome off ThemeProvider's
+// `.dark` class; stamping the resolved theme (never "system") keeps them agreeing.
 function EditorThemeCarrier() {
   const { resolved } = useTheme();
   useEffect(() => {

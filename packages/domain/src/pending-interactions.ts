@@ -1,15 +1,4 @@
 // Vendored from bb (github.com/get-bb/bb), MIT. © bb contributors.
-// Trimmed to the APPROVAL family, and inside it to the two subjects an ACP
-// permission request can be about: a COMMAND or a FILE CHANGE. bb's
-// user_question and plugin payloads, the plan-review subject (claude-code
-// only) and the server-side row schemas are not vendored — the
-// pending_interactions TABLE and its wire shape live in @repo/db and
-// @repo/api/local; these schemas are the PAYLOAD contract inside a
-// row's JSON `payload` / `resolution` columns.
-//
-// Provider-neutral by construction: the adapter that RAISES an approval spawns
-// processes, and this grammar is what the store, the wire contract, the CLI
-// and a React card all read — so it sits in the domain, below all of them.
 
 import { z } from "zod";
 
@@ -70,13 +59,8 @@ export type ApprovalResolutionParse =
   | { ok: true; resolution: ApprovalPendingInteractionResolution }
   | { ok: false; reason: string };
 
-/**
- * THE interaction-resolution grammar, shared by the answer route's 400 gate
- * and the runtime's answer path so the two can never drift: a bare decision
- * verb ("deny", "allow_once", "allow_for_session") or the full resolution
- * JSON. Deny is always acceptable (it is what every cancel path answers
- * with); any other decision must be one the request offered.
- */
+// one parser for the answer route's 400 gate and the runtime. deny is always accepted (every
+// cancel path answers with it); any other decision must be one the request offered.
 export function parseApprovalResolution(
   raw: string,
   payload: ApprovalPendingInteractionPayload,
@@ -112,12 +96,6 @@ export function parseApprovalResolution(
   return { ok: true, resolution: parsed };
 }
 
-/**
- * What a provider adapter hands the host when a request needs answering. An
- * interface rather than a schema: it is constructed and consumed inside one
- * program and never serialized — only `payload` crosses a boundary, into the
- * row's JSON column, and it is parsed on the way back out.
- */
 export interface PendingInteractionCreate {
   threadId: string;
   turnId: string;

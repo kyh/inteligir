@@ -1,23 +1,7 @@
-// ---------------------------------------------------------------------------
-// KnowledgeIndex — the self-contained, dependency-free composition of the
-// vault knowledge engine: LinkGraphIndex (links/tags/graph, fed projections)
-// plus the pure in-memory SearchIndex, driven directly from doc content.
-//
-// Production composes LinkGraphIndex with a persistent KnowledgeStore instead —
-// FTS5 search, projections hydrated from storage. This class remains the
-// zero-install reference composition: it pins the
-// engine's behavior in core tests and stays the drop-in for any future surface
-// (React Native) that can't carry a SQLite binding.
-//
-// DO NOT DELETE it as "unused in production".
-// @repo/notes carries no sqlite dependency ON PURPOSE (it is the pure sharing
-// seam; SqlDriver is injected by each platform), so this is the ONLY way the
-// package can test its own knowledge engine. Roughly a thousand lines of tests
-// for related-notes scoring, the tag index, the link graph and the perf oracle
-// drive production logic THROUGH it. Removing it would force a sqlite
-// devDependency into the pure package or exile those tests to the node host.
-// Its ~200 lines are the cheap side of that trade.
-// ---------------------------------------------------------------------------
+// Not dead code: @repo/notes carries no sqlite dependency, so this in-memory
+// composition is the only way the package's own suites (related-notes, tags,
+// link graph) can drive the knowledge engine. Production composes
+// LinkGraphIndex with a KnowledgeStore instead.
 
 import { LinkGraphIndex } from "./link-graph-index";
 import type { BacklinkEntry, ForwardLinkEntry, LinkGraph, WikiTarget } from "./link-graph-index";
@@ -37,31 +21,25 @@ export const SEARCH_DEFAULT_LIMIT = 20;
 export class KnowledgeIndex {
   private readonly linkGraph = new LinkGraphIndex();
   private readonly searchIndex = new SearchIndex();
-  /** Doc source lines, retained for search()'s matching-line snippets only —
-   * link/backlink snippets are captured per-link at projection time. */
   private readonly lines = new Map<string, string[]>();
 
-  /** Index (or re-index) a markdown doc. */
   setDoc(path: string, content: string): void {
     const projection = projectDoc(path, content);
     this.lines.set(path, splitLines(content));
     this.linkGraph.applyDoc(path, projection);
     this.searchIndex.set(path, {
       title: projection.title,
-      // Aliases ride the headings field — a ranking boost only (their bytes
-      // already match via the body); the SQL store's FTS insert mirrors this.
+      // aliases ride the headings field as a ranking boost; sql-knowledge-store's fts insert must match
       headings: [...projection.headings, ...projection.aliases],
       body: content,
     });
   }
 
-  /** Register a non-doc vault file (image, pdf, …) for link resolution only. */
   setOther(path: string): void {
     if (this.lines.delete(path)) this.searchIndex.remove(path);
     this.linkGraph.setOther(path);
   }
 
-  /** Drop a file (doc or other) from the index. */
   remove(path: string): void {
     if (this.lines.delete(path)) this.searchIndex.remove(path);
     this.linkGraph.remove(path);
@@ -72,8 +50,6 @@ export class KnowledgeIndex {
     this.searchIndex.clear();
     this.linkGraph.clear();
   }
-
-  // ---- Queries ---------------------------------------------------------------
 
   backlinks(path: string): BacklinkEntry[] {
     return this.linkGraph.backlinks(path);
@@ -92,9 +68,7 @@ export class KnowledgeIndex {
   }
 
   search(query: string, limit: number = SEARCH_DEFAULT_LIMIT): SearchResult[] {
-    // The excerpt needs the query's TERMS, and every plan in the ladder shares
-    // one term list — they differ only in whether all of them are required —
-    // so which plan actually answered does not change the words to look for.
+    // every plan in the ladder shares one term list, so the first plan's terms serve the excerpt
     const [plan] = planSearchQuery(query);
     const terms = plan?.terms ?? [];
     const ranked = this.searchIndex.search(query, limit);
@@ -114,8 +88,6 @@ export class KnowledgeIndex {
     return this.linkGraph.notesWithTag(tag);
   }
 
-  /** Ranked related notes (shared links, co-citation, shared tags, lexical
-   * similarity via the in-memory SearchIndex) — see related-notes.ts. */
   relatedNotes(path: string, opts?: RelatedNotesOpts): RelatedNoteEntry[] {
     return relatedNotes(
       this.linkGraph,
@@ -125,10 +97,6 @@ export class KnowledgeIndex {
     );
   }
 
-  // ---- Internals --------------------------------------------------------------
-
-  /** The line a hit is shown by (search-excerpt.ts — the SQL store cuts the
-   * same one), falling back to the title when nothing in the doc matched. */
   private searchSnippet(path: string, terms: readonly SearchQueryTerm[]): string {
     const lines = this.lines.get(path);
     if (!lines) return "";

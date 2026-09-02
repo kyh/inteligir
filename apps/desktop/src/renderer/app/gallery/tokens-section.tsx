@@ -1,6 +1,3 @@
-// Tokens: the palette every component above resolves against. Shown because a
-// component demo tells you what a thing looks like, and this tells you why.
-
 import { Elevated } from "@repo/ui/lib/elevated";
 import { surfaceClasses } from "@repo/ui/lib/surface-classes";
 import { cn } from "@repo/ui/lib/utils";
@@ -9,9 +6,6 @@ import { Demo, GallerySection } from "./gallery-chrome";
 
 const LEVELS = [1, 2, 3, 4, 5, 6, 7, 8] as const;
 
-/** The named colors the app paints with, as `bg-*` / `text-*` pairs. Listed
- *  rather than derived: the CSS custom properties carry no readable inventory,
- *  and a swatch needs a label a reader can grep for. */
 const INK = [
   { name: "background", className: "bg-background text-foreground" },
   { name: "surface", className: "bg-surface text-ink" },

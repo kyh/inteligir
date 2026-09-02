@@ -15,19 +15,6 @@ import { cva, type VariantProps } from "class-variance-authority";
 
 import { cn } from "@repo/ui/lib/utils";
 
-/* ─────────────────────────────────────────────────────────
- * CODE BLOCK — agent-written code with a live copy control
- *
- * The LINES ARE CHILDREN and the copy text is the input, so the
- * block renders whatever the caller has; tokens separate by
- * WEIGHT rather than hue, because the skin is monochrome and a
- * token vocabulary invented in colours we lack would be a lie.
- *
- * Line numbers come from a CSS counter rather than an index: the
- * parent cannot number children it does not own, and a counter is
- * correct even when a caller renders lines conditionally.
- * ───────────────────────────────────────────────────────── */
-
 interface CodeBlockContextValue {
   code: string;
 }
@@ -35,7 +22,6 @@ interface CodeBlockContextValue {
 const CodeBlockContext = createContext<CodeBlockContextValue>({ code: "" });
 
 export interface CodeBlockProps extends HTMLAttributes<HTMLDivElement> {
-  /** The raw source, used verbatim by the copy control. */
   code?: string;
 }
 
@@ -74,7 +60,6 @@ const CodeBlockHeader = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement
 CodeBlockHeader.displayName = "CodeBlockHeader";
 
 export interface CodeBlockTitleProps extends HTMLAttributes<HTMLSpanElement> {
-  /** Language label shown beside the filename. */
   language?: ReactNode;
 }
 
@@ -135,8 +120,7 @@ const CodeBlockCopy = forwardRef<HTMLButtonElement, CodeBlockCopyProps>(
   ({ className, copyLabel = "Copy", copiedLabel = "Copied", ...props }, ref) => {
     const { code } = useContext(CodeBlockContext);
     const [copied, setCopied] = useState(false);
-    // The reset must be cancellable: a second copy while the first is still
-    // showing would otherwise be cleared by the earlier timer.
+    // a second copy must cancel the first reset timer
     const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const copy = useCallback(() => {
@@ -191,6 +175,7 @@ const CodeBlockBody = forwardRef<HTMLPreElement, HTMLAttributes<HTMLPreElement>>
 );
 CodeBlockBody.displayName = "CodeBlockBody";
 
+// line numbers are a css counter: an index would miscount conditionally rendered lines
 const CodeBlockLine = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
   ({ className, children, ...props }, ref) => (
     <div

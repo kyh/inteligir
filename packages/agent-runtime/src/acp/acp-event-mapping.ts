@@ -1,15 +1,6 @@
-// ACP session/update → ProviderEvent, pure. The provider-event vocabulary is
-// the ONE internal grammar (the app's event-mapping and ThreadService stay
-// untouched by the harness swap), so every ACP notion lands as an event bb's
-// grammar already names — never a divergent shape.
-//
-// ACP has no turn ids and no item lifecycle: chunks arrive bare and a tool
-// call is born by `tool_call` then mutated by `tool_call_update`. The turn
-// context OWNS the missing identity: the runtime mints a turn id per prompt,
-// and this mapper mints item ids (one message item and one reasoning item per
-// turn; tool calls keep the agent's own toolCallId) and remembers enough item
-// state to emit faithful `item/completed` shapes when a call settles or the
-// turn ends.
+// ACP has no turn ids and no item lifecycle: chunks arrive bare and a tool call is born by
+// tool_call then mutated by tool_call_update, so this mapper mints one message and one reasoning
+// item id per turn.
 
 import type {
   PlanEntry,
@@ -45,7 +36,6 @@ interface OpenToolCall {
   rawInput?: JsonObject;
 }
 
-/** Per-turn mapper state; one instance lives for one prompt's duration. */
 export class AcpTurnMapper {
   readonly #ctx: AcpTurnContext;
   #messageOpen = false;
@@ -201,7 +191,6 @@ export class AcpTurnMapper {
     }
   }
 
-  /** The prompt settled: close every open item, then the turn itself. */
   completed(stopReason: StopReason): ProviderEvent[] {
     const events = this.#closeOpenItems(stopReason === "cancelled" ? "interrupted" : "completed");
     events.push({
@@ -281,9 +270,8 @@ export class AcpTurnMapper {
     }
   }
 
-  /** The item an ACP tool call lands as, by its declared kind: file edits are
-   * fileChange items (the commit hold stages a turn's write set FROM these),
-   * executions are commands, and everything else stays a tool call. */
+  // file-shaped kinds become fileChange items: the commit hold stages a turn's write set from
+  // these.
   #toolItem(id: string, open: OpenToolCall): ProviderEventItem {
     if (open.kind === "edit" || open.kind === "delete" || open.kind === "move") {
       const byPath = new Map<string, ThreadEventFileChange>();

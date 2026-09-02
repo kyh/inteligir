@@ -1,16 +1,7 @@
-// Note Intelligence: background frontmatter inference over the vault's
-// notes. The sweep CONVERGES BY CONSTRUCTION: it only ever ADDS fields a note
-// lacks, so its own writes disqualify their notes from the next pass, and a
-// files-changed echo re-scans to a zero-update sweep rather than looping.
-// A user-set field is never rewritten — the absent-only discipline is
-// enforced twice, here (candidate selection) and in the frontmatter helper
-// (key-presence check), because the failure mode is silently rewriting what a
-// person typed.
-//
-// Inference SPAWNS A VENDOR CLI, so a machine either can run it or cannot.
-// An install without that binary answers `unavailable` with a reason and
-// schedules nothing — a sweep of zeros is what "nothing to do" looks like, and
-// it must not also be what "nothing can be done" looks like.
+// the sweep only adds fields a note lacks, so its own writes disqualify their
+// notes from the next pass and a files-changed echo converges to zero updates.
+// an install without the binary answers unavailable and schedules nothing: a
+// sweep of zeros must not mean both "nothing to do" and "nothing can be done".
 
 import {
   addAbsentFrontmatterFields,
@@ -31,14 +22,10 @@ import type { VaultService } from "../vault/vault-service";
 import type { InferenceRunner, InferredFields } from "./infer";
 import type { NoteIntelligenceSettingsStore } from "./settings-store";
 
-/** Body bytes handed to inference — a classification needs the head, not the
- *  whole archive. */
+// a classification needs the head, not the whole note.
 const BODY_CAP_BYTES = 12_000;
-/** Notes examined per sweep; the rest wait for the next one. */
 const SWEEP_BATCH = 8;
-/** Concurrent inference children. */
 const SWEEP_CONCURRENCY = 3;
-/** Quiet period after a files-changed signal before a sweep runs. */
 const SWEEP_DEBOUNCE_MS = 30_000;
 
 const INFERABLE_KEYS = ["description", "tags", "status"] as const;
@@ -47,10 +34,7 @@ export interface NoteIntelligenceDeps {
   vault: VaultService;
   settings: NoteIntelligenceSettingsStore;
   infer: InferenceRunner;
-  /** Whether the machine can run `infer` at all, decided at boot. Unavailable
-   *  means no sweep is ever scheduled and no child is ever spawned. */
   availability: NoteIntelligenceAvailability;
-  /** Test seam: the debounce delay. */
   debounceMs?: number;
   onLog?: (message: string) => void;
 }
@@ -58,9 +42,7 @@ export interface NoteIntelligenceDeps {
 export interface NoteIntelligence {
   status(): NoteIntelligenceStatus;
   setEnabled(enabled: boolean): NoteIntelligenceStatus;
-  /** A files-changed signal; schedules a debounced sweep when enabled. */
   noteVaultChange(): void;
-  /** Run one sweep now (the toggle-on kick and the tests' direct door). */
   sweepNow(): Promise<NoteIntelligenceSweep>;
   dispose(): void;
 }
@@ -91,7 +73,6 @@ export function createNoteIntelligence(deps: NoteIntelligenceDeps): NoteIntellig
   let lastSweep: NoteIntelligenceSweep | null = null;
   let timer: NodeJS.Timeout | null = null;
   let disposed = false;
-  // Bounded logging: the first skip logs, repeats count silently.
   let loggedSkip = false;
 
   const log = (message: string): void => {
@@ -134,7 +115,6 @@ export function createNoteIntelligence(deps: NoteIntelligenceDeps): NoteIntellig
       counts.skipped += 1;
       return;
     }
-    // A concurrent edit refuses rather than clobbers; the next sweep retries.
     const written = await deps.vault
       .writeIfUnchanged(path, content, next)
       .catch(() => ({ applied: false as const, reason: "changed" as const }));
@@ -152,16 +132,12 @@ export function createNoteIntelligence(deps: NoteIntelligenceDeps): NoteIntellig
     running = true;
     try {
       const tree = await deps.vault.listTree();
-      // Trash/ is in the tree and must never be swept: inferring into a deleted
-      // note spends a child on it, and the strip that restore runs takes the
-      // two stamp lines back out — not the fields inference wrote.
+      // never sweep Trash/: restore strips only its own stamp lines, not fields inference wrote.
       const docs = tree.entries.flatMap((entry) =>
         entry.kind === "file" && isNotePath(entry.path) && !isTrashedPath(entry.path)
           ? [entry.path]
           : [],
       );
-      // Candidate selection reads cheaply first, so a complete note costs one
-      // read and no child.
       const candidates: string[] = [];
       for (const path of docs) {
         if (candidates.length >= SWEEP_BATCH) break;
@@ -172,7 +148,7 @@ export function createNoteIntelligence(deps: NoteIntelligenceDeps): NoteIntellig
             candidates.push(path);
           }
         } catch {
-          // Unreadable now — the next sweep re-lists.
+          // unreadable now; the next sweep re-lists.
         }
       }
       const counts = { updated: 0, skipped: 0 };
@@ -224,8 +200,6 @@ export function createNoteIntelligence(deps: NoteIntelligenceDeps): NoteIntellig
       deps.settings.writeEnabled(next);
       clearTimer();
       if (next && usable) {
-        // The toggle-on kick: an immediate-ish sweep rather than waiting a
-        // quiet period nothing is counting down.
         void runSweepLogged();
       }
       return snapshot();

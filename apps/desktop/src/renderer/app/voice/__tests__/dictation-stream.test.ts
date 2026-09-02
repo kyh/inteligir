@@ -1,6 +1,3 @@
-// The dictation stream client, driven with a fake socket: the queue-until-open
-// ordering, the terminal final/error, and the cancel that says nothing.
-
 import { describe, expect, it } from "vitest";
 import { DictationStreamClient, type DictationSocket } from "../dictation-stream";
 
@@ -104,7 +101,6 @@ describe("DictationStreamClient", () => {
     fake.socket.onOpen?.();
     fake.socket.onMessage?.({ data: JSON.stringify({ type: "partial", text: "hel" }) });
     client.finalize();
-    // A late partial (in flight when the user released) must not reappear.
     fake.socket.onMessage?.({ data: JSON.stringify({ type: "partial", text: "hello wor" }) });
     fake.socket.onMessage?.({ data: JSON.stringify({ type: "final", text: "hello world" }) });
     expect(rec.partials).toEqual(["hel"]);

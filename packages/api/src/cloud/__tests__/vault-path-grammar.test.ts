@@ -1,22 +1,12 @@
-// The cloud wire's vault-path grammar IS the vault engine's own
-// (`parseVaultPath`, taken verbatim): a hand-rolled copy drifts in exactly the
-// cases that matter (`.GIT/hooks/x`, `a\b`), so one corpus goes through both
-// deciders to keep them in lockstep; the expectation is DERIVED from the
-// engine, so a value they disagree on is named rather than hand-listed.
-
 import { parseVaultPath } from "@repo/notes/knowledge/vault-path";
 import { describe, expect, it } from "vitest";
 import { vaultFileQuerySchema } from "../vault/vault-schema";
 
-/** What the wire says about `path`. The schema is not exported on its own —
- *  a query row is how every caller meets it. */
 function wireAdmits(path: string): boolean {
   return vaultFileQuerySchema.safeParse({ path }).success;
 }
 
-/** Admitted iff the engine parses it AND the parse is the identity — these
- *  values address git trees verbatim, so a path the engine would normalize
- *  must refuse rather than silently rename. */
+// identity required: a path the engine would normalize must refuse, not silently rename
 function engineAdmits(path: string): boolean {
   const parsed = parseVaultPath(path);
   return parsed.ok && parsed.path === path;
@@ -55,8 +45,6 @@ describe("the vault-path grammar has one spelling", () => {
   });
 
   it("refuses case-folded .git and backslash separators absolutely", () => {
-    // Case-folded `.git` reaches git's machinery on a case-insensitive
-    // filesystem, and a backslash path means different files per platform.
     expect(wireAdmits(".GIT/hooks/x")).toBe(false);
     expect(wireAdmits("a\\b.md")).toBe(false);
   });

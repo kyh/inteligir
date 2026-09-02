@@ -1,8 +1,4 @@
-// Emoji `:shortcode:` autocomplete riding the shared inline-combobox (the
-// same Base UI surface the slash menu uses).
-// Selecting inserts plain unicode text — zero
-// serialization surface. @emoji-mart/data (~430KB json) loads via dynamic
-// import on first trigger, never in the initial chunk.
+// @emoji-mart/data (~430KB) loads via dynamic import on first trigger, never in the initial chunk.
 
 import { useEffect, useMemo, useState } from "react";
 import { EmojiInlineIndexSearch, insertEmoji } from "@platejs/emoji";
@@ -19,11 +15,8 @@ import {
   InlineComboboxItem,
 } from "@repo/editor/inline-combobox";
 
-// The package declares `EmojiMartData` but points its entry at a .json file, so
-// the loaded value arrives carrying none of that typing. This is the boundary
-// that gives it one: the two tables the search index reads are checked, and the
-// package's own declaration names the rest — mirroring a 2,000-entry table here
-// would only give it something to drift against.
+// The package declares EmojiMartData but its entry is a .json file, so the loaded
+// value carries none of that typing; only the two tables the search index reads are checked.
 const EMOJI_TABLES = z.object({
   categories: z.array(z.unknown()),
   emojis: z.record(z.string(), z.unknown()),

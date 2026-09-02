@@ -15,17 +15,8 @@ import {
 import { parseMdast } from "@repo/notes/markdown/parse";
 import { parseWikiBody } from "@repo/notes/markdown/remark-wiki-link";
 
-// In-tree translations of the scratchpad probe scenarios (rt/probe1-6) that
-// aren't already pinned by the fixture matrix: the failure modes the owned
-// parse exists to kill, and the unit surface of the wiki tokenizer / body
-// parser.
-
 describe("owned parse (probe1/2/3 translations)", () => {
   it("throws real errors instead of deserializeMd's silent degradation", () => {
-    // Each of these produced a mangled, non-idempotent model under
-    // deserializeMd (probe1); under the owned parse they are honest failures.
-    // The list is short on purpose: a tag has to be genuinely BROKEN to fail
-    // now, so everything a well-formed document can hold parses.
     const parseErrors = [
       "<Foo>\n\nnever closed\n",
       "<Foo>broken</Bar>\n",
@@ -38,24 +29,18 @@ describe("owned parse (probe1/2/3 translations)", () => {
       if (result.ok) continue;
       expect(result.failure.message.length).toBeGreaterThan(0);
     }
-    // Positioned errors carry the line for the badge tooltip.
     const positioned = parseMdast("first\n\n<Foo>broken</Bar>\n");
     expect(positioned.ok).toBe(false);
     if (!positioned.ok) expect(positioned.failure.line).toBe(3);
   });
 
   it("keeps html-ish bytes inside inline code intact (htmlToJsx regression)", () => {
-    // deserializeMd's regex pre-pass rewrote `class=` → `className=` INSIDE
-    // code spans/fences (probe2). The owned parse never touches raw source.
     const md = 'use `<div class="x">` here\n';
     expect(roundTrip(md)).toBe(md);
     expect(analyzeMarkdown(md).canonical).toBe(true);
   });
 
   it("parses expressions under agnostic MDX instead of crashing (acorn difference)", () => {
-    // With Plate's remarkMdx (acorn), `config { noServer: true }` THROWS
-    // "Could not parse expression with acorn". Agnostic mode parses it as an
-    // expression, which the opaque node then carries byte-for-byte.
     const md = "config { noServer: true } here\n";
     expect(roundTrip(md)).toBe(md);
     expect(analyzeMarkdown(md).canonical).toBe(true);
@@ -68,7 +53,6 @@ describe("owned parse (probe1/2/3 translations)", () => {
   });
 });
 
-// Every opaque `value` in the parsed model, in document order.
 function opaqueValues(md: string): string[] {
   const parsed = parseMarkdown(md);
   expect(parsed.ok, md).toBe(true);
@@ -86,9 +70,6 @@ function opaqueValues(md: string): string[] {
   return values;
 }
 
-// A construct the editor has no node for is held verbatim rather than refused.
-// `roundTrip(md) === md` is the whole contract: the bytes survive an edit
-// anywhere else in the document. Anything that fails here corrupts a file.
 function expectOpaque(md: string, values: string[]): void {
   expect(opaqueValues(md), md).toEqual(values);
   expect(roundTrip(md), md).toBe(md);
@@ -121,9 +102,6 @@ describe("opaque nodes (constructs with no editor node)", () => {
   });
 
   it("carries an allowed tag whose attributes are not plain strings", () => {
-    // Bare booleans, braced expressions and spreads do not survive
-    // parseAttributes/propsToAttributes — the element goes opaque WHOLE rather
-    // than losing the attribute on the first save.
     expectOpaque("<callout draft>\n  x\n</callout>\n", ["<callout draft>\n  x\n</callout>"]);
     expectOpaque("<callout {...props}>\n  x\n</callout>\n", [
       "<callout {...props}>\n  x\n</callout>",
@@ -134,8 +112,6 @@ describe("opaque nodes (constructs with no editor node)", () => {
   });
 
   it("carries unknown attr names on <date> (Plate's rule keeps only `value`)", () => {
-    // Unlike the flow tags, date's deserialize DROPS everything but `value` —
-    // modelling it would silently delete `foo` on the first rich save.
     expectOpaque('Meet <date value="2026-07-01" foo="x" /> ok\n', [
       '<date value="2026-07-01" foo="x" />',
     ]);
@@ -176,11 +152,7 @@ describe("opaque nodes (constructs with no editor node)", () => {
   });
 
   it("keeps an opaque block inside a container prefix-correct", () => {
-    // The value is RE-SERIALIZED, never sliced out of the source: a slice would
-    // capture the `> ` markers and the stringifier would add a second set.
     expectOpaque("> <Steps>\n>   quoted\n> </Steps>\n", ["<Steps>\n  quoted\n</Steps>"]);
-    // Inside a callout fence the body re-parses as markdown, so a JSX
-    // construct there is opaque WITHIN the callout's children.
     expectOpaque("```inteligir-callout\ninfo\n<Steps>\n  nested\n</Steps>\n```\n", [
       "<Steps>\n  nested\n</Steps>",
     ]);
@@ -195,8 +167,6 @@ describe("opaque nodes (constructs with no editor node)", () => {
 
 describe("wiki links (probe4 translations)", () => {
   it("leaves standard links and images untouched (construct fallthrough)", () => {
-    // micromark prepends our constructs; a failed [[ / ![[ attempt falls
-    // through to the stock link/image constructs.
     expect(roundTrip("[x](https://example.com/y) plain\n")).toBe(
       "[x](https://example.com/y) plain\n",
     );
@@ -218,8 +188,6 @@ describe("wiki links (probe4 translations)", () => {
   });
 
   it("rejects empty, unclosed, and single-] bodies back to text", () => {
-    // The whole construct falls through to plain text (then normal `[` escaping
-    // applies on re-serialize — churn, but never a wiki node).
     for (const md of ["[[]] empty\n", "an [[not closed\n", "a [[a]b]] partial\n"]) {
       const parsed = parseMarkdown(md);
       expect(parsed.ok).toBe(true);
@@ -227,8 +195,6 @@ describe("wiki links (probe4 translations)", () => {
       expect(JSON.stringify(parsed.value)).not.toContain("wikiLink");
       expect(JSON.stringify(parsed.value)).not.toContain("wikiEmbed");
     }
-    // Nested open `[[a[[b]]`: the outer attempt noks on the inner `[`, whose
-    // own `[[b]]` then parses — outer bytes stay text, inner becomes a link.
     const nested = parseMarkdown("[[a[[b]] weird\n");
     expect(nested.ok).toBe(true);
     if (!nested.ok) return;
@@ -290,8 +256,6 @@ describe("serialize rules (probe1 §5 / probe5 translations)", () => {
   });
 
   it("serializes a collapsed/expanded toggle with zero attributes", () => {
-    // Open state lives in the toggle plugin's store (openIds), never on the
-    // node — the emitted tag must stay bare.
     const out = serializeMd(editor(), {
       remarkStringifyOptions: MD_STRINGIFY,
       value: [{ children: [{ children: [{ text: "x" }], type: "p" }], type: "toggle" }],
@@ -322,9 +286,7 @@ describe("serialize rules (probe1 §5 / probe5 translations)", () => {
   });
 
   it("never serializes node ids into vocabulary attributes", () => {
-    // NodeIdPlugin (a Plate core default, off under NODE_ENV=test — so this
-    // test injects ids explicitly) puts `id` on every live-editor block;
-    // Plate's default callout/media rules would leak it as an `id="…"` attr.
+    // NodeIdPlugin is off under NODE_ENV=test, so ids are injected by hand
     const out = serializeMd(editor(), {
       remarkStringifyOptions: MD_STRINGIFY,
       value: [
@@ -352,20 +314,13 @@ describe("serialize rules (probe1 §5 / probe5 translations)", () => {
   });
 
   it("emits bare emails as literal bytes, never <angle> autolinks (V2)", () => {
-    // Left to gfm's defaults, email literals reach mdast-util-to-markdown's
-    // formatLinkAsAutolink and come back as `<a@b.cd>` — unparseable under
-    // MDX, so a richSafe:true file is corrupted by its first save.
     const bare = "contact a@b.cd today\n";
     expect(roundTrip(bare)).toBe(bare);
     expect(analyzeMarkdown(bare).canonical).toBe(true);
-    // The explicit resource form is indistinguishable from a parsed literal
-    // in the model, so it normalizes to the literal (letters diverge → Raw).
+    // the resource form is indistinguishable from a parsed literal in the model
     expect(roundTrip("[a@b.cd](mailto:a@b.cd)\n")).toBe("a@b.cd\n");
-    // mailto links whose text is NOT the address stay resource links.
     const named = "[write us](mailto:a@b.cd)\n";
     expect(roundTrip(named)).toBe(named);
-    // Non-gfm protocols must never take the angle-autolink form either
-    // (resourceLink: true) — `<tel:123>` would not re-parse.
     const tel = "[tel:123](tel:123)\n";
     expect(roundTrip(tel)).toBe(tel);
   });
@@ -377,14 +332,10 @@ describe("serialize rules (probe1 §5 / probe5 translations)", () => {
   });
 
   it("never emits `---` as a document's first line (V5 frontmatter guard)", () => {
-    // A doc-leading `---` re-parses as a frontmatter fence and can silently
-    // absorb following prose into YAML. Leading hrs canonicalize to `***`;
-    // mid-document hrs keep the `---` rule.
     expect(roundTrip("---\n")).toBe("***\n");
     expect(roundTrip("***\n***\n")).toBe("***\n\n---\n");
     expect(roundTrip("***\n\nkey: value\n\n***\n")).toBe("***\n\nkey: value\n\n---\n");
     expect(roundTrip("x\n\n---\n")).toBe("x\n\n---\n");
-    // Real frontmatter still serializes its own fences at byte 0.
     const fm = "---\ntitle: x\n---\n\nbody\n";
     expect(roundTrip(fm)).toBe(fm);
   });
@@ -400,17 +351,12 @@ describe("serialize rules (probe1 §5 / probe5 translations)", () => {
   });
 
   it("pads ragged tables into a pass-1 fixpoint (V4)", () => {
-    // Short rows become REAL empty cells at deserialize, so the first pass
-    // already emits the stable ZWSP-cell form instead of reaching it on pass 3.
     const out = roundTrip("| a | b |\n| - | - |\n| 1 |\n");
     expect(out).toBe("| a | b |\n| - | - |\n| 1 | ​ |\n");
     expect(roundTrip(out)).toBe(out);
   });
 
   it("persists table column alignment across the round-trip", () => {
-    // Plate's default table rule drops mdast `align`, which would silently
-    // strip `:-:` delimiters on a rich save; the align array rides on the
-    // Slate table node instead.
     const out = roundTrip("| a |\n|:-:|\n| 1 |\n");
     expect(out).toBe("|  a  |\n| :-: |\n|  1  |\n");
     expect(roundTrip(out)).toBe(out);
@@ -418,9 +364,6 @@ describe("serialize rules (probe1 §5 / probe5 translations)", () => {
   });
 
   it("keeps empty todos checkable via the ZWSP placeholder", () => {
-    // gfm's serializer inserts the checkbox after the bullet's following
-    // space, which empty content never produces — without the placeholder an
-    // empty todo saves as a bare `-`, silently dropping the checkbox.
     const out = serializeMd(editor(), {
       remarkStringifyOptions: MD_STRINGIFY,
       value: [
@@ -429,7 +372,7 @@ describe("serialize rules (probe1 §5 / probe5 translations)", () => {
       ],
     });
     expect(out).toBe("- [ ] ​\n- [x] ​\n");
-    expect(roundTrip(out)).toBe(out); // and it re-parses as an empty todo
+    expect(roundTrip(out)).toBe(out);
     expect(analyzeMarkdown(out).canonical).toBe(true);
   });
 });
@@ -468,9 +411,6 @@ describe("gate API", () => {
   });
 
   it("classifies conversion stack overflow as Raw instead of throwing (V1)", () => {
-    // micromark parses ~3000-deep nesting fine, but the mdast→Slate→stringify
-    // recursion overflows around depth ~1250 — that RangeError must surface
-    // as a DocAnalysis, and the badge and Format must agree on it.
     const deep = "> ".repeat(3000) + "x\n";
     const analysis = analyzeMarkdown(deep);
     expect(analysis.richSafe).toBe(false);
@@ -493,9 +433,6 @@ describe("gate API", () => {
   });
 });
 
-// Inteligir also accepts payload lines prefixed (`type: warning` / `level:
-// high`); the spelling is remembered on the node, so the round trip is
-// byte-exact — and an unknown kind is a plain code block.
 const variantsOf = (md: string): string => {
   const parsed = parseMarkdown(md);
   expect(parsed.ok).toBe(true);

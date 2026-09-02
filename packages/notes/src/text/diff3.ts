@@ -1,36 +1,25 @@
-// Line-based three-way merge for the open note: base = the last content this
-// client saved, mine = the live buffer, theirs = what arrived on disk. A
-// region changed on one side takes that side; a region both sides changed
-// identically merges silently; a genuine overlap keeps MINE (the buffer is
-// the user's work) and reports the conflict so the caller can surface it.
-// Line diffs come from the Myers walk beside this module; unstable regions
-// not separated by at least one stable line are grouped, as classic diff3
-// does — interleaving adjacent edits would be ambiguous.
+// a genuine overlap keeps mine (the buffer is the user's work) and reports the conflict.
+// unstable regions not separated by a stable line are grouped, as classic diff3 does.
 
 import { diffLines, splitLinesLf, type DiffHunk } from "./line-diff";
 
 export interface Diff3Result {
   merged: string;
-  /** True when at least one region was changed differently on both sides;
-   *  those regions carry MINE in `merged`. */
   conflicted: boolean;
 }
 
 interface SideCursor {
   hunks: DiffHunk[];
   index: number;
-  /** Side line index aligned with the base walk position. */
   sideLine: number;
 }
 
-/** The hunks one unstable region collects, per side. */
 interface RegionHunks {
   mine: DiffHunk[];
   theirs: DiffHunk[];
 }
 
-/** Element-wise, never joined strings: segments are compared as the arrays
- *  they are, so segmentation itself participates in equality. */
+// element-wise, never joined strings: segmentation participates in equality.
 function segmentsEqual(a: readonly string[], b: readonly string[]): boolean {
   if (a.length !== b.length) {
     return false;
@@ -74,13 +63,11 @@ export function diff3(base: string, mine: string, theirs: string): Diff3Result {
       theirsNext?.baseStart ?? Number.POSITIVE_INFINITY,
     );
 
-    // Stable run: both sides agree with base, cursors advance in lockstep.
     merged.push(...baseLines.slice(baseLine, regionStart));
     mineCursor.sideLine += regionStart - baseLine;
     theirsCursor.sideLine += regionStart - baseLine;
     baseLine = regionStart;
 
-    // Group every hunk not separated from the region by a stable line.
     let regionEnd = regionStart;
     const inRegion: RegionHunks = { mine: [], theirs: [] };
     let progressed = true;

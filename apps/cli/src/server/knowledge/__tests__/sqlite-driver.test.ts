@@ -1,10 +1,3 @@
-// Driver conformance, two layers. The driver-level suite exercises the
-// binding itself: parameter binding, error propagation, the reset primitive,
-// and the recovery ladder that must never let a bad file abort product boot.
-// The store-level suite drives @repo/notes' SQL KnowledgeStore over the
-// driver exactly as it drives every other platform's — schema init, FTS5
-// search, hydration paging, the version/root guards.
-
 import { createHash } from "node:crypto";
 import { chmodSync, existsSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -21,8 +14,7 @@ import { createSqliteDriver } from "../sqlite-driver";
 
 function makeDbDir(): string {
   const dir = makeTempDir("inteligir-knowledge-driver-");
-  // A test drops the dir's write bit; registered after the dir, this restore
-  // runs before the dir's own removal, so the removal can succeed.
+  // registered after the dir, so this restore runs before the dir's own removal.
   onTestFinished(() => chmodSync(dir, 0o755));
   return dir;
 }
@@ -119,14 +111,13 @@ describe("the sqlite driver", () => {
     const dir = makeDbDir();
     const dbPath = join(dir, "knowledge.db");
     writeFileSync(dbPath, "garbage that will not open");
-    // A read-only parent refuses unlink AND rename — the ladder's last rung.
+    // a read-only parent refuses both unlink and rename.
     chmodSync(dir, 0o555);
     const driver = openDriver(dbPath);
     chmodSync(dir, 0o755);
     driver.exec("CREATE TABLE t (a)");
     driver.run("INSERT INTO t (a) VALUES (?)", ["in-memory"]);
     expect(driver.all("SELECT a FROM t", [])).toEqual([{ a: "in-memory" }]);
-    // Boot survived; the corrupt file is still there, untouched.
     expect(readdirSync(dir)).toContain("knowledge.db");
   });
 });
@@ -141,7 +132,6 @@ describe("the better-sqlite3 knowledge store", () => {
     expect(docs[0]?.projection.title).toBe("Alpha Note");
     expect(others).toEqual([{ path: "img/pic.png" }]);
 
-    // bm25 weighting: a title hit outranks a body-only hit.
     const hits = store.search("alpha", 10);
     expect(hits.map((h) => h.path)).toEqual(["alpha.md", "beta.md"]);
 
@@ -219,7 +209,6 @@ describe("the better-sqlite3 knowledge store", () => {
     expect(store.loadAll()).toEqual({ docs: [], others: [] });
     expect(existsSync(dbPath)).toBe(true);
 
-    // Still writable after the reset.
     const gamma = docRow("gamma.md", "# Gamma\n\nquokka\n");
     store.upsertDoc(gamma.row, gamma.body);
     expect(store.search("quokka", 10).map((h) => h.path)).toEqual(["gamma.md"]);

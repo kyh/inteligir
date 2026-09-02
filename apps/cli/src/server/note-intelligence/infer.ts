@@ -1,22 +1,14 @@
-// The inference child: one-shot `claude -p … --output-format json --model
-// haiku` (flags verified against the installed CLI). The cheapest model,
-// because the ask is a classification over a head-capped body, not writing.
-// cwd is the DATA DIR on purpose: `claude` loads CLAUDE.md from its cwd, and
-// running in the vault would inject the vault's own agent instructions into a
-// task that must read the note as CONTENT, not as a workspace.
-// The body rides STDIN, never argv: argv is readable by every process on the
-// machine (`ps`), and a note is private. The CLI appends piped input after
-// the `-p` prompt, so the prompt says the body follows.
+// cwd is the data dir, never the vault: `claude` loads CLAUDE.md from its cwd,
+// and the note must be read as content, not as a workspace. the body rides
+// stdin, never argv — argv is readable by every process on the machine.
 
 import { execFile } from "node:child_process";
 import { HARNESSES } from "@repo/agent-runtime/acp/harness-registry";
 import { z } from "zod";
 
-/** The vendor CLI this runs, taken from the harness table so the PATH probe at
- *  boot and the spawn here can never name different binaries. */
+// from the harness table, so the boot PATH probe and this spawn name the same binary.
 export const INFERENCE_BINARY = HARNESSES.claude.vendorBinary;
 
-/** The closed field set — the ONLY keys inference may produce. */
 const inferredFieldsSchema = z
   .object({
     description: z.string().min(1).max(140),
@@ -26,12 +18,10 @@ const inferredFieldsSchema = z
   .strict();
 export type InferredFields = z.infer<typeof inferredFieldsSchema>;
 
-/** The seam tests inject; production wires the CLI child below. Null means
- *  "could not infer" and the caller SKIPS — never retries in a loop. */
+// null means "could not infer"; the caller skips, never retries.
 export type InferenceRunner = (body: string) => Promise<InferredFields | null>;
 
-// The CLI's json output wraps the model text in an envelope; only `result`
-// matters here.
+// the CLI's json output wraps the model text in an envelope.
 const cliEnvelopeSchema = z.object({ result: z.string() }).loose();
 
 const INFERENCE_PROMPT = [
@@ -43,8 +33,7 @@ const INFERENCE_PROMPT = [
   "The note body follows, piped on stdin:",
 ].join("\n");
 
-/** Pull the first JSON object out of the model's text — models fence or
- *  preface despite instructions, and a parse failure is a SKIP, not an error. */
+// models fence or preface despite instructions; a parse failure is a skip.
 export function parseInferenceOutput(text: string): InferredFields | null {
   const start = text.indexOf("{");
   const end = text.lastIndexOf("}");
@@ -58,7 +47,6 @@ export function parseInferenceOutput(text: string): InferredFields | null {
 }
 
 export interface CliInferenceArgs {
-  /** The child's cwd — the data dir, never the vault (see the header). */
   cwd: string;
   timeoutMs?: number;
 }
@@ -85,9 +73,8 @@ export function createCliInferenceRunner(args: CliInferenceArgs): InferenceRunne
           resolvePromise(error === null ? parseCliStdout(stdout) : null);
         },
       );
-      // A child that exits before draining its stdin (a missing binary, a
-      // refused login) answers through the callback; the write's own EPIPE
-      // must not surface as an unhandled stream error.
+      // a child that exits before draining stdin (missing binary, refused login)
+      // answers through the callback; the write's EPIPE must not surface.
       child.stdin?.on("error", () => {});
       child.stdin?.end(body);
     });

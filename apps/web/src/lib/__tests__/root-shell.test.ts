@@ -1,8 +1,3 @@
-// A 404 — and a root error — must ship as a full document: without the root
-// route's shellComponent those views render with no <html>, no stylesheet and
-// no scripts, which is also why they arrive unstyled. Rendered through the
-// real root route at a path nothing serves.
-
 import { createElement } from "react";
 import { renderToString } from "react-dom/server";
 import { createMemoryHistory, createRouter, RouterProvider } from "@tanstack/react-router";

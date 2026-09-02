@@ -1,10 +1,3 @@
-// The ⌘K Action Composer — fluid's ask-AI input floating over the note: a
-// prompt field with the open note attached as a removable context chip, more
-// notes @-mentionable into chips beside it, the mic riding along, send
-// starting the action. The action ATTACHES to the note
-// (threads.originDocPath); mentioned notes ride the prompt as a leading
-// context line; its transcript lives in the Actions panel.
-
 import type { WikiTargetWire } from "@repo/api/local/knowledge/knowledge-schema";
 import { Badge } from "@repo/ui/components/badge";
 import { InputMessage } from "@repo/ui/components/input-message";
@@ -29,20 +22,15 @@ import {
 
 interface PendingAction {
   threadId: string;
-  /** The attachment the thread was created over — null for an unattached one. */
   docPath: string | null;
 }
 
 export interface ActionComposerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Text the opener wants pre-filled (a quoted selection); applied per OPEN. */
   seed: string | null;
-  /** The note under the composer, offered as the action's attachment. */
   docPath: string | null;
-  /** What the user is looking at, pulled at submit. */
   readViewContext: ViewContextSource;
-  /** The action started; the panel shows it. */
   onLaunched: (threadId: string) => void;
 }
 
@@ -57,20 +45,11 @@ export function ActionComposer({
   const { api } = useWorkspace();
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
-  /** The thread a refused first send already created, and the note it was
-   * created over. The retry sends into it — minting another would leave an
-   * empty action behind every refusal — but only over the SAME attachment: a
-   * thread's originDocPath is set at creation and never moves, and the
-   * composer outlives a close, so a retry from another note would otherwise
-   * land in a thread that note's Actions list never shows. It clears only
-   * when a send lands, the draft's own lifetime. */
+  // the thread a refused send already created; the retry reuses it only over the same note,
+  // since originDocPath is fixed at creation and the composer outlives a close.
   const [pending, setPending] = useState<PendingAction | null>(null);
-  // The chip is armed per OPEN: dismissing it composes an unattached action;
-  // the next open re-offers the note.
   const [attached, setAttached] = useState(true);
-  /** Paths picked from the @-mention combobox, each a removable chip. */
   const [mentions, setMentions] = useState<string[]>([]);
-  /** The @-span the caret sits in — the combobox is open while non-null. */
   const [mention, setMention] = useState<MentionSpan | null>(null);
   const [mentionIndex, setMentionIndex] = useState(0);
   const [dictationPartial, setDictationPartial] = useState<string | null>(null);
@@ -94,8 +73,7 @@ export function ActionComposer({
     } else {
       setDictationPartial(null);
     }
-    // Seed applies at the moment of OPENING; a seed change mid-open must not
-    // clobber typing.
+    // the seed applies at open; a mid-open seed change must not clobber typing.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
@@ -114,8 +92,6 @@ export function ActionComposer({
       ? []
       : filterMentionTargets(wikiTargets.data?.targets ?? [], mention.query, chipPaths);
 
-  /** Re-derive the mention from where the caret actually is — typing,
-   *  clicking and arrowing all land here, so the span can never go stale. */
   const syncMention = (value: string, caret: number): void => {
     const span = activeMentionAt(value, caret);
     if (span?.query !== mention?.query) {
@@ -156,8 +132,6 @@ export function ActionComposer({
     setSending(true);
     void (async () => {
       try {
-        // The context describes the screen the action LEFT FROM; an action
-        // detached from its note carries none.
         const viewContext = attachedPath === null ? null : await readViewContext();
         const created = await createAction(api, {
           contextPaths: mentions,
@@ -167,8 +141,6 @@ export function ActionComposer({
           viewContext,
         });
         if (created.send.kind === "refused") {
-          // A refusal costs nothing: the prompt stays, the composer stays
-          // open, and the created thread is kept for the retry.
           setPending({ threadId: created.threadId, docPath: attachedPath });
           toast.error(created.send.message);
           return;
@@ -186,8 +158,6 @@ export function ActionComposer({
     })();
   };
 
-  // The scrim is invisible: a click anywhere off the composer dismisses it
-  // without dimming the note.
   return (
     <>
       <div
@@ -311,9 +281,6 @@ export function ActionComposer({
                 onSelect: (event) => {
                   syncMention(event.currentTarget.value, event.currentTarget.selectionStart);
                 },
-                // Runs BEFORE InputMessage's own keys (submit/history), winning
-                // by preventDefault — the combobox owns arrows/Enter/Escape
-                // while an @-span is live.
                 onKeyDown: (event) => {
                   if (mention !== null && mentionOptions.length > 0) {
                     if (event.key === "ArrowDown" || event.key === "ArrowUp") {
@@ -334,8 +301,6 @@ export function ActionComposer({
                       return;
                     }
                     if (event.key === "Escape") {
-                      // Only the combobox closes; the composer's own Escape
-                      // handler sits on the wrapper above.
                       event.preventDefault();
                       event.stopPropagation();
                       setMention(null);

@@ -1,11 +1,6 @@
-// The registry's bytes: `<dataDir>/connectors.json`, parsed at the boundary
-// and written atomically at 0600 — it can carry API keys, so it lives beside
-// `server.json` under the same file-mode discipline, and NOT in the vault
-// (a git repo pushed to a remote the user chose) or the thread db (synced).
-//
-// A JSON file rather than a db table on purpose: connectors are a handful of
-// rows a person edits, the whole value is read on every session launch, and
-// the db's migration machinery would be weight with no query to earn it.
+// carries api keys, so it sits beside server.json at 0600 and not in the vault (pushed) or the
+// thread db (synced). a json file, not a db table: a handful of rows read whole per session
+// launch, with no query to earn migrations.
 
 import { readFileSync } from "node:fs";
 import { stagedWriteFileSync } from "../staged-write";
@@ -19,10 +14,8 @@ import {
 
 const CONNECTORS_FILE = "connectors.json";
 
-/** Tokens live ON the row rather than in a second file: two files that must
- *  agree are two files that can disagree, and this one already carries header
- *  secrets under the same 0600 discipline. `expiresAt` is epoch seconds, null
- *  when the provider named no lifetime. */
+// tokens live on the row, not in a second file that must agree with it.
+// expiresAt is epoch seconds, null when the provider named no lifetime.
 const storedOauthTokensSchema = z
   .object({
     accessToken: z.string().min(1),
@@ -32,7 +25,6 @@ const storedOauthTokensSchema = z
   .strict();
 export type StoredOauthTokens = z.infer<typeof storedOauthTokensSchema>;
 
-/** The stored row: the INPUT transport shape, headers included verbatim. */
 const storedTransportSchema = z.discriminatedUnion("kind", [
   z
     .object({
@@ -57,7 +49,7 @@ const storedTransportSchema = z.discriminatedUnion("kind", [
       clientId: z.string().min(1),
       scopes: z.array(z.string().min(1)),
       tokens: storedOauthTokensSchema.optional(),
-      /** Set when a refresh was refused; cleared by the next authorize. */
+      // set when a refresh was refused; cleared by the next authorize.
       needsReauth: z.boolean().optional(),
     })
     .strict(),
@@ -82,12 +74,7 @@ export interface ConnectorsStore {
   write(servers: StoredConnector[]): void;
 }
 
-/**
- * Reads surface a MALFORMED file as an error rather than an empty list — an
- * empty list is a claim there are no connectors, and the next write would
- * then erase whatever the unparseable bytes held. A MISSING file is genuinely
- * empty.
- */
+// a malformed file is an error, not an empty list: an empty list lets the next write erase what the bytes held.
 export function createConnectorsStore(dataDir: string): ConnectorsStore {
   const path = join(dataDir, CONNECTORS_FILE);
   return {

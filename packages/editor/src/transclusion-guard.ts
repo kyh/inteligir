@@ -1,7 +1,5 @@
-// Pure guard policy for ![[transclusion]] rendering — React-free so the
-// depth/cycle semantics are pinned by unit tests. The editor root renders at
-// depth 0 (embeds expand); content rendered INSIDE a transclusion carries
-// depth 1+, where embeds stay chips. `chain` is the ancestor path list.
+// the editor root is depth 0 (embeds expand); content inside a transclusion is depth 1+,
+// where embeds stay chips.
 
 export type TransclusionScope = { depth: number; chain: readonly string[] };
 
@@ -19,7 +17,6 @@ export function decideTransclusion(
   return { kind: "render", path: resolved };
 }
 
-/** The scope the rendered target's own content is evaluated under. */
 export function nestedScope(scope: TransclusionScope, resolved: string): TransclusionScope {
   return { depth: scope.depth + 1, chain: [...scope.chain, resolved] };
 }

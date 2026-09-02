@@ -1,19 +1,6 @@
 // Vendored from Fluid Functionalism (github.com/mickadesign/fluid-functionalism), MIT.
-/**
- * Static lookup tables for surface tokens.
- *
- * Tailwind v4's static scanner only generates utility classes for literal
- * strings it sees in source. Template-literal class names like
- * `bg-surface-${level}` are invisible to the scanner, so the matching
- * utility never gets generated and the background renders transparent.
- *
- * Use these maps when picking a surface level at runtime:
- *
- *   <div className={surfaceClasses(level)} />
- *
- * Each entry below contains the literal class name, which is enough for
- * Tailwind to detect and emit the utility.
- */
+// Tailwind's scanner only emits utilities for literal class strings; `bg-surface-${level}` is
+// invisible to it and renders transparent
 
 type SurfaceLevel = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
 
@@ -43,9 +30,8 @@ function isSurfaceLevel(level: number): level is SurfaceLevel {
   return Number.isInteger(level) && level >= 1 && level <= 8;
 }
 
-/** Round after clamping so a fractional level can't miss the lookup tables.
- *  The final fallback is unreachable — clamp+round always lands on 1..8 —
- *  but the guard can't prove that to the compiler. */
+// round after clamping so a fractional level cannot miss the lookup; the final fallback is
+// unreachable but the guard cannot prove that
 function clampSurfaceLevel(level: number): SurfaceLevel {
   const clamped = Math.round(Math.max(1, Math.min(8, level)));
   return isSurfaceLevel(clamped) ? clamped : 1;

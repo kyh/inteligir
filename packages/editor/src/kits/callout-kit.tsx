@@ -1,8 +1,5 @@
-// Callout compatibility kit. `<callout>` is in the locked vocabulary (the
-// agent or an imported note may contain it; Plate's defaultRules.callout
-// round-trips it), but the PRODUCT never creates one — our slash "Callout"
-// stays the GitHub-alert blockquote. The React half renders these nodes in
-// the alert visual family so they don't fall to Slate's DefaultElement.
+// Compatibility only: Plate's defaultRules round-trip `<callout>`, but the product never
+// creates one — slash "Callout" is the GitHub-alert blockquote.
 
 import { createSlatePlugin } from "platejs";
 

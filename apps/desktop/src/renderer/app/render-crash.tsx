@@ -1,12 +1,6 @@
-// The last boundary. Everything in this app renders inside ONE route, so a
-// component that throws takes the whole document with it — an unstyled blank
-// page with the reason only in the console.
-//
-// It is wired as the ROUTER's `defaultErrorComponent`, not the root route's
-// `errorComponent`, and that distinction is the whole point: a route's
-// boundary is `route.options.errorComponent ?? router.options.
-// defaultErrorComponent`, so declaring it on the root route alone would guard
-// the root match and leave every child — the workspace included — with none.
+// Wired as the router's `defaultErrorComponent`, not the root route's
+// `errorComponent`: a route's boundary is its own `errorComponent ?? default`,
+// so the root route alone would leave every child unguarded.
 
 import type { ErrorComponentProps } from "@tanstack/react-router";
 

@@ -1,7 +1,4 @@
-// The one PATH-walk spelling (agent boot and the status probe both ask):
-// skip empty segments, first executable match wins, unreadable entries are
-// skipped rather than thrown — a PATH dir the user cannot stat is not an
-// answer about the binary.
+// unreadable PATH entries are skipped rather than thrown: a dir the user cannot stat is not an answer about the binary.
 
 import { accessSync, constants, statSync } from "node:fs";
 import { delimiter, join } from "node:path";

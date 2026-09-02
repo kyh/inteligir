@@ -1,14 +1,3 @@
-// The composition root: it binds the PURE sync client (src/sync), the credential
-// store (expo-secure-store) and the pairing flow into one process-wide
-// singleton, and exposes the React hooks the screens read. Everything device-
-// specific enters HERE; the modules it wires are unit-tested without it.
-//
-// EVERY HOOK READS A STORE ITS OWNER PUBLISHES. Sync status, the notes tree and
-// the pairing flow each move on their own clock — a poll pass, a page fetch, a
-// deep link — with no caller on this side to hand the answer to, so the module
-// that moves the value is the one that notifies; nothing here mirrors a value
-// it would then have to remember to refresh.
-
 import { useMemo, useSyncExternalStore } from "react";
 import { createPairingFlow } from "@repo/api/cloud/pairing/pairing-flow";
 import { createSecureStoreCredential } from "../credential/secure-store-credential";
@@ -46,9 +35,7 @@ interface AppRuntime {
   removeDeepLink: (() => void) | null;
 }
 
-/** A credential is now this device's: the thread log and the read model
- *  switch on together. The read model starts where sync does, so no screen
- *  that reads the tree carries its own "if it is cold, fetch it" effect. */
+// the tree is fetched here so no screen carries its own cold-fetch effect.
 function activate(rt: Pick<AppRuntime, "sync" | "notes">, handover: CredentialHandover): void {
   rt.sync.setCredential(handover.credential);
   rt.notes.setCredential(handover);
@@ -58,9 +45,7 @@ function activate(rt: Pick<AppRuntime, "sync" | "notes">, handover: CredentialHa
 
 let runtime: AppRuntime | null = null;
 
-/** The cloud origin, or a clearly-invalid placeholder when unconfigured — a
- *  misconfigured build then shows "could not reach the cloud" rather than
- *  crashing on first render. */
+// a misconfigured build should say "could not reach the cloud" rather than crash on first render.
 function resolveCloudUrl(): string {
   try {
     return getCloudUrl();
@@ -94,15 +79,10 @@ function getRuntime(): AppRuntime {
   return runtime;
 }
 
-/**
- * Read any stored credential, arm the deep-link listener, and start syncing.
- * Idempotent — the root layout calls it once per launch.
- */
 export async function ensureStarted(): Promise<void> {
   const rt = getRuntime();
   if (rt.removeDeepLink !== null) return;
-  // A redirect can arrive as a fresh deep-link when the app was backgrounded
-  // during browser approval — handle it here as well as the in-session return.
+  // the redirect arrives as a deep link when the app was backgrounded during browser approval.
   const { addEventListener } = await import("expo-linking");
   const subscription = addEventListener("url", (event) => {
     const parsed = parsePairCallback(event.url);
@@ -116,7 +96,6 @@ export async function ensureStarted(): Promise<void> {
   if (stored !== null) activate(rt, { credential: stored, source: "restored" });
 }
 
-/** Run one sync pass now (foreground / pull-to-refresh). */
 export function syncNow(): Promise<void> {
   return getRuntime().sync.syncNow();
 }
@@ -128,12 +107,10 @@ export async function unpair(): Promise<void> {
   rt.notes.setCredential(null);
 }
 
-/** Begin a browser-approve pairing; `usePairingState` follows it. */
 export function startPair(): Promise<void> {
   return getRuntime().pairing.startPair();
 }
 
-/** POST a quick capture to the inbox. The desktop applies it to the vault. */
 export async function submitCapture(
   text: string,
 ): Promise<{ ok: true } | { ok: false; failure: CloudFailure }> {
@@ -144,33 +121,26 @@ export async function submitCapture(
   return result.ok ? { ok: true } : { ok: false, failure: result.failure };
 }
 
-/** A stable idempotency key for a capture retry — the contract wants ≥ 8 chars;
- *  16 random bytes as hex is 32. */
+// the contract requires an idempotency key of at least 8 chars.
 function newIdempotencyKey(): string {
   return hexFromBytes(expoPkceCrypto.randomBytes(16));
 }
 
-/** Fetch (or re-fetch) the vault tree; the hook below re-renders on it. */
 export async function refreshNotes(): Promise<void> {
   await getRuntime().notes.refresh();
 }
 
-/** One note's text at the tree's commit — cached, bounded. */
 export function readNote(path: string): Promise<NoteRead> {
   return getRuntime().notes.readNote(path);
 }
 
-/** A wiki target's vault path over the last refreshed tree, or null. */
 export function resolveWikiPath(target: string): string | null {
   return getRuntime().notes.resolveWiki(target);
 }
 
-/** An image embed's source at the tree's commit, or null. */
 export function assetSource(path: string): VaultAssetSource | null {
   return getRuntime().notes.assetSource(path);
 }
-
-// -- React hooks ------------------------------------------------------------
 
 export function useNotesTree(): NotesTreeState {
   const rt = getRuntime();

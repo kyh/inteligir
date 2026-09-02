@@ -1,7 +1,3 @@
-// `inteligir vault …` — file CRUD plus the git sync surface, one leaf per
-// contract row. Human output stays one-line-per-fact so shell pipelines can
-// consume it without --json.
-
 import { buffer } from "node:stream/consumers";
 import {
   VAULT_HISTORY_MAX_LIMIT,
@@ -36,13 +32,8 @@ function renderVaultStatus(status: VaultStatusResponse): string[] {
   return lines;
 }
 
-/**
- * stdin is read as BYTES and decoded strictly: `fatal` refuses invalid UTF-8
- * instead of substituting U+FFFD (silent corruption of a file the user asked
- * to store verbatim), and `ignoreBOM` keeps a leading BOM as content rather
- * than eating it. The size bound is checked here too — the server's refusal
- * would arrive only after the whole body crossed the socket.
- */
+// `fatal` refuses invalid UTF-8 rather than substituting U+FFFD; `ignoreBOM` keeps a leading BOM as content.
+// the size bound is checked here too: the server's refusal arrives only after the whole body crossed the socket.
 async function readContentFromStdin(): Promise<string> {
   const bytes = await buffer(process.stdin);
   if (bytes.byteLength > VAULT_MAX_CONTENT_LENGTH) {
@@ -142,10 +133,7 @@ export function vaultCommand(deps: CliDeps) {
           if (outputJson(args, body)) {
             return;
           }
-          // TAB-separated, one revision per line: the sha comes first because
-          // it is what `vault revision` takes, so `cut -f1` is the whole
-          // pipeline. The path is carried because `--follow` crosses renames
-          // and the read needs the path AT that revision.
+          // sha first so `cut -f1` feeds `vault revision`; the path is per revision because --follow crosses renames.
           writeLines(
             body.revisions.map((revision) =>
               [
@@ -194,12 +182,8 @@ export function vaultCommand(deps: CliDeps) {
           sha: { type: "positional", required: true, description: "The revision's commit sha" },
           ...jsonArg,
         },
-        // A restore is an ordinary GUARDED write of older bytes, composed by
-        // the caller — never a server-side restore, which would be a second
-        // write path with its own CAS. The vault is checkpointed first so the
-        // bytes being replaced survive as a revision of their own, and the
-        // write carries the base it read, so an agent writing underneath is
-        // refused rather than silently overwritten.
+        // an ordinary guarded write of older bytes, never a server-side restore (a second write path with its own CAS):
+        // checkpoint first so the replaced bytes survive as a revision, and carry the base read so a concurrent write is refused.
         run: async ({ args }) => {
           const api = apiFor(deps);
           const revision = await api.vault.revision({ path: args.path, sha: args.sha });

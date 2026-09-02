@@ -1,10 +1,5 @@
 // @vitest-environment jsdom
 
-// The sync surface's own claims — the ones that are not the server's: it never
-// asks a user to type anything to pair, it always leaves a link behind when the
-// auto-open cannot be trusted, and it says what a paired install is actually
-// doing rather than implying a live connection it may not have.
-
 import { cleanup, render, screen } from "@testing-library/react";
 import type {
   CloudPairBeginResponse,
@@ -30,9 +25,6 @@ describe("what the section says once an approval is armed", () => {
   });
 
   it("points at the link instead when nothing opened", () => {
-    // The auto-open is best-effort — a headless box, a machine with no
-    // `xdg-open` — so the fallback sentence is a first-class outcome rather
-    // than an error.
     expect(describeBegun({ ...BEGUN, opened: false })).toBe(
       "Open this link to approve “Laptop”. It works for 10 minutes.",
     );
@@ -50,7 +42,6 @@ describe("the pair prompt", () => {
       />,
     );
     expect(screen.getByRole("button", { name: "Pair with browser" })).toBeDefined();
-    // Browser-approved pairing: there is nowhere left to type a code.
     expect(screen.queryByRole("textbox")).toBeNull();
   });
 
@@ -91,8 +82,6 @@ describe("the paired details", () => {
   });
 
   it("dates the last sync from the clock it is handed, never its own", () => {
-    // A Date.now() inside the render is exactly the impure read the React
-    // Compiler would freeze at whatever the last re-render caught.
     render(<PairedDetails status={{ ...PAIRED, lastSyncedAt: NOW_MS - 40_000 }} nowMs={NOW_MS} />);
     expect(screen.getByText(/synced 40s ago/u)).toBeDefined();
   });

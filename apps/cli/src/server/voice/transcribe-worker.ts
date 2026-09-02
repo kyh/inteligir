@@ -1,33 +1,10 @@
-// The transcription worker: sherpa-onnx streaming Parakeet, off the process
-// that owns the database and the watcher.
-//
-// WHY A WORKER AT ALL. The native decode holds the thread while it runs, and
-// the process it would otherwise run in owns better-sqlite3 (whose every call
-// is synchronous) and the file watcher's fork channel. A native call that holds
-// the loop stalls a save, a query and the watcher's liveness ping together.
-//
-// TWO LIFECYCLES, ONE ENGINE. `workerData.kind === "stream"` enters the
-// persistent session: load the recognizer ONCE, then trade messages — audio in,
-// partials and one final out — until the host terminates the thread. Anything
-// else is a one-shot (a probe, or a whole-clip batch transcribe) answered once
-// before the worker exits. The model load is the expensive part (~0.7 s), which
-// is exactly why a dictation hold gets a persistent worker rather than paying it
-// per re-transcription.
-//
-// NOTHING HERE THROWS PAST THE MESSAGE. A native module that fails to load is
-// the case the probe exists to report, so it must arrive as a sentence rather
-// than as a worker `error` event carrying a stack — and a model that will not
-// open is reported as `modelUnusable` so the cache can nuke it.
-//
-// THE PROBE ACTUALLY LOADS THE NATIVE BINDING. `import("sherpa-onnx-node")`
-// requires the platform addon at load, so a platform whose binary cannot load
-// (no prebuild, an ABI mismatch) throws here — which is what the probe exists to
-// catch, rather than surfacing on the user's first real dictation.
+// a worker: the native decode holds the thread, and the main process owns better-sqlite3 (every
+// call synchronous) and the watcher's liveness ping. nothing here throws past the message: a
+// binding that cannot load must arrive as a sentence, not a worker error event with a stack.
+// import("sherpa-onnx-node") requires the platform addon, so the probe loads the binding for real.
 
-// The ambient declaration for the untyped native module must ride along into
-// this file's own program; a types-only reference is the only import style that
-// loads a d.ts ambient module declaration without emitting a runtime import of
-// the native addon.
+// a types-only reference is the only import style that loads the ambient d.ts without emitting
+// a runtime import of the addon.
 // oxlint-disable-next-line typescript/triple-slash-reference -- see above
 /// <reference path="./sherpa-onnx-node.d.ts" />
 
@@ -48,8 +25,7 @@ if (port === null) {
   throw new Error("transcribe-worker must be started as a worker thread");
 }
 
-/** Optional-chained because TS does not carry the null-guard above into the
- *  closures below; `port` is non-null by the time any of them runs. */
+// optional-chained: ts does not carry the null guard above into the closures.
 function post(reply: VoiceWorkerResponse | VoiceStreamEvent): void {
   port?.postMessage(reply);
 }
@@ -92,10 +68,7 @@ interface SherpaModule {
   OnlineRecognizer: OnlineRecognizerCtor;
 }
 
-// The addon is untyped, so its shape is PARSED at the import boundary with zod —
-// the pattern `ws-bus.ts` uses for the transport it hijacks — rather than a
-// hand-rolled typeof guard. `z.custom` passes the ORIGINAL object through, which
-// keeps the native constructor bound to the module that owns it.
+// z.custom passes the original object through, keeping the native constructor bound to its module.
 const sherpaModuleSchema = z.custom<SherpaModule>(
   (value) =>
     z
@@ -103,8 +76,6 @@ const sherpaModuleSchema = z.custom<SherpaModule>(
       .safeParse(value).success,
 );
 
-/** Load the addon, tolerating either CJS-interop shape (members on the
- *  namespace, or under `default`). Null when it exported no recognizer. */
 async function importSherpa(): Promise<SherpaModule | null> {
   const mod: unknown = await import("sherpa-onnx-node");
   const direct = sherpaModuleSchema.safeParse(mod);
@@ -115,8 +86,6 @@ async function importSherpa(): Promise<SherpaModule | null> {
   return nested.success ? nested.data.default : null;
 }
 
-/** Construct a recognizer for `model`. Throws on a load or open failure; the
- *  callers turn that into a `failed`/`modelUnusable` answer. */
 async function loadRecognizer(model: VoiceModelFiles): Promise<SherpaRecognizer> {
   const sherpa = await importSherpa();
   if (sherpa === null) {
@@ -133,16 +102,13 @@ async function loadRecognizer(model: VoiceModelFiles): Promise<SherpaRecognizer>
       debug: false,
     },
     decodingMethod: "greedy_search",
-    // Endpointing OFF on purpose: dictation is push-to-talk, so the whole hold
-    // is ONE utterance. Leaving it on would split the transcript on a pause and
-    // reset the stream mid-hold, dropping earlier words from the growing text.
+    // endpointing off: dictation is push-to-talk, so the hold is one utterance. on, a pause
+    // would split the transcript and reset the stream mid-hold, dropping earlier words.
     enableEndpoint: false,
   };
   return new sherpa.OnlineRecognizer(config);
 }
 
-/** PCM16 (Int16 LE, mono, 16 kHz) → the Float32 sherpa's `acceptWaveform`
- *  wants, scaled into [-1, 1). */
 function int16ToFloat32(pcm: ArrayBuffer): Float32Array {
   const ints = new Int16Array(pcm);
   const floats = new Float32Array(ints.length);
@@ -152,7 +118,6 @@ function int16ToFloat32(pcm: ArrayBuffer): Float32Array {
   return floats;
 }
 
-/** Feed samples, drain the decoder, and return the current transcript. */
 function decodeInto(recognizer: SherpaRecognizer, stream: SherpaStream): string {
   while (recognizer.isReady(stream)) {
     recognizer.decode(stream);
@@ -162,8 +127,6 @@ function decodeInto(recognizer: SherpaRecognizer, stream: SherpaStream): string 
 
 async function runOneShot(request: VoiceWorkerRequest): Promise<VoiceWorkerResponse> {
   if (request.kind === "probe") {
-    // The import forces the native load (see the header); a binding that cannot
-    // load throws here, which is exactly what the probe exists to catch.
     if ((await importSherpa()) === null) {
       return { kind: "failed", message: "sherpa-onnx-node did not load", modelUnusable: false };
     }
@@ -174,7 +137,7 @@ async function runOneShot(request: VoiceWorkerRequest): Promise<VoiceWorkerRespo
   try {
     recognizer = await loadRecognizer(request.model);
   } catch (error) {
-    // A model that will not open is a fact about the files on disk — nuke them.
+    // a model that will not open is a fact about the files on disk.
     return { kind: "failed", message: message(error), modelUnusable: true };
   }
   try {
@@ -183,17 +146,13 @@ async function runOneShot(request: VoiceWorkerRequest): Promise<VoiceWorkerRespo
     stream.inputFinished();
     return { kind: "transcribed", text: decodeInto(recognizer, stream) };
   } catch (error) {
-    // The model loaded; this is about the audio, so keep the files.
+    // the model loaded; this is about the audio.
     return { kind: "failed", message: message(error), modelUnusable: false };
   }
 }
 
-/**
- * The persistent streaming session. Loads once, then handles commands in
- * arrival order — the native calls are synchronous, so a message handler that
- * never awaits after the load cannot overlap another, and the recognizer is
- * only ever touched by one command at a time.
- */
+// the native calls are synchronous and the handler never awaits after the load, so commands
+// cannot overlap.
 async function runStream(model: VoiceModelFiles): Promise<void> {
   const emit = (event: VoiceStreamEvent): void => post(event);
   let recognizer: SherpaRecognizer;
@@ -243,8 +202,8 @@ if (data.kind === "stream") {
   runOneShot(data).then(
     (response) => post(response),
     (cause: unknown) => {
-      // The only path here is the dynamic import itself throwing — a broken JS
-      // wrapper — which is as unusable as a binding that will not load.
+      // only the dynamic import itself throwing lands here: a broken js wrapper is as unusable
+      // as a binding that will not load.
       post({ kind: "failed", message: message(cause), modelUnusable: true });
     },
   );

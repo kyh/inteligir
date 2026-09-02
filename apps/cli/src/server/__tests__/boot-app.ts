@@ -1,12 +1,3 @@
-// ONE parameterized boot for the in-process app suites: the SAME composition
-// root serve.ts runs (`composeRuntime`), over a scratch instance dir and the
-// hermetic ports — no watcher fork, hermetic git, no remote, the scripted
-// transcriber, an injectable turn driver — plus the wired hono app and the
-// typed in-process client. Beside it: the same boot over the fake provider,
-// and a loopback listener for the suites that must cross a real socket. Every
-// teardown is registered on the booting test, so consumers register no
-// cleanup of their own.
-
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { serve } from "@hono/node-server";
@@ -38,31 +29,19 @@ import { boundAddressSchema } from "./bound-address";
 import { FakeTurnDriver, type FakeTurnDriverOptions } from "./fake-turn-driver";
 import { makeTempDir } from "./temp-dir";
 
-// Re-exported so a consumer outside this package reaches the whole harness
-// through ONE specifier — the fake provider and the scratch dir are what make
-// a booted app drivable, and two subpaths for one seam is two things to keep
-// in sync.
 export { FakeTurnDriver, type FakeTurnDriverOptions, makeTempDir };
 
-/** One fixed token for every booted suite: the file's own tests cover minting
- *  and comparison, and a per-boot value here would only make the client's
- *  header harder to read in a failure. */
 export const TEST_SERVER_TOKEN = "test-server-token";
 
 export interface BootTestAppOptions {
   agent?: AgentStatus;
-  /** Omitted, the cloud runtime boots with the real transport — which does
-   *  nothing at all, because a scratch data dir holds no device credential. */
+  // omitted, the real transport does nothing: a scratch data dir holds no device credential.
   cloudTransport?: CloudTransport;
-  /** Omitted, no UI is served (`kind: "none"`) — a suite drives procedures. */
   clientDir?: string;
-  /** Omitted, a pairing would reach the real opener — so any suite that begins
-   *  one has to supply this, or `pnpm test` pops a browser window. */
+  // a suite that begins a pairing must supply this, or `pnpm test` pops a browser window.
   openExternalUrl?: OpenExternalUrl;
   port?: number;
-  /** Omitted, the scripted transcriber — see the config block below. */
   voice?: AppConfig["voice"];
-  /** Omitted, sends 503 through the unavailable driver. */
   makeDriver?: (deps: { db: DbConnection; bus: WsBus; vault: VaultRuntime; vaultDir: string }) => {
     createTurnDriver: CreateTurnDriver;
     dispose?: () => Promise<void>;
@@ -70,16 +49,9 @@ export interface BootTestAppOptions {
 }
 
 export interface BootedTestApp {
-  /** The composed runtime plus the app wired over it — the same value shape
-   *  serve.ts boots, minus listen. */
   composed: ComposedRuntime & ReturnType<typeof createApp>;
   bus: WsBus;
-  /** The typed client, calling procedures IN-PROCESS — no socket, no HTTP.
-   *  A refusal arrives as a thrown ORPCError, which is what `safe()` narrows. */
   client: RouterClient<typeof localRouter>;
-  /** One in-process request, carrying this boot's device token — what every
-   *  privileged surface requires. Tests that are ABOUT the gate call
-   *  `composed.app.request` directly and present whatever they mean to. */
   request: (input: string, init?: RequestInit) => Promise<Response>;
   config: AppConfig;
   db: DbConnection;
@@ -92,8 +64,7 @@ export async function bootTestApp(options: BootTestAppOptions = {}): Promise<Boo
   const instanceDir = makeTempDir("inteligir-app-test-");
   const dataDir = join(instanceDir, "data");
   const vaultDir = join(instanceDir, "vault");
-  // Pre-created = not a virgin boot: harness vaults stay empty of the
-  // starter seed so listing/knowledge expectations see only their own docs.
+  // pre-created so the boot is not virgin and seeds no starter note.
   mkdirSync(vaultDir, { recursive: true });
   mkdirSync(dataDir, { recursive: true });
 
@@ -107,14 +78,11 @@ export async function bootTestApp(options: BootTestAppOptions = {}): Promise<Boo
     portSource: "env",
     vaultDir,
     vaultRemote: null,
-    // Tests drive syncNow directly; a timer would race the assertions.
+    // tests drive syncNow directly; a timer would race the assertions.
     vaultSyncIntervalMs: null,
-    // Under the instance dir rather than ~/.inteligir/models: a suite that
-    // shared the machine's real model cache could delete a model a developer
-    // downloaded, and `remove` is one of the routes under test.
+    // not ~/.inteligir/models: `remove` is under test and would delete a developer's downloaded model.
     modelDir: join(instanceDir, "models"),
-    // Never `auto` in a suite: the real runtime dlopens a native binding and
-    // would make every route test a claim about this machine's platform.
+    // never `auto`: the real runtime dlopens a native binding, making every route test a claim about this platform.
     voice: options.voice ?? "scripted",
     agent: agent.mode,
     agentModel: null,
@@ -127,12 +95,7 @@ export async function bootTestApp(options: BootTestAppOptions = {}): Promise<Boo
   };
   if (options.openExternalUrl !== undefined) ports.openExternalUrl = options.openExternalUrl;
 
-  // The composed teardown IS the cleanup, in its own order — the same steps
-  // serve.ts's shutdown runs, minus the listener no test binds. Registered
-  // over the LIVE array BEFORE composing, for the reason serve.ts installs
-  // its handlers first: a compose that throws part-way has a database open
-  // and a vault runtime up, and the steps already on the array are what
-  // release them.
+  // registered before composing: a compose that throws part-way has a database open, and the steps already on the array release it.
   const teardown: ShutdownStep[] = [];
   onTestFinished(async () => {
     for (const step of teardown) {
@@ -174,8 +137,7 @@ export async function bootTestApp(options: BootTestAppOptions = {}): Promise<Boo
   const client = createRouterClient(localRouter, {
     context: {
       ...runtime.context,
-      // No request reached this client, so nothing composed a callback URL
-      // from a Host header; the two procedures that need one refuse.
+      // no request reached this client, so the two procedures that need a callback host refuse.
       requestHost: undefined,
     },
   });
@@ -201,10 +163,6 @@ export interface ThreadHarness extends BootedTestApp {
   driver: FakeTurnDriver;
 }
 
-/** The boot over the fake provider, so every send is proven against the
- *  server's own lifecycle transitions rather than a mock of them. The driver
- *  is captured per call — two harnesses booted concurrently each hold theirs,
- *  never a module-level slot. */
 export async function bootThreadHarness(
   driverOptions: FakeTurnDriverOptions,
   options: Omit<BootTestAppOptions, "makeDriver"> = {},
@@ -228,20 +186,16 @@ export async function bootThreadHarness(
 export interface ListeningTestApp {
   server: ReturnType<typeof serve>;
   port: number;
-  /** The typed client OVER THE WIRE, carrying the boot's bearer: contract →
-   *  handler → socket → client, which the in-process client cannot prove. */
   client: RouterClient<typeof localRouter>;
 }
 
-/** A booted app on a loopback port with its websocket upgrade wired, closed
- *  when the test finishes — after any socket the test opened against it. */
 export async function listenTestApp(booted: BootedTestApp): Promise<ListeningTestApp> {
   const server = serve({ fetch: booted.composed.app.fetch, hostname: "127.0.0.1", port: 0 });
   booted.composed.injectWebSocket(server);
   onTestFinished(
     () =>
       new Promise<void>((resolve, reject) => {
-        // A suite that is ABOUT the listener's teardown closes it itself.
+        // a suite that is about the listener's teardown closes it itself.
         if (!server.listening) {
           resolve();
           return;

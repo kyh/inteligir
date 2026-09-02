@@ -1,20 +1,3 @@
-// The pure half of the mobile note renderer: dialect markdown in, a flat
-// typed block list out. The component (markdown-view.tsx) only MAPS blocks to
-// RN elements, so everything worth testing lives here, RN-free — the same
-// pure-core/thin-shell split the sync store uses.
-//
-// The parse is the vault's own (`@repo/notes/markdown/parse`) and so is the
-// callout header grammar (`callout-payload`); this module never forks the
-// dialect. What it decides is PRESENTATION on a phone:
-//   • comment markers render as NOTHING — a raw renderer would leak
-//     `%%i:…%%` plumbing into prose;
-//   • formula pills render their display half (or the source), read-only;
-//   • callouts recurse — their body is markdown by the dialect's own rule;
-//   • chart/canvas/html payloads and tables answer an honest `unsupported` /
-//     `raw` block rather than a lossy imitation;
-//   • a file the parse refuses opens RAW, byte-for-byte — the desktop's own
-//     posture for a doc it cannot round-trip.
-
 import { assetMediaType } from "@repo/api/cloud/vault/vault-schema";
 import type { List, PhrasingContent, Root, RootContent } from "mdast";
 import { parseCalloutPayload } from "@repo/notes/markdown/callout-payload";
@@ -46,9 +29,7 @@ export type NoteBlock =
   | {
       kind: "list-item";
       depth: number;
-      /** 1-based ordinal for an ordered item; null for a bullet. */
       ordinal: number | null;
-      /** true/false for a task checkbox; null for a plain item. */
       checked: boolean | null;
       spans: InlineSpan[];
     }
@@ -63,23 +44,15 @@ export type NoteProjection =
   | { kind: "note"; title: string; blocks: NoteBlock[] }
   | { kind: "raw"; title: string; text: string; reason: string };
 
-/** Labels keyed by the fence-langs table's own node types, so a fourth rich
- *  lang is a compile error here rather than a code block on the phone. */
 const RICH_LABELS = {
   canvas_block: "Canvas",
   chart_block: "Chart",
   html_block: "HTML block",
 } satisfies Record<NonNullable<ReturnType<(typeof RICH_FENCE_LANGS)["get"]>>, string>;
 
-/**
- * What this surface renders as an image — a deliberate SUBSET of what the
- * asset route serves, expressed in the route's own MEDIA TYPES rather than a
- * second extension table: core RN `Image` cannot draw SVG (and svg's script
- * risk wants a webview this app does not carry), and the rarer formats render
- * inconsistently across Fresco and UIImage. Anything else stays a tappable
- * link, exactly what it was before — and because the lookup is the route's,
- * a target this promotes is a target that route serves.
- */
+// a subset of what the asset route serves, in its media types so a promoted target is one it
+// serves: core RN Image cannot draw SVG, and the rarer formats render inconsistently across Fresco
+// and UIImage.
 const MOBILE_IMAGE_MEDIA_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp"]);
 
 function isMobileImageTarget(target: string): boolean {
@@ -93,21 +66,16 @@ function spanText(span: InlineSpan): string {
   return span.kind === "text" ? span.text : span.label;
 }
 
-/** The callout recursion's entry: a payload that refuses to parse renders raw
- *  INSIDE the card rather than failing the whole note. */
 function projectSource(source: string): NoteBlock[] {
   const parsed = parseMdast(source);
   if (!parsed.ok) {
     return [{ kind: "raw", text: source }];
   }
-  // The parser positions nodes against the PIPE-ESCAPED text (table-pipes.ts
-  // runs ahead of micromark), so raw slices must cut the same bytes — the
-  // original body drifts wherever a table cell held a pill.
+  // the parser positioned nodes against the pipe-escaped text, so raw slices must cut the same
+  // bytes.
   return projectParsed(escapePillPipesInTables(source), parsed.root);
 }
 
-/** The whole projection closes over `source`, which exactly one leaf reads:
- *  `rawSlice`, the honest fallback for any node this module does not model. */
 function projectParsed(source: string, root: Root): NoteBlock[] {
   function rawSlice(node: {
     position?:
@@ -163,8 +131,6 @@ function projectParsed(source: string, root: Root): NoteBlock[] {
           const label =
             body.alias ??
             (body.anchor === undefined ? body.target : `${body.target}#${body.anchor}`);
-          // Only an EMBED of an image renders as one; `[[img.png]]` is a
-          // reference and stays a link, the dialect's own distinction.
           spans.push(
             node.type === "wikiEmbed" && isMobileImageTarget(body.target)
               ? { kind: "image-embed", target: body.target, label }
@@ -176,10 +142,8 @@ function projectParsed(source: string, root: Root): NoteBlock[] {
           spans.push({ kind: "formula", label: node.display === "" ? node.source : node.display });
           break;
         case "commentMarker":
-          // Review plumbing, never prose.
           break;
         case "html":
-          // Inline opaque html (comments included) is plumbing on a phone.
           break;
         default:
           spans.push({ kind: "text", text: rawSlice(node) ?? "", ...style });
@@ -209,7 +173,6 @@ function projectParsed(source: string, root: Root): NoteBlock[] {
         }
       }
       if (first) {
-        // An item with no paragraph (e.g. only a nested list) still owns a row.
         blocks.push({
           kind: "list-item",
           depth,
@@ -229,11 +192,8 @@ function projectParsed(source: string, root: Root): NoteBlock[] {
         break;
       case "paragraph": {
         const spans = flattenInline(node.children);
-        // A paragraph that IS an embed (whitespace aside) promotes to image
-        // blocks — an image inside a Text run cannot be sized honestly. An
-        // embed mixed into prose stays a span, rendered as its link. The
-        // `every` runs only for the few paragraphs that hold an embed at all,
-        // and stops at the first span that is prose.
+        // a paragraph that is only embeds promotes to image blocks: an image inside a Text run
+        // cannot be sized.
         const promotes =
           spans.some((span) => span.kind === "image-embed") &&
           spans.every(
@@ -271,7 +231,6 @@ function projectParsed(source: string, root: Root): NoteBlock[] {
             });
             break;
           }
-          // An unknown kind is a plain code block — the dialect's own fallback.
         }
         blocks.push({ kind: "code", lang: node.lang ?? null, text: node.value });
         break;
@@ -287,8 +246,6 @@ function projectParsed(source: string, root: Root): NoteBlock[] {
         break;
       case "yaml":
       case "html":
-        // Frontmatter is folded by the entry point; block html is opaque
-        // plumbing (legacy thread markers parse as comments and stay unshown).
         break;
       default: {
         const raw = rawSlice(node);

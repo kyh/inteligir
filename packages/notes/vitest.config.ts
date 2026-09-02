@@ -1,8 +1,6 @@
 import { defineConfig } from "vitest/config";
 
-// Node-free config on purpose (no `fileURLToPath`/alias): tests import the
-// modules under test with relative paths, so nothing here touches node APIs and
-// the package stays pure.
+// no node imports (`fileURLToPath`, aliases): tests import relative paths so the package stays pure.
 export default defineConfig({
   test: {
     include: ["src/**/*.test.ts"],

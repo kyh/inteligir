@@ -1,15 +1,5 @@
-// Math kit. equation ↔ mdast `math` ($$ blocks), inline_equation ↔ mdast
-// `inlineMath`. Single-dollar math is OFF (locked): inline math is `$$x$$`;
-// a hand-typed `$x$` stays literal text. Node prop: texExpression.
-//
-// The plugins are OWNED here instead of using @platejs/math's: both its base
-// and react entrypoints import katex (JS + CSS) eagerly at module top, which
-// would chain ~280KB of renderer into the initial chunk through BASE_KIT.
-// The plugin definitions are metadata-only (keys + isElement/isVoid/isInline
-// — identical to @platejs/math's, pinned by kit-parity); KaTeX loads in an
-// async chunk from the node component (nodes/equation-katex.tsx). The
-// `equation`/`inline_equation` markdown rules live in @platejs/markdown's
-// defaults and are unaffected.
+// Not @platejs/math's plugins: both its entrypoints import katex (JS + CSS) eagerly, ~280KB
+// into the initial chunk through BASE_KIT. KaTeX loads lazily from nodes/equation-katex.tsx.
 
 import { KEYS, createSlatePlugin } from "platejs";
 import type { PlateEditor } from "platejs/react";
@@ -29,7 +19,6 @@ const InlineEquationBasePlugin = createSlatePlugin({
 
 export const MathBaseKit = [EquationBasePlugin, InlineEquationBasePlugin];
 
-/** Insert an empty display equation ($$ block); the popover opens on click. */
 export function insertEquation(editor: PlateEditor): void {
   insertVoidAndEscape(editor, {
     children: [{ text: "" }],
@@ -38,7 +27,6 @@ export function insertEquation(editor: PlateEditor): void {
   });
 }
 
-/** Insert an inline equation ($$x$$), seeding it with the selected text. */
 export function insertInlineEquation(editor: PlateEditor): void {
   const seed = editor.selection ? editor.api.string(editor.selection) : "";
   insertVoidAndEscape(editor, {

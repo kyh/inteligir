@@ -35,13 +35,10 @@
   }
 
   .typeset *:not(:where(.not-typeset, [data-not-typeset], .not-typeset *, [data-not-typeset] *)) {
-    /* Paragraphs. */
     &:where(p) {
       margin-block-start: var(--typeset-flow);
       margin-block-end: 0;
     }
-
-    /* Headings. */
     &:where(h1, h2, h3, h4, h5, h6) {
       color: var(--color-foreground, currentColor);
       font-family: var(--typeset-font-heading);
@@ -84,20 +81,15 @@
       color: var(--typeset-muted);
       margin-block-start: calc(var(--typeset-flow) / 0.8125);
     }
-    /* Anchors. */
     &:where([id]) {
       scroll-margin-block-start: var(--typeset-flow);
     }
-
-    /* Headings own the space below them. */
     &:where(h1 + *, h2 + *, h3 + *, h4 + *, h5 + *, h6 + *) {
       margin-block-start: 1em;
     }
     &:where(:is(h1, h2, h3, h4) :is(code)) {
       font-size: 0.9em;
     }
-
-    /* Links. */
     &:where(a) {
       color: inherit;
       font-weight: 500;
@@ -115,8 +107,6 @@
     &:where(:is(h1, h2, h3, h4, h5, h6) :is(a)) {
       font-weight: inherit;
     }
-
-    /* Inline semantics. */
     &:where(strong, b) {
       font-weight: 600;
     }
@@ -155,8 +145,6 @@
       text-decoration-line: none;
       font-weight: 500;
     }
-
-    /* Lists. */
     &:where(ul) {
       list-style-type: disc;
     }
@@ -199,8 +187,6 @@
     &:where(ol > li)::marker {
       color: var(--typeset-muted);
     }
-
-    /* GFM task lists. */
     &:where(ul.contains-task-list) {
       list-style-type: none;
       padding-inline-start: 0.25em;
@@ -210,8 +196,6 @@
       vertical-align: -0.1em;
       accent-color: var(--color-primary, currentColor);
     }
-
-    /* Disclosures. */
     &:where(details) {
       margin-block-start: var(--typeset-flow);
       margin-block-end: 0;
@@ -223,8 +207,6 @@
     &:where(summary)::marker {
       color: var(--typeset-muted);
     }
-
-    /* Keyboard keys. */
     &:where(kbd) {
       font-family: inherit;
       font-size: 0.85em;
@@ -234,8 +216,6 @@
       border-radius: min(calc(var(--radius, 0.5em) * 0.6), 0.35em);
       padding: 0.0625em 0.35em;
     }
-
-    /* Definition lists. */
     &:where(dl) {
       margin-block-start: var(--typeset-flow);
       margin-block-end: 0;
@@ -253,8 +233,6 @@
       padding-inline-start: 1em;
       color: var(--typeset-muted);
     }
-
-    /* Inline code. */
     &:where(:not(pre) > code) {
       background-color: var(--color-muted, color-mix(in oklab, currentColor 8%, transparent));
       font-family: var(--typeset-font-mono);
@@ -262,8 +240,6 @@
       border-radius: min(calc(var(--radius, 0.5em) * 0.6), 0.35em);
       padding: 0.125em 0.3em;
     }
-
-    /* Code blocks. */
     &:where(pre) {
       background-color: var(--color-muted, color-mix(in oklab, currentColor 8%, transparent));
       font-family: var(--typeset-font-mono);
@@ -284,8 +260,6 @@
       padding: 0;
       border-radius: 0;
     }
-
-    /* Blockquote. */
     &:where(blockquote) {
       border-inline-start: 2px solid var(--typeset-rule);
       padding-inline-start: 1em;
@@ -293,8 +267,6 @@
       margin-block-end: 0;
       margin-inline: 0;
     }
-
-    /* Dividers. */
     &:where(hr) {
       border: 0;
       border-block-start: 1px solid var(--typeset-rule);
@@ -304,8 +276,6 @@
     &:where(hr + h1, hr + h2, hr + h3, hr + h4) {
       margin-block-start: var(--typeset-flow);
     }
-
-    /* GFM footnotes. */
     &:where(.footnotes, [data-footnotes]) {
       margin-block-start: calc(var(--typeset-flow) * 2);
       border-block-start: 1px solid var(--typeset-rule);
@@ -313,8 +283,6 @@
       font-size: 0.875em;
       color: var(--typeset-muted);
     }
-
-    /* Math. */
     &:where(math[display="block"]) {
       margin-block-start: var(--typeset-flow);
       margin-block-end: 0;
@@ -322,8 +290,6 @@
       overflow-y: hidden;
       padding-block: 0.25em;
     }
-
-    /* Media. */
     &:where(img, video) {
       border-radius: var(--radius, 0.5em);
       max-width: 100%;
@@ -349,8 +315,7 @@
       caption-side: bottom;
     }
 
-    /* Tables. Separators sit on cells, not tr:last-child: append-safe.
-       Bare tables stay real tables (keep their semantics) and wrap to fit. */
+    /* separators sit on cells, not tr:last-child, so an appended row needs no fix-up */
     &:where(table) {
       max-width: 100%;
       font-size: 1em;
@@ -363,9 +328,7 @@
       margin-block-end: 0;
     }
 
-    /* Horizontal scroll for any wide block. Wrap it and the wrapper owns the
-       flow margin. Tables shrink to fit, so widen the table to make it scroll
-       instead of compress. */
+    /* the wrapper owns the flow margin; tables shrink to fit, so widen them to scroll instead of compress */
     &:where(.typeset-scroll) {
       overflow-x: auto;
       margin-block-start: var(--typeset-flow);
@@ -402,7 +365,6 @@
       text-align: end;
     }
 
-    /* Blocks inside list items keep the list's tighter rhythm. */
     &:where(li > blockquote, li > table, li > figure) {
       margin-block-start: 0.5em;
     }
@@ -419,7 +381,7 @@
       }
     }
 
-    /* Forced colors strips the code background, so give it a border. */
+    /* forced colors strips the code background, so give it a border */
     @media (forced-colors: active) {
       &:where(:not(pre) > code) {
         border: 1px solid;
@@ -427,7 +389,7 @@
     }
   }
 
-  /* First child adds no space above. Last so it wins ties. */
+  /* last so it wins ties */
   .typeset
     > :where(:first-child):not(
       :where(.not-typeset, [data-not-typeset], .not-typeset *, [data-not-typeset] *)

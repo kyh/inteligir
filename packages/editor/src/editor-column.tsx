@@ -11,16 +11,8 @@ import { useVaultActions } from "@repo/editor/host";
 import { checkNoteName, noteNameErrorMessage } from "@repo/notes/knowledge/note-name";
 import { basenamePath } from "@repo/notes/knowledge/vault-path";
 
-/**
- * The editor body: the open note's page title + document. One mounted editor
- * — opening another note replaces it (fresh undo history and scroll,
- * potion-style). This is just the scrolling document; bottom padding clears
- * the pinned composer.
- */
 export function EditorColumn() {
-  // Narrow selectors: the column's mount decision depends on the doc's
-  // kind/path/surface — never on the content buffer, so typing re-renders
-  // only the NoteDocument below.
+  // Never select the content buffer here: typing must re-render only NoteDocument.
   const kind = useOpenNote((s) => s.openDoc.kind);
   const docPath = useOpenNotePath();
   const showRich = useOpenNote(
@@ -35,18 +27,13 @@ export function EditorColumn() {
     );
   }
 
-  // Still loading (or vanishing) — nothing to show yet; the runtime either
-  // fills in content or closes the note. (docPath is null only for "none",
-  // handled above — the guard keeps the narrowing explicit.)
   if (kind === "loading" || docPath === null) return null;
 
-  // Keyed by path: a fresh document (undo history, title contentEditable) per note.
+  // keyed so each note gets fresh undo history and a fresh title element
   return <NoteDocument key={docPath} path={docPath} showRich={showRich} />;
 }
 
 function NoteDocument({ path, showRich }: { path: string; showRich: boolean }) {
-  // The ONE content subscriber: the editor legitimately re-renders per
-  // keystroke (Raw) / serialize settle (Rich).
   const content = useOpenNote((s) => s.editor.content);
   const { editNote, registerNoteSerializeFlush, renameEntry } = useVaultActions();
 
@@ -54,15 +41,12 @@ function NoteDocument({ path, showRich }: { path: string; showRich: boolean }) {
   const dot = fileName.lastIndexOf(".");
   const displayName = dot > 0 ? fileName.slice(0, dot) : fileName;
 
-  // The title is a contentEditable, so React must NOT own its text children
-  // (reconciling a contentEditable's children accumulates stale text across
-  // note switches). We set the text imperatively when the file (re)names;
-  // the browser owns it while editing.
+  // React must not own the contentEditable title's children: reconciling them
+  // accumulates stale text across note switches, so the text is set imperatively.
   const titleRef = useRef<HTMLHeadingElement>(null);
   const columnRef = useRef<HTMLDivElement>(null);
 
-  // A fresh document (keyed by path) starts reading from the top: the stamped
-  // scroller ancestor survives the swap, so it must be reset explicitly.
+  // the scroller ancestor survives the keyed swap, so it must be reset by hand
   useLayoutEffect(() => {
     const scroller = columnRef.current?.closest("[data-editor-scroller]");
     if (scroller) scroller.scrollTop = 0;
@@ -71,8 +55,6 @@ function NoteDocument({ path, showRich }: { path: string; showRich: boolean }) {
     if (titleRef.current) titleRef.current.textContent = displayName;
   }, [displayName, titleRef]);
 
-  // ⌘T (editor-shortcuts) reaches this title through the registry, keyed so
-  // the pressed editor and the title it focuses name the same note.
   useEffect(
     () =>
       registerNoteTitleFocus(path, () => {
@@ -86,17 +68,13 @@ function NoteDocument({ path, showRich }: { path: string; showRich: boolean }) {
   const slash = path.lastIndexOf("/");
   const dir = slash === -1 ? "" : path.slice(0, slash + 1);
 
-  // Editing the title renames the underlying file (the filename IS the title).
   const commitTitle = (raw: string) => {
     const next = raw.trim();
     if (next === "" || next === displayName) {
       if (titleRef.current) titleRef.current.textContent = displayName;
       return;
     }
-    // Validate the would-be basename (title + extension) before any rename: a
-    // an unchecked `/` silently creates folders, and `: * ? " < > |` mint
-    // names that break on Windows/sync. Reject + rollback + toast — never
-    // sanitize.
+    // Reject, never sanitize: an unchecked `/` creates folders and Windows-illegal characters break sync.
     const verdict = checkNoteName(`${next}${ext}`);
     if (!verdict.ok) {
       toast.error(noteNameErrorMessage(verdict.reason));
@@ -104,22 +82,15 @@ function NoteDocument({ path, showRich }: { path: string; showRich: boolean }) {
       return;
     }
     void renameEntry(path, `${dir}${verdict.name}`).then((ok) => {
-      // On success the path changes and the renamed note mounts a fresh document;
-      // on failure roll the contentEditable back to the real filename so the
-      // title never shows a name that was never saved.
       if (!ok && titleRef.current) titleRef.current.textContent = displayName;
       return undefined;
     });
   };
 
-  // Title settle rails beyond blur/Enter: `editingRef` is armed on focus and
-  // disarmed by the element's own blur-commit, so these only fire for edits
-  // the normal path never saw. (1) Window blur — ⌘Tab away mid-edit routes
-  // through the element blur, i.e. the normal commit. (2) Document unmount — an
-  // external note switch/teardown while the title is still focused commits
-  // the pending text directly. A ⌘Q straight from the title remains the
-  // documented edge: the async rename can't finish during quit (content is
-  // safe via the runtime flush; only the retitle is lost).
+  // editingRef is armed on focus and disarmed by the blur-commit BEFORE it commits
+  // (a successful rename remounts, and the unmount commit must not re-run against
+  // the stale path), so window blur and unmount only settle edits blur never saw.
+  // A ⌘Q from the title loses the retitle: the async rename cannot finish during quit.
   const editingRef = useRef(false);
   const commitTitleRef = useRef(commitTitle);
   useEffect(() => {
@@ -142,9 +113,6 @@ function NoteDocument({ path, showRich }: { path: string; showRich: boolean }) {
     [titleRef],
   );
 
-  // Enter in the title drops the caret into the body (potion behavior): the
-  // editor's editable in Rich mode, the textarea in Raw. The body mounts as a
-  // sibling inside columnRef, so the query never escapes this column.
   const onTitleKeyDown = (e: KeyboardEvent<HTMLHeadingElement>) => {
     if (e.key === "Enter") {
       e.preventDefault();
@@ -160,12 +128,6 @@ function NoteDocument({ path, showRich }: { path: string; showRich: boolean }) {
     }
   };
 
-  // potion-style column: the editable (PlateContent) carries the centered
-  // 700px column padding itself (EDITOR_COLUMN_PX — see editor-chrome.tsx:
-  // the drag gutter must live inside its clip); the title and the Raw textarea
-  // apply the same constant so all three align byte-exact. The column owns only
-  // the vertical padding — pb-72 is the breathing room below the last block
-  // (spec §4.1).
   return (
     <div ref={columnRef} className="flex w-full flex-1 cursor-text flex-col pt-10 pb-72 print:pb-0">
       <h1
@@ -177,9 +139,6 @@ function NoteDocument({ path, showRich }: { path: string; showRich: boolean }) {
           editingRef.current = true;
         }}
         onBlur={(e) => {
-          // Disarm BEFORE committing: a successful rename remounts the document,
-          // and the unmount flush must not re-commit the same edit against
-          // the now-stale old path.
           editingRef.current = false;
           commitTitle(e.currentTarget.textContent ?? "");
         }}

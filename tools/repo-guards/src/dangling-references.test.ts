@@ -1,21 +1,5 @@
-// ---------------------------------------------------------------------------
-// Dangling references: a name this repo writes down must be a thing this repo
-// has.
-//
-// Every other guard here derives what it compares, and reads source with the
-// comments STRIPPED. Prose and configuration therefore rot in the one direction
-// nothing watches: a rename lands, the code is updated, and the sentence that
-// JUSTIFIED the code is not. Three were live at once — an orphan guard whose
-// exclusion named a directory deleted in a workspace rename, so it excluded
-// nothing and passed without asking its question; a lint override citing a
-// provenance file that was never written, as the reason several thousand lines
-// relax seven rules; and a package README naming a dependency workspace that no
-// longer exists.
-//
-// None of those is a failing test anywhere else, because none of them is code.
-// So this walks what the repo SAYS — comments, markdown, configs, string
-// literals — and holds it against what the repo HAS.
-// ---------------------------------------------------------------------------
+// every other guard reads source with comments stripped, so prose and configuration rot unwatched;
+// this walks what the repo says (comments, markdown, configs, strings) against what it has.
 
 import { execFileSync, spawnSync } from "node:child_process";
 import fs from "node:fs";
@@ -23,18 +7,12 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { REPO_ROOT, workspaceGlobs, workspaces } from "./repo";
 
-/** Prose and configuration, not just source: the rot lives in comments and
- *  markdown, which every other guard's reader deliberately strips. */
 const SCANNED_FILE = /\.(?:tsx?|mts|cts|mjs|cjs|jsx?|jsonc?|md|ya?ml)$/;
 
-/** Emitted by a generator, which names whatever its input named. */
+// emitted by a generator, which names whatever its input named.
 const GENERATED_FILE = /(?:\.gen\.ts|worker-configuration\.d\.ts|pnpm-lock\.yaml)$/;
 
-/**
- * Trees and files whose contents are DATA rather than claims about this repo.
- * A markdown fixture asserts bytes — its `../outside.md` is the INPUT to a
- * containment test, not a reference that can dangle.
- */
+// data rather than claims: a fixture's `../outside.md` is the input to a containment test.
 const DATA_DIR = /(?:^|\/)(?:fixtures|__fixtures__|seed)\//;
 const DATA_FILES = new Map<string, string>([
   [
@@ -43,11 +21,8 @@ const DATA_FILES = new Map<string, string>([
   ],
 ]);
 
-/**
- * Names that are deliberately not things. Each is a guard's own negative
- * fixture and states why here — a blanket "ignore anything under a test" would
- * hide the real rot, which is mostly IN tests and configs.
- */
+// each is a guard's own negative fixture; a blanket ignore-under-tests would hide the rot, which is
+// mostly in tests and configs.
 const DELIBERATE_NON_REFERENCES = new Map<string, string>([
   [
     "@repo/gone",
@@ -55,23 +30,13 @@ const DELIBERATE_NON_REFERENCES = new Map<string, string>([
   ],
 ]);
 
-/**
- * Whether a path is one git does not track: build output (`dist/`), local state
- * (`.wrangler/`), an installed tree (`node_modules/`), or a secrets file the
- * docs tell a developer to create (`.dev.vars`).
- *
- * Such a path CANNOT dangle, and asking whether it exists is the wrong
- * question: the answer is a fact about the machine rather than about the repo,
- * true on a laptop that has run a build and false in a clean checkout. Asked
- * from git rather than pattern-matched here, so the ignore rules stay in
- * `.gitignore` and this guard cannot disagree with them.
- */
+// an untracked path (dist/, .wrangler/, .dev.vars) is a fact about the machine, not the repo; asked
+// from git rather than pattern-matched so the ignore rules stay in .gitignore and this guard cannot
+// disagree.
 function ignoredByGit(paths: readonly string[]): Set<string> {
   if (paths.length === 0) return new Set();
-  // Each path is asked BOTH ways. A `.gitignore` entry written `dist/` matches
-  // directories only, and git cannot tell that a path which is not on disk
-  // would have been one — so the bare form misses exactly the case this
-  // exemption exists for, and misses it only in a clean checkout.
+  // both forms: a .gitignore entry written `dist/` matches directories only, and git cannot tell
+  // that a path not on disk would have been one.
   const asked = paths.flatMap((each) => [each, `${each}/`]);
   const result = spawnSync("git", ["check-ignore", "--stdin", "-z"], {
     cwd: REPO_ROOT,
@@ -79,7 +44,7 @@ function ignoredByGit(paths: readonly string[]): Set<string> {
     encoding: "utf8",
     maxBuffer: 64 * 1024 * 1024,
   });
-  // Exit 1 means "none of them are ignored", which is an answer, not a failure.
+  // exit 1 means none are ignored.
   if (result.status !== 0 && result.status !== 1) {
     throw new Error(`git check-ignore failed: ${result.stderr}`);
   }
@@ -90,12 +55,7 @@ function ignoredByGit(paths: readonly string[]): Set<string> {
   return ignored;
 }
 
-/**
- * The scanned population is what GIT TRACKS. Deriving it from the index rather
- * than a directory walk is what keeps build output and ignored sidecars — a
- * bundled `ds-bundle/`, a `dist/` — from being read as if they were claims this
- * repo makes.
- */
+// git's index, not a directory walk, so build output and ignored sidecars are not read as claims.
 function scannedFiles(): string[] {
   const tracked = execFileSync("git", ["ls-files", "-z"], {
     cwd: REPO_ROOT,
@@ -108,13 +68,11 @@ function scannedFiles(): string[] {
     (file) =>
       SCANNED_FILE.test(file) &&
       !GENERATED_FILE.test(file) &&
-      // Dot-directories hold tooling state, the same reason every other guard
-      // here skips them wholesale.
+      // dot-directories hold tooling state.
       !file.split("/").some((segment) => segment.startsWith(".")) &&
       !DATA_DIR.test(file) &&
       !DATA_FILES.has(file) &&
-      // The index still lists a file deleted in the working tree; a file that
-      // is gone makes no claims.
+      // the index still lists a file deleted in the working tree.
       fs.existsSync(path.join(REPO_ROOT, file)),
   );
 }
@@ -142,12 +100,8 @@ function referencesIn(file: string, pattern: RegExp): Reference[] {
 
 const WORKSPACE_NAME = /(@repo\/[a-z0-9][a-z0-9-]*)/g;
 
-/**
- * A repo-relative path, anchored on a workspace GROUP so the population is this
- * repo's own layout rather than any string with a slash in it. A glob, a
- * template hole or a trailing slash is a PATTERN, not a reference: only a claim
- * about one file or directory can dangle.
- */
+// anchored on a workspace group so the population is this repo's layout, not any string with a
+// slash; a glob, a template hole or a trailing slash is a pattern, not a reference.
 function repoPathPattern(): RegExp {
   const groups = workspaceGlobs().groups.map((group) => group.replaceAll(/[^a-z0-9]/g, ""));
   return new RegExp(`((?:${groups.join("|")})\\/[A-Za-z0-9._@/-]+[A-Za-z0-9_])`, "g");
@@ -182,8 +136,7 @@ describe("dangling references", () => {
     const referenced = danglingIn(repoPathPattern(), (text) =>
       fs.existsSync(path.join(REPO_ROOT, text)),
     );
-    // A path git does not track is exempt: `node_modules/` sits behind a
-    // symlink `check-ignore` refuses to walk, so it is answered here.
+    // node_modules/ sits behind a symlink check-ignore refuses to walk, so it is answered here.
     const named = referenced.map((line) => line.trim().split(/\s+/).slice(1).join(" "));
     const ignored = ignoredByGit(named.filter((text) => !text.includes("node_modules/")));
     const dangling = referenced.filter((line, index) => {
@@ -200,8 +153,6 @@ describe("dangling references", () => {
   });
 
   it("no DATA_FILES or DELIBERATE_NON_REFERENCES entry outlives what it excuses", () => {
-    // An allowance naming a file that is gone is the same rot one level up: it
-    // reads as a considered exemption while excusing nothing.
     const missing = [...DATA_FILES.keys()].filter(
       (file) => !fs.existsSync(path.join(REPO_ROOT, file)),
     );

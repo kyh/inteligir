@@ -16,22 +16,9 @@ import { device } from "../db/schema";
 import { allowInWindow, callerIp, forgetDeviceBudgets, type RateWindow } from "../rate-limit";
 import { severDeviceSockets } from "../sync/routes";
 
-// ---------------------------------------------------------------------------
-// `/v1/device/*` — the pairing surface.
-//
-//   POST /v1/device/code    session  mint a one-time pairing code (/app/pair)
-//   POST /v1/device/redeem  code     exchange it for the durable credential
-//   GET  /v1/device/list    session  the dashboard's device table
-//   POST /v1/device/revoke  session  cut a device off (bites next request)
-//
-// AUTH is the Better Auth SESSION (cookie or bearer) for everything except
-// redeem, where the code IS the credential — the local app holds no session
-// and never will; the whole point of pairing is to end with a credential that
-// is not the account's.
-// ---------------------------------------------------------------------------
+// session auth for everything except redeem, where the code is the credential: the local app holds no session
 
-/** Redeem attempts per IP. A code is 2^40 with a 10-minute life, so the window
- * exists to make guessing loud, not to carry the entropy. */
+// a code is 2^40 with a 10-minute life; the window makes guessing loud rather than carrying the entropy
 const REDEEM_WINDOW: RateWindow = { max: 10, windowMs: 60_000 };
 const REDEEM_RATE_KEY_PREFIX = "device-redeem:";
 
@@ -95,9 +82,7 @@ export async function handleDeviceRoutes(request: Request, env: Env, url: URL): 
   if (route === `POST ${DEVICE_API_PATHS.revoke}`) {
     const body = revokeDeviceRequestSchema.safeParse(await request.json().catch(() => null));
     if (!body.success) return refuse("bad-request", "Send { deviceId }.");
-    // Scoped to the session's own userId, so no session can revoke across
-    // accounts; already-revoked matches nothing and answers not-found, which
-    // keeps the route idempotent-safe to retry from the dashboard.
+    // scoped to the session's own userId; an already-revoked device matches nothing and answers not-found
     const revoked = await db
       .update(device)
       .set({ revokedAt: new Date() })
@@ -107,11 +92,9 @@ export async function handleDeviceRoutes(request: Request, env: Env, url: URL): 
       .returning()
       .get();
     if (revoked === undefined) return refuse("not-found", "No such active device.");
-    // Nothing else deletes a limiter row, so a pair-then-revoke loop would
-    // leave two behind per cycle.
+    // nothing else deletes a limiter row
     await forgetDeviceBudgets(db, [body.data.deviceId]);
-    // The credential is already dead in D1 — this only closes the sockets it
-    // still holds, which no per-request check can reach.
+    // the credential is already dead in D1; this closes the sockets it still holds, which no per-request check reaches
     await severDeviceSockets(env, userId, body.data.deviceId);
     const response: RevokeDeviceResponse = { revoked: true };
     return Response.json(response);

@@ -1,10 +1,5 @@
 // Vendored from plate (github.com/udecode/plate), MIT. © Plate contributors.
-// Selection ghost: while a menu or popover holds DOM focus, the editor's
-// selection collapses visually — this overlay re-paints the model selection
-// rects so the user still sees what a Turn-into / link / AI action targets.
-// Ported with block-menu-kit; the AI menu reuses this plumbing.
-// Positioning is relative to the editor's `relative` wrapper
-// (markdown-editor.tsx).
+// Re-paints the model selection while a menu or popover holds DOM focus.
 
 import { useCursorOverlay, type CursorOverlayState } from "@platejs/selection/react";
 import { getTableGridAbove } from "@platejs/table";
@@ -22,7 +17,7 @@ function Cursor({
   const editor = useEditorRef();
   const isCursor = selection ? RangeApi.isCollapsed(selection) : false;
 
-  // Multi-cell table selections have their own selection UI.
+  // multi-cell table selections have their own selection UI
   if (id === "selection" && selection) {
     const cellEntries = getTableGridAbove(editor, { at: selection, format: "cell" });
     if (cellEntries.length > 1) return null;

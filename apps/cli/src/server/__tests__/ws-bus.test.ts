@@ -71,7 +71,6 @@ describe("subscribe/broadcast", () => {
     };
     expect(lastFrame(vaultSocket)).toEqual(expected);
     expect(lastFrame(docSocket)).toEqual(expected);
-    // The hello ack is the only frame the other doc's subscriber ever saw.
     expect(otherDocSocket.sent).toHaveLength(1);
   });
 
@@ -181,9 +180,6 @@ describe("handleMessage", () => {
 });
 
 describe("outbound frames against the contract schemas", () => {
-  // The bus serializes house-constructed frames without a per-send parse, so
-  // this is where the shape stays loud: every frame the bus can emit must
-  // parse under the STRICT schemas (and therefore the lenient ones).
   it("every emittable frame parses strictly, hello included", () => {
     const bus = createBus();
     const socket = createFakeSocket();
@@ -218,7 +214,6 @@ describe("outbound frames against the contract schemas", () => {
       changes: ["files-changed"],
       paths: ["notes/a.md", "notes/b.md"],
     });
-    // Absent, never `paths: []` — an empty list would read as "nothing moved".
     expect(JSON.parse(unnamed ?? "null")).toEqual({
       type: "changed",
       entity: "vault",
@@ -242,13 +237,6 @@ describe("outbound frames against the contract schemas", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Shutdown. An upgraded socket is detached from the HTTP server's connection
-// tracking, so nothing else in the teardown can end it — if the bus does not
-// close its own clients, one open tab stalls the whole sequence at step one
-// (listen.ts says the rest).
-// ---------------------------------------------------------------------------
-
 describe("closing the bus down", () => {
   it("sends every registered client a going-away frame", () => {
     const bus = createBus();
@@ -265,8 +253,6 @@ describe("closing the bus down", () => {
   });
 
   it("closes a client that never subscribed to anything", () => {
-    // registerClient alone puts a socket in the map; a client that only ever
-    // received the hello frame still holds the connection open.
     const bus = createBus();
     const socket = createFakeSocket();
     bus.registerClient(socket);

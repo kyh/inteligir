@@ -1,10 +1,5 @@
-// The fabricated agent-message burst the scripted driver and the test fake
-// both stream: item/started, two deltas split at the midpoint, item/completed.
-// Returns events and never ingests — the callers batch differently (the fake
-// emits turn/started as its own call, scripted folds it into one batch), and
-// folding ingest in here would silently change those transaction boundaries.
-// Domain-types only: the test fake imports this, and a module graph that
-// reached the vault or git would drag them into every route suite's runtime.
+// returns events and never ingests: the callers batch differently, and ingesting here would change their
+// transaction boundaries. domain types only: the test fake imports this.
 
 import type { ThreadEvent } from "@repo/domain/provider-event";
 import type { ThreadEventScope } from "@repo/domain/thread-event-scope";

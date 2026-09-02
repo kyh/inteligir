@@ -1,8 +1,3 @@
-// Code block kit. Base half feeds the headless serialization mirror; the
-// React half adds lowlight syntax highlighting, the ``` autoformat rule, and
-// a render-only mermaid preview on `lang === "mermaid"` fences (toggle between
-// diagram and source; the node model never changes, so bytes stay canonical).
-
 import { useState } from "react";
 import { CodeIcon, EyeIcon } from "lucide-react";
 import { KEYS, NodeApi } from "platejs";
@@ -25,25 +20,15 @@ import { MermaidPreview } from "@repo/editor/nodes/code-block-mermaid";
 
 export const CodeBlockBaseKit = [BaseCodeBlockPlugin, BaseCodeLinePlugin];
 
-// lowlight powers code-block syntax highlighting (`common` = ~35 popular
-// languages; the token classes are styled by the `.hljs-*` theme in styles.css).
 const lowlight = createLowlight(common);
-// Fence languages we render but lowlight doesn't ship grammars for — alias to
-// plaintext (no tokens) so CodeSyntaxPlugin stops logging "not registered" on
-// every mermaid/math note.
+// lowlight ships no mermaid/math grammar; without the alias CodeSyntaxPlugin logs "not registered" per fence.
 lowlight.registerAlias("plaintext", ["mermaid", "math"]);
 
-// Code-block typography (mono, bg, radius, padding, overflow, tab-size) comes
-// from typeset's `pre` rules.
-
-// CodeSyntaxPlugin tags each highlighted token with an `.hljs-*` className on
-// the leaf; render it so the theme in styles.css colors it.
 function CodeSyntaxLeaf(props: PlateLeafProps) {
   return <PlateLeaf {...props} className={stringProp(props.leaf, "className") ?? ""} />;
 }
 
-// Code lines are sibling elements — NodeApi.string on the block concatenates
-// them without separators, so join per line for the diagram source.
+// NodeApi.string on the block joins code lines with no separator.
 function codeText(element: PlateElementProps["element"]): string {
   return element.children.map((line) => NodeApi.string(line)).join("\n");
 }
@@ -53,8 +38,7 @@ function MermaidCodeBlock(props: PlateElementProps) {
   const { editor } = props;
 
   const showPreview = () => {
-    // Hiding the fence while the selection sits inside it would strand Slate's
-    // DOM selection in an invisible subtree — drop the selection first.
+    // hiding the fence with the selection inside strands Slate's DOM selection in an invisible subtree.
     if (editor.selection && editor.api.some({ match: (n) => n === props.element })) {
       editor.tf.deselect();
     }
@@ -84,8 +68,6 @@ function MermaidCodeBlock(props: PlateElementProps) {
 function CodeBlockElement(props: PlateElementProps) {
   if (props.element.lang === "mermaid") return <MermaidCodeBlock {...props} />;
   const lang = stringProp(props.element, "lang");
-  // The hover-reveal language label is display-only — the fence's lang is set
-  // at creation — and a <span>, because <pre> hosts phrasing.
   return (
     <PlateElement {...props} as="pre" className="group/code relative">
       {lang ? (
@@ -105,9 +87,7 @@ function CodeLineElement(props: PlateElementProps) {
   return <PlateElement {...props} as="div" />;
 }
 
-// A mermaid diagram is a plain ```mermaid fence (render-only preview — zero
-// serialization surface), seeded with a minimal valid graph. Reuses the "Code
-// block" turn-into so the fence's byte-form matches every other code block's.
+// Goes through the code-block turn-into so the fence's byte form matches every other code block's.
 export function insertMermaid(editor: PlateEditor): void {
   turnIntoSelection(editor, turnIntoOption("code-block"));
   editor.tf.setNodes(

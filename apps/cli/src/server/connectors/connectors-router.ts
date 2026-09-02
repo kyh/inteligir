@@ -1,13 +1,3 @@
-// The connectors handlers. The service decides; this layer only says which
-// refusal class each throw answers with.
-//
-// THE MAPPING IS ONE TABLE, and WHICH kind a given procedure translates is
-// declared per handler. `CONNECTOR_REFUSALS` is TOTAL over
-// `ConnectorConflictError` — `satisfies` makes a new kind a compile error
-// there — while each handler names the ONE kind its contract row declares, so
-// the other rethrows into the generic 500 and a new class arriving is decided
-// per procedure rather than defaulted.
-
 import { CONNECTOR_OAUTH_CALLBACK_PATH } from "@repo/api/local/connectors/connectors-schema";
 import { ORPCError } from "@orpc/server";
 import { base } from "../orpc";
@@ -16,17 +6,13 @@ import { ConnectorConflictError } from "./connectors-service";
 
 type ConnectorConflictKind = ConnectorConflictError["kind"];
 
-/** Every way a connector write can refuse, and the wire class it is. The HTTP
- *  status each answers is the handler's (error-status.ts), not this layer's —
- *  oRPC v2 keeps none on the error. */
 const CONNECTOR_REFUSALS = {
   "already-exists": "ALREADY_EXISTS",
   "not-found": "NOT_FOUND",
 } as const satisfies Record<ConnectorConflictKind, string>;
 
-/** Runs `work`, re-raising `declared` as the class the contract row declares.
- *  Any other refusal — including the conflict kind this row does not declare —
- *  is rethrown as it came, which is a 500 and should be. */
+// only the kind the contract row declares is translated; any other refusal stays a 500
+// rather than defaulting into a class the row does not declare.
 async function refusing<T>(
   declared: ConnectorConflictKind,
   work: () => T | Promise<T>,
@@ -41,9 +27,7 @@ async function refusing<T>(
   }
 }
 
-/** The callback URL for a request that reached this app's own loopback origin
- *  — the pair-callback rule: the PORT is the caller's own Host header's fact,
- *  never the configured guess. */
+// the port comes from the request's own host header, never the configured one.
 function oauthCallbackUrlFor(host: string | undefined): string | null {
   const origin = loopbackRequestOrigin(host);
   return origin === null ? null : `${origin}${CONNECTOR_OAUTH_CALLBACK_PATH}`;
@@ -75,7 +59,7 @@ const oauthBegin = base.connectors.oauthBegin.handler(async ({ context, input, e
   }
   return refusing("not-found", async () => {
     const url = await context.connectorsOauth.begin(input.name, callbackUrl);
-    // A failed open is an ordinary answer: the URL works pasted anywhere.
+    // a failed open is an ordinary answer: the url works pasted anywhere.
     const opened = input.open ? await context.openExternalUrl(url) : false;
     return { opened, url };
   });

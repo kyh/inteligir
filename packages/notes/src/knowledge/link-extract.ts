@@ -1,22 +1,7 @@
-// ---------------------------------------------------------------------------
-// Doc scanning for the knowledge index: one remark parse per doc yields the
-// title, the headings, and every vault-local link — wiki links/embeds,
-// standard relative md links (note AND asset targets), and md images — with
-// exact source spans. Parsing reuses the editor's own remark-wiki-link
-// tokenizer, and fence/code-span safety is inherited from the parser (text
-// constructs never run inside code), not re-implemented with regexes.
-//
-// The grammar is ../markdown/scan-parse — shared with the task count, which
-// depends on reading exactly the same one. It is PLAIN MARKDOWN and the
-// editor's is not, so the two disagree about which byte ranges the editor
-// carries verbatim; ../markdown/verbatim-spans is where the scan asks the
-// editor's grammar rather than guessing.
-//
-// Span contract: `targetSpan` is emitted only after the bytes are verified
-// (the raw slice re-derives the parsed target) AND only outside a verbatim
-// range. A link failing either is still indexed (backlinks/graph) but is never
-// rewritten.
-// ---------------------------------------------------------------------------
+// The scan grammar (../markdown/scan-parse) is plain markdown and the editor's
+// is not, so a `targetSpan` is emitted only where the raw bytes re-derive the
+// parsed target and lie outside ../markdown/verbatim-spans; a link failing
+// either is indexed but never rewritten.
 
 import type { Nodes } from "mdast";
 
@@ -29,61 +14,33 @@ import { insideVerbatim, verbatimSpans, type VerbatimSpan } from "../markdown/ve
 import { tasksInTree, type ExtractedTask } from "./task-ordinal";
 
 export type Span = { start: number; end: number };
-/** `wiki` = `[[..]]` / `![[..]]`, `md` = `[..](..)` + reference definitions,
- * `image` = `![..](..)` standard md images. */
 export type LinkKind = "wiki" | "md" | "image";
 
 export type ExtractedLink = {
   kind: LinkKind;
-  /** Rendered-inline reference: `![[embed]]` transclusions and md images.
-   * Always false for plain wiki/md links. */
   embed: boolean;
-  /** Resolution input: the target as written (percent-decoded for md links),
-   * anchor/alias stripped. Never empty. */
+  /** as written, percent-decoded for md links, anchor and alias stripped; never empty */
   target: string;
-  /** Heading anchor after `#`, when present. */
   anchor?: string;
-  /** Display text: the wiki `|alias`, an md link's label, or an image's alt. */
   alias?: string;
-  /** 1-based source line the link starts on. */
+  /** 1-based */
   line: number;
-  /** Verified code-unit span of the rewritable target text (wiki target /
-   * md path-part, excluding `<>` and `#fragment`). Absent when the raw bytes
-   * could not be verified — such a link is indexed but never rewritten. */
   targetSpan?: Span;
 };
 
 export type DocScan = {
-  /** First `#` heading's text, or null (callers fall back to the filename). */
   title: string | null;
-  /** Every heading's text, any depth, in document order. */
   headings: string[];
   links: ExtractedLink[];
-  /** The doc's tags, display case, deduped — frontmatter `tags` first (in
-   * declaration order), then inline `#tag` tokens in document order. Unified
-   * case-insensitively downstream by TagIndex. */
   tags: string[];
-  /** Frontmatter `aliases` (Obsidian's alias list), display case, deduped
-   * case-insensitively. The SINGLE extraction source for aliases — sibling
-   * indexes consume this, never re-parse frontmatter. */
   aliases: string[];
-  /** The doc's GFM task items, in ordinal order (./task-ordinal owns the
-   * count). Empty when the note opts out via frontmatter `tasks: false`. */
   tasks: ExtractedTask[];
-  /** Frontmatter `pinned: true` — the sidebar's pinned section. Extracted
-   * here because frontmatter is the only property store and this scan is its
-   * one parse; anything but a literal boolean true is false. */
   pinned: boolean;
-  /** Frontmatter `id:` — the note's stable identity, which `[[Title|uuid]]`
-   * links resolve through. Null when absent or not a plain string. */
   noteId: string | null;
 };
 
-/** Parse a doc once and pull out title, headings, note links, tags, tasks. */
 export function scanDoc(source: string): DocScan {
   const tree = parseScan(source);
-  // ONE YAML parse per scan — every frontmatter extractor consumes this
-  // result instead of re-locating the node and re-running parseProperties.
   const frontmatter = parseFrontmatter(tree);
   const verbatim = verbatimSpans(source);
   const scan: DocScan = {
@@ -153,17 +110,9 @@ export function scanDoc(source: string): DocScan {
   return scan;
 }
 
-/**
- * A callout fence's body is MARKDOWN (the editor models and renders it,
- * wiki links included), so the scan must count what the editor draws —
- * editor ⊆ vault is the containment direction the knowledge index owes. The
- * body is re-scanned and every link's span is shifted into the OUTER source,
- * so rename byte-surgery lands inside the fence exactly.
- *
- * Only a column-0 fence qualifies: an indented fence (inside a list/quote)
- * prefixes every body line, and a flat offset shift would name wrong bytes —
- * those bodies are skipped whole, stated rather than mis-indexed.
- */
+// A callout body is markdown the editor renders, so its links are indexed with
+// spans shifted into the outer source. Only a column-0 fence qualifies: an
+// indented fence prefixes every body line, so a flat offset shift names wrong bytes.
 function scanCalloutBody(
   source: string,
   node: Extract<Nodes, { type: "code" }>,
@@ -171,14 +120,10 @@ function scanCalloutBody(
 ): void {
   const pos = node.position;
   if (pos?.start.offset === undefined || pos.start.column !== 1) return;
-  // Body bytes start after the opening-fence line and the kind/level header
-  // lines; mdast's `value` is exactly the body, so locate it by line walking.
   const openLineEnd = source.indexOf("\n", pos.start.offset);
   if (openLineEnd === -1) return;
   const payloadStart = openLineEnd + 1;
-  // The shared grammar (callout-payload.ts) decides the header height. An
-  // unknown kind renders as a plain CODE BLOCK, where a wiki spelling is not
-  // a link — indexing it would aim rename byte-surgery into code.
+  // an unknown kind renders as a plain code block, where a wiki spelling is not a link
   const payload = parseCalloutPayload(node.value);
   if (payload === null) return;
   const lines = node.value.split("\n");
@@ -207,8 +152,6 @@ function scanCalloutBody(
   }
 }
 
-// ---- Tree walking -----------------------------------------------------------
-
 function walk(node: Nodes, visitor: (node: Nodes) => void): void {
   visitor(node);
   if ("children" in node) {
@@ -216,43 +159,26 @@ function walk(node: Nodes, visitor: (node: Nodes) => void): void {
   }
 }
 
-/** Concatenated text content of a node's subtree (labels, heading text). */
 function textOf(node: Nodes): string {
   if (node.type === "text" || node.type === "inlineCode") return node.value;
   if ("children" in node) return node.children.map(textOf).join("");
   return "";
 }
 
-// ---- Tags -------------------------------------------------------------------
-
-// An inline `#tag`: `#` at a word boundary (not glued to a preceding word char,
-// `#`, or `/` — so `C#`, `##h`, and url fragments don't count) followed by a
-// LETTER-first name (excludes `#123` and fully-numeric hex like `#123456`).
-// Nested `a/b/c` and dashes are allowed; a trailing `/` or `-` is not captured.
-// Unicode letters/numbers count — the pipeline already runs with the `u` flag
-// (search-index tokenizer), so it costs nothing here.
-// Module-private: the pattern alone is not the grammar — the trailing-dash trim
-// below is part of it — so `inlineTagSpans` is the only seam a second consumer
-// gets. Stateful (`g` flag): scan it with `matchAll`.
+// `#` must not follow a word char, `#` or `/` (so `C#`, `##h` and url fragments miss)
+// and the name is letter-first (so `#123` and hex colors miss). stateful `g` flag: use matchAll.
 const INLINE_TAG_RE = /(?<![\p{L}\p{N}_/#])#(\p{L}[\p{L}\p{N}_-]*(?:\/[\p{L}\p{N}_-]+)*)/gu;
 
-/** A `#tag` occurrence inside one text run: `[start, end)` covers the `#` and
- * the tag name, and `tag` is the name alone. */
 export type InlineTagSpan = { start: number; end: number; tag: string };
 
-/** Every `#tag` in one plain-text run, in order — the ONE inline-tag scanner.
- * Pure string math, no mdast: the index walks mdast `text` nodes and the
- * editor's chip decoration walks Slate text runs, so the WALKERS genuinely
- * can't be shared, but the token grammar must not drift between them, so both
- * come through here. */
+// shared with the editor's tag chip decoration; the token grammar must not drift between them
 export function inlineTagSpans(text: string): InlineTagSpan[] {
   const spans: InlineTagSpan[] = [];
   for (const match of text.matchAll(INLINE_TAG_RE)) {
     const start = match.index;
     const raw = match[1];
     if (start === undefined || raw === undefined) continue;
-    // A trailing dash is captured by the name class but reads as punctuation,
-    // not part of the tag (`#bar-` → `bar`); a trailing `/` never is.
+    // a trailing dash reads as punctuation (`#bar-` → `bar`)
     const tag = raw.replace(/-+$/, "");
     if (tag === "") continue;
     spans.push({ start, end: start + 1 + tag.length, tag });
@@ -260,9 +186,6 @@ export function inlineTagSpans(text: string): InlineTagSpan[] {
   return spans;
 }
 
-/** The leading `yaml` node's typed properties, parsed ONCE per scanDoc pass,
- * or null when the doc has no frontmatter block. Each `frontmatter*` extractor
- * below keeps its own none/invalid default mapping over this shared result. */
 function parseFrontmatter(tree: Nodes): ParsedProperties | null {
   if (!("children" in tree)) return null;
   const yaml = tree.children.find((child) => child.type === "yaml");
@@ -270,19 +193,12 @@ function parseFrontmatter(tree: Nodes): ParsedProperties | null {
   return parseProperties(yaml.value);
 }
 
-/** The doc's tags: frontmatter `tags` (declaration order) then inline `#tag`
- * tokens (document order). Inline extraction is PARSE-AWARE — it scans only
- * mdast `text` nodes, so code spans/fences (their own `inlineCode`/`code`
- * nodes), link/image URLs (a node's `url`, never text), and link/image LABELS
- * (their subtrees are suppressed) are all naturally excluded, no byte regex. */
 function extractTags(tree: Nodes, frontmatter: ParsedProperties | null): string[] {
   const tags = [...frontmatterTags(frontmatter)];
   collectInlineTags(tree, tags, false);
   return tags;
 }
 
-/** The parsed frontmatter's `tags` property (017's typed tags: a string
- * array). A leading `#` on a frontmatter tag is tolerated and stripped. */
 function frontmatterTags(parsed: ParsedProperties | null): string[] {
   if (parsed === null || parsed.kind !== "valid") return [];
   const prop = parsed.properties.find((p) => p.key === "tags" && p.type === "tags");
@@ -290,21 +206,14 @@ function frontmatterTags(parsed: ParsedProperties | null): string[] {
   return prop.value.map((tag) => tag.replace(/^#/, "").trim()).filter((tag) => tag !== "");
 }
 
-/** The parsed frontmatter's `aliases` property — Obsidian's alias
- * list. The canonical form is a plain string array (which classifies as the
- * existing 'tags' TypedProperty, so the properties panel round-trips it for
- * free); for Obsidian interop a single-string scalar and the legacy `alias:`
- * key are accepted too. Values are trimmed, empties dropped, and deduped
- * case-insensitively keeping the first display case (TagIndex's identity
- * rule). Anything else — malformed yaml, non-string values — degrades to []. */
+// obsidian interop: a single-string scalar and the legacy `alias:` key are accepted too
 function frontmatterAliases(parsed: ParsedProperties | null): string[] {
   if (parsed === null || parsed.kind !== "valid") return [];
   const prop =
     parsed.properties.find((p) => p.key === "aliases") ??
     parsed.properties.find((p) => p.key === "alias");
   if (!prop) return [];
-  // "tags" = string array; "text"/"date" = a single string scalar (a date
-  // alias like `2026-07-01` classifies as date but is still a string).
+  // a date-shaped alias like `2026-07-01` classifies as date but is still a string
   const values =
     prop.type === "tags"
       ? prop.value
@@ -324,8 +233,7 @@ function frontmatterAliases(parsed: ParsedProperties | null): string[] {
   return out;
 }
 
-/** Walk `text` nodes for `#tag` tokens; suppress link/image subtrees so a
- * `[label #not-a-tag](url)` label is never mistaken for a tag. */
+// link/image subtrees are suppressed so a `[label #not-a-tag](url)` label is not a tag
 function collectInlineTags(node: Nodes, out: string[], suppressed: boolean): void {
   if (node.type === "text") {
     if (suppressed) return;
@@ -343,12 +251,6 @@ function collectInlineTags(node: Nodes, out: string[], suppressed: boolean): voi
   }
 }
 
-// ---- Tasks ------------------------------------------------------------------
-
-/** The parsed frontmatter's `tasks: false` opt-out — a strict-boolean checkbox
- * property defaulting OPEN: only an explicit `tasks: false` suppresses
- * extraction (malformed frontmatter changes nothing — suppressing tasks is a
- * preference, not a safety property). */
 function frontmatterTasksDisabled(parsed: ParsedProperties | null): boolean {
   if (parsed === null || parsed.kind !== "valid") return false;
   const prop = parsed.properties.find((p) => p.key === "tasks");
@@ -378,8 +280,6 @@ function position(node: Nodes): NodePosition | null {
   return { span: { start: start.offset, end: end.offset }, line: start.line };
 }
 
-// ---- Wiki links -------------------------------------------------------------
-
 function wikiToLink(
   source: string,
   embed: boolean,
@@ -389,16 +289,13 @@ function wikiToLink(
 ): ExtractedLink | null {
   if (!pos) return null;
   const parsed = parseWikiBodyRange(body);
-  // Pure-anchor (`[[#sec]]`) and degenerate empty targets are same-file
-  // references — no note link to index.
+  // `[[#sec]]` is a same-file reference, not a note link
   if (parsed.target === "" || parsed.targetRange === undefined) return null;
   const bodyStart = pos.span.start + (embed ? 3 : 2);
   const targetSpan: Span = {
     start: bodyStart + parsed.targetRange.start,
     end: bodyStart + parsed.targetRange.end,
   };
-  // Byte verification: the recorded span must re-derive the parsed target, and
-  // must not sit in bytes the editor holds verbatim.
   const verified =
     source.slice(pos.span.start, pos.span.end) === `${embed ? "!" : ""}[[${body}]]` &&
     source.slice(targetSpan.start, targetSpan.end) === parsed.target &&
@@ -415,16 +312,10 @@ function wikiToLink(
   return link;
 }
 
-// ---- Standard markdown links and images ---------------------------------------
-
-// Everything with a scheme (`https:`, `mailto:`, `C:\…`) or protocol-relative
-// `//` is external; pure-fragment urls are same-file references.
+// anything with a scheme (`https:`, `mailto:`, `C:\…` alike) or protocol-relative `//` is external
 const SCHEME = /^[A-Za-z][A-Za-z0-9+.-]*:/;
 
-// Every LOCAL url extracts, note or asset alike — `![](img.png)` and
-// `[pdf](paper.pdf)` must survive a rename of their target exactly like
-// `[[note]]` does. Queries that only want notes (the graph) filter on the
-// RESOLVED target, not at extraction.
+// assets extract too (`![](img.png)` must survive a rename); note-only queries filter on the resolved target
 function mdToLink(
   source: string,
   kind: "md" | "image",
@@ -440,9 +331,6 @@ function mdToLink(
   const anchor = hash === -1 ? "" : url.slice(hash + 1);
   if (urlPath === "") return null;
   const target = safeDecode(urlPath);
-  // Verify the located destination bytes re-derive the parsed url path and lie
-  // outside the editor's verbatim ranges; only then is the span trusted for
-  // rewriting.
   let targetSpan: Span | undefined;
   if (dest) {
     const pathSpan = splitRawFragment(source, dest);
@@ -473,10 +361,7 @@ function safeDecode(urlPath: string): string {
   }
 }
 
-/** Undo micromark's backslash escapes (ASCII punctuation only) — how a raw
- * destination slice maps to the mdast `url` value. Character references stay
- * un-decoded: a destination using them simply fails verification and is left
- * un-rewritable, which is the safe side. */
+// character references stay undecoded; such a destination fails verification and is never rewritten
 function decodeMdEscapes(raw: string): string {
   return raw.replace(/\\([!-/:-@[-`{-~])/g, "$1");
 }
@@ -485,9 +370,6 @@ function isSpace(c: string): boolean {
   return c === " " || c === "\t" || c === "\n" || c === "\r";
 }
 
-/** Scan a link/definition destination starting at `from` (just past `](` or
- * `]:`): optional whitespace, then `<dest>` or a bare destination with
- * balanced parens. Returns the span EXCLUDING any `<>` wrapper. */
 function scanDestination(source: string, from: number, end: number): Span | null {
   let i = from;
   while (i < end && isSpace(source.charAt(i))) i++;
@@ -517,17 +399,12 @@ function scanDestination(source: string, from: number, end: number): Span | null
   return { start, end: i };
 }
 
-/** For a resource link: `lastEnd` is where the label's content stops; expect
- * the `](`, then scan the destination. */
 function locateDestination(source: string, lastEnd: number, end: number): Span | null {
   if (source.slice(lastEnd, lastEnd + 2) !== "](") return null;
   return scanDestination(source, lastEnd + 2, end);
 }
 
-/** For an image: skip `![`, walk the description with balanced brackets
- * (image alt may contain nested link syntax), expect `](`, then scan. An alt
- * whose brackets defeat the walk (e.g. a code span holding a stray `]`) just
- * fails byte verification downstream — indexed, never rewritten. */
+// alt text may hold nested link syntax, so brackets are balanced; an alt that defeats the walk fails verification downstream
 function locateImageDestination(source: string, span: Span): Span | null {
   if (source.slice(span.start, span.start + 2) !== "![") return null;
   let i = span.start + 2;
@@ -549,7 +426,6 @@ function locateImageDestination(source: string, span: Span): Span | null {
   return scanDestination(source, i + 2, span.end);
 }
 
-/** For a definition: skip the `[label]`, expect `:`, then scan. */
 function locateDefinitionDestination(source: string, span: Span): Span | null {
   let i = span.start;
   if (source.charAt(i) !== "[") return null;
@@ -567,7 +443,6 @@ function locateDefinitionDestination(source: string, span: Span): Span | null {
   return scanDestination(source, i + 2, span.end);
 }
 
-/** Split a raw destination span at its first unescaped `#` (fragment). */
 function splitRawFragment(source: string, dest: Span): Span {
   let i = dest.start;
   while (i < dest.end) {

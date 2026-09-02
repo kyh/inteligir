@@ -1,9 +1,3 @@
-// The workspace's left rail on the fluid sidebar anatomy: search
-// + create actions on top, the recency-ordered NOTES LIST as the default view
-// with the file tree one toggle away, and the sync status row at the bottom.
-// The fluid provider owns width/collapse (workspace.tsx mounts it); this file
-// owns only what fills the rail.
-
 import { Button } from "@repo/ui/components/button";
 import {
   SidebarContent,
@@ -35,8 +29,6 @@ import {
 import { FileTree, type TreeLoadState, type TreeOps } from "./file-tree";
 import { NotesList } from "./notes-list";
 
-/** A failed listing renders as "The vault could not be read", never as the
- *  empty vault it is indistinguishable from once the entries default to []. */
 function treeLoadState(query: ReturnType<typeof useVaultTree>): TreeLoadState {
   if (query.isError) {
     return "failed";
@@ -51,8 +43,6 @@ function SyncStatusRow({ onSyncNow }: { onSyncNow: () => void }) {
     return <div className="h-6" />;
   }
   const canSync = canSyncNow(status);
-  // The server's own sentence first — it names the file or the remote — then
-  // the shared reason this state blocks a pass, then the plain invitation.
   const title = status.lastError ?? syncBlockedReason(status) ?? "Sync now";
   return (
     <button
@@ -61,8 +51,6 @@ function SyncStatusRow({ onSyncNow }: { onSyncNow: () => void }) {
       title={title}
       onClick={onSyncNow}
       className={cn(
-        // Hover steps an ink TIER rather than lighting a pill: a status line
-        // that gains a background reads as a button it is only sometimes.
         "flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs text-muted-foreground",
         canSync && "hover:text-foreground",
       )}
@@ -97,15 +85,12 @@ export function SidebarRailContent({
     kind: "file" | "dir";
     parentDir: string;
   } | null>(null);
-  // The default view is the notes list; the tree is a mode, not a page, so
-  // flipping it loses nothing. Creating a folder needs the tree — the create
-  // buttons switch it in.
   const [showTree, setShowTree] = useState(false);
   const modifier = platformShortcutModifier();
 
-  // The palette IS the search surface (⌘P); the search input is its rail
-  // affordance, so it opens the palette instead of growing a second search
-  // UI, and readOnly keeps the caret out of a field that never holds text.
+  // The search input opens the palette on pointerup, never on click or
+  // pointerdown: a dialog mounted mid-gesture reads the release as an outside
+  // press and dismisses itself. preventDefault keeps focus off the field.
   return (
     <>
       <SidebarHeader className="gap-2">
@@ -147,12 +132,6 @@ export function SidebarRailContent({
               event.currentTarget.blur();
               onOpenSearch();
             }}
-            // preventDefault keeps the gesture's focus off the field (it
-            // also cancels the compatibility click, so click can't be the
-            // opener); the open waits for pointerup so the palette dialog
-            // mounts after the gesture — a dialog mounted mid-gesture reads
-            // that same gesture's release as an outside press and dismisses
-            // itself.
             onPointerDown={(event) => {
               event.preventDefault();
             }}

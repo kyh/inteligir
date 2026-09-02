@@ -1,10 +1,3 @@
-// `inteligir search|backlinks|related|tags` — read-only queries over the knowledge
-// index. `search` passes the raw query through: `tag:<name>` terms are parsed
-// ENGINE-side, so a tag typed here narrows exactly like the app's one box.
-//
-// Four TOP-LEVEL commands rather than a group, so four `defineCommand`s in
-// one module: what they share is a subject, not a prefix.
-
 import {
   KNOWLEDGE_RELATED_MAX_LIMIT,
   KNOWLEDGE_SEARCH_MAX_LIMIT,
@@ -104,9 +97,6 @@ export function relatedCommand(deps: CliDeps) {
         out.info("No related notes.");
         return;
       }
-      // The reasons ride WITH the row rather than being summarised away: a
-      // ranked list of paths is a claim, and the reasons are what make it
-      // checkable by whoever reads it.
       writeLines(
         body.related.flatMap((entry) => [
           `${entry.path}  ${entry.title}`,

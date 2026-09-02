@@ -1,7 +1,3 @@
-// Boot-time driver resolution: an absent vendor CLI must not crash the
-// boot — it resolves to the unavailable driver, /system/status states why,
-// and a send answers 503 with that same actionable message.
-
 import { systemStatusResponseSchema } from "@repo/api/local/system/system-schema";
 import { isDefinedError, safe } from "@orpc/client";
 import { describe, expect, it } from "vitest";

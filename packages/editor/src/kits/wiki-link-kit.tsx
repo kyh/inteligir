@@ -1,13 +1,6 @@
-// Wiki-link kit: inline-void nodes for [[target]] / [[target|alias]] /
-// ![[embed]]. Node shape: { type, body, children:[{text:""}] } with `body`
-// verbatim (round-trip contract lives in @repo/notes/markdown/remark-wiki-link).
-// The React half renders navigating chips (wiki-chip.tsx) and transclusion
-// cards (transclusion.tsx) — both behind React.lazy, because they reach into
-// the editor host seam and an eager import from this file (which base-kit
-// composes) would close an import cycle around the kit files. It also adds
-// the `]]` input rule: without it, typed `[[Note]]` would stay plain text and
-// the serializer would escape it to `\[\[Note]]` on save — the flagship syntax
-// would self-destruct.
+// WikiChip and Transclusion are lazy: they reach the editor host seam, and an eager import from
+// a file base-kit composes closes an import cycle. Without the `]]` input rule a typed `[[Note]]`
+// stays text and the serializer escapes it to `\[\[Note]]` on save.
 
 import { Suspense, lazy } from "react";
 import { KEYS, NodeApi, TextApi, createSlatePlugin, type SlateEditor } from "platejs";
@@ -32,9 +25,7 @@ const wikiEmbedBasePlugin = createSlatePlugin({
 
 export const WikiLinkBaseKit = [wikiLinkBasePlugin, wikiEmbedBasePlugin];
 
-// This keystroke's `]` completes `[[body]]` (the buffer already holds
-// `[[body]`). Body excludes brackets/newlines and must be non-empty —
-// mirroring the remark grammar, so the chip and the bytes agree.
+// mirrors the remark-wiki-link grammar so the chip and the bytes agree.
 const WIKI_COMPLETION_RE = /(!?)\[\[([^[\]\n]+)\]$/;
 
 function chipLabel(body: string): string {
@@ -43,8 +34,6 @@ function chipLabel(body: string): string {
   return parsed.anchor ? `${parsed.target}#${parsed.anchor}` : parsed.target;
 }
 
-// The pre-hydration fallback chip (also what a chip looks like while the lazy
-// module streams in) — inert, but visually identical to a resolved chip.
 function FallbackChip({ body, embed }: { body: string; embed?: boolean }) {
   return (
     <span
@@ -87,9 +76,6 @@ function WikiEmbedElement(props: PlateElementProps) {
   );
 }
 
-// On a `]` keystroke, if the text before the caret ends the `[[body]` form,
-// replace the whole span with a wiki chip and swallow the `]`. Returns whether
-// the completion fired.
 function completeWikiChip(editor: SlateEditor): boolean {
   if (!editor.selection || !editor.api.isCollapsed()) return false;
   if (editor.api.some({ match: { type: [editor.getType(KEYS.codeBlock)] } })) return false;
@@ -110,8 +96,7 @@ function completeWikiChip(editor: SlateEditor): boolean {
       },
     });
   });
-  // insertVoidAndEscape moves the caret past the chip — Slate would otherwise
-  // park it inside the void's empty text and swallow subsequent keystrokes.
+  // Slate would otherwise park the caret inside the void's empty text and swallow keystrokes.
   insertVoidAndEscape(editor, {
     body,
     children: [{ text: "" }],
@@ -125,7 +110,6 @@ export const WikiLinkKit = [
     .withComponent(WikiLinkElement)
     .overrideEditor(({ editor, tf: { insertText } }) => ({
       transforms: {
-        // The `]]` completion rule.
         insertText(text, options) {
           if (text === "]" && completeWikiChip(editor)) return;
           insertText(text, options);

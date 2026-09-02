@@ -7,23 +7,10 @@ import { cva, type VariantProps } from "class-variance-authority";
 
 import { cn } from "@repo/ui/lib/utils";
 
-/* ─────────────────────────────────────────────────────────
- * DIFF TABLE — a proposed change set, row by row, each one
- * includable or not
- *
- * ROWS ARE CHILDREN and inclusion is the caller's state,
- * because only they can apply it.
- *
- * Removed and added ARE semantic status, so each keeps one accent
- * — the destructive and emerald the rest of this directory
- * already uses — while everything else stays monochrome.
- * ───────────────────────────────────────────────────────── */
-
 export type DiffChange = "removed" | "added" | "unchanged";
 
 interface DiffRowContextValue {
   change: DiffChange;
-  /** False renders the row as opted out: no tint, no strike. */
   included: boolean;
 }
 
@@ -48,7 +35,6 @@ const DiffTable = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
 DiffTable.displayName = "DiffTable";
 
 export interface DiffTableHeaderProps extends HTMLAttributes<HTMLDivElement> {
-  /** Trailing hint — "click changed rows to toggle". */
   hint?: ReactNode;
 }
 
@@ -71,7 +57,6 @@ const DiffTableHeader = forwardRef<HTMLDivElement, DiffTableHeaderProps>(
 DiffTableHeader.displayName = "DiffTableHeader";
 
 export interface DiffTableGridProps extends HTMLAttributes<HTMLTableElement> {
-  /** Column widths, as CSS values — the table is fixed-layout. */
   widths?: readonly string[];
 }
 
@@ -126,10 +111,7 @@ DiffTableBody.displayName = "DiffTableBody";
 
 export interface DiffRowProps extends HTMLAttributes<HTMLTableRowElement> {
   change?: DiffChange;
-  /** Whether this change is opted into. Only meaningful when `change` is not
-   *  "unchanged"; an excluded row renders as though the change were dropped. */
   included?: boolean;
-  /** Present makes the row a toggle — keyboard included. */
   onToggle?: () => void;
 }
 
@@ -227,7 +209,6 @@ const CHECK = (
   </svg>
 );
 
-/** The row's own opt-in marker; reads its state from the row it sits in. */
 const DiffIncludedMark = forwardRef<HTMLSpanElement, HTMLAttributes<HTMLSpanElement>>(
   ({ className, ...props }, ref) => {
     const { change, included } = useContext(DiffRowContext);
@@ -256,7 +237,6 @@ const DiffIncludedMark = forwardRef<HTMLSpanElement, HTMLAttributes<HTMLSpanElem
 DiffIncludedMark.displayName = "DiffIncludedMark";
 
 export interface DiffTableFooterProps extends HTMLAttributes<HTMLDivElement> {
-  /** The caller's own confirm control. */
   actions?: ReactNode;
 }
 

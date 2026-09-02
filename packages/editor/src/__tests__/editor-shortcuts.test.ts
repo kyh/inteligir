@@ -1,7 +1,5 @@
-// The keyboard batch's routing, driven headlessly: handleEditorShortcut is
-// the plugin's whole onKeyDown body, so calling it with a structural event is
-// the binding minus Plate's own editable plumbing (which jsdom cannot host —
-// slate's hasEditableTarget guard needs a real isContentEditable).
+// jsdom cannot host Plate's editable (slate's hasEditableTarget needs a real
+// isContentEditable), so the plugin's onKeyDown body is driven with a structural event.
 
 import { describe, expect, it, vi } from "vitest";
 import { createPlateEditor, type PlateEditor } from "platejs/react";
@@ -12,7 +10,6 @@ import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
 import { registerLiveEditor } from "@repo/editor/live-editor";
 import { registerNoteTitleFocus } from "@repo/editor/note-title-focus";
 
-/** Presses the chord and answers whether the batch claimed the key. */
 function press(
   editor: PlateEditor,
   key: string,
@@ -20,8 +17,7 @@ function press(
   modifiers: { shift?: boolean } = {},
 ) {
   let claimed = false;
-  // is-hotkey resolves "mod" to CTRL wherever no Mac platform is detectable
-  // (node has no navigator), so the headless press is a ctrl chord.
+  // is-hotkey resolves "mod" to ctrl where no Mac platform is detectable (node has no navigator).
   const event: ShortcutKeyEvent = {
     altKey: false,
     ctrlKey: true,
@@ -95,7 +91,6 @@ describe("editor shortcuts", () => {
       expect(focusB).toHaveBeenCalledTimes(1);
       expect(focusA).not.toHaveBeenCalled();
 
-      // One title going away must not take ⌘T down with it.
       offTitleB();
       expect(press(editorA, "t", 84).claimed).toBe(true);
       expect(focusA).toHaveBeenCalledTimes(1);

@@ -1,14 +1,7 @@
-// Pure helpers for composing wiki-link bodies from picker selections —
-// React-free so the completion semantics are pinned by unit tests.
-
 import { docExtension, docStem } from "@repo/notes/knowledge/doc-file";
 
-/** The target text to write into `[[...]]` for a vault path: the bare
- * filename stem when it uniquely resolves back to the path (the short,
- * Obsidian-style form), else the full path minus a doc extension, which
- * resolves exactly by construction. The extension the domain hides is the one
- * hidden here — a `.markdown` note must not get a different link body than the
- * same note reached any other way. */
+// the bare stem when it uniquely resolves back to the path, else the path minus its doc
+// extension; the extension hidden is the domain's, so a `.markdown` note links the same way everywhere.
 export function wikiBodyForPath(
   path: string,
   resolveWiki: (target: string) => string | null,
@@ -18,8 +11,6 @@ export function wikiBodyForPath(
   return path.slice(0, path.length - docExtension(path).length);
 }
 
-/** Compose a full wiki body from a target plus the anchor/alias the user
- * already typed into the picker query (`target#anchor|alias`). */
 export function composeWikiBody(
   target: string,
   parts: { anchor?: string | undefined; alias?: string | undefined },

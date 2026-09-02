@@ -1,8 +1,3 @@
-// The ONE test that actually FORKS the watcher child entry and round-trips
-// the IPC protocol through a real process — the path `pnpm dev`/prod runs.
-// vitest workers don't carry tsx in their execArgv, so the fork passes it
-// explicitly; the entry itself is byte-identical to what production forks.
-
 import { fork } from "node:child_process";
 import { once } from "node:events";
 import { writeFile } from "node:fs/promises";
@@ -25,6 +20,7 @@ describe("the forked watcher child", () => {
 
       const child = fork(childEntry, [], {
         cwd: appDir,
+        // vitest workers do not carry tsx in their execArgv.
         execArgv: ["--import", "tsx"],
         stdio: ["ignore", "ignore", "ignore", "ipc"],
       });
@@ -44,9 +40,7 @@ describe("the forked watcher child", () => {
         failed = error;
       });
 
-      /** The first message of a kind, or null once the child failed or the
-       *  window closed — null rather than a throw because the two probes
-       *  below read it as "this environment cannot", not as a failure. */
+      // null rather than a throw: the probes below read it as "this environment cannot".
       async function waitForMessage<TKind extends ChildToParentMessage["kind"]>(
         kind: TKind,
         timeoutMs: number,
@@ -68,8 +62,7 @@ describe("the forked watcher child", () => {
         }
       }
 
-      // No ready = the environment cannot fork a tsx child (or run the native
-      // watcher); that is an environment limitation, not a protocol failure.
+      // no ready: this environment cannot fork a tsx child or load the native watcher.
       const ready = await waitForMessage("ready", 8_000);
       if (ready === null) {
         ctx.skip();
@@ -85,7 +78,7 @@ describe("the forked watcher child", () => {
       });
       const subscribed = await waitForMessage("subscribed", 8_000);
       if (subscribed === null) {
-        // The fork worked but the native addon could not arm a watch here.
+        // the fork worked but the native addon could not arm a watch here.
         ctx.skip();
         return;
       }
@@ -99,7 +92,6 @@ describe("the forked watcher child", () => {
       child.send({ kind: "unsubscribe", id: "sub_1" });
       expect(await waitForMessage("unsubscribed", 8_000)).not.toBeNull();
 
-      // disconnect → the child disposes and exits on its own (bounded).
       child.disconnect();
       let exited = true;
       try {

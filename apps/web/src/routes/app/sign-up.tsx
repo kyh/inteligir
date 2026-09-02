@@ -7,19 +7,14 @@ import { Button } from "@repo/ui/components/button";
 import { AuthError, AuthField, AuthShell, fieldValue } from "@/components/auth-shell";
 import { currentSession, ssrWhenSignedOut } from "@/lib/session-guard";
 
-// Sign-up does NOT go through the Better Auth client: this deployment is
-// invite-only, and the gate is a Worker route in front of Better Auth's own
-// sign-up (src/worker/auth/invite.ts). It answers with Better Auth's response
-// untouched, so success sets the same session cookie a direct sign-up would.
+// not the Better Auth client: sign-up is invite-gated by a Worker route
+// (src/worker/auth/invite.ts) that forwards Better Auth's response, cookie included
 const SIGN_UP_URL = "/v1/auth/sign-up";
 
 const FALLBACK_ERROR = "Something went wrong — try again.";
 
-/** Both this route's gate and Better Auth answer with a `message`, so one
- * reader serves both. Loose, because Better Auth's envelope carries more. */
 const refusalSchema = z.looseObject({ message: z.string().min(1) });
 
-/** The refusal to show. */
 async function refusalMessage(response: Response): Promise<string> {
   const body = refusalSchema.safeParse(await response.json().catch(() => null));
   return body.success ? body.data.message : FALLBACK_ERROR;

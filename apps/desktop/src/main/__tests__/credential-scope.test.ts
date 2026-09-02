@@ -1,6 +1,3 @@
-// The shell's other two security rules, beside the origin pin: WHERE the
-// device token goes, and which files the bundle may answer with.
-
 import { describe, expect, it } from "vitest";
 import { RPC_PREFIX, VAULT_ASSET_PATH } from "@repo/api/local/routes";
 import { bundleFile, isProxiedPath, socketCredentialFilter } from "../credential-scope";
@@ -14,8 +11,6 @@ describe("which paths carry the device token", () => {
   });
 
   it("refuses a path that merely STARTS with the prefix", () => {
-    // `/rpcx/...` is not the RPC handler, and forwarding it would hand a
-    // credential to whatever answered.
     expect(isProxiedPath(`${RPC_PREFIX}x/steal`)).toBe(false);
     expect(isProxiedPath(RPC_PREFIX)).toBe(false);
     expect(isProxiedPath(`${VAULT_ASSET_PATH}x`)).toBe(false);
@@ -28,10 +23,6 @@ describe("which files the bundle may answer with", () => {
   });
 
   it("keeps traversal inside the bundle, encoded or not", () => {
-    // A URL path is ABSOLUTE, so `normalize` drops the leading `..` segments
-    // rather than climbing — and the encoded form decodes to the same thing
-    // before containment is checked, which is why the check is on the RESOLVED
-    // path and not on the URL.
     expect(bundleFile("/app/renderer", "/../../etc/passwd")).toBe("/app/renderer/etc/passwd");
     expect(bundleFile("/app/renderer", "/%2e%2e/%2e%2e/etc/passwd")).toBe(
       "/app/renderer/etc/passwd",
@@ -39,15 +30,10 @@ describe("which files the bundle may answer with", () => {
   });
 
   it("refuses a path that resolves outside the bundle", () => {
-    // The containment check is what makes the two cases above safe rather than
-    // `normalize` being trusted to: a pathname that is not rooted DOES climb,
-    // and this is the arm that catches it.
     expect(bundleFile("/app/renderer", "../renderer-evil/x.js")).toBeNull();
   });
 
   it("refuses an undecodable path rather than throwing", () => {
-    // A lone `%` makes `decodeURIComponent` throw, and a throw inside the
-    // protocol handler is a window that renders nothing.
     expect(bundleFile("/app/renderer", "/%")).toBeNull();
   });
 });

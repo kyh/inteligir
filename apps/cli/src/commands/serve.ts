@@ -1,14 +1,3 @@
-// `inteligir serve` — the one verb that is not a client.
-//
-// Every other command dials a running server; this one IS the server, in the
-// process that ran the command. That is the whole of the two-mode shape: one
-// binary, one contract, and no third package to hold the two halves apart.
-//
-// The flags exist because this is also the zero-install path — `npx inteligir
-// serve --open` is how someone lands in the product without a checkout — and
-// they resolve to the SAME `INTELIGIR_*` variables the app's own config layer
-// reads, so a flag can never mean something the environment cannot.
-
 import { isAbsolute, resolve } from "node:path";
 import { defineCommand } from "citty";
 import { invalidUsage } from "../cli-error";
@@ -17,15 +6,8 @@ import { parsePortValue } from "../server/config";
 import type { ServeOverrides } from "../server/serve";
 import { out, writeOut } from "../output";
 
-/**
- * A path flag as the app's config layer wants it: absolute, or `~`-relative for
- * it to expand itself. A relative one is resolved HERE, against the invoking
- * cwd, because the app refuses a relative path outright — it would otherwise
- * anchor to whatever directory the server happened to start in — and "must be
- * absolute" is a poor answer to a path the user can see from where they stand.
- * `~` is left alone: expanding it twice is how a literal `~` directory gets
- * created.
- */
+// relative paths resolve against the invoking cwd because the config layer refuses them outright;
+// `~` is left to that layer, since expanding it twice creates a literal `~` directory.
 function resolvePathFlag(value: string, cwd: string): string {
   if (value === "~" || value.startsWith("~/")) {
     return value;
@@ -33,9 +15,7 @@ function resolvePathFlag(value: string, cwd: string): string {
   return isAbsolute(value) ? value : resolve(cwd, value);
 }
 
-/** The env variable's own predicate, re-raised as a USAGE error: the flag
- *  resolves to `INTELIGIR_PORT`, so it must accept exactly what that accepts —
- *  but a bad flag is a bad command line, not a bad environment. */
+// must accept what INTELIGIR_PORT accepts, but a bad flag is a usage error rather than a bad environment.
 function parsePort(raw: string): number {
   try {
     return parsePortValue("--port", raw);
@@ -67,10 +47,7 @@ export function serveCommand() {
     },
     run: async ({ args }) => {
       const cwd = process.cwd();
-      // An overlay, never a write to `process.env`: the config layer reads an
-      // environment it is HANDED, and a global write would be inherited by
-      // every child this server spawns. An option left unset contributes no
-      // key, so the app's own layering still decides.
+      // an overlay, never a `process.env` write: a global write is inherited by every child this server spawns.
       const overrides: ServeOverrides = {};
       if (args.port !== undefined) overrides.INTELIGIR_PORT = String(parsePort(args.port));
       if (args["data-dir"] !== undefined) {
@@ -80,10 +57,7 @@ export function serveCommand() {
         overrides.INTELIGIR_VAULT_DIR = resolvePathFlag(args.vault, cwd);
       }
 
-      // IMPORTED HERE, not at the top: this is the only verb that needs the
-      // server, and a static import would make every CLIENT verb evaluate
-      // hono, drizzle, the vault runtime and the agent runtime before it read
-      // argv — ~60ms on every `inteligir …` an agent types.
+      // dynamic import: a static one makes every client verb load hono, drizzle and the runtimes before reading argv (~60ms each).
       const { runServe } = await import("../server/serve");
       const { serverUrl, uiUrl } = await runServe(readCliVersion(), overrides);
       writeOut(`\n  inteligir is running — ${uiUrl ?? serverUrl}\n\n`);
@@ -94,8 +68,7 @@ export function serveCommand() {
         out.warn("This install ships no workspace UI, so there is nothing to open.");
         return;
       }
-      // Best-effort, and deliberately not fatal: a machine with no browser must
-      // not take the server down with it — the URL is already printed.
+      // not fatal: a machine with no browser must not take the server down, and the URL is already printed.
       const { systemOpenExternalUrl } = await import("../server/cloud/browser-opener");
       await systemOpenExternalUrl(uiUrl);
     },

@@ -43,9 +43,7 @@ export const Route = createRootRoute({
       { rel: "manifest", href: "/favicon/site.webmanifest" },
     ],
   }),
-  // The shell wraps component, errorComponent and notFoundComponent alike, so
-  // a 404 or a root error still ships as a full document — without it those
-  // views render with no <html>, no stylesheet and no scripts.
+  // shellComponent wraps errorComponent and notFoundComponent too; without it a 404 renders with no <html>, stylesheet or scripts
   shellComponent: RootDocument,
   errorComponent: ErrorBoundary,
   notFoundComponent: NotFound,
@@ -54,7 +52,6 @@ export const Route = createRootRoute({
 
 function ErrorBoundary({ error }: { error: Error }) {
   useEffect(() => {
-    // Log the error to an error reporting service
     console.error(error);
   }, [error]);
 
@@ -84,18 +81,9 @@ function RootComponent() {
 }
 
 function RootDocument({ children }: { children: React.ReactNode }) {
-  // The DOCUMENT and nothing else. There is no theme provider here: `@repo/ui`'s
-  // provider writes the `.dark` class on <html>, and two of them nested means
-  // the outer one's effect runs last and overwrites the inner one's decision —
-  // so each surface owns exactly one, and the marketing page's lives on that
-  // page.
-  //
-  // suppressHydrationWarning: the inline script below sets the theme class on
-  // <html> before hydration, so the server markup and client differ by design.
-  // The inline theme script applies the saved/system theme before first paint
-  // — no flash.
-  // Both theme-color metas render as plain tags: HeadContent's meta dedupes
-  // by name, which would drop one of the media-queried pair.
+  // no theme provider here: two nested @repo/ui providers both write .dark on <html> and the outer effect wins, so each page owns its own
+  // suppressHydrationWarning: the inline script sets the theme class before hydration
+  // the theme-color metas are plain tags because HeadContent dedupes meta by name and would drop one of the pair
   return (
     <html lang="en" suppressHydrationWarning>
       <head>

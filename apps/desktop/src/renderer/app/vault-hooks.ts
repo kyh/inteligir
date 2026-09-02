@@ -1,8 +1,5 @@
-// Server-state hooks over the typed client: the tree, the sync status and the
-// system status as queries (invalidated by the ws bus), plus the mutation
-// helpers the tree, palette and settings share. Mutations do not invalidate —
-// every vault mutation is announced on the bus by the server, which is the
-// one invalidation path a second client gets too.
+// Mutations do not invalidate: the server announces every vault mutation on
+// the ws bus.
 
 import { useCallback } from "react";
 import { useIsMutating, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -15,11 +12,6 @@ export function useVaultTree() {
   return useQuery(orpc.vault.tree.queryOptions());
 }
 
-/** The knowledge index's alias-carrying wiki targets — ONE query for the
- *  picker, the pinned section, the composer's @-mentions and the provider's
- *  resolver. Lives in the `knowledge` family, so the files-changed /
- *  content-changed sweeps invalidate it; react-query's structural sharing
- *  keeps the reference stable when the payload is unchanged. */
 export function useWikiTargets() {
   return useQuery(orpc.knowledge.wikiTargets.queryOptions());
 }
@@ -28,25 +20,11 @@ export function useVaultStatus() {
   return useQuery(orpc.vault.status.queryOptions());
 }
 
-/** The one query the ws bus does NOT sweep — no change message names it, and
- *  uptime moves on its own — so it opts out of the fresh-forever default and
- *  re-reads whenever a consumer mounts. */
+// No change kind names this query, so it re-reads on every mount.
 export function useSystemStatus() {
   return useQuery({ ...orpc.system.status.queryOptions(), staleTime: 0 });
 }
 
-/**
- * What a sync state is CALLED. Same reason as `canSyncNow` below, one step
- * further in: two tables over the same eight states drifted on half of them,
- * so one vault answered "Waiting on the agent" in the sidebar and "Waiting on
- * an agent turn" in settings, "Sync broken" in one and "Broken — manual
- * repair needed" in the other. A user comparing two pieces of the same
- * window cannot tell a wording difference from a state difference.
- *
- * The pill is the narrow surface, so the sentence is sized for it; what
- * settings has and the pill does not is `lastError`, which it already shows
- * beneath this label.
- */
 export function syncStateLabel(status: VaultStatusResponse): string {
   switch (status.state) {
     case "no-remote":
@@ -72,16 +50,6 @@ export function syncStateLabel(status: VaultStatusResponse): string {
   }
 }
 
-/**
- * What a sync state LOOKS like. Beside the label rather than in the surface
- * that draws it, and for the reason above rather than for tidiness: these are
- * two total tables over the same eight states, so a ninth state added in one
- * file and forgotten in the other is a pill whose colour contradicts its own
- * word. Exhaustiveness cannot catch that — both tables typecheck perfectly
- * while saying different things — so what catches it is that they are here
- * together, and tools/repo-guards/src/domain-dispatch.test.ts fails when a
- * third one appears somewhere else.
- */
 export function syncStateDotClass(status: VaultStatusResponse): string {
   switch (status.state) {
     case "no-remote":
@@ -104,18 +72,6 @@ export function syncStateDotClass(status: VaultStatusResponse): string {
   }
 }
 
-/**
- * WHY "Sync now" would do nothing right now, or null when it would run.
- *
- * The same reason as the two tables above, one question further out: three
- * surfaces ask this and each was answering half of it in its own words. The
- * sidebar pill spelled "No git remote configured" and "An agent turn holds the
- * vault…" in a tooltip; the settings dialog spelled the first one differently
- * a few lines away; the palette gates the command and then fires it blind, so
- * the pass that refuses has to say so in a toast. Three partial tables over
- * eight states is the drift the co-located pair was written to stop — just
- * spread across three files instead of two.
- */
 export function syncBlockedReason(status: VaultStatusResponse): string | null {
   switch (status.state) {
     case "no-remote":
@@ -136,16 +92,10 @@ export function syncBlockedReason(status: VaultStatusResponse): string | null {
   }
 }
 
-/**
- * Whether "Sync now" would actually start a pass — the same answer as
- * `syncBlockedReason`, read as a boolean, so a state can never be blocked
- * without a sentence or explained without being blocked.
- */
 export function canSyncNow(status: VaultStatusResponse | undefined): boolean {
   return status !== undefined && syncBlockedReason(status) === null;
 }
 
-/** A toast the "Sync now" command owes the user, with the tone it carries. */
 interface SyncNowNotice {
   tone: "info" | "warning" | "error";
   message: string;
@@ -153,21 +103,12 @@ interface SyncNowNotice {
 
 export interface SyncNowHandle {
   syncNow: () => void;
-  /** True while ANY caller's pass is in flight, not just this one's. */
   inFlight: boolean;
 }
 
-/**
- * The one "Sync now" verb, shared by the workspace's palette command and the
- * settings page — one spelling of the mutation, the status write and the
- * notice policy.
- *
- * Each caller mounts its own `useMutation`, so `isPending` would answer only
- * about the affordance that was clicked and the other would stay live through
- * the pass. `useIsMutating` over the procedure's own key is the shared fact:
- * the surfaces disable together and re-arm together, with no state threaded
- * between them.
- */
+// `useIsMutating` over the procedure's key rather than `isPending`: each
+// caller mounts its own useMutation, so isPending would answer only for the
+// affordance that was clicked.
 export function useSyncNow(): SyncNowHandle {
   const queryClient = useQueryClient();
   const { mutate } = useMutation(
@@ -185,21 +126,13 @@ export function useSyncNow(): SyncNowHandle {
     }),
   );
   const inFlight = useIsMutating({ mutationKey: orpc.vault.syncNow.mutationKey() }) > 0;
-  // `mutate` is stable across renders, so the verb is too — the workspace
-  // threads it through memoized action tables.
   const syncNow = useCallback((): void => {
     mutate();
   }, [mutate]);
   return { syncNow, inFlight };
 }
 
-/**
- * What a "Sync now" pass has to SAY about the state it landed in, or null when
- * silence is honest — the pill has already changed and a toast would only
- * repeat it. Total over the states on purpose: silence is indistinguishable
- * from a sync that worked, so a ninth state must be made to answer here rather
- * than defaulting into nothing.
- */
+// Total over the states: silence is indistinguishable from a sync that worked.
 function syncNowNotice(status: VaultStatusResponse): SyncNowNotice | null {
   const blocked = syncBlockedReason(status);
   if (blocked !== null) {
@@ -234,33 +167,19 @@ function syncNowNotice(status: VaultStatusResponse): SyncNowNotice | null {
     case "syncing":
     case "held":
     case "account-mismatch":
-      // Answered by the blocked branch above; listed so the switch stays total.
+      // Answered by the blocked branch above.
       return null;
   }
 }
 
-/** A refused rename, with the sentence to show for it. */
 export type RenameOutcome = { ok: true } | { ok: false; message: string };
 
-/** The one procedure a rename reaches, structurally — so a caller (and a test)
- *  hands over what this function uses rather than the whole client. */
 export interface RenameVaultApi {
   vault: {
     rename(input: { from: string; to: string }): Promise<{ path: string; rewritten: string[] }>;
   };
 }
 
-/**
- * Rename a vault entry, reporting the SERVER'S refusal. Two surfaces rename
- * (the sidebar tree and the page-title H1), and copy each of them writes for
- * itself discards a message the contract already carries — the server names
- * which target exists, or which parent a file shadows, and neither surface
- * could say that. Worse, it forks: the server can improve its refusal and no
- * user ever sees the better sentence.
- *
- * The caller shows the message and owns what else a rename means to it (the
- * open note follows, the title re-arms) — only the words are shared.
- */
 export async function renameVaultEntry(
   api: RenameVaultApi,
   from: string,
@@ -277,8 +196,7 @@ export async function renameVaultEntry(
   }
 }
 
-/** The vault's file paths, lowercased for existence checks — the disk this
- *  runs on may be case-insensitive, so name generation must be too. */
+// Lowercased: the disk may be case-insensitive, so name generation must be too.
 export function filePathsLowercased(tree: VaultTreeResponse | undefined): Set<string> {
   const paths = new Set<string>();
   for (const entry of tree?.entries ?? []) {
@@ -289,7 +207,6 @@ export function filePathsLowercased(tree: VaultTreeResponse | undefined): Set<st
   return paths;
 }
 
-/** First of "Untitled.md", "Untitled 2.md", … not present in the folder. */
 export function untitledNotePath(parentDir: string, existing: Set<string>): string {
   for (let n = 1; ; n += 1) {
     const stem = n === 1 ? "Untitled" : `Untitled ${n}`;

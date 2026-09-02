@@ -1,25 +1,13 @@
-// ---------------------------------------------------------------------------
-// relatedNotes scorer — driven through the KnowledgeIndex reference
-// composition (real projections, real link resolution, real tag index, the
-// in-memory lexical engine), which is exactly how the host/harness compose it
-// (LinkGraphIndex + their own search port).
-// ---------------------------------------------------------------------------
-
 import { describe, expect, it } from "vitest";
 
 import { KnowledgeIndex } from "../knowledge/knowledge-index";
 import type { RelatedNoteEntry } from "../knowledge/related-notes";
 
-/** The structural cluster: `subject` links to `hub` and carries two tags. */
 const CORPUS = {
   "notes/subject.md": "# Subject\n\nSee [[hub]].\n\n#alpha #beta\n",
-  // Direct forward neighbor — must NOT appear (the Links panel owns it).
   "notes/hub.md": "# Hub\n\nPlain body.\n",
-  // Shares the forward target `hub` (bibliographic coupling).
   "notes/coupled.md": "# Coupled\n\nAlso about [[hub]].\n",
-  // Direct backlink neighbor — links to subject, must NOT appear.
   "notes/citer.md": "# Citer\n\nBoth [[subject]] and [[cocited]].\n",
-  // Co-cited: `citer` links to subject AND to this.
   "notes/cocited.md": "# Cocited\n\nPlain body.\n",
   "notes/tagmates.md": "# Tagmates\n\n#alpha #beta\n",
   "notes/tagmate-single.md": "# Single\n\n#alpha\n",
@@ -56,8 +44,8 @@ describe("relatedNotes (KnowledgeIndex composition)", () => {
       .relatedNotes("notes/subject.md")
       .map((entry) => entry.path);
     expect(paths).not.toContain("notes/subject.md");
-    expect(paths).not.toContain("notes/hub.md"); // forward target
-    expect(paths).not.toContain("notes/citer.md"); // backlink source
+    expect(paths).not.toContain("notes/hub.md");
+    expect(paths).not.toContain("notes/citer.md");
   });
 
   it("explains a shared link target and ranks it above a single shared tag", () => {

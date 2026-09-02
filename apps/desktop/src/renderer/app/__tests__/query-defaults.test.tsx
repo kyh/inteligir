@@ -1,8 +1,5 @@
 // @vitest-environment jsdom
-// What a cached query may cost when nothing about it changed. The ws bus is
-// this app's whole invalidation model, so react-query's own refetch triggers
-// are not a second opinion — they are a full vault walk and a `git status`
-// every time the window regains focus.
+// react-query's own refetch triggers are a full vault walk and a `git status` per window focus.
 
 import { QueryClientProvider, focusManager, useQuery } from "@tanstack/react-query";
 import { act, cleanup, renderHook } from "@testing-library/react";
@@ -42,7 +39,6 @@ describe("the workspace query client", () => {
     await settle();
     expect(fetches()).toBe(1);
 
-    // An alt-tab away and back.
     act(() => {
       focusManager.setFocused(false);
       focusManager.setFocused(true);
@@ -50,7 +46,6 @@ describe("the workspace query client", () => {
     await settle();
     expect(fetches()).toBe(1);
 
-    // A second subscriber mounting (the same key has three consumers today).
     const second = renderHook(useCounted, { wrapper });
     await settle();
     expect(fetches()).toBe(1);
@@ -59,13 +54,10 @@ describe("the workspace query client", () => {
     second.unmount();
     renderHook(useCounted, { wrapper });
     await settle();
-    // Still one: the bus says when this went stale, and it has not said so.
     expect(fetches()).toBe(1);
   });
 
   it("lets a query the bus does NOT cover opt back in per call", async () => {
-    // `useSystemStatus` is the one: no change message names it, and uptime
-    // moves on its own.
     const { wrapper, useCounted, fetches } = mountCounted({ staleTime: 0 });
     const first = renderHook(useCounted, { wrapper });
     await settle();

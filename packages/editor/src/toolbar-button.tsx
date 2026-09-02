@@ -1,6 +1,4 @@
-// The compact text button shared by the editor's floating bars (suggestion
-// review bar, selection toolbar). onMouseDown preventDefault is built in so a
-// click never steals the editor selection the bar operates on.
+// mousedown preventDefault is built in so a click never steals the editor selection.
 
 import type { ReactNode } from "react";
 

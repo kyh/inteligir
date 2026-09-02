@@ -1,6 +1,5 @@
 import { createServer, type Server } from "node:net";
 
-/** One held loopback port and the server holding it. */
 interface HeldPort {
   server: Server;
   port: number;
@@ -11,8 +10,6 @@ function listenOnEphemeral(): Promise<HeldPort> {
     const server = createServer();
     server.once("error", (error) => reject(error));
     server.listen(0, "127.0.0.1", () => {
-      // `address()` answers a plain string for a unix socket — unreachable
-      // here (this listens on a TCP port), but it is what the union carries.
       const address = server.address();
       if (!(address instanceof Object)) {
         server.close();
@@ -36,15 +33,9 @@ function closeServer(server: Server): Promise<void> {
   });
 }
 
-/**
- * Ask the OS for `count` distinct free loopback ports by holding them all
- * bound at once before releasing — sequential reserve/release could hand the
- * same port back twice. The app refuses `INTELIGIR_PORT=0` (a configured
- * port must be a real one) and only probes upward from DERIVED dev ports, so
- * the harness reserves concrete ports per instance. The release→spawn window
- * is a race in theory; losing it fails the boot loudly and the launcher
- * retries with fresh ports.
- */
+// held all at once before releasing: sequential reserve/release can hand the same port back twice.
+// concrete ports because the app refuses INTELIGIR_PORT=0; the release→spawn window is a race the
+// boot loop retries.
 export async function reserveFreePorts(count: number): Promise<number[]> {
   const held: HeldPort[] = [];
   try {

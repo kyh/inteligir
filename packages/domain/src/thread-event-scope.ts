@@ -19,7 +19,7 @@ interface TurnOnlyThreadEventScopePolicyDefinition {
   policy: "turn";
 }
 
-/** Turn scope is the default reading of an event; anything looser states why. */
+// anything looser than turn scope states why.
 interface ThreadScopedThreadEventScopePolicyDefinition {
   policy: "thread" | "thread-or-turn";
   rationale: string;
@@ -29,12 +29,7 @@ type ThreadEventScopePolicyDefinition =
   | TurnOnlyThreadEventScopePolicyDefinition
   | ThreadScopedThreadEventScopePolicyDefinition;
 
-/**
- * The per-event-type scope policy table: which scope each event type may be
- * persisted under, with the written reason wherever an event escapes turn
- * chronology. `satisfies` keeps the table total — an event type added to the
- * grammar without a row here stops compiling.
- */
+// `satisfies` keeps the table total: an event type without a row stops compiling.
 export const threadEventScopeDefinitionByType = {
   "turn/started": { policy: "turn" },
   "turn/completed": { policy: "turn" },
@@ -82,7 +77,7 @@ export function getThreadEventScopeTurnId(scope: ThreadEventScope): string | und
 
 export interface RequireThreadEventScopeTurnIdArgs {
   scope: ThreadEventScope;
-  /** For the error message only — callers pass their own event vocabulary. */
+  // error message only; callers pass their own event vocabulary.
   type: string;
 }
 

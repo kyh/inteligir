@@ -1,6 +1,3 @@
-// The credential's handling AT REST — the half of pairing that is a fact
-// about the filesystem rather than about the wire.
-
 import { chmodSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { readdirSync } from "node:fs";
 import { join } from "node:path";
@@ -23,8 +20,6 @@ describe("the device credential at rest", () => {
 
     expect(readDeviceCredential(dataDir)).toEqual(CREDENTIAL);
 
-    // The whole point of the location: the secret is in the file named for it
-    // and nowhere else — not in the database (a sync target), not in config.
     const leaked = readdirSync(dataDir).filter(
       (name) =>
         name !== DEVICE_CREDENTIAL_FILE_NAME &&
@@ -36,8 +31,7 @@ describe("the device credential at rest", () => {
   it("is owner-only, and stays owner-only when it already exists", () => {
     const dataDir = makeTempDir("inteligir-credential-");
     const path = deviceCredentialPath(dataDir);
-    // A file inherited from a laxer umask: `writeFileSync`'s mode is ignored
-    // for one that already exists, so only the explicit chmod fixes it.
+    // writeFileSync ignores mode on an existing file; the chmod is what sets 0644.
     writeFileSync(path, "{}\n", { mode: 0o644 });
     chmodSync(path, 0o644);
 
@@ -55,9 +49,6 @@ describe("the device credential at rest", () => {
     writeFileSync(deviceCredentialPath(dataDir), "not json");
     expect(readDeviceCredential(dataDir)).toBeNull();
 
-    // A credential that does not match the wire's own grammar is not one: it
-    // would be refused on every request forever, which reads to a user as
-    // "sync is broken" rather than "this install is not paired".
     writeFileSync(
       deviceCredentialPath(dataDir),
       JSON.stringify({ deviceId: "dev_1", credential: "nope" }),

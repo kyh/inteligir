@@ -16,26 +16,12 @@ import {
 
 import { cn } from "@repo/ui/lib/utils";
 
-/* ─────────────────────────────────────────────────────────
- * APPROVAL CARD (human-in-the-loop)
- *
- * The agent asks; the human answers inside the transcript.
- * Single-choice questions commit on pick — the answer IS the
- * decision, so a second confirmation would be ceremony.
- *
- * The QUESTIONS ARE CHILDREN, which a stepper cannot count, so
- * they stack instead: composition and a step index only the
- * parent could compute are incompatible, and stacking is the
- * composable equivalent.
- * ───────────────────────────────────────────────────────── */
-
 export interface ApprovalAnswer {
   questionId: string;
   optionIds: string[];
   custom?: string;
 }
 
-/** An answer made in the same event as the submit, not yet in card state. */
 interface PendingAnswer {
   questionId: string;
   optionIds: string[];
@@ -80,7 +66,6 @@ function useApprovalQuestion(): ApprovalQuestionContextValue {
 
 interface ApprovalCardProps extends Omit<HTMLAttributes<HTMLDivElement>, "onSubmit"> {
   onSubmit: (answers: ApprovalAnswer[]) => void;
-  /** Replaces the card once answered; the caller usually re-renders instead. */
   sentLabel?: string;
 }
 
@@ -104,9 +89,7 @@ const ApprovalCard = forwardRef<HTMLDivElement, ApprovalCardProps>(
     }, []);
     const submit = useCallback(
       (pending?: PendingAnswer) => {
-        // A commit-on-pick answer is sent in the same handler that made the
-        // pick, so the pick is folded in here rather than read back from the
-        // state it has not landed in yet.
+        // a commit-on-pick answer arrives in the handler that made the pick, before state holds it
         const nextPicked =
           pending === undefined ? picked : { ...picked, [pending.questionId]: pending.optionIds };
         const nextCustom =
@@ -179,14 +162,10 @@ const ApprovalCard = forwardRef<HTMLDivElement, ApprovalCardProps>(
 ApprovalCard.displayName = "ApprovalCard";
 
 interface ApprovalQuestionProps extends HTMLAttributes<HTMLDivElement> {
-  /** Stable id — the key this question's answer comes back under. */
   questionId: string;
   prompt: string;
-  /** A second, quieter line under the prompt — the reason a caller was
-   *  asked. */
   detail?: string;
   kind?: "radio" | "check";
-  /** Rendered beside the prompt — a dismiss control, usually. */
   action?: ReactNode;
 }
 
@@ -209,9 +188,7 @@ const ApprovalQuestion = forwardRef<HTMLDivElement, ApprovalQuestionProps>(
             : [...selected, optionId];
       const nextCustom = kind === "radio" ? "" : (card.custom[questionId] ?? "");
       card.answer(questionId, next, nextCustom);
-      // Single-choice commits itself: picking IS the answer, so a confirm
-      // button would ask again about a decision already made. The pick travels
-      // with the submit — card state only holds it from the next render on.
+      // a single choice commits on pick, so the pick has to ride the submit
       if (kind === "radio") {
         card.submit({ questionId, optionIds: next, custom: nextCustom });
       }
@@ -219,8 +196,7 @@ const ApprovalQuestion = forwardRef<HTMLDivElement, ApprovalQuestionProps>(
 
     const context = useMemo(
       () => ({ questionId, kind, selected, toggle }),
-      // `toggle` closes over the card's current answers, so it is rebuilt with
-      // them rather than memoized into staleness.
+      // toggle closes over the current answers and is rebuilt with them on purpose
       // eslint-disable-next-line react-hooks/exhaustive-deps
       [questionId, kind, selected, toggle],
     );
@@ -251,7 +227,6 @@ const ApprovalQuestion = forwardRef<HTMLDivElement, ApprovalQuestionProps>(
 ApprovalQuestion.displayName = "ApprovalQuestion";
 
 interface ApprovalOptionProps extends HTMLAttributes<HTMLButtonElement> {
-  /** The id this option answers with. */
   optionId: string;
 }
 
@@ -318,7 +293,6 @@ const ApprovalOption = forwardRef<HTMLButtonElement, ApprovalOptionProps>(
 );
 ApprovalOption.displayName = "ApprovalOption";
 
-/** A free-text answer beside the options. */
 const ApprovalCustomAnswer = forwardRef<
   HTMLInputElement,
   Omit<InputHTMLAttributes<HTMLInputElement>, "value" | "onChange">
@@ -333,8 +307,7 @@ const ApprovalCustomAnswer = forwardRef<
         ref={ref}
         value={typed}
         onChange={(event) => {
-          // Typing replaces a single-choice pick: they answer the same slot,
-          // and leaving both set would send two answers for one question.
+          // typing clears a radio pick, or one question would send two answers
           card.answer(questionId, kind === "radio" ? [] : selected, event.target.value);
         }}
         placeholder="Type something…"
@@ -351,8 +324,6 @@ const ApprovalCustomAnswer = forwardRef<
 });
 ApprovalCustomAnswer.displayName = "ApprovalCustomAnswer";
 
-/** The card's footer. Only multi-answer cards need it — a single-choice
- *  question has already committed by the time this could be pressed. */
 const ApprovalActions = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
   ({ className, children, ...props }, ref) => {
     const { hasAnswer, submit } = useApprovalCard();

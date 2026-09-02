@@ -37,11 +37,6 @@ describe("splitFrontmatter", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// addFrontmatterAlias — BYTE-PINNED: exact output strings, because the writer's
-// whole contract is "touch only the alias list, preserve everything else".
-// ---------------------------------------------------------------------------
-
 describe("addFrontmatterAlias", () => {
   it("creates a frontmatter block on a doc that had none, body byte-exact", () => {
     const body = "# Old Title\n\nSome text.\n";

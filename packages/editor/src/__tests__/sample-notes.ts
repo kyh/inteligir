@@ -1,20 +1,9 @@
-// The corpus tripwire's sample vault: every sample note carries an expected
-// canonical/raw class, so a plugin change that silently reclassifies prose is a
-// red diff rather than a surprise.
-
-// Single source with the round-trip fixture matrix: the full-vocabulary sample
-// note IS the canonical kitchen-sink fixture.
+// the full-vocabulary sample note is the canonical kitchen-sink fixture itself
 import kitchenSink from "./fixtures/roundtrip/canonical/kitchen-sink.md?raw";
 
-// Exported for the legacy-corpus classification test: every sample note must
-// hold its expected canonical/raw class as the pipeline evolves.
+// Sample notes are pre-canonicalized: a churn-y note would reflow wholesale on
+// its first edit, drowning the user's change in formatting noise.
 export const SAMPLE_NOTES = {
-  // Sample notes are PRE-CANONICALIZED (pinned by the corpus test): a churn-y
-  // note would reflow wholesale on its first edit, drowning the user's change
-  // in formatting noise. Long paragraphs stay on one line (the alternative
-  // canonical form is `\`-terminated hard-break lines).
-  // empty.md exercises the pristine-editor placeholder path — the one state
-  // every other (non-empty) sample note can't reach.
   "empty.md": "",
   "welcome.md": `# Welcome
 
@@ -62,8 +51,6 @@ Inline \`code\` and a blockquote:
 
 > Bytes on disk stay canonical.
 `,
-  // A folder-inside-a-folder so the sidebar tree shows depth-2 nesting and
-  // multi-level indent guides.
   "notes/archive/2025-recap.md": `# 2025 recap
 
 A nested archive note exercising deep folders in the sidebar tree.
@@ -80,7 +67,6 @@ Opened the workspace. _Everything_ renders from plain markdown.
 1. First ordered item
 2. Second ordered item
 `,
-  // WP1 pipeline notes — drive the Rich/Raw gate end-to-end in the harness.
   "kitchen-sink.md": kitchenSink,
   "legacy-web-clip.md": `# Clipped page
 
@@ -110,9 +96,6 @@ nested:
 
 Edit the typed properties above; the yaml block round-trips byte-for-byte.
 `,
-  // A `private: true` note so the AI-exclusion surfaces are drivable in the
-  // harness: no lock-free AI affordances, read-aloud hidden in the palette,
-  // and the header lock badge.
   "private-note.md": `---
 private: true
 ---
@@ -121,19 +104,13 @@ private: true
 
 This note is marked private, so every AI surface skips it on this device.
 `,
-  // Inline-tag note (tags palette): exercises the palette `#` flow. Its inline
-  // #meta unifies with frontmatter-note.md's frontmatter `tags: [meta, demo]`,
-  // so the tag list demos BOTH sources (meta count 2) and inline-only tags.
-  // Pre-canonical prose (the corpus test pins it canonical).
+  // its inline #meta unifies with frontmatter-note.md's `tags`, so the tag list demos both sources
   "tagged.md": `# Tagged note
 
 Inline tags: working on #project and #meta this week, with #ideas to chase.
 
 A nested tag #area/deep-dive lives here too.
 `,
-  // WP2 vocabulary notes — every kit exercisable in the harness. All four are
-  // CANONICAL (the corpus test pins that): editing them must never flip the
-  // note to Raw.
   "components-playground.md": `# Components playground
 
 One of each vocabulary block, exercisable in the harness.
@@ -252,8 +229,6 @@ The hub links here. Backlinks arrive in a later phase.
 | embeds  | live   |
 | tables  | boxed  |
 `,
-  // Phase F knowledge notes — an interlinked cluster so tabs, chips,
-  // backlinks, transclusion (incl. guards), graph, and search all demo well.
   "wiki/ideas.md": `# Ideas
 
 Seeds worth growing, linked from the [[hub]].

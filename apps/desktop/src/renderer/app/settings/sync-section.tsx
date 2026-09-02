@@ -1,23 +1,6 @@
-// Settings → Devices: this install's relationship with an inteligir account.
-//
-// NOT called "Sync", and not by accident — the Vault section above already has
-// a Sync row with a "Sync now" button, and that one moves FILES to a git
-// remote. Two sections with the same title and the same button, moving
-// different things to different places, is a UI that lies about what a click
-// does. This one is named for what it holds (the pairing) and its button says
-// what it moves (threads).
-//
-// PAIRING IS THE SWITCH, so this section has no toggle. A local-first app that
-// opens a connection to a hosted service on first boot is not the product; an
-// install syncs because someone approved it, and it stops because someone
-// unpaired. A separate on/off beside that would be a second value that can
-// disagree with the credential on disk.
-//
-// THERE IS NOTHING TO TYPE. Pairing is one button: the server
-// arms an approval, opens the browser at the account's approve page, and the
-// browser brings the answer back to the loopback. The URL is shown beside the
-// button because the auto-open is best-effort — a headless box or a machine
-// with no `xdg-open` still has a link a person can carry to another screen.
+// Not titled "Sync", and its button names threads: the Vault section already
+// has a "Sync now" that pushes files. No on/off toggle: the credential on disk
+// is the switch, and a second value could disagree with it.
 
 import type {
   CloudPairBeginResponse,
@@ -32,13 +15,8 @@ import { relativeTimeLabel, useNow } from "../relative-time";
 import { useVaultStatus } from "../vault-hooks";
 import { failed, Row, SectionHeading } from "./settings-chrome";
 
-/**
- * Nothing on the local ws bus announces a sync pass — the bus carries vault,
- * doc and thread invalidations, and sync state is none of those — so this
- * query polls while the settings page is open and stops with it. The section
- * is mounted only while that route is, which is what makes a poll here honest
- * rather than a background timer nobody asked for.
- */
+// Nothing on the ws bus announces a sync pass, so the status polls while the
+// page is mounted.
 const STATUS_POLL_MS = 5_000;
 
 function useCloudStatus() {
@@ -49,23 +27,13 @@ function useCloudStatus() {
   });
 }
 
-/** The seconds tier is on here and nowhere else: this row renders beside the
- *  button that refreshes it, so "Just now" would hide the freshness it exists
- *  to report. */
 function lastSyncedLabel(epochMs: number | null, nowMs: number): string {
   return epochMs === null ? "never" : relativeTimeLabel(epochMs, nowMs, { seconds: true });
 }
 
-/** A clock matching that tier: the default minute tick would freeze "40s ago"
- *  until it flips to "1m ago". */
+// Must match the seconds tier above, or "40s ago" freezes until the minute tick.
 const LAST_SYNCED_TICK_MS = 1_000;
 
-/**
- * What the section says once an approval is armed. Pure and total, so the
- * sentence is decided in one place rather than assembled inside the markup —
- * and so the "we could not open your browser" case is a value a test can name
- * rather than a branch that only appears on a headless machine.
- */
 export function describeBegun(begun: CloudPairBeginResponse): string {
   const minutes = Math.round(begun.expiresInMs / 60_000);
   return begun.opened
@@ -146,16 +114,10 @@ export function SyncSection() {
   const now = useNow(LAST_SYNCED_TICK_MS);
   const [begun, setBegun] = useState<CloudPairBeginResponse | null>(null);
 
-  // Unpair and sync each answer with the WHOLE status, so success is a cache
-  // write rather than an invalidation — the server has already said what it
-  // left behind, and re-asking would be a second answer to one question.
   const applyStatus = (next: CloudStatusResponse): void => {
     queryClient.setQueryData(orpc.cloud.status.queryKey(), next);
   };
 
-  // Beginning an approval answers a URL rather than a status: the status that
-  // matters lands later, when the browser comes back and the poll above sees a
-  // paired install.
   const pairBegin = useMutation(
     orpc.cloud.pairBegin.mutationOptions({
       onSuccess: setBegun,
@@ -182,13 +144,11 @@ export function SyncSection() {
   );
   const pending = pairBegin.isPending || unpairDevice.isPending || syncThreads.isPending;
 
-  // The confirm runs OUTSIDE the lock: nothing is in flight while a dialog
-  // waits for an answer, and a section greyed out meanwhile says otherwise.
+  // Confirm before mutate: a section greyed out while the dialog waits claims
+  // work that has not started.
   const unpair = (): void => {
     void (async () => {
-      // The clause is conditional on the SOURCE: an account-derived vault
-      // remote dies with the credential, a user-configured one does not —
-      // and the dialog must not claim either about the other.
+      // Only an account-derived vault remote dies with the credential.
       const vaultPaired =
         vaultStatus !== undefined &&
         vaultStatus.state !== "no-remote" &&

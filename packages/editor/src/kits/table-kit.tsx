@@ -1,7 +1,3 @@
-// Table kit. Base half feeds the headless serialization mirror; the React
-// half renders TableElement (with its per-table Base UI menu — independent of
-// the block menu) from src/editor/nodes/table-node.tsx.
-
 import {
   BaseTableCellHeaderPlugin,
   BaseTableCellPlugin,
@@ -25,10 +21,7 @@ export const TableBaseKit = [
   BaseTableCellHeaderPlugin,
 ];
 
-// The bordered grid itself lives in @repo/ui globals (`.typeset table` rules,
-// shared by every typeset surface); min-w is the editor-only
-// affordance keeping empty cells clickable. Shared with the transclusion
-// card's read-only static render (transclusion.tsx).
+// The grid is styled by `.typeset table` rules; min-w only keeps empty cells clickable.
 export const TABLE_CELL_CLASS = "min-w-24";
 export const TABLE_HEADER_CELL_CLASS = "min-w-24";
 

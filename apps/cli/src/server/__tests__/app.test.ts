@@ -26,9 +26,7 @@ import { authorizationHeader, SERVER_TOKEN_COOKIE, serverTokenCookie } from "../
 import { bootTestApp, listenTestApp, TEST_SERVER_TOKEN } from "./boot-app";
 import { makeTempDir } from "./temp-dir";
 
-/** A procedure behind the gate, spelled as the wire call the handler answers —
- *  what the token tests present a credential (or none) to. POST, because the
- *  RPC handler refuses GET for a procedure whose route does not declare one. */
+// POST: the RPC handler refuses GET for a procedure whose route does not declare one.
 const STATUS_RPC_PATH = `${RPC_PREFIX}/system/status`;
 const statusRpcRequest = (headers: Record<string, string>): RequestInit => ({
   method: "POST",
@@ -36,8 +34,6 @@ const statusRpcRequest = (headers: Record<string, string>): RequestInit => ({
   body: JSON.stringify({ json: {} }),
 });
 
-/** A staged UI bundle over a fresh dir, holding the shell the server answers
- *  every non-file path with. */
 function makeUi() {
   const clientDir = makeTempDir("inteligir-client-test-");
   writeFileSync(join(clientDir, "index.html"), SHELL_HTML);
@@ -61,11 +57,8 @@ describe("the API over the in-process app", () => {
     const status = systemStatusResponseSchema.parse(await client.system.status());
     expect(status.version).toBe("0.1.0-test");
     expect(status.dataDir).toBe(config.dataDir);
-    // The instance IDENTITY the CLI's discovery compares against.
     expect(status.vaultDir).toBe(config.vaultDir);
-    // The point is that migrate-on-boot RAN, not which generation it reached;
-    // pinning the number here makes every migration an edit to this suite,
-    // and @repo/db's schema-agreement test already owns that pin.
+    // not the number: pinning it makes every migration an edit here, and @repo/db's schema-agreement test owns that.
     expect(status.schemaVersion).toBe(composed.context.system.schemaVersion);
     expect(status.schemaVersion).toBeGreaterThan(0);
     expect(status.uptimeMs).toBeGreaterThanOrEqual(0);
@@ -102,9 +95,6 @@ describe("the API over the in-process app", () => {
   });
 
   it("refuses to boot on an un-migrated database — the boot-time schema read throws", () => {
-    // The schema version is resolved once at boot (serve.ts) and passed into
-    // createApp, so a broken schema fails the process loudly instead of
-    // surfacing as a 500 per status request.
     const dataDir = makeTempDir("inteligir-app-test-");
     const db = createConnection(join(dataDir, "inteligir.db"));
     expect(() => getSchemaVersion(db, 4)).toThrow(/no such table: meta/);
@@ -145,9 +135,7 @@ describe("the workspace UI this server ships", () => {
     expect(document.headers.get("cache-control")).toBe("no-store");
     expect(await document.text()).toContain("<title>inteligir</title>");
 
-    // ONE answer per URL, whatever the caller says it accepts. An Accept header
-    // that picks between two documents hands curl and a browser different
-    // answers for the same path.
+    // one answer per URL regardless of Accept: negotiating hands curl and a browser different answers for one path.
     const nonHtml = await composed.app.request("/some/spa/route");
     expect(nonHtml.status).toBe(200);
     expect(await nonHtml.text()).toContain("<title>inteligir</title>");
@@ -160,14 +148,11 @@ describe("the workspace UI this server ships", () => {
     const { composed } = await bootTestApp({ clientDir });
 
     const document = await composed.app.request("/", { headers: { accept: "text/html" } });
-    // A FIXED policy: the built shell carries one module script and injects
-    // none at runtime, so `'self'` admits it and nothing else.
     expect(document.headers.get("content-security-policy")).toContain("script-src 'self'");
     expect(document.headers.get("content-security-policy")).not.toContain("nonce");
     expect(document.headers.get("x-content-type-options")).toBe("nosniff");
     expect(document.headers.get("referrer-policy")).toBe("no-referrer");
 
-    // The document is the only response that can execute anything.
     const asset = await composed.app.request("/assets/app-abc123.js");
     expect(asset.headers.get("content-security-policy")).toBeNull();
   });
@@ -185,8 +170,6 @@ describe("the device token", () => {
     const { composed } = await bootTestApp();
     const response = await composed.app.request(STATUS_RPC_PATH, statusRpcRequest({}));
     expect(response.status).toBe(401);
-    // The gate answers before the handler, so what comes back is its own
-    // sentence rather than a procedure's refusal.
     expect(await response.text()).toContain("device token");
   });
 
@@ -205,9 +188,7 @@ describe("the device token", () => {
     );
     expect(bearer.status).toBe(200);
 
-    // The browser's carrier: a document navigation, an `<img src>` and a
-    // `new WebSocket()` can none of them set a header. The SPA's own fetch is
-    // same-origin, so it clears the cookie path's extra check.
+    // the cookie carrier exists for navigations, `<img src>` and `new WebSocket()`, none of which can set a header.
     const cookie = await composed.app.request(
       STATUS_RPC_PATH,
       statusRpcRequest({
@@ -219,9 +200,6 @@ describe("the device token", () => {
   });
 
   it("REFUSES the cookie from a co-resident cross-port page (SameSite does not isolate ports)", async () => {
-    // A page on another 127.0.0.1 port is same-SITE, so the browser attaches
-    // this cookie — but its request is same-SITE, not same-ORIGIN, and must not
-    // be able to drive the API with a credential it never read.
     const { composed } = await bootTestApp();
     const crossPort = await composed.app.request(
       STATUS_RPC_PATH,
@@ -254,8 +232,7 @@ describe("the device token", () => {
       const bare = await composed.app.request(path, { headers: { upgrade: "websocket" } });
       expect(bare.status).toBe(401);
 
-      // Authenticated, the request reaches the upgrade machinery (which cannot
-      // complete in-process — anything but a 401 is the gate passing).
+      // authenticated, the upgrade cannot complete in-process; anything but 401 is the gate passing.
       const authed = await composed.app.request(path, {
         headers: {
           upgrade: "websocket",
@@ -336,8 +313,7 @@ describe("the real socket upgrade", () => {
     expect(hello).toEqual({ type: "hello" });
 
     socket.send(JSON.stringify({ type: "subscribe", target: { kind: "doc-detail", docId: "d1" } }));
-    // Subscription is processed on receipt, so a notification sent before it
-    // lands is dropped: re-notify on every probe until the broadcast arrives.
+    // a notification sent before the subscribe lands is dropped, so re-notify on every probe.
     const changed = await vi.waitFor(
       () => {
         bus.notifyDoc("d1", ["content-changed"]);
@@ -376,7 +352,7 @@ describe("the dictation stream socket", () => {
       socket.addEventListener("error", () => reject(new Error("voice ws error")));
     });
 
-    // Two 16-bit samples up, then finalize — the scripted session names the count.
+    // two 16-bit samples up, then finalize; the scripted session names the count.
     socket.send(new Uint8Array([1, 0, 2, 0]).buffer);
     socket.send(JSON.stringify({ type: "finalize" }));
 
@@ -401,11 +377,9 @@ describe("the dictation stream socket", () => {
       socket.addEventListener("open", () => resolve());
       socket.addEventListener("error", () => reject(new Error("voice ws error")));
     });
-    // Keep it open (mid-hold): a frame up, no finalize.
+    // keep it open (mid-hold): a frame up, no finalize.
     socket.send(new Uint8Array([1, 0]).buffer);
 
-    // The listener teardown closes the voice socket BY NAME, so this resolves
-    // rather than hanging on a hijacked connection the server cannot see.
     await closeServer(server, {
       closeAllClients: () => booted.composed.voiceStreamHub.closeAllClients(),
       terminateAllClients: () => booted.composed.voiceStreamHub.terminateAllClients(),

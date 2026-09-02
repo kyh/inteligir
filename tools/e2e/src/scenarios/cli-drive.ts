@@ -1,11 +1,3 @@
-// The CLI against a real instance, invoked the way an AGENT invokes it: the
-// bare command name, resolved through the PATH the runtime composes for a
-// codex shell (agent-shell-env.ts). An absolute path to dist/index.js would
-// prove the code works and leave the headline flow — a model typing
-// `inteligir …` in bash — untested; that gap is exactly what this scenario
-// exists to close. Then: write a note, search finds it, action new + wait
-// under the scripted driver, show renders the timeline.
-
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
@@ -21,9 +13,7 @@ const NOTE_CONTENT = `# CLI drive\n\nA note carrying ${NOTE_TOKEN} for search.\n
 const PROMPT = "Hello from cli-drive";
 const SEARCH_DEADLINE_MS = 30_000;
 
-// The CLI's `--json` payloads, read the way any other consumer would have to:
-// only the fields this scenario asserts on, so an addition upstream does not
-// fail the run. Loose, because the CLI is free to carry more.
+// loose: only the fields asserted on, so an addition upstream does not fail the run.
 const searchOutputSchema = z.looseObject({ results: z.array(z.unknown()) });
 const searchHitSchema = z.looseObject({ path: z.string() });
 const threadOutputSchema = z.looseObject({ thread: z.looseObject({ id: z.string() }) });
@@ -31,18 +21,15 @@ const threadOutputSchema = z.looseObject({ thread: z.looseObject({ id: z.string(
 export const cliDrive: Scenario = {
   name: "cli-drive",
   description: "the CLI drives a real instance: vault write, search, action new+wait+show",
-  // No build step: the bare `inteligir` resolves through `bin/inteligir`, which
-  // runs `src/` under tsx in a checkout — the exact path an agent's shell takes.
-  // The published BUNDLE is what `pnpm smoke:cli` exercises against a real
-  // install; asserting it here would test bytes this flow never runs.
+  // no build step: bin/inteligir runs src/ under tsx in a checkout; the published bundle is pnpm
+  // smoke:cli's to test.
   async run(ctx) {
     const app = await ctx.boot({
       name: "solo",
       extraEnv: { INTELIGIR_AGENT: "scripted" },
     });
 
-    // The env an agent's shell gets, composed by the server's own resolver
-    // against this checkout — so a broken PATH or a missing bin fails HERE.
+    // composed by the server's own resolver, so a broken PATH or a missing bin fails here.
     const cliBinDir = resolveCliBinDir(join(ctx.repoRoot, "apps", "cli", "bin"));
     expect(cliBinDir !== null, "the app resolves a CLI bin directory for the agent's PATH");
     const agentShellEnv = toShellEnv(
@@ -50,8 +37,8 @@ export const cliDrive: Scenario = {
       hermeticProcessEnv(),
     );
 
-    // `inteligir`, not a path: found through PATH exactly as an agent's bash
-    // would find it. `shell: false` still resolves a bare name via PATH.
+    // the bare name through PATH, as an agent's bash finds it; an absolute path would leave that
+    // flow untested.
     const cli = (...argv: string[]): Promise<ExecResult> =>
       exec("inteligir", argv, {
         env: { ...hermeticProcessEnv(), ...agentShellEnv },
@@ -99,7 +86,7 @@ export const cliDrive: Scenario = {
     if (threadId === undefined) {
       return;
     }
-    // exec throws on a non-zero exit, so a clean return IS the exit-0 assert.
+    // exec throws on a non-zero exit, so a clean return is the exit-0 assert.
     const waited = await cli("action", "wait", threadId, "--timeout", "60");
     expect(waited.stdout.includes("is idle"), "wait reports the idle settle");
 

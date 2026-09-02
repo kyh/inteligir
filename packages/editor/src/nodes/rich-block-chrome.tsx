@@ -1,9 +1,4 @@
-// Shared chrome for the rich fence blocks (chart / canvas / html): the
-// labeled card every block presents in, the raw-payload editor their "Edit"
-// affordances open, and the degraded view a payload the renderer cannot parse
-// falls back to. Degrading NEVER touches bytes — the fence's value is held
-// verbatim on the node and re-emitted as it arrived; only the presentation
-// changes.
+// Degrading never touches bytes: the fence value stays verbatim on the node; only the presentation changes.
 
 import { useState, type ReactNode } from "react";
 
@@ -37,8 +32,6 @@ export function RichBlockCard({
   );
 }
 
-/** The payload the renderer refused, shown as code with the refusal's one-line
- * reason. The bytes on screen ARE the bytes in the file. */
 export function DegradedPayloadView({ reason, value }: { reason: string; value: string }) {
   return (
     <div>
@@ -50,11 +43,6 @@ export function DegradedPayloadView({ reason, value }: { reason: string; value: 
   );
 }
 
-/**
- * Raw-payload editing: a textarea over the fence's verbatim value with
- * validation at Save. The inline data-grid editor is a later refinement — raw
- * text is the honest v1 because it can express every payload the fence can.
- */
 export function PayloadEditor({
   initial,
   onCancel,
@@ -63,7 +51,6 @@ export function PayloadEditor({
 }: {
   initial: string;
   onCancel: () => void;
-  /** Answer null to accept, or the refusal shown under the field. */
   validate: (value: string) => string | null;
   onSave: (value: string) => void;
 }) {

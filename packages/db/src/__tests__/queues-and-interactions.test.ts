@@ -29,7 +29,6 @@ describe("queued thread messages", () => {
     const claimed = claimNextQueuedThreadMessage(db, noopNotifier, thread.id);
     expect(claimed?.id).toBe(first.id);
     expect(claimed?.claimToken).toBeTruthy();
-    // The claimed message leaves the unclaimed listing.
     expect(listQueuedThreadMessages(db, thread.id).map((row) => row.text)).toEqual(["second"]);
 
     const next = claimNextQueuedThreadMessage(db, noopNotifier, thread.id);
@@ -49,7 +48,6 @@ describe("queued thread messages", () => {
     expect(first?.text).toBe("one");
     expect(second?.text).toBe("two");
     expect(claimNextQueuedThreadMessage(rival, noopNotifier, thread.id)).toBeNull();
-    // A rival delete without the claim token cannot steal the held message.
     if (!first) {
       throw new Error("expected a claim");
     }
@@ -103,7 +101,6 @@ describe("queued thread messages", () => {
     if (!reclaimed) {
       throw new Error("expected a reclaim");
     }
-    // Each claim mints a fresh token, so a stale holder cannot delete.
     expect(reclaimed.claimToken).not.toBe(claimed.claimToken);
     expect(deleteClaimedQueuedThreadMessage(db, noopNotifier, reclaimed)).toBe(true);
     expect(listQueuedThreadMessages(db, thread.id)).toHaveLength(0);

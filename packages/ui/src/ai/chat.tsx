@@ -6,15 +6,6 @@ import type { HTMLAttributes, InputHTMLAttributes, KeyboardEvent, ReactNode } fr
 
 import { cn } from "@repo/ui/lib/utils";
 
-/* ─────────────────────────────────────────────────────────
- * CHAT — a panel of replies with tabs and a composer
- *
- * The MESSAGES ARE CHILDREN and the draft is the caller's, so
- * the panel renders a real conversation. NO ANALYTICS on send:
- * this product ships no telemetry, and a vendored capture call
- * would be one.
- * ───────────────────────────────────────────────────────── */
-
 const ChatPanel = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
     <div
@@ -31,7 +22,6 @@ const ChatPanel = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
 ChatPanel.displayName = "ChatPanel";
 
 export interface ChatPanelHeaderProps extends HTMLAttributes<HTMLDivElement> {
-  /** Trailing controls — the caller's own buttons. */
   actions?: ReactNode;
 }
 
@@ -89,13 +79,9 @@ const ChatPanelBody = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>
 ChatPanelBody.displayName = "ChatPanelBody";
 
 export interface ChatMessageProps extends HTMLAttributes<HTMLDivElement> {
-  /** Who or what produced this — rendered first, in ink. */
   author?: ReactNode;
-  /** Quiet qualifier beside the author. */
   detail?: ReactNode;
-  /** Trailing time or duration. */
   meta?: ReactNode;
-  /** True dims and softens the message while a newer one supersedes it. */
   superseded?: boolean;
 }
 
@@ -147,9 +133,7 @@ export interface ChatComposerProps extends Omit<
   InputHTMLAttributes<HTMLInputElement>,
   "onSubmit" | "value"
 > {
-  /** A draft is text — typed here rather than narrowed at render. */
   value?: string;
-  /** Enter, or the send control. Never fires on an empty draft. */
   onSend?: () => void;
   sendLabel?: string;
 }

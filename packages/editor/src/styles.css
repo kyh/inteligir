@@ -1,18 +1,7 @@
-/* The editor's behaviour rules — what a utility class on one element cannot
-   say, because each subject is a RELATION: a toggle's body relative to its
-   summary, a callout's marker relative to the caret, a code token relative to
-   the theme. Every class and data-attribute selected here is spelled in
-   style-hooks.ts, and __tests__/style-hooks.test.ts pins the two together —
-   which is also why this file stays FLAT (top-level rules only, no nesting,
-   no at-rules): the guard reads it with a flat-rule parser. Reaches the app
-   through the desktop renderer's globals.css `@import`. */
+/* flat, top-level rules only: the style-hooks guard reads this with a flat-rule parser. */
 
-/* Toggle body (nodes/toggle-node.tsx): every Slate block after the first —
-   the always-visible summary — collapses in CSS rather than by splitting
-   React children, because Plate hands the element ALL of its rendered
-   children as a single child. Blocks stay mounted (Slate needs their DOM) but
-   take no space and stay invisible; padding is zeroed because this applies
-   per block instead of on a plain wrapper. */
+/* collapses in css rather than by splitting react children, because plate hands the element
+   all rendered children as one child; blocks stay mounted since slate needs their dom. */
 [data-toggle-collapsed] > [data-slate-node="element"] ~ [data-slate-node="element"] {
   height: 0;
   margin: 0;
@@ -21,14 +10,9 @@
   visibility: hidden;
 }
 
-/* GitHub-alert callouts (nodes/blockquote-node.tsx + the calloutMarker
-   decoration in kits/basic-blocks-kit.tsx). The literal `> [!TIP]` marker
-   STAYS in the bytes — it is only hidden at render behind the variant badge,
-   and the caret anywhere inside the quote reveals it, Obsidian-live-preview
-   style. The marker leaf needs display:none (its hidden span carries the soft
-   break — anything layout-preserving would keep a blank first line); a
-   marker-ONLY first paragraph collapses with the toggle recipe instead, since
-   Slate keeps measurable DOM for block-level APIs. */
+/* the `> [!TIP]` marker stays in the bytes and is only hidden at render. the marker leaf needs
+   display:none (its span carries the soft break, so anything layout-preserving keeps a blank
+   first line); a marker-only paragraph collapses like a toggle body since slate needs its dom. */
 .callout-alert:not(.callout-editing) .callout-marker {
   display: none;
 }
@@ -40,16 +24,8 @@
   visibility: hidden;
 }
 
-/* Code-block syntax colours for lowlight's `.hljs-*` token classes (emitted
-   by CodeSyntaxPlugin, kits/code-block-kit.tsx). Six roles, desaturated to
-   sit inside the monochrome UI: chroma low enough that a code block reads as
-   part of the page, lightness set per theme's ground. The theme names every
-   scope the guard's corpus emits (__tests__/style-hooks.test.ts
-   HIGHLIGHT_CORPUS), in both directions: a scope the corpus emits and the
-   theme leaves unnamed fails, because it would render colourless by
-   accident, and so does a rule over a scope the corpus never emits. Grammars
-   outside the corpus are unpinned — add a snippet to widen the pin. The
-   scopes that deliberately ride the foreground say so. */
+/* lowlight `.hljs-*` token colours. the style-hooks guard pins these scopes to its highlight
+   corpus in both directions: a rule over a scope the corpus never emits fails too. */
 :root {
   --syntax-keyword: oklch(0.5 0.12 20);
   --syntax-string: oklch(0.47 0.09 155);
@@ -64,12 +40,9 @@
   --syntax-title: oklch(0.8 0.1 300);
   --syntax-annotation: oklch(0.8 0.11 55);
 }
-/* Deliberately on the foreground: colouring every token leaves nothing to
-   stand out. FIRST, because Plate flattens ancestor scopes onto every leaf
-   (`hljs-function hljs-keyword`, `hljs-params hljs-type`, `hljs-class
-   hljs-title`) and class/function/params/subst are container scopes — at
-   equal specificity the cascade is source order, so a container's rule placed
-   last would uncolour everything inside it. */
+/* must come first: plate flattens ancestor scopes onto every leaf (`hljs-function hljs-keyword`),
+   and at equal specificity source order wins, so a container rule placed last would uncolour
+   everything inside it. */
 .hljs-class,
 .hljs-function,
 .hljs-operator,

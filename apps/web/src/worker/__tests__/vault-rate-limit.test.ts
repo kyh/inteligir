@@ -10,18 +10,9 @@ import { rateLimit } from "../db/schema";
 import { deviceRateKey } from "../rate-limit";
 import { deviceHeaders, ORIGIN, pairDevice, sessionHeaders, signUpUser } from "./cloud-helpers";
 
-// A verified credential reads the whole vault — the account IS the entitlement
-// — so the budget on these two families is what bounds how fast a STOLEN one
-// drains it, and therefore whether the dashboard's revoke button arrives in
-// time to matter. The suite spends a budget by seeding its row rather than by
-// issuing six hundred requests: what is under test is that the path consumes
-// one, whose it consumes, and that the two families are separate.
-
 const TREE = `${ORIGIN}${VAULT_API_PATHS.tree}`;
 const GIT_REFS = `${ORIGIN}${VAULT_GIT_PATH}/info/refs?service=git-upload-pack`;
 
-/** Every budget is spent, for whatever the ceiling is: the assertion is that
- *  the route ASKS, not what number it asks about. */
 async function spendBudget(key: string): Promise<void> {
   const spent = { count: 1_000_000, lastRequest: Date.now() };
   await createDb(env.DB)
@@ -31,8 +22,7 @@ async function spendBudget(key: string): Promise<void> {
 }
 
 describe("the hosted vault's per-device budgets", () => {
-  // The suite config keeps the limiter off so multi-user suites do not 429 on
-  // one another; this is the one that needs it on.
+  // the suite config keeps the limiter off so suites do not 429 on one another
   let wasDisabled = "";
   beforeEach(() => {
     wasDisabled = env.RATE_LIMIT_DISABLED;
@@ -53,8 +43,6 @@ describe("the hosted vault's per-device budgets", () => {
     expect(refused.status).toBe(429);
     expect(cloudErrorSchema.parse(await refused.json()).error.code).toBe("rate-limited");
 
-    // Keyed on the DEVICE, not the account: revoking one device is the fix,
-    // and a shared bucket would take the user's other devices down with it.
     const allowed = await SELF.fetch(TREE, { headers: deviceHeaders(laptop.credential) });
     expect(allowed.status).not.toBe(429);
   });
@@ -74,9 +62,6 @@ describe("the hosted vault's per-device budgets", () => {
   });
 
   it("drops a revoked device's rows — nothing else ever deletes one", async () => {
-    // The table carries no foreign key, so a pair-then-revoke loop would leave
-    // two rows behind per cycle with no liveness guarantee that anything prunes
-    // them.
     const { bearer } = await signUpUser("vault-budget-revoke@example.test");
     const device = await pairDevice(bearer, "Laptop");
     const key = deviceRateKey("vaultRead", device.deviceId);
@@ -98,8 +83,6 @@ describe("the hosted vault's per-device budgets", () => {
   });
 
   it("spends nothing for a credential that never verified", async () => {
-    // The budget is keyed on a VERIFIED device, so an unauthenticated caller
-    // cannot spend one — including a real device's, by presenting its id.
     const unauthorized = await SELF.fetch(TREE, {
       headers: { authorization: "Bearer igd_not-a-real-credential" },
     });

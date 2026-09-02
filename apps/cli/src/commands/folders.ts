@@ -1,8 +1,3 @@
-// `inteligir folders` — Connected Folders: the directories agent
-// sessions are told about as read-only reference context. Parity verbs for
-// what Settings → Connected folders does; not a permission surface — the
-// rows only name what the user offers as reference.
-
 import { defineCommand } from "citty";
 import { apiFor, type CliDeps } from "../context";
 import { jsonArg, out, outputJson, writeLines } from "../output";

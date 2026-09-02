@@ -1,10 +1,3 @@
-// The registry over a real temp store file. The facts worth pinning:
-// redaction (no read ever carries a header value), the two refusals
-// (ALREADY_EXISTS on a duplicate add, NOT_FOUND on an unknown name), header
-// survival through an update that omits them, the malformed-file refusal
-// (never read as empty — the next write would erase what the bytes held), and
-// the session view carrying the full rows the redacted view must not.
-
 import { readFileSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { ORPCError, safe } from "@orpc/client";
@@ -103,8 +96,7 @@ describe("the connectors registry", () => {
   });
 });
 
-// Each route case asserts the refusal CLASS, never the bare fact of a throw:
-// `rejects.toThrow()` would pass for the wrong refusal, and for a crash.
+// assert the refusal class: `rejects.toThrow()` passes for the wrong refusal and for a crash.
 describe("the connector procedures", () => {
   it("serves the registry with its refusal classes", async () => {
     const harness = await bootTestApp();

@@ -1,8 +1,4 @@
-// Browser APIs jsdom does not implement, stubbed inert — enough for the
-// editor, Base UI portals and cmdk to mount and dispatch, and for a
-// pointer-capture drag to run; anything asserting on real pixel layout belongs
-// in a browser. Guarded on `window` so the same setup file is inert under
-// node-environment test files.
+// guarded on `window` so the same setup file is inert under node-environment suites.
 
 if (typeof window !== "undefined") {
   if (!window.matchMedia) {

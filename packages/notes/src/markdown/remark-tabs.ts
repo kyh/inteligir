@@ -1,33 +1,13 @@
-// The dialect's tab-group container:
-//
-//   :::tabs
-//   === Label
-//   panel content (any markdown blocks)
-//
-//   === Another Label
-//   more content
-//   :::
-//
-// The markers are LINE grammar, not block grammar — micromark parses them as
-// paragraph text with embedded newlines — so this is an mdast ROOT transform:
-// it splits marker lines out of top-level paragraph text nodes and groups the
-// nodes between them into a `tabGroup` block holding `tabPanel` children.
-// Marker lines are recognized only as complete lines in TOP-LEVEL text leaves:
-// a marker swallowed by an inline construct (emphasis spanning the line) is
-// not a marker, which is also what keeps the split from ever cutting one.
-//
-// The spec's own outs are honored literally: content between `:::tabs` and the
-// first `=== Label` (blank lines aside) keeps the whole block plain text, and
-// a `:::tabs` that never closes stays literal — both abort the rewrite rather
-// than guessing.
+// the markers are line grammar, not block grammar (micromark reads them as paragraph text), so
+// this is a root transform splitting marker lines out of top-level text leaves; a marker
+// swallowed by an inline construct is not a marker. content before the first `=== Label` or a
+// `:::tabs` that never closes aborts the rewrite rather than guessing.
 
 import type { Node, PhrasingContent, Root } from "mdast";
 import type { Options as ToMarkdownExtension } from "mdast-util-to-markdown";
 import type { Plugin, Processor, Transformer } from "unified";
 
 type RootChild = Root["children"][number];
-// Panel children reuse the root's own vocabulary (the transform collects root
-// siblings verbatim); only frontmatter and nested tab groups are refused.
 type PanelContent = Exclude<RootChild, { type: "yaml" | "tabGroup" | "tabPanel" }>;
 
 export interface TabPanel extends Node {
@@ -55,7 +35,6 @@ const OPEN_LINE = ":::tabs";
 const CLOSE_LINE = ":::";
 const PANEL_RE = /^=== (.+)$/;
 
-/** One piece of a paragraph after marker-line splitting. */
 type Segment =
   | { kind: "open" }
   | { kind: "panel"; label: string }
@@ -71,11 +50,6 @@ function markerFor(line: string): Segment | null {
   return null;
 }
 
-/**
- * Split one paragraph's inline content at marker lines. A marker counts only
- * when its whole line lives in one top-level text leaf: it begins at a line
- * start and ends at a newline or at the paragraph's end.
- */
 function splitParagraph(children: PhrasingContent[]): Segment[] {
   const segments: Segment[] = [];
   let current: PhrasingContent[] = [];
@@ -97,7 +71,6 @@ function splitParagraph(children: PhrasingContent[]): Segment[] {
   for (const [index, child] of children.entries()) {
     if (child.type !== "text") {
       current.push(child);
-      // A hard break ends its line; any other inline continues it.
       atLineStart = child.type === "break";
       continue;
     }
@@ -112,8 +85,7 @@ function splitParagraph(children: PhrasingContent[]): Segment[] {
         flush();
         segments.push(marker);
       } else {
-        // Re-join a non-marker line onto the running content, restoring the
-        // newline the split consumed (only between kept lines).
+        // restore the newline the split consumed, only between kept lines.
         if (lineIndex > 0 && current.length > 0) pushText("\n");
         pushText(line);
       }
@@ -131,15 +103,12 @@ function hasMarker(segments: Segment[]): boolean {
 type PanelDraft = { label: string; children: PanelContent[] };
 
 function asPanelContent(node: RootChild): PanelContent | null {
-  // Everything a root can hold except another tabs group (no nesting) and
-  // frontmatter is legal panel content.
   if (node.type === "yaml" || node.type === "tabGroup" || node.type === "tabPanel") {
     return null;
   }
   return node;
 }
 
-/** The walk's running state while a `:::tabs` region is being collected. */
 type Collect = {
   panels: PanelDraft[];
   closed: boolean;
@@ -152,8 +121,7 @@ function acceptSegments(collect: Collect, segments: Segment[], from: number): vo
     const segment = segments[index];
     if (segment === undefined) continue;
     if (collect.closed) {
-      // Anything after the close in the same paragraph must be plain content;
-      // a second marker there makes the construct ambiguous — refuse whole.
+      // a second marker after the close in the same paragraph is ambiguous: refuse whole.
       if (segment.kind !== "content") {
         collect.aborted = true;
         return;
@@ -184,11 +152,6 @@ function acceptSegments(collect: Collect, segments: Segment[], from: number): vo
   }
 }
 
-/**
- * Scan the root, rewriting each complete `:::tabs … :::` region into ONE
- * tabGroup node. Aborts (leaving bytes as parsed) on: content before the
- * first panel marker, no panel at all, or a missing close.
- */
 function rewriteRoot(root: Root): void {
   for (let start = 0; start < root.children.length; start++) {
     const opener = root.children[start];
@@ -257,8 +220,7 @@ const tabsToMarkdown: ToMarkdownExtension = {
   },
 };
 
-// Function expression (not an exported declaration) for the same reason
-// remark-wiki-link states: remark plugins receive the processor as `this`.
+// a function expression: remark plugins receive the processor as `this`.
 export const remarkTabs: Plugin = function (this: Processor): Transformer {
   const data = this.data();
   (data.toMarkdownExtensions ??= []).push(tabsToMarkdown);

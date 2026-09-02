@@ -27,12 +27,8 @@ export interface CreateQueuedThreadMessageInput {
   text: string;
 }
 
-/**
- * Millisecond timestamp, fixed width so lexicographic order is arrival
- * order — extended past the thread's current tail when a burst lands inside
- * one millisecond, because the drain's id tie-break is a random nanoid and
- * FIFO must not depend on it.
- */
+// fixed-width ms timestamp so lexicographic order is arrival order; extended past the tail when
+// a burst lands inside one millisecond, because the drain's id tie-break is a random nanoid.
 function createSortKeyAfter(tailSortKey: string | null, now: number): string {
   const candidate = String(now).padStart(14, "0");
   if (tailSortKey === null || candidate > tailSortKey) {
@@ -41,7 +37,6 @@ function createSortKeyAfter(tailSortKey: string | null, now: number): string {
   return `${tailSortKey}~`;
 }
 
-/** The caller owns notification (it holds the transaction). */
 export function createQueuedThreadMessageInTransaction(
   tx: DbTransaction,
   input: CreateQueuedThreadMessageInput,
@@ -98,12 +93,8 @@ export function listQueuedThreadMessages(
     .all();
 }
 
-/**
- * Claim the next unclaimed message: select and CAS-update under one
- * transaction, so two drains racing for the same row cannot both hold it —
- * the loser's UPDATE matches nothing and it claims the next row or nothing.
- * The caller owns notification (it holds the transaction).
- */
+// select then cas-update in one transaction: the loser of a race matches nothing and takes the
+// next row.
 export function claimNextQueuedThreadMessageInTransaction(
   tx: DbTransaction,
   threadId: string,
@@ -160,8 +151,6 @@ export interface ClaimedQueuedThreadMessageKey {
   claimToken: string;
 }
 
-/** The claimed message leaves the queue for good. The caller owns
- *  notification (it holds the transaction). */
 export function deleteClaimedQueuedThreadMessageInTransaction(
   tx: DbTransaction,
   key: ClaimedQueuedThreadMessageKey,
@@ -180,7 +169,6 @@ export function deleteClaimedQueuedThreadMessageInTransaction(
   );
 }
 
-/** Dispatch succeeded: the claimed message leaves the queue for good. */
 export function deleteClaimedQueuedThreadMessage(
   db: DbConnection,
   notifier: DbNotifier,
@@ -200,14 +188,8 @@ export function deleteClaimedQueuedThreadMessage(
   return false;
 }
 
-/**
- * Free every claim in the table, whatever holds it. A claim has no TTL and no
- * owner outside the process that took it, so a kill between the drain's ingest
- * commit and its delete leaves a row that `listQueuedThreadMessages` hides and
- * `claimNextQueuedThreadMessageInTransaction` will never take again — typed
- * input lost with no error. One server owns a data dir, so at boot no claim
- * can be live and no provenance check is needed.
- */
+// a claim has no ttl, so a kill between the drain's ingest commit and its delete would hide the
+// row forever. one server owns a data dir, so no claim can be live at boot.
 export function releaseAllQueuedMessageClaims(db: DbConnection): number {
   return db
     .update(queuedThreadMessages)
@@ -217,7 +199,6 @@ export function releaseAllQueuedMessageClaims(db: DbConnection): number {
     .all().length;
 }
 
-/** Dispatch failed: the message goes back to the head of the queue. */
 export function releaseQueuedMessageClaim(
   db: DbConnection,
   notifier: DbNotifier,

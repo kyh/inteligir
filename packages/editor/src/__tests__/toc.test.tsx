@@ -1,10 +1,5 @@
 // @vitest-environment jsdom
 
-// The outline names its target by NODE, never by DOM position: the editable's
-// DOM also holds headings the outline skips (an empty `# `) and headings it
-// never listed (a transclusion's static render), so the i-th <h*> element is
-// not the i-th outline row.
-
 import { cleanup, render } from "@testing-library/react";
 import type { Value } from "platejs";
 import type { PlateEditor } from "platejs/react";
@@ -36,16 +31,13 @@ describe("outline targets", () => {
 
     const first = headings[0];
     if (first === undefined) throw new Error("the outline lost its only row");
-    // The empty h1 renders first in the DOM, so an index join over the
-    // editable's <h*>s lands there; the node resolution cannot.
     expect(document.querySelectorAll("h1, h2, h3")[0]?.textContent).not.toBe("Real");
     expect(headingElement(editor, first)?.textContent).toBe("Real");
   });
 
   it("ignores heading elements the editor does not own", () => {
     const editor = mountValue([h("h2", "Mine"), p("body")]);
-    // What a transclusion's static render contributes: a heading element
-    // inside the editable that is no node of this editor's document.
+    // models a transclusion's static render: a heading in the editable that is no node of the document.
     const editable = document.querySelector('[data-slate-editor="true"]');
     if (editable === null) throw new Error("no editable mounted");
     editable.insertAdjacentHTML("afterbegin", "<h2>Embedded</h2>");
@@ -54,7 +46,6 @@ describe("outline targets", () => {
     const first = headings[0];
     if (first === undefined) throw new Error("the outline lost its only row");
     expect(first.title).toBe("Mine");
-    // The DOM's first h2 is the foreign one — the index join's wrong answer.
     expect(document.querySelectorAll("h2")[0]?.textContent).toBe("Embedded");
     expect(headingElement(editor, first)?.textContent).toBe("Mine");
   });
@@ -69,7 +60,6 @@ describe("the rail window", () => {
   it("keeps the active row inside the capped rail", () => {
     expect(railWindow(25, 0)).toEqual({ start: 0, end: TOC_RAIL_CAP });
     expect(railWindow(25, TOC_RAIL_CAP - 1)).toEqual({ start: 0, end: TOC_RAIL_CAP });
-    // The first row past the cap: without the slide it highlights nothing.
     expect(railWindow(25, TOC_RAIL_CAP)).toEqual({ start: 1, end: TOC_RAIL_CAP + 1 });
     expect(railWindow(25, 24)).toEqual({ start: 5, end: 25 });
   });

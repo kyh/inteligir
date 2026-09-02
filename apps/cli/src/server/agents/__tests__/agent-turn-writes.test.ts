@@ -1,13 +1,3 @@
-// The agent turn's commit-hold contract, over a recording engine — the one
-// thing no integration test can see, because a leaked hold is silent until a
-// sync mysteriously stops running hours later.
-//
-// The invariants, stated as this suite checks them:
-//   - a hold is taken once per turn and released exactly once, on every exit
-//     path (settled, failed, finished twice, `ready` rejected);
-//   - a turn that wrote nothing makes NO commit — an empty commit is not a
-//     harmless artefact, it is a lie about what the agent did.
-
 import type { GitEngine } from "../../vault/git-engine";
 import type { CommitAuthor } from "../../vault/git-run";
 import { describe, expect, it } from "vitest";

@@ -1,12 +1,6 @@
-// Toggle kit. Node shape (serialization contract): `<toggle>` MDX flow
-// element with NESTED block children — the first child is the summary row,
-// the rest the collapsible body. This deliberately differs from Plate's flat
-// indent-sibling toggle model: TogglePlugin is kept for its openIds store +
-// chevron hooks, while hiding is done by ToggleElement on the nested children
-// (the plugin's flat-model aboveNodes hider is inert here — nested children
-// never enter its top-level toggle index). Collapsed/open state lives in that
-// store, never on the node, so a collapse/expand can't dirty the document
-// (md rule fixture asserts `<toggle>` serializes with zero attributes).
+// Nested block children, not Plate's flat indent-sibling model: TogglePlugin is kept for its
+// openIds store and chevron hooks, and its flat-model hider is inert here. Open state lives in
+// that store, never on the node, so collapsing cannot dirty the document.
 
 import { ElementApi, KEYS, PathApi, TextApi, createBlockStartInputRule, type Path } from "platejs";
 import type { PlateEditor } from "platejs/react";
@@ -18,16 +12,11 @@ import { ToggleElement } from "@repo/editor/nodes/toggle-node";
 
 export const ToggleBaseKit = [BaseTogglePlugin];
 
-/**
- * Wrap the block at `at` into a toggle: the block becomes the toggle's summary
- * (first nested child). The new toggle is opened so a body typed next is
- * immediately visible. Shared by insertToggle (slash) and turn-into (menus).
- */
 export function wrapBlockInToggle(editor: PlateEditor, at: Path): void {
   editor.tf.withoutNormalizing(() => {
     const entry = editor.api.node(at);
     if (!entry || !ElementApi.isElement(entry[0]) || entry[0].type === KEYS.toggle) return;
-    // List props on the summary would serialize inside `<toggle>` — strip.
+    // list props on the summary would serialize inside `<toggle>`.
     editor.tf.unsetNodes(["listStyleType", "listStart", "indent", "checked"], { at });
     editor.tf.wrapNodes({ children: [], type: KEYS.toggle }, { at });
   });
@@ -36,14 +25,12 @@ export function wrapBlockInToggle(editor: PlateEditor, at: Path): void {
   if (id) editor.getApi(TogglePlugin).toggle.toggleIds([id], true);
 }
 
-/** Turn the current block into a toggle. */
 export function insertToggle(editor: PlateEditor): void {
   const block = editor.api.block();
   if (!block) return;
   wrapBlockInToggle(editor, block[1]);
 }
 
-// `+ ` at block start turns the block into a toggle (potion muscle memory).
 const toggleInputRule = createBlockStartInputRule({
   match: "+",
   trigger: " ",
@@ -60,11 +47,8 @@ export const ToggleKit = [
     .withComponent(ToggleElement)
     .overrideEditor(({ editor, tf: { insertBreak, normalizeNode } }) => ({
       transforms: {
-        // Enter while the lowest block IS the toggle itself (an empty
-        // `<toggle />` parses with inline text children) exits below instead
-        // of splitting into two toggles — the plugin's flat-model insertBreak
-        // would otherwise indent-attach the new block at top level, a shape
-        // that doesn't survive serialization.
+        // the plugin's flat-model insertBreak would indent-attach the new block at top level,
+        // a shape that does not survive serialization.
         insertBreak() {
           const block = editor.api.block();
           if (block && block[0].type === KEYS.toggle) {
@@ -76,11 +60,8 @@ export const ToggleKit = [
           }
           insertBreak();
         },
-        // Typing into a parsed `<toggle />` gives the toggle non-empty inline
-        // children; wrap them into a paragraph so the nested model (and its
-        // canonical `<toggle>\n  text\n</toggle>` byte-form) is restored.
-        // Live-editor-only: the headless gate never normalizes, so a bare
-        // `<toggle />` on disk stays byte-exact until the user edits it.
+        // typing into a parsed `<toggle />` gives it inline children; wrap them into a paragraph.
+        // The headless gate never normalizes, so a bare `<toggle />` on disk stays byte-exact until edited.
         normalizeNode(entry) {
           const [node, path] = entry;
           if (

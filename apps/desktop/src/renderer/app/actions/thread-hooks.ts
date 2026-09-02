@@ -1,7 +1,4 @@
-// Thread state for the workspace. List/detail are query-cached and
-// swept whole by the ws thread invalidation; the TIMELINE is deliberately
-// not — it is stateful (held rows + maxSequence drive the next delta fetch),
-// so its hook holds it and refreshes off threadEvents directly.
+// the timeline is not query-cached: held rows + maxSequence drive the next delta fetch.
 
 import type { ThreadChangeKind } from "@repo/domain/change-kinds";
 import type {
@@ -25,15 +22,7 @@ export function useThreadDetail(threadId: string | null): UseQueryResult<GetThre
   });
 }
 
-/**
- * Which change kinds can have moved the TIMELINE, and therefore earn a delta
- * fetch. A total table rather than the two-member `||` it replaces: the
- * timeline is the one thread surface the ws sweep does not cover (it is not
- * query-cached), so a kind that arrives and is not weighed here is a row the
- * user never sees until they reopen the thread. "false" is the answer for a
- * kind whose whole effect is on the LIST — the query sweep beside this
- * subscriber already refetches that.
- */
+// total over the kinds: one not weighed here is a row the user never sees until they reopen the thread.
 const MOVES_THE_TIMELINE = {
   "thread-created": false,
   "events-appended": true,
@@ -44,19 +33,11 @@ const MOVES_THE_TIMELINE = {
   "origin-changed": false,
 } satisfies Record<ThreadChangeKind, boolean>;
 
-/**
- * The live timeline: full fetch on mount, then a delta fetch per
- * events/status frame, applied over the held rows; a delta whose base is not
- * the held timeline falls back to one full refetch. Refreshes are serialized
- * with a re-run flag so overlapping frames coalesce instead of racing.
- */
 export function useThreadTimeline(threadId: string | null): ThreadTimeline | null {
   const { api, threadEvents } = useWorkspace();
   const [timeline, setTimeline] = useState<ThreadTimeline | null>(null);
 
-  // A switch drops the previous thread's rows as the new id arrives rather
-  // than one commit later: the caller must never be handed a timeline that
-  // belongs to a thread it has stopped showing.
+  // drop the previous thread's rows as the id arrives, not one commit later.
   const [shownFor, setShownFor] = useState(threadId);
   if (shownFor !== threadId) {
     setShownFor(threadId);
@@ -108,7 +89,7 @@ export function useThreadTimeline(threadId: string | null): ThreadTimeline | nul
           }
         } while (rerun);
       } catch {
-        // Transient fetch failure: the next frame (or reconnect sweep) retries.
+        // the next frame retries
       } finally {
         inFlight = false;
       }

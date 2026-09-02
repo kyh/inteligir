@@ -1,7 +1,3 @@
-// The vault's handlers. Each one calls its service and answers the contract's
-// output; a domain refusal becomes the wire class `vault-refusals.ts` decides,
-// which is also what the comments procedures and the asset route answer with.
-
 import {
   assetMediaType,
   VAULT_ASSET_MAX_BYTES,
@@ -13,14 +9,8 @@ import { vaultWireError } from "./vault-refusals";
 import { listTrash, purgeTrashedNote, restoreNote, trashNote } from "./trash";
 import type { GuardedWriteGuard } from "./vault-service";
 
-/** The composed rename (the link rewrite riding the service's rename); refusals
- *  surface as the same VaultPathError/VaultServiceError the service throws. */
 export type RenameNote = (from: string, to: string) => Promise<VaultRenameResponse>;
 
-/** Runs `work`, re-raising a vault refusal as the class the contract declares
- *  (`vault-refusals.ts` owns which). One wrapper rather than a try/catch per
- *  handler: every handler deciding it separately is one answer per handler, and
- *  they can disagree. */
 const refusing = refusals(vaultWireError);
 
 const tree = base.vault.tree.handler(({ context }) => context.vault.service.listTree());
@@ -56,9 +46,7 @@ const write = base.vault.write.handler(async ({ context, input, errors }) =>
     if (result.reason === "exists") {
       throw errors.ALREADY_EXISTS({ message: `A file already exists at ${input.path}` });
     }
-    // The client merges `current` with diff3 and retries — which is why the
-    // guard lives in the protocol rather than in the UI. `current` is absent
-    // when the file no longer exists at all.
+    // the client merges current with diff3 and retries; current is absent when the file is gone.
     throw errors.CAS_MISMATCH({
       message: `${input.path} changed since the base this write was derived from`,
       data: result.current === null ? {} : { current: result.current },

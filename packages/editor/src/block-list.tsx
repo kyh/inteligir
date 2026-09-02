@@ -1,7 +1,5 @@
-// Renders the list marker (bullet / number / checkbox) around a block that
-// carries `listStyleType`. Plate models lists as indented blocks rather than a
-// dedicated node, so this wrapper draws the marker. This module must stay
-// workspace-free — list-kit imports it.
+// Plate models lists as indented blocks, so this wrapper draws the marker.
+// Must stay workspace-free: list-kit imports it.
 
 import { isOrderedList } from "@platejs/list";
 import { useTodoListElement, useTodoListElementState } from "@platejs/list/react";

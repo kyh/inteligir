@@ -1,22 +1,8 @@
 // Vendored from bb (github.com/get-bb/bb), MIT. © bb contributors —
 // apps/cli/src/__tests__/json-flag-enforcement.test.ts, adapted and widened.
-//
-// bb's version reads its parser's METADATA: every leaf declares --json. That
-// catches a missing flag and nothing else — a command can declare the flag,
-// print prose anyway, and swallow a server refusal while exiting 0. So this
-// suite EXECUTES every leaf against a fixture server, three ways:
-//
-//   1. success, --json      → stdout parses as JSON, and nothing else is on it
-//   2. server answers 400   → non-zero exit, no false success
-//   3. server answers 500   → non-zero exit, no false success
-//
-// (2) and (3) are the honest-exit invariant: a body read without a status
-// check prints the error envelope as if it were the answer.
 
 import { z } from "zod";
 
-/** The failure envelope every leaf owes a `--json` caller on stderr: the class
- *  (the server's own, or one of the CLI's) and a sentence. */
 const cliErrorEnvelopeSchema = z.object({ error: z.string().min(1), message: z.string() });
 import { describe, expect, it, onTestFinished } from "vitest";
 import { argsOf, collectLeafCommands, type LeafCommand } from "../command-tree";
@@ -33,12 +19,6 @@ import {
 } from "./fixture-server";
 import { runCliForTest } from "./run-cli";
 
-/**
- * Commands deliberately outside this whole suite, each with the reason it is
- * not a client. An empty set is the healthy state for everything that dials a
- * server: `--json` is what makes a leaf drivable by a model, and the honest-exit
- * passes below prove it never prints a refusal as an answer.
- */
 const EXCLUDED_COMMANDS = new Map<string, string>([
   [
     "serve",
@@ -46,9 +26,7 @@ const EXCLUDED_COMMANDS = new Map<string, string>([
   ],
 ]);
 
-/** Enough state that every leaf's invocation has something real to act on.
- *  Re-applied BETWEEN leaves, because the leaves mutate it (rename moves the
- *  file delete then wants) and a leaf must be judged on its own behavior. */
+// re-applied between leaves: they mutate it (rename moves the file delete then wants).
 function seedFixture(state: FixtureState): void {
   state.vault.clear();
   state.vault.set("notes/hello.md", "# Hello\n");
@@ -114,8 +92,6 @@ async function boot(state: FixtureState): Promise<FixtureServer> {
   return server;
 }
 
-/** Every leaf that DIALS a server — the surface this suite is about. The
- *  excluded rows are drained below, so an exemption cannot outlive its reason. */
 function leaves(): LeafCommand[] {
   return collectLeafCommands(testProgram()).filter((leaf) => !EXCLUDED_COMMANDS.has(leaf.path));
 }
@@ -197,7 +173,7 @@ describe("honest exits — no command may print a refusal as an answer", () => {
           argv: [...invocationFor(path)],
           baseUrl: server.baseUrl,
         });
-        // No reseed needed: every route refuses, so nothing mutates.
+        // no reseed needed: every route refuses, so nothing mutates.
         if (result.code === 0) {
           broken.push(`${path}: exited 0 and printed ${JSON.stringify(result.stdout)}`);
           continue;

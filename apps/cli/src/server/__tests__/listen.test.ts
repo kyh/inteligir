@@ -82,19 +82,6 @@ describe("listenWithRetry", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// The shutdown blocker, pinned from both sides.
-//
-// An UPGRADED socket is detached from the HTTP server's connection tracking:
-// `server.close()`'s callback never fires while one is open and
-// `closeAllConnections()` does not touch it. That is Node's behaviour, not a
-// bug in this app — but relying on those two alone means one open browser tab
-// stalls the entire teardown behind step one, and the pending vault commit and
-// the database close never run. The first test states Node's semantics so the
-// reason is not lost; the second is the regression.
-// ---------------------------------------------------------------------------
-
-/** A socket that completes an upgrade handshake and then just sits there. */
 async function upgradeAgainst(port: number): Promise<Socket> {
   const client = connect(port, "127.0.0.1");
   await new Promise<void>((resolve, reject) => {
@@ -115,10 +102,7 @@ async function upgradeAgainst(port: number): Promise<Socket> {
 interface UpgradingServer {
   server: HttpServer;
   listening: Promise<number>;
-  /** The SERVER halves of every upgraded connection — what `ws` owns and what
-   *  `terminate()` destroys. Destroying the client half instead proves
-   *  nothing: the server's own socket is what `close()` is waiting on.
-   *  `Duplex` because that is what the `upgrade` event hands over. */
+  // the server halves: destroying the client half proves nothing, the server's own socket is what close() waits on.
   serverSockets: Duplex[];
 }
 
@@ -149,9 +133,7 @@ const noSockets = { closeAllClients: () => {}, terminateAllClients: () => {} };
 
 describe("closeServer", () => {
   it("Node's own close() never completes while a socket is upgraded", async () => {
-    // THE PREMISE, pinned. If this ever starts resolving quickly, the
-    // websocket handling below has become unnecessary rather than untested —
-    // which is worth knowing either way.
+    // if this ever resolves quickly, the by-name websocket close has become unnecessary rather than untested.
     const { server, listening } = upgradingServer();
     const port = await listening;
     await upgradeAgainst(port);
@@ -171,8 +153,7 @@ describe("closeServer", () => {
     const port = await listening;
     await upgradeAgainst(port);
 
-    // What WsBus does to a real transport: the graceful close frame first,
-    // then `raw.terminate()`, which destroys the server-side socket.
+    // mirrors WsBus: the close frame first, then terminate destroys the server-side socket.
     let closeFrames = 0;
     const sockets = {
       closeAllClients: () => {
@@ -186,8 +167,7 @@ describe("closeServer", () => {
     const startedAt = Date.now();
     await closeServer(server, sockets);
     expect(closeFrames).toBe(1);
-    // Under the vault step's own budget, which is the property that matters:
-    // an open tab cannot hold the teardown hostage.
+    // under the vault step's own budget.
     expect(Date.now() - startedAt).toBeLessThan(6_000);
   });
 

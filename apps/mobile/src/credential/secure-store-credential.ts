@@ -1,8 +1,3 @@
-// The production `CredentialStore`: expo-secure-store, and nothing else touches
-// the credential at rest. `AFTER_FIRST_UNLOCK` lets a background sync read it
-// after the first unlock following a reboot, without exposing it on the lock
-// screen — the standard accessibility for a token a background task presents.
-
 import * as SecureStore from "expo-secure-store";
 import type { DeviceCredential } from "@repo/api/cloud/pairing/pairing-schema";
 import { parseStoredCredential, serializeCredential } from "./credential-codec";
@@ -17,6 +12,8 @@ export function createSecureStoreCredential(): CredentialStore {
       return parseStoredCredential(raw);
     },
     async write(credential: DeviceCredential): Promise<void> {
+      // AFTER_FIRST_UNLOCK: a background sync can read it after a reboot without exposing it on the
+      // lock screen.
       await SecureStore.setItemAsync(CREDENTIAL_KEY, serializeCredential(credential), {
         keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK,
       });

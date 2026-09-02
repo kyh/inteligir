@@ -1,12 +1,5 @@
-// File CRUD over the vault directory. Every mutation is announced through the
-// DbNotifier and reported to `onMutated` (the git auto-commit scheduler), and
-// runs inside the injected lock — the git engine's repo lock — so a write can
-// never interleave a rebase's checkout/abort window. Reads stay lock-free.
-//
-// Containment is PHYSICAL, not just lexical: the resolved parent's realpath
-// must land under the vault's realpath, and a symlink leaf is refused — a
-// pulled `notes.md -> ~/.ssh/id_ed25519` must never read the key, and a
-// symlinked folder must never let a write land outside the vault.
+// containment is physical, not lexical: the deepest existing ancestor is realpathed and a
+// symlink leaf is refused, since a pulled `notes.md -> ~/.ssh/id_ed25519` must never read the key.
 
 import { randomBytes } from "node:crypto";
 import { existsSync, realpathSync } from "node:fs";
@@ -40,13 +33,8 @@ import { errnoCode } from "../errno";
 import { pathContains, relativeUnder } from "../path-containment";
 import { resolveVaultPath } from "./vault-paths";
 
-/**
- * The refusal classes the vault service itself raises. The service sits below
- * the wire and names no wire class of its own — `vault-router.ts`'s
- * `VAULT_REFUSALS` is TOTAL over this union, so a class added here without a
- * wire answer breaks THERE, which is where "what does the wire call this?" is
- * decided. A code with no answer would otherwise become a silent 500.
- */
+// VAULT_REFUSALS is total over this union, so a code added here without a wire class fails to
+// compile there.
 const VAULT_SERVICE_ERROR_CODES = ["not_found", "conflict", "too_large"] as const;
 
 export type VaultServiceErrorCode = (typeof VAULT_SERVICE_ERROR_CODES)[number];
@@ -69,9 +57,8 @@ function symlinkRefusal(relPath: string): VaultPathError {
 }
 
 async function fsyncDirBestEffort(dirPath: string): Promise<void> {
-  // Directory fsync is what makes the just-renamed entry durable; some
-  // filesystems refuse it, and the file's own fsync has already landed, so a
-  // refusal downgrades durability rather than correctness.
+  // some filesystems refuse a directory fsync; the file's own fsync has landed, so a refusal
+  // downgrades durability, not correctness.
   try {
     const handle = await open(dirPath, "r");
     try {
@@ -92,12 +79,8 @@ async function walk(absDir: string, relDir: string, entries: VaultEntry[]): Prom
     if (isIgnoredEntryName(dirent.name)) {
       continue;
     }
-    // withFileTypes has lstat semantics: a symlink is NEITHER isDirectory
-    // nor isFile here, so links (to files and folders alike) fall through —
-    // the listing never follows one out of the vault. File rows also carry
-    // mtime (one lstat per file, batched per directory): the sidebar's
-    // notes-list orders by recency, and a second recency channel beside the
-    // listing would be two answers to one question.
+    // withFileTypes has lstat semantics: a symlink is neither isDirectory nor isFile, so links
+    // fall through and the listing never follows one out of the vault.
     if (dirent.isDirectory()) {
       dirs.push(dirent.name);
       continue;
@@ -130,16 +113,10 @@ async function walk(absDir: string, relDir: string, entries: VaultEntry[]): Prom
 }
 
 export interface VaultServiceArgs {
-  /** Absolute vault root; must already exist. */
   root: string;
   notifier: DbNotifier;
-  /** Serializes every MUTATION (the git engine's repo lock in production;
-   *  tests pass `identityLock`). Required: the CAS guard is only a guard when
-   *  every caller runs mutations under ONE lock — an optional default let a
-   *  forgotten arg silently drop the serialization. */
+  // required, not defaulted: a forgotten arg silently dropped the serialization the cas guard needs.
   lock: <T>(work: () => Promise<T>) => Promise<T>;
-  /** Fired after every applied mutation with the vault-relative paths it
-   *  touched; the runtime schedules a commit and arms echo suppression here. */
   onMutated?: (paths: readonly string[]) => void;
 }
 
@@ -147,8 +124,6 @@ type ConditionalWriteResult =
   | { applied: true; path: string }
   | { applied: false; reason: "changed" | "not_found" };
 
-/** The client-facing compare-and-swap guard: either "my base hashed to this"
- *  or "nothing exists here yet". */
 export type GuardedWriteGuard = { expectedHash: string } | { ifAbsent: true };
 
 type GuardedWriteResult =
@@ -156,53 +131,25 @@ type GuardedWriteResult =
   | {
       applied: false;
       reason: "hash_mismatch";
-      /** What the file holds NOW — null when it no longer exists. */
       current: { content: string; hash: string } | null;
     }
   | { applied: false; reason: "exists" };
 
 export interface VaultService {
   listTree(): Promise<VaultTreeResponse>;
-  /** What ONE path is, without listing the vault — the targeted alternative
-   *  to `listTree` for a consumer that already knows which paths moved. null
-   *  covers "missing" and every entry the vault refuses to expose (a symlink,
-   *  a staging file, anything under .git). */
   statEntry(path: string): Promise<"file" | "dir" | null>;
-  /** The file paths under a directory, depth-first — `listTree` scoped to one
-   *  announced subtree. An empty result covers a missing or empty folder. */
   listFilesUnder(path: string): Promise<string[]>;
   read(path: string): Promise<{ path: string; content: string }>;
-  /** A file's validator ALONE, under exactly the containment rules `read`
-   *  applies. `etag` is derived from size and mtime, so answering a
-   *  revalidation costs one lstat — every `<img>` that re-mounts asks, and
-   *  reading the bytes to then discard them is the whole file per re-mount. */
   statAsset(path: string): Promise<{ path: string; etag: string }>;
-  /** A file's raw BYTES, for a revalidation that MISSED. Copied into an array
-   *  of their own rather than handed out as the read's Buffer, whose backing
-   *  store is a shared pool that neither `crypto.subtle` nor a Response body
-   *  will take. */
   readBytes(path: string): Promise<{ path: string; bytes: Uint8Array<ArrayBuffer>; etag: string }>;
-  /** Write attachment bytes under `dir`, picking a collision-free name from
-   *  `baseName`; answers the vault-relative path they landed at. Only
-   *  extensions the asset READ serves are accepted — bytes nothing can render
-   *  have no reason to enter the vault this way. */
   writeAsset(dir: string, baseName: string, bytes: Uint8Array): Promise<{ path: string }>;
   write(path: string, content: string): Promise<{ path: string }>;
-  /** Write `content` only if the file still holds exactly `expected`, with the
-   *  read and the write inside ONE turn of the mutation lock — the rename
-   *  rewrite's guard against clobbering a concurrent service edit. A writer
-   *  outside the service (an external editor) is not serialized by the lock
-   *  and can still race the window; that residue is accepted for a
-   *  local-first single-writer vault. */
+  // an external editor is not serialized by the lock and can still race the window; accepted.
   writeIfUnchanged(
     path: string,
     expected: string,
     content: string,
   ): Promise<ConditionalWriteResult>;
-  /** The API write's compare-and-swap: apply `content` only when the guard
-   *  holds against the file's CURRENT bytes, read and written inside ONE turn
-   *  of the mutation lock. A hash mismatch reports what the file holds now so
-   *  the caller can merge and retry. */
   writeGuarded(
     path: string,
     content: string,
@@ -210,31 +157,19 @@ export interface VaultService {
   ): Promise<GuardedWriteResult>;
   rename(from: string, to: string): Promise<{ path: string }>;
   remove(path: string): Promise<void>;
-  /** `remove` under the same guard `writeIfUnchanged` applies: delete the
-   *  file only while it still holds exactly `expected`. The delete half of a
-   *  review-mode turn's revert, where a concurrent writer must keep its bytes
-   *  rather than lose them to a rollback of somebody else's write. */
   removeIfUnchanged(path: string, expected: string): Promise<ConditionalWriteResult>;
   createDir(path: string): Promise<{ path: string }>;
 }
 
 export function createVaultService(args: VaultServiceArgs): VaultService {
-  // realpath, not resolve: every physical-containment check compares against
-  // this, and the configured root may itself be spelled through a symlink
-  // (macOS /var → /private/var).
+  // realpath, not resolve: the root may be spelled through a symlink (macos /var → /private/var).
   const rootReal = realpathSync(resolve(args.root));
   const lock = args.lock;
 
-  /**
-   * Physically verify the path's ancestry: the deepest EXISTING ancestor of
-   * `absPath`, fully symlink-resolved, must sit inside the vault. Checked
-   * BEFORE any mkdir, so a symlinked folder cannot even grow directories
-   * outside the vault.
-   */
+  // checked before any mkdir, so a symlinked folder cannot grow directories outside the vault.
   async function assertAncestryInsideVault(absPath: string): Promise<void> {
     let dir = dirname(absPath);
-    // Terminates: the walk is capped at the (existing) vault root because
-    // absPath is lexically inside it.
+    // terminates: absPath is lexically inside the existing vault root.
     while (!existsSync(dir)) {
       dir = dirname(dir);
     }
@@ -244,7 +179,6 @@ export function createVaultService(args: VaultServiceArgs): VaultService {
     }
   }
 
-  /** lstat that refuses a symlink leaf; null when the leaf does not exist. */
   async function lstatRefusingSymlink(absPath: string, relPath: string) {
     const stats = await lstat(absPath).catch(() => null);
     if (stats?.isSymbolicLink() === true) {
@@ -253,24 +187,14 @@ export function createVaultService(args: VaultServiceArgs): VaultService {
     return stats;
   }
 
-  /** A mutation that changed the TREE — a create, a delete, a rename, a new
-   *  folder. `files-changed` is what makes every client re-walk the vault, so
-   *  only a mutation that moved a row may say it. */
+  // files-changed makes every client re-walk the vault, so only a mutation that moved a row says it.
   function announceMutation(paths: readonly string[]): void {
     args.notifier.notifyVault(["files-changed"], paths);
     args.onMutated?.(paths);
   }
 
-  /**
-   * The one atomic write: tmp file + fsync + rename, then the announcement.
-   * Callers hold the lock and have already validated the leaf.
-   *
-   * `created` is what separates the two announcements. Overwriting a file
-   * changes its bytes and NOTHING a tree row carries, so a content-only write
-   * says `content-changed` alone: saying both hands a `vault` subscriber one
-   * write as two events, which costs the open note two reads and the
-   * workspace a full re-walk per keystroke's save.
-   */
+  // a content-only write says content-changed alone: saying files-changed too costs the open
+  // note two reads and the workspace a re-walk per autosave.
   async function performAtomicWrite(
     relPath: string,
     absPath: string,
@@ -311,8 +235,6 @@ export function createVaultService(args: VaultServiceArgs): VaultService {
     args.onMutated?.([relPath]);
   }
 
-  /** The asset prologue both reads share: containment, the symlink refusal,
-   *  the size cap, and the validator the two answer with. */
   async function resolveAsset(path: string) {
     const { relPath, absPath } = resolveVaultPath(rootReal, path);
     await assertAncestryInsideVault(absPath);
@@ -334,9 +256,7 @@ export function createVaultService(args: VaultServiceArgs): VaultService {
     async listTree() {
       const entries: VaultEntry[] = [];
       await walk(rootReal, "", entries);
-      // `basename` here rather than a split in the browser: this side is the
-      // one that knows the machine's separator, and a root that is itself a
-      // drive or mount point still has to be called something.
+      // basename here, not a split in the browser: this side knows the machine's separator.
       return { root: rootReal, name: basename(rootReal) || rootReal, entries };
     },
 
@@ -346,14 +266,13 @@ export function createVaultService(args: VaultServiceArgs): VaultService {
       try {
         ({ relPath, absPath } = resolveVaultPath(rootReal, path));
       } catch {
-        // A path the vault refuses is not an entry, the same as a missing one.
         return null;
       }
       const stats = await lstat(absPath).catch(() => null);
       if (stats === null || stats.isSymbolicLink()) {
         return null;
       }
-      // The listing hides ignored names; a stat must agree with it.
+      // the listing hides ignored names; a stat must agree.
       if (relPath.split("/").some((segment) => isIgnoredEntryName(segment))) {
         return null;
       }
@@ -415,6 +334,8 @@ export function createVaultService(args: VaultServiceArgs): VaultService {
         }
         throw cause;
       });
+      // a copy, not the read's Buffer: its backing store is node's shared pool, which a
+      // Response body will not take.
       const bytes = new Uint8Array(buffer.byteLength);
       bytes.set(buffer);
       return { path: relPath, bytes, etag };
@@ -492,7 +413,7 @@ export function createVaultService(args: VaultServiceArgs): VaultService {
         const current =
           existing === null ? null : await readFile(absPath, "utf8").catch(() => null);
         if (current === null) {
-          // The base the client hashed no longer exists at all.
+          // the base the client hashed no longer exists.
           return { applied: false, reason: "hash_mismatch", current: null };
         }
         const currentHash = await contentHashHex(current);
@@ -519,18 +440,16 @@ export function createVaultService(args: VaultServiceArgs): VaultService {
           throw notFound(source.relPath);
         }
         const targetStats = await lstatRefusingSymlink(target.absPath, target.relPath);
-        // On a case-insensitive filesystem a case-only rename finds "itself"
-        // at the target; the inode check keeps that legal while refusing a
-        // real overwrite.
+        // a case-only rename on a case-insensitive filesystem finds itself at the target; the
+        // inode check keeps that legal.
         const sameEntry =
           targetStats !== null &&
           targetStats.dev === sourceStats.dev &&
           targetStats.ino === sourceStats.ino;
         await mkdir(dirname(target.absPath), { recursive: true });
         if (sourceStats.isFile() && !sameEntry) {
-          // link() is the atomic refuse-overwrite: it FAILS with EEXIST when
-          // the target appears between any check and the move, where a
-          // stat-then-rename would silently clobber it.
+          // link() fails with EEXIST if the target appears between the check and the move;
+          // stat-then-rename would clobber it.
           try {
             await link(source.absPath, target.absPath);
           } catch (error) {
@@ -541,11 +460,8 @@ export function createVaultService(args: VaultServiceArgs): VaultService {
           }
           await unlink(source.absPath);
         } else {
-          // Directories (and the case-only retitle): link() cannot express
-          // either, so this keeps the check-then-rename with its TOCTOU
-          // window accepted — a same-instant external create at the target
-          // can be clobbered, which local-first single-writer usage makes a
-          // non-event.
+          // link() cannot move a directory or do a case-only retitle, so this keeps the
+          // check-then-rename toctou window.
           if (targetStats !== null && !sameEntry) {
             throw new VaultServiceError("conflict", `Target already exists: ${target.relPath}`);
           }
@@ -619,16 +535,8 @@ export function createVaultService(args: VaultServiceArgs): VaultService {
   };
 }
 
-/**
- * Remove staging files a crash left behind. Housekeeping rather than a
- * precondition: `git add` never stages one (the prefix is in the repo's own
- * `.git/info/exclude`) and both the listing and the watcher filter the same
- * names, so nothing downstream waits on this and boot need not either.
- *
- * `olderThan` is what makes running it beside live writes safe — a leftover is
- * by definition older than the process sweeping for it, so a candidate younger
- * than that timestamp is somebody's in-flight write and is left alone.
- */
+// housekeeping nothing waits on: git add never stages one (info/exclude) and the listing and
+// watcher filter the name. a candidate younger than olderThan is somebody's in-flight write.
 export async function sweepStaleTmpFiles(root: string, olderThan: number): Promise<void> {
   const resolvedRoot = resolve(root);
   async function sweep(absDir: string): Promise<void> {

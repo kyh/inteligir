@@ -1,8 +1,3 @@
-// The system handlers: what this instance IS, and the manual it serves.
-//
-// Both answer from values resolved at boot — `context.system` is a snapshot,
-// so `uptimeMs` is the one field computed per call.
-
 import { base } from "../orpc";
 import { CLI_SKILL_MD } from "../guide/cli-skill";
 

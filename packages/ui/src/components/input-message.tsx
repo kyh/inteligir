@@ -25,39 +25,21 @@ import { Button } from "@repo/ui/components/button";
 import { useIsoLayoutEffect } from "@repo/ui/lib/use-iso-layout-effect";
 
 interface InputMessageProps extends Omit<HTMLAttributes<HTMLDivElement>, "onChange"> {
-  /** Step on the size ladder. Wins over the surrounding SizeProvider and
-   *  propagates to the composer's rows and buttons. */
   size?: SizeVariant;
-  /** Controlled textarea value. */
   value: string;
-  /** Called with the new value on every textarea change. */
   onValueChange: (value: string) => void;
-  /** Fired with the trimmed value when the user submits (Enter or the send
-   *  button). */
   onSend?: (value: string) => void;
-  /** Placeholder text shown when the value is empty. */
   placeholder?: string;
-  /** Content rendered in the bottom-left action area. */
   leftSlot?: ReactNode;
-  /** Content rendered inside the card ABOVE the textarea (context chips). */
   topSlot?: ReactNode;
-  /** Content rendered in the bottom-right action area, before the built-in
-   *  send button. */
   rightSlot?: ReactNode;
-  /** Disables the textarea and send button. */
   disabled?: boolean;
-  /** Minimum visible rows before the textarea grows. */
   minRows?: number;
-  /** Maximum visible rows before the textarea starts to scroll. */
   maxRows?: number;
-  /** When false, clicking the surrounding container won't refocus the textarea. */
   clickToFocus?: boolean;
-  /** Accessible label for the send button. */
   sendLabel?: string;
-  /** The underlying textarea element, for consumers that do caret surgery
-   *  (the forwarded ref is the container's). */
+  // the forwarded ref is the container's; this one reaches the textarea
   textareaRef?: Ref<HTMLTextAreaElement>;
-  /** Extra props forwarded to the underlying textarea. */
   textareaProps?: Omit<
     TextareaHTMLAttributes<HTMLTextAreaElement>,
     "value" | "onChange" | "disabled" | "placeholder"
@@ -95,21 +77,15 @@ const InputMessage = forwardRef<HTMLDivElement, InputMessageProps>(
     const [focusVisible, setFocusVisible] = useState(false);
     const [hovered, setHovered] = useState(false);
 
-    // Split out onFocus/onBlur so the rest-spread onto the textarea can't
-    // clobber the composed handlers below.
     const {
       onFocus: _textareaOnFocus,
       onBlur: _textareaOnBlur,
-      // The consumer's onKeyDown runs BEFORE the composer's own handling and
-      // wins by preventDefault — a mention combobox must intercept the keys
-      // the composer would otherwise treat as submit.
+      // runs before the composer's own handling and wins by preventDefault (a mention combobox
+      // intercepts the keys the composer treats as submit)
       onKeyDown: consumerOnKeyDown,
       ...restTextareaProps
     } = textareaProps ?? {};
 
-    // Parsed line-height, cached per textarea element — getComputedStyle on
-    // every keystroke is needless work when the value only changes with font
-    // or zoom changes.
     const lineHeightCache = useRef<{ el: HTMLTextAreaElement; value: number } | null>(null);
 
     const resizeTextarea = useCallback(() => {
@@ -133,11 +109,9 @@ const InputMessage = forwardRef<HTMLDivElement, InputMessageProps>(
       resizeTextarea();
     }, [value, resizeTextarea]);
 
-    // Re-measure when the textarea's width changes. The mount-time pass can
-    // run while an ancestor is still laid out at (near-)zero width — the
-    // wrapped placeholder then reads as many lines and pins the height at
-    // maxRows until the next value change. Width-gated so the observer
-    // doesn't loop on its own height writes.
+    // a mount-time measure at near-zero width reads the wrapped placeholder as many lines and pins
+    // maxRows until the next value change; width-gated so the observer cannot loop on its own
+    // height writes.
     useEffect(() => {
       const el = textareaRef.current;
       if (!el) return;
@@ -155,13 +129,8 @@ const InputMessage = forwardRef<HTMLDivElement, InputMessageProps>(
     const trimmed = value.trim();
     const canSend = !disabled && trimmed.length > 0;
 
-    // Edge = the box-shadow's 1px ring, recoloured in place per state so the
-    // stroke gains contrast without ever appearing to thicken (no second
-    // border band layered beside it). The drop (`0 1px 1px`) is kept so the
-    // composer holds its lift across states. Applied inline (not via a Tailwind
-    // `shadow-*` utility, which mangles multi-layer arbitrary values) with the
-    // precedence focus > hover; when neither is active, the className's
-    // `shadow-surface-2` supplies the resting edge.
+    // inline, not a tailwind shadow-* utility, which mangles multi-layer arbitrary values;
+    // precedence focus > hover, else the className's shadow-surface-2 supplies the ring.
     const EDGE_DROP = "0 1px 1px -0.5px var(--shadow-color)";
     const edgeShadow = focusVisible
       ? `0 0 0 1px color-mix(in oklab, var(--foreground) 20%, transparent), ${EDGE_DROP}`
@@ -201,18 +170,11 @@ const InputMessage = forwardRef<HTMLDivElement, InputMessageProps>(
       [clickToFocus, disabled],
     );
 
-    // The send glyph overrides icon-compact's small 14px svg — it reads
-    // better a touch larger, and `size` matches the attribute to the CSS so
-    // the svg box stays centered.
     const composer = (
       <div
         ref={ref}
         onMouseDown={handleContainerMouseDown}
         className={cn(
-          // The edge is the box-shadow's hairline ring (from surface-2), not a
-          // border. State changes recolor that same 1px ring in place rather
-          // than layering a second colored border beside it — so hover / focus
-          // bump *contrast* without ever appearing to thicken the stroke.
           "flex flex-col gap-1 p-2 transition-[box-shadow,color] duration-80",
           surfaceClasses(2, 2),
           radius.container,
@@ -239,9 +201,6 @@ const InputMessage = forwardRef<HTMLDivElement, InputMessageProps>(
               if (e.defaultPrevented) return;
               handleKeyDown(e);
             }}
-            // Compose the consumer's textareaProps handlers with the internal
-            // focus-visible tracking (the spread below would otherwise
-            // overwrite these).
             onFocus={(e) => {
               if (e.target.matches(":focus-visible")) setFocusVisible(true);
               textareaProps?.onFocus?.(e);
@@ -267,10 +226,6 @@ const InputMessage = forwardRef<HTMLDivElement, InputMessageProps>(
           <div
             className={cn(
               "flex items-center justify-between",
-              // The footer's controls sit one notch below the composer's step:
-              // slot content is consumer-authored (usually compact-pinned
-              // Buttons), so the compact step scales any button in the row —
-              // send button included — down to 24px via a scoped override.
               compactStep
                 ? "gap-1.5 [&_button]:h-6 [&_button.w-7]:w-6 [&_button]:text-[11px]"
                 : "gap-2",
@@ -301,8 +256,6 @@ const InputMessage = forwardRef<HTMLDivElement, InputMessageProps>(
       </div>
     );
 
-    // A size prop pins the whole composer — inner buttons included — to one
-    // ladder step (matches InputGroup).
     return size ? <SizeProvider size={size}>{composer}</SizeProvider> : composer;
   },
 );

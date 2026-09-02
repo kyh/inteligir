@@ -1,7 +1,5 @@
-// What a ws frame may cost the timeline. Every provider event notifies the
-// thread and every subscriber answers by asking for the timeline again, so a
-// turn asks n times while its own log grows to n: anything this path does over
-// the WHOLE log per call is quadratic in the turn's own event count.
+// every provider event triggers a timeline re-ask, so per-call work over the
+// whole log is quadratic in the turn's own event count.
 
 import { join } from "node:path";
 import { createConnection } from "@repo/db/connection";
@@ -20,11 +18,8 @@ const { reads, projections } = vi.hoisted(() => ({
   projections: { calls: 0 },
 }));
 
-// A COST bound, not a behaviour: one row read per frame, never the log so far.
-// It has to hold for every path the service reaches, so the count is taken at
-// the module every reader goes through. Handing ThreadService a counting
-// reader instead would bound only the reads the test itself wired up, and a
-// quadratic re-read is exactly the kind nobody wires on purpose.
+// counted at the module every reader goes through: a counting reader handed to
+// ThreadService would bound only the reads the test wired.
 // oxlint-disable-next-line anti-slop/no-module-mocking
 vi.mock("@repo/db/events", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@repo/db/events")>();
@@ -39,11 +34,7 @@ vi.mock("@repo/db/events", async (importOriginal) => {
   };
 });
 
-// `buildThreadTimeline` is a pure function reached through an import, so there
-// is no boundary a fake could sit at: the claim is that a frame projects once,
-// from the projection served last, rather than rebuilding the turn from its
-// whole log. Counting at the module is the only vantage that sees a rebuild
-// made somewhere down the call path.
+// reached through an import, so the module is the only vantage that sees a rebuild down the call path.
 // oxlint-disable-next-line anti-slop/no-module-mocking
 vi.mock("@repo/api/local/build-thread-timeline", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@repo/api/local/build-thread-timeline")>();
@@ -69,7 +60,6 @@ function openService() {
   };
 }
 
-/** A thread mid-turn, with a streaming assistant message open. */
 function streamingThread(service: ThreadService) {
   const thread = service.create({});
   const scope = turnScope("turn_1");
@@ -106,7 +96,7 @@ describe("a frame during a streaming turn", () => {
     if (held?.kind !== "full") {
       throw new Error("expected a full timeline");
     }
-    // The first ask reads the whole log: turn/started + item/started.
+    // the first ask reads the whole log: turn/started + item/started.
     expect(reads.rows).toBe(2);
     let sequence = held.timeline.maxSequence;
 
@@ -119,7 +109,6 @@ describe("a frame during a streaming turn", () => {
       }
       sequence = next.delta.maxSequence;
     }
-    // One row per frame — never the log so far.
     expect(reads.rows).toBe(30);
   });
 
@@ -143,8 +132,6 @@ describe("a frame during a streaming turn", () => {
       }
       sequence = next.delta.maxSequence;
     }
-    // Once per frame: the base is the projection served last, never a second
-    // build of the prefix the delta diffs against.
     expect(projections.calls).toBe(30);
   });
 

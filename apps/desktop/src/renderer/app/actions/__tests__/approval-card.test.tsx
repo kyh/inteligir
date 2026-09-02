@@ -40,7 +40,6 @@ describe("ApprovalCard", () => {
     render(<ApprovalCard interaction={interactionWith(commandPayload)} onAnswer={onAnswer} />);
     expect(screen.getByText("$ rm -rf node_modules")).toBeTruthy();
     expect(screen.getByText("The command deletes files.")).toBeTruthy();
-    // allow_for_session was not offered, so it must not render.
     expect(screen.queryByText("Allow for session")).toBeNull();
     fireEvent.click(screen.getByText("Allow once"));
     expect(onAnswer).toHaveBeenCalledWith("pint_1", "allow_once");
@@ -75,7 +74,6 @@ describe("ApprovalCard", () => {
     const offer = approvalOffer(interactionWith(commandPayload));
     expect(offer.summary).toBe("$ rm -rf node_modules");
     expect(offer.reason).toBe("The command deletes files.");
-    // Deny is appended once, last, and never duplicated when offered.
     expect(offer.decisions).toEqual(["allow_once", "deny"]);
     expect(approvalOffer(interactionWith(null)).decisions).toEqual(["deny"]);
   });
@@ -84,7 +82,6 @@ describe("ApprovalCard", () => {
     expect(decisionFromAnswers([{ questionId: "pint_1", optionIds: ["allow_once"] }])).toBe(
       "allow_once",
     );
-    // A custom answer is not a decision this route can take.
     expect(
       decisionFromAnswers([{ questionId: "pint_1", optionIds: [], custom: "maybe" }]),
     ).toBeNull();

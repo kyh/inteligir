@@ -14,16 +14,12 @@ function remove(dir: string): void {
 }
 
 export interface TempDirOptions {
-  /** Resolve the created dir (macOS /var → /private/var) for a suite whose
-   *  assertions compare realpathed outputs against it. */
+  // macOS mounts tmpdir under a symlink (/var → /private/var); for suites comparing realpathed outputs.
   realpath?: boolean;
-  /** `test` (the default) removes the dir when the current test finishes —
-   *  registered before anything created inside it, so it runs after them.
-   *  `suite` is for a `beforeAll` fixture, removed after the file's last test. */
+  // `suite` is for a beforeAll fixture, removed after the file's last test.
   lifetime?: "test" | "suite";
 }
 
-/** A fresh temp dir, removed automatically. */
 export function makeTempDir(prefix: string, options?: TempDirOptions): string {
   const dir = mkdtempSync(join(tmpdir(), prefix));
   if (options?.lifetime === "suite") {

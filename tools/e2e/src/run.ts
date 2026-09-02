@@ -1,9 +1,3 @@
-// The e2e runner: boots real app instances on scratch dirs, runs each
-// scenario in order, tears everything down, and exits non-zero on any
-// failure with a readable transcript. Deliberately NOT a test framework —
-// the value here is orchestration (processes, ports, git remotes, a
-// browser) plus plain assertions; see e2e/README.md.
-
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -165,8 +159,7 @@ async function runScenario(
         );
       }
     }
-    // Scratch is only removed once every group is verified dead — an undead
-    // process could still be writing into it.
+    // an undead process could still be writing into the scratch.
     if (!teardownClean) {
       console.error(`${timestamp()} [${scenario.name}] scratch kept at ${scratchDir}`);
     } else if (!options.keep) {
@@ -182,9 +175,8 @@ async function runScenario(
   return { outcome, teardownClean };
 }
 
-/** Ctrl-C / a CI cancel must not orphan app process groups. SIGKILL of the
- *  runner itself cannot be trapped — those orphans are accepted: scratch
- *  lives under tmpdir and every instance dir is per-run. */
+// SIGKILL of the runner itself cannot be trapped; those orphans are accepted (scratch is per-run
+// under tmpdir).
 function installSignalCleanup(): void {
   const signals: NodeJS.Signals[] = ["SIGINT", "SIGTERM"];
   for (const signal of signals) {

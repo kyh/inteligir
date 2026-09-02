@@ -1,25 +1,6 @@
-// ---------------------------------------------------------------------------
-// The committed migrations against the declared schema.
-//
-// Unlike apps/web (which pushes and has no migration files), this database is a
-// FILE on a user's machine that only migrations can move. So two artifacts have
-// to agree and neither checks the other: `src/schema.ts` is what every query is
-// typed against, `drizzle/*.sql` is what the file on disk actually becomes. A
-// hand-edited migration, or a schema change nobody ran `db:generate` for, makes
-// the app's queries describe a table that does not exist — at runtime, on a
-// user's data, after the release.
-//
-// So: apply the committed migrations to a fresh database, apply the schema's
-// own DDL (`drizzle-kit export`, which reads the schema and touches no
-// database) to another, and compare what SQLite ended up with.
-//
-// Column ORDER is deliberately not compared. `ALTER TABLE … ADD COLUMN` appends
-// where a fresh `CREATE TABLE` places the column as declared, so the two texts
-// differ on a database that is otherwise identical — and no query in this repo
-// is positional. Everything else in the table body is compared exactly:
-// columns, types, defaults, NOT NULL, primary keys, foreign keys and CHECK
-// constraints.
-// ---------------------------------------------------------------------------
+// `drizzle/*.sql` is what a user's file becomes and `src/schema.ts` is what every query is typed
+// against; neither checks the other. column order is not compared: `ALTER TABLE … ADD COLUMN`
+// appends where a fresh `CREATE TABLE` places the column as declared, and no query is positional.
 
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
@@ -37,7 +18,7 @@ import { runMigrations } from "../migrate";
 const PACKAGE_ROOT = fileURLToPath(new URL("../..", import.meta.url));
 const MIGRATIONS_DIR = join(PACKAGE_ROOT, "drizzle");
 
-/** drizzle's own bookkeeping table, and SQLite's internals. Neither is schema. */
+// drizzle's bookkeeping table and sqlite's internals.
 const NOT_SCHEMA = /^(?:sqlite_|__drizzle_migrations$)/;
 
 const scratch = mkdtempSync(join(tmpdir(), "inteligir-schema-"));
@@ -51,9 +32,7 @@ interface SchemaObject {
   sql: string;
 }
 
-/** A `sqlite_master` row, as better-sqlite3 hands it back untyped. `sql` is
- *  null for the objects sqlite creates for itself (auto-indexes), which is
- *  why it is nullable and skipped below. */
+// `sql` is null for the objects sqlite creates for itself (auto-indexes).
 interface SchemaRow {
   type: string;
   name: string;
@@ -70,8 +49,7 @@ function parseSchemaRow(row: JsonValue): SchemaRow | null {
   return isText(sql) ? { type, name, sql } : null;
 }
 
-/** Split a `CREATE TABLE` body on its TOP-LEVEL commas: a CHECK constraint and
- *  a compound key both carry commas inside parentheses of their own. */
+// a CHECK constraint or a compound key carries commas inside its own parentheses.
 function topLevelMembers(body: string): string[] {
   const members: string[] = [];
   let depth = 0;
@@ -90,14 +68,10 @@ function topLevelMembers(body: string): string[] {
   return members.map((member) => member.replaceAll(/\s+/g, " ").trim()).filter(Boolean);
 }
 
-/** A table's definition with its members SORTED — see the column-order note
- *  above. Anything that is not a table (an index) keeps its text as written,
- *  because column order inside an index IS the index. */
+// only a table's members are sorted: column order inside an index is the index.
 function normalize(type: string, sql: string): string {
-  // Identifier quoting is style, not schema: SQLite's own RENAME (the tail of
-  // every table-REBUILD migration) rewrites the stored CREATE with
-  // double-quoted names where drizzle writes backticks. Fold both to one form
-  // so a rebuild compares by structure.
+  // sqlite's own RENAME (the tail of a table-rebuild migration) rewrites the stored CREATE with
+  // double-quoted names where drizzle writes backticks.
   const flat = sql
     .replaceAll(/"([A-Za-z_][A-Za-z0-9_]*)"/g, "`$1`")
     .replaceAll(/\s+/g, " ")
@@ -111,8 +85,6 @@ function normalize(type: string, sql: string): string {
   return `${head} (${members.join(", ")})`;
 }
 
-/** The object list alone — asserted first, so a missing table reads as a
- *  missing table rather than as a wall of DDL diffs. */
 function names(objects: SchemaObject[]): string[] {
   return objects.map((object) => `${object.type} ${object.name}`);
 }
@@ -140,10 +112,7 @@ function migratedDatabase(): string {
 }
 
 function declaredDatabase(): string {
-  // `drizzle-kit export` prints the DDL the schema declares and opens no
-  // database — the same derivation apps/web's vitest config uses for its D1
-  // test schema, so there is one way in this repo to ask "what does the schema
-  // say" and no generated file to fall behind.
+  // `drizzle-kit export` prints the schema's ddl and opens no database.
   const ddl = execFileSync(
     "pnpm",
     [
@@ -191,9 +160,7 @@ describe("the migrations and the declared schema agree", () => {
       );
     }
     expect(differences, `\n${differences.join("\n\n")}\n`).toEqual([]);
-    // 30s, not vitest's default 5s: this spawns `pnpm exec drizzle-kit export`,
-    // a subprocess whose latency tracks machine load — it runs ~0.5s idle but
-    // timed out at 5s on a CI runner busy installing the whole dep tree.
+    // spawns drizzle-kit: ~0.5s idle, but it timed out at vitest's 5s on a busy ci runner.
   }, 30_000);
 
   it("leave meta.schema_version at the latest migration's generation", () => {

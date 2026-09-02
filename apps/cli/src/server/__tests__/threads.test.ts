@@ -20,8 +20,6 @@ import {
   type BootedTestApp,
 } from "./boot-app";
 
-/** The router's client type, shared by the in-process caller and the one
- *  speaking to a real socket — the same procedures either way. */
 type ThreadsClient = BootedTestApp["client"];
 
 async function createThread(client: ThreadsClient): Promise<string> {
@@ -178,8 +176,6 @@ describe("the view context a message carries", () => {
     if (row?.kind !== "conversation") {
       throw new Error("expected the user's conversation row");
     }
-    // The bubble is what the user typed, byte for byte; the context is
-    // attribution beside it.
     expect(row.text).toBe("make this shorter");
     expect(row.viewContext).toEqual(VIEW_CONTEXT);
   });
@@ -227,8 +223,7 @@ describe("the view context a message carries", () => {
         viewContext: { ...VIEW_CONTEXT, resource: "../outside.md" },
       }),
     );
-    // The path grammar rides the input schema, so its refusal is oRPC's own
-    // validation class rather than one this domain declares.
+    // the path grammar rides the input schema, so the refusal is oRPC's own BAD_REQUEST rather than a declared class.
     expect(error instanceof ORPCError && error.code).toBe("BAD_REQUEST");
   });
 });
@@ -254,7 +249,7 @@ describe("the queue drain", () => {
     expect(listQueuedThreadMessages(db, threadId)).toHaveLength(2);
 
     driver.completeTurn(threadId, started.turnId, "completed");
-    // The drain started q1's turn, so the thread is active again, not idle.
+    // the drain started q1's turn, so the thread is active again, not idle.
     expect(await getThreadStatus(client, threadId)).toBe("active");
     expect(listQueuedThreadMessages(db, threadId)).toHaveLength(1);
 
@@ -298,9 +293,6 @@ describe("the queue drain", () => {
 
     driver.failNextStart = new Error("boom");
     driver.completeTurn(threadId, started.turnId, "completed");
-    // The request event and the queue row left together, so the thread errors
-    // and the message does NOT come back: re-queuing it would append the
-    // user's own words a second time, here and on every paired device.
     expect(await getThreadStatus(client, threadId)).toBe("error");
     expect(listQueuedThreadMessages(db, threadId)).toEqual([]);
     const rows = timelineRows(await fetchTimeline(client, threadId));
@@ -318,8 +310,6 @@ describe("the queue drain", () => {
     await client.threads.send({ threadId, text: "queued" });
     const claimed = claimNextQueuedThreadMessage(db, noopNotifier, threadId);
     expect(claimed).not.toBeNull();
-    // A claim with no owner: the queue read hides it and the next drain can
-    // never take it, so without the boot sweep this typed message is lost.
     expect(listQueuedThreadMessages(db, threadId)).toEqual([]);
 
     const revived = new ThreadService({
@@ -351,8 +341,6 @@ describe("the queue drain", () => {
     await client.threads.archive({ threadId });
 
     driver.completeTurn(threadId, started.turnId, "completed");
-    // The settle still lands (archives never wedge a run), but the drain's
-    // run.preparing is superseded — the message is released, not consumed.
     expect(await getThreadStatus(client, threadId)).toBe("idle");
     expect(listQueuedThreadMessages(db, threadId).map((row) => row.text)).toEqual(["queued"]);
     expect(driver.startedTurns).toHaveLength(1);
@@ -377,7 +365,6 @@ describe("turn identity and crash recovery", () => {
     }
     expect(await getThreadStatus(client, threadId)).toBe("active");
 
-    // The duplicate settle for the FIRST turn must not settle the second.
     driver.completeTurn(threadId, first.turnId, "completed");
     const detail = await client.threads.get({ threadId });
     expect(detail.thread.status).toBe("active");
@@ -412,15 +399,14 @@ describe("turn identity and crash recovery", () => {
     const threadId = await createThread(client);
     await client.threads.send({ threadId, text: "start" });
     expect(await getThreadStatus(client, threadId)).toBe("active");
-    // An approval the dead provider raised and nobody answered.
+    // an approval the dead provider raised and nobody answered.
     const orphan = createPendingInteraction(db, noopNotifier, {
       threadId,
       requestKey: "req-orphaned",
       payload: "{}",
     });
 
-    // A fresh booted service on the same db is a process restart: no driver
-    // claim is live, so the running thread is an orphan and settles to error.
+    // a fresh service on the same db is a process restart.
     const revived = new ThreadService({
       db,
       notifier: noopNotifier,
@@ -436,19 +422,14 @@ describe("turn identity and crash recovery", () => {
     }
     expect(errorRow.message).toContain("restarted");
 
-    // The TURN settles too, not just the thread row. The timeline is a pure
-    // fold and turn/completed is its only writer of a turn's status, so a
-    // recovery that appended provider/error alone left this row rendering
-    // "working" forever — on this device and on every device the log reaches.
+    // turn/completed is the timeline's only writer of a turn's status; provider/error alone leaves the row "working" forever.
     const turnRow = rows.find((row) => row.kind === "turn");
     if (turnRow?.kind !== "turn") {
       throw new Error("expected the orphaned turn's row");
     }
     expect(turnRow.status).toBe("error");
 
-    // The provider request behind the orphan died with the process: the row
-    // settles as interrupted, never left answerable. A restarted provider
-    // raises a fresh row (new request key) instead of a duplicate.
+    // the request behind the orphan died with the process, so it settles interrupted rather than answerable.
     expect(getPendingInteraction(db, orphan.id)?.status).toBe("interrupted");
     expect(revived.get(threadId)?.pendingInteractions).toEqual([]);
   });
@@ -557,10 +538,7 @@ describe("a fake-provider turn end-to-end", () => {
     });
     socket.send(JSON.stringify({ type: "subscribe", target: { kind: "thread-detail", threadId } }));
 
-    // The invalidation contract: the client acts on ws frames only — it never
-    // polls the API on a timer. Waiting for a specific change kind before
-    // each fetch is exactly what the workspace UI does. Every frame up to and
-    // including the match is consumed, so the next wait starts after it.
+    // the client acts on ws frames only, never polls; every frame up to the match is consumed so the next wait starts after it.
     async function waitForThreadChange(kind: string): Promise<void> {
       await vi.waitFor(
         () => {
@@ -603,8 +581,6 @@ describe("a fake-provider turn end-to-end", () => {
     expect(turnRow.status).toBe("completed");
     expect(await getThreadStatus(client, threadId)).toBe("idle");
 
-    // Second turn: the client holds its rows and maxSequence, learns of new
-    // events from the socket, and catches up with one delta fetch.
     const held = full.timeline;
     const secondSend = await client.threads.send({
       threadId,
@@ -631,8 +607,6 @@ describe("a fake-provider turn end-to-end", () => {
       rebuilt.timeline.rows.filter((row) => row.kind === "conversation").map((row) => row.text),
     ).toEqual(["hello agent", "Echo: hello agent", "and again", "Echo: and again"]);
 
-    // A delta against a base the client does NOT hold is refused client-side
-    // and answered full server-side when the base is ahead of the log.
     const staleDelta = await client.threads.timeline({ threadId, afterSequence: 1 });
     if (staleDelta.kind !== "delta") {
       throw new Error("expected a delta timeline");

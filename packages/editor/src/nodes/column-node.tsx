@@ -1,15 +1,7 @@
 // Vendored from plate (github.com/udecode/plate), MIT. © Plate contributors.
-// Column layout with OWNED drag-resize (no @platejs/resizable): live drag
-// mutates the two flanking columns' DOM flex-basis imperatively (no re-render,
-// no node write, no autosave churn); pointer-up commits every column's width
-// to the document ONCE via setNodes — percentage strings with ≤2 decimals
-// ("50%", "33.33%") summing to exactly 100. Until that first commit, columns
-// stay BARE (equal widths via flex-grow) — the locked canonical insert form.
-//
-// Width rendering: committed columns use `flex: 0 1 <width>` (basis carries
-// the ratio, shrink absorbs the row's gap space); bare columns use
-// `flex: 1 1 0%`. Commit percentages are normalized against the SUM of column
-// pixel widths, so gaps never skew the stored ratios.
+// Live drag mutates the two flanking columns' flex-basis imperatively; pointer-up commits every
+// width once via setNodes. Percentages are normalized against the sum of column pixel widths,
+// so gaps never skew the stored ratios.
 
 import { useRef } from "react";
 import { ElementApi, PathApi } from "platejs";
@@ -27,7 +19,6 @@ import { stringProp } from "@repo/editor/node-props";
 
 const MIN_PCT = 10;
 
-// ≤2 decimals, trailing zeros trimmed: 50 → "50%", 33.333 → "33.33%".
 function formatPct(value: number): string {
   return `${Number(value.toFixed(2))}%`;
 }
@@ -57,16 +48,13 @@ export function ColumnElement(props: PlateElementProps) {
     if (!(next instanceof HTMLElement)) return;
 
     e.preventDefault();
-    // Best-effort pointer capture (keeps move/up flowing when the pointer
-    // leaves the window or enters an iframe mid-drag). The listeners live on
-    // window regardless — capture is an assist, not the routing mechanism —
-    // and pointercancel (tab switch, OS gesture) aborts without committing.
+    // capture is best effort; the listeners live on window, and pointercancel aborts without committing.
     const handle = e.currentTarget;
     if ("setPointerCapture" in handle) {
       try {
         handle.setPointerCapture(e.pointerId);
       } catch {
-        // Synthetic pointers (tests, automation) may not be capturable.
+        // synthetic pointers (tests) may not be capturable.
       }
     }
     const startX = e.clientX;
@@ -87,8 +75,6 @@ export function ColumnElement(props: PlateElementProps) {
 
     const onMove = (move: PointerEvent) => {
       const delta = clampDelta(move.clientX);
-      // Imperative during drag: fixed-px basis overrides both the flex-grow
-      // fallback and any committed width without touching React or Slate.
       host.style.flex = `0 0 ${startSelf + delta}px`;
       next.style.flex = `0 0 ${pairPx - (startSelf + delta)}px`;
     };
@@ -101,8 +87,6 @@ export function ColumnElement(props: PlateElementProps) {
       next.style.flex = "";
     };
 
-    // Aborted drag (pointercancel): restore the flex-driven layout, commit
-    // nothing — the document stays untouched.
     const onCancel = () => {
       detach();
     };
@@ -110,9 +94,8 @@ export function ColumnElement(props: PlateElementProps) {
     const onUp = (up: PointerEvent) => {
       detach();
       const delta = clampDelta(up.clientX);
-      if (delta === 0) return; // no movement — document untouched
-      // Commit-on-release: every column gets a width so the group is fully
-      // width-formed; the last column absorbs rounding so widths sum to 100.
+      if (delta === 0) return;
+      // the last column absorbs rounding so widths sum to 100.
       const finalPx = startPx.map((px, i) =>
         i === selfIndex ? startSelf + delta : i === nextIndex ? startNext - delta : px,
       );

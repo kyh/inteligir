@@ -1,9 +1,3 @@
-// The client half of the ws invalidation bus: one socket against WS_PATH,
-// ref-counted subscriptions, and a reconnect loop that re-subscribes every
-// held target — so a consumer subscribes once and survives server restarts.
-// The socket is injected (a factory), so the whole lifecycle is unit-testable
-// with fakes and fake timers.
-
 import {
   realtimeSubscriptionTargetKey,
   serverMessageLenientSchema,
@@ -12,8 +6,6 @@ import {
 } from "@repo/api/local/notifications";
 import { z } from "zod";
 
-/** The slice of the WebSocket surface this client drives; the browser's
- *  WebSocket satisfies it, tests hand in a scriptable fake. */
 export interface InvalidationSocket {
   send(data: string): void;
   close(): void;
@@ -25,11 +17,8 @@ export interface InvalidationSocket {
 export interface InvalidationClientArgs {
   createSocket: () => InvalidationSocket;
   onChanged: (message: ChangedMessage) => void;
-  /** Fired after a RE-connect has resubscribed every held target (never on
-   * the first connect): anything that changed during the gap produced no
-   * frames, so the consumer must invalidate what its subscriptions cover. */
+  // re-connects only: whatever changed in the gap produced no frames, so the consumer must invalidate.
   onReconnected?: (targets: readonly RealtimeSubscriptionTarget[]) => void;
-  /** Reconnect backoff schedule; defaults to 500ms doubling, capped at 10s. */
   reconnectDelayMs?: (attempt: number) => number;
 }
 
@@ -70,8 +59,6 @@ export class InvalidationClient {
     this.teardownSocket();
   }
 
-  /** Ref-counted: the frame goes out on the first hold of a key and the
-   *  unsubscribe on the last release. Returns the release. */
   subscribe(target: RealtimeSubscriptionTarget): () => void {
     const key = realtimeSubscriptionTargetKey(target);
     const existing = this.held.get(key);
@@ -159,8 +146,7 @@ export class InvalidationClient {
     type: "subscribe" | "unsubscribe";
     target: RealtimeSubscriptionTarget;
   }): void {
-    // Not queued when closed: the open handler replays every held target, so
-    // a frame lost here is re-sent by the reconnect anyway.
+    // not queued when closed: the open handler replays every held target.
     if (this.socket !== null && this.socketOpen) {
       this.socket.send(JSON.stringify(frame));
     }
@@ -180,8 +166,6 @@ export class InvalidationClient {
   }
 }
 
-/** The browser boundary: adapts a real WebSocket to InvalidationSocket (the
- *  DOM's handler properties carry event types the seam does not need). */
 export function browserInvalidationSocket(url: string): InvalidationSocket {
   const ws = new WebSocket(url);
   const adapter: InvalidationSocket = {

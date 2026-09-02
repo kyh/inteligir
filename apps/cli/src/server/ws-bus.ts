@@ -1,9 +1,5 @@
 // Vendored from bb (github.com/get-bb/bb), MIT. © bb contributors.
 
-// The invalidation bus: implements DbNotifier at the edge — the write layer
-// announces changes, the bus fans them out to the sockets whose
-// subscriptions match.
-
 import type { DocChangeKind, ThreadChangeKind, VaultChangeKind } from "@repo/domain/change-kinds";
 import type { DbNotifier } from "@repo/domain/notifier";
 import { z } from "zod";
@@ -17,40 +13,31 @@ import {
   type VaultChangedMessage,
 } from "@repo/api/local/notifications";
 
-/** Structural on purpose: production passes hono/ws WSContext, tests a fake. */
 export interface BusSocket {
   close(code?: number, reason?: string): void;
   readyState: number;
   send(data: string): void;
-  /** The transport under hono's wrapper — `ws`'s WebSocket in production,
-   *  absent in tests. Only the shutdown path reaches for it, and only to
-   *  TERMINATE a socket that ignored its close frame. */
+  // the transport under hono's wrapper; only the shutdown path terminates through it.
   readonly raw?: unknown;
 }
 
 const SOCKET_OPEN_STATE = 1;
 
-/** RFC 6455 "going away" — what a server that is shutting down owes a client,
- *  so the page can distinguish a deliberate stop from a dropped connection. */
+// rfc 6455 going away, so the page can tell a deliberate stop from a dropped connection.
 const GOING_AWAY_CLOSE_CODE = 1001;
 
-/** The transport under hono's wrapper, when it can be terminated. */
 interface TerminableTransport {
   terminate(): void;
 }
 
-// `z.custom` passes the ORIGINAL object through, which is what keeps
-// `terminate()` bound to the socket that owns it.
+// z.custom passes the original object through, keeping terminate() bound to its socket.
 const terminableTransportSchema = z.custom<TerminableTransport>(
   (value) =>
     z.looseObject({ terminate: z.custom((member) => member instanceof Function) }).safeParse(value)
       .success,
 );
 
-/** Invoke `raw.terminate()` if the transport has one. Parsed rather than
- *  asserted: the fake sockets the tests inject have no raw at all. Exported
- *  because the voice-stream hub tears down its own hijacked sockets the same
- *  way — one spelling of "destroy a transport that ignored its close frame". */
+// parsed rather than asserted: the fake sockets tests inject have no raw at all.
 export function terminateTransport(socket: { readonly raw?: unknown }): void {
   const transport = terminableTransportSchema.safeParse(socket.raw);
   if (!transport.success) {
@@ -65,9 +52,6 @@ export function terminateTransport(socket: { readonly raw?: unknown }): void {
 
 const socketPayloadDecoder = new TextDecoder();
 
-/** What a ws transport may hand over as a frame body. `Blob` and a shared
- *  buffer are in the union because a transport can produce them; the decoder
- *  below refuses them rather than guessing at an encoding. */
 export type SocketPayload = string | Blob | ArrayBufferLike | ArrayBufferView;
 
 function decodeSocketPayload(raw: SocketPayload): string {
@@ -88,25 +72,16 @@ export class WsBus implements DbNotifier {
   private readonly keysBySocket = new Map<BusSocket, Set<string>>();
   private readonly socketsByKey = new Map<string, Set<BusSocket>>();
 
-  /** Called on socket open; acks with the hello frame. */
   registerClient(socket: BusSocket): void {
     if (!this.keysBySocket.has(socket)) {
       this.keysBySocket.set(socket, new Set());
     }
-    // Outbound frames are house-constructed against the contract types, so
-    // they serialize directly — ws-bus.test.ts parses every frame the bus can
-    // emit against the strict schemas instead of paying a parse per send.
     const hello: HelloMessage = { type: "hello" };
     socket.send(JSON.stringify(hello));
   }
 
-  /**
-   * Ask every client to go away. Shutdown's FIRST act, and it has to be
-   * explicit: an upgraded socket is detached from the HTTP server's connection
-   * tracking, so `server.close()` never completes while one is open and
-   * `closeAllConnections()` does not touch it — the whole teardown stalls
-   * behind a single open tab.
-   */
+  // an upgraded socket is detached from the http server's connection tracking, so server.close()
+  // never completes while one is open and closeAllConnections() does not touch it.
   closeAllClients(): void {
     for (const socket of this.keysBySocket.keys()) {
       try {
@@ -117,8 +92,6 @@ export class WsBus implements DbNotifier {
     }
   }
 
-  /** The deadline behind {@link closeAllClients}: a client that ignored the
-   *  close frame has its transport destroyed. */
   terminateAllClients(): void {
     for (const socket of this.keysBySocket.keys()) {
       terminateTransport(socket);
@@ -142,7 +115,6 @@ export class WsBus implements DbNotifier {
     this.keysBySocket.delete(socket);
   }
 
-  /** Inbound frames are parsed strictly; anything else closes the socket. */
   handleMessage(socket: BusSocket, raw: SocketPayload): void {
     let decoded: unknown;
     try {
@@ -231,8 +203,7 @@ export class WsBus implements DbNotifier {
 
     const payload = JSON.stringify(message);
     for (const socket of sockets) {
-      // A closing/closed socket stays registered until its onClose fires;
-      // sending into it throws on ws and silently drops elsewhere.
+      // a closing socket stays registered until its onClose fires; sending into it throws on ws.
       if (socket.readyState !== SOCKET_OPEN_STATE) {
         continue;
       }

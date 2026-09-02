@@ -1,7 +1,3 @@
-// A refused history read must render as a failure: "No revisions yet" is a
-// claim about the user's data, and a repo that could not answer has not made
-// it. The refusal is the server's own — a path the vault refuses to read.
-
 import { QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { bootTestApp } from "inteligir/server/testing";

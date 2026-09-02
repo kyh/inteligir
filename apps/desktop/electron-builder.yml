@@ -1,15 +1,10 @@
-# Packaging for the macOS arm64 build. UNSIGNED and un-notarized on purpose:
-# the signing identity is owner-gated, so this config produces a local artifact
-# and README.md documents the release path rather than running it.
+# unsigned, un-notarized local artifact; README.md documents the release path
 appId: com.inteligir.desktop
 productName: Inteligir
 directories:
   buildResources: resources
   output: .output/bin
-# The server is a CHILD PROCESS, so its entry has to be a real file on disk —
-# an asar is not a filesystem a process can be spawned from. Everything under
-# node_modules is unpacked for that reason (server-instance.ts rewrites the
-# app.asar path to match), which also covers better-sqlite3's .node binary.
+# node_modules unpacked: the server is spawned as a child process and cannot run from an asar
 asar: true
 asarUnpack:
   - node_modules/**
@@ -19,15 +14,8 @@ files:
   - package.json
   - resources/icon.png
   - "!**/*.map"
-# NO native rebuild step, and that is a fact about the three modules rather
-# than an omission: better-sqlite3 13, @parcel/watcher and
-# sherpa-onnx-node are all Node-API addons that ship per-platform
-# prebuilds (sherpa-onnx-node through per-platform optionalDependencies), and
-# Node-API is ABI-stable across Node and Electron — so the binary npm
-# installed is the one the packaged app loads. npmRebuild stays OFF because it
-# would rebuild in place, and in a pnpm workspace that means clobbering the
-# shared store's copy every other package and the whole test suite depends on.
-# Re-check this if any of them ever goes back to a gyp build.
+# npmRebuild off: the three native modules are prebuilt Node-API addons (ABI-stable across
+# Node and Electron), and a rebuild would clobber the pnpm store's shared copy
 npmRebuild: false
 mac:
   target:
@@ -37,15 +25,10 @@ mac:
   artifactName: Inteligir-${version}-${arch}.${ext}
   category: public.app-category.productivity
   icon: resources/icon.icns
-  # No certificate here. hardenedRuntime without a signature produces an app
-  # Gatekeeper refuses on another machine, so the local artifact is plainly
-  # unsigned instead of pretending otherwise.
+  # hardenedRuntime without a signature produces an app Gatekeeper refuses elsewhere
   identity: null
   notarize: false
   hardenedRuntime: false
 dmg:
   sign: false
-# There is NO update feed: a shell that checks an empty channel is worse than
-# one that does not check — it reports failures the user cannot act on. Wiring
-# electron-updater is a follow-up that starts with choosing the channel.
 publish: null

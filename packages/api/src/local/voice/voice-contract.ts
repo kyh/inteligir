@@ -1,9 +1,4 @@
-// The voice procedures: the dictation switch (status/install/remove) and the
-// whole-clip batch transcribe.
-//
-// `GET /voice/stream` is deliberately NOT here, and the reason is in
-// `voice-schema`: a websocket is neither a request/response pair nor something
-// a typed client can reach.
+// GET /voice/stream is a websocket, not a procedure.
 
 import { oc } from "@orpc/contract";
 import { PROVIDER_UNAVAILABLE } from "../local-errors";
@@ -16,21 +11,15 @@ import {
 export const voiceContract = {
   status: oc.output(voiceStatusResponseSchema),
 
-  /**
-   * Start the download and answer the status it moved to. It does NOT wait for
-   * the bytes: a ~106 MB fetch outlives any request timeout worth having, so the
-   * surface polls `status` for `receivedBytes` while it runs.
-   */
+  // answers before the bytes land: a ~106 mb fetch outlives any request timeout, so the surface
+  // polls `status`.
   install: oc.output(voiceStatusResponseSchema).errors({ CONFLICT: {}, PROVIDER_UNAVAILABLE }),
 
-  /** Turn dictation off: cancel any download, delete the model, answer the
-   *  status. Idempotent — this is a switch, so "already off" is not a
-   *  refusal. */
+  // idempotent: "already off" is not a refusal.
   remove: oc.output(voiceStatusResponseSchema),
 
-  /** A runtime that loaded and then refused the clip answers the same
-   *  `PROVIDER_UNAVAILABLE` as one that never loaded: from the caller's side it
-   *  is the same unusable capability, and the message tells them apart. */
+  // a loaded runtime that refuses the clip answers PROVIDER_UNAVAILABLE too; the message tells
+  // them apart.
   transcribe: oc
     .input(voiceTranscribeRequestSchema)
     .output(voiceTranscribeResponseSchema)

@@ -1,12 +1,3 @@
-// The slash menu driven by a REAL browser, end to end: real keystrokes open
-// the Plate slash combobox on an empty paragraph, the query narrows it to one
-// row, Enter applies it, and the construct that lands is serialized to the
-// file. The unit suite proves the kit under jsdom; only this proves a "/"
-// typed on a keyboard reaches it through the bundle and Slate's DOM reader.
-//
-// The last assertion is the one that matters most: a menu that inserted the
-// right element and the wrong bytes is a bug only the file can show.
-
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
@@ -33,7 +24,7 @@ export const slashMenuBrowser: Scenario = {
   async run(ctx) {
     const app = await ctx.boot({
       name: "solo",
-      // Sorts before the seeded welcome note, so the virgin boot opens it.
+      // sorts before the seeded welcome note, so the virgin boot opens it.
       seedVault: async (vaultDir) => {
         await writeFile(join(vaultDir, DOC_PATH), DOC, "utf8");
       },
@@ -48,10 +39,8 @@ export const slashMenuBrowser: Scenario = {
 
       ctx.log("putting the caret at the end of the paragraph and opening a fresh block");
       await agentBrowser(["find", "text", PARAGRAPH, "click"]);
-      // The click parks the caret mid-text and End can race focus settling;
-      // an Enter from mid-paragraph SPLITS it and the block transform then
-      // eats the tail. Press End until the selection really sits at the
-      // paragraph's end before opening the fresh block.
+      // End can race focus settling, and an Enter from mid-paragraph splits it and the block
+      // transform eats the tail.
       const CARET_AT_END =
         "String((() => { const sel = window.getSelection(); if (!sel || sel.rangeCount === 0) return false; const r = sel.getRangeAt(0); return r.collapsed && r.endContainer.textContent !== null && r.endOffset === r.endContainer.textContent.length; })())";
       const caretDeadline = Date.now() + 15_000;
@@ -67,8 +56,8 @@ export const slashMenuBrowser: Scenario = {
 
       ctx.log("typing the slash");
       await agentBrowser(["type", EDITOR, "/"]);
-      // The combobox portals outside the layout flow, which headless treats
-      // as not-visible — `wait` never resolves on it, so poll the DOM count.
+      // the combobox portals outside the layout flow, which headless treats as not-visible, so
+      // `wait` never resolves.
       const OPTS = "String(document.querySelectorAll('[role=option]').length)";
       const menuDeadline = Date.now() + 15_000;
       for (;;) {
@@ -82,9 +71,8 @@ export const slashMenuBrowser: Scenario = {
       ctx.log("narrowing to one row by its query");
       await agentBrowser(["press", "h"]);
       await agentBrowser(["press", "2"]);
-      // Narrowing re-renders the portal'd rows; under full-suite load one
-      // settle tick is not a bound, so poll to the same deadline the open
-      // does.
+      // narrowing re-renders the portal'd rows; one settle tick is not a bound under full-suite
+      // load.
       const narrowDeadline = Date.now() + 15_000;
       let rows: string[] = [];
       for (;;) {
@@ -132,7 +120,6 @@ export const slashMenuBrowser: Scenario = {
         expect(Date.now() < deadline, `the note never saved; on disk:\n${onDisk}`);
         await delay(250);
       }
-      // No stray query text, and the paragraph the caret started on survives.
       expect(!onDisk.includes("/h2"), `the query text survived the insert:\n${onDisk}`);
       expect(onDisk.includes(PARAGRAPH), `the seeded paragraph was lost:\n${onDisk}`);
     } finally {

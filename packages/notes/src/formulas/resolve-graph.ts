@@ -1,13 +1,7 @@
-// The cross-note value graph: evaluate an expression whose bound references
-// reach other formulas, possibly in other notes, with cycles and misses
-// answered as STALE rather than half-computed. Pure — the caller supplies
-// every note's collected formulas; nothing here reads a file.
-
 import { evaluateExpression, type BoundRef, type ExpressionNode } from "./expression";
 import { formulasById, type CollectedFormula } from "./collect-formulas";
 
 export type FormulaGraph = {
-  /** A note's formulas by its frontmatter id. */
   notes: ReadonlyMap<string, readonly CollectedFormula[]>;
 };
 
@@ -15,12 +9,7 @@ export type ResolveOutcome =
   | { ok: true; value: number }
   | { ok: false; reason: "missing-ref" | "cyclic" | "not-finite" };
 
-/**
- * Evaluate `expression` against the graph. `selfNoteId` names the note the
- * expression lives in — a bound ref whose noteId matches resolves locally
- * even when the graph has no entry for it (a note without a persisted id yet
- * still resolves its own variables via `selfFormulas`).
- */
+// selfFormulas answers refs into this note even when the graph has no entry for it yet
 export function resolveExpression(
   expression: ExpressionNode,
   graph: FormulaGraph,

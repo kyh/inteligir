@@ -29,9 +29,7 @@ describe("SearchIndex — ranking", () => {
     const index = new SearchIndex();
     index.set("both.md", { title: "alpha beta", headings: [], body: "" });
     index.set("one.md", { title: "alpha", headings: [], body: "" });
-    // `beta` narrows, because the conjunction had an answer …
     expect(paths(index, "alpha beta")).toEqual(["both.md"]);
-    // … and `gamma` cannot, because requiring it answers with nothing.
     expect(paths(index, "alpha gamma")).toEqual(["both.md", "one.md"]);
   });
 
@@ -51,8 +49,6 @@ describe("SearchIndex — ranking", () => {
       headings: [],
       body: "I have been exhausted lately and cannot focus on anything at work.",
     });
-    // Every token was required before, `how` and `do` included, so this whole
-    // class of query answered with nothing at all.
     expect(paths(index, "how do I stop feeling burnt out at work")).toEqual(["burnout.md"]);
   });
 
@@ -60,7 +56,6 @@ describe("SearchIndex — ranking", () => {
     const index = new SearchIndex();
     index.set("phrase.md", { title: "how do I", headings: [], body: "" });
     index.set("other.md", { title: "how", headings: [], body: "" });
-    // Not the whole index, and not nothing: the conjunction still holds.
     expect(paths(index, "how do I")).toEqual(["phrase.md"]);
   });
 
@@ -69,7 +64,6 @@ describe("SearchIndex — ranking", () => {
     index.set("exact.md", { title: "alp", headings: [], body: "" });
     index.set("prefix.md", { title: "alpha", headings: [], body: "" });
     expect(paths(index, "alp")).toEqual(["exact.md", "prefix.md"]);
-    // Non-final tokens never prefix-match.
     expect(paths(index, "alph nothing")).toEqual([]);
   });
 
@@ -92,19 +86,15 @@ function hiring(): SearchIndex {
 
 describe("SearchIndex — stemming", () => {
   it("reaches a word the note inflects differently", () => {
-    // `interviewing` is nowhere in the note; `interviewers` is, and no prefix
-    // of either reaches the other.
+    // no prefix of either word reaches the other; only the stem does
     expect(paths(hiring(), "interviewing candidates")).toEqual(["hiring.md"]);
   });
 
   it("stems the token still being typed too, so one word is a whole query", () => {
-    // The commonest search-box input there is. Without this the typed term is
-    // a bare prefix, and `interviewer` never reaches `interviewers`.
     expect(paths(hiring(), "interviewer")).toEqual(["hiring.md"]);
   });
 
   it("still prefix-matches a genuine fragment, which no stem can", () => {
-    // `interv` stems to itself; the literal postings are what answer here.
     expect(paths(hiring(), "interv")).toEqual(["hiring.md"]);
   });
 

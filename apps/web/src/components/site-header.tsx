@@ -25,9 +25,7 @@ function XIcon({ className }: { className?: string }) {
   );
 }
 
-// Hydration gate: false through the server render and the hydrating one, true
-// from the first client render on. There is nothing to subscribe to — the
-// snapshot pair *is* the signal — so subscribe hands back a no-op unsubscribe.
+// hydration gate: the server snapshot is false, the client snapshot true; nothing to subscribe to
 const neverChanges = () => () => {};
 const onClient = () => true;
 const onServer = () => false;
@@ -37,8 +35,7 @@ function ThemeToggle() {
   const mounted = useSyncExternalStore(neverChanges, onClient, onServer);
 
   const isDark = resolved === "dark";
-  // The theme icon renders invisible before mount to avoid a hydration
-  // mismatch while the theme provider reconciles from localStorage.
+  // invisible before mount: the icon depends on localStorage, which the server render cannot see
   return (
     <Button
       variant="secondary"
@@ -57,8 +54,6 @@ function ThemeToggle() {
 }
 
 export function SiteHeader() {
-  // Social links are plain anchors styled to match the icon buttons beside
-  // them: they navigate, so the semantics are an anchor's.
   return (
     <header className="fixed top-4 right-4 z-50 flex items-center gap-1">
       <ThemeToggle />

@@ -20,7 +20,6 @@ describe("pull-apply by global seq", () => {
       }),
     ];
     const plan = planPage(rows, SELF);
-    // Consecutive rows for one thread collapse into ONE apply group.
     expect(plan.steps).toHaveLength(1);
     applyPlan(store, plan.steps);
 
@@ -60,8 +59,6 @@ describe("pull-apply by global seq", () => {
     ];
     applyPlan(store, planPage(rows, SELF).steps);
 
-    // Only the other device's event lands; the own row is skipped, yet the
-    // cursor sits past both.
     expect(store.snapshotThread("thr_1")?.events).toHaveLength(1);
     expect(store.readCursor()).toBe(11);
   });

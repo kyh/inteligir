@@ -1,20 +1,9 @@
-// "How long ago", once, for the whole window.
-//
-// EPOCH MILLISECONDS, AND `now` PASSED IN. A surface that grows its own ladder
-// disagrees with its neighbours on tiers, casing and rounding, and a reader
-// cannot tell a wording difference from a difference in age. The UNIT is the
-// dangerous half: a helper over unix seconds and one over epoch ms look
-// identical at every call site, and neither the types nor the wire distinguish
-// them, so a value carried between them is three orders of magnitude wrong
-// with no compile error. A caller whose value speaks seconds converts at its
-// own boundary.
+// Epoch milliseconds only. A caller holding unix seconds converts at its own
+// boundary: nothing in the types distinguishes the two units.
 
 import { useEffect, useState } from "react";
 
 export interface RelativeTimeOptions {
-  /** Render a sub-minute gap as `40s ago` rather than "Just now" — for a
-   *  surface whose whole claim is freshness (the sync row renders right beside
-   *  the button that refreshes it). */
   seconds?: boolean;
 }
 
@@ -28,8 +17,7 @@ export function relativeTimeLabel(
   nowMs: number,
   options?: RelativeTimeOptions,
 ): string {
-  // A clock that ran backwards (a synced timestamp from a device ahead of this
-  // one) reads as "now" rather than as a negative age.
+  // A synced timestamp from a device whose clock is ahead reads as "now".
   const elapsed = Math.max(0, nowMs - atMs);
   if (elapsed < MINUTE_MS) {
     return options?.seconds === true ? `${String(Math.floor(elapsed / 1000))}s ago` : "Just now";
@@ -40,14 +28,10 @@ export function relativeTimeLabel(
   return new Date(atMs).toLocaleDateString();
 }
 
-/** A minute is the finest tier `relativeTimeLabel` distinguishes above "Just
- *  now", so it is the default cadence; a surface rendering the seconds tier
- *  passes a tick to match. */
 const CLOCK_TICK_MS = 60_000;
 
-/** The clock these labels read. A `Date.now()` during render is an impure read
- *  — the age shown is whatever the last unrelated re-render happened to catch
- *  — so the clock is state, advanced on its own tick. */
+// Not `Date.now()` in render: the age shown would be whatever the last
+// unrelated re-render caught.
 export function useNow(tickMs: number = CLOCK_TICK_MS): number {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {

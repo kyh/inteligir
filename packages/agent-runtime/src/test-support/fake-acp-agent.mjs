@@ -1,22 +1,5 @@
-// A scripted ACP agent for tests: speaks the real protocol over stdio through
-// the official lib's AgentSideConnection, so the runtime under test exercises
-// the same wire it uses in production. FAKE_ACP_MODE picks the scenario:
-//
-//   message      one turn: two message chunks, then end_turn
-//   fileChange   one turn: an edit tool call writing FAKE_ACP_FILE (real
-//                bytes, so commit attribution sees a dirty tree), completed,
-//                a confirmation chunk, then end_turn
-//   approval     one turn: a permission request first; allowed → chunk +
-//                end_turn, denied → end_turn immediately
-//   promptEcho   one turn: echoes the prompt's LEADING text block back as a
-//                message chunk, so a caller can assert what it actually sent
-//   silent       accepts the prompt and never settles it (watchdog food)
-//
-// Session ids are minted `fakeacp_<pid>_<n>` — unique across adapter
-// processes, as every real harness's ids are, because the runtime routes
-// sessionUpdate frames by provider session id and one adapter runs per
-// thread. loadSession echoes the requested id so resume paths can assert
-// identity survival.
+// FAKE_ACP_MODE: message | fileChange (writes FAKE_ACP_FILE) | approval | promptEcho | silent.
+// session ids carry the pid: the runtime routes frames by provider session id across adapters.
 
 import { writeFileSync } from "node:fs";
 import { Readable, Writable } from "node:stream";

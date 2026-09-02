@@ -4,30 +4,15 @@ import { and, eq, isNull } from "drizzle-orm";
 import type { createDb } from "../db/client";
 import { device } from "../db/schema";
 
-// ---------------------------------------------------------------------------
-// Device-credential verification: the auth for /v1/sync/*, /v1/capture and
-// the vault git remote. A hash compare against D1 on EVERY request, never
-// cached — dashboard revocation must bite on the device's next request, and a
-// cache with any TTL would be exactly the window a revoked credential keeps
-// working through (bb caches here and pays for it with a "fresh" bypass).
-// ---------------------------------------------------------------------------
+// A hash compare against D1 on every request, never cached: a cache with any TTL is the
+// window a revoked credential keeps working through.
 
 export type VerifiedDevice = {
   readonly deviceId: string;
   readonly userId: string;
 };
 
-/**
- * Resolve the `Authorization` header to the device that owns it, or null.
- *
- * The `igd_` prefix routes the bearer: a Better Auth session token never
- * reaches this table and a device credential never reaches Better Auth, so
- * the two bearer vocabularies cannot shadow each other. Lookup is BY HASH
- * (indexed, unique), so an unknown credential costs one miss — and equality is
- * exact on the digest, which no timing can narrow. The `lastSeenAt` write is
- * the dashboard's liveness column; one indexed D1 UPDATE per request is the
- * price of never caching.
- */
+// the igd_ prefix routes the bearer: a session token never reaches this table and a device credential never reaches Better Auth
 export async function verifyDeviceCredential(
   db: ReturnType<typeof createDb>,
   authorization: string | null,
@@ -45,14 +30,8 @@ function bearerCredential(authorization: string | null): string | null {
   return credential;
 }
 
-/**
- * The credential from EITHER carrier — Bearer, or HTTP Basic where the
- * password holds it (a client that put the token in the username slot still
- * verifies, since the other field is empty exactly then). Only the vault git
- * remote accepts Basic — a stock git client answers its 401 challenge that
- * way — but how an Authorization header yields a device credential stays this
- * module's one fact.
- */
+// Basic as well: a stock git client answers the vault remote's 401 that way with the credential
+// as the password; a token put in the username slot still verifies, since the other field is empty then
 export function deviceCredentialFromHeader(authorization: string | null): string | null {
   const bearer = bearerCredential(authorization);
   if (bearer !== null) return bearer;
@@ -73,13 +52,6 @@ export function deviceCredentialFromHeader(authorization: string | null): string
   return pass !== "" ? pass : decoded.slice(0, colon);
 }
 
-/**
- * The value-level half, for the one surface where the credential arrives
- * outside a Bearer header: the vault git remote, where a stock git client
- * answers the 401 challenge with HTTP Basic and the credential is the
- * password. The `igd_` prefix check stays here so both carriers route
- * through the same vocabulary split.
- */
 export async function verifyDeviceCredentialValue(
   db: ReturnType<typeof createDb>,
   credential: string,

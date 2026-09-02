@@ -1,7 +1,3 @@
-// The sync loop's own behaviour, against `FakeCloud` — the contract's rules
-// over Maps. What each case pins is a promise of the sync contract that no
-// unit below the runtime can keep on its own.
-
 import { ACCOUNT_API_PATHS } from "@repo/api/cloud/account/account-schema";
 import { CAPTURE_API_PATHS } from "@repo/api/cloud/captures/captures-schema";
 import { SYNC_API_PATHS } from "@repo/api/cloud/sync/sync-schema";
@@ -79,9 +75,7 @@ interface Harness {
   runtime: CloudRuntime;
   applied: Array<{ threadId: string; events: readonly ThreadEvent[]; cursor: number }>;
   socketOpens: OpenCloudSocketArgs[];
-  /** Every URL this runtime asked the desktop to open. */
   opened: string[];
-  /** How many vault passes the runtime asked for (the onVaultPing hook). */
   vaultPings: () => number;
 }
 
@@ -89,10 +83,7 @@ function makeHarness(
   options: {
     fetch?: CloudFetch;
     pollIntervalMs?: number | null;
-    /** Share one cloud between harnesses, or between a harness and a fetch
-     *  wrapper that gates it. */
     cloud?: FakeCloud;
-    /** What the injected opener answers — false is the headless machine. */
     canOpenBrowser?: boolean;
   } = {},
 ): Harness {
@@ -112,9 +103,7 @@ function makeHarness(
         events: args.rows.map((row) => row.event),
         cursor: args.cursor,
       });
-      // The real sink is `ThreadService`, which writes the cursor inside the
-      // same transaction that appends. A stub that skipped it would replay
-      // every page forever and hide exactly the bug that pairing buys.
+      // the real sink writes the cursor in the apply's transaction; a stub that skips it replays every page.
       writeSyncCursor(db, args.cursor);
     },
   };
@@ -169,7 +158,6 @@ function append(harness: Harness, events: readonly ThreadEvent[]): void {
   });
 }
 
-/** The approve page's act, then the `state` the callback carries. */
 function approve(cloud: FakeCloud, begun: CloudPairBeginResponse, code: string): string {
   approveMint(cloud, begun.url, code);
   return stateOf(begun.url);
@@ -205,16 +193,12 @@ describe("sync is off until someone pairs", () => {
 
     harness.runtime.start();
     append(harness, [message("thr_1", "a local message nobody asked to sync")]);
-    // Ten minutes at the SHIPPING cadence — the poll interval is left at its
-    // default here on purpose, so this is the real timer or none at all.
+    // the poll interval is left at its shipping default on purpose.
     await vi.advanceTimersByTimeAsync(10 * 60_000);
 
     expect(harness.cloud.requests).toEqual([]);
     expect(harness.socketOpens).toEqual([]);
     expect(harness.runtime.status()).toEqual({ state: "off", cloudUrl: CLOUD_URL });
-    // Nor does it queue against a day someone might pair: the log is the
-    // ACCOUNT's history, and a backlog no other device has a base for is not
-    // it.
     expect(countSyncOutbox(harness.db)).toBe(0);
   });
 
@@ -241,8 +225,6 @@ describe("pairing", () => {
     expect(readDeviceCredential(harness.dataDir)).toEqual({
       deviceId,
       credential: expect.stringMatching(/^igd_[0-9a-f]{64}$/u),
-      // Learned from /v1/account after the session opened — the identity the
-      // vault's cross-account fence compares its marker against.
       userId: "user_fake",
     });
     const status = harness.runtime.status();
@@ -250,10 +232,6 @@ describe("pairing", () => {
   });
 
   it("retries the account identity on the next pass rather than losing vault sync for good", async () => {
-    // The identity is fetched once when a session opens, and the vault's
-    // cross-account fence FAILS CLOSED without it — so a laptop that
-    // autostarted before its network was up would push nothing, ever, and say
-    // nothing about why.
     const cloud = new FakeCloud();
     let refusals = 1;
     const harness = makeHarness({
@@ -275,14 +253,12 @@ describe("pairing", () => {
     await harness.runtime.syncNow();
 
     expect(readDeviceCredential(harness.dataDir)?.userId).toBe("user_fake");
-    // Learning it re-kicks the vault pass the fence deferred.
     expect(harness.vaultPings()).toBe(pingsWhileBlind + 1);
   });
 
   it("reports the cloud's own refusal for a code it will not take", async () => {
     const harness = makeHarness({ pollIntervalMs: null });
-    // No approve(): the code is never registered, so the cloud refuses it — the
-    // ordinary invalid-code path, unrelated to PKCE.
+    // no approve(): the code was never minted.
     const begun = await harness.runtime.beginPair({
       callbackUrl: CALLBACK_URL,
       openBrowser: false,
@@ -301,9 +277,6 @@ describe("pairing", () => {
   });
 });
 
-// The state is what binds a callback to a request THIS app made. Every way it
-// can fail to bind is a way a loopback route reachable by any local page turns
-// into a pairing nobody asked for, so each one is pinned.
 describe("the pending approval", () => {
   it("puts the callback, the state and the device name on the approve URL", async () => {
     const harness = makeHarness({ pollIntervalMs: null });
@@ -320,12 +293,10 @@ describe("the pending approval", () => {
     expect(url.searchParams.get("name")).toBe("Work laptop");
     expect(url.searchParams.get("state")).toMatch(/^[0-9a-f]{32}$/u);
     expect(begun).toMatchObject({ opened: true, deviceName: "Work laptop" });
-    // The SERVER opens it — same act from a browser tab, the shell or the CLI.
     expect(harness.opened).toEqual([begun.url]);
   });
 
   it("opens nothing when the caller did not ask, and still answers the URL", async () => {
-    // The agent's path: a browser window nobody asked for is the failure.
     const harness = makeHarness({ pollIntervalMs: null });
     const begun = await harness.runtime.beginPair({
       callbackUrl: CALLBACK_URL,
@@ -358,8 +329,6 @@ describe("the pending approval", () => {
     const credential = readDeviceCredential(harness.dataDir);
     expect(credential).not.toBeNull();
 
-    // The same URL out of a browser history: the state was consumed, so this
-    // is no-pending before any redeem — no second credential.
     const replayed = await harness.runtime.completePair({ code: PAIR_CODE, state });
     expect(replayed.kind).toBe("no-pending");
     expect(readDeviceCredential(harness.dataDir)).toEqual(credential);
@@ -385,8 +354,6 @@ describe("the pending approval", () => {
       (await harness.runtime.completePair({ code: PAIR_CODE, state: "f".repeat(32) })).kind,
     ).toBe("state-mismatch");
     expect(harness.cloud.requests).toEqual([]);
-    // Otherwise any local page could cancel a pairing the user is halfway
-    // through, just by guessing wrong.
     expect((await harness.runtime.completePair({ code: PAIR_CODE, state })).kind).toBe("paired");
   });
 
@@ -451,7 +418,6 @@ describe("the pending approval", () => {
     await harness.runtime.dispose();
     const outcome = await harness.runtime.completePair({ code: PAIR_CODE, state });
 
-    // No redeem over the network, and no credential written after teardown.
     expect(outcome.kind).toBe("no-pending");
     expect(harness.cloud.requests).toEqual([]);
     expect(readDeviceCredential(harness.dataDir)).toBeNull();
@@ -464,17 +430,12 @@ describe("a push interrupted mid-batch", () => {
     await pair(harness);
     append(harness, [message("thr_1", "one"), message("thr_1", "two")]);
 
-    // The connection dies after the first event is stored and before the
-    // response is written — the client learns nothing, so the queue keeps
-    // BOTH positions.
     harness.cloud.dropNextPushResponse = true;
     await harness.runtime.syncNow();
     expect(harness.cloud.logSize()).toBe(1);
     expect(countSyncOutbox(harness.db)).toBe(2);
 
     await harness.runtime.syncNow();
-    // Position 1 replays with byte-identical bytes (a counted duplicate);
-    // position 2 lands. Nothing is stored twice and nothing conflicts.
     expect(harness.cloud.logSize()).toBe(2);
     expect(countSyncOutbox(harness.db)).toBe(0);
     const status = harness.runtime.status();
@@ -486,9 +447,7 @@ describe("a capture delivered twice", () => {
   it("applies once", async () => {
     const cloud = new FakeCloud();
     let lapsed = false;
-    // The residual the contract states in full: a device that applies and then
-    // loses its claim is handed the capture again. Reproduced by lapsing every
-    // claim just as the first ack goes out, so that ack owns nothing.
+    // lapse every claim as the first ack goes out, so that ack owns nothing.
     const fetchWithLapse: CloudFetch = async (input, init) => {
       if (!lapsed && new URL(input).pathname === CAPTURE_API_PATHS.ack) {
         lapsed = true;
@@ -497,8 +456,7 @@ describe("a capture delivered twice", () => {
       return cloud.fetch(input, init);
     };
     const harness = makeHarness({ pollIntervalMs: null, fetch: fetchWithLapse });
-    // The harness's own FakeCloud is unused here; pair against the one the
-    // wrapped fetch talks to, so the challenge binds where the redeem lands.
+    // pair against the cloud the wrapped fetch reaches, not the harness's own.
     const outcome = await pairWithCode(harness.runtime, cloud, PAIR_CODE, "Laptop");
     expect(outcome.kind).toBe("paired");
 
@@ -506,7 +464,6 @@ describe("a capture delivered twice", () => {
     await harness.runtime.syncNow();
     expect(harness.vault.files.get(CAPTURE_INBOX_PATH)).toContain("buy oat milk");
 
-    // Delivered again, because the ack above owned nothing.
     await harness.runtime.syncNow();
     const inbox = harness.vault.files.get(CAPTURE_INBOX_PATH) ?? "";
     expect(inbox.match(/buy oat milk/gu)).toHaveLength(1);
@@ -530,8 +487,6 @@ describe("a revoked device", () => {
     if (status.state !== "unauthorized") throw new Error("expected unauthorized");
     expect(status.deviceId).toBe(deviceId);
 
-    // Fail CLOSED: further passes cost nothing at all, so a revoked laptop
-    // does not sit there hammering a credential the account has cancelled.
     const requestsAtRefusal = harness.cloud.requests.length;
     await harness.runtime.syncNow();
     await harness.runtime.syncNow();
@@ -547,14 +502,11 @@ describe("the invalidation socket", () => {
     if (dial === undefined) throw new Error("expected a socket dial");
     const quiet = harness.cloud.requests.length;
 
-    // The contract puts the log's high-water on the ping precisely so a client
-    // can tell one it already covers from news.
     dial.onPing({ type: "sync", seq: 0 });
     await harness.runtime.syncNow();
     const afterCovered = harness.cloud.requests.length;
 
     dial.onPing({ type: "sync", seq: 99 });
-    // The ping's own pass is in flight; joining it is what `syncNow` does.
     await harness.runtime.syncNow();
     expect(afterCovered).toBeGreaterThan(quiet);
     expect(harness.cloud.requests.length).toBeGreaterThan(afterCovered);
@@ -565,15 +517,12 @@ describe("the invalidation socket", () => {
     await pair(harness);
     const dial = harness.socketOpens[0];
     if (dial === undefined) throw new Error("expected a socket dial");
-    // The pairing kicks one vault pass, and the account-identity learner
-    // kicks the deferred one the fail-closed fence held until the id landed.
+    // one from the pairing, one from the account-identity learner.
     expect(harness.vaultPings()).toBe(2);
     const quiet = harness.cloud.requests.length;
 
     dial.onPing({ type: "vault" });
     expect(harness.vaultPings()).toBe(3);
-    // The pass that answers a vault ping is the git engine's, not this
-    // runtime's — no thread request may ride it.
     expect(harness.cloud.requests).toHaveLength(quiet);
   });
 
@@ -583,8 +532,7 @@ describe("the invalidation socket", () => {
     const dial = harness.socketOpens[0];
     if (dial === undefined) throw new Error("expected a socket dial");
 
-    // 1008 is the cloud severing a REVOKED device — a hint, never the verdict,
-    // so the pass it triggers is what establishes the fact.
+    // 1008: the cloud severing a revoked device.
     harness.cloud.revoke(deviceId);
     dial.onClose(1008);
     await harness.runtime.syncNow();
@@ -592,34 +540,19 @@ describe("the invalidation socket", () => {
   });
 });
 
-/**
- * A fetch that HOLDS the first call to one path until the test lets it go, so
- * a pair, an unpair or a dispose can land in the middle of a pass. It honours
- * the abort signal the client attaches, which is what a real request does and
- * what makes the cancellation assertions mean anything.
- */
+// holds the first call to one path until released; honours the abort signal.
 interface Gate {
   fetch: CloudFetch;
-  /** Inert until this is called, so a pairing's own pass runs through. */
+  /** inert until armed, so a pairing's own pass runs through. */
   arm: () => void;
   reached: Promise<void>;
   release: () => void;
 }
 
-/**
- * WHERE the gate holds, and why both places are needed.
- *
- * `before` holds the request itself — the in-flight case, which cancellation
- * is supposed to cut short.
- *
- * `after` lets the request COMPLETE and holds the response on the doorstep.
- * That is the window cancellation cannot reach: the call already succeeded, so
- * aborting is a no-op, and the only thing standing between an old session's
- * answer and a write into the new one is the identity check.
- */
+// "before" holds the request (cancellable); "after" holds the response of a
+// completed request, the window cancellation cannot reach.
 type GateWhen = "before" | "after";
 
-/** Only ever the placeholder a `new Promise` executor overwrites. */
 function noop(): void {}
 
 function gatedFetch(cloud: FakeCloud, path: string, when: GateWhen = "before"): Gate {
@@ -640,7 +573,6 @@ function gatedFetch(cloud: FakeCloud, path: string, when: GateWhen = "before"): 
     }
     fired = true;
     if (when === "before") {
-      // In flight, so cancellable — the abort must cut it short.
       announce();
       await Promise.race([
         held,
@@ -652,10 +584,7 @@ function gatedFetch(cloud: FakeCloud, path: string, when: GateWhen = "before"): 
       ]);
       return cloud.fetch(input, init);
     }
-    // Completed, so NOT cancellable: a real fetch's promise is already
-    // resolved at this point and no abort can un-resolve it. Racing the signal
-    // here would model a window that does not exist and would hide the very
-    // thing this mode is for.
+    // no abort race here: the request already completed, and an abort cannot un-resolve it.
     const response = await cloud.fetch(input, init);
     announce();
     await held;
@@ -671,8 +600,6 @@ function gatedFetch(cloud: FakeCloud, path: string, when: GateWhen = "before"): 
   };
 }
 
-/** Wait for a re-pairing to have taken, from OUTSIDE the `pair` call this test
- *  has deliberately not awaited. */
 async function waitForPairing(runtime: CloudRuntime, deviceId: string): Promise<void> {
   await vi.waitFor(() => {
     const status = runtime.status();
@@ -690,37 +617,23 @@ describe("a session that changes mid-pass", () => {
 
     gate.arm();
     const pass = harness.runtime.syncNow();
-    // The push SUCCEEDED and its response is on the doorstep. The ack — which
-    // DELETES rows — has not run yet.
     await gate.reached;
 
-    // RE-PAIR, not unpair: the session stays `live`, so "is a session running?"
-    // still answers yes and only the session's IDENTITY can tell the two apart.
-    // Not awaited — the pass this test is holding is what `pair` itself waits
-    // for once it gets that far.
+    // not awaited: pair waits on the very pass the gate is holding.
     const repaired = pairWithCode(harness.runtime, cloud, "WXYZ-WXYZ", "Laptop again");
     await waitForPairing(harness.runtime, "dev_2");
 
-    // The new pairing's own work. The counter reset with it, so this row
-    // carries the very position the held push is about to acknowledge.
     append(harness, [message("thr_1", "belongs to the second pairing")]);
 
     gate.release();
     await repaired;
     await pass;
 
-    // The second pairing's event REACHED the log. A stale ack would have
-    // deleted it from the queue before anyone pushed it, and it would be gone
-    // with no error anywhere.
     expect(cloud.logSize()).toBe(2);
     expect(countSyncOutbox(harness.db)).toBe(0);
   });
 
   it("does not apply one account's page into a pairing with another", async () => {
-    // TWO accounts, because that is what makes a wrongly-applied page visible:
-    // the same account's rows are idempotent by origin, so applying them late
-    // is merely wasteful. Another account's rows are somebody else's
-    // conversation landing in this vault.
     const leaving = makeHarness({ pollIntervalMs: null });
     await pair(leaving);
     append(leaving, [message("thr_leaving", "from the account being left")]);
@@ -731,8 +644,6 @@ describe("a session that changes mid-pass", () => {
     append(joining, [message("thr_joining", "from the account being joined")]);
     await joining.runtime.syncNow();
 
-    // The reader's transport follows whichever account it is paired to, which
-    // is what a re-pair against a different deployment actually looks like.
     let current = leaving.cloud;
     const gate = gatedFetch(leaving.cloud, SYNC_API_PATHS.pull, "after");
     const reader = makeHarness({
@@ -743,7 +654,6 @@ describe("a session that changes mid-pass", () => {
     });
     await pairWithCode(reader.runtime, leaving.cloud, "READ-ONCE", "Reader");
 
-    // A row the gated page will carry.
     append(leaving, [message("thr_leaving", "the page held mid-flight")]);
     await leaving.runtime.syncNow();
     reader.applied.length = 0;
@@ -751,18 +661,12 @@ describe("a session that changes mid-pass", () => {
     const pass = reader.runtime.syncNow();
     await gate.reached;
 
-    // The page ARRIVED. Now the device joins a different account — `live`
-    // throughout, so identity is the only thing that can refuse the page.
     current = joining.cloud;
     const repaired = pairWithCode(reader.runtime, joining.cloud, "JOIN-NOW", "Reader elsewhere");
-    // NOT waitForPairing on the deviceId here — the reader was already "dev_2"
-    // on leaving.cloud, so that would resolve before the re-pair's session swap
-    // even ran. Wait instead for the re-pair's redeem to LAND on joining.cloud
-    // (its second device, after the joining install), which only happens once
-    // completePair is past its redeem and into openSession.
+    // not waitForPairing: the reader is already dev_2 on leaving.cloud, so it would
+    // resolve before the session swap. the redeem landing on joining.cloud is the signal.
     await vi.waitFor(() => expect(joining.cloud.deviceCount()).toBe(2));
-    // Let the redeem's microtask continuation (openSession) drain before the
-    // held page is released, so the fence sees the new session.
+    // let openSession's microtask drain before releasing the held page.
     await Promise.resolve();
     reader.applied.length = 0;
 
@@ -770,7 +674,6 @@ describe("a session that changes mid-pass", () => {
     await repaired;
     await pass;
 
-    // Whatever landed came from the account this device is actually paired to.
     expect(reader.applied.length).toBeGreaterThan(0);
     expect(reader.applied.map((entry) => entry.threadId)).not.toContain("thr_leaving");
   });
@@ -793,8 +696,6 @@ describe("dispose", () => {
     gate.release();
     await pass;
 
-    // Nothing after the teardown: no claim, no ack, and no vault write. The
-    // step's budget is only a bound if the pass observes cancellation.
     expect(cloud.requests.slice(requestsAtDispose)).toEqual([]);
     expect(harness.vault.files.get(CAPTURE_INBOX_PATH)).toBeUndefined();
   });
@@ -820,9 +721,6 @@ describe("every cloud call carries a deadline", () => {
     append(harness, [message("thr_1", "so the push happens too")]);
     await harness.runtime.syncNow();
 
-    // Every route this client speaks, and no exceptions: one black-holed
-    // request holds the single-flight pass, and every other trigger coalesces
-    // onto it — so a call with no deadline stalls the whole loop, not itself.
     expect(signalled.length).toBeGreaterThan(4);
     expect(signalled.filter((call) => !call.hasSignal)).toEqual([]);
   });
@@ -832,15 +730,12 @@ describe("applying the account's log", () => {
   it("commits each retried row's OWN position, never the group's", async () => {
     const cloud = new FakeCloud();
     const harness = makeHarness({ pollIntervalMs: null, cloud });
-    // A writer whose rows this reader will pull.
     const writer = makeHarness({ pollIntervalMs: null, cloud });
     await pair(writer);
     append(writer, [message("thr_1", "one"), message("thr_1", "two"), message("thr_1", "three")]);
     await writer.runtime.syncNow();
 
-    // A sink that refuses any GROUP, forcing the per-row retry, and refuses one
-    // row outright — the shape a turn-content event with no stored
-    // `turn/started` produces.
+    // refuses every group (forcing the per-row retry) and one row outright.
     const cursors: number[] = [];
     harness.runtime.attach({
       applySyncedEvents: (args) => {
@@ -859,9 +754,6 @@ describe("applying the account's log", () => {
     });
     await pairWithCode(harness.runtime, cloud, "READ-ONCE", "Reader");
 
-    // Three distinct positions, each committed by the row it belongs to.
-    // Handing every retry the group's last seq would record rows 2 and 3 as
-    // seen the instant row 1 committed.
     expect(cursors).toEqual([1, 3]);
     expect(readSyncState(harness.db).cursor).toBe(3);
   });
@@ -872,15 +764,12 @@ describe("applying the account's log", () => {
     await pair(writer);
     append(writer, [message("thr_shared", "from the writer")]);
     await writer.runtime.syncNow();
-    // Its own row came back through the merged log and must not be re-applied.
     expect(writer.applied).toEqual([]);
 
     const reader = makeHarness({ pollIntervalMs: null, fetch: cloud.fetch });
     const paired = await pairWithCode(reader.runtime, cloud, "WXYZ-WXYZ", "Desktop");
     expect(paired.kind).toBe("paired");
 
-    // Pairing runs a pass of its own, and a second one must find nothing left
-    // — the cursor moved with the apply.
     await reader.runtime.syncNow();
     expect(reader.applied).toHaveLength(1);
     expect(reader.applied[0]?.threadId).toBe("thr_shared");

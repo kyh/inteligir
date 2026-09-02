@@ -1,15 +1,3 @@
-// The registry's policy over the store. Three decisions live
-// here and nowhere else:
-//
-// - EVERY READ IS REDACTED. Header values reduce to `hasAuth`; the full rows
-//   leave this module only through `enabledForSessions()`, whose one caller
-//   is session launch's composition (session-servers.ts).
-// - ADD REFUSES A NAME THAT EXISTS and UPDATE/REMOVE/TOGGLE REFUSE ONE THAT
-//   DOES NOT; the wire class a refusal answers with is the router's, not this
-//   module's.
-// - AN UPDATE THAT OMITS HEADERS KEEPS THE STORED ONES, so editing a URL
-//   never forces re-pasting a key and no client round-trips a secret.
-
 import type {
   ConnectorAddRequest,
   ConnectorTransportInput,
@@ -22,7 +10,6 @@ import {
   type StoredTransport,
 } from "./connectors-store";
 
-/** A write refused because of what is (or is not) already configured. */
 export class ConnectorConflictError extends Error {
   readonly kind: "already-exists" | "not-found";
 
@@ -32,13 +19,11 @@ export class ConnectorConflictError extends Error {
   }
 }
 
-/** One MCP server as session launch consumes it — full headers, enabled only. */
 interface SessionMcpServer {
   name: string;
   transport: StoredTransport;
 }
 
-/** A replacement transport for a row that already exists. */
 interface ConnectorUpdate {
   name: string;
   transport: ConnectorTransportInput;
@@ -47,12 +32,10 @@ interface ConnectorUpdate {
 export interface ConnectorsService {
   list(): ConnectorView[];
   add(request: ConnectorAddRequest): ConnectorView[];
-  /** Not exposed as a procedure. It is the only write that carries stored
-   *  secrets across an endpoint edit, so correcting a URL costs no re-consent. */
+  // not a procedure: the one write that carries stored secrets across an endpoint edit.
   update(request: ConnectorUpdate): ConnectorView[];
   remove(name: string): ConnectorView[];
   toggle(name: string, enabled: boolean): ConnectorView[];
-  /** The UNREDACTED enabled rows, for composing a session's mcpServers. */
   enabledForSessions(): SessionMcpServer[];
 }
 
@@ -111,9 +94,7 @@ function toStoredTransport(
       tokenEndpoint: input.tokenEndpoint,
       url: input.url,
     };
-    // An endpoint edit keeps the stored tokens (no client round-trips a
-    // secret, and no edit forces a re-consent) — if the edit made them wrong,
-    // the next refresh fails into needs-reauth rather than guessing here.
+    // an endpoint edit keeps the tokens: if it made them wrong, the next refresh fails into needs-reauth.
     if (previous !== undefined && previous.kind === "oauth") {
       if (previous.tokens !== undefined) {
         next.tokens = previous.tokens;

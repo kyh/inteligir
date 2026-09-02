@@ -1,9 +1,4 @@
-// Myers O(ND) diff over line arrays — the ONE line-diff in the repo, and the
-// walk ./diff3 merges over. Pure and platform-neutral: arrays in, hunks out.
-
-/** A maximal run of base lines one side rewrote: base[baseStart, baseEnd)
- * became side[sideStart, sideEnd). Zero-width base spans are insertions.
- * Consecutive hunks are always separated by at least one matching line. */
+// consecutive hunks are always separated by at least one matching line.
 export interface DiffHunk {
   baseStart: number;
   baseEnd: number;
@@ -11,17 +6,12 @@ export interface DiffHunk {
   sideEnd: number;
 }
 
-/** `splitLinesLf(text).join("\n") === text` — the trailing "" segment of a
- * newline-terminated text is what preserves the final newline. LF ALONE, and
- * NOT interchangeable with ../knowledge/source-lines' EOL-aware `splitLines`:
- * the merge joins its segments back into the file's bytes, so a `\r` has to
- * stay inside a line's content rather than become a terminator the join would
- * rewrite. */
+// lf alone, not source-lines' eol-aware `splitLines`: the merge joins segments back into the
+// file's bytes, so a `\r` must stay inside a line's content rather than become a terminator.
 export function splitLinesLf(text: string): string[] {
   return text.split("\n");
 }
 
-/** Aligned index pairs of matching lines, via the Myers frontier trace. */
 function backtrackMatches(
   trace: readonly (readonly number[])[],
   foundD: number,
@@ -43,7 +33,7 @@ function backtrackMatches(
     const previousK = takeDown ? k + 1 : k - 1;
     const previousX = frontier[offset + previousK] ?? 0;
     const previousY = previousX - previousK;
-    // The edit step lands here; the diagonal run back to (x, y) is matches.
+    // the edit step lands here; the diagonal run back to (x, y) is matches.
     const stepX = takeDown ? previousX : previousX + 1;
     const stepY = takeDown ? previousY + 1 : previousY;
     while (x > stepX && y > stepY) {
@@ -63,7 +53,6 @@ function backtrackMatches(
   return matches;
 }
 
-/** Myers greedy diff, returning the changed hunks in order. */
 export function diffLines(base: readonly string[], side: readonly string[]): DiffHunk[] {
   let prefix = 0;
   const maxPrefix = Math.min(base.length, side.length);

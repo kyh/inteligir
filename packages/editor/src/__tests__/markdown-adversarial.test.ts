@@ -2,26 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import { analyzeMarkdown, roundTrip } from "@repo/editor/markdown/markdown-doc";
 
-// Adversarial round-trip hunt — a property harness over the WP1 gate API.
-// Deterministic (fixed-seed fuzz corpus); every input must uphold:
-//
-//   (a) never-throw     analyzeMarkdown classifies EVERY string — parse/scan/
-//                       convert failures must surface as DocAnalysis, not as
-//                       uncaught exceptions (incl. RangeError on deep nesting).
-//   (b) canonical-byte  canonical ⇒ roundTrip(md) succeeds, agrees with md
-//                       modulo trailing whitespace, and is byte-identical when
-//                       md already ends in exactly one "\n" (whitespace-only
-//                       docs exempt: they canonicalize to "").
-//   (c) fixpoint        when roundTrip(md) succeeds, its output is stable:
-//                       roundTrip(out) === out — and in particular out must
-//                       RE-PARSE (Format must never produce a Raw file).
-//   (d) content         canonical ⇒ letters(out) === letters(md) (no
-//                       alphanumeric content invented or lost).
-//   (e) gate-agreement  analyzeMarkdown.rawReason === null ⟺ roundTrip does
-//                       not throw (the badge and the Format action agree).
-//
-// A failure here is a serialization-pipeline bug: fix the pipeline (or, for a
-// conscious canonical-form revision, document it) — never relax the invariant.
+// Invariants: (a) analyzeMarkdown never throws; (b) canonical ⇒ roundTrip is
+// byte-stable modulo trailing whitespace; (c) roundTrip output re-parses and is a
+// fixpoint; (d) canonical ⇒ no letters invented or lost; (e) rawReason === null ⟺
+// roundTrip does not throw. Fix the pipeline, never relax an invariant.
 
 type ViolationKind =
   | "a-analyze-throw"
@@ -31,8 +15,7 @@ type ViolationKind =
   | "d-canonical-content-loss"
   | "e-gate-roundtrip-disagree";
 
-/** `signature` identifies the ROOT failure (dedupe key across inputs);
- * `detail` carries the per-input evidence. */
+// `signature` is the dedupe key across inputs
 type Violation = { kind: ViolationKind; input: string; detail: string; signature: string };
 
 const letters = (s: string) => s.replace(/[^\p{L}\p{N}]+/gu, "").toLowerCase();
@@ -48,7 +31,6 @@ function firstDiff(a: string, b: string): string {
   return `first diff at ${i}: ${ctx(a)} vs ${ctx(b)}`;
 }
 
-/** Run every invariant against one input; return the violations it produces. */
 function hunt(md: string): Violation[] {
   const found: Violation[] = [];
 
@@ -73,7 +55,6 @@ function hunt(md: string): Violation[] {
     rtError = String(error);
   }
 
-  // (e) the mode badge and the Format action must agree.
   if (analysis.rawReason === null && out === null) {
     found.push({
       detail: `rawReason null but roundTrip threw: ${clip(String(rtError))}`,
@@ -91,8 +72,6 @@ function hunt(md: string): Violation[] {
     });
   }
 
-  // (c) roundTrip output is the pipeline's canonical form — it must re-parse
-  // and be a fixpoint, or the one-time Format action corrupts the file.
   if (out !== null) {
     try {
       const out2 = roundTrip(out);
@@ -116,7 +95,6 @@ function hunt(md: string): Violation[] {
     }
   }
 
-  // (b) + (d) canonical must mean byte-stable and content-preserving.
   if (analysis.canonical) {
     if (out === null) {
       found.push({
@@ -134,8 +112,6 @@ function hunt(md: string): Violation[] {
           signature: "b|trimmed-drift",
         });
       } else if (md.trim() !== "" && md === `${md.trimEnd()}\n` && out !== md) {
-        // A canonical file already ending in exactly one newline must not
-        // change AT ALL on save.
         found.push({
           detail: `strict byte drift: ${firstDiff(md, out)}`,
           input: md,
@@ -157,17 +133,11 @@ function hunt(md: string): Violation[] {
   return found;
 }
 
-// ---------------------------------------------------------------------------
-// Shrinking — greedy line- then chunk-removal keeping the same violation kind,
-// so failures report a minimal repro instead of a 3KB fuzz document.
-// ---------------------------------------------------------------------------
-
 function shrink(input: string, target: Violation, budget: number): string {
-  if (input.length > 4000) return input; // constructed pathological inputs stay as-is
+  if (input.length > 4000) return input; // pathological inputs stay as-is
   let current = input;
   let remaining = budget;
-  // Same SIGNATURE, not just same kind — greedy removal must not slide from
-  // one root cause into a different (smaller) bug and mislabel the repro.
+  // same signature, not just same kind: greedy removal must not slide into a different, smaller bug
   const violates = (candidate: string): boolean => {
     if (remaining <= 0) return false;
     remaining -= 1;
@@ -224,7 +194,6 @@ function report(cases: Iterable<readonly [string, string]>): string[] {
   for (const violation of bySignature.values()) {
     const minimal = shrunk < 20 ? shrink(violation.input, violation, 300) : violation.input;
     shrunk += 1;
-    // Re-hunt the minimized input so the evidence matches the shown repro.
     const fresh = hunt(minimal).find((v) => v.signature === violation.signature);
     const detail = fresh ? fresh.detail : violation.detail;
     lines.add(
@@ -234,14 +203,7 @@ function report(cases: Iterable<readonly [string, string]>): string[] {
   return [...lines].toSorted();
 }
 
-// ---------------------------------------------------------------------------
-// Handcrafted corpus — every construct class the pipeline claims to handle,
-// bent until it creaks. Raw-classified inputs belong here too: they must
-// classify (a) and agree (e), never mangle.
-// ---------------------------------------------------------------------------
-
 const CORPUS = {
-  // dollars / math
   "dollar-adjacent": "$5-$6 and \\$7 and $$ at EOL $$\n",
   "dollar-run-alone": "$$$$\n",
   "dollar-inline-empty": "a $$$$ b\n",
@@ -251,13 +213,11 @@ const CORPUS = {
   "math-inline-eol": "before $$x+y$$\n",
   "math-meta-line": "$$latex\nx\n$$\n",
 
-  // emphasis / marks
   "em-strong-mixed": "***a*** and **_b_** and _**c**_\n",
   "single-tilde-strike": "~x~ mid ~~y~~\n",
   "emphasis-wrapping-wiki": "_[[a]]_ and **[[b]]** tail\n",
   "underscore-in-word": "snake_case_name stays\n",
 
-  // links / autolinks
   "bare-https-literal": "see https://example.com now\n",
   "bare-email-literal": "contact a@b.cd today\n",
   "email-in-heading": "# mail a@b.cd\n",
@@ -279,7 +239,6 @@ const CORPUS = {
   footnote: "text[^1]\n\n[^1]: the note\n",
   "footnote-with-wiki": "x[^1]\n\n[^1]: see [[x]]\n",
 
-  // wiki links / embeds
   "wiki-pipe-alias": "[[a|b]] and [[a#b|c]]\n",
   "wiki-only-pipe": "[[|]]\n",
   "wiki-space-body": "[[ ]]\n",
@@ -298,7 +257,6 @@ const CORPUS = {
   "wiki-unclosed": "[[a\n",
   "wiki-single-close": "[[a]b]]\n",
 
-  // tables
   "table-alignment": "| a | b | c |\n|:- | -:|:-:|\n| 1 | 2 | 3 |\n",
   "table-ragged-body-short": "| a | b |\n| - | - |\n| 1 |\n",
   "table-ragged-body-long": "| a |\n| - |\n| 1 | 2 |\n",
@@ -309,7 +267,6 @@ const CORPUS = {
   "table-inline-jsx":
     '| <date value="2026-01-01" /> |\n| --------------------------- |\n| y                           |\n',
 
-  // blockquotes / alerts
   "alert-minimal": "> [!NOTE] x\n",
   "alert-no-trailing-newline": "> [!NOTE] x",
   "alert-multiline": "> [!TIP]\n> first\n> second\n",
@@ -326,7 +283,6 @@ const CORPUS = {
   "alert-caution-important": "> [!CAUTION] c\n\n> [!IMPORTANT] i\n",
   "lazy-continuation": "> a\nb\n",
 
-  // vocabulary JSX
   "toggle-empty-attr": '<toggle t="">\n  x\n</toggle>\n',
   "toggle-attr-quote-entities": '<toggle t="say &#x22;hi&#x22;">\n  x\n</toggle>\n',
   "toggle-attr-unicode": '<toggle t="héllo \u{1F389} عرب">\n  x\n</toggle>\n',
@@ -346,7 +302,6 @@ const CORPUS = {
   "date-with-children": '<date value="2026-01-01">label</date> x\n',
   "jsx-indented": "  <toggle>\n  x\n  </toggle>\n",
 
-  // NOT vocabulary — must classify Raw, never throw, never mangle
   "unknown-component": "<Steps>\n  x\n</Steps>\n",
   "lowercase-div": "<Div>x</Div>\n",
   "web-component-tag": "a <x-y>z</x-y> b\n",
@@ -365,7 +320,6 @@ const CORPUS = {
   "expression-attr": "<toggle open={true}>\n  x\n</toggle>\n",
   "bare-attr": "<callout draft>\n  x\n</callout>\n",
 
-  // frontmatter
   "frontmatter-empty": "---\n---\n",
   "frontmatter-crlf": "---\r\na: 1\r\n---\r\nbody\r\n",
   "frontmatter-yaml-hash": "---\n# comment\nkey: v\n---\n\nbody\n",
@@ -375,7 +329,6 @@ const CORPUS = {
   "frontmatter-unicode": "---\ntitle: héllo — \u{1F389}\n---\n",
   "frontmatter-after-blank": "\n---\na: 1\n---\n",
 
-  // whitespace / line endings / bytes
   "crlf-mixed": "a\r\nb\nc\r\n",
   "cr-only-line-ending": "a\rb\n",
   "trailing-space-runs": "a \nb  \nc   \n",
@@ -398,7 +351,6 @@ const CORPUS = {
   "spaces-only": "   ",
   empty: "",
 
-  // unicode content
   "zwj-emoji-family": "family \u{1F469}‍\u{1F469}‍\u{1F467}‍\u{1F466} here\n",
   "rtl-mixed": "עברית and العربية mixed\n",
   "combining-marks-nfd": "café nfd\n",
@@ -406,7 +358,6 @@ const CORPUS = {
   "bidi-override": "a‮b‬c\n",
   "lone-surrogate": "a\uD800b\n",
 
-  // structure edges
   "heading-empty": "#\n",
   "heading-trailing-hashes": "# a #\n",
   "heading-seven-hashes": "####### seven\n",
@@ -430,10 +381,6 @@ const CORPUS = {
   "hr-then-empty-item": "___\n\n-\n",
   entities: "&nbsp;&mdash;&amp;\n",
 } satisfies Record<string, string>;
-
-// ---------------------------------------------------------------------------
-// Seeded fuzz — deterministic composition of nasty fragments + byte mutations.
-// ---------------------------------------------------------------------------
 
 function mulberry32(seed: number): () => number {
   let a = seed >>> 0;
@@ -460,7 +407,6 @@ function fuzzDocs(count: number): [string, string][] {
   for (let i = 0; i < count; i++) {
     let doc: string;
     if (i % 5 === 4) {
-      // pure punctuation soup (short) — parser corner probing
       const len = 1 + int(40);
       let s = "";
       for (let j = 0; j < len; j++) s += PUNCT[int(PUNCT.length)] ?? "";
@@ -471,7 +417,6 @@ function fuzzDocs(count: number): [string, string][] {
       const n = 2 + int(7);
       for (let j = 0; j < n; j++) parts.push((pick(FRAGMENTS) ?? "").trimEnd());
       doc = parts.join("\n\n") + "\n";
-      // mutations
       if (rand() < 0.2 && !doc.includes("\r")) doc = doc.replaceAll("\n", "\r\n");
       if (rand() < 0.2) {
         const lines = doc.split("\n");
@@ -492,8 +437,6 @@ function fuzzDocs(count: number): [string, string][] {
   return docs;
 }
 
-// ---------------------------------------------------------------------------
-
 describe("adversarial round-trip hunt", () => {
   it("handcrafted corpus upholds the gate invariants", { timeout: 90_000 }, () => {
     expect(report(Object.entries(CORPUS))).toEqual([]);
@@ -504,13 +447,8 @@ describe("adversarial round-trip hunt", () => {
   });
 
   it("pathological nesting never escapes analyzeMarkdown", { timeout: 120_000 }, () => {
-    // Depth 3000 sits inside the conversion-overflow band: micromark parses it
-    // fine (its own recursion only overflows around depth ~6-8k, where
-    // parseMdast catches the RangeError and classifies Raw), but the mdast →
-    // Slate → serialize recursion blows the stack at ~1250 (Node defaults) —
-    // and nothing catches THAT. Nested lists hit the same recursion at ~560;
-    // the blockquote case stands in for the class because its input is tiny
-    // (6KB vs megabytes of list indentation).
+    // depth 3000 is past the mdast→Slate recursion limit (~1250 on Node defaults)
+    // but inside micromark's own (~6-8k), so it exercises the conversion overflow
     const deep: [string, string][] = [
       ["blockquote-depth-3000", "> ".repeat(3000) + "x\n"],
       ["toggle-depth-300", "<toggle>\n".repeat(300) + "x\n" + "</toggle>\n".repeat(300)],

@@ -1,62 +1,7 @@
-// ---------------------------------------------------------------------------
-// One total dispatch per domain vocabulary, and every extra one declared.
-//
-// TypeScript catches a MISSING arm. It has nothing at all to say about a
-// DRIFTED one: two tables covering the same eight states with three different
-// sentences typecheck perfectly, and a ninth state added to one and forgotten
-// in the other is caught by neither the compiler nor any other guard here.
-// That is not hypothetical — `vault-hooks.ts`'s own docstring records two
-// label tables that drifted on half their states, so one vault answered
-// "Waiting on the agent" in the sidebar and "Waiting on an agent turn" in
-// settings, and a user comparing two pieces of one window could not tell a
-// wording difference from a state difference. It then happened AGAIN, with the
-// pill's colour table.
-//
-// The signal is TOTALITY. A file that names every member of a closed
-// vocabulary is holding a total table over it — a `switch`, a
-// `Record<Status, …>`, an if-chain — whatever it is spelled as. So each
-// vocabulary below names where it is DECLARED and every file allowed to
-// dispatch totally on it, with what that dispatch decides. A new total table
-// fails, naming both sites; a declared one that stops dispatching drains.
-//
-// The reasons are the point. Three consumers of thread status is not
-// redundancy — one decides which transition is legal, one what a send does,
-// one what the user sees — and writing that down is what makes a FOURTH one
-// answerable. The row is the review surface.
-//
-// Two limits, stated rather than implied. Members are matched as quoted
-// literals, so a table built by iterating the vocabulary array is invisible
-// here — correctly, since that table cannot drift. And a vocabulary of fewer
-// than three members is skipped: "names both of its two values" is a
-// coincidence, not a total dispatch, and every producer would trip it.
-//
-// THE FLOOR STAYS AT TOTALITY, and that is a decision rather than an
-// oversight. Partial dispatch is a real drift class — three surfaces each
-// answering half the sync-state question is what `vault-hooks.ts` records —
-// but "names a subset nobody derived" cannot be asked of this detector, for a
-// reason in its own mechanism: a subset that DERIVES spells its members as
-// quoted literals too. `vault-service.ts` holds its refusal classes in a
-// `["not_found", "conflict", "too_large"] as const` array, compiler-tied to the
-// vocabulary, and reads here exactly like a hand-written union would. That is not true of
-// a TOTAL table — one built by iterating the array names no literal at all —
-// which is precisely why the totality rule can be trusted and a subset rule
-// cannot.
-//
-// Why the widened "names a subset" rule is NOT worth adopting, by kind of false
-// positive it fires on: producers that name the classes they throw or the kinds
-// they announce, at unrelated call sites, deciding nothing jointly; and UI
-// leaves that name short status words ("idle", "error") as their own prop
-// vocabulary — a leaf cannot import `@repo/domain` at all, so it is a collision
-// of common words the detector has no way to tell from the real thing. Every
-// such site would need an exemption row whose reason is uniformly "these are not
-// one decision" — a guard exempted that widely is a guard that gets muted, and a
-// muted guard protects less than a narrow one.
-//
-// What DOES catch partial dispatch is making the subset a derivation, which
-// turns it into either a total table this rule already sees
-// (`thread-hooks.ts`) or a compile error at the array. That is the move; the
-// guard is not the place it happens.
-// ---------------------------------------------------------------------------
+// TypeScript catches a missing arm, not a drifted one: a state added to one table and forgotten in
+// another typechecks. a file naming every member as a quoted literal holds a total table; one built
+// by iterating the array is invisible here and cannot drift. no subset rule: a derived `as const`
+// subset spells literals too, and UI leaves collide on common words ("idle", "error").
 
 import {
   DOC_CHANGE_KINDS,
@@ -69,29 +14,22 @@ import { vaultStatusResponseSchema } from "@repo/api/local/vault/vault-schema";
 import { describe, expect, it } from "vitest";
 import { sourceOf, workspaceFiles, workspaces } from "./repo";
 
-/** Below this, "names every member" is a coincidence rather than a table. */
+// below this, naming every member is a coincidence rather than a table.
 const TOTALITY_FLOOR = 3;
 
-/**
- * The sync states, read off the contract's own discriminated union — there is
- * no exported tuple to copy, and copying one here is the failure this whole
- * file is about. The self-check below fails if zod's shape ever stops
- * yielding them, rather than letting an empty vocabulary pass everything.
- */
+// read off the discriminated union: there is no exported tuple, and copying one here is the drift
+// this file is about.
 const syncStates = vaultStatusResponseSchema.options.map((option) => {
-  // Zod owns this property name; reading it through a computed key keeps a
-  // word this repo bans from its own symbols out of the file.
+  // zod owns this property name; the computed key keeps a word this repo bans from its own symbols
+  // out of the file.
   const { ["shape"]: fields } = option;
   return fields.state.value;
 });
 
 interface Vocabulary {
-  /** The domain word, as the failure says it. */
   name: string;
   members: readonly string[];
-  /** Where the vocabulary itself is declared; naming every member is its job. */
   declaredIn: string;
-  /** Every other file allowed to dispatch totally on it → what it decides. */
   dispatchedIn: Record<string, string>;
 }
 
@@ -152,14 +90,12 @@ const VOCABULARIES: Vocabulary[] = [
   },
 ];
 
-/** Vocabularies big enough for "names every member" to mean something. */
 const CHECKED = VOCABULARIES.filter((vocabulary) => vocabulary.members.length >= TOTALITY_FLOOR);
 
 function namesEveryMember(source: string, members: readonly string[]): boolean {
   return members.every((member) => new RegExp(`["'\`]${member}["'\`]`).test(source));
 }
 
-/** The shipped files holding a total table over this vocabulary. */
 function totalDispatchSites(vocabulary: Vocabulary): string[] {
   return workspaces()
     .flatMap((workspace) => workspaceFiles(workspace).shipped)
@@ -169,9 +105,6 @@ function totalDispatchSites(vocabulary: Vocabulary): string[] {
 
 describe("one total dispatch per domain vocabulary", () => {
   it("reads every vocabulary from its own declaration", () => {
-    // A vocabulary that came back empty would make `every` vacuously true and
-    // flag the whole repo; one that came back short would flag nothing. Both
-    // are silent, so both are checked here.
     const violations: string[] = [];
     for (const vocabulary of VOCABULARIES) {
       if (vocabulary.members.length === 0) {

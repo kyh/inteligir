@@ -1,9 +1,3 @@
-// The seed vault's contract: every shipped .md is BYTE-CANONICAL through the
-// fixpoint serializer (a seed that churns on first save greets a new user
-// with a diff they never made), every sidecar parses under the strict
-// schema, every referenced asset ships, and the resolver actually finds the
-// directory this suite just read.
-
 import { readdirSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -11,10 +5,7 @@ import { analyzeMarkdown, toCanonical } from "@repo/editor/markdown/markdown-doc
 import { commentSidecarSchema } from "@repo/notes/comments/sidecar-schema";
 import { resolveSeedDir } from "inteligir/server/vault/seed-vault";
 
-// The seed SHIPS with the server (it is what a virgin vault is populated
-// from) and is ASSERTED here, because what makes it a contract is the editor's
-// fixpoint serializer — which is browser-side and cannot be reached from the
-// server's own program.
+// asserted here rather than beside the seed: the fixpoint serializer is browser-side.
 const REPO_ROOT = resolve(import.meta.dirname, "../../../../../..");
 const seedDir = join(REPO_ROOT, "apps", "cli", "seed");
 const entries = readdirSync(seedDir);

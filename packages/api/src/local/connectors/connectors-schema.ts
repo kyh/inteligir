@@ -1,24 +1,9 @@
-// The connectors payload vocabulary: the MCP servers every agent session gets.
-//
-// The registry is THIS APP'S OWN, never a harness's: with more than one
-// harness, a registry one of them owns is one the others cannot read. One
-// store in the data dir; session creation composes the enabled rows into
-// ACP `session/new`'s mcpServers, identically for every harness, so
-// "configured once, shared by every agent" is a property of the launch path
-// rather than a promise about config files.
-//
-// SECRETS NEVER TRANSIT A READ. An http row may carry auth headers; the write
-// path accepts full values and every response reduces them to `hasAuth: true`,
-// so no client ever holds one to leak back.
+// secrets never transit a read: the write path accepts full header values, every response reduces them to hasAuth
 
 import { z } from "zod";
 
-/** One grammar, two readers: the add form refuses before the round trip and
- *  the server refuses regardless. */
 export const CONNECTOR_NAME_PATTERN = /^[A-Za-z0-9_-]+$/u;
 export const CONNECTOR_NAME_MAX_LENGTH = 64;
-/** A ceiling on the argv a user can hand a spawned server; not a security
- *  bound (argv is passed as a list, never through a shell), just a bound. */
 export const CONNECTOR_ARGS_MAX = 64;
 export const CONNECTOR_HEADERS_MAX = 16;
 
@@ -30,8 +15,6 @@ export const connectorNameSchema = z
 
 const HTTP_PROTOCOLS: ReadonlySet<string> = new Set(["http:", "https:"]);
 
-/** An http(s) URL, parsed rather than pattern-matched — the only gate between
- *  a typo and a server that can never connect. */
 export const connectorUrlSchema = z
   .string()
   .min(1)
@@ -43,10 +26,6 @@ export const connectorUrlSchema = z
     }
   }, "must be an http:// or https:// URL");
 
-/**
- * What a caller may WRITE. Http headers are the auth channel (a bearer or an
- * api key header).
- */
 export const CONNECTOR_SCOPES_MAX = 32;
 
 export const connectorTransportInputSchema = z.discriminatedUnion("kind", [
@@ -69,9 +48,7 @@ export const connectorTransportInputSchema = z.discriminatedUnion("kind", [
         .optional(),
     })
     .strict(),
-  // An OAuth row carries the provider's coordinates only. Tokens are never
-  // part of the input — they arrive through the authorize flow's callback and
-  // live in the store, and the view reduces them to a status.
+  // tokens are never input: they arrive through the callback, live in the store, and read back as a status
   z
     .object({
       kind: z.literal("oauth"),
@@ -85,12 +62,7 @@ export const connectorTransportInputSchema = z.discriminatedUnion("kind", [
 ]);
 export type ConnectorTransportInput = z.infer<typeof connectorTransportInputSchema>;
 
-/**
- * What a caller ever READS. Header values are reduced to `hasAuth` — the row
- * can say "authenticated" without a response ever carrying a key.
- */
-/** Where an OAuth row stands: no tokens yet, tokens held, or a refresh the
- *  provider refused — the row's Connect button reads this, nothing else does. */
+// needs-reauth: a refresh the provider refused
 export const connectorOauthStatusSchema = z.enum(["needs-auth", "connected", "needs-reauth"]);
 export type ConnectorOauthStatus = z.infer<typeof connectorOauthStatusSchema>;
 
@@ -126,8 +98,6 @@ export const connectorViewSchema = z
   .strict();
 export type ConnectorView = z.infer<typeof connectorViewSchema>;
 
-/** What a configured server IS, in one line — beside the vocabulary because
- *  both surfaces (the settings row, `inteligir connectors list`) render it. */
 export function connectorTarget(transport: ConnectorTransportView): string {
   switch (transport.kind) {
     case "stdio":
@@ -156,16 +126,13 @@ export const connectorToggleRequestSchema = z
   .strict();
 export type ConnectorToggleRequest = z.infer<typeof connectorToggleRequestSchema>;
 
-/** The browser lands here after the provider's consent page; a plain route
- *  rather than a procedure, for pair-callback's own reason (a browser wants a
- *  page, and no typed client has any use for the row). */
+// a plain route, not a procedure: the provider's consent page redirects a browser here, which wants a page
 export const CONNECTOR_OAUTH_CALLBACK_PATH = "/connectors/oauth/callback";
 
 export const connectorOauthBeginRequestSchema = z
   .object({
     name: connectorNameSchema,
-    // Required, not defaulted: the caller that must say false is exactly the
-    // one a default would let forget (the pairing precedent).
+    // required, not defaulted: the caller that must say false is the one a default lets forget
     open: z.boolean(),
   })
   .strict();

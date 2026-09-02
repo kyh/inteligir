@@ -20,11 +20,6 @@ import {
 import { createDb } from "../db/client";
 import { device, pairingCode } from "../db/schema";
 
-// The pairing flow end to end against the real Worker + D1: mint (session,
-// PKCE challenge bound to the code) → redeem (code + the matching verifier) →
-// the durable device credential works on the device surface — and every
-// refusal on the way, PKCE included.
-
 async function redeem(
   code: string,
   verifier: string,
@@ -51,7 +46,6 @@ describe("device pairing", () => {
 
     expect((await pull(redeemed.credential)).status).toBe(200);
 
-    // The credential is stored only as a hash — the plaintext appears nowhere.
     const row = await createDb(env.DB)
       .select()
       .from(device)
@@ -61,21 +55,14 @@ describe("device pairing", () => {
     expect(row?.credentialHash).not.toContain(redeemed.credential.slice(4));
   });
 
-  // PKCE: the code alone is not enough. This is the interception scenario — a
-  // loopback listener that receives the redirect has the code but not the
-  // verifier the app kept.
   it("refuses a redeem whose verifier does not match the minted challenge", async () => {
     const { bearer } = await signUpUser("pair-pkce@example.test");
     const { code } = await mintCode(bearer);
 
-    // A different, well-formed verifier — S256 of it will not equal the stored
-    // challenge, so the code is refused and, crucially, NOT consumed.
     const wrong = await redeem(code, generatePkceVerifier());
     expect(wrong.status).toBe(404);
     expect(cloudErrorSchema.parse(await wrong.json()).error.code).toBe("invalid-code");
 
-    // The real app, with the code's own verifier, still redeems — the wrong
-    // attempt neither revealed the miss nor burned the code.
     const { code: code2, verifier } = await mintCode(bearer);
     expect((await redeem(code2, verifier)).status).toBe(200);
   });
@@ -119,9 +106,6 @@ describe("device pairing", () => {
     expect(cloudErrorSchema.parse(await second.json()).error.code).toBe("code-consumed");
   });
 
-  // The sequential case above only proves the code is marked; this one proves
-  // the CONSUME is the atomic step. Two redeems in flight at once is the shape
-  // a shared pairing code actually produces.
   it("settles simultaneous redeems on exactly one device", async () => {
     const { bearer } = await signUpUser("pair-race@example.test");
     const { code, verifier } = await mintCode(bearer);
@@ -134,7 +118,6 @@ describe("device pairing", () => {
     const statuses = responses.map((response) => response.status).toSorted((a, b) => a - b);
     expect(statuses).toEqual([200, 409, 409]);
 
-    // Exactly one device exists, and exactly one credential works.
     const { devices } = listDevicesResponseSchema.parse(
       await (
         await SELF.fetch(`${ORIGIN}/v1/device/list`, { headers: sessionHeaders(bearer) })
@@ -161,9 +144,6 @@ describe("device pairing", () => {
     expect(cloudErrorSchema.parse(await response.json()).error.code).toBe("code-expired");
   });
 
-  // The cap lives in the INSERT's own subquery, so the twenty-first device is
-  // unrepresentable rather than merely unlikely — N codes each minted while
-  // under the limit could otherwise all redeem past it.
   it("refuses to create a twenty-first active device", async () => {
     const { bearer } = await signUpUser("pair-cap@example.test");
     const userId = await userIdOf(bearer);
@@ -190,7 +170,6 @@ describe("device pairing", () => {
       .all();
     expect(active).toHaveLength(20);
 
-    // Revoking one frees the slot — the cap counts ACTIVE devices.
     await SELF.fetch(`${ORIGIN}/v1/device/revoke`, {
       method: "POST",
       headers: { ...sessionHeaders(bearer), "content-type": "application/json" },
@@ -200,13 +179,7 @@ describe("device pairing", () => {
     expect((await redeem(room.code, room.verifier, "Now There's Room")).status).toBe(200);
   });
 
-  // The invariant, from the outside: two codes minted while under the cap and
-  // redeemed together never make twenty-one devices. WHICH guard fires is not
-  // asserted, and cannot honestly be — this runtime may serialize the pair, in
-  // which case the second one's pre-check catches it. In a real deployment the
-  // two land on different isolates and only the subquery inside the INSERT is
-  // between them and a twenty-first device; that is why the cap is written
-  // there rather than in the read above it.
+  // which guard fires is not asserted: this runtime may serialize the pair, while a deployment lands them on different isolates
   it("cannot be raced past the cap with two codes minted under it", async () => {
     const { bearer } = await signUpUser("pair-cap-race@example.test");
     const userId = await userIdOf(bearer);
@@ -255,7 +228,6 @@ describe("device pairing", () => {
       .where(eq(pairingCode.code, code));
 
     expect((await redeem(code, verifier)).status).toBe(404);
-    // The purpose value the mint writes is the one redeem demands.
     expect(DEVICE_PAIR_PURPOSE).toBe("device-pair");
   });
 
@@ -310,8 +282,6 @@ describe("device pairing", () => {
 
   it("refuses the sync surface without a device credential", async () => {
     const { bearer } = await signUpUser("pair-nodevice@example.test");
-    // A SESSION bearer is not a device credential — the two vocabularies
-    // must not shadow each other.
     const response = await SELF.fetch(`${ORIGIN}/v1/sync/pull?afterSeq=0`, {
       headers: sessionHeaders(bearer),
     });

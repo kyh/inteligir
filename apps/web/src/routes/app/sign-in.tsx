@@ -9,14 +9,10 @@ import { authClient, authErrorMessage } from "@/lib/auth-client";
 import { internalNextPath } from "@/lib/next-path";
 import { currentSession, ssrWhenSignedOut } from "@/lib/session-guard";
 
-/** Where to go once signed in. A guarded route sets it on the way out so its
- *  own search params survive the round trip; `internalNextPath` is what keeps
- *  it from becoming an open redirect. */
 interface SignInSearch {
   next?: string;
 }
 
-/** Loose: the router hands over every search param, and only `next` is ours. */
 const signInSearchSchema = z.looseObject({ next: z.string().min(1) });
 
 export const Route = createFileRoute("/app/sign-in")({
@@ -54,8 +50,6 @@ function SignInPage() {
         setBusy(false);
         return;
       }
-      // `navigate` rather than a location assignment: the session cookie is
-      // set, and the destination's own guards are what read it back.
       await router.navigate({ href: internalNextPath(next) ?? "/" });
     })();
   };

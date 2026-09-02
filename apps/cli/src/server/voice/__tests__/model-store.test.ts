@@ -1,12 +1,5 @@
-// The download is the only part of dictation that takes bytes off the network,
-// so every way it can go wrong is pinned here: short, long, corrupted,
-// interrupted, and the wrong archive. The property that matters in all of them
-// is the same — the model dir never holds a usable model unless it is the
-// archive the catalog pinned, extracted whole.
-//
-// The archive is a committed `.tar.bz2` FIXTURE, because Node has no bzip2
-// ENCODER to build one at test time — but its sha is derived from the bytes
-// here, not hardcoded, so the fixture and the pin can never drift.
+// the archive is a committed fixture because node has no bzip2 encoder; its sha is derived
+// from the bytes so the fixture and the pin cannot drift.
 
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
@@ -28,7 +21,6 @@ const FIXTURE = readFileSync(
   fileURLToPath(new URL("./fixtures/test-model.tar.bz2", import.meta.url)),
 );
 
-/** The spec the fixture archive answers to — the four names inside it. */
 function specFor(archive: Buffer): VoiceModelSpec {
   return {
     id: "test-model",
@@ -45,7 +37,7 @@ function specFor(archive: Buffer): VoiceModelSpec {
   };
 }
 
-/** A fetch that answers `body` in two chunks, so progress is observable. */
+// two chunks, so progress is observable.
 function fetchServing(body: Buffer): typeof fetch {
   return async () =>
     new Response(
@@ -77,7 +69,6 @@ describe("downloadModel", () => {
     expect(readFileSync(files.encoder, "utf8")).toBe("encoder-bytes");
     expect(readFileSync(files.tokens, "utf8")).toBe("a b c\n");
     expect(await isModelInstalled(modelDir, spec)).toBe(true);
-    // The archive's test_wavs/ is not a model file, so the filter leaves it out.
     expect(existsSync(`${modelDirFor(modelDir, spec)}/test_wavs`)).toBe(false);
     expect(progress.at(-1)).toBe(FIXTURE.byteLength);
     expect(progress.length).toBeGreaterThan(1);
@@ -165,7 +156,6 @@ describe("isModelInstalled", () => {
     const spec = specFor(FIXTURE);
     const files = resolveModelFiles(modelDir, spec);
     await mkdir(modelDirFor(modelDir, spec), { recursive: true });
-    // Three of four present is not installed.
     writeFileSync(files.encoder, "x");
     writeFileSync(files.decoder, "x");
     writeFileSync(files.joiner, "x");

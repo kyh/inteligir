@@ -1,6 +1,3 @@
-// `inteligir guide` — print the manual the RUNNING server serves, so the
-// text an agent reads always matches the build it is driving.
-
 import { defineCommand } from "citty";
 import { apiFor, type CliDeps } from "../context";
 import { jsonArg, outputJson, writeOut } from "../output";
@@ -15,8 +12,7 @@ export function guideCommand(deps: CliDeps) {
       if (outputJson(args, body)) {
         return;
       }
-      // Raw, not consola: the manual is markdown, and consola's reporter
-      // rewrites every `backtick` span in a message it formats.
+      // raw, not consola: its reporter rewrites every `backtick` span.
       writeOut(`${body.markdown}\n`);
     },
   });

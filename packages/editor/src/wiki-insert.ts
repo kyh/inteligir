@@ -1,22 +1,9 @@
-// The `[[` picker's editor-mutation core, React-free so the completion
-// behavior (consume the literal "[" the trigger left behind, upgrade a
-// preceding "!" into an embed) is pinned by headless regression tests —
-// the same split as combobox-input.ts.
-
 import type { SlateEditor } from "platejs";
 
 import { insertVoidAndEscape } from "@repo/editor/insert-void";
 
-/**
- * Insert a wiki chip after the picker's commit removed the trigger element.
- * At that point the caret sits right after the literal `[` that preceded the
- * trigger (the FIRST bracket of `[[` — withTriggerCombobox swallowed the
- * second). Consume it, and when a `!` precedes it (`![[`), consume that too
- * and insert a wikiEmbed instead of a wikiLink. `forceEmbed` inserts a
- * wikiEmbed regardless (attachment picks embed as `![[asset]]` even from a
- * plain `[[` — a bare `[[img.png]]` link would render nothing useful); any
- * preceding `!` is still consumed so `![[` + attachment can't double up.
- */
+// after the picker's commit the caret sits after the first `[` of `[[` (withTriggerCombobox
+// swallowed the second); consume it, and a preceding `!` upgrades the chip to an embed.
 export function insertWikiChipFromPicker(
   editor: SlateEditor,
   body: string,
@@ -32,7 +19,6 @@ export function insertWikiChipFromPicker(
       type = "wikiEmbed";
     }
   }
-  // insertVoidAndEscape moves the caret past the chip — Slate would otherwise
-  // park it inside the void's empty text and swallow subsequent keystrokes.
+  // Slate would otherwise park the caret inside the void's empty text and swallow keystrokes.
   insertVoidAndEscape(editor, { body, children: [{ text: "" }], type });
 }

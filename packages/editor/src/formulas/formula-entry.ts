@@ -1,11 +1,5 @@
-// The editor-entry grammar and the pill node's construction, shared by the
-// `{{` autocomplete, the `}}` completion rule, the edit popover and the
-// recompute pass — one place decides what typed text becomes.
-//
-// Entry forms (the vendored skill's own): `=2+2` / `2+2` → anonymous
-// executable; `sum=2+2` → named executable (fresh id); `time=9am` → symbolic
-// (name IS the source, value IS the display, fresh id). Persisted display for
-// an executable is computed by the caller (recompute owns cross-note refs).
+// Entry forms: `=2+2` / `2+2` anonymous executable; `sum=2+2` named executable
+// (fresh id); `time=9am` symbolic (the name is the source, the value the display, fresh id).
 
 import type { TElement } from "platejs";
 
@@ -46,12 +40,7 @@ function propsFrom(source: string, display: string, meta: FormulaMeta): FormulaN
   };
 }
 
-/**
- * Turn entry text into pill props. `existing` carries the pill being edited
- * (its id survives a rewrite — linked instances stay linked); a fresh entry
- * mints an id exactly where the spec requires one (named executables and
- * symbolic variables), and an anonymous executable keeps the two-field form.
- */
+// `existing` keeps the edited pill's id so linked instances stay linked.
 export function formulaPropsFromEntry(
   entry: string,
   existing?: { meta: string },
@@ -62,10 +51,9 @@ export function formulaPropsFromEntry(
   const named = NAME_RE.exec(trimmed);
   if (named === null) {
     const expression = parseExpression(trimmed);
-    if (expression === null) return null; // bare non-executable text is not a pill
+    if (expression === null) return null;
     const outcome = evaluateExpression(expression, () => null);
     const display = outcome.ok ? formatResult(outcome.value) : "";
-    // Anonymous — but an EDIT of a named/identified pill keeps its identity.
     const { name: _dropName, ...anonymous } = prior;
     return propsFrom(trimmed, display, { ...anonymous, stale: false });
   }
@@ -74,7 +62,6 @@ export function formulaPropsFromEntry(
   const expression = parseExpression(rest);
   if (expression !== null) {
     const outcome = evaluateExpression(expression, () => null);
-    // A bound-ref entry has no local value yet; recompute fills it.
     const display = outcome.ok ? formatResult(outcome.value) : "";
     return propsFrom(rest, display, {
       ...prior,
@@ -83,7 +70,6 @@ export function formulaPropsFromEntry(
       stale: false,
     });
   }
-  // Symbolic: the name is the source, the value is the display.
   const { name: _symbolicName, ...symbolic } = prior;
   return propsFrom(name, rest, {
     ...symbolic,
@@ -92,7 +78,6 @@ export function formulaPropsFromEntry(
   });
 }
 
-/** The entry text an existing pill edits as (the inverse of the above). */
 export function entryTextOf(element: TElement): string {
   const source = stringProp(element, "source") ?? "";
   const display = stringProp(element, "display") ?? "";

@@ -24,7 +24,6 @@ async function makeBareRemote(): Promise<string> {
   return dir;
 }
 
-/** The auto-commit's debounce, compressed for a suite. */
 interface AutoCommitTiming {
   quietMs: number;
   maxWaitMs: number;
@@ -75,10 +74,7 @@ async function awaitCommitCount(root: string, count: number): Promise<void> {
   await vi.waitFor(async () => expect(await commitCount(root)).toBe(count), { timeout: 5_000 });
 }
 
-/** Long enough that every flush the scheduler could still owe has fired: a
- *  re-armed quiet timer lands at quietMs, and maxWaitMs is the latest a
- *  pushed-back one can. Only a NEGATIVE — "no commit follows" — needs to
- *  wait this out; a commit that is coming is awaited by count. */
+// only a negative ("no commit follows") waits this out; a coming commit is awaited by count.
 function debounceSettled(timing: AutoCommitTiming): Promise<void> {
   return delay(timing.maxWaitMs + timing.quietMs);
 }
@@ -97,7 +93,6 @@ describe("ensureVaultRepo", () => {
     expect(await commitCount(root)).toBe(1);
     await expectCleanRepo(root);
 
-    // Idempotent, and never re-seeds an existing vault.
     const again = await ensureVaultRepo({ root, env });
     expect(again.created).toBe(false);
     expect(await commitCount(root)).toBe(1);
@@ -109,7 +104,6 @@ describe("what a scheduled commit costs", () => {
     const { root, engine } = await makeEngine({ remoteUrl: null, timing: FAST_COMMIT });
     const before = await commitCount(root);
 
-    // Two saves the app announced, and one file it never heard about.
     await writeFile(join(root, "told-a.md"), "a\n", "utf8");
     engine.scheduleCommit(["told-a.md"]);
     await writeFile(join(root, "told-b.md"), "b\n", "utf8");
@@ -119,8 +113,6 @@ describe("what a scheduled commit costs", () => {
     await awaitCommitCount(root, before + 1);
     const { stdout } = await runGit(root, ["show", "--name-only", "--format=", "HEAD"], { env });
     expect(stdout.trim().split("\n").toSorted()).toEqual(["told-a.md", "told-b.md"]);
-    // A whole-tree `status` + `add -A` per quiet window is what this replaces;
-    // the sweep still exists for the callers that mean it.
     expect(await engine.commitNow()).toEqual({ files: 1 });
   });
 
@@ -131,8 +123,6 @@ describe("what a scheduled commit costs", () => {
     await engine.commitNow();
     const before = await commitCount(root);
 
-    // The bracketed note is what the app announced; the neighbour's edit is
-    // one nobody claimed, and a glob pathspec would sweep it in.
     await writeFile(join(root, "[a].md"), "bracketed edit\n", "utf8");
     engine.scheduleCommit(["[a].md"]);
     await writeFile(join(root, "a.md"), "user edit\n", "utf8");
@@ -141,7 +131,6 @@ describe("what a scheduled commit costs", () => {
     const { stdout } = await runGit(root, ["show", "--name-status", "--format=", "HEAD"], { env });
     expect(stdout.trim()).toBe("M\t[a].md");
     expect(await lastMessage(root)).toBe("vault: update [a].md");
-    // The neighbour waits for its own commit, and is named as itself.
     expect(await engine.commitNow()).toEqual({ files: 1 });
     expect(await lastMessage(root)).toBe("vault: update a.md");
   });
@@ -153,7 +142,6 @@ describe("what a scheduled commit costs", () => {
     await writeFile(join(root, "told.md"), "a\n", "utf8");
     engine.scheduleCommit(["told.md"]);
     await writeFile(join(root, "untold.md"), "b\n", "utf8");
-    // The boot sweep and the post-sync drain both mean "whatever is dirty".
     engine.scheduleCommit();
 
     await awaitCommitCount(root, before + 1);
@@ -171,9 +159,6 @@ describe("what a scheduled commit costs", () => {
     engine.scheduleCommit(["saved.md"]);
     await awaitCommitCount(root, before + 1);
 
-    // Every listener answers this by re-fetching the status, and every fetch
-    // is a `git status --porcelain` plus a `rev-list` under the repo lock —
-    // to be told the same word the commit already implied.
     expect(statusChanges()).toBe(0);
     await engine.commitNow();
     expect(statusChanges()).toBe(0);
@@ -192,7 +177,6 @@ describe("auto-commit", () => {
 
     await awaitCommitCount(root, before + 1);
     expect(await lastMessage(root)).toBe("vault: update 3 files");
-    // The quiet window keeps draining: no second commit follows.
     await debounceSettled(FAST_COMMIT);
     expect(await commitCount(root)).toBe(before + 1);
     await expectCleanRepo(root);
@@ -230,7 +214,6 @@ describe("auto-commit", () => {
     const { root, engine } = await makeEngine({ remoteUrl: null, timing: FAST_COMMIT });
     const before = await commitCount(root);
 
-    // Two overlapping turns hold commits; a user edit rides neither.
     const releaseA = engine.holdCommits();
     const releaseB = engine.holdCommits();
     await writeFile(join(root, "a.md"), "turn A\n", "utf8");
@@ -264,15 +247,12 @@ describe("auto-commit", () => {
     expect(files).toContain("b.md");
     expect(files).not.toContain("user.md");
 
-    // The file no turn claimed lands in the re-armed debounce commit, as the
-    // engine identity.
     await awaitCommitCount(root, before + 3);
     files = (await runGit(root, ["show", "--name-only", "--format=%an", "HEAD"], { env })).stdout;
     expect(files).toContain("inteligir");
     expect(files).toContain("user.md");
     await expectCleanRepo(root);
 
-    // A path that is no longer dirty commits nothing.
     expect(
       await engine.commitPaths(["a.md"], { name: "agent-a", email: "a@inteligir" }, "noop"),
     ).toBeNull();
@@ -285,11 +265,9 @@ describe("auto-commit", () => {
     const release = engine.holdCommits();
     await writeFile(join(root, "mid-turn.md"), "agent writing\n", "utf8");
     engine.scheduleCommit();
-    // Past the quiet window and the max wait: still no engine commit.
     await debounceSettled(FAST_COMMIT);
     expect(await commitCount(root)).toBe(before);
 
-    // The turn's own commit runs under the hold — that IS the release path.
     const committed = await engine.commitPaths(
       ["mid-turn.md"],
       { name: "inteligir-agent", email: "agent@inteligir.local" },
@@ -298,7 +276,6 @@ describe("auto-commit", () => {
     expect(committed).toEqual({ files: 1 });
     release();
 
-    // The re-armed flush finds a clean tree: no second commit.
     await debounceSettled(FAST_COMMIT);
     expect(await commitCount(root)).toBe(before + 1);
     expect(await lastMessage(root)).toBe("agent: vault update");
@@ -324,7 +301,7 @@ describe("sync", () => {
     const a = await makeEngine({ remoteUrl: remote });
     const b = await makeEngine({ remoteUrl: remote });
 
-    // First contact: A creates the remote branch, B rebases onto it.
+    // first contact: A creates the remote branch, B rebases onto it.
     expect((await a.engine.syncNow()).state).toBe("clean");
     expect((await b.engine.syncNow()).state).toBe("clean");
     expect((await a.engine.syncNow()).state).toBe("clean");
@@ -371,12 +348,9 @@ describe("sync", () => {
     expect(status.conflict.ours.commits).toBeGreaterThanOrEqual(1);
     expect(status.conflict.theirs.commits).toBeGreaterThanOrEqual(1);
 
-    // The refused rebase was aborted: porcelain empty, no rebase in progress,
-    // fsck clean, and B's own edit is still its HEAD content.
     await expectCleanRepo(b.root);
     expect(await readFile(join(b.root, "shared.md"), "utf8")).toBe("from B\n");
 
-    // The conflict is sticky across status reads until a sync succeeds.
     expect((await b.engine.status()).state).toBe("conflict");
   });
 
@@ -386,8 +360,6 @@ describe("sync", () => {
     expect((await engine.syncNow()).state).toBe("clean");
 
     const release = engine.holdCommits();
-    // No pass may start under a hold — the state names WHY rather than
-    // reporting the clean tree a sync would have left behind.
     expect((await engine.syncNow()).state).toBe("held");
     expect((await engine.status()).state).toBe("held");
 
@@ -396,14 +368,11 @@ describe("sync", () => {
   });
 
   it("says offline rather than clean when the remote cannot be reached", async () => {
-    // A vault with nothing local to push: `unpushed` is measured against the
-    // remote-tracking ref, so a stale one would answer "clean" — a sync this
-    // engine never performed.
+    // nothing local to push: unpushed is measured against the remote-tracking ref, so a stale one would answer clean.
     const { engine } = await makeEngine({ remoteUrl: join(await makeBareRemote(), "gone") });
     const status = await engine.syncNow();
     expect(status.state).toBe("offline");
     expect(status.lastError).not.toBeNull();
-    // Sticky: a status read after the failed pass makes the same claim.
     expect((await engine.status()).state).toBe("offline");
   });
 
@@ -421,7 +390,6 @@ describe("sync", () => {
 });
 
 describe("runGit", () => {
-  /** What git itself sees in its environment, read back through a shell alias. */
   async function gitEnvValue(root: string, name: string): Promise<string> {
     const { stdout } = await runGit(
       root,
@@ -432,9 +400,7 @@ describe("runGit", () => {
   }
 
   it("never lets git ask this process a question", async () => {
-    // A prompt on an unreachable or auth-requiring remote does not fail, it
-    // BLOCKS — under the repo lock, so every vault write stalls behind it
-    // until the call's timeout.
+    // a git prompt blocks under the repo lock, stalling every vault write until the timeout.
     const root = scratchDir("inteligir-git-env-");
     await ensureVaultRepo({ root, env });
     expect(await gitEnvValue(root, "GIT_TERMINAL_PROMPT")).toBe("0");
@@ -447,8 +413,7 @@ describe("runGit", () => {
     await writeFile(join(root, "[a].md"), "bracketed\n", "utf8");
     await engine.commitNow();
 
-    // TRACKED files: the glob reaches through the index, where an untracked
-    // walk happens to match by name.
+    // tracked files: the glob reaches through the index, where an untracked walk only matches by name.
     await writeFile(join(root, "a.md"), "plain edit\n", "utf8");
     await writeFile(join(root, "[a].md"), "bracketed edit\n", "utf8");
     await runGit(root, ["add", "-A", "--", "[a].md"], { env });
@@ -457,8 +422,6 @@ describe("runGit", () => {
   });
 
   it("leaves a caller's own GIT_SSH_COMMAND alone", async () => {
-    // Someone who configured how ssh runs has made a choice; overriding it
-    // would break the setups that exist to make these fetches work at all.
     const root = scratchDir("inteligir-git-ssh-");
     await ensureVaultRepo({ root, env });
     const { stdout } = await runGit(
@@ -495,9 +458,7 @@ describe("the clone path", () => {
   });
 
   it("seeds only the HOSTED missing-repo miss; an explicit remote's miss boots empty", async () => {
-    // GitHub-style hosts answer 404 for a private repo the credential cannot
-    // see, so an explicit remote's "not found" must not plant a seed beside
-    // a vault that may exist.
+    // GitHub-style hosts answer 404 for a private repo the credential cannot see.
     const bRoot = join(scratchDir("inteligir-git-clone-miss-"), "vault");
     let seeded = false;
     const { created, cloned } = await ensureVaultRepo({
@@ -548,7 +509,6 @@ describe("the cross-account fence", () => {
     await writeFile(join(root, "note.md"), "# a\n");
     await engine.commitNow();
     expect((await engine.syncNow()).state).toBe("clean");
-    // The first paired push pinned the marker.
     const marker = await runGit(root, ["config", "--get", "inteligir.account"], { env });
     expect(marker.stdout.trim()).toBe("user-a");
 
@@ -558,20 +518,15 @@ describe("the cross-account fence", () => {
     account = "user-b";
     const status = await engine.syncNow();
     expect(status.state).toBe("account-mismatch");
-    // Nothing crossed the wire for the wrong account.
     expect(
       Number((await runGit(remote, ["rev-list", "--count", "main"], { env })).stdout.trim()),
     ).toBe(pushedCount);
 
-    // Pairing back to the marker's own account syncs again.
     account = "user-a";
     expect((await engine.syncNow()).state).toBe("clean");
   });
 
   it("drops the previous account's conflict, which outranks the mismatch", async () => {
-    // A conflict names files in the account being LEFT, and the UI offers
-    // "Sync now" for one — the wrong instruction for a condition whose only fix
-    // is unpairing.
     const remote = await makeBareRemote();
     const a = await makeEngine({ remoteUrl: remote });
     const root = scratchDir("inteligir-git-fence-conflict-");
@@ -604,8 +559,7 @@ describe("the cross-account fence", () => {
 
 describe("a refused credential", () => {
   it("surfaces as `unauthorized`, not `offline`", async () => {
-    // The fixes are opposite: offline heals on its own, while a revoked
-    // device fails every retry the same way until the user re-pairs.
+    // offline heals on its own; a revoked device fails every retry until re-paired.
     const server = createServer((_request, response) => {
       response.writeHead(401, { "www-authenticate": 'Basic realm="test"' });
       response.end("auth required\n");
@@ -624,9 +578,7 @@ describe("a refused credential", () => {
 
 describe("clone failure classes", () => {
   it("an unreachable remote boots EMPTY — the seed waits for a remote that answered", async () => {
-    // A populated remote that merely could not answer must not gain a seeded
-    // sibling history; an empty init commit is dropped by the eventual
-    // rebase's --empty=drop, so the vault heals into a clean join.
+    // an empty init commit is dropped by the eventual rebase's --empty=drop, so the vault heals into a clean join.
     const server = createServer((_request, response) => {
       response.writeHead(401, { "www-authenticate": 'Basic realm="test"' });
       response.end("auth required\n");
@@ -648,7 +600,6 @@ describe("clone failure classes", () => {
     expect(created).toBe(true);
     expect(cloned).toBe(false);
     expect(seeded).toBe(false);
-    // Born HEAD, nothing else: one empty commit for the rebase to stand on.
     const count = await runGit(root, ["rev-list", "--count", "HEAD"], { env });
     expect(count.stdout.trim()).toBe("1");
   });
@@ -662,8 +613,7 @@ describe("the bootstrap port", () => {
     env: Record<string, string> | undefined;
   }
 
-  /** A fake `runGit`: no git binary, no repo — the port is the whole seam.
-   *  `init` creates `.git/info` because `ensureLocalExclude` appends there. */
+  // init creates .git/info because ensureLocalExclude appends there.
   function fakeGit(clone: "missing" | "failed") {
     const calls: Invocation[] = [];
     const run = (
@@ -721,7 +671,6 @@ describe("the bootstrap port", () => {
     const clone = fake.calls[0];
     expect(clone?.cwd).not.toBe(root);
     expect(clone?.timeoutMs).toBe(120_000);
-    // The born-HEAD commit carries the engine identity, through the port too.
     const commit = fake.calls.at(-1);
     expect(commit?.args).toContain("vault: initialize");
     expect(commit?.env?.GIT_AUTHOR_NAME).toBe("inteligir");
@@ -750,10 +699,7 @@ describe("dispose", () => {
     await ensureVaultRepo({ root, env });
     const engine = createGitEngine({ root, remote: () => null, env });
     await writeFile(join(root, "pending.md"), "unflushed\n", "utf8");
-    // Break the repo under the engine: the flush's own git invocation now
-    // fails, and the vault teardown step has to be able to report that —
-    // a swallowed rejection here is a shutdown that exits 0 with edits in
-    // no revision at all.
+    // break the repo so the flush's own git call fails.
     await rm(join(root, ".git"), { recursive: true, force: true });
     await expect(engine.dispose()).rejects.toThrow(/git/);
   });
@@ -775,8 +721,7 @@ describe("a live remote provider", () => {
     onTestFinished(() => engine.dispose());
     engine.startAutoSync(50);
     await vi.waitFor(() => expect(reads).toBeGreaterThanOrEqual(2));
-    // ensureOriginRemote is reachable only inside a pass; a pass that ran
-    // would have persisted `origin` into .git/config.
+    // a pass that ran would have persisted origin into .git/config.
     await expect(runGit(root, ["remote", "get-url", "origin"], { env })).rejects.toThrow();
   });
 

@@ -1,12 +1,5 @@
-// `img` node (markdown `![alt](src)`). Two rendering paths: an external
-// `http(s)` src renders as a plain `<img>`; a vault-relative path is fetched
-// lazily through the host's asset route (readVaultAsset → object URL), the
-// page having no filesystem of its own to read from. The media type rides on
-// the Blob the host answers — this file owns no extension table, because the
-// two asset routes already share one and a second would drift from it. A path
-// that doesn't resolve renders a broken-file placeholder rather than a crash.
-// No resize/align/caption chrome — the canonical byte form stays bare
-// `![alt](path)`.
+// A vault-relative src is fetched through the host's asset route into an object URL; the media
+// type rides the Blob, so this file owns no extension table that could drift from the routes'.
 
 import { useEffect, useState } from "react";
 import { NodeApi, type TElement } from "platejs";
@@ -22,12 +15,9 @@ const EXTERNAL_RE = /^https?:\/\//i;
 
 type VaultState = { kind: "loading" } | { kind: "ready"; url: string } | { kind: "error" };
 
-// Resolve a vault-relative asset to an object URL through the host's I/O seam,
-// revoking it on cleanup / path change. External srcs never enter here.
 function useVaultAsset(path: string, external: boolean): VaultState {
   const [fetched, setFetched] = useState<VaultState>({ kind: "loading" });
-  // The fetch below is keyed by `path`; re-key during the render that changes
-  // it so no frame shows the previous file's object URL under the new path.
+  // re-key during the render that changes the path so no frame shows the previous file's object URL.
   const [fetchedPath, setFetchedPath] = useState(path);
   if (fetchedPath !== path) {
     setFetchedPath(path);
@@ -59,13 +49,10 @@ function useVaultAsset(path: string, external: boolean): VaultState {
     };
   }, [path, external]);
 
-  // An external src is already a usable URL — it is state only in the sense
-  // that it never has to be fetched.
   return external ? { kind: "ready", url: path } : fetched;
 }
 
-// Alt text lives in the img node's `caption` children (Plate's markdown img
-// rule), verbatim from `![alt](…)`; fall back to the file name.
+// alt text lives in the img node's `caption` children (Plate's markdown img rule).
 function altText(element: TElement): string {
   const caption = element.caption;
   if (Array.isArray(caption)) {

@@ -41,11 +41,8 @@ describe("renameCandidates", () => {
   });
 
   it("does not name a doc whose link reaches the moved doc via its own alias", () => {
-    // The alias travels with the file's frontmatter and still resolves after
-    // the rename — the surgery must not rewrite it, but candidate selection
-    // deliberately stays a superset built on backlinks, so the aliased source
-    // IS named (backlinks resolve through aliases). What matters is that the
-    // unrelated doc is not.
+    // via-alias.md is still named: selection is a backlink superset, and
+    // backlinks resolve through aliases. Only clean.md must be absent.
     const index = indexOf({
       "target.md": "---\naliases:\n  - Nickname\n---\n# Target\n",
       "via-alias.md": "Ref [[Nickname]].\n",

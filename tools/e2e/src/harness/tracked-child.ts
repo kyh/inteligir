@@ -1,13 +1,3 @@
-// Every long-lived child the harness spawns — an app instance, the cloud dev
-// Worker — supervised the same way: one process-group registry the runner's
-// signal handlers sweep, one TERM→KILL ladder verified by ESRCH, one output
-// ring for failure transcripts, and one reserve→spawn→ready→retry boot loop.
-//
-// ONE spelling of each, because two are how one of them leaks a watcher child,
-// or reports a lost port as a crash, or drops the log that explains a failure.
-// What a caller supplies is only what makes its child different: the argv, the
-// env, how to tell it is ready, and what handle the scenario wants back.
-
 import { spawn } from "node:child_process";
 import { setTimeout as delay } from "node:timers/promises";
 import { reserveFreePorts } from "./ports";
@@ -15,42 +5,29 @@ import { reserveFreePorts } from "./ports";
 const STOP_SIGTERM_GRACE_MS = 5_000;
 const STOP_SIGKILL_GRACE_MS = 2_000;
 const KILL_POLL_INTERVAL_MS = 100;
-/** Bound on losing the reserve→bind race to another process on the machine. */
+// bound on losing the reserve→bind race to another process.
 const BOOT_PORT_ATTEMPTS = 3;
 
-/**
- * What the runner's teardown and failure transcript need from a child: stopped
- * in reverse launch order, counted in `teardownClean` (a group surviving
- * SIGKILL keeps the scratch), and its output printed when a scenario fails.
- */
 export interface TrackedProcess {
   name: string;
-  /** The child's interleaved stdout+stderr tail, for failure transcripts. */
   outputTail(lines?: number): string;
-  /** Resolves once the WHOLE process group is verified gone (ESRCH); throws
-   *  if the group survives SIGKILL — the caller must then keep the scratch. */
+  // throws if the group survives SIGKILL; the caller must then keep the scratch.
   stop(): Promise<void>;
 }
 
-/** A tracked child plus the liveness flag its own exit handlers set. */
 export interface SupervisedChild extends TrackedProcess {
   exited(): boolean;
 }
 
-/**
- * Every process group spawned and not yet verified dead — module scope on
- * purpose: this is a single-process CLI, and the runner's signal handlers
- * need one place that names every group to kill.
- */
+// module scope: the runner's signal handlers need one place naming every group to kill.
 const liveGroups = new Set<number>();
 
-/** For the runner's SIGINT/SIGTERM handlers; synchronous, best-effort. */
 export function killAllLiveGroups(signal: NodeJS.Signals): void {
   for (const pgid of liveGroups) {
     try {
       process.kill(-pgid, signal);
     } catch {
-      // Group already gone.
+      // group already gone.
     }
   }
 }
@@ -77,18 +54,12 @@ async function pollGroupGone(pgid: number, graceMs: number): Promise<boolean> {
   }
 }
 
-/**
- * SIGTERM the GROUP, leader dead or not — a forked child outlives a crashed
- * leader — then SIGKILL, each with its own grace; resolves once the whole
- * group is verified gone (ESRCH) and throws if it survives SIGKILL. (A
- * recycled pgid is theoretically reachable here; the window between leader
- * exit and the signal is too small to matter on a test box.)
- */
+// signals the group, leader dead or not: a forked child outlives a crashed leader.
 async function stopProcessGroup(pgid: number, name: string): Promise<void> {
   try {
     process.kill(-pgid, "SIGTERM");
   } catch {
-    // Whole group already gone.
+    // whole group already gone.
   }
   if (await pollGroupGone(pgid, STOP_SIGTERM_GRACE_MS)) {
     liveGroups.delete(pgid);
@@ -97,7 +68,7 @@ async function stopProcessGroup(pgid: number, name: string): Promise<void> {
   try {
     process.kill(-pgid, "SIGKILL");
   } catch {
-    // Gone between polls.
+    // gone between polls.
   }
   if (await pollGroupGone(pgid, STOP_SIGKILL_GRACE_MS)) {
     liveGroups.delete(pgid);
@@ -109,7 +80,6 @@ async function stopProcessGroup(pgid: number, name: string): Promise<void> {
 }
 
 export interface SpawnSupervisedArgs {
-  /** Short label for transcript lines ("a", "b", "cloud-worker"). */
   name: string;
   file: string;
   argv: readonly string[];
@@ -117,9 +87,8 @@ export interface SpawnSupervisedArgs {
   env: NodeJS.ProcessEnv;
 }
 
-/** Spawn a child in ITS OWN process group — so stop() kills the whole tree,
- *  and a forked grandchild (the server's watcher, wrangler's workerd) cannot
- *  outlive it — with its output ringed for the failure transcript. */
+// its own process group, so stop() kills the tree: the server's watcher and wrangler's workerd
+// would otherwise outlive it.
 export function spawnSupervised(args: SpawnSupervisedArgs): SupervisedChild {
   const child = spawn(args.file, [...args.argv], {
     cwd: args.cwd,
@@ -177,38 +146,26 @@ export function spawnSupervised(args: SpawnSupervisedArgs): SupervisedChild {
   };
 }
 
-/** Whether a dead child's output says it lost the reserve→bind race. Node
- *  says `EADDRINUSE`; workerd says it in prose — one matcher, so neither
- *  spelling reads as a crash. */
+// node says EADDRINUSE; workerd says it in prose.
 function looksLikePortLost(tail: string): boolean {
   return tail.includes("EADDRINUSE") || tail.includes("Address already in use");
 }
 
 export interface BootWithPortsArgs<T extends TrackedProcess> {
-  /** Named in every failure message; also the transcript label. */
   label: string;
-  /** How many free loopback ports this child needs reserved. */
   portCount: number;
-  /** How long the child gets to answer `ready` before the boot fails. */
   deadlineMs: number;
   pollIntervalMs: number;
   onLog: (line: string) => void;
-  /**
-   * Spawn one attempt on the reserved ports and hand back the caller's own
-   * handle. Register it for teardown HERE, before the ready wait, so a child
-   * that dies early is still owned by whoever tears down.
-   */
+  // must register the handle for teardown before returning, so a child that dies during the ready
+  // wait is still owned.
   spawn: (ports: readonly number[]) => { handle: T; child: SupervisedChild };
-  /** True once the child is serving. Must not throw. */
+  // must not throw.
   ready: (handle: T) => Promise<boolean>;
 }
 
-/**
- * Reserve ports, spawn, and wait until `ready` — retrying with FRESH ports
- * when the child died holding a port someone else took between the
- * reservation and the bind (`reserveFreePorts` releases before returning, so
- * that race is real and bounded rather than fatal).
- */
+// retries with fresh ports when the child lost the reserve→bind race (reserveFreePorts releases
+// before returning).
 export async function bootWithPorts<T extends TrackedProcess>(
   args: BootWithPortsArgs<T>,
 ): Promise<T> {

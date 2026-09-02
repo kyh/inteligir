@@ -1,7 +1,3 @@
-// The origin pin is the shell's entire security surface, so it is tested as a
-// matrix rather than by example: what a hostile link inside a note can be, and
-// what each shape is allowed to do.
-
 import { describe, expect, it } from "vitest";
 import {
   ALLOWED_PERMISSIONS,
@@ -21,11 +17,9 @@ describe("isSameOriginNavigation", () => {
   it.each([
     ["http://127.0.0.1:4664/", true],
     ["http://127.0.0.1:4664/app/notes/a.md?x=1#y", true],
-    // A prefix compare would call every one of these same-origin.
     ["http://127.0.0.1:46640/", false],
     ["http://127.0.0.1:4664.evil.com/", false],
     ["https://127.0.0.1:4664/", false],
-    // localhost and 127.0.0.1 are DIFFERENT origins to a browser.
     ["http://localhost:4664/", false],
     ["http://[::1]:4664/", false],
     ["file:///etc/passwd", false],
@@ -42,11 +36,6 @@ describe("isSameOriginNavigation", () => {
   });
 });
 
-// The SHIPPED window is pinned to `inteligir://app`, so the
-// custom-scheme arm of `comparableOrigin` — the `URL.origin === "null"` trap the
-// header spends its length on, plus the username and empty-hostname refusals —
-// is the PRODUCTION path. The matrix above pins an http origin (the in-app
-// browser's), which never exercises it; this block drives the real pin.
 describe("the pinned custom scheme (inteligir://app)", () => {
   const APP = "inteligir://app";
 
@@ -54,15 +43,11 @@ describe("the pinned custom scheme (inteligir://app)", () => {
     ["inteligir://app", true],
     ["inteligir://app/", true],
     ["inteligir://app/notes/a.md?x=1#y", true],
-    // The `URL.origin === "null"` trap: a naive origin compare calls these two
-    // equal, collapsing the pin to nothing.
+    // `URL.origin` is "null" for every non-special scheme, so these compare equal to the pin
     ["inteligir://evil/", false],
     ["inteligir://evil", false],
-    // `inteligir://app@evil/` parses to username "app", hostname "evil".
     ["inteligir://app@evil/x", false],
-    // Empty authority.
     ["inteligir:///x", false],
-    // Cross-scheme: the loopback server is a DIFFERENT origin to the window.
     ["http://127.0.0.1:4664/", false],
     ["inteligir2://app/", false],
   ])("isSameOriginNavigation %s → %s", (target, expected) => {
@@ -71,18 +56,13 @@ describe("the pinned custom scheme (inteligir://app)", () => {
 
   it("classifyNavigation allows the pin and blocks the impostors", () => {
     expect(classifyNavigation("inteligir://app/notes", APP)).toBe("allow");
-    // A custom scheme is never handed to the system browser — it is not http.
     expect(classifyNavigation("inteligir://app@evil/x", APP)).toBe("block");
     expect(classifyNavigation("inteligir://evil/x", APP)).toBe("block");
-    // The loopback origin is real http, so it goes to the browser rather than
-    // being swallowed.
     expect(classifyNavigation("http://127.0.0.1:4664/", APP)).toBe("block-and-open-external");
   });
 
   it("grants media only to the pinned origin, in both carriers Chromium delivers", () => {
-    // The check handler passes a bare origin; the request handler passes a full
-    // requestingUrl. A standard-registered scheme gets a real origin from
-    // Chromium, so both forms must resolve the same.
+    // the check handler passes a bare origin; the request handler a full requestingUrl
     expect(classifyPermission("media", APP, APP)).toBe(true);
     expect(classifyPermission("media", "inteligir://app/note", APP)).toBe(true);
     expect(classifyPermission("media", "inteligir://evil", APP)).toBe(false);
@@ -123,7 +103,6 @@ describe("classifyNavigation", () => {
 
 describe("classifyWindowOpen", () => {
   it("denies a popup at its own origin — the shell grants no second window", () => {
-    // The verdict never says "allow"; the type has no such member.
     expect(classifyWindowOpen(`${ORIGIN}/app`)).toBe("deny-and-open-external");
   });
 
@@ -149,8 +128,6 @@ describe("decideExternalOpen", () => {
   });
 
   it("refuses a URL the page produced with no user activation at all", () => {
-    // A script loop calling window.open would otherwise become a loop of OS
-    // browser launches, every one outside the origin pin.
     expect(
       decideExternalOpen({ url: "https://example.com/", lastInputAt: null, now: NOW }),
     ).toEqual({
@@ -188,15 +165,11 @@ describe("decideExternalOpen", () => {
 
 describe("classifyPermission", () => {
   it("grants exactly one permission — the dictation microphone", () => {
-    // The origin pin is the whole security surface, so the set that can EVER
-    // be granted is asserted here rather than left to the matrix below.
     expect(ALLOWED_PERMISSIONS).toEqual(["media"]);
   });
 
   it("grants media to the window's own origin", () => {
     expect(classifyPermission("media", ORIGIN, ORIGIN)).toBe(true);
-    // The request handler passes a full URL as the requesting origin; the
-    // check handler passes a bare origin. Both must resolve the same.
     expect(classifyPermission("media", `${ORIGIN}/app/note`, ORIGIN)).toBe(true);
   });
 
@@ -235,8 +208,7 @@ describe("classifyPermission", () => {
 
 describe("appWindowWebPreferences", () => {
   it("isolates the app window, and takes the vault's partition rather than the default session", () => {
-    // Every flag, by value: these are Electron's defaults today, so a silent
-    // flip is exactly the change nothing else in this process would notice.
+    // by value: these are Electron's defaults today, so a default flip would go unnoticed
     expect(appWindowWebPreferences("/x/preload.cjs", "persist:vault-1")).toEqual({
       preload: "/x/preload.cjs",
       contextIsolation: true,

@@ -1,9 +1,3 @@
-// The projection's row model rendered through the vendored AI surface
-// (@repo/ui/ai): a turn's quiet work splits by what a reader is asking of it —
-// reasoning and plans compose a THINKING trace, commands, tools and file
-// changes compose TOOL CHIPS — while conversation rows stay the chat surface
-// and a turn still in flight carries the loader.
-
 import type { ViewContext } from "@repo/domain/view-context";
 import type {
   TimelineFileChange,
@@ -18,8 +12,6 @@ import { ToolChip, ToolChipDetail, ToolChipList } from "@repo/ui/ai/tool-chips";
 import { cn } from "@repo/ui/lib/utils";
 import { memo, type ReactNode } from "react";
 
-/** A command's output is a transcript, not a document: the chip carries the
- *  head of it so a long build log cannot push the turn off screen. */
 const COMMAND_OUTPUT_LINES = 40;
 
 const CHANGE_MARKS = {
@@ -32,12 +24,6 @@ function firstLine(text: string): string {
   return text.split("\n", 1)[0] ?? "";
 }
 
-/**
- * What the agent was told about the user's screen, under the user's own
- * bubble. It is ATTRIBUTION, not message body — the bubble above stays exactly
- * what was typed — and it exists because a message the model answers with
- * hidden context is a message the user cannot debug.
- */
 function ViewContextAttribution({ context }: { context: ViewContext }) {
   return (
     <div className="max-w-[85%] truncate px-3 text-xs text-muted-foreground">
@@ -57,7 +43,6 @@ function isAction(row: TimelineRow): boolean {
   );
 }
 
-/** Reasoning and plans: what the agent was working out. */
 function thoughtRow(row: TimelineWorkRow): ReactNode {
   if (row.workKind === "reasoning") {
     return row.text.trim() === "" ? null : (
@@ -76,7 +61,6 @@ function thoughtRow(row: TimelineWorkRow): ReactNode {
   return null;
 }
 
-/** Commands, tools and file changes: what the agent DID. */
 function actionChip(row: TimelineWorkRow): ReactNode {
   switch (row.workKind) {
     case "command": {
@@ -174,11 +158,7 @@ function TurnRowView({ row }: { row: TimelineTurnRow }) {
       {errors.map((child) => (
         <TimelineRowView key={child.id} row={child} />
       ))}
-      {working ? (
-        // The turn's own createdAt, so a panel opened onto a running turn
-        // shows its true age rather than restarting the clock at mount.
-        <LoadingState label="Working" startedAt={row.createdAt} />
-      ) : null}
+      {working ? <LoadingState label="Working" startedAt={row.createdAt} /> : null}
       {row.status === "interrupted" ? (
         <div className="text-xs text-muted-foreground">Interrupted</div>
       ) : null}
@@ -186,12 +166,7 @@ function TurnRowView({ row }: { row: TimelineTurnRow }) {
   );
 }
 
-/**
- * Memoized on `row` alone, which is what the delta path already preserves: an
- * unchanged row comes back from `applyTimelineDelta` as the SAME object, so a
- * streaming turn re-rendering every row it did not touch was throwing that
- * identity away — and a turn row carries its whole subtree.
- */
+// memoized on `row`: `applyTimelineDelta` preserves untouched rows' identity, and a turn row carries its subtree.
 export const TimelineRowView = memo(function TimelineRowView({ row }: { row: TimelineRow }) {
   switch (row.kind) {
     case "conversation":
@@ -205,10 +180,7 @@ export const TimelineRowView = memo(function TimelineRowView({ row }: { row: Tim
           </div>
         );
       }
-      // `animate` stays OFF: our text is ALREADY live — the projection grows
-      // this row per provider delta — so the component's 55ms-per-word reveal
-      // would lag a real stream and keep trailing after the turn finished.
-      // The turn's own loader is the "still working" signal.
+      // `animate` off: the projection already grows this row per delta, so the per-word reveal would trail the stream.
       return <StreamingText text={row.text} animate={false} />;
     case "error":
       return (
@@ -220,8 +192,6 @@ export const TimelineRowView = memo(function TimelineRowView({ row }: { row: Tim
     case "turn":
       return <TurnRowView row={row} />;
     case "work":
-      // Work rows render INSIDE their turn, composed into the thinking trace
-      // or the tool chips; a stray one (its turn never started) has no surface.
       return null;
   }
 });

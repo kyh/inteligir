@@ -1,9 +1,3 @@
-// Paste/drop image ingestion — the thing a fire-and-forget handler cannot get
-// wrong: it NEVER REJECTS. Both handlers call it with `void` after
-// `preventDefault`, and nothing on the page listens for an unhandled
-// rejection — so a failure that escapes is a paste that produces no image and
-// says nothing at all.
-
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createSlateEditor, ElementApi, KEYS } from "platejs";
 
@@ -33,7 +27,6 @@ function newEditor() {
   });
 }
 
-/** Every image node's url, in document order. */
 function imageUrls(editor: ReturnType<typeof newEditor>): string[] {
   return editor.children.flatMap((node) => {
     if (!ElementApi.isElement(node) || node.type !== KEYS.img) return [];

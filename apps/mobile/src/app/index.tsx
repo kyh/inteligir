@@ -24,8 +24,6 @@ import { RADIUS, SPACE, type Theme, useTheme } from "@/lib/theme";
 import type { SyncStatus } from "@/sync/sync-runtime";
 import { describeCloudFailure } from "@repo/api/cloud/client";
 
-// The home surface. Unpaired → a pairing screen; paired → the thread list with a
-// quick-capture box. Read-only on threads for v1 (the desktop runs turns).
 export default function Index() {
   const status = useSyncStatus();
   return status.state === "paired" ? <HomeScreen /> : <PairScreen status={status} />;
@@ -202,11 +200,6 @@ function captureNoticeLine(
   }
 }
 
-// The phone's own job: capture into the inbox. The write POSTs to the cloud with
-// a retry-stable idempotency key; the desktop applies it to the vault. The field
-// clears only once the POST is accepted, and only of the words that were sent —
-// a refused one leaves the user's words where they can be retried, and says so
-// in the failure colour; words typed while the POST was in flight stay.
 function CaptureBox() {
   const theme = useTheme();
   const [text, setText] = useState("");
@@ -230,6 +223,7 @@ function CaptureBox() {
       setNotice({ kind: "failed", message: describeCloudFailure(result.failure) });
       return;
     }
+    // clear only the words that were sent; text typed while the POST was in flight stays.
     setText((current) => (current === text ? "" : current));
     setNotice({ kind: "captured" });
     timer.current = setTimeout(() => setNotice({ kind: "idle" }), 2500);

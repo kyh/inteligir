@@ -35,8 +35,6 @@ const badgeVariants = cva("inline-flex items-center font-medium whitespace-nowra
     variant: {
       solid: "",
       dot: "border border-border text-foreground",
-      // Local addition to fluid's solid/dot vocabulary: dot's chrome without
-      // the marker, for label-only tag chips.
       outline: "border border-border text-foreground",
     },
     size: {
@@ -52,9 +50,7 @@ const badgeVariants = cva("inline-flex items-center font-medium whitespace-nowra
 
 type BadgeSize = "default" | "compact";
 
-// text-box needs a block container — the badge root is a flex container, so
-// the label gets its own span. Height is fixed (h-*), so trimming only
-// recenters the letterforms.
+// text-box needs a block container, so the label gets its own span
 const labelClassName = "[text-box:trim-both_cap_alphabetic]";
 
 interface BadgeProps
@@ -62,7 +58,6 @@ interface BadgeProps
     Omit<HTMLAttributes<HTMLSpanElement>, "color">,
     Omit<VariantProps<typeof badgeVariants>, "size"> {
   color?: BadgeColor;
-  /** Omitted, the badge follows the surrounding SizeProvider. */
   size?: BadgeSize;
 }
 
@@ -72,7 +67,6 @@ const Badge = forwardRef<HTMLSpanElement, BadgeProps>(
     ref,
   ) => {
     const radius = useRadius();
-    // Resolve the size: explicit prop > surrounding SizeProvider > default.
     const contextSize = useSizeVariant();
     const size: BadgeSize = sizeProp ?? (contextSize === "compact" ? "compact" : "default");
     const colorValue = badgeColors[color];

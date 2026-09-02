@@ -65,9 +65,7 @@ describe("toInstructions", () => {
 
   it("caps by UTF-8 BYTES and never splits a character", () => {
     const vaultDir = makeVaultDir();
-    // Each emoji is 4 UTF-8 bytes and 2 UTF-16 units: measuring `.length`
-    // would keep ~4x the budget, and slicing by it would halve a surrogate
-    // pair into U+FFFD.
+    // each emoji is 4 UTF-8 bytes and 2 UTF-16 units.
     writeFileSync(join(vaultDir, "AGENTS.md"), "😀".repeat(10_000), "utf8");
     const instructions = toInstructions(fakeSessionFacts(), vaultDir);
     expect(instructions).toBeDefined();

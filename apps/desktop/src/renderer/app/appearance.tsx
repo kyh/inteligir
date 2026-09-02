@@ -1,14 +1,5 @@
-// The editor's appearance: the CSS custom properties the document's typography
-// reads (`--editor-font`/`-size`/`-line-height`) plus the measure every column
-// lines up on (`--editor-width`). `.typeset-docs` maps the first three onto the
-// typeset scale the WYSIWYG renders through; the note title and its Raw
-// textarea read them directly.
-//
-// ONE funnel reaches the document. Each axis is a small table of named options,
-// and the option that IS the stylesheet's default carries `css: null` — so the
-// default value is written once, in `styles/globals.css`, and this module can
-// never drift from it. Choosing that option removes the inline property rather
-// than restating it.
+// the option that is the stylesheet's default carries `css: null`: the default is written
+// once in `styles/globals.css`, and choosing it removes the inline property.
 
 import { useLayoutEffect, useMemo, useState, createContext, useContext } from "react";
 import { z } from "zod";
@@ -22,7 +13,6 @@ type EditorMeasure = "narrow" | "normal" | "wide";
 interface Option<Value extends string> {
   readonly value: Value;
   readonly label: string;
-  /** `null` = whatever `styles/globals.css` declares for this token. */
   readonly css: string | null;
 }
 
@@ -32,8 +22,6 @@ export const EDITOR_FONTS: readonly Option<EditorFont>[] = [
   { value: "mono", label: "Mono", css: "var(--font-geist-mono)" },
 ];
 
-/** The document's BASE size: typeset scales headings, code and captions off it,
- *  so these are the three sizes ordinary prose comes out at. */
 export const EDITOR_SIZES: readonly Option<EditorSize>[] = [
   { value: "small", label: "Small", css: "13px" },
   { value: "normal", label: "Normal", css: null },
@@ -46,9 +34,7 @@ export const EDITOR_LEADINGS: readonly Option<EditorLeading>[] = [
   { value: "relaxed", label: "Relaxed", css: "1.95" },
 ];
 
-/** Measured in the running editor at the default size, in ordinary prose:
- *  ~59, ~70 and ~81 characters to the line. The column's own padding is inside
- *  the value, so these are not the widths the text gets. */
+// ~59, ~70 and ~81 characters per line at the default size; the column's padding is inside the value.
 export const EDITOR_MEASURES: readonly Option<EditorMeasure>[] = [
   { value: "narrow", label: "Narrow", css: "32rem" },
   { value: "normal", label: "Normal", css: null },
@@ -69,9 +55,6 @@ export const APPEARANCE_DEFAULTS: Appearance = {
   measure: "normal",
 };
 
-/** The record as localStorage holds it: four optional strings, because a user
- *  can edit the key by hand and a field of the wrong type is the same fact as
- *  a missing one. A key naming no axis is stripped rather than refused. */
 const storedAppearanceSchema = z
   .object({
     font: z.string().optional().catch(undefined),
@@ -81,8 +64,6 @@ const storedAppearanceSchema = z
   })
   .catch({});
 
-/** The option table is each axis's vocabulary: a value outside it reads as the
- *  default rather than reaching the document unrecognized. */
 function pick<Value extends string>(
   options: readonly Option<Value>[],
   raw: string | undefined,
@@ -91,7 +72,6 @@ function pick<Value extends string>(
   return options.find((option) => option.value === raw)?.value ?? fallback;
 }
 
-/** Parse at the boundary: a stored record is user-writable data. */
 export const appearanceSchema = storedAppearanceSchema.transform((stored): Appearance => ({
   font: pick(EDITOR_FONTS, stored.font, APPEARANCE_DEFAULTS.font),
   size: pick(EDITOR_SIZES, stored.size, APPEARANCE_DEFAULTS.size),
@@ -114,7 +94,6 @@ function setToken(root: HTMLElement, name: string, value: string | null): void {
   }
 }
 
-/** The ONE place an appearance reaches the document. */
 function applyAppearance(appearance: Appearance, root: HTMLElement): void {
   setToken(root, "--editor-font", cssOf(EDITOR_FONTS, appearance.font));
   setToken(root, "--editor-size", cssOf(EDITOR_SIZES, appearance.size));
@@ -129,9 +108,7 @@ interface AppearanceContextValue {
 
 const AppearanceContext = createContext<AppearanceContextValue | null>(null);
 
-/** Applies in a LAYOUT effect: the workspace route is client-only, so this runs
- *  before its first paint and the reader never sees the stylesheet default
- *  swapped out from under a rendered document. */
+// a layout effect, so the stylesheet default is never painted before the stored value replaces it.
 export function AppearanceProvider({ children }: { children: React.ReactNode }) {
   const [appearance, setAppearanceState] = useState<Appearance>(readAppearance);
 

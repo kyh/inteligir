@@ -1,19 +1,15 @@
-// Drizzle's own `meta/_journal.json`, parsed. The file is generated data on
-// disk, so every field this package reads is established before it is read,
-// and the fields it has no reading for are carried through untouched — a
-// caller that rewrites the journal must not drop what drizzle wrote.
+// fields this package has no reading for ride through in `source` / `document`: a caller that
+// rewrites the journal must not drop what drizzle wrote.
 
 import { asMapping, isNumber, isText, type JsonObject, type JsonValue } from "./json-source";
 
 interface MigrationJournalEntry {
   idx: number;
   tag: string;
-  /** The entry as written, for a caller that rewrites the journal. */
   source: JsonObject;
 }
 
 export interface MigrationJournal {
-  /** The document as written, for the same reason. */
   document: JsonObject;
   entries: MigrationJournalEntry[];
 }

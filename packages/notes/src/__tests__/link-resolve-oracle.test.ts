@@ -1,18 +1,8 @@
-// ---------------------------------------------------------------------------
-// Oracle-equivalence test for link-resolve's Tier 3. Not a timing test: it
-// pins the basename-bucket suffix match against a brute-force full-listing
-// scan, over a deterministic synthetic corpus large enough to exercise the
-// bucket logic broadly. Every rename in the product resolves through those
-// buckets (knowledge/rename-candidates, knowledge/rename-links), and a bucket
-// that answers differently from the scan rewrites the wrong links.
-// ---------------------------------------------------------------------------
-
 import { describe, expect, it } from "vitest";
 
 import { buildResolver } from "../knowledge/link-resolve";
 import { basenamePath, extnamePath, normalizePath } from "../knowledge/vault-path";
 
-/** Deterministic PRNG (mulberry32) — the corpora must be reproducible. */
 function mulberry32(seed: number): () => number {
   let a = seed >>> 0;
   return () => {
@@ -30,7 +20,7 @@ function pick<T>(rand: () => number, items: readonly T[]): T {
   return item;
 }
 
-/** Copy of the resolver's deterministic ambiguity break. */
+// must match link-resolve's pickBest
 function pickBest(candidates: readonly string[]): string | null {
   if (candidates.length === 0) return null;
   let best: string | null = null;
@@ -50,20 +40,17 @@ function pickBest(candidates: readonly string[]): string | null {
   return best;
 }
 
-/** Basename-or-md-stem match, mirroring how byName buckets are keyed. */
+// mirrors how buildResolver keys byName
 function nameMatches(p: string, name: string): boolean {
   const base = basenamePath(p);
   if (base === name) return true;
   return extnamePath(base).toLowerCase() === ".md" && base.slice(0, -3) === name;
 }
 
-/** Brute-force reference resolveWiki: the documented tier algorithm as linear
- * filters over the whole listing, with no buckets anywhere. */
 function oracleResolveWiki(all: readonly string[], target: string): string | null {
   const clean = normalizePath(target);
   if (clean === "" || clean.startsWith("..")) return null;
 
-  // Tier 1 — exact path (as written, then with `.md` implied), cs then ci.
   for (const candidate of [clean, `${clean}.md`]) {
     if (all.includes(candidate)) return candidate;
     const lower = candidate.toLowerCase();
@@ -72,14 +59,12 @@ function oracleResolveWiki(all: readonly string[], target: string): string | nul
   }
 
   if (!clean.includes("/")) {
-    // Tier 2 — basename / stem, cs then ci.
     const cs = pickBest(all.filter((p) => nameMatches(p, clean)));
     if (cs !== null) return cs;
     const lower = clean.toLowerCase();
     return pickBest(all.filter((p) => nameMatches(p.toLowerCase(), lower)));
   }
 
-  // Tier 3 — path suffix, scanned over every path.
   const suffixes = [`/${clean}`, `/${clean}.md`];
   const cs = pickBest(all.filter((p) => suffixes.some((s) => p.endsWith(s))));
   if (cs !== null) return cs;
@@ -112,8 +97,7 @@ function caseMangle(rand: () => number, s: string): string {
 }
 
 describe("link-resolve — bucket Tier 3 equals the full-scan oracle", () => {
-  // ~5s of CPU when the machine is contended (the full monorepo test run) —
-  // the default 5s per-test timeout is too tight for it.
+  // ~5s under a contended full-repo run; the default 5s timeout is too tight
   it("matches on 1,000 path-style targets over 5,000 synthetic paths", { timeout: 20_000 }, () => {
     const rand = mulberry32(0xc0ffee);
     const paths = buildSyntheticVault(rand, 5000);
@@ -122,14 +106,10 @@ describe("link-resolve — bucket Tier 3 equals the full-scan oracle", () => {
     for (let i = 0; i < 1000; i++) {
       const source = pick(rand, paths);
       const segments = source.split("/");
-      // Path-style target: the last 1–3 segments of a real path.
       const take = Math.min(segments.length, 1 + Math.floor(rand() * 3));
       let target = segments.slice(segments.length - take).join("/");
-      // Cover the `.md` and extension-less spellings.
       if (target.endsWith(".md") && rand() < 0.5) target = target.slice(0, -3);
-      // Cover case variants.
       if (rand() < 0.4) target = caseMangle(rand, target);
-      // Cover misses.
       if (rand() < 0.1) target = `missing-dir/${target}`;
 
       expect(resolver.resolveWiki(target), `target: ${JSON.stringify(target)}`).toBe(

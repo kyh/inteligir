@@ -1,23 +1,5 @@
-// An in-process stand-in for the cloud Worker, implementing
-// `@repo/api/cloud` over Maps.
-//
-// WHAT THIS IS AND IS NOT. It is not a second reading of the contract: every
-// request is parsed and every response is built with the contract's OWN
-// schemas and paths, so a shape that drifts fails here too. It is also not the
-// deployed Worker — `apps/web/src/worker/__tests__/thread-sync.test.ts` drives
-// that against real D1 and a real Durable Object, and this file exists for the
-// other half of the wire, which that suite cannot reach (it runs on workerd
-// and the client is a Node process with better-sqlite3 in it).
-//
-// So the rules it reimplements are exactly the ones the CLIENT's behaviour
-// hangs on, and each is written the way the DO writes it:
-//   • a stored position replayed with the SAME body is a duplicate, with a
-//     DIFFERENT body a `sync-conflict`;
-//   • a new position at or below the device's high-water is
-//     `sync-out-of-order`, and a batch that is not sorted is refused whole;
-//   • the merged log is one global `seq` across devices, paged by it;
-//   • a capture is claimed by exactly one device for a window, and an ack
-//     deletes only what that claim still owns.
+// the cloud worker over Maps. the refusal rules here mirror the durable
+// object's; change both, or the client passes here and fails deployed.
 
 import {
   ackCapturesRequestSchema,
@@ -48,10 +30,8 @@ import {
 import type { CloudFetch } from "@repo/api/cloud/client";
 import { z } from "zod";
 
-/** A decoded request body, before a route's schema reads it. */
 type RequestBody = z.infer<ReturnType<typeof z.json>>;
 
-/** One row of an ack answer, as the contract spells it. */
 type AckCaptureResult = AckCapturesResponse["results"][number];
 
 function refuse(code: CloudErrorCode, message: string, deviceSeq?: number): Response {
@@ -65,7 +45,6 @@ interface LogRow {
   threadId: string;
   deviceId: string;
   deviceSeq: number;
-  /** The bytes as STORED — the string the conflict rule compares. */
   body: string;
   createdAt: number;
 }
@@ -86,22 +65,14 @@ export class FakeCloud {
   private nextDevice = 0;
   private nextSeq = 0;
   private nextCapture = 0;
-  /** Every request this cloud received, so a suite can assert that an unpaired
-   *  install made NONE. */
   readonly requests: string[] = [];
-  /** Set to fail the next push after storing its prefix — the interrupted-push
-   *  case, which the wire cannot otherwise produce on demand. */
+  /** fails the next push after its first event is stored — an interrupted push. */
   dropNextPushResponse = false;
 
-  /** Mint a code bound to a PKCE challenge, exactly as the approve page does.
-   *  The challenge comes off the approve URL `beginPair` answered, so a test
-   *  registers it AFTER begin — the app kept the verifier, the browser only
-   *  ever carried the hash. */
   mintCode(code: string, challenge: string): void {
     this.codes.set(code, challenge);
   }
 
-  /** Revoke as the dashboard does: the credential stops verifying at once. */
   revoke(deviceId: string): void {
     for (const device of this.devices.values()) {
       if (device.deviceId === deviceId) {
@@ -110,7 +81,6 @@ export class FakeCloud {
     }
   }
 
-  /** Seed the capture inbox the way a phone's quick capture would. */
   capture(text: string): string {
     this.nextCapture += 1;
     const id = `cap_${this.nextCapture}`;
@@ -118,8 +88,6 @@ export class FakeCloud {
     return id;
   }
 
-  /** Expire every live claim, as the TTL does for a device that died holding
-   *  one — the only way a capture is delivered twice. */
   lapseClaims(): void {
     for (const row of this.inbox) {
       row.claimedAt = 0;
@@ -130,8 +98,6 @@ export class FakeCloud {
     return this.log.length;
   }
 
-  /** How many devices have redeemed against this cloud — a signal a test can
-   *  wait on to know a re-pair's redeem actually landed here. */
   deviceCount(): number {
     return this.devices.size;
   }
@@ -198,9 +164,7 @@ export class FakeCloud {
     if (challenge === undefined) {
       return refuse("invalid-code", "That pairing code isn't valid.");
     }
-    // PKCE, the worker's check mirrored: an intercepted code with the wrong (or
-    // no) verifier answers invalid-code and does NOT consume the code, so the
-    // real app's redeem still lands.
+    // mirrors the worker: a wrong verifier does not consume the code.
     if ((await pkceChallengeS256(parsed.data.verifier)) !== challenge) {
       return refuse("invalid-code", "That pairing code isn't valid.");
     }
@@ -265,9 +229,6 @@ export class FakeCloud {
       });
       accepted += 1;
       if (this.dropNextPushResponse) {
-        // The prefix is stored and the caller never learns it — a connection
-        // that died after the write landed, which is the shape acceptance #3
-        // is about.
         this.dropNextPushResponse = false;
         throw new Error("connection reset");
       }

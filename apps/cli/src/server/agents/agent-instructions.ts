@@ -1,13 +1,3 @@
-// The standing instructions a provider session opens with: a short built-in
-// pointer at the CLI — only when the CLI is actually reachable from the
-// agent's PATH — then the vault's own AGENTS.md, the user's standing
-// instructions. Composed at session open from the same `AgentSessionFacts`
-// the shell env is projected from (agent-shell-env.ts), and delivered on that
-// session's first turn (view-context-prompt.ts), so an edit applies from the
-// next session rather than mid-turn. Head-capped: instruction bytes are a
-// prompt cost, which is also why the CLI pointer is three sentences and the
-// manual lives behind `inteligir guide` instead.
-
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { errnoCode } from "../errno";
@@ -17,25 +7,18 @@ import type { AgentSessionFacts } from "./agent-shell-env";
 const AGENT_INSTRUCTIONS_FILE = "AGENTS.md";
 const AGENT_INSTRUCTIONS_MAX_BYTES = 32_768;
 
-/** Kept minimal on purpose: the full manual is a `inteligir guide` away, so
- *  the per-turn cost is a pointer, not the manual. */
 export const CLI_POINTER_INSTRUCTIONS = `The \`inteligir\` CLI drives this notes app from your shell: vault file CRUD, \
 full-text search, agent actions and comments. INTELIGIR_DATA_DIR and INTELIGIR_THREAD_ID \
 are set in your environment. Run \`inteligir guide\` for the manual; every \
 command takes \`--json\`.`;
 
-/** Appended when the vendored dialect skills resolved: notes here persist the
- *  inteligir dialect, and the skills are its spec — three sentences of
- *  pointer, never the spec itself (the per-turn cost rule above). */
 const SKILLS_POINTER_INSTRUCTIONS = `Notes in this vault use the inteligir markdown dialect \
 (wiki links, {{formula}} pills, %%i:id%% comment anchors, inteligir-* fenced blocks). \
 The dialect's own skills live in $INTELIGIR_SKILLS_DIR — read the relevant \
 SKILL.md there (inteligir-notes first) before authoring or editing constructs, and \
 follow it exactly; the app parses what it specifies.`;
 
-/** One sentence, not a manifest: the paths are in $INTELIGIR_CONNECTED_DIRS
- *  too, and the phrasing states the USER'S INTENT (read-only reference) —
- *  nothing here can enforce it, so it must not claim to. */
+// states the user's intent only: nothing here can enforce read-only, so the wording must not claim to.
 function connectedFoldersInstructions(dirs: readonly string[]): string {
   return `The user connected these folders as reference context: \
 ${dirs.join(", ")} (also in $INTELIGIR_CONNECTED_DIRS). Treat them as \
@@ -59,12 +42,7 @@ function loadVaultInstructions(vaultDir: string): string | undefined {
   return headCapUtf8(trimmed, AGENT_INSTRUCTIONS_MAX_BYTES);
 }
 
-/**
- * Every pointer is a PROMISE about the agent's shell, stated only when the
- * env `toShellEnv` builds from the same facts keeps it: the CLI when the
- * binary is really on PATH, the skills when the directory resolved, the
- * folders when some are connected.
- */
+// each pointer is stated only when `toShellEnv` keeps the promise from the same facts.
 export function toInstructions(facts: AgentSessionFacts, vaultDir: string): string | undefined {
   const parts: string[] = [];
   if (facts.cliBinDir !== null) {

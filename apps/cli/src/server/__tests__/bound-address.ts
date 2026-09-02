@@ -1,6 +1,4 @@
-// `net.Server#address()` answers a pipe name, an AddressInfo, or null — a
-// suite that bound a TCP port wants the third case and nothing else, so the
-// union is parsed once here rather than narrowed at every call site.
+// `net.Server#address()` answers a pipe name, an AddressInfo or null; a bound TCP port wants only the second.
 
 import { z } from "zod";
 

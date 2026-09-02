@@ -1,25 +1,6 @@
-// `GET /pair/callback` — where the browser lands after someone approves this
-// device on their account.
-//
-// WHY IT IS NOT A ROW IN THE CONTRACT TABLE, stated the way `/ws` states its
-// own: what arrives here is a BROWSER following a top-level redirect, and what
-// it must receive is a page a person can read. The table's rows are JSON with a
-// typed client derived from them, and there is no client here to derive —
-// nothing in this repo calls this route; a browser does. Putting it in the
-// table would offer `client.cloud.pairCallback.$get()` to code that has no use
-// for it and would make the answer JSON for the one caller that cannot read
-// any.
-//
-// IT IS ALSO OUTSIDE THE BROWSER-ORIGIN GUARD, and that is the same fact from
-// the other side: this request IS a cross-site top-level navigation from the
-// account's own web origin, which is precisely what that guard exists to
-// refuse. What stands in its place is the `state` — 128 bits this app minted
-// and is still waiting on — so a callback nobody here initiated does nothing
-// and says so. Any local page can navigate a browser at a loopback URL; none
-// of them can guess the state.
-//
-// The page it answers is inert by construction: no script, no external asset,
-// and a policy that says so.
+// a browser lands here on a top-level redirect and needs a readable page, so
+// this is not a contract row. it sits outside the browser-origin guard because
+// it is a cross-site navigation by design; the 128-bit state stands in its place.
 
 import {
   PAIR_CALLBACK_HOST,
@@ -37,22 +18,8 @@ import {
   renderInertCallbackPage,
 } from "../inert-callback-page";
 
-/**
- * The callback URL for a request that reached this app on its own loopback
- * origin, or null when it did not.
- *
- * THE PORT COMES FROM THE REQUEST, not from the resolved config: `listen` may
- * probe past a busy dev port, so the configured number is a guess and the
- * caller's own Host header is the fact. The HOST does not: it is normalised to
- * the `127.0.0.1` literal even when the caller reached `localhost`, because the
- * literal is what this process binds and what the contract admits — and the
- * page this redirect lands on is standalone HTML, so it loses nothing by
- * arriving on the other spelling of the same address.
- *
- * The composed URL is then judged by the CONTRACT's own schema, so the app's
- * own composition passes through the same allowlist the approve page does.
- * There is exactly one gate, and this is it.
- */
+// the port comes from the request (listen may probe past a busy dev port); the
+// host is normalised to the 127.0.0.1 literal this process binds.
 export function pairCallbackUrlFor(host: string | undefined): string | null {
   const origin = loopbackRequestOrigin(host);
   if (origin === null) {
@@ -64,9 +31,6 @@ export function pairCallbackUrlFor(host: string | undefined): string | null {
   return pairRedirectUrlSchema.safeParse(candidate).success ? candidate : null;
 }
 
-/** What the browser is told, per outcome — every refusal its own sentence,
- *  because "nothing was waiting for this" and "that took too long" are
- *  different things to have done wrong. */
 function pairCallbackPage(completion: PairCompletion): InertCallbackPage {
   switch (completion.kind) {
     case "paired":
@@ -105,13 +69,7 @@ function pairCallbackPage(completion: PairCompletion): InertCallbackPage {
   }
 }
 
-/**
- * The whole browser-facing half: consume the state, redeem, answer a page.
- *
- * Missing or malformed parameters take the same road as a wrong state — this
- * URL is reachable by anything on the machine, so "you called it wrong" and
- * "you called it without an approval" are the same non-event.
- */
+// missing parameters take the same road as a wrong state: anything local can reach this url.
 export async function handlePairCallback(
   runtime: CloudRuntime,
   url: URL,

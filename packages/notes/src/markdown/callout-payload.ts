@@ -1,19 +1,11 @@
-// The callout fence's PAYLOAD grammar, in ONE place beside the fence langs
-// and for the same reason: the editor's rule table, the knowledge scan and
-// the mobile projection all read this header, and a reader with its own
-// spelling renders (or indexes) a priority level as body prose.
-//
-// The payload is: a kind line — the variant word, optionally spelled
-// `type: <variant>` — then, for `priority` only, an optional level line
-// (`high`, optionally `level: high`), then the body. The prefixed spellings
-// are REMEMBERED so the editor can re-serialize byte-exact; an unknown kind
-// answers null and the caller falls back to a plain code block, the same
-// unknown-type behavior everywhere.
+// the editor's rule table, the knowledge scan and the mobile projection all read the header
+// through this; the prefixed spellings (`type: <kind>`, `level: <word>`) are remembered so the
+// editor re-serializes byte-exact.
 
 const PRIORITY_LEVELS = new Set(["low", "medium", "high", "critical"]);
 
-/** The dialect's three kinds plus the legacy variants callout-node still
- *  accents — a converted note must keep reading as a callout. */
+// includes the legacy variants callout-node still accents, so a converted note keeps reading
+// as a callout.
 const CALLOUT_VARIANTS = new Set([
   "caution",
   "error",
@@ -29,21 +21,13 @@ const LEVEL_PREFIX_RE = /^level\s*:/i;
 
 export interface CalloutPayload {
   kind: string;
-  /** Present only on a `priority` callout whose second line is a level. */
   level?: string;
-  /** The markdown body — everything after the header line(s). */
   body: string;
-  /** How many payload lines the header consumed (1 or 2) — what a scanner
-   *  needs to shift body offsets into the outer source. */
   headerLines: number;
-  /** The header arrived as `type: <kind>` — re-serialize it that way. */
   typePrefixed: boolean;
-  /** The level arrived as `level: <word>` — re-serialize it that way. */
   levelPrefixed: boolean;
 }
 
-/** Parse a callout fence's payload, or null when the kind line names no
- *  variant (the caller renders a plain code block). */
 export function parseCalloutPayload(payload: string): CalloutPayload | null {
   const lines = payload.split("\n");
   const rawKind = lines[0]?.trim() ?? "";

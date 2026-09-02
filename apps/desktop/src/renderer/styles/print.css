@@ -1,7 +1,3 @@
-/* The print artifact is the note itself: chrome hides via per-component
-   `print:` classes (workspace + @repo/editor); this file carries only what a
-   utility class cannot say — page geometry, ancestor unclipping, and break
-   discipline. */
 @media print {
   @page {
     margin: 18mm 16mm;
@@ -15,8 +11,7 @@
     background: #fff !important;
   }
 
-  /* Portaled overlays have no place on paper (the palette closes before the
-     print call, but a dialog left open must not print over the note). */
+  /* A dialog left open must not print over the note. */
   [role="dialog"],
   [data-sonner-toaster] {
     display: none !important;

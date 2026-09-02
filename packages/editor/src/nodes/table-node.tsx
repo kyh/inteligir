@@ -1,8 +1,4 @@
-// Plate models a table as table > tr > (td|th); the rows need a <tbody> wrapper
-// for valid HTML. GFM tables round-trip.
-// The non-editable hover affordances add a row at the bottom / column at the
-// right (Tab/Shift-Tab cell navigation is handled natively by the table
-// plugin). The per-table Base UI menu is independent of the block menu.
+// Plate models table > tr > td; the rows need a <tbody> for valid HTML.
 
 import { useRef, useState } from "react";
 import { EllipsisIcon, PlusIcon, Trash2Icon } from "lucide-react";
@@ -23,8 +19,8 @@ export function TableElement(props: PlateElementProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuBtnRef = useRef<HTMLButtonElement | null>(null);
 
-  // deleteRow/deleteColumn act on the cell holding the cursor; the trigger
-  // preventDefaults mousedown so opening the menu doesn't drop that selection.
+  // deleteRow/deleteColumn act on the cell holding the cursor; the trigger preventDefaults
+  // mousedown so opening the menu keeps that selection.
   const removeTable = () => {
     const at = editor.api.findPath(element);
     if (at) editor.tf.removeNodes({ at });
@@ -45,15 +41,9 @@ export function TableElement(props: PlateElementProps) {
     insertTableColumn(editor, { fromCell: [...at, 0, cols - 1] });
   };
 
-  // Grid styling comes from the shared .typeset table rules; mt-0 because the
-  // wrapper div already carries the block's flow margin.
-  // The sliver affordances override the stock height/width (h-2 / w-2) and
-  // keep a solid bg-muted resting fill, so hover only shifts the text color —
-  // same in dark (hence the dark:hover override).
+  // max-w-full + inner overflow-x-auto: a wide table scrolls inside its own block instead of
+  // being clipped by the editable's overflow-x-hidden.
   return (
-    // max-w-full + the inner overflow-x-auto: a wide table scrolls inside its
-    // own block instead of being clipped by the editable's overflow-x-hidden
-    // (the hover affordances stay outside the scroll container).
     <div className="group/table relative w-fit max-w-full">
       <Button
         variant="ghost"

@@ -1,22 +1,5 @@
-// ---------------------------------------------------------------------------
-// The stylesheet ↔ hook lockstep.
-//
-// The kits emit behaviour hooks — `data-toggle-collapsed`, the callout marker
-// classes — and styles.css's rules over them are what make a toggle collapse
-// and a callout badge replace its raw `> [!TIP]` line. Nothing else connects
-// the two: the hooks are strings, the rules are selectors, and a drift on
-// either side is behaviour that silently stops applying (the whole editor
-// once shipped with the stylesheet missing and no test noticed). So the hook
-// vocabulary is spelled ONCE in style-hooks.ts, and this suite pins
-// styles.css to that table, refuses a literal re-spelling anywhere else in
-// the package, and pins the highlight theme to what the shipped grammars
-// actually emit.
-//
-// Detection is textual and therefore a lower bound, stated rather than
-// implied: it finds hooks spelled as string tokens, not every computed way a
-// class could be assembled. What it buys is that the known drift cannot come
-// back.
-// ---------------------------------------------------------------------------
+// styles.css's rules over the kits' hook strings are what make a toggle collapse;
+// a drift on either side silently stops applying. Detection is textual, a lower bound.
 
 import fs from "node:fs";
 import path from "node:path";
@@ -32,12 +15,9 @@ const SRC = path.resolve(import.meta.dirname, "..");
 const STYLES = path.join(SRC, "styles.css");
 const REPO_ROOT = path.resolve(import.meta.dirname, "../../../..");
 
-/** The one place the hook spellings live; every value is a selector hook. */
 const DECLARED_HOOKS: readonly string[] = Object.values(styleHooks).toSorted();
 
-/** Slate stamps these on every rendered node — the toggle rule addresses the
- *  document's own blocks through Slate's DOM contract, not a hook a kit
- *  emits, so the lockstep has nothing to check against them. */
+// Slate stamps these itself; they are not hooks a kit emits
 const SLATE_ATTR = /^data-slate-/;
 
 const HLJS_PREFIX = "hljs-";
@@ -58,14 +38,11 @@ function readStylesheet() {
   return { rules, unparsed: css.replace(RULE, "").trim() };
 }
 
-/** The value a rule's `color:` declaration sets, if it sets one. */
 function colourOf(rule: Rule): string | undefined {
   return /(?:^|;)\s*color\s*:\s*([^;]+)/u.exec(rule.body)?.[1]?.trim();
 }
 
-/** A rule that only declares custom properties (the `:root`/`.dark` syntax
- *  palette) defines tokens, not behaviour — its selector is theme plumbing,
- *  not a hook. */
+// a rule declaring only custom properties is theme plumbing, not a hook
 function isTokenBlock(rule: Rule): boolean {
   const declarations = rule.body
     .split(";")
@@ -92,9 +69,6 @@ function selectorHooks() {
   return { hooks: [...hooks].toSorted(), themeScopes: [...themeScopes].toSorted() };
 }
 
-/** Every package source file that could emit a hook — a walk rather than a
- *  list, so a module written tomorrow is covered the day it appears. The
- *  hooks module itself is the one allowed spelling. */
 function packageSources(dir: string): string[] {
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
     const full = path.join(dir, entry.name);
@@ -104,9 +78,7 @@ function packageSources(dir: string): string[] {
   });
 }
 
-/** Tailwind's arbitrary-variant spellings of a hook — `data-[x]:`,
- *  `group-data-[x]:`, `[[data-x]_&]:`, `[.cls_&]:`, `group-[.cls]:` — split
- *  on the bracket, so the token sweep alone cannot see them. */
+// Tailwind's arbitrary-variant spellings split on the bracket, so the token sweep alone cannot see them
 function variantSpellings(hook: string): string[] {
   const DATA = "data-";
   return hook.startsWith(DATA)
@@ -220,12 +192,7 @@ function collectScopes(node: HastNode, into: Set<string>): void {
   }
 }
 
-/** Small but deliberate: together these snippets emit every scope the theme
- *  names, so the theme↔emission comparison can run both directions. A
- *  grammar update that starts emitting a new scope fails the suite, which is
- *  the moment to decide the scope's colour rather than render it colourless.
- *  The pin reaches only the grammars a snippet here exercises — a scope some
- *  other shipped grammar emits is caught the day a snippet for it lands. */
+// together these emit every scope the theme names; a grammar that starts emitting a new scope fails the suite
 const HIGHLIGHT_CORPUS = {
   css: "a.b#c[href]:hover::before { color: #fff; margin: 1px !important; }",
   diff: "--- a\n+++ b\n@@ -1 +1 @@\n-old\n+new",

@@ -1,14 +1,5 @@
-// Opaque kit: the two void nodes that let a file the editor does not
-// understand still open in Rich. Node shape: { type, value, children:[{text:""}] }
-// with `value` the construct's markdown verbatim (round-trip contract lives in
-// @repo/notes/markdown/remark-opaque). Raw HTML, `{…}` expressions and JSX that
-// is not one of the app's components land here instead of gating the whole
-// document to Raw.
-//
-// Both halves are VOID: nothing inside is editable, so no keystroke can produce
-// a half-valid tag, and the bytes leave exactly as they arrived. The block half
-// is a plain block void; the inline half is an inline void (a `<!-- -->` in the
-// middle of a sentence must not split the paragraph).
+// Both halves are void so no keystroke can produce a half-valid tag and the bytes leave as
+// they arrived; the inline half is inline so a mid-sentence `<!-- -->` does not split the paragraph.
 
 import { createSlatePlugin } from "platejs";
 import { PlateElement, type PlateElementProps } from "platejs/react";

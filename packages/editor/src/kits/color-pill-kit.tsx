@@ -1,12 +1,6 @@
-// Color pills: a hex or rgb(a) literal in prose gets a swatch drawn BESIDE it.
-// A DECORATION over the text, never a node — the bytes stay the literal, so
-// nothing here can touch serialization (the tag-chip discipline). Clicking the
-// swatch opens a native color picker that rewrites the literal IN ITS OWN
-// SPELLING: hex stays hex (an #rrggbbaa keeps its alpha pair), rgb()/rgba()
-// keep their function form and rgba() its exact alpha text — the picker only
-// ever moves the three RGB channels, so every mapping is lossless. The one
-// conscious widening: #rgb shorthand re-emits as #rrggbb, because the picked
-// channel values need two digits each.
+// A decoration over the literal, never a node, so serialization is untouched. The picker
+// rewrites the literal in its own spelling (hex stays hex, rgba keeps its alpha text); only
+// #rgb widens to #rrggbb because picked channels need two digits.
 
 import { useEffect, useRef, useState } from "react";
 import {
@@ -22,15 +16,12 @@ import { PlateLeaf, useEditorRef, type PlateLeafProps } from "platejs/react";
 
 import { numberProp, stringProp } from "@repo/editor/node-props";
 
-// #rgb / #rrggbb / #rrggbbaa, or rgb()/rgba() with plain numeric args — the
-// spellings CSS accepts AND a swatch can render without evaluation.
 const COLOR_RE =
   /#(?:[0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})\b|rgba?\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*(?:,\s*(?:0|1|0?\.\d+)\s*)?\)/gi;
 
 const RGB_FN_RE =
   /^rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*(?:,\s*(0|1|0?\.\d+)\s*)?\)$/i;
 
-/** Element types whose text never draws swatches (code speaks for itself). */
 function isSuppressedAncestor(editor: SlateEditor, type: string): boolean {
   return (
     type === editor.getType(KEYS.codeBlock) ||
@@ -43,7 +34,6 @@ function pad2Hex(n: number): string {
   return n.toString(16).padStart(2, "0");
 }
 
-/** The literal's RGB as `#rrggbb` for the native picker, or null. */
 export function pickerHexFor(literal: string): string | null {
   if (literal.startsWith("#")) {
     const body = literal.slice(1);
@@ -65,7 +55,6 @@ export function pickerHexFor(literal: string): string | null {
   return `#${pad2Hex(r)}${pad2Hex(g)}${pad2Hex(b)}`;
 }
 
-/** `hex` (#rrggbb, from the picker) re-spelled in `literal`'s own form. */
 export function repaintLiteral(literal: string, hex: string): string | null {
   const body = hex.slice(1);
   if (!/^[0-9a-f]{6}$/i.test(body)) return null;
@@ -175,7 +164,6 @@ const ColorPillPlugin = createSlatePlugin({
   key: "colorPill",
   node: { isLeaf: true },
   decorate: ({ editor, entry: [node, path] }) => {
-    // Fast path: most text runs carry neither `#` nor `rgb`.
     if (!TextApi.isText(node)) return undefined;
     if (!node.text.includes("#") && !node.text.toLowerCase().includes("rgb")) return undefined;
     if (node[editor.getType(KEYS.code)] === true) return undefined;
@@ -186,8 +174,7 @@ const ColorPillPlugin = createSlatePlugin({
     }
     const ranges: DecoratedRange[] = [];
     for (const match of node.text.matchAll(COLOR_RE)) {
-      // The offset rides the range so the leaf can name the exact bytes it
-      // decorates — two identical literals in one run stay distinguishable.
+      // the offset lets the leaf name its exact bytes; two identical literals in one run stay distinct.
       const range: DecoratedRange & { colorPill: string; colorPillStart: number } = {
         anchor: { offset: match.index, path },
         colorPill: match[0],

@@ -1,11 +1,5 @@
-// Block hover gutter + drag-to-reorder, built on @dnd-kit.
-//
-// Plate ships a DnD plugin (@platejs/dnd) but it's built on react-dnd, whose
-// drag-source connectors silently no-op under React 19 (they never set
-// draggable="true"), so the handle can't be grabbed. @dnd-kit is React-19
-// native (it's what the sidebar uses), so we drive the reorder ourselves: each
-// top-level block becomes a sortable item, and on drop we move the Slate node.
-// Reordering top-level blocks just reorders markdown lines — round-trip safe.
+// Not @platejs/dnd: its react-dnd drag sources never set draggable="true"
+// under React 19, so the handle cannot be grabbed.
 
 import {
   closestCenter,
@@ -34,10 +28,7 @@ import { cn } from "@repo/ui/lib/utils";
 
 import { stringProp } from "@repo/editor/node-props";
 
-// Stable per-block drag ids. Slate's moveNodes preserves node object identity,
-// so a WeakMap keyed by the element yields ids that survive a reorder. Both the
-// SortableContext list and each useSortable() re-derive from this map within the
-// same render, so they always agree.
+// Slate's moveNodes preserves node identity, so a WeakMap keyed by element yields ids that survive a reorder.
 let idCounter = 0;
 const blockIds = new WeakMap<Descendant, string>();
 function blockId(node: Descendant): string {
@@ -49,17 +40,12 @@ function blockId(node: Descendant): string {
   return id;
 }
 
-// Potion-style drop indicator: the document stays STILL during a drag (no
-// live sibling displacement) and an explicit line marks where the block
-// lands. Non-active items get no transform; the active block still follows
-// the pointer (its transform is the drag delta, not the strategy's).
+// no sibling displacement during a drag; a drop line marks the target instead
 const noDisplacement = () => null;
 
 function DragProvider({ children }: { children: React.ReactNode }) {
   const editor = useEditorRef();
-  // 4px activation distance so a plain click on the grip/"+" still works.
-  // Keyboard sensor makes the grip a real a11y handle (Space to lift, arrows to
-  // move, Space to drop).
+  // 4px activation so a plain click on the grip still works
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
@@ -92,7 +78,6 @@ function DragProvider({ children }: { children: React.ReactNode }) {
 
 const BlockDraggable: RenderNodeWrapper = ({ editor, path }) => {
   if (editor.dom.readOnly) return undefined;
-  // Top-level blocks only — nested list/quote/table children move with parents.
   if (path.length !== 1) return undefined;
   return (props) => <Draggable {...props} />;
 };
@@ -115,8 +100,7 @@ function Draggable(props: PlateElementProps) {
   } = useSortable({ id: blockId(element) });
 
   const gripRef = useRef<HTMLButtonElement | null>(null);
-  // A drag ends in a synthetic click on the grip; remember a drag happened so
-  // that click doesn't pop the menu open right after a reorder.
+  // a drag ends in a synthetic click on the grip, which must not open the menu
   const draggedRef = useRef(false);
   useEffect(() => {
     if (isDragging) draggedRef.current = true;
@@ -132,8 +116,6 @@ function Draggable(props: PlateElementProps) {
     editor.tf.insertText("/");
   };
 
-  // Grip click: select this block and open THE block menu (block-menu.tsx —
-  // same one as right-click) anchored under the grip.
   const openBlockMenu = () => {
     const id = stringProp(element, "id") ?? null;
     const grip = gripRef.current;
@@ -143,27 +125,17 @@ function Draggable(props: PlateElementProps) {
     editor.getApi(BlockMenuPlugin).blockMenu.show(id, { x: rect.left, y: rect.bottom + 4 });
   };
 
-  // The drop line marks where the dragged block lands relative to THIS block
-  // — below it when dragging down, above it when dragging up.
+  // CSS.Translate, not CSS.Transform: the sortable transform carries a scale when
+  // the drag-over block differs in size, which stretches the dragged block. The
+  // gutter's font-size follows the heading so its em-sized box centers on the first line.
   return (
     <div
       ref={setNodeRef}
-      // Transform only the dragged block — siblings stay put (noDisplacement)
-      // and would otherwise snap when a stale transform lingered.
-      // CSS.Translate (not CSS.Transform): the sortable transform carries a
-      // scaleX/scaleY when the drag-over block differs in size (heading vs
-      // paragraph), which stretches the dragged block. Translate-only keeps it
-      // 1:1 while following the pointer.
       style={isDragging ? { transform: CSS.Translate.toString(transform), transition } : undefined}
       className={cn("group/block relative", isDragging && "z-10 opacity-60")}
     >
       <div
         contentEditable={false}
-        // Match the gutter's font-size to the block's first line so the
-        // em-based box (h-[1.3em]) + items-center lands the handles on the
-        // text center — headings are larger than the 13px body base, so a
-        // fixed base-em box floats above them. top-[3px] matches the block
-        // content's py-[3px]; the size-5 buttons stay a fixed 20px (rem).
         className={cn(
           "absolute top-[3px] -left-11 z-40 flex h-[1.3em] items-center gap-0.5 opacity-0 transition-opacity group-hover/block:opacity-100",
           element.type === "h1" && "text-[22px]",
@@ -221,9 +193,7 @@ function Draggable(props: PlateElementProps) {
 export const DragKit = [
   createPlatePlugin({
     key: "block-drag",
-    // aboveEditable (not aboveSlate): DragProvider needs the editor context
-    // (useEditorRef) to build the sortable id list + handle the drop, and it
-    // must still wrap every node so each block's useSortable sees the context.
+    // aboveEditable, not aboveSlate: DragProvider needs useEditorRef
     render: { aboveNodes: BlockDraggable, aboveEditable: DragProvider },
   }),
 ];

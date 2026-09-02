@@ -1,7 +1,3 @@
-// In-memory fakes for the sync client's unit suite — a programmable CloudClient
-// and builders for the thread events / log rows the wire carries. Nothing here
-// touches a network or a native module; the pure logic is what is exercised.
-
 import type {
   AckCapturesRequest,
   AckCapturesResponse,
@@ -39,16 +35,13 @@ export function agentMessage(
   };
 }
 
-/** A merged-log row, as the pull hands it back. */
 export function logRow(args: {
   seq: number;
   deviceId: string;
   deviceSeq: number;
   event: ThreadEvent;
 }): SyncEventRow {
-  // SAFETY: a ThreadEvent is valid JSON, so it is exactly what the wire carries
-  // in the row's opaque `event` field — planPage re-parses it through
-  // threadEventSchema at the boundary, which is where the real narrowing happens.
+  // SAFETY: a ThreadEvent is valid JSON; planPage re-parses the opaque field at the boundary.
   const event = args.event as SyncEventRow["event"];
   return {
     seq: args.seq,
@@ -64,13 +57,6 @@ export function ok<T>(value: T): CloudResult<T> {
   return { ok: true, value };
 }
 
-/** A CloudClient whose pull and capture answers come from queues the test fills,
- *  and which records what it was called with. A queue that runs dry answers an
- *  empty pull so a pass can settle.
- *
- *  `pushes` and `claims` count the two halves of the wire this client does NOT
- *  run — the desktop pushes thread events and claims captures — so a suite can
- *  assert the phone stays off both. */
 export interface FakeCloud {
   client: CloudClient;
   pushes: PushRequest[];
@@ -114,9 +100,6 @@ export function createFakeCloud(): FakeCloud {
         Promise.resolve<CloudResult<AckCapturesResponse>>(
           ok({ results: request.ids.map((id) => ({ id, outcome: "deleted" as const })) }),
         ),
-      // The sync runtime reads neither the vault nor the account; the
-      // notes-store suite fakes its own client. Empty answers are the honest
-      // inert rows here.
       account: () => Promise.resolve(ok({ id: "user_fake", email: "paired@example.test" })),
       vaultTree: () => Promise.resolve(ok({ commit: "0".repeat(40), entries: [], next: null })),
       vaultAssetSource: (query) => ({

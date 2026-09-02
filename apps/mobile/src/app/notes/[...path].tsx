@@ -13,10 +13,6 @@ import { MONO_FONT, SPACE, useTheme } from "@/lib/theme";
 import { MarkdownBlocks } from "@/notes/markdown-view";
 import { projectNote, type NoteProjection } from "@/notes/note-projection";
 
-// One note, rendered read-only through the dialect's own parse. A wiki link
-// resolves over the tree the list screen fetched and pushes the target; an
-// unresolvable one (a new note, an alias this surface cannot see) stays inert
-// text rather than a dead navigation.
 type ScreenState =
   | { state: "loading" }
   | { state: "error"; message: string }
@@ -29,10 +25,8 @@ export default function NoteScreen() {
   const params = useLocalSearchParams<{ path: string[] }>();
   const path = Array.isArray(params.path) ? params.path.join("/") : (params.path ?? "");
   const [screen, setScreen] = useState<ScreenState>({ state: "loading" });
-  // SUBSCRIBED, not just read imperatively: a deep link can mount this screen
-  // before the tree lands (the note still opens — an unpinned read), and this
-  // subscription is what re-renders its embeds from "unavailable" to images
-  // when it does. Fetching a cold tree is the runtime's job, not a screen's.
+  // subscribed, not read once: a deep link can mount this screen before the tree lands,
+  // and the subscription is what re-renders the embeds when it does.
   useNotesTree();
   const paired = status.state === "paired";
 
@@ -66,7 +60,6 @@ export default function NoteScreen() {
     return resolved === null ? null : assetSource(resolved);
   }, []);
 
-  // A mounted note must not outlive the pairing that fetched it.
   const title = paired && screen.state === "ready" ? screen.projection.title : "…";
 
   return (

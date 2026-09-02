@@ -1,13 +1,5 @@
-// The chart: a fenced JSON payload rendered as an inline-SVG chart. The
-// payload grammar: types bar | line | area |
-// stacked-bar; single-series {type,title?,data} or multi-series
-// {type,series:[{name,data}]} (stacked-bar takes ONE data array and refuses
-// `series`); points are {label, value} with optional colors; options carry
-// width/height/axis labels/legend/grid/palette.
-//
-// No chart library on purpose: four shapes over one axis do not earn a
-// dependency, and inline SVG keeps the render CSP-inert. Invalid payloads
-// stay code (the skill's own rule) — the bytes are never touched.
+// No chart library: four shapes over one axis, and inline SVG keeps the render CSP-inert.
+// An invalid payload stays code; the bytes are never touched.
 
 import { z } from "zod";
 import { type PlateElementProps, PlateElement } from "platejs/react";
@@ -72,10 +64,8 @@ const optionsSchema = z
   })
   .strict();
 
-// A plain union rather than a discriminated one: both branches share "bar",
-// which zod's discriminator refuses; the strict shapes (data XOR series)
-// separate them structurally, and the series branch omitting "stacked-bar"
-// IS the skill's one-data-array rule.
+// a plain union: both branches share "bar", which zod's discriminator refuses; the series
+// branch omitting "stacked-bar" is the one-data-array rule.
 const chartSchema = z.union([
   z
     .object({
@@ -113,11 +103,6 @@ export function parseChartPayload(value: string): ChartParse {
   }
   return { chart: parsed.data, ok: true };
 }
-
-// ---------------------------------------------------------------------------
-// Rendering. One box model: fixed viewBox, series normalized to [min(0,data
-// min), data max], a zero line when negatives exist.
-// ---------------------------------------------------------------------------
 
 const W = 480;
 const H = 200;
@@ -291,9 +276,6 @@ function ChartSvg({ chart }: { chart: ChartPayload }) {
 }
 
 export function ChartElement(props: PlateElementProps) {
-  // View state only; the payload bytes live on the node. The grid is the edit
-  // surface for a payload it can represent; raw JSON is the escape hatch and
-  // the only surface for a payload the grid cannot hold.
   const [mode, setMode] = useState<"view" | "grid" | "raw">("view");
   const value = stringProp(props.element, "value") ?? "";
   const parsed = parseChartPayload(value);

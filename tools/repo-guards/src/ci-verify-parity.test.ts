@@ -1,32 +1,6 @@
-// ---------------------------------------------------------------------------
-// `pnpm verify` against what CI actually runs.
-//
-// The stated reason this repo has a `verify` script at all is that no caller
-// can drift from CI. That claim is only true while somebody checks it, and
-// nobody did: CI grew three e2e steps on top of the six, so a green `verify`
-// stopped being a green CI and the script's own docstring stopped being true.
-// A local green that is a CI red is the exact failure `verify` exists to
-// prevent, and it is invisible from either side — the package.json does not
-// know the workflow exists, and the workflow does not call the script.
-//
-// So both spellings are accepted, because both are honest answers:
-//
-//   CI CALLS `pnpm verify` — one source, nothing to compare.
-//
-//   CI RUNS THE CHAIN ITSELF, in verify's own order. That is what it does
-//   today, and deliberately: six separate steps with `if: !cancelled()` report
-//   every failure in one run, where verify's `&&` chain stops at the first.
-//
-// Either way, every REMAINING run step needs a row below saying what it is and
-// why `verify` cannot carry it. The table is the documented extra set the
-// docstring promises, and it drains — a row matching no step fails.
-//
-// The sweep is DERIVED, not a filename: a gate workflow is one triggered by
-// `pull_request` or `push`, so a second gate joins this guard by existing.
-// Workflows on other triggers (the deploy's `workflow_run`, the bot's
-// `issue_comment`) are not gates and are not swept — stated here rather than
-// implied, because that is a real edge of what this can see.
-// ---------------------------------------------------------------------------
+// a gate may call `pnpm verify` or run the chain step by step in verify's order: separate steps
+// with `if: !cancelled()` report every failure in one run, where the && chain stops at the first. a
+// gate is a workflow triggered by pull_request or push; workflows on other triggers are not swept.
 
 import fs from "node:fs";
 import path from "node:path";
@@ -38,15 +12,9 @@ import { REPO_ROOT, sourceOf, workspaces } from "./repo";
 const WORKFLOW_DIR = ".github/workflows";
 const ROOT_MANIFEST = "package.json";
 const VERIFY_SCRIPT = "verify";
-/** The triggers that make a workflow a GATE — the thing a green `verify` is
- *  claiming to predict. */
 const GATE_TRIGGERS = ["pull_request", "push"];
 
-/**
- * Every run step a gate workflow has that `verify` does not, and why it cannot
- * be in `verify`. Keyed `<workflow>:<step name>`, which is why a run step in a
- * gate workflow has to carry a name.
- */
+// keyed <workflow>:<step name>, which is why a run step in a gate workflow must carry a name.
 const DECLARED_CI_EXTRAS = new Map<string, string>([
   [
     "ci.yml:Install",
@@ -62,20 +30,10 @@ const DECLARED_CI_EXTRAS = new Map<string, string>([
   ],
 ]);
 
-/** The script name a workspace's smoke is spelled as. */
 const SMOKE_SCRIPT = "smoke";
-/** Root scripts that drive one — how a developer is meant to reach it. */
 const ROOT_SMOKE_PREFIX = "smoke";
 
-/**
- * Every root smoke `verify` and CI both leave alone, and why. A smoke is not a
- * unit test: it packs, installs, binds a port and boots a real artifact, so
- * being outside the static gate is the normal answer. Being outside CI is not,
- * and each row here has to say what stops it.
- *
- * The table drains: a row naming a script that no longer exists fails, and so
- * does one naming a script a gate workflow has since started running.
- */
+// a smoke outside the static gate is normal; outside CI it needs a reason.
 const MANUAL_SMOKES = new Map<string, string>([
   [
     "smoke:cli",
@@ -89,8 +47,6 @@ const MANUAL_SMOKES = new Map<string, string>([
 
 const scriptTableSchema = z.looseObject({ scripts: z.record(z.string(), z.unknown()) });
 
-/** The root manifest's scripts. The `verify` chain and every step command are
- *  read against this, so neither side is retyped here. */
 function rootScripts() {
   const parsed = scriptTableSchema.safeParse(JSON.parse(sourceOf(ROOT_MANIFEST)));
   if (!parsed.success) {
@@ -105,9 +61,6 @@ function rootScripts() {
   return scripts;
 }
 
-/** `verify`'s own `&&` chain, as the ordered script names it runs. A link that
- *  is not a plain `pnpm <script>` throws: this guard compares script names, so
- *  a shape it cannot name is one it cannot check. */
 function verifyChain(scripts: Record<string, string>): string[] {
   const body = scripts[VERIFY_SCRIPT];
   if (body === undefined) {
@@ -127,7 +80,6 @@ function verifyChain(scripts: Record<string, string>): string[] {
 }
 
 interface WorkflowStep {
-  /** `<workflow>:<name>` — the key an exception is declared under. */
   id: string;
   workflow: string;
   name: string;
@@ -139,9 +91,6 @@ interface GateWorkflow {
   steps: WorkflowStep[];
 }
 
-/** A workflow's `on:` — a bare trigger, a list of them, or a mapping keyed by
- *  trigger. Every spelling reads out as the trigger names it declares; a shape
- *  outside the three declares none. */
 const triggersSchema = z
   .union([
     z.string().transform((trigger) => [trigger]),
@@ -155,22 +104,16 @@ const triggersSchema = z
   ])
   .catch([]);
 
-/** Only the two keys this guard reads; `on` absent is a workflow no trigger
- *  fires, which is not a gate. */
-// `z.unknown()` is NOT implicitly optional in zod 4 — without `.optional()` an
-// absent key fails the parse, which here would silently downgrade "this gate
-// has no jobs" from a thrown error to a skipped workflow.
+// z.unknown() is not implicitly optional in zod 4: without .optional() an absent key fails the
+// parse, which would downgrade "this gate has no jobs" from a thrown error to a skipped workflow.
 const workflowSchema = z
   .looseObject({ on: triggersSchema.optional(), jobs: z.unknown().optional() })
   .catch({});
 
 const jobsSchema = z.record(z.string(), z.looseObject({ steps: z.array(z.unknown()).optional() }));
 
-/** A step this guard reads: `run:` is what makes one, `name:` is what makes it
- *  declarable in DECLARED_CI_EXTRAS. */
 const runStepSchema = z.looseObject({ run: z.string(), name: z.unknown().optional() });
 
-/** Every workflow a `pull_request` or `push` fires: the gates. */
 function gateWorkflows(): GateWorkflow[] {
   const dir = path.join(REPO_ROOT, WORKFLOW_DIR);
   const found: GateWorkflow[] = [];
@@ -208,8 +151,6 @@ function gateWorkflows(): GateWorkflow[] {
   return found;
 }
 
-/** The root script a step invokes, when it invokes exactly one and nothing
- *  else. Anything compound is shell the gate script could not carry anyway. */
 function scriptRunBy(step: WorkflowStep, scripts: Record<string, string>): string | null {
   const name = /^pnpm\s+([\w:-]+)$/.exec(step.run)?.[1];
   return name !== undefined && scripts[name] !== undefined ? name : null;
@@ -221,8 +162,6 @@ describe("CI does not drift from `pnpm verify`", () => {
   const gates = gateWorkflows();
 
   it("finds the gate and the chain it is held against", () => {
-    // A sweep that matched no workflow, or a chain that read as empty, would
-    // satisfy every assertion below by comparing nothing.
     expect(
       gates.map((gate) => gate.file),
       `no workflow in ${WORKFLOW_DIR} is triggered by ${GATE_TRIGGERS.join(" or ")} — the sweep is broken, not the tree`,
@@ -283,9 +222,6 @@ describe("CI does not drift from `pnpm verify`", () => {
   });
 
   it("every workspace smoke is reachable from a root script", () => {
-    // A smoke wired to nothing is a suite that runs when someone remembers the
-    // `--filter` incantation, which is never. This is how `@repo/desktop`'s
-    // was found: it existed, it passed, and no script in the repo named it.
     const violations: string[] = [];
     for (const workspace of workspaces()) {
       const manifest = scriptTableSchema.safeParse(

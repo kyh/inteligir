@@ -1,21 +1,7 @@
-// Dictation, server-side: what this machine can do, how the model gets here,
-// one clip in / one sentence out, and a live streaming session per hold.
-//
-// TWO IMPLEMENTATIONS OF ONE INTERFACE, not one implementation with a flag.
-// The scripted service exists so a scenario can drive the WHOLE path — mic
-// permission, capture, the wire, the composer insertion — on a machine with no
-// model and no native binding; giving the real service a "pretend" mode would
-// have put that branch inside the code the scenario is meant to be testing,
-// and would have made `no-model` a state the fake can be in, which it cannot.
-//
-// THE STATUS IS READ FROM DISK, NEVER CACHED, because the model directory is
-// shared across every checkout on this machine (see `AppConfig.modelDir`) and
-// a second instance can install or delete under this one. The one thing held
-// in memory is the download in flight, which is this process's own fact.
-//
-// THE ENGINE IS STREAMING PARAKEET (sherpa-onnx) — one model, both paths: a
-// whole clip through `transcribe`, and a live hold through
-// `createStreamSession`.
+// the status is read from disk, never cached: the model dir is shared across every checkout on
+// this machine, so a second instance can install or delete under this one. the scripted service
+// is a second implementation, not a pretend flag on the real one: a flag puts the branch inside
+// the code the scenario tests.
 
 import {
   VOICE_BYTES_PER_SAMPLE,
@@ -40,27 +26,20 @@ import {
 } from "./stream-session";
 import { runVoiceWorker, spawnVoiceStreamWorker } from "./voice-worker-host";
 
-/** No usable transcription runtime, or no model to run. */
 export class VoiceUnavailableError extends Error {}
-/** Something is already using it — a download or a transcription in flight. */
 export class VoiceBusyError extends Error {}
-/** The runtime loaded and refused this clip. */
 export class VoiceTranscriptionError extends Error {}
 
 export interface VoiceService {
   status(): Promise<VoiceStatusResponse>;
   install(): Promise<VoiceStatusResponse>;
   remove(): Promise<VoiceStatusResponse>;
-  /** The clip's samples; the caller owns validating that they are in range. */
   transcribe(pcm: ArrayBuffer): Promise<string>;
-  /** A live dictation session over `/voice/stream`. Returns synchronously; a
-   *  runtime or model problem is delivered through `handlers.onError`. */
   createStreamSession(handlers: StreamHandlers): StreamSession;
   dispose(): Promise<void>;
 }
 
-/** The catalog entry as the wire carries it — the digest and the URL are this
- *  server's business and reach no client. */
+// the digest and the url reach no client.
 function wireModel(spec: VoiceModelSpec): VoiceModel {
   return { id: spec.id, label: spec.label, sizeBytes: spec.sizeBytes };
 }
@@ -70,32 +49,14 @@ interface DownloadInFlight {
   receivedBytes: number;
 }
 
-/**
- * A second of silence, transcribed once after a download so the model is opened
- * — and its onnx graph loaded — inside the install rather than inside the user's
- * first dictation. It is also the moment a model that passed the size/digest
- * gate but cannot be opened by sherpa-onnx is caught: at the install the user is
- * watching, not at their first dictation.
- */
 const WARM_UP_PCM_BYTES = VOICE_SAMPLE_RATE * VOICE_BYTES_PER_SAMPLE;
 
-/** The sentence shown when a model would not load and was removed — one
- *  spelling, used by both the batch path and a streaming session. */
 const MODEL_REMOVED_MESSAGE = `The ${VOICE_MODEL.label} model could not be loaded and was removed. Turn voice input on again in Settings to re-download it.`;
 
 export interface ParakeetVoiceServiceArgs {
   modelDir: string;
-  /** Tests inject a transport rather than reaching the model's host. */
   fetchImpl?: typeof fetch;
-  /**
-   * Tests drive the refusal paths without spawning a thread. Injected rather
-   * than mocked at the module boundary because the real runner dlopens a
-   * native binding, which would make every one of these assertions a claim
-   * about the platform the suite happens to be running on.
-   */
   runWorker?: typeof runVoiceWorker;
-  /** Tests inject a fake persistent worker to drive the streaming lifecycle
-   *  without a native binding. */
   spawnStreamWorker?: typeof spawnVoiceStreamWorker;
 }
 
@@ -105,14 +66,11 @@ export class ParakeetVoiceService implements VoiceService {
   readonly #runWorker: typeof runVoiceWorker;
   readonly #spawnStreamWorker: typeof spawnVoiceStreamWorker;
   #download: DownloadInFlight | null = null;
-  /** Why the last install stopped, so `no-model` can say it. Cleared by the
-   *  next install and by `remove`, because both make it stale. */
   #lastError: string | null = null;
   #preparing = false;
   #transcribing = false;
   #disposed = false;
-  /** The probe's answer, kept for the process: whether a native binding loads
-   *  is a property of this build on this machine and cannot change under us. */
+  // kept for the process: whether a native binding loads cannot change under us.
   #runtimeProblem: string | null | undefined = undefined;
 
   constructor(args: ParakeetVoiceServiceArgs) {
@@ -154,10 +112,7 @@ export class ParakeetVoiceService implements VoiceService {
   }
 
   async install(): Promise<VoiceStatusResponse> {
-    // The slot is claimed BEFORE any await, for the reason `transcribe` states:
-    // a check that awaits before it sets the flag lets two calls in one tick
-    // both pass, and here that means two 100 MB downloads writing the same
-    // model files. The claim is released below if the checks then refuse.
+    // claimed before any await: two installs in one tick would both pass and start two downloads.
     if (this.#download !== null) {
       throw new VoiceBusyError("The model is already downloading.");
     }
@@ -172,17 +127,14 @@ export class ParakeetVoiceService implements VoiceService {
         throw new VoiceBusyError("The model is already installed.");
       }
     } catch (error) {
-      // Only this call's own claim: a `remove` racing the checks already
-      // cleared it, and clearing it again would cancel whatever replaced it.
+      // only this call's own claim: a remove racing the checks already cleared it.
       if (this.#download === inFlight) {
         this.#download = null;
       }
       throw error;
     }
     this.#lastError = null;
-    // Deliberately not awaited: the route answers the status this moved to and
-    // the surface polls for `receivedBytes` — a 100 MB fetch outlives any
-    // request timeout worth having.
+    // not awaited: a 100 MB fetch outlives any request timeout; the surface polls receivedBytes.
     void (async () => {
       try {
         const download: DownloadModelArgs = {
@@ -195,9 +147,7 @@ export class ParakeetVoiceService implements VoiceService {
         };
         if (this.#fetchImpl !== undefined) download.fetchImpl = this.#fetchImpl;
         await downloadModel(download);
-        // Only if THIS download is still the current one: a `remove` racing it
-        // already aborted and cleared, and warming a model it just deleted
-        // would report `preparing` for a file that is gone.
+        // only if this download is still current: a remove racing it already cleared it.
         if (this.#download === inFlight) {
           this.#download = null;
           this.#warmUp();
@@ -215,16 +165,8 @@ export class ParakeetVoiceService implements VoiceService {
     return this.status();
   }
 
-  /**
-   * Transcribe a second of silence, ONCE, so the graph load lands here — and,
-   * because this is the first time the freshly-downloaded model is actually
-   * loaded, so a model that passed the size/digest gate but cannot be opened by
-   * sherpa-onnx is caught HERE, at the install the user is watching, rather than
-   * at their first dictation. Such a model is nuked so the status drops to
-   * `no-model` with the reason, the same delete-and-rebuild recovery the
-   * knowledge cache uses. A decode failure (the runtime loaded but choked on
-   * silence) is recorded but keeps the model — it is not about the bytes.
-   */
+  // a second of silence, so the graph load and any open failure land at the install the user
+  // is watching rather than at their first dictation.
   #warmUp(): void {
     this.#preparing = true;
     void (async () => {
@@ -238,9 +180,7 @@ export class ParakeetVoiceService implements VoiceService {
           await this.#recordWorkerFailure(answer.message, answer.modelUnusable);
         }
       } catch (error) {
-        // Fire-and-forget: a warm-up that THROWS — a worker that died, a model
-        // dir a concurrent remove raced away — records like a `failed` answer
-        // rather than escaping this void as an unhandled rejection.
+        // a warm-up that throws records like a failed answer rather than escaping this void.
         this.#lastError = error instanceof Error ? error.message : String(error);
       } finally {
         this.#preparing = false;
@@ -248,13 +188,7 @@ export class ParakeetVoiceService implements VoiceService {
     })();
   }
 
-  /**
-   * What a `failed` worker answer means for the cache. A model that would not
-   * LOAD is corrupt for this build, so it is deleted — a re-download is the
-   * only recovery, and leaving it would report `ready` for a file that cannot
-   * work. A decode failure keeps the file: the bytes are fine, the clip was
-   * not. Either way the reason is remembered for the `no-model` status.
-   */
+  // a model that will not load is corrupt for this build; a decode failure keeps the file.
   async #recordWorkerFailure(reason: string, modelUnusable: boolean): Promise<void> {
     this.#lastError = reason;
     if (modelUnusable) {
@@ -271,10 +205,7 @@ export class ParakeetVoiceService implements VoiceService {
   }
 
   async transcribe(pcm: ArrayBuffer): Promise<string> {
-    // The slot is claimed BEFORE any await: a check that awaits between reading
-    // the flag and setting it is not a guard at all, and two dictations issued
-    // in the same tick both passed it — each spawning a worker, against the
-    // one-worker rule this class exists to keep.
+    // claimed before any await: two dictations in one tick would both pass and spawn two workers.
     if (this.#preparing) {
       throw new VoiceBusyError("The speech model is still being prepared.");
     }
@@ -306,8 +237,7 @@ export class ParakeetVoiceService implements VoiceService {
         );
       }
       await this.#recordWorkerFailure(answer.message, answer.modelUnusable);
-      // A model that would not load is now gone, so this is `unavailable`, not
-      // a bad clip; a decode failure keeps the model and reports as one.
+      // a model that would not load is now gone, so this is unavailable, not a bad clip.
       throw answer.modelUnusable
         ? new VoiceUnavailableError(MODEL_REMOVED_MESSAGE)
         : new VoiceTranscriptionError(answer.message);
@@ -348,23 +278,13 @@ export class ParakeetVoiceService implements VoiceService {
       return;
     }
     this.#disposed = true;
-    // A download writes into the model directory; leaving one running past
-    // shutdown means a partial file landing after the process said it stopped.
+    // a download left running past shutdown lands a partial file after the process said it stopped.
     this.#download?.controller.abort();
     this.#download = null;
   }
 }
 
-/**
- * The e2e runtime. It reports `ready` with no model on disk and no binding
- * loaded, and its answers NAME THE SAMPLE COUNT — so a scenario asserting the
- * composer's text proves the microphone's bytes reached the server, not merely
- * that a button was clicked.
- */
-/** What the scripted runtime reports, so a harness sees the same shape a real
- *  install does without a download. The WIRE shape directly: there is no
- *  archive to pin, so a catalog spec here would be fabricated digests and
- *  file names no reader wants. */
+// the wire shape directly: there is no archive to pin, so a catalog spec would be fabricated.
 const SCRIPTED_VOICE_MODEL: VoiceModel = {
   id: "scripted",
   label: "Scripted (test runtime)",

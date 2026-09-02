@@ -7,14 +7,6 @@ import type { HTMLAttributes, InputHTMLAttributes, ReactNode } from "react";
 import { cn } from "@repo/ui/lib/utils";
 import { GlideList } from "@repo/ui/ai/glide-list";
 
-/* ─────────────────────────────────────────────────────────
- * SEARCH — a command field with its results directly below
- *
- * The QUERY AND RESULTS ARE THE CALLER'S — filtering is their
- * business, since only they know what is being searched — and
- * the sliding highlight comes from `glide-list.tsx`.
- * ───────────────────────────────────────────────────────── */
-
 const SEARCH_ICON = (
   <svg
     aria-hidden
@@ -48,9 +40,7 @@ const SearchPanel = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
 SearchPanel.displayName = "SearchPanel";
 
 export interface SearchFieldProps extends Omit<InputHTMLAttributes<HTMLInputElement>, "value"> {
-  /** A search draft is text — typed here rather than narrowed at render. */
   value?: string;
-  /** Rendered when there is something to clear; the caller owns the reset. */
   onClear?: () => void;
 }
 
@@ -134,7 +124,6 @@ const SearchResult = forwardRef<HTMLButtonElement, HTMLAttributes<HTMLButtonElem
 SearchResult.displayName = "SearchResult";
 
 export interface SearchEmptyProps extends HTMLAttributes<HTMLDivElement> {
-  /** Second line under the headline — what to try instead. */
   hint?: ReactNode;
 }
 

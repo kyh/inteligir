@@ -1,14 +1,3 @@
-// deriveOpenDoc — pins the reachable state map of the open document. A flat set
-// of view fields would allow illegal combinations (rich mode on a non-markdown
-// file, a gate reason without a note); the union must cover exactly the
-// reachable states and nothing else:
-//   none                  — nothing open
-//   loading               — intent path set, runtime hasn't loaded (also the
-//                           rename-carry / vanish transient)
-//   non-markdown          — loaded .html/.txt/… (always the raw textarea)
-//   markdown + rich       — gate clear
-//   markdown + raw/reason — gated
-
 import { describe, expect, it } from "vitest";
 
 import { deriveOpenDoc, openDocPath } from "@repo/editor/note/open-doc";
@@ -34,7 +23,7 @@ describe("deriveOpenDoc", () => {
       rawReason: null,
     });
     expect(doc).toEqual({ kind: "loading", path: "notes/a.md" });
-    expect(openDocPath(doc)).toBe("notes/a.md"); // sidebar/graph highlights
+    expect(openDocPath(doc)).toBe("notes/a.md");
   });
 
   it("non-markdown for a loaded .html/.txt (mdx excluded from markdown)", () => {

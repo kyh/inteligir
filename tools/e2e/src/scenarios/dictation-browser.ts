@@ -1,24 +1,6 @@
-// Dictation, driven end to end in a real browser against a real server.
-//
-// WHAT IS REAL HERE AND WHAT IS NOT. Everything above the recognizer is real:
-// the microphone permission, `getUserMedia`, the ScriptProcessor frames, the
-// 16 kHz PCM conversion, the dictation WEBSOCKET, the route, the live partial
-// and the insertion into the composer. Only the Parakeet recognizer is stood in
-// for — the server runs with INTELIGIR_VOICE=scripted, whose partials and final
-// NAME THE SAMPLE COUNT they received. That is what makes this an assertion
-// rather than a click test: a partial appearing DURING the hold and a composer
-// reading "scripted dictation of N samples" with N > 0 both prove the
-// microphone's bytes are streaming the whole path.
-//
-// The alternative was a ~106 MB model download inside CI, which would make the
-// suite depend on a third-party host being up and on a decode that takes a
-// different amount of time on every runner.
-//
-// THE MICROPHONE IS CHROME'S OWN FAKE DEVICE. `--use-fake-ui-for-media-stream`
-// auto-grants the permission a headless browser would otherwise block, and
-// `--use-fake-device-for-media-stream` generates a tone — so no audio fixture
-// is committed, and the bytes are still genuinely captured rather than
-// injected past the recorder.
+// INTELIGIR_VOICE=scripted stands in for the recognizer alone (the real model is a ~100 MB download
+// from a third-party host); its partials name the sample count received, so a match proves the
+// mic's bytes streamed the whole path.
 
 import { setTimeout as delay } from "node:timers/promises";
 import { agentBrowserSession, probeHeadlessOrSkip } from "../harness/agent-browser";
@@ -29,6 +11,8 @@ const agentBrowser = agentBrowserSession("dictation");
 const MOUNT_DEADLINE_MS = 90_000;
 const TRANSCRIPT_DEADLINE_MS = 60_000;
 
+// chrome's own fake device: the first flag auto-grants the permission headless would block, the
+// second generates a tone, so no audio fixture is committed and the bytes are still captured.
 const CHROME_MEDIA_ARGS = [
   "--use-fake-ui-for-media-stream",
   "--use-fake-device-for-media-stream",
@@ -51,12 +35,11 @@ export const dictationBrowser: Scenario = {
       ctx.log(`opening ${app.baseUrl}/ with a fake microphone`);
       await agentBrowser(["--args", CHROME_MEDIA_ARGS, "open", `${app.baseUrl}/`], 60_000);
       await agentBrowser(["wait", '[data-slate-editor="true"]'], MOUNT_DEADLINE_MS);
-      // The composer floats behind ⌘K now — open it before anything waits on it.
+      // the composer is behind ⌘K.
       await agentBrowser(["press", process.platform === "darwin" ? "Meta+k" : "Control+k"]);
       await agentBrowser(["wait", COMPOSER], MOUNT_DEADLINE_MS);
 
-      // The button reads its own status off /voice/status, so waiting for the
-      // enabled label is also the assertion that the route answered.
+      // the button reads /voice/status, so waiting for its label also asserts the route answered.
       ctx.log("waiting for the mic button to report a usable runtime");
       await agentBrowser(["wait", MIC], MOUNT_DEADLINE_MS);
 
@@ -64,10 +47,7 @@ export const dictationBrowser: Scenario = {
       await agentBrowser(["click", MIC]);
       await agentBrowser(["wait", MIC_RECORDING], 30_000);
 
-      // THE POINT OF STREAMING: the words appear as you speak. A live partial
-      // shows in the preview BEFORE release, and scripted mode names the sample
-      // count — so a matching partial proves the microphone's bytes are reaching
-      // the server over the socket mid-hold, not just on stop.
+      // a partial before release proves the bytes reach the server mid-hold, not only on stop.
       ctx.log("waiting for a live partial during the hold");
       await agentBrowser(["wait", PREVIEW], 30_000);
       const partialDeadline = Date.now() + TRANSCRIPT_DEADLINE_MS;
@@ -105,9 +85,7 @@ export const dictationBrowser: Scenario = {
         `the transcript claims ${samples} samples — the microphone's bytes did not reach the server`,
       );
 
-      // THE POINT OF THE FEATURE: dictation is input. A transcript that
-      // auto-sent would leave the composer empty and a thread holding a
-      // message the user never read.
+      // an auto-sent transcript would leave a thread holding a message the user never read.
       ctx.log("asserting the transcript was inserted and NOT sent");
       await delay(1_000);
       const stillThere = await agentBrowser(["get", "value", COMPOSER]);
@@ -118,8 +96,6 @@ export const dictationBrowser: Scenario = {
       const listed = await app.api.threads.list();
       expect(listed.threads.length === 0, `dictation created a thread: ${JSON.stringify(listed)}`);
 
-      // Typing after a dictation must continue from the caret the insertion
-      // left, not from the start of the box.
       ctx.log("typing continues after the inserted text");
       await agentBrowser(["type", COMPOSER, " and more"]);
       const appended = await agentBrowser(["get", "value", COMPOSER]);

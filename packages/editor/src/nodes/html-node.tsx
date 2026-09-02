@@ -1,12 +1,7 @@
-// The html block: a self-contained interactive HTML artifact. Renders as a source card by default; "Preview" mounts a sandboxed
-// srcdoc iframe with NO permissions, and "Run" re-mounts it with
-// allow-scripts — a user-initiated escalation, never the default. There is no
-// allow-same-origin under any mode: with scripts on, same-origin would hand
-// the payload this origin's storage and API surface.
-//
-// The document CSP admits exactly this frame: `frame-src 'self'`
-// (apps/cli/src/server/csp.ts) permits the srcdoc preview while refusing REMOTE
-// frames, so the sandbox — never the CSP — is what contains the payload.
+// Preview mounts a sandboxed srcdoc iframe with no permissions; Run re-mounts it with
+// allow-scripts, a user-initiated escalation. Never allow-same-origin: with scripts on it would
+// hand the payload this origin's storage and API. The CSP's `frame-src 'self'` admits the srcdoc
+// frame, so the sandbox is what contains the payload.
 
 import { type PlateElementProps, PlateElement } from "platejs/react";
 import { useState } from "react";
@@ -51,8 +46,7 @@ export function HtmlElement(props: PlateElementProps) {
     </button>
   );
 
-  // A sandboxed srcdoc frame prints blank on some engines; paper gets the
-  // source, which is the block's honest byte content.
+  // a sandboxed srcdoc frame prints blank on some engines; print gets the source.
   return (
     <PlateElement {...props}>
       <RichBlockCard

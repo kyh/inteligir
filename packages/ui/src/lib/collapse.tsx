@@ -5,17 +5,11 @@ import { cn } from "@repo/ui/lib/utils";
 interface CollapseProps {
   open: boolean;
   className?: string;
-  /** Extra classes on the clipping box — for content that needs breathing
-   *  room inside the clip (hover pills, negative-margin gutters). */
   innerClassName?: string;
   children: ReactNode;
 }
 
-/** The 0fr → 1fr grid collapse: animatable without measuring content, one
- *  easing for every fold in the system so expands read as one gesture.
- *  A closed fold is `inert`, never `aria-hidden`: the content it clips still
- *  holds live controls (tool-chip toggles, selectable rows), and aria-hidden
- *  alone leaves them in the tab order while hiding them from the reader. */
+// a closed fold is inert, never aria-hidden, which leaves the clipped controls in the tab order
 export function Collapse({ open, className, innerClassName, children }: CollapseProps) {
   return (
     <div

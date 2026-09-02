@@ -2,17 +2,12 @@
 
 import { customAlphabet } from "nanoid";
 
-/** Lowercase alphanumerics minus the look-alikes (0/o/O, 1/l/I). */
+// lowercase alphanumerics minus the look-alikes (0/o, 1/l/i).
 export const GENERATED_ID_ALPHABET = "23456789abcdefghijkmnpqrstuvwxyz";
 export const GENERATED_ID_SUFFIX_LENGTH = 10;
 
 const generateIdSuffix = customAlphabet(GENERATED_ID_ALPHABET, GENERATED_ID_SUFFIX_LENGTH);
 
-/**
- * `<prefix>_<suffix>` ids, e.g. `thr_8kfm2q9xwz`. Every entity's prefix is
- * declared exactly once, below — including `turn_`, which names no table:
- * a turn exists only as the scope its events share.
- */
 export function createPrefixedId(prefix: string): string {
   return `${prefix}_${generateIdSuffix()}`;
 }

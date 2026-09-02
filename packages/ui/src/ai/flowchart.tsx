@@ -6,17 +6,6 @@ import type { HTMLAttributes, ReactNode } from "react";
 
 import { cn } from "@repo/ui/lib/utils";
 
-/* ─────────────────────────────────────────────────────────
- * FLOWCHART — an automation read as steps: trigger, condition,
- * the branches under it
- *
- * The layout is a FLOW: nodes stack, connectors sit between
- * them, and a branch renders its own rows — an arrangement a
- * caller can compose against, where an absolute canvas could
- * only place nodes it had measured. Kind pills are monochrome:
- * this skin carries no purple or amber.
- * ───────────────────────────────────────────────────────── */
-
 const Flowchart = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
     <div
@@ -30,7 +19,6 @@ const Flowchart = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
 Flowchart.displayName = "Flowchart";
 
 export interface FlowchartConnectorProps extends HTMLAttributes<HTMLDivElement> {
-  /** Label riding the line — a branch's "yes" / "no". */
   label?: ReactNode;
   height?: number;
 }
@@ -57,7 +45,6 @@ const FlowchartConnector = forwardRef<HTMLDivElement, FlowchartConnectorProps>(
 FlowchartConnector.displayName = "FlowchartConnector";
 
 export interface FlowchartNodeProps extends HTMLAttributes<HTMLDivElement> {
-  /** The pill above the card — "Trigger", "If / Else". */
   kind?: ReactNode;
   width?: number;
 }
@@ -136,9 +123,7 @@ const FlowchartBranch = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement
 FlowchartBranch.displayName = "FlowchartBranch";
 
 export interface FlowchartConditionProps extends HTMLAttributes<HTMLDivElement> {
-  /** The leading operator chip — "if", "and", "else". */
   operator?: ReactNode;
-  /** The compared value, shown as its own chip. */
   value?: ReactNode;
 }
 

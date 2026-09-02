@@ -1,18 +1,6 @@
-// The ACP agent runtime: the AgentRuntime interface — the seam
-// runtime-manager and the scripted driver already share — implemented over
-// Zed's agent-client-protocol. One adapter CHILD PER THREAD (the session is
-// the process), the official client lib owning the wire, and every harness
-// difference confined to the registry's data.
-//
-// Turn identity is MINTED HERE: ACP has no turn ids — a prompt request's
-// response IS the turn's end — so each prompt gets a host-minted provider
-// turn id, `turn/started` is emitted at send, and the response (or its
-// rejection) closes the mapper. `runTurn` resolves once the prompt is ON THE
-// WIRE, not when it settles: the caller's send must return while the turn
-// streams, exactly as the app-server runtime behaved.
-//
-// Steering does not exist in ACP: a prompt owns its session until it settles,
-// so a message sent into a running turn waits in the host's queue instead.
+// one adapter child per thread. ACP has no turn ids (a prompt's response is the turn's end) and no
+// steering (a prompt owns its session until it settles), so turn ids are minted here and a mid-turn
+// message waits in the host's queue.
 
 import { spawn, type ChildProcess } from "node:child_process";
 import { Readable, Writable } from "node:stream";
@@ -51,7 +39,6 @@ import { requireHarness, type HarnessDefinition } from "./harness-registry.js";
 
 const SESSION_SHUTDOWN_GRACE_MS = 1_000;
 
-/** process.env parsed at its boundary: only the defined entries. */
 function definedProcessEnv(): AgentRuntimeShellEnvironment {
   const env: AgentRuntimeShellEnvironment = {};
   for (const [key, value] of Object.entries(process.env)) {
@@ -64,20 +51,15 @@ export interface AcpSpawnedAdapter {
   child: ChildProcess;
 }
 
-/** One MCP server for a session, in the runtime's own vocabulary — mapped to
- * the ACP lib's wire shape at session creation. A GETTER on the options so
- * registry edits reach the NEXT session without rebuilding the runtime. */
 export type AcpMcpServerConfig =
   | { name: string; kind: "stdio"; command: string; args: string[] }
   | { name: string; kind: "http"; url: string; headers?: Record<string, string> };
 
 export interface AcpAgentRuntimeOptions extends AgentRuntimeOptions {
-  /** Model override routed into every adapter child, each harness's own way. */
   model?: string;
-  /** The enabled connector rows every session gets. Async so an
-   *  OAuth row can refresh its token at compose time. */
+  // a getter, so a registry edit reaches the next session; async so an OAuth row can refresh its
+  // token.
   mcpServers?: () => AcpMcpServerConfig[] | Promise<AcpMcpServerConfig[]>;
-  /** Test seam: replace the child spawn with an in-memory adapter. */
   spawnAdapter?: (harness: HarnessDefinition, env: Record<string, string>) => AcpSpawnedAdapter;
 }
 
@@ -92,7 +74,6 @@ interface AcpSession {
   activeMapper: AcpTurnMapper | null;
   pendingTurnStart: boolean;
   idleSinceMs: number;
-  /** Ordered teardown flag: an expected kill must not report a crash. */
   expectedExit: boolean;
 }
 
@@ -143,8 +124,8 @@ export function createAcpAgentRuntime(options: AcpAgentRuntimeOptions): AgentRun
     const env = definedProcessEnv();
     Object.assign(env, options.env);
     for (const key of harness.envOmit) delete env[key];
-    // The agent's shell inherits the adapter child's env — that is the whole
-    // route by which the server URL and the CLI's PATH reach `inteligir …`.
+    // the agent's shell inherits this env: it is how the server url and the cli's PATH reach
+    // `inteligir`.
     Object.assign(
       env,
       buildThreadShellEnvironment({ baseShellEnv: options.shellEnv?.(), threadId }),
@@ -208,8 +189,8 @@ export function createAcpAgentRuntime(options: AcpAgentRuntimeOptions): AgentRun
       throw new Error(`The ${harness.displayName} adapter spawned without stdio pipes`);
     }
     const stdinWeb: WritableStream<Uint8Array> = Writable.toWeb(child.stdin);
-    // node's toWeb types the readable side `any`; piping through an identity
-    // TransformStream is what stamps the chunk type without an assertion.
+    // Readable.toWeb types its stream any; the identity TransformStream stamps the chunk type
+    // without an assertion.
     const identity = new TransformStream<Uint8Array, Uint8Array>();
     void Readable.toWeb(child.stdout)
       .pipeTo(identity.writable)
@@ -389,9 +370,8 @@ export function createAcpAgentRuntime(options: AcpAgentRuntimeOptions): AgentRun
           emit(mapper.failed(error instanceof Error ? error.message : String(error)));
         }
       })();
-      // Resolve once the prompt is on the wire: the send path must return
-      // while the turn streams. A queue-level flush is the closest "accepted"
-      // signal the lib exposes.
+      // resolve once the prompt is on the wire, not when it settles: the send must return while the
+      // turn streams.
       await Promise.resolve();
     },
 
@@ -399,7 +379,7 @@ export function createAcpAgentRuntime(options: AcpAgentRuntimeOptions): AgentRun
       args: ReapIdleProviderSessionsArgs,
     ): Promise<ReapIdleProviderSessionsResult> {
       const reaped: ReapIdleProviderSessionsResult["reapedSessions"] = [];
-      // Snapshot: destroySession mutates the map mid-iteration.
+      // snapshot: destroySession mutates the map mid-iteration.
       for (const session of Array.from(sessions.values())) {
         if (session.activeMapper !== null || session.providerThreadId === null) continue;
         const idleForMs = args.nowMs - session.idleSinceMs;

@@ -1,13 +1,3 @@
-// GitHub-alert markers must never render literally inside transclusion cards.
-//
-// The live editor hides a `> [!TIP]` marker behind the variant badge with a
-// Slate DECORATION, and PlateStatic runs no decorations, so the embed would
-// show the raw marker. stripAlertMarkers removes it from the throwaway render
-// copy and stashes the variant for the static blockquote component.
-//
-// The rule that matters: this must ONLY ever touch the read-only copy. Every
-// assertion below also checks the input is left intact.
-
 import { describe, expect, it } from "vitest";
 import { ElementApi, KEYS, TextApi, type Value } from "platejs";
 
@@ -38,7 +28,6 @@ describe("stripAlertMarkers", () => {
 
     expect(firstText(out)).toBe("Use the palette.");
     expect(out[0]?.[ALERT_VARIANT_KEY]).toBe("TIP");
-    // The source value is never mutated — it is the parse of a real vault file.
     expect(firstText(input)).toBe("[!TIP]\nUse the palette.");
   });
 
@@ -51,8 +40,6 @@ describe("stripAlertMarkers", () => {
   });
 
   it("leaves the loose form alone — hiding non-marker bytes would lie", () => {
-    // `[!TIP] trailing words` is tinted but its marker stays visible in the
-    // live editor too; the static path must not diverge.
     const input = quote("[!TIP] and some trailing words");
     const out = stripAlertMarkers(input);
 

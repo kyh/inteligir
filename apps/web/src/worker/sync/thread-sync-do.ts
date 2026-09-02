@@ -26,54 +26,19 @@ import { DurableObject } from "cloudflare:workers";
 import { z } from "zod";
 import { refuse } from "../cloud-http";
 
-// ---------------------------------------------------------------------------
-// ThreadSyncDO — ONE per user, named `user:<userId>` where the userId comes
-// from the VERIFIED device credential (or the session, for the purge hook) —
-// never from anything a caller typed, because naming an object CREATES one.
-//
-// It owns three things, all in its own SQLite:
-//   • the append-only MERGED thread-event log — every device's outbox rows,
-//     server-stamped with one global `seq`, keyed (device_id, device_seq).
-//     A replay of a stored position is accepted only when the body MATCHES;
-//     a different body is a conflict and a new position at or below the
-//     device's high-water is causal reverse. Event bodies are opaque JSON:
-//     this object stores and fans out, it never interprets.
-//   • thread metadata (lane, title), last-writer-wins on the CLIENT's own
-//     timestamp — the lane is what makes the log double as a DISPATCH MAILBOX.
-//   • the capture inbox — two-phase: claim takes ownership for a window, ack
-//     deletes by that claim's token. `@repo/api/cloud/captures/captures-schema` states
-//     the guarantee that buys (at-least-once delivery, exactly-once deletion).
-//
-// HIBERNATION RULES: sockets are accepted
-// with `ctx.acceptWebSocket`, per-socket identity lives in the socket's own
-// attachment, the broadcast set is rebuilt from `ctx.getWebSockets()` on every
-// push, and NO instance field holds anything a later message needs. There is
-// no alarm: the one deadline here — a claim's TTL — is judged on READ, so it
-// needs no wake to pass.
-//
-// The Worker is the ONLY caller (a Durable Object has no public address): it
-// verifies the device credential against D1 first and forwards with
-// `x-device-id` / `x-device-platform` stamped. Those headers are trusted here
-// precisely because no request reaches this fetch without passing that check.
-//
-// `fetch` carries the six DEVICE routes and nothing else. The Worker's own
-// three operations — purge, severDevice, vaultPing — are RPC METHODS: they
-// take typed arguments rather than a fabricated request re-parsed against a
-// wire shape, and no device path can reach them.
-// ---------------------------------------------------------------------------
+// Named `user:<userId>` from the verified credential only: naming an object creates one.
+// Hibernation rules: sockets are accepted with ctx.acceptWebSocket, per-socket identity lives in
+// the attachment, the broadcast set is rebuilt from ctx.getWebSockets(), and no instance field
+// holds anything a later message needs. The Worker is the only caller, so x-device-* is trusted.
 
 type SocketTag = {
   readonly deviceId: string;
   readonly platform: DevicePlatform;
 };
 
-/** One id's ack outcome, as the contract's response declares it. */
 type AckResult = AckCapturesResponse["results"][number];
 
-/** What this object wrote with `serializeAttachment`, read back. Parsed rather
- *  than trusted: a socket hibernated before the tag's shape last changed comes
- *  back carrying the OLD one, and an untagged socket is one this object no
- *  longer knows how to address. */
+// parsed rather than trusted: a socket hibernated before the tag's shape last changed comes back with the old one
 const socketTagSchema = z.object({
   deviceId: z.string().min(1),
   platform: devicePlatformSchema,
@@ -88,17 +53,14 @@ export class ThreadSyncDO extends DurableObject<Env> {
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
     this.initSchema();
-    // Keepalive answered by the runtime WITHOUT waking a hibernated object —
-    // a `webSocketMessage` pong would pin the object per heartbeat.
+    // answered by the runtime without waking a hibernated object; a webSocketMessage pong would pin it per heartbeat
     ctx.setWebSocketAutoResponse(
       new WebSocketRequestResponsePair(SYNC_WS_KEEPALIVE_PING, SYNC_WS_KEEPALIVE_PONG),
     );
   }
 
   private initSchema(): void {
-    // AUTOINCREMENT is deliberate: `seq` is the sync cursor every client
-    // stores, so it must never be reused — plain rowid reuse after a delete
-    // would replay old rows into a cursor that already passed them.
+    // AUTOINCREMENT: seq is every client's cursor, and rowid reuse after a delete would replay old rows past it
     this.ctx.storage.sql.exec(`
       CREATE TABLE IF NOT EXISTS sync_events (
         seq INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -134,13 +96,8 @@ export class ThreadSyncDO extends DurableObject<Env> {
     const url = new URL(request.url);
     const route = `${request.method} ${url.pathname}`;
 
-    // The purge tombstone. Written AFTER deleteAll, so it survives the wipe it
-    // records — and it is what closes the deletion race: a request that
-    // verified its credential microseconds before the account was deleted can
-    // still arrive here, and without this it would recreate the state the
-    // purge just removed. Every wire route is gated on it; the RPC methods
-    // are not — the two socket ones touch no storage, and `purge` is the
-    // write that sets it.
+    // the tombstone refuses a request that verified its credential just before the account was
+    // deleted, which would otherwise recreate the purged state; the RPC methods are not gated
     if (this.purgedAt() !== null) {
       return refuse("account-deleted", "This account was deleted.");
     }
@@ -162,8 +119,6 @@ export class ThreadSyncDO extends DurableObject<Env> {
     return row?.purged_at ?? null;
   }
 
-  // -- the socket ----------------------------------------------------------
-
   private openSocket(request: Request): Response {
     const deviceId = request.headers.get("x-device-id");
     if (deviceId === null) return refuse("unauthorized", "No device.");
@@ -174,8 +129,7 @@ export class ThreadSyncDO extends DurableObject<Env> {
     this.ctx.acceptWebSocket(server);
     const tag: SocketTag = {
       deviceId,
-      // A delivery hint, not a capability — an unparseable value degrades to
-      // "other" rather than refusing the socket.
+      // a delivery hint, not a capability: an unparseable value degrades to "other"
       platform: platform.success ? platform.data : "other",
     };
     server.serializeAttachment(tag);
@@ -183,9 +137,7 @@ export class ThreadSyncDO extends DurableObject<Env> {
   }
 
   override webSocketMessage(): void {
-    // Invalidation-only, one direction. Unknown client frames are ignored
-    // (never closed on): a newer app against an older cloud must not lose its
-    // socket over a frame this build predates.
+    // unknown frames are ignored, never closed on: a newer app must not lose its socket over a frame this build predates
   }
 
   private broadcast(frame: SyncPing, filter: (tag: SocketTag) => boolean): void {
@@ -196,28 +148,17 @@ export class ThreadSyncDO extends DurableObject<Env> {
       try {
         ws.send(body);
       } catch {
-        // A socket torn down between getWebSockets() and send() — its close
-        // event is already on its way; nothing to do.
+        // torn down between getWebSockets() and send()
       }
     }
   }
 
-  /**
-   * The hosted vault repo advanced: poke every OTHER device to run a vault
-   * sync pass. The pusher — the verified device the vault git wrapper names —
-   * is excluded the way `sync` pings exclude theirs: it already holds what it
-   * pushed, and the echo would cost it a no-op fetch per push.
-   */
+  // the pusher is excluded: it already holds what it pushed
   vaultPing(pushingDeviceId: string): void {
     this.broadcast({ type: "vault" }, (tag) => tag.deviceId !== pushingDeviceId);
   }
 
-  /**
-   * Close every socket a revoked device holds. Revocation is the lost-device
-   * hatch, and a credential check on the next REQUEST does not reach a socket
-   * that already has one: without this, a revoked laptop keeps receiving every
-   * thread ping until it disconnects on its own.
-   */
+  // a credential check on the next request does not reach a socket that already has one
   severDevice(deviceId: string): void {
     for (const ws of this.ctx.getWebSockets()) {
       const tag = readSocketTag(ws);
@@ -225,12 +166,10 @@ export class ThreadSyncDO extends DurableObject<Env> {
       try {
         ws.close(1008, "device revoked");
       } catch {
-        // Already closing.
+        // already closing
       }
     }
   }
-
-  // -- the merged log ------------------------------------------------------
 
   private async push(request: Request): Promise<Response> {
     const deviceId = request.headers.get("x-device-id");
@@ -239,9 +178,7 @@ export class ThreadSyncDO extends DurableObject<Env> {
     if (!body.success) return refuse("bad-request", "Malformed push batch.");
 
     const events = body.data.events;
-    // Ordering is a property of the WHOLE batch, so it is judged before any of
-    // it is stored — a batch that disagrees with itself has no prefix worth
-    // keeping.
+    // judged before anything is stored: a batch that disagrees with itself has no prefix worth keeping
     for (const [index, event] of events.entries()) {
       const previous = index === 0 ? undefined : events[index - 1];
       if (previous !== undefined && event.deviceSeq <= previous.deviceSeq) {
@@ -256,9 +193,8 @@ export class ThreadSyncDO extends DurableObject<Env> {
     const sql = this.ctx.storage.sql;
     const metaUpserts = body.data.threads ?? [];
     for (const thread of metaUpserts) {
-      // Last-writer-wins on the CLIENT's timestamp: a delayed retry carries an
-      // OLD updated_at and loses, where a server-side `now` would make it the
-      // newest fact on the row and silently undo a since-changed lane.
+      // last-writer-wins on the client's timestamp: a delayed retry carries an old updated_at and
+      // loses, where a server-side now would silently undo a since-changed lane
       sql.exec(
         `INSERT INTO thread_meta (thread_id, lane, title, updated_at) VALUES (?, ?, ?, ?)
          ON CONFLICT (thread_id) DO UPDATE SET
@@ -294,9 +230,7 @@ export class ThreadSyncDO extends DurableObject<Env> {
         .toArray()[0];
 
       if (stored !== undefined) {
-        // The retry path — but only for the SAME body. A different body at a
-        // stored position is a buggy outbox, and `INSERT OR IGNORE` would have
-        // called that idempotency while dropping the write on the floor.
+        // a different body at a stored position is a buggy outbox; INSERT OR IGNORE would drop the write and call it idempotency
         if (stored.event !== serialized) {
           return refuse(
             "sync-conflict",
@@ -331,13 +265,10 @@ export class ThreadSyncDO extends DurableObject<Env> {
     const lastSeq = this.lastSeq();
 
     if (accepted > 0) {
-      // The pusher's own sockets are skipped: it holds what it pushed, and a
-      // self-ping would only trigger a pull that returns its own rows.
+      // the pusher already holds what it pushed
       this.broadcast({ type: "sync", seq: lastSeq }, (tag) => tag.deviceId !== deviceId);
     }
-    // Dispatch is NOT gated on accepted: registering a desktop-lane thread is
-    // itself the dispatch, and a phone that files the thread before its first
-    // event would otherwise poke nobody.
+    // not gated on accepted: registering a desktop-lane thread is itself the dispatch, and may precede its first event
     for (const threadId of this.desktopLaneThreads(touchedThreads, metaUpserts)) {
       this.broadcast(
         { type: "dispatch", threadId },
@@ -349,9 +280,6 @@ export class ThreadSyncDO extends DurableObject<Env> {
     return Response.json(response);
   }
 
-  /** The dispatch set: threads this push touched (rows OR meta) whose lane is
-   * `desktop` — a dispatch is one push carrying the thread and its first
-   * events together, and either half alone must still ping. */
   private desktopLaneThreads(
     touched: ReadonlySet<string>,
     metaUpserts: readonly { readonly threadId: string }[],
@@ -408,8 +336,6 @@ export class ThreadSyncDO extends DurableObject<Env> {
     return Response.json(response);
   }
 
-  // -- the capture inbox ---------------------------------------------------
-
   private async capture(request: Request): Promise<Response> {
     const body = captureRequestSchema.safeParse(await request.json().catch(() => null));
     if (!body.success) return refuse("bad-request", "Send { text, idempotencyKey }.");
@@ -422,8 +348,7 @@ export class ThreadSyncDO extends DurableObject<Env> {
       )
       .toArray()[0];
     if (existing !== undefined) {
-      // The share-sheet retry after a lost response — the same capture, not a
-      // second thought. No ping: nothing changed for anyone.
+      // a share-sheet retry after a lost response; no ping, nothing changed
       const duplicate: CaptureResponse = {
         id: existing.id,
         createdAt: existing.created_at,
@@ -441,18 +366,13 @@ export class ThreadSyncDO extends DurableObject<Env> {
       body.data.text,
       createdAt,
     );
-    // Every socket, the capturing device's included: whichever device claims
-    // first applies it, and the capturer may well be the only one online.
+    // every socket, the capturer included: whichever device claims first applies it, and the capturer may be the only one online
     this.broadcast({ type: "capture" }, () => true);
     const response: CaptureResponse = { id, createdAt, duplicate: false };
     return Response.json(response);
   }
 
-  /**
-   * Phase one: take ownership of a batch. Unclaimed rows and rows whose claim
-   * has lapsed are equally available — the TTL is judged HERE, on read, which
-   * is why the inbox needs no alarm to reclaim after a crash.
-   */
+  // the TTL is judged here on read, so a lapsed claim needs no alarm to reclaim
   private async claimCaptures(request: Request): Promise<Response> {
     const body = claimCapturesRequestSchema.safeParse(await request.json().catch(() => ({})));
     if (!body.success) return refuse("bad-request", "Send { limit? }.");
@@ -488,12 +408,7 @@ export class ThreadSyncDO extends DurableObject<Env> {
     return Response.json(response);
   }
 
-  /**
-   * Phase two: delete what this claim still owns, and say per id what actually
-   * happened. A row that has since been reclaimed is NOT deleted — this
-   * device's apply raced its own lapsed claim, and the current owner will
-   * apply it again.
-   */
+  // a row reclaimed since is not deleted: this device raced its own lapsed claim, and the current owner will apply it
   private async ackCaptures(request: Request): Promise<Response> {
     const body = ackCapturesRequestSchema.safeParse(await request.json().catch(() => null));
     if (!body.success) return refuse("bad-request", "Send { claimToken, ids }.");
@@ -518,22 +433,16 @@ export class ThreadSyncDO extends DurableObject<Env> {
     return Response.json(response);
   }
 
-  // -- account deletion ----------------------------------------------------
-
-  /** Drop everything this object holds, then TOMBSTONE it. Sockets first (a
-   * purged account has no live-follow), then the storage whole; the tombstone
-   * is written last so a request that verified its credential just before the
-   * account died cannot rebuild what this removed. Idempotent — the deletion
-   * hook may retry. */
+  // the tombstone is written last so a request that verified just before the account died cannot rebuild what this removed; idempotent
   async purge(): Promise<void> {
     for (const ws of this.ctx.getWebSockets()) {
       try {
         ws.close(1001, "account deleted");
       } catch {
-        // Already closing.
+        // already closing
       }
     }
-    // deleteAll on a SQLite-backed object clears the SQL tables too.
+    // deleteAll on a SQLite-backed object clears the SQL tables too
     await this.ctx.storage.deleteAll();
     this.initSchema();
     this.ctx.storage.sql.exec(
@@ -543,9 +452,7 @@ export class ThreadSyncDO extends DurableObject<Env> {
   }
 }
 
-/** Stored bodies were serialized from a contract-validated JSON value, so a
- * parse failure here is storage corruption — surface the raw string rather
- * than throw a pull into a 500 forever. */
+// a parse failure is storage corruption; surface the raw string rather than 500 every pull forever
 function parseStoredEvent(stored: string): SyncEventRow["event"] {
   try {
     return JSON.parse(stored);

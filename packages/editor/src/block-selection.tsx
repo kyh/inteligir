@@ -1,7 +1,4 @@
 // Vendored from plate (github.com/udecode/plate), MIT. © Plate contributors.
-// Per-block selection overlay: BlockSelectionPlugin renders this below every
-// selectable block's root node; it lights up when the block's id is in the
-// selected set (right-click, grip click, or drag-lasso selection).
 
 import { useBlockSelected } from "@platejs/selection/react";
 
@@ -10,11 +7,10 @@ import { cn } from "@repo/ui/lib/utils";
 export function BlockSelection({ pluginKey }: { pluginKey: string }) {
   const isBlockSelected = useBlockSelected();
 
-  // Tables carry their own cell-selection UI; the overlay would double up.
+  // tables carry their own cell-selection UI
   if (!isBlockSelected || pluginKey === "tr" || pluginKey === "table") return null;
 
-  // span, not div: paragraphs render as <p>, and a div child is invalid
-  // nesting (React dev warns per block).
+  // span, not div: a div inside <p> is invalid nesting
   return (
     <span
       className={cn(

@@ -1,18 +1,6 @@
-// The knowledge wire contract: read-only queries over the derived vault index
-// (search, backlinks, related, tags). Paths are `vaultPathSchema`, the same
-// grammar the vault's own routes take — answering an index query for a path
-// the vault would refuse invites the client to then act on it.
-// Every schema here MIRRORS an engine type from @repo/notes — the handlers
-// assign engine values straight into these shapes. A field the engine RENAMES
-// or removes fails the handler's compile; a field the engine ADDS is invisible
-// to the compiler (structural assignment allows excess members) and is caught
-// at the other end: the route tests parse live responses with these strict
-// schemas, so an undeclared field on the wire fails the suite.
-//
-// Unbounded collections are CAPPED here, in the contract, so the bound is a
-// declared fact rather than a handler habit: each capped response carries
-// `total` (what the whole vault holds), and `array.length < total` IS the
-// truncation test — no second flag can disagree with the arrays.
+// each schema mirrors an engine type: a field the engine adds passes structural assignment
+// unseen, and only the strict parse catches it. a capped response carries `total`, and
+// `array.length < total` is the truncation test; no second flag can disagree with the arrays.
 
 import { z } from "zod";
 import { vaultPathSchema } from "../vault/vault-schema";
@@ -22,11 +10,7 @@ export const KNOWLEDGE_RELATED_MAX_LIMIT = 50;
 export const KNOWLEDGE_BACKLINKS_MAX = 500;
 export const KNOWLEDGE_TAGS_MAX = 1000;
 
-/**
- * ONE search route: `q` is the raw box text, parsed ENGINE-side
- * (`parseSearchQuery`) so a `tag:<name>` term typed by a user and a tag a
- * client composed resolve identically. Empty text with no tag answers [].
- */
+// q is the raw box text, parsed engine-side so a typed tag: term and a composed one resolve alike
 export const knowledgeSearchRequestSchema = z
   .object({
     q: z.string(),
@@ -56,22 +40,16 @@ export type LinkKindWire = z.infer<typeof linkKindSchema>;
 export const backlinkEntrySchema = z
   .object({
     sourcePath: z.string().min(1),
-    /** 1-based line of the link in the source doc. */
+    // 1-based
     line: z.number().int().min(1),
-    /** The source line the link sits on, trimmed. */
     snippet: z.string(),
     kind: linkKindSchema,
-    /** True for `![[transclusions]]`. */
     embed: z.boolean(),
-    /** Wiki `|alias` / md link label, when present. */
     alias: z.string().optional(),
   })
   .strict();
 export type BacklinkEntryWire = z.infer<typeof backlinkEntrySchema>;
 
-/** Every linkable target for the `[[` picker: docs first (title + aliases
- * from the index — the SAME alias source backlink resolution reads), then
- * attachments. */
 export const wikiTargetSchema = z
   .object({
     path: z.string().min(1),
@@ -96,18 +74,12 @@ export const knowledgeBacklinksResponseSchema = z
   .object({
     path: z.string().min(1),
     backlinks: z.array(backlinkEntrySchema).max(KNOWLEDGE_BACKLINKS_MAX),
-    /** Backlinks the whole vault holds; `backlinks.length < total` means cut. */
     total: z.number().int().min(0),
   })
   .strict();
 export type KnowledgeBacklinksResponse = z.infer<typeof knowledgeBacklinksResponseSchema>;
 
-/**
- * Related notes carry a `limit` and no `total`, the way `search` does and
- * unlike `backlinks`: this is a RANKED TOP-N, not a capped enumeration of
- * everything the vault holds, so there is no honest number of "the rest" to
- * report. The scorer ranks a candidate set that reaches most of the vault.
- */
+// a limit and no total: a ranked top-n has no honest count of the rest
 export const knowledgeRelatedRequestSchema = z
   .object({
     path: vaultPathSchema,
@@ -121,9 +93,7 @@ export const relatedNoteSchema = z
     path: z.string().min(1),
     title: z.string(),
     score: z.number(),
-    /** WHY this note is here, in the scorer's own words — "both link to X",
-     * "shares #tag", "similar text". Every surface prints them verbatim: a
-     * ranked list of filenames with no reason is a list nobody can check. */
+    // printed verbatim by every surface: a ranked list with no reason is one nobody can check
     reasons: z.array(z.string()),
   })
   .strict();
@@ -147,7 +117,7 @@ export type TagCountWire = z.infer<typeof tagCountSchema>;
 
 export const knowledgeTagsResponseSchema = z
   .object({
-    /** Most-used first, so the cap keeps the tags that matter. */
+    // most-used first, so the cap keeps the tags that matter
     tags: z.array(tagCountSchema).max(KNOWLEDGE_TAGS_MAX),
     total: z.number().int().min(0),
   })

@@ -47,17 +47,8 @@ export function createThread(
 
 export type EnsureThreadOutcome = { row: ThreadRow; created: boolean };
 
-/**
- * The thread an event names, created with THAT id when this database has never
- * seen it — the arrival half of cloud sync.
- *
- * `createThread` is the wrong verb here and its id is the reason: a synced
- * thread's identity belongs to the account, so a device that minted its own
- * would turn one conversation into two, one per device. Everything else about
- * the row is left at its default — an event log carries no title and no
- * origin, so inventing values for them would be this device guessing at
- * facts another device holds.
- */
+// created with the log's id, not `createThread`'s: a device minting its own turns one synced
+// conversation into two. title and origin stay default because the event log carries neither.
 export function ensureThreadInTransaction(tx: DbTransaction, id: string): EnsureThreadOutcome {
   const existing = tx.select().from(threads).where(eq(threads.id, id)).get();
   if (existing !== undefined) {
@@ -72,17 +63,11 @@ export function ensureThreadInTransaction(tx: DbTransaction, id: string): Ensure
   return { row, created: true };
 }
 
-/** Accepts a transaction so read-decide-write flows load the row under the
- *  same lock they act on. */
 export function getThread(db: ThreadWriteConnection, id: string): ThreadRow | null {
   return db.select().from(threads).where(eq(threads.id, id)).get() ?? null;
 }
 
-/**
- * Every thread, live before archived, newest-updated first within each — as
- * two scans so each is answered by its own partial index (see the schema)
- * instead of a temp b-tree sort.
- */
+// two scans so each is answered by its own partial index instead of a temp b-tree sort.
 export function listThreads(db: DbConnection): ThreadRow[] {
   const live = db
     .select()
@@ -99,14 +84,6 @@ export function listThreads(db: DbConnection): ThreadRow[] {
   return [...live, ...archived];
 }
 
-/**
- * Follow a moved doc: every thread bound to it (or, for a directory move, to
- * anything under it) keeps pointing at the file it was spawned from.
- *
- * Without this a rename orphans every action attached to the doc —
- * `originDocPath` would still name a path that no longer exists. Runs in the
- * same operation as the link rewrite, for the same reason that one does.
- */
 export function rebindThreadOrigins(
   db: DbConnection,
   notifier: DbNotifier,
@@ -118,16 +95,13 @@ export function rebindThreadOrigins(
     .where(eq(threads.originDocPath, args.from))
     .returning({ id: threads.id })
     .all();
-  // A directory move carries every doc under it; `/` is appended so a sibling
-  // sharing the name's prefix (`Notes2/`) is never caught.
+  // "/" appended so a sibling sharing the name's prefix (`Notes2/`) is never caught.
   const prefix = `${args.from}/`;
   const descendants = db
     .select({ id: threads.id, originDocPath: threads.originDocPath })
     .from(threads)
-    // No escaping of the prefix's own LIKE wildcards: drizzle's `like` emits no
-    // ESCAPE clause, so a backslash would be matched literally and find
-    // nothing. The pattern over-matches instead, and `startsWith` below is the
-    // authoritative filter.
+    // drizzle's `like` emits no ESCAPE clause, so escaping the prefix's own wildcards would match
+    // a literal backslash and find nothing; the pattern over-matches and `startsWith` filters.
     .where(like(threads.originDocPath, `${prefix}%`))
     .all();
   for (const row of descendants) {
@@ -174,10 +148,7 @@ export interface SetThreadProviderSessionArgs {
   providerThreadId: string;
 }
 
-/**
- * Record the provider session a thread resumes into. No notification: this
- * is runtime plumbing, not a fact any client renders.
- */
+// no notification: runtime plumbing, not a fact a client renders.
 export function setThreadProviderSession(
   db: DbConnection,
   args: SetThreadProviderSessionArgs,
@@ -239,10 +210,8 @@ function applyThreadLifecycleEventRecord(
     };
   }
 
-  // Compare-and-set on the loaded (status, activeTurnId) pair: belt-and-braces
-  // under better-sqlite3's synchronous transactions, and the contract that
-  // survives any future executor change. The turn id is part of the predicate
-  // so a settle validated against turn A can never land after turn B bound.
+  // the turn id is in the predicate so a settle validated against turn a cannot land after
+  // turn b bound.
   const updated = db
     .update(threads)
     .set({ status: evaluation.to, activeTurnId: evaluation.activeTurnId, updatedAt: Date.now() })
@@ -267,14 +236,6 @@ function applyThreadLifecycleEventRecord(
   return { applied: true, thread: updated };
 }
 
-/**
- * Single writer for thread lifecycle events: loads the row, evaluates the
- * event against THREAD_LIFECYCLE and its supersession predicates, and applies
- * the transition with a status compare-and-set — all in one transaction.
- * Never throws on stale or illegal events; returns a typed outcome for the
- * caller to log. Use applyThreadLifecycleEventInTransaction from inside an
- * existing transaction (the caller then owns notification).
- */
 export function applyThreadLifecycleEvent(
   db: DbConnection,
   notifier: DbNotifier,

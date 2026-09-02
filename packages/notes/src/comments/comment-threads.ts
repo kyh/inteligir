@@ -1,10 +1,3 @@
-// Threads over a sidecar: roots (entries with no parent), their replies in
-// parent-chain order, and the two orphan directions the skill's final check
-// names — a marker with no entry, and a root entry with no marker. Every
-// transform answers a NEW sidecar object (insertion order preserved for
-// untouched entries), never mutates its input, and takes ids and timestamps
-// from the caller — no randomness and no clock in pure code.
-
 import type { CommentEntry, CommentSidecar, CommentSource } from "./sidecar-schema";
 
 export type CommentReply = { id: string; entry: CommentEntry };
@@ -12,30 +5,21 @@ export type CommentReply = { id: string; entry: CommentEntry };
 export type CommentThread = {
   rootId: string;
   root: CommentEntry;
-  /** Depth-first down the parent chains, siblings by createdAt then id — a
-   * stable reading order whatever order the file holds. */
   replies: CommentReply[];
-  /** The root carries `resolvedAt`. */
   resolved: boolean;
-  /** The root's id appears in a body marker. False is the "entry with no
-   * marker" orphan — the thread still lists, so a human can re-anchor or
-   * delete it rather than never seeing it. */
+  // false = entry with no body marker; listed anyway so it can be re-anchored or deleted
   anchored: boolean;
 };
 
 export type SidecarThreads = {
   threads: CommentThread[];
-  /** Marker ids with no sidecar entry — the other orphan direction. */
   orphanMarkers: string[];
-  /** Entries whose parent chain never reaches a root (dangling or cyclic
-   * parentId) — malformed per the skill, surfaced rather than dropped. */
+  // parent chain never reaches a root (dangling or cyclic parentId)
   strayIds: string[];
 };
 
-/** Fold a sidecar into threads. `markerIds` is the body's marker id set, or
- * null when the doc's markers are unknowable (unparseable doc) — then every
- * thread reports anchored and no marker orphans are claimed, because a claim
- * either way would be a guess. */
+// markerIds null = doc unparseable: every thread reports anchored and no orphan
+// markers are claimed, since either claim would be a guess.
 export function foldThreads(
   sidecar: CommentSidecar,
   markerIds: Set<string> | null,
@@ -91,7 +75,6 @@ export function foldThreads(
   return { threads, orphanMarkers, strayIds };
 }
 
-/** The root id owning `id`, walking parent chains; null for a stray. */
 export function rootOf(sidecar: CommentSidecar, id: string): string | null {
   const seen = new Set<string>();
   let current = id;
@@ -105,7 +88,6 @@ export function rootOf(sidecar: CommentSidecar, id: string): string | null {
   }
 }
 
-/** Every id in `rootId`'s thread (the root and all reachable descendants). */
 export function threadIds(sidecar: CommentSidecar, rootId: string): string[] {
   const members = [rootId];
   const collected = new Set(members);
@@ -178,9 +160,6 @@ export type ResolveArgs = {
   at: number;
 };
 
-/** Resolve (or reopen) a whole thread: the SAME `resolvedAt`/`resolvedBy` on
- * the root and every descendant, `updatedAt` bumped on each — the skill's own
- * resolution rule. Markers and entries stay; only the fields move. */
 export function resolveThread(sidecar: CommentSidecar, args: ResolveArgs): AddResult {
   const root = sidecar[args.rootId];
   if (root === undefined || root.parentId !== undefined) {
@@ -209,8 +188,7 @@ export type DeleteResult =
   | { ok: true; sidecar: CommentSidecar; removedIds: string[] }
   | { ok: false; error: string };
 
-/** Delete a whole thread's entries. The BODY markers are the editor's to
- * strip — the answer names the removed root so the caller knows which. */
+// body markers are the caller's to strip
 export function deleteThread(sidecar: CommentSidecar, rootId: string): DeleteResult {
   const root = sidecar[rootId];
   if (root === undefined || root.parentId !== undefined) {

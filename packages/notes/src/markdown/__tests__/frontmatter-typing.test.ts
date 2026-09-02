@@ -6,11 +6,6 @@ import {
   serializeProperties,
 } from "@repo/notes/markdown/frontmatter";
 
-// Every frontmatter typing rule (CLAUDE.md § Decisions: the markdown file is
-// the ONLY property store), exhaustively. The rules
-// ARE the feature: conservative YAML 1.2 core-schema typing that never coerces
-// and never destroys what it can't represent.
-
 function props(yaml: string): TypedProperty[] {
   const parsed = parseProperties(yaml);
   if (parsed.kind !== "valid") throw new Error(`expected valid, got ${parsed.kind}`);
@@ -56,11 +51,9 @@ describe("parseProperties — typing rules", () => {
 
   it("explicit YYYY-MM-DD strings → date; other date-ish strings stay text", () => {
     expect(props("a: 2026-07-01\n")).toEqual([{ key: "a", type: "date", value: "2026-07-01" }]);
-    // A timestamp with a time component is not the recognized shape → text.
     expect(props("a: 2026-07-01T10:00\n")).toEqual([
       { key: "a", type: "text", value: "2026-07-01T10:00" },
     ]);
-    // A quoted date is still just a string with the date shape → date.
     expect(props('a: "2026-07-01"\n')).toEqual([{ key: "a", type: "date", value: "2026-07-01" }]);
   });
 
@@ -94,7 +87,6 @@ describe("parseProperties — typing rules", () => {
       ["nums", "unsupported"],
       ["empty", "unsupported"],
     ]);
-    // The nested map's raw source bytes are captured for the read-only display.
     const nested = parsed[0];
     if (nested?.type !== "unsupported") throw new Error("expected unsupported");
     expect(nested.rawYaml).toBe("a: 1\n  b: 2");
@@ -137,8 +129,7 @@ describe("serializeProperties", () => {
       ],
       "",
     );
-    // `true`/`42` are quoted so they re-parse as strings; `yes` needs none
-    // (it is already a string under the core schema).
+    // `yes` needs no quotes: it is already a string under the core schema.
     expect(out).toBe('a: "true"\nb: "42"\nc: yes');
     expect(props(out + "\n")).toEqual([
       { key: "a", type: "text", value: "true" },

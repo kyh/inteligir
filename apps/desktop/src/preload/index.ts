@@ -1,10 +1,4 @@
-// The renderer's only bridge, and it is one value.
-//
-// FIXED VERBS, never a channel name: nothing here takes a channel, a path or
-// anything else the renderer chooses — the page can ask for exactly what this
-// module already decided to expose. The value itself is read once at load
-// through a synchronous invoke, because the renderer needs it before it opens
-// its first socket.
+// read synchronously at load: the renderer needs the origin before it opens its first socket.
 
 import { contextBridge, ipcRenderer } from "electron";
 

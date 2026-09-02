@@ -14,23 +14,6 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@repo/ui/lib/utils";
 import { GlideList } from "@repo/ui/ai/glide-list";
 
-/* ─────────────────────────────────────────────────────────
- * PROMPT BAR — a composer with @ sources, / commands and a
- * model picker
- *
- * Two things are deliberately absent. `glimm` — a WebGL-shader
- * and audio-sweep package that would paint a rainbow sweep on
- * model change, plus a sound: it is decoration, this app plays no
- * sound, and this package sheds render libraries rather than
- * gaining them. And brand marks (Figma, Slack, Gmail SVGs) — a
- * design system should not carry other companies' logos. Source
- * rows take an `icon` instead.
- *
- * NOTE this is not the app's own composer: that one is built on
- * fluid's `InputMessage` and carries the dictation contract. This
- * is Beautiful UI's, carried whole for the gallery.
- * ───────────────────────────────────────────────────────── */
-
 const promptBarVariants = cva(
   "flex w-full flex-col bg-surface-raised shadow-surface-2 transition-[border-radius] duration-200",
   {
@@ -59,7 +42,6 @@ const PromptBar = forwardRef<HTMLDivElement, PromptBarProps>(
 );
 PromptBar.displayName = "PromptBar";
 
-/** Context chips above the field — sources the prompt will carry. */
 const PromptBarSources = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
     <div
@@ -74,7 +56,6 @@ PromptBarSources.displayName = "PromptBarSources";
 
 export interface PromptBarSourceProps extends HTMLAttributes<HTMLSpanElement> {
   icon?: ReactNode;
-  /** Present renders a remove control. */
   onRemove?: () => void;
 }
 
@@ -122,9 +103,7 @@ export interface PromptBarFieldProps extends Omit<
   TextareaHTMLAttributes<HTMLTextAreaElement>,
   "onSubmit" | "value"
 > {
-  /** A draft is text — typed here rather than narrowed at render. */
   value?: string;
-  /** Enter without a modifier. Never fires on an empty draft. */
   onSend?: () => void;
 }
 
@@ -228,8 +207,6 @@ const PromptBarSend = forwardRef<HTMLButtonElement, ButtonHTMLAttributes<HTMLBut
 );
 PromptBarSend.displayName = "PromptBarSend";
 
-/** The @ / slash popup. Anchored by the caller — this is the surface, not a
- *  positioning engine; the app already has one in `components/popover`. */
 const PromptBarMenu = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
   ({ className, children, ...props }, ref) => (
     <div
@@ -253,7 +230,6 @@ PromptBarMenu.displayName = "PromptBarMenu";
 
 export interface PromptBarMenuItemProps extends HTMLAttributes<HTMLButtonElement> {
   icon?: ReactNode;
-  /** Trailing hint — a shortcut, or what the source is. */
   meta?: ReactNode;
   selected?: boolean;
 }

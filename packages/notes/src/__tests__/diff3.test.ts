@@ -131,8 +131,6 @@ describe("diff3", () => {
     });
 
     it("conflicts on adjacent unstable regions with no separating line", () => {
-      // mine rewrote [1,2), theirs rewrote [2,3): no stable line between
-      // them, so interleaving would be ambiguous — grouped, conflicted, mine.
       const base = doc("stable", "mine target", "theirs target", "stable2");
       const mine = doc("stable", "mine rewrite", "theirs target", "stable2");
       const theirs = doc("stable", "mine target", "theirs rewrite", "stable2");
@@ -170,8 +168,6 @@ describe("diff3", () => {
     });
 
     it("compares segment arrays, not joined text, at the region boundary", () => {
-      // mine turns one line into two; theirs rewrites the same region with
-      // the identical CHARACTERS but a different line split would join-equal.
       const base = doc("a", "x y", "z");
       const mine = doc("a", "x", "y", "z");
       const theirs = doc("a", "x", "y", "z");

@@ -1,11 +1,3 @@
-// The ACTION loop (#587's surface), end to end: a thread ATTACHED to the
-// note it was composed over (`originDocPath` alone — no marker), a scripted
-// turn writing the vault through the agent path, the guarded CAS write the
-// editor saves through, a CAS_MISMATCH whose body carries the current bytes,
-// and the rename-follow that keeps the attachment pointing at the moved
-// file. The only e2e over the CAS write, the agent's vault write and the
-// origin rebind.
-
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";

@@ -1,7 +1,3 @@
-// The one approval slot both browser dances (device pairing, connector OAuth)
-// run on. The dances' own suites pin their flows end to end; what is pinned
-// here is the slot's discipline, once, at the one implementation.
-
 import { describe, expect, it } from "vitest";
 import { createApprovalSlot, type ApprovalSlot } from "../pairing/approval-slot";
 import { PAIR_STATE_PATTERN } from "../pairing/pairing-schema";
@@ -21,7 +17,6 @@ describe("createApprovalSlot", () => {
     expect(state).toMatch(PAIR_STATE_PATTERN);
 
     expect(slot.claim(state)).toStrictEqual({ kind: "claimed", payload: "payload" });
-    // Consumed by its own claim: a replayed callback completes nothing.
     expect(slot.claim(state)).toStrictEqual({ kind: "no-pending" });
   });
 

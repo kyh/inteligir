@@ -25,12 +25,6 @@ import { useIsoLayoutEffect } from "@repo/ui/lib/use-iso-layout-effect";
 import { composeRefs } from "@repo/ui/lib/compose-refs";
 import { splitLeadingText } from "@repo/ui/components/sidebar-core";
 
-// ─── Menu scope ──────────────────────────────────────────────────────────────
-//
-// One proximity-hover system per SidebarMenu, plus the traveling overlays —
-// hover background, active background, focus ring — that glide between its
-// rows.
-
 interface MenuScopeValue {
   registerRow: (el: HTMLElement) => () => void;
   setRowButton: (row: HTMLElement, button: HTMLElement | null) => void;
@@ -44,13 +38,8 @@ interface MenuScopeValue {
 const MenuScopeContext = createContext<MenuScopeValue | null>(null);
 
 interface MenuItemContextValue {
-  /**
-   * The row element as STATE, not a ref: `isHovered` / `isActiveRow` compare it
-   * during render, and a ref read there is not reactive — the row would keep
-   * rendering the pre-attach value until something else re-rendered it.
-   */
+  // state, not a ref: isHovered / isActiveRow compare it during render, and a ref read there is not reactive
   rowEl: HTMLLIElement | null;
-  /** Callback ref that publishes the row element into that state. */
   setRow: (el: HTMLLIElement | null) => void;
   isHovered: boolean;
   isActiveRow: boolean;
@@ -87,9 +76,8 @@ function useMenuScope(containerRef: RefObject<HTMLElement | null>): MenuScope {
     useProximityHover(containerRef);
 
   const rowsRef = useRef<Set<HTMLElement>>(new Set());
-  // State, not a ref: `overlayRect` reads this during render to clamp the
-  // highlight to the row's button box, so a button attaching must re-render
-  // — a ref would leave the first paint measuring the whole <li>.
+  // state, not a ref: overlayRect reads this during render, and a ref would leave the first paint
+  // measuring the whole <li>
   const [rowButtons, setRowButtons] = useState<Map<HTMLElement, HTMLElement>>(new Map());
   const activeMapRef = useRef<Map<HTMLElement, boolean>>(new Map());
   const [orderedRows, setOrderedRows] = useState<HTMLElement[]>([]);
@@ -98,8 +86,7 @@ function useMenuScope(containerRef: RefObject<HTMLElement | null>): MenuScope {
   const [focusedRowEl, setFocusedRowEl] = useState<HTMLElement | null>(null);
 
   const recomputeActive = useCallback(() => {
-    // Sorted here rather than read off a render-time mirror of `orderedRows`:
-    // this only runs from callbacks, and the ref-mirror was a render-phase write.
+    // sorted here, not from a render-time mirror, which would be a render-phase write
     let first: HTMLElement | null = null;
     for (const el of [...rowsRef.current].toSorted(byDomOrder)) {
       if (activeMapRef.current.get(el)) {
@@ -110,8 +97,6 @@ function useMenuScope(containerRef: RefObject<HTMLElement | null>): MenuScope {
     setActiveRowEl((prev) => (prev === first ? prev : first));
   }, []);
 
-  // Rows register by element; indexes are derived from DOM order so consumers
-  // never pass an index prop and conditional rows just work.
   const syncRows = useCallback(() => {
     const sorted = [...rowsRef.current].toSorted(byDomOrder);
     setOrderedRows((prev) => (sameElements(prev, sorted) ? prev : sorted));
@@ -160,9 +145,8 @@ function useMenuScope(containerRef: RefObject<HTMLElement | null>): MenuScope {
     [recomputeActive],
   );
 
-  // A row's rect spans the whole <li>, so overlay heights are clamped to the
-  // row's button box. The 32px fallback (the tallest row) guarantees the
-  // highlight can never balloon even if the button lookup misses.
+  // a row's rect spans the whole <li>, so overlay heights clamp to the button box; 32px is the
+  // tallest row, for when the button lookup misses
   const overlayRect = useCallback(
     (row: HTMLElement | null): ItemRect | null => {
       if (!row) return null;
@@ -178,11 +162,9 @@ function useMenuScope(containerRef: RefObject<HTMLElement | null>): MenuScope {
     [itemRects, orderedRows, rowButtons],
   );
 
-  // While a popup anchored in the sidebar is open (the header/footer rows'
-  // dropdown), hover tracking freezes — otherwise a non-modal popup lets rows
-  // underneath keep highlighting. Popup triggers are detected by Base UI's
-  // data-popup-open; collapsible rows only set aria-expanded, so they never
-  // match.
+  // hover tracking freezes while a popup anchored in the sidebar is open, or a non-modal popup
+  // lets rows underneath keep highlighting; collapsible rows set only aria-expanded, so they
+  // never match data-popup-open
   const popupOpen = useCallback(() => {
     const container = containerRef.current;
     if (!container) return false;
@@ -206,7 +188,6 @@ function useMenuScope(containerRef: RefObject<HTMLElement | null>): MenuScope {
         setActiveIndex(null);
         return;
       }
-      // Only the row's main button drives the traveling highlight and ring.
       if (!target.closest('[data-sidebar="menu-button"]')) return;
       const rowEl = target.closest('[data-sidebar="menu-item"]');
       const row = rowEl instanceof HTMLElement ? rowEl : null;
@@ -233,7 +214,6 @@ function useMenuScope(containerRef: RefObject<HTMLElement | null>): MenuScope {
     [containerRef, setActiveIndex],
   );
 
-  // Arrow/Home/End over every button in DOM order.
   const onKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (!["ArrowDown", "ArrowUp", "ArrowRight", "ArrowLeft", "Home", "End"].includes(e.key))
@@ -247,8 +227,7 @@ function useMenuScope(containerRef: RefObject<HTMLElement | null>): MenuScope {
       const currentIdx = items.indexOf(e.target);
       if (currentIdx === -1) return;
       e.preventDefault();
-      // Keep handled arrows from reaching window-level listeners (the shell's
-      // own key bindings).
+      // keep handled arrows from the shell's window-level key bindings
       e.stopPropagation();
       if (e.key === "Home") items[0]?.focus();
       else if (e.key === "End") items[items.length - 1]?.focus();
@@ -294,9 +273,8 @@ function useMenuScope(containerRef: RefObject<HTMLElement | null>): MenuScope {
       onMouseLeave: handlers.onMouseLeave,
       onFocus,
       onBlur,
-      // Pointer interaction switches modality back to pointer. Clicking the
-      // already-focused row never re-fires focus, so without this the
-      // keyboard ring would stick until focus left the menu.
+      // clicking the already-focused row never re-fires focus, so without this the keyboard ring
+      // would stick until focus left the menu
       onPointerDown,
       onKeyDown,
     },
@@ -304,11 +282,7 @@ function useMenuScope(containerRef: RefObject<HTMLElement | null>): MenuScope {
   };
 }
 
-// ─── SidebarMenu ─────────────────────────────────────────────────────────────
-
 interface SidebarMenuProps extends LiHTMLAttributes<HTMLUListElement> {
-  /** Pins the menu's rows to one step of the size ladder. Omitted, they
-   *  follow the surrounding SizeProvider. */
   size?: SizeVariant;
 }
 
@@ -336,8 +310,6 @@ const SidebarMenu = forwardRef<HTMLUListElement, SidebarMenuProps>(
   },
 );
 SidebarMenu.displayName = "SidebarMenu";
-
-// ─── SidebarMenuItem ─────────────────────────────────────────────────────────
 
 type SidebarMenuItemProps = LiHTMLAttributes<HTMLLIElement>;
 
@@ -396,13 +368,7 @@ const SidebarMenuItem = forwardRef<HTMLLIElement, SidebarMenuItemProps>(
 );
 SidebarMenuItem.displayName = "SidebarMenuItem";
 
-// ─── Row label (ghost-span weight animation) ─────────────────────────────────
-
-/** Splits leading string children out as the label so it can get the
- *  ghost-span weight treatment; remaining element children (dots, trailing
- *  icons) render as flex siblings after it — outside the text-box-trimmed
- *  span, which would clip an inline SVG, and where `ml-auto` can push a
- *  trailing control to the row's end. */
+// element children render outside the text-box-trimmed span, which would clip an inline SVG
 function MenuRowLabel({
   content,
   lit,
@@ -430,11 +396,9 @@ function MenuRowLabel({
     );
   }
 
-  // Ghost: reserves width at the heaviest weight, hidden from AT. Both cells
-  // truncate so a long label clips with an ellipsis instead of wrapping the
-  // row. The trim box spans cap height to baseline, so the overflow clip
-  // would shave ascenders and descenders — symmetric padding extends the clip
-  // box past both and the negative margins cancel it out of the row's height.
+  // the trim box spans cap height to baseline, so the overflow clip would shave ascenders and
+  // descenders; symmetric padding extends the clip box and the negative margins cancel it out of
+  // the row's height
   return (
     <>
       <span className={cn("inline-grid min-w-0 text-left", textClass)}>
@@ -461,8 +425,6 @@ function MenuRowLabel({
     </>
   );
 }
-
-// ─── SidebarMenuButton ───────────────────────────────────────────────────────
 
 interface SidebarMenuButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   isActive?: boolean;
@@ -491,8 +453,6 @@ const SidebarMenuButton = forwardRef<HTMLButtonElement, SidebarMenuButtonProps>(
     const lit = isActive || (item?.isHovered ?? false);
     const heightClass = sizeClasses.variant === "compact" ? "h-7" : "h-8";
 
-    // Roving tabindex: the active row's button is the menu's tab stop; with no
-    // active row, the first row keeps the menu keyboard-reachable.
     const row = item?.rowEl ?? null;
     const tabIdx = isActive
       ? 0

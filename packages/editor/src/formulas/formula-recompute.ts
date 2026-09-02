@@ -1,17 +1,7 @@
-// The recompute pass: every executable pill in the OPEN note re-evaluates,
-// and a display that changed rewrites through an ordinary editor transaction
-// — so the new bytes ride the same serialize/save path a keystroke does, and
-// PARSING never rewrites anything (a wrong display on disk stays until an
-// editor session recomputes it; the gate stays byte-faithful).
-//
-// Timing discipline (markdown-editor.tsx's): recompute is debounced behind
-// the serialize settle, captures the document identity before its awaits, and
-// aborts if ANY edit landed meanwhile — the next settle reschedules it, so
-// dropping a pass costs nothing and fighting the user's typing is impossible.
-//
-// Stale semantics follow the vendored skill exactly: only a BOUND expression
-// that cannot resolve (missing target, cycle) marks `stale=1` and keeps its
-// last display; a plain expression that cannot evaluate is simply left alone.
+// A changed display rewrites through an ordinary editor transaction; parsing never
+// rewrites, so a wrong display on disk stays until an editor session recomputes it.
+// Only a bound expression that cannot resolve marks stale and keeps its last
+// display; a plain expression that cannot evaluate is left alone.
 
 import { NodeApi, type NodeEntry, type SlateEditor, type TElement } from "platejs";
 
@@ -58,7 +48,6 @@ function formulaEntries(editor: SlateEditor): FormulaEntryInDoc[] {
   return out;
 }
 
-/** The note's own id, read off the frontmatter node the editor holds. */
 function editorNoteId(editor: SlateEditor): string | null {
   const first = editor.children[0];
   if (first === undefined || first.type !== "frontmatter") return null;
@@ -76,7 +65,6 @@ async function recompute(editor: SlateEditor): Promise<void> {
   const selfNoteId = editorNoteId(editor);
   const selfFormulas = entries.map((row) => row.collected);
 
-  // Foreign notes named by bound refs, fetched through the host once each.
   const foreign = new Set<string>();
   for (const row of executables) {
     if (row.collected.expression === null) continue;
@@ -94,8 +82,7 @@ async function recompute(editor: SlateEditor): Promise<void> {
       }),
     );
   }
-  // An edit landed while we read — the next settle reruns; touching the tree
-  // now would race the keystroke that invalidated this pass.
+  // an edit landed during the reads; the next settle reruns
   if (editor.children !== before) return;
 
   const updates: Array<{ entry: NodeEntry<TElement>; props: Record<string, string> }> = [];
@@ -122,7 +109,6 @@ async function recompute(editor: SlateEditor): Promise<void> {
       }
       continue;
     }
-    // Only a bound expression goes stale; its display is the last known value.
     if (refs.length > 0 && !meta.stale) {
       const nextMeta = serializeFormulaMeta({ ...meta, stale: true }) ?? "";
       updates.push({
@@ -142,7 +128,6 @@ async function recompute(editor: SlateEditor): Promise<void> {
 
 const schedulers = new WeakMap<SlateEditor, { schedule: () => void; cancel: () => void }>();
 
-/** Debounced per editor; safe to call from every settle. */
 export function scheduleFormulaRecompute(editor: SlateEditor): void {
   let scheduler = schedulers.get(editor);
   if (scheduler === undefined) {

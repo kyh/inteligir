@@ -2,10 +2,6 @@ import { assetMediaType } from "@repo/api/cloud/vault/vault-schema";
 import { describe, expect, it } from "vitest";
 import { projectNote, type InlineSpan, type NoteBlock } from "../note-projection";
 
-// The projection IS the mobile renderer's contract: what these pin is that a
-// note's dialect constructs reach the screen as typed blocks — and that the
-// plumbing (comment markers, frontmatter, opaque html) never leaks as text.
-
 function noteBlocks(content: string): NoteBlock[] {
   const projection = projectNote("notes/test.md", content);
   if (projection.kind !== "note") throw new Error(`expected note, got ${projection.kind}`);
@@ -103,8 +99,6 @@ describe("projectNote", () => {
     );
     const callout = blocks[0];
     if (callout?.kind !== "callout") throw new Error("expected a callout");
-    // The level line is HEADER, never body prose — the drift a second parser
-    // had before the grammar moved into @repo/notes.
     expect(callout.label).toBe("priority · high");
     const inner = callout.blocks[0];
     if (inner?.kind !== "paragraph") throw new Error("expected a paragraph inside");
@@ -155,9 +149,7 @@ describe("projectNote", () => {
   });
 
   it("promotes only extensions the asset route actually serves", () => {
-    // The phone's render subset must stay INSIDE the route's allowlist, or a
-    // promoted embed fetches a guaranteed 400. Spelled out here on purpose —
-    // a test deriving the set could not catch the set drifting.
+    // spelled out, not derived: a derived set could not catch the route allowlist drifting.
     for (const extension of ["png", "jpg", "jpeg", "gif", "webp"]) {
       const blocks = noteBlocks(`![[img.${extension}]]\n`);
       expect(blocks[0]?.kind, extension).toBe("image");
@@ -166,8 +158,6 @@ describe("projectNote", () => {
   });
 
   it("renders only what core RN Image can draw — everything else stays a link", () => {
-    // SVG is deliberately outside the phone's set; a plain [[link]] to an
-    // image is a reference, not an embed.
     const svg = noteBlocks("![[diagram.svg]]\n");
     expect(svg).toEqual([
       {

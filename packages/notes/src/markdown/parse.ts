@@ -1,7 +1,5 @@
-// The owned unified parse. Plate's `deserializeMd` is banned in app code: it
-// applies a regex `htmlToJsx` pre-pass that corrupts code fences, and it
-// swallows parse errors into silently-degraded models. Here parse errors are
-// REAL — the gate turns them into Raw mode.
+// not Plate's `deserializeMd`: its regex `htmlToJsx` pre-pass corrupts code fences and it
+// swallows parse errors into silently-degraded models.
 
 import type { Root } from "mdast";
 import remarkParse from "remark-parse";
@@ -16,11 +14,8 @@ type ParseFailure = { message: string; line: number | null };
 
 export type ParseResult = { ok: true; root: Root } | { ok: false; failure: ParseFailure };
 
-// What a thrown processor error carries. micromark/mdx errors are
-// VFileMessage-shaped — `reason` is the human message, `line`/`place` carry the
-// position — but anything at all can escape a transform, so every field is
-// optional, a field that fails its own type reads as absent, and a non-object
-// throw decodes to no fields rather than failing the decode.
+// micromark/mdx errors are VFileMessage-shaped, but anything can escape a transform, so every
+// field is optional and a non-object throw decodes to no fields.
 const THROWN_PARSE_ERROR = z
   .object({
     reason: z.string().min(1).optional().catch(undefined),
@@ -32,13 +27,8 @@ const THROWN_PARSE_ERROR = z
 export function parseMdast(md: string): ParseResult {
   const processor = unified().use(remarkParse).use(MD_REMARK_PLUGINS);
   try {
-    // runSync is where the tree-shaping plugins act: the inline constructs, the
-    // tabs containers and the opaque transform are all transformers, so a bare
-    // `parse` yields a DIFFERENT tree (see markdown/verbatim-spans, which wants
-    // exactly that one).
-    //
-    // Foreign bytes first: raw pill pipes in table cells become `\|`
-    // (table-pipes.ts states why this lives ahead of micromark).
+    // runSync is where the transformer plugins act, so a bare `parse` yields a different tree
+    // (verbatim-spans wants that one). pill pipes in table cells are escaped ahead of micromark.
     const tree = processor.runSync(processor.parse(escapePillPipesInTables(md)));
     if (!isMdastRoot(tree)) throw new Error("markdown transform returned a non-root node");
     return { ok: true, root: tree };

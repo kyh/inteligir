@@ -27,21 +27,9 @@ import { radiusMap } from "@repo/ui/lib/radius-context";
 import { SizeProvider, useSize, type SizeVariant } from "@repo/ui/lib/size-context";
 import { Elevated } from "@repo/ui/lib/elevated";
 
-// The menu opts out of the global pill/rounded radius context — popup
-// surfaces look cleaner with the smaller "rounded" radii regardless of how the
-// rest of the UI is rounded (the heavy pill bubbling distorts perceived padding
-// at this scale and produces the corner-shadow asymmetry).
+// popups ignore the global radius context: the pill radius distorts perceived padding at this
+// scale and makes the corner shadow asymmetric.
 const radius = radiusMap.rounded;
-
-// ---------------------------------------------------------------------------
-// DropdownMenu (root)
-//
-// Built on Base UI's Menu primitive, which owns the trigger wiring,
-// positioning (collision flipping, anchor tracking), dismissal (outside
-// press, focus-out, Escape), roving highlight, typeahead, and close-on-select.
-// This layer keeps the proximity-hover overlays and the
-// spring open/close animation (via actionsRef deferred unmount).
-// ---------------------------------------------------------------------------
 
 interface DropdownMenuActions {
   unmount: () => void;
@@ -61,8 +49,6 @@ function useDropdownMenuContext() {
   return ctx;
 }
 
-/** What the popup hands its rows: proximity registration plus the shared
- *  active index the traveling hover overlay is drawn from. */
 interface DropdownItemsContextValue {
   registerItem: (index: number, element: HTMLElement | null) => void;
   activeIndex: number | null;
@@ -82,15 +68,9 @@ interface DropdownMenuProps {
   defaultOpen?: boolean;
   onOpenChange?: ((open: boolean) => void) | undefined;
   disabled?: boolean;
-  /** Local default over fluid's hardcoded value, kept overridable: non-modal
-   *  so Base UI's scroll-lock/inert never steals the editor selection — every
-   *  menu in this app opens over live editor content (block menu, table menu,
-   *  selection toolbar). Non-modal also keeps the Positioner tracking its
-   *  anchor, so the popup follows the trigger instead of detaching. */
+  // default non-modal: Base UI's modal scroll-lock/inert steals the editor selection every menu
+  // opens over, and detaches the Positioner from its anchor.
   modal?: boolean;
-  /** Pins trigger-side content and the portalled popup rows to one step of
-   *  the size ladder (default 36px, compact 28px). Omitted, they follow the
-   *  surrounding SizeProvider. */
   size?: SizeVariant | undefined;
 }
 
@@ -117,8 +97,6 @@ function DropdownMenu({
 
   const ctx = useMemo(() => ({ open, actionsRef }), [open]);
 
-  // A size prop pins the whole compound (trigger content + portalled popup —
-  // React context crosses portals) to one ladder step.
   const root = (
     <DropdownMenuContext.Provider value={ctx}>
       <Menu.Root
@@ -138,23 +116,7 @@ function DropdownMenu({
 
 DropdownMenu.displayName = "DropdownMenu";
 
-// ---------------------------------------------------------------------------
-// DropdownMenuTrigger
-//
-// Base UI's Menu.Trigger. Composes via the `render` prop, so any element can
-// be the trigger:
-//
-//   <DropdownMenuTrigger render={<Button variant="secondary">Open</Button>} />
-// ---------------------------------------------------------------------------
-
 const DropdownMenuTrigger = Menu.Trigger;
-
-// ---------------------------------------------------------------------------
-// DropdownMenuContent (popup panel)
-//
-// Portal > Positioner > Popup carrying the fluid panel visuals: Elevated
-// surface and the proximity-hover overlays.
-// ---------------------------------------------------------------------------
 
 type MenuPositionerProps = ComponentProps<typeof Menu.Positioner>;
 
@@ -165,9 +127,6 @@ interface DropdownMenuContentProps {
   align?: MenuPositionerProps["align"];
   sideOffset?: number | undefined;
   alignOffset?: number | undefined;
-  /** Local extension over fluid: detached menus (a file-tree row's actions
-   *  button, the table options button) position against an element or ref
-   *  instead of a rendered Menu.Trigger. */
   anchor?: MenuPositionerProps["anchor"];
 }
 
@@ -199,21 +158,17 @@ const DropdownMenuContent = forwardRef<HTMLDivElement, DropdownMenuContentProps>
 
     const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
 
-    // Release Base UI's deferred unmount once the exit tween has played.
-    // onAnimationComplete on the motion.div is the primary signal; this
-    // timeout is a fallback for throttled/background tabs where rAF-driven
-    // animation callbacks can stall. The popup exits with spring.fast, so the
-    // fallback tracks that tier's exit duration plus a safety buffer.
+    // fallback unmount for throttled/background tabs where onAnimationComplete can stall; tracks
+    // spring.fast's exit duration.
     useEffect(() => {
       if (open) return;
       const id = setTimeout(() => actionsRef.current?.unmount(), exitFallbackMs(spring.fast));
       return () => clearTimeout(id);
     }, [open, actionsRef]);
 
-    // Measure items once the popup has mounted.
     useEffect(() => {
       if (!open) return;
-      // Double rAF: first waits for React commit, second for layout
+      // double rAF: first waits for React commit, second for layout
       let inner: number;
       const outer = requestAnimationFrame(() => {
         inner = requestAnimationFrame(() => {
@@ -239,9 +194,6 @@ const DropdownMenuContent = forwardRef<HTMLDivElement, DropdownMenuContentProps>
           className="z-50 outline-none"
         >
           <motion.div
-            // A popup opening upward grows from its bottom edge — the edge
-            // anchored to the trigger — so the offset and origin flip with
-            // `side`.
             initial={{ opacity: 0, y: side === "top" ? 4 : -4, scaleY: 0.96 }}
             animate={
               open
@@ -252,8 +204,7 @@ const DropdownMenuContent = forwardRef<HTMLDivElement, DropdownMenuContentProps>
             style={{
               transformOrigin: side === "top" ? "bottom center" : "top center",
             }}
-            // Base UI defers unmount while actionsRef is set; release it once
-            // the exit spring has finished so the close animation fully plays.
+            // Base UI defers unmount while actionsRef is set; release it after the exit spring
             onAnimationComplete={() => {
               if (!open) actionsRef.current?.unmount();
             }}
@@ -289,8 +240,6 @@ const DropdownMenuContent = forwardRef<HTMLDivElement, DropdownMenuContentProps>
                   setActiveIndex(null);
                 }}
                 className={cn(
-                  // min-w tracks the trigger via the Positioner's
-                  // --anchor-width var.
                   `relative flex flex-col gap-0.5 w-72 max-w-full min-w-[var(--anchor-width)] max-h-[min(480px,var(--available-height))] overflow-y-auto ${radius.container} p-1 select-none outline-none`,
                   className,
                 )}
@@ -313,10 +262,6 @@ const DropdownMenuContent = forwardRef<HTMLDivElement, DropdownMenuContentProps>
 
 DropdownMenuContent.displayName = "DropdownMenuContent";
 
-// ---------------------------------------------------------------------------
-// DropdownMenuLabel
-// ---------------------------------------------------------------------------
-
 const DropdownMenuLabel = forwardRef<HTMLDivElement, ComponentProps<"div">>(
   ({ className, ...props }, ref) => {
     const compact = useSize().variant === "compact";
@@ -336,10 +281,6 @@ const DropdownMenuLabel = forwardRef<HTMLDivElement, ComponentProps<"div">>(
 
 DropdownMenuLabel.displayName = "DropdownMenuLabel";
 
-// ---------------------------------------------------------------------------
-// DropdownMenuSeparator
-// ---------------------------------------------------------------------------
-
 const DropdownMenuSeparator = forwardRef<HTMLDivElement, ComponentProps<"div">>(
   ({ className, ...props }, ref) => (
     <div
@@ -353,22 +294,12 @@ const DropdownMenuSeparator = forwardRef<HTMLDivElement, ComponentProps<"div">>(
 
 DropdownMenuSeparator.displayName = "DropdownMenuSeparator";
 
-// ---------------------------------------------------------------------------
-// DropdownMenuItem — a free-form row (arbitrary children).
-// ---------------------------------------------------------------------------
-
 interface DropdownMenuItemProps extends ComponentProps<"div"> {
   disabled?: boolean | undefined;
   variant?: "default" | "destructive" | undefined;
-  /** Whether activating the item closes the menu. @default true */
   closeOnClick?: boolean | undefined;
 }
 
-// Each row finds its own index by DOM order among its menu's rows and
-// registers that with the proximity-hover system, so conditional rows need no
-// index prop. Base UI's Menu.Item owns role, roving highlight, typeahead and
-// activation (keyboard activation synthesizes a click, so the row's onClick
-// fires for both).
 function DropdownMenuItem({
   className,
   variant = "default",
@@ -383,9 +314,8 @@ function DropdownMenuItem({
   const [index, setIndex] = useState<number | null>(null);
   const sizeClasses = useSize();
 
-  // No deps: conditional rows (the file tree's dir-only entries) change the
-  // DOM order without remounting their siblings, so every commit re-derives.
-  // setIndex bails when the position is unchanged, so this cannot loop.
+  // no deps: conditional rows change the DOM order without remounting their siblings, so every
+  // commit re-derives; setIndex bails when unchanged, so this cannot loop.
   // oxlint-disable-next-line react-hooks/exhaustive-deps -- see above
   useLayoutEffect(() => {
     const node = rowRef.current;
@@ -439,8 +369,8 @@ interface DropdownMenuGroupProps extends Omit<ComponentProps<typeof Menu.Group>,
   className?: string | undefined;
 }
 
-// display: contents keeps grouped rows direct flex children of the popup, so
-// the panel's gap layout and the proximity measurement still see them.
+// display: contents keeps grouped rows direct flex children of the popup, so the gap layout and
+// the proximity measurement still see them.
 function DropdownMenuGroup({ className, ...props }: DropdownMenuGroupProps) {
   return <Menu.Group className={cn("contents", className)} {...props} />;
 }

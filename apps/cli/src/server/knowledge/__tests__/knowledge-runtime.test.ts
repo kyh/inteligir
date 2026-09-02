@@ -1,7 +1,3 @@
-// The projection pipeline over a real vault service: mutation → announced
-// paths → projectDoc → store write → queryable, plus the boot reconcile's
-// exact hash diff (unchanged docs are never re-projected).
-
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { noopNotifier } from "@repo/domain/notifier";
@@ -23,8 +19,6 @@ function makeDirs() {
   return { root, dataDir };
 }
 
-/** A service + runtime pair wired the way production wires them: every
- * service mutation announces its paths into the runtime. */
 function boot(dirs: ReturnType<typeof makeDirs>) {
   let sink: KnowledgeRuntime | null = null;
   const service = createVaultService({
@@ -60,7 +54,6 @@ describe("the knowledge runtime", () => {
 
     expect(await knowledge.tags()).toEqual([{ tag: "project", count: 1 }]);
 
-    // Text ∧ tag composition: the tag narrows, the text ranks within it.
     const tagged = await knowledge.search({ query: "", tag: "project", limit: 10 });
     expect(tagged.map((h) => h.path)).toEqual(["alpha.md"]);
     expect(await knowledge.search({ query: "quokka", tag: "project", limit: 10 })).toEqual([]);
@@ -79,8 +72,7 @@ describe("the knowledge runtime", () => {
       "gamma.md",
     ]);
 
-    // The move a trash performs: the old path vanishes, the Trash/ path is
-    // announced as a created file — and must not enter the index.
+    // a trash is a rename into Trash/, announced as a created file.
     await service.rename("gamma.md", "Trash/gamma.md");
     expect(await knowledge.search({ query: "axolotl", limit: 10 })).toEqual([]);
     expect(await knowledge.backlinks("gamma.md")).toEqual([]);
@@ -128,7 +120,6 @@ describe("the knowledge runtime", () => {
       vaultRoot: dirs.root,
     });
     onTestFinished(() => knowledge.dispose());
-    // The boot reconcile is the one listing; everything after it is targeted.
     await knowledge.settle();
     const afterBoot = listTreeCalls;
 
@@ -153,15 +144,12 @@ describe("the knowledge runtime", () => {
     expect(first.knowledge.lastReconcile).toEqual({ projected: 3, removed: 0, unchanged: 0 });
     await first.knowledge.dispose();
 
-    // Mutations while the runtime is down: one edit, one create, one delete.
     writeFileSync(join(dirs.root, "changed.md"), "# Changed\n\nRewritten axolotl words.\n");
     writeFileSync(join(dirs.root, "created.md"), "# Created\n\nBrand new capybara.\n");
     rmSync(join(dirs.root, "doomed.md"));
 
     const second = boot(dirs);
     await second.knowledge.settle();
-    // Exactness is the point: the untouched doc is diffed by hash, never
-    // re-projected.
     expect(second.knowledge.lastReconcile).toEqual({ projected: 2, removed: 1, unchanged: 1 });
 
     expect(
@@ -178,7 +166,6 @@ describe("the knowledge runtime", () => {
     const { knowledge } = boot(dirs);
     await knowledge.settle();
 
-    // A change the runtime never saw paths for (a git pull's rebase).
     writeFileSync(join(dirs.root, "pulled.md"), "# Pulled\n\nNarwhal sighting.\n");
     knowledge.noteVaultChange({ kind: "unknown" });
 
@@ -192,17 +179,13 @@ describe("the knowledge runtime", () => {
     const first = boot(dirs);
     await first.knowledge.settle();
     expect(first.knowledge.lastReconcile?.projected).toBe(1);
-    // Dispose closes the connection — no pre-corruption statement cache or
-    // page cache can satisfy the second boot.
+    // dispose first: an open connection's page cache would mask the corruption.
     await first.knowledge.dispose();
 
     writeFileSync(join(dirs.dataDir, "knowledge.db"), "garbage bytes");
 
     const second = boot(dirs);
     await second.knowledge.settle();
-    // Proof the store was actually reset: nothing hydrated, everything
-    // re-projected from the vault. A surviving cache would report
-    // unchanged: 1, projected: 0.
     expect(second.knowledge.lastReconcile).toEqual({ projected: 1, removed: 0, unchanged: 0 });
     const hits = await second.knowledge.search({ query: "pangolin", limit: 10 });
     expect(hits.map((h) => h.path)).toEqual(["note.md"]);
@@ -216,9 +199,6 @@ describe("the knowledge runtime", () => {
     expect(first.knowledge.lastReconcile?.projected).toBe(1);
     await first.knowledge.dispose();
 
-    // What a PROJECTION_VERSION bump looks like from the file's side: rows
-    // written under a shape this build no longer parses. Bumping the constant
-    // is the whole migration, so the guard it arms is what has to be proven.
     const driver = createSqliteDriver(join(dirs.dataDir, "knowledge.db"));
     driver.run("UPDATE meta SET value = ? WHERE key = 'projection_version'", [
       String(PROJECTION_VERSION - 1),
@@ -227,8 +207,6 @@ describe("the knowledge runtime", () => {
 
     const second = boot(dirs);
     await second.knowledge.settle();
-    // Nothing hydrated, everything re-projected. A store that kept its rows
-    // would report unchanged: 1, projected: 0.
     expect(second.knowledge.lastReconcile).toEqual({ projected: 1, removed: 0, unchanged: 0 });
     expect(
       (await second.knowledge.search({ query: "tapir", limit: 10 })).map((h) => h.path),
@@ -249,8 +227,6 @@ describe("the knowledge runtime", () => {
     const found = await knowledge.search({ query: "ocelot", limit: 10 });
     expect(found.map((h) => h.path)).toEqual(["big.md"]);
 
-    // The step that must not leave stale state: back over the cap, the doc
-    // bookkeeping (hash + search row) must be left, not shadowed.
     writeFileSync(join(dirs.root, "big.md"), oversized);
     knowledge.noteVaultChange({ kind: "paths", paths: ["big.md"] });
     await knowledge.settle();
@@ -289,8 +265,6 @@ describe("the knowledge runtime", () => {
     writeFileSync(join(dirs.root, "b.md"), "# B\n\nHeron notes.\n");
     failNextRead = true;
     knowledge.noteVaultChange({ kind: "paths", paths: ["b.md"] });
-    // The pass this settle flushes fails mid-read; the answer must come from
-    // the rebuilt index, never from the just-nuked (empty) one.
     const hits = await knowledge.search({ query: "heron", limit: 10 });
     expect(hits.map((h) => h.path)).toEqual(["b.md"]);
   });

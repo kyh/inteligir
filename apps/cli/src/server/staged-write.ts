@@ -1,8 +1,6 @@
-// One spelling for the data dir's atomic file write: stage under a
-// pid+random name in the TARGET's own directory (rename is only atomic
-// within one filesystem), then rename over the destination. A failed write
-// removes its staging file and rethrows the ORIGINAL error, so a
-// secret-bearing tmp is never stranded beside the store.
+// staged in the target's own directory: rename is only atomic within one
+// filesystem. a failed write removes the staging file so a secret-bearing tmp
+// is never stranded.
 
 import { chmodSync, mkdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
@@ -19,9 +17,7 @@ export function stagedWriteFileSync(
     const mode = options?.mode;
     if (mode !== undefined) {
       writeFileSync(staged, contents, { encoding: "utf8", mode });
-      // chmod after write too: writeFileSync's mode applies only on CREATE
-      // and is advisory against the umask — a staged file must not carry
-      // keys group-readably for even the instant before the rename.
+      // writeFileSync's mode applies only on create and is subject to the umask.
       chmodSync(staged, mode);
     } else {
       writeFileSync(staged, contents, "utf8");

@@ -1,9 +1,3 @@
-// The pure half of dictation: the sample conversion the wire format depends
-// on, and the insertion rule the composer depends on. Both are the places a
-// silent wrong answer is possible — a clipped sample is a click nobody traces
-// to this file, and an insertion that eats a space is a sentence nobody can
-// see was ever wrong.
-
 import { VOICE_SAMPLE_RATE } from "@repo/api/local/voice/voice-schema";
 import { describe, expect, it } from "vitest";
 import {
@@ -89,10 +83,6 @@ describe("insertTranscript", () => {
 
 describe("spliceIntoComposer", () => {
   it("splices against the LIVE composer value, not the stale fallback", () => {
-    // The repro: the user typed into the composer DURING the transcription
-    // round-trip. The fallback is what the composer held when the mic was armed
-    // ("old"); splicing against it would discard the edit and land the caret in
-    // text the base never had.
     const live = { value: "typed while waiting", selectionStart: 19, selectionEnd: 19 };
     expect(spliceIntoComposer(live, "old", "dictated")).toEqual({
       text: "typed while waiting dictated",

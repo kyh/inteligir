@@ -1,20 +1,13 @@
-// A third-party dependency named by two or more workspace manifests must be
-// spelled `catalog:` — two inline ranges for one package are two versions that
-// can disagree, and the disagreement ships (the jsdom 29/30 split lived for a
-// month before anything noticed). One manifest naming a package inline is
-// fine: there is nothing to agree with, and hoisting every singleton would
-// turn the catalog into a mirror of the lockfile.
+// a package one manifest names inline is fine: hoisting every singleton would make the catalog a
+// mirror of the lockfile.
 
 import { describe, expect, it } from "vitest";
 
 import { workspaces } from "./repo";
 
-/** A deliberate version split: the workspace holds its own inline range while
- *  siblings ride the catalog. Every entry is a decision with its reason — an
- *  empty set is the healthy state. */
+// a deliberate version split, with its reason; empty is the healthy state.
 const DECLARED_SPLITS = new Set<string>([]);
 
-/** workspace:* is first-party wiring and catalog: is already the answer. */
 function isExemptSpec(spec: string): boolean {
   return spec.startsWith("workspace:") || spec.startsWith("catalog:");
 }

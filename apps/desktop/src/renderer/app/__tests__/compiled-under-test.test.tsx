@@ -1,10 +1,6 @@
 // @vitest-environment jsdom
-// The suites run the React Compiler's OUTPUT — the code the renderer bundle
-// ships — or a component the compiler memoizes wrongly passes every unit test
-// and fails only in the built app. A compiled component reads its memo cache
-// against React's own sentinel, so the function's source as loaded here
-// carries that spelling. A jsdom suite on purpose: the compiler plugin skips
-// the node suites' server transform.
+// a component the compiler memoizes wrongly passes every unit test and fails only in the
+// built app. jsdom on purpose: the compiler plugin skips the node suites' server transform.
 
 import { expect, it } from "vitest";
 

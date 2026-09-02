@@ -1,7 +1,3 @@
-// Fixtures the pairing suites share: the callback this app registers, a
-// deterministic crypto, and fetches that answer the redeem either way. Nothing
-// here touches a network or a native module.
-
 import { createRequire } from "node:module";
 import {
   PAIR_APPROVE_PARAMS,
@@ -11,11 +7,7 @@ import {
 import { z } from "zod";
 import type { CloudFetch } from "@repo/api/cloud/client";
 
-/**
- * The scheme THIS APP registers, read from its own config — what
- * `Linking.createURL` composes the callback under in a standalone build. The
- * config is plain JS (its own header says why), so a node test can load it.
- */
+// the scheme is read from app.config.js itself, so a rename fails here rather than on a phone.
 const configFactorySchema = z.custom<(context: { config: object }) => object>(
   (value) => value instanceof Function,
   "app.config.js no longer exports a config factory",
@@ -36,7 +28,6 @@ export const fakeCrypto: PkceCrypto = {
   sha256: (input) => Promise.resolve(new TextEncoder().encode(input.slice(0, 32).padEnd(32, "x"))),
 };
 
-/** A fetch that answers the redeem with a durable credential. */
 export const redeemOk: CloudFetch = () =>
   Promise.resolve(
     new Response(JSON.stringify(REDEEMED), {
@@ -45,7 +36,6 @@ export const redeemOk: CloudFetch = () =>
     }),
   );
 
-/** A fetch that refuses the redeem with the contract's error envelope. */
 export const redeemRefused: CloudFetch = () =>
   Promise.resolve(
     new Response(
@@ -57,7 +47,6 @@ export const redeemRefused: CloudFetch = () =>
     ),
   );
 
-/** The `state` an approve URL carries — what the approve page echoes back. */
 export function stateOf(approveUrl: string): string {
   return new URL(approveUrl).searchParams.get(PAIR_APPROVE_PARAMS.state) ?? "";
 }

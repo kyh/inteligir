@@ -18,40 +18,10 @@ import { verifyDeviceCredential } from "../device/device-auth";
 import { allowInWindow, deviceRateKey, type RateWindow } from "../rate-limit";
 import { vaultRegistry, vaultRepoName } from "./git-remote";
 
-// ---------------------------------------------------------------------------
-// `/v1/vault/tree` + `/v1/vault/file` — how a client with no git client (the
-// phone) reads notes out of the hosted vault. Device-authed GETs over the
-// repo cell's typed RPC; dgit's own HTTP API stays off the wire (the git
-// wrapper's rule 2), so this module is the ONE read surface and our /cloud
-// schemas are the one wire truth.
-//
-// THE REGISTRY IS CONSULTED BEFORE THE REPO IS NAMED — but only when the
-// request pins no `ref`. `getByName` on the REPO namespace CREATES a cell,
-// and a phone on a BYO-remote account polls the unpinned tree forever with
-// no hosted vault to find; the registry (one singleton, a lookup that
-// creates nothing) answers "no vault yet" without materializing an empty
-// cell per poll. A request that DOES pin a sha already holds a page that
-// passed this gate, so it skips the singleton hop.
-//
-// Both responses carry the COMMIT they were read at: an unpinned request
-// resolves HEAD once; a pinned one uses its sha directly (`readBlob`/
-// `listTree` resolve reachable oids themselves), so the phone's hot path —
-// opening a note at the listing's commit — costs one repo-cell hop.
-// ---------------------------------------------------------------------------
-
-/** Bounds the recursive walk, and states its own failure: a vault with more
- *  directories than this cannot answer a FLAT listing honestly, and silent
- *  truncation would read as "covered everything". */
 const MAX_TREE_DIRS = 10_000;
 
-/**
- * A device's read budget. The legitimate burst here is ONE NOTE'S EMBEDS —
- * the phone mounts every image in a note at once — and that has no bound in
- * the format, so no ceiling can be both safe and generous. This one is set to
- * break a runaway loop rather than to outrun a reader, and the residual is
- * stated: a note carrying more embeds than this sees the tail answered 429,
- * which the phone renders as "image unavailable" until it remounts.
- */
+// the legitimate burst is one note's embeds, which the format does not bound; this breaks a runaway
+// loop, and a note past it sees its tail answered 429.
 const VAULT_READ_WINDOW: RateWindow = { max: 3_000, windowMs: 60_000 };
 
 export async function handleVaultReadRoutes(
@@ -77,6 +47,9 @@ export async function handleVaultReadRoutes(
   }
 
   const repo = vaultRepoName(verified.userId);
+  // getByName on the repo namespace creates a cell, and a BYO-remote phone polls the unpinned tree
+  // forever; the registry answers "no vault" without materializing one per poll. a pinned ref
+  // already passed this gate.
   if (url.searchParams.get("ref") === null) {
     const info = await vaultRegistry(env).get(repo);
     if (info === null) {
@@ -97,9 +70,6 @@ export async function handleVaultReadRoutes(
   return refuse("not-found", "No such route.");
 }
 
-/** The commit this request reads at: the query's pinned sha as-is, or HEAD
- *  resolved once. Null when the repo has no HEAD yet; a pinned sha that names
- *  nothing surfaces as the read itself answering null. */
 async function resolveCommit(
   stub: DurableObjectStub<RepoCell>,
   ref: string | undefined,
@@ -109,23 +79,14 @@ async function resolveCommit(
   return head === null ? null : head.oid;
 }
 
-/** durable-git URL-decodes every path it receives (its HTTP surface takes
- *  encoded paths, and the RPC shares the parser) — so raw vault paths must
- *  be encoded per segment or a legal git filename holding `%` throws inside
- *  the cell. */
+// durable-git url-decodes every path it receives, so a legal filename holding % must be encoded per
+// segment.
 function encodeGitPath(path: string): string {
   return path.split("/").map(encodeURIComponent).join("/");
 }
 
-/**
- * The tree lists only what the file route would answer — the same path
- * grammar, asked the way that route asks it. Git holds any byte but NUL and
- * `/` in a name, and the desktop's whole-tree sweep commits whatever the
- * checkout holds — so a pushed `a\b.md` would otherwise ride a 200 whose body
- * the phone's own parse refuses WHOLE, and one filename would take the
- * account's entire notes list down. A refused directory is pruned, since
- * every path under it is refused too.
- */
+// list only what the file route answers: git allows any byte but NUL and `/` in a name, and one
+// pushed `a\b.md` would otherwise fail the phone's parse of the whole listing.
 function servable(path: string): boolean {
   return vaultFileQuerySchema.safeParse({ path }).success;
 }
@@ -134,11 +95,8 @@ function byPath(a: { path: string }, b: { path: string }): number {
   return a.path < b.path ? -1 : a.path > b.path ? 1 : 0;
 }
 
-/** Whether any path under `dir` can still be beyond the cursor — the subtree
- *  prune that keeps a later page from re-walking directories it has wholly
- *  passed. Every path under `dir` starts with `dir + "/"`, so a cursor that
- *  is lexicographically past that prefix (and not inside it) is past the
- *  whole subtree. */
+// every path under dir starts with dir + "/", so a cursor past that prefix and not inside it is
+// past the subtree.
 function subtreeReaches(dir: string, after: string | undefined): boolean {
   if (after === undefined) return true;
   const prefix = `${dir}/`;
@@ -162,14 +120,8 @@ async function answerTree(stub: DurableObjectStub<RepoCell>, url: URL): Promise<
     return refuse("not-found", "This vault has no content at that revision.");
   }
 
-  // Level-parallel walk: each BFS level's directories are independent, so a
-  // level is ONE round of concurrent repo-cell calls rather than one call per
-  // directory — wall time scales with the tree's depth, not its width.
-  //
-  // MEMORY is bounded to the page: the walk keeps only the `limit + 1`
-  // smallest candidate paths (a later, smaller path still displaces a kept
-  // larger one), so a very wide vault costs a trim per level, never a full
-  // materialized listing.
+  // one round of concurrent cell calls per BFS level, and only the limit + 1 smallest paths survive
+  // a level, so a wide vault never materializes a full listing.
   const limit = query.data.limit ?? VAULT_TREE_MAX_ENTRIES;
   let files: VaultTreeResponse["entries"][number][] = [];
   let frontier = [""];
@@ -244,8 +196,6 @@ async function answerFile(stub: DurableObjectStub<RepoCell>, url: URL): Promise<
   try {
     content = new TextDecoder("utf-8", { fatal: true, ignoreBOM: false }).decode(blob.data);
   } catch {
-    // The phone reads NOTES; a binary needs its own asset route, not a
-    // mangled lossy decode.
     return refuse("bad-request", "That file is not UTF-8 text.");
   }
   const response: VaultFileResponse = {
@@ -257,23 +207,15 @@ async function answerFile(stub: DurableObjectStub<RepoCell>, url: URL): Promise<
   return Response.json(response);
 }
 
-// An asset is bytes from a vault a git remote can write into, served to a
-// credential that trusts this origin. `nosniff` pins the declared type, and
-// the sandbox CSP is what makes SVG safe: `<img>` never runs its script, but
-// a NAVIGATION to this URL renders it as a document, and a sandbox with no
-// `allow-scripts` refuses that. Unlike the desktop route's `no-cache`+ETag —
-// whose vault is mutable — this URL pins a commit, so the bytes it names can
-// never change and `immutable` is the truth; `private`, because the answer is
-// credential-gated.
+// the sandbox csp is what makes svg safe: <img> never runs its script, but a navigation to this url
+// renders it as a document, and a sandbox with no allow-scripts refuses that. immutable holds
+// because the url pins a commit.
 const ASSET_HEADERS = {
   "cache-control": "private, max-age=31536000, immutable",
   "content-security-policy": "default-src 'none'; sandbox",
   "x-content-type-options": "nosniff",
 };
 
-/** The image-embed bytes at (ref, path). `ref` is required by the contract —
- *  a pinned request also skips the registry gate above by construction, so
- *  image loads never pay the singleton hop. */
 async function answerAsset(stub: DurableObjectStub<RepoCell>, url: URL): Promise<Response> {
   const query = vaultAssetQuerySchema.safeParse({
     path: url.searchParams.get("path") ?? undefined,
@@ -287,11 +229,8 @@ async function answerAsset(stub: DurableObjectStub<RepoCell>, url: URL): Promise
     return refuse("bad-request", "That extension is not an image type this vault serves.");
   }
 
-  // Size-gate from the TREE before the blob crosses the repo cell's RPC:
-  // `readBlob` inflates the whole blob inside the cell and the RPC return has
-  // its own message bound, so a huge asset gated only after the hop would
-  // surface as an opaque 500 — and pay the crossing again on every retry. The
-  // parent directory's own entry answers the question for one cheap hop.
+  // size-gate from the tree first: readBlob inflates the whole blob in the cell and the rpc return
+  // has its own message bound, so a huge asset gated after the hop surfaces as an opaque 500.
   const slash = query.data.path.lastIndexOf("/");
   const parentDir = slash < 0 ? "" : query.data.path.slice(0, slash);
   const leaf = slash < 0 ? query.data.path : query.data.path.slice(slash + 1);
@@ -314,7 +253,7 @@ async function answerAsset(stub: DurableObjectStub<RepoCell>, url: URL): Promise
   if (blob === null) {
     return refuse("not-found", "That revision does not carry the path.");
   }
-  // The belt behind the tree gate: an entry with no size still lands here.
+  // an entry with no size skips the tree gate.
   if (blob.data.length > VAULT_ASSET_MAX_BYTES) {
     return refuse(
       "file-too-large",

@@ -8,11 +8,6 @@ import {
 import { createPairingStore, type PairingStore } from "../pairing-store";
 import { CALLBACK, fakeCrypto, REDEEMED, redeemOk, redeemRefused, stateOf } from "./fakes";
 
-// The flow over the REAL machine: what the screen sees between the press and
-// the credential landing, on both the in-session and the deep-link path.
-
-/** A browser the test drives by hand: `opened` settles with the approve URL
- *  the flow handed it, and `comeBack` is the redirect (or the user closing it). */
 interface FakeBrowser {
   opened: Promise<string>;
   opens: number;
@@ -40,7 +35,6 @@ function fakeBrowser(): FakeBrowser {
   return browser;
 }
 
-/** The callback the approve page composes for the approval this URL opened. */
 function approvalOf(approveUrl: string): PairCallback {
   return { code: "ABCD-EFGH", state: stateOf(approveUrl) };
 }
@@ -78,12 +72,6 @@ function harness(args: {
 
 describe("the callback this app registers", () => {
   it("is a shape the production approve page admits", () => {
-    // The cross-package lockstep that makes this flow real: CALLBACK is
-    // COMPOSED the way the app composes it — the registered scheme from
-    // app.config.js plus the contract's own segment (what expo-pairing hands
-    // `Linking.createURL`) — and must pass the contract's redirect allowlist,
-    // or production refuses the pairing at parse. A scheme rename or a
-    // segment edit on either side fails here, not on a user's phone.
     expect(pairRedirectUrlSchema.safeParse(CALLBACK).success).toBe(true);
   });
 });
@@ -96,10 +84,9 @@ describe("the pairing flow", () => {
     const run = flow.startPair();
     const approveUrl = await browser.opened;
     expect(flow.get()).toStrictEqual({ kind: "pairing" });
-    // A second press while one is in flight opens nothing: one approval at a time.
     await flow.startPair();
     expect(browser.opens).toBe(1);
-    // The snapshot is cached between changes — what useSyncExternalStore needs.
+    // identity, not equality: a snapshot rebuilt per read loops useSyncExternalStore.
     expect(flow.get()).toBe(flow.get());
 
     browser.comeBack(approvalOf(approveUrl));
@@ -115,7 +102,6 @@ describe("the pairing flow", () => {
     browser.comeBack(null);
     await run;
     expect(flow.get()).toStrictEqual({ kind: "idle" });
-    // A callback that arrives late finds nothing armed and changes nothing.
     await flow.complete(approvalOf(approveUrl));
     expect(paired).toHaveLength(0);
     expect(flow.get()).toStrictEqual({ kind: "idle" });
@@ -135,20 +121,15 @@ describe("the pairing flow", () => {
     const run = flow.startPair();
     const approveUrl = await browser.opened;
 
-    // Someone else's traffic on the deep link: the approval stays armed and the
-    // screen stays in the flow — a shown failure would re-enable the button,
-    // whose press would replace the approval the browser still holds.
     await flow.complete({ code: "ABCD-EFGH", state: "0".repeat(32) });
     expect(flow.get()).toStrictEqual({ kind: "pairing" });
     await flow.startPair();
     expect(browser.opens).toBe(1);
 
-    // The real redirect lands as a deep link while the browser is still open.
     await flow.complete(approvalOf(approveUrl));
     expect(paired).toStrictEqual([REDEEMED]);
     expect(flow.get()).toStrictEqual({ kind: "idle" });
 
-    // Then the browser session returns the same approval: it was already taken.
     browser.comeBack(approvalOf(approveUrl));
     await run;
     expect(paired).toHaveLength(1);

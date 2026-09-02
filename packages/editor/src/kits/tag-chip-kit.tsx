@@ -1,17 +1,6 @@
-// Tag-chip kit: the render-only leaf decoration that turns inline `#tag` text
-// into clickable chips (component + scanner in nodes/tag-chip-node.tsx).
-//
-// REACT HALF ONLY, by design — there is no TagChipBaseKit and there must never
-// be one. Decorations never enter the document value, so the serializer mirror
-// (BASE_KIT) has nothing to mirror; adding it there would be the first step
-// toward a tag NODE, which would put chip state into the user's bytes. The
-// calloutMarker decoration in basic-blocks-kit is the same shape.
-//
-// Suppression parity with the index: @repo/notes/knowledge/link-extract only
-// counts tags in mdast `text` nodes, so code spans, code fences and link/image
-// LABELS never produce a tag. The Slate equivalents are the inline `code` mark
-// and the code-block / link ancestors, checked below — a chip over text that
-// isn't in the index would navigate to an empty note list.
+// No TagChipBaseKit: a decoration never enters the value, and a base twin is the first step
+// toward a tag node in the user's bytes. Suppression mirrors @repo/notes/knowledge/link-extract
+// (tags only in mdast text nodes) — a chip the index does not know navigates to an empty list.
 
 import {
   ElementApi,
@@ -27,7 +16,6 @@ import { inlineTagSpans } from "@repo/notes/knowledge/link-extract";
 
 import { TagChipLeaf } from "@repo/editor/nodes/tag-chip-node";
 
-/** Element types whose text the tag index never scans. */
 function isSuppressedAncestor(editor: SlateEditor, type: string): boolean {
   return (
     type === editor.getType(KEYS.codeBlock) ||
@@ -41,11 +29,8 @@ const TagChipPlugin = createSlatePlugin({
   key: "tagChip",
   node: { isLeaf: true },
   decorate: ({ editor, entry: [node, path] }) => {
-    // Fast path first: `decorate` runs for every text run on every render, and
-    // the overwhelming majority carry no `#` at all.
     if (!TextApi.isText(node) || !node.text.includes("#")) return undefined;
-    // Inline code (`#tag` inside backticks) is text to Slate but an
-    // `inlineCode` node to the index — not a tag.
+    // inline code is text to Slate but inlineCode to the index.
     if (node[editor.getType(KEYS.code)] === true) return undefined;
     for (let depth = 1; depth < path.length; depth += 1) {
       const ancestor = NodeApi.get(editor, path.slice(0, depth));

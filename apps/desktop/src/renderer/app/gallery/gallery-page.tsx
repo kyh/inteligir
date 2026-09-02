@@ -1,10 +1,4 @@
-// The component gallery (/gallery): every @repo/ui component, its purpose, and
-// the states worth seeing. A reference for building screens — and a place a
-// change to the design system shows itself before it reaches the product.
-//
-// Deliberately NOT a consumer for the orphan guard's purposes: see
-// tools/repo-guards/src/ui-orphan-exports.test.ts. A gallery proves a
-// component renders, not that the product needs it.
+// not a consumer for the orphan guard: a gallery proves a component renders, not that the product needs it.
 
 import { Button } from "@repo/ui/components/button";
 import { useTheme, type Theme } from "@repo/ui/lib/theme";
@@ -21,7 +15,7 @@ import { NavigationSection } from "./navigation-section";
 import { OverlaysSection } from "./overlays-section";
 import { TokensSection } from "./tokens-section";
 
-/** Anchor ids beside the labels the rail shows — each must match a section. */
+// each id must match a GallerySection id.
 const NAV = [
   { id: "actions", label: "Actions" },
   { id: "inputs", label: "Inputs" },

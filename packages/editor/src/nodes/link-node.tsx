@@ -1,8 +1,3 @@
-// Link anchor + its popover: clicking a link opens a Base UI popover anchored
-// to the anchor element with the URL, Open, Edit (swaps to an input; submit
-// rewrites the node's url), and Unlink. Creation stays in the selection
-// toolbar's in-bar link input; this popover manages existing links only.
-
 import { useRef, useState } from "react";
 import { unwrapLink } from "@platejs/link";
 import { ExternalLinkIcon, PencilIcon, Unlink2Icon } from "lucide-react";
@@ -73,6 +68,7 @@ export function LinkElement(props: PlateElementProps) {
     editor.tf.focus();
   };
 
+  // the edit row is a div, not a <form>: swapping it in while the Edit click resolves fired a spurious submit.
   return (
     <PlateElement
       {...props}
@@ -83,8 +79,6 @@ export function LinkElement(props: PlateElementProps) {
         ...props.attributes,
         href: url,
         onClick: (event: React.MouseEvent) => {
-          // The popover owns navigation (its Open button); a raw click must
-          // not leave the app.
           event.preventDefault();
           if (!readOnly) setOpen(true);
         },
@@ -100,9 +94,6 @@ export function LinkElement(props: PlateElementProps) {
       >
         <PopoverContent anchor={anchorRef} side="bottom" align="start" className="p-1">
           {editing ? (
-            // Plain div, not <form>: swapping this branch in while the
-            // Edit click's default action resolves fired a spurious submit
-            // (applying the stale draft and closing the popover).
             <div className="flex items-center gap-1">
               <input
                 autoFocus

@@ -1,23 +1,6 @@
-// ---------------------------------------------------------------------------
-// Change-kind reachability: the ws invalidation bus's vocabulary against its
-// producers.
-//
-// The bus is invalidation-only, so a change kind is not a feature — it is a
-// PROMISE that some write announces itself. A kind nobody fires is worse than
-// dead code: a client subscribes for it, dispatches on it, and waits forever
-// for a frame that no code path can send. Nothing else in the repo can see
-// that. The compiler is satisfied by the declaration; knip sees an exported
-// const with importers; the ws-bus suite passes because it fires the kind
-// itself.
-//
-// So both directions are walked over shipped source: every declared kind needs
-// a `notify<Entity>([… "kind" …])` call somewhere that is not a test, and every
-// kind such a call passes must be declared.
-//
-// Sibling of ui-orphan-exports.test.ts beside it, and the same shape the
-// deleted `no-dead-channels` had: assert the architectural rule as a failing
-// test over a walk of the real tree.
-// ---------------------------------------------------------------------------
+// a kind nobody fires is a client waiting forever for a frame no code path sends, and nothing else
+// sees it: the compiler is satisfied by the declaration, knip sees importers, the ws-bus suite
+// fires the kind itself.
 
 import {
   DOC_CHANGE_KINDS,
@@ -27,25 +10,18 @@ import {
 import { describe, expect, it } from "vitest";
 import { sourceOf, workspaceFiles, workspaces } from "./repo";
 
-/** Entity → the kinds the contract declares → the call that fires one. */
 const ENTITIES = [
   { entity: "vault", notifier: "notifyVault", kinds: VAULT_CHANGE_KINDS },
   { entity: "doc", notifier: "notifyDoc", kinds: DOC_CHANGE_KINDS },
   { entity: "thread", notifier: "notifyThread", kinds: THREAD_CHANGE_KINDS },
 ] as const;
 
-/**
- * Kinds the contract declares that NO shipped producer fires. EMPTY, and that
- * is the point: a kind belongs in the contract when the write that announces
- * it exists, so the honest way to add one here is to not need to. The drain
- * test below fails on a stale entry, so an exception cannot outlive its gap.
- */
+// empty on purpose: a kind belongs in the contract when the write that announces it exists.
 const DECLARED_WITHOUT_PRODUCER: Record<string, string> = {};
 
 const QUOTED = /["']([^"']+)["']/g;
 
-/** The argument text of every `name(` call in the source, paren-matched so a
- *  nested `CHECK(…)` or an inline object cannot end the capture early. */
+// paren-matched, so a nested CHECK(…) or an inline object cannot end the capture early.
 function callArguments(source: string, name: string): string[] {
   const calls: string[] = [];
   const opener = new RegExp(`\\b${name}\\s*\\(`, "g");
@@ -77,8 +53,7 @@ function producers(): Producer[] {
   const found: Producer[] = [];
   for (const workspace of workspaces()) {
     for (const file of workspaceFiles(workspace).shipped) {
-      // The vocabulary and the seam that types it declare every kind and fire
-      // none; the contract that serializes them names them too.
+      // the vocabulary and the seam that types it name every kind and fire none.
       if (file.startsWith("packages/domain/")) continue;
       const source = sourceOf(file);
       for (const { entity, notifier } of ENTITIES) {
@@ -158,8 +133,6 @@ describe("ws change-kind reachability", () => {
   });
 
   it("finds the producers it is supposed to find", () => {
-    // A walk that silently matched nothing would pass every assertion above
-    // for the wrong reason, so pin two producers this repo actually has.
     expect(
       fired.some(
         (producer) =>

@@ -5,9 +5,6 @@ import { Label } from "@repo/ui/components/label";
 
 import { siteConfig } from "@/lib/site-config";
 
-// The chrome every auth page shares. Three pages, one card, one field shape —
-// so a change to focus, spacing or error placement lands on all of them.
-
 export function AuthShell({
   title,
   subtitle,
@@ -49,22 +46,12 @@ export function AuthField({
   );
 }
 
-/**
- * One `AuthField`'s submitted value.
- *
- * `FormData.get` answers `File | string`, because a form MAY carry a file
- * input — none of these do. Narrowing rather than stringifying means a value
- * that somehow is not text reads as empty and is refused by the same
- * required-field path as a blank box, instead of reaching the server as
- * `"[object File]"`.
- */
+// FormData.get answers File | string; a non-text value reads as empty rather than "[object File]".
 export function fieldValue(form: FormData, name: string): string {
   const value = form.get(name);
   return value === null || value instanceof File ? "" : value;
 }
 
-/** The one place a form failure is rendered. `role="alert"` because the
- * message appears after a submit the user has already stopped reading for. */
 export function AuthError({ message }: { message: string | null }) {
   if (message === null) return null;
   return (

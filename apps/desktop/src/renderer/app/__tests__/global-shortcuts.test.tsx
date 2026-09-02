@@ -1,9 +1,5 @@
 // @vitest-environment jsdom
 
-// The app's window-level shortcut table: the matcher's platform rules. When
-// the Plate editor grows its own keymap table, a derived no-overlap guard
-// against it belongs here.
-
 import { cleanup, fireEvent, render } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import {
@@ -21,7 +17,6 @@ function keydown(init: KeyboardEventInit): KeyboardEvent {
   return new KeyboardEvent("keydown", { key: "k", ...init });
 }
 
-/** The window listener alone — shortcuts must fire without any editor. */
 function mountListener(modifier: ShortcutModifier): GlobalShortcutAction[] {
   const fired: GlobalShortcutAction[] = [];
   function Harnessed() {

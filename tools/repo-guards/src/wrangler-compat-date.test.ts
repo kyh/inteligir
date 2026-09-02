@@ -1,16 +1,5 @@
-// ---------------------------------------------------------------------------
-// wrangler.jsonc's `compatibility_date` against the workerd the lockfile
-// actually resolves.
-//
-// workerd's version IS a date (1.YYYYMMDD.N), and the date the config declares
-// decides which runtime behaviors the deployed Worker gets. The two drift in
-// one direction only — a dependency bump pulls a newer workerd and nothing
-// touches the config — and the symptom is silence: every gate stays green
-// while the Worker opts out of weeks of runtime fixes the local runtime
-// already carries. A date AHEAD of a resolved workerd is the louder failure
-// (a workerd cannot emulate a date it predates), which is why the pin is the
-// OLDEST resolved workerd, never the newest.
-// ---------------------------------------------------------------------------
+// workerd's version is a date (1.YYYYMMDD.N). the pin is the oldest resolved workerd, never the
+// newest: a workerd cannot emulate a date it predates.
 
 import fs from "node:fs";
 import path from "node:path";
@@ -20,9 +9,7 @@ import { REPO_ROOT } from "./repo";
 const LOCKFILE = "pnpm-lock.yaml";
 const WRANGLER_CONFIG = "apps/web/wrangler.jsonc";
 
-/** workerd as pnpm resolves it — the package itself and its per-platform
- *  binaries: `workerd@1.<yyyymmdd>.<n>` / `workerd-darwin-64@1.<yyyymmdd>.<n>`.
- *  Peer RANGES (`workerd: '>1.….0 <2.0.0-0'`) carry no `@` and stay unmatched. */
+// the package and its per-platform binaries; peer ranges carry no `@` and stay unmatched.
 const RESOLVED_WORKERD = /\bworkerd(?:-[a-z0-9-]+)?@1\.(\d{8})\./g;
 
 function resolvedWorkerdDates(): string[] {

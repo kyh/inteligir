@@ -1,10 +1,5 @@
 // Vendored from plate (github.com/udecode/plate), MIT. © Plate contributors.
-// `media_embed` node (URL-only): tweets render through react-tweet (lazy —
-// it's a hefty chunk with theme CSS); any other http(s) URL gets a sandboxed
-// generic iframe. A note is untrusted content, so the frame is scheme-gated:
-// javascript:/data:/file:/relative URLs render a blocked placeholder, never a
-// live frame. No resize, no captions — the canonical byte-form stays
-// `<media_embed src="…" />`.
+// A note is untrusted content: only http(s) URLs reach a live frame.
 
 import { lazy, Suspense } from "react";
 import { parseTwitterUrl } from "@platejs/media";
@@ -26,6 +21,7 @@ export function MediaEmbedElement(props: PlateElementProps) {
   const url = stringProp(props.element, "url") ?? "";
   const tweet = parseTwitterUrl(url);
 
+  // sandbox="allow-scripts" only: no allow-same-origin (the frame would reach this origin) and no allow-popups.
   return (
     <PlateElement {...props} className="py-2.5">
       <figure className="group/media relative m-0 w-full" contentEditable={false}>
@@ -35,9 +31,6 @@ export function MediaEmbedElement(props: PlateElementProps) {
               "flex justify-center text-left [&_.react-tweet-theme]:my-0",
               selected && "[&_.react-tweet-theme]:ring-2 [&_.react-tweet-theme]:ring-ring",
             )}
-            // react-tweet themes itself off this attribute; useDarkClass
-            // keeps it live across theme flips (a one-shot read froze the
-            // tweet on whichever theme it first rendered under).
             data-theme={dark ? "dark" : "light"}
           >
             <Suspense
@@ -49,11 +42,6 @@ export function MediaEmbedElement(props: PlateElementProps) {
             </Suspense>
           </div>
         ) : isHttpUrl(url) ? (
-          // Minimal sandbox, mirroring the vault-.html app frame's discipline:
-          // scripts only, NO allow-same-origin (the frame gets an opaque
-          // origin and can never reach the app). allow-popups is withheld — a
-          // note embed must not spawn windows — and allow-presentation with
-          // it: casting a note's iframe is not a capability an embed needs.
           <iframe
             className={cn(
               "aspect-video w-full rounded-md border border-border",

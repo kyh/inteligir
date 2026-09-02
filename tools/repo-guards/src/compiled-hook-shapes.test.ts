@@ -1,12 +1,6 @@
-// The React Compiler (oxc-transform-react, behind @vitejs/plugin-react's
-// `compiler: true`) memoizes a hook's closures by hoisting them toward module
-// scope. A hook DEFINED inside another function closes over that function's
-// locals, and the hoisted closure reaches them as free names — a
-// ReferenceError at call time that react-query and friends swallow, and one
-// the compiler's own diagnostics do not report (its errors list stays empty).
-// So a hook is defined at module scope only, in every file the compiler can
-// see: the set is DERIVED as every non-test source file that imports react,
-// because those are the only files the transform touches.
+// the React Compiler's own diagnostics stay empty for this, and react-query swallows the
+// ReferenceError. the population is every non-test source importing react: the only files the
+// transform touches.
 
 import fs from "node:fs";
 import path from "node:path";
@@ -21,8 +15,6 @@ interface NestedHook {
   line: number;
 }
 
-/** The brace depth at each offset of `source`, ignoring braces inside
- *  comments, string literals and template text (a `${…}` expression counts). */
 function nestedHookDefinitions(source: string): NestedHook[] {
   const found: NestedHook[] = [];
   const definitions = new Map<number, string>();
@@ -34,8 +26,7 @@ function nestedHookDefinitions(source: string): NestedHook[] {
 
   let depth = 0;
   let line = 1;
-  // A stack of template-literal expression depths: entering `${` pushes the
-  // depth to return to, so a `}` that closes the expression resumes the text.
+  // entering `${` pushes the depth to return to, so the `}` that closes it resumes template text.
   const templateReturn: number[] = [];
   type Mode = "code" | "line-comment" | "block-comment" | "single" | "double" | "template";
   let mode: Mode = "code";

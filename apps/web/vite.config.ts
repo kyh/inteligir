@@ -8,24 +8,18 @@ import { defineConfig } from "vite";
 const src = fileURLToPath(new URL("./src", import.meta.url));
 
 export default defineConfig({
-  // Pin the dev port, and REFUSE to drift off it: every doc and script names
-  // :5174, and failing to bind is the loud version of moving.
+  // strictPort: every doc and script names :5174, so failing to bind beats moving.
   server: { port: 5174, strictPort: true },
-  // `@/*` is declared in tsconfig paths only. `vite build` resolves it (the
-  // start plugin reads tsconfig), but the dev SSR runner does not — `vite dev`
-  // 500'd with "Cannot find module '@/lib/site-config'". Declare it for both.
+  // the dev SSR runner does not read tsconfig paths, unlike vite build.
   resolve: {
     alias: { "@": src },
   },
   plugins: [
     cloudflare({ viteEnvironment: { name: "ssr" } }),
-    // Start would otherwise take `src/server.ts` as the server entry. The entry
-    // lives with the rest of the Worker instead, because that directory is its
-    // own tsconfig program (see src/worker/tsconfig.json) — and the entry,
-    // which names `Env`, has to be inside it.
+    // the entry lives in src/worker because that directory is its own tsconfig program and the
+    // entry names Env.
     tanstackStart({ server: { entry: "./worker/server.ts" } }),
-    // `compiler: true` loads the optional peer `oxc-transform-react` — that
-    // peer is the devDependency's only consumer.
+    // compiler: true is the only consumer of the oxc-transform-react devDependency.
     viteReact({ compiler: true }),
     tailwindcss(),
   ],

@@ -10,8 +10,6 @@ interface RadiusClasses {
   container: string;
   button: string;
   input: string;
-  // `bg` in px — for the sidebar's pill-vs-rounded threshold and the
-  // `--input-radius` custom property RadiusProvider publishes.
   bgRadius: number;
 }
 
@@ -19,9 +17,7 @@ const radiusMap = {
   pill: {
     item: "rounded-[20px]",
     bg: "rounded-[20px]",
-    // +2px over `item` because the focus ring sits 2px outside the element
-    // (top/left -2, width/height +4); this keeps the corners concentric so a
-    // pill element gets a pill ring (matches the rounded-mode 8px→10px bump).
+    // +2px over `item`: the focus ring sits 2px outside the element, and this keeps the corners concentric
     focusRing: "rounded-[22px]",
     container: "rounded-3xl",
     button: "rounded-[20px]",
@@ -45,12 +41,9 @@ function useRadius(): RadiusClasses {
   return useContext(RadiusContext) ?? radiusMap.pill;
 }
 
-/** Pins the app's radius family once at the root. */
 function RadiusProvider({ children, radius }: { children: ReactNode; radius: RadiusVariant }) {
-  // Publish the element radius as a CSS custom property so plain-CSS
-  // consumers that can't read React context stay in sync with the radius
-  // system — e.g. the @layer base :focus-visible fallback ring in
-  // globals.css. Set on <html> so portalled content sees it too.
+  // published as a custom property for plain-CSS consumers (globals.css's :focus-visible fallback);
+  // on <html> so portalled content sees it
   useEffect(() => {
     document.documentElement.style.setProperty("--input-radius", `${radiusMap[radius].bgRadius}px`);
   }, [radius]);

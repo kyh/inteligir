@@ -1,10 +1,3 @@
-// The canvas: a rough spatial surface. The payload is line 1
-// `[inteligir:grid:v2]`, an optional single-line
-// `[inteligir:labels:<JSON array>]`, then up to 60 grid rows of up to 120
-// chars where `.`/space are empty and anything else is ink. Sketching edits
-// CELLS, not the whole grid — a stroke commits once on pointer-up through the
-// one writer, and untouched cells keep their original characters.
-
 import { z } from "zod";
 import { type PlateElementProps, PlateElement } from "platejs/react";
 import { useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
@@ -86,8 +79,7 @@ export function parseCanvasPayload(value: string): CanvasParse {
 }
 
 function usedRowsOf(grid: boolean[][], labels: z.infer<typeof labelSchema>[]): number {
-  // The viewBox crops to used rows (plus margin) so a small sketch is not a
-  // sea of empty grid; columns stay full-width for stable label geometry.
+  // crop to used rows so a small sketch is not a sea of empty grid; columns stay full width for stable label geometry.
   return Math.max(8, grid.length, ...labels.map((label) => label.row + 2));
 }
 
@@ -139,11 +131,7 @@ function CanvasSvg({ grid, labels }: { grid: boolean[][]; labels: z.infer<typeof
 
 type SketchTool = "pencil" | "eraser";
 
-/**
- * The drawing surface: the same geometry as the read view plus a live overlay
- * of the stroke in progress. The stroke accumulates locally and commits ONCE
- * on pointer-up — one editor transaction, one undo step per stroke.
- */
+// the stroke commits once on pointer-up: one transaction, one undo step.
 function SketchSurface({
   grid,
   labels,
@@ -155,7 +143,6 @@ function SketchSurface({
   onStroke: (cells: CanvasCell[], ink: boolean) => void;
   tool: SketchTool;
 }) {
-  // Room below the sketch to grow into, without presenting all 60 rows.
   const rowsShown = Math.min(ROWS, Math.max(24, usedRowsOf(grid, labels) + 6));
   const [pending, setPending] = useState<ReadonlyMap<string, CanvasCell>>(new Map());
   const lastCell = useRef<CanvasCell | null>(null);

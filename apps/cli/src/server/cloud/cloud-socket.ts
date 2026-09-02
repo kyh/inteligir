@@ -1,14 +1,5 @@
-// The real dial for the cloud's invalidation socket.
-//
-// IMPORTED BY `serve.ts` AND NOTHING ELSE, and that has to stay true. A UI test
-// harness imports the node test harness, so every module reachable from
-// `app.ts` is also compiled by the browser tsconfig — where `WebSocket` is the
-// DOM one, whose second argument is a subprotocol list rather than an options
-// bag. Node's takes `{ headers }`, which is how `Authorization` rides the
-// UPGRADE, which is why the contract needs no ticket machinery at all. So this
-// module stays outside that graph and reaches the runtime as an injected
-// opener; importing it from `app.ts` breaks the UI typecheck with an error
-// that says nothing about any of this.
+// imported by serve.ts only: app.ts is also compiled under the browser tsconfig,
+// where WebSocket's second argument is a protocol list, not node's `{ headers }`.
 
 import {
   SYNC_WS_KEEPALIVE_PING,
@@ -19,9 +10,7 @@ import {
 import type { CloudSocket, CloudSocketOpener } from "@repo/api/cloud/client";
 import { z } from "zod";
 
-/** The client keepalive cadence. The server answers it from the runtime's
- *  auto-response table without waking the hibernated object, so this costs a
- *  frame rather than an invocation. */
+// answered by the worker's auto-response table without waking the hibernated object.
 const KEEPALIVE_INTERVAL_MS = 45_000;
 
 export const openCloudSocket: CloudSocketOpener = (args): CloudSocket => {
@@ -59,7 +48,6 @@ export const openCloudSocket: CloudSocketOpener = (args): CloudSocket => {
         // Closing between the tick and the send; the close event follows.
       }
     }, KEEPALIVE_INTERVAL_MS);
-    // Never the reason this process stays alive: a socket nobody is waiting on
     // must not hold the event loop open through a shutdown.
     keepalive.unref?.();
     args.onOpen();
@@ -87,15 +75,13 @@ export const openCloudSocket: CloudSocketOpener = (args): CloudSocket => {
     finish(event.code);
   });
   socket.addEventListener("error", () => {
-    // A failure before `open` produces no close event on some paths, and the
-    // runtime needs exactly one terminal callback either way.
+    // a failure before open produces no close event on some paths; the runtime needs one terminal callback.
     finish(0);
   });
 
   return {
     close() {
-      // Set first: a deliberate close is not a disconnect, and must not arm
-      // the runtime's reconnect.
+      // set first: a deliberate close must not arm the runtime's reconnect.
       finished = true;
       stopKeepalive();
       socket.close();

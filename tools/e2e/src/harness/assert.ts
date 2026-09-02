@@ -1,6 +1,3 @@
-/** A failed assertion inside a scenario; the runner reports it with the
- *  instance output tails. Anything else thrown is reported the same way —
- *  this class only makes the message read as an assertion, not a crash. */
 class ScenarioFailure extends Error {
   constructor(message: string) {
     super(message);
@@ -8,9 +5,6 @@ class ScenarioFailure extends Error {
   }
 }
 
-/** A scenario that cannot run HERE (a capability the environment or the
- *  branch does not have yet). Skips never fail the run; the reason is
- *  printed loudly so a skip cannot rot silently. */
 export class ScenarioSkip extends Error {
   constructor(message: string) {
     super(message);

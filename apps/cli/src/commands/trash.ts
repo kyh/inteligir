@@ -1,7 +1,3 @@
-// `inteligir trash …` — the vault's Trash/ folder: what is in it, restore,
-// and delete-for-good. Trashing itself rides `vault delete`'s surface in the
-// app; here the parity verbs are the ones the panel offers.
-
 import { defineCommand } from "citty";
 import { apiFor, type CliDeps } from "../context";
 import { jsonArg, out, outputJson, writeLines } from "../output";

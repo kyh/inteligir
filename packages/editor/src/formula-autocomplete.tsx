@@ -1,10 +1,5 @@
-// `{{` formula autocomplete — the fourth inline-combobox consumer. Typing `{`
-// after `{` swaps in a trigger element listing this NOTE's named variables;
-// picking one inserts a LINKED INSTANCE (same id — the skill's linked-instance
-// rule: edits to any instance update all), which is the reference form that
-// needs no note id. Bound cross-note references stay an authoring/agent act —
-// the picker never guesses identity. Typing a full entry and the closing `}}`
-// completes verbatim, fluent-typing parity with the kit's `}` input rule.
+// Picking a variable inserts a linked instance (same id); bound cross-note
+// references stay an authoring act, the picker never guesses identity.
 
 import { useMemo, useState } from "react";
 import { SigmaIcon } from "lucide-react";
@@ -51,8 +46,6 @@ type NamedVariable = {
   meta: string;
 };
 
-/** This note's named variables, first instance per id (linked instances share
- * their value by definition). */
 function collectNamedVariables(editorChildren: readonly TElement[]): NamedVariable[] {
   const seen = new Set<string>();
   const out: NamedVariable[] = [];
@@ -64,7 +57,7 @@ function collectNamedVariables(editorChildren: readonly TElement[]): NamedVariab
         const parsed = parseFormulaMeta(meta);
         const source = stringProp(node, "source") ?? "";
         const display = stringProp(node, "display") ?? "";
-        // Symbolic variables are named by their source.
+        // symbolic variables are named by their source
         const name = parsed.name ?? (parsed.id !== undefined ? source : undefined);
         const key = parsed.id ?? name;
         if (name !== undefined && name !== "" && key !== undefined && !seen.has(key)) {
@@ -131,8 +124,6 @@ function FormulaInputElement(props: PlateElementProps) {
                 label={variable.name}
                 keywords={[variable.name]}
                 onClick={() => {
-                  // A linked instance: same id, same value — the pill's raw is
-                  // rebuilt so bytes and props always agree.
                   commitComboboxInput(editor, element, true);
                   insertPill(
                     formulaNodeFrom({
@@ -166,8 +157,7 @@ export const FormulaAutocompleteKit = [
     key: "formula_trigger",
     options: {
       trigger: "{",
-      // Only a `{` immediately before the typed `{` opens the picker — a lone
-      // brace elsewhere stays literal (and MDX expressions stay MDX's).
+      // only a `{` right before the typed `{` opens the picker; a lone brace stays literal and MDX expressions stay MDX's
       triggerPreviousCharPattern: /^\{$/u,
       triggerQuery: (editor) =>
         !editor.api.some({ match: { type: [editor.getType(KEYS.codeBlock)] } }),

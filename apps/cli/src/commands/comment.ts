@@ -1,15 +1,3 @@
-// Anchored-comment verbs over the sidecar routes (#583/#592): list, add,
-// reply, resolve, remove. The BODY MARKERS are the editor's (and the agent's
-// own shell's, per the inteligir-comments skill) — these verbs touch only
-// the sidecar, so `add` from here starts an UNANCHORED thread the panel
-// surfaces as such, and `remove` answers which marker ids the caller still
-// owes the note.
-//
-// Every writing verb SIGNS its entry: `agent` inside an agent shell, `user`
-// from a terminal, and `--source` for a script that is neither. The served
-// guide tells the agent to comment through these verbs, so a verb that could
-// not say who it is would attribute every review note to the user.
-
 import { defineCommand } from "citty";
 
 import type { CommentThreadWire } from "@repo/api/local/comments/comments-schema";
@@ -21,8 +9,7 @@ import {
 import { apiFor, isAgentShell, type CliDeps } from "../context";
 import { jsonArg, outputJson, writeLines } from "../output";
 
-/** citty's enum type infers the parsed union off a MUTABLE options array, so
- *  the readonly tuple is spread rather than passed. */
+// citty's enum type infers from a mutable array, so the readonly tuple is spread.
 const sourceArg = {
   source: {
     type: "enum" as const,

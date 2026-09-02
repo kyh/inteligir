@@ -18,20 +18,13 @@ export interface ParcelChildHandler {
   dispose(): Promise<void>;
 }
 
-/**
- * The parcel-facing half that runs inside the child process. Pure with respect
- * to its dependencies (a parcel backend, a `send` channel, and a directory
- * lister) so the protocol can be exercised in-process by tests without forking
- * or touching the filesystem.
- */
 export function createParcelChildHandler(args: {
   parcel: ParcelWatcherBackend;
   send: (message: ChildToParentMessage) => void;
   listEntries: (dir: string) => Promise<string[]>;
 }): ParcelChildHandler {
   const subscriptions = new Map<string, ParcelAsyncSubscription>();
-  // Ids unsubscribed before their subscribe() promise resolved: tear down on
-  // arrival instead of leaking a live subscription the parent no longer wants.
+  // ids unsubscribed before their subscribe() resolved: torn down on arrival rather than leaked.
   const cancelledBeforeReady = new Set<string>();
 
   async function emitRescan(id: string, dir: string): Promise<void> {

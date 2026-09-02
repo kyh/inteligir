@@ -7,18 +7,7 @@ import type { HTMLAttributes, ReactNode } from "react";
 import { cn } from "@repo/ui/lib/utils";
 import { GlideList } from "@repo/ui/ai/glide-list";
 
-/* ─────────────────────────────────────────────────────────
- * SIDEBAR NAV — a collapsible rail: workspace, nav rows, recents
- *
- * Note this is NOT the app's own sidebar (`components/sidebar*`,
- * which owns resize, peek and the mobile sheet). This is the
- * lighter rail, carried for the gallery and for surfaces that
- * want a nav without the full apparatus. Icons are a SLOT, rows
- * are children, and the sliding highlight is `glide-list.tsx`.
- * ───────────────────────────────────────────────────────── */
-
 export interface SidebarRailProps extends HTMLAttributes<HTMLDivElement> {
-  /** Collapsed shows icons only; the labels are what animate away. */
   collapsed?: boolean;
 }
 
@@ -41,7 +30,6 @@ const SidebarRail = forwardRef<HTMLDivElement, SidebarRailProps>(
 SidebarRail.displayName = "SidebarRail";
 
 export interface SidebarWorkspaceProps extends HTMLAttributes<HTMLButtonElement> {
-  /** Square mark shown before the name — stays visible when collapsed. */
   monogram?: ReactNode;
   collapsed?: boolean;
 }
@@ -101,7 +89,6 @@ SidebarGroup.displayName = "SidebarGroup";
 export interface SidebarNavItemProps extends HTMLAttributes<HTMLButtonElement> {
   icon?: ReactNode;
   active?: boolean;
-  /** Trailing count — hidden while collapsed, like the label. */
   count?: ReactNode;
   collapsed?: boolean;
 }

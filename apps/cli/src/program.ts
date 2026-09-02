@@ -1,19 +1,5 @@
-// Program assembly + the run loop, kept apart from the bin entry so tests
-// build the same program with injected deps and read the exit code as a
-// value — no process.exit anywhere in command code.
-//
-// A failure prints in the SAME shape the invocation asked for: prose on
-// stderr normally, an `{error, message}` envelope on stderr under --json (the
-// server's own vocabulary, so a script branching on `.error` reads one set of
-// classes end to end). Never on stdout: a --json caller parses stdout, and a
-// refusal printed there is indistinguishable from an answer.
-//
-// citty's own entry point is `runMain`, and this cannot use it: it answers
-// every failure with `process.exit(1)`, which would flatten the exit-code
-// contract (2 = wait timeout, 3 = no server reachable) into one number and
-// take the code out of this function's hands entirely. `runCommand` is the
-// half of it that returns rather than exits, so the loop below is `runMain`'s
-// shape — builtin flags, dispatch, one catch — with the code as its value.
+// not citty's runMain: it answers every failure with process.exit(1), flattening the exit-code contract
+// (2 wait timeout, 3 unreachable). failures go to stderr only: a --json caller parses stdout.
 
 import { ORPCError } from "@orpc/client";
 import { runCommand, defineCommand, renderUsage, type CommandDef } from "citty";
@@ -42,14 +28,8 @@ import { describeContext, type CliDeps } from "./context";
 import { readCliVersion } from "./paths";
 import { out, wantsJsonOutput, writeOut } from "./output";
 
-/**
- * The command factories deliberately declare no return type. `CommandDef<T>`
- * is CONTRAVARIANT in `T` through `run`, so a leaf that declares args — every
- * leaf — is not assignable to the bare `CommandDef` that would read as the
- * obvious annotation; citty's own `SubCommandsDef` dodges that with `any`, and
- * inference costs nothing where a type this repo would not write is the only
- * alternative.
- */
+// the command factories declare no return type: CommandDef<T> is contravariant in T through `run`, so a leaf
+// with args is not assignable to bare CommandDef (citty's own SubCommandsDef dodges that with `any`).
 export function buildProgram(deps: CliDeps): CommandDef {
   return defineCommand({
     meta: {
@@ -80,7 +60,6 @@ export function buildProgram(deps: CliDeps): CommandDef {
 const HELP_FLAGS = new Set(["--help", "-h"]);
 const VERSION_FLAGS = new Set(["--version", "-v"]);
 
-/** Flags stop counting after `--`, where the rest is a command's own payload. */
 function hasBuiltinFlag(rawArgs: readonly string[], flags: ReadonlySet<string>): boolean {
   for (const raw of rawArgs) {
     if (raw === "--") {
@@ -93,8 +72,6 @@ function hasBuiltinFlag(rawArgs: readonly string[], flags: ReadonlySet<string>):
   return false;
 }
 
-/** Usage for the deepest command named, plus the context epilogue commander
- *  carried as `addHelpText("after")`. */
 async function printHelp(program: CommandDef, rawArgs: readonly string[], deps: CliDeps) {
   const { command, parent } = resolveCommandPath(program, rawArgs);
   writeOut(`${await renderUsage(command, parent)}\n${describeContext(deps.env)}\n`);
@@ -115,13 +92,9 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
     }
     const resolved = resolveCommandPath(program, rawArgs);
     if (resolved.command.run !== undefined) {
-      // The WHOLE argv, not just the post-name remainder: group levels declare
-      // no args of their own, so every `--flag` belongs to the leaf — and a
-      // flag typed BEFORE the subcommand name (`vault --contentt write x`)
-      // would otherwise slip past the gate and be silently dropped by citty.
+      // the whole argv, not the post-name remainder: a flag typed before the subcommand name would slip past the gate.
       assertKnownFlags(rawArgs, argsOf(resolved.command));
     } else if (rawArgs.length === 0) {
-      // What commander did with a bare program that has only subcommands.
       process.stderr.write(`${await renderUsage(program)}\n`);
       return EXIT_ERROR;
     }
@@ -146,17 +119,7 @@ interface Failure {
   exitCode: number;
 }
 
-/**
- * THE one place a refusal becomes an exit. A server refusal arrives as a
- * thrown `ORPCError` carrying the contract's own class, so it passes through
- * with its class intact — and because it is thrown rather than returned, no
- * command can reach a body that does not exist. Without that, the invariant
- * needs a status-checking chokepoint every command has to remember to call.
- *
- * citty raises a missing argument, an unknown command and a bad enum as its
- * own `CLIError`, which it does not export — so the class is recognised by
- * name. Every one of them is the caller's own mistake.
- */
+// citty's CLIError (missing argument, unknown command, bad enum) is not exported, so it is recognised by name.
 function asFailure(cause: unknown): Failure {
   if (cause instanceof CliExitError) {
     return { code: cause.code, message: cause.message, exitCode: cause.exitCode };
@@ -170,9 +133,6 @@ function asFailure(cause: unknown): Failure {
   }
   const message = getErrorMessage(cause);
   if (isUnreachable(cause)) {
-    // Discovery answers this class when there is no `server.json`; a stale one
-    // (a crash skips the ordered shutdown that removes it) reaches the dial
-    // instead, and the class has to mean the same thing either way.
     return {
       code: "SERVER_UNREACHABLE",
       message: `${message} — no inteligir server answered. Start one with \`inteligir serve\`.`,

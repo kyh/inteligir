@@ -1,21 +1,3 @@
-// ---------------------------------------------------------------------------
-// What this server answers OUTSIDE the RPC handler, pinned from both sides.
-//
-// The procedures need no guard any more: `base.router({...})` in
-// `root-router.ts` is a compile-time totality check, so a contract row nobody
-// implemented — and a handler that drifts from its row — fails the build.
-//
-// What no compiler can see is the OTHER surface: the routes mounted by hand
-// beside the handler. Each one is a deliberate exception to "everything is a
-// procedure", and each has a reason (`@repo/api/local/routes` states them).
-// So the table below is the review surface: a route nobody declared fails
-// here rather than quietly becoming a second, untyped API.
-//
-// Both directions matter. An undeclared route is a surface the contract does
-// not describe; a declared route that is not mounted is a promise the wire
-// breaks.
-// ---------------------------------------------------------------------------
-
 import {
   HEALTH_PATH,
   RPC_PREFIX,
@@ -31,16 +13,10 @@ import { describe, expect, it } from "vitest";
 import { bootTestApp } from "./boot-app";
 import { makeTempDir } from "./temp-dir";
 
-/** `GET /health` — method and path together, because one path can carry two
- *  methods and either can go missing alone. */
 function key(method: string, path: string): string {
   return `${method.toUpperCase()} ${path}`;
 }
 
-/**
- * EVERY hand-mounted route, with why it is not a procedure. Adding one is
- * adding a row here, which is the point — the reason is the review.
- */
 const DECLARED_ROUTES = new Map<string, string>([
   [
     key("ALL", `${RPC_PREFIX}/*`),
@@ -66,11 +42,7 @@ const DECLARED_ROUTES = new Map<string, string>([
   ],
 ]);
 
-/**
- * The two the BUNDLE mode adds — the broadest surface this server has, and the
- * reason the assertion runs in both modes rather than filtering wildcards out.
- * They are declared per method because `serveStatic` mounts each separately.
- */
+// per method: `serveStatic` mounts GET and HEAD separately.
 const DECLARED_BUNDLE_ROUTES = new Map<string, string>(
   ["GET", "HEAD"].flatMap((method) => [
     [
@@ -84,7 +56,6 @@ const DECLARED_BUNDLE_ROUTES = new Map<string, string>(
   ]),
 );
 
-/** A staged bundle, so the routes above are actually mounted. */
 function stagedBundle(): string {
   const clientDir = makeTempDir("inteligir-http-surface-");
   mkdirSync(join(clientDir, "assets"), { recursive: true });
@@ -92,10 +63,7 @@ function stagedBundle(): string {
   return clientDir;
 }
 
-/** Middleware registers as `ALL` on the same path it guards; a route is what a
- *  caller can reach. Wildcards are NOT filtered out — the bundle's two are the
- *  broadest surface here, and skipping them is how a guard claims more than it
- *  checks. */
+// `app.use` middleware registers as ALL on the path it guards, so ALL is dropped except the RPC mount.
 function mountedRoutes(routes: readonly { method: string; path: string }[]): Set<string> {
   return new Set(
     routes
@@ -134,12 +102,7 @@ describe.each([
       );
     }
 
-    // `mountedRoutes` drops `ALL` registrations because middleware (`app.use`)
-    // is how they arrive — but a genuine `app.all("/debug", …)` is ALSO `ALL`
-    // and would slip past BOTH directions unseen. An `ALL` on a path is only
-    // safe to drop when a non-`ALL` route shares that path (it is guarding a
-    // declared surface); one that guards nothing declared is a reachable route
-    // the completeness check cannot otherwise see.
+    // a genuine `app.all(path)` is also ALL; dropping one is safe only when a non-ALL route on that path shows it guards something.
     const nonAllPaths = new Set(
       composed.app.routes.filter((route) => route.method !== "ALL").map((route) => route.path),
     );
@@ -155,7 +118,7 @@ describe.each([
 
     expect(violations, `\n${violations.join("\n\n")}\n`).toEqual([]);
 
-    // A walk that found nothing would satisfy one direction vacuously.
+    // a walk that found nothing would satisfy one direction vacuously.
     expect(mounted.size).toBeGreaterThan(0);
     expect(mounted.has(key("GET", HEALTH_PATH))).toBe(true);
   });

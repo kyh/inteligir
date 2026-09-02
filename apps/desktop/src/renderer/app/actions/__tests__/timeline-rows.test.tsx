@@ -1,8 +1,4 @@
 // @vitest-environment jsdom
-// What a streaming token costs the rendered timeline. Every provider event
-// produces a delta, and `applyTimelineDelta` deliberately preserves the object
-// identity of every row it did not touch — so a row that re-renders anyway is
-// throwing that away, and a turn row carries its whole subtree.
 
 import type {
   TimelineConversationRow,
@@ -15,10 +11,7 @@ import { TimelineRowView } from "../timeline-rows";
 
 afterEach(cleanup);
 
-/** A row that counts the renders it takes part in. `TimelineRowView` reads
- *  `kind` once per render to dispatch on it, so a memoized row that bails out
- *  reads nothing at all — which is what identity preservation buys, observed
- *  through the component's own prop rather than by replacing a module. */
+// counts renders through the `kind` getter: `TimelineRowView` reads it once per render, and a bailed-out memo reads nothing.
 interface CountedRow<Row extends TimelineRow> {
   row: Row;
   renders: () => number;
@@ -90,8 +83,6 @@ it("re-renders only the row a delta actually replaced", () => {
   expect(streamed.renders()).toBe(1);
   expect(turn.renders()).toBe(1);
 
-  // Exactly what applyTimelineDelta yields for one more token: a new object
-  // for the streamed row, the SAME object for everything else.
   const restreamed = counted(assistant("Two commits landed today.", 7));
   view.rerender(<List rows={[restreamed.row, turn.row]} />);
 
@@ -125,11 +116,8 @@ it("attributes a user message to what the sender was looking at", () => {
     />,
   );
 
-  // The bubble is what was typed; the file rides beneath it, so the user can
-  // see what the agent was told.
   expect(view.container.textContent).toContain("make this shorter");
   expect(view.container.textContent).toContain("Notes/Plans.md");
-  // Never the revision.
   expect(view.container.textContent).not.toContain("a".repeat(64));
 });
 

@@ -1,17 +1,3 @@
-// The comments handlers. The editor is the caller and owns the body markers;
-// these procedures own the sidecar (the division the inteligir-comments skill
-// states), so every answer is the fresh folded listing and `remove` also names
-// the ids whose markers the editor must strip.
-//
-// ONE TRANSLATION, not one per handler. Every refusal these procedures can
-// raise is a `SidecarInvalidError`, a `SidecarConflictError`, a
-// `CommentRefusedError`, or one the VAULT raised — the sidecar is a file in
-// it — and the vault's half is deferred to `vault-refusals.ts` rather than
-// restated here. Restating it is what made a sidecar `conflict` answer 500
-// while `vault.write` answered 409 for the same error. WHICH classes a given
-// procedure can raise is still declared per row — in the contract, where the
-// client reads it.
-
 import { ORPCError } from "@orpc/server";
 
 import { base, refusals } from "../orpc";
@@ -19,8 +5,8 @@ import { vaultWireError } from "../vault/vault-refusals";
 import { VaultServiceError } from "../vault/vault-service";
 import { CommentRefusedError, SidecarConflictError, SidecarInvalidError } from "./comments-service";
 
-/** A comments refusal as the wire class, or null for anything neither this
- *  layer nor the vault has a name for — which is a 500, and should be. */
+// the vault's refusals are translated by vault-refusals.ts, not restated here: two
+// translations of one class drift (a sidecar conflict at 500 beside vault.write's 409).
 function asWireError(cause: unknown) {
   if (cause instanceof SidecarInvalidError || cause instanceof SidecarConflictError) {
     return new ORPCError("CONFLICT", { message: cause.message });
@@ -37,10 +23,7 @@ const list = base.comments.list.handler(async ({ context, input }) => {
   try {
     return await context.comments.list(input.path);
   } catch (cause) {
-    // A list against a missing note still answers its sidecar (a thread can
-    // outlive its note through an external delete): the service folds with
-    // unknown markers rather than refusing, so a missing note cannot reach
-    // here — and this row declares no NOT_FOUND to answer it with.
+    // a missing note cannot reach here (list folds with unknown markers), and the row declares no NOT_FOUND.
     if (cause instanceof VaultServiceError && cause.code === "not_found") throw cause;
     throw asWireError(cause) ?? cause;
   }

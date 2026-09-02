@@ -1,8 +1,3 @@
-// The waiters over a real database and NO child process: what these cases
-// pin is the park/resolve/cancel contract on its own — row creation
-// idempotent on the request key, the timeout deny that interrupts the row,
-// and the settle hook the turn watchdog restarts its clock from.
-
 import { join } from "node:path";
 import { closeConnection, createConnection, type DbConnection } from "@repo/db/connection";
 import { runMigrations } from "@repo/db/migrate";
@@ -101,7 +96,6 @@ describe("createInteractionWaiters", () => {
     waiters.resolve(resolvedRow(row.id, threadId, "allow_once"));
     await expect(parked).resolves.toEqual({ decision: "allow_once" });
     expect(waiters.hasParked(threadId)).toBe(false);
-    // The provider is free to work again: the watchdog clock restarts here.
     expect(settledThreads).toEqual([threadId]);
   });
 
@@ -137,8 +131,6 @@ describe("createInteractionWaiters", () => {
     waiters.resolve(resolvedRow(row.id, threadId, "deny"));
     await first;
 
-    // The answer route resolves the ROW before the driver is told; a provider
-    // retry with the same request key must read that answer, not park again.
     resolvePendingInteraction(db, noopNotifier, {
       id: row.id,
       threadId,

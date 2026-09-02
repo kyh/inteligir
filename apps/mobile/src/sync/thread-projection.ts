@@ -1,11 +1,5 @@
-// Folding a thread's synced events into what the read-only UI shows. Pure, so it
-// is unit-tested without a renderer.
-//
-// The phone reads a MERGED log that carries streaming deltas, `item/started` and
-// `item/completed` alike. A read view wants the settled shape, so it renders
-// COMPLETED items and the user's own requests, and lets the deltas pass — the
-// completed item already carries their final text. No note editor and no live
-// turn: this is a mirror of what the desktop agent did.
+// renders completed items only and lets streaming deltas pass: the completed item carries their
+// final text.
 
 import type { StoredThread } from "./sync-store";
 import type { ThreadEvent } from "@repo/domain/provider-event";
@@ -21,7 +15,6 @@ export interface ThreadProjection {
   threadId: string;
   title: string;
   items: readonly ThreadDisplayItem[];
-  /** The most recent line of text, for the list row. */
   preview: string;
 }
 
@@ -82,7 +75,6 @@ function itemFrom(event: ThreadEvent, index: number): ThreadDisplayItem | null {
   }
 }
 
-/** Fold a thread's events into display items + a title. */
 export function projectThread(thread: StoredThread): ThreadProjection {
   const items: ThreadDisplayItem[] = [];
   thread.events.forEach((event, index) => {

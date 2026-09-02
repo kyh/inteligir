@@ -1,8 +1,3 @@
-// Note Intelligence over a REAL vault service with a FAKE inference runner —
-// the claude child is a seam, and every property here is about the WRITES:
-// absent fields only, user-set values untouched, refusal-on-concurrent-edit
-// skips, toggle-off spawns nothing, malformed inference skips.
-
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { noopNotifier } from "@repo/domain/notifier";
@@ -34,8 +29,7 @@ function boot(infer: InferenceRunner, availability: NoteIntelligenceAvailability
   return { root, service, settings, vault };
 }
 
-/** A vault change that must schedule nothing — proven by the timer count
- *  under fake timers rather than by outwaiting a debounce. */
+// proven by the timer count under fake timers, not by outwaiting the debounce.
 function expectNoSweepArmed(service: ReturnType<typeof boot>["service"]): void {
   vi.useFakeTimers();
   onTestFinished(() => {
@@ -65,7 +59,6 @@ describe("note intelligence", () => {
     expect(bare).toContain("- testing");
     expect(bare.endsWith("# Bare\n\nSome body.\n")).toBe(true);
     const half = readFileSync(join(root, "half.md"), "utf8");
-    // The user's description survives byte-exactly; only the absent pair land.
     expect(half).toContain("description: my own words");
     expect(half).not.toContain("A test note about inference");
     expect(half).toContain("status: draft");
@@ -91,7 +84,7 @@ describe("note intelligence", () => {
 
   it("skips on a concurrent edit instead of clobbering it", async () => {
     const { root, service, vault } = boot(async () => {
-      // The edit lands between the sweep's read and its guarded write.
+      // the edit lands between the sweep's read and its guarded write.
       await vault.write("note.md", "# N\n\nEdited meanwhile.\n");
       return INFERRED;
     });

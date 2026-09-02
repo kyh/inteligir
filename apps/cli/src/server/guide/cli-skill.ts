@@ -1,11 +1,6 @@
-// The built-in agent guide, served at system.guide and printed by
-// `inteligir guide`. SKILL.md-shaped so an agent harness can ingest it as a
-// skill verbatim. DOC-SYNC runs BOTH ways: this manual must name every CLI leaf
-// command AND every flag those leaves accept, and it may name no flag they do
-// not — apps/cli/src/__tests__/guide-covers-commands.test.ts walks the real
-// citty tree against these RENDERED bytes, so adding, renaming or re-flagging a
-// CLI command means updating this text in the same change (the discipline bb
-// records in docs/cli-guide-and-skill.md).
+// SKILL.md-shaped so a harness can ingest it verbatim. Must name every CLI leaf
+// and every flag it accepts, and no flag it does not: a test walks the citty
+// tree against these bytes, so re-flagging a command means editing this text.
 
 export const CLI_SKILL_MD = `---
 name: inteligir-cli

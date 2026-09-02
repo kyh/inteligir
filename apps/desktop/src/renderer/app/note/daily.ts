@@ -1,7 +1,3 @@
-// The daily note — one hardcoded cadence for now; the configurable cadence
-// system (weekly/monthly, folders, templates) returns with the settings
-// surface that can carry it, and the path shape moves with it.
-
 import { formatIsoDate } from "@repo/notes/iso-date";
 
 const DAILY_FOLDER = "notes/daily";

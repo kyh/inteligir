@@ -26,8 +26,6 @@ interface DialogProps {
 }
 
 function Dialog({ children, open, defaultOpen, onOpenChange, modal }: DialogProps) {
-  // Base UI's Root handles controlled/uncontrolled state internally. We only
-  // narrow the (open, eventDetails) callback to (open) for our public prop.
   return (
     <DialogPrimitive.Root
       open={open}
@@ -42,7 +40,6 @@ function Dialog({ children, open, defaultOpen, onOpenChange, modal }: DialogProp
 
 interface DialogContentProps extends Omit<HTMLAttributes<HTMLDivElement>, MotionConflictHandler> {
   showCloseButton?: boolean;
-  /** Forwarded to Base UI's Popup: the element focused when the dialog opens. */
   initialFocus?: DialogPrimitive.Popup.Props["initialFocus"];
 }
 
@@ -51,14 +48,10 @@ const DialogContent = forwardRef<HTMLDivElement, DialogContentProps>(
     const radius = useRadius();
     const substrate = useSurface();
     const dialogLevel = Math.min(substrate + DIALOG_OFFSET, 8);
-    // The size ladder narrows the dialog one notch in compact regions —
-    // width only, the padding stays put.
     const compact = useSize().variant === "compact";
 
-    // No `if (!open) return null` here — Base UI's `<DialogPrimitive.Popup>`
-    // handles mount/unmount itself, and waits for the framer-motion opacity
-    // tween below to finish (via `element.getAnimations()`) before unmounting.
-    // Returning null early would short-circuit the closing animation.
+    // no `if (!open) return null`: Base UI's Popup unmounts itself after the motion tween finishes
+    // (via getAnimations()), and an early return would cut the closing animation.
     return (
       <DialogPrimitive.Portal>
         <DialogPrimitive.Backdrop
@@ -82,15 +75,9 @@ const DialogContent = forwardRef<HTMLDivElement, DialogContentProps>(
           render={(popupProps, state) => {
             const exiting = state.transitionStatus === "ending";
             const { style: baseStyle, ...rest } = motionProps(popupProps);
-            // Centering rides the CSS translate utilities rather than motion
-            // x/y "-50%", so a consumer className can override one axis (the
-            // command palette pins `top-1/3 translate-y-0`). The CSS
-            // `translate` property composes before `transform`, so rendering
-            // is identical; motion animates opacity/scale only.
-            //
-            // `data-slot="dialog-content"` stays on the popup: CommandItem
-            // restyles itself inside a dialog through an
-            // `in-data-[slot=dialog-content]` variant.
+            // centering rides CSS translate utilities, not motion x/y, so a consumer className can
+            // override one axis (the command palette pins `top-1/3 translate-y-0`).
+            // CommandItem restyles itself through `in-data-[slot=dialog-content]`.
             return (
               <motion.div
                 {...rest}
@@ -142,7 +129,6 @@ function DialogHeader({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
 
 const DialogTitle = forwardRef<HTMLHeadingElement, HTMLAttributes<HTMLHeadingElement>>(
   ({ className, ...props }, ref) => {
-    // Dialog titles step down one notch in compact regions.
     const compact = useSizeVariant() === "compact";
     return (
       <DialogPrimitive.Title

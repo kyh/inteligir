@@ -1,8 +1,3 @@
-// The one search composition both the palette's box and the agent's
-// search_vault run. What matters here is that text and tag COMPOSE — a tag is
-// a filter on search, not a second mode — and that the box's `tag:` grammar
-// parses to exactly the argument the model would have passed.
-
 import { describe, expect, it } from "vitest";
 
 import type { SearchResult } from "../knowledge/knowledge-index";
@@ -46,8 +41,6 @@ describe("searchVaultNotes", () => {
   });
 
   it("asks the index for a WIDER window than the limit before filtering", () => {
-    // The starvation this exists to prevent: the top hit is untagged, so a
-    // limit-sized window would filter down to nothing.
     const limits: number[] = [];
     const narrow = {
       notesWithTag: () => ["c.md"],

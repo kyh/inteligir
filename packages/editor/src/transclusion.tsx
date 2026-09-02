@@ -1,14 +1,5 @@
-// ![[transclusion]] rendering: the embed chip expands into the target note's
-// content, rendered READ-ONLY through Plate's static path over the SAME
-// BASE_KIT the byte-stability gate uses — no nested live editor. Guards:
-// unresolved targets render the unresolved chip, self/circular embeds render
-// a chip + note, and embeds inside embedded content (depth > 1) render as
-// chips. Content re-reads on every onVaultChanged so an edit to the target
-// (agent or user) refreshes the card.
-//
-// Loaded via React.lazy from wiki-link-kit — this module reaches into the
-// editor host seam, so an eager import from the kit file (which base-kit
-// composes) would close an import cycle around the kit files.
+// loaded via React.lazy from wiki-link-kit: this module reaches the editor host seam, so an
+// eager import from a kit file base-kit composes would close an import cycle.
 
 import {
   createContext,
@@ -55,14 +46,7 @@ import { useOpenNote } from "@repo/editor/note/open-note-context";
 import { useVaultActions, useVaultListing } from "@repo/editor/host";
 import { parseWikiBody } from "@repo/notes/markdown/remark-wiki-link";
 
-// Depth/cycle scope context — the policy itself lives in transclusion-guard.ts.
 const TransclusionScopeContext = createContext<TransclusionScope | null>(null);
-
-// ---------------------------------------------------------------------------
-// Static components for the read-only render. The default static renderers
-// already produce solid markup (headings, marks, lists, quotes, code); these
-// cover the nodes that would otherwise render empty or unstyled voids.
-// ---------------------------------------------------------------------------
 
 function LinkStatic(props: SlateElementProps) {
   const url = stringProp(props.element, "url") ?? "";
@@ -87,8 +71,6 @@ function WikiLinkStatic(props: SlateElementProps) {
   );
 }
 
-/** Embeds inside embedded content: always a chip (depth guard) — but still a
- * navigable one. */
 function WikiEmbedStatic(props: SlateElementProps) {
   const body = stringProp(props.element, "body") ?? "";
   return (
@@ -129,8 +111,6 @@ function InlineEquationStatic(props: SlateElementProps) {
   );
 }
 
-/** Media voids (video / tweet / pdf) compact to a link — a full player inside
- * a read-only digest is noise. */
 function MediaStatic(props: SlateElementProps) {
   const url = stringProp(props.element, "url") ?? "";
   return (
@@ -151,9 +131,7 @@ function FrontmatterStatic(props: SlateElementProps) {
   );
 }
 
-// Tables: the default static renderer is a bare <div> per node, which
-// flattens a transcluded table into stacked lines. Mirror the live
-// table-kit markup — table > tbody > tr > td/th, same cell classes.
+// the default static renderer is a bare <div> per node, which flattens a table into stacked lines.
 function TableStatic(props: SlateElementProps) {
   return (
     <SlateElement {...props} as="table" className="my-1">
@@ -184,30 +162,14 @@ const STATIC_COMPONENTS = new Map<string, (props: SlateElementProps) => ReactNod
   ["blockquote", BlockquoteStatic],
 ]);
 
-// withComponent returns extended copies — BASE_KIT itself (the serialization
-// mirror) is never mutated.
 const TRANSCLUSION_KIT = BASE_KIT.map((plugin) => {
   const component = STATIC_COMPONENTS.get(plugin.key);
   return component ? plugin.withComponent(component) : plugin;
 });
 
-// ---------------------------------------------------------------------------
-// GitHub-alert markers in the STATIC path.
-//
-// The live editor hides a `> [!TIP]` marker line behind the variant badge with
-// the `calloutMarker` DECORATION (basic-blocks-kit.tsx). PlateStatic runs no
-// decorations, so a transcluded alert would render the marker literally next
-// to the badge. Rather than teach the static renderer about decorations, strip
-// the marker from the copy being rendered — the same information the
-// decoration hides, removed one layer earlier.
-//
-// Safe precisely because this value is a THROWAWAY parse of a read-only embed:
-// the vault file is never written from here, so removing bytes cannot reach
-// disk. Do NOT reuse this on any editable path.
-// ---------------------------------------------------------------------------
-
-/** Where stripAlertMarkers stashes the detected variant for BlockquoteStatic.
- * Lives only on the throwaway render copy, never in the document model. */
+// PlateStatic runs no decorations, so the `> [!TIP]` marker the live editor hides behind the
+// badge would render literally; stripAlertMarkers removes it from this throwaway render copy
+// instead. never reuse it on an editable path: it deletes bytes.
 export const ALERT_VARIANT_KEY = "transclusionAlertVariant";
 
 const ALERT_VARIANTS_SET = new Set(["NOTE", "TIP", "IMPORTANT", "WARNING", "CAUTION"]);
@@ -216,8 +178,6 @@ function isAlertVariant(value: string): value is AlertVariant {
   return ALERT_VARIANTS_SET.has(value);
 }
 
-/** The blockquote's first leaf, if it is the marker-bearing one the live
- * decoration would target (first leaf of the first paragraph). */
 function alertLeaf(quote: TElement): TText | null {
   const first = quote.children[0];
   if (!ElementApi.isElement(first) || first.type !== KEYS.p) return null;
@@ -225,9 +185,6 @@ function alertLeaf(quote: TElement): TText | null {
   return TextApi.isText(leaf) ? leaf : null;
 }
 
-/** Alert blockquotes in the static path: the badge the live element renders,
- * over a body whose marker stripAlertMarkers already removed. Non-alert
- * blockquotes fall through to the default static rendering. */
 function BlockquoteStatic(props: SlateElementProps) {
   const variant = stringProp(props.element, ALERT_VARIANT_KEY);
   const presentation =
@@ -284,10 +241,6 @@ export function stripAlertMarkers(value: Value): Value {
   });
 }
 
-// ---------------------------------------------------------------------------
-// Target content, read through the bridge and refreshed on vault changes.
-// ---------------------------------------------------------------------------
-
 type TargetContent =
   | { status: "loading" }
   | { status: "missing" }
@@ -316,8 +269,8 @@ function useTargetContent(path: string | null): TargetContent {
         });
     };
     read();
-    // Only when the change reached THIS target: a transcluding note re-reads
-    // every embedded file on every keystroke of its own otherwise.
+    // only when the change touched this target: otherwise a transcluding note re-reads every
+    // embed on each of its own keystrokes.
     const unsubscribe = bridge.onVaultChanged((event) => {
       if (vaultChangeTouches(event, path)) read();
     });
@@ -329,11 +282,6 @@ function useTargetContent(path: string | null): TargetContent {
   return state;
 }
 
-// ---------------------------------------------------------------------------
-// Chip fallbacks + the expanded card
-// ---------------------------------------------------------------------------
-
-/** The `!`-prefixed embed chip (unresolved / cycle / depth-guarded). */
 function EmbedChip({ body, note }: { body: string; note?: string | undefined }) {
   return (
     <span className="inline-flex items-baseline gap-0.5">
@@ -366,8 +314,6 @@ function TransclusionBody({ content }: { content: string }) {
     return <span className="text-sm text-muted-foreground italic">This note is empty.</span>;
   }
   if (!editor) {
-    // Out-of-vocabulary / unparseable target — show the bytes rather than
-    // nothing (the same honesty rule as the Raw editor mode).
     return <pre className="whitespace-pre-wrap">{content}</pre>;
   }
   return <PlateStatic editor={editor} />;
@@ -376,8 +322,6 @@ function TransclusionBody({ content }: { content: string }) {
 export default function Transclusion({ body }: { body: string }) {
   const { resolveWikiTarget } = useVaultListing();
   const { openFile } = useVaultActions();
-  // The cycle chain roots at the note HOSTING this embed — this note's own
-  // open note.
   const hostPath = useOpenNote((s) => s.editor.path);
   const scope = useContext(TransclusionScopeContext);
   const parsed = parseWikiBody(body);
@@ -397,8 +341,6 @@ export default function Transclusion({ body }: { body: string }) {
     [effectiveScope, resolved],
   );
 
-  // Guards, in order: unresolved → chip; nested-in-embed → chip; cycle →
-  // chip + note; missing on read → chip.
   const decision = decideTransclusion(effectiveScope, resolved);
   if (decision.kind === "chip") {
     return <EmbedChip body={body} note={decision.reason === "cycle" ? "circular" : undefined} />;

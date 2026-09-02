@@ -2,12 +2,10 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import { backTarget, createOpenNoteStore, forwardTarget } from "@repo/editor/note/open-note-store";
 
-// A fresh history machine per case — the store is a factory, not module state.
 let store = createOpenNoteStore();
 const publishOpenPath: (typeof store)["publishOpenPath"] = (path, change) =>
   store.publishOpenPath(path, change);
 
-/** The back/forward stacks, as the buttons read them. */
 function stacks() {
   const state = store.state();
   return { back: state.back, forward: state.forward, open: state.openPath };
@@ -35,7 +33,6 @@ describe("open-note navigation history", () => {
   it("recognizes a Back move by VALUE, so no caller has to flag it", () => {
     publishOpenPath("a.md");
     publishOpenPath("b.md");
-    // What the Back button does: open the remembered path, nothing more.
     publishOpenPath(backTarget(store.state()));
     expect(stacks()).toEqual({ back: [], forward: ["b.md"], open: "a.md" });
     expect(forwardTarget(store.state())).toBe("b.md");
@@ -71,7 +68,6 @@ describe("open-note navigation history", () => {
     publishOpenPath("a.md");
     publishOpenPath("b.md");
     publishOpenPath("b-renamed.md", "carry");
-    // Back must not offer "b.md" — the rename deleted it.
     expect(stacks()).toEqual({ back: ["a.md"], forward: [], open: "b-renamed.md" });
 
     publishOpenPath("c.md");

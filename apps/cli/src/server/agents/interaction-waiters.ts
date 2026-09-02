@@ -1,12 +1,3 @@
-// One responsibility: the PENDING-INTERACTION WAITERS — the bridge between a
-// provider process paused on a question and the row the answer route
-// resolves. `park` creates the row (idempotent on the provider's request
-// key) and parks the provider's promise on it; `resolve` answers the promise
-// from the recorded resolution; `cancel` denies what is parked (a settle, a
-// dispose). A parked wait belongs to the USER, so it carries its own clock
-// ({@link INTERACTION_TIMEOUT_MS}); the turn watchdog is told when a wait
-// settles so the provider's silence starts counting again from there.
-
 import type { DbConnection } from "@repo/db/connection";
 import {
   createPendingInteraction,
@@ -23,8 +14,6 @@ import {
 } from "@repo/domain/pending-interactions";
 import type { PendingInteraction } from "@repo/api/local/threads/threads-schema";
 
-/** How long a parked approval waits on the user before the provider gets a
- *  deny and the row is interrupted. */
 export const INTERACTION_TIMEOUT_MS = 30 * 60_000;
 
 interface InteractionWaiter {
@@ -37,27 +26,17 @@ export interface InteractionWaitersDeps {
   db: DbConnection;
   notifier: DbNotifier;
   debug(message: string): void;
-  /** The thread's provider is free to work again (an answer, a timeout deny)
-   *  — the turn watchdog restarts its silence clock from here. */
+  // the turn watchdog restarts its silence clock here: a parked wait is the user's time, not the provider's.
   onWaitSettled(threadId: string): void;
 }
 
 export interface InteractionWaiters {
-  /** Create the row (idempotent on the provider's request key) and park the
-   *  provider's promise until the answer route resolves it, the wait times
-   *  out, or a cancel denies it. An already-resolved or interrupted row
-   *  answers immediately. */
   park(
     create: PendingInteractionCreate,
     hostTurnId: string | null,
   ): Promise<PendingInteractionResolution>;
-  /** The answer route resolved a row; answer the parked provider request
-   *  from the recorded resolution. An unparseable resolution denies. */
   resolve(interaction: PendingInteraction): void;
-  /** Deny every parked approval — for one thread (a settle; its rows are
-   *  interrupted by the caller) or for all of them (dispose). */
   cancel(threadId?: string): void;
-  /** True while an approval for this thread is parked on the user's answer. */
   hasParked(threadId: string): boolean;
 }
 
@@ -134,7 +113,7 @@ export function createInteractionWaiters(deps: InteractionWaitersDeps): Interact
     },
 
     cancel(threadId) {
-      // Snapshot first: the loop deletes entries mid-iteration.
+      // snapshot first: the loop deletes entries mid-iteration.
       const waiters = Array.from(waitersByInteractionId);
       for (const [id, waiter] of waiters) {
         if (threadId !== undefined && waiter.threadId !== threadId) {

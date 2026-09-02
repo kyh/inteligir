@@ -11,16 +11,11 @@ import { z } from "zod";
 import { createDb } from "../db/client";
 import { inviteCode } from "../db/schema";
 
-// Shared setup for the cloud suites: a real account through the invite gate,
-// a real device through the pairing flow — every step is the production path.
-
 export const ORIGIN = "https://inteligir-web.workers.dev";
 const PASSWORD = "test-password-1234";
 
 let inviteCounter = 0;
 
-/** Create an account and hand back its session BEARER (what a native caller
- * holds; the browser's cookie is the same session). */
 export async function signUpUser(email: string): Promise<{ bearer: string; password: string }> {
   const code = `CLOUD-TEST-${++inviteCounter}`;
   await createDb(env.DB).insert(inviteCode).values({ code });
@@ -39,12 +34,9 @@ export function sessionHeaders(bearer: string) {
   return { authorization: `Bearer ${bearer}`, origin: ORIGIN };
 }
 
-/** Better Auth's `get-session` answer, read for the one field these tests
- *  need. A signed-out session answers `null`, which fails the parse. */
 const sessionUserSchema = z.looseObject({ user: z.looseObject({ id: z.string() }) });
 
-/** The signed-in user's id — what names their ThreadSyncDO. Ask BEFORE any
- * test deletes the account; afterwards the session no longer answers. */
+// ask before a test deletes the account; afterwards the session no longer answers
 export async function userIdOf(bearer: string): Promise<string> {
   const response = await SELF.fetch(`${ORIGIN}/api/auth/get-session`, {
     headers: sessionHeaders(bearer),
@@ -54,8 +46,6 @@ export async function userIdOf(bearer: string): Promise<string> {
   return body.data.user.id;
 }
 
-/** Mint a code bound to a PKCE challenge — the approve page's act. Returns both
- *  the code and the verifier the redeem will have to present. */
 export async function mintCode(bearer: string): Promise<{ code: string; verifier: string }> {
   const verifier = generatePkceVerifier();
   const challenge = await pkceChallengeS256(verifier);
@@ -86,7 +76,6 @@ export function deviceHeaders(credential: string) {
   return { authorization: `Bearer ${credential}` };
 }
 
-/** Open the invalidation socket and collect its frames. */
 export async function openSocket(
   credential: string,
   platform: string,
@@ -100,7 +89,6 @@ export async function openSocket(
   socket.accept();
   const frames: SyncPing[] = [];
   socket.addEventListener("message", (message) => {
-    // Keepalive frames are text; a binary frame is not one of them.
     const { data } = message;
     if (data instanceof ArrayBuffer) return;
     frames.push(syncPingSchema.parse(JSON.parse(data)));
@@ -108,10 +96,7 @@ export async function openSocket(
   return { frames, socket };
 }
 
-/** The pings are sent inside the push's own invocation and cross the
- *  in-process pair a macrotask later, so a socket's frames are awaited rather
- *  than read straight after the push. Exact: a frame that must NOT arrive is
- *  proven absent by a later frame that did. */
+// pings cross the in-process socket pair a macrotask after the push, so frames must be awaited
 export async function awaitFrames(
   socket: { frames: SyncPing[] },
   expected: readonly SyncPing[],

@@ -23,10 +23,6 @@ import {
   userIdOf,
 } from "./cloud-helpers";
 
-// The ThreadSyncDO through the real Worker path: verified device credential →
-// the user's own object — push conflict handling, paging, the capture inbox's
-// two-phase handoff, ws ping targeting, and the account-deletion purge.
-
 async function push(credential: string, body: PushRequest): Promise<Response> {
   return await SELF.fetch(`${ORIGIN}/v1/sync/push`, {
     method: "POST",
@@ -60,8 +56,7 @@ function meta(
   title?: string,
 ): ThreadMetaInput {
   const meta: ThreadMetaInput = { threadId, lane, updatedAt };
-  // Absent stays absent: an explicit `undefined` title is a different fact
-  // from an unsent one, and the contract is strict about which arrives.
+  // the contract is strict: an explicit undefined title is not the same as an unsent one
   if (title !== undefined) meta.title = title;
   return meta;
 }
@@ -103,7 +98,6 @@ describe("thread sync log", () => {
     const first = pushResponseSchema.parse(await (await push(credential, batch)).json());
     expect(first).toEqual({ accepted: 2, duplicates: 0, lastSeq: 2 });
 
-    // The retry after a lost response: same (deviceSeq)s, same bodies.
     const replay = pushResponseSchema.parse(await (await push(credential, batch)).json());
     expect(replay).toEqual({ accepted: 0, duplicates: 2, lastSeq: 2 });
 
@@ -118,7 +112,6 @@ describe("thread sync log", () => {
     const { credential } = await pairDevice(bearer, "Laptop");
 
     await push(credential, { events: [event("th_1", 1, "a")] });
-    // The device never saw the response, so it resends 1 with 2 appended.
     const retry = pushResponseSchema.parse(
       await (
         await push(credential, { events: [event("th_1", 1, "a"), event("th_1", 2, "b")] })
@@ -138,7 +131,6 @@ describe("thread sync log", () => {
     expect(envelope.error.code).toBe("sync-conflict");
     expect(envelope.error.deviceSeq).toBe(2);
 
-    // Refused, not half-applied: the stored body is untouched.
     const page = await pull(credential, 0);
     expect(page.events[1]?.event).toEqual({ type: "test", payload: "b" });
   });
@@ -148,8 +140,6 @@ describe("thread sync log", () => {
     const { credential } = await pairDevice(bearer, "Laptop");
     await push(credential, { events: [event("th_1", 5, "five")] });
 
-    // Position 3 was never stored, and accepting it would hand an older event
-    // a newer global seq.
     const response = await push(credential, { events: [event("th_1", 3, "three")] });
     expect(response.status).toBe(409);
     const envelope = cloudErrorSchema.parse(await response.json());
@@ -167,7 +157,6 @@ describe("thread sync log", () => {
     });
     expect(response.status).toBe(409);
     expect(cloudErrorSchema.parse(await response.json()).error.code).toBe("sync-out-of-order");
-    // Not a prefix, not a partial — nothing landed.
     expect((await pull(credential, 0)).events).toEqual([]);
   });
 
@@ -188,7 +177,6 @@ describe("thread sync log", () => {
     const second = await pull(laptop.credential, lastSeen, 2);
     expect(second.events).toHaveLength(1);
     expect(second.hasMore).toBe(false);
-    // The row names its writer, so a client can skip its own.
     expect(second.events[0]?.deviceId).toBe(phone.deviceId);
     expect(second.events[0]?.threadId).toBe("th_2");
   });
@@ -212,14 +200,10 @@ describe("thread sync log", () => {
     const desktop = await pairDevice(bearer, "Desktop");
     const desktopWs = await openSocket(desktop.credential, "desktop");
 
-    // The user files it as a desktop dispatch, then changes their mind.
     await push(phone.credential, { events: [], threads: [meta("th_1", "desktop", 1000, "First")] });
     await push(phone.credential, { events: [], threads: [meta("th_1", "any", 2000, "Second")] });
     await awaitFrames(desktopWs, [{ type: "dispatch", threadId: "th_1" }]);
 
-    // The stale retry of the FIRST change lands late. It must not resurrect
-    // the desktop lane — if it did, a second dispatch would sit between the
-    // first and the sync ping the push after it earns.
     await push(phone.credential, { events: [], threads: [meta("th_1", "desktop", 1000, "First")] });
     await push(phone.credential, { events: [event("th_1", 1, "after the retry")] });
     await awaitFrames(desktopWs, [
@@ -240,23 +224,18 @@ describe("thread sync log", () => {
     const tabletWs = await openSocket(tablet.credential, "other");
     const phoneWs = await openSocket(phone.credential, "other");
 
-    // The phone dispatches a desktop-lane thread: meta + first event, one push.
     await push(phone.credential, {
       events: [event("th_dispatch", 1, "run this")],
       threads: [meta("th_dispatch", "desktop", 1000, "Do the thing")],
     });
 
-    // The desktop socket hears both the sync ping and the dispatch poke.
     await awaitFrames(desktopWs, [
       { type: "sync", seq: 1 },
       { type: "dispatch", threadId: "th_dispatch" },
     ]);
-    // A non-desktop socket hears only the sync ping.
     await awaitFrames(tabletWs, [{ type: "sync", seq: 1 }]);
-    // The pusher's own socket hears nothing — it holds what it pushed.
     expect(phoneWs.frames).toEqual([]);
 
-    // An any-lane push pings sync only, on every non-pusher socket.
     await push(phone.credential, {
       events: [event("th_chat", 2, "hello")],
       threads: [meta("th_chat", "any", 1000)],
@@ -283,7 +262,6 @@ describe("thread sync log", () => {
     const phone = await pairDevice(bearer, "Phone");
     const desktopWs = await openSocket(desktop.credential, "desktop");
 
-    // Filing the thread IS the dispatch; its first event may not exist yet.
     const response = pushResponseSchema.parse(
       await (
         await push(phone.credential, {
@@ -294,7 +272,6 @@ describe("thread sync log", () => {
     );
     expect(response).toEqual({ accepted: 0, duplicates: 0, lastSeq: 0 });
 
-    // No sync ping — nothing was appended to pull — but the poke lands.
     await awaitFrames(desktopWs, [{ type: "dispatch", threadId: "th_later" }]);
     desktopWs.socket.close();
   });
@@ -307,17 +284,11 @@ describe("thread sync log", () => {
     const userId = await userIdOf(bearer);
     const stub = env.THREAD_SYNC.getByName(`user:${userId}`);
 
-    // Hibernation's actual mechanic: the runtime keeps the socket and the
-    // attachment, and hands a RECONSTRUCTED instance whatever it can read back
-    // off them. Reading the tag through the state proves the identity survives
-    // an instance that no longer remembers accepting the socket — the whole
-    // reason no field may cache it.
     const tags = await runInDurableObject(stub, (_instance, state) =>
       state.getWebSockets().map((ws) => ws.deserializeAttachment()),
     );
     expect(tags).toEqual([{ deviceId: desktop.deviceId, platform: "desktop" }]);
 
-    // And the lane routing still reads it on a LATER invocation.
     await push(phone.credential, {
       events: [event("th_x", 1, "after")],
       threads: [meta("th_x", "desktop", 1000)],
@@ -370,12 +341,9 @@ describe("capture inbox", () => {
       { id: posted.id, text: "buy oat milk", createdAt: posted.createdAt },
     ]);
 
-    // The other device claiming at the same time gets NOTHING — that is the
-    // whole point of the claim: two devices cannot both apply it.
     const phoneClaim = await claim(phone.credential);
     expect(phoneClaim.captures).toEqual([]);
 
-    // The owner's ack deletes; the loser's ack does not, and says so per id.
     expect(await ack(laptop.credential, laptopClaim.claimToken, [posted.id])).toEqual({
       results: [{ id: posted.id, outcome: "deleted" }],
     });
@@ -397,7 +365,6 @@ describe("capture inbox", () => {
     const stale = await claim(laptop.credential);
     expect(stale.captures).toHaveLength(1);
 
-    // The claim lapses (a crashed device) and another one takes the row.
     const userId = await userIdOf(bearer);
     const stub = env.THREAD_SYNC.getByName(`user:${userId}`);
     await runInDurableObject(stub, (_instance, state) => {
@@ -406,7 +373,6 @@ describe("capture inbox", () => {
     const fresh = await claim(phone.credential);
     expect(fresh.captures.map((row) => row.id)).toEqual([posted.id]);
 
-    // The lapsed claimer must NOT delete what it no longer owns.
     expect(await ack(laptop.credential, stale.claimToken, [posted.id])).toEqual({
       results: [{ id: posted.id, outcome: "reclaimed" }],
     });
@@ -467,15 +433,12 @@ describe("account deletion", () => {
     });
     expect(deletion.status).toBe(200);
 
-    // The credential died with the device rows...
     const after = await SELF.fetch(`${ORIGIN}/v1/sync/pull?afterSeq=0`, {
       headers: deviceHeaders(credential),
     });
     expect(after.status).toBe(401);
 
-    // ...and the object's own storage is empty. Read straight off the SQL,
-    // because every route now refuses a tombstoned object — so a route that
-    // answered "nothing here" would be proving the tombstone, not the wipe.
+    // read off the SQL: every route refuses a tombstoned object, so a route answer would prove the tombstone, not the wipe
     const stub = env.THREAD_SYNC.getByName(`user:${userId}`);
     const rows = await runInDurableObject(stub, (_instance, state) => ({
       events: state.storage.sql.exec("SELECT COUNT(*) AS n FROM sync_events").one().n,
@@ -497,10 +460,7 @@ describe("account deletion", () => {
       body: JSON.stringify({ password }),
     });
 
-    // The in-flight request: its credential check already PASSED (the D1 rows
-    // are gone now, so replay it at the object exactly as the Worker would
-    // have forwarded it). Without the tombstone this rebuilds the log the
-    // purge just deleted.
+    // replays a request whose credential check passed before the purge, as the Worker would have forwarded it
     const stub = env.THREAD_SYNC.getByName(`user:${userId}`);
     const inFlight = await stub.fetch("https://thread-sync/push", {
       method: "POST",

@@ -1,11 +1,5 @@
-// Inline date chip: renders the node's ISO `date` value with Today/Yesterday/
-// Tomorrow shortcuts (display-only — the stored bytes never localize); click
-// opens a Base UI popover with the react-day-picker calendar (lazy chunk).
-//
-// ISO discipline (locked): the node stores `date: "YYYY-MM-DD"` built from
-// the picked LOCAL date — never toDateString() (en-US locale bytes) and never
-// toISOString() (UTC-shifts across midnight). `rawDate` is never set — its
-// presence flips Plate's serializer to the `<date>text</date>` children form.
+// Never toDateString() (en-US locale bytes) or toISOString() (UTC-shifts across midnight), and
+// never set rawDate: its presence flips Plate's serializer to the `<date>text</date>` form.
 
 import { Suspense, lazy, useState } from "react";
 import {
@@ -30,8 +24,7 @@ const Calendar = lazy(() =>
 
 const ISO_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
 
-// Parse ISO as a LOCAL date — `new Date("YYYY-MM-DD")` is UTC midnight and
-// renders a day early west of Greenwich.
+// `new Date("YYYY-MM-DD")` is UTC midnight and renders a day early west of Greenwich.
 function fromIso(value: string): Date | null {
   const match = ISO_RE.exec(value);
   if (!match) return null;

@@ -1,9 +1,3 @@
-// The browser session is prepared ONCE per launch: `session.fromPartition`
-// answers the same process-lifetime Session on every call and `.on` appends,
-// so a per-window setup makes one download attempt fire a warning — and a
-// preventDefault — per reopen. The window is re-created on every close and
-// reopen; the session never is.
-
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { BROWSER_IPC } from "../browser-ipc";
@@ -130,7 +124,6 @@ describe("the browser window over one prepared session", () => {
       fake.windows.at(-1)?.emit("closed");
     }
 
-    // Each reopen after a close is a NEW window over the SAME session.
     expect(fake.windows).toHaveLength(5);
     expect(fake.browserSession.listenerCount("will-download")).toBe(1);
 
@@ -147,8 +140,6 @@ describe("the browser window over one prepared session", () => {
     expect(prevented).toBe(1);
     expect(warnings).toHaveLength(1);
 
-    // The IPC verbs registered once each, not once per window. STATE is
-    // absent by design: it is a main→chrome send, never an invoke handler.
     expect(fake.handled).toEqual([...new Set(fake.handled)]);
     expect(fake.handled.length).toBeGreaterThan(0);
     for (const channel of fake.handled) {

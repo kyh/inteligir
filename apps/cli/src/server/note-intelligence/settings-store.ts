@@ -1,8 +1,5 @@
-// The toggle's bytes: `<dataDir>/note-intelligence.json`, the connectors-store
-// pattern (zod at the boundary, atomic tmp+rename write). No secrets here —
-// the mode still matches its neighbors' discipline. A MALFORMED file reads as
-// disabled-with-a-log rather than an error: the only state it guards is a
-// boolean, and refusing boot over it would cost more than it protects.
+// a malformed file reads as disabled rather than an error: the only state here
+// is a boolean, and refusing boot over it costs more than it protects.
 
 import { readFileSync } from "node:fs";
 import { stagedWriteFileSync } from "../staged-write";

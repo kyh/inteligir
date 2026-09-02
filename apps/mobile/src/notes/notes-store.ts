@@ -1,23 +1,3 @@
-// The phone's read model over the hosted vault: the tree listing, a note
-// cache behind the NoteCache port, and wiki-link resolution — all behind the
-// credential the sync runtime already treats as the one switch. No
-// credential, no request.
-//
-// The TREE stays in memory on purpose, the same posture as the sync store:
-// cold launch re-fetches it, because the resolver and the commit must be
-// current before any read is pinned. Note BODIES ride the injected cache —
-// memory by default (tests, and the bound below), the expo-file-system
-// adapter in the app — keyed `(commit, path)`, immutable content, so a row
-// never goes stale. The generation fence applies to a cache hit exactly as
-// to a fetch: a disk read that lands after an unpair is still the old
-// account's data.
-//
-// Resolution uses the vault's OWN resolver (`@repo/notes/knowledge/
-// link-resolve`) over the tree's paths, so an ambiguous `[[Title]]` breaks
-// the same way on every device. The alias tiers stay empty here, stated: an
-// alias lives in a doc's frontmatter, which the phone does not hold — an
-// alias-only link renders unresolved until that changes.
-
 import { buildResolver, type TargetResolver } from "@repo/notes/knowledge/link-resolve";
 import type { VaultTreeResponse } from "@repo/api/cloud/vault/vault-schema";
 import type { DeviceCredential } from "@repo/api/cloud/pairing/pairing-schema";
@@ -30,12 +10,8 @@ import {
 import { createExternalStore, type ReadableStore } from "../lib/external-store";
 import { createMemoryNoteCache, type CachedNote, type NoteCache } from "./note-cache";
 
-/** The default (memory) cache's bound: a note re-fetches on a miss, and the
- *  commit in the key makes a stale entry unreachable after a refresh. */
 const NOTE_CACHE_MAX = 100;
 
-/** The pages a refresh will walk before refusing — a runaway guard, not a
- *  quota (500 entries per page). */
 const MAX_TREE_PAGES = 40;
 
 export type NotesTreeState =
@@ -45,61 +21,34 @@ export type NotesTreeState =
   | { state: "empty"; message: string }
   | { state: "error"; message: string };
 
-/** The ok arm IS a cached row — one shape, so the cache hit and the fetch
- *  cannot answer with different fields. */
 export type NoteRead = ({ ok: true } & CachedNote) | { ok: false; message: string };
 
-/**
- * A credential and WHY the store is being handed it — the composition root
- * knows which of its three calls this is, and reconstructing that here (by
- * keeping a second copy of the bearer to compare against) answers a question
- * the caller already answered.
- */
 export interface CredentialHandover {
   credential: DeviceCredential;
-  /** `restored` is the boot read of a credential this device already had —
-   *  the durable rows on disk are this same pairing's, and that launch is
-   *  what the cache exists for. `paired` is a pairing that just completed:
-   *  nothing on disk belongs to it. */
+  // restored: the boot read of a credential whose cached rows are on disk. paired: nothing on disk
+  // is this pairing's.
   source: "restored" | "paired";
 }
 
 export interface NotesStore {
-  /** The pairing layer's switch, same contract as the sync runtime's. */
   setCredential(next: CredentialHandover | null): void;
-  /** Fetch the whole tree (paged) and rebuild the resolver. */
   refresh(): Promise<void>;
   tree: ReadableStore<NotesTreeState>;
   readNote(path: string): Promise<NoteRead>;
-  /** A wiki target's vault path over the LAST refreshed tree, or null. */
   resolveWiki(target: string): string | null;
-  /**
-   * An image source for a vault asset, pinned to the tree's commit — null
-   * until a tree is ready, because an unpinned asset URL is not a stable
-   * cache key and the route refuses it.
-   *
-   * THE RESIDUAL, stated: the BYTES the image then fetches land in the
-   * platform's own image caches (NSURLCache honors the route's year-long
-   * immutable answer; Fresco disk-caches regardless), which an unpair cannot
-   * clear — core RN Image has no purge. Serving them stays safe (the URL pins
-   * a commit sha, and an equal sha means identical content), but they sit at
-   * rest until the OS evicts them, unlike note bodies.
-   */
+  // null until a tree is ready: the route refuses an unpinned asset url. the bytes then sit in the
+  // platform image caches (NSURLCache, Fresco), which core RN Image cannot purge on unpair.
   assetSource(path: string): VaultAssetSource | null;
 }
 
 export interface CreateNotesStoreArgs {
   cloudUrl: string;
   fetch?: CloudFetch;
-  /** The note-body cache; absent = the bounded memory one. The app injects
-   *  the expo-file-system adapter here, and only here. */
   cache?: NoteCache;
 }
 
 type Client = ReturnType<typeof createCloudClient>;
 
-/** The cache is best-effort HERE, so no implementation has to re-derive the
- *  discipline: a refused write costs a re-fetch, and nothing else. */
 function bestEffort(work: Promise<void>): void {
   void work.catch(() => undefined);
 }
@@ -107,33 +56,23 @@ function bestEffort(work: Promise<void>): void {
 export function createNotesStore(args: CreateNotesStoreArgs): NotesStore {
   let client: Client | null = null;
   let resolver: TargetResolver | null = null;
-  /** Which generation's refresh is in flight (-1 = none). Tied to the
-   *  generation rather than a boolean so a re-pair's refresh is never
-   *  blocked by the PREVIOUS pairing's stalled one. */
+  // a generation, not a boolean, so a re-pair's refresh is never blocked by the previous pairing's
+  // stalled one.
   let refreshingFor = -1;
-  /** Bumped on EVERY credential change (set and clear alike); checked after
-   *  every await, so a response from the previous pairing can never
-   *  repopulate the new one's state — the same fence the sync runtime runs. */
+  // bumped on every credential change and checked after every await: a response from the previous
+  // pairing must not land.
   let generation = 0;
   const noteCache = args.cache ?? createMemoryNoteCache(NOTE_CACHE_MAX);
   const tree = createExternalStore<NotesTreeState>({ state: "idle" });
-  /** Composed asset sources, by path. Render calls this per embed on every
-   *  re-render, and the answer only moves when the tree's commit or the
-   *  credential does — both of which clear it below. */
   const assetSources = new Map<string, VaultAssetSource>();
 
   return {
     setCredential(next) {
       generation += 1;
-      // The in-memory view resets on EVERY change: a re-pair must not serve
-      // the previous account's tree or resolver for even one render.
       resolver = null;
       assetSources.clear();
       tree.set({ state: "idle" });
-      // The DURABLE rows survive exactly one transition — the boot restore of
-      // the credential that wrote them. An unpair or a fresh pairing is a
-      // change of hands, and at-rest rows must not outlive the pairing that
-      // fetched them.
+      // durable rows survive only the boot restore of the credential that wrote them.
       if (next === null || next.source === "paired") {
         bestEffort(noteCache.clear());
       }
@@ -165,9 +104,8 @@ export function createNotesStore(args: CreateNotesStoreArgs): NotesStore {
           const result = await client.vaultTree(query);
           if (generation !== startedAt) return;
           if (!result.ok) {
-            // "No hosted vault" is a STATE, not an error: an unpaired-desktop
-            // or BYO-remote account answers 404 forever, and an error banner
-            // would send the user hunting for a fault.
+            // an account with no hosted vault answers 404 forever; that is a state, not a fault to
+            // hunt.
             const noVault =
               result.failure.kind === "refused" && result.failure.code === "not-found";
             tree.set(
@@ -187,18 +125,13 @@ export function createNotesStore(args: CreateNotesStoreArgs): NotesStore {
         }
         if (commit === undefined) return;
         if (after !== undefined) {
-          // The guard tripped with pages still unread: a partial listing
-          // silently missing notes (and wiki targets) must not answer
-          // "ready" — the Worker sibling states the same rule.
           tree.set({ state: "error", message: "This vault is too large for the notes list." });
           return;
         }
+        // alias tiers stay empty: an alias lives in frontmatter the phone does not hold.
         resolver = buildResolver(entries.map((entry) => entry.path));
-        // A moved commit makes every composed URL stale.
         assetSources.clear();
         tree.set({ state: "ready", commit, entries });
-        // Rows keyed to older commits are unreachable from here on; a durable
-        // cache reclaims their disk.
         bestEffort(noteCache.sweep(commit));
       } finally {
         if (refreshingFor === startedAt) refreshingFor = -1;
@@ -209,17 +142,13 @@ export function createNotesStore(args: CreateNotesStoreArgs): NotesStore {
 
     async readNote(path) {
       if (client === null) return { ok: false, message: "Not paired." };
-      // Captured across the awaits below: the closure's `client` is nulled by
-      // an unpair, and the generation fence decides what to do with the
-      // answer — not a crash on a vanished client.
+      // captured: an unpair nulls the closure's client mid-await.
       const activeClient = client;
       const startedAt = generation;
       const current = tree.get();
       const commit = current.state === "ready" ? current.commit : undefined;
 
-      // Only a read PINNED to the tree's commit touches the cache: an
-      // unpinned read answers whatever HEAD is now, and a cached row keyed to
-      // a moving target would serve yesterday's bytes as today's.
+      // only a read pinned to the tree's commit touches the cache: head moves.
       if (commit !== undefined) {
         const cached = await noteCache.get(commit, path).catch(() => null);
         if (generation !== startedAt) return { ok: false, message: "Not paired." };
@@ -255,8 +184,6 @@ export function createNotesStore(args: CreateNotesStoreArgs): NotesStore {
     assetSource(path) {
       const current = tree.get();
       if (client === null || current.state !== "ready") return null;
-      // Composed by the CLIENT, which already holds the credential — the
-      // bearer has one spelling, and this store keeps no copy of it.
       const cached = assetSources.get(path);
       if (cached !== undefined) return cached;
       const source = client.vaultAssetSource({ path, ref: current.commit });

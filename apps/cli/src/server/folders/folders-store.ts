@@ -1,10 +1,5 @@
-// The list's bytes: `<dataDir>/connected-folders.json`, the connectors-store
-// discipline without the 0600 (paths are not secrets). A JSON file rather
-// than config.json because config.json is read once at boot and never written
-// by the app — a Settings-editable list needs a file the app owns whole, and
-// connectors.json is the precedent. Malformed is an ERROR, never an empty
-// list: an empty list is a claim, and the next write would erase whatever the
-// unparseable bytes held.
+// not config.json: that is read once at boot and never written by the app.
+// malformed bytes are an error, not an empty list — the next write would erase them.
 
 import { readFileSync } from "node:fs";
 import { stagedWriteFileSync } from "../staged-write";
@@ -51,7 +46,7 @@ export function createFoldersStore(dataDir: string): FoldersStore {
       return verdict.data.folders;
     },
     write(folders: readonly string[]): void {
-      // Deliberately modeless: paths are not secrets.
+      // no 0600: paths are not secrets.
       stagedWriteFileSync(path, `${JSON.stringify({ folders }, null, 2)}\n`);
     },
   };

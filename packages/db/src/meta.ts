@@ -7,17 +7,9 @@ export function getMetaValue(db: DbConnection, key: string): string | undefined 
   return row?.value;
 }
 
-/**
- * The `meta.schema_version` row — seeded by the first migration, bumped by
- * every one after it.
- *
- * `latestKnownVersion` is what `runMigrations` returned, and passing it is not
- * optional: a database written by a NEWER build migrates to a generation this
- * build has no SQL for, so `migrate` applies nothing and every read afterwards
- * is made against a schema this code does not know — silently, until a query
- * hits a column that moved. Both ends of the range are refused here, at the
- * one place the version is read.
- */
+// a database a newer build upgraded is past any generation this build has sql for: migrate
+// applies nothing and every read runs against a schema this code does not know, so the ceiling
+// is refused here.
 export function getSchemaVersion(db: DbConnection, latestKnownVersion: number): number {
   const value = getMetaValue(db, "schema_version");
   const parsed = value === undefined ? Number.NaN : Number(value);

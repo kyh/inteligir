@@ -1,18 +1,6 @@
-// The better-sqlite3 binding of @repo/notes' SqlDriver seam. The KnowledgeStore
-// owns every statement (schema, guards, FTS5 queries); this module owns only
-// the file lifecycle and the byte-level binding.
-//
-// The index lives in its OWN file (knowledge.db beside the app db), never in
-// @repo/db's database: the store is a wipe-and-rebuild CACHE whose recovery
-// primitive is "close + delete the files", which must never be able to take
-// durable state with it. That is also why its tables have no drizzle
-// migrations — the store's own version guards ARE the migration story.
-//
-// THE INDEX MUST NEVER ABORT PRODUCT BOOT. Opening runs a recovery ladder:
-// open the file; on any failure delete the db files and open fresh; if the
-// files cannot be deleted, rename them aside (timestamped) and open fresh; if
-// even that fails, run in memory for this process — an empty index the boot
-// reconcile rebuilds either way. Every downgrade is logged, none is thrown.
+// knowledge.db is its own file, not @repo/db's: the store is a wipe-and-rebuild
+// cache whose recovery deletes the files, and that must never take durable state
+// with it. opening never throws — a bad file falls through delete, rename-aside, memory.
 
 import { mkdirSync, renameSync, rmSync } from "node:fs";
 import { dirname } from "node:path";
@@ -21,11 +9,8 @@ import type { SqlDriver } from "@repo/notes/knowledge/sql-knowledge-store";
 import { z } from "zod";
 import { messageOf } from "../error-message";
 
-// The store binds and reads NULL/REAL/INTEGER/TEXT only, so a row carrying
-// anything else is not one this driver can hand over.
 const sqlRowSchema = z.record(z.string(), z.union([z.null(), z.number(), z.string()]));
 
-/** What the recovery ladder opened, and which backing it settled on. */
 interface OpenedIndexDb {
   db: Database.Database;
   backing: "file" | "memory";
@@ -36,25 +21,21 @@ const SIDE_SUFFIXES = ["", "-wal", "-shm"] as const;
 function openAt(target: string): Database.Database {
   const opened = new Database(target);
   try {
-    // The pragmas double as the header check: a corrupt file opens lazily
-    // and fails HERE, inside the ladder, not later in the store.
+    // a corrupt file opens lazily; the pragma is what fails, inside the ladder.
     opened.pragma("journal_mode = WAL");
-    // The whole file is rebuildable from the vault, so a dropped
-    // transaction on power loss costs a reconcile, never data.
+    // rebuildable from the vault, so a lost transaction on power loss costs a reconcile.
     opened.pragma("synchronous = NORMAL");
     return opened;
   } catch (err) {
     try {
       opened.close();
     } catch {
-      // Already unusable.
+      // already unusable.
     }
     throw err;
   }
 }
 
-/** Open (creating if absent) the knowledge database at `dbPath`. Never
- * throws for a bad file — see the recovery ladder above. */
 export function createSqliteDriver(dbPath: string): SqlDriver {
   try {
     mkdirSync(dirname(dbPath), { recursive: true });
@@ -72,14 +53,11 @@ export function createSqliteDriver(dbPath: string): SqlDriver {
       try {
         renameSync(`${dbPath}${suffix}`, `${dbPath}${suffix}.corrupt-${stamp}`);
       } catch {
-        // A missing side file, or a filesystem that refuses — the ladder's
-        // next rung (memory) covers the latter.
+        // a missing side file, or a filesystem that refuses; the memory rung covers the latter.
       }
     }
   }
 
-  /** The recovery ladder: file → delete-and-retry → rename-aside-and-retry →
-   * memory. Never throws. */
   function openBestEffort(): OpenedIndexDb {
     try {
       return { db: openAt(dbPath), backing: "file" };
@@ -105,7 +83,7 @@ export function createSqliteDriver(dbPath: string): SqlDriver {
   }
 
   let { db, backing } = openBestEffort();
-  // Prepared statements are per-connection; the cache dies with it on reset.
+  // prepared statements are per-connection; the cache dies with it on reset.
   let statements = new Map<string, Database.Statement>();
 
   function prepared(sql: string): Database.Statement {
@@ -138,7 +116,7 @@ export function createSqliteDriver(dbPath: string): SqlDriver {
       try {
         db.close();
       } catch {
-        // Already unusable — the point of reset is to leave it behind.
+        // already unusable.
       }
       if (backing === "memory") {
         db = openAt(":memory:");

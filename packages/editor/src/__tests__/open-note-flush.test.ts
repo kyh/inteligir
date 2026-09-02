@@ -1,9 +1,3 @@
-// The door a non-React caller (the voice chain, the comments tab) uses to
-// persist the live buffer before it reads files. Registration is the whole
-// contract: a store nobody registered is one nothing flushes, and a store that
-// unregistered must stop being flushed — otherwise a torn-down session's
-// stale flush runs against a caller that is about to read from disk.
-
 import { describe, expect, it, vi } from "vitest";
 
 import { flushOpenNote, registerOpenNoteStore } from "@repo/editor/note/open-note-flush";

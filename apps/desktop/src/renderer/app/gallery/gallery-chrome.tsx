@@ -1,11 +1,7 @@
-// The gallery's own furniture. Deliberately plain — anything eye-catching
-// here competes with the components it is supposed to be showing.
-
 import { cn } from "@repo/ui/lib/utils";
 import type { ReactNode } from "react";
 
 export interface GallerySectionProps {
-  /** Anchor id — must match the page's nav row. */
   id: string;
   title: string;
   children: ReactNode;
@@ -23,14 +19,10 @@ export function GallerySection({ id, title, children }: GallerySectionProps) {
 }
 
 export interface DemoProps {
-  /** The component's exported name, as a caller would import it. */
   name: string;
-  /** What it is FOR — one line, in the reader's terms, not the API's. */
   purpose: string;
-  /** Optional note about a state that cannot be shown, or a caveat. */
   note?: string | undefined;
   children: ReactNode;
-  /** Lay the instances out in a column instead of a wrapping row. */
   stack?: boolean;
 }
 
@@ -54,8 +46,6 @@ export function Demo({ name, purpose, note, children, stack = false }: DemoProps
   );
 }
 
-/** A caption for one instance inside a Demo, so a row of five buttons says
- *  which is which without the reader guessing from the rendering. */
 export function DemoCase({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="flex flex-col items-start gap-1.5">

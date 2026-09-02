@@ -1,7 +1,3 @@
-// The service's own decisions — which are all about what state the machine is
-// in, never about audio. The workers are injected, so nothing here dlopens a
-// native binding and every assertion holds on every platform the suite runs on.
-
 import { existsSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { setTimeout as delay } from "node:timers/promises";
@@ -26,8 +22,7 @@ function transcribingWorker(text: string) {
     request.kind === "probe" ? { kind: "probed" } : { kind: "transcribed", text };
 }
 
-/** The four files the catalog names, each non-empty, so `isModelInstalled`
- *  believes it. */
+// non-empty, or isModelInstalled refuses it.
 async function installFakeModel(modelDir: string): Promise<void> {
   await mkdir(modelDirFor(modelDir, VOICE_MODEL), { recursive: true });
   const files = resolveModelFiles(modelDir, VOICE_MODEL);
@@ -36,7 +31,6 @@ async function installFakeModel(modelDir: string): Promise<void> {
   }
 }
 
-/** A no-op streaming worker whose callbacks a test drives by hand. */
 function captureSpawn() {
   let count = 0;
   let disposeCount = 0;
@@ -58,7 +52,6 @@ function captureSpawn() {
   return { spawn, spawnCount: () => count, latest: () => last, disposed: () => disposeCount };
 }
 
-/** A latch the test opens by hand; `release` exists once the executor ran. */
 interface Gate {
   release?: () => void;
 }
@@ -125,8 +118,7 @@ describe("ParakeetVoiceService", () => {
       modelDir,
       runWorker: transcribingWorker("hello there"),
     });
-    // Placed rather than downloaded: the digest the catalog pins is the real
-    // model's, so a fetch fake cannot produce files this service will accept.
+    // placed, not downloaded: the pinned digest is the real model's, so no fetch fake passes it.
     await installFakeModel(modelDir);
     expect((await service.status()).state).toBe("ready");
     expect(await service.transcribe(new ArrayBuffer(2))).toBe("hello there");
@@ -145,10 +137,8 @@ describe("ParakeetVoiceService", () => {
   });
 
   it("refuses a second install issued in the SAME TICK — one download, not two", async () => {
-    // The guard has to hold without an await between reading the slot and
-    // claiming it: two installs racing meant two 100 MB downloads writing the
-    // same model files. Both calls are made before either is awaited, which is
-    // the only ordering that can catch it.
+    // both calls before either is awaited: the only ordering that catches an await between
+    // reading the slot and claiming it.
     let downloads = 0;
     const service = new ParakeetVoiceService({
       modelDir: makeTempDir("inteligir-voice-"),

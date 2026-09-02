@@ -15,9 +15,6 @@ const UNAUTHORIZED: CloudResult<PullResponse> = {
 
 const EMPTY_PAGE: CloudResult<PullResponse> = ok({ events: [], lastSeq: 0, hasMore: false });
 
-/** Resolves once the published snapshot satisfies `done` — through the
- *  subscription alone, with no call into the runtime, so whatever settles it
- *  ran on the runtime's own clock. */
 function published(
   runtime: SyncRuntime,
   done: (status: SyncStatus) => boolean,
@@ -79,8 +76,6 @@ describe("the sync runtime", () => {
     expect(store.snapshotThread("thr_x")?.events).toHaveLength(1);
     expect(store.readCursor()).toBe(1);
     expect(runtime.get()).toMatchObject({ state: "paired", cursor: 1, lastError: null });
-    // The phone produces no thread event and applies no capture to a vault it
-    // does not have, so a pass touches neither route.
     expect(cloud.pushes).toHaveLength(0);
     expect(cloud.claims).toBe(0);
   });
@@ -124,7 +119,6 @@ describe("the sync runtime", () => {
     await runtime.syncNow();
     expect(store.snapshotThreads()).toHaveLength(1);
 
-    // A different credential describes a different account — the store clears.
     runtime.setCredential({ deviceId: "dev_new", credential: `igd_${"b".repeat(64)}` });
     expect(store.snapshotThreads()).toHaveLength(0);
     expect(store.readCursor()).toBe(0);
@@ -166,11 +160,9 @@ describe("the sync runtime", () => {
       (status) => status.state === "paired" && status.lastSyncedAt !== null,
     );
     expect(booted).toMatchObject({ state: "paired", cursor: 0 });
-    // Cached between changes — a snapshot rebuilt per read is an infinite
-    // render loop under useSyncExternalStore.
+    // identity, not equality: a snapshot rebuilt per read loops useSyncExternalStore.
     expect(runtime.get()).toBe(booted);
 
-    // Nothing calls syncNow from here; the timer is the only writer left.
     const polled = await published(
       runtime,
       (status) => status.state === "paired" && status.cursor === 1,

@@ -1,9 +1,6 @@
-// Right-click surface (BlockMenuPlugin's aboveSlate wrapper). Bubbling order
-// does the selection: BlockSelectionPlugin injects an onContextMenu on each
-// selectable block (addOnContextMenu) that selects it — or stops propagation
-// when the right-click lands on focused text (native menu wins there, potion
-// behavior) — and this wrapper, reached only when propagation survived, opens
-// the shared BlockMenu at the pointer.
+// BlockSelectionPlugin's own onContextMenu selects the block, or stops propagation
+// on focused text, before this bubbles here; a right-click on the editable's padding
+// or one no block claimed keeps the native menu.
 
 import type { ReactNode } from "react";
 import {
@@ -25,11 +22,7 @@ export function BlockContextMenu({ children }: { children: ReactNode }) {
       onContextMenu={(event) => {
         const target = event.target;
         if (!(target instanceof HTMLElement)) return;
-        // Right-click on the editable surface itself (its padding, not a
-        // block) keeps the native menu.
         if (target.dataset.slateEditor === "true") return;
-        // No block took the right-click (e.g. frontmatter is not
-        // selectable) → nothing for the menu to act on.
         if (editor.getOption(BlockSelectionPlugin, "selectedIds")?.size === 0) return;
         event.preventDefault();
         api.blockMenu.show(BLOCK_CONTEXT_MENU_ID, { x: event.clientX, y: event.clientY });

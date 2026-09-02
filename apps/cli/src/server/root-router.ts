@@ -1,7 +1,5 @@
-// THE composed router, and the completeness check. `base.router({...})` is the
-// type-check point: a handler that drifts from its contract row — or a
-// procedure nobody implemented — fails to compile HERE, so the contract's
-// coverage needs no test beside it.
+// base.router is the completeness check: a handler drifting from its contract
+// row, or a procedure nobody implemented, fails to compile here.
 
 import { agentsRouter } from "./agents/agents-router";
 import { cloudRouter } from "./cloud/cloud-router";

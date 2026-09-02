@@ -1,7 +1,3 @@
-// The trash panel: what is in the vault's Trash/, restorable in place. A
-// dialog rather than a routing surface — the list is the whole feature, and
-// entries age out on their own (30 days, the server's sweep).
-
 import { Button } from "@repo/ui/components/button";
 import {
   Dialog,
@@ -20,7 +16,6 @@ import { useWorkspace } from "../workspace-context";
 export interface TrashDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Open a restored note in the editor. */
   onOpenNote: (path: string) => void;
 }
 
@@ -54,9 +49,8 @@ export function TrashDialog({ open, onOpenChange, onOpenNote }: TrashDialogProps
   });
 
   const entries = trashQuery.data?.entries ?? [];
-  // Ages as of the listing on screen, not of whatever render drew it: reading
-  // the clock during render is impure, and this query refetches every time the
-  // dialog opens, so its own stamp is both pure and the freshest honest one.
+  // Not Date.now(): a clock read in render is impure, and the query refetches
+  // on every open anyway.
   const now = trashQuery.dataUpdatedAt;
 
   return (

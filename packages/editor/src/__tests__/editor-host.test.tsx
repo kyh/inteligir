@@ -1,12 +1,3 @@
-// The seam between the editor and the shell that mounts it, driven through the
-// component furthest from either: a wiki chip, which sits inside the Plate tree
-// and reaches the shell for both of the things it can do.
-//
-// The chip has no vault, no Bridge and no workspace under it here — only the
-// injected host — which is the whole point of the seam. If a capability the
-// editor already owns leaks back into `VaultActions`, this file is where it
-// shows up as a port nobody could substitute.
-
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -40,7 +31,6 @@ describe("a wiki chip over a controlled host", () => {
     const calls = mountChip("Someday");
 
     fireEvent.click(screen.getByRole("button", { name: "Someday" }));
-    // The click opened the offer; it did not write a file.
     expect(calls).toEqual([]);
 
     fireEvent.click(screen.getByRole("button", { name: /Create/ }));

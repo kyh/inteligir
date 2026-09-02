@@ -1,25 +1,5 @@
-// open-note-store's gate-analysis state machine (publishEditor) — the delicate
-// part of the workspace's high-cadence slice. It runs outside a React render,
-// where the re-render loop would implicitly supply the "one consistent
-// snapshot" guarantee, so the store has to supply it explicitly.
-// The pure half (deriveOpenDoc) is covered by open-doc.test.ts; this covers the
-// TIMING half, which is where the real hazards live:
-//
-//   1. A path change must land gate verdict + editor in ONE store update. A
-//      torn intermediate — the new file's bytes paired with the old file's
-//      verdict — would mount Plate against unparseable content, and the first
-//      Rich save would write mangled bytes over the user's file.
-//   2. A same-path settle defers the (expensive) analysis to a microtask and
-//      must DROP itself when the world moved on — superseded content, a path
-//      change, or a buffer that went dirty again. A stale pass applying would
-//      pin a verdict to bytes that are no longer in the buffer.
-//   3. The Rich→Raw flip toast explains a surface swap the user did not ask
-//      for. It must not fire on a fresh open (the file opens straight into the
-//      textarea) or while the user is already looking at it.
-//
-// The real markdown gate runs here on purpose: mocking analyzeMarkdown would
-// turn "is the verdict for these bytes?" into "was the mock called?", and the
-// point of this file is that a future refactor of the machine fails loudly.
+// The real markdown gate runs here: mocking analyzeMarkdown would turn "is the
+// verdict for these bytes?" into "was the mock called?".
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -27,7 +7,6 @@ import { describeGateReason } from "@repo/editor/markdown/markdown-doc";
 import type { VaultEditorState } from "@repo/editor/vault-editor";
 import type { OpenNoteState } from "@repo/editor/note/open-note-store";
 
-// The gate-flip toast is this machine's only effect outside the store.
 vi.mock("@repo/ui/components/sonner", () => ({
   toast: Object.assign(vi.fn(), {
     error: vi.fn(),
@@ -39,8 +18,6 @@ vi.mock("@repo/ui/components/sonner", () => ({
 const { toast } = await import("@repo/ui/components/sonner");
 const { createOpenNoteStore } = await import("@repo/editor/note/open-note-store");
 
-// A fresh instance per test (beforeEach below): the store is a factory, so no
-// case inherits the previous one's analysis token or history.
 let store = createOpenNoteStore();
 const publishEditor: (typeof store)["publishEditor"] = (editor) => store.publishEditor(editor);
 const publishOpenPath: (typeof store)["publishOpenPath"] = (path, change) =>
@@ -60,11 +37,10 @@ const ROOT = "/vault";
 const RICH_PATH = "notes/a.md";
 const OTHER_PATH = "notes/b.md";
 
-// Rich-capable: parses in-vocabulary and round-trips byte-canonically.
+// parses and round-trips byte-canonically
 const RICH_MD = "# Hello\n\nA plain paragraph.\n";
 const RICH_MD_2 = "# Hello\n\nA plain paragraph, revised.\n";
-// Raw-only: the closing tag does not match, so the document does not parse at
-// all and the gate refuses Rich. Asserted below rather than assumed.
+// the closing tag does not match, so the gate refuses Rich
 const GATED_MD = "<Foo>centered</Bar>\n";
 const GATED_MD_2 = "<Foo>again</Bar>\n";
 const GATED_REASON = {
@@ -74,10 +50,6 @@ const GATED_REASON = {
     "Unexpected closing tag `</Bar>`, expected corresponding closing tag for `<Foo>` (1:1-1:6)",
 } as const;
 
-/** The smallest stand-in for the slice of VaultEditorController the provider's
- * publish subscription touches: a state snapshot plus subscribers. The test
- * drives `emit` wherever the real controller's open/edit/flush would, so the
- * store sees the same emission shapes and ordering it sees in production. */
 class FakeController {
   private state: VaultEditorState = {
     root: ROOT,
@@ -103,8 +75,7 @@ class FakeController {
   }
 }
 
-/** Mirror the vault session's `ensureRuntime` wiring: subscribe first, then
- * publish once, so no emission can slip between snapshot and subscription. */
+// subscribe first, then publish once, so no emission slips between snapshot and subscription
 function mountRuntime(): FakeController {
   const controller = new FakeController();
   controller.subscribe(() => publishEditor(controller.getState()));
@@ -112,8 +83,6 @@ function mountRuntime(): FakeController {
   return controller;
 }
 
-/** Open a note the way the provider does: a fresh runtime publishes its empty
- * state, the intent path lands, then the read resolves with the file's bytes. */
 function openNote(path: string, content: string): FakeController {
   const controller = mountRuntime();
   publishOpenPath(path);
@@ -121,8 +90,6 @@ function openNote(path: string, content: string): FakeController {
   return controller;
 }
 
-/** Record every state the store publishes — the machine's OBSERVABLE history,
- * which is what atomicity is a claim about. */
 function recordStates() {
   const seen: OpenNoteState[] = [];
   const stop = useOpenNote.subscribe((s) => {
@@ -131,16 +98,9 @@ function recordStates() {
   return { seen, stop };
 }
 
-/** One macrotask hop — queueMicrotask callbacks all drain before it, without
- * the test having to guess how many promise ticks the machine takes. */
+// one macrotask hop, so every queued microtask drains without counting promise ticks
 const drain = (): Promise<void> => new Promise<void>((resolve) => setTimeout(resolve, 0));
 
-/**
- * The atomicity invariant, checked against every observed state: whenever a
- * file is loaded, the gate verdict on display was computed for THAT file. A
- * snapshot pairing one file's bytes with another file's verdict is exactly the
- * torn state the single-apply path-change branch exists to prevent.
- */
 function expectGateInLockstep(seen: readonly OpenNoteState[]): void {
   for (const s of seen) {
     if (s.editor.path === null) continue;
@@ -148,7 +108,6 @@ function expectGateInLockstep(seen: readonly OpenNoteState[]): void {
   }
 }
 
-/** Every state in which the given file was shown through the rich editor. */
 function richSnapshotsFor(seen: readonly OpenNoteState[], path: string): OpenNoteState[] {
   return seen.filter(
     (s) =>
@@ -163,16 +122,12 @@ describe("open-note-store publishEditor", () => {
   });
 
   afterEach(async () => {
-    // Draining first always leaves the module-level pending target null: a
-    // superseded pass is a no-op and the superseding one clears it, so no
-    // deferred analysis can bleed into the next test.
+    // drain first so no deferred analysis bleeds into the next test
     await drain();
     useOpenNote.setState(useOpenNote.getInitialState(), true);
   });
 
   it("gates a Raw-only file on the real markdown pipeline", () => {
-    // Pins the fixtures the rest of the file leans on: if `<div>` ever enters
-    // the vocabulary, these tests should fail HERE and not mysteriously below.
     openNote(RICH_PATH, RICH_MD);
     expect(useOpenNote.getState().analyzed.rawReason).toBeNull();
 
@@ -183,22 +138,15 @@ describe("open-note-store publishEditor", () => {
 
   describe("path change", () => {
     it("lands verdict + editor in ONE update — a Raw-only file is never shown rich", () => {
-      // Start on a rich file so the state being replaced is the dangerous one:
-      // rawReason null carried over would render Plate against the next
-      // file's unparseable bytes.
       openNote(RICH_PATH, RICH_MD);
 
       const { seen, stop } = recordStates();
-      // Switch files exactly as the provider does (dispose → fresh runtime →
-      // intent path → read resolves).
       const controller = mountRuntime();
       publishOpenPath(OTHER_PATH);
       const beforeLoad = seen.length;
       controller.emit({ path: OTHER_PATH, content: GATED_MD, dirty: false });
       stop();
 
-      // The load is ONE store update: verdict and bytes arrive together, so
-      // there is no frame in which a subscriber could read a stale pairing.
       expect(seen.length - beforeLoad).toBe(1);
 
       const landed = seen[seen.length - 1];
@@ -215,15 +163,11 @@ describe("open-note-store publishEditor", () => {
         surface: { mode: "raw", reason: GATED_REASON },
       });
 
-      // The whole observable history, not just the endpoint.
       expectGateInLockstep(seen);
       expect(richSnapshotsFor(seen, OTHER_PATH)).toEqual([]);
     });
 
     it("an in-place path swap never shows the new file through the old file's verdict", () => {
-      // The sharp version of the same property: no intervening empty state to
-      // launder the carried-over "rich + no reason" pair, so a two-step apply
-      // would put Plate on top of unparseable bytes for one observable frame.
       const controller = openNote(RICH_PATH, RICH_MD);
 
       const { seen, stop } = recordStates();
@@ -243,7 +187,6 @@ describe("open-note-store publishEditor", () => {
         surface: { mode: "raw", reason: GATED_REASON },
       });
 
-      // An external edit removes the unrepresentable construct.
       controller.emit({ content: RICH_MD, dirty: false });
       await drain();
       expect(useOpenNote.getState().openDoc).toEqual({
@@ -258,13 +201,9 @@ describe("open-note-store publishEditor", () => {
     it("defers to a microtask rather than blocking the settle", async () => {
       const controller = openNote(RICH_PATH, RICH_MD);
 
-      controller.emit({ content: GATED_MD, dirty: true }); // typing
-      controller.emit({ dirty: false }); // autosave settle
+      controller.emit({ content: GATED_MD, dirty: true });
+      controller.emit({ dirty: false });
 
-      // Synchronously after the settle the verdict still describes the PRIOR
-      // saved bytes — the accepted one-frame window (the note is already on
-      // screen with that verdict, and analyzeMarkdown is far too heavy to run
-      // on the autosave commit path).
       expect(useOpenNote.getState().analyzed.content).toBe(RICH_MD);
       expect(useOpenNote.getState().analyzed.rawReason).toBeNull();
 
@@ -280,8 +219,6 @@ describe("open-note-store publishEditor", () => {
       const controller = openNote(RICH_PATH, RICH_MD);
       const { seen, stop } = recordStates();
 
-      // Settle on unparseable bytes, then settle again on clean bytes before
-      // the microtask runs — the first pass must never apply.
       controller.emit({ content: GATED_MD, dirty: false });
       controller.emit({ content: RICH_MD_2, dirty: false });
       await drain();
@@ -292,25 +229,17 @@ describe("open-note-store publishEditor", () => {
         content: RICH_MD_2,
         path: RICH_PATH,
       });
-      // The superseded verdict never became observable, so the note never
-      // flickered into the textarea.
       expect(seen.some((s) => s.analyzed.content === GATED_MD)).toBe(false);
       expect(vi.mocked(toast.warning)).not.toHaveBeenCalled();
       expectGateInLockstep(seen);
     });
 
     it("collapses a burst of settles into exactly ONE analysis apply", async () => {
-      // Each settle queues its own microtask, so N settles queue N passes. The
-      // contract the deferral exists to buy — "one analysis pass per SAVED
-      // content change" — only holds if the superseded passes drop themselves
-      // instead of re-deriving a verdict that is already correct. Observable
-      // as store updates: a redundant pass is a redundant re-render of every
-      // editor consumer, on the heaviest function in the editor.
       const controller = openNote(RICH_PATH, RICH_MD);
 
       controller.emit({ content: GATED_MD, dirty: false });
       controller.emit({ content: RICH_MD_2, dirty: false });
-      controller.emit({ content: GATED_MD, dirty: false }); // back to the first bytes
+      controller.emit({ content: GATED_MD, dirty: false });
 
       const { seen, stop } = recordStates();
       await drain();
@@ -327,10 +256,7 @@ describe("open-note-store publishEditor", () => {
     it("drops a pass cancelled by a path change", async () => {
       const controller = openNote(RICH_PATH, RICH_MD);
 
-      controller.emit({ content: GATED_MD, dirty: false }); // schedules a pass
-      // The user switches files before the microtask runs. The in-flight pass
-      // belongs to the file that is no longer open; applying it would stamp
-      // a.md's verdict onto b.md.
+      controller.emit({ content: GATED_MD, dirty: false });
       const next = mountRuntime();
       publishOpenPath(OTHER_PATH);
       next.emit({ path: OTHER_PATH, content: RICH_MD, dirty: false });
@@ -351,11 +277,8 @@ describe("open-note-store publishEditor", () => {
     it("drops a pass whose buffer went dirty again, and re-runs on the next settle", async () => {
       const controller = openNote(RICH_PATH, RICH_MD);
 
-      controller.emit({ content: GATED_MD, dirty: false }); // schedules a pass
-      // The buffer is re-dirtied at the SAME bytes before the microtask runs
-      // (a paste-then-undo, or a transient settle re-emitting the buffer):
-      // path and content still match the target, so `dirty` is the only thing
-      // keeping the pass from stamping a verdict on an unsaved buffer.
+      controller.emit({ content: GATED_MD, dirty: false });
+      // same bytes, so only `dirty` distinguishes this from the scheduled target
       controller.emit({ dirty: true });
       await drain();
 
@@ -365,7 +288,6 @@ describe("open-note-store publishEditor", () => {
         path: RICH_PATH,
       });
 
-      // Dropped, not lost: the next clean settle analyzes the same bytes.
       controller.emit({ dirty: false });
       await drain();
       expect(useOpenNote.getState().analyzed).toEqual({

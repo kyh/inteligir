@@ -1,14 +1,6 @@
-// Narrows `ProviderEvent` (@repo/agent-runtime — the EMITTED grammar, bb's
-// full union) onto `ThreadEvent` (@repo/domain — the PERSISTED grammar, that
-// union trimmed to the kinds v1 renders). The rule from the domain header
-// applies here in reverse: an event kind the persisted grammar does not
-// carry is DROPPED with a stated reason, never re-shaped — re-vendor the
-// kind into @repo/domain when it earns a renderer. Turn identity is
-// rewritten from the provider's turn id to the host's: the manager owns the
-// binding, this module only stamps the id it is handed.
-//
-// Every leaf the two unions share is one type in @repo/domain, so a narrowing
-// ASSIGNS it. A field-by-field respelling here would mean the two had drifted.
+// a kind the persisted grammar lacks is dropped with a reason, never re-shaped: re-vendor it into @repo/domain
+// when it earns a renderer. shared leaves are one type in @repo/domain, so a narrowing assigns them; a
+// field-by-field respelling here means the two drifted.
 
 import type { ProviderEvent } from "@repo/agent-runtime/vocabulary/provider-event";
 import type { ThreadEvent, ThreadEventItem } from "@repo/domain/provider-event";
@@ -68,10 +60,9 @@ function mapItem(item: ProviderItem): ThreadEventItem | null {
     }
     case "plan":
       return { type: "plan", id: item.id, text: item.text };
-    // The send path already recorded the user's message as
-    // client/turn/requested; the provider's echo would double it.
+    // the send path already recorded the user's message; the provider's echo would double it.
     case "userMessage":
-    // No renderer in the persisted grammar yet:
+    // no renderer in the persisted grammar yet:
     case "webSearch":
     case "webFetch":
     case "imageView":
@@ -80,10 +71,6 @@ function mapItem(item: ProviderItem): ThreadEventItem | null {
   }
 }
 
-/**
- * `turnId` is the HOST's id for the turn this event belongs to, or null when
- * the manager holds no binding (then only thread-scoped kinds survive).
- */
 export function mapProviderEvent(
   event: ProviderEvent,
   turnId: string | null,

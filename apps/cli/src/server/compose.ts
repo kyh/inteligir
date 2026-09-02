@@ -1,18 +1,6 @@
-// THE COMPOSITION ROOT: every service `inteligir serve` runs, constructed in
-// boot order in ONE function and returned as a VALUE — the typed context the
-// routes are wired over (`app.ts`), and the ordered teardown the shutdown
-// sequence runs. `serve.ts` adds only what needs a bound port (the listener
-// step); `__tests__/boot-app.ts` calls the same function with hermetic ports,
-// so the production graph and the suites' graph cannot diverge.
-//
-// Two dials are INJECTED rather than imported here, and the reason is the
-// same for both: the renderer's booted suites reach this module through
-// `inteligir/server/testing`, so everything imported here is compiled by the
-// browser tsconfig and loaded into every one of those suites. The cloud
-// socket opener must stay out of that graph (`cloud/cloud-socket.ts` states
-// why), and the ACP agent runtime is the heavyweight the page's suites must
-// not load — so `driver` is a required argument, and `serve.ts` is the one
-// place that supplies the real resolver.
+// reachable from the renderer's suites through `inteligir/server/testing`, so everything imported
+// here compiles under the browser tsconfig: the cloud socket opener and the acp agent runtime are
+// injected (`cloudTransport`, `driver`) rather than imported, and serve.ts supplies the real ones.
 
 import { closeConnection, createConnection, type DbConnection } from "@repo/db/connection";
 import { getSchemaVersion } from "@repo/db/meta";
@@ -60,12 +48,7 @@ import {
 import { VoiceStreamHub } from "./voice/voice-stream-hub";
 import { WsBus } from "./ws-bus";
 
-/**
- * The one step this composition cannot register — it needs a bound port —
- * placed where the teardown order requires it: at the FRONT, so the listener
- * closes the sockets before any service behind it, the vault flush included.
- * One spelling, so the position is never a caller's choice.
- */
+// unshift: the listener must close its sockets before any service behind it, the vault flush included.
 export function registerListener(teardown: ShutdownStep[], run: () => Promise<void>): void {
   teardown.unshift(teardownStep("listener", run));
 }
@@ -80,66 +63,36 @@ interface ComposeDriverDeps {
   folders: FoldersService;
 }
 
-/** The hermetic seams a suite injects; production passes none of these. */
 export interface ComposePorts {
-  /** A pairing must not pop a window on whoever ran the suite. */
   openExternalUrl?: OpenExternalUrl;
-  /** The availability probe and the inference child, without a vendor CLI. */
   inference?: Pick<NoteIntelligenceDeps, "availability" | "infer">;
-  /** No watcher fork, hermetic git, no remote. */
   vault?: Pick<VaultRuntimeArgs, "watch" | "gitEnv" | "remote">;
 }
 
 export interface ComposeRuntimeArgs {
   config: AppConfig;
-  /** What the availability probes read; the config layer already resolved
-   *  everything else out of it. */
   env: NodeJS.ProcessEnv;
   version: string;
-  /**
-   * Which agent driver boots, given the services that exist by then. Required
-   * rather than defaulted — see the header for why the real resolver cannot
-   * be imported here, and a silent default would be an agent that is off.
-   */
+  // required, not defaulted: a silent default is an agent that is off.
   driver: (deps: ComposeDriverDeps) => ResolvedAgentDriver;
-  /** The sync loop's wire. Absent, the runtime dials its own fetch and stays
-   *  poll-only — the socket opener can only arrive by injection. */
   cloudTransport?: CloudTransport;
-  /**
-   * The caller's LIVE steps array, filled here as the boot proceeds. Passed in
-   * rather than created so the caller can install its shutdown handlers over
-   * it BEFORE composing: a ^C during a slow first boot (a cold vault
-   * reconcile, a clone) then tears down what already exists instead of being
-   * ignored. Absent, a fresh array is created — the returned value either way.
-   */
+  // passed in live so the caller can install its shutdown handlers before composing:
+  // a ^C during a slow first boot then tears down what already exists.
   teardown?: ShutdownStep[];
   ports?: ComposePorts;
 }
 
 export interface ComposedRuntime {
-  /** What `createApp` wires the routes over. */
   context: AppServices;
   bus: WsBus;
   db: DbConnection;
   voiceStreamHub: VoiceStreamHub;
-  /** Where the vault's remote comes from, re-read per pass; the boot log's
-   *  one read lives in serve.ts. */
   vaultRemote: VaultRemoteProvider;
-  /**
-   * The ordered teardown, in the budgets table's order minus `listener` —
-   * which only the caller that binds a port can add, through
-   * `registerListener`. Each step was registered the moment its resource came
-   * up (unshift, so reversing creation yields the teardown order shutdown.ts
-   * states), which is what makes a FAILED boot survivable: a listen that
-   * throws EADDRINUSE still has a vault watcher forked and a database open,
-   * and the caller's shutdown over this array is what releases both.
-   */
+  // each step is unshifted as its resource comes up, so a boot that throws (EADDRINUSE
+  // with the watcher forked and the db open) is still torn down by the caller.
   teardown: ShutdownStep[];
 }
 
-/** Every service, boot-ordered: db → vault → knowledge → intelligence →
- *  agent → cloud/threads/comments → voice, then the cloud loop starts. No
- *  listen, no process, no signals. */
 export async function composeRuntime(args: ComposeRuntimeArgs): Promise<ComposedRuntime> {
   const { config, env } = args;
   const ports = args.ports ?? {};
@@ -155,9 +108,8 @@ export async function composeRuntime(args: ComposeRuntimeArgs): Promise<Composed
   const schemaVersion = getSchemaVersion(db, runMigrations(db, resolveMigrationsFolder()));
 
   const bus = new WsBus();
-  // The knowledge runtime needs the vault service the runtime hands back, so
-  // the hook late-binds; changes before it exists are covered by the boot
-  // reconcile the first pass always runs.
+  // late-bound: the knowledge runtime needs the vault service; changes before it exists
+  // are covered by the boot reconcile.
   let knowledgeRef: KnowledgeRuntime | null = null;
   let noteIntelligenceRef: NoteIntelligence | null = null;
   const vaultRemote =
@@ -193,26 +145,17 @@ export async function composeRuntime(args: ComposeRuntimeArgs): Promise<Composed
   register("knowledge", () => knowledge.dispose());
   knowledgeRef = knowledge;
 
-  // The connectors registry: ONE service, consumed twice — the routes edit it,
-  // session launch composes its enabled rows into every harness's mcpServers.
   const connectorsStore = createConnectorsStore(config.dataDir);
   const connectors = createConnectorsService(connectorsStore);
-  // The OAuth dance for hosted rows: the pairing discipline over the same
-  // store — one pending slot, tokens landing beside the row.
   const connectorsOauth = createConnectorOauthFlow(connectorsStore);
-  // Connected Folders: reference dirs sessions are told about — an affordance
-  // and an instructions line, never a permission grant.
   const folders = createFoldersService({
     store: createFoldersStore(config.dataDir),
     vaultDir: config.vaultDir,
     dataDir: config.dataDir,
   });
 
-  // Note Intelligence: OFF until the Settings toggle turns it on; the
-  // files-changed hook above only ever schedules, never spawns, while
-  // disabled. The PATH probe is the agent driver's, one spelling
-  // (`binaryOnPath`) — an install without the vendor CLI says so in status
-  // rather than spawning a command that is not there once per note.
+  // probed once: an install without the vendor cli reports it in status rather than
+  // spawning a missing command per note.
   const inference = ports.inference ?? {
     availability:
       binaryOnPath(INFERENCE_BINARY, env) === null
@@ -247,23 +190,18 @@ export async function composeRuntime(args: ComposeRuntimeArgs): Promise<Composed
     folders,
   });
   register("agent", () => {
-    // The oauth flow serves agent sessions; it stops when they do — a
-    // callback landing after this exchanges nothing and writes nothing.
+    // the oauth flow serves agent sessions, so it stops with them.
     connectorsOauth.dispose();
     return agentDriver.dispose();
   });
 
-  // Built BEFORE the thread service, which needs its outbox hook at
-  // construction; the ingest sink goes back the other way once that service
-  // exists. An install with no credential in its data dir starts nothing here.
+  // before the thread service, which takes the outbox hook at construction; attach() closes the other direction.
   const cloudArgs: CloudRuntimeArgs = {
     db,
     dataDir: config.dataDir,
     cloudUrl: config.cloudUrl,
     vault: vault.service,
-    // Another device pushed vault bytes (or a pairing just completed): run a
-    // vault sync pass. The rebase's consolidated files-changed notification
-    // then carries the applied changes to the renderer on its own.
+    // the rebase's own files-changed notification carries the applied changes to the renderer.
     onVaultPing: () => {
       void vault.syncNow();
     },
@@ -278,16 +216,12 @@ export async function composeRuntime(args: ComposeRuntimeArgs): Promise<Composed
     createTurnDriver: agentDriver.createTurnDriver,
     sync: cloud,
   });
-  // Crash recovery is a WRITE (it settles orphaned turns, frees claims and
-  // enqueues to the outbox), so it runs here, where the boot order is
-  // decided, rather than as a constructor side effect.
+  // crash recovery writes (settles turns, frees claims, enqueues), so it runs in boot order, not in the constructor.
   threads.boot();
   cloud.attach(threads);
 
-  // `scripted` is selected by INTELIGIR_VOICE and is the whole reason the
-  // scenario suite can drive a microphone: it answers `ready` with no model on
-  // disk and no native binding loaded, so everything ABOVE the decode — the
-  // permission, the capture, the wire, the composer insertion — is real.
+  // scripted answers `ready` with no model and no native binding, so the scenario suite
+  // drives everything above the decode for real.
   const voice: VoiceService =
     config.voice === "scripted"
       ? new ScriptedVoiceService()
@@ -295,15 +229,9 @@ export async function composeRuntime(args: ComposeRuntimeArgs): Promise<Composed
   register("voice", () => voice.dispose());
   const voiceStreamHub = new VoiceStreamHub(voice);
 
-  // Started LAST, once every service it announces through exists — and here,
-  // so one place starts it for both callers. Nothing is lost by starting
-  // before the routes mount: the bus has no clients until a socket is
-  // injected, and a client that connects later reads fresh state anyway.
+  // last, once every service it announces through exists; the bus has no clients before a socket is injected.
   cloud.start();
 
-  // Everything a handler can reach, built once. The comments sidecar rides the
-  // vault service, so containment, the watcher ping, auto-commit and sync come
-  // with it; its timestamps are unix seconds minted at this boundary.
   const context: AppServices = {
     cloud,
     comments: createCommentsService(vault.service, () => Math.floor(Date.now() / 1000)),

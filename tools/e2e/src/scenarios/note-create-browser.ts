@@ -1,9 +1,3 @@
-// A note created THROUGH THE SESSION lands on disk. Every other scenario seeds
-// its notes by calling `vault.write` directly — the one path a broken session
-// create never takes — so this one drives the renderer's own port: the
-// sidebar's "New note", the inline name, Enter. What is asserted is the file
-// the server wrote, which is what a user would go looking for.
-
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
@@ -17,7 +11,6 @@ const NOTE_PATH = `${NOTE_NAME}.md`;
 const CREATE_DEADLINE_MS = 30_000;
 const SIDEBAR = '[data-slot="sidebar-wrapper"]';
 const EDITOR = '[data-slate-editor="true"]';
-/** The file tree's inline name box, which the sidebar's "New note" opens. */
 const NAME_INPUT = '[role="tree"] input[aria-label="Name"]';
 
 export const noteCreateBrowser: Scenario = {

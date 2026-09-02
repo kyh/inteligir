@@ -1,14 +1,7 @@
-// Folds are VIEW state keyed by note. Opening another note must not carry the
-// previous one's folded sections onto it, and persisting one note's folds must
-// not drop the record every other note's live in — the store holds only the
-// notes this process opened, so a whole-record write from it alone would erase
-// the rest.
-
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { headingCollapseKeys, toggleHeadingCollapse } from "@repo/editor/heading-collapse";
 
-/** localStorage as jsdom-free tests see it: a plain map, readable back. */
 function stubStorage(): Map<string, string> {
   const written = new Map<string, string>();
   vi.stubGlobal("localStorage", {

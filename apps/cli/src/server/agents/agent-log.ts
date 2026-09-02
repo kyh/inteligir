@@ -1,12 +1,9 @@
-// Bounded logging for the agent drivers' drop/diagnostic stream. A chatty
-// new harness version (an unpersisted event kind arriving hundreds of times a
-// turn) must be VISIBLE without flooding: messages collapse onto a key with
-// the volatile ids stripped, the first occurrence per key logs in full, and
-// every REPORT_EVERY-th repeat logs the running count.
+// first occurrence per key logs in full, every REPORT_EVERY-th repeat logs the count: a chatty harness stays
+// visible without flooding.
 
 const REPORT_EVERY = 100;
 
-/** thr_x/turn_x/cthr_x… prefixed ids, long hex runs, and absolute paths. */
+// thr_x/turn_x-style prefixed ids, long hex runs, and absolute paths.
 const VOLATILE_ID_PATTERN = /\b[a-z]+_[a-z0-9-]{4,}\b|\b[0-9a-f]{12,}\b|(?:\/[\w.-]+){2,}/gi;
 
 export function boundedLogKey(message: string): string {

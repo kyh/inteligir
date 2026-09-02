@@ -1,5 +1,3 @@
-// Inputs: everything that takes something from the reader.
-
 import { Checkbox } from "@repo/ui/components/checkbox";
 import { Input } from "@repo/ui/components/input";
 import { InputGroup, InputGroupAddon } from "@repo/ui/components/input-group";
@@ -21,8 +19,6 @@ import { useState } from "react";
 
 import { Demo, DemoCase, GallerySection } from "./gallery-chrome";
 
-/** The pinned-state demos are deliberately inert — they show a state, not a
- *  control the reader is meant to change. */
 const noop = (): void => undefined;
 
 export function InputsSection() {

@@ -5,7 +5,6 @@ import * as THREE from "three";
 
 const PI2 = Math.PI * 2;
 
-// Helix proportions — same shape as reference, scaled to fit camera
 const HELIX_LENGTH = 2.8;
 const HELIX_AMPLITUDE = HELIX_LENGTH * (5.6 / 30);
 const HELIX_TUBE_RADIUS = HELIX_AMPLITUDE * (1.1 / 5.6);
@@ -52,8 +51,7 @@ function HelixTube({ baseColor }: { baseColor: string }) {
         true,
       ),
   );
-  // Painted at the caller's current color so the first frame is not a flash of
-  // white; a later theme change lerps rather than cuts.
+  // seeded with the current color so the first frame is not a flash of white
   const [material] = useState(() => new THREE.MeshBasicMaterial({ color: baseColor }));
   const targetColor = useMemo(() => new THREE.Color(baseColor), [baseColor]);
 
@@ -74,12 +72,7 @@ function HelixTube({ baseColor }: { baseColor: string }) {
   return <mesh ref={meshRef} geometry={geometry} material={material} />;
 }
 
-export function GeometricOrb({
-  baseColor = "#eeeeee",
-}: {
-  /** Color of the helix; pass a dark value in light mode. */
-  baseColor?: string;
-}) {
+export function GeometricOrb({ baseColor = "#eeeeee" }: { baseColor?: string }) {
   return (
     <Canvas camera={{ position: [0, 0, CAMERA_Z], fov: 65 }} gl={{ antialias: true, alpha: true }}>
       <HelixTube baseColor={baseColor} />

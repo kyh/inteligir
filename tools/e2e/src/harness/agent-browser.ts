@@ -1,24 +1,11 @@
-// The headless browser the browser scenarios drive, and the preamble every
-// one of them owes before it can assert anything.
-//
-// THE ENVIRONMENT PROBE IS NOT AN ASSERTION. `about:blank` needs nothing of
-// the product, so a failure there is a gap in the machine and reports SKIP
-// with the exact error the CLI printed; every step a scenario takes after it —
-// opening the app's own URL included — is a real assertion. That split is the
-// reason this lives in the harness: it is a property of the suite, and six
-// copies of it are six chances for one scenario to fail where the others skip.
-
 import { z } from "zod";
 import { skip } from "./assert";
 import { exec, ExecError } from "./exec";
 
-/** One scenario's browser, answering the command's trimmed stdout. */
 export type AgentBrowser = (args: readonly string[], timeoutMs?: number) => Promise<string>;
 
-/** A browser on `label`'s own agent-browser session: scenarios run in one
- *  process against one machine, so the label keeps them off each other's tabs
- *  and the pid keeps two runs of the suite apart. */
 export function agentBrowserSession(label: string): AgentBrowser {
+  // label keeps scenarios off each other's tabs; pid keeps two runs of the suite apart.
   const session = `inteligir-e2e-${label}-${process.pid}`;
   return async (args, timeoutMs = 60_000) => {
     const result = await exec("agent-browser", ["--session", session, ...args], { timeoutMs });
@@ -26,18 +13,12 @@ export function agentBrowserSession(label: string): AgentBrowser {
   };
 }
 
-/** agent-browser eval answers a JSON-encoded string (page evals always yield
- *  strings via String()/JSON.stringify); unwrap, then parse the payload at
- *  this boundary against the schema the caller expects. */
+// agent-browser eval answers a JSON-encoded string; an object payload is a second JSON layer in it.
 export function parseEval<T>(raw: string, schema: z.ZodType<T>): T {
   const text = z.string().parse(JSON.parse(raw));
   return schema.parse(/^[{[]/u.test(text) ? JSON.parse(text) : text);
 }
 
-/** An error with the output it captured — a CLI that failed says why on its
- *  own streams, so a reason that drops them is one nobody can act on. Local:
- *  the skip below is the only report that needs it, and an export nothing
- *  imports fails this repo's knip gate. */
 function describeExecError(cause: unknown): string {
   if (cause instanceof ExecError) {
     return [cause.message, cause.stdout.trim(), cause.stderr.trim()]
@@ -47,8 +28,8 @@ function describeExecError(cause: unknown): string {
   return cause instanceof Error ? cause.message : String(cause);
 }
 
-/** Can a headless browser launch HERE at all? Skips the scenario if not (see
- *  the header); returns, and the caller asserts from there. */
+// about:blank needs nothing of the product, so a failure here is an environment gap (skip), not an
+// assertion.
 export async function probeHeadlessOrSkip(
   browser: AgentBrowser,
   log: (message: string) => void,

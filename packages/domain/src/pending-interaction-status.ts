@@ -2,12 +2,8 @@
 
 import { z } from "zod";
 
-/**
- * An interaction row's lifecycle. Both spellings live here because both sides
- * need a different one: the drizzle column takes the tuple, the wire schema
- * takes the enum, and a status added to only one of them is a runtime
- * ZodError on a row the store was happy to write.
- */
+// the drizzle column takes the tuple and the wire schema the enum; one list so a status cannot
+// exist on only one side.
 export const pendingInteractionStatusValues = [
   "pending",
   "resolving",

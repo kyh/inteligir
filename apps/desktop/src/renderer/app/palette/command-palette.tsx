@@ -1,8 +1,5 @@
-// One palette, one query box: note hits from the INJECTED async search
-// source (the workspace wires the knowledge index's full-text + tag search,
-// filename tiers as the zero-query/fallback view) above the command list.
-// Filtering is entirely ours (shouldFilter off) so the note source and the
-// command matcher stay two visible functions rather than cmdk heuristics.
+// shouldFilter is off: the search source and matchesQuery are the filtering,
+// not cmdk's heuristics.
 
 import {
   CommandDialog,
@@ -38,24 +35,16 @@ export interface PaletteActions {
   syncNow: () => void;
   openSettings: () => void;
   openTrash: () => void;
-  /** Null while no note is open — the row only exists with a document. */
   exportPdf: (() => void) | null;
 }
 
 export interface CommandPaletteProps {
   open: boolean;
-  /** Seeded into the box whenever the palette opens (and whenever the seed
-   * itself changes): a `#tag` chip click opens it as `tag:<name>`, which the
-   * search source already understands — there is no second tag surface. */
   initialQuery?: string;
   onOpenChange: (open: boolean) => void;
-  /** Folder listing for the new-note-in-folder page. */
   entries: readonly VaultEntry[];
-  /** Recent actions, list order (live first, newest first). */
   threads: readonly Thread[];
   searchSource: NoteSearchSource;
-  /** Hidden when the vault has no remote — a command that cannot run is
-   *  noise, not affordance. */
   canSync: boolean;
   actions: PaletteActions;
 }
@@ -71,7 +60,6 @@ function threadRowDetail(thread: Thread): string {
   return thread.originDocPath === null ? activity : `${activity} · ${thread.originDocPath}`;
 }
 
-/** One quiet keystroke gap before the source is asked at all. */
 const SEARCH_DEBOUNCE_MS = 120;
 
 interface StaticCommand {
@@ -79,7 +67,6 @@ interface StaticCommand {
   label: string;
   shortcut?: string;
   icon: React.ReactNode;
-  /** The palette stays open (the command navigates to another page). */
   keepOpen?: boolean;
   run: () => void;
 }
@@ -102,10 +89,8 @@ export function CommandPalette({
   const [page, setPage] = useState<Page>("root");
   const [noteHits, setNoteHits] = useState<NoteSearchHit[]>([]);
 
-  // Every opening starts on the root page, in the box the caller asked for —
-  // including a caller that routes a fresh query into an already-open palette.
-  // Adjusting as the props arrive rather than after the commit means the box is
-  // never painted holding the previous opening's text.
+  // Adjusted during render rather than in an effect, so the box is never
+  // painted holding the previous opening's text.
   const [openedAs, setOpenedAs] = useState({ open: false, query: initialQuery });
   if (openedAs.open !== open || openedAs.query !== initialQuery) {
     setOpenedAs({ open, query: initialQuery });
@@ -115,9 +100,6 @@ export function CommandPalette({
     }
   }
 
-  // Async hits, debounced and abortable: a keystroke cancels the pending
-  // timer AND aborts an in-flight request, and an aborted answer never
-  // overwrites a fresh one.
   useEffect(() => {
     if (!open || page !== "root") {
       return undefined;

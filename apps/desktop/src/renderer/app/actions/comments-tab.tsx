@@ -1,8 +1,3 @@
-// The panel's Comments tab: every thread the open note's sidecar holds —
-// open first, then resolved (collapsed behind a toggle), then the two orphan
-// surfaces the model refuses to hide (markers with no entry, stray entries).
-// Clicking a thread scrolls the live editor to its range.
-
 import { scrollToCommentMarker } from "@repo/editor/comments/comment-kit";
 import { removeCommentMarkers } from "@repo/editor/comments/comment-markers";
 import { getLiveEditor } from "@repo/editor/live-editor";
@@ -27,7 +22,7 @@ function sourceLabel(entry: CommentEntryWire): string {
   return entry.source === undefined ? "—" : SOURCE_LABELS[entry.source];
 }
 
-/** The sidecar stamps unix SECONDS; the shared label speaks epoch ms. */
+// the sidecar stamps unix seconds; the shared label takes epoch ms.
 function entryTimeMs(entry: CommentEntryWire): number {
   return entry.createdAt * 1000;
 }
@@ -74,8 +69,7 @@ function ThreadCard({
     }
   };
 
-  // Every verb re-reads the sidecar afterwards, refusal included: a failed
-  // resolve leaves the card claiming a state the file never took.
+  // re-read after every verb, refusal included: a failed resolve otherwise shows a state the file never took.
   const settle = {
     onError: (): void => {
       toast.error("The comment change was refused.");
@@ -88,7 +82,6 @@ function ThreadCard({
   const remove = useMutation(
     orpc.comments.remove.mutationOptions({
       ...settle,
-      // The route owns the sidecar; the markers are the editor's to strip.
       onSuccess: async (response) => {
         const editor = getLiveEditor(docPath);
         if (editor !== null && response.removedIds.length > 0) {
@@ -213,8 +206,6 @@ export function CommentsTab({
   if (docPath === null) {
     return <p className="p-3 text-sm text-muted-foreground">No note open.</p>;
   }
-  // A refused read is a FAILURE, not a slow one: without this arm a malformed
-  // sidecar renders "Loading…" forever.
   if (query.isError) {
     return <ReadRefusal lead="The comments could not be read." error={query.error} />;
   }
@@ -229,9 +220,7 @@ export function CommentsTab({
 
   const open = data.threads.filter((thread) => !thread.resolved);
   const resolved = data.threads.filter((thread) => thread.resolved);
-  // Ages as of the sidecar read on screen, not of whatever render drew it:
-  // reading the clock during render is impure, and every verb below re-reads
-  // the sidecar, so this stamp moves whenever a comment does.
+  // not `Date.now()`: reading the clock during render is impure, and every verb re-reads the sidecar anyway.
   const asOfMs = query.dataUpdatedAt;
 
   return (

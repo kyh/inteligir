@@ -1,16 +1,6 @@
-// ACP session/request_permission ↔ the pending-interaction contract, pure.
-//
-// The subject is derived from the tool call's declared kind the way the item
-// mapping derives items: an execute call asks about a COMMAND, a file-shaped
-// call (edit/delete/move) about a FILE CHANGE, and anything else falls back
-// to the command shape with the call's title as the sentence — the contract
-// has no "other" subject, and inventing one would fork the approval UI.
-//
-// Decisions map by the OPTION KINDS the agent offered: allow_once→allow_once,
-// allow_always→allow_for_session, and any reject kind→deny. Answering picks
-// the agent's own optionId for the user's decision, preferring the exact
-// kind and falling back inside the same allow/reject family — the agent
-// defined the vocabulary, so the answer must be one of its words.
+// the contract has no "other" subject, so an unrecognised kind falls back to the command shape.
+// an answer must be one of the agent's own optionIds: the exact kind first, then the same
+// allow/reject family.
 
 import type {
   PermissionOption,

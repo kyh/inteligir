@@ -1,16 +1,3 @@
-// Settings → Connectors: the app-owned MCP registry. What is
-// listed here is what EVERY agent session gets — session launch composes the
-// enabled rows into ACP's mcpServers, identically for Claude Code and Codex —
-// so this surface is the registry's real editor, not a face over someone
-// else's config file.
-//
-// ADDING ONE IS A DELIBERATE ACT. An MCP server is a program this app will
-// run on this machine (stdio) or a service note content will be sent to
-// (http). The catalog below prefills KNOWN servers' coordinates; it never
-// adds anything itself — every add goes through the same form and the same
-// route. Secrets: header values are sent once on save and never come back;
-// a configured row says "authenticated", nothing more.
-
 import {
   CONNECTOR_ARGS_MAX,
   CONNECTOR_NAME_MAX_LENGTH,
@@ -34,7 +21,6 @@ function useConnectors() {
   return useQuery({ ...orpc.connectors.list.queryOptions(), staleTime: 0 });
 }
 
-/** One argument per line; blank lines are spacing, not empty arguments. */
 export function argumentLines(text: string): string[] {
   return text
     .split("\n")
@@ -78,26 +64,15 @@ export const EMPTY_DRAFT: AddConnectorDraft = {
   scopesText: "",
 };
 
-/**
- * A KNOWN server's coordinates, prefill-only. `authHeader` names the header
- * the service documents for its API key; `unavailableReason` marks a row the
- * form cannot honestly add yet (OAuth-only services) — shown disabled with
- * the reason rather than pretending a key field would work.
- */
 interface CatalogEntry {
   name: string;
   description: string;
   url: string;
   authHeader?: string;
   docsUrl: string;
-  /** Present for a provider that authenticates with OAuth: the prefill
-   *  carries its endpoints and scopes; the client id stays the user's to
-   *  paste, since this app ships no registered OAuth apps. */
   oauth?: { authorizationEndpoint: string; tokenEndpoint: string; scopes: readonly string[] };
 }
 
-/** Verified against each service's own docs at vendoring time — a wrong URL
- *  here is a server that can never connect, so rows are few and real. */
 const CATALOG: readonly CatalogEntry[] = [
   {
     name: "context7",
@@ -137,10 +112,6 @@ const CATALOG: readonly CatalogEntry[] = [
   },
 ];
 
-/**
- * The draft as a request, or the sentence that stops it. Pure and total, so
- * the disabled state and the submit read the same answer.
- */
 export function draftToRequest(
   draft: AddConnectorDraft,
 ): { ok: true; transport: ConnectorTransportInput } | { ok: false; problem: string } {
@@ -228,7 +199,6 @@ function ConnectorRow({
   server: ConnectorView;
   onChanged: (servers: ConnectorView[]) => void;
 }) {
-  /** Shown when the server could not open a browser — the URL still works. */
   const [authorizeUrl, setAuthorizeUrl] = useState<string | null>(null);
 
   const connect = useMutation(
@@ -283,8 +253,8 @@ function ConnectorRow({
   const busy =
     connect.isPending || disconnect.isPending || toggle.isPending || removeServer.isPending;
 
-  // The confirm runs before anything is in flight: a row greyed out while a
-  // dialog waits for an answer claims work that has not started.
+  // Confirm before mutate: a row greyed out while the dialog waits claims
+  // work that has not started.
   const remove = (): void => {
     void (async () => {
       const confirmed = await confirm({

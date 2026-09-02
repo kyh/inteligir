@@ -7,16 +7,6 @@ import type { HTMLAttributes, KeyboardEvent, PointerEvent, ReactNode } from "rea
 import { cn } from "@repo/ui/lib/utils";
 import { GlideList } from "@repo/ui/ai/glide-list";
 
-/* ─────────────────────────────────────────────────────────
- * FINE-TUNE CARD — numeric controls an agent's output is
- * adjusted through
- *
- * The piece worth carrying is the SCRUB FIELD: a label you drag
- * sideways to change the number, which also accepts typing and
- * arrow keys. Every field is controlled by the caller, and the
- * card's menu is `glide-list.tsx`.
- * ───────────────────────────────────────────────────────── */
-
 const FineTuneCard = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
     <div
@@ -59,16 +49,12 @@ export interface ScrubFieldProps {
   onChange: (value: number) => void;
   min: number;
   max: number;
-  /** How much one pixel of drag is worth, and the arrow-key increment. */
   step?: number;
-  /** Unit shown after the number. */
   suffix?: string;
-  /** Highlights the field as the one currently driving something. */
   active?: boolean;
   className?: string;
 }
 
-/** Drag the LABEL to scrub; type in the field; arrows step (shift ×10). */
 function ScrubField({
   label,
   value,
@@ -84,8 +70,6 @@ function ScrubField({
   const clamp = (next: number) => Math.min(max, Math.max(min, Math.round(next)));
 
   const onPointerDown = (event: PointerEvent<HTMLSpanElement>) => {
-    // Narrowed rather than asserted: the repo bans type assertions, and a
-    // pointer target genuinely might not be an element.
     if (event.target instanceof HTMLElement) event.target.setPointerCapture(event.pointerId);
     drag.current = { x: event.clientX, value };
   };
@@ -208,7 +192,6 @@ const FineTuneMenu = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
 FineTuneMenu.displayName = "FineTuneMenu";
 
 export interface FineTuneMenuItemProps extends HTMLAttributes<HTMLButtonElement> {
-  /** Trailing value or shortcut. */
   meta?: ReactNode;
 }
 

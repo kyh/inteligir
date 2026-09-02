@@ -1,7 +1,4 @@
-// The history reader, against REAL git — the parse is a framing of git's own
-// `-z` bytes, so a fake would only prove the fake. The rename and the awkward
-// filenames are the two failures the surface exists to avoid: a truncated
-// history at a rename, and a C-quoted path read back as a path.
+// against real git: the parse frames git's own -z bytes, so a fake would only prove the fake.
 
 import { mkdir, rename, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -107,10 +104,7 @@ describe("readNoteHistory", () => {
   });
 
   it("frames a commit that reports MORE THAN ONE status for the followed path", async () => {
-    // A note that became a folder and a note again: git reports `A Note.md`
-    // and `D Note.md/child` in the same commit. Consuming one tuple leaves a
-    // status where the next object name is expected, which drops every older
-    // revision on the floor.
+    // a note that became a folder and a note again reports two statuses in one commit.
     const { root, run, commit } = await makeVault();
     await writeFile(join(root, "Note.md"), "one\n", "utf8");
     await commit("vault: first");
@@ -132,9 +126,7 @@ describe("readNoteHistory", () => {
   });
 
   it("takes a note's name literally — a pathspec is otherwise a GLOB", async () => {
-    // `[a].md` as a pathspec matches `a.md`, and `*.md` matches the whole
-    // vault: the history would carry another note's revisions, whose bytes a
-    // restore then writes into this one.
+    // [a].md as a pathspec matches a.md, so the history would carry another note's revisions.
     const { root, run, commit } = await makeVault();
     await writeFile(join(root, "a.md"), "plain\n", "utf8");
     await writeFile(join(root, "[a].md"), "bracketed\n", "utf8");
@@ -175,9 +167,7 @@ describe("readNoteRevision", () => {
     const { root, run, commit } = await makeVault();
     await writeFile(join(root, "Old.md"), "before\n", "utf8");
     await commit("vault: update Old.md");
-    // The rename is its OWN commit: git detects it by similarity, so a rename
-    // that also rewrites the body is a delete plus an add to git and to
-    // `--follow` alike. That is git's answer, not this reader's.
+    // the rename is its own commit: git detects renames by similarity, so one that also rewrites the body is a delete plus an add.
     await rename(join(root, "Old.md"), join(root, "New.md"));
     await commit("vault: rename Old.md");
     await writeFile(join(root, "New.md"), "after\n", "utf8");
@@ -205,8 +195,7 @@ describe("readNoteRevision", () => {
     await writeFile(join(root, "notes", "Note.md"), "x\n", "utf8");
     await commit("vault: update notes/Note.md");
     const [head] = await readNoteHistory(run, "notes/Note.md", { skip: 0, limit: 1 });
-    // A folder is a legal vault path, so this is reachable from the wire: the
-    // object exists at that revision and is a tree rather than a blob.
+    // a folder is a legal vault path: the object exists at that revision and is a tree.
     await expect(readNoteRevision(run, "notes", head?.sha ?? "")).rejects.toThrow(
       VaultServiceError,
     );

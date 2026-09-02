@@ -7,24 +7,15 @@ import { useRadius, type RadiusClasses } from "@repo/ui/lib/radius-context";
 import { spring } from "@repo/ui/lib/springs";
 
 interface ProximityOverlaysProps {
-  /** The persistent selected/active background, when the list has one.
-   *  `| undefined` spelled out so a sparse `itemRects[i]` read can be passed
-   *  under exactOptionalPropertyTypes. */
+  // `| undefined` spelled out so a sparse itemRects[i] read passes under exactOptionalPropertyTypes
   activeRect?: ItemRect | null | undefined;
   hoverRect: ItemRect | null;
   focusRect: ItemRect | null;
-  /** Bumped per pointer entry — keys the hover overlay so re-entering fades
-   *  in at the current row instead of sliding over from the last one. */
+  // keys the hover overlay so re-entering fades in at the current row instead of sliding from the last
   session: number;
-  /** Overrides the ambient radius — for surfaces that opt out of the global
-   *  radius context (popup menus pin `radiusMap.rounded`). */
   radius?: RadiusClasses;
 }
 
-/** The traveling highlight trio every proximity-hover list draws inside its
- *  `position: relative` container: active background, hover background, and
- *  the keyboard focus ring, each gliding between the measured row rects. One
- *  component so the three can never drift apart per consumer. */
 export function ProximityOverlays({
   activeRect = null,
   hoverRect,
@@ -34,8 +25,6 @@ export function ProximityOverlays({
 }: ProximityOverlaysProps) {
   const ambientRadius = useRadius();
   const resolved = radius ?? ambientRadius;
-  // The hover background enters at the active rect when there is one, so the
-  // highlight reads as lifting off the selection.
   return (
     <>
       <AnimatePresence>
@@ -87,15 +76,11 @@ export function ProximityOverlays({
 }
 
 interface ProximityFocusRingProps {
-  /** `| undefined` spelled out for the same sparse `itemRects[i]` read. */
+  // `| undefined` spelled out for the same sparse itemRects[i] read
   rect: ItemRect | null | undefined;
   radius?: RadiusClasses;
 }
 
-/** The trio's keyboard focus ring on its own, for a list whose highlight
- *  pills are a different design (the subtle tabs) but whose ring must not
- *  drift from every other list's: 2px outside the row, so the corners stay
- *  concentric with the row's own radius. */
 export function ProximityFocusRing({ rect, radius }: ProximityFocusRingProps) {
   const ambientRadius = useRadius();
   const resolved = radius ?? ambientRadius;

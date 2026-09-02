@@ -12,26 +12,17 @@ import { useRadius } from "@repo/ui/lib/radius-context";
 import { spring } from "@repo/ui/lib/springs";
 
 const DEFAULT_DELAY = 200;
-/** After a tooltip closes, adjacent tooltips opened within this window skip
- *  the hover delay, in ms. */
 const SKIP_DELAY_TIMEOUT = 300;
 
-// Tracks whether an app-level <TooltipProvider> is above us. Each Tooltip
-// only wraps itself in a local primitive Provider when there isn't one —
-// a per-instance Provider would defeat cross-tooltip skip-delay grouping
-// (moving between adjacent tooltips would re-wait the full delay).
+// a per-instance Provider would defeat cross-tooltip skip-delay grouping, so a Tooltip wraps
+// itself only when no app-level TooltipProvider is above it
 const TooltipGroupContext = React.createContext(false);
 
 interface TooltipProviderProps {
   children: React.ReactNode;
-  /** Hover delay before tooltips open, in ms. Defaults to 200. */
   delay?: number;
 }
 
-/** Groups descendant Tooltips so that once one opens, moving to an adjacent
- *  trigger shows its tooltip instantly instead of re-waiting the full delay.
- *  Wrap once at the app (or section) level; bare Tooltips still work without
- *  it via a per-instance fallback. */
 function TooltipProvider({ children, delay = DEFAULT_DELAY }: TooltipProviderProps) {
   return (
     <TooltipGroupContext.Provider value={true}>
@@ -49,20 +40,11 @@ interface TooltipProps {
   children: React.ReactElement;
   side?: TooltipSide;
   sideOffset?: number;
-  /** Hover delay before this tooltip opens, in ms. Defaults to 200, or to the
-   *  ambient TooltipProvider's delay when one is present. */
   delay?: number;
   className?: string;
-  /** When true, forces the tooltip open. When false, forces it closed. When
-   *  undefined, uses default hover/focus behavior — `| undefined` is spelled
-   *  out so a caller may pass it explicitly under exactOptionalPropertyTypes
-   *  (the sidebar's collapsed-only tooltip computes it). */
+  // `| undefined` is spelled out so a caller may pass it explicitly under exactOptionalPropertyTypes
   forceOpen?: boolean | undefined;
-  /** Follow the cursor along one axis while hovering the trigger — for tall
-   *  or wide triggers (the Sidebar rail) where a centered tooltip sits far
-   *  from the pointer. The other axis stays anchored by `side`. */
   followCursor?: "x" | "y";
-  /** Called when the tooltip's internal open state changes (before forceOpen is applied). */
   onOpenChange?: (open: boolean) => void;
 }
 
@@ -97,8 +79,7 @@ function Tooltip({
 
   const slideOffset = getSlideOffset(side);
 
-  // Cursor-follow offset from the trigger's center, driven as a motion value
-  // so per-move updates skip React re-renders.
+  // a motion value, not state, so per-move updates skip React re-renders
   const followOffset = useMotionValue(0);
   const handleFollowMove = (event: React.PointerEvent) => {
     if (!followCursor) return;
@@ -135,16 +116,12 @@ function Tooltip({
                   : followCursor === "x"
                     ? { x: followOffset }
                     : undefined;
-              // Outer wrapper carries Base UI's popup props plus the
-              // cursor-follow motion value; the inner box keeps the
-              // enter/exit slide so the two transforms don't fight.
+              // the cursor-follow transform and the enter/exit slide sit on separate elements so
+              // they do not fight
               return (
                 <motion.div {...rest} style={motionStyle(baseStyle, followStyle)}>
                   <motion.div
                     className={cn(
-                      // Trim recenters the label; the padding bump only applies
-                      // where text-box is supported, keeping the same overall
-                      // height (~26px) as untrimmed browsers.
                       "bg-foreground text-background text-[12px] px-2 py-1",
                       "[text-box:trim-both_cap_alphabetic] supports-[text-box:trim-both]:py-2",
                       radius.bg,
@@ -166,9 +143,6 @@ function Tooltip({
     </TooltipPrimitive.Root>
   );
 
-  // Fallback: without an ambient TooltipProvider, give this instance its own
-  // so a bare <Tooltip> keeps the library's default delay. Grouped skip-delay
-  // needs the shared app-level TooltipProvider.
   if (hasAmbientProvider) return tooltip;
 
   return (

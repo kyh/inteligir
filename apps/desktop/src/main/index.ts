@@ -1,14 +1,3 @@
-// The inteligir desktop shell.
-//
-// One window on the workspace, and nothing else: no vault, no agent and no
-// index of its own. The window's whole security surface is the ORIGIN PIN
-// (origin-pin.ts) — it loads exactly one origin, top-level navigation away
-// goes to the system browser, and `window.open` is denied unconditionally. Two
-// rules sit beside it and are tested the same way: WHERE the device token goes
-// and which files the bundle may answer with (credential-scope.ts). Everything
-// imperative here delegates to those and to server-instance.ts; this file is
-// wiring.
-
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import {
@@ -53,23 +42,17 @@ import { IPC_CHANNELS, toErrorMessage } from "../types";
 
 const APP_DISPLAY_NAME = app.isPackaged ? "Inteligir" : "Inteligir (Dev)";
 
-/** electron-vite sets this while `electron-vite dev` is running; its absence
- *  is what makes a packaged app serve the built bundle instead. */
+// set by `electron-vite dev`; absent in a packaged app.
 const rendererDevUrl = process.env.ELECTRON_RENDERER_URL;
 
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
-/** Null while the shell adopted a server it did not start — quitting must
- *  never stop a process someone else owns. */
+// null when the shell adopted a server it did not start; quitting must leave that one running.
 let serverProcess: ServerProcess | null = null;
-/** The last real input the page saw, for the user-activation gate on
- *  page-initiated external opens (origin-pin.ts::decideExternalOpen). */
 let lastInputAt: number | null = null;
-/** What this launch settled on. Null until the server has answered. */
 let live: LiveServer | null = null;
 
-// The window is pinned to the shell's OWN scheme, so it must be privileged
-// before `app.whenReady` — Electron enforces the ordering.
+// must precede `app.whenReady`; Electron enforces the ordering.
 registerAppScheme();
 
 process.on("uncaughtException", (error) => {
@@ -81,18 +64,7 @@ process.on("unhandledRejection", (reason) => {
   console.error("[desktop] unhandled rejection:", reason);
 });
 
-// ---------------------------------------------------------------------------
-// The server
-// ---------------------------------------------------------------------------
-
-/**
- * IS A SERVER SERVING THIS DATA DIR, AND IS IT OURS? Health alone cannot say —
- * a loopback port is first-come-first-served — so every probe presents the
- * token `<dataDir>/server.json` holds and requires the responder to name that
- * same data dir back (server-instance.ts states what that proves). Used for
- * the pre-flight AND as the child's readiness signal, because a child that
- * lost a race for the port would otherwise be reported up about a stranger.
- */
+// doubles as the child's readiness signal: a child that lost the port race must not be reported up about a stranger.
 async function verifiedServerAnswered(target: ServerTarget): Promise<boolean> {
   const verdict = await verifyServer(target.dataDir);
   if (verdict.kind === "verified") {
@@ -100,8 +72,6 @@ async function verifiedServerAnswered(target: ServerTarget): Promise<boolean> {
     return true;
   }
   if (verdict.kind !== "no-server") {
-    // A responder that is REACHABLE but not ours is the case worth a log line:
-    // something is on our port and it is not the vault we mean.
     console.warn(`[desktop] ${describeServerVerdict(verdict, target.dataDir)}`);
   }
   return false;
@@ -118,15 +88,10 @@ async function startServer(target: ServerTarget): Promise<void> {
   }
   serverProcess = createServerProcess({
     entryPath,
-    // The instance's identity (data + vault dirs) and its mode are handed down;
-    // the child derives its own port and reports it back via server.json
-    // (server-instance.ts states why the port is discovered, not dictated).
     env: serverProcessEnv(target, app.isPackaged),
     isReady: () => verifiedServerAnswered(target),
     log: (message) => console.log(`[server] ${message}`),
-    // A mid-session crash leaves the window talking to nothing. There is no
-    // in-place restart (server-process.ts says why the fresh token makes one
-    // unsafe): name the failure and quit, so a relaunch rebuilds cleanly.
+    // no in-place restart: a fresh child mints a fresh token the window's bindings do not hold.
     onUnexpectedExit: (code) => {
       dialog.showErrorBox(
         "Inteligir server stopped",
@@ -138,20 +103,8 @@ async function startServer(target: ServerTarget): Promise<void> {
   await serverProcess.start();
 }
 
-// ---------------------------------------------------------------------------
-// The window, menu and tray
-// ---------------------------------------------------------------------------
-
-/**
- * Deny every permission the product does not use, on the window's OWN session,
- * and grant the one it does (`media`, dictation) ONLY to the pinned origin.
- * Electron grants most permissions by default to whatever a window loads, so
- * an unset handler is a standing grant. Both handlers are required and both
- * are ORIGIN-SCOPED: the request handler answers a prompt (its origin is
- * `details.requestingUrl`), the check handler answers a silent capability
- * query (`navigator.permissions.query`, `getUserMedia`'s pre-flight — its
- * origin arrives as the third argument).
- */
+// both handlers are needed: the request handler answers a prompt, the check handler
+// answers `navigator.permissions.query` and `getUserMedia`'s pre-flight.
 function lockDownSession(partition: string): Electron.Session {
   const windowSession = session.fromPartition(partition);
   windowSession.setPermissionRequestHandler((_contents, permission, callback, details) => {
@@ -160,20 +113,12 @@ function lockDownSession(partition: string): Electron.Session {
   windowSession.setPermissionCheckHandler((_contents, permission, requestingOrigin) =>
     classifyPermission(permission, requestingOrigin, APP_ORIGIN),
   );
-  // Serial/HID/USB device pickers, which the permission handlers above do not
-  // cover.
+  // device pickers are not covered by the permission handlers.
   windowSession.setDevicePermissionHandler(() => false);
   return windowSession;
 }
 
-/**
- * The bearer on the two WEBSOCKET upgrades, attached in MAIN.
- *
- * A browser `WebSocket` cannot set a header, and these two dial the loopback
- * origin rather than the shell's own — so the token cannot ride the protocol
- * handler the way every other request does. Filtered to this instance's own
- * origin, so nothing else the window ever reaches sees a credential.
- */
+// a browser `WebSocket` cannot set a header and cannot be proxied by the protocol handler.
 function attachSocketCredential(windowSession: Electron.Session, server: LiveServer): void {
   const urls = socketCredentialFilter(server.origin);
   windowSession.webRequest.onBeforeSendHeaders({ urls }, (details, callback) => {
@@ -186,9 +131,7 @@ function attachSocketCredential(windowSession: Electron.Session, server: LiveSer
   });
 }
 
-/** Hand a PAGE-INITIATED url to the system browser, or refuse it. Menu and
- *  tray items call `shell.openExternal` directly: a menu click is the gesture,
- *  and it produces no page input to measure. */
+// page-initiated only; menu and tray items call `shell.openExternal` directly, since a click produces no page input.
 function openExternalFromPage(url: string): void {
   const decision = decideExternalOpen({ url, lastInputAt, now: Date.now() });
   if (!decision.allowed) {
@@ -198,14 +141,7 @@ function openExternalFromPage(url: string): void {
   void shell.openExternal(url);
 }
 
-/**
- * The window's session is set up ONCE per launch, not once per window. The
- * permission lock-down, the socket bearer and the protocol handler are all
- * session-lifetime — `registerAppProtocol` in particular THROWS if the scheme
- * is handled twice on one session — while the window itself is re-created every
- * time it is closed and reopened (tray, dock, second instance). There is
- * exactly one partition per launch, so this binds to it here.
- */
+// once per launch, not per window: `protocol.handle` throws if the scheme is handled twice on one session.
 function prepareWindowSession(target: ServerTarget, server: LiveServer): void {
   const windowSession = lockDownSession(sessionPartition(target.dataDir));
   attachSocketCredential(windowSession, server);
@@ -236,9 +172,6 @@ function createWindow(target: ServerTarget): BrowserWindow {
     webPreferences: appWindowWebPreferences(appPreloadScript(), partition),
   });
 
-  // The user-activation clock for page-initiated external opens. Electron
-  // exposes no activation flag on the navigation or window-open paths, so the
-  // shell measures it here (origin-pin.ts says why).
   window.webContents.on("input-event", () => {
     lastInputAt = Date.now();
   });
@@ -296,9 +229,6 @@ function showMainWindow(target: ServerTarget): BrowserWindow {
   return existing;
 }
 
-/** The data dir is the shell's OWN resolution (`resolveServerTarget`), never a
- *  value read back off the wire — a responder does not get to say where a menu
- *  item opens a Finder window. */
 function openDataDir(target: ServerTarget): void {
   void shell.openPath(target.dataDir);
 }
@@ -325,8 +255,6 @@ function configureApplicationMenu(target: ServerTarget, server: LiveServer): voi
       label: "File",
       submenu: [
         {
-          // The in-app browser — a SEPARATE shell-owned window
-          // (browser-window.ts), so this window's origin pin is untouched.
           label: "Browser",
           accelerator: BROWSER_ACCELERATOR,
           click: () => showBrowserWindow(server),
@@ -343,10 +271,6 @@ function configureApplicationMenu(target: ServerTarget, server: LiveServer): voi
       submenu: [
         {
           label: "Open in Browser",
-          // A menu click IS the user gesture, so this goes straight out rather
-          // than through the page-initiated activation gate. The BROWSER door
-          // is the server's own origin: the shell's scheme means nothing
-          // outside this process.
           click: () => {
             void shell.openExternal(`${server.origin}/`);
           },
@@ -357,8 +281,6 @@ function configureApplicationMenu(target: ServerTarget, server: LiveServer): voi
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
 
-/** Tray icon, sized and marked as a template so macOS tints it for the menu
- *  bar rather than rendering the full-colour app icon. */
 function createTray(target: ServerTarget): Tray | null {
   const icon = nativeImage
     .createFromPath(join(app.getAppPath(), "resources", "icon.png"))
@@ -384,10 +306,6 @@ function createTray(target: ServerTarget): Tray | null {
   return created;
 }
 
-// ---------------------------------------------------------------------------
-// Lifecycle
-// ---------------------------------------------------------------------------
-
 async function onAppReady(target: ServerTarget): Promise<void> {
   app.setName(APP_DISPLAY_NAME);
   app.setAboutPanelOptions({
@@ -395,16 +313,12 @@ async function onAppReady(target: ServerTarget): Promise<void> {
     applicationVersion: app.getVersion(),
   });
   await startServer(target);
-  // The menu, the tray and the window are all built AFTER the server answered,
-  // because each names the origin it answered on — an adopted server may sit
-  // on a port this shell never chose.
+  // everything below names the origin the server answered on, which an adopted one chose.
   const server = live;
   if (server === null) {
     throw new Error("the server reported ready without publishing its address");
   }
   prepareWindowSession(target, server);
-  // The renderer's one bridged fact. Synchronous, because the page needs it
-  // before it opens its first socket (../types.ts states the whole surface).
   ipcMain.on(IPC_CHANNELS.SOCKET_ORIGIN, (event) => {
     event.returnValue = server.origin;
   });
@@ -413,9 +327,6 @@ async function onAppReady(target: ServerTarget): Promise<void> {
   mainWindow = createWindow(target);
 }
 
-// Resolved before `whenReady`, so a bad INTELIGIR_PORT or a config.json that
-// nests the vault inside the data dir is a named error rather than a window on
-// the wrong place.
 const target = resolveServerTarget({ isPackaged: app.isPackaged, env: process.env });
 if (target.kind === "refused") {
   dialog.showErrorBox("Inteligir failed to start", target.error);
@@ -429,21 +340,10 @@ if (target.kind === "refused") {
     }
   });
 
-  // Closing the last window HIDES to the tray rather than quitting: the server
-  // child keeps the vault synced and the agent reachable in the background, and
-  // the tray's Show / dock re-activate reopen the window (both above). Quit —
-  // tray, ⌘Q, the app menu — is the only exit, and it runs the ordered teardown
-  // through `before-quit`. Without this handler Electron's default quits the
-  // app the moment the window closes, stranding every one of those affordances.
-  app.on("window-all-closed", () => {
-    // Intentionally empty: keep the app (and its server child) alive under the tray.
-  });
+  // empty on purpose: closing the last window hides to the tray; Electron's default handler would quit.
+  app.on("window-all-closed", () => {});
 
-  // The server is a child of this process, so quitting must take it with it —
-  // and the SIGTERM its graceful shutdown listens for is what flushes the
-  // vault's pending commit. `before-quit` is where that still has time to run.
-  // `serverProcess` is null when the shell ADOPTED a server it did not start;
-  // quitting must leave that one running.
+  // the child's SIGTERM teardown flushes the vault's pending commit; `before-quit` is where it still has time to run.
   let teardown: Promise<void> | null = null;
   app.on("before-quit", (event) => {
     if (serverProcess === null || teardown !== null) {
@@ -457,8 +357,7 @@ if (target.kind === "refused") {
     });
   });
 
-  // Single instance: two shells would race for the same port and the loser
-  // would adopt the winner's server, leaving two windows on one vault.
+  // two shells would race for the port and the loser would adopt the winner's server.
   if (!app.requestSingleInstanceLock()) {
     app.quit();
   } else {

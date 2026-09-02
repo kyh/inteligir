@@ -24,9 +24,6 @@ function bootService() {
 
 describe("what the vault is CALLED", () => {
   it("is the root's last segment, split by the side that owns the separator", async () => {
-    // The client renders this verbatim. Splitting an absolute path in a
-    // browser means splitting on `/` — which on Windows leaves the whole
-    // path standing in for the vault's name.
     const { root, service } = bootService();
     expect((await service.listTree()).name).toBe(basename(root));
   });
@@ -119,7 +116,6 @@ describe("vault CRUD", () => {
 
   it("runs every mutation through the injected lock, serialized", async () => {
     const root = makeTempDir("inteligir-vault-test-");
-    // The same promise-chain lock shape the git engine hands the runtime.
     let chain: Promise<unknown> = Promise.resolve();
     const lock = <T>(work: () => Promise<T>): Promise<T> => {
       const next = chain.then(work, work);
@@ -128,8 +124,6 @@ describe("vault CRUD", () => {
     };
     const service = createVaultService({ root, notifier: createNotifierRecorder(), lock });
 
-    // Hold the lock (a sync in flight); a write issued under it must not
-    // touch disk until the holder releases.
     const holder = Promise.withResolvers<void>();
     void lock(() => holder.promise);
     const write = service.write("held.md", "waited for the lock");
@@ -142,8 +136,6 @@ describe("vault CRUD", () => {
   });
 });
 
-// What a SAVE costs its subscribers. Autosave runs this path per pause, so
-// anything it announces is announced on that cadence to every open client.
 describe("what a write announces", () => {
   it("says content-changed alone when only the bytes moved", async () => {
     const { notifier, service } = bootService();
@@ -153,8 +145,6 @@ describe("what a write announces", () => {
     await service.write("note.md", "two");
 
     expect(notifier.docChanges).toEqual([{ docId: "note.md", changes: ["content-changed"] }]);
-    // `files-changed` makes every client re-walk the vault and reaches the open
-    // note's reader as a SECOND event, so one save cost two reads and a walk.
     expect(notifier.vaultChanges).toEqual([]);
   });
 
@@ -173,11 +163,6 @@ describe("what a write announces", () => {
     await service.write("note.md", "one");
     const before = await service.listTree();
     await service.write("note.md", "a much longer body than before");
-    // A content edit moves ONLY the row's mtime (the sidebar's recency reads
-    // it); path/name/kind stay put, which is the tuple the vault session's
-    // own same-listing check compares — so a save still re-publishes nothing
-    // structural. Size stays deliberately absent: it would change on every
-    // keystroke for no reader.
     const after = await service.listTree();
     expect(after.entries.map((entry) => ({ kind: entry.kind, path: entry.path }))).toEqual(
       before.entries.map((entry) => ({ kind: entry.kind, path: entry.path })),
@@ -199,7 +184,7 @@ describe("atomic writes and crash artifacts", () => {
   });
 
   it("a crash-orphaned staging file is invisible and swept, and the write path stays clear", async () => {
-    // Simulate the kill window: the tmp file landed, the rename never ran.
+    // the kill window: tmp landed, rename never ran.
     const { root, service } = bootService();
     await writeFile(join(root, `${VAULT_TMP_PREFIX}deadbeef`), "half a note");
 
@@ -207,19 +192,14 @@ describe("atomic writes and crash artifacts", () => {
     await service.write("note.md", "the real write");
     expect((await service.read("note.md")).content).toBe("the real write");
 
-    // Cutoff a minute in the FUTURE so the orphan is unambiguously older —
-    // granularity-proof, the mirror of the in-flight test below.
+    // cutoff in the future: fs mtime granularity is coarse on ci tmpfs.
     await sweepStaleTmpFiles(root, Date.now() + 60_000);
     const names = await readdir(root);
     expect(names.filter((name) => name.startsWith(VAULT_TMP_PREFIX))).toEqual([]);
   });
 
   it("a sweep leaves an in-flight write's staging file alone", async () => {
-    // It runs beside live writes now, so its bound has to be the one thing a
-    // leftover can never satisfy: being older than the sweep that looks for it.
-    // The cutoff sits a minute in the PAST so the fresh file is unambiguously
-    // newer — a `Date.now()` captured microseconds before the write raced the
-    // filesystem's mtime granularity (coarse on CI's tmpfs) and flaked.
+    // cutoff in the past: a Date.now() taken just before the write raced the fs mtime granularity and flaked.
     const { root } = bootService();
     const before = Date.now() - 60_000;
     await writeFile(join(root, `${VAULT_TMP_PREFIX}inflight`), "half a note");
@@ -231,9 +211,6 @@ describe("atomic writes and crash artifacts", () => {
   });
 
   it("an overwrite lands the staged content exactly, shorter than the original included", async () => {
-    // What this proves: the rename swap replaces the whole entry — nothing of
-    // the longer original survives. The mid-write failure window itself is
-    // covered by the crash-artifact test above (tmp never visible as the note).
     const { root, service } = bootService();
     await service.write("note.md", "aaaaaaaaaa");
     await service.write("note.md", "bb");
@@ -248,7 +225,6 @@ describe("physical containment (symlinks)", () => {
     const { root, service } = bootService();
     const outside = makeTempDir("inteligir-outside-");
     await writeFile(join(outside, "id_ed25519"), "SECRET KEY MATERIAL");
-    // Created externally, exactly as a git pull would materialize it.
     await symlink(join(outside, "id_ed25519"), join(root, "notes.md"));
 
     await expect(service.read("notes.md")).rejects.toThrow(VaultPathError);

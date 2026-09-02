@@ -1,9 +1,8 @@
 import { useState } from "react";
 import { Image, Linking, StyleSheet, Text, View } from "react-native";
 
-/** Only web links leave the app: a hosted note is content another device
- *  wrote, and `file:`/`intent:`/custom schemes reaching Linking would hand
- *  it app-launching power — the same http(s) gate the editor runs. */
+// only http(s) leaves the app: a hosted note is another device's content, and file:/intent:/custom
+// schemes would hand it app-launching power.
 function openExternalLink(url: string): void {
   if (!/^https?:\/\//i.test(url)) return;
   void Linking.openURL(url).catch(() => undefined);
@@ -11,10 +10,6 @@ function openExternalLink(url: string): void {
 import { MONO_FONT, RADIUS, SPACE, useTheme, type Theme } from "@/lib/theme";
 import type { InlineSpan, NoteBlock } from "./note-projection";
 import type { VaultAssetSource } from "@repo/api/cloud/client";
-
-// The thin half of the note renderer: projected blocks in, RN elements out.
-// Every decision about WHAT to show lives in note-projection.ts; what this
-// file owns is spacing, type scale and the tap targets.
 
 const HEADING_SIZES = {
   1: 26,
@@ -100,8 +95,6 @@ function unavailable(label: string): string {
   return `${label} — image unavailable`;
 }
 
-/** The one "this device cannot show this" card — a dashed box and a line of
- *  muted caps, shared by every block that has to say it. */
 function Notice({ text, theme }: { text: string; theme: Theme }) {
   return (
     <View style={[styles.unsupported, { borderColor: theme.border }]}>
@@ -110,9 +103,6 @@ function Notice({ text, theme }: { text: string; theme: Theme }) {
   );
 }
 
-/** Owns its load failure: offline, a revoked credential's 401, the route's
- *  413 — every post-resolve refusal falls back to the unavailable card
- *  instead of a silent gray rectangle. */
 function EmbedImage({
   source,
   label,
@@ -144,8 +134,6 @@ export function MarkdownBlocks({
 }: {
   blocks: readonly NoteBlock[];
   onWikiLink: (target: string) => void;
-  /** An embed target's image source, or null when it cannot be shown — an
-   *  unresolved target, an unpinned tree, an unpaired screen. */
   resolveAsset: (target: string) => VaultAssetSource | null;
 }) {
   const theme = useTheme();

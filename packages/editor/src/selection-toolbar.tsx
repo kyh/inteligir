@@ -49,15 +49,9 @@ import {
 } from "@repo/editor/block-transforms";
 import { BarButton } from "@repo/editor/toolbar-button";
 
-// Elevation: toolbars sit on the menu tier (shadow-surface-4). animate-in
-// runs once on mount.
 const BAR_CLASS =
   "z-50 flex items-center gap-0.5 rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-surface-4 animate-in fade-in-0 zoom-in-95";
 
-// "Ask agent" appears only while the app registered an agent surface — the
-// module-store discipline agent-request.ts states. preventDefault keeps the
-// editor selection alive through the click; the SELECTION TEXT travels, so
-// the composer opens already quoting what the user was pointing at.
 function AskAgentButton({ editor }: { editor: PlateEditor }) {
   const actions = useAgentRequestActions((state) => state.actions);
   if (actions === null) return null;
@@ -85,10 +79,8 @@ function Sep() {
   return <div className="mx-0.5 h-5 w-px shrink-0 bg-border" />;
 }
 
-// A compact icon toggle (marks) on the stock ghost icon button. `onMouseDown`
-// preventDefault keeps the editor selection alive through the click so the
-// mark applies to it. Stock Button styles aria-expanded but not aria-pressed,
-// so the pressed classes ride className.
+// mousedown preventDefault keeps the editor selection alive through the click. Button styles
+// aria-expanded but not aria-pressed, so the pressed classes ride className.
 function IconButton({
   pressed,
   onClick,
@@ -117,13 +109,8 @@ function IconButton({
   );
 }
 
-// A real Base UI Menu.Trigger (must render inside <DropdownMenu>): a detached
-// controlled menu anchored to a plain button ref closes itself with reason
-// `trigger-hover` as soon as the pointer travels from the button into the
-// popup — every mouse click on an item died mid-flight (keyboard worked).
-// The registered trigger gives Base UI the correct press/hover linkage.
-// `onMouseDown` preventDefault keeps the editor selection alive through the
-// opening click.
+// must be a real Menu.Trigger: a detached controlled menu anchored to a plain button closes
+// with reason `trigger-hover` as the pointer moves into the popup, so mouse clicks on items die.
 function TurnIntoTrigger({ children }: { children: ReactNode }) {
   return (
     <DropdownMenuTrigger
@@ -192,31 +179,17 @@ function LinkInput({
   );
 }
 
-/**
- * The editor's selection toolbar — a potion-style floating bar over a text
- * selection: **Ask AI** (opens the AI menu on the selection), **Turn into**
- * (with a current-block-type indicator), the **Bold / Italic / Strikethrough
- * / Code** marks, and a **Link** input. Positioning rides
- * useFloatingToolbar (flip/shift/offset, hides on blur/collapse); the bar
- * also hides while the AI menu is open — the menu owns the selection then.
- * Only GFM-round-tripping marks are offered.
- */
 export function SelectionToolbar() {
   const editor = useEditorRef();
 
   const [openMenu, setOpenMenu] = useState<null | "turn">(null);
   const [linkMode, setLinkMode] = useState(false);
-  // While a Base UI menu or the link input holds focus the hook's hide
-  // conditions fire (blur, collapsed selection) — `frozen` short-circuits
-  // them and the bar keeps its last computed position. Base UI portals
-  // escape clickOutsideRef, so this explicit gate is the reliable one.
+  // base ui portals escape clickOutsideRef, so the hook's hide conditions (blur, collapsed
+  // selection) fire while a menu or the link input holds focus; `frozen` short-circuits them.
   const frozen = openMenu !== null || linkMode;
 
-  // Remember the live selection at the moment an action starts — opening a
-  // popover or the link input moves DOM focus off the editable and collapses
-  // it. Captured when the menu opens (editor.selection has settled), not via
-  // an effect (which races Slate's throttled selection sync). State, not a
-  // ref: the type indicator below reads it while rendering.
+  // captured when the menu opens, not in an effect (which races Slate's throttled selection
+  // sync); state rather than a ref because the type indicator reads it while rendering.
   const [savedSel, setSavedSel] = useState<typeof editor.selection>(null);
   const remember = () => setSavedSel(editor.selection);
 
@@ -246,8 +219,6 @@ export function SelectionToolbar() {
     ref: floatingRef,
   } = useFloatingToolbar(floatingToolbarState);
 
-  // Current-block-type indicator on the Turn-into trigger (a toggle's
-  // summary row reads as the toggle).
   const selection = useEditorSelection();
   const typeLabel = useMemo(() => {
     const at = selection ?? savedSel ?? undefined;
@@ -257,11 +228,9 @@ export function SelectionToolbar() {
 
   if (hidden && !frozen) return null;
 
-  // ignore-click-outside/toolbar: the portaled popup escapes the hook's
-  // clickOutsideRef; without the ignore class a mousedown on a menu item
-  // flips the hook's open state, display:none-s the bar, and the popup
-  // (anchored to the hidden trigger) jumps away before mouseup — items become
-  // unclickable.
+  // ignore-click-outside/toolbar: without it a mousedown on a portaled menu item flips the
+  // hook's open state, hides the bar, and the popup anchored to the hidden trigger jumps away
+  // before mouseup.
   return (
     <div ref={clickOutsideRef}>
       <div
@@ -275,8 +244,6 @@ export function SelectionToolbar() {
             onCancel={() => setLinkMode(false)}
             onSubmit={(url) => {
               setLinkMode(false);
-              // Wrap the remembered range directly (`at`), so we don't depend
-              // on restoring editor focus/selection after the input stole it.
               const at = savedSel;
               if (url && at) {
                 wrapLink(editor, { url, at, split: true });

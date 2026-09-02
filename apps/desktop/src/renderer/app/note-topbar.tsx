@@ -1,8 +1,3 @@
-// The note's top bar: note navigation on the left, the note's
-// utility cluster on the right. Share-with-agent and export live in the
-// overflow menu rather than as bar buttons — the bar carries only what a
-// reader touches constantly.
-
 import { docStem } from "@repo/notes/knowledge/doc-file";
 import { Button } from "@repo/ui/components/button";
 import {
@@ -30,11 +25,8 @@ import { shareWithAgentText } from "./actions/share-with-agent";
 import { socketOrigin } from "./socket-origin";
 
 export interface NoteTopbarProps {
-  /** The open note, or null when nothing is open. */
   path: string | null;
-  /** The LEFT rail's state and toggle, passed explicitly: this bar renders
-   *  inside the right panel's provider, so `useSidebar()` here resolves to the
-   *  right one — which is how both buttons ended up collapsing the same side. */
+  // passed in: this bar renders inside the right panel's provider, so `useSidebar()` here is the right one.
   railOpen: boolean;
   onToggleRail: () => void;
   canBack: boolean;
@@ -42,15 +34,11 @@ export interface NoteTopbarProps {
   onBack: () => void;
   onForward: () => void;
   onOpenSearch: () => void;
-  /** Open (unresolved) comment threads on the open note. */
   commentCount: number;
   onOpenComments: () => void;
   onExportPdf: () => void;
 }
 
-/** The right-panel toggle needs the RIGHT provider's context, so it renders
- *  from inside it — unlike the left trigger, which crosses into this bar from
- *  the outer provider by closure. */
 function PanelToggle() {
   const { toggleSidebar } = useSidebar();
   return (
@@ -80,12 +68,7 @@ export function NoteTopbar({
   onOpenComments,
   onExportPdf,
 }: NoteTopbarProps) {
-  // The link is built from the SERVER's origin, never the page's: under the
-  // shell the page is served from `inteligir://app`, a scheme no OS registers
-  // and this process's own window-open policy refuses, so a copied link would
-  // resolve nowhere — not even back inside inteligir. The residual is stated
-  // rather than hidden: the bound port can move across restarts, so this is a
-  // same-machine affordance and a durable address is its own feature.
+  // the server's origin, never the page's: an `inteligir://app` link opens nowhere, the shell included.
   const copyLink = () => {
     if (path === null) return;
     const url = new URL(socketOrigin());

@@ -1,8 +1,5 @@
-// BASE_KIT — the headless mirror composition. markdown-doc's gate editor is
-// built from exactly this list; the live editor's kit (EDITOR_KIT)
-// composes the React halves of the SAME kit files, so the two stay in sync by
-// construction (kit-parity test enforces it: identical MarkdownPlugin options,
-// identical serialization of the fixture corpus).
+// The headless mirror: the gate editor is built from exactly this list, and the
+// live kit composes the React halves of the same files.
 
 import { BasicBlocksBaseKit } from "@repo/editor/kits/basic-blocks-kit";
 import { BasicMarksBaseKit } from "@repo/editor/kits/basic-marks-kit";

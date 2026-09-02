@@ -1,7 +1,3 @@
-// Boot sanity over a generated 300-file vault: one cold reconcile projects
-// everything, and the index answers correctly afterwards. A correctness
-// check at realistic scale, not a benchmark.
-
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { noopNotifier } from "@repo/domain/notifier";
@@ -41,8 +37,7 @@ describe("a 300-file vault", () => {
       unchanged: 0,
     });
 
-    // note-149 also matches ("150" rides its [[note-150]] link); the doc that
-    // holds the whole marker must outrank it.
+    // note-149 also matches through its [[note-150]] link; the holder of the whole marker must rank first.
     const hits = await knowledge.search({ query: "token-150-marker", limit: 5 });
     expect(hits[0]?.path).toBe("notes/note-150.md");
 

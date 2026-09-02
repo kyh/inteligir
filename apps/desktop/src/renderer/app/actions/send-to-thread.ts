@@ -1,14 +1,3 @@
-// The composer's server conversation, framework-free over the typed client.
-//
-// EVERY SEND STATES WHAT THE VIEW BELIEVES, and the server decides: start the
-// turn when the thread is idle, queue the message when it is busy. The view
-// names the turn it is watching so a client whose belief is stale is refused
-// rather than acted on; the refusal is recoverable, not fatal — re-read the
-// thread and send again against what is actually open.
-//
-// The suites here drive the REAL ThreadService over an in-process app, so the
-// whole matrix is proven against the server's own transitions.
-
 import type { ViewContext } from "@repo/domain/view-context";
 import type { SendMessageRequest } from "@repo/api/local/threads/threads-schema";
 import { isDefinedError, refusalMessage, safe, type client } from "../api";
@@ -21,20 +10,14 @@ export type ComposerSendOutcome =
 export interface SendToThreadArgs {
   threadId: string;
   text: string;
-  /** The turn the user is watching; the staleness guard the send carries. */
   activeTurnId: string | null;
-  /** What the sender was looking at. Carried on the retry too: whether a send
-   *  starts or queues is the server's decision, and the server is where a
-   *  queued message's context is dropped. */
+  // carried on the retry too: start-vs-queue is the server's call, and it drops a queued message's context.
   viewContext?: ViewContext;
 }
 
-/** The sentence shown when the refusal carried none of its own. */
 const SEND_REFUSED = "The send was refused.";
 
-/** One send, guarding the turn named. `expectedTurnId` and the view context
- *  are omitted rather than sent empty: the server reads an absent guard as
- *  "this client believes the thread is idle". */
+// omitted rather than sent empty: the server reads an absent guard as "this client believes the thread is idle".
 function sendRequest(args: SendToThreadArgs, expectedTurnId: string | null): SendMessageRequest {
   const request: SendMessageRequest = { threadId: args.threadId, text: args.text };
   if (expectedTurnId !== null) {
@@ -46,12 +29,7 @@ function sendRequest(args: SendToThreadArgs, expectedTurnId: string | null): Sen
   return request;
 }
 
-/**
- * Send, and recover once from a stale guard: the view's belief about the open
- * turn was wrong, so re-read the thread and send again against what is
- * actually open. Bounded to one retry rather than racing a thread that keeps
- * moving.
- */
+// one retry on a stale guard, rather than racing a thread that keeps moving.
 export async function sendToThread(
   api: typeof client,
   args: SendToThreadArgs,

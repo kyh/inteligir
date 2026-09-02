@@ -1,12 +1,4 @@
-// Slash command menu covering the full locked vocabulary: basic
-// blocks, toggle, columns, date, equations, mermaid, embeds — every insert
-// routes through the shared kit transforms so the bytes each item produces
-// are the canonical fixture forms. Grouping + keywords follow potion's
-// slash-node (reference-only). Block conversions route through
-// block-transforms.ts (one turn-into source for slash, menus, and toolbar).
-//
-// The `[[` wiki-link picker (wiki-autocomplete.tsx) is another inline-combobox
-// consumer following the emoji-input pattern.
+// every item inserts through a kit transform so its bytes are the canonical fixture form.
 
 import { SlashInputPlugin, SlashPlugin } from "@platejs/slash-command/react";
 import { insertTable } from "@platejs/table";
@@ -370,7 +362,7 @@ export const SlashKit = [
     },
   }),
   SlashInputPlugin.withComponent(SlashInputElement),
-  // The Embed item's URL prompt lives outside the (self-unmounting) combobox.
+  // the embed item's url prompt must live outside the self-unmounting combobox.
   createPlatePlugin({
     key: "embed-url-dialog",
     render: { afterEditable: () => <EmbedUrlDialogHost /> },

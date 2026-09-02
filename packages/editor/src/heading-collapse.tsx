@@ -1,12 +1,6 @@
-// Collapsible headings: a chevron on h1–h3 folds the section below it (every
-// following top-level block until the next heading of the same or higher
-// rank). Collapse is VIEW state — keyed `level:text:ordinal` per note path,
-// persisted to localStorage — and never touches bytes or history, the same
-// contract tab switching states.
-//
-// The hidden set is derived ONCE per render pass in a provider above the
-// editable (a per-block backward walk would be quadratic under keystrokes):
-// one forward walk over root children with a stack of collapsed ranks.
+// Collapse is view state keyed `level:text:ordinal` per note path in localStorage;
+// it never touches bytes or history. The hidden set is derived once per render in
+// a provider: a per-block backward walk is quadratic under keystrokes.
 
 import { createContext, useContext, useMemo, useSyncExternalStore } from "react";
 import { NodeApi, type TElement } from "platejs";
@@ -31,8 +25,6 @@ const HEADING_RANK = new Map<string, number>([
   ["h3", 3],
 ]);
 
-// ---- Store (one fold set per note path) ------------------------------------
-
 const folds = new Map<string, Set<string>>();
 let version = 0;
 const listeners = new Set<() => void>();
@@ -42,8 +34,7 @@ function emit(): void {
   for (const listener of listeners) listener();
 }
 
-// The persisted blob: one note path → its folded keys. Entries are decoded one
-// at a time so a single unreadable note cannot discard every other note's folds.
+// decoded per note, so one unreadable entry cannot discard every other note's folds
 const STORED_NOTES = z.record(z.string(), z.unknown());
 const STORED_KEYS = z.array(z.string());
 
@@ -59,14 +50,12 @@ function readStorage(): Map<string, string[]> {
       if (keys.success) out.set(path, keys.data);
     }
   } catch {
-    // Storage unavailable or the blob is not JSON — nothing is folded.
+    // storage unavailable
   }
   return out;
 }
 
-// Re-read before every write: every other note is another entry in the same
-// record, and a whole-record write built from this process's map alone would
-// drop the notes it never opened.
+// Re-read before writing: the record holds every note, and a write from this map alone drops the notes never opened.
 function writeStorage(path: string, keys: ReadonlySet<string>): void {
   try {
     const all = readStorage();
@@ -74,7 +63,7 @@ function writeStorage(path: string, keys: ReadonlySet<string>): void {
     else all.set(path, [...keys]);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(Object.fromEntries(all)));
   } catch {
-    // Storage full or unavailable — collapse state degrades to session-only.
+    // storage full or unavailable
   }
 }
 
@@ -86,12 +75,10 @@ function foldsFor(path: string): Set<string> {
   return restored;
 }
 
-/** The folded heading keys of ONE note, restored from storage on first ask. */
 export function headingCollapseKeys(path: string): ReadonlySet<string> {
   return foldsFor(path);
 }
 
-/** Fold or unfold one heading of ONE note. */
 export function toggleHeadingCollapse(path: string, key: string): void {
   const keys = foldsFor(path);
   if (keys.has(key)) keys.delete(key);
@@ -107,17 +94,10 @@ function subscribe(listener: () => void): () => void {
   };
 }
 
-// ---- Derivation ------------------------------------------------------------
-
 type Derived = {
-  /** The note this walk was derived against — null when no note is held,
-   * which is exactly when `keys` is empty and nothing on screen folds. */
   path: string | null;
-  /** Top-level indices hidden under some collapsed heading. */
   hidden: Set<number>;
-  /** index → collapse key, for blocks that are collapsible headings. */
   keys: Map<number, string>;
-  /** That note's folded keys, so the walk and every chevron read one set. */
   folded: ReadonlySet<string>;
 };
 
@@ -128,8 +108,7 @@ const NOTHING_FOLDED: Derived = {
   folded: new Set(),
 };
 
-/** `version` is unused by the walk — it exists so the memo key carries the
- * store's clock (the fold sets are module state the linter cannot see). */
+// `version` only makes the memo key carry the store's clock; the fold sets are module state the linter cannot see.
 function deriveAt(children: readonly TElement[], path: string, version: number): Derived {
   void version;
   return derive(children, path);
@@ -140,7 +119,6 @@ function derive(children: readonly TElement[], path: string): Derived {
   const hidden = new Set<number>();
   const keys = new Map<number, string>();
   const ordinals = new Map<string, number>();
-  // Ranks of collapsed headings currently covering the walk.
   const stack: number[] = [];
   for (const [index, child] of children.entries()) {
     const rank = HEADING_RANK.get(child.type);
@@ -165,19 +143,15 @@ const DerivedContext = createContext<Derived>(NOTHING_FOLDED);
 
 function CollapseProvider({ children }: { children: React.ReactNode }) {
   const editor = useEditorRef();
-  // The open note, subscribed once here rather than per block: the fold set
-  // and every chevron under it must name the same file.
+  // subscribed once here rather than per block, so the fold set and every chevron name the same file
   const path = useOpenNotePath();
   const storeVersion = useSyncExternalStore(subscribe, () => version);
-  // children identity tracks edits; the store clock tracks collapse toggles.
   const derived = useMemo(
     () => (path === null ? NOTHING_FOLDED : deriveAt(editor.children, path, storeVersion)),
     [editor.children, path, storeVersion],
   );
   return <DerivedContext.Provider value={derived}>{children}</DerivedContext.Provider>;
 }
-
-// ---- Render wrapper --------------------------------------------------------
 
 function CollapsibleBlock(props: PlateElementProps) {
   const derived = useContext(DerivedContext);
@@ -186,7 +160,6 @@ function CollapsibleBlock(props: PlateElementProps) {
   const isHidden = derived.hidden.has(index);
   const path = derived.path;
 
-  // A key exists only when a note does, so the path check is narrowing alone.
   if (key === undefined || path === null) {
     return <div className={cn(isHidden && "hidden")}>{props.children}</div>;
   }

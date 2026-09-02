@@ -1,12 +1,3 @@
-// The file-properties panel — typed controls over the open note's YAML
-// frontmatter, hosted in the right panel's Properties tab. The
-// markdown file is the ONLY property store (CLAUDE.md § Decisions): there is no
-// metadata DB. Edits flow through the frontmatter NODE (properties-node.ts)
-// and out the editor's normal serialize path, so a property edit and a body
-// edit take the exact same route to disk. Unsupported / invalid YAML is shown
-// read-only and preserved byte-for-byte — the panel never destroys what it
-// can't read.
-
 import { type KeyboardEvent, useCallback, useMemo, useReducer, useState } from "react";
 import { PlusIcon } from "lucide-react";
 import type { SlateEditor } from "platejs";
@@ -30,10 +21,7 @@ import {
   UnsupportedField,
 } from "@repo/editor/properties/property-fields";
 
-// Which interpretations a value can be forced into WITHOUT changing its bytes.
-// Only string values are ambiguous (text vs date — both serialize the string
-// verbatim); everything else has a single honest type. Overrides are
-// session-only and never written to the file (they don't change the value).
+// only strings are ambiguous (text and date serialize identically); overrides are session-only.
 function overrideOptions(prop: TypedProperty): PropertyType[] {
   return prop.type === "text" || prop.type === "date" ? ["text", "date"] : [prop.type];
 }
@@ -88,7 +76,6 @@ function PropertyRow({
           {prop.key}
         </span>
         {options.length > 1 && (
-          // Session-only reinterpretation of a string value (text ↔ date).
           <select
             value={prop.type}
             onChange={(e) => {
@@ -189,16 +176,14 @@ function AddProperty({ onAdd }: { onAdd: (key: string, value: string) => void })
 }
 
 export function PropertiesPanel({ editor }: { editor: SlateEditor }) {
-  // Hosted outside the Plate tree (no useEditorSelector subscription): the
-  // drawer (re)mounts the panel on every open — a fresh read — and `commit`
-  // bumps the tick below so the panel re-renders over its own writes.
+  // no useEditorSelector: the drawer remounts the panel on each open, and `commit` bumps
+  // the tick to re-render over its own writes.
   const [, bumpRead] = useReducer((n: number) => n + 1, 0);
   const raw = readFrontmatterRaw(editor);
   const parsed = useMemo<ParsedProperties | null>(
     () => (raw === null ? null : parseProperties(raw)),
     [raw],
   );
-  // Session-only type overrides (never written to the file), keyed by property.
   const [overrides, setOverrides] = useState<Record<string, PropertyType>>({});
 
   const properties = parsed?.kind === "valid" ? parsed.properties : [];
@@ -212,8 +197,6 @@ export function PropertiesPanel({ editor }: { editor: SlateEditor }) {
     [editor, raw],
   );
 
-  // Re-type a property under its session override before rendering its field,
-  // so a "text as date" reinterpretation edits (and serializes) as a date.
   const applyOverride = (prop: TypedProperty): TypedProperty => {
     const forced = overrides[prop.key];
     if (forced === undefined || forced === prop.type) return prop;
@@ -235,7 +218,7 @@ export function PropertiesPanel({ editor }: { editor: SlateEditor }) {
     commit(properties.filter((_, i) => i !== index));
   };
   const handleAdd = (key: string, value: string) => {
-    // A duplicate key would make the whole block invalid — ignore it.
+    // a duplicate key would make the whole block invalid.
     if (properties.some((p) => p.key === key)) return;
     commit([...properties, typeNewProperty(key, value)]);
   };

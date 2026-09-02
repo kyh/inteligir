@@ -1,18 +1,3 @@
-// Inline constructs: formula/variable pills and comment anchors, as
-// inline-void nodes over the dialect @repo/notes/markdown/remark-inline-constructs
-// owns (that file states the round-trip contract and the grammar).
-//
-//   {{source|display|meta}}  → formulaPill   — a computed pill: display half
-//     first (the persisted result), source as the fallback. Click edits over
-//     the entry grammar; Backspace on a selected pill converts it back to
-//     text; typing `{{…}}` completes a pill (the wiki `]]` rule's sibling);
-//     `stale=1` metadata renders an amber hint. Evaluation itself lives in
-//     formulas/formula-recompute.ts.
-//   %%i:ids:start/end%%      → commentMarker — an anchored-comment
-//     boundary. Renders nothing visible: the marker is plumbing for the
-//     comment surface, and drawing brackets in prose would put the
-//     mechanism where the annotation belongs. The bytes stay exact.
-
 import { useState } from "react";
 import {
   KEYS,
@@ -80,6 +65,7 @@ function FormulaPillElement(props: PlateElementProps) {
   );
 }
 
+// Renders nothing: the anchor is plumbing for the comment surface, not prose.
 function CommentMarkerElement(props: PlateElementProps) {
   return (
     <PlateElement {...props} as="span" className="inline-block">
@@ -89,10 +75,7 @@ function CommentMarkerElement(props: PlateElementProps) {
   );
 }
 
-// This keystroke's `}` completes `{{body}}` (the buffer already holds
-// `{{body}`). A body carrying pipes is the PERSISTED grammar and completes
-// verbatim; a pipeless body runs the entry grammar — and a non-executable
-// anonymous entry stays literal text, exactly as typed.
+// A body with pipes is the persisted grammar and completes verbatim; a pipeless body runs the entry grammar.
 const FORMULA_COMPLETION_RE = /\{\{([^{}\n]+)\}$/u;
 
 function completeFormulaPill(editor: SlateEditor): boolean {
@@ -129,8 +112,7 @@ function completeFormulaPill(editor: SlateEditor): boolean {
   return true;
 }
 
-/** The pill the caret sits inside (Slate parks a selected inline void's caret
- * in its empty text child), or null. */
+// Slate parks a selected inline void's caret in its empty text child.
 function selectedFormula(editor: SlateEditor) {
   if (!editor.selection || !editor.api.isCollapsed()) return null;
   const entry = editor.api.above<TElement>({

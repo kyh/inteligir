@@ -6,11 +6,8 @@ import { Button } from "@repo/ui/components/button";
 import { AuthError, AuthField, AuthShell, fieldValue } from "@/components/auth-shell";
 import { authClient, authErrorMessage } from "@/lib/auth-client";
 
-// Where the emailed link's GET leg redirects: the Worker-hosted reset form
-// (src/worker/auth/reset-page.ts), which is the ONE page that sets a new
-// password. It stays server-rendered and static on purpose — a reset has to
-// work from any device, from an email client, with no app bundle to download —
-// so this route requests the link and never duplicates the form behind it.
+// the emailed link lands on the Worker-hosted form (src/worker/auth/reset-page.ts), which
+// must work with no app bundle; this route only requests the link
 const RESET_PAGE_PATH = "/auth/reset";
 
 export const Route = createFileRoute("/app/forgot-password")({ component: ForgotPasswordPage });
@@ -50,8 +47,6 @@ function ForgotPasswordPage() {
       }
     >
       {sent ? (
-        // Deliberately says nothing about whether that address has an account:
-        // the server's answer is neutral, and so is this.
         <p className="text-center text-sm text-muted-foreground">
           If that address has an account, a reset link is on its way.
         </p>

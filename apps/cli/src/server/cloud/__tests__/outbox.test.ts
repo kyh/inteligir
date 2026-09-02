@@ -1,13 +1,3 @@
-// THE FROZEN-BODY RULE, which is the one property the log's retry path rests
-// on: a position re-pushed with different bytes is `sync-conflict`, so what a
-// device stores at enqueue is what it must send — after a restart, after an
-// upgrade, forever.
-//
-// The restart is the part worth testing. Serializing at push time looks
-// identical in one process and diverges the moment anything about the event's
-// shape moves between the enqueue and the push, which is exactly what a
-// restart spans.
-
 import {
   closeConnection,
   createConnection,
@@ -47,8 +37,6 @@ describe("the outbox", () => {
     enqueue(db, [message("thr_1", "three")]);
     expect(takePushBatch(db)?.request.events.map((event) => event.deviceSeq)).toEqual([1, 2, 3]);
 
-    // Drained: the queue is empty, so a counter read off the QUEUE would
-    // restart at 1 and hand the log a position it already holds.
     const drained = takePushBatch(db);
     if (drained === null) throw new Error("expected a batch");
     ackPushBatch(db, drained);
@@ -76,9 +64,6 @@ describe("the outbox", () => {
     const after = takePushBatch(db);
     closeConnection(db);
 
-    // What the log compares is `JSON.stringify(event.event)` on its own parse,
-    // so identical serialized bodies is the exact condition for the retry path
-    // rather than a conflict.
     expect(after?.request.events.map((event) => JSON.stringify(event.event))).toEqual(
       before?.request.events.map((event) => JSON.stringify(event.event)),
     );
@@ -91,7 +76,6 @@ describe("the outbox", () => {
     enqueue(db, [message("thr_1", "one")]);
     const batch = takePushBatch(db);
     if (batch === null) throw new Error("expected a batch");
-    // The event a running turn appended while the push was in flight.
     enqueue(db, [message("thr_1", "two")]);
     ackPushBatch(db, batch);
 
@@ -102,8 +86,7 @@ describe("the outbox", () => {
   it("leaves an event the log would refuse out of the batch rather than wedging", () => {
     const dataDir = makeTempDir("inteligir-outbox-");
     const db = openStore(dataDir);
-    // Past the contract's per-event byte ceiling: the log refuses the WHOLE
-    // batch for it, so every event behind it would be stuck forever.
+    // past the contract's per-event byte ceiling.
     enqueue(db, [
       message("thr_1", "x".repeat(70_000)),
       message("thr_1", "the one that must still get through"),
@@ -111,8 +94,6 @@ describe("the outbox", () => {
     const batch = takePushBatch(db);
     expect(batch?.rejected.map((row) => row.deviceSeq)).toEqual([1]);
     expect(batch?.request.events.map((event) => event.deviceSeq)).toEqual([2]);
-    // Both are inside the batch's high-water, so the ack clears the bad one too
-    // and the queue moves on. Positions need only increase, not be contiguous.
     if (batch === null) throw new Error("expected a batch");
     ackPushBatch(db, batch);
     expect(takePushBatch(db)).toBeNull();

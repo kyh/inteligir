@@ -5,10 +5,7 @@
 @import "@fontsource-variable/geist-mono";
 @import "./typeset.css";
 
-/* Typeset preset — the document surface (the note editor). The appearance
-   dials publish `--editor-*` on <html>, so this is where a reader's typeface,
-   size and leading reach the whole typeset scale; the fallback is what the
-   preset renders as in an app that has no such funnel. */
+/* the appearance dials publish --editor-* on <html>; the fallback is for an app with no such funnel */
 .typeset-docs {
   --typeset-font-body: var(--editor-font, var(--font-geist));
   --typeset-font-heading: var(--editor-font, var(--font-geist));
@@ -18,10 +15,7 @@
   --typeset-flow: 1.25em;
 }
 
-/* Bordered-grid tables on EVERY typeset surface (editor, transclusion) —
-   Kyh's call over typeset's docs-style row separators. Plain class selectors
-   out-specify typeset's zero-specificity :where() rules; fonts and sizes still
-   come from typeset. */
+/* plain class selectors out-specify typeset's zero-specificity :where() rules */
 .typeset table {
   width: auto;
   border-collapse: collapse;
@@ -40,10 +34,8 @@
   font-weight: 600;
 }
 
-/* This package's own components only. Tailwind cannot auto-detect them through
-   the node_modules symlink, but each app's sources are auto-detected from its
-   own build root — scanning apps/** from here would make every app ship every
-   other app's classes. */
+/* Tailwind cannot auto-detect this package through the node_modules symlink; scanning apps/** from
+   here would make every app ship every other app's classes */
 @source "../**/*.{ts,tsx}";
 
 @custom-variant dark (&:is(.dark *));
@@ -92,7 +84,6 @@
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
 
-  /* Surface elevation ladder (bg-surface-N utilities) */
   --color-surface-1: var(--surface-1);
   --color-surface-2: var(--surface-2);
   --color-surface-3: var(--surface-3);
@@ -102,7 +93,6 @@
   --color-surface-7: var(--surface-7);
   --color-surface-8: var(--surface-8);
 
-  /* Shadow elevation ladder (shadow-surface-N utilities) */
   --shadow-surface-1: var(--shadow-1);
   --shadow-surface-2: var(--shadow-2);
   --shadow-surface-3: var(--shadow-3);
@@ -112,12 +102,10 @@
   --shadow-surface-7: var(--shadow-7);
   --shadow-surface-8: var(--shadow-8);
 
-  /* Surface-relative interactive overlays */
   --color-hover: var(--hover);
   --color-active: var(--active);
   --color-focus-ring: var(--focus-ring);
 
-  /* Surface and ink ROLES (see :root) */
   --color-surface: var(--surface);
   --color-surface-inset: var(--surface-inset);
   --color-surface-raised: var(--surface-raised);
@@ -129,15 +117,9 @@
 }
 
 :root {
-  /* Typeset font hooks — same faces the theme's font-sans/font-mono use
-     (fontsource variable builds imported at the top of this file). Geist is
-     the UI face — the proliferate-language pair. */
   --font-geist: "Geist Variable", system-ui, sans-serif;
   --font-geist-mono: "Geist Mono Variable", ui-monospace, monospace;
 
-  /* Proliferate-language monochrome: a white sheet over a soft ground,
-     hairline borders, pill neutrals, near-black ink. Reimplemented as our own
-     values — the reference is a look, not a stylesheet. */
   --background: oklch(1 0 0);
   --foreground: oklch(0.205 0 0);
   --card: oklch(1 0 0);
@@ -165,8 +147,6 @@
   --chart-5: oklch(0.274 0.006 286.033);
   --radius: 0.625rem;
 
-  /* Sidebar width lives as an inline var on SidebarProvider's wrapper (and is
-     driven by the desktop resize hook) — no :root seed needed. */
   --sidebar: oklch(0.955 0 0);
   --sidebar-foreground: oklch(0.205 0 0);
   --sidebar-primary: oklch(0.205 0 0);
@@ -176,9 +156,6 @@
   --sidebar-border: oklch(0.91 0 0);
   --sidebar-ring: oklch(0.708 0 0);
 
-  /* Surface elevation ladder — two near-white steps up from the ground, then
-     paper white; in light mode elevation reads through the shadow ladder, not
-     the fill. */
   --surface-1: #fafafa;
   --surface-2: #fcfcfc;
   --surface-3: #ffffff;
@@ -188,7 +165,6 @@
   --surface-7: #ffffff;
   --surface-8: #ffffff;
 
-  /* Shadow ladder — additive layers, halving offsets (1/3/6/12/24/48/96 px). */
   --shadow-color: rgb(0 0 0 / 0.06);
   --shadow-1: 0 0 0 1px var(--shadow-color);
   --shadow-2: 0 0 0 1px var(--shadow-color), 0 1px 1px -0.5px var(--shadow-color);
@@ -217,26 +193,14 @@
     0 12px 12px -6px var(--shadow-color), 0 24px 24px -12px var(--shadow-color),
     0 48px 48px -24px var(--shadow-color), 0 96px 96px -48px var(--shadow-color);
 
-  /* Surface-relative hover overlay. --overlay is the tint direction (black on
-     light surfaces, white on dark) so hover reads correctly at any elevation. */
+  /* --overlay is the tint direction: black on light surfaces, white on dark */
   --overlay: 0 0 0;
   --hover: rgb(var(--overlay) / 0.04);
   --active: rgb(var(--overlay) / 0.07);
   --focus-ring: var(--ring);
 
-  /* ── Surface and ink ROLES ────────────────────────────────────────────────
-     A vocabulary of PLACES and WEIGHTS over the palette above, so a component
-     reaches for `bg-surface-inset` / `text-ink-3` / `border-line` and stops
-     naming shades it then has to re-pick per theme. Nothing new is defined:
-     every value resolves through --background / --foreground / --border /
-     --card, so a palette change carries the whole ladder with it.
-
-     Each DERIVED rung is one step toward the ink, which is the direction that
-     reads right in both themes — a strip set into a white page is a shade
-     darker, and the same strip on a dark page is a shade lighter. That is why
-     these live in `:root` alone and `.dark` restates none of them: `.dark`
-     lands on the same element, so re-declaring --background under it is
-     already enough to move every rung. */
+  /* every rung derives one step toward the ink, so these live in :root alone and .dark restates
+     none of them: .dark lands on the same element, and re-declaring --background there moves them all */
   --surface: var(--background);
   --surface-inset: color-mix(in oklab, var(--background), var(--foreground) 3%);
   --surface-raised: var(--card);
@@ -248,8 +212,6 @@
 }
 
 .dark {
-  /* Proliferate-language monochrome, dark: a deep neutral sheet over a
-     deeper ground, white ink, hairline borders as translucent white. */
   --background: oklch(0.205 0 0);
   --foreground: oklch(0.985 0 0);
   --card: oklch(0.239 0 0);
@@ -284,8 +246,6 @@
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.552 0.016 285.938);
 
-  /* Surface elevation ladder — dark mode has no shadow contrast to spend, so
-     each step lightens the fill instead. */
   --surface-1: #171717;
   --surface-2: #1e1e1e;
   --surface-3: #252525;
@@ -295,7 +255,6 @@
   --surface-7: #414141;
   --surface-8: #484848;
 
-  /* Dark shadow recipe — inset highlight + ring + stacked drops. */
   --dm-hi-base: rgba(255, 255, 255, 0.01);
   --dm-hi-mid: rgba(255, 255, 255, 0.02);
   --dm-hi-high: rgba(255, 255, 255, 0.04);
@@ -347,16 +306,10 @@
   }
   body {
     @apply bg-background text-foreground;
-    /* Inherited by everything (portals included);
-       `subpixel-antialiased` on a subtree opts back out. */
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
 
-  /* Native scrollbar theme: a 10px hit area whose
-     3px transparent border + content-box clip leaves a ~4px visible thumb;
-     low-contrast, darkens on hover. color-mix on --foreground adapts to dark
-     mode automatically. */
   ::-webkit-scrollbar {
     width: 10px;
     height: 10px;
@@ -383,10 +336,7 @@
     @apply font-sans;
   }
 
-  /* Fallback focus ring for anything without its own focus-visible styling.
-     The radius tracks the custom property RadiusProvider publishes on <html>;
-     components with their own rounding keep it (utilities layer wins over
-     base). */
+  /* the radius tracks the custom property RadiusProvider publishes on <html> */
   :focus-visible {
     outline: 1px solid var(--focus-ring);
     outline-offset: 2px;
@@ -397,10 +347,8 @@
   }
 }
 
-/* Beautiful UI's pixel-grid loader and shimmering label (packages/ui/src/ai).
-   The animation lives in the CLASS, not inline, so the per-cell delay stays
-   data on the element while reduced-motion can switch the whole thing off —
-   an inline `animation` shorthand could only be overridden with !important. */
+/* the animation lives in the class, not inline: an inline `animation` shorthand could only be
+   switched off for reduced-motion with !important */
 @keyframes pixel-on {
   0%,
   100% {
@@ -432,8 +380,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  /* The grid freezes at its dim rest state and the label goes solid; the
-     elapsed timer keeps ticking, since that is information, not decoration. */
   .bui-pixel {
     animation: none;
   }
@@ -445,12 +391,8 @@
   }
 }
 
-/* Pseudo-determinate progress fill for setup when we don't have real percent
-   data yet. Grows from 0 to 92% on an ease-out curve over ~14s — matching
-   the typical cold-start window — then holds. As soon as a real percent
-   arrives, the determinate path takes over and continues from there. The
-   small held remainder ("almost done") keeps the bar from looking stuck at
-   100% while later steps are still finishing. */
+/* holds at 92% over the typical ~14s cold start so the bar never looks stuck at 100% while later
+   steps finish; a real percent takes over from there */
 @keyframes progress-fill {
   0% {
     transform: scaleX(0.02);
@@ -465,8 +407,6 @@
   animation: progress-fill 14s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-/* Button loading spinner — the dash walks the circle while its length
-   breathes. */
 @keyframes spinner-move {
   to {
     stroke-dashoffset: -100;
@@ -483,10 +423,7 @@
   }
 }
 
-/* Radius-switch cross-fade: RadiusProvider holds `.transitioning` on <html> for
-   ~200ms around a radius change so radii (and the colors riding them) glide
-   instead of snapping. !important because the beat must beat per-component
-   transition utilities. */
+/* radius-switch cross-fade; !important so the beat wins over per-component transition utilities */
 .transitioning *,
 html.transitioning ::before,
 html.transitioning ::after {
@@ -499,30 +436,13 @@ html.transitioning ::after {
     stroke 0.18s ease-in-out !important;
 }
 
-/* ── Bloom popup motion ──────────────────────────────────────────────────────
-   Open/close choreography for every popup surface, ported from
-   joshpuckett/bloom (MIT): the shell springs out from its anchor while the
-   items blur in a beat behind it. Base UI drives it — it holds the popup
-   mounted through `data-closed` until these animations end.
-
-   Three constraints are load-bearing; none of them are style preferences:
-
-   1. Shell and fade are SEPARATE animations because they need different
-      easings. The spring is a linear() whose values overshoot past 1 (that
-      overshoot IS the bounce). Run `filter: blur()` on it and the overshoot
-      interpolates past the target into a NEGATIVE radius, which is invalid —
-      the browser drops the filter and the blur pops off. So: spring on the
-      transform, plain ease on opacity and blur.
-
-   2. The blur is on the popup's CHILDREN, never the popup. `filter` on the
-      popup would make it a backdrop root, and the `before:backdrop-blur-2xl`
-      glass would have nothing left to sample. Bloom blurs its Content and not
-      its Container for exactly this reason.
-
-   3. Enter fills `backwards`, not `both`. A `forwards` fill would leave
-      `filter: blur(0)` on the element at rest — still a filter, still a
-      backdrop root, glass still dead. `backwards` applies the from-state
-      during the delay and then gets out of the way. */
+/* Popup motion ported from joshpuckett/bloom (MIT). Base UI holds the popup mounted through
+   data-closed until these animations end.
+   spring and fade are separate animations: the spring's linear() overshoots past 1, and on
+   filter: blur() that interpolates to a negative radius, which the browser drops.
+   the blur is on the children, never the popup: a filter makes the popup a backdrop root and the
+   backdrop-blur glass has nothing left to sample. enter fills backwards, not both, because a
+   forwards fill leaves filter: blur(0) at rest, still a backdrop root. */
 @keyframes bloom-shell-in {
   from {
     transform: translate3d(var(--bloom-in-x, 0), var(--bloom-in-y, 0), 0) scale(0.95);
@@ -582,7 +502,6 @@ html.transitioning ::after {
 }
 
 .bloom-popup {
-  /* Bloom's spring: 0.2125s perceptual duration, 0.2 bounce. */
   --bloom-spring: linear(
     0,
     0.2388,
@@ -602,8 +521,7 @@ html.transitioning ::after {
   --bloom-out-dist: 30px;
 }
 
-/* The popup enters FROM its anchor and exits back TOWARD it, so the offset
-   sign is the inverse of the side it sits on. */
+/* the popup enters from its anchor and exits back toward it, so the offset sign inverts per side */
 .bloom-popup[data-side="bottom"] {
   --bloom-in-y: calc(var(--bloom-in-dist) * -1);
   --bloom-out-y: calc(var(--bloom-out-dist) * -1);
@@ -636,10 +554,8 @@ html.transitioning ::after {
     bloom-fade-out 200ms cubic-bezier(0.4, 0, 1, 1) forwards;
 }
 
-/* The item beat, 30ms behind the shell (bloom's contentDelay). Only for popups
-   whose children are a STATIC list — a filtering surface (combobox, slash menu)
-   remounts its children on every keystroke, which would replay the blur on each
-   one. Those get the shell motion alone. */
+/* only for popups whose children are a static list: a filtering surface remounts its children on
+   every keystroke, which would replay the blur on each one */
 .bloom-popup-items[data-open] > * {
   animation: bloom-items-in 200ms ease-out 30ms backwards;
 }

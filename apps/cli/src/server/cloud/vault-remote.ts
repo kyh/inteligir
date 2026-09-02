@@ -2,44 +2,19 @@ import { VAULT_GIT_PATH } from "@repo/api/cloud/vault/vault-git";
 import { endpointUrl } from "@repo/api/cloud/client";
 import { readDeviceCredential } from "./credential-store";
 
-// ---------------------------------------------------------------------------
-// Where the vault's git remote comes from, resolved PER PASS rather than at
-// boot: an explicit remote (INTELIGIR_VAULT_REMOTE / config.json) always
-// wins, and with none set, a PAIRED install derives the hosted one from the
-// cloud origin plus the device credential. The credential file stays the one
-// switch — pairing turns vault sync on, unpairing turns it off, and there is
-// no second flag to disagree with it (the same argument the thread-sync
-// runtime states for itself).
-//
-// THE CREDENTIAL RIDES PER-INVOCATION ENV, NEVER THE URL. The engine
-// persists the remote URL into `<vault>/.git/config` (`ensureOriginRemote`),
-// which lives inside the directory users back up and copy — URL userinfo
-// would store the secret there, and `redactRemoteUrl` covers display only.
-// `GIT_CONFIG_*` env scopes an `http.<url>.extraHeader` to exactly the
-// hosted remote's own URL, so no other remote a user configures ever sees
-// the header.
-// ---------------------------------------------------------------------------
+// resolved per pass, not at boot, so pair/unpair flips vault sync live. the
+// credential rides per-invocation env, never the url: the engine persists the
+// remote url into <vault>/.git/config, which users back up and copy.
 
-/** A resolved remote: where to dial, and the env that authenticates the
- *  invocations that dial it. Resolved together so the URL and its credential
- *  cannot disagree. */
 export interface VaultRemoteSpec {
   url: string;
-  /** "explicit" = the user configured it; "paired" = derived from the device
-   *  credential, and gone the moment an unpair removes that file. */
   source: "explicit" | "paired";
-  /** The paired account's id, once the session has learned it — what the
-   *  engine's `inteligir.account` marker is compared against, so a re-pair
-   *  to a DIFFERENT account refuses instead of silently pushing this
-   *  machine's notes into it. Absent = fence inert (an old credential file,
-   *  or the account fetch has not landed yet). */
+  /** what the engine's inteligir.account marker is compared against; absent, the fence is inert. */
   account?: string;
-  /** Extra env for the network git invocations (fetch/push/clone) only. */
+  /** for the network git invocations (fetch/push/clone) only. */
   env?: Record<string, string>;
 }
 
-/** Re-read wherever the answer matters — a sync pass, a status read, boot —
- *  so pair/unpair flips vault sync live, with no engine restart. */
 export type VaultRemoteProvider = () => VaultRemoteSpec | null;
 
 export function hostedVaultRemoteUrl(cloudUrl: string): string {
@@ -47,10 +22,8 @@ export function hostedVaultRemoteUrl(cloudUrl: string): string {
 }
 
 export interface CreateVaultRemoteProviderArgs {
-  /** The configured remote (env/config.json), or null when none is set. */
   explicitRemote: string | null;
   cloudUrl: string;
-  /** Where the device credential lives; its presence IS the derived switch. */
   dataDir: string;
 }
 

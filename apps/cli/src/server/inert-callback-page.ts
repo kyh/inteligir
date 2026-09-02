@@ -1,10 +1,3 @@
-// The inert browser-facing page the loopback callbacks answer (pairing and
-// connector OAuth): no script, no external asset, and headers that say so.
-// Everything interpolated is this process's own text today, and the remote
-// party's refusal sentence is the one piece that is not — escaped anyway,
-// because "the source is trusted" is the assumption that stops being true
-// without anyone editing this file.
-
 export interface InertCallbackPage {
   status: 200 | 400;
   title: string;
@@ -44,9 +37,7 @@ export function renderInertCallbackPage(page: InertCallbackPage): string {
 `;
 }
 
-/** The URL that reached a callback carries a live code, and the page links
- *  nowhere — but a policy is cheaper than reasoning about who might add a
- *  link later. */
+// the callback url carries a live code; no-referrer keeps it off any link added later.
 export const INERT_CALLBACK_HEADERS = {
   "content-type": "text/html; charset=utf-8",
   "cache-control": "no-store",

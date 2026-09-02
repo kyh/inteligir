@@ -1,21 +1,9 @@
-// Wiki-link syntax for the pipeline: `[[body]]`, `[[target|alias]]`,
-// `![[embed]]`. Own micromark text constructs + mdast handlers rather than an
-// npm package: the published wiki-link packages are years stale, two majors
-// behind mdast-util-to-markdown, and lack embeds.
-//
-// Round-trip contract: `body` is the raw source between the brackets,
-// VERBATIM — `[[ padded ]]` and `[[a#b|c]]` re-emit byte-exact. Anchor/alias
-// splitting is display-time only (parseWikiBody, for the chip renderer and
-// target resolution) and never round-trip-relevant.
-//
-// Grammar: nok on EOF/EOL (no multi-line targets), nested `[`, and empty body.
-// A single `]` inside the body rejects the whole construct, which then falls
-// through to standard link/image parsing (micromark prepends our constructs, so
-// `[x](y)` is untouched). Text constructs never run inside code — fence-safety
-// is free.
+// own micromark constructs rather than an npm package: the published wiki-link packages are
+// years stale and lack embeds. `body` is the raw source between the brackets, verbatim;
+// anchor/alias splitting is display-time only. a single `]` inside the body rejects the whole
+// construct, which then falls through to standard link parsing.
 
-// remark-stringify's module augmentation declares `Data.toMarkdownExtensions`,
-// which the plugin below pushes into (types-only — no runtime import).
+// remark-stringify's augmentation declares `Data.toMarkdownExtensions` (types-only).
 /// <reference types="remark-stringify" />
 
 import type { Node } from "mdast";
@@ -30,12 +18,10 @@ import type { Plugin, Processor } from "unified";
 
 export interface WikiLink extends Node {
   type: "wikiLink";
-  /** Raw source between the brackets, verbatim. */
   body: string;
 }
 export interface WikiEmbed extends Node {
   type: "wikiEmbed";
-  /** Raw source between the brackets, verbatim. */
   body: string;
 }
 
@@ -60,7 +46,7 @@ declare module "micromark-util-types" {
   }
 }
 
-// micromark character codes: EOF, then the three EOL codes.
+// micromark's own codes for EOF and the three EOL forms.
 const EOF = null;
 const CR = -5;
 const LF = -4;
@@ -169,8 +155,7 @@ const wikiToMarkdown: ToMarkdownExtension = {
   },
 };
 
-// Function expression (not an exported declaration): remark plugins receive
-// the processor as `this` by contract — unified invokes them with .call().
+// a function expression: remark plugins receive the processor as `this`.
 export const remarkWikiLink: Plugin = function (this: Processor): undefined {
   const data = this.data();
   (data.micromarkExtensions ??= []).push(wikiSyntax);
@@ -178,29 +163,17 @@ export const remarkWikiLink: Plugin = function (this: Processor): undefined {
   (data.toMarkdownExtensions ??= []).push(wikiToMarkdown);
 };
 
-// ---------------------------------------------------------------------------
-// Display-time body parsing (WP2 chip renderer + Phase F resolution). Never
-// used for round-trip: the node keeps `body` verbatim.
-// ---------------------------------------------------------------------------
-
 export type WikiBody = {
-  /** Link target (trimmed), e.g. `Note` in `[[ Note #sec | nice ]]`. */
   target: string;
-  /** Heading anchor after `#` (trimmed), if any. */
   anchor?: string;
-  /** Display alias after the first `|` (trimmed), if any. */
   alias?: string;
 };
 
-/** `WikiBody` plus the exact code-unit range of the target's RAW slice inside
- * `body` — what a rename-rewrite replaces. Absent when the body has no target
- * text (pure-anchor links like `[[#sec]]`). When the title carries `\#`/`\\`
- * escapes the range maps the escaped bytes while `target` is the unescaped
- * text, so span verification fails closed and such a link is never rewritten. */
+// `targetRange` is the raw slice a rename rewrites; when the title carries `\#`/`\\` escapes it
+// maps the escaped bytes while `target` is unescaped, so span verification fails closed.
 export type WikiBodyRange = WikiBody & { targetRange?: { start: number; end: number } };
 
-/** The resolved-link form puts the target note's uuid after the pipe; a
- * uuid-shaped alias is identity plumbing, never display text. */
+// the resolved-link form puts the target note's uuid after the pipe.
 const UUID_ALIAS_RE = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 
 export function isUuidWikiAlias(alias: string): boolean {
@@ -213,14 +186,12 @@ function isEscapedAt(text: string, index: number): boolean {
   return backslashes % 2 === 1;
 }
 
-// Only the dialect's two escapes unescape; any other backslash is title text.
+// only the dialect's two escapes unescape; any other backslash is title text.
 function unescapeWikiText(text: string): string {
   return text.replace(/\\([\\#])/g, "$1");
 }
 
-/** The first `#` that starts an anchor: unescaped, and TIGHT — at position 0
- * or with non-whitespace on both sides (so `[[C# Notes]]` and
- * `[[A # B]]` stay titles while `[[Note#Heading]]` splits). */
+// tight only: `[[C# Notes]]` and `[[A # B]]` stay titles while `[[Note#Heading]]` splits.
 function anchorIndex(head: string): number {
   for (let i = 0; i < head.length; i++) {
     if (head[i] !== "#" || isEscapedAt(head, i)) continue;
@@ -234,12 +205,9 @@ function anchorIndex(head: string): number {
   return -1;
 }
 
-/** Split a raw wiki body into target / #anchor / |alias, tracking where the
- * target sits inside the body (for byte-surgical rewrites). */
 export function parseWikiBodyRange(body: string): WikiBodyRange {
-  // The LAST pipe starts the alias: a title containing `|` is
-  // legal when paired with a resolved-UUID suffix, so the split must keep the
-  // whole title intact rather than truncating at its first pipe.
+  // the last pipe starts the alias: a title containing `|` is legal when paired with a
+  // resolved-uuid suffix.
   const pipe = body.lastIndexOf("|");
   const head = pipe === -1 ? body : body.slice(0, pipe);
   const alias = pipe === -1 ? undefined : body.slice(pipe + 1).trim();
@@ -258,11 +226,6 @@ export function parseWikiBodyRange(body: string): WikiBodyRange {
   return result;
 }
 
-/** Split a raw wiki body into target / #anchor / |alias for display.
- *
- * The rename path wants the range and calls `parseWikiBodyRange` directly; this
- * drops it for the renderers that only show the parts (wiki chips, the
- * autocomplete). */
 export function parseWikiBody(body: string): WikiBody {
   const { targetRange: _range, ...display } = parseWikiBodyRange(body);
   return display;

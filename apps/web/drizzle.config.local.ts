@@ -3,17 +3,9 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Config } from "drizzle-kit";
 
-// `drizzle-kit push` against the LOCAL miniflare D1 that `pnpm dev:web` binds to
-// (the Cloudflare vite plugin persists miniflare state under .wrangler/state).
-// The default drizzle.config.ts pushes to remote
-// prod (d1-http); this one points the sqlite driver at the local SQLite file.
-// Miniflare names that file with a content hash, so resolve it from .wrangler
-// state rather than hard-coding it. Run `pnpm db:push:local` to apply the schema.
-//
-// The directory ALSO holds miniflare's own `metadata.sqlite`. Matching any
-// `*.sqlite` picked that one first (readdir order), so the push "succeeded"
-// into miniflare's bookkeeping DB and the real D1 stayed empty — every auth
-// request then 500'd on a missing table. Match the 64-hex content-hash name.
+// Points drizzle-kit at the miniflare D1 file under .wrangler/state (`pnpm db:push:local`).
+// Match the 64-hex content-hash name: the directory also holds miniflare's own
+// metadata.sqlite, and `*.sqlite` picked that first, pushing the schema into the wrong db.
 const D1_FILE = /^[0-9a-f]{64}\.sqlite$/;
 const here = dirname(fileURLToPath(import.meta.url));
 const d1Dir = join(here, ".wrangler/state/v3/d1/miniflare-D1DatabaseObject");

@@ -5,18 +5,6 @@ import { forwardRef, type HTMLAttributes, type ReactNode } from "react";
 
 import { cn } from "@repo/ui/lib/utils";
 
-/* ─────────────────────────────────────────────────────────
- * CONTEXT CARDS — retrieved chunks, with where each came from
- *
- * A card is one retrieved passage: a title, how much of it was
- * taken, the passage itself, and a chip naming its source.
- *
- * The CARDS ARE CHILDREN, so a caller renders whatever the
- * retrieval actually returned, and the entrance is a CSS utility
- * rather than a mount-time timer — a list that re-renders when a
- * query settles must not replay its own introduction.
- * ───────────────────────────────────────────────────────── */
-
 const LINES_ICON = (
   <svg
     aria-hidden
@@ -63,7 +51,6 @@ const ContextCardList = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement
 ContextCardList.displayName = "ContextCardList";
 
 export interface ContextCardListHeadingProps extends HTMLAttributes<HTMLDivElement> {
-  /** Total chunks available, when the list shows only some of them. */
   count?: ReactNode;
 }
 
@@ -86,10 +73,8 @@ const ContextCardListHeading = forwardRef<HTMLDivElement, ContextCardListHeading
 );
 ContextCardListHeading.displayName = "ContextCardListHeading";
 
-/** `title` is a node here, not the DOM's tooltip string — the card renders it. */
 export interface ContextCardProps extends Omit<HTMLAttributes<HTMLDivElement>, "title"> {
   title: ReactNode;
-  /** How much of the source this chunk covers — "290 characters". */
   extent?: ReactNode;
 }
 
@@ -133,8 +118,6 @@ const ContextCardBody = forwardRef<HTMLParagraphElement, HTMLAttributes<HTMLPara
 ContextCardBody.displayName = "ContextCardBody";
 
 export interface ContextCardSourceProps extends HTMLAttributes<HTMLButtonElement> {
-  /** Short kind marker — "PDF", "CSV". Monochrome by design: this skin
-   *  carries no per-file-type palette. */
   kind?: ReactNode;
 }
 

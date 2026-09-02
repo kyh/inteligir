@@ -17,9 +17,7 @@ describe("what restoring a revision would change", () => {
   });
 
   it("counts a trailing-newline-only change rather than calling the two the same", () => {
-    // The lines come from `splitLinesLf`, so the empty final segment IS the
-    // newline. A view that trimmed it would report no difference for a
-    // restore that rewrites the file's last byte.
+    // under `splitLinesLf` the empty final segment is the newline.
     expect(diffRows("a\n", "a")).not.toEqual([]);
   });
 
@@ -44,9 +42,7 @@ describe("what restoring a revision would change", () => {
 
 describe("row identity", () => {
   it("never emits one base line twice, and never repeats a row id", () => {
-    // Two hunks two lines apart: the first hunk's trailing context window and
-    // the second hunk's own lines overlap, and an unclamped window emits the
-    // same base line as context AND as removed — with the same id twice.
+    // two hunks two lines apart: an unclamped context window emits one base line as context and as removed.
     for (const [current, revision] of [
       ["a\nkeep\nb", "A\nkeep\nB"],
       ["a\na", "b\na\nb\na"],

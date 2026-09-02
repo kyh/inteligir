@@ -1,11 +1,3 @@
-// Settings → Note intelligence: the switch for background frontmatter
-// inference. The server owns the toggle (it is the process that spawns the
-// inference children), so this section renders the server's own status and
-// nothing it does not have. What the feature MAY write is stated beside the
-// switch — description, tags, status, and only where a note lacks them —
-// because a background writer earns its toggle by saying exactly what it
-// touches.
-
 import { Switch } from "@repo/ui/components/switch";
 import type { NoteIntelligenceStatus } from "@repo/api/local/note-intelligence/note-intelligence-schema";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -13,9 +5,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { orpc } from "../api";
 import { failed, Row, SectionHeading } from "./settings-chrome";
 
-/** The reason this machine cannot infer, or null when it can. A sweep line of
- *  zeros would otherwise be the only thing an install without the CLI ever
- *  shows. */
 function unavailableReason(status: NoteIntelligenceStatus): string | null {
   return status.availability.kind === "unavailable" ? status.availability.detail : null;
 }

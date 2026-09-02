@@ -3,10 +3,6 @@ import { makeTempDir } from "../../__tests__/temp-dir";
 import { clearDeviceCredential, writeDeviceCredential } from "../credential-store";
 import { createVaultRemoteProvider, hostedVaultRemoteUrl } from "../vault-remote";
 
-// The one-switch property, held where it lives: the provider answers from the
-// credential FILE per call, so pairing and unpairing flip the derived remote
-// with no restart — and an explicit remote always wins over the derivation.
-
 const CLOUD_URL = "https://cloud.test";
 const CREDENTIAL = `igd_${"a".repeat(64)}`;
 

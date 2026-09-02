@@ -87,8 +87,6 @@ describe("createGracefulShutdown", () => {
       ],
     });
 
-    // The pending vault commit is exactly what must survive a failed close —
-    // and the exit code must still say the shutdown was not clean.
     await expect(shutdown.run()).resolves.toEqual({ ok: false, failed: ["listener"] });
     expect(failures).toEqual(["listener"]);
     expect(log).toEqual(["vault"]);
@@ -101,9 +99,6 @@ describe("createGracefulShutdown", () => {
       const shutdown = createGracefulShutdown({
         ...quiet,
         steps: [
-          // The blocker's shape: one open websocket leaves the listener close
-          // pending forever. Everything after it is what a graceful shutdown
-          // exists for.
           { name: "listener", timeoutMs: 1_000, run: () => new Promise<void>(() => {}) },
           recordingStep("agent", log),
           recordingStep("vault", log),
@@ -158,10 +153,6 @@ describe("createGracefulShutdown", () => {
   });
 
   it("DERIVES the sequence deadline, so no step is starved by the backstop", async () => {
-    // A whole-sequence total written as its own number is the bug: every step
-    // behind the point it expires is skipped — and the order puts the vault
-    // flush last on purpose. Five wedged steps must each cost their own
-    // budget and be NAMED, not be cut off by the deadline that bounds them.
     vi.useFakeTimers();
     try {
       const steps = [
@@ -193,8 +184,6 @@ describe("createGracefulShutdown", () => {
   });
 
   it("reads the deadline at RUN time, from the steps registered by then", async () => {
-    // The boot fills the array as its resources come up, so a deadline taken
-    // at construction would bound an empty sequence.
     vi.useFakeTimers();
     try {
       const steps: ShutdownStep[] = [];
@@ -213,8 +202,7 @@ describe("createGracefulShutdown", () => {
 describe("the exported ceiling", () => {
   it("covers every step budget the process can register", () => {
     const declared = Object.values(TEARDOWN_BUDGETS_MS).reduce((total, ms) => total + ms, 0);
-    // The supervisor's SIGKILL grace derives from this; a ceiling under the
-    // sum kills the process during whatever the order put last.
+    // the supervisor's SIGKILL grace derives from this; a ceiling under the sum kills the process mid-step.
     expect(SHUTDOWN_TIMEOUT_MS).toBeGreaterThan(declared);
   });
 });
@@ -242,8 +230,6 @@ describe("installShutdownSignals", () => {
   });
 
   it("EXITS NON-ZERO when a step failed, and says which", async () => {
-    // A failed final commit or a database that would not close is not a clean
-    // shutdown; reporting 0 teaches every supervisor above to believe a lie.
     const fake = fakeTarget();
     const reported: string[][] = [];
     const shutdown = createGracefulShutdown({
@@ -310,10 +296,6 @@ function fakeFatalTarget() {
 
 describe("installFatalErrorHandlers", () => {
   it.each(FATAL_EVENTS)("runs the ordinary teardown for %s, then exits non-zero", async (event) => {
-    // Node's default is to print and leave, skipping the SQLite close that
-    // checkpoints the WAL sidecar and the vault flush that commits the last
-    // edits — so a stray rejection in a background task becomes a data
-    // outcome.
     const log: string[] = [];
     const seen: Array<{ event: FatalEvent; reason: unknown }> = [];
     const fake = fakeFatalTarget();
@@ -336,7 +318,6 @@ describe("installFatalErrorHandlers", () => {
 
     expect(seen).toEqual([{ event, reason: boom }]);
     expect(log).toEqual(["vault", "db"]);
-    // 1, never 0: a supervisor has to tell a crash from a quit.
     expect(fake.exits).toEqual([1]);
   });
 
@@ -360,14 +341,6 @@ describe("installFatalErrorHandlers", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// The composed teardown against the budgets table — asserted over the VALUE
-// the composition root returns, because compose.ts fills the list as each
-// resource comes up and both production callers (serve.ts, boot-app.ts) run
-// exactly that list. The one step the composition cannot register is the
-// listener, which needs a bound port; `registerListener` is the one spelling
-// serve.ts adds it through, so the list is asserted WITH it in place.
-// ---------------------------------------------------------------------------
 describe("the composed teardown", () => {
   it("holds every budgeted step in the budgets table's order once the listener joins", async () => {
     const { composed } = await bootTestApp();
@@ -389,9 +362,7 @@ describe("the composed teardown", () => {
     }
   });
 
-  // A compose that throws part-way (here, the driver dial refusing) has a
-  // database open and a vault runtime up. Two tests in order: the harness's
-  // afterEach runs between them, and the second observes what it released.
+  // two tests in order: the harness's afterEach runs between them, and the second observes what it released.
   describe.sequential("a boot the driver dial refuses", () => {
     let db: DbConnection | null = null;
 

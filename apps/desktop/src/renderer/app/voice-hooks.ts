@@ -1,24 +1,14 @@
-// Whether this machine can dictate, as a query both the composer and Settings
-// read.
-//
-// POLLED, AND ONLY WHILE A DOWNLOAD IS RUNNING. Nothing on the ws bus
-// announces a byte landing in the model directory — that directory is shared
-// across every checkout on the machine and is not the vault, so no change kind
-// covers it, and inventing one would put a family on the bus that no server
-// write ever announces. The rest of the time this is a fact that changes only
-// when someone presses a button, so the query is re-read on mount and left
-// alone.
+// Polled only while a download runs: nothing on the ws bus announces bytes
+// landing in the model directory, which is shared across checkouts and is not
+// the vault.
 
 import { useQuery } from "@tanstack/react-query";
 import { orpc } from "./api";
 
-/** Fast enough that a 32 MB download's bar moves, slow enough that the poll
- *  costs nothing beside the transfer itself. */
 const DOWNLOAD_POLL_MS = 500;
 
 export function useVoiceStatus() {
-  // No explicit `useQuery<…>` generic: the queryOptions carry the output type,
-  // and an explicit one collides with that in oRPC v2's inference.
+  // No explicit `useQuery<…>` generic: it collides with oRPC v2's inference.
   return useQuery({
     ...orpc.voice.status.queryOptions(),
     staleTime: 0,
@@ -29,8 +19,6 @@ export function useVoiceStatus() {
   });
 }
 
-/** How far the download has got, as a whole percent — one derivation, so the
- *  bar and the sentence beside it cannot round differently. */
 export function downloadPercent(receivedBytes: number, sizeBytes: number): number {
   if (sizeBytes <= 0) {
     return 0;

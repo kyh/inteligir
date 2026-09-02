@@ -1,28 +1,11 @@
-// ---------------------------------------------------------------------------
-// The Worker-hosted password-reset page — `GET /auth/reset`.
-//
-// The email's link is Better Auth's GET leg
-// (`/api/auth/reset-password/<token>?callbackURL=/auth/reset`): it validates
-// the token server-side, then redirects here with `?token=` (valid) or
-// `?error=INVALID_TOKEN` (dead). This page is deliberately cloud-hosted, not
-// a deep link — email clients open browsers, and a reset must work from any
-// device without the app installed (and it spends no deep-link verb).
-//
-// The response is one STATIC self-contained document (inline CSS/JS, no
-// external requests): the token never touches the server-rendered markup — the
-// inline script reads it from `location.search` and submits it as JSON to
-// Better Auth's `POST /api/auth/reset-password` on this same origin. Static
-// markup = nothing reflected = nothing to escape. `no-store` because the URL
-// carries a live single-use token — nothing here may be cached.
-// ---------------------------------------------------------------------------
+// Cloud-hosted, not a deep link: email clients open browsers, and a reset must work with no
+// app installed. One static document with inline CSS/JS: the token never touches the markup
+// (the script reads it from location.search), so nothing is reflected and nothing needs escaping.
 
-/** Client-side sanity grammar for the token (server enforces for real —
- * this only routes junk URLs to the invalid-link view instead of a doomed
- * submit). Matches better-auth's alphanumeric generateId output with slack. */
+// client-side sanity only; routes junk URLs to the invalid view instead of a doomed submit
 const TOKEN_PATTERN = "^[A-Za-z0-9_-]{8,256}$";
 
-/** Better Auth's default minPasswordLength — mirrored as the input's
- * `minlength` so the browser catches short passwords before the server does. */
+// Better Auth's default minPasswordLength
 const MIN_PASSWORD_LENGTH = 8;
 
 const PAGE = `<!doctype html>
@@ -122,13 +105,12 @@ const PAGE = `<!doctype html>
 </body>
 </html>`;
 
-/** Serve the reset page. Static by design — see the header comment. */
 export function handleResetPage(): Response {
   return new Response(PAGE, {
     status: 200,
     headers: {
       "content-type": "text/html; charset=utf-8",
-      // The URL query carries a live reset token — never cache this page.
+      // the URL carries a live single-use token
       "cache-control": "no-store",
     },
   });

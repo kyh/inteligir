@@ -1,45 +1,16 @@
-// ---------------------------------------------------------------------------
-// Obsidian-style link-target resolution over a vault file listing.
-//
-// Wiki targets resolve root-relative through six tiers. Tier 0 is inteligir's
-// resolved-link identity: a uuid-shaped ALIAS (`[[Title|uuid]]`) names the
-// target by frontmatter `id:`, surviving a title the writer never updated —
-// the tiers below remain the fallback so an id nothing owns still resolves
-// as text. The path tiers run each case-sensitive first with a
-// case-insensitive fallback:
-//   1. exact path   — `dir/note` / `dir/note.md`
-//   2. basename     — `note` matches any `**/note.md` (extension-less targets
-//                     imply `.md`; other extensions must be written out)
-//   3. path suffix  — `sub/note` matches any `**/sub/note.md`
-//   4. alias (cs)   — frontmatter `aliases:` entries, case-sensitive
-//   5. alias (ci)   — same, case-insensitive
-// A real filename ALWAYS beats an alias (Obsidian: "note name wins over
-// alias") — the alias tiers run only after every path tier missed, from both
-// the slashless and slashed branches (an alias may contain `/`).
-// Ambiguity is broken deterministically in every tier: fewest path segments,
-// then shortest string, then lexicographic — the "closest to the root" file
-// wins, independent of insertion/rebuild order.
-//
-// Md urls resolve file-relative (from the linking doc's directory) with a
-// vault-root-relative fallback; extension-less urls also try `.md`. Aliases
-// are wiki-only — md urls are literal paths.
-// ---------------------------------------------------------------------------
+// Obsidian-style resolution: a real filename always beats an alias, and every
+// tier breaks ambiguity the same way (fewest segments, shortest, lexicographic)
+// so the answer is independent of insertion order. Md urls are literal paths:
+// file-relative, then root-relative, no alias tiers.
 
 import { isUuidWikiAlias } from "../markdown/remark-wiki-link";
 import { basenamePath, dirnamePath, extnamePath, joinPath, normalizePath } from "./vault-path";
 
 export type TargetResolver = {
-  /** Resolve a wiki target (`[[target]]`) to a vault path, or null. The
-   * alias, when the link carries one, feeds the id tier — a uuid-shaped
-   * alias is identity plumbing, never display text. */
   resolveWiki: (target: string, alias?: string) => string | null;
-  /** Resolve an md url path (decoded, fragment-stripped) from `fromPath`. */
   resolveMd: (target: string, fromPath: string) => string | null;
 };
 
-/** The deterministic ambiguity break every tier shares — the id tier
- * included, so a duplicated frontmatter id breaks the same way (fewest
- * segments, shortest, lexicographic). */
 function pickBest(candidates: readonly string[]): string | null {
   if (candidates.length === 0) return null;
   let best: string | null = null;
@@ -65,12 +36,7 @@ function push(map: Map<string, string[]>, key: string, path: string): void {
   else map.set(key, [path]);
 }
 
-/** Build a resolver over the vault's file paths (docs AND other files — a
- * `[[diagram.png]]` embed resolves too). `aliasEntries` — (alias, owner path)
- * pairs from the docs' frontmatter `aliases:` — feed the two below-path
- * tiers; alias keys are normalized like written targets so an alias
- * containing `/` matches the same clean form. `idEntries` — (frontmatter
- * `id:`, owner path) pairs — feed the id tier. */
+// alias keys are normalized like written targets so an alias containing `/` matches the same clean form
 export function buildResolver(
   paths: Iterable<string>,
   aliasEntries?: Iterable<readonly [alias: string, path: string]>,
@@ -82,8 +48,6 @@ export function buildResolver(
   const byNameLower = new Map<string, string[]>();
   const aliasCs = new Map<string, string[]>();
   const aliasCi = new Map<string, string[]>();
-  /** Frontmatter id → owning paths — the `[[Title|uuid]]` tier's lookup,
-   * exact on the id (an id is minted, never typed). */
   const idOwners = new Map<string, string[]>();
 
   for (const raw of paths) {
@@ -119,15 +83,13 @@ export function buildResolver(
     }
   }
 
-  /** cs → ci lookup of one exact path candidate. */
   const lookupExact = (candidate: string): string | null => {
     if (exact.has(candidate)) return candidate;
     return pickBest(exactLower.get(candidate.toLowerCase()) ?? []);
   };
 
   const resolveWiki = (target: string, alias?: string): string | null => {
-    // Tier 0 — the resolved-link identity. Only the uuid SHAPE consults it:
-    // a display alias is a below-path tier, never an identity.
+    // a uuid-shaped alias names the target by frontmatter id; a display alias never does
     if (alias !== undefined && isUuidWikiAlias(alias)) {
       const owned = pickBest(idOwners.get(alias) ?? []);
       if (owned !== null) return owned;
@@ -135,25 +97,19 @@ export function buildResolver(
     const clean = normalizePath(target);
     if (clean === "" || clean.startsWith("..")) return null;
 
-    // Tier 1 — exact path (as written, then with `.md` implied).
     for (const candidate of [clean, `${clean}.md`]) {
       const hit = lookupExact(candidate);
       if (hit !== null) return hit;
     }
 
     if (!clean.includes("/")) {
-      // Tier 2 — basename / stem.
       const cs = pickBest(byName.get(clean) ?? []);
       if (cs !== null) return cs;
       const ci = pickBest(byNameLower.get(clean.toLowerCase()) ?? []);
       if (ci !== null) return ci;
     } else {
-      // Tier 3 — path suffix. Any path ending in `/${clean}` has basename
-      // `basenamePath(clean)`; any path ending in `/${clean}.md` has basename
-      // `basenamePath(clean) + ".md"`, whose `.md` stem is `basenamePath(clean)`.
-      // Both are keyed in `byName`/`byNameLower` under `basenamePath(clean)`, so
-      // that bucket provably contains every Tier-3 candidate — filter it with the
-      // SAME suffix checks instead of scanning the whole listing.
+      // every path ending in `/${clean}` or `/${clean}.md` is keyed in byName under
+      // basenamePath(clean), so that bucket holds every suffix candidate
       const suffixes = [`/${clean}`, `/${clean}.md`];
       const key = basenamePath(clean);
       const cs = pickBest(
@@ -169,9 +125,7 @@ export function buildResolver(
       if (ci !== null) return ci;
     }
 
-    // Tiers 4/5 — alias, case-sensitive then case-insensitive. Reached from
-    // BOTH branches above (neither returns on a miss): a real
-    // filename always beats an alias, and an alias may contain `/`.
+    // reached from both branches above: a real filename always beats an alias, and an alias may contain `/`
     const aliasHit = pickBest(aliasCs.get(clean) ?? []);
     if (aliasHit !== null) return aliasHit;
     return pickBest(aliasCi.get(clean.toLowerCase()) ?? []);

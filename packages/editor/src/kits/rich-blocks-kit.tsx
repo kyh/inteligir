@@ -1,9 +1,3 @@
-// The rich fence blocks: chart_block / canvas_block / html_block,
-// each a BLOCK VOID whose `value` holds the fence payload verbatim —
-// byte-exactness by construction, with a degraded code view (never data
-// loss) when a renderer refuses its payload. md-rules' code_block dispatch
-// owns the fence↔node mapping.
-
 import { createSlatePlugin, type SlateEditor } from "platejs";
 
 import { CanvasElement } from "@repo/editor/nodes/canvas-node";
@@ -56,7 +50,6 @@ function insertRichBlock(editor: SlateEditor, type: string, value: string): void
   editor.tf.insertNodes({ children: [{ text: "" }], type, value });
 }
 
-/** The slash rows' verbs. */
 export function insertChartBlock(editor: SlateEditor): void {
   insertRichBlock(editor, "chart_block", SEED_CHART);
 }

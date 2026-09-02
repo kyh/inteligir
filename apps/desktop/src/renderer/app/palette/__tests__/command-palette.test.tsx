@@ -15,8 +15,6 @@ const ENTRIES: VaultEntry[] = [
 
 const FILE_PATHS = ENTRIES.filter((entry) => entry.kind === "file").map((entry) => entry.path);
 
-/** The default test source: the filename tiers, resolved async like the real
- *  knowledge-backed source. */
 const filenameSource: NoteSearchSource = (query) =>
   Promise.resolve(searchNotesByFilename(query, FILE_PATHS));
 
@@ -121,8 +119,8 @@ describe("note search", () => {
     };
     renderPalette({ searchSource: source });
     fireEvent.change(searchBox(), { target: { value: "old" } });
-    // Only once the slow request is actually in flight does the newer query
-    // exercise the abort rather than the debounce.
+    // Only once the slow request is in flight does the newer query exercise
+    // the abort rather than the debounce.
     await slowReached;
     fireEvent.change(searchBox(), { target: { value: "new" } });
     expect(await screen.findByText("fresh.md")).toBeDefined();

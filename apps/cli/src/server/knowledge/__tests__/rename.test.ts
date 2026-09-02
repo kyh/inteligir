@@ -1,8 +1,3 @@
-// Rename + link rewrite over the vault service: exactly the candidate docs
-// are rewritten (byte-stable everywhere else), the moved doc records its old
-// stem as a frontmatter alias, and a shadowing rename qualifies the links it
-// would steal.
-
 import { mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { noopNotifier } from "@repo/domain/notifier";
@@ -32,7 +27,6 @@ function boot() {
   return { root, service, knowledge };
 }
 
-/** The thread rebind is exercised by its own suite; these assert link surgery. */
 const noRebind = (): void => {};
 
 describe("rename with link rewrite", () => {
@@ -61,17 +55,14 @@ describe("rename with link rewrite", () => {
     expect(readFileSync(join(root, "b.md"), "utf8")).toBe(
       "See [details](archive/moved.md) for more.\n",
     );
-    // Byte-stable outside the candidate set.
     expect(readFileSync(join(root, "unrelated.md"), "utf8")).toBe(
       "No links, though target is a word here.\n",
     );
-    // The moved doc gained the old stem as an alias, body preserved.
     const moved = readFileSync(join(root, "archive", "moved.md"), "utf8");
     expect(moved).toContain("aliases:");
     expect(moved).toContain("target");
     expect(moved.endsWith("# Target\n\nContent here.\n")).toBe(true);
 
-    // The index followed the rewrite: the wiki link resolves to the new path.
     const backlinks = await knowledge.backlinks("archive/moved.md");
     expect(backlinks.map((entry) => entry.sourcePath).toSorted()).toEqual(["a.md", "b.md"]);
   });
@@ -94,8 +85,7 @@ describe("rename with link rewrite", () => {
       to: "note.md",
     });
 
-    // `[[note]]` resolved to a/note.md before the move; the new root note.md would shadow
-    // it, so the link is qualified to keep meaning what it meant.
+    // the new root note.md would shadow a/note.md, so the link is qualified.
     expect(readFileSync(join(root, "s.md"), "utf8")).toBe("Ref [[a/note]] here.\n");
     const backlinks = await knowledge.backlinks("a/note.md");
     expect(backlinks.map((entry) => entry.sourcePath)).toEqual(["s.md"]);
@@ -123,8 +113,7 @@ describe("rename with link rewrite", () => {
     await service.write("a.md", "Links to [[target]].\n");
     await knowledge.settle();
 
-    // A concurrent edit landing right after the move: the racing service
-    // performs it inside the rename step, before any rewrite runs.
+    // the edit lands inside the rename step, before any rewrite runs.
     const racing: VaultService = {
       ...service,
       rename: async (from, to) => {
@@ -143,10 +132,7 @@ describe("rename with link rewrite", () => {
     });
     expect(result.rewritten).toEqual([]);
     expect(result.skipped).toEqual([{ path: "a.md", reason: "changed" }]);
-    // The concurrent edit survived — never overwritten with snapshot bytes.
     expect(readFileSync(join(root, "a.md"), "utf8")).toBe("Edited concurrently [[target]].\n");
-    // The alias fallback still landed despite the unrelated skip, so the
-    // un-rewritten link keeps resolving.
     const moved = readFileSync(join(root, "moved.md"), "utf8");
     expect(moved).toContain("aliases:");
     expect(moved).toContain("target");

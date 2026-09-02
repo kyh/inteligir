@@ -1,6 +1,3 @@
-// The knowledge API surface over the composed app: contract row → handler →
-// runtime → index, fed by the vault runtime's change announcements.
-
 import { ORPCError, safe } from "@orpc/client";
 import {
   KNOWLEDGE_RELATED_MAX_LIMIT,
@@ -26,7 +23,6 @@ describe("the knowledge routes", () => {
     );
     expect(hits.results.map((r) => r.path).toSorted()).toEqual(["alpha.md", "beta.md"]);
 
-    // The tag: grammar is parsed engine-side out of the one q parameter.
     const taggedHits = knowledgeSearchResponseSchema.parse(
       await client.knowledge.search({ q: "quokka tag:project" }),
     );
@@ -45,9 +41,7 @@ describe("the knowledge routes", () => {
 
   it("ranks related notes with the reasons they are related", async () => {
     const { client } = await bootTestApp();
-    // `hub.md` is the shared target, so `left` and `right` are related to each
-    // other by bibliographic coupling — and to `hub` by nothing, because a
-    // direct neighbour is the Backlinks panel's job, not this one.
+    // hub is a direct neighbour (backlinks' job), so it is absent from related.
     await client.vault.write({ path: "hub.md", content: "# Hub\n" });
     await client.vault.write({ path: "left.md", content: "# Left\n\nSee [[hub]]. #shared\n" });
     await client.vault.write({ path: "right.md", content: "# Right\n\nSee [[hub]]. #shared\n" });
@@ -64,7 +58,6 @@ describe("the knowledge routes", () => {
     );
     expect(limited.related).toHaveLength(1);
 
-    // Over the contract's ceiling is the validator's answer, not the handler's.
     const [tooMany] = await safe(
       client.knowledge.related({ path: "left.md", limit: KNOWLEDGE_RELATED_MAX_LIMIT + 1 }),
     );
@@ -74,8 +67,6 @@ describe("the knowledge routes", () => {
   it("refuses a hostile path", async () => {
     const { client } = await bootTestApp();
 
-    // The request validator answers, not the handler: the path grammar is on
-    // the schema, so an index query can never be RUN against a hostile path.
     const [hostile] = await safe(client.knowledge.backlinks({ path: "../escape.md" }));
     expect(hostile instanceof ORPCError && hostile.code).toBe("BAD_REQUEST");
   });

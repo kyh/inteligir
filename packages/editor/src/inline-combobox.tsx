@@ -1,21 +1,6 @@
-// Inline combobox for editor triggers (`/` slash menu, `:` emoji, and the
-// `[[` wiki autocomplete), built on Base UI Combobox. The popup anchors to
-// the in-line input; Base UI's virtual focus keeps DOM focus ON the input
-// (aria-activedescendant roving), so keyboard navigation never fights the
-// editor for focus.
-//
-// Correctness properties (the ariakit predecessor violated all three):
-// - Input order is stable under fast typing: the value is plain synchronous
-//   React state (no transition/deferral between keystroke and controlled
-//   input), and any keystrokes that raced into the trigger element's hidden
-//   text child before the input mounted are absorbed into the initial value.
-// - Cancel is point-ref-safe and idempotent: all editor mutations run through
-//   combobox-input.ts, which re-resolves the element at call time and no-ops
-//   when an undo/redo already removed it — rapid undo after Escape can no
-//   longer replay a stale restore into the document (the about:blank crash).
-// - The trigger elements themselves never serialize: markdown-kit lists
-//   `slash_input`/`emoji_input` in disallowedNodes, so an autosave firing
-//   mid-combobox skips them structurally instead of warning "Unreachable".
+// Base UI's virtual focus keeps DOM focus on the input, so keyboard navigation
+// never fights the editor. The value is plain synchronous state, never deferred:
+// a transition between keystroke and controlled input reorders fast typing.
 
 import * as React from "react";
 import { Combobox } from "@base-ui/react/combobox";
@@ -108,15 +93,12 @@ function InlineCombobox({
     [setValueProp, hasValueProp],
   );
 
-  // The latest value, readable from stable callbacks (cancel/commit).
   const valueRef = React.useRef(value);
   React.useLayoutEffect(() => {
     valueRef.current = hasValueProp ? valueProp : valueState;
   }, [hasValueProp, valueProp, valueState]);
 
-  // Once a commit or cancel ran for this element instance, every later cause
-  // (a deselect effect firing after an Escape, unmount churn) is a no-op —
-  // double-restoring the trigger text would duplicate bytes.
+  // every cause after the first commit/cancel is a no-op: a second restore duplicates the trigger text
   const closedRef = React.useRef(false);
 
   const cancel = React.useCallback(
@@ -145,14 +127,8 @@ function InlineCombobox({
     inputRef.current?.focus();
   }, []);
 
-  // Keystrokes race into the element's hidden text child whenever they beat
-  // the input's focus (trigger→mount window, or a Slate op yanking DOM focus
-  // back to the editable mid-burst). The element prop re-renders on every
-  // Slate change, so this absorbs each batch as it lands: splice at the
-  // input's caret (chronologically where those keystrokes belong), clear the
-  // slate bytes (they'd render after the input — visible reordering — and
-  // double-absorb otherwise), and re-take focus so the next keystroke lands
-  // in the input again.
+  // Keystrokes that beat the input's focus land in the element's hidden text
+  // child; each batch is spliced at the input caret, cleared from Slate and focus retaken.
   const raced = racedComboboxText(element);
   const pendingCaretRef = React.useRef<number | null>(null);
   React.useEffect(() => {
@@ -166,7 +142,6 @@ function InlineCombobox({
     pendingCaretRef.current = caret + absorbed.length;
     input?.focus();
   }, [raced, editor, element, setValue]);
-  // Place the caret after the spliced text once the new value has committed.
   React.useLayoutEffect(() => {
     const pos = pendingCaretRef.current;
     if (pos === null) return;
@@ -174,10 +149,6 @@ function InlineCombobox({
     inputRef.current?.setSelectionRange(pos, pos);
   });
 
-  // Chromium strands the caret at 0 on the first IME-style commit into the
-  // freshly focused input ("deep" → "eepd"); the pure reconciler
-  // detects that signature and moves the caret where a native keystroke would
-  // have left it, before React commits the controlled value.
   const onInputValueChange = React.useCallback(
     (nextValue: string) => {
       const input = inputRef.current;
@@ -190,8 +161,6 @@ function InlineCombobox({
     [setValue],
   );
 
-  // Clicking elsewhere in the note moves the Slate selection off the element
-  // while it is still mounted — cancel and restore the typed text.
   const selected = useSelected();
   const previousSelected = React.useRef(selected);
   React.useEffect(() => {
@@ -221,7 +190,6 @@ function InlineCombobox({
         cancel("arrowRight");
         return;
       }
-      // Undo/redo pressed while the input holds focus target the editor.
       const isUndo = Hotkeys.isUndo(event) && editor.history.undos.length > 0;
       const isRedo = Hotkeys.isRedo(event) && editor.history.redos.length > 0;
       if (isUndo || isRedo) {
@@ -236,8 +204,7 @@ function InlineCombobox({
 
   const inputProps = React.useMemo(() => ({ onKeyDown }), [onKeyDown]);
 
-  // Visible items register themselves (self-filtering renders null), so the
-  // open state and the Empty row derive from the same count the popup shows.
+  // items self-filter to null and register when visible, so open state and the Empty row share one count
   const [visibleCount, setVisibleCount] = React.useState(0);
   const registerVisibleItem = React.useCallback(() => {
     setVisibleCount((count) => count + 1);
@@ -263,6 +230,7 @@ function InlineCombobox({
     [commit, filter, inputProps, registerVisibleItem, showTrigger, trigger, value, visibleCount],
   );
 
+  // onOpenChange is a no-op: open is derived, and Base UI's escape/outside-click close requests route through cancel
   return (
     <span contentEditable={false}>
       <Combobox.Root
@@ -271,8 +239,6 @@ function InlineCombobox({
         inputValue={value}
         modal={false}
         onInputValueChange={onInputValueChange}
-        // Open state is fully derived; Base UI close requests (escape/outside
-        // click) route through cancel paths instead.
         onOpenChange={() => undefined}
         open={open}
       >
@@ -332,16 +298,12 @@ function InlineComboboxContent({
   variant?: "default" | "slash";
   children: React.ReactNode;
 }) {
-  // keepMounted: closed popups keep their items registered, so the derived
-  // open state (visible-item count) can flip true once a search matches.
+  // keepMounted keeps closed popups' items registered so the derived open state can flip true.
+  // Popup motion only, no per-item beat: the list remounts its children on every keystroke.
   return (
     <Combobox.Portal keepMounted>
       <Combobox.Positioner align="start" className="z-50" side="bottom" sideOffset={4}>
         <Combobox.Popup
-          // Menu-tier elevation (surface-4) + the shared bloom popup motion, so
-          // every editor popup enters alike. Shell motion only, no item beat:
-          // the list remounts its children on every keystroke, which would
-          // replay the blur on each one.
           className={cn(
             "bloom-popup max-h-[40vh] min-w-[180px] max-w-[calc(100vw-24px)] origin-[var(--transform-origin)] overflow-y-auto rounded-lg border border-border bg-popover text-popover-foreground shadow-surface-4",
             variant === "slash" && "w-[320px]",
@@ -388,11 +350,10 @@ function InlineComboboxItem({
 
   if (!visible) return null;
 
+  // Base UI dispatches a click for Enter on the highlighted item, so onClick covers the keyboard path
   return (
     <Combobox.Item
       className={cn(ITEM_BASE, ITEM_INTERACTIVE, className)}
-      // Fires on pointer click AND on Enter while highlighted (Base UI
-      // dispatches the click for the keyboard path).
       onClick={(event) => {
         commit(focusEditor);
         onClick?.(event);

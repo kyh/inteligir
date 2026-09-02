@@ -1,8 +1,3 @@
-// The browser-facing half of browser-approve pairing, driven
-// through the COMPOSED app — because the things worth pinning here are the
-// route's, not the runtime's: what a drive-by GET on a loopback route does,
-// what address the redirect is aimed at, and what the browser is handed back.
-
 import { statSync } from "node:fs";
 import { PAIR_CALLBACK_PATH } from "@repo/api/cloud/pairing/pairing-schema";
 import { describe, expect, it } from "vitest";
@@ -21,26 +16,18 @@ import { approveMint, callbackFor, LOOPBACK_HOST, PAIR_CODE, stateOf } from "./p
 async function boot(cloud: FakeCloud): Promise<BootedTestApp> {
   return await bootTestApp({
     cloudTransport: { fetch: cloud.fetch, pollIntervalMs: null },
-    // The suite must never pop a window on whoever is running it — and the
-    // begin route is asked for one below, so the seam has to be here.
+    // begin is asked to open a browser below; this keeps it off the screen.
     openExternalUrl: async () => true,
   });
 }
 
-/**
- * `cloud.pairBegin` OVER THE WIRE, because the address it composes comes from
- * the request's own Host header — which is the whole point of the refusal
- * below, and which an in-process client carries none of. The link's `fetch`
- * hands the composed Request straight to the app, so the Host is whatever the
- * URL names.
- */
+// over the wire, because the callback address comes from the request's Host header.
 function beginClient(app: BootedTestApp, host: string) {
   const link = new RPCLink({
     origin: `http://${host}`,
     url: RPC_PREFIX,
     headers: () => ({ authorization: authorizationHeader(TEST_SERVER_TOKEN) }),
-    // A fetch Request carries no Host header — a real fetch adds one at the
-    // network layer — so it is set here, where the URL's authority is known.
+    // a Request carries no Host; real fetch adds it at the network layer.
     fetch: async (url, init) => {
       const headers = new Headers(init.headers);
       headers.set("host", host);
@@ -107,7 +94,6 @@ describe("the loopback callback", () => {
     const landed = await app.composed.app.request(callbackFor(url, PAIR_CODE, state));
     expect(landed.status).toBe(200);
     expect(landed.headers.get("content-type")).toBe("text/html; charset=utf-8");
-    // The URL that reached this route carried a live pairing code.
     expect(landed.headers.get("cache-control")).toBe("no-store");
     expect(landed.headers.get("referrer-policy")).toBe("no-referrer");
     expect(await landed.text()).toContain("Paired");
@@ -115,17 +101,12 @@ describe("the loopback callback", () => {
     const credentialPath = deviceCredentialPath(app.dataDir);
     expect(statSync(credentialPath).mode & 0o777).toBe(0o600);
 
-    // The same link again — out of a history, out of a shoulder-surfed address
-    // bar. The state was consumed, so it is no-pending before any redeem.
     const replay = await app.composed.app.request(callbackFor(url, PAIR_CODE, state));
     expect(replay.status).toBe(400);
     expect(await replay.text()).toContain("Nothing to approve");
   });
 
   it("is inert for a drive-by with no approval armed, and says so", async () => {
-    // Any page open in the user's browser can navigate at a loopback URL, and
-    // this route deliberately carries no origin guard — the state is what
-    // stands in its place, so with none armed nothing may happen.
     const cloud = new FakeCloud();
     const app = await boot(cloud);
 

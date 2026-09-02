@@ -1,22 +1,5 @@
-// `inteligir sync …` — this install's pairing with an inteligir account.
-//
-// Three verbs and no more. `status` and `push` are the two an agent has a real
-// use for: knowing whether its work reaches the user's other devices, and
-// making sure it has before it reports done. `pair` is here because the machine
-// that needs pairing is often a headless one — a box reached over ssh has no
-// Settings dialog to click in.
-//
-// `pair` OPENS NOTHING ITSELF. It asks the server to begin an approval, and the
-// server is what launches a browser — the same act whether it was asked for
-// from a browser tab, the Electron shell or here, so there is one opener and
-// one place it can go wrong. Under `--json` it asks the server NOT to open one:
-// that is the agent's path, and a browser window nobody asked for is the
-// failure mode a model driving this surface would produce all day.
-//
-// There is deliberately no `unpair`. Unpairing throws away a queue of writes
-// that have not reached the account yet, and that is a person's decision made
-// in front of the state it discards, not a verb in the surface built for a
-// model to drive.
+// no `unpair` here on purpose: it discards a queue of unsent writes, a decision for a person in front of
+// that state rather than a verb for a model to drive.
 
 import type {
   CloudPairBeginRequest,
@@ -95,6 +78,7 @@ export function syncCommand(deps: CliDeps) {
         },
         run: async ({ args }) => {
           const api = apiFor(deps);
+          // --json is the agent path, and a browser window nobody asked for is what it must not open.
           const input: CloudPairBeginRequest = { openBrowser: !args.json };
           if (args.name !== undefined) {
             input.deviceName = args.name;

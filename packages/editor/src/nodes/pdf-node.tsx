@@ -1,11 +1,4 @@
-// `file` node (URL-only): http(s) pdf URLs render in the browser's native pdf
-// viewer via an iframe; other file URLs get a download-style link card. A note
-// is untrusted content, so the frame is scheme-gated: only http(s) URLs ever
-// reach a live iframe — javascript:/data:/file:/relative URLs fall back to the
-// (inert) card. Vault-relative pdfs need a Bridge asset scheme — out of scope
-// until the Bridge grows file-URL serving; this component then branches on
-// relative paths. Canonical byte-form: `<file src="…" />` (a `name` attr
-// survives if present in the source, but inserts never write one).
+// A note is untrusted content: only http(s) URLs reach a live iframe or a clickable href.
 
 import { FileTextIcon } from "lucide-react";
 import { PlateElement, useFocused, useSelected, type PlateElementProps } from "platejs/react";
@@ -24,17 +17,13 @@ export function FileElement(props: PlateElementProps) {
   const url = stringProp(props.element, "url") ?? "";
   const name = stringProp(props.element, "name") ?? null;
 
+  // The pdf iframe has no sandbox: Chromium blocks the native PDF viewer inside any sandboxed
+  // frame (every token set yields ERR_BLOCKED_BY_CLIENT). It hosts only the http(s) URL the
+  // author wrote — the same trust as clicking the link.
   return (
     <PlateElement {...props} className="py-2.5">
       <figure className="group/media relative m-0 w-full" contentEditable={false}>
         {PDF_RE.test(url) && isHttpUrl(url) ? (
-          // Scheme-gated above (http/https only — never javascript:/data:/
-          // file:). No sandbox attr: Chromium blocks the native PDF viewer (a
-          // MimeHandler document) inside ANY sandboxed frame — every token set,
-          // including `allow-scripts allow-same-origin`, yields
-          // ERR_BLOCKED_BY_CLIENT and a blank frame, which defeats the embed.
-          // The un-sandboxed frame hosts only the http(s) URL the note author
-          // wrote — the same trust as clicking the link.
           // oxlint-disable-next-line react/iframe-missing-sandbox
           <iframe
             className={cn(
@@ -46,8 +35,6 @@ export function FileElement(props: PlateElementProps) {
           />
         ) : (
           <a
-            // Same scheme gate: a non-http(s) url renders the card as inert
-            // text — never a clickable javascript:/data:/file: href.
             href={isHttpUrl(url) ? url : undefined}
             target="_blank"
             rel="noopener noreferrer"

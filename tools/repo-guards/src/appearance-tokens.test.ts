@@ -1,38 +1,18 @@
-// ---------------------------------------------------------------------------
-// ONE FUNNEL, ONE SET OF NAMES.
-//
-// Settings → Appearance publishes CSS custom properties on <html> and the
-// document reads them out of other packages' stylesheets and class strings.
-// Nothing checks the two halves against each other: a token written under one
-// name and read under another compiles, lints, renders — and the dial does
-// nothing.
-//
-// So the lockstep is asserted over the SOURCES, and every name and value it
-// compares is read out of them. The readers are not listed here either: the
-// walk finds every `var(--editor-…)` in the repo, so a new file joins the
-// invariant by existing. That walk spans every workspace and both file kinds a
-// token can appear in, so it sits with the repo-wide guards rather than beside
-// either half of the funnel.
-// ---------------------------------------------------------------------------
+// a token written under one name and read under another compiles, lints and renders; the dial just
+// does nothing.
 
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { REPO_ROOT, sourceOf, styleFiles, workspaceSourceFiles, workspaces } from "./repo";
 
-/** The ONE module that writes an appearance token. */
 const SETTER = "apps/desktop/src/renderer/app/appearance.tsx";
 
-/** The ONE stylesheet that declares each token's default — what a dial sitting
- *  on its default option clears back to. */
 const DEFAULTS = "apps/desktop/src/renderer/styles/globals.css";
 
-/** The measure three columns line up on: the page title, the document and the
- *  composer sit in different stacking contexts, so they agree only by naming
- *  one value. */
 const MEASURE = "--editor-width";
 
-/** This file names the tokens it polices, in regexes and failure messages. */
+// this file names the tokens it polices, so the walk skips it.
 const SELF = path.relative(REPO_ROOT, import.meta.filename);
 
 interface TokenRead {
@@ -41,9 +21,7 @@ interface TokenRead {
   readonly fallback: string | null;
 }
 
-/** `var(--editor-x)` and `var(--editor-x, <fallback>)`. The fallback is taken
- *  by balancing parens rather than by regex, because a fallback is itself
- *  usually a `var()`. */
+// the fallback is taken by balancing parens: a fallback is itself usually a var().
 function readsIn(file: string, text: string): TokenRead[] {
   const found: TokenRead[] = [];
   for (const match of text.matchAll(/var\(\s*(--editor-[a-z-]+)/gu)) {
@@ -88,7 +66,6 @@ const readTokens = new Set(reads.map((entry) => entry.token));
 
 describe("the appearance funnel's tokens", () => {
   it("finds the funnel at all", () => {
-    // A walk that matched nothing would satisfy every assertion below.
     expect(written.size, `no setToken() call in ${SETTER}`).toBeGreaterThan(0);
     expect(declared.size, `no --editor-* declaration in ${DEFAULTS}`).toBeGreaterThan(0);
     expect(reads.length, "no var(--editor-*) read anywhere in the repo").toBeGreaterThan(0);

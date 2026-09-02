@@ -1,11 +1,8 @@
 import type { DeleteVaultEntryResult } from "@repo/editor/host-io";
 import type { VaultIO } from "@repo/editor/vault-editor";
 
-/** A Map-backed vault. Reads resolve from the map and reject when absent;
- *  writes land in it. Two levers make the async interleavings a suite needs
- *  deterministic: `hangReads` never settles a read, so a runtime can be
- *  observed BEFORE its first load, and `manualRead` / `manualWrite` park each
- *  call in `pendingReads` / `pendingWrites` until the test settles it. */
+// `hangReads` never settles a read, so a runtime can be observed before its first
+// load; `manualRead`/`manualWrite` park each call in pendingReads/pendingWrites until the test settles it.
 export class FakeVault implements VaultIO {
   files = new Map<string, string>();
   writes = 0;
@@ -15,8 +12,6 @@ export class FakeVault implements VaultIO {
   manualWrite = false;
   pendingReads: PromiseWithResolvers<string>[] = [];
   pendingWrites: PromiseWithResolvers<void>[] = [];
-  /** What the host answers a delete. `held` is the deletion gate refusing
-   *  whole — the file stays, and so must the open note. */
   removeOutcome: DeleteVaultEntryResult = { outcome: "trashed" };
 
   read = (path: string): Promise<string> => {

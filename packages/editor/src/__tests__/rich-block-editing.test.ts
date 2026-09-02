@@ -1,8 +1,3 @@
-// The pure halves of rich-block editing: chart grid transforms (field
-// preservation is the contract — a grid edit may never strip what it does not
-// show) and canvas cell painting (untouched cells keep their exact original
-// characters).
-
 import { describe, expect, it } from "vitest";
 
 import {
@@ -68,8 +63,7 @@ describe("chart transforms preserve what the grid does not show", () => {
 
   it("a cell edit keeps title, options and point colors (keys in schema order)", () => {
     const next = chartWithCellValue(chartOf(payload), 0, 0, 9);
-    // The parse itself normalizes key order to the schema's; a committed grid
-    // edit therefore re-emits in that one canonical spelling.
+    // the parse normalizes key order to the schema's, so the emit differs from the input's spelling.
     expect(emitChartPayload(next)).toBe(
       JSON.stringify(
         {

@@ -1,9 +1,3 @@
-// The browser panel's policy, tested as a matrix like the origin pin: what a
-// URL bar entry, a page navigation and a popup can be, and what each shape is
-// allowed to do — plus the webPreferences flags pinned as data, because the
-// difference between "preload on the chrome bar" and "preload on the content
-// view" is the difference between a nav bar and an XSS-to-shell bridge.
-
 import { describe, expect, it } from "vitest";
 import {
   BROWSER_PARTITION,
@@ -37,8 +31,6 @@ describe("resolveAddressInput", () => {
       "data:text/html,<script>1</script>",
     ]) {
       const resolved = resolveAddressInput(hostile);
-      // Either refused outright or resolved to an http(s) search — never the
-      // hostile scheme itself.
       if (resolved !== null) {
         expect(resolved.startsWith("https://")).toBe(true);
         expect(new URL(resolved).protocol).toBe("https:");

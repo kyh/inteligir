@@ -17,61 +17,31 @@ import { AuthError } from "@/components/auth-shell";
 import { currentSession } from "@/lib/session-guard";
 import { siteConfig } from "@/lib/site-config";
 
-// ---------------------------------------------------------------------------
-// `/app/pair` — the one screen in browser-approve pairing.
-//
-// A local install sent the user here with four values: where to send the
-// browser back to, the single-use `state` that binds the answer to the request
-// that asked for it, the name the device will carry, and the PKCE `challenge`.
-// This page's whole job is to name the account being joined, show what
-// approving grants, and — on the click — mint a code with the SESSION IT
-// ALREADY HAS, bound to that challenge, and hand it back over the redirect.
-//
-// THE REDIRECT IS VALIDATED AT PARSE, by the contract's own schema. That is the
-// security property of this page: without it, `?redirect=` is an open redirect
-// that hands a live pairing code to whatever origin asked for one. Nothing here
-// re-implements the check — a second copy of a host test is how one of them
-// ends up wrong.
-//
-// THE CHALLENGE IS FORWARDED, NEVER GENERATED HERE. The app kept the verifier;
-// the browser only carries the hash and stores it on the code row via the mint.
-// An interceptor who reads the code off the redirect still cannot redeem it,
-// because redeem demands the verifier the app never sent.
-//
-// NO NEW WORKER ROUTE. Approve calls the existing session-authed mint; the
-// durable credential is still minted only by the local app's own redeem, and
-// still never transits this browser.
-//
-// `ssr: false` for the same reason `/app/devices` carries it: everything here
-// depends on the live session, which a server render cannot have.
-// ---------------------------------------------------------------------------
+// The redirect target is validated at parse by the contract schema; without that,
+// `?redirect=` is an open redirect handing a live pairing code to any origin. The PKCE
+// challenge is forwarded, never generated here: the app keeps the verifier, so a code read
+// off the redirect cannot be redeemed. ssr: false because everything depends on the session.
 
 export const Route = createFileRoute("/app/pair")({
   ssr: false,
   validateSearch: (search): Partial<PairApproveSearch> => {
     const parsed = pairApproveSearchSchema.safeParse(search);
-    // A refusal keeps the URL rather than throwing: the page below renders the
-    // "this link is not a pairing request" state, which is a far more useful
-    // answer than a router error boundary.
+    // a refusal keeps the URL so the page renders its "not a pairing request" state instead of an error boundary
     return parsed.success ? parsed.data : {};
   },
   beforeLoad: async ({ location }): Promise<{ accountEmail: string | null }> => {
     if (import.meta.env.SSR) return { accountEmail: null };
     const session = await currentSession();
     if (session === null) {
-      // `location.href` and not a rebuilt URL: every param has to survive the
-      // sign-in round trip, and the one that must not be lost is `state`.
+      // location.href, not a rebuilt URL: every param, `state` above all, must survive the sign-in round trip
       throw redirect({ to: "/app/sign-in", search: { next: location.href } });
     }
-    // Named on the page so a shared or ambient browser session cannot silently
-    // pair a device to the wrong account — the device would then sync private
-    // threads both ways.
+    // shown on the page so a shared browser session cannot silently pair a device to the wrong account
     return { accountEmail: session.email };
   },
   component: PairPage,
 });
 
-/** How long the deep-link handoff gets before the approve button re-arms. */
 const MOBILE_REARM_MS = 4_000;
 
 async function mintCode(challenge: string): Promise<string> {
@@ -108,15 +78,9 @@ function PairPage() {
   }
 
   const { redirect: callback, state, name, challenge } = search;
-  // Which carrier this redirect names, classified by the CONTRACT — the same
-  // dispatch the allowlist made when it admitted the target. Null is
-  // unreachable: the search schema refused anything the allowlist does not.
   const callbackKind = pairRedirectKind(callback);
 
-  // Both arms named rather than a ternary, so a third one the schema admits
-  // later fails HERE instead of silently telling a phone to look at a machine.
-  // The deep-link callback has no host a human recognises — its `host` parses
-  // to "pair" — so its line names the app instead.
+  // the deep-link callback's host parses to "pair", so its line names the app instead
   const returnAddress = {
     mobile: () => <>Approving sends you back to the {siteConfig.name} app on this phone.</>,
     loopback: () => (
@@ -126,21 +90,16 @@ function PairPage() {
     ),
   } satisfies Record<PairRedirectKind, () => React.ReactNode>;
 
-  // `busy` clears on failure — and, for the deep link only, on a timer: a
-  // loopback assignment always unloads this page (even a refused connection
-  // commits to an error page), but a custom-scheme launch hands off to the OS
-  // WITHOUT unloading it, and a refused launch (no app owns the scheme, the
-  // user cancels the open-app dialog) leaves the user here. Re-arming lets
-  // them try again; each approval mints its own single-use code, so a retry
-  // costs nothing a reload would not also cost.
+  // busy re-arms on a timer for the deep link only: a loopback assignment always unloads this
+  // page, but a custom-scheme launch hands off to the OS without unloading it, and a refused
+  // launch leaves the user here
   const onApprove = () => {
     setBusy(true);
     setError(null);
     void (async () => {
       try {
         const code = await mintCode(challenge);
-        // A top-level assignment, not a fetch: the code has to reach the local
-        // app's loopback, and only the browser can go there.
+        // a top-level navigation, not a fetch: only the browser can reach the local app's loopback
         window.location.assign(buildPairCallbackUrl(callback, { code, state }));
         if (callbackKind === "mobile") {
           window.setTimeout(() => setBusy(false), MOBILE_REARM_MS);

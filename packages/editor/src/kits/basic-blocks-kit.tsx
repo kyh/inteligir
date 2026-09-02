@@ -1,10 +1,3 @@
-// Basic blocks kit. Base half feeds the headless serialization mirror; the
-// React half adds the styled block components (paragraph/headings relocated
-// from markdown-editor.tsx, blockquote/hr from src/editor/nodes/) plus the
-// md-representable autoformat input rules (`# `→h1 … `> `→quote, `---`→hr)
-// and the render-only calloutMarker decoration that hides GitHub-alert
-// `[!TYPE]` marker lines behind blockquote-node's variant badge.
-
 import {
   BaseBlockquotePlugin,
   BaseH1Plugin,
@@ -56,13 +49,8 @@ export const BasicBlocksBaseKit = [
   BaseHorizontalRulePlugin,
 ];
 
-// A block hosting block-rendering children can't stay a <p>/<h*>: a block
-// carrying `listStyleType` hosts BlockList's <ul>/<ol> INSIDE it (list-kit's
-// render.belowNodes), and a `wikiEmbed` inline void expands into a
-// transclusion CARD of block content (lists, tables, nested divs). Either
-// inside <p> is invalid DOM and React logs a nesting error on every affected
-// note. Such blocks render as <div> instead; the tag is render-only, bytes
-// are pinned by the round-trip fixtures.
+// A `listStyleType` block hosts BlockList's <ul> inside it and a wikiEmbed expands into
+// block content; either inside <p>/<h*> is invalid DOM and React logs a nesting error.
 function hostsBlockContent(element: TElement): boolean {
   if (element.listStyleType) return true;
   return element.children.some(
@@ -70,7 +58,6 @@ function hostsBlockContent(element: TElement): boolean {
   );
 }
 
-// className-only element renderers (Plate plugins ship headless).
 function element(as: keyof HTMLElementTagNameMap, className: string) {
   return function Element(props: PlateElementProps) {
     return (
@@ -83,10 +70,8 @@ function element(as: keyof HTMLElementTagNameMap, className: string) {
   };
 }
 
-// A first-child paragraph that is EXACTLY an alert marker line (`> [!TIP]`
-// followed by a blank quote line or nothing) collapses toggle-style while the
-// quote isn't being edited — its every byte is already presented by the badge,
-// so it would render as a stray blank line. CSS lives in styles.css.
+// A first-child paragraph that is exactly an alert marker line collapses while the quote is
+// not being edited: the badge already shows every byte, so it would render as a stray blank line.
 function isAlertMarkerLine(editor: SlateEditor, element: TElement, path: Path): boolean {
   if (element.children.length !== 1) return false;
   const leaf = element.children[0];
@@ -111,8 +96,6 @@ function ParagraphElement(props: PlateElementProps) {
   );
 }
 
-// Heading typography comes from typeset; `relative` keeps the drag gutter
-// anchored, `px-0.5` matches the paragraph caret inset.
 function heading(as: "h1" | "h2" | "h3") {
   return element(as, "relative px-0.5");
 }
@@ -121,18 +104,12 @@ function CalloutMarkerLeaf(props: PlateLeafProps) {
   return <PlateLeaf {...props} className={cn(CALLOUT_MARKER, "text-muted-foreground")} />;
 }
 
-// Render-only leaf decoration over the `[!TYPE]` marker (plus its soft break)
-// at the head of an alert blockquote. Decorations never touch the document
-// model, so the marker bytes round-trip untouched; visibility is driven by
-// blockquote-node's `.callout-editing` class (caret inside ⇒ revealed).
-// React-half only by design — the BASE_KIT serialization mirror and the
-// transclusion static render never see it.
+// A decoration, so the marker bytes round-trip untouched; React-half only, so the serialization mirror never sees it.
 const CalloutMarkerPlugin = createSlatePlugin({
   key: "calloutMarker",
   node: { isLeaf: true },
   decorate: ({ editor, entry: [node, path] }) => {
     if (!TextApi.isText(node) || !node.text.startsWith("[!")) return undefined;
-    // Only the first leaf of the first paragraph of a blockquote qualifies.
     if (path.length < 3 || path.at(-1) !== 0 || path.at(-2) !== 0) return undefined;
     const paragraph = NodeApi.get(editor, path.slice(0, -1));
     const quote = NodeApi.get(editor, path.slice(0, -2));
@@ -153,10 +130,7 @@ const CalloutMarkerPlugin = createSlatePlugin({
   },
 }).withComponent(CalloutMarkerLeaf);
 
-/**
- * Insert a horizontal rule (void divider), then a trailing empty paragraph so
- * the caret has a landing spot below it. Slash-menu insert.
- */
+// the trailing paragraph gives the caret a landing spot below the void
 export function insertHorizontalRule(editor: PlateEditor): void {
   editor.tf.insertNodes(
     { type: HorizontalRulePlugin.key, children: [{ text: "" }] },

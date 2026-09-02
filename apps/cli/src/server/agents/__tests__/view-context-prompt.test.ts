@@ -1,8 +1,3 @@
-// The composed block is a GOLDEN: it is the whole of what the model is told
-// about the user's screen, it costs tokens on every turn that carries one, and
-// a silent rewording is the kind of change nobody notices until the agent
-// stops resolving "this". So the bytes are pinned.
-
 import type { ViewContext } from "@repo/domain/view-context";
 import { describe, expect, it } from "vitest";
 import { composeViewContextBlock, turnPromptInput } from "../view-context-prompt";
@@ -36,8 +31,6 @@ describe("turnPromptInput", () => {
     const input = turnPromptInput("make this shorter", docContext());
     expect(input).toHaveLength(2);
     expect(input[0]?.text).toBe(composeViewContextBlock(docContext()));
-    // The user's own bytes, unmangled — the reason the block is a separate
-    // element rather than a prefix.
     expect(input[1]).toEqual({ type: "text", text: "make this shorter" });
   });
 });

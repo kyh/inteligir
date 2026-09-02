@@ -1,9 +1,4 @@
-// Collecting a doc's formulas: the SAME parse the editor runs
-// (remark-inline-constructs' nodes), never a regex over raw text — a pill inside a
-// code fence is literal there, and it must be literal here. The collector is
-// what the cross-note resolver reads, so its answer is identity-shaped:
-// which (id, name) holds which source, and what the note calls itself
-// (frontmatter `id:`).
+// Parsed, not regexed: a pill inside a code fence is literal in the editor and must be here too.
 
 import type { Node, Parent } from "mdast";
 import { z } from "zod";
@@ -17,13 +12,12 @@ export type CollectedFormula = {
   source: string;
   display: string;
   meta: FormulaMeta;
-  /** Parsed expression when the source is executable; null = symbolic. */
+  /** null = symbolic (not executable). */
   expression: ExpressionNode | null;
 };
 
 const frontmatterIdSchema = z.object({ id: z.string().min(1) });
 
-/** The note's own identity: frontmatter `id:`, or null when it has none. */
 export function noteIdOf(markdown: string): string | null {
   const { properties } = splitFrontmatter(markdown);
   const parsed = frontmatterIdSchema.safeParse(properties);
@@ -41,9 +35,7 @@ function isParent(node: Node): node is Parent {
   return "children" in node;
 }
 
-/** Every formula pill in `markdown`, document order. An unparseable doc
- * answers [] — a resolver acting on a false "none" only yields stale marks,
- * never data loss. */
+// [] for an unparseable doc: a false "none" here only yields stale marks, never data loss
 export function collectFormulas(markdown: string): CollectedFormula[] {
   const parsed = parseMdast(markdown);
   if (!parsed.ok) return [];
@@ -69,8 +61,6 @@ export function collectFormulas(markdown: string): CollectedFormula[] {
   }
 }
 
-/** The lookup shape the resolver wants: formulas by id, first instance wins
- * (linked instances share an id and a value by definition). */
 export function formulasById(formulas: readonly CollectedFormula[]): Map<string, CollectedFormula> {
   const byId = new Map<string, CollectedFormula>();
   for (const formula of formulas) {

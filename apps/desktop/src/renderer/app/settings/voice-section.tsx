@@ -1,14 +1,5 @@
-// Settings → Voice: the switch that turns dictation on, which is the same act
-// as downloading the model and deleting it.
-//
-// ONE CONTROL, because there is one fact. The server keeps no "enabled" flag —
-// the model file on disk IS the switch — so this section cannot show a state
-// the server does not have, and turning it off genuinely reclaims the bytes
-// rather than leaving a model nothing can reach.
-//
-// THE SIZE IS SHOWN BEFORE IT IS SPENT. Turning this on starts a download the
-// user did not otherwise ask for, so the number and the destination are on
-// screen next to the switch, not discovered afterwards in a progress bar.
+// The server keeps no enabled flag: the model file on disk is the switch, so
+// off deletes it and on downloads it.
 
 import { Switch } from "@repo/ui/components/switch";
 import { confirm } from "@repo/ui/components/confirm-dialog";
@@ -22,8 +13,6 @@ function megabytes(bytes: number): string {
   return `${Math.round(bytes / 1_000_000)} MB`;
 }
 
-/** What the switch's own state is called. `unavailable` is not here: that
- *  section renders a sentence instead of a switch, so it has no label. */
 function stateLabel(status: Exclude<VoiceStatusResponse, { state: "unavailable" }>): string {
   switch (status.state) {
     case "ready":

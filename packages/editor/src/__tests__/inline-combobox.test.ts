@@ -1,11 +1,3 @@
-// Regression suite for the inline combobox's editor-mutation core
-// (combobox-input.ts), mirroring the crash recipe that tore the ariakit
-// version to about:blank: trigger → typed query → Escape cancel → rapid
-// undo/redo interleaving. The invariants: no operation ever throws, cancel
-// after an external removal (undo) is a no-op, and the trigger elements are
-// structurally excluded from serialization (no "Unreachable code" warning,
-// no text drop).
-
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ElementApi, KEYS, createSlateEditor, type TElement } from "platejs";
 import { serializeMd } from "@platejs/markdown";
@@ -40,7 +32,6 @@ function findByType(editor: Editor, type: string): TElement | null {
   return null;
 }
 
-/** Type the trigger char at the end of block 0, creating the input element. */
 function openCombobox(editor: Editor, trigger: string, type: string): TElement {
   const end = editor.api.end([0]);
   if (!end) throw new Error("no end point");
@@ -69,7 +60,6 @@ describe("inline combobox cancel safety (the about:blank crash class)", () => {
       expect(() => {
         for (let i = 0; i < 10; i++) editor.undo();
       }).not.toThrow();
-      // Fully unwound: back to the seed bytes, no orphan trigger element.
       expect(out(editor)).toBe(seed);
       expect(findByType(editor, KEYS.emojiInput)).toBeNull();
     }
@@ -89,15 +79,12 @@ describe("inline combobox cancel safety (the about:blank crash class)", () => {
         editor.redo();
       }
     }).not.toThrow();
-    // Redo replays the cancel exactly — bytes converge, never duplicate.
     expect(out(editor)).toBe("hello :tada\n");
   });
 
   it("cancel after an undo removed the element is a strict no-op", () => {
     const editor = makeEditor("hello ");
     const element = openCombobox(editor, ":", KEYS.emojiInput);
-    // Cmd+Z forwarded from the input: the trigger-insert batch unwinds and
-    // the element leaves the document while the component is still mounted.
     while (findByType(editor, KEYS.emojiInput)) editor.undo();
     const before = out(editor);
     expect(() =>
@@ -139,9 +126,6 @@ describe("inline combobox cancel safety (the about:blank crash class)", () => {
   it("absorbs keystrokes that raced into the element's hidden text child", () => {
     const editor = makeEditor("");
     const element = openCombobox(editor, ":", KEYS.emojiInput);
-    // A fast keystroke landing before the HTML input has focus goes into the
-    // void's text child; the input absorbs it (read + clear) and prepends it
-    // to the query.
     const path = editor.api.findPath(element);
     if (!path) throw new Error("element path missing");
     editor.tf.select({ offset: 0, path: [...path, 0] });
@@ -150,10 +134,8 @@ describe("inline combobox cancel safety (the about:blank crash class)", () => {
     expect(raced ? racedComboboxText(raced) : "").toBe("t");
     if (!raced) throw new Error("element missing");
     expect(absorbRacedComboboxText(editor, raced)).toBe("t");
-    // Cleared: no leftover bytes to render after the input or double-absorb.
     const cleared = findByType(editor, KEYS.emojiInput);
     expect(cleared ? racedComboboxText(cleared) : "?").toBe("");
-    // Cancel restores trigger + absorbed value; undo spam stays safe.
     if (!cleared) throw new Error("element missing");
     cancelComboboxInput(editor, cleared, { cause: "escape", restoreText: ":tada" });
     expect(out(editor)).toBe(":tada\n");
@@ -166,12 +148,9 @@ describe("inline combobox cancel safety (the about:blank crash class)", () => {
 });
 
 describe("reconcileInsertionCaret (the first-commit caret quirk)", () => {
-  // Chromium's first IME-style commit into the freshly focused input leaves
-  // the caret BEFORE the inserted text; every later keystroke then lands one
-  // run too early ('deep' → 'eepd', ':tada' → 'adat').
   it("moves a caret stranded before the first typed char", () => {
-    expect(reconcileInsertionCaret("", "d", 0)).toBe(1); // [[deep — first 'd'
-    expect(reconcileInsertionCaret("", "t", 0)).toBe(1); // :tada — first 't'
+    expect(reconcileInsertionCaret("", "d", 0)).toBe(1);
+    expect(reconcileInsertionCaret("", "t", 0)).toBe(1);
   });
 
   it("assembles 'deep' and 'tada' across the exact first-char sequence", () => {
@@ -180,7 +159,6 @@ describe("reconcileInsertionCaret (the first-commit caret quirk)", () => {
       let caret = 0;
       for (const [i, char] of Array.from(word).entries()) {
         const next = value.slice(0, caret) + char + value.slice(caret);
-        // The browser strands the caret on the first commit, then behaves.
         const reported = i === 0 ? caret : caret + 1;
         caret = reconcileInsertionCaret(value, next, reported) ?? reported;
         value = next;
@@ -191,8 +169,8 @@ describe("reconcileInsertionCaret (the first-commit caret quirk)", () => {
   });
 
   it("moves a stranded caret for multi-char and mid-string commits", () => {
-    expect(reconcileInsertionCaret("", "deep", 0)).toBe(4); // paste-like commit
-    expect(reconcileInsertionCaret("ab", "aXb", 1)).toBe(2); // mid-string
+    expect(reconcileInsertionCaret("", "deep", 0)).toBe(4);
+    expect(reconcileInsertionCaret("ab", "aXb", 1)).toBe(2);
   });
 
   it("never fights a consistent native caret", () => {
@@ -202,14 +180,13 @@ describe("reconcileInsertionCaret (the first-commit caret quirk)", () => {
   });
 
   it("repeated characters read both ways — trust the browser", () => {
-    // 'aaa' from 'aa': caret 1 is a valid post-insert position (typed at 0).
     expect(reconcileInsertionCaret("aa", "aaa", 1)).toBeNull();
     expect(reconcileInsertionCaret("aa", "aaa", 2)).toBeNull();
   });
 
   it("ignores deletions, replacements, and missing carets", () => {
-    expect(reconcileInsertionCaret("de", "d", 1)).toBeNull(); // deletion
-    expect(reconcileInsertionCaret("abc", "aXbYc", 1)).toBeNull(); // two runs
+    expect(reconcileInsertionCaret("de", "d", 1)).toBeNull();
+    expect(reconcileInsertionCaret("abc", "aXbYc", 1)).toBeNull();
     expect(reconcileInsertionCaret("", "d", null)).toBeNull();
   });
 });

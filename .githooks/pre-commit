@@ -1,17 +1,7 @@
 #!/bin/sh
-# Format-before-gates, enforced locally.
-#
-# The rule this guards is the repo's most-bitten: `format:fix` runs FIRST and
-# NEVER after the gates — a post-gate format run once rewrote the byte-pinned
-# round-trip fixtures and shipped red (#362). CI enforces `pnpm format` as a
-# hard step, so the only thing a local miss buys you is a red run minutes after
-# the push.
-#
-# Deliberately runs the CHECK, never the fix: a hook that silently rewrites
-# files mid-commit stages bytes you never looked at, which is how the fixture
-# corruption happened in the first place.
-#
-# Bypass with `git commit --no-verify` when you genuinely mean to.
+# runs the format CHECK, never the fix: a hook that rewrites files mid-commit stages bytes
+# nobody looked at, and a post-gate format run once rewrote the byte-pinned round-trip fixtures.
+# bypass with --no-verify.
 
 if ! command -v pnpm >/dev/null 2>&1; then
   echo "pre-commit: pnpm not on PATH — skipping the format check." >&2

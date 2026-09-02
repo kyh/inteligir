@@ -1,7 +1,3 @@
-// Note Intelligence's handlers: read the switch's state, and set it. The
-// service answers a status for every input the schema admits, so neither row
-// declares a refusal.
-
 import { base } from "../orpc";
 
 const status = base.noteIntelligence.status.handler(({ context }) =>

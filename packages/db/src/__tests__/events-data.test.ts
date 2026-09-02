@@ -50,9 +50,8 @@ describe("appendEvents", () => {
     const thread = createThread(db, noopNotifier, {});
     appendEvents(db, noopNotifier, [turnStarted(thread.id, "turn_1")]);
 
-    // A second connection to the same file is a genuinely independent writer:
-    // its high-water read races the first connection's inserts and only the
-    // immediate transaction keeps the allocations disjoint.
+    // a second connection is an independent writer whose high-water read races the first's
+    // inserts.
     const rival = createConnection(databasePath);
     for (let round = 0; round < 25; round += 1) {
       appendEvents(db, noopNotifier, [agentDelta(thread.id, "turn_1", `db-${round}`)]);
@@ -71,7 +70,6 @@ describe("appendEvents", () => {
     expect(() =>
       appendEvents(db, noopNotifier, [agentDelta(thread.id, "turn_ghost", "x")]),
     ).toThrow(MissingTurnStartedError);
-    // The refused batch left nothing behind.
     expect(getMaxSequence(db, thread.id)).toBe(0);
   });
 
@@ -108,8 +106,6 @@ describe("scope policy at the write", () => {
   it("refuses a thread-scoped turn/started at the write, persisting nothing", () => {
     const { db } = openTempDbWithPath();
     const thread = createThread(db, noopNotifier, {});
-    // The static type admits any (event, scope) pairing; the write-side parse
-    // is what refuses it — before the SQL CHECK ever sees a row.
     const invalid: ThreadEvent = {
       type: "turn/started",
       threadId: thread.id,
@@ -134,9 +130,6 @@ describe("scope policy at the write", () => {
   });
 });
 
-// What an appended BURST may cost. The agent's event coalescer hands this a
-// whole run of deltas at once, so anything the loop does per row scales with
-// the burst — and a streaming turn is nothing but bursts.
 describe("the cost of a burst", () => {
   it("prepares two SELECTs and one INSERT, whatever the burst carries", () => {
     const { db } = openTempDbWithPath();
@@ -158,11 +151,7 @@ describe("the cost of a burst", () => {
     );
     spy.mockRestore();
 
-    // One SELECT for the thread's high-water sequence, one for the turn's
-    // stored `turn/started` — the second ran per event, and a turn's start
-    // cannot un-happen inside the transaction that asked.
     expect(prepared.filter((source) => source.startsWith("select"))).toHaveLength(2);
-    // One INSERT, built once and re-run; it was rebuilt per row.
     expect(prepared.filter((source) => source.startsWith("insert"))).toHaveLength(1);
   });
 });

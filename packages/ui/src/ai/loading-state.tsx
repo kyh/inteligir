@@ -6,22 +6,6 @@ import { cva, type VariantProps } from "class-variance-authority";
 
 import { cn } from "@repo/ui/lib/utils";
 
-/* ─────────────────────────────────────────────────────────
- * LOADING STATE — pixel-grid loader for long-running work
- *
- * Variants:
- *   drive — square cells, chevron wavefront driving right;
- *           the 650ms cycle is shorter than the sweep, so
- *           two fronts are always in flight
- *   dots  — same wavefront, circular cells
- *   orbit — a comet lapping the grid perimeter
- *
- * Paired with a shimmering label and a live elapsed timer
- * in mono tabular figures.
- * ───────────────────────────────────────────────────────── */
-
-/** One cell of the 3x3 grid. The id is the cell's own coordinates, so the
- *  React key is positional identity rather than a list index. */
 interface Cell {
   id: string;
   /** null never lights: the pattern skips this cell. */
@@ -59,8 +43,6 @@ function LoaderGrid({ variant }: { variant: LoadingVariant }) {
       {cells.map(({ id, delay }) => (
         <span
           key={id}
-          // A null delay is a cell the pattern never lights: it stays at the
-          // dim rest opacity with no animation rather than pulsing off-beat.
           className={cn(
             "size-[4px] bg-ink opacity-[0.07]",
             round ? "rounded-full" : "rounded-[1px]",
@@ -80,7 +62,6 @@ function LoaderGrid({ variant }: { variant: LoadingVariant }) {
   );
 }
 
-/** Tenths of a second since `startedAt`, or since mount when it is absent. */
 function useElapsedLabel(startedAt: number | undefined): string {
   const [now, setNow] = useState(() => Date.now());
   const [mountedAt] = useState(() => Date.now());
@@ -93,8 +74,6 @@ function useElapsedLabel(startedAt: number | undefined): string {
   return `${String(Math.floor(seconds / 60))}m ${(seconds % 60).toFixed(1)}s`;
 }
 
-/** The variant is a cva variant so consumers get the union for free; the
- *  pattern table below is keyed by the same names. */
 const loadingStateVariants = cva("flex w-fit items-center gap-2.5", {
   variants: {
     variant: {
@@ -108,14 +87,8 @@ const loadingStateVariants = cva("flex w-fit items-center gap-2.5", {
 
 interface LoadingStateProps
   extends HTMLAttributes<HTMLDivElement>, VariantProps<typeof loadingStateVariants> {
-  /** What is being waited on — "Thinking", "Reading the vault", … */
   label: string;
-  /**
-   * Epoch ms the work began. Elapsed counts from HERE rather than from mount,
-   * so a panel opened onto an already-running turn shows its real age.
-   */
   startedAt?: number;
-  /** Hide the timer where the surface already shows one. */
   showElapsed?: boolean;
 }
 

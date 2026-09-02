@@ -1,22 +1,6 @@
-// ---------------------------------------------------------------------------
-// The package dependency DAG, pinned from BOTH sides.
-//
-// A boundary between workspaces is only real if something fails when it moves,
-// and the two things that can move are independent: a manifest can declare an
-// edge nobody imports, and an import can cross an edge no manifest declares
-// (pnpm's hoisting resolves it anyway, so nothing else notices). This walks the
-// shipped source for the second and the manifests for the first, and holds both
-// against ONE declared table.
-//
-// The platform rules below are the reason the DAG matters at all. `@repo/notes`
-// is the sharing seam — it runs in a browser and on node, so a `node:` import
-// there is not a style question, it is a package that stops loading. Only the
-// `@repo/notes` rule is also lint-enforced (.oxlintrc.json); every other one
-// lives here alone.
-//
-// Adding a package, or an edge between two: add the row. That is the whole
-// point — the table is the review surface.
-// ---------------------------------------------------------------------------
+// pinned from both sides: a manifest can declare an edge nobody imports, and an import can cross an
+// edge no manifest declares (pnpm's hoisting resolves it). adding a package or an edge: add the
+// row.
 
 import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -30,111 +14,37 @@ import {
   type Workspace,
 } from "./repo";
 
-/**
- * THE table: which workspaces each workspace's SHIPPED source may import.
- * Test-only imports are not edges — a suite reaching for a fixture package says
- * nothing about what a consumer of this package pulls in — but they must still
- * be declared in the manifest, which the manifest test below covers.
- */
+// what each workspace's shipped source may import; test-only imports are not edges but must still
+// be declared in the manifest.
 const DECLARED_EDGES = new Map<string, readonly string[]>(
   Object.entries({
-    // Leaves. Nothing in this repo may be below them.
-    // agent-skills is CONTENT (the dialect spec) —
-    // markdown served to agents, importing nothing and imported as files.
+    // leaves; agent-skills is content (markdown served to agents), imported as files.
     "@repo/agent-skills": [],
     "@repo/domain": [],
     "@repo/notes": [],
     "@repo/ui": [],
 
-    // The Plate editor draws with the shared component kit — the same
-    // shadcn-on-Base-UI vocabulary the app's chrome uses — so the edge is a
-    // rendering dependency, not a domain one. @repo/ui stays a leaf below it.
+    // the editor draws with the shared component kit; @repo/ui stays a leaf below it.
     "@repo/editor": ["@repo/notes", "@repo/ui"],
-    // ONE contract package, TWO entry points, and the split is the point: its
-    // `/local` half is the desktop renderer and the CLI talking to the local
-    // server, whose two ends ship in one bundle and may break freely; its
-    // `/cloud` half is a deployed Worker answering installs that may be months
-    // stale, and may never break. `/cloud` is more than schemas and paths: it
-    // carries the pure CLIENT MACHINE too — the pairing flow's slot and
-    // PKCE-bound redeem, the sync session's fence and page loop — because
-    // those are security-bearing disciplines every platform must run
-    // identically, and a machine with a copy per platform is one per platform
-    // to audit.
-    //
-    // The @repo/notes edge is the grammars the contract validates against —
-    // the vault path (`knowledge/vault-path`) and the comment id and source
-    // (`comments/sidecar-schema`) — and it is narrow ON PURPOSE: both modules
-    // are parser-free, so refusing a bad value in the contract cannot drag
-    // remark into every client bundle. Widening this edge to a
-    // remark-carrying module is the regression to catch.
-    // `/local` reaching `/cloud` inside this package is ONE fact, and it is a
-    // wire fact: the device name `cloud.pairBegin` accepts is the name the
-    // cloud's own `/v1/device/redeem` will eventually be sent, so the ceiling
-    // it validates against has to be that route's. A hand-copied number would
-    // be a value this end accepts and the cloud then refuses, arriving as a
-    // shape error long after the click that caused it.
+    // the @repo/notes edge is the parser-free grammars the contract validates against (vault-path,
+    // sidecar-schema); widening it to a remark-carrying module drags remark into every client
+    // bundle.
     "@repo/api": ["@repo/domain", "@repo/notes"],
     "@repo/agent-runtime": ["@repo/domain"],
-    // Persistence sits BELOW the wire: the store announces its writes through
-    // @repo/domain's `DbNotifier`, whose change-kind vocabulary the contract
-    // serializes. An edge the other way would drag hono, the route machinery and
-    // the contract's own @repo/notes edge into the build graph of a package that
-    // only writes rows.
+    // below the wire: an edge to @repo/api would drag hono and the contract's notes edge into a
+    // package that only writes rows.
     "@repo/db": ["@repo/domain"],
 
-    // THE SERVER, and the binary that runs it. `serve` is the whole local
-    // process — vault, index, agent, API — and every other verb is a client of
-    // one, so this workspace composes nearly everything. What it does NOT
-    // reach is the page: no @repo/ui, no @repo/editor, no react.
-    inteligir: [
-      "@repo/agent-runtime",
-      // ONE edge, BOTH entry points: `/local` is the contract this program
-      // serves, and `/cloud` is the wire it is a CLIENT of — the
-      // sync client parses the same push/pull/capture schemas, ws ping frames
-      // and error envelope apps/web produces, so the contract has two
-      // implementations and no second reading.
-      "@repo/api",
-      "@repo/db",
-      "@repo/domain",
-      "@repo/notes",
-    ],
-    // The mobile companion. It is a PARTIAL client of the cloud
-    // wire — a reader of the account's merged thread log and a producer of
-    // captures — over React Native storage instead of better-sqlite3. It never
-    // pushes a thread event and never claims a capture: the desktop runs the
-    // turns and owns applying a capture to the vault, so each of those halves
-    // has exactly one client. What both readers of the log DO share is the
-    // contract's client machine — the page planner (`cloud/sync/plan-page`),
-    // the session fence (`cloud/sync/sync-session`) and the pairing flow
-    // (`cloud/pairing/pairing-flow`) — two copies of any of them would be two
-    // answers to "did this row move the cursor?" or two security machines to
-    // audit, and a mis-set cursor is a duplicated conversation. The @repo/domain edge
-    // is the ThreadEvent grammar the planner hands back and this client folds
-    // into display rows. Both are zod-only leaves, so the edge costs the RN
-    // bundle only the schemas it already parses.
-    //
-    // The @repo/notes edge is the vault READ surface: the phone renders notes
-    // from the hosted vault through the dialect's OWN parse and
-    // resolves wiki links with the same pickBest as the desktop — a second
-    // parser or resolver would drift per device. The package is guard-pure
-    // (no node/react — the platform rules below), so the edge carries only
-    // remark and the resolvers. What the phone still reaches NOTHING of: the
-    // local server, the apps/web worker, the vault ENGINE (git, watcher,
-    // sqlite index) and the agent — those stay on the desktop.
+    // the server reaches no page: no @repo/ui, no @repo/editor, no react.
+    inteligir: ["@repo/agent-runtime", "@repo/api", "@repo/db", "@repo/domain", "@repo/notes"],
+    // a partial cloud client: reads the thread log and produces captures, never pushes or claims.
+    // the @repo/notes edge is the vault read surface (the dialect's own parse and link resolver);
+    // it reaches no server, vault engine or agent.
     "@repo/mobile": ["@repo/api", "@repo/domain", "@repo/notes"],
-    // The Cloudflare Worker. Only the two packages it can survive on workerd —
-    // see the workerd rule below for what enforces that beyond this row.
     "@repo/web": ["@repo/api", "@repo/ui"],
-    // THE SHIPPED PRODUCT: the window, and the page inside it. The renderer is
-    // this workspace's own source, so the whole UI vocabulary lives on this row
-    // — and `inteligir` is here for FOUR facts the two processes must agree on
-    // rather than re-state: the config resolution (a shell with its own partial
-    // copy resolves a different instance than the server it forks), the device
-    // token's file and header spelling, the shutdown budget its stop grace must
-    // exceed, and the renderer's own policy, which the protocol handler serves
-    // and the server's browser door serves identically. The shell ALSO forks
-    // that package's bundle as a child — but a dependency with a real importer
-    // is an ordinary edge, so it is declared once, here.
+    // `inteligir` for the facts both processes must agree on: config resolution, the token's file
+    // and header spelling, the shutdown budget the stop grace must exceed, and the CSP the protocol
+    // handler serves. forking its bundle as a child is the same dependency, declared once.
     "@repo/desktop": [
       "@repo/api",
       "@repo/domain",
@@ -144,31 +54,16 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
       "inteligir",
     ],
 
-    // Boots a REAL server and drives it over the typed client; the `inteligir`
-    // edge is the binary it spawns and the config resolution that says which
-    // instance this checkout means.
+    // the `inteligir` edge is the binary it spawns and the config resolution naming this checkout's
+    // instance.
     "@repo/e2e": ["@repo/api", "inteligir"],
     "@repo/repo-guards": [],
   }),
 );
 
-/**
- * ARTIFACT edges: a workspace dependency that is real in the MANIFEST and has
- * no import behind it, because the dependent INSTALLS AND EXECUTES the other
- * package's build output rather than importing its modules.
- *
- * An artifact edge means "this package is installed and executed", never
- * "this package is imported" — and the two are not degrees of the same thing.
- * `DECLARED_EDGES` above is the IMPORT graph and stays silent about these; an
- * artifact edge is deliberately absent from it, so a module import across one
- * still lands as an UNDECLARED EDGE. The assertion below says that in the
- * other direction too, because the claim is the whole point of the split.
- *
- * They need their own table because the two manifest checks read opposite
- * things off one row: pnpm must link the dependency, while nothing under
- * `src/**` imports it. With no row the phantom check reads the line that puts
- * the agent's skills inside the artifact as dead weight and says to delete it.
- */
+// installed and executed, never imported: absent from DECLARED_EDGES on purpose, so a module import
+// across one still fails as undeclared. its own table because the manifest checks read opposite
+// things off one row: pnpm must link it, and nothing under src/ imports it.
 const DECLARED_ARTIFACT_EDGES = new Map<string, Record<string, string>>(
   Object.entries({
     inteligir: {
@@ -182,8 +77,6 @@ function artifactEdgesFrom(name: string): Record<string, string> {
   return DECLARED_ARTIFACT_EDGES.get(name) ?? {};
 }
 
-/** `node:*`, react and electron — the three platform surfaces a package can
- *  accidentally acquire, each fatal on a different target. */
 function platformSurfacesOf(specifier: string): string[] {
   const surfaces: string[] = [];
   if (specifier.startsWith("node:")) surfaces.push("node");
@@ -195,14 +88,10 @@ function platformSurfacesOf(specifier: string): string[] {
 
 interface PurityRule {
   forbidden: readonly string[];
-  /** Stated in the failure, because a rule nobody can read is a rule nobody keeps. */
   why: string;
 }
 
-/**
- * What each package's shipped source may NOT reach. Absent from this table
- * means "no platform constraint" — apps and the node-side packages.
- */
+// absent means no platform constraint.
 const PURITY_RULES = new Map<string, PurityRule>(
   Object.entries({
     "@repo/notes": {
@@ -232,9 +121,7 @@ const PURITY_RULES = new Map<string, PurityRule>(
   }),
 );
 
-/** zod-only means zod-only. `@repo/api` is NOT on this list: it carries
- *  `@orpc/contract`, which is isomorphic and therefore does not cost the
- *  leaves' portability. */
+// @repo/api is not here: @orpc/contract is isomorphic and costs no portability.
 const ZOD_ONLY_LEAVES = ["@repo/domain"];
 
 function edgesFrom(workspace: Workspace, files: readonly string[]): Map<string, string[]> {
@@ -472,11 +359,6 @@ describe("platform purity", () => {
   });
 
   it("the Cloudflare Worker reaches @repo/api's cloud entry and nothing else", () => {
-    // ONE package, TWO entry points, and the split only means something if the
-    // halves stay apart. `/cloud` is a deployed Worker answering installs that
-    // may be months stale and may never break; `/local` is the desktop's own
-    // renderer and CLI, which ship in one bundle and break freely. A Worker
-    // reaching a `/local` symbol is that freedom quietly becoming a promise.
     const worker = workspaces().find((candidate) => candidate.name === "@repo/web");
     if (worker === undefined) throw new Error("@repo/web is not a workspace");
     const files = workspaceFiles(worker);
@@ -495,13 +377,8 @@ describe("platform purity", () => {
   });
 
   it("@repo/api's cloud entry never reaches into its local entry", () => {
-    // The mirror of the Worker pin, enforced from INSIDE the package. apps/web
-    // imports only `@repo/api/cloud/*` — but a file UNDER src/cloud reaching
-    // src/local by a relative path (or by the package's own name) is invisible
-    // to that check and would drag a may-break-freely /local shape into the
-    // never-break cloud wire through every cloud import the Worker makes. The
-    // one sanctioned crossing is the OTHER direction (local/cloud reuses a
-    // cloud constant), which this does not touch.
+    // a file under src/cloud reaching src/local by relative path is invisible to the Worker pin
+    // above; the sanctioned crossing is the other direction (local reusing a cloud constant).
     const api = workspaces().find((candidate) => candidate.name === "@repo/api");
     if (api === undefined) throw new Error("@repo/api is not a workspace");
     const cloudDir = join(api.dir, "src", "cloud");
@@ -509,9 +386,6 @@ describe("platform purity", () => {
     const files = workspaceFiles(api);
     const violations: string[] = [];
     for (const file of [...files.shipped, ...files.test]) {
-      // TWO buckets and no third. This guard populates itself from src/cloud,
-      // so a file outside both halves is one it cannot see — reachable from
-      // cloud, free to import local, and caught by neither pin.
       if (!file.startsWith(`${cloudDir}/`) && !file.startsWith(`${localDir}/`)) {
         violations.push(
           `THIRD BUCKET  ${file}\n` +
@@ -536,11 +410,8 @@ describe("platform purity", () => {
   });
 
   it("the Cloudflare Worker imports no Node package", () => {
-    // Derived, not listed: a package is a Node package when its shipped source
-    // reaches `node:` — directly or through an edge. `nodejs_compat` shims some
-    // of those modules on workerd, but not the native addons and spawned
-    // processes behind them (better-sqlite3, child_process, @parcel/watcher),
-    // and the failure is a deploy that builds and then throws on first request.
+    // nodejs_compat shims some node: modules on workerd, not the native addons and spawned
+    // processes behind them.
     const reachesNode = new Map<string, boolean>();
     const resolve = (name: string, seen: Set<string>): boolean => {
       const cached = reachesNode.get(name);
@@ -577,9 +448,6 @@ describe("platform purity", () => {
 
 describe("tests are excluded from the shipped graph", () => {
   it("classifies suites, fixtures and test-only ports as tests", () => {
-    // The whole DAG rests on this split, and it is the one thing above that a
-    // rename could silently break — a suite that stopped counting as a test
-    // would start contributing edges.
     expect(isTestFile("packages/db/src/__tests__/db.test.ts")).toBe(true);
     expect(isTestFile("apps/cli/src/server/__tests__/boot-app.ts")).toBe(true);
     expect(isTestFile("packages/agent-runtime/src/test-support/fake-acp-agent.mjs")).toBe(true);

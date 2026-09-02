@@ -1,30 +1,8 @@
-// ---------------------------------------------------------------------------
-// Related notes — the "notes you forgot are connected to this one" scorer.
-// PURE and platform-neutral: it reads the link graph / tag index through a
-// minimal structural view (LinkGraphIndex satisfies it directly) plus an
-// injected lexical `search` port, so the ranking brain exists once
-// while each composition brings its own text engine — the in-memory tiered
-// SearchIndex (the core reference composition) or the SQL store's FTS5 bm25
-// (what the host runs). No ML, no embeddings (that's a v2, separately).
-//
-// Signals, cheapest-first over what the knowledge engine already holds:
-//   - shared link targets (bibliographic coupling): the candidate links to
-//     the same notes this note links to;
-//   - co-citation: a third note links to both this note and the candidate;
-//   - shared tags (inline `#tags` ∪ frontmatter tags, case-unified);
-//   - lexical similarity: per-title-token search hits, max-normalized so the
-//     two engines' incompatible score scales never leak into the blend.
-//
-// DIRECT neighbors (notes this note links to / notes linking to it) are
-// excluded by design: the Links + Backlinks panels already surface them, and
-// the point of Related is the ring the user has NOT already wired up.
-// ---------------------------------------------------------------------------
+// Direct neighbours (linked to, linking here) are excluded: the panels already
+// surface them, and Related is the ring the user has not wired up.
 
 import { tokenize } from "./search-query";
 
-/** One ranked related note. `reasons` is the explainability payload — short
- * human sentences ("both link to X", "shares #tag", "similar text") the
- * renderer shows as a hint and the agent tool prints verbatim. */
 export type RelatedNoteEntry = {
   path: string;
   title: string;
@@ -33,24 +11,17 @@ export type RelatedNoteEntry = {
 };
 
 export type RelatedNotesOpts = {
-  /** Max entries returned (default {@link RELATED_DEFAULT_LIMIT}). */
   limit?: number;
 };
 
-/** The graph/tag queries the scorer reads — a LinkGraphIndex instance
- * satisfies this structurally, so compositions pass it as-is. */
 export type RelatedNotesGraph = {
   forwardLinks(path: string): ReadonlyArray<{ targetPath: string | null }>;
   backlinks(path: string): ReadonlyArray<{ sourcePath: string }>;
-  /** The doc's tags in display case (empty for unknown paths). */
   tagsOf(path: string): readonly string[];
   notesWithTag(tag: string): readonly string[];
   titleOf(path: string): string | null;
 };
 
-/** Ranked lexical hits for one query token; higher score = better (both
- * engines already normalize score DIRECTION, never scale — the scorer
- * max-normalizes, so the in-memory tiers and FTS5 bm25 blend identically). */
 export type LexicalSearch = (
   query: string,
   limit: number,
@@ -58,22 +29,16 @@ export type LexicalSearch = (
 
 export const RELATED_DEFAULT_LIMIT = 8;
 
-// Weights: one shared link (either direction of indirection) outranks one
-// shared tag; the whole lexical signal is capped below two shared links so
-// title-word coincidence can never drown a real structural connection.
+// one shared link outranks one shared tag; lexical is capped below two shared links
+// so title-word coincidence never drowns a structural connection
 const SHARED_TARGET_WEIGHT = 2;
 const CO_CITATION_WEIGHT = 2;
 const SHARED_TAG_WEIGHT = 1;
 const LEXICAL_MAX_WEIGHT = 3;
-/** Per-token candidate window for the lexical probe. */
 const LEXICAL_PROBE_LIMIT = 24;
-/** Title tokens probed at most (a pathological title stays cheap). */
 const LEXICAL_MAX_TOKENS = 8;
-/** Tokens shorter than this ("a", "of", "to") are stop-word noise. */
 const LEXICAL_MIN_TOKEN_LENGTH = 3;
 
-/** Rank the notes related to `path`, best-first, with `reasons`. Empty when
- * the note has no connections. */
 export function relatedNotes(
   sources: RelatedNotesGraph,
   search: LexicalSearch,
@@ -82,8 +47,6 @@ export function relatedNotes(
 ): RelatedNoteEntry[] {
   const isDoc = (candidate: string): boolean => sources.titleOf(candidate) !== null;
 
-  // The direct ring — resolved forward doc-targets and backlink sources —
-  // doubles as the exclusion set (see header) and the indirection basis.
   const targets = new Set<string>();
   for (const { targetPath } of sources.forwardLinks(path)) {
     if (targetPath !== null && targetPath !== path && isDoc(targetPath)) targets.add(targetPath);
@@ -95,7 +58,6 @@ export function relatedNotes(
   const excluded = (candidate: string): boolean =>
     candidate === path || targets.has(candidate) || citers.has(candidate) || !isDoc(candidate);
 
-  // Shared targets: who else links to what this note links to?
   const sharedTargets = new Map<string, Set<string>>();
   for (const target of targets) {
     for (const { sourcePath } of sources.backlinks(target)) {
@@ -106,7 +68,6 @@ export function relatedNotes(
     }
   }
 
-  // Co-citation: what else do the notes citing this one link to?
   const coCiters = new Map<string, Set<string>>();
   for (const citer of citers) {
     for (const { targetPath } of sources.forwardLinks(citer)) {
@@ -117,7 +78,6 @@ export function relatedNotes(
     }
   }
 
-  // Shared tags (display case rides along for the reason string).
   const sharedTags = new Map<string, string[]>();
   for (const tag of sources.tagsOf(path)) {
     for (const candidate of sources.notesWithTag(tag)) {
@@ -128,8 +88,7 @@ export function relatedNotes(
     }
   }
 
-  // Lexical: per-title-token probes merged by score sum, then max-normalized
-  // into a bounded contribution — scale-free across engines.
+  // max-normalized because the two engines' score scales are incompatible
   const lexical = new Map<string, number>();
   const title = sources.titleOf(path);
   const tokens = title === null ? [] : [...new Set(tokenize(title))];
@@ -193,7 +152,6 @@ function titleOr(sources: RelatedNotesGraph): (path: string) => string {
   return (path) => sources.titleOf(path) ?? path;
 }
 
-/** "A", "A and B", "A, B and 2 more" — reason lists stay one short clause. */
 const LIST_SHOWN = 2;
 
 function formatList(items: readonly string[]): string {

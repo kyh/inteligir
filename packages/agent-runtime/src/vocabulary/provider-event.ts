@@ -1,17 +1,7 @@
 // Vendored from bb (github.com/get-bb/bb), MIT. © bb contributors.
-// The EMITTED grammar: what a provider adapter may produce. `ProviderEvent`
-// here and `ThreadEvent` in @repo/domain are two unions on purpose — this one
-// is wider (it carries kinds no renderer persists) and is TYPES only, because
-// the runtime constructs these and never parses them. Parsing happens where
-// events cross into the server, which narrows this union onto the persisted
-// one (`apps/cli/src/server/agents/event-mapping.ts`). The leaves the two
-// unions share are single-sourced from @repo/domain below, so a narrowing can
-// assign them across rather than respell them field by field.
-//
-// Trimmed families: background tasks, goals, rate limits, model fallback,
-// context-window clearing, turn/input/accepted correlation and the system/*
-// events — none has a kept producer. Never invent a
-// divergent shape for an event bb already names; re-vendor it instead.
+// ProviderEvent here and ThreadEvent in @repo/domain are two unions on purpose: this one is wider
+// and types only, since the runtime constructs and never parses; the server narrows it onto the
+// persisted one. never invent a divergent shape for an event bb already names; re-vendor it.
 
 import type {
   ThreadEventFileChange,
@@ -87,7 +77,6 @@ export interface ProviderEventCommandExecutionItem {
   cwd: string;
   status: ThreadEventItemStatus;
   approvalStatus: ThreadEventItemApprovalStatus;
-  /** Omitted when the process produced no stdout/stderr. */
   aggregatedOutput?: string;
   exitCode?: number;
   durationMs?: number;
@@ -153,8 +142,8 @@ interface ItemDeltaEventData extends ProviderThreadEventData {
 export interface ProviderTurnCompletedEvent extends ScopedEventData {
   type: "turn/completed";
   threadId: string;
-  // Runtime reconciliation can synthesize interrupted completions when
-  // the provider thread id was never resolved.
+  // nullable here alone: reconciliation synthesizes an interrupted completion before the provider
+  // id resolved.
   providerThreadId: string | null;
   status: ThreadEventTurnStatus;
   error?: { message: string };
@@ -187,11 +176,6 @@ export interface ProviderWarningEvent extends ProviderThreadEventData {
   details?: string;
 }
 
-/**
- * Events originating from a provider process via the agent runtime. Every
- * one carries `threadId` (the host's id, stamped by the runtime) and — for
- * all but `thread/started` — `providerThreadId`, the provider's internal id.
- */
 export type ProviderEvent =
   | ({ type: "thread/started"; threadId: string } & ScopedEventData)
   | ({ type: "thread/identity" } & ProviderThreadEventData)
@@ -204,7 +188,6 @@ export type ProviderEvent =
   | ({ type: "item/agentMessage/delta" } & ItemDeltaEventData)
   | ({
       type: "item/commandExecution/outputDelta";
-      /** True: the delta REPLACES accumulated output; absent means append. */
       reset?: boolean;
     } & ItemDeltaEventData)
   | ({ type: "item/fileChange/outputDelta" } & ItemDeltaEventData)

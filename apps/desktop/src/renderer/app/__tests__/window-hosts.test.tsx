@@ -1,10 +1,4 @@
 // @vitest-environment jsdom
-// The window-level hosts answer from EVERY route. `confirm()` parks a promise
-// until a mounted <ConfirmDialogHost /> settles it, and `toast()` shows
-// nothing until a <Toaster /> paints it — so a host mounted by the workspace
-// route alone leaves Settings' Unpair waiting on a dialog that never opens and
-// its refusals deferred until the user navigates back to "/". The hosts are
-// driven here from a route that is NOT the index, through the real root.
 
 import { readFileSync } from "node:fs";
 import { relative, resolve } from "node:path";
@@ -100,8 +94,6 @@ describe("the window-level hosts", () => {
     expect(await screen.findByText(REFUSAL)).toBeDefined();
   });
 
-  // A second mount is a second answer to the same call, never a second
-  // opinion — each row says what the second copy would be.
   const ROOT_ALONE = [
     ["<ConfirmDialogHost", "two confirm dialogs over one store"],
     ["<Toaster", "two toasters painting every toast twice"],

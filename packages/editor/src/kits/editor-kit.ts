@@ -1,10 +1,3 @@
-// EDITOR_KIT — the live editor's composition. Mirrors BASE_KIT feature-for-
-// feature (same kit files export both halves, so the serialization brain and
-// node metadata stay shared by construction — the kit-parity test converts
-// that premise into CI) and adds the live-only surfaces: slash menu, emoji,
-// drag handle, and the
-// chrome kits.
-
 import { DragKit } from "@repo/editor/block-draggable";
 import { BasicBlocksKit } from "@repo/editor/kits/basic-blocks-kit";
 import { BasicMarksKit } from "@repo/editor/kits/basic-marks-kit";
@@ -67,8 +60,7 @@ export const EDITOR_KIT = [
   ...ColorPillKit,
   ...WikiAutocompleteKit,
   ...FormulaAutocompleteKit,
-  // Render-only inline `#tag` chips. No BASE_KIT twin on purpose — a leaf
-  // decoration never reaches the value, so there is nothing to serialize.
+  // no BASE_KIT twin: a leaf decoration never reaches the value, so there is nothing to serialize.
   ...TagChipKit,
   ...EmojiKit,
   ...SlashKit,
@@ -78,6 +70,5 @@ export const EDITOR_KIT = [
   ...BlockMenuKit,
   ...FloatingToolbarKit,
   ...BlockPlaceholderKit,
-  // The shared serialization brain (single MarkdownPlugin instance).
   ...MarkdownKit,
 ];

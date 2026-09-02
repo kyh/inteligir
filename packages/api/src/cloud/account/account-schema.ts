@@ -1,29 +1,14 @@
 import { z } from "zod";
 
-// ---------------------------------------------------------------------------
-// `GET /v1/account` (device-authed): whose account this credential syncs as.
-// The account is the entitlement, so
-// the product must be able to SAY which account an install is entitled by —
-// after the approve page closes, this row is the only place that fact can
-// come from.
-//
-// A NEW route rather than a field on the redeem response, deliberately:
-// /cloud responses are `.strict()` and final at birth, so adding a redeem
-// field would make every stale install's pairing parse fail as malformed.
-// A new route is called only by builds that know it.
-// ---------------------------------------------------------------------------
-
+// its own route, not a field on the redeem response: /cloud responses are
+// .strict() and final, so a new redeem field breaks every stale install's pairing parse.
 export const ACCOUNT_API_PATHS = {
   account: "/v1/account",
 } as const;
 
 export const accountResponseSchema = z
   .object({
-    /** The account's opaque id — what the CLI pins into the vault's own
-     *  `inteligir.account` marker so a re-pair to a DIFFERENT account cannot
-     *  silently push this machine's notes into it. */
     id: z.string().min(1),
-    /** The account's email — display identity, never an address to send to. */
     email: z.string().min(1),
   })
   .strict();

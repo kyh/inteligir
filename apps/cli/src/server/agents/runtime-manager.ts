@@ -1,34 +1,7 @@
-// ONE agent runtime over the vault dir; the ACP adapter processes
-// (claude-code-acp, codex-acp) are its children, lazily started on the first
-// turn and reaped after idle. This is
-// the CreateTurnDriver implementation bridging runtime→ThreadService:
-//
-// - TURN IDENTITY: the service mints the host turn id and hands it to
-//   startTurn; the provider mints its own turn ids in its events. The manager owns
-//   the binding — the first turn/started for a dispatched turn binds the
-//   provider's turn id to the host's, every turn-scoped event is rewritten
-//   through that binding, and a turn-scoped event naming any OTHER provider
-//   turn (a resume replay) is dropped with a debug line. Provider event
-//   kinds the persisted grammar does not carry are dropped the same way —
-//   logged, never a crash (see event-mapping.ts).
-// - FAILURE: any async dispatch failure settles the turn through the SAME
-//   ingest grammar (turn/started if none was bound, provider/error,
-//   turn/completed failed), so the thread lands in `error` instead of
-//   wedging in `starting`.
-// - INTERACTIONS: the driver binds a provider request to the host turn id
-//   and hands it to interaction-waiters.ts, which owns the row, the parked
-//   promise and its clock; the answer route reaches it through
-//   onInteractionResolved, and a settle cancels that thread's waiters and
-//   interrupts its open rows.
-// - WRITES: a turn takes the vault's commit hold at dispatch and the settle
-//   path commits the recorded write set as the agent — see agent-commits.ts
-//   for the race design.
-// - THE WATCHDOG: a turn that goes quiet for too long is FAILED through the
-//   same grammar, because the hold it carries is not local to the thread —
-//   while it is open the vault's auto-commit defers and no sync pass may
-//   start. A provider that hangs (rather than crashing, which onProcessExit
-//   already covers) would hold both until the process restarts, so a turn is
-//   bounded rather than trusted.
+// the first turn/started binds the provider's turn id to the host's; a turn-scoped event naming
+// any other provider turn (a resume replay) is dropped. a turn holds the vault's commit hold, which
+// defers auto-commit and blocks sync, so a provider that hangs rather than exiting is bounded by
+// the watchdog rather than trusted.
 
 import {
   createAcpAgentRuntime,
@@ -69,10 +42,7 @@ import { mapProviderEvent } from "./event-mapping";
 import { createInteractionWaiters, type InteractionWaiters } from "./interaction-waiters";
 import { turnPromptInput } from "./view-context-prompt";
 
-/** Statically-always-dropped kinds that arrive on every token tick: the
- * translation emits them as the pair of thread/tokenUsage/updated (persisted)
- * and thread/contextWindowUsage/updated (not) — dropping the second half is
- * the steady state, not worth a debug line each time. */
+// arrives on every token tick beside the persisted tokenUsage half; not worth a debug line each time.
 const SILENTLY_DROPPED_EVENT_TYPES: ReadonlySet<ProviderEvent["type"]> = new Set([
   "thread/contextWindowUsage/updated",
 ]);
@@ -80,20 +50,12 @@ const SILENTLY_DROPPED_EVENT_TYPES: ReadonlySet<ProviderEvent["type"]> = new Set
 const DEFAULT_REAP_INTERVAL_MS = 60_000;
 const DEFAULT_IDLE_REAP_MS = 10 * 60_000;
 
-/**
- * How long a dispatched turn may produce NOTHING before it is failed. Idle
- * time, not wall time: a turn that streams for an hour is working, and a turn
- * parked on an approval is waiting on the user (that wait has its own clock —
- * the waiters' INTERACTION_TIMEOUT_MS — and the sweep skips a parked thread
- * for its duration). What is left is a provider that accepted a turn and then
- * went silent, which no other path settles — the process is alive, so
- * `onProcessExit` never fires.
- */
+// idle time, not wall time: a streaming turn is working and a parked approval has its own clock.
+// what is left is a provider that accepted a turn and went silent, which no other path settles.
 const DEFAULT_TURN_IDLE_TIMEOUT_MS = 10 * 60_000;
 
-/** The idle check is a SWEEP over per-turn timestamps, not a timer per
- *  provider event: a streaming turn produces thousands of frames, and
- *  re-arming a timeout for each buys nothing over a bounded-lag check. */
+// a sweep over per-turn timestamps: a streaming turn produces thousands of frames, and
+// re-arming a timeout per frame buys nothing over a bounded-lag check.
 const WATCHDOG_SWEEP_INTERVAL_MS = 1_000;
 
 export interface AcpRuntimeManagerDeps {
@@ -101,31 +63,18 @@ export interface AcpRuntimeManagerDeps {
   notifier: DbNotifier;
   vaultDir: string;
   git: GitEngine;
-  /** null means the provider's default model. */
   model: string | null;
-  /**
-   * What a session is told about this instance (agent-shell-env.ts) — the
-   * seam that names the instance so the harness can drive the product through
-   * the CLI. A getter read at EVERY session open, never a value: the Connected
-   * Folders are Settings-mutable, and the runtime spawns each session's
-   * adapter from the env this projects, so a value read once would tell every
-   * later session the set the first one saw.
-   */
+  // a getter read at every session open, never a value: connected folders are settings-mutable,
+  // and a value read once would tell every later session the set the first one saw.
   sessionFacts: () => AgentSessionFacts;
-  /** The host environment whose PATH the agent's shell extends. */
   hostEnv: NodeJS.ProcessEnv;
-  /** The harness a NEW thread runs on; a resumed thread keeps its own. */
   defaultProviderId: HarnessId;
-  /** Tests: replace the adapter child spawn (the fake ACP agent). */
   spawnAdapter?: AcpAgentRuntimeOptions["spawnAdapter"];
-  /** The enabled connector rows every session gets. */
   mcpServers: () => AcpMcpServerConfig[] | Promise<AcpMcpServerConfig[]>;
-  /** Tests: replace runtime construction with a fake (the watchdog and
-   *  shell-env suites). */
   createRuntime?: typeof createAcpAgentRuntime;
-  /** null disables the reap interval (tests drive reaping directly). */
+  // null disables.
   reapIntervalMs?: number | null;
-  /** The idle budget a dispatched turn gets; null disables the watchdog. */
+  // null disables.
   turnIdleTimeoutMs?: number | null;
   onDebug?: (message: string) => void;
 }
@@ -138,20 +87,12 @@ export interface AcpRuntimeManager {
 interface ActiveTurn {
   ourTurnId: string;
   providerTurnId: string | null;
-  /** True once the host's turn/started was ingested. */
   started: boolean;
-  /**
-   * Which process GENERATION accepted this turn (the per-thread exit counter
-   * at turn/started); null until accepted. A process exit fails only the
-   * turns its own generation accepted — a turn dispatched INTO a harness's
-   * account-restart window (the runtime replaces the app-server process
-   * before sending turn/start) must survive onto the replacement.
-   */
+  // the per-thread exit counter at turn/started. a process exit fails only turns its own generation
+  // accepted: a turn dispatched into a harness's account-restart window must survive onto the replacement.
   acceptedGeneration: number | null;
   settled: boolean;
   writes: AgentTurnWrites;
-  /** When the provider last said anything for this turn — what the idle
-   *  sweep measures silence against. */
   lastEventAt: number;
 }
 
@@ -161,12 +102,10 @@ class AcpTurnDriver implements TurnDriver {
   private readonly resolveVaultPath: VaultPathResolver;
   private runtime: AgentRuntime | null = null;
   private reapTimer: ReturnType<typeof setInterval> | null = null;
-  /** One ingest txn + one ws frame per streaming burst, not per delta. */
   private readonly events = new ProviderEventCoalescer((threadId, batch) =>
     this.sink.ingestProviderEvents(threadId, batch),
   );
   private readonly turnsByThreadId = new Map<string, ActiveTurn>();
-  /** Bumped on every provider-process exit that hosted the thread. */
   private readonly exitGenerationByThreadId = new Map<string, number>();
   private readonly waiters: InteractionWaiters;
   private watchdogTimer: ReturnType<typeof setInterval> | null = null;
@@ -186,8 +125,7 @@ class AcpTurnDriver implements TurnDriver {
     if (deps.turnIdleTimeoutMs !== null) {
       this.watchdogTimer = setInterval(
         () => this.sweepIdleTurns(budgetMs),
-        // A budget below the sweep cadence still fails within ~2x its own
-        // bound rather than waiting out the coarser tick.
+        // a budget below the sweep cadence still fails within ~2x its bound.
         Math.min(budgetMs, WATCHDOG_SWEEP_INTERVAL_MS),
       );
       this.watchdogTimer.unref();
@@ -216,11 +154,9 @@ class AcpTurnDriver implements TurnDriver {
           if (state === undefined || state.settled) {
             continue;
           }
-          // Fail only what the DYING process was actually running: a turn it
-          // accepted (matching generation), or one it acknowledged but never
-          // started. A not-yet-sent turn (dispatched during an expected
-          // account restart) continues on the replacement process; a crash
-          // before acceptance is settled by the dispatch promise rejection.
+          // fail only what the dying process ran: a turn it accepted (matching generation) or acknowledged
+          // but never started. a not-yet-sent turn continues on the replacement; a crash before
+          // acceptance is settled by the dispatch rejection.
           const dyingProcessOwnedTurn =
             (state.started && state.acceptedGeneration === generationAtExit) ||
             (!state.started && thread.pendingTurnStart);
@@ -299,11 +235,6 @@ class AcpTurnDriver implements TurnDriver {
     });
   }
 
-  /**
-   * (Re)start a thread's silence clock — at dispatch, on every provider
-   * event, and when a parked approval settles, so the budget measures
-   * SILENCE rather than duration.
-   */
   private noteTurnActivity(threadId: string): void {
     const state = this.turnsByThreadId.get(threadId);
     if (state === undefined || state.settled) {
@@ -312,11 +243,7 @@ class AcpTurnDriver implements TurnDriver {
     state.lastEventAt = Date.now();
   }
 
-  /**
-   * Fail every turn whose silence has outgrown the budget. A parked approval
-   * is exempt: that wait belongs to the user and to the waiters' own clock,
-   * and the deny that clock produces restarts this one (`onWaitSettled`).
-   */
+  // a parked approval is exempt: that wait is the user's, and the deny its clock produces restarts this one.
   private sweepIdleTurns(budgetMs: number): void {
     if (this.disposed) {
       return;
@@ -339,14 +266,11 @@ class AcpTurnDriver implements TurnDriver {
   }
 
   private async dispatchTurn(args: TurnDriverStartArgs): Promise<void> {
-    // The hold (taken in startTurn) blocks NEW sync passes; this barrier
-    // waits out one already mid-flight, so the provider never writes into a
-    // rebase's checkout window.
+    // the hold blocks new sync passes; this waits out one already mid-flight, so the provider
+    // never writes into a rebase's checkout window.
     await this.turnsByThreadId.get(args.threadId)?.writes.ready;
     const runtime = this.ensureRuntime();
-    // The session's standing instructions ride the FIRST turn's prompt: ACP's
-    // session/new carries no instructions field, so `input` is the only
-    // channel that reaches the model at all (see view-context-prompt.ts).
+    // acp's session/new carries no instructions field, so the first turn's prompt is the only channel.
     const instructions = runtime.hasThread(args.threadId)
       ? undefined
       : await this.openThreadSession(runtime, args.threadId);
@@ -356,8 +280,6 @@ class AcpTurnDriver implements TurnDriver {
     });
   }
 
-  /** Opens the provider session and returns the instructions its first turn
-   *  must carry, or undefined when this deployment composes none. */
   private async openThreadSession(
     runtime: AgentRuntime,
     threadId: string,
@@ -365,7 +287,6 @@ class AcpTurnDriver implements TurnDriver {
     const instructions = toInstructions(this.deps.sessionFacts(), this.deps.vaultDir);
     const row = getThread(this.deps.db, threadId);
     const persisted = row?.providerThreadId ?? null;
-    // A thread that ever ran keeps its harness; a new one adopts the default.
     const providerId = row?.providerId ?? this.deps.defaultProviderId;
     if (persisted !== null) {
       try {
@@ -381,9 +302,8 @@ class AcpTurnDriver implements TurnDriver {
         });
         return instructions;
       } catch (error) {
-        // The provider's rollout can be gone (cleaned ~/.codex, another
-        // machine). Prior context is lost either way; a fresh session keeps
-        // the thread usable rather than permanently wedged on resume.
+        // the provider's rollout can be gone (a cleaned ~/.codex, another machine); a fresh
+        // session keeps the thread usable.
         this.debug(
           `resume of thread ${threadId} from provider session ${persisted} failed; starting fresh: ${
             error instanceof Error ? error.message : String(error)
@@ -411,8 +331,6 @@ class AcpTurnDriver implements TurnDriver {
       return;
     }
     const state = this.turnsByThreadId.get(threadId);
-    // ANY frame for this thread is the provider proving it is alive; the
-    // budget measures silence, so every one of them resets the clock.
     this.noteTurnActivity(threadId);
 
     if (event.type === "turn/started") {
@@ -475,10 +393,8 @@ class AcpTurnDriver implements TurnDriver {
       return;
     }
     if (event.type === "turn/completed") {
-      // Settle BEFORE ingest (and settle flushes the buffered deltas first):
-      // the ingest transaction drains the queue and can synchronously
-      // dispatch the next turn through startTurn, which must find this turn
-      // fully released.
+      // settle before ingest: the ingest transaction drains the queue and can synchronously
+      // dispatch the next turn through startTurn, which must find this one released.
       this.settleTurn(threadId);
       this.sink.ingestProviderEvents(threadId, [mapped.event]);
       return;
@@ -498,8 +414,7 @@ class AcpTurnDriver implements TurnDriver {
   }
 
   private settleTurn(threadId: string): void {
-    // Buffered deltas must be in the log before anything reads the turn as
-    // settled — a queue drain's next turn included.
+    // buffered deltas must be in the log before anything reads the turn as settled.
     this.events.flush(threadId);
     const state = this.turnsByThreadId.get(threadId);
     if (state === undefined || state.settled) {
@@ -516,8 +431,6 @@ class AcpTurnDriver implements TurnDriver {
     });
   }
 
-  /** Settle a turn the provider never (or no longer) reports on, through the
-   *  same grammar a provider report uses. */
   private failTurn(threadId: string, cause: unknown): void {
     const state = this.turnsByThreadId.get(threadId);
     if (state === undefined || state.settled) {
@@ -571,8 +484,7 @@ export function createAcpRuntimeManager(deps: AcpRuntimeManagerDeps): AcpRuntime
   let driver: AcpTurnDriver | null = null;
   return {
     createTurnDriver: (sink) => {
-      // Single-assignment: a second service over the same manager would leave
-      // the first driver running unreachably and undisposed.
+      // a second driver over the same manager would leave the first running unreachably and undisposed.
       if (driver !== null) {
         throw new Error("createTurnDriver was already called on this runtime manager");
       }

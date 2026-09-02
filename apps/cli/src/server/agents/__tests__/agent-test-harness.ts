@@ -1,7 +1,3 @@
-// Thread-domain helpers for the driver e2e suites over the shared
-// `bootTestApp` (../../__tests__/boot-app): create/send/poll/read against the
-// typed client, exactly as production serves it.
-
 import type {
   CreateThreadRequest,
   PendingInteraction,
@@ -13,13 +9,9 @@ import type { AgentSessionFacts } from "../agent-shell-env";
 
 type ThreadClient = BootedTestApp["client"];
 
-/** `vi.waitFor` options for a wait on a spawned provider: the runner's
- *  one-second default is sized for in-process state, and an adapter child
- *  answers in seconds. */
+// vi.waitFor's one-second default is sized for in-process state; an adapter child answers in seconds.
 export const PROVIDER_WAIT = { timeout: 5_000, interval: 25 };
 
-/** A fake instance's session facts: no CLI, no skills, no folders — unless
- *  the test says otherwise. */
 export function fakeSessionFacts(overrides: Partial<AgentSessionFacts> = {}): AgentSessionFacts {
   return {
     dataDir: "/instances/test/data",
@@ -44,8 +36,6 @@ export async function sendMessage(
   text: string,
 ): Promise<string> {
   const outcome = await client.threads.send({ threadId, text });
-  // A queued send answers with no turn id at all, so the caller's "this send
-  // started that turn" claim is checked here.
   if (outcome.kind !== "started") {
     throw new Error(`expected the send to start a turn, got ${outcome.kind}`);
   }
@@ -71,7 +61,6 @@ export async function awaitThreadStatus(
   );
 }
 
-/** The first pending interaction, once the provider has parked on one. */
 export async function awaitPendingInteraction(
   client: ThreadClient,
   threadId: string,
@@ -94,7 +83,6 @@ export async function fetchTimelineRows(
   return response.timeline.rows;
 }
 
-/** Work rows nest as children of their turn row; flatten for assertions. */
 export function flattenTimelineRows(rows: TimelineRow[]): TimelineRow[] {
   return rows.flatMap((row) => (row.kind === "turn" ? [row, ...row.children] : [row]));
 }

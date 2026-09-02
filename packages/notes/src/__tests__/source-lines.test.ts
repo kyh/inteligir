@@ -2,10 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import { splitLines } from "../knowledge/source-lines";
 
-// The one split rule, driven over the EOL flavors that actually break it. A
-// line's content excludes its terminator, and the task scan reads a checkbox's
-// text under exactly this reading — so a doc whose line count or line bytes
-// come back wrong here desyncs every ordinal built on top.
 describe("splitLines", () => {
   it("excludes every terminator flavor, mixed endings included", () => {
     expect(splitLines("a\nb\nc")).toEqual(["a", "b", "c"]);

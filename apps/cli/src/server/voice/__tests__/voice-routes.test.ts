@@ -1,7 +1,3 @@
-// The voice rows through the composed app and its typed client — so the
-// contract's own schemas and the class each refusal answers with are exercised
-// together rather than asserted about.
-
 import { isDefinedError, ORPCError, safe } from "@orpc/client";
 import {
   VOICE_BYTES_PER_SAMPLE,
@@ -12,7 +8,6 @@ import {
 import { describe, expect, it } from "vitest";
 import { bootTestApp } from "../../__tests__/boot-app";
 
-/** Base64 of `sampleCount` silent Int16 samples — the shape the wire wants. */
 function silence(sampleCount: number): string {
   return Buffer.alloc(sampleCount * VOICE_BYTES_PER_SAMPLE).toString("base64");
 }
@@ -57,9 +52,7 @@ describe("the voice routes", () => {
         pcm: Buffer.alloc(VOICE_MAX_AUDIO_BYTES + 2).toString("base64"),
       }),
     );
-    // The ceiling lives in the input schema, so this refusal is raised by
-    // validation ahead of the handler and is not one of the route's declared
-    // errors — the class is still what the caller sees.
+    // raised by input validation, so it is not a declared error and isDefinedError is false.
     expect(error instanceof ORPCError && error.code).toBe("BAD_REQUEST");
   });
 

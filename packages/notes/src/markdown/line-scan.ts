@@ -1,8 +1,3 @@
-// Line-level scanning for the pre-parse pass (table-pipe escaping): which
-// lines are ACTIVE text — outside the frontmatter block and code fences, whose
-// bytes are verbatim by contract — and which columns of a line sit inside
-// CommonMark code spans.
-
 export type Range = { start: number; end: number };
 
 export function isEscapedAt(line: string, index: number): boolean {
@@ -11,8 +6,7 @@ export function isEscapedAt(line: string, index: number): boolean {
   return backslashes % 2 === 1;
 }
 
-/** CommonMark code spans on one line: a backtick run pairs with the next run
- * of the SAME length. Content inside them is literal text. */
+// a backtick run pairs with the next run of the same length (CommonMark).
 export function codeSpanRanges(line: string): Range[] {
   const runs: Range[] = [];
   for (let i = 0; i < line.length;) {
@@ -47,12 +41,6 @@ export function inAnyRange(ranges: readonly Range[], index: number): boolean {
 
 const FENCE_OPEN_RE = /^ {0,3}(`{3,}|~{3,})/;
 
-/**
- * Which of `lines` are active text: false for the frontmatter block and every
- * line of a code fence (opening and closing markers included). The fence walk
- * is the one the table-pipe pass established — indent up to 3, a closing line
- * is the same character at least as long with nothing else on it.
- */
 export function activeLineMask(lines: readonly string[]): boolean[] {
   const mask = Array.from({ length: lines.length }, () => true);
   let frontmatterEnd = -1;

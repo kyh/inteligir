@@ -1,24 +1,6 @@
-// The model cache on disk: where a model lives, whether it is there, how it
-// gets there, and how it goes away.
-//
-// A DOWNLOAD LANDS ATOMICALLY OR NOT AT ALL. The release archive streams into
-// `<id>.partial/`, is verified against the catalog's size and digest, and is
-// extracted there; only once all four model files are present does the staging
-// directory get renamed onto `<id>/`. So an interrupted fetch, a truncated
-// response, a substituted file and a half-written extract all leave the cache
-// in the state it started in — which matters more than usual here, because the
-// files are mmapped by a native runtime that will not check them for us.
-//
-// THE ARCHIVE IS `.tar.bz2`, so extraction is PURE-JS (`unbzip2-stream` + `tar`)
-// rather than a shell-out: Node has no built-in bzip2, and Windows' bundled
-// tar.exe cannot do `-j` — an npx install that ships cross-platform cannot
-// depend on a system tar.
-//
-// CANCELLATION IS THE SAME PATH AS FAILURE. `remove` aborts an in-flight
-// download; the abort surfaces as a rejected stream, the staging directory is
-// unlinked, and the caller sees `no-model` either way. There is no separate
-// "cancelled" state, because from the outside a stopped download and a failed
-// one leave exactly the same disk.
+// extraction is pure js (unbzip2-stream + tar): node has no bzip2 and windows' bundled tar.exe
+// cannot do -j, and an npx install cannot depend on a system tar. cancellation is the failure
+// path: an aborted download leaves the same disk a failed one does.
 
 import { createHash } from "node:crypto";
 import { createReadStream, createWriteStream } from "node:fs";
@@ -31,7 +13,6 @@ import { errnoCode } from "../errno";
 import type { VoiceModelSpec } from "./model-catalog";
 import type { VoiceModelFiles } from "./worker-protocol";
 
-/** Streamed here, verified, extracted beside, then renamed onto the model dir. */
 const STAGING_SUFFIX = ".partial";
 const ARCHIVE_FILE_NAME = "download.tar.bz2";
 
@@ -39,7 +20,6 @@ export function modelDirFor(modelDir: string, spec: VoiceModelSpec): string {
   return join(modelDir, spec.id);
 }
 
-/** The four files the recognizer loads, as absolute paths under the model dir. */
 export function resolveModelFiles(modelDir: string, spec: VoiceModelSpec): VoiceModelFiles {
   const dir = modelDirFor(modelDir, spec);
   return {
@@ -54,11 +34,8 @@ function requiredFileNames(spec: VoiceModelSpec): string[] {
   return [spec.files.encoder, spec.files.decoder, spec.files.joiner, spec.files.tokens];
 }
 
-/**
- * Is the model installed? EVERY file must be present and non-empty — checking
- * one would treat a crash mid-extract as done, and the recognizer would then
- * fail inside the native loader with a message about a missing tensor file.
- */
+// every file, non-empty: a crash mid-extract would otherwise read as installed and fail inside
+// the native loader.
 export async function isModelInstalled(modelDir: string, spec: VoiceModelSpec): Promise<boolean> {
   const dir = modelDirFor(modelDir, spec);
   for (const name of requiredFileNames(spec)) {
@@ -81,14 +58,10 @@ export interface DownloadModelArgs {
   modelDir: string;
   spec: VoiceModelSpec;
   signal: AbortSignal;
-  /** Called as bytes land, so a surface can show progress against
-   *  `spec.sizeBytes` without a second source of truth for the total. */
   onProgress: (receivedBytes: number) => void;
-  /** Tests inject a transport; the shipping boot uses global fetch. */
   fetchImpl?: typeof fetch;
 }
 
-/** A refusal a person can act on: the sentence `no-model.lastError` carries. */
 export class ModelDownloadError extends Error {}
 
 export async function downloadModel(args: DownloadModelArgs): Promise<void> {
@@ -98,8 +71,7 @@ export async function downloadModel(args: DownloadModelArgs): Promise<void> {
   const stagingDir = `${finalDir}${STAGING_SUFFIX}`;
   const archivePath = join(stagingDir, ARCHIVE_FILE_NAME);
 
-  // A previous attempt's staging (a crash between extract and rename) is not a
-  // valid model — start from a clean directory every time.
+  // a previous attempt's staging is not a valid model.
   await rm(stagingDir, { recursive: true, force: true });
   await mkdir(stagingDir, { recursive: true });
 
@@ -122,9 +94,7 @@ export async function downloadModel(args: DownloadModelArgs): Promise<void> {
     async function* measured(): AsyncGenerator<Uint8Array> {
       for await (const chunk of body) {
         received += chunk.byteLength;
-        // Refused MID-STREAM rather than after: a body with no content-length,
-        // or one that lies about it, would otherwise fill the disk before
-        // anything checked the total.
+        // mid-stream: a body with no content-length would fill the disk before the total was checked.
         if (received > spec.sizeBytes) {
           throw new ModelDownloadError(
             `${spec.id} is larger than the ${spec.sizeBytes} bytes this build expects.`,
@@ -158,8 +128,7 @@ export async function downloadModel(args: DownloadModelArgs): Promise<void> {
     }
     await rm(archivePath, { force: true });
 
-    // Atomic swap: the staged tree becomes the model dir in one rename, so a
-    // reader never sees a half-populated `<id>/`.
+    // one rename, so a reader never sees a half-populated dir.
     await rm(finalDir, { recursive: true, force: true });
     await rename(stagingDir, finalDir);
   } catch (error) {
@@ -176,13 +145,8 @@ export async function downloadModel(args: DownloadModelArgs): Promise<void> {
   }
 }
 
-/**
- * Extract only the four model files, dropping the archive's top-level folder
- * (`strip: 1`) so they land directly in the model dir. The filter matches on
- * BASENAME, which is stable whether or not tar has stripped the leading
- * component by the time it runs — and it skips the `test_wavs/` the release
- * carries, which the recognizer never reads.
- */
+// the filter matches on basename, which holds whether or not tar has stripped the leading
+// component when it runs; it also drops the release's test_wavs/.
 function extractArchive(
   archivePath: string,
   outDir: string,
@@ -195,7 +159,6 @@ function extractArchive(
   );
 }
 
-/** Delete the whole model directory and any staging beside it. */
 export async function removeModel(modelDir: string, spec: VoiceModelSpec): Promise<void> {
   const finalDir = modelDirFor(modelDir, spec);
   await rm(finalDir, { recursive: true, force: true });

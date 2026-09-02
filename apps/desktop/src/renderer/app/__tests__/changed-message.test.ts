@@ -1,12 +1,3 @@
-// The client half of the ws invalidation bus: which query families a changed
-// message sweeps, and who it tells directly.
-//
-// The doc case is the one with a cost attached. The open note reads its own
-// file (note/note-disk.ts), so a `vaultFile` query invalidated alongside the
-// notification made the SAME event answered twice — two reads of the same
-// bytes for every agent write. The assertion is therefore about what does NOT
-// happen: a doc change invalidates nothing.
-
 import { QueryClient } from "@tanstack/react-query";
 import { describe, expect, it, vi } from "vitest";
 import { orpc } from "../api";
@@ -47,10 +38,7 @@ describe("a doc change", () => {
     });
 
     expect(applied.docs).toEqual(["notes/open.md"]);
-    // The DERIVED family only: the links this doc holds are somebody else's
-    // backlinks and somebody else's relatedness, and the prefix is swept
-    // whole because which somebody is not knowable from here. Nothing that
-    // would re-fetch the doc's own bytes.
+    // the open note reads its own file; a `vaultFile` invalidation here read the same bytes twice per agent write.
     expect(applied.invalidated).toEqual([[...orpc.knowledge.key()]]);
   });
 });

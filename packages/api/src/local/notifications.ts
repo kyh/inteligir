@@ -7,8 +7,6 @@ import {
 } from "@repo/domain/change-kinds";
 import { z } from "zod";
 
-/** What a client can subscribe to. How a changed message reaches these targets
- * is `subscriptionKeysForMessage` below — the one fan-out mapping. */
 export const realtimeSubscriptionTargetSchema = z.discriminatedUnion("kind", [
   z
     .object({
@@ -35,12 +33,8 @@ export const realtimeSubscriptionTargetSchema = z.discriminatedUnion("kind", [
 ]);
 export type RealtimeSubscriptionTarget = z.infer<typeof realtimeSubscriptionTargetSchema>;
 
-/**
- * Client→server frames parse STRICTLY: the server owns this boundary, and an
- * unknown field is an unknown client — close(1008), never a quiet strip. The
- * lenient direction is server→client only (a stale tab against a newer
- * server), parsed with the lenient schemas below.
- */
+// client→server frames parse strictly: an unknown field is an unknown client, closed 1008.
+// only the server→client direction is lenient (a stale tab against a newer server).
 export const subscribeMessageSchema = z
   .object({
     type: z.literal("subscribe"),
@@ -82,24 +76,9 @@ export function realtimeSubscriptionTargetKey(target: RealtimeSubscriptionTarget
   }
 }
 
-/**
- * ONE factory builds each entity's changed-message pair, so the two sides
- * cannot drift — same shape, same kinds, `changes` readonly on both.
- *
- * `strict` validates the server's OUTGOING broadcasts — the producer is
- * in-repo, so unknown fields or kinds there are bugs and must fail loudly.
- * Message types are derived from the strict schemas (z.infer) so the contract
- * cannot drift from the validators. Clients must NOT parse inbound traffic
- * with it: a long-lived tab talking to a newer server would drop entire
- * messages over an additive change.
- *
- * `lenient` parses INBOUND broadcasts on clients. It tolerates version skew
- * against a newer server: unknown fields are stripped and unknown change
- * kinds are filtered out instead of rejecting the whole message, so a stale
- * client keeps receiving the kinds it understands. Its output remains
- * assignable to the strict message type — dispatch sites enforce that at
- * compile time.
- */
+// `strict` validates the server's outgoing broadcasts; a client must not parse inbound traffic
+// with it, or a long-lived tab against a newer server drops whole messages over an additive
+// change. `lenient` strips unknown fields and filters unknown kinds instead.
 function changedMessagePair<
   TEntity extends string,
   TKind extends string,
@@ -127,13 +106,8 @@ function changedMessagePair<
   };
 }
 
-/**
- * `paths` NAMES the vault-relative paths a files-changed announcement covers,
- * so a client re-reads a note only when that note can have changed. It is
- * OPTIONAL because absence is a claim of its own: the post-sync consolidated
- * notification held its batches back and has no path list, and a client that
- * sees none must assume everything moved.
- */
+// `paths` is optional because absence is a claim: the post-sync consolidated notification has
+// no path list, and a client that sees none must assume everything moved
 const vaultChangedMessagePair = changedMessagePair("vault", VAULT_CHANGE_KINDS, {
   paths: z.array(z.string().min(1)).readonly().optional(),
 });
@@ -160,7 +134,6 @@ export const changedMessageSchema = z.discriminatedUnion("entity", [
 ]);
 export type ChangedMessage = z.infer<typeof changedMessageSchema>;
 
-/** First frame after a socket connects — the connection ack. */
 export const helloMessageSchema = z
   .object({
     type: z.literal("hello"),
@@ -189,12 +162,7 @@ export const serverMessageLenientSchema = z.union([
 const VAULT_TARGET_KEY = realtimeSubscriptionTargetKey({ kind: "vault" });
 const THREAD_LIST_TARGET_KEY = realtimeSubscriptionTargetKey({ kind: "thread-list" });
 
-/**
- * The one entity→subscription-target fan-out: which subscription keys a
- * changed message reaches. `vault` is the doc LIST target — a doc change fans
- * out to `vault` subscribers alongside its own `doc-detail` subscribers, the
- * way a thread change reaches `thread-list`.
- */
+// `vault` is the doc list target: a doc change reaches it alongside its own doc-detail subscribers
 export function subscriptionKeysForMessage(message: ChangedMessage): string[] {
   switch (message.entity) {
     case "vault":

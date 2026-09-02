@@ -1,7 +1,3 @@
-// Agent surfaces: what a turn looks like while it runs and after it settles.
-// These are compound components — the demo composes children, because that is
-// the API a caller writes.
-
 import {
   ApprovalActions,
   ApprovalCard,
@@ -48,8 +44,7 @@ import { useState } from "react";
 
 import { Demo, DemoCase, GallerySection } from "./gallery-chrome";
 
-/** Fixed so the elapsed readout is stable across renders — a demo that counts
- *  up from mount would show a different number in every screenshot. */
+// fixed so the elapsed readout is stable across screenshots.
 const STARTED_AT = 0;
 
 const ANSWER_TEXT =

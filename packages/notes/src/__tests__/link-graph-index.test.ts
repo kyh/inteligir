@@ -3,8 +3,6 @@ import { describe, expect, it } from "vitest";
 import { LinkGraphIndex } from "../knowledge/link-graph-index";
 import { projectDoc } from "../knowledge/projection";
 
-// Aliases ride the projection into the resolver's below-path tiers and the
-// WikiTarget picker entries.
 describe("LinkGraphIndex — aliases", () => {
   it("resolves [[alias]] links in forward links and backlinks", () => {
     const index = new LinkGraphIndex();
@@ -22,10 +20,8 @@ describe("LinkGraphIndex — aliases", () => {
     index.applyDoc("owner.md", projectDoc("owner.md", "---\naliases: [shadow]\n---\n# Owner\n"));
     index.applyDoc("hub.md", projectDoc("hub.md", "[[shadow]]\n"));
     expect(index.forwardLinks("hub.md")[0]?.targetPath).toBe("owner.md");
-    // A real file named shadow.md appears — the path tier now wins.
     index.applyDoc("shadow.md", projectDoc("shadow.md", "# Shadow\n"));
     expect(index.forwardLinks("hub.md")[0]?.targetPath).toBe("shadow.md");
-    // Alias removed from the owner — resolution follows.
     index.remove("shadow.md");
     index.applyDoc("owner.md", projectDoc("owner.md", "# Owner\n"));
     expect(index.forwardLinks("hub.md")[0]?.targetPath).toBeNull();
@@ -43,9 +39,6 @@ describe("LinkGraphIndex — aliases", () => {
   });
 });
 
-// Inteligir's resolved-link form: [[Title|uuid]] resolves through frontmatter
-// `id:` FIRST, surviving a title the writer never updated; the title tiers
-// stay the fallback when no doc owns the id.
 describe("LinkGraphIndex — [[Title|uuid]] id tier", () => {
   const UUID = "9e64c3df-c1e2-4a4d-8c07-91528f422413";
 

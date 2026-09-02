@@ -1,8 +1,3 @@
-// Turn-into + block-move behaviors (decision #8: paragraph/H1-3/quote/
-// callout([!NOTE] marker)/code/toggle/todo/bullet/numbered; NOT columns),
-// exercised headlessly on the live EDITOR_KIT. The round-trip requirement:
-// converting and converting back always lands on canonical bytes.
-
 import { describe, expect, it } from "vitest";
 import { createSlateEditor } from "platejs";
 import { serializeMd } from "@platejs/markdown";
@@ -76,7 +71,6 @@ describe("turnIntoAt round-trips", () => {
     expect(out(editor)).toBe("> hello\n");
     turnIntoAt(editor, [0], opt("callout"));
     expect(out(editor)).toBe("> [!NOTE] hello\n");
-    // Idempotent: already a callout → marker not duplicated.
     turnIntoAt(editor, [0], opt("callout"));
     expect(out(editor)).toBe("> [!NOTE] hello\n");
   });

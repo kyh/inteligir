@@ -1,10 +1,3 @@
-// Per-type controls for the file-properties panel. Each field renders one
-// TypedProperty and reports edits back as a new TypedProperty (the panel turns
-// that into a frontmatter-node write). Plain inputs only (v1): no date picker,
-// no tag autocomplete. Text-like fields buffer locally and commit on blur/Enter
-// so the document isn't re-serialized on every keystroke; checkbox and tags
-// commit immediately.
-
 import { type KeyboardEvent, useState } from "react";
 import { XIcon } from "lucide-react";
 
@@ -16,12 +9,11 @@ import { cn } from "@repo/ui/lib/utils";
 const FIELD_CLASS =
   "h-7 border-transparent bg-transparent px-1.5 text-sm shadow-none hover:bg-hover focus-visible:bg-card focus-visible:ring-1";
 
-// A text-like value buffered locally; commit only real changes, on blur/Enter.
+// buffered so the document isn't re-serialized on every keystroke.
 function useBuffer(value: string, commit: (next: string) => void) {
   const [local, setLocal] = useState(value);
-  // A new `value` from the document (an agent write, a note switch) wins over
-  // whatever is buffered: re-key during render so the field never paints one
-  // frame of the previous property's text.
+  // a new `value` from the document wins over the buffer; re-key during render (not in an
+  // effect) so the field never paints a frame of the previous property's text.
   const [shown, setShown] = useState(value);
   if (shown !== value) {
     setShown(value);

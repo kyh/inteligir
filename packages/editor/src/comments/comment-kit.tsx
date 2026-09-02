@@ -1,9 +1,3 @@
-// The comment surface's editor half: the anchored-range tint,
-// ⌘⇧A create-from-selection with its inline first-comment popover, and the
-// scroll-to-thread helper the panel calls. The SIDECAR stays the app's (its
-// routes own entries); this kit owns only what lives in the buffer — marker
-// pairs — and the pixels over them.
-
 import { useEffect, useRef, useState } from "react";
 import {
   ElementApi,
@@ -33,8 +27,6 @@ function CommentRangeLeaf(props: PlateLeafProps) {
   const ids = raw.split(",").filter((id) => id !== "");
   const orphan = props.leaf.commentOrphan === true;
   const actions = useCommentSurface((state) => state.actions);
-  // The open note, so these ranges are judged against the sidecar of the file
-  // they actually live in rather than whichever one published last.
   const notePath = useOpenNotePath();
   const { knownIds, resolvedIds } = useCommentMeta(notePath);
   const resolved = ids.length > 0 && ids.every((id) => resolvedIds.has(id));
@@ -50,7 +42,6 @@ function CommentRangeLeaf(props: PlateLeafProps) {
           : resolved
             ? "bg-emerald-500/[0.06]"
             : "bg-amber-300/20 hover:bg-amber-300/30",
-        // Review markup is not content: the tint stays on screen only.
         "print:bg-transparent print:no-underline",
       )}
       attributes={{
@@ -65,11 +56,8 @@ function CommentRangeLeaf(props: PlateLeafProps) {
   );
 }
 
-/** Begin the ⌘⇧A flow: markers in (one undo step), popover armed. */
 function beginCreate(editor: SlateEditor): boolean {
-  // The popover is claimed by the note this editor serves. With no note, no
-  // host would claim it and the marker pair would be stranded where nothing
-  // can cancel it — so refuse before minting anything.
+  // with no note nothing would claim the popover and the marker pair would be stranded, so refuse before minting
   const path = liveEditorPath(editor);
   if (path === null) return false;
   const domSelection = window.getSelection();
@@ -99,15 +87,11 @@ function CommentCreateHost() {
   const [saving, setSaving] = useState(false);
   const fieldRef = useRef<HTMLTextAreaElement | null>(null);
 
-  // Drawn only over the note that minted it: `editor` below is the open one,
-  // so cancel and save act on the document holding the marker pair. A note
-  // switch mid-flow drops the popover rather than aiming it at a stranger.
+  // drawn only over the note that minted it, so cancel and save act on the document holding the markers
   const pending = armed !== null && armed.path === notePath ? armed : null;
   const pendingId = pending?.id ?? null;
 
-  // Each armed draft starts empty. The arming happens outside React (the
-  // module store), so there is no event to clear the field from — re-key it
-  // during render instead, before the popover paints.
+  // arming happens outside React, so the draft is re-keyed during render rather than from an event
   const [draftId, setDraftId] = useState(pendingId);
   if (draftId !== pendingId) {
     setDraftId(pendingId);
@@ -134,8 +118,6 @@ function CommentCreateHost() {
       const ok = await actions.create(pending.id, trimmed).catch(() => false);
       setSaving(false);
       if (!ok) {
-        // The entry never landed; a marker pair pointing at nothing would be
-        // an orphan the user did not choose.
         removeCommentMarkers(editor, [pending.id]);
       }
       setPendingCreate(null);
@@ -182,7 +164,6 @@ function CommentCreateHost() {
   );
 }
 
-/** Scroll the live editor to the FIRST marker of `rootId`. */
 export function scrollToCommentMarker(editor: SlateEditor, rootId: string): boolean {
   const entry = findCommentMarker(editor, rootId);
   if (entry === null) return false;
@@ -199,11 +180,8 @@ export const CommentKit = [
   createPlatePlugin({
     key: "commentRange",
     node: { isLeaf: true },
-    // TEXT-level, the tag-chip precedent: Plate applies a decoration only to
-    // the node it was returned FOR, so a block-level range never reaches the
-    // leaves. Each text run asks its parent block's scan and keeps the slice
-    // of any comment range that covers it (markers split texts at the exact
-    // selection edges, so interior runs are covered whole).
+    // Text-level: Plate applies a decoration only to the node it was returned for,
+    // so a block-level range never reaches the leaves.
     decorate: ({ editor, entry }) => {
       const [node, path] = entry;
       if (!TextApi.isText(node)) return undefined;

@@ -1,18 +1,6 @@
-// The dialect's two inline constructs, split out of text nodes after parse:
-//
-//   {{source|display}} / {{source|display|key=value;…}}   → formulaPill
-//   %%i:id[,id]:start%% … %%i:id[,id]:end%%               → commentMarker
-//
-// `source` ends at the first `|`, metadata follows the second; marker ids are
-// [A-Za-z0-9_-] comma runs and edge is start|end. Both nodes keep their INNER
-// TEXT verbatim (`raw` / `ids`) and re-emit it wrapped — byte-exact both
-// directions, the same discipline remark-wiki-link states.
-//
-// An mdast TRANSFORM rather than a micromark tokenizer, deliberately: neither
-// construct nests, spans line breaks, or interacts with delimiter runs, so
-// splitting finished text leaves is equivalent — and it cannot disturb how
-// micromark reads everything else. It must run BEFORE remark-opaque (which
-// walks the finished tree) and after the parse-order plugins.
+// an mdast transform rather than a micromark tokenizer: neither construct nests, spans line
+// breaks or interacts with delimiter runs, so splitting finished text leaves is equivalent and
+// cannot disturb how micromark reads everything else. must run before remark-opaque.
 
 import type { Node, Parent, Parents, PhrasingContent, Root, Text } from "mdast";
 import type { Options as ToMarkdownExtension, State } from "mdast-util-to-markdown";
@@ -20,19 +8,14 @@ import type { Plugin, Processor, Transformer } from "unified";
 
 export interface FormulaPill extends Node {
   type: "formulaPill";
-  /** Everything between the braces, verbatim. */
   raw: string;
-  /** `source` half (before the first `|`). */
   source: string;
-  /** `display` half (between the first and second `|`); "" when absent. */
   display: string;
-  /** Raw metadata tail (after the second `|`), if present. */
   meta?: string;
 }
 
 export interface CommentMarker extends Node {
   type: "commentMarker";
-  /** The comma-separated id run, verbatim. */
   ids: string;
   edge: "start" | "end";
 }
@@ -48,13 +31,9 @@ declare module "mdast" {
   }
 }
 
-// No pipes or braces inside source/display (the dialect has no escape form);
-// the optional metadata tail may hold anything but braces.
 const FORMULA_RE = /\{\{([^|{}\n]+)(?:\|([^|{}\n]*))?(?:\|([^{}\n]*))?\}\}/g;
-/** The comment-anchor grammar shared with comments tooling. */
 export const MARKER_RE = /%%i:([A-Za-z0-9_-]+(?:,[A-Za-z0-9_-]+)*):(start|end)%%/g;
 
-/** Parse one formula body (the text between braces) into its halves. */
 export function parseFormulaRaw(raw: string): Pick<FormulaPill, "source" | "display" | "meta"> {
   const first = raw.indexOf("|");
   if (first === -1) return { source: raw, display: "" };
@@ -116,7 +95,6 @@ function walk(parent: Parent): void {
   for (let index = parent.children.length - 1; index >= 0; index--) {
     const child = parent.children[index];
     if (child === undefined) continue;
-    // Code and math leaves keep their text literal; recurse only into parents.
     if ("children" in child) {
       walk(child);
       continue;
@@ -131,11 +109,8 @@ function walk(parent: Parent): void {
 
 const inlineConstructsToMarkdown: ToMarkdownExtension = {
   handlers: {
-    // Inside a GFM table cell the pill's own pipes must leave as `\|` or the
-    // next parse reads them as cell delimiters — the same in-cell test
-    // mdast-util-gfm-table's own inlineCode handler uses. Its fromMarkdown
-    // unescapes them before the transform sees text, so the round trip is
-    // byte-exact in both directions.
+    // inside a gfm table cell the pill's pipes must leave as `\|` or the next parse reads them
+    // as cell delimiters; gfm-table's fromMarkdown unescapes them before this transform sees text.
     formulaPill: Object.assign(
       (node: FormulaPill, _parent: Parents | undefined, state: State) => {
         const raw = `{{${node.raw}}}`;
@@ -149,8 +124,7 @@ const inlineConstructsToMarkdown: ToMarkdownExtension = {
   },
 };
 
-// Function expression (not an exported declaration) for the same reason
-// remark-wiki-link states: remark plugins receive the processor as `this`.
+// a function expression: remark plugins receive the processor as `this`.
 export const remarkInlineConstructs: Plugin = function (this: Processor): Transformer {
   const data = this.data();
   (data.toMarkdownExtensions ??= []).push(inlineConstructsToMarkdown);

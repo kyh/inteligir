@@ -1,12 +1,5 @@
-// The live wiki-link chip: resolves its target against the vault listing and
-// navigates on click. Unresolved targets are visually distinct (dashed) and
-// clicking offers to create the note. Hovering shows the target's head as a
-// plain-text preview (pointer-inert, so it never intercepts the hover).
-//
-// Loaded via React.lazy from wiki-link-kit: this module reaches into the
-// editor host seam (and through it the markdown pipeline and base-kit), so an
-// eager import from the kit file — which base-kit composes — would close an
-// import cycle around the kit files.
+// loaded via React.lazy from wiki-link-kit: this module reaches the editor host seam, so an
+// eager import from a kit file base-kit composes would close an import cycle.
 
 import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { FilePlusIcon } from "lucide-react";
@@ -21,8 +14,7 @@ import { isUuidWikiAlias, parseWikiBody } from "@repo/notes/markdown/remark-wiki
 
 const HOVER_PREVIEW_DELAY_MS = 350;
 
-/** Shared chip label: alias wins — unless it is the resolved-link uuid,
- * which is identity plumbing, not display text — else target(+anchor). */
+// the resolved-link uuid alias is identity plumbing, not display text.
 export function wikiChipLabel(body: string): string {
   const parsed = parseWikiBody(body);
   if (parsed.alias && !isUuidWikiAlias(parsed.alias)) return parsed.alias;
@@ -36,7 +28,6 @@ export const UNRESOLVED_CHIP_CLASS =
 
 type PreviewState = {
   rect: { left: number; bottom: number };
-  /** null while the read is in flight. */
   text: string | null;
 };
 
@@ -51,8 +42,7 @@ export default function WikiChip({ body }: { body: string }) {
 
   const parsed = parseWikiBody(body);
   const label = wikiChipLabel(body);
-  // A pure-anchor link (`[[#sec]]`) points at the open note — nothing to
-  // resolve or create; render an inert chip.
+  // a pure-anchor link (`[[#sec]]`) points at the open note: nothing to resolve or create.
   const resolved = parsed.target === "" ? null : resolveWikiTarget(parsed.target);
 
   useEffect(
@@ -95,8 +85,7 @@ export default function WikiChip({ body }: { body: string }) {
       hoverTimer.current = null;
     }
     setPreview(null);
-    // The cache lives for the hover: a re-hover re-reads, so an agent edit
-    // between hovers is never shown stale.
+    // the cache lives for one hover, so an agent edit between hovers is never shown stale.
     previewCache.current.clear();
   };
 

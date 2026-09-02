@@ -1,45 +1,16 @@
-// Reading the vault's own git log — the per-note history surface.
-//
-// `--follow` is not a nicety: the vault renames notes routinely (the rename
-// route does byte surgery on links), and without it a renamed note's history
-// truncates silently at the rename. Three invocation flags this call adds make
-// the answer depend on the repo rather than on the user's git config, and each
-// is load-bearing:
-//
-// - `-c diff.renames=true`, because `--follow` IS rename detection, and a
-//   user who turned it off globally would get the truncation with no sign.
-// - `--root`, because `log.showRoot=false` hides the commit that created a
-//   note in the vault's first commit — which is where the welcome seed lives.
-// - `--no-show-signature`, because `log.showSignature=true` prints gpg's
-//   verification lines ahead of the format output, and this parse frames on
-//   position.
-//
-// `--literal-pathspecs` rides EVERY invocation from git-run.ts's builder, and
-// the read side is why it must: a pathspec is a GLOB, so a note called
-// `[a].md` otherwise reports `a.md`'s history, and one called `*.md` reports
-// the whole vault's — with revisions whose bytes belong to another note,
-// which a restore would then write into this one.
-
 import { VAULT_MAX_CONTENT_LENGTH, type VaultRevision } from "@repo/api/local/vault/vault-schema";
 import type { RunGitCommand } from "./git-run";
 import { VaultServiceError } from "./vault-service";
 
-/**
- * NUL-separated fields, never newline-separated lines: git C-quotes any path
- * holding a space or a non-ASCII byte, and `-z` is what turns that off — the
- * same doctrine `parsePorcelain` states, for the same reason.
- */
+// nul-separated: git c-quotes paths holding a space or a non-ascii byte in the line format.
 const LOG_FORMAT = "%H%x00%aI%x00%an%x00%ae%x00%s";
 
 const LOG_HEADER_FIELDS = LOG_FORMAT.split("%x00").length;
 
-/** git's own object name, in either hash algorithm a repo can be initialized
- *  with — this reads whatever the user's `git init` produced. */
+// sha1 or sha256 repos.
 const OBJECT_NAME = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
 
-/** A name-status column with the similarity score a rename or copy carries.
- *  git separates the format output from the block with a newline, so the
- *  block's FIRST status is the only one that arrives with one attached. */
+// the optional newline: git separates the format output from the name-status block with one.
 const STATUS_TOKEN = /^\n?([ACDMRTUXB])\d*$/u;
 
 interface StatusTuple {
@@ -48,23 +19,8 @@ interface StatusTuple {
   origin: string | null;
 }
 
-/**
- * Frame `git log --follow -z --name-status --format=<LOG_FORMAT>`.
- *
- * Each commit is the five format fields, then a name-status block of one or
- * MORE tuples — one is not enough. A path that was a file, became a directory
- * and became a file again reports `A <path>` and `D <path>/child` in the same
- * commit, and consuming only the first leaves a status token where the next
- * commit's object name is expected, which drops every older revision.
- *
- * The note's path at a commit is the last tuple that left CONTENT there. A
- * commit whose every tuple is a deletion left none, so it is not a revision
- * this surface can answer, and it is dropped rather than listed unreadable.
- *
- * `--follow` walks newest first and reports the path AT each commit, so a
- * commit with no block at all (history simplification keeping a merge)
- * inherits the newer row's path — the requested path for the first row.
- */
+// a commit's name-status block holds one or more tuples: a path that was a file, a directory,
+// then a file again reports `A path` and `D path/child` in one commit.
 export function parseFollowLog(stdout: string, requestedPath: string): VaultRevision[] {
   const tokens = stdout.split("\0");
   const revisions: VaultRevision[] = [];
@@ -87,8 +43,7 @@ export function parseFollowLog(stdout: string, requestedPath: string): VaultRevi
   while (index < tokens.length) {
     const sha = tokens[index];
     if (sha === undefined || !OBJECT_NAME.test(sha)) {
-      // The trailing empty token — and the one shape a drifted git would take.
-      // Stopping beats mis-framing every record after it.
+      // the trailing empty token; stopping beats mis-framing everything after a drifted git.
       break;
     }
     const authoredAt = tokens[index + 1] ?? "";
@@ -107,18 +62,16 @@ export function parseFollowLog(stdout: string, requestedPath: string): VaultRevi
       }
     }
     if (content === null && deleted !== null) {
-      // Every tuple was a deletion: the note had no bytes at this commit, so
-      // it is not a revision this surface can answer.
+      // every tuple a deletion: no bytes at this commit.
       pathAtNewerRevision = deleted.path;
       continue;
     }
-    // No block at all is the merge history simplification keeps — it inherits.
+    // no block (history simplification kept a merge): inherit the newer path.
     const path = content?.path ?? pathAtNewerRevision;
     pathAtNewerRevision = path;
 
     const revision: VaultRevision = { sha, authoredAt, authorName, authorEmail, subject, path };
-    // exactOptionalPropertyTypes: an absent rename must drop the member, not
-    // carry an explicit undefined the strict schema refuses.
+    // exactOptionalPropertyTypes: an absent rename must drop the member, not carry undefined.
     const origin = content?.origin ?? null;
     revisions.push(origin === null ? revision : { ...revision, renamedFrom: origin });
   }
@@ -130,14 +83,16 @@ export interface NoteHistoryPage {
   limit: number;
 }
 
-/** A path git has never seen answers an empty page — a note created inside the
- *  auto-commit's quiet window has no revisions yet, and that is an ordinary
- *  state rather than a refusal. */
+// a path git has never seen answers an empty page, not a refusal.
 export async function readNoteHistory(
   run: RunGitCommand,
   path: string,
   page: NoteHistoryPage,
 ): Promise<VaultRevision[]> {
+  // --follow: the vault renames notes routinely, and without it history truncates at the rename.
+  // -c diff.renames=true: --follow is rename detection, which a user's global config may turn off.
+  // --root: log.showRoot=false would hide the vault's first commit, where the seed lives.
+  // --no-show-signature: log.showSignature=true prints gpg lines ahead of the format output.
   const { stdout } = await run([
     "-c",
     "diff.renames=true",
@@ -157,11 +112,6 @@ export async function readNoteHistory(
   return parseFollowLog(stdout, path);
 }
 
-/**
- * The bytes the note held at one revision, read at THAT revision's own path.
- * The size is checked before the blob is buffered — the same bound, and the
- * same two refusals, `VaultService.read` raises for a file on disk.
- */
 export async function readNoteRevision(
   run: RunGitCommand,
   path: string,
@@ -181,8 +131,7 @@ export async function readNoteRevision(
       `${path} at ${sha} is over the ${String(VAULT_MAX_CONTENT_LENGTH)}-byte read cap`,
     );
   }
-  // A size that reads but a blob that does not is the path naming a folder at
-  // that revision, which is the same answer as the note not being there.
+  // a size that reads but no blob: the path names a folder at that revision.
   const blob = await run(["cat-file", "blob", object]).catch(() => null);
   if (blob === null) {
     throw absent();

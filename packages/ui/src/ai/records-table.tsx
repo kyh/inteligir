@@ -15,19 +15,6 @@ import { cva, type VariantProps } from "class-variance-authority";
 
 import { cn } from "@repo/ui/lib/utils";
 
-/* ─────────────────────────────────────────────────────────
- * RECORDS TABLE — a grid of records whose columns an agent fills
- *
- * The grid: resizable columns, a header that names each column's
- * type and the tool behind it, tag cells, and the trailing
- * add-column affordance.
- *
- * Column widths live in context and are RESIZED IN PLACE by the
- * header's own handle, which is the interaction worth having: a
- * table of agent-filled columns is unreadable when one column of
- * prose crushes the rest.
- * ───────────────────────────────────────────────────────── */
-
 interface RecordsTableContextValue {
   widths: Record<string, number>;
   setWidth: (column: string, width: number) => void;
@@ -41,7 +28,6 @@ const RecordsTableContext = createContext<RecordsTableContextValue>({
 const MIN_COLUMN_WIDTH = 90;
 
 export interface RecordsTableProps extends HTMLAttributes<HTMLDivElement> {
-  /** Starting width per column key; resizing updates a local copy. */
   defaultWidths?: Record<string, number>;
   label?: string;
 }
@@ -90,13 +76,9 @@ const RecordsTableHeader = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElem
 RecordsTableHeader.displayName = "RecordsTableHeader";
 
 export interface RecordsColumnHeaderProps extends HTMLAttributes<HTMLDivElement> {
-  /** Key the width is stored under — also what a caller sorts by. */
   column: string;
-  /** Glyph naming the column's type. */
   icon?: ReactNode;
-  /** What fills this column — a model, a search, the user. */
   tool?: ReactNode;
-  /** Omitted on the last column, where a handle has nothing to give. */
   resizable?: boolean;
 }
 
@@ -186,9 +168,7 @@ const RecordsRow = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
 RecordsRow.displayName = "RecordsRow";
 
 export interface RecordsCellProps extends HTMLAttributes<HTMLDivElement> {
-  /** Matches a column header's key, so the two share one width. */
   column: string;
-  /** True while an agent is still filling this cell. */
   pending?: boolean;
 }
 
@@ -226,8 +206,6 @@ const recordTagVariants = cva(
   {
     variants: {
       tone: {
-        // This skin carries no per-tag palette, so tags separate from the
-        // cell by surface rather than by hue.
         neutral: "bg-surface-inset text-ink-2",
         strong: "bg-line text-ink",
       },

@@ -1,10 +1,3 @@
-// An in-process server implementing the SAME contract the product serves
-// (`implement(localContract)` — a handler that drifts from its row, or a row
-// nobody implemented, fails to compile here) over in-memory state. What it
-// deliberately is NOT: the product's composition — the real server behind the
-// CLI is exercised by the e2e cli-drive scenario; these suites pin what the
-// CLI itself owns (rendering, flags, exit codes).
-
 import { createServer } from "node:http";
 import { implement, ORPCError } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/node";
@@ -35,9 +28,7 @@ import {
 import type { ThreadStatus } from "@repo/domain/thread-status";
 import { boundAddressSchema } from "../server/__tests__/bound-address";
 
-/** The device token this fixture requires. The CLI attaches it from
- *  `<dataDir>/server.json`; the gate is here so a command that somehow reached
- *  the wire without one fails LOUDLY rather than passing. */
+// required so a command that reaches the wire without the bearer fails rather than passes.
 export const FIXTURE_SERVER_TOKEN = "fixture-server-token";
 
 const FIXTURE_CLOUD_URL = "https://cloud.fixture";
@@ -45,25 +36,18 @@ const FIXTURE_CLOUD_URL = "https://cloud.fixture";
 export interface FixtureThread {
   thread: Thread;
   pendingInteractions: PendingInteraction[];
-  /** Optional: most fixtures never queue, and the response defaults it. */
   queuedMessages?: QueuedThreadMessage[];
   timeline: ThreadTimeline;
-  /** Each threads.get consumes one entry; the last one sticks. */
+  // each threads.get consumes one entry; the last one sticks.
   statusSequence?: ThreadStatus[];
 }
 
 export interface FixtureState {
-  /** The instance identity discovery compares against. */
   dataDir: string;
-  /** When set, EVERY procedure refuses with this instead — the fitness test's
-   *  "does each leaf check the result?" lever. */
   failWith: { code: "BAD_REQUEST" | "INTERNAL_SERVER_ERROR"; message: string } | null;
-  /** Refuse only threads.send — the window `action new` must not orphan in. */
   refuseSend: { code: "PROVIDER_UNAVAILABLE"; message: string } | null;
   vault: Map<string, string>;
-  /** Per-path history, newest first, each row carrying the bytes it held.
-   *  ONE table for both procedures, so the fixture cannot describe a revision
-   *  it cannot then read. */
+  // newest first.
   revisions: Map<string, { revision: VaultRevision; content: string }[]>;
   searchResults: SearchResultWire[];
   tags: TagCountWire[];
@@ -73,7 +57,6 @@ export interface FixtureState {
   folders: ConnectedFoldersResponse;
   cloud: CloudStatusResponse;
   threads: FixtureThread[];
-  /** Comment threads per note path, in the wire shape the procedures answer. */
   comments: Map<string, CommentThreadWire[]>;
   guideMarkdown: string;
   agent: AgentStatus;
@@ -97,7 +80,6 @@ export function makeThread(overrides: Partial<Thread> & Pick<Thread, "id">): Thr
   };
 }
 
-/** The seeded revision every history/revision invocation acts on. */
 export const FIXTURE_REVISION_SHA = "0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c";
 
 export function makeRevision(
@@ -136,7 +118,6 @@ export function makeFixtureState(): FixtureState {
   };
 }
 
-/** Dirs derived from the file paths: every ancestor, sorted, then files. */
 function deriveTree(vault: Map<string, string>): VaultEntry[] {
   const dirs = new Set<string>();
   for (const path of vault.keys()) {
@@ -170,9 +151,7 @@ const agentsRouter = {
 
 const cloudRouter = {
   status: base.cloud.status.handler(({ context }) => context.cloud),
-  // The real procedure opens a browser; this one never can, so `opened`
-  // mirrors what was ASKED — which is what the CLI's own claim ("opened your
-  // browser" vs "approve here") is derived from.
+  // nothing opens here; `opened` echoes the request so the CLI's own claim can be checked.
   pairBegin: base.cloud.pairBegin.handler(({ input }) => ({
     url: `${FIXTURE_CLOUD_URL}/app/pair?redirect=http%3A%2F%2F127.0.0.1%3A4664%2Fpair%2Fcallback&state=${"0".repeat(32)}&name=fixture`,
     opened: input.openBrowser,
@@ -529,9 +508,6 @@ const vaultRouter = {
   syncNow: base.vault.syncNow.handler(({ context }) => context.vaultStatus),
 };
 
-/** Dictation needs a model file and a native binding, and this server has
- *  neither — which the vocabulary already has a word for, so the switch
- *  answers rather than refuses. */
 const voiceRouter = {
   status: base.voice.status.handler(() => ({
     state: "unavailable",
@@ -548,10 +524,7 @@ const voiceRouter = {
   transcribe: base.voice.transcribe.handler(() => ({ text: "" })),
 };
 
-// Flipped by a test to make every procedure refuse: what proves a command
-// CHECKS the result rather than printing whatever body arrives. It is a
-// middleware rather than a handler interceptor so the refusal is an ORPCError
-// the client raises — the same shape a real refusal has.
+// a middleware rather than a handler interceptor, so the refusal reaches the client as an ORPCError like a real one.
 const fixtureRouter = base
   .use(({ context, next }) => {
     const failure = context.failWith;

@@ -40,7 +40,6 @@ describe("trashNote / restoreNote", () => {
     const inTrash = (await service.read(trashed.path)).content;
     expect(inTrash).toContain('trashed-from: "a/Note.md"');
     expect(inTrash).toContain("trashed-at:");
-    // Untouched keys keep their bytes.
     expect(inTrash).toContain("id: abc");
     expect(inTrash).toContain("tags: [keep]");
 
@@ -60,7 +59,6 @@ describe("trashNote / restoreNote", () => {
     const second = await trashNote(service, "Note.md");
     expect(second.path).toBe("Trash/Note 2.md");
 
-    // Something new took the original spot; restore must not clobber it.
     await service.write("Note.md", "# occupied\n");
     const restored = await restoreNote(service, "Trash/Note 2.md");
     expect(restored.path).toBe("Note 2.md");
@@ -70,7 +68,6 @@ describe("trashNote / restoreNote", () => {
 
   it("restores by Trash-relative path when the note has no stamp", async () => {
     const { service } = bootService();
-    // Hand-moved: a file placed in Trash/ without ever being stamped.
     await service.write("Trash/b/Plain.md", "# plain\n");
     const restored = await restoreNote(service, "Trash/b/Plain.md");
     expect(restored.path).toBe("b/Plain.md");
@@ -102,8 +99,7 @@ describe("listTrash / sweepExpiredTrash", () => {
     await trashNote(service, "young.md");
     await service.rename("undated.md", "Trash/undated.md");
 
-    // Age the old note by rewriting its stamp; the sweep trusts the stamp,
-    // not the filesystem.
+    // the sweep trusts the stamp, not the filesystem.
     const oldContent = (await service.read("Trash/old.md")).content;
     const aged = oldContent.replace(
       /trashed-at: [^\n]+/,
@@ -123,7 +119,6 @@ describe("listTrash / sweepExpiredTrash", () => {
     expect(purged).toBe(1);
     expect(await service.statEntry("Trash/old.md")).toBeNull();
     expect(await service.statEntry("Trash/young.md")).toBe("file");
-    // Undated entries never age.
     expect(await service.statEntry("Trash/undated.md")).toBe("file");
   });
 
@@ -150,8 +145,6 @@ describe("listTrash / sweepExpiredTrash", () => {
           : service.remove(path),
     };
     const purged = await sweepExpiredTrash(refusing);
-    // One file is genuinely gone; the refused one is still there, and a count
-    // that included it would report a retention pass that did not happen.
     expect(purged).toBe(1);
     expect(await service.statEntry("Trash/refused.md")).toBe("file");
     expect(await service.statEntry("Trash/removed.md")).toBeNull();

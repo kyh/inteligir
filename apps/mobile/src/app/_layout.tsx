@@ -6,9 +6,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ensureStarted } from "@/lib/app-runtime";
 import { themeFor } from "@/lib/theme";
 
-// Read the stored credential, arm the pairing deep-link listener, and start
-// syncing — once per launch. `ensureStarted` is idempotent; the guard just keeps
-// a fast-refresh remount from re-running it.
+// ensureStarted is idempotent; the guard only spares a fast-refresh remount re-running it.
 let started = false;
 
 function useAppStart(): void {

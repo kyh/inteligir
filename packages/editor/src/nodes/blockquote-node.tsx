@@ -1,13 +1,5 @@
-// GitHub-style alert blockquotes (`> [!NOTE] …`) render as colored callouts.
-// They stay plain blockquotes in the model, so they round-trip byte-for-byte —
-// the callout is purely presentational. When the alert's first line is exactly
-// the `[!TYPE]` marker, the marker text is hidden at render behind a variant
-// title badge (icon + label) and revealed while the caret is inside the quote
-// (Obsidian live-preview convention: raw syntax shows exactly when you edit
-// that block, so the bytes stay discoverable and editable). The hiding itself
-// is a `calloutMarker` leaf decoration (kits/basic-blocks-kit.tsx) + CSS in
-// styles.css — the document model never changes. The ALERTS map is shared with
-// the `<callout>` compat renderer (callout-node.tsx).
+// Alerts stay plain blockquotes in the model; the marker is hidden by the calloutMarker
+// decoration and revealed while the caret is inside (Obsidian live-preview convention).
 
 import type { ComponentType } from "react";
 import {
@@ -68,13 +60,10 @@ const ALERTS = {
   },
 } satisfies Record<AlertVariant, AlertPresentation>;
 
-// Strict form only: the marker IS the whole first line (GitHub's alert
-// grammar). `hidden` spans the marker plus its soft break, so hiding it pulls
-// the body up to the first visible line.
+// strict form: the marker is the whole first line; `hidden` spans the marker plus its soft break.
 const ALERT_MARKER_RE = /^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\](?:\n|$)/i;
 
-// Legacy/loose form (`[!TIP] trailing words`): still tinted like an alert,
-// but the marker stays visible — hiding non-marker bytes would lie.
+// loose form keeps the marker visible: hiding non-marker bytes would lie.
 const ALERT_LOOSE_RE = /^\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]/i;
 
 function toVariant(raw: string): AlertVariant | null {
@@ -82,18 +71,12 @@ function toVariant(raw: string): AlertVariant | null {
   return ALERT_VARIANTS.find((variant) => variant === upper) ?? null;
 }
 
-/** The variant's presentation (icon, tint, label). Exported so the read-only
- * static path (transclusion.tsx) renders an identical badge instead of
- * re-deriving the vocabulary — a second copy drifts, and the drift shows up
- * as a transcluded card that disagrees with the live editor. */
 export function alertPresentation(variant: AlertVariant): AlertPresentation {
   return ALERTS[variant];
 }
 
 export type { AlertVariant };
 
-/** Marker-line prefix of `text`, or null. `hidden` = chars to hide (marker +
- * trailing soft break). */
 export function alertMarkerPrefix(text: string): { hidden: number; variant: AlertVariant } | null {
   const match = ALERT_MARKER_RE.exec(text);
   const variant = match ? toVariant(match[1] ?? "") : null;
@@ -101,10 +84,7 @@ export function alertMarkerPrefix(text: string): { hidden: number; variant: Aler
   return { hidden: match[0].length, variant };
 }
 
-/** The badge-form marker of an alert blockquote: its first child is a
- * paragraph whose first leaf starts with a marker-only line. The calloutMarker
- * decoration (basic-blocks-kit.tsx) mirrors these checks through
- * alertMarkerPrefix, so badge and hiding can never disagree. */
+// the calloutMarker decoration runs the same alertMarkerPrefix, so badge and hiding cannot disagree.
 function alertQuoteMarker(
   editor: SlateEditor,
   quote: TElement,
@@ -121,8 +101,7 @@ export function BlockquoteElement(props: PlateElementProps) {
   const marker = alertQuoteMarker(props.editor, props.element);
   if (marker) {
     const { Icon, accent, icon, label } = ALERTS[marker.variant];
-    // The badge swaps with the raw marker line: hidden while editing so the
-    // variant label never doubles up with its own bytes.
+    // hidden while editing so the label never doubles up with its own bytes.
     return (
       <PlateElement
         {...props}
@@ -166,6 +145,5 @@ export function BlockquoteElement(props: PlateElementProps) {
       </PlateElement>
     );
   }
-  // Plain blockquote typography (rule, padding, flow margin) comes from typeset.
   return <PlateElement {...props} as="blockquote" />;
 }

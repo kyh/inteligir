@@ -1,14 +1,6 @@
-// The labelled corpus the search evaluation runs over (search-eval.test.ts).
-//
-// Notes are written the way a person writes notes — not the way a query
-// phrases them — because that gap IS the thing being measured. Nothing here
-// was adjusted to make a query pass; a query that misses is the finding.
-//
-// Thirty notes rather than a handful, deliberately: a corpus smaller than the
-// result window makes recall@10 and recall@∞ the same number, and then the
-// harness cannot tell "the engine never retrieved it" from "the engine ranked
-// it twelfth" — which is the difference between what an embedding buys and
-// what a reranker buys.
+// notes are phrased the way a person writes them, not the way a query does —
+// that gap is what is measured, so nothing here is tuned to make a query pass.
+// thirty notes, so recall@10 and recall@∞ are not the same number.
 
 export const EVAL_VAULT = {
   "health/burnout.md": `# Burnout
@@ -156,20 +148,17 @@ before nine.
 `,
 };
 
-/** One labelled query: what a person would type, and the notes they meant. */
 export type EvalQuery = {
   query: string;
-  /** Every note that would be a correct answer, unordered. */
   gold: readonly string[];
 };
 
 export const EVAL_QUERIES: readonly EvalQuery[] = [
-  // The plan's own two probes come first: the sentence a lexical fix recovers,
-  // and the one it provably cannot.
+  // the sentence a lexical fix recovers, and the one it cannot.
   { query: "how do I stop feeling burnt out at work", gold: ["health/burnout.md"] },
   { query: "what did I write about being tired", gold: ["health/burnout.md"] },
 
-  // Short lookups — the case that must not regress.
+  // short lookups: must not regress.
   { query: "deploy runbook", gold: ["work/deploy-runbook.md"] },
   { query: "canary release", gold: ["work/deploy-runbook.md"] },
   { query: "bm25 ranking", gold: ["projects/vault-search.md"] },
@@ -177,15 +166,12 @@ export const EVAL_QUERIES: readonly EvalQuery[] = [
   { query: "sourdough", gold: ["recipes/bread.md"] },
   { query: "dentist", gold: ["health/dentist.md", "journal/2026-02-02.md"] },
 
-  // One word, inflected differently from the note. A whole query made of the
-  // token the box treats as still being typed — the commonest thing anyone
-  // types into a search box, and the case a prefix alone cannot answer,
-  // because the difference is in the middle of the word or before its end.
+  // one inflected word: the case a prefix alone cannot answer.
   { query: "dentists", gold: ["health/dentist.md", "journal/2026-02-02.md"] },
   { query: "interviewer", gold: ["work/hiring.md"] },
   { query: "invoicing", gold: ["work/billing.md"] },
 
-  // Sentences whose content words are present somewhere in the note.
+  // content words present in the note.
   { query: "how do I roll back a bad release", gold: ["work/oncall.md"] },
   { query: "what temperature do I bake the bread at", gold: ["recipes/bread.md"] },
   { query: "how long do I simmer the lentils", gold: ["recipes/soup.md"] },
@@ -202,7 +188,7 @@ export const EVAL_QUERIES: readonly EvalQuery[] = [
   { query: "notes about hiring people", gold: ["work/hiring.md"] },
   { query: "what happened on the quiet sunday", gold: ["journal/2026-02-02.md"] },
 
-  // Sentences whose words the note does not use — the residue this measures.
+  // words the note does not use: the residue this measures.
   { query: "what should I cook tonight", gold: ["recipes/bread.md", "recipes/soup.md"] },
   { query: "notes on interviewing candidates", gold: ["work/hiring.md"] },
   { query: "what do I do when the site goes down", gold: ["work/oncall.md"] },

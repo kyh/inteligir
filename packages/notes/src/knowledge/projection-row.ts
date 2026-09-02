@@ -1,19 +1,6 @@
-// ---------------------------------------------------------------------------
-// A DocProjection across the SQL boundary, as ONE json column.
-//
-// The projection is stored whole rather than shredded into child tables,
-// because nothing queries its parts: link, tag and name RESOLUTION all happen
-// in the in-memory LinkGraphIndex, so child rows would be read only by
-// hydration's own sweeps — a value object spelled as a relational schema. One
-// doc with 30 links, 12 headings, 5 tags and 8 tasks is one row written here
-// and 56 shredded.
-//
-// Parsing is TOTAL and THROWS: the store's guards treat any malformed row as
-// corruption and wipe-rebuild, which is safe precisely because nothing durable
-// lives in the index tables. So a validator that is too strict costs a rebuild,
-// never data — which is why it checks every field rather than trusting the
-// build that wrote them.
-// ---------------------------------------------------------------------------
+// One json column rather than child tables: nothing queries the parts, resolution
+// happens in memory. Parsing throws on any malformed row, which the store treats
+// as corruption and wipe-rebuilds, so strictness costs a rebuild and never data.
 
 import { z } from "zod";
 
@@ -30,7 +17,7 @@ const storedLinkRow = z.object({
   target: z.string(),
   line: z.number(),
   snippet: z.string(),
-  // Optionals: absent and a stored `null` are the same fact ("not written").
+  // absent and a stored `null` are the same fact
   anchor: z.string().nullish(),
   alias: z.string().nullish(),
   targetSpan: z.object({ start: z.number(), end: z.number() }).nullish(),
@@ -43,15 +30,12 @@ const storedProjectionRow = z.object({
   tags: z.array(z.string()),
   aliases: z.array(z.string()),
   tasks: z.array(z.object({ checked: z.boolean(), text: z.string(), line: z.number() })),
-  // Strict, not optional: a PROJECTION_VERSION mismatch wipes and rebuilds,
-  // so no stored row can legitimately lack a current field.
+  // not optional: a PROJECTION_VERSION mismatch wipes and rebuilds, so no stored row can lack a current field
   pinned: z.boolean(),
   noteId: z.string().nullable(),
 });
 
-// Rebuilt key by key rather than spread: an optional that was absent must
-// stay absent under exactOptionalPropertyTypes, and a stored `null` is the
-// same fact as an omitted key.
+// key by key, not spread: an absent optional must stay absent under exactOptionalPropertyTypes
 function toStoredLink(row: z.infer<typeof storedLinkRow>): StoredLink {
   const link: StoredLink = {
     kind: row.kind,
@@ -68,7 +52,6 @@ function toStoredLink(row: z.infer<typeof storedLinkRow>): StoredLink {
   return link;
 }
 
-/** The json column, parsed back into the value object the index rebuilds from. */
 export function parseStoredProjection(json: string): DocProjection {
   const source = z
     .string()

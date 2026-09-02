@@ -1,8 +1,3 @@
-// Open-or-create through the session: a genuinely new note goes through the
-// port's CREATE, never its write. A write carries a base, and a path with no
-// bytes on disk has no base to name — so the one verb that can put bytes
-// where there are none is the one this call must reach.
-
 import type { VaultEntry } from "@repo/editor/host-io";
 import { describe, expect, it } from "vitest";
 import { createVaultSession, type VaultSessionPorts } from "@repo/editor/note/vault-session";

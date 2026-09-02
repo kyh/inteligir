@@ -1,9 +1,5 @@
-// Boot-time driver resolution: INTELIGIR_AGENT decides which TurnDriver the
-// ThreadService is built with, and the decision (mode, what actually runs,
-// why not) is the `agent` block of /system/status — so a 503 on send is
-// diagnosable without reading logs. Binary presence is checked HERE, once,
-// so an absent vendor CLI fails the send synchronously with an actionable
-// message instead of wedging a thread on an async spawn failure.
+// binary presence is checked here, once: an absent vendor CLI then fails a send synchronously rather than
+// wedging a thread on an async spawn failure.
 
 import type { DbConnection } from "@repo/db/connection";
 import type { DbNotifier } from "@repo/domain/notifier";
@@ -21,17 +17,12 @@ import { createScriptedTurnDriverFactory, type ScriptedDriverDeps } from "./scri
 
 export interface ResolveAgentDriverArgs {
   config: Pick<AppConfig, "agent" | "agentModel" | "vaultDir">;
-  /** The enabled connector rows every session gets. */
   mcpServers: () => AcpMcpServerConfig[] | Promise<AcpMcpServerConfig[]>;
   db: DbConnection;
   notifier: DbNotifier;
   vault: VaultRuntime;
-  /** What a session is told about this instance (agent-shell-env.ts); a
-   *  getter, read fresh per session open so a Settings edit reaches the next
-   *  session without a reboot. */
+  // a getter, read per session open, so a Settings edit reaches the next session without a reboot.
   sessionFacts: () => AgentSessionFacts;
-  /** The environment the PATH probes read and the agent's shell extends; the
-   *  tests' seam. */
   env?: NodeJS.ProcessEnv;
 }
 
@@ -53,8 +44,6 @@ export function resolveAgentDriver(args: ResolveAgentDriverArgs): ResolvedAgentD
       dispose: noDispose,
     };
   }
-  // The bounded log keeps a chatty provider VISIBLE without flooding: first
-  // occurrence per stripped-id key logs in full, repeats log a count.
   const onDebug = createBoundedAgentLog();
   if (mode === "scripted") {
     const scripted: ScriptedDriverDeps = {
@@ -69,11 +58,8 @@ export function resolveAgentDriver(args: ResolveAgentDriverArgs): ResolvedAgentD
     };
   }
 
-  // EITHER harness CLI on PATH boots the runtime; per-thread absence is the
-  // registry's detect+guide to explain. The default harness is claude while
-  // codex-acp 0.16.0 is live-broken upstream (its bundled core cannot parse
-  // the current models response); codex stays selectable and heals on the
-  // next adapter release — flip the default back then.
+  // default harness is claude while codex-acp 0.16.0 is broken upstream (its bundled core cannot parse the
+  // current models response); flip the default back when the adapter heals.
   const env = args.env ?? process.env;
   const claudeBinary = binaryOnPath("claude", env);
   const codexBinary = binaryOnPath("codex", env);

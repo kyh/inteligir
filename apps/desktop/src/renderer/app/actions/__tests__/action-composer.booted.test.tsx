@@ -1,11 +1,3 @@
-// A refused first send costs the user NOTHING: the prompt stays in the field,
-// the composer stays open, and the retry lands in the thread the first
-// attempt created — never a second, empty one — for as long as the retry is
-// over the SAME note; a thread is attached at creation, so a retry from
-// another note mints its own. The suite drives the REAL thread stack: the
-// renderer's own client is answered by a booted in-process app, and the
-// refusal is the provider's own dispatch failure.
-
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -46,7 +38,6 @@ describe("the composer under a refused first send", () => {
     fireEvent.change(field, { target: { value: "Tidy the intro" } });
     fireEvent.click(screen.getByRole("button", { name: "Send" }));
 
-    // The refusal settles: the thread exists, and the composer gave up nothing.
     await waitFor(async () => {
       expect((await harness.client.threads.list()).threads).toHaveLength(1);
     });
@@ -100,8 +91,6 @@ describe("the composer under a refused first send", () => {
       expect(screen.getByRole("button", { name: "Send" })).toHaveProperty("disabled", false);
     });
 
-    // Escape, then ⌘K over another note: the composer stays mounted through
-    // the close, so the draft — and the refused thread — survive it.
     view.rerender(composerOver("a.md", false));
     view.rerender(composerOver("b.md"));
     fireEvent.click(screen.getByRole("button", { name: "Send" }));

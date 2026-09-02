@@ -1,9 +1,4 @@
 // @vitest-environment jsdom
-// WHERE the workspace runtime is mounted, and what that buys. The QueryClient's
-// fresh-forever default and the single invalidation socket are only worth
-// anything if they OUTLIVE a route change: a provider per route made
-// "/" -> "/settings" -> "/" a cold vault walk, a `git status` and a second
-// socket handshake — the exact cost the bus-driven cache exists to avoid.
 
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -20,8 +15,6 @@ import { Route as rootRoute } from "../../routes/__root";
 const dialled: string[] = [];
 let vaultReads = 0;
 
-/** The socket the provider opens; it never opens, so no subscribe frames go
- *  out — the count of constructions is the whole assertion. */
 class CountingSocket {
   constructor(url: string) {
     dialled.push(url);
@@ -31,8 +24,6 @@ class CountingSocket {
   close(): void {}
 }
 
-/** Stands in for `vault.tree`: bus-covered, so one fetch is the whole budget
- *  no matter how often it mounts. */
 function VaultReader() {
   const { data } = useQuery({
     queryKey: ["vault", "tree"],
@@ -92,8 +83,6 @@ describe("the workspace runtime", () => {
       await router.navigate({ to: "/" });
     });
     await settle();
-    // Still one of each: the runtime belongs to the window, so nothing about it
-    // was torn down and rebuilt on the way there and back.
     expect(vaultReads).toBe(1);
     expect(dialled).toHaveLength(1);
   });

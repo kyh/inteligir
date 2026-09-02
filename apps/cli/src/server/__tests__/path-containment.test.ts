@@ -1,8 +1,3 @@
-// The edge cases every gate in this process has to agree on. Each assertion
-// below is a path that reads as contained under one plausible spelling of the
-// check and as an escape under another, which is the whole reason there is
-// exactly one spelling.
-
 import { describe, expect, it } from "vitest";
 import {
   assertModelDirOutsideVault,

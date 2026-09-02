@@ -1,9 +1,3 @@
-// Settings is a PAGE (/settings), not a modal — the owner's call: the
-// sections outgrew a dialog twice over. The queries below mount only while
-// settings is LOOKED AT, because a route renders only when visited
-// (`useSystemStatus` has no other subscriber, so leaving this page is what
-// stops the app fetching it).
-
 import { Button } from "@repo/ui/components/button";
 import { Separator } from "@repo/ui/components/separator";
 import { useTheme, type Theme } from "@repo/ui/lib/theme";
@@ -38,9 +32,7 @@ const THEMES: readonly { value: Theme; label: string }[] = [
   { value: "dark", label: "Dark" },
 ];
 
-/** The page's own map: anchor ids beside the labels the rail shows. The
- *  section HEADINGS stay inside each section component (the one-name-per-thing
- *  sweep reads those); this list only has to agree with the ids below. */
+// Ids must agree with the section anchors below.
 const NAV = [
   { id: "vault", label: "Vault" },
   { id: "agent", label: "Agent" },

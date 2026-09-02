@@ -1,14 +1,7 @@
-// The ordering is the whole test. `revision` names the bytes the agent will
-// read, so a context taken BEFORE the flush names a version of the file that
-// only ever existed in this browser — and every assertion about the path
-// would still pass while the claim underneath it was false.
-
 import { contentHashHex } from "@repo/api/local/vault/vault-schema";
 import { describe, expect, it } from "vitest";
 import { readNoteViewContext, type OpenNoteView } from "../note-view-context";
 
-/** A buffer over a fake disk: `flush` is the only thing that moves the bytes
- *  across, exactly as the controller's does. */
 function openNote(disk: { content: string }, buffer: string) {
   const calls: string[] = [];
   const view: OpenNoteView = {
@@ -39,7 +32,6 @@ describe("readNoteViewContext", () => {
       resource: "Notes/Plans.md",
       revision: await contentHashHex(disk.content),
     });
-    // The pre-flush bytes must not be what was named.
     expect(context.revision).not.toBe(await contentHashHex("# Plans\n"));
   });
 
@@ -52,8 +44,6 @@ describe("readNoteViewContext", () => {
 
     const context = await readNoteViewContext("Notes/Plans.md", view);
 
-    // The revision names the BUFFER, which is what the user is looking at; a
-    // disk that no longer matches it is what carrying a revision reveals.
     expect(context.revision).toBe(await contentHashHex(buffer));
   });
 });

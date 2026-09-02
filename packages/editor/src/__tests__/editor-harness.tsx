@@ -1,10 +1,6 @@
-// A mounted EDITOR for tests: an open-note store around a Plate editor built
-// from the shipped kit.
-//
-// A bare `<Plate>` is not the editor the app draws. The kit's own plugins read
-// the store they render under — heading collapse folds per note, the comment tint answers from
-// the note's own sidecar — so a case that mounts one without a store asserts
-// against a surface the app never draws.
+// a bare <Plate> is not the editor the app draws: the kit's plugins read the store
+// they render under, so a case mounting one without a store asserts against a
+// surface the app never draws.
 
 import { useEffect, useImperativeHandle, type Ref } from "react";
 import { Plate, PlateContent, usePlateEditor, type PlateEditor } from "platejs/react";
@@ -23,12 +19,7 @@ export function EditorHarness({
 }: {
   value: Value;
   store: OpenNoteStore;
-  /** Where a case that must drive the editor directly reads it from — the
-   * harness hands the editor out the way any component hands out a handle,
-   * rather than writing into an object it was passed. */
   ref?: Ref<PlateEditor>;
-  /** The note this editor serves. Given, the harness registers it the way the
-   * mounted rich editor does, so a non-React caller can find it by path. */
   livePath?: string;
 }) {
   const editor = usePlateEditor({ plugins: EDITOR_KIT, value });

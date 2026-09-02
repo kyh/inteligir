@@ -33,9 +33,8 @@ function CheckMark({ compact }: { compact: boolean }) {
   );
 }
 
-// keepMounted holds the span through the exit so the un-draw is visible;
-// AnimatePresence initial={false} skips the draw for a box that mounts
-// already checked.
+// keepMounted holds the span through the exit so the un-draw is visible; initial={false} skips the
+// draw for a box that mounts already checked.
 function CheckIndicator({ compact }: { compact: boolean }) {
   return (
     <CheckboxPrimitive.Indicator
@@ -53,13 +52,9 @@ function CheckIndicator({ compact }: { compact: boolean }) {
 }
 
 type CheckboxProps = CheckboxPrimitive.Root.Props & {
-  /** Pins the checkbox to one step of the size ladder. Omitted, it follows
-   *  the surrounding SizeProvider. */
   size?: SizeVariant;
 };
 
-// The checked state keeps its border: standalone there is no selection
-// background behind it to carry the boundary.
 function Checkbox({ className, size, ...props }: CheckboxProps) {
   const compact = useSize(size).variant === "compact";
   return (

@@ -1,9 +1,4 @@
-// Every `@source` glob's static base directory must exist. Tailwind's scanner
-// answers a missing base with zero files — no error, no warning — so the
-// utilities that stylesheet was meant to generate silently never exist
-// (proven: the app's editor-package `@source` was mis-rooted for weeks and
-// callout accents, wiki pills and gutter offsets never rendered, on screen
-// and in prod alike).
+// tailwind's scanner answers a missing @source base with zero files: no error, no warning.
 
 import fs from "node:fs";
 import path from "node:path";
@@ -11,16 +6,11 @@ import { describe, expect, it } from "vitest";
 
 import { REPO_ROOT, styleFiles, workspaces } from "./repo";
 
-/**
- * `@source` rows a stylesheet can carry. `inline(...)` embeds candidates
- * directly (no path to check); `not "..."` still names a path whose base must
- * exist — an excluded dir that is not there is the same silent no-op.
- */
+// `inline(...)` embeds candidates (no path); `not "..."` still names a base that must exist, or the
+// exclusion is the same silent no-op.
 const SOURCE_ROW = /@source\s+(?:not\s+)?"([^"]+)"/g;
 const SOURCE_INLINE = /@source\s+inline\(/;
 
-/** The glob's static prefix: everything before the first segment that
- *  contains a wildcard or brace. */
 function staticBase(glob: string): string {
   const segments = glob.split("/");
   const fixed: string[] = [];

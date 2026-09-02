@@ -1,12 +1,4 @@
-// Related — the notes connected to the open one — as one collapsible section
-// in the right panel, below Properties (CLAUDE.md records the placement).
-//
-// One list, two kinds of row, and the DETAIL line is what keeps them honest:
-// linked mentions are counted facts and lead the list carrying "Links here"
-// plus the linking sentence; the scorer's suggestions follow carrying their
-// own reasons, because a ranked filename with no reason is a claim a reader
-// cannot check. No dedup is needed between the halves — the scorer excludes
-// direct neighbours by construction, so the same note never appears twice.
+// no dedup between backlinks and suggestions: the scorer excludes direct neighbours by construction.
 
 import { docStem } from "@repo/notes/knowledge/doc-file";
 import { isUuidWikiAlias } from "@repo/notes/markdown/remark-wiki-link";
@@ -18,24 +10,18 @@ import { useState } from "react";
 import { orpc } from "../api";
 import { readRelatedOpen, writeRelatedOpen } from "../prefs";
 
-/** One row of the merged list, whichever half it came from. */
 export interface RelatedRow {
   path: string;
   label: string;
-  /** Why this row is here — "Links here · <snippet>" or the scorer's reasons. */
   detail: string;
 }
 
-/** A backlink SNIPPET is the linking sentence verbatim, so it still carries
- *  the dialect's own syntax. The panel wants prose: render what a reader sees
- *  in the source note, not the bytes that produce it. */
 export function plainSnippet(snippet: string): string {
   return snippet
     .replace(/!?\[\[([^\]]+)\]\]/gu, (_match, body: string) => {
       const parts = body.split("|");
       const target = parts[0] ?? body;
       const alias = parts.length > 1 ? parts.at(-1) : undefined;
-      // A uuid alias is IDENTITY, not a label — the same rule the chip reads.
       const label = alias !== undefined && !isUuidWikiAlias(alias) ? alias : target;
       return label.split("#")[0] ?? label;
     })
@@ -52,8 +38,7 @@ interface BacklinkGroup {
   count: number;
 }
 
-/** One row per LINKING NOTE, not per mention: five links from one note are one
- *  fact about that note, and five identical rows crowd out every other. */
+// one row per linking note, not per mention.
 export function groupBacklinks(
   backlinks: readonly { sourcePath: string; snippet: string }[],
 ): BacklinkGroup[] {
@@ -73,23 +58,12 @@ export function groupBacklinks(
   return [...groups.values()];
 }
 
-/** "3 linked mentions (2 shown)" keeps the truncation honest;
- *  suggestions carry no count clause — a ranked top-N has no honest count of
- *  the rest. */
 export function linkedMentionsSummary(shown: number, total: number): string {
   const counted = `${total} linked mention${total === 1 ? "" : "s"}`;
   return shown < total ? `${counted} (${shown} shown)` : counted;
 }
 
-/**
- * Both halves ride the knowledge query family, so the existing
- * files-changed/content-changed sweep of `orpc.knowledge` refreshes them — the
- * queries moved surfaces, the invalidation story did not. Backlinks fetch
- * regardless of the fold (a graph lookup, and the count is part of the
- * section's claim); suggestions only while OPEN, because that read settles the
- * index and runs a lexical probe per title token — too expensive to re-run on
- * every save for a list nobody is looking at.
- */
+// suggestions fetch only while open: that read settles the index and runs a lexical probe per title token.
 function useRelatedRows(docPath: string, open: boolean) {
   const backlinksQuery = useQuery(
     orpc.knowledge.backlinks.queryOptions({ input: { path: docPath } }),
@@ -108,9 +82,6 @@ export function RelatedInline({
   docPath: string;
   onOpenDoc: (path: string) => void;
 }) {
-  // Default OPEN: linked mentions lead the list and are counted facts — the
-  // old backlinks section's own default; only the suggestions half is
-  // inferred, and its rows say so.
   const [open, setOpen] = useState(readRelatedOpen);
   const { backlinksQuery, relatedQuery } = useRelatedRows(docPath, open);
 
@@ -172,8 +143,6 @@ export function RelatedInline({
   );
 }
 
-/** The unfolded list — pure, so the surface is testable without a query
- *  client. */
 export function RelatedRows({
   rows,
   settledEmpty,
@@ -181,9 +150,7 @@ export function RelatedRows({
   onOpenDoc,
 }: {
   rows: readonly RelatedRow[];
-  /** Every read settled and answered zero — distinct from still loading. */
   settledEmpty: boolean;
-  /** The scorer read refused; the linked mentions above it still stand. */
   suggestionsFailed: boolean;
   onOpenDoc: (path: string) => void;
 }) {

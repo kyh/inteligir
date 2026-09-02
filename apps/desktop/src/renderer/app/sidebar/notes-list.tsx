@@ -1,10 +1,3 @@
-// The sidebar's default view: pinned notes first (frontmatter
-// `pinned: true`, read off the knowledge projection — frontmatter is the only
-// property store), then notes ordered by recency with relative timestamps,
-// grouped by top-level folder with counts. The file TREE stays one toggle
-// away for anyone who thinks in folders; this list answers "what was I
-// working on", not "where does it live".
-
 import { docStem, isDocPath } from "@repo/notes/knowledge/doc-file";
 import { isTrashedPath } from "@repo/notes/knowledge/vault-path";
 import type { VaultTreeResponse } from "@repo/api/local/vault/vault-schema";
@@ -20,18 +13,11 @@ import { useWikiTargets } from "../vault-hooks";
 
 type FileEntry = Extract<VaultTreeResponse["entries"][number], { kind: "file" }>;
 
-/** Root notes group under "", folder notes under their FIRST path segment —
- *  the grain a sidebar can show without re-growing the file tree. */
 function topFolder(path: string): string {
   const slash = path.indexOf("/");
   return slash === -1 ? "" : path.slice(0, slash);
 }
 
-/**
- * Pinned paths off the knowledge projection's wiki targets. Swept by
- * `knowledgeRoot` on every content or file change (workspace-context.tsx), so
- * editing `pinned:` frontmatter moves the note without a dedicated channel.
- */
 function usePinnedPaths(): ReadonlySet<string> {
   const query = useWikiTargets();
   const targets = query.data?.targets ?? [];
@@ -43,7 +29,6 @@ interface NoteGroup {
   notes: FileEntry[];
 }
 
-/** Groups ordered by their freshest note; notes stay recency-sorted within. */
 function groupByFolder(notes: FileEntry[]): NoteGroup[] {
   const groups = new Map<string, FileEntry[]>();
   for (const note of notes) {
@@ -68,8 +53,6 @@ export function NotesList({ entries, openPath, onOpenFile }: NotesListProps) {
   const pinnedPaths = usePinnedPaths();
   const now = useNow();
   const notes = entries
-    // Trashed notes are restorable, not gone — but the notes LIST is the
-    // living vault; Trash/ shows only in the file tree and the trash dialog.
     .filter(
       (entry): entry is FileEntry =>
         entry.kind === "file" && isDocPath(entry.path) && !isTrashedPath(entry.path),

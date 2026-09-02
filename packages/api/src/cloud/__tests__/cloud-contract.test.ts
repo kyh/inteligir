@@ -51,8 +51,6 @@ describe("error envelope", () => {
   it("names the outbox position on a sync refusal", () => {
     const envelope = cloudError("sync-conflict", "already stored with a different body", 7);
     expect(cloudErrorSchema.parse(envelope).error.deviceSeq).toBe(7);
-    // Absent rather than null everywhere else — a client reading `deviceSeq`
-    // on a pairing refusal is asking the wrong question.
     expect("deviceSeq" in cloudError("unauthorized", "nope").error).toBe(false);
   });
 });
@@ -81,10 +79,6 @@ describe("pairing grammar", () => {
   });
 });
 
-// The redirect allowlist is the ONE thing standing between the approve page
-// and an open redirect that hands a live pairing code to whoever asked for
-// one, so every refusal it makes is pinned here rather than left to the page
-// that parses through it.
 describe("the pairing redirect allowlist", () => {
   const OK = `http://127.0.0.1:4664${PAIR_CALLBACK_PATH}`;
   const MOBILE = "inteligir://pair/callback";
@@ -100,8 +94,6 @@ describe("the pairing redirect allowlist", () => {
   });
 
   it("refuses a USERINFO trick, which is the one that reads as loopback", () => {
-    // `new URL` parses this to username "127.0.0.1" and hostname "evil.com" —
-    // every check that matched the string rather than the field said yes.
     const trick = `http://127.0.0.1@evil.example:4664${PAIR_CALLBACK_PATH}`;
     expect(new URL(trick).username).toBe("127.0.0.1");
     expect(new URL(trick).hostname).toBe("evil.example");
@@ -148,16 +140,11 @@ describe("the pairing redirect allowlist", () => {
   });
 
   it("refuses a target that already carries a query or a fragment", () => {
-    // The code and state are APPENDED to this URL; a target arriving with its
-    // own parameters is a shape this flow never produces.
     expect(pairRedirectUrlSchema.safeParse(`${OK}?code=X`).success).toBe(false);
     expect(pairRedirectUrlSchema.safeParse(`${OK}#x`).success).toBe(false);
   });
 
   it("leaves the port alone, default included — loopback is loopback", () => {
-    // `URL` normalises `:80` away for http, so a rule demanding an explicit
-    // port would make an app bound to 80 impossible to pair at all, and would
-    // refuse nothing dangerous in exchange.
     expect(pairRedirectUrlSchema.safeParse(`http://127.0.0.1${PAIR_CALLBACK_PATH}`).success).toBe(
       true,
     );
@@ -184,14 +171,12 @@ describe("the pairing redirect allowlist", () => {
       "inteligir://pair/callback/",
       "inteligir://pair/callback/../evil",
       "inteligir2://pair/callback",
-      // Non-special schemes never case-fold the host, so the exact compare
-      // refuses a case variant rather than quietly admitting it.
+      // non-special schemes never case-fold the host
       "inteligir://PAIR/callback",
-      // No authority at all: `pair` lands in pathname, hostname is empty.
+      // no authority: `pair` lands in pathname, hostname is empty
       "inteligir:pair/callback",
       "inteligir:///callback",
-      // Metro's dev form stays refused — admitting `exp://` would be a
-      // wildcard host, since the phone's LAN address rides in it.
+      // metro's exp:// carries the phone's LAN address, so admitting it is a wildcard host
       "exp://192.168.0.10:8081/--/pair/callback",
     ]) {
       expect(pairRedirectUrlSchema.safeParse(value).success, value).toBe(false);
@@ -231,7 +216,6 @@ describe("the pairing redirect allowlist", () => {
       utm_source: "somewhere",
     });
     expect(parsed).toEqual({ redirect: OK, state: "0".repeat(32), name: "Work laptop", challenge });
-    // A missing challenge is refused: the approve page must forward one.
     expect(
       pairApproveSearchSchema.safeParse({ redirect: OK, state: "0".repeat(32), name: "Laptop" })
         .success,
@@ -291,8 +275,6 @@ describe("push request", () => {
   });
 
   it("demands the client's own timestamp on a metadata upsert", () => {
-    // Without it the server cannot tell a delayed retry from the newest fact,
-    // so the field is required rather than defaulted.
     const result = pushRequestSchema.safeParse({
       events: [],
       threads: [{ threadId: "th_1", lane: "desktop" }],
@@ -310,8 +292,7 @@ describe("push request", () => {
   });
 
   it("measures the ceiling in UTF-8 bytes, not UTF-16 units", () => {
-    // Each of these is ONE UTF-16 unit and THREE UTF-8 bytes. A length-based
-    // ceiling would wave through a body three times the size storage pays for.
+    // "あ" is one UTF-16 unit and three UTF-8 bytes
     const wide = "あ".repeat(EVENT_MAX_BYTES / 3);
     expect(wide.length).toBeLessThan(EVENT_MAX_BYTES);
     const result = pushRequestSchema.safeParse({
@@ -360,8 +341,6 @@ describe("capture handoff", () => {
       ],
     });
     expect(parsed.results.map((row) => row.outcome)).toEqual(["deleted", "reclaimed", "unknown"]);
-    // An aggregate count cannot say WHICH apply committed, so there is no
-    // shape here that admits one.
     expect(ackCapturesRequestSchema.safeParse({ ids: ["c1"] }).success).toBe(false);
   });
 });
@@ -379,8 +358,6 @@ describe("ws ping frames", () => {
   });
 });
 
-// Final at birth: `.strict()` responses mean a stale phone's parse REFUSES an
-// added field as malformed, so these pins are the shapes' whole lives.
 describe("vault read rows", () => {
   const COMMIT = "a".repeat(40);
 
@@ -430,8 +407,6 @@ describe("vault read rows", () => {
   });
 
   it("composes an asset source through the client — bearer in a header, never the URL", () => {
-    // The client is the one composer: it holds the credential, so nothing
-    // downstream assembles a second spelling of the auth header.
     const source = createCloudClient({
       baseUrl: "https://cloud.test",
       credential: `igd_${"a".repeat(64)}`,
@@ -454,10 +429,7 @@ describe("vault read rows", () => {
   });
 
   it("pins the asset allowlist WHOLE — growth is additive, removal never happens", () => {
-    // The table is the deployed /v1/vault/asset wire's behavior, shared with
-    // the desktop route: add a row here WITH the new entry; removing one
-    // 400s every stale phone whose notes embed that type. This pin is what
-    // turns a local-side "cleanup" of the shared table into a failing test.
+    // hand-listed on purpose: removing an entry 400s every stale phone whose notes embed it
     expect(Object.fromEntries(VAULT_ASSET_MEDIA_TYPES)).toEqual({
       ".apng": "image/apng",
       ".avif": "image/avif",
@@ -473,13 +445,10 @@ describe("vault read rows", () => {
   });
 });
 
-// PKCE binds the one-time code to the app that began the pairing — the whole of
-// what makes an intercepted code useless without the verifier the app kept.
 describe("PKCE (S256)", () => {
   it("generates a verifier in the base64url shape both ends expect", () => {
     const verifier = generatePkceVerifier();
     expect(PKCE_S256_PATTERN.test(verifier)).toBe(true);
-    // Fresh every call — a fixed verifier would be a fixed secret.
     expect(generatePkceVerifier()).not.toBe(verifier);
   });
 
@@ -488,20 +457,16 @@ describe("PKCE (S256)", () => {
     const challenge = await pkceChallengeS256(verifier);
     expect(PKCE_S256_PATTERN.test(challenge)).toBe(true);
     expect(await pkceChallengeS256(verifier)).toBe(challenge);
-    // A different verifier hashes to a different challenge.
     expect(await pkceChallengeS256(generatePkceVerifier())).not.toBe(challenge);
   });
 
   it("matches RFC 7636's own S256 test vector", async () => {
-    // Appendix B: verifier "dBjft...v-a" -> challenge "E9Melhoa...M".
+    // rfc 7636 appendix b
     const verifier = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk";
     expect(await pkceChallengeS256(verifier)).toBe("E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM");
   });
 
   it("mints the pair through the injected primitives — RFC 7636's octets in, its vector out", async () => {
-    // The phone injects expo-crypto here, because Hermes carries no web
-    // crypto; a pair minted past the seam would throw there, so both halves
-    // are pinned to have gone through it.
     const hashed: string[] = [];
     const injected: PkceCrypto = {
       randomBytes: () =>
@@ -528,11 +493,9 @@ describe("PKCE (S256)", () => {
     expect(
       mintPairingCodeRequestSchema.safeParse({ challenge, challengeMethod: "S256" }).success,
     ).toBe(true);
-    // plain is refused — a challenge equal to its verifier binds nothing.
     expect(
       mintPairingCodeRequestSchema.safeParse({ challenge, challengeMethod: "plain" }).success,
     ).toBe(false);
-    // absent challenge, and a challenge that is not base64url of a SHA-256.
     expect(mintPairingCodeRequestSchema.safeParse({ challengeMethod: "S256" }).success).toBe(false);
     expect(
       mintPairingCodeRequestSchema.safeParse({ challenge: "short", challengeMethod: "S256" })
@@ -546,7 +509,6 @@ describe("PKCE (S256)", () => {
     expect(redeemDeviceRequestSchema.safeParse({ ...base, verifier: "d".repeat(43) }).success).toBe(
       true,
     );
-    // A verifier that is not base64url of 32 bytes is refused at the boundary.
     expect(redeemDeviceRequestSchema.safeParse({ ...base, verifier: "nope" }).success).toBe(false);
   });
 });

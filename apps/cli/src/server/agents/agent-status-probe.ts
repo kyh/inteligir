@@ -1,8 +1,4 @@
-// Detect + guide: what Settings needs to say per harness — is
-// the vendor CLI on PATH, does a credential exist, and what command logs in.
-// FACTS, not verdicts: a keychain we cannot read without prompting reports
-// "unknown" rather than guessing, and nothing here installs anything — the
-// adapters ship with the app, the vendor CLIs are the user's.
+// facts, not verdicts: a keychain this process cannot read without prompting reports "unknown" rather than guessing.
 
 import { statSync } from "node:fs";
 import { homedir } from "node:os";

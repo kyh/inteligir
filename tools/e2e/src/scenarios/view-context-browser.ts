@@ -1,16 +1,3 @@
-// The whole feature, in one path nobody can shortcut: a real browser opens a
-// note, types into THE DOCK, and presses Enter.
-//
-// Two assertions, and they are different claims. The stored user row proves
-// the client produced a context and the server recorded it BESIDE the text
-// (the bubble stays exactly what was typed). The assistant echo proves the
-// composed block reached the provider's prompt input: the scripted driver
-// echoes what `turnPromptInput` handed it, which is the only place an e2e can
-// see what a real provider would have received.
-//
-// The context names the WHOLE note — the Plate surface publishes content, not
-// a selection.
-
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
@@ -29,7 +16,6 @@ ${PARAGRAPH}
 `;
 const MESSAGE = "make this shorter";
 const TURN_DEADLINE_MS = 30_000;
-/** The composer's textarea — the dock's own input, by its accessible name. */
 const COMPOSER = 'textarea[aria-label="Ask the agent"]';
 const EDITOR = '[data-slate-editor="true"]';
 
@@ -44,7 +30,7 @@ export const viewContextBrowser: Scenario = {
     const app = await ctx.boot({
       name: "solo",
       extraEnv: { INTELIGIR_AGENT: "scripted" },
-      // Sorts before the seeded welcome note, so the virgin boot opens it.
+      // sorts before the seeded welcome note, so the virgin boot opens it.
       seedVault: async (vaultDir) => {
         await writeFile(join(vaultDir, DOC_PATH), DOC, "utf8");
       },
@@ -65,18 +51,14 @@ export const viewContextBrowser: Scenario = {
       await agentBrowser(["fill", COMPOSER, MESSAGE]);
       await agentBrowser(["press", process.platform === "darwin" ? "Meta+Enter" : "Control+Enter"]);
 
-      // `idle` alone does not mean the turn RAN: the dock creates the thread on
-      // submit, and a row exists (idle, empty) for a beat before the turn
-      // starts. So the settle condition is idle AND the user's own message
-      // already on the timeline — otherwise this reads the empty window and
-      // fails on a timeline that was simply not written yet.
+      // idle alone does not mean the turn ran: the thread exists idle and empty for a beat before
+      // the turn starts, so also require the user's own message on the timeline.
       ctx.log("waiting for the turn to settle");
       const deadline = Date.now() + TURN_DEADLINE_MS;
       let rows: readonly TimelineRow[] = [];
       for (;;) {
         const listed = await app.api.threads.list();
-        // The composer attaches the open note by default, so the action's
-        // originDocPath IS the doc — which is itself worth asserting.
+        // the composer attaches the open note by default.
         const chat = listed.threads.find(
           (thread) => thread.originDocPath === DOC_PATH && thread.archivedAt === null,
         );
@@ -98,14 +80,11 @@ export const viewContextBrowser: Scenario = {
         (row): row is TimelineConversationRow => row.kind === "conversation" && row.role === "user",
       );
       expect(sent !== undefined, "the user's message is not on the timeline");
-      // The bubble is what was typed, byte for byte — the context rides beside
-      // it, never folded into it.
       expectEq(sent.text, MESSAGE, "the stored message text");
       const context = sent.viewContext;
       expect(context !== null, "the send carried no view context");
       expectEq(context.resource, DOC_PATH, "the doc the user was looking at");
-      // The revision names the bytes on disk, which is what the flush before
-      // the send is for.
+      // the flush before the send is what makes the revision name the bytes on disk.
       expectEq(
         context.revision,
         sha256Hex(await readFile(join(app.vaultDir, DOC_PATH), "utf8")),
@@ -117,7 +96,8 @@ export const viewContextBrowser: Scenario = {
           row.kind === "conversation" && row.role === "assistant",
       );
       expect(answered !== undefined, "the scripted agent did not answer");
-      // What the provider was actually handed.
+      // the scripted driver echoes what turnPromptInput handed it: the only view an e2e has of the
+      // provider's prompt.
       expect(
         answered.text.includes(DOC_PATH),
         `the prompt did not name the doc — got: ${answered.text}`,

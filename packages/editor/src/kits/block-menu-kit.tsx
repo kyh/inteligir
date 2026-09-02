@@ -1,8 +1,4 @@
-// Block selection + block menu + cursor overlay. Constraint:
-// block selection excludes `frontmatter` (pinned at [0], edited through the
-// properties panel), `column` (column internals move with their group), `codeLine`,
-// and `td`. The context menu and the drag-grip menu are ONE implementation
-// (block-menu.tsx) driven by BlockMenuPlugin's openId/position.
+// frontmatter is not selectable: pinned at [0], edited through the properties panel.
 
 import {
   BlockMenuPlugin,
@@ -33,8 +29,6 @@ export const BlockMenuKit = [
   BlockMenuPlugin.configure({
     render: { aboveSlate: BlockContextMenu },
   }),
-  // Selection ghost while menus/popovers hold focus (the AI menu
-  // depends on it).
   CursorOverlayPlugin.configure({
     render: { afterEditable: () => <CursorOverlay /> },
   }),

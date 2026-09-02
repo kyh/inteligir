@@ -1,6 +1,5 @@
-// The one write path for a rich block's payload: a normal editor
-// transaction over the node's `value`, so the change rides serialize → save →
-// git exactly like typing. Nothing else may mutate these nodes.
+// The one write path for a rich block's payload: an ordinary transaction, so the change rides
+// serialize → save → git like typing.
 
 import type { SlateEditor, TElement } from "platejs";
 

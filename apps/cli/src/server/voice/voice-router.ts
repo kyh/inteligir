@@ -1,10 +1,5 @@
-// The voice handlers. The service decides; this layer decodes the audio and
-// says which refusal class each of its throws answers with.
-//
-// The switch over the refusal set is EXHAUSTIVE at every write, including the
-// class a given row does not declare — that case rethrows into the generic
-// 500, which is what makes "what does THIS route answer for it" a compile-time
-// question when a fourth class arrives.
+// the refusal switch is exhaustive, undeclared classes included (they rethrow): a fourth class
+// is then a compile error at every route rather than a silent 500.
 
 import { VOICE_MAX_AUDIO_BYTES } from "@repo/api/local/voice/voice-schema";
 import { base } from "../orpc";
@@ -28,11 +23,7 @@ function refusalFor(cause: unknown): WriteRefusal | null {
   return null;
 }
 
-/**
- * Base64 to samples. Zod already bounded the STRING, but base64 that decodes
- * to an odd number of bytes is not Int16 audio at all — half a sample would be
- * read as silence or as noise depending on what followed it in memory.
- */
+// base64 that decodes to an odd byte count is not int16 audio.
 function decodePcm(base64: string): ArrayBuffer | null {
   const bytes = Buffer.from(base64, "base64");
   if (bytes.byteLength === 0 || bytes.byteLength % 2 !== 0) {
@@ -41,8 +32,8 @@ function decodePcm(base64: string): ArrayBuffer | null {
   if (bytes.byteLength > VOICE_MAX_AUDIO_BYTES) {
     return null;
   }
-  // Copied out of the pool: Buffer.from shares a slab, and the samples are
-  // TRANSFERRED into the worker, which would detach whatever else sits in it.
+  // copied out of the pool: Buffer.from shares a slab, and the samples are transferred into
+  // the worker, which would detach the rest of it.
   const copy = new ArrayBuffer(bytes.byteLength);
   new Uint8Array(copy).set(bytes);
   return copy;
@@ -84,9 +75,7 @@ const transcribe = base.voice.transcribe.handler(async ({ context, input, errors
       case "busy":
         throw errors.CONFLICT({ message: refusal.message });
       case "unavailable":
-      // A runtime that loaded and then refused the clip is the same
-      // unusable capability from the caller's side; the message tells them
-      // apart, which is the split `connectors-router.ts` already makes.
+      // a runtime that loaded then refused the clip is the same unusable capability to the caller.
       case "transcription":
         throw errors.PROVIDER_UNAVAILABLE({ message: refusal.message });
       case undefined:

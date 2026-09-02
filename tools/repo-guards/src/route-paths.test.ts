@@ -1,23 +1,6 @@
-// ---------------------------------------------------------------------------
-// One place spells a non-procedure route path.
-//
-// Every PROCEDURE is addressed by its position in the contract router, so its
-// path stopped existing — there is nothing left to hand-spell. What remains is
-// the small set of routes that are deliberately not procedures: the RPC mount
-// itself, the health probe, the vault's asset bytes, and the two websockets.
-// Those still have paths, and several callers reach them without a typed
-// client — a supervisor's probe, a socket dial, a smoke script, an env var's
-// own help text — and each is exactly the caller that drifts.
-//
-// So the rule: outside the module that declares them, nothing writes one of
-// those paths as a literal. `@repo/api/local/routes` is the one spelling.
-//
-// The sweep is over what the repo CONTAINS, not what it ships: the smoke
-// scripts live in `scripts/` and are exactly the kind of caller that drifts.
-// Test files are excluded on purpose and not by accident — a route test that
-// derived its URL from the contract could not catch the contract moving, so
-// spelling the wire out is what those files are FOR.
-// ---------------------------------------------------------------------------
+// the sweep is what the repo contains, not what it ships: smoke scripts in scripts/ are the callers
+// that drift. tests are excluded on purpose: a route test that derived its URL from the contract
+// could not catch the contract moving.
 
 import { VAULT_API_PATHS } from "@repo/api/cloud/vault/vault-schema";
 import {
@@ -29,16 +12,7 @@ import {
 import { describe, expect, it } from "vitest";
 import { isTestFile, sourceOf, workspaceSourceFiles, workspaces } from "./repo";
 
-/**
- * Each namespace's paths and the module that declares them. TWO homes, because
- * there are two servers: the local app's non-procedure routes, and the cloud's
- * vault read rows — a wire a deployed Worker answers for installs that may be
- * months stale, so a caller holding its own copy of one is worse here, not
- * better.
- *
- * `/ws` is deliberately absent: two characters plus a slash matches far too
- * much ordinary prose and code to be a signal.
- */
+// `/ws` is absent: two characters plus a slash matches far too much ordinary prose and code.
 const NAMESPACES = [
   {
     home: "packages/api/src/local/local-routes.ts",
@@ -52,18 +26,12 @@ const NAMESPACES = [
   },
 ];
 
-/** Longest first, so a hit reports the most specific path — and so the
- *  cloud's `/v1/vault/asset` is tried before the local `/vault/asset` it
- *  contains. */
+// longest first, so the cloud's `/v1/vault/asset` is tried before the local `/vault/asset` it
+// contains.
 const GUARDED = NAMESPACES.flatMap((namespace) =>
   namespace.paths.map((path) => ({ path, home: namespace.home, use: namespace.use })),
 ).toSorted((left, right) => right.path.length - left.path.length);
 
-/**
- * Files allowed to spell a path anyway, and why. Each is drained below: a row
- * whose file no longer matches fails, so an exemption cannot outlive its
- * reason.
- */
 const ELSEWHERE = new Map<string, string>([
   [
     "apps/cli/scripts/smoke.mjs",
@@ -85,21 +53,16 @@ interface Hit extends Spelled {
   file: string;
 }
 
-/** A path is spelled when it appears NOT followed by a word character or a
- *  dash — which is what tells `"/vault/asset?path="` from the module specifier
- *  `"./vault/asset-route"`. */
+// not followed by a word character or a dash, which tells `"/vault/asset?path="` from
+// `"./vault/asset-route"`.
 function spells(source: string, path: string): boolean {
   return new RegExp(`${path}(?![\\w-])`, "u").test(source);
 }
 
-/** The most specific path this source spells, with the home that owns it.
- *  One hit: the first is the most specific, and a file that spells two has
- *  one thing to fix either way. */
 function spellings(source: string): Spelled[] {
   return GUARDED.filter((row) => spells(source, row.path)).slice(0, 1);
 }
 
-/** Every non-test source file the repo holds. */
 function sweptFiles(): string[] {
   return workspaces()
     .flatMap((workspace) => workspaceSourceFiles(workspace))
@@ -122,9 +85,6 @@ describe("one spelling per non-procedure route path", () => {
   const files = sweptFiles();
 
   it("finds every home and the tree they are held against", () => {
-    // A path that read as empty would match every file; a sweep that missed
-    // the scripts would silently stop covering the callers this guard was
-    // written for. Both are checked, because both fail by finding nothing.
     for (const row of GUARDED) {
       expect(row.path.startsWith("/"), `not a path: "${row.path}"`).toBe(true);
     }

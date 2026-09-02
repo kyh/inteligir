@@ -1,9 +1,5 @@
-// The knowledge procedures: read-only queries over the derived vault index.
-//
-// No row declares a refusal, and that is a property of the domain rather than
-// an omission: every handler settles the index and answers from it, and a path
-// the vault could not address is already refused by `vaultPathSchema` at the
-// input boundary — which oRPC raises as BAD_REQUEST, so no row states it.
+// no row declares a refusal: every handler answers from the index, and a bad path is
+// vaultPathSchema's BAD_REQUEST at the input boundary
 
 import { oc } from "@orpc/contract";
 import {

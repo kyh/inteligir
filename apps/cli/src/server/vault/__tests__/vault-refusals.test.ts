@@ -1,7 +1,4 @@
-// vaultWireError names the wire CLASS; the HTTP status a refusal answers comes
-// from the shared map (oRPC v2 keeps none on the error). Both are pinned here so
-// the class and its status cannot drift — asserting the class alone is what let
-// a status bug through before.
+// oRPC v2 keeps no status on the error; asserting the class alone let a status bug through.
 
 import { VaultPathError } from "@repo/notes/knowledge/vault-path";
 import { describe, expect, it } from "vitest";

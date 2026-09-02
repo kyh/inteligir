@@ -13,12 +13,7 @@ import { makeTempDir } from "./open-temp-db";
 
 const MIGRATIONS_DIR = fileURLToPath(new URL("../../drizzle", import.meta.url));
 
-/**
- * The generation the shipped migrations end at, read from drizzle's own
- * journal. Derived rather than written down: what these tests assert is that
- * `meta.schema_version` AGREES with the folder that was applied, and a
- * hand-typed number turns every new migration into an unrelated test edit.
- */
+// derived from the journal: a hand-typed number turns every new migration into a test edit.
 function latestGeneration(): number {
   const journalPath = join(MIGRATIONS_DIR, "meta/_journal.json");
   const journal = parseMigrationJournal(readFileSync(journalPath, "utf8"), journalPath);
@@ -30,15 +25,11 @@ function latestGeneration(): number {
 
 const LATEST = latestGeneration();
 
-/** An UN-migrated database — the migrator is what these suites test. */
+// un-migrated, unlike the shared fixture: the migrator is what these suites test.
 function openTempDb(): DbConnection {
   return createConnection(join(makeTempDir("inteligir-db-test-"), "test.db"));
 }
 
-/**
- * A copy of the shipped migrations folder cut off after `generations` — an
- * OLDER build of this package, as far as `runMigrations` can tell.
- */
 function freezeMigrationsAt(dir: string, generations: number): void {
   cpSync(MIGRATIONS_DIR, dir, { recursive: true });
   const journalPath = join(dir, "meta", "_journal.json");
@@ -74,7 +65,6 @@ describe("boot", () => {
     const db = openTempDb();
     expect(getSchemaVersion(db, runMigrations(db, v2Migrations))).toBe(2);
 
-    // Populate a thread with rows in every child table.
     const now = Date.now();
     db.run(
       sql`INSERT INTO threads (id, status, created_at, updated_at) VALUES ('thr_v2', 'idle', ${now}, ${now})`,
@@ -94,7 +84,6 @@ describe("boot", () => {
 
     expect(getSchemaVersion(db, runMigrations(db))).toBe(LATEST);
 
-    // Every child row survived the upgrade and still resolves its parent.
     expect(db.get(sql`SELECT count(*) AS n FROM events WHERE thread_id = 'thr_v2'`)).toEqual({
       n: 1,
     });
@@ -114,16 +103,12 @@ describe("boot", () => {
 
   it("refuses to answer a schema version before migrations ran", () => {
     const db = openTempDb();
-    // Pre-migration the meta table itself is missing, so sqlite refuses.
     expect(() => getSchemaVersion(db, LATEST)).toThrow();
   });
 
   it("refuses a database a NEWER build already upgraded", () => {
-    // The v2 folder is a stand-in for an older build: it applies nothing to a
-    // fully-migrated file (drizzle skips migrations older than the last
-    // applied one), so without a ceiling the boot would carry on reading a
-    // schema it has no SQL for — silently, until a query hit a column that
-    // moved.
+    // drizzle applies nothing from the v2 folder to a fully-migrated file, so the ceiling is
+    // the only guard.
     const db = openTempDb();
     runMigrations(db);
 

@@ -1,11 +1,3 @@
-// ⌘G search-in-note: a small floating find bar over the editor, highlighting
-// every case-insensitive match with a TEXT-level decoration (the tag-chip
-// pattern — each range carries the plugin-key flag so the keyed leaf claims
-// it) and a distinct tint on the active match. Enter/⇧Enter (and ⌘G/⌘⇧G from
-// the document) cycle with scroll-into-view; Esc closes and returns the
-// caret. Editor-local: state is a module store because `decorate` runs
-// outside React, and the whole surface unmounts with the editor.
-
 import { useEffect, useRef, useSyncExternalStore } from "react";
 import { SearchIcon, XIcon } from "lucide-react";
 import {
@@ -32,10 +24,8 @@ type FindBarState = {
 let state: FindBarState = { active: null, open: false, query: "" };
 const listeners = new Set<() => void>();
 
-// Decorations read this module store rather than the document, so a store
-// change must also force Plate to re-run decorate — nothing in the document
-// changed, and every mutation here arrives from an event that already has the
-// editor in hand.
+// A module store because decorate runs outside React; decorations read it rather
+// than the document, so every change must also redecorate.
 function setState(editor: SlateEditor, next: Partial<FindBarState>): void {
   state = { ...state, ...next };
   editor.api.redecorate();
@@ -53,7 +43,6 @@ export function getFindBarState(): FindBarState {
   return state;
 }
 
-/** Every match location, in document order — the cycle order. */
 export function collectFindMatches(editor: SlateEditor, query: string): MatchLocation[] {
   if (query === "") return [];
   const needle = query.toLowerCase();
@@ -95,7 +84,7 @@ function scrollToMatch(editor: SlateEditor, match: MatchLocation, length: number
     const target = container instanceof Element ? container : (container?.parentElement ?? null);
     target?.scrollIntoView({ behavior: "smooth", block: "center" });
   } catch {
-    // A stale location after an edit — the next cycle recomputes.
+    // stale location after an edit
   }
 }
 

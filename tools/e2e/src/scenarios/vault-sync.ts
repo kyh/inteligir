@@ -1,10 +1,3 @@
-// Two instances against one scratch bare remote: a write on A reaches B's
-// disk through git sync, and a both-edited-the-same-line pair surfaces as the
-// typed conflict state on the instance whose rebase was refused. Auto-sync
-// (the boot pass and the interval) is disabled on both instances via
-// INTELIGIR_SYNC_INTERVAL_MS=0, so every sync below is an explicit call and
-// the divergence between A and B is deterministic.
-
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -18,6 +11,7 @@ const CONFLICT_BASE = "# Conflict\n\nshared line\n";
 const CONFLICT_A = "# Conflict\n\nedited on A\n";
 const CONFLICT_B = "# Conflict\n\nedited on B\n";
 
+// every sync is an explicit call, so the divergence between A and B is deterministic.
 const NO_AUTO_SYNC = { INTELIGIR_SYNC_INTERVAL_MS: "0" };
 
 async function syncExpectClean(api: InstanceApi, label: string): Promise<void> {
@@ -90,8 +84,8 @@ export const vaultSync: Scenario = {
     expect(statusB.state === "conflict", `B status settled on "${statusB.state}"`);
 
     ctx.log("B's repo is intact under git's own eyes");
-    // B's edit was committed before the fetch, so a fully aborted rebase
-    // leaves the tree byte-identical to HEAD: porcelain must be EMPTY.
+    // B's edit was committed before the fetch, so an aborted rebase leaves the tree identical to
+    // HEAD.
     const porcelain = await exec(
       "git",
       ["-C", b.vaultDir, "--no-optional-locks", "status", "--porcelain"],

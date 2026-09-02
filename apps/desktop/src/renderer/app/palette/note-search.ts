@@ -1,28 +1,15 @@
-// The palette's note-search seam: ONE injected async function between the
-// query box and the hit list, so the palette renders hits without knowing how
-// they were found. `search-source.ts` composes the real one — the knowledge
-// index's full-text + tag search (`tag:<name>` terms parse engine-side) with
-// the filename tiers below as the zero-query view and the fallback when the
-// index answers nothing or errors. This module stays free of the client, so
-// the tiers can be tested as the pure ranking they are.
-
 import { basenamePath } from "@repo/notes/knowledge/vault-path";
 
 export interface NoteSearchHit {
   path: string;
-  /** The doc's title when the source knows one (the knowledge index does). */
   title?: string;
-  /** A match snippet when the source has one. */
   snippet?: string;
 }
 
-/** `signal` aborts a superseded query's request; the palette owns the
- *  controller and never renders an aborted answer. */
 export type NoteSearchSource = (query: string, signal: AbortSignal) => Promise<NoteSearchHit[]>;
 
 export const NOTE_SEARCH_LIMIT = 12;
 
-/** True when every character of `query` appears in `text` in order. */
 function isSubsequence(query: string, text: string): boolean {
   let at = 0;
   for (const char of text) {
@@ -36,8 +23,6 @@ function isSubsequence(query: string, text: string): boolean {
   return query.length === 0;
 }
 
-/** Filename-tier fuzzy match: ranked name-prefix > name-substring >
- *  path-substring > path-subsequence, alphabetical within a tier. */
 export function searchNotesByFilename(
   query: string,
   filePaths: readonly string[],

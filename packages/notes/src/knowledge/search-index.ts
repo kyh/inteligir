@@ -1,23 +1,5 @@
-// ---------------------------------------------------------------------------
-// Lexical full-text index with title/heading/body tiering — the pure,
-// zero-dependency in-memory reference engine inside KnowledgeIndex. The
-// production surfaces search through the SQL KnowledgeStore's FTS5 instead
-// (bm25 with the same 10/4/1 field weights, sql-knowledge-store.ts); this
-// class stays as the deterministic, tier-exact behavioral pin (core tests)
-// and the drop-in for any surface that can't carry a SQLite binding.
-//
-// Model: TWO posting tables over the same docs — one keyed by the literal
-// token, one by its stem — each mapping doc → per-field term frequencies. The
-// split mirrors the SQL store's literal columns and their stem shadow, and for
-// the same reason: a term still being typed prefix-matches the literal table,
-// where the letters the user has actually typed still start a word, while a
-// settled term asks the stems. Which tokens a query asks for, which of them
-// are stems, and whether they are all required is search-query.ts's answer for
-// both engines; this file only executes it. Scoring is weighted, capped tf —
-// caps keep a body-spammy doc from drowning a title match, and under "any"
-// they are also what makes a doc matching more terms outrank one matching
-// fewer.
-// ---------------------------------------------------------------------------
+// The in-memory engine beside the SQL store's FTS5: search-query.ts decides what
+// both ask for, and the field weights and tiers here must match sql-knowledge-store's.
 
 import {
   planSearchQuery,
@@ -40,9 +22,8 @@ type FieldCounts = { title: number; heading: number; body: number };
 const TITLE_WEIGHT = 10;
 const HEADING_WEIGHT = 4;
 const BODY_WEIGHT = 1;
-/** Per-field tf cap — bounded so max body contribution (5) < one title hit. */
+// the max body contribution (5) stays below one title hit
 const TF_CAP = 5;
-/** Prefix matches (the token still being typed) score below exact matches. */
 const PREFIX_FACTOR = 0.7;
 
 function weightOf(counts: FieldCounts): number {
@@ -78,16 +59,13 @@ function drop(postings: Postings, keys: ReadonlySet<string>, path: string): void
   }
 }
 
-/** What one doc put into each table, so removing it is a bounded walk. */
 type DocKeys = { tokens: Set<string>; stems: Set<string> };
 
 export class SearchIndex {
   private readonly postings: Postings = new Map();
   private readonly stemPostings: Postings = new Map();
   private readonly docKeys = new Map<string, DocKeys>();
-  /** Sorted `postings` keys for range-scanned prefix expansion; `null` when a
-   * mutation may have changed the key set — rebuilt lazily on first search.
-   * Literal keys only: prefix matching never reads the stems. */
+  // literal keys only: prefix matching never reads the stems
   private sortedTokens: string[] | null = null;
 
   set(path: string, fields: SearchFields): void {
@@ -125,7 +103,6 @@ export class SearchIndex {
     this.sortedTokens = null;
   }
 
-  /** First index into `sorted` whose key is `>= token` (lower bound). */
   private static lowerBound(sorted: readonly string[], token: string): number {
     let lo = 0;
     let hi = sorted.length;
@@ -138,9 +115,6 @@ export class SearchIndex {
     return lo;
   }
 
-  /** Ranked hits for the query — see search-query.ts for which tokens are
-   * asked for, whether all of them are required, and why a plan that matches
-   * nothing is followed by a relaxed one. */
   search(query: string, limit: number): SearchHit[] {
     for (const plan of planSearchQuery(query)) {
       const hits = this.run(plan, limit);
@@ -150,9 +124,6 @@ export class SearchIndex {
   }
 
   private run(plan: SearchQueryPlan, limit: number): SearchHit[] {
-    // doc → summed contribution. Under "all" a doc that misses a term is
-    // dropped from the running set; under "any" it simply scores less than
-    // the docs that matched more terms.
     let surviving: Map<string, number> | null = null;
     for (const term of plan.terms) {
       const contributions = this.contributionsFor(term);
@@ -182,21 +153,9 @@ export class SearchIndex {
       .slice(0, limit);
   }
 
-  /** Every doc one term reaches, scored.
-   *
-   * Whatever shares the term's stem counts — the whole-word match. A doc
-   * holding the LITERAL word counts AGAIN, and that second helping is THE
-   * EXACT TIER, not a double-count: Porter maps `busy` and `business` both to
-   * `busi`, so without it a note titled "Busy" (weight 10) outranks a note
-   * whose body actually says `business` (weight 1) with nothing to separate
-   * them. It adds no docs — a doc holding the token already carries its stem —
-   * so the tier changes ranking only. The SQL store spells the same tier as an
-   * OR of both columns, whose bm25 contributions sum the same way.
-   *
-   * A term still being TYPED additionally reaches whatever merely STARTS with
-   * the letters typed so far. That one is a WEAKER reading of the term, not a
-   * second helping of it, so it is taken at a discount and never lowers what a
-   * doc already earned. */
+  // a doc holding the literal word counts again on top of its stem, and that is the exact
+  // tier, not a double-count: porter maps `busy` and `business` both to `busi`, so without
+  // it a note titled "Busy" outranks one whose body says `business`. the sql store sums the same way
   private contributionsFor(term: SearchQueryTerm): Map<string, number> {
     const contributions = new Map<string, number>();
     const add = (path: string, score: number): void => {
@@ -215,16 +174,12 @@ export class SearchIndex {
       for (const [path, counts] of exact) add(path, weightOf(counts));
     }
     if (!term.prefix) return contributions;
-    // Range-scan just the keys sharing this prefix: sorted keys make the
-    // prefix span a contiguous block from the lower bound, so walk it and
-    // stop at the first non-match instead of iterating every posting.
     if (this.sortedTokens === null) this.sortedTokens = [...this.postings.keys()].toSorted();
     const sorted = this.sortedTokens;
     for (let idx = SearchIndex.lowerBound(sorted, term.token); idx < sorted.length; idx++) {
       const candidate = sorted[idx];
       if (candidate === undefined || !candidate.startsWith(term.token)) break;
-      // The token ITSELF is the exact tier above, already counted at full
-      // weight; re-reading it here would only offer a discounted version.
+      // the token itself was counted at full weight above
       if (candidate === term.token) continue;
       const docs = this.postings.get(candidate);
       if (!docs) continue;

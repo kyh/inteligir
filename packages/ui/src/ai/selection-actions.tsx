@@ -6,16 +6,6 @@ import type { HTMLAttributes, ReactNode } from "react";
 
 import { cn } from "@repo/ui/lib/utils";
 
-/* ─────────────────────────────────────────────────────────
- * SELECTION ACTIONS — the bar that appears over a selection,
- * and the result panel an action opens
- *
- * Icons are a SLOT — this package already has `lucide-react` and
- * a caller may want neither — the shimmer is the `shimmer-text`
- * keyframe this directory already defines, and streamed text is
- * `streaming-text.tsx`, which is right here.
- * ───────────────────────────────────────────────────────── */
-
 const SelectionActions = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
     <div
@@ -34,9 +24,7 @@ const SelectionActions = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElemen
 SelectionActions.displayName = "SelectionActions";
 
 export interface SelectionActionProps extends HTMLAttributes<HTMLButtonElement> {
-  /** Leading glyph — the caller's own icon element. */
   icon?: ReactNode;
-  /** Shows a chevron, marking the action as opening more. */
   hasMenu?: boolean;
 }
 
@@ -91,9 +79,6 @@ const SelectionActionsSeparator = forwardRef<HTMLSpanElement, HTMLAttributes<HTM
 );
 SelectionActionsSeparator.displayName = "SelectionActionsSeparator";
 
-/** The "working on it" label: a highlight sweeping across the words. Uses the
- *  `shimmer-text` keyframe this directory already ships, which the reduced-
- *  motion block in globals.css switches off. */
 const Shimmer = forwardRef<HTMLSpanElement, HTMLAttributes<HTMLSpanElement>>(
   ({ className, ...props }, ref) => (
     <span ref={ref} data-slot="shimmer" className={cn("bui-shimmer-text", className)} {...props} />
@@ -153,7 +138,6 @@ const SelectionResultBody = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivEle
 SelectionResultBody.displayName = "SelectionResultBody";
 
 export interface SelectionResultFooterProps extends HTMLAttributes<HTMLDivElement> {
-  /** Accept / discard — the caller's own controls. */
   actions?: ReactNode;
 }
 

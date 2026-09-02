@@ -1,9 +1,3 @@
-// Composition root for the vault: repo init + tmp sweep, the CRUD service,
-// the git engine, and the external-change watcher, wired to one notifier.
-// The service's mutations run inside the git engine's repo lock, so a write
-// can never interleave a rebase; the watcher's fan-out is suppressed while a
-// sync holds that lock and replaced by ONE consolidated notification after.
-
 import { resolve } from "node:path";
 import type { DbNotifier } from "@repo/domain/notifier";
 import type { VaultStatusResponse } from "@repo/api/local/vault/vault-schema";
@@ -19,37 +13,22 @@ import type { ParcelWatcherBackend } from "./watcher/parcel-backend";
 
 const DEFAULT_SYNC_INTERVAL_MS = 60_000;
 
-/** Retention is 30 days, so a daily sweep bounds overshoot at ~3%. */
+// retention is 30 days, so a daily sweep bounds overshoot at ~3%.
 const TRASH_SWEEP_INTERVAL_MS = 24 * 60 * 60 * 1000;
 
-/** How long a service-written path suppresses its own watcher echo. */
 const SELF_WRITE_ECHO_WINDOW_MS = 2_000;
 
-/** What a file-level change announcement can say: the vault-relative paths
- * that moved, or "unknown" when a set of changes has no path list (the
- * consolidated post-sync notification) — a consumer must re-diff, not re-read
- * a named file. */
+// "unknown" has no path list (the consolidated post-sync change): a consumer must re-diff.
 export type VaultFilesChange = { kind: "paths"; paths: readonly string[] } | { kind: "unknown" };
 
 export interface VaultRuntimeArgs {
   vaultDir: string;
-  /** Where the remote comes from, re-read per pass (an explicit remote, the
-   *  pairing-derived hosted one, or null = local-only with the loop idle). */
   remote: VaultRemoteProvider;
-  /** The app's data dir. Must be disjoint from the vault (the vault is a git
-   *  repo the sync loop pushes; a nested data dir would be staged into it). */
   dataDir: string;
   notifier: DbNotifier;
-  /** Path-level twin of the notifier's vault announcement, for consumers that
-   *  need to know WHICH files moved (the knowledge projection). Fired for
-   *  service mutations, external watcher batches, and (as "unknown") the
-   *  consolidated post-sync change. */
   onFilesChanged?: (change: VaultFilesChange) => void;
-  /** false skips the filesystem watcher (tests that only exercise CRUD). */
   watch?: boolean;
-  /** null disables the interval + boot sync (tests drive syncNow directly). */
   syncIntervalMs?: number | null;
-  /** Tests: hermetic git env / in-process watcher backend. */
   gitEnv?: Record<string, string>;
   watcherBackend?: ParcelWatcherBackend;
 }
@@ -64,8 +43,7 @@ export interface VaultRuntime {
 
 export async function createVaultRuntime(args: VaultRuntimeArgs): Promise<VaultRuntime> {
   const root = resolve(args.vaultDir);
-  // Config refuses this earlier for the shipping boot; re-asserted here so a
-  // directly-composed runtime (tests, future callers) cannot skip it.
+  // config refuses this earlier; re-asserted so a directly composed runtime cannot skip it.
   assertVaultAndDataDirDisjoint(root, resolve(args.dataDir));
 
   const ensureArgs: EnsureVaultRepoArgs = {
@@ -75,14 +53,12 @@ export async function createVaultRuntime(args: VaultRuntimeArgs): Promise<VaultR
   };
   if (args.gitEnv) ensureArgs.env = args.gitEnv;
   await ensureVaultRepo(ensureArgs);
-  // A full recursive walk that nothing waits on — see the sweep's own note.
-  // Boot must not hold the listener open behind it, so it runs beside
-  // everything below and only ever unlinks what predates this call.
+  // a full recursive walk nothing waits on: boot must not hold the listener behind it.
   void sweepStaleTmpFiles(root, Date.now()).catch((cause: unknown) => {
     console.error(`vault: stale staging sweep failed: ${String(cause)}`);
   });
 
-  // Watcher batches held back while a sync ran; drained as ONE notification.
+  // watcher batches held back while a sync ran; drained as one notification.
   let sawChangesDuringSync = false;
 
   const gitArgs: GitEngineArgs = {
@@ -93,14 +69,13 @@ export async function createVaultRuntime(args: VaultRuntimeArgs): Promise<VaultR
       if (!gitIsSyncing() && sawChangesDuringSync) {
         sawChangesDuringSync = false;
         args.notifier.notifyVault(["files-changed"]);
-        // The batches were held back, so their paths are gone — announce that.
+        // the held-back batches' paths are gone.
         args.onFilesChanged?.({ kind: "unknown" });
         git.scheduleCommit();
       }
     },
     onFilesChanged: () => {
-      // A rebase moved the working tree. Mid-sync, so hold it with the
-      // watcher's own batches and let the consolidated notification carry it.
+      // mid-sync: hold it with the watcher's batches for the consolidated notification.
       sawChangesDuringSync = true;
     },
     onError: (message) => console.error(`vault git: ${message}`),
@@ -109,11 +84,8 @@ export async function createVaultRuntime(args: VaultRuntimeArgs): Promise<VaultR
   const git = createGitEngine(gitArgs);
   const gitIsSyncing = () => git.isSyncing();
 
-  // Exact-path echo suppression for the service's own writes: the mutation
-  // already notified directly (works with the watcher off, and without its
-  // latency), so its watcher echo would only double-invalidate. Recursive dir
-  // ops may still echo once through their children — a harmless extra
-  // invalidation, not worth tracking a subtree for.
+  // the mutation already notified directly, so its watcher echo would only double-invalidate.
+  // recursive dir ops may still echo once through their children; not worth tracking a subtree.
   const recentSelfWrites = new Map<string, number>();
   function noteSelfWrites(paths: readonly string[]): void {
     const now = Date.now();
@@ -166,12 +138,9 @@ export async function createVaultRuntime(args: VaultRuntimeArgs): Promise<VaultR
     watcher.start();
   }
 
-  // Boot reconciliation: a crash between a write and its debounced commit
-  // leaves the tree dirty with no event to trigger one — sweep it now.
+  // a crash between a write and its debounced commit leaves the tree dirty with no event.
   git.scheduleCommit();
 
-  // Trash retention, off the critical path like the tmp sweep; each purge is
-  // an ordinary service mutation, so it announces and stages its own paths.
   const sweepTrash = (): void => {
     void sweepExpiredTrash(service).catch((cause: unknown) => {
       console.error(`vault: trash retention sweep failed: ${String(cause)}`);
@@ -181,9 +150,6 @@ export async function createVaultRuntime(args: VaultRuntimeArgs): Promise<VaultR
   const trashSweepTimer = setInterval(sweepTrash, TRASH_SWEEP_INTERVAL_MS);
   trashSweepTimer.unref();
 
-  // Armed whether or not a remote exists right now: the provider is live, so
-  // a pairing minted after boot starts syncing on the next tick, and a pass
-  // with no remote is one provider read.
   const syncIntervalMs =
     args.syncIntervalMs === undefined ? DEFAULT_SYNC_INTERVAL_MS : args.syncIntervalMs;
   if (syncIntervalMs !== null) {

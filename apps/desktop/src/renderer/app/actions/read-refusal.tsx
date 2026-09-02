@@ -1,7 +1,3 @@
-// A panel read the server refused. The lead names the surface; the server's
-// own sentence follows when it carried one, because that is what names the
-// thing the user can act on — the sidecar file, the path the vault refused.
-
 import { refusalMessage } from "../api";
 
 export function ReadRefusal({ lead, error }: { lead: string; error: unknown }) {

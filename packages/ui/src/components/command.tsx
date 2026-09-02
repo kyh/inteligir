@@ -42,17 +42,12 @@ function CommandDialog({
   description?: string;
   className?: string;
   showCloseButton?: boolean;
-  /** Forwarded to the dialog popup (Base UI): the element focused on open. */
   initialFocus?: React.RefObject<HTMLElement | null>;
-  /** Forwarded to the inner cmdk root: disable built-in filtering. */
   shouldFilter?: boolean;
   children: React.ReactNode;
 }) {
-  // The sr-only header renders INSIDE DialogContent: as a sibling it would sit
-  // outside the portal and outside Dialog.Popup, and Dialog.Root would render
-  // it even while the palette is closed (Base UI puts Title/Description inside
-  // the Popup). `sr-only` is absolutely positioned, so it takes no row in the
-  // Popup's grid.
+  // the sr-only header must sit inside DialogContent: Base UI puts Title/Description inside the
+  // Popup, and as a sibling it would render even while the palette is closed.
   return (
     <Dialog {...props}>
       <DialogContent

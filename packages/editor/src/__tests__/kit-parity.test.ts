@@ -10,21 +10,9 @@ import { MD_REMARK_PLUGINS, MD_STRINGIFY } from "@repo/notes/markdown/md-plugins
 import { MD_RULES } from "@repo/editor/markdown/md-rules";
 import { parseMarkdown } from "@repo/editor/markdown/markdown-doc";
 
-// Mirror-sync-by-construction: every editor built from the kits carries THE
-// shared MarkdownPlugin instance — reference-identical options — and
-// serializes the canonical corpus deterministically. The live editor's
-// EDITOR_KIT is held to the same contract: it must be a plugin-superset of
-// BASE_KIT, share the serialization brain by reference, and agree on
-// inline/void node metadata — a missing isInline/isVoid registration would
-// let Slate normalization DELETE date/wiki inline voids from a canonical file
-// on first edit.
-
 const FIXTURES = fileURLToPath(new URL("fixtures/roundtrip/canonical/", import.meta.url));
 
-// Every node plugin a file's bytes depend on. Dropping any of these from
-// BASE_KIT or EDITOR_KIT is a silent corruption hazard, not a cosmetic one —
-// the opaque pair most of all, since it is what carries constructs neither
-// editor models.
+// dropping any of these from a kit is silent corruption, the opaque pair most of all.
 const VOCABULARY_PLUGIN_KEYS = [
   "callout",
   "toggle",
@@ -153,7 +141,7 @@ describe("kit parity (live editor mirror)", () => {
     for (const name of readdirSync(FIXTURES).toSorted()) {
       const src = readFileSync(`${FIXTURES}${name}`, "utf8");
       const parsed = parseMarkdown(src);
-      if (!parsed.ok) continue; // asserted above
+      if (!parsed.ok) continue;
       const out = serializeMd(live, { remarkStringifyOptions: MD_STRINGIFY, value: parsed.value });
       expect(out.trimEnd(), `${name} must match its canonical bytes via the live editor`).toBe(
         src.trimEnd(),

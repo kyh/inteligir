@@ -1,9 +1,3 @@
-// Kit behaviors, exercised on a headless editor built from the LIVE
-// EDITOR_KIT (the React halves' overrides — column normalizer, wiki `]]`
-// rule, toggle child normalizer — are editor behavior, not render behavior).
-// Serialization itself is pinned by the fixture matrix; these tests pin
-// the editing transforms that feed it.
-
 import { describe, expect, it } from "vitest";
 import { createSlateEditor, ElementApi, KEYS, type Descendant, type TElement } from "platejs";
 import { serializeMd } from "@platejs/markdown";
@@ -17,9 +11,6 @@ import { insertEquation, insertInlineEquation } from "@repo/editor/kits/math-kit
 import { insertToggle } from "@repo/editor/kits/toggle-kit";
 import { MD_STRINGIFY, parseMarkdown, roundTrip } from "@repo/editor/markdown/markdown-doc";
 
-// The live-editor plugin type is irrelevant to these behaviors; the loose
-// editor from createSlateEditor(EDITOR_KIT) matches the transforms' PlateEditor
-// parameter structurally.
 function makeEditor(md = "") {
   const parsed = md === "" ? null : parseMarkdown(md);
   const value = parsed && parsed.ok ? parsed.value : [{ children: [{ text: "" }], type: "p" }];
@@ -30,7 +21,6 @@ function out(editor: ReturnType<typeof makeEditor>): string {
   return serializeMd(editor, { remarkStringifyOptions: MD_STRINGIFY });
 }
 
-// Assertion-free element narrowing (repo bans `as` and `!`).
 function el(node: Descendant | undefined): TElement {
   if (node === undefined || !ElementApi.isElement(node)) {
     throw new Error("expected an element node");
@@ -44,8 +34,6 @@ describe("column normalizer (suppressed width writer)", () => {
       "<column_group>\n  <column>\n    left\n  </column>\n\n  <column>\n    right\n  </column>\n</column_group>\n";
     const editor = makeEditor(src);
     editor.tf.normalize({ force: true });
-    // Edit inside the first column — @platejs/layout's withColumn would stamp
-    // width="50%" (or 33.333333333333336% for 3 cols) into the group here.
     editor.tf.insertText("+", { at: { offset: 0, path: [0, 0, 0, 0] } });
     const output = out(editor);
     expect(output).toContain("<column>");
@@ -62,7 +50,7 @@ describe("column normalizer (suppressed width writer)", () => {
   });
 
   it("preserves authored widths without rebalancing to 100", () => {
-    // 70 + 40 ≠ 100 — the stock normalizer would rewrite both columns.
+    // 70 + 40 ≠ 100, which the stock normalizer would rebalance
     const src =
       '<column_group>\n  <column width="70%">\n    a\n  </column>\n\n  <column width="40%">\n    b\n  </column>\n</column_group>\n';
     const editor = makeEditor(src);
@@ -88,10 +76,6 @@ describe("insertColumnGroup", () => {
     const editor = makeEditor("seed\n");
     editor.tf.select(editor.api.end([0]));
     insertColumnGroup(editor, 2);
-    // An autosave can land before either column has content: the empty
-    // column (one empty paragraph) must serialize to `<column />` — the
-    // same bytes its parse produces — or the very first save is
-    // non-canonical and the file falls to Raw (live-drive regression).
     const output = out(editor);
     expect(output).toContain("<column_group>");
     expect((output.match(/<column \/>/g) ?? []).length).toBe(2);
@@ -122,11 +106,8 @@ function type(editor: ReturnType<typeof makeEditor>, text: string) {
   for (const char of text) editor.tf.insertText(char);
 }
 
-// Char-by-char typing of `[[` opens the autocomplete picker
-// (wiki-autocomplete.test.ts pins that flow). The `]]` rule remains the
-// completion path for bodies already present as TEXT — a paste, or the
-// picker's cancel-restore — so these drive it with a bulk insert (the trigger
-// only fires on a single typed `[`) followed by typed closing brackets.
+// The trigger fires only on a single typed `[`, so these bulk-insert the body
+// (the paste / cancel-restore path the `]]` rule serves) and type the closers.
 describe("wiki `]]` completion rule", () => {
   it("completes [[Note]] into a wikiLink chip whose bytes round-trip", () => {
     const editor = makeEditor("x\n");
@@ -186,11 +167,6 @@ describe("wiki `]]` completion rule", () => {
   });
 
   it("never leaks zero-width spaces around live-typed inline voids", () => {
-    // Slate normalization pads inline elements with empty text siblings;
-    // Plate's default p rule would serialize each as U+200B (the md-rules
-    // p override prunes them — this is its regression pin). Typing must also
-    // CONTINUE after a completed chip — a caret parked inside the void would
-    // swallow the rest of the line.
     const editor = makeEditor("x\n");
     editor.tf.select(editor.api.end([0]));
     editor.tf.insertText(" [[a");
@@ -206,7 +182,6 @@ describe("wiki `]]` completion rule", () => {
 
   it("still preserves a deliberately empty paragraph (ZWSP placeholder)", () => {
     const editor = makeEditor("a\n\nb\n");
-    // Turn the doc into a / EMPTY / b by inserting an empty paragraph.
     editor.tf.insertNodes({ children: [{ text: "" }], type: "p" }, { at: [1] });
     const output = out(editor);
     expect(output).toContain("​");
@@ -248,19 +223,17 @@ describe("insertToggle", () => {
   });
 
   it("collapse state lives in the plugin store — flipping it never dirties bytes", () => {
-    // The chevron (ToggleElement) renders open = openIds.has(id) and hides the
-    // body via CSS; this pins the store mapping it consumes. Live blocks get
-    // ids from NodeIdPlugin; headless parse doesn't, so drive an explicit id.
+    // headless parse assigns no NodeIdPlugin ids, so an explicit id is driven
     const editor = makeEditor("<toggle>\n  Summary\n\n  body\n</toggle>\n");
     const before = out(editor);
     const isOpen = (id: string) => editor.getOptions(TogglePlugin).openIds?.has(id) ?? false;
-    expect(isOpen("t1")).toBe(false); // default: collapsed
+    expect(isOpen("t1")).toBe(false);
     editor.getApi(TogglePlugin).toggle.toggleIds(["t1"]);
     expect(isOpen("t1")).toBe(true);
     editor.getApi(TogglePlugin).toggle.toggleIds(["t1"]);
     expect(isOpen("t1")).toBe(false);
-    expect(out(editor)).toBe(before); // open state never reaches the document
-    expect(before).toContain("<toggle>\n"); // zero attributes serialized
+    expect(out(editor)).toBe(before);
+    expect(before).toContain("<toggle>\n");
   });
 });
 

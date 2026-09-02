@@ -12,23 +12,9 @@ import { AuthError } from "@/components/auth-shell";
 import { currentSession } from "@/lib/session-guard";
 import { siteConfig } from "@/lib/site-config";
 
-// ---------------------------------------------------------------------------
-// `/app/devices` — the signed-in audit surface: every paired device, and the
-// revoke that cuts one off on its next request (the credential check is never
-// cached).
-//
-// NOTHING HERE SHOWS A CODE TO A HUMAN. Codes still exist and are
-// still the artifact a pairing turns on, but the only thing that ever sees one
-// is `/app/pair`, which mints it on an approval and puts it straight in a
-// redirect. A "mint a code" button here would be a second way to pair whose
-// whole value was that a person could retype what it printed.
-//
-// `ssr: false`: everything on this page depends on the live session and the
-// device table, neither of which a server render can have — the shell would be
-// an empty frame either way, so it doesn't earn the flag's inheritance hazard
-// (see routes/app.tsx). The guard direction is the inverse of the auth pages':
-// signed-OUT visitors are sent to sign-in, and only the client can know.
-// ---------------------------------------------------------------------------
+// No "mint a code" button: /app/pair mints one straight into a redirect, and a code a
+// human retypes would be a second pairing path. ssr: false because everything here
+// depends on the live session, and only the client can send a signed-out visitor to sign-in.
 
 export const Route = createFileRoute("/app/devices")({
   ssr: false,

@@ -1,13 +1,6 @@
-// The OAuth authorize dance for hosted MCP connectors, in the pairing
-// discipline exactly: the SAME pending slot device pairing runs
-// (`@repo/api/cloud/pairing/approval-slot` — one armed approval, 128-bit
-// state compared in constant time, CONSUMED before the code is exchanged),
-// PKCE S256 so an intercepted loopback redirect holds a code nobody else can
-// spend, and a `disposed` guard so a callback in flight during shutdown
-// exchanges nothing. The provider is the other side here, not this product's
-// cloud — but the reasons transfer whole: the callback URL is reachable by
-// anything on the machine, and state + PKCE are what make that an open port
-// instead of a hole.
+// the same slot device pairing runs: state consumed before the exchange, pkce s256 so an
+// intercepted loopback redirect holds a code nobody else can spend, and a `disposed` guard
+// so a callback in flight during shutdown exchanges nothing.
 
 import { createApprovalSlot } from "@repo/api/cloud/pairing/approval-slot";
 import { generatePkceVerifier, pkceChallengeS256 } from "@repo/api/cloud/pairing/pairing-schema";
@@ -17,13 +10,10 @@ import type { ConnectorsStore, StoredOauthTokens } from "./connectors-store";
 import { ConnectorConflictError } from "./connectors-service";
 
 const PENDING_TTL_MS = 10 * 60 * 1000;
-/** Refresh a token this close to expiry as if it had expired: a token that
- *  dies mid-turn is worse than one refresh early. */
+// refreshed this close to expiry: a token that dies mid-turn is worse than one refresh early.
 const EXPIRY_SKEW_MS = 60 * 1000;
 const TOKEN_REQUEST_TIMEOUT_MS = 15 * 1000;
 
-/** The provider's token answer, parsed at the boundary. Providers disagree on
- *  optional fields; only these three are read. */
 const tokenResponseSchema = z.looseObject({
   access_token: z.string().min(1),
   refresh_token: z.string().min(1).optional(),
@@ -37,7 +27,6 @@ export type OauthCompletion =
   | { kind: "expired" }
   | { kind: "refused"; detail: string };
 
-/** What the slot holds for the authorize this app is waiting on. */
 interface PendingAuthorize {
   name: string;
   verifier: string;
@@ -45,17 +34,9 @@ interface PendingAuthorize {
 }
 
 export interface ConnectorOauthFlow {
-  /** The provider's consent URL for `name`, state armed. Throws
-   *  ConnectorConflictError when the row is missing or not oauth. */
   begin(name: string, redirectUri: string): Promise<string>;
-  /** The callback's half: consume the state, exchange the code, store. */
   complete(args: { code: string; state: string }): Promise<OauthCompletion>;
-  /** A fresh-enough access token for `name`, refreshing through the provider
-   *  when the stored one is at/past expiry. Null means the row cannot serve a
-   *  session right now (no tokens, or a refresh the provider refused — the
-   *  row is then marked needs-reauth rather than the session boot failing). */
   freshAccessToken(name: string): Promise<string | null>;
-  /** Drop tokens; the row survives, back at needs-auth. */
   disconnect(name: string): void;
   dispose(): void;
 }
@@ -115,8 +96,7 @@ export function createConnectorOauthFlow(
       return { ok: false, detail: "The provider's token endpoint did not answer." };
     }
     if (!response.ok) {
-      // The provider's error body may carry anything; its status is the one
-      // fact safe to repeat.
+      // the error body may carry anything; the status is the one fact safe to repeat.
       return {
         ok: false,
         detail: `The provider refused the token request (HTTP ${String(response.status)}).`,
@@ -190,7 +170,7 @@ export function createConnectorOauthFlow(
         return { kind: "refused", detail: exchange.detail };
       }
       if (disposed) {
-        // Ordered shutdown raced the exchange: store nothing after teardown.
+        // shutdown raced the exchange: store nothing after teardown.
         return { kind: "no-pending" };
       }
       patchRow(claimed.name, (row) => {
@@ -232,7 +212,7 @@ export function createConnectorOauthFlow(
         return null;
       }
       const next = exchange.tokens;
-      // A refresh answer without a rotated refresh_token keeps the old one.
+      // a refresh answer without a rotated refresh_token keeps the old one (rfc 6749 §6).
       if (next.refreshToken === undefined && tokens.refreshToken !== undefined) {
         next.refreshToken = tokens.refreshToken;
       }

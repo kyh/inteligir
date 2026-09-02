@@ -1,10 +1,3 @@
-// The runtime manager end to end over the REAL ACP wire: a scripted agent
-// child (fake-acp-agent.mjs) speaks the protocol through the official lib,
-// so what this suite pins is the whole production path — spawn, initialize,
-// session identity, prompt streaming under the HOST's turn id, the
-// pending-interaction round trip, commit attribution from fileChange items,
-// the settle-before-drain race, and the silent-turn watchdog.
-
 import { execFile } from "node:child_process";
 import { spawn } from "node:child_process";
 import { createRequire } from "node:module";
@@ -46,10 +39,8 @@ interface ManagerOptions {
   skillsDir?: string;
   filePath?: string;
   turnIdleTimeoutMs?: number;
-  /** Mutable on purpose: the Settings-edited fact, read per session open. */
+  // mutable on purpose: the Settings-edited fact, read per session open.
   connectedDirs?: string[];
-  /** Every adapter spawn's env, in spawn order — what the agent's shell
-   *  inherits, one entry per provider session. */
   spawnedEnvs?: Record<string, string>[];
 }
 
@@ -106,7 +97,6 @@ async function bootWithManager(
   });
 }
 
-/** The HEAD commit's author name, author email and file list. */
 async function headCommit(
   vaultDir: string,
 ): Promise<{ author: string; email: string; files: string[] }> {
@@ -158,7 +148,6 @@ describe("the ACP runtime manager over real HTTP", () => {
     const assistant = rows.find((row) => row.kind === "conversation" && row.role === "assistant");
     expect(assistant).toMatchObject({ text: "hello from the fake agent", turnId });
 
-    // The provider session is persisted for resume across restarts/reaps.
     expect(getThread(harness.db, threadId)).toMatchObject({
       providerId: "codex",
       providerThreadId: expect.stringMatching(/^fakeacp_\d+_1$/),
@@ -168,10 +157,6 @@ describe("the ACP runtime manager over real HTTP", () => {
   });
 
   it("opens the session by putting its standing instructions first in the prompt", async () => {
-    // ACP's session/new carries no instructions field, so the FIRST turn's
-    // leading text block is the only channel they have. The fake echoes that
-    // block back, which is what makes this an assertion about the wire rather
-    // than about a recording double.
     const harness = await bootWithManager("promptEcho", {
       cliBinDir: "/repo/apps/cli/bin",
       skillsDir: "/repo/packages/agent-skills/skills",
@@ -191,12 +176,6 @@ describe("the ACP runtime manager over real HTTP", () => {
   });
 
   it("reads the session facts at every session open: a folder added after the first turn reaches the next session's env AND prompt", async () => {
-    // The runtime is built on the first turn and lives for the process, while
-    // the Connected Folders are Settings-mutable — so the facts must be read
-    // per session open, and both projections of them must move together: the
-    // env the adapter spawn inherits and the instructions the first turn
-    // carries. A value captured at construction freezes the env at the first
-    // session's set while the prompt keeps promising the current one.
     const connectedDirs: string[] = [];
     const spawnedEnvs: Record<string, string>[] = [];
     const harness = await bootWithManager("promptEcho", { connectedDirs, spawnedEnvs });
@@ -225,8 +204,7 @@ describe("the ACP runtime manager over real HTTP", () => {
   });
 
   it("stages a fileChange item's write set as the agent-attributed commit", async () => {
-    // Mutated after boot: the vault dir exists only then, and the spawn seam
-    // reads the options object at session open (the first send).
+    // set after boot: the vault dir exists only then, and the spawn seam reads the options at session open.
     const managerOptions: ManagerOptions = {};
     const harness = await bootWithManager("fileChange", managerOptions);
     managerOptions.filePath = join(harness.vaultDir, "agent-note.md");
@@ -259,8 +237,7 @@ describe("the ACP runtime manager over real HTTP", () => {
       },
     });
 
-    // The fake offered allow_once + reject_once only, so allow_for_session is
-    // out-of-set and refused at the route.
+    // the fake offers allow_once and reject_once only.
     const [outOfSet] = await safe(
       harness.client.threads.answerInteraction({
         threadId,
@@ -293,8 +270,6 @@ describe("the ACP runtime manager over real HTTP", () => {
 
     const interaction = await awaitPendingInteraction(harness.client, threadId);
 
-    // Queue B while A is parked on the approval; answering A completes it,
-    // and the drain dispatches B onto the same session.
     const queued = await harness.client.threads.send({
       threadId,
       text: "second",
@@ -327,8 +302,6 @@ describe("the ACP runtime manager over real HTTP", () => {
     const rows = flattenTimelineRows(await fetchTimelineRows(harness.client, threadId));
     expect(rows.find((row) => row.kind === "turn")).toMatchObject({ turnId, status: "error" });
 
-    // The per-thread state was released with it: the thread takes a new turn
-    // rather than answering "already has a running turn".
     const next = await harness.client.threads.send({
       threadId,
       text: "again",

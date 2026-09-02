@@ -5,32 +5,9 @@ import { refuse } from "../cloud-http";
 import { createDb } from "../db/client";
 import { verifyDeviceCredential } from "../device/device-auth";
 
-// ---------------------------------------------------------------------------
-// `/v1/sync/*` + `/v1/capture` — the device-authed surface, all of it served
-// by the caller's own ThreadSyncDO. This module is the chokepoint where the
-// two security facts hold:
-//
-//   1. The credential is verified FIRST (hash compare in D1, never cached),
-//      and the object is named from the VERIFIED userId — no path or body
-//      carries one, so a caller holding no credential cannot bring an object
-//      into existence by naming it.
-//   2. The DO trusts `x-device-id` / `x-device-platform` because this Worker
-//      is its only caller — so those headers are stripped-and-stamped here,
-//      never forwarded from the wire.
-//
-// The public paths map 1:1 onto the object's internal ones:
-//
-//   POST /v1/capture             → /capture        quick capture in
-//   POST /v1/sync/push           → /push           outbox batch (idempotent)
-//   GET  /v1/sync/pull           → /pull           merged log, paged by seq
-//   POST /v1/sync/captures/claim → /captures/claim take the inbox for a window
-//   POST /v1/sync/captures/ack   → /captures/ack   delete what the claim owns
-//   GET  /v1/sync/ws             → /ws             invalidation socket
-//
-// The ws upgrade is Bearer-authed like everything else — ticket-free on
-// purpose: native callers set headers on the dial, and there is no browser
-// cookie path to protect (the contract's ws module states this).
-// ---------------------------------------------------------------------------
+// The object is named from the verified userId, never from a path or body. The DO trusts
+// x-device-id / x-device-platform because this Worker is its only caller, so they are stripped
+// and stamped here, never forwarded from the wire.
 
 const DO_PATH_BY_ROUTE = new Map<string, string>([
   [`POST ${CAPTURE_API_PATHS.capture}`, "/capture"],
@@ -69,22 +46,12 @@ export async function handleSyncRoutes(request: Request, env: Env, url: URL): Pr
   );
 }
 
-/**
- * The account-deletion hook's DO half: drop everything the user's ThreadSyncDO
- * holds and tombstone it. A failure propagates so the surrounding
- * `beforeDelete` aborts and the account survives to ask again — the step is
- * idempotent.
- */
+// a failure propagates so beforeDelete aborts and the account survives to retry
 export async function purgeThreadSync(env: Env, userId: string): Promise<void> {
   await env.THREAD_SYNC.getByName(`user:${userId}`).purge();
 }
 
-/**
- * Close the live sockets a just-revoked device holds. Best-effort by design:
- * revocation's guarantee is that the next REQUEST fails, and it is already
- * committed in D1 before this runs — so a failure here costs a stale socket
- * until it disconnects, never a credential that keeps working.
- */
+// best-effort: the revoke is already committed in D1, so a failure costs a stale socket, never a working credential
 export async function severDeviceSockets(
   env: Env,
   userId: string,
@@ -93,16 +60,11 @@ export async function severDeviceSockets(
   try {
     await env.THREAD_SYNC.getByName(`user:${userId}`).severDevice(deviceId);
   } catch {
-    // See above: the revoke already stands.
+    // the revoke already stands
   }
 }
 
-/**
- * The hosted vault repo advanced: poke every OTHER device of the user to run
- * a vault sync pass (the DO excludes the pusher's own sockets). Best-effort
- * like the sever above — a lost ping costs staleness until the next poll,
- * never correctness.
- */
+// best-effort like the sever: a lost ping costs staleness until the next poll
 export async function pingVaultAdvanced(
   env: Env,
   userId: string,
@@ -111,6 +73,6 @@ export async function pingVaultAdvanced(
   try {
     await env.THREAD_SYNC.getByName(`user:${userId}`).vaultPing(pushingDeviceId);
   } catch {
-    // See above: the push already stands.
+    // the push already stands
   }
 }

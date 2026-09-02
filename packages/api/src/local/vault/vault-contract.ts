@@ -1,10 +1,5 @@
-// The vault's procedures. One row per operation, each naming its input, its
-// output and the classes it can refuse with. There is no path and no method:
-// the RPC transport addresses a procedure by its position in the router.
-//
-// `GET /vault/asset` is deliberately NOT here. Its body is BYTES with an ETag
-// and a sandbox CSP, revalidated with `if-none-match`, and none of that
-// survives an RPC envelope — it stays a plain HTTP route beside /ws.
+// GET /vault/asset is not a procedure: its body is bytes with an etag and if-none-match
+// revalidation, which an rpc envelope cannot carry.
 
 import { oc } from "@orpc/contract";
 import { ALREADY_EXISTS, CAS_MISMATCH, INVALID_PATH } from "../local-errors";
@@ -41,24 +36,19 @@ export const vaultContract = {
     .output(vaultReadResponseSchema)
     .errors({ INVALID_PATH, NOT_FOUND: {}, PAYLOAD_TOO_LARGE: {} }),
 
-  /** The note's own commits, newest first, across renames. A path git has
-   *  never seen answers an EMPTY page rather than refusing: a note created
-   *  inside the auto-commit's quiet window has no revisions yet, and that is
-   *  an ordinary state the surface renders. */
+  // an unknown path answers an empty page, not NOT_FOUND: a note inside the auto-commit's quiet
+  // window has no revisions yet.
   history: oc.input(vaultHistoryRequestSchema).output(vaultHistoryResponseSchema),
 
-  /** The bytes a note held at one revision. Restore is the CLIENT composing
-   *  this with `write` + `expectedHash` — there is deliberately no
-   *  `vault.restore`, which would be a second write path with its own CAS,
-   *  its own notification and its own chance to disagree with the first. */
+  // no vault.restore: restore is the client composing this with write + expectedHash, so there
+  // is one cas.
   revision: oc
     .input(vaultRevisionRequestSchema)
     .output(vaultRevisionResponseSchema)
     .errors({ NOT_FOUND: {}, PAYLOAD_TOO_LARGE: {} }),
 
-  /** `ALREADY_EXISTS` is `ifAbsent`'s refusal and this row's alone: every
-   *  other collision in the vault answers `CONFLICT`, so a row declaring it
-   *  would hand a client a branch no handler can reach. */
+  // ALREADY_EXISTS is ifAbsent's refusal; every other collision answers CONFLICT, so no other
+  // row declares it.
   write: oc
     .input(vaultWriteRequestSchema)
     .output(vaultWriteResponseSchema)
@@ -101,15 +91,11 @@ export const vaultContract = {
     .output(vaultDeleteResponseSchema)
     .errors({ INVALID_PATH, NOT_FOUND: {} }),
 
-  /** Checkpoint the vault now: commit whatever is dirty, as the engine.
-   *  What a restore calls before it overwrites the note — the auto-commit is
-   *  session-shaped, so bytes a user saved seconds ago are still uncommitted,
-   *  and overwriting them would leave them in no revision at all. */
+  // a restore checkpoints first: the auto-commit is session-shaped, so the bytes being replaced
+  // may be in no revision yet.
   commitNow: oc.output(vaultCommitResponseSchema),
 
   status: oc.output(vaultStatusResponseSchema),
 
-  /** Runs a sync pass now and answers the state it left behind. Takes no
-   *  input; a caller that wants to know without acting reads `status`. */
   syncNow: oc.output(vaultStatusResponseSchema),
 };

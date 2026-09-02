@@ -1,7 +1,3 @@
-// Drives the subprocess proxy's lifecycle against an in-memory child channel:
-// the protocol, replay-on-respawn and self-healing are testable without ever
-// forking a process (the real fork path is exercised by running the app).
-
 import { describe, expect, it } from "vitest";
 import type { ChildToParentMessage, ParentToChildMessage } from "../watcher/messages";
 import type { ParcelWatcherEventBatch } from "../watcher/parcel-backend";

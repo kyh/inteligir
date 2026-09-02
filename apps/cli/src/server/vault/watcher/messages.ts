@@ -1,9 +1,6 @@
 // Vendored from bb (github.com/get-bb/bb), MIT. © bb contributors.
 
-// Wire protocol between the server parent and the parcel watcher child. Every
-// payload must be structured-clone / JSON safe (no functions, no Error
-// instances) — parcel events already are ({path, type}); errors travel as
-// their message string.
+// every payload must be structured-clone safe: no functions, no Error instances.
 
 import { z } from "zod";
 
@@ -20,10 +17,8 @@ export type ParentToChildMessage =
       id: string;
       dir: string;
       opts: ParcelWatcherSubscribeOptions | undefined;
-      // Set when re-subscribing onto a freshly respawned child. The child
-      // re-emits the root's current entries once the watch is armed so callers
-      // reconcile against on-disk state and recover changes missed during the
-      // restart gap.
+      // on a respawned child the root's entries are re-emitted so callers recover changes
+      // missed during the gap.
       rescan: boolean;
     }
   | { kind: "unsubscribe"; id: string }
@@ -43,8 +38,7 @@ const serializedParcelEventSchema = z.object({
   type: z.enum(["create", "update", "delete"]),
 });
 
-/** A batch keeps the entries it can read: one malformed event must not cost
- *  the watcher every other change delivered in the same message. */
+// one malformed event must not cost the batch its other entries.
 const parcelEventBatchSchema = z.array(z.unknown()).transform((events) =>
   events.flatMap((event) => {
     const parsed = serializedParcelEventSchema.safeParse(event);
@@ -52,8 +46,6 @@ const parcelEventBatchSchema = z.array(z.unknown()).transform((events) =>
   }),
 );
 
-/** Only `ignore` crosses the fork; an entry that is not a path is dropped, and
- *  an `ignore` that is not a list reads as options carrying nothing. */
 const subscribeOptionsSchema = z
   .object({
     ignore: z
@@ -71,8 +63,6 @@ const subscribeOptionsSchema = z
     ignore === undefined ? {} : { ignore },
   );
 
-/** node's IPC delivers an unparsed payload; both sides read one through these
- *  schemas instead of a cast. */
 export const parentToChildMessageSchema = z.discriminatedUnion("kind", [
   z
     .object({

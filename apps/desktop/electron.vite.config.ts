@@ -9,30 +9,18 @@ import type { Plugin } from "vite";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
-/**
- * `electron` is the RUNTIME, never a module to bundle. Stated here rather than
- * left to electron-vite's preset because Vite rebuilds `build.rollupOptions`
- * from the user config alone — a preset's `external` never reaches the resolved
- * config. Inlining it is silent: the npm package is a shim that resolves the
- * binary from its own `__dirname`, so a bundled copy looks for a `dist/` beside
- * the OUTPUT and tries to download Electron when the window opens.
- */
+// Vite rebuilds `build.rollupOptions` from the user config alone, so electron-vite's
+// preset `external` never applies; a bundled `electron` shim resolves the binary from
+// its own `__dirname` and tries to download Electron when the window opens.
 const ELECTRON_RUNTIME = ["electron", /^electron\/.+/];
 
-/**
- * Both windows run `sandbox: true`, and a sandboxed preload has no ES module
- * loader — so the preloads are CommonJS, and the `.cjs` extension is
- * load-bearing in a `"type": "module"` package.
- */
+// a sandboxed preload has no ES module loader, so `.cjs` in a `"type": "module"` package.
 const PRELOAD_OUTPUT = {
   format: "cjs",
   entryFileNames: "[name].cjs",
   chunkFileNames: "[name].cjs",
 } as const;
 
-/** The in-app browser's chrome bar: plain HTML, deliberately never built —
- *  everything it can do is the fixed verb set its preload exposes — so it is
- *  emitted verbatim beside the preload that gives it those verbs. */
 function chromeBarPage(): Plugin {
   const source = resolve(here, "src/main/browser-chrome.html");
   return {
@@ -73,11 +61,7 @@ export default defineConfig({
   },
   renderer: {
     root: resolve(here, "src/renderer"),
-    // Well clear of `pnpm dev:web`'s PINNED 5174: Vite's own search starts at
-    // 5173 and would walk onto it, so a second worktree's shell would surface
-    // as the marketing Worker refusing to start. Searching upward from here is
-    // deliberate — nothing needs this port to be stable, main is handed the URL
-    // as ELECTRON_RENDERER_URL.
+    // clear of `pnpm dev:web`'s pinned 5174: Vite's default search from 5173 walks onto it.
     server: { port: 31_000 },
     plugins: [
       tanstackRouter({
@@ -86,10 +70,7 @@ export default defineConfig({
         generatedRouteTree: resolve(here, "src/renderer/routeTree.gen.ts"),
         autoCodeSplitting: true,
       }),
-      // The React Compiler is what the `oxc-transform-react` devDependency is
-      // for: nothing imports it, this flag loads it. Its recoverable
-      // diagnostics are logged, or a component it silently bails out of ships
-      // unmemoized with no sign in the build.
+      // `compiler` loads the otherwise-unimported `oxc-transform-react` devDependency.
       viteReact({ compiler: { logDiagnostics: true } }),
       tailwindcss(),
     ],

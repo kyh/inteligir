@@ -1,11 +1,5 @@
-// Connected Folders policy: the directories agent
-// sessions are TOLD ABOUT as read-only reference context. Not a permission
-// grant — the harness's shell can already read whatever the OS lets this user
-// read — so validation here is about keeping the LIST honest, not about
-// access: a row must be a real directory, named absolutely, and must not
-// restate a root the session already has (the vault) or expose a nesting that
-// makes no sense (a folder holding the data dir would "connect" the app's own
-// database and secrets as reference reading).
+// not a permission grant (the harness's shell already reads whatever the os lets this user
+// read), so validation keeps the list honest rather than guarding access.
 
 import { realpathSync, statSync } from "node:fs";
 import { isAbsolute, resolve } from "node:path";
@@ -14,7 +8,6 @@ import { CONNECTED_FOLDERS_MAX } from "@repo/api/local/folders/folders-schema";
 import { pathContains } from "../path-containment";
 import type { FoldersStore } from "./folders-store";
 
-/** A write refused for what the path is; `kind` picks the wire status. */
 export class FolderRefusedError extends Error {
   readonly kind: "invalid-path" | "already-exists" | "not-found";
 
@@ -32,7 +25,6 @@ export interface FoldersService {
 
 export interface CreateFoldersServiceArgs {
   store: FoldersStore;
-  /** Both already resolved, the same values the boot assertions compared. */
   vaultDir: string;
   dataDir: string;
 }
@@ -49,8 +41,7 @@ export function createFoldersService(args: CreateFoldersServiceArgs): FoldersSer
         `connected folder must be an absolute path (got "${rawPath}")`,
       );
     }
-    // Realpathed so a symlinked spelling and its target are ONE row, and so
-    // the containment checks below compare physical locations.
+    // realpathed so a symlinked spelling and its target are one row.
     let real: string;
     try {
       real = realpathSync(resolve(trimmed));
@@ -102,9 +93,7 @@ export function createFoldersService(args: CreateFoldersServiceArgs): FoldersSer
       return next;
     },
     remove(path: string): string[] {
-      // Removal matches the STORED spelling verbatim first, so a row whose
-      // directory has since been deleted (realpath now fails) is still
-      // removable; the resolved form is only a fallback courtesy.
+      // stored spelling first: a row whose directory is gone (realpath fails) must still be removable.
       const folders = args.store.read();
       let target = path.trim();
       if (!folders.includes(target)) {

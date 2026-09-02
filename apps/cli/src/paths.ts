@@ -1,9 +1,5 @@
-// Where this program's own files are, in BOTH layouts it runs in: `src/*.ts`
-// under tsx in a checkout, and the `dist/index.js` bundle in a packaged
-// install. Every module under `src/` is inlined into that bundle, so
-// `import.meta.url` names the bundle there and this file's own path here —
-// which is why the resolver lives ONE level under the package root, where the
-// same `../` reaches it either way. A module a level deeper cannot do this.
+// every src module is inlined into dist/index.js, so `import.meta.url` names the bundle there and this file here;
+// the same `../` reaches the package root from both only because this file sits one level under it.
 
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -15,7 +11,6 @@ const packageRootUrl = new URL("../", import.meta.url);
 
 const manifestSchema = z.looseObject({ version: z.string() });
 
-/** A file or directory this package ships, by its path from the package root. */
 export function packageFile(relativePath: string): string {
   return fileURLToPath(new URL(relativePath, packageRootUrl));
 }
@@ -29,47 +24,26 @@ export function readCliVersion(): string {
       return manifest.data.version;
     }
   } catch {
-    // Fall through to the placeholder.
+    // fall through to the placeholder.
   }
   return "0.0.0";
 }
 
-/**
- * The built workspace UI, or null when this checkout has not built one.
- *
- * `serve` answers the SPA over plain HTTP so `inteligir serve --open` lands a
- * browser in the product — the zero-install path, kept as a verb. The bundle is
- * the DESKTOP renderer's, staged here at build time rather than resolved across
- * packages at runtime: one directory, one place that knows its name.
- */
 export function resolveUiDir(): string | null {
   const staged = packageFile("dist/ui");
   return existsSync(staged) ? staged : null;
 }
 
-/**
- * The committed SQL migrations, or undefined when neither layout answers.
- *
- * WORKSPACE FIRST, staged copy second — `resolveSkillsDir`'s order, and
- * `bin/inteligir`'s rule that a stale `dist/` must never shadow fresh edits.
- * `dist/` is the normal state of a worked-in checkout (`verify` ends in
- * `build`), so a staged-first answer boots `pnpm cli serve` against a frozen
- * snapshot: the source's newest migration never applies, and an older build's
- * snapshot migrates the dev database PAST what the running code understands —
- * which `getSchemaVersion`'s ceiling cannot refuse, because the ceiling is read
- * from the same stale folder.
- *
- * `@repo/db/migrate` is what is resolved, not the folder: the package exports
- * no `./drizzle` subpath, and the folder sits beside that module's own source.
- */
+// workspace first: `dist/` is the normal state of a worked-in checkout, and a staged-first answer would boot
+// against a frozen snapshot, withholding the newest migration or migrating the dev db past what the code understands.
+// resolved through @repo/db/migrate because the package exports no ./drizzle subpath.
 export function resolveMigrationsFolder(): string | undefined {
   try {
     const require = createRequire(import.meta.url);
     const source = join(dirname(require.resolve("@repo/db/migrate")), "..", "drizzle");
     if (statSync(source).isDirectory()) return source;
   } catch {
-    // A published install resolves no workspace package and reads the staged
-    // copy instead.
+    // a published install resolves no workspace package and reads the staged copy instead.
   }
   const bundled = packageFile("dist/drizzle");
   return existsSync(bundled) ? bundled : undefined;

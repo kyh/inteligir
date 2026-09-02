@@ -1,15 +1,9 @@
-// Creating an ACTION: one thread, attached to the note it was composed over
-// (originDocPath alone — no anchor into the bytes),
-// first message sent in the same breath. The view context rides the send, not
-// the thread, per the view-context decision.
-
 import type { ViewContext } from "@repo/domain/view-context";
 import type { CreateThreadRequest } from "@repo/api/local/threads/threads-schema";
 
 import type { client } from "../api";
 import { sendToThread, type ComposerSendOutcome } from "./send-to-thread";
 
-/** First line of the prompt, trimmed to a title-sized span. */
 function actionTitle(prompt: string): string {
   const firstLine = prompt.split("\n", 1)[0]?.trim() ?? "";
   const title = firstLine === "" ? "Action" : firstLine;
@@ -18,16 +12,11 @@ function actionTitle(prompt: string): string {
 
 export interface CreateActionArgs {
   prompt: string;
-  /** Vault paths the user @-mentioned. They ride the send as a leading
-   * context line — the agent reads the files itself, nothing is inlined —
-   * and stay out of the title, which is the user's own words. */
+  // ride the send as a leading context line; the agent reads the files itself.
   contextPaths?: string[];
-  /** The note this action is about; null composes an unattached action. */
   docPath: string | null;
   viewContext: ViewContext | null;
-  /** A thread a refused first send already created; null mints one. Given,
-   * the send lands in it: minting another on retry would leave an empty
-   * action behind every refusal. */
+  // a thread a refused first send already created; minting another on retry leaves an empty action behind.
   threadId: string | null;
 }
 

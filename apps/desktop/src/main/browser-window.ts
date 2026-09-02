@@ -1,11 +1,4 @@
-// The in-app browser WINDOW — wiring only; every decision lives in
-// browser-panel.ts. A separate shell-owned window so the app window's origin
-// pin survives verbatim: two webContents, the shell's own chrome bar (carrying
-// this window's own preload) above a sandboxed, preload-less content view on
-// its own storage partition. "Send page to agent" runs entirely in this process:
-// the shell reads the page's url/title/selection and drives the local app's
-// ORDINARY typed routes over loopback — the app window gains no IPC and the
-// server gains no new surface.
+// wiring only; decisions live in browser-panel.ts.
 
 import {
   BaseWindow,
@@ -44,10 +37,6 @@ interface BrowserWindowHandle {
 let browserHandle: BrowserWindowHandle | null = null;
 let sessionPrepared = false;
 
-/** The browser partition denies EVERY web permission — the content view
- *  renders arbitrary pages, and none of them is owed a microphone or a
- *  device picker. Downloads are cancelled too: this is a reading surface,
- *  and a silent write into ~/Downloads is not in its charter. */
 function lockDownBrowserSession(): Electron.Session {
   const browserSession = session.fromPartition(BROWSER_PARTITION);
   browserSession.setPermissionRequestHandler((_contents, _permission, callback) => {
@@ -84,12 +73,6 @@ function pushChromeState(handle: BrowserWindowHandle): void {
   });
 }
 
-/**
- * "Send page to agent": read {url, title, selection} off the content view —
- * the shell driving its own content, never the reverse — and create an action
- * carrying it through the SAME typed routes every client uses. The send
- * starts the agent on the page, which is the Inteligir semantic.
- */
 async function sendPageToAgent(
   handle: BrowserWindowHandle,
   server: LiveServer,
@@ -110,22 +93,14 @@ async function sendPageToAgent(
     });
     return { ok: true, detail: thread.id };
   } catch (error) {
-    // A refusal THROWS, so both halves land here — and the chrome bar shows
-    // whichever sentence the server sent rather than a status number.
     return { ok: false, detail: toErrorMessage(error) };
   }
 }
 
-/** A ceiling on the capture call. Without one a wedged server leaves the
- *  chrome bar's IPC handler pending forever and the button spinning. */
+// without a ceiling a wedged server leaves the chrome bar's IPC handler pending forever.
 const CAPTURE_TIMEOUT_MS = 30_000;
 
-/** The same reasoning applied to the PAGE half. The content view runs arbitrary
- *  pages: one overriding `Selection.toString` (or `String`) with a loop would
- *  leave `executeJavaScript` pending forever — hanging the IPC handler and
- *  spinning the button exactly as a wedged server would. A selection read is
- *  near-instant, so this bounds it and falls back to no selection (url + title
- *  still capture). */
+// a page overriding `Selection.toString` with a loop would leave `executeJavaScript` pending forever.
 const SELECTION_READ_TIMEOUT_MS = 1_000;
 
 async function readPageSelection(contents: Electron.WebContents): Promise<string> {
@@ -144,9 +119,6 @@ async function readPageSelection(contents: Electron.WebContents): Promise<string
   }
 }
 
-/** The typed client against the local server, carrying this instance's device
- *  token. "Send to agent" is a MAIN-process call — the browser view has no
- *  preload and never sees the credential. */
 function apiClientFor(server: LiveServer): ContractRouterClient<LocalContract> {
   return createLocalClient({
     origin: server.origin,
@@ -155,8 +127,6 @@ function apiClientFor(server: LiveServer): ContractRouterClient<LocalContract> {
   });
 }
 
-/** One registration for the process; each handler re-resolves the live handle
- *  and refuses any sender that is not the shell's own chrome bar. */
 function registerBrowserIpc(server: LiveServer): void {
   const fromChrome = (event: IpcMainInvokeEvent): BrowserWindowHandle | null => {
     if (browserHandle === null || event.sender !== browserHandle.chrome.webContents) {
@@ -193,21 +163,13 @@ function registerBrowserIpc(server: LiveServer): void {
   });
 }
 
-/** Redirects are guarded like navigations: Chromium blocks most cross-scheme
- *  redirects itself, but the shell's own answer must not depend on it. */
 function guardContentNavigation(event: Electron.Event, url: string): void {
   if (classifyBrowserNavigation(url) === "block") {
     event.preventDefault();
   }
 }
 
-/**
- * The browser session and its IPC are set up ONCE per launch, not once per
- * window — the shape `index.ts` gives the app window's session.
- * `session.fromPartition` answers the same process-lifetime Session on every
- * call and `.on` APPENDS, so a per-window lock-down makes one download
- * attempt fire a warning — and a preventDefault — per reopen.
- */
+// once per launch, not per window: `session.fromPartition` returns the same Session and `.on` appends.
 function prepareBrowserSession(server: LiveServer): void {
   if (sessionPrepared) {
     return;
@@ -253,8 +215,7 @@ function createBrowserWindow(server: LiveServer): BrowserWindowHandle {
   });
   contents.on("will-navigate", guardContentNavigation);
   contents.on("will-redirect", guardContentNavigation);
-  // Spelled out one by one: webContents.on is overloaded per event name, so a
-  // loop over a union of names does not typecheck.
+  // webContents.on is overloaded per event name, so a loop over the names does not typecheck.
   const push = (): void => pushChromeState(handle);
   contents.on("did-navigate", push);
   contents.on("did-navigate-in-page", push);
@@ -273,7 +234,6 @@ function createBrowserWindow(server: LiveServer): BrowserWindowHandle {
   return handle;
 }
 
-/** Open the browser window, or focus the one already open. */
 export function showBrowserWindow(server: LiveServer): void {
   if (browserHandle === null) {
     browserHandle = createBrowserWindow(server);

@@ -1,10 +1,3 @@
-// Scheme-gate tests for the note-authored embed/pdf iframes: a note is
-// untrusted content, so only http(s) URLs may ever reach a live frame — a
-// javascript:/data:/file:/relative URL renders a blocked fallback, never an
-// iframe. Mounted through the REAL EmbedKit registration (createPlateEditor +
-// PlateContent) so the assertions cover the components the editor actually
-// renders.
-
 import { cleanup, render } from "@testing-library/react";
 import { KEYS } from "platejs";
 import { createPlateEditor, Plate, PlateContent } from "platejs/react";
@@ -69,7 +62,6 @@ describe("file (pdf) scheme gate", () => {
   ])("blocks %s — inert card, no iframe, no live href", (url) => {
     const { container } = renderNode(KEYS.file, url);
     expect(container.querySelector("iframe")).toBeNull();
-    // The fallback card must not carry the unsafe scheme as a clickable href.
     for (const anchor of container.querySelectorAll("a")) {
       expect(anchor.getAttribute("href")).toBeNull();
     }

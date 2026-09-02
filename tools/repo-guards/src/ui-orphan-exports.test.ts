@@ -1,23 +1,6 @@
-// ---------------------------------------------------------------------------
-// Orphan-export guard over @repo/ui: every named export of every file under
-// the package's wildcard-exported directories must be reachable from a
-// consumer — an import naming it from another workspace, or from another file
-// inside the package. The component gallery does not count.
-//
-// PER EXPORT, not per file, because a file guard cannot see intra-file rot: a
-// thousand-line component with one used export and four unused sub-APIs
-// passes a file-level sweep forever. knip structurally cannot ask this
-// question either — the package's exports map wildcards every directory, so
-// every file is a public entry whose exports knip trusts as API (its
-// includeEntryExports pass still counts the gallery as a consumer).
-//
-// A file none of whose exports has a consumer is reported here with every
-// export listed, so no per-file orphan guard is needed beside this one.
-//
-// Adding an export you have not wired up yet? Wire it up, add its file to
-// AWAITING_CONSUMER (a whole component held for a coming surface), or add an
-// ALLOWED_EXPORTS row with the reason it must stay exported.
-// ---------------------------------------------------------------------------
+// per export, not per file: a file guard cannot see a component with one used export and four
+// unused sub-APIs. knip cannot ask this either: the exports map wildcards every directory, so every
+// export is public API to it, and its includeEntryExports pass counts the gallery as a consumer.
 
 import fs from "node:fs";
 import path from "node:path";
@@ -26,16 +9,10 @@ import { describe, expect, it } from "vitest";
 import { REPO_ROOT, sourceOf, workspaces, workspaceSourceFiles } from "./repo";
 import { GALLERY_DIR, sweptRoots, UI_DIR, UI_PACKAGE } from "./ui-package";
 
-/** Importers that answer this guard's question before it was asked. */
 const NON_CONSUMER_DIRS = [GALLERY_DIR];
 
-/**
- * The Beautiful UI set is held WHOLE by owner decision: these have no product
- * surface yet and are kept for one the product will grow. Named PER FILE so
- * an unlisted unwired component still fails — which holds only because a held
- * file is NOT a consumer: what it imports proves nothing about the product
- * needing it. dangling-references fails when an entry outlives its file.
- */
+// held whole by owner decision, listed per file so an unlisted unwired component still fails; a
+// held file is not a consumer.
 const AWAITING_CONSUMER = new Set([
   "packages/ui/src/ai/chat.tsx",
   "packages/ui/src/ai/code-block.tsx",
@@ -54,12 +31,7 @@ const AWAITING_CONSUMER = new Set([
   "packages/ui/src/ai/sidebar-nav.tsx",
 ]);
 
-/**
- * Single exports allowed to stand without a consumer, each with the reason it
- * must stay exported anyway. Keyed `<repo-relative file>#<export name>`. A
- * row here is a decision, not a backlog — and a meta test below fails when a
- * row outlives its export.
- */
+// keyed `<repo-relative file>#<export name>`; a row is a decision, not a backlog.
 const ALLOWED_EXPORTS = new Map<string, string>([
   [
     "packages/ui/src/ai/thinking.tsx#ThinkingTool",
@@ -87,14 +59,11 @@ const ALLOWED_EXPORTS = new Map<string, string>([
 const SOURCE_FILE = /\.tsx?$/;
 
 interface BraceEntry {
-  /** The name before any `as`. */
   original: string;
-  /** The name after it — the same name when there is none. */
   exported: string;
 }
 
-/** The entries of one `{ a, b as c, type d }` list — the one tokenization
- *  both the export walk and the import walk read. */
+// the one tokenization both the export walk and the import walk read.
 function braceEntries(body: string): BraceEntry[] {
   const entries: BraceEntry[] = [];
   for (const entry of body.split(",")) {
@@ -110,9 +79,6 @@ function braceEntries(body: string): BraceEntry[] {
   return entries;
 }
 
-/** One file's exported names, read from its source (full-line comments
- *  already stripped by `sourceOf`). Shapes this cannot attribute a name to —
- *  `export *` — throw rather than pass silently. */
 function exportedNames(relativePath: string): string[] {
   const source = sourceOf(relativePath);
   if (/^export\s*\*/m.test(source)) {
@@ -144,16 +110,12 @@ function exportedNames(relativePath: string): string[] {
 }
 
 interface Consumption {
-  /** Named imports (originals, before any `as` rename). */
   names: Set<string>;
-  /** `* as ns` — consumes every export. */
   namespace: boolean;
-  /** `import X from` — consumes the default export. */
   defaultImport: boolean;
 }
 
-/** What one consumer file imports from one specifier. The negated-quote body
- *  keeps the lazy clause from crossing into another statement's specifier. */
+// the negated-quote body keeps the lazy clause from crossing into another statement's specifier.
 function consumptionOf(source: string, specifier: string): Consumption {
   const escaped = specifier.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const statement = new RegExp(
@@ -186,9 +148,7 @@ function isNonConsumer(relativePath: string): boolean {
 }
 
 interface UiFile {
-  /** Repo-relative path. */
   file: string;
-  /** The `@repo/ui/<subpath>/<name>` specifier consumers import it by. */
   specifier: string;
 }
 
@@ -209,9 +169,8 @@ function uiFiles(): UiFile[] {
   return found;
 }
 
-/** Every source file in the repo that may consume a @repo/ui export, on
- *  repo.ts's own workspace walk (tests included). A held file is not one: its
- *  imports would keep every helper it reaches alive with no row naming them. */
+// tests included; a held file is not one, or its imports would keep every helper it reaches alive
+// with no row naming them.
 function consumerFiles(): string[] {
   return workspaces()
     .flatMap((workspace) => workspaceSourceFiles(workspace))
@@ -264,9 +223,6 @@ describe("no orphan @repo/ui exports", () => {
   });
 
   it("no AWAITING_CONSUMER file counts as a consumer", () => {
-    // A held file that imports a helper would otherwise hold that helper too,
-    // with no row naming it — and the per-file list exists so that every held
-    // component is written down.
     const held = consumerFiles().filter((file) => AWAITING_CONSUMER.has(file));
     expect(
       held,
@@ -275,9 +231,6 @@ describe("no orphan @repo/ui exports", () => {
   });
 
   it("no ALLOWED_EXPORTS row outlives its export", () => {
-    // A row naming a deleted export silently excuses the next export to take
-    // its name. dangling-references holds the file half of every path here;
-    // the export half is a question only this guard can ask.
     const stale = [...ALLOWED_EXPORTS.keys()].filter((key) => {
       const [file, name] = key.split("#");
       if (file === undefined || name === undefined) return true;

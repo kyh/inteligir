@@ -1,9 +1,3 @@
-// The properties panel's edit → serialize flow, driven headlessly against the
-// real EDITOR_KIT (the same pipeline the live editor serializes through). It
-// proves the one-write-path contract: a property edit becomes a frontmatter-
-// node write, and the ordinary Plate serialize emits the note bytes — with
-// unsupported YAML preserved byte-for-byte.
-
 import { describe, expect, it } from "vitest";
 import { createSlateEditor } from "platejs";
 import { serializeMd } from "@platejs/markdown";
@@ -31,7 +25,6 @@ function serialize(editor: ReturnType<typeof seed>): string {
   return serializeMd(editor, { remarkStringifyOptions: MD_STRINGIFY });
 }
 
-// The panel's exact edit step: re-type one property, then write it back.
 function editProperty(
   editor: ReturnType<typeof seed>,
   mutate: (props: TypedProperty[]) => TypedProperty[],
@@ -78,7 +71,6 @@ describe("properties panel edit → serialize", () => {
     const out = serialize(editor);
     expect(out.startsWith("---\ntitle: Hello\n---\n")).toBe(true);
     expect(out).toContain("# Body");
-    // The inserted block is itself parseable as a valid property.
     expect(parseProperties(readFrontmatterRaw(editor) ?? "")).toEqual({
       kind: "valid",
       properties: [{ key: "title", type: "text", value: "Hello" }],
@@ -94,9 +86,6 @@ describe("properties panel edit → serialize", () => {
   });
 });
 
-// Tie the byte-pinned round-trip fixtures to the typing layer: the properties-
-// rich note types cleanly, the invalid-frontmatter note reports `invalid` (so
-// the panel shows "properties unavailable" and never rewrites the block).
 const FIXTURES = fileURLToPath(new URL("fixtures/roundtrip/canonical/", import.meta.url));
 function fixtureProps(name: string) {
   const text = readFileSync(`${FIXTURES}${name}`, "utf8");

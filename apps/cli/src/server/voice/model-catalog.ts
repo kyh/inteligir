@@ -1,45 +1,15 @@
-// THE model dictation runs on, pinned by size and digest.
-//
-// STREAMING PARAKEET. The model is NeMo's streaming fast-conformer transducer
-// (English), run by sherpa-onnx: it emits partials as audio arrives and a
-// final on release, which is the whole point of the feature — the words
-// appear as you speak. The tradeoff is stated in `CLAUDE.md`: the final has
-// no punctuation and no capitalization. That is inherent to this model and is
-// NOT to be "fixed" by bolting whisper back on: whisper's punctuated final
-// costs the live partials, and CLAUDE.md records which side won.
-//
-// ONE MODEL, not a picker — a second entry means a second control in Settings
-// beside the switch, and the two can disagree (a model chosen but not
-// downloaded is a state the switch alone cannot have).
-//
-// THE int8 VARIANT, not fp32: a 106 MB download against 450 MB for a transcript
-// that differs only marginally, and the whole reason the one-model path was
-// chosen is size. ENGLISH-ONLY — a language setting is the change to make when
-// someone asks for one.
-//
-// THE DIGEST IS THE POINT of pinning the release archive. The download is bytes
-// fetched over the network, extracted, and mmapped by a native runtime, so it
-// is verified before it is installed; a mirror that moved, a truncated response
-// and a hostile proxy all fail the same check. Recompute via
-// `curl -L <url> | shasum -a 256` when bumping the model.
+// one model, int8 (106 MB against 450 MB fp32), english only. the final has no punctuation or
+// capitals; that is the accepted cost of streaming partials, not something to fix with whisper.
+// recompute the digest with `curl -L <url> | shasum -a 256` when bumping.
 
 export interface VoiceModelSpec {
-  /** Names the directory under the model dir, so it is also the cache key. */
   id: string;
   label: string;
-  /** Exact byte count of the DOWNLOAD ARCHIVE — the download refuses anything
-   *  else, and the status surfaces it as the size a person is about to spend. */
+  // of the archive, not the extracted files; the download refuses any other length.
   sizeBytes: number;
-  /** sha-256 of the archive, lowercase hex. */
   sha256: string;
-  /** The release archive (`.tar.bz2`) the four model files are extracted from. */
   url: string;
-  /**
-   * The files sherpa-onnx loads, by role. Extracted flat into the model's own
-   * directory (the archive's top-level folder is stripped), so readiness is
-   * "all four present and non-empty" and the recognizer config joins these
-   * names onto the model dir.
-   */
+  // extracted flat into the model dir; the archive's top-level folder is stripped.
   files: {
     encoder: string;
     decoder: string;

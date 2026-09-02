@@ -8,21 +8,6 @@ import { cva } from "class-variance-authority";
 import { Collapse } from "@repo/ui/lib/collapse";
 import { cn } from "@repo/ui/lib/utils";
 
-/* ─────────────────────────────────────────────────────────
- * RECOMMENDATION CARD — one suggestion, its confidence, and
- * the alternatives it beat
- *
- * The CARD IS COMPOSED: the recommendation, the drawer of
- * alternatives and the footer are children, and the actions are a
- * SLOT the caller fills with its own buttons — a card that
- * shipped its own confirm control would decide what confirming
- * means.
- *
- * The confidence meter is monochrome: confidence is not a settled
- * status, so this skin says it with ink weight instead of
- * inventing hues it lacks.
- * ───────────────────────────────────────────────────────── */
-
 const meterBarVariants = cva("w-1 rounded-full transition-colors duration-300", {
   variants: {
     filled: {
@@ -44,7 +29,6 @@ const meterBarVariants = cva("w-1 rounded-full transition-colors duration-300", 
 });
 
 export interface ConfidenceMeterProps extends HTMLAttributes<HTMLSpanElement> {
-  /** How many of the three bars are lit. */
   signal: 0 | 1 | 2 | 3;
   strength?: "high" | "medium" | "none";
 }
@@ -85,7 +69,6 @@ const RecommendationCard = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElem
 RecommendationCard.displayName = "RecommendationCard";
 
 export interface RecommendationCardHeaderProps extends HTMLAttributes<HTMLDivElement> {
-  /** The recommendation itself, under the question. */
   body?: ReactNode;
 }
 
@@ -108,7 +91,6 @@ RecommendationCardHeader.displayName = "RecommendationCardHeader";
 
 export interface RecommendationAlternativesProps extends HTMLAttributes<HTMLDivElement> {
   open?: boolean;
-  /** Small label above the list. */
   label?: ReactNode;
 }
 
@@ -132,9 +114,7 @@ const RecommendationAlternatives = forwardRef<HTMLDivElement, RecommendationAlte
 RecommendationAlternatives.displayName = "RecommendationAlternatives";
 
 export interface RecommendationAlternativeProps extends HTMLAttributes<HTMLButtonElement> {
-  /** Leading meter — same vocabulary as the card's own footer. */
   meter?: ReactNode;
-  /** Trailing confidence wording. */
   note?: ReactNode;
 }
 
@@ -160,7 +140,6 @@ const RecommendationAlternative = forwardRef<HTMLButtonElement, RecommendationAl
 RecommendationAlternative.displayName = "RecommendationAlternative";
 
 export interface RecommendationCardFooterProps extends HTMLAttributes<HTMLDivElement> {
-  /** The caller's own buttons — this card does not ship a confirm control. */
   actions?: ReactNode;
 }
 

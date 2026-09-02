@@ -15,7 +15,6 @@ function only(source: string): ExtractedLink {
   return first;
 }
 
-/** The targetSpan contract: slicing the source re-derives the bytes. */
 function sliceTarget(source: string, link: ExtractedLink): string | null {
   return link.targetSpan ? source.slice(link.targetSpan.start, link.targetSpan.end) : null;
 }
@@ -62,9 +61,6 @@ describe("scanDoc — wiki links", () => {
   });
 
   it("extracts a 4-space-indented link (no indented code in the canonical flavor)", () => {
-    // The editor's grammar disables `codeIndented`, so it renders this as a
-    // live link — the scan reads the same grammar (remarkPlainBlocks)
-    // and indexes it.
     const src = "Notes\n\n    [[indented live link]]\n";
     expect(links(src).map((l) => l.target)).toEqual(["indented live link"]);
   });
@@ -236,9 +232,7 @@ describe("scanDoc — frontmatter aliases", () => {
   it("accepts the single-string scalar and the legacy alias: key (Obsidian interop)", () => {
     expect(scanDoc("---\naliases: Retro\n---\nbody\n").aliases).toEqual(["Retro"]);
     expect(scanDoc("---\nalias: Retro\n---\nbody\n").aliases).toEqual(["Retro"]);
-    // `aliases` wins when both keys exist.
     expect(scanDoc("---\naliases: [A]\nalias: B\n---\nbody\n").aliases).toEqual(["A"]);
-    // A date-shaped scalar is still a string alias.
     expect(scanDoc("---\naliases: 2026-07-15\n---\nbody\n").aliases).toEqual(["2026-07-15"]);
   });
 
@@ -272,7 +266,7 @@ describe("scanDoc — task extraction", () => {
       { checked: false, text: "book the flight", line: 3 },
       { checked: true, text: "already done", line: 4 },
       { checked: false, text: "nested child", line: 5 },
-      { checked: false, text: "**bold** star item", line: 7 }, // inline md verbatim
+      { checked: false, text: "**bold** star item", line: 7 },
     ]);
   });
 
@@ -282,9 +276,6 @@ describe("scanDoc — task extraction", () => {
   });
 
   it("skips plain bullets, empty checkboxes, and fenced lookalikes — but counts an indented item", () => {
-    // A 4-space-indented `- [ ]` is a LIVE task: the canonical MDX flavor has
-    // no indented code, and the editor renders it as a checkbox — so the count
-    // has to include it, indent and all.
     const src = [
       "- plain bullet",
       "- [ ] ",
@@ -307,8 +298,6 @@ describe("scanDoc — task extraction", () => {
   it("frontmatter `tasks: false` suppresses extraction (scanTaskItems still counts)", () => {
     const src = "---\ntasks: false\n---\n\n- [ ] hidden from the view\n";
     expect(scanDoc(src).tasks).toEqual([]);
-    // The unfiltered count is the editor's checkbox lockstep, and the editor
-    // draws every checkbox in the buffer whatever the frontmatter says.
     expect(scanTaskItems(src).map((t) => t.text)).toEqual(["hidden from the view"]);
   });
 

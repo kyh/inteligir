@@ -1,7 +1,5 @@
-// The phone's own design tokens, resolved to concrete hex for light and dark
-// and picked close to the web palette. Mobile does NOT import @repo/ui — that
-// package is web-only and the dep-dag guard forbids the edge — so this is the
-// whole token set the screens have.
+// no @repo/ui import: it is web-only and the dep-dag guard refuses the edge, so the palette is
+// restated here.
 
 import { Platform, useColorScheme } from "react-native";
 
@@ -47,17 +45,14 @@ const dark: Theme = {
   destructive: "#f87171",
 };
 
-/** The token set for the given color scheme. */
 export function themeFor(isDark: boolean): Theme {
   return isDark ? dark : light;
 }
 
-/** The token set for the device's current color scheme. */
 export function useTheme(): Theme {
   return themeFor(useColorScheme() === "dark");
 }
 
-/** The 4pt spacing rhythm the screens lay out on. */
 export const SPACE = {
   xs: 4,
   sm: 8,
@@ -68,7 +63,5 @@ export const SPACE = {
 
 export const RADIUS = { md: 8 } as const;
 
-/** The face for code, formula pills and raw notes. Android ships no Menlo, and
- *  an unresolvable family falls back to the proportional sans — which is the
- *  one thing a raw note must not do. */
+// Android ships no Menlo, and an unresolvable family falls back to the proportional sans.
 export const MONO_FONT = Platform.select({ ios: "Menlo", default: "monospace" });

@@ -1,10 +1,5 @@
 // @vitest-environment jsdom
 
-// "Copy link" has to name an address something can OPEN. Under the shell the
-// page is served from `inteligir://app` — a scheme no OS registers and this
-// process's own window-open policy refuses — so a link built from the page's
-// origin resolves nowhere, inteligir itself included.
-
 import { SidebarProvider } from "@repo/ui/components/sidebar";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";

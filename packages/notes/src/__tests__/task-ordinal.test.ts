@@ -20,8 +20,6 @@ const DOC = [
 const textAt = (source: string, ordinal: number): string | undefined =>
   scanTaskItems(source)[ordinal]?.text;
 
-// The editor's own parse over the same bytes: same plugin list the WYSIWYG
-// deserializes with, counted through the one counter.
 const editorTaskItems = (source: string): ReturnType<typeof tasksInTree> => {
   const parsed = parseMdast(source);
   if (!parsed.ok) throw new Error(`editor parse refused the fixture: ${parsed.failure.message}`);
@@ -66,23 +64,13 @@ describe("the count", () => {
   });
 
   it("only closes a fence on a matching marker (mixed ``` / ~~~ don't desync)", () => {
-    const md = [
-      "~~~",
-      "- [ ] fake one",
-      "```", //            a different fence marker inside — must NOT close the ~~~ block
-      "- [ ] fake two",
-      "~~~", //            closes the block
-      "",
-      "- [ ] real",
-    ].join("\n");
+    const md = ["~~~", "- [ ] fake one", "```", "- [ ] fake two", "~~~", "", "- [ ] real"].join(
+      "\n",
+    );
     expect(scanTaskItems(md).map((task) => task.text)).toEqual(["real"]);
   });
 
   it("counts a 4-space-indented checkbox (no indented code in the canonical flavor)", () => {
-    // The editor's grammar has no indented-code construct, so the editor renders
-    // this line as a live task and the ordinal counts it. A parser that treated
-    // the indent as a code block would skip the line and desync every later
-    // ordinal from the editor's.
     const md = ["Notes", "", "    - [ ] alpha", "", "- [ ] real"].join("\n");
     expect(scanTaskItems(md).map((task) => task.text)).toEqual(["alpha", "real"]);
   });
@@ -93,8 +81,6 @@ describe("the count", () => {
   });
 
   it("doesn't count a plain bullet that follows a task in the same list", () => {
-    // remark gives the plain bullet checked:null and the editor draws no widget
-    // for it — both exclude it, so the ordinal stays aligned.
     const md = ["- [ ] real one", "- plain", "- [x] real two"].join("\n");
     expect(scanTaskItems(md).map((task) => task.text)).toEqual(["real one", "real two"]);
   });
@@ -105,9 +91,6 @@ describe("the count", () => {
   });
 
   it("ignores checkbox-shaped lines inside YAML frontmatter", () => {
-    // Without frontmatter awareness the leading `---` parses as a thematic break
-    // and the YAML's `- [ ]` line would consume ordinal 0 — while scanDoc and
-    // the editor (both frontmatter-aware) skip it.
     const md = ["---", "checklist:", "  - [ ] yaml lookalike", "---", "", "- [ ] real task"].join(
       "\n",
     );
@@ -139,9 +122,7 @@ describe("the count", () => {
   });
 });
 
-// The count only names the checkbox a reader is looking at while the scan's
-// grammar and the editor's agree on the set. Both disable `codeIndented` and
-// `htmlFlow`, and these are the docs CommonMark's defaults would split them on.
+// the docs CommonMark's default codeIndented/htmlFlow would split the two parses on
 describe("the editor's parse counts the same items", () => {
   it.each([
     ["a 4-space-indented item", ["Notes", "", "    - [ ] alpha", "", "- [ ] real"].join("\n")],

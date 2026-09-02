@@ -11,11 +11,6 @@ import {
 } from "./cloud-helpers";
 import { pushVaultFiles, ZERO_OID } from "./git-pack";
 
-// The hosted vault remote end to end, in-process: credential verification on
-// both carriers, the identity-free URL rewrite, a REAL push (the hand-built
-// pack wire in ./git-pack.ts), the clone leg over what was pushed, and the
-// vault ping's pusher exclusion.
-
 const REMOTE = `${ORIGIN}/v1/git/vault.git`;
 
 describe("vault git remote auth", () => {
@@ -118,19 +113,15 @@ describe("vault git remote round-trip", () => {
     expect(first.response.status).toBe(200);
     expect(await first.response.text()).toContain("unpack ok");
 
-    // Both pings leave in the push's own invocation, so the other device's
-    // arrival bounds the pusher's absence.
     await vi.waitFor(() => expect(otherSocket.frames).toContainEqual({ type: "vault" }));
     expect(pusherSocket.frames).not.toContainEqual({ type: "vault" });
 
-    // The fetch leg now advertises the pushed head — the clone path is live.
     const refs = await SELF.fetch(`${REMOTE}/info/refs?service=git-upload-pack`, {
       headers: deviceHeaders(other.credential),
     });
     expect(refs.status).toBe(200);
     expect(await refs.text()).toContain(first.commit);
 
-    // A second push on top round-trips too — the repo holds real history.
     const second = await pushVaultFiles(
       pusher.credential,
       "vault: update welcome.md",
@@ -156,7 +147,6 @@ describe("vault git remote round-trip", () => {
     );
     expect(pushed.response.status).toBe(200);
 
-    // The same URL under beta's credential reaches a DIFFERENT (empty) repo.
     const refs = await SELF.fetch(`${REMOTE}/info/refs?service=git-upload-pack`, {
       headers: deviceHeaders(betaDevice.credential),
     });
@@ -184,18 +174,14 @@ describe("account deletion's vault half", () => {
     });
     expect(deletion.status).toBe(200);
 
-    // The wire died with the credential...
     const refused = await SELF.fetch(`${REMOTE}/info/refs?service=git-upload-pack`, {
       headers: deviceHeaders(credential),
     });
     expect(refused.status).toBe(401);
 
-    // ...the registry row is gone...
     expect(await env.REGISTRY.getByName("registry").get(`vault-${userId}`)).toBeNull();
 
-    // ...and the cell holds no objects and no refs — privacy.md's deletion
-    // step 2, read straight off the SQL because the wire refuses before it
-    // could prove the wipe.
+    // read off the SQL: the wire refuses a revoked credential before it could prove the wipe
     const stub = env.REPO.getByName(`vault-${userId}`);
     const rows = await runInDurableObject(stub, (_instance, state) => ({
       objects: state.storage.sql.exec("SELECT COUNT(*) AS n FROM objects").one().n,

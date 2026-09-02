@@ -1,14 +1,5 @@
 "use client";
 
-// Promise-based confirm on the alert-dialog primitives — the styled
-// replacement for the browser-native confirm. Call `confirm({ ... })` from any event
-// handler and await the user's answer; render <ConfirmDialogHost /> once at
-// the app root — one shared affordance over AlertDialog* composition.
-//
-// Keyboard contract: the confirm button takes initial focus so Enter
-// confirms; Base UI's alert dialog traps focus, cancels on Escape, and
-// returns focus to the previously focused element on close.
-
 import * as React from "react";
 
 import {
@@ -26,7 +17,6 @@ type ConfirmOptions = {
   body?: React.ReactNode;
   confirmLabel?: React.ReactNode;
   cancelLabel?: React.ReactNode;
-  /** Styles the confirm button as destructive (delete-shaped actions). */
   destructive?: boolean;
 };
 
@@ -71,15 +61,9 @@ const confirmStore: ConfirmStore = {
   },
 };
 
-/**
- * Ask the user to confirm an action. Resolves true on confirm, false on
- * cancel (button, Escape, or backdrop). Requires a mounted
- * <ConfirmDialogHost />; without one the promise stays pending — same shape
- * as a dismissed dialog, never a false positive.
- */
+// without a mounted ConfirmDialogHost the promise stays pending, never a false positive.
 export function confirm(options: ConfirmOptions): Promise<boolean> {
   return new Promise<boolean>((resolve) => {
-    // One confirm at a time: a newer ask settles the older one as canceled.
     confirmStore.getSnapshot().pending?.resolve(false);
     confirmStore.set({ options, resolve });
   });

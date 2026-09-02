@@ -1,10 +1,5 @@
 // @vitest-environment jsdom
 
-// The tint is a DECORATION, and Plate applies a decoration only to the node
-// it was returned FOR — this mounts the real kit and asserts the commented
-// text actually renders through CommentRangeLeaf (the regression: a
-// block-level decorate produced ranges no leaf ever claimed).
-
 import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 

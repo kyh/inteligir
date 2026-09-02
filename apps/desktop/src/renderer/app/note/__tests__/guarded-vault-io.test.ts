@@ -1,8 +1,3 @@
-// The write policy, driven against the REAL vault through the in-process app:
-// what each verb sends, and what a refusal does. A fake server would only
-// restate the policy; here the CAS refusal, the ALREADY_EXISTS and the bytes
-// on disk are the server's own.
-
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { contentHashHex, type VaultWriteRequest } from "@repo/api/local/vault/vault-schema";
@@ -10,8 +5,6 @@ import { bootTestApp, type BootedTestApp } from "inteligir/server/testing";
 import { describe, expect, it } from "vitest";
 import { createGuardedVaultIo, type GuardedVaultApi } from "../guarded-vault-io";
 
-/** The port over the booted app's client, with every write request kept —
- *  the guard a write carries is the assertion. */
 function recordingWrites(client: BootedTestApp["client"]) {
   const sent: VaultWriteRequest[] = [];
   const api: GuardedVaultApi = {
@@ -71,7 +64,6 @@ describe("the guarded vault io", () => {
     const io = createGuardedVaultIo(api);
     await io.read(NOTE);
 
-    // Between the read and the save, something else appends a line.
     const external = `${base}external-appended-line\n`;
     await client.vault.write({ path: NOTE, content: external });
 

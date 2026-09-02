@@ -1,10 +1,3 @@
-// Inline `#tag` chips. Two things must hold, and the second is the one
-// that would hurt: the chip must be CLICKABLE, and it must be RENDER-ONLY —
-// a decoration that never reaches the document value, so a note's bytes are
-// identical with the plugin registered and without it. Driven through the real
-// registration (createPlateEditor + PlateContent, the embed-gate pattern) and
-// the real EDITOR_KIT serializer, not by poking `decorate` by hand.
-
 import { cleanup, fireEvent, render } from "@testing-library/react";
 import { createSlateEditor, type Descendant, type TElement, type Value } from "platejs";
 import { createPlateEditor, Plate, PlateContent } from "platejs/react";
@@ -20,10 +13,7 @@ import { inlineTagSpans } from "@repo/notes/knowledge/link-extract";
 afterEach(cleanup);
 beforeEach(() => useSearchRequest.setState({ query: null }));
 
-/** Mount a value through the real TagChipKit registration. The other kits are
- * irrelevant here — unregistered element types still resolve to their default
- * type strings (`editor.getType` falls back to the key), which is exactly what
- * the suppression checks compare against. */
+// only TagChipKit: unregistered types still resolve through editor.getType's key fallback, which the suppression checks compare against.
 function renderValue(value: Value) {
   const editor = createPlateEditor({ plugins: TagChipKit, value });
   return render(
@@ -43,8 +33,6 @@ function chips(container: HTMLElement): string[] {
   );
 }
 
-// The chip decorates with the tag index's OWN scanner, so these assert the
-// grammar the chip must highlight — the same tokens the index counted.
 describe("inlineTagSpans (the scanner the chip decorates with)", () => {
   it("finds letter-first tags, including nested and dashed names", () => {
     expect(inlineTagSpans("see #alpha and #a/b/c plus #kebab-case.")).toEqual([
@@ -55,8 +43,6 @@ describe("inlineTagSpans (the scanner the chip decorates with)", () => {
   });
 
   it("stops short of a trailing dash (the index trims it too)", () => {
-    // `#bar-` counts as the tag `bar`, so the chip must cover `#bar` only —
-    // highlighting the dash would link a tag that isn't in the index.
     expect(inlineTagSpans("#bar-")).toEqual([{ end: 4, start: 0, tag: "bar" }]);
   });
 
@@ -71,7 +57,6 @@ describe("tag chip rendering", () => {
   it("chips every inline tag in a paragraph", () => {
     const { container } = renderValue([paragraph([{ text: "todo #alpha and #beta" }])]);
     expect(chips(container)).toEqual(["#alpha", "#beta"]);
-    // The surrounding prose is untouched text, not swallowed by the chip.
     expect(container.textContent).toBe("todo #alpha and #beta");
   });
 
@@ -85,8 +70,6 @@ describe("tag chip rendering", () => {
   });
 
   it("skips inline code, code blocks and link labels (index parity)", () => {
-    // Each of these is text to Slate but NOT a tag to the index — a chip here
-    // would navigate to an empty note list.
     const cases: Array<[string, Value]> = [
       ["inline code", [paragraph([{ code: true, text: "#alpha" }])]],
       [
@@ -105,9 +88,6 @@ describe("tag chip rendering", () => {
 
 describe("byte stability (the decoration never reaches the value)", () => {
   it("serializes tag-bearing markdown to its own bytes through EDITOR_KIT", () => {
-    // The live editor's kit is the one carrying TagChipKit. If a chip ever
-    // became a NODE instead of a decoration, this is what would break first —
-    // and the round-trip fixture matrix right behind it.
     const src = [
       "Prose with #alpha and #a/b/c tags.",
       "",
@@ -126,8 +106,6 @@ describe("byte stability (the decoration never reaches the value)", () => {
     const editor = createSlateEditor({ plugins: EDITOR_KIT, value: parsed.value });
     const out = serializeMd(editor, { remarkStringifyOptions: MD_STRINGIFY });
     expect(out).toBe(src);
-    // And the value itself carries no tagChip prop — decorations live outside
-    // the document, so nothing can serialize them by accident.
     expect(JSON.stringify(parsed.value).includes("tagChip")).toBe(false);
   });
 });

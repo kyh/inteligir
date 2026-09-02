@@ -31,7 +31,6 @@ describe("computeRenameEdits — wiki links", () => {
         "",
       ].join("\n"),
     );
-    // The moved doc itself has no links — only hub.md is edited.
     expect([...result.keys()]).toEqual(["hub.md"]);
   });
 
@@ -155,7 +154,6 @@ describe("computeRenameEdits — md links", () => {
       "a/doc.md",
       "b/c/doc.md",
     );
-    // The md link re-bases; the wiki link resolves by name and stays.
     expect(result.get("b/c/doc.md")).toBe("[sibling](../../a/sib.md) and [[wiki sib]]\n");
   });
 
@@ -215,8 +213,6 @@ describe("computeRenameEdits — asset renames", () => {
   });
 
   it("re-pins an image url whose case-insensitive fallback the rename steals", () => {
-    // ![x](Pic.png) fell back case-insensitively to pic.png; the renamed file
-    // lands exactly at Pic.png and would capture the reference.
     const result = edits({ "hub.md": "![x](Pic.png)\n", "misc.md": "" }, "misc.md", "Pic.png", [
       "pic.png",
     ]);
@@ -226,8 +222,6 @@ describe("computeRenameEdits — asset renames", () => {
 
 describe("computeRenameEdits — shadow protection", () => {
   it("qualifies another doc's short link when the rename would steal its tie-break", () => {
-    // misc.md -> note.md (root): [[note]] would now tie-break to the new root
-    // file instead of a/note.md. The rewrite pins the original meaning.
     const result = edits(
       { "hub.md": "see [[note]]\n", "a/note.md": "# The real note\n", "misc.md": "# Misc\n" },
       "misc.md",
@@ -241,14 +235,12 @@ describe("computeRenameEdits — shadow protection", () => {
     const result = edits(
       { "hub.md": "see [[note]]\n", "a/note.md": "", "misc.md": "" },
       "misc.md",
-      "z/note.md", // deeper than a/note.md — the tie-break still picks a/note.md
+      "z/note.md", // a/note.md still wins the tie-break
     );
     expect(result.size).toBe(0);
   });
 
   it("re-pins an md url whose case-insensitive fallback the rename steals", () => {
-    // [x](Note.md) fell back case-insensitively to note.md; the renamed file
-    // lands exactly at Note.md and would capture the link.
     const result = edits(
       { "hub.md": "[x](Note.md)\n", "note.md": "", "misc.md": "" },
       "misc.md",
@@ -258,8 +250,6 @@ describe("computeRenameEdits — shadow protection", () => {
   });
 
   it("dangling links heal silently when the rename lands on their name", () => {
-    // [[note]] dangled; renaming misc.md -> note.md makes it resolve. No
-    // rewrite — resolution simply starts working.
     const result = edits({ "hub.md": "see [[note]]\n", "misc.md": "" }, "misc.md", "note.md");
     expect(result.size).toBe(0);
   });
@@ -267,10 +257,6 @@ describe("computeRenameEdits — shadow protection", () => {
 
 describe("computeRenameEdits — alias shadow protection", () => {
   it("NEVER rewrites a pre-existing alias link to the moved doc (bytes unchanged)", () => {
-    // Bar is an alias of the moved doc: `[[Bar]]` resolves via the alias tier
-    // before AND after the rename (the alias travels with the frontmatter).
-    // The retarget branch keys on the PATH-ONLY pre-resolver, so the author's
-    // chosen word must survive byte-exact.
     const result = edits(
       {
         "hub.md": "see [[Bar]] and [[old note]]\n",
@@ -279,13 +265,10 @@ describe("computeRenameEdits — alias shadow protection", () => {
       "old note.md",
       "renamed.md",
     );
-    // Only the path-resolved link retargets; [[Bar]] is untouched.
     expect(result.get("hub.md")).toBe("see [[Bar]] and [[renamed]]\n");
   });
 
   it("qualifies a link whose alias the rename steals, keeping the visible word", () => {
-    // `[[Retro]]` reaches notes/owner.md only via its alias; misc.md renamed
-    // to Retro.md now captures the name through the basename tier.
     const result = edits(
       {
         "hub.md": "see [[Retro]]\n",
@@ -313,8 +296,6 @@ describe("computeRenameEdits — alias shadow protection", () => {
   });
 
   it("qualifies the target only when the link carries an anchor", () => {
-    // Appending `|raw` before `#sec` would swallow the anchor into the
-    // display text (the body splits at the FIRST pipe).
     const result = edits(
       {
         "hub.md": "see [[Retro#sec]]\n",
@@ -328,8 +309,6 @@ describe("computeRenameEdits — alias shadow protection", () => {
   });
 
   it("does nothing when the moved doc is renamed TO its own alias", () => {
-    // [[Retro]] resolved to owner via its alias; post-rename it resolves to
-    // the same doc via the basename tier — meaning unchanged, bytes unchanged.
     const result = edits(
       {
         "hub.md": "see [[Retro]]\n",
@@ -342,8 +321,6 @@ describe("computeRenameEdits — alias shadow protection", () => {
   });
 
   it("alias-ci links are protected too", () => {
-    // `[[retro]]` (lowercase) reaches the owner via the alias-ci tier; the
-    // rename to retro.md captures it via the basename tier.
     const result = edits(
       {
         "hub.md": "see [[retro]]\n",

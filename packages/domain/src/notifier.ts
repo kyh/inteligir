@@ -2,16 +2,8 @@
 
 import type { DocChangeKind, ThreadChangeKind, VaultChangeKind } from "./change-kinds";
 
-/**
- * The seam the write layer announces changes through. The server's ws bus
- * implements it at the edge; everything below it stays transport-blind — which
- * is why the seam lives here rather than in the store that calls it or the
- * contract that serializes it.
- */
 export interface DbNotifier {
-  /** `paths` names the vault-relative paths a files-changed announcement
-   *  covers; omitted means the change has no path list and every consumer
-   *  must re-diff (see the contract's vault changed message). */
+  // omitted `paths` means no path list: every consumer must re-diff.
   notifyVault(changes: VaultChangeKind[], paths?: readonly string[]): void;
   notifyDoc(docId: string, changes: DocChangeKind[]): void;
   notifyThread(threadId: string, changes: ThreadChangeKind[]): void;
@@ -23,13 +15,8 @@ export const noopNotifier: DbNotifier = {
   notifyThread() {},
 };
 
-/**
- * A DbNotifier that records instead of delivering, for multi-write
- * transactions: the writes inside the transaction announce into the buffer,
- * and the caller flushes AFTER commit — so a subscriber can never observe a
- * notification for state that was rolled back, and never re-enters the
- * database mid-transaction.
- */
+// flushed after commit, so a subscriber never sees a notification for rolled-back state and
+// never re-enters the database mid-transaction.
 export class NotificationBuffer implements DbNotifier {
   private deliveries: Array<(target: DbNotifier) => void> = [];
 

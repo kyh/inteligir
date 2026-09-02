@@ -1,14 +1,7 @@
-// Anchored comments over the vault. The sidecar
-// (`<note>.md.comments.json`) is an ORDINARY vault file, read and written
-// through the VaultService — which is what gives it containment, the watcher's
-// files-changed ping, auto-commit and sync for free, and is why this service
-// keeps no store of its own. Every mutation is a read-modify-write of the
-// whole sidecar, and the write is a COMPARE-AND-SWAP against the bytes the
-// fold was computed from: the panel and the agent's CLI are two writers of one
-// file, and a plain write would let whichever landed second silently erase
-// the other's entry. A refused swap is re-read, re-folded and retried ONCE —
-// safe here in a way a note-body edit is not, because every comment operation
-// is additive over ids — and a second refusal answers the conflict.
+// the sidecar is an ordinary vault file, so containment, notify, auto-commit and sync ride the write.
+// every mutation is a cas against the bytes it was folded from: the panel and the agent's cli are two
+// writers of one file, and a plain write lets the second erase the first's entry. one retry is safe
+// because every comment edit is additive over ids.
 
 import {
   addReply,
@@ -39,12 +32,9 @@ import { COMMENTS_THREADS_MAX } from "@repo/api/local/comments/comments-schema";
 
 import { VaultServiceError, type VaultService } from "../vault/vault-service";
 
-/** Unix seconds — the sidecar's own timestamp unit. */
+// unix seconds, the sidecar's unit.
 export type CommentsClock = () => number;
 
-/** Each mutation takes the contract's own request shape — the router hands
- *  `input` through verbatim. `source` absent means the caller did not say,
- *  and the server signs `user`. */
 export interface CommentsService {
   list(path: string): Promise<CommentsResponse>;
   add(args: CommentsAddRequest): Promise<CommentsResponse>;
@@ -53,21 +43,14 @@ export interface CommentsService {
   remove(args: CommentsRemoveRequest): Promise<CommentsRemoveResponse>;
 }
 
-/** A sidecar that exists but does not parse. Refused as a conflict rather
- * than treated as empty: folding it to `{}` would let the next write erase
- * every thread an external writer left there. */
+// not folded to `{}`: an empty fold lets the next write erase every thread an external writer left.
 export class SidecarInvalidError extends Error {}
 
-/** The sidecar changed under the edit twice in a row — the swap was refused,
- * the retry's swap was refused again. Reported rather than retried forever,
- * because a writer that keeps winning is one this process cannot outrun. */
 export class SidecarConflictError extends Error {}
 
-/** A model-level refusal (taken id, missing parent, not a root). */
 export class CommentRefusedError extends Error {}
 
-/** The wire entry is a strict projection — the FILE keeps fields this version
- * has never heard of; the wire carries only what the contract declares. */
+// an explicit projection, not a spread: the file keeps fields the contract does not declare.
 function toWire(entry: CommentSidecar[string]): CommentEntryWire {
   const wire: CommentEntryWire = {
     text: entry.text,
@@ -98,12 +81,8 @@ function toResponse(path: string, folded: SidecarThreads): CommentsResponse {
   };
 }
 
-/** The sidecar as parsed, with the exact bytes it was parsed from — the base
- * the write swaps against. `raw` is null when no sidecar exists yet. */
 type SidecarBase = { sidecar: CommentSidecar; raw: string | null };
 
-/** What every `@repo/notes` comment edit answers: the next sidecar (plus
- * whatever else that edit reports) or a model-level refusal. */
 type EditApplied = { ok: true; sidecar: CommentSidecar };
 type EditRefused = { ok: false; error: string };
 
@@ -127,15 +106,11 @@ export function createCommentsService(vault: VaultService, now: CommentsClock): 
     return { sidecar: parsed.sidecar, raw };
   }
 
-  /** The note's own bytes — a mutation against a note that is not there is a
-   * 404, and the marker set derives from the same read. */
   async function readNoteMarkers(notePath: string): Promise<Set<string> | null> {
     const { content } = await vault.read(notePath);
     return markerRootIds(content);
   }
 
-  /** Swap the sidecar to `next` only if it still holds `base.raw` — or still
-   * does not exist, when the base was its absence. */
   async function swapSidecar(
     notePath: string,
     base: SidecarBase,
@@ -150,10 +125,7 @@ export function createCommentsService(vault: VaultService, now: CommentsClock): 
     return result.applied;
   }
 
-  /** Read, edit, swap; once more from a fresh read if the swap is refused.
-   * The edit runs against whatever the retry read, so an edit the newer
-   * bytes refuse (an id the other writer already took) is a refusal, never
-   * a blind re-apply. */
+  // the edit re-runs against the retry's read, so an id the other writer took is refused, not re-applied.
   async function commit<Applied extends EditApplied>(
     notePath: string,
     edit: (sidecar: CommentSidecar) => Applied | EditRefused,

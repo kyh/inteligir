@@ -1,8 +1,4 @@
-// Mermaid preview for ```mermaid fences — render-only, zero serialization
-// surface (the node stays a plain code_block; bytes on disk are the fence).
-// The mermaid library (~2MB) is lazy-imported on first preview render so it
-// never touches the initial chunk. Parse errors show an inline chip and keep
-// the fence editable.
+// mermaid (~2MB) is lazy-imported on first preview render.
 
 import { useEffect, useId, useRef, useState } from "react";
 
@@ -18,13 +14,8 @@ function loadMermaid(): Promise<MermaidModule> {
   return mermaidPromise;
 }
 
-/**
- * Renders `code` as a mermaid diagram, debounced against typing. Re-renders
- * when the app theme flips (useDarkClass — mermaid bakes theme colors into
- * the emitted SVG).
- */
 export function MermaidPreview({ code }: { code: string }) {
-  // useId contains `:` which is invalid in the DOM id mermaid.render targets.
+  // useId contains `:`, invalid in the DOM id mermaid.render targets.
   const renderId = useId().replaceAll(":", "");
   const hostRef = useRef<HTMLDivElement | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -40,8 +31,7 @@ export function MermaidPreview({ code }: { code: string }) {
           startOnLoad: false,
           theme: dark ? "dark" : "neutral",
         });
-        // Parse first: mermaid.render throws AND leaves an error artifact in
-        // the DOM on bad input; parse gives a clean error path.
+        // parse first: mermaid.render throws and leaves an error artifact in the DOM on bad input.
         await mermaid.parse(code);
         const { svg } = await mermaid.render(`mermaid-${renderId}`, code);
         if (cancelled || !hostRef.current) return;
@@ -61,8 +51,6 @@ export function MermaidPreview({ code }: { code: string }) {
     };
   }, [code, dark, renderId]);
 
-  // The container matches the code fence's surface (PRE_CLASS family) so the
-  // block reads as one object across preview/source modes.
   return (
     <div contentEditable={false} className="my-1 select-none">
       {error ? (

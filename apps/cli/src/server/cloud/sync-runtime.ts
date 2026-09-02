@@ -1,26 +1,6 @@
-// Cloud thread sync: the SESSION — whose account this device syncs as, the
-// single-flight pass loop over `sync-pass.ts` on `sync-cadence.ts`'s timers,
-// what a socket frame MEANS (`socket-link.ts` owns the dialling), and the
-// session side of pairing (`pair-flow.ts` owns the browser dance).
-//
-// SYNC IS OFF UNTIL SOMEONE PAIRS, and the credential file IS the switch.
-// There is no second "enabled" flag, because two values that must agree are
-// two values that can disagree — a flag off beside a live credential leaves a
-// working credential nothing uses, and a flag on beside none is a promise no
-// loop can keep. With no credential this object opens no socket, arms no
-// timer and makes no request; `status()` answers `off` and every verb but the
-// two halves of pairing is a no-op.
-//
-// ONE DIRECTION AT A TIME, in one pass, and A PASS IS SINGLE-FLIGHT AND
-// COALESCING — a ping that lands mid-pass marks the pass dirty rather than
-// starting a second one, because two concurrent drains would push the same
-// batch twice and two concurrent pulls would apply the same page twice.
-//
-// THE SOCKET IS LATENCY, NEVER CORRECTNESS. It carries invalidation pings the
-// contract keeps payload-free, so a missed one costs staleness until the next
-// timer tick. The reconnect exists for the same reason and gives up on nothing
-// — except a credential the cloud has refused, which is the one failure a
-// retry cannot fix.
+// the credential file is the switch: no second "enabled" flag, because two
+// values that must agree can disagree. a pass is single-flight and coalescing —
+// two concurrent drains push one batch twice. the socket is latency, never correctness.
 
 import {
   createCloudClient,
@@ -63,48 +43,31 @@ import {
   type SyncPassDeps,
 } from "./sync-pass";
 
-/** The seams a suite replaces to drive this whole runtime without a network.
- *  Absent in production, where every default is the real thing. */
 export interface CloudTransport {
   fetch?: CloudFetch;
-  /**
-   * How the invalidation socket is dialled. ABSENT MEANS POLL-ONLY, which is
-   * correct rather than degraded — the socket carries invalidation pings and
-   * nothing else, so without it a paired device is exactly one poll interval
-   * behind. The shipping boot supplies `cloud-socket.ts`'s opener; that module
-   * cannot be reached from here (see its header), which is why this is an
-   * injection rather than a default.
-   */
+  /** absent means poll-only. injected rather than defaulted because
+   *  cloud-socket.ts cannot be imported here (browser tsconfig). */
   openSocket?: CloudSocketOpener;
-  /** null disables the poll timer and the push debounce — what a deterministic
-   *  suite needs, and independent of the socket above. */
+  /** null disables the poll timer and the push debounce. */
   pollIntervalMs?: number | null;
 }
 
 export interface CloudRuntimeArgs {
   db: DbConnection;
-  /** Where the credential lives; also this install's identity. */
   dataDir: string;
   cloudUrl: string;
-  /** Where a claimed capture is written. */
   vault: CaptureVault;
   transport?: CloudTransport;
-  /** How a pairing sends the user to their browser. Injected so a suite can
-   *  drive the whole flow without a window opening on whoever ran it. */
   openExternalUrl?: OpenExternalUrl;
-  /** Run a VAULT sync pass — the `vault` ping's handler, and kicked once
-   *  after a pairing completes so the newly derived hosted remote syncs
-   *  without waiting out the interval. Thread sync stays this runtime's own. */
+  /** the vault ping's handler; also kicked once after a pairing so the derived remote syncs now. */
   onVaultPing?: () => void;
   onDebug?: (message: string) => void;
 }
 
 export interface CloudRuntime {
   status(): CloudStatusResponse;
-  /** The outbox hook the thread service calls inside its append transaction. */
   enqueue(tx: DbTransaction, events: readonly ThreadEvent[]): void;
-  /** Late-bound: the sink is built after this runtime, because the thread
-   *  service needs `enqueue` at construction. */
+  /** late-bound: the thread service needs enqueue at construction. */
   attach(sink: SyncedEventSink): void;
   start(): void;
   beginPair(args: BeginPairArgs): Promise<CloudPairBeginResponse>;
@@ -123,19 +86,11 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
   let lastError: string | null = null;
   let disposed = false;
   const flight = createSingleFlight();
-  /** Whose account this session syncs as — fetched best-effort when a session
-   *  opens, so Settings can name the account rather than a hostname. Null
-   *  until the fetch lands (or when a stale cloud has no account row); a
-   *  failure costs the label, never the sync. */
+  // best-effort; a failure costs the label, never the sync.
   let accountEmail: string | null = null;
-  /** The identity fetch in flight, and WHOSE — a pass that arrives while one
-   *  is out joins it, but only when it belongs to the same session. Joining
-   *  the previous pairing's fetch would answer about an account this device
-   *  has left. */
+  // keyed by session: joining the previous pairing's fetch answers about an account this device left.
   let learningIdentity: { sessionId: number; pass: Promise<void> } | null = null;
 
-  /** The endpoint every call rides. `fetch` stays ABSENT unless a suite
-   *  injected one, so the client falls back to the global. */
   function endpoint(): CloudEndpoint {
     const target: CloudEndpoint = { baseUrl: args.cloudUrl };
     if (transport.fetch !== undefined) target.fetch = transport.fetch;
@@ -146,10 +101,6 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
     return { ...endpoint(), credential, signal };
   }
 
-  /** The session machine — the union, the fence and the abort rotation are
-   *  the contract's (`@repo/api/cloud/sync/sync-session`); what this runtime
-   *  adds around a transition is its own: the socket, the timers and the
-   *  account-identity fetch. */
   const session = createSyncSession<DeviceCredential>({
     makeClient: (credential, signal) =>
       createCloudClient(clientArgs(credential.credential, signal)),
@@ -165,18 +116,9 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
     void learnAccountIdentity().catch(() => undefined);
   }
 
-  /**
-   * Whose account this session syncs as, learned from `/v1/account` and
-   * persisted beside the credential — the value the vault's cross-account
-   * fence FAILS CLOSED without.
-   *
-   * SO IT IS RETRIED, at the top of every pass while the id is missing. The
-   * fetch is best-effort and one failure is ordinary (a laptop that autostarts
-   * before its network is up), but the credential is written once and read
-   * forever: a single dropped answer would leave hosted vault sync off for the
-   * process's whole life, with nothing said and no error recorded. Learning it
-   * re-kicks the vault pass the fence deferred.
-   */
+  // retried at the top of every pass while missing: the credential is written
+  // once, so a single dropped answer would leave the vault's fail-closed fence
+  // shut for the process's whole life.
   function learnAccountIdentity(): Promise<void> {
     const current = session.current();
     if (current.kind !== "live") return Promise.resolve();
@@ -185,8 +127,7 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
     if (learningIdentity?.sessionId === sessionId) return learningIdentity.pass;
     const pass = (async () => {
       const result = await client.account();
-      // The standard fence: a re-pair mid-flight must not label the NEW
-      // session with the old account.
+      // a re-pair mid-flight must not label the new session with the old account.
       if (!sessionAlive(sessionId)) return;
       accountEmail = result.ok ? result.value.email : null;
       if (result.ok && credential.userId !== result.value.id) {
@@ -202,20 +143,14 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
     return pass;
   }
 
-  /** True while `sessionId` is still the session this runtime is running, and
-   *  this runtime is still running at all. */
   function sessionAlive(sessionId: number): boolean {
     return !disposed && session.fenced(sessionId);
   }
 
-  /** A live session on a running runtime — the gate on every timer, dial
-   *  and pass. */
   function live(): boolean {
     return !disposed && session.current().kind === "live";
   }
 
-  /** {@link sessionAlive} for a pass. Checked after EVERY await, immediately
-   *  before any write. */
   function fenced(context: PassContext): boolean {
     return sessionAlive(context.sessionId);
   }
@@ -225,14 +160,10 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
     openSession(stored);
   }
 
-  // -- timers and the socket ------------------------------------------------
-
   const link = createSocketLink({
     baseUrl: args.cloudUrl,
     openSocket: transport.openSocket ?? null,
-    // This process owns the vault and drives the agent, so it is the machine
-    // a `desktop`-lane dispatch is addressed to. Answering one is a later
-    // round's work; saying what this device IS is not.
+    // this process owns the vault and drives the agent, so a desktop-lane dispatch is addressed to it.
     platform: "desktop",
     canConnect: live,
     credential: () => {
@@ -240,13 +171,9 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
       return current.kind === "live" ? current.credential.credential : null;
     },
     onPing: (ping) => {
-      // Invalidation-only frames, so each means "ask the server what
-      // changed" — including `dispatch`, whose thread still wants pulling so
-      // it shows up here rather than existing only in the cloud. A `sync`
-      // ping carries the log's high-water precisely so a client can tell one
-      // it already covers from news. `vault` is the one frame that is not
-      // about THIS log: another device pushed vault bytes, and the pass
-      // that answers it is the git engine's, not this runtime's.
+      // pings carry no payload; a sync ping's seq is the log's high-water, so one
+      // the cursor covers is skipped. vault is another device's push — the git
+      // engine's pass, not this one's.
       if (ping.type === "vault") {
         args.onVaultPing?.();
         return;
@@ -257,8 +184,7 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
       void syncNow();
     },
     onSevered: () => {
-      // A hint that this device was revoked — the pass is what turns it into
-      // a fact, because only an HTTP refusal is authoritative.
+      // a hint; only an http refusal is authoritative.
       void syncNow();
     },
   });
@@ -272,26 +198,17 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
   if (transport.pollIntervalMs !== undefined) cadenceArgs.pollIntervalMs = transport.pollIntervalMs;
   const cadence = createSyncCadence(cadenceArgs);
 
-  /** The one spelling of "stop talking to the cloud": the socket, its
-   *  reconnect and both timers together — every session transition runs it. */
   function haltTransport(): void {
     link.close();
     cadence.clear();
   }
 
-  // -- failure handling -----------------------------------------------------
-
-  /** The session machine's verdict, passed through: "ended" means the failure
-   *  ended this device's session and the caller stops. The unauthorized
-   *  transition is the machine's too; `onEnded` above halts the transport. */
   function recordFailure(failure: CloudFailure): "continue" | "ended" {
     lastError = describeCloudFailure(failure);
     const outcome = session.recordFailure(failure);
     if (outcome === "continue") debug(lastError);
     return outcome;
   }
-
-  // -- the pass -------------------------------------------------------------
 
   const passDeps: SyncPassDeps = {
     db: args.db,
@@ -310,17 +227,14 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
     if (current.kind !== "live" || disposed) {
       return;
     }
-    // Captured ONCE. Every step below re-checks it rather than re-reading the
-    // session, so a pass can never finish its work against a session that is
-    // no longer the one it started under.
+    // captured once; every step re-checks it rather than re-reading the session.
     const context: PassContext = {
       sessionId: current.id,
       client: current.client,
       deviceId: current.credential.deviceId,
     };
     if (current.credential.userId === undefined) {
-      // A no-op once learned, so this is the poll interval's own recovery
-      // cadence for the one fetch nothing else retries.
+      // a no-op once learned; the poll is the retry cadence for this one fetch.
       await learnAccountIdentity();
       if (!fenced(context)) {
         return;
@@ -328,8 +242,6 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
     }
     await runSyncPass(passDeps, context);
   }
-
-  // -- the surface ----------------------------------------------------------
 
   function status(): CloudStatusResponse {
     const current = session.current();
@@ -375,14 +287,10 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
     return status();
   }
 
-  // -- pairing --------------------------------------------------------------
-
   async function adoptPairedCredential(credential: DeviceCredential): Promise<void> {
-    // A fresh pairing starts from a clean slate whether or not one was held
-    // before: the outbox and both positions describe an account this device
-    // may no longer be talking to. `openSession` below ends the old session,
-    // which is what stops a pass still running under it from acking into
-    // the queue this reset just emptied.
+    // clean slate: the outbox and both positions describe an account this device
+    // may have left. openSession ends the old session, which stops a running pass
+    // from acking into the emptied queue.
     haltTransport();
     resetSyncState(args.db);
     writeDeviceCredential(args.dataDir, credential);
@@ -392,8 +300,7 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
     cadence.armPoll();
     link.connect();
     await syncNow();
-    // The pairing just derived a hosted vault remote; sync it now rather
-    // than on the next interval tick.
+    // the pairing just derived a hosted remote; sync it now.
     args.onVaultPing?.();
   }
 
@@ -412,11 +319,8 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
 
     enqueue(tx, events) {
       if (session.current().kind !== "live" || events.length === 0) {
-        // An unpaired install queues nothing. The trade, stated: pairing later
-        // syncs from that moment rather than backfilling — the log is the
-        // account's history, not this device's, and a device that queued for
-        // months before anyone paired would push a backlog no other device has
-        // a base for.
+        // an unpaired install queues nothing: pairing later syncs from that
+        // moment, not a backlog no other device has a base for.
         return;
       }
       enqueueThreadEvents(tx, events);
@@ -442,9 +346,7 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
     unpair() {
       session.close();
       haltTransport();
-      // An armed approval outlives the credential it was meant to replace
-      // otherwise, and "stop syncing this device" followed by a silent re-pair
-      // a minute later is not what the button said.
+      // an armed approval must not outlive the credential it was meant to replace.
       pairFlow.cancel();
       clearDeviceCredential(args.dataDir);
       resetSyncState(args.db);
@@ -458,17 +360,12 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
     async dispose() {
       disposed = true;
       haltTransport();
-      // Drop any armed approval: a callback arriving mid-teardown must find
-      // nothing to complete (completePair also guards on `disposed`, but the
-      // slot itself should not outlive the runtime that owns it).
+      // the slot must not outlive the runtime that owns it.
       pairFlow.cancel();
-      // Cancels the requests in flight. Without it the teardown step's budget
-      // is a hope: awaiting the pass would wait out every remaining round
-      // trip, and it would keep writing — the vault included — after the
-      // process was told to stop.
+      // without the abort the teardown budget is a hope: the pass would wait out
+      // every round trip and keep writing.
       session.abort();
-      // A pass mid-flight owns a transaction and a request; letting it finish
-      // is what keeps the outbox's ack and its push in agreement.
+      // let a pass mid-flight finish so the outbox's ack and its push agree.
       await flight.inflight()?.catch(() => undefined);
     },
   };

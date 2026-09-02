@@ -4,12 +4,8 @@ import { errnoCode } from "./errno";
 
 const MARKER_FILE_NAME = "checkout-path";
 
-/**
- * A derived dev data dir belongs to exactly one checkout. The instance id is
- * a truncated hash, so two checkouts colliding on it would silently share one
- * SQLite file; the marker turns that into a refusal instead. First boot
- * records the checkout path; later boots must match it.
- */
+// the instance id is a truncated hash, so two colliding checkouts would silently share
+// one sqlite file; the marker turns that into a refusal.
 export function ensureDevDataDirOwnership(dataDir: string, checkoutPath: string): void {
   mkdirSync(dataDir, { recursive: true });
   const markerPath = join(dataDir, MARKER_FILE_NAME);

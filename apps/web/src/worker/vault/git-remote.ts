@@ -5,55 +5,16 @@ import { deviceCredentialFromHeader, verifyDeviceCredentialValue } from "../devi
 import { allowInWindow, deviceRateKey, type RateWindow } from "../rate-limit";
 import { pingVaultAdvanced } from "../sync/routes";
 
-// ---------------------------------------------------------------------------
-// `/v1/git/vault.git` — the hosted vault remote: one git repo per user, a
-// Durable Object speaking smart HTTP through `durable-git`, behind the same
-// device credential as every other device route.
-//
-// The wrapper owns three facts:
-//
-//   1. THE URL IS IDENTITY-FREE. Every device dials `vault.git`; the real
-//      repo name is derived from the VERIFIED credential and rewritten into
-//      the path here — the caller never names the repo, the same rule the
-//      ThreadSyncDO address follows. The name keeps the userId's case
-//      verbatim, because `user:<userId>` must round-trip out of it for the
-//      push ping.
-//   2. ONLY THE GIT PROTOCOL IS REACHABLE FROM THE WIRE. dgit's JSON API and
-//      admin surface stay internal — mobile reads ride our own /cloud rows
-//      over the REPO binding's RPC, and deletion is the account hook's call
-//      below. What a device credential buys on this path is clone/fetch/push,
-//      nothing else.
-//   3. THE CREDENTIAL RIDES EITHER CARRIER. The CLI's git sends it as a
-//      Bearer header (`http.extraHeader`); a stock git client answers the 401
-//      challenge with HTTP Basic, where the password is the credential (the
-//      username is ignored). dgit itself parses Basic only, so verification
-//      lives here, not in its hook.
-//
-// dgit's `authorize` is kept as defense-in-depth rather than the gate: the
-// wrapper stamps the repo it verified into a marker header (stripped from the
-// wire first), and the hook admits exactly that repo. A request reaching the
-// handler any other way is refused.
-//
-// The push ping deliberately does NOT use dgit's `onPush`: that hook knows
-// which repo advanced but not which DEVICE pushed, and the pusher must be
-// excluded the way `sync` pings exclude theirs. The wrapper verified the
-// device, so it observes `x-changed: 1` on the receive-pack response and
-// pings the user's ThreadSyncDO itself, off the response path.
-// ---------------------------------------------------------------------------
+// The URL is identity-free: the repo name is derived from the verified credential and rewritten
+// into the path, keeping the userId's case so `user:<userId>` round-trips for the push ping.
+// Verification lives here, not in dgit's Basic-only hook; its authorize stays as defense-in-depth
+// over a marker header. The ping does not use dgit's onPush, which cannot name the pushing device.
 
-/** Stamped after verification, checked by dgit's authorize hook. Never
- *  accepted from the wire — the wrapper strips any inbound copy. */
+// stamped after verification; any inbound copy is stripped first
 const AUTHORIZED_HEADER = "x-vault-authorized";
 
-/** The subpaths git smart HTTP actually uses; everything else 404s. */
-/**
- * A device's budget on the git remote, set from the worst LEGITIMATE minute
- * rather than from the once-a-minute common case: an account may hold 20
- * devices, every push pings all the others, and a pinged device syncs
- * immediately — so one device can owe ~20 passes in a minute, each a
- * protocol-v2 fetch plus a push, around a hundred requests. A ceiling near
- * that would refuse real sync and report it as `offline`.
- */
+// set from the worst legitimate minute: 20 devices, every push pings the others, and a pinged
+// device syncs at once, so one device can owe ~100 requests; a ceiling near that refuses real sync
 const VAULT_GIT_WINDOW: RateWindow = { max: 600, windowMs: 60_000 };
 
 const PROTOCOL_ROUTES = new Set([
@@ -62,27 +23,20 @@ const PROTOCOL_ROUTES = new Set([
   "POST /git-receive-pack",
 ]);
 
-/** Mirror of durable-git's negotiation-body ceiling. Enforced HERE on the
- *  declared length because the library treats an UNDECLARED (chunked) body
- *  as small and buffers it whole — and stock git always declares upload-pack
- *  negotiation bodies (they sit far under http.postBuffer). The parse must be
- *  the library's own `parseInt`: `Number(null)` is 0, so an absent header
- *  would read as a declared, tiny body and walk straight through. */
+// mirrors durable-git's negotiation-body ceiling, enforced on the declared length because the
+// library buffers an undeclared (chunked) body whole. parseInt, not Number: Number(null) is 0,
+// so an absent header would read as a tiny declared body
 const MAX_UPLOAD_PACK_BYTES = 16 * 1024 * 1024;
 
-/** dgit refuses repo names outside this set; the userId is embedded in the
- *  name, so the assumption is checked rather than carried silently. */
+// dgit refuses repo names outside this set, and the userId is embedded in the name
 const REPO_NAME_SAFE = /^[A-Za-z0-9._-]+$/;
 
-/** Also the read routes' address (read-routes.ts) — one derivation, so the
- *  wire a device pushes and the wire a phone reads can never name different
- *  repos for one account. */
+// also the read routes' address (read-routes.ts): one derivation, so push and read cannot name different repos
 export function vaultRepoName(userId: string): string {
   return `vault-${userId}`;
 }
 
-/** The one name index. One spelling, because reads consult it and deletion
- *  removes from it — a drift makes every account read "no hosted vault". */
+// one spelling: reads consult it and deletion removes from it
 export function vaultRegistry(env: Env): DurableObjectStub<Registry> {
   return env.REGISTRY.getByName("registry");
 }
@@ -92,8 +46,7 @@ const handler = createDurableGit<Env>({
   authorize: (ctx) => ctx.request.headers.get(AUTHORIZED_HEADER) === ctx.repo,
 });
 
-/** Plain text + Basic challenge, not the JSON envelope: this is the git wire,
- *  and the challenge is what makes a stock client prompt. */
+// plain text plus a Basic challenge: the challenge is what makes a stock git client prompt
 function unauthorized(): Response {
   return new Response("auth required\n", {
     status: 401,
@@ -120,8 +73,7 @@ export async function handleVaultGitRemote(
   if (
     !(await allowInWindow(env, db, deviceRateKey("vaultGit", verified.deviceId), VAULT_GIT_WINDOW))
   ) {
-    // Plain text, like every other refusal on this wire: a JSON envelope in a
-    // git client's stderr is noise.
+    // plain text: a JSON envelope in a git client's stderr is noise
     return new Response("too many requests\n", { status: 429 });
   }
 
@@ -153,40 +105,25 @@ export async function handleVaultGitRemote(
 
   if (sub === "/git-receive-pack" && response.ok && response.headers.get("x-changed") === "1") {
     ctx.waitUntil(pingVaultAdvanced(env, verified.userId, verified.deviceId));
-    // Belt over the library's own bookkeeping: dgit SUPPRESSES a registry
-    // upsert failure ("next push heals"), but the read routes gate unpinned
-    // requests on the registry — a suppressed failure after the FIRST push
-    // leaves the vault invisible with no later push to heal it. Idempotent,
-    // so the double-write in the common case costs one row touch.
+    // dgit suppresses a registry upsert failure ("next push heals"), but the read routes gate on the
+    // registry, so a suppressed failure after the first push leaves the vault invisible; idempotent
     const idle = Number(response.headers.get("x-commit-time")) || Date.now();
     ctx.waitUntil(
       Promise.resolve(vaultRegistry(env).upsert(repo, idle)).catch(() => {
-        // dgit's next-push-heals fallback still stands.
+        // dgit's next-push-heals fallback still stands
       }),
     );
   }
   return response;
 }
 
-/**
- * The account-deletion hook's vault half: wipe the user's repo cell (SQLite
- * and its R2 packs — `x-repo` is what keys the purge) and drop the registry
- * row. A non-OK answer throws so the surrounding `beforeDelete` aborts and
- * the account survives to ask again; a repo never pushed to wipes empty
- * tables, so the step is idempotent.
- *
- * The stated residual, mirroring ThreadSyncDO's tombstone rationale: a push
- * whose credential verified before revocation and whose pack is still
- * uploading when this runs can recreate the repo after the wipe. There is no
- * tombstone inside dgit to close that with; the window is one in-flight
- * upload, and the recreated orphan is unreachable — every credential that
- * could name it is already revoked.
- */
+// A non-OK answer throws so beforeDelete aborts and the account survives to retry; a never-pushed
+// repo wipes empty tables, so it is idempotent. Residual: a push whose pack is still uploading can
+// recreate the repo after the wipe; dgit has no tombstone, and the orphan is unreachable since
+// every credential that could name it is revoked.
 export async function deleteVaultGitRepo(env: Env, userId: string): Promise<void> {
   const repo = vaultRepoName(userId);
-  // Deliberately NOT gated on the registry (the read routes' rule): a purge
-  // must not trust an index — a registry row lost to a hiccup must never
-  // leave the repo's bytes alive.
+  // not gated on the registry: a purge must not trust an index, or a lost registry row leaves the bytes alive
   const response = await env.REPO.getByName(repo).fetch("https://vault-git/", {
     method: "DELETE",
     headers: { "x-repo": repo },
@@ -194,10 +131,7 @@ export async function deleteVaultGitRepo(env: Env, userId: string): Promise<void
   if (!response.ok) {
     throw new Error(`vault git repo delete failed: ${response.status}`);
   }
-  // Belt over the library's R2 purge, which LOGS a failure and answers ok —
-  // an answer this hook must not trust, because these keys are the note
-  // bytes docs/privacy.md promises die with the account. A throw here aborts
-  // the deletion, and the account survives to ask again.
+  // dgit's own R2 purge logs a failure and answers ok, which a deletion hook cannot trust; a throw aborts the deletion
   for (const prefix of [`raw/${repo}/`, `pack/${repo}/`]) {
     let cursor: string | undefined;
     do {

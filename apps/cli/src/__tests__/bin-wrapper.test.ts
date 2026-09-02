@@ -1,15 +1,3 @@
-// The bin wrapper's exit code is the truth about its child, and its signal
-// contract is the terminal's. Pinned here: the HARD death — a child killed by
-// a signal (a native abort in onnxruntime, an OOM kill) — which must reach the
-// wrapper's caller as 128+n, never as the 0 a relay handler swallowing a
-// re-raised signal produces; a ^C, which the process GROUP delivers to the
-// child itself and the wrapper must therefore not relay on top; and a
-// supervisor's by-pid SIGTERM, which nothing but the wrapper can pass on.
-//
-// Driven over the REAL bin file, copied into a scratch layout shaped like the
-// published artifact (package.json + bin/ + dist/index.js) so the stub
-// `dist/index.js` IS the child it runs.
-
 import { spawn } from "node:child_process";
 import { copyFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { constants } from "node:os";
@@ -23,9 +11,7 @@ function stagedBin(childSource: string): string {
   const root = makeTempDir("inteligir-bin-wrapper-");
   mkdirSync(join(root, "bin"));
   mkdirSync(join(root, "dist"));
-  // The extensionless bin runs as ESM because the nearest package.json says
-  // `type: module`; the staged layout needs one for the same reason the
-  // published artifact ships one.
+  // the extensionless bin runs as ESM only because the nearest package.json says `type: module`.
   writeFileSync(join(root, "package.json"), JSON.stringify({ type: "module" }));
   copyFileSync(BIN, join(root, "bin", "inteligir"));
   writeFileSync(join(root, "dist", "index.js"), childSource);
@@ -47,11 +33,7 @@ function runBin(bin: string): Promise<Exit> {
   });
 }
 
-/** A child shaped like the server's signal contract: one SIGINT is a clean
- *  exit, a SECOND one while the first is still being honoured is impatience
- *  and leaves unclean; SIGTERM is a clean exit. The five-second exit is a
- *  watchdog so a wrapper that dies without its child cannot orphan it into
- *  the test run. */
+// one SIGINT exits clean, a second during the first exits 1; the 5s timer keeps an orphaned child out of the run.
 const SIGNAL_CONTRACT_CHILD = `
 let sigints = 0;
 process.on("SIGINT", () => {
@@ -64,10 +46,8 @@ setTimeout(() => process.exit(3), 5_000);
 process.stdout.write("up\\n");
 `;
 
-/** The wrapper as its own process-group leader — what a shell makes of a
- *  foreground job — so `kill(-pid)` reaches wrapper and child both, exactly
- *  as a terminal's ^C does. Resolves once the child reports `up`, so a signal
- *  cannot land before its handler is installed. */
+// detached makes the wrapper a group leader so `kill(-pid)` reaches wrapper and child like a terminal's ^C;
+// resolves on `up` so no signal lands before the child's handler exists.
 function runBinAsGroupLeader(bin: string): Promise<{ pid: number; exit: Promise<Exit> }> {
   return new Promise((resolveUp, reject) => {
     const child = spawn(process.execPath, [bin], {
@@ -96,9 +76,6 @@ function runBinAsGroupLeader(bin: string): Promise<{ pid: number; exit: Promise<
 
 describe.skipIf(process.platform === "win32")("bin/inteligir", () => {
   it("lets a terminal's ^C reach the child ONCE — the process group already delivered it", async () => {
-    // The trap this pins: a wrapper relaying SIGINT hands the server a second
-    // copy of the one the group delivered, which the server reads as
-    // impatience — it leaves before the vault flush, exit 1.
     const { pid, exit } = await runBinAsGroupLeader(stagedBin(SIGNAL_CONTRACT_CHILD));
     process.kill(-pid, "SIGINT");
     expect(await exit).toEqual({ code: 0, signal: null });
@@ -116,10 +93,6 @@ describe.skipIf(process.platform === "win32")("bin/inteligir", () => {
   });
 
   it("exits 128+n when the child dies by a RELAYED signal — never 0", async () => {
-    // The trap this pins: re-raising the child's fatal signal at a wrapper
-    // that still holds a relay listener for it runs the relay against a dead
-    // child instead of terminating, and the wrapper then exits 0 — a hard
-    // server death reported as success.
     const bin = stagedBin('process.kill(process.pid, "SIGTERM");\n');
     expect(await runBin(bin)).toEqual({ code: 128 + constants.signals.SIGTERM, signal: null });
   });

@@ -1,9 +1,6 @@
 // Vendored from bb (github.com/get-bb/bb), MIT. © bb contributors.
-// Trimmed to the grammar v1 emits: bb's full grammar also carries web
-// search/fetch, image view, background tasks, context compaction, goals,
-// rate limits, warnings, model fallback, and the system/* family — none of
-// which has a producer here yet. Re-vendor an event from bb when its
-// producer lands; never invent a divergent shape for one bb already names.
+// trimmed to what has a producer here; re-vendor an event from bb rather than inventing a shape
+// bb already names.
 
 import { z } from "zod";
 import { threadEventScopeSchema, validateThreadEventScope } from "./thread-event-scope";
@@ -86,8 +83,7 @@ export const threadEventItemSchema = z.discriminatedUnion("type", [
     cwd: z.string(),
     status: threadEventItemStatusSchema,
     approvalStatus: threadEventItemApprovalStatusSchema,
-    // Omitted when the process produced no stdout/stderr — adapters omit the
-    // field instead of emitting an empty-string placeholder.
+    // omitted, never an empty string, when the process produced no output.
     aggregatedOutput: z.string().optional(),
     exitCode: z.number().optional(),
     durationMs: z.number().optional(),
@@ -140,13 +136,11 @@ const unscopedThreadEventSchema = z.discriminatedUnion("type", [
     threadId: z.string(),
     itemId: z.string(),
     delta: z.string(),
-    // When true, this delta replaces previously accumulated command output
-    // instead of appending to it. Omission means the delta appends.
+    // true replaces the accumulated output instead of appending.
     reset: z.boolean().optional(),
   }),
-  // Codex streams the VISIBLE thinking text as summary deltas; the content
-  // deltas carry raw chain-of-thought only for models that expose it. Both
-  // fold into the one reasoning row's streaming buffer.
+  // codex streams visible thinking as summary deltas; content deltas carry raw chain-of-thought
+  // only for models that expose it. both fold into the one reasoning row.
   z.object({
     type: z.literal("item/reasoning/summaryTextDelta"),
     threadId: z.string(),
@@ -177,19 +171,12 @@ const unscopedThreadEventSchema = z.discriminatedUnion("type", [
     detail: z.string().optional(),
     willRetry: z.boolean().optional(),
   }),
-  // The user's message, recorded by the send path at thread scope before any
-  // turn exists (bb's client/turn/requested).
   z.object({
     type: z.literal("client/turn/requested"),
     threadId: z.string(),
     text: z.string(),
-    /**
-     * What the sender was looking at — a local addition to bb's shape, and the
-     * one place a message's ambient context is recorded. `text` stays exactly
-     * what the user typed; this rides beside it rather than being folded in.
-     * No migration: `events.data` is a free-form text column holding
-     * `JSON.stringify(event)`, re-parsed through this schema.
-     */
+    // a local addition to bb's shape, beside `text` rather than folded into it; no migration,
+    // since events.data is free-form json re-parsed through this schema.
     viewContext: viewContextSchema.optional(),
   }),
 ]);
@@ -198,10 +185,6 @@ const scopedEventDataSchema = z.object({
   scope: threadEventScopeSchema,
 });
 
-/**
- * All thread events, scope-validated: a turn-only event under thread scope
- * (or the reverse) is refused at parse, before any row can exist for it.
- */
 export const threadEventSchema = unscopedThreadEventSchema
   .and(scopedEventDataSchema)
   .superRefine((event, ctx) => {
@@ -222,10 +205,7 @@ export interface ThreadEventItemRef {
   itemKind: ThreadEventItemType | null;
 }
 
-/**
- * The item identity a stored event row indexes under. Delta events name only
- * the item id — their kind is on the item/started row that anchors them.
- */
+// a delta names only the item id; its kind is on the item/started row.
 export function getThreadEventItemRef(event: ThreadEvent): ThreadEventItemRef {
   switch (event.type) {
     case "item/started":

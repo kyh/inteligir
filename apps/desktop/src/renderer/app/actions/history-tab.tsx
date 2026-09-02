@@ -1,12 +1,5 @@
-// The panel's History tab: every revision of the open note, what restoring one
-// would change, and the restore itself. A READ over the vault's own git repo,
-// so it works offline and with no remote — the posture the vault already takes.
-//
-// The current side of the diff is the OPEN BUFFER, not a cached read: the
-// note's bytes are not query state (the buffer is the file), and the user must
-// be shown a diff against what is on their screen. The CAS base is that exact
-// snapshot, so a note that moved underneath refuses the restore instead of
-// blessing bytes the diff never showed.
+// the diff's current side is the open buffer, and the CAS base is that same snapshot: a
+// note that moved underneath refuses the restore rather than blessing bytes the diff never showed.
 
 import {
   contentHashHex,
@@ -33,8 +26,6 @@ type RestoreOutcome = { kind: "restored" } | { kind: "refused"; message: string 
 
 const RESTORE_REFUSED = "The restore was refused.";
 
-/** The abbreviation git itself shows, and what `inteligir vault revision`
- *  accepts back. */
 function shortSha(sha: string): string {
   return sha.slice(0, 7);
 }
@@ -104,7 +95,6 @@ function RevisionDetail({
   onBack,
 }: {
   docPath: string;
-  /** The open buffer's bytes — the diff's base and the restore's CAS base. */
   current: string;
   revision: VaultRevision;
   onBack: () => void;
@@ -122,18 +112,14 @@ function RevisionDetail({
 
   const restore = useMutation({
     mutationFn: async (bytes: string): Promise<RestoreOutcome> => {
-      // The buffer's own bytes have to be on disk before the CAS base below
-      // means anything, and a flush that failed leaves them where this write
-      // would silently discard them.
+      // the buffer must be on disk before the CAS base means anything.
       if (!(await flushOpenNote())) {
         return {
           kind: "refused",
           message: "The note could not be saved, so nothing was restored.",
         };
       }
-      // Checkpoint what is about to be replaced: the auto-commit is
-      // session-shaped, so bytes saved seconds ago are in no revision yet and
-      // overwriting them would leave them in none at all.
+      // the auto-commit is session-shaped, so bytes saved seconds ago are in no revision yet.
       await api.vault.commitNow();
       const { error } = await safe(
         api.vault.write({
@@ -215,16 +201,12 @@ function RevisionDetail({
 export function HistoryTab({ docPath }: { docPath: string | null }) {
   const [selected, setSelected] = useState<VaultRevision | null>(null);
   const [limit, setLimit] = useState(VAULT_HISTORY_DEFAULT_LIMIT);
-  // The buffer only answers for the note it has LOADED: a switch publishes the
-  // new path before its bytes arrive, and diffing the outgoing note's text
-  // against this note's revision would be a diff of two different files.
+  // a switch publishes the new path before its bytes arrive; only the loaded note's text may diff.
   const current = useOpenNote((state) =>
     state.editor.path === docPath ? state.editor.content : null,
   );
-  // `staleTime` is Infinity app-wide, and a commit announces nothing — so this
-  // is the one query that has to re-ask whenever the tab is opened. No
-  // retries: the log is an off-lock `git log`, so a refusal is deterministic
-  // and three backoff rounds would show "Loading…" for seconds over it.
+  // `staleTime` is Infinity app-wide and a commit announces nothing, so this query re-asks per open.
+  // no retries: an off-lock `git log` refusal is deterministic.
   const historyQuery = useQuery({
     ...orpc.vault.history.queryOptions({ input: { path: docPath ?? "", limit } }),
     staleTime: 0,
@@ -248,9 +230,6 @@ export function HistoryTab({ docPath }: { docPath: string | null }) {
     );
   }
 
-  // A refused read is a FAILURE, never an empty history: "No revisions yet"
-  // is a claim about the user's data, and a repo that could not answer (git
-  // missing, a path the vault refuses) has not made it.
   if (historyQuery.isError) {
     return <ReadRefusal lead="The history could not be read." error={historyQuery.error} />;
   }

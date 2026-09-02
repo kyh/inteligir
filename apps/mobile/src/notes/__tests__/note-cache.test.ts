@@ -1,10 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createMemoryNoteCache } from "../note-cache";
 
-// The port's reference implementation, pinned so every adapter has a
-// behavior to match: (commit, path) addressing, FIFO under the bound, sweep
-// keeps only the reachable commit, clear forgets everything.
-
 const C1 = "1".repeat(40);
 const C2 = "2".repeat(40);
 

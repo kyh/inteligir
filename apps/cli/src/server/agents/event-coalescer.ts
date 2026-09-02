@@ -1,9 +1,5 @@
-// Buffers the ACP driver's mapped events per thread so a streaming burst
-// lands as ONE ingest transaction (and one ws frame) instead of one per
-// delta. Deltas park until the next macrotask tick; a non-delta event flushes
-// its thread immediately — buffered deltas first, then itself, in arrival
-// order — so item boundaries and lifecycle events never reorder around their
-// deltas.
+// deltas park until the next macrotask so a streaming burst lands as one ingest transaction and one ws frame;
+// a non-delta event flushes its thread immediately, buffered deltas first, so boundaries never reorder around deltas.
 
 import type { ThreadEvent } from "@repo/domain/provider-event";
 
@@ -38,7 +34,6 @@ export class ProviderEventCoalescer {
     }
   }
 
-  /** Hand the thread's buffered events to the sink as one batch. */
   flush(threadId: string): void {
     const pending = this.pendingByThreadId.get(threadId);
     if (pending === undefined) {
@@ -49,7 +44,7 @@ export class ProviderEventCoalescer {
   }
 
   flushAll(): void {
-    // Snapshot first: flush() deletes the entry it drains.
+    // snapshot first: flush() deletes the entry it drains.
     const threadIds = Array.from(this.pendingByThreadId.keys());
     for (const threadId of threadIds) {
       this.flush(threadId);
@@ -61,8 +56,7 @@ export class ProviderEventCoalescer {
       return;
     }
     this.flushScheduled = true;
-    // setImmediate over a microtask: an adapter draining one stdio chunk
-    // awaits between lines, so a microtask would still flush per delta.
+    // setImmediate over a microtask: an adapter draining one stdio chunk awaits between lines, so a microtask would still flush per delta.
     setImmediate(() => {
       this.flushScheduled = false;
       this.flushAll();

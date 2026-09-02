@@ -1,10 +1,3 @@
-// Pill interactions: click opens an edit popover over the entry grammar
-// (`sum=2+2` / `2+2` / `time=9am`); saving rewrites EVERY linked instance
-// (same id in this note — the skill's linked-instance rule); Backspace on a
-// selected pill converts it back to its entry text, exactly the spec's
-// escape hatch. Everything is an editor transaction — bytes only ever move
-// through the serialize path.
-
 import { useEffect, useRef, useState } from "react";
 import { NodeApi, type NodeEntry, type SlateEditor, type TElement } from "platejs";
 import { useEditorRef } from "platejs/react";
@@ -29,8 +22,6 @@ function formulaEntriesById(editor: SlateEditor, id: string): NodeEntry<TElement
   return out;
 }
 
-/** Rewrite the clicked pill — and, when it carries an id, every linked
- * instance in the note with it. */
 export function applyFormulaEdit(
   editor: SlateEditor,
   element: TElement,
@@ -50,7 +41,6 @@ export function applyFormulaEdit(
   });
 }
 
-/** Replace a pill with its entry text (the spec's Backspace conversion). */
 export function convertFormulaToText(editor: SlateEditor, element: TElement): void {
   const path = editor.api.findPath(element);
   if (path === undefined) return;

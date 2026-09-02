@@ -1,19 +1,8 @@
-// The threads core: one service owning the send policy, the provider event
-// ingest (the ONLY writer of provider events), and the queue drain. The two
-// laws every method obeys:
-//   1. Ingest and send each read state, validate, append, project lifecycle
-//      and touch the queue inside ONE synchronous transaction — a completion
-//      can never race a send decision, and a subscriber can never observe a
-//      notification for state that rolled back (NotificationBuffer flushes
-//      after commit).
-//   2. Every cross-boundary identity is checked, never assumed: an ingest
-//      refuses events naming another thread, and a settle names its turn —
-//      the lifecycle CAS makes a late completion for an old turn a logged
-//      no-op instead of a wrong-turn transition.
-// The one deliberate exception to (1): driver dispatch happens AFTER commit,
-// because a scripted driver re-enters ingest synchronously and a transaction
-// cannot nest; a dispatch failure is folded back in its own transaction
-// (provider/error + run.failed), so a driver crash cannot wedge `starting`.
+// ingest and send each read, validate, append, project lifecycle and touch the
+// queue inside one transaction; notifications flush after commit. driver
+// dispatch is the one step after commit: a scripted driver re-enters ingest
+// synchronously and a transaction cannot nest, so a dispatch failure is folded
+// back in its own.
 
 import {
   approvalPendingInteractionPayloadSchema,
@@ -76,11 +65,7 @@ import { ThreadTimelineProjector } from "./timeline-projection";
 import { TurnDriverUnavailableError, type CreateTurnDriver, type TurnDriver } from "./turn-driver";
 import type { ProviderEventSink, TurnDriverStartArgs } from "./turn-driver";
 
-/**
- * Why a send can conflict. `threads-router.ts` switches EXHAUSTIVELY over this
- * union to pick the wire class each one answers, so a member added here breaks
- * there — which is where the answer belongs — rather than becoming a 500.
- */
+// threads-router switches exhaustively over this, so a new member breaks there rather than becoming a 500.
 const SEND_CONFLICT_CODES = ["stale_turn", "archived"] as const;
 
 type SendConflictCode = (typeof SEND_CONFLICT_CODES)[number];
@@ -109,7 +94,6 @@ export type AnswerInteractionOutcome =
   | { kind: "already-resolved" }
   | { kind: "invalid-resolution"; message: string };
 
-/** An ingest batch named one thread but carried an event for another. */
 export class ThreadEventThreadIdMismatchError extends Error {
   constructor(expected: string, actual: string) {
     super(`Ingest for thread ${expected} carried an event for thread ${actual}`);
@@ -117,14 +101,7 @@ export class ThreadEventThreadIdMismatchError extends Error {
   }
 }
 
-/**
- * The cloud's seam into this service, and it lives INSIDE the transaction that
- * writes the events — which is the whole reason it is a seam rather than a
- * call the sync runtime makes afterwards: an event is owed to the account's
- * log exactly when it is in the local one.
- *
- * Absent when this install is not paired, which is the default.
- */
+// inside the transaction that writes the events: an event is owed to the account's log exactly when it is in the local one.
 export interface ThreadSyncHooks {
   enqueue(tx: DbTransaction, events: readonly ThreadEvent[]): void;
 }
@@ -150,12 +127,7 @@ function toWireThread(row: ThreadRow): Thread {
   };
 }
 
-/**
- * The row's JSON `payload` column against the approval grammar — the ONE place
- * stored bytes become the wire's typed payload. null for bytes that do not
- * match: every consumer's fallback is the same (deny is always answerable), so
- * an unreadable payload costs one card's detail rather than the thread.
- */
+// null for unparseable bytes: deny is always answerable, so it costs one card's detail rather than the thread.
 function parseStoredApprovalPayload(payloadJson: string): ApprovalPendingInteractionPayload | null {
   let raw: unknown;
   try {
@@ -197,28 +169,16 @@ export class ThreadService implements ProviderEventSink {
     this.driver = args.createTurnDriver(this);
   }
 
-  /**
-   * Crash recovery, run once per process by the composition root — a method
-   * rather than constructor work, because it WRITES: it frees claims,
-   * appends settle events, notifies, and enqueues to the outbox, and a side
-   * effect that big belongs where the boot order is decided.
-   */
+  // a method rather than constructor work because it writes.
   boot(): void {
-    // Before the wedged-thread sweep: a claim held by the dead process is
-    // invisible to both the queue read and the next drain, so a message left
-    // claimed would be lost rather than shown. A swept row does NOT
-    // auto-dispatch — the drain fires only when a thread settles idle.
+    // before the sweep: a claim held by the dead process hides its message from
+    // both the queue read and the next drain. a swept row does not auto-dispatch.
     releaseAllQueuedMessageClaims(this.db);
     this.recoverWedgedThreads();
   }
 
-  /**
-   * Append events this DEVICE produced. Every local append goes through here
-   * rather than through `appendEventsInTransaction` directly, because the
-   * outbox enqueue has to ride the same transaction and a call site that
-   * forgot it would drop those events out of sync silently — the failure has
-   * no error and no symptom until another device is missing a conversation.
-   */
+  // every local append goes through here so the outbox enqueue rides the same
+  // transaction; a site that skipped it would drop events out of sync with no symptom.
   private appendLocal(tx: DbTransaction, events: readonly ThreadEvent[]): void {
     appendEventsInTransaction(tx, events);
     this.sync?.enqueue(tx, events);
@@ -278,8 +238,6 @@ export class ThreadService implements ProviderEventSink {
     return decision.outcome;
   }
 
-  /** The whole read-decide-write of a send under one lock: status, turn
-   *  identity, queue insert or turn preparation. */
   private resolveSendInTransaction(
     tx: DbTransaction,
     request: SendMessageRequest,
@@ -317,18 +275,8 @@ export class ThreadService implements ProviderEventSink {
     }
   }
 
-  /**
-   * A QUEUED MESSAGE CARRIES NO VIEW CONTEXT, and the request's is dropped
-   * here rather than stored. A queued send drains when the running turn
-   * settles — minutes later — so the screen it describes is one the user has
-   * long since left, and the tidy-looking answer ("context is per message, so
-   * every message carries its own") is the one that adds a column to
-   * `queued_thread_messages` and fills it with a knowably stale claim. A view
-   * context earns its immunity to staleness by being consumed immediately;
-   * storing one for later is exactly the property being given away. The client
-   * still SENDS it — which mode a send lands in is this transaction's decision,
-   * not the caller's — so the drop belongs here, once.
-   */
+  // a queued message carries no view context: it drains minutes later, long
+  // after the screen it described; storing one gives away the immediacy that keeps it honest.
   private queueInTransaction(
     tx: DbTransaction,
     threadId: string,
@@ -340,10 +288,7 @@ export class ThreadService implements ProviderEventSink {
     return { kind: "done", outcome: { kind: "queued", queuedMessageId: queued.id } };
   }
 
-  /** run.preparing + the recorded request, atomically; dispatch happens after
-   *  the caller's commit. Takes the loaded ROW rather than an id: the write
-   *  mode the dispatch carries has to be the one this transaction read, not
-   *  one a second query could observe after the thread moved. */
+  // takes the loaded row: the dispatch must carry what this transaction read, not what a second query could observe.
   private prepareTurnInTransaction(
     tx: DbTransaction,
     thread: ThreadRow,
@@ -357,9 +302,7 @@ export class ThreadService implements ProviderEventSink {
       event: { type: "run.preparing" },
     });
     if (!outcome.applied) {
-      // The thread moved out from under the caller's view of it — the drain's
-      // case, where the settle and the claim are separated by an archive. A
-      // send cannot reach here: it read this row in this transaction.
+      // the drain's case: an archive landed between the settle and the claim.
       return {
         kind: "done",
         outcome: {
@@ -406,19 +349,13 @@ export class ThreadService implements ProviderEventSink {
     return { kind: "started", turnId: decision.turnId };
   }
 
-  /** ANY dispatch throw settles the run: provider/error recorded and the
-   *  thread lands in `error`, never wedged in `starting`. */
   private recordDispatchFailure(threadId: string, cause: unknown): void {
     this.failTurnlessRun(threadId, cause instanceof Error ? cause.message : String(cause));
   }
 
-  /**
-   * Settle a run that never reached `turn/started`. It is NOT routed through
-   * ingest: a bare thread-scoped `provider/error` projects no lifecycle event,
-   * so the thread would stay wedged in `starting`. The `run.failed` names no
-   * turn, and matching against a null activeTurnId is what stops it killing a
-   * run that did start.
-   */
+  // not routed through ingest: a thread-scoped provider/error projects no
+  // lifecycle, so the thread would stay wedged in starting. the null turnId
+  // match is what stops it killing a run that did start.
   private failTurnlessRun(threadId: string, message: string): void {
     const buffer = new NotificationBuffer();
     writeTransaction(this.db, (tx) => {
@@ -440,8 +377,7 @@ export class ThreadService implements ProviderEventSink {
       return null;
     }
     const full = this.timelines.full(query.threadId);
-    // A delta is served only for a base this log reconstructs exactly; a
-    // client ahead of the log (a rebuilt db) gets the full timeline instead.
+    // a client ahead of the log (a rebuilt db) gets the full timeline.
     if (query.afterSequence === undefined || query.afterSequence > full.maxSequence) {
       return { kind: "full", timeline: full };
     }
@@ -466,10 +402,8 @@ export class ThreadService implements ProviderEventSink {
     switch (outcome.kind) {
       case "resolved": {
         const interaction = toWirePendingInteraction(outcome.interaction);
-        // AFTER the row is resolved: the driver answers the provider process
-        // from the recorded resolution, so a crash between the two leaves a
-        // resolved row (the truth) and a provider request the turn-end
-        // timeout settles.
+        // after the row is resolved: a crash between the two leaves a resolved
+        // row and a provider request the turn-end timeout settles.
         this.driver.onInteractionResolved?.(interaction);
         return { kind: "resolved", interaction };
       }
@@ -480,39 +414,13 @@ export class ThreadService implements ProviderEventSink {
     }
   }
 
-  /**
-   * The one return path for provider events, whatever produced them — a real
-   * adapter, the scripted driver, or this service's own crash recovery.
-   * Append, lifecycle projection and the queue claim share one transaction;
-   * the claimed drain dispatches after commit through the same prepare flow a
-   * send uses.
-   *
-   * Two other paths append, and neither is a provider report:
-   * `prepareTurnInTransaction` records the user's own request, and
-   * `failTurnlessRun` records a run that died before any turn existed. Both go
-   * through `appendLocal`, so the outbox enqueue rides their transaction too.
-   */
   ingestProviderEvents(threadId: string, events: readonly ThreadEvent[]): void {
     this.ingest({ origin: "local", threadId, events });
   }
 
-  /**
-   * Events another device wrote, arriving through the account's merged log.
-   *
-   * The SAME ingest, marked with its origin — a second append path here would
-   * be a second answer to thread lifecycle, which is the class of duplication
-   * this repo's structural guards exist to catch. What the origin changes is
-   * exactly three things, and each is forced:
-   *
-   *  - the thread row is CREATED if this device has never seen it, with the id
-   *    the log gave it, because a synced thread's identity is the account's;
-   *  - nothing is enqueued back to the outbox, or the two devices would echo
-   *    one conversation at each other forever;
-   *  - a settle does NOT drain this device's queue. The turn ran elsewhere,
-   *    and a queued message here is one this user typed on THIS machine for a
-   *    thread they are not driving — starting it because a remote turn ended
-   *    would put two agents on one thread.
-   */
+  // the same ingest, marked remote: the thread row is created with the log's
+  // id, nothing is enqueued back to the outbox (two devices would echo forever),
+  // and a settle does not drain this device's queue — the turn ran elsewhere.
   applySyncedEvents(args: {
     threadId: string;
     rows: readonly SyncedEventInput[];
@@ -543,10 +451,7 @@ export class ThreadService implements ProviderEventSink {
     const buffer = new NotificationBuffer();
     const drains: ClaimedQueuedThreadMessageRow[] = [];
     writeTransaction(this.db, (tx) => {
-      // What lifecycle actually projects over: the rows that LANDED. For a
-      // local batch that is all of them; for a synced one it is the input
-      // minus whatever this database already held, which is what makes a
-      // re-pair's full replay a no-op rather than a status flap.
+      // lifecycle projects over the rows that landed, so a re-pair's full replay is a no-op rather than a status flap.
       let projected: readonly ThreadEvent[] = events;
       if (args.origin === "remote") {
         if (ensureThreadInTransaction(tx, threadId).created) {
@@ -554,11 +459,9 @@ export class ThreadService implements ProviderEventSink {
         }
         const landed = appendSyncedEventsInTransaction(tx, args.rows);
         projected = landed.applied.map((row) => row.event);
-        // IN THIS TRANSACTION, which is what makes a pulled event land
-        // exactly once — advancing the cursor as a second write leaves a
-        // window where a crash replays the page into duplicate rows. And it
-        // advances even when nothing landed: the point of the cursor is that
-        // this device has SEEN the row, not that the row was new.
+        // the cursor moves in this transaction: as a second write it leaves a
+        // window a crash replays into duplicate rows. it advances even when
+        // nothing landed — seen, not new.
         writeSyncCursor(tx, args.cursor);
         if (projected.length === 0) {
           return;
@@ -577,8 +480,7 @@ export class ThreadService implements ProviderEventSink {
           event: lifecycleEvent,
         });
         if (!outcome.applied) {
-          // A late completion for a superseded turn is expected traffic —
-          // logged, never thrown, and it settles nothing.
+          // a late completion for a superseded turn is expected traffic.
           console.warn(
             `thread ${threadId}: ${lifecycleEvent.type} not applied (${outcome.reason}): ${outcome.detail}`,
           );
@@ -600,18 +502,9 @@ export class ThreadService implements ProviderEventSink {
     }
   }
 
-  /**
-   * THE QUEUE ROW AND ITS REQUEST EVENT ARE ONE FACT, so they are one
-   * transaction. Deleting after the dispatch instead left a window where the
-   * `client/turn/requested` was already in the log — and in the sync outbox —
-   * while the row was merely claimed: a driver that refuses to start released
-   * it, and the next drain appended the user's message a second time, on this
-   * device and on every paired one.
-   *
-   * A dispatch failure therefore needs no release. `recordDispatchFailure`
-   * lands the thread in `error` with the reason recorded, which is the honest
-   * account of what happened to this message.
-   */
+  // the queue row and its request event are one transaction: deleting after
+  // the dispatch left a window where a refused start released the row and the
+  // next drain appended the message a second time, on every paired device.
   private dispatchQueuedMessage(threadId: string, claimed: ClaimedQueuedThreadMessageRow): void {
     const buffer = new NotificationBuffer();
     const decision = writeTransaction(this.db, (tx): SendDecision => {
@@ -619,7 +512,6 @@ export class ThreadService implements ProviderEventSink {
       if (thread === null) {
         return { kind: "done", outcome: { kind: "not-found" } };
       }
-      // No view context: the row never held one — see queueInTransaction.
       const prepared = this.prepareTurnInTransaction(tx, thread, claimed.text, undefined, buffer);
       if (prepared.kind === "dispatch") {
         deleteClaimedQueuedThreadMessageInTransaction(tx, claimed);
@@ -629,40 +521,18 @@ export class ThreadService implements ProviderEventSink {
     });
     buffer.flushTo(this.notifier);
     if (decision.kind !== "dispatch") {
-      // Prepare appended nothing (e.g. the thread was archived between the
-      // settle and the drain): the claim is released, never silently consumed.
+      // prepare appended nothing (archived between settle and drain): release, never consume.
       releaseQueuedMessageClaim(this.db, this.notifier, claimed);
       return;
     }
     this.dispatchTurn(decision);
   }
 
-  /**
-   * Crash recovery, run from `boot()`: this process just booted, so no
-   * turn driver claim is live — any thread still marked running is an orphan
-   * of a previous process. run.failed is legal from starting, active and
-   * stopping alike, and it names the orphaned turn so the CAS matches by
-   * construction.
-   *
-   * "OF A PREVIOUS PROCESS" IS NOW A QUESTION, not an assumption. A synced
-   * thread can be active because ANOTHER DEVICE started a turn on it, and that
-   * device's provider is very much alive — declaring it failed here would
-   * append a fabricated failure and, worse, push it back through the account's
-   * log to the machine where the work is genuinely still running. Only the
-   * process that owns a provider may say the provider died, so the turn's own
-   * `turn/started` row is asked who wrote it.
-   *
-   * The residual, stated: a device that never comes back leaves the thread
-   * active here until it does. That is the same trade in the other direction —
-   * this process cannot distinguish "still working" from "gone" across a
-   * network, and the owner's own recovery settles it and syncs the settle back.
-   *
-   * A RECOVERED TURN IS COMPLETED, NOT JUST FAILED ON THE ROW. The timeline is
-   * a pure fold and `turn/completed` is its only writer of a turn's status, so
-   * a recovery that appended `provider/error` alone left the turn row rendering
-   * "working" forever, beside a thread header saying error — here and on every
-   * device the log reaches, since `provider/error` projects no lifecycle at all.
-   */
+  // only the process that owns a provider may declare it dead: a synced thread
+  // can be active because another device's turn is running, so the turn/started
+  // row is asked who wrote it. a recovered turn gets turn/completed too —
+  // provider/error alone projects no lifecycle, and the turn row would render
+  // "working" forever.
   private recoverWedgedThreads(): void {
     const message = "The server restarted while this turn was running";
     for (const thread of listThreads(this.db)) {
@@ -684,9 +554,7 @@ export class ThreadService implements ProviderEventSink {
         continue;
       }
       if (activeTurnId === null) {
-        // A crash between run.preparing and run.started: there is no turn to
-        // complete, so the failure is thread-scoped and names no turn — and
-        // the null match means a STARTED run can never be killed by it.
+        // a crash between run.preparing and run.started: no turn to complete, so the failure names none.
         this.failTurnlessRun(thread.id, message);
       } else {
         this.ingestProviderEvents(thread.id, [
@@ -699,21 +567,13 @@ export class ThreadService implements ProviderEventSink {
           },
         ]);
       }
-      // The provider requests behind these rows died with the old process:
-      // settle them as interrupted so no orphan answerable rows survive a
-      // restart — a restarted provider raises FRESH rows (new request keys),
-      // never duplicates of these.
+      // the provider requests behind these rows died with the old process; a restarted provider raises fresh rows.
       interruptOpenPendingInteractions(this.db, this.notifier, thread.id);
     }
   }
 }
 
-/**
- * Refuse an answer the shared approval grammar rejects — the SAME parse the
- * runtime's answer path runs, so a resolution this gate passes can never be
- * silently denied downstream. Rows whose payload is not a parseable approval
- * skip the check.
- */
+// the same parse the runtime's answer path runs, so a resolution this passes is never silently denied downstream.
 function invalidResolutionMessage(payloadJson: string, resolution: string): string | null {
   const payload = parseStoredApprovalPayload(payloadJson);
   if (payload === null) {
@@ -727,12 +587,10 @@ function lifecycleEventFor(event: ThreadEvent): ThreadLifecycleEvent | null {
   const turnId = getThreadEventScopeTurnId(event.scope) ?? null;
   switch (event.type) {
     case "turn/started":
-      // The scope policy makes a turn-less turn/started unparseable; the null
-      // branch only guards a future policy change.
+      // the scope policy makes a turn-less turn/started unparseable; the null branch guards a policy change.
       return turnId === null ? null : { type: "run.started", turnId };
     case "turn/completed":
-      // An interrupted turn still SETTLED — run.succeeded lands it idle from
-      // active/starting/stopping alike; only a failed turn reads as an error.
+      // an interrupted turn still settled: only a failed one reads as an error.
       return event.status === "failed"
         ? { type: "run.failed", turnId }
         : { type: "run.succeeded", turnId };

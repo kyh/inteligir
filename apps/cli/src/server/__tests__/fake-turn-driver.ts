@@ -1,26 +1,15 @@
-// Test-only turn driver: proves the flow without a provider — the ACP runtime
-// owns the real adapter. Everything it emits goes through the SAME ingest path a
-// real adapter reports into, so sequences are server-assigned and lifecycle
-// events fire exactly as they will in production.
-
 import type { ThreadEventTurnStatus } from "@repo/domain/provider-event";
 import { turnScope } from "@repo/domain/thread-event-scope";
 import { agentMessageEvents } from "../agents/agent-message-events";
 import type { ProviderEventSink, TurnDriver, TurnDriverStartArgs } from "../threads/turn-driver";
 
 export interface FakeTurnDriverOptions {
-  /**
-   * scripted — a start streams a whole turn synchronously (started, message
-   * deltas, item/completed, turn/completed).
-   * manual — a start emits only turn/started; the test settles the turn.
-   * inert — a start is accepted and emits nothing; the thread holds starting.
-   */
+  // scripted streams a whole turn synchronously; manual emits only turn/started; inert emits nothing.
   mode: "scripted" | "manual" | "inert";
 }
 
 export class FakeTurnDriver implements TurnDriver {
   readonly startedTurns: TurnDriverStartArgs[] = [];
-  /** When set, the next startTurn throws it (a dispatch crash) and resets. */
   failNextStart: Error | null = null;
   private readonly sink: ProviderEventSink;
   private readonly options: FakeTurnDriverOptions;
@@ -59,7 +48,6 @@ export class FakeTurnDriver implements TurnDriver {
     ]);
   }
 
-  /** Settle a manually held turn the way a provider report would. */
   completeTurn(threadId: string, turnId: string, status: ThreadEventTurnStatus): void {
     this.sink.ingestProviderEvents(threadId, [
       { type: "turn/completed", threadId, status, scope: turnScope(turnId) },

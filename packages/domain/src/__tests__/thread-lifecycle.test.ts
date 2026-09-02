@@ -18,7 +18,7 @@ const eventTypes: readonly ThreadLifecycleEventType[] = [
   "stop.settled",
 ];
 
-/** Deterministic PRNG (mulberry32) so a failing sequence reproduces. */
+// mulberry32, seeded so a failing sequence reproduces.
 function makeRandom(seed: number): () => number {
   let state = seed;
   return () => {
@@ -71,8 +71,7 @@ describe("evaluateThreadLifecycleEvent", () => {
     for (let run = 0; run < 500; run += 1) {
       const random = makeRandom(run + 1);
       const startStatus = pick(random, threadStatusValues);
-      // Seed only states the machine can produce: a bound turn exists exactly
-      // while a run is in progress (stopping may carry one or none).
+      // seed only states the machine can produce: a turn is bound only while a run is in progress.
       const startTurnId =
         startStatus === "active" || (startStatus === "stopping" && random() < 0.5)
           ? pick(random, TURN_ID_POOL)
@@ -93,8 +92,6 @@ describe("evaluateThreadLifecycleEvent", () => {
         } else {
           expect(evaluation.to).toBe(THREAD_LIFECYCLE[before.status][event.type]);
         }
-        // A quiescent or not-yet-started thread is bound to no turn; an
-        // active thread is always bound to exactly the turn that started.
         if (thread.status === "idle" || thread.status === "error" || thread.status === "starting") {
           expect(thread.activeTurnId).toBeNull();
         }
@@ -109,7 +106,7 @@ describe("evaluateThreadLifecycleEvent", () => {
     for (const status of threadStatusValues) {
       for (const type of eventTypes) {
         const expected = THREAD_LIFECYCLE[status][type];
-        // Bind the event to the row's own turn so only the table decides.
+        // bound to the row's own turn so only the table decides.
         const activeTurnId = status === "active" || status === "stopping" ? "turn_x" : null;
         const event: ThreadLifecycleEvent =
           type === "run.started"
@@ -148,15 +145,12 @@ describe("evaluateThreadLifecycleEvent", () => {
       noop: "stale-turn",
       detail: "run.succeeded names turn turn_a but the active turn is turn_b",
     });
-    // The matching settle lands and unbinds.
     expect(
       evaluateThreadLifecycleEvent({
         event: { type: "run.succeeded", turnId: "turn_b" },
         thread: active,
       }),
     ).toEqual({ to: "idle", activeTurnId: null });
-    // A dispatch failure settles the run that never produced a turn — and
-    // only when no turn is bound, so it cannot kill a started run.
     expect(
       evaluateThreadLifecycleEvent({
         event: { type: "run.failed", turnId: null },
@@ -187,8 +181,6 @@ describe("evaluateThreadLifecycleEvent", () => {
       }),
     ).toEqual({ noop: "superseded", detail: "archivedAt set" });
 
-    // stop/settle events carry no predicates: they must land even on an
-    // archived thread, or an archive mid-run wedges the status forever.
     const archivedActive: ThreadLifecycleRowState = {
       status: "active",
       activeTurnId: "turn_a",
@@ -208,15 +200,12 @@ describe("evaluateThreadLifecycleEvent", () => {
   });
 
   it("fuzzes every event type the predicate table declares", () => {
-    // The alphabet is spelled out so `randomEvent` stays an exhaustive switch
-    // over it; this is what fails when a type joins the union and not the fuzz.
     expect([...eventTypes].toSorted()).toEqual(
       Object.keys(THREAD_LIFECYCLE_EVENT_PREDICATES).toSorted(),
     );
   });
 
   it("every reachable status can reach idle again", () => {
-    // Liveness: no status is a trap. Walk the table as a graph.
     const reachesIdle = new Set<ThreadStatus>(["idle"]);
     let grew = true;
     while (grew) {

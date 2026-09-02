@@ -1,14 +1,4 @@
-// THE local contract: one entry per domain, and the type both ends compile
-// against.
-//
-// Its two ends ship inside one bundle and always match, so this half may break
-// freely — which is exactly what `@repo/api/cloud` may never do, and why the
-// two are separate routers in one package. That distinction is the most
-// valuable thing this package encodes; keep it visible.
-//
-// What is NOT here is `local-routes.ts`: /health, /vault/asset, /ws and
-// /voice/stream answer bytes, sockets and a supervisor's probe, none of which
-// is a procedure.
+// both ends ship in one bundle, so this half may break freely; @repo/api/cloud may never.
 
 import { agentsContract } from "./agents/agents-contract";
 import { cloudContract } from "./cloud/cloud-contract";

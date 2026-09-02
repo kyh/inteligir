@@ -1,14 +1,5 @@
-// A root script named `<verb>:<suffix>` where the suffix names a workspace
-// DIRECTORY has to drive that workspace. The names are the repo's map: someone
-// who knows `apps/web` exists should be able to guess `pnpm dev:web` and be
-// right, and `pnpm dev:site` — which drove `apps/web` for months — taught them
-// a folder that does not exist.
-//
-// Only suffixes that match a directory are judged. `format:fix` and `lint:fix`
-// name what they do rather than where, and nothing here asks them to change.
-// The unqualified `dev` is the flagship by convention — no suffix because
-// there is no ambiguity about which surface a notes app develops by default —
-// so it has no directory to agree with either.
+// only suffixes matching a workspace directory are judged: `format:fix` names what it does, and the
+// bare `dev` is the flagship by convention.
 
 import fs from "node:fs";
 import path from "node:path";
@@ -33,10 +24,8 @@ function rootScripts(): Record<string, string> {
 
 describe("root script naming", () => {
   it("a script suffixed with a workspace directory drives that workspace", () => {
-    // Directory basename → the manifest name a command actually filters on.
-    // Both spellings count: `apps/cli` publishes as `inteligir`, so
-    // `package:cli` names the folder and filters the package, and
-    // demanding either one alone would be demanding the wrong thing.
+    // both spellings count: apps/cli publishes as `inteligir`, so `package:cli` names the folder
+    // and filters the package.
     const byDir = new Map(workspaces().map((w) => [path.basename(w.dir), w]));
 
     const violations: string[] = [];
@@ -57,9 +46,6 @@ describe("root script naming", () => {
   });
 
   it("every workspace a root script claims to drive exists", () => {
-    // The inverse, and the half that catches a DELETED workspace: a script
-    // still filtering `@repo/gone` is a command that fails at the moment
-    // someone trusts the name.
     const names = new Set(workspaces().map((w) => w.name));
     const violations: string[] = [];
     for (const [script, command] of Object.entries(rootScripts())) {

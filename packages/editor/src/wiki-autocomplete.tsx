@@ -1,13 +1,4 @@
-// `[[` wiki autocomplete — the third inline-combobox consumer (after slash
-// and emoji). Typing `[` after `[` swaps in a trigger element listing every
-// linkable target (listWikiTargets, fuzzy-filtered): notes first, then
-// attachments in their own group — picking an attachment inserts an
-// `![[embed]]` chip (a bare link to a binary renders nothing useful).
-// Enter/click completes the chip and the closing brackets. `|alias` and
-// `#anchor` typed into the query pass straight through into the chip body,
-// typing `]]` completes verbatim (fluent-typing parity with the kit's `]]`
-// input rule), and an unresolved query offers a create-note entry that also
-// inserts the (now-resolving) chip.
+// picking an attachment inserts `![[embed]]`: a bare link to a binary renders nothing useful.
 
 import { useCallback, useEffect, useState } from "react";
 import { FilePlusIcon, FileTextIcon, PaperclipIcon } from "lucide-react";
@@ -40,8 +31,7 @@ import { parseWikiBody } from "@repo/notes/markdown/remark-wiki-link";
 
 const CREATE_VALUE = "__create__";
 
-// The query's alias/anchor tails are passthrough, not search terms — filter
-// on the target part only. The create entry self-manages its visibility.
+// alias/anchor tails are passthrough, not search terms.
 const wikiFilter: FilterFn = (item, search) => {
   if (item.value === CREATE_VALUE) return true;
   const target = parseWikiBody(search).target;
@@ -80,8 +70,7 @@ function WikiInputElement(props: PlateElementProps) {
     [editor],
   );
 
-  // Typing the closing `]]` completes the chip verbatim, exactly like the
-  // editor-level input rule would have without the picker in the way.
+  // typing `]]` completes verbatim, matching the editor-level input rule.
   const onValueChange = useCallback(
     (next: string) => {
       if (next.endsWith("]]") && next.slice(0, -2) !== "") {
@@ -96,8 +85,6 @@ function WikiInputElement(props: PlateElementProps) {
 
   const showCreate = typed.target !== "" && resolveWikiTarget(typed.target) === null;
 
-  // The engine returns docs first, assets after; split so each renders in its
-  // own labeled group. Picking an attachment inserts an embed (`![[asset]]`).
   const notes = targets.filter((target) => target.type === "doc");
   const assets = targets.filter((target) => target.type === "asset");
 
@@ -106,8 +93,6 @@ function WikiInputElement(props: PlateElementProps) {
       key={target.path}
       value={target.path}
       label={target.title}
-      // Aliases match too; picking an alias-matched row inserts the canonical
-      // `[[target]]` (composeWikiBody below), not `[[target|alias]]`.
       keywords={[target.title, ...(target.aliases ?? [])]}
       onClick={() =>
         complete(
@@ -146,8 +131,6 @@ function WikiInputElement(props: PlateElementProps) {
               <InlineComboboxItem
                 value={CREATE_VALUE}
                 onClick={() => {
-                  // Create the note in the background (no navigation) so the
-                  // inserted chip resolves immediately.
                   void createFileAt(typed.target);
                   complete(composeWikiBody(typed.target, typed));
                 }}
@@ -179,8 +162,6 @@ export const WikiAutocompleteKit = [
     key: "wiki_trigger",
     options: {
       trigger: "[",
-      // Only a `[` immediately before the typed `[` opens the picker — plain
-      // brackets elsewhere stay plain text.
       triggerPreviousCharPattern: /^\[$/,
       triggerQuery: (editor) =>
         !editor.api.some({ match: { type: editor.getType(KEYS.codeBlock) } }),

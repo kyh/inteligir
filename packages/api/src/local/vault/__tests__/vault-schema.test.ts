@@ -13,10 +13,6 @@ import {
 
 describe("the content hash", () => {
   it("is the same convention from a string and from its bytes", async () => {
-    // Two entry points into ONE convention: the write CAS hashes the string it
-    // is about to send, the index hashes the bytes it just read. They compare
-    // against each other's recorded values, so a divergence would read as
-    // "every file changed" forever.
     for (const content of ["", "# Note\n", "unicode: café — 日本語 🌱\n", "a\r\nb\n"]) {
       expect(await contentHashBytesHex(new TextEncoder().encode(content))).toBe(
         await contentHashHex(content),
@@ -31,8 +27,6 @@ describe("a vault tree row", () => {
       kind: "file",
       path: "note.md",
     });
-    // `.strict()`: a row that grows a per-edit field again fails here rather
-    // than quietly re-rendering the workspace on every save.
     expect(vaultEntrySchema.safeParse({ kind: "file", path: "note.md", size: 12 }).success).toBe(
       false,
     );
@@ -47,8 +41,6 @@ describe("a revision's object name", () => {
   });
 
   it("refuses everything git's revision grammar could otherwise smuggle in", () => {
-    // The value lands in a `<sha>:<path>` argv slot. `execFile` reaches no
-    // shell, so this is not about quoting — it is about git's OWN language.
     for (const sha of ["HEAD", "main@{1}", "--upload-pack=x", "abc", "A".repeat(40), ""]) {
       expect(vaultRevisionShaSchema.safeParse(sha).success).toBe(false);
     }
@@ -86,8 +78,6 @@ describe("a history request", () => {
 
 describe("the asset bound", () => {
   it("never exceeds the hosted route's own ceiling", () => {
-    // Both routes serve the same vault, so a byte this host accepts and the
-    // Worker refuses is an image that renders here and 404s on the phone.
     expect(VAULT_ASSET_MAX_BYTES).toBeLessThanOrEqual(CLOUD_ASSET_MAX_BYTES);
   });
 });

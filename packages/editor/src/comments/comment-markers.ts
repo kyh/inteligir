@@ -1,5 +1,4 @@
-// Marker mutations — every one an ordinary editor transaction, so the pair
-// serializes through the dialect and one undo removes what one gesture added.
+// Every mutation is an ordinary editor transaction, so one undo removes what one gesture added.
 
 import { ElementApi, RangeApi, type SlateEditor, type TElement } from "platejs";
 
@@ -9,13 +8,7 @@ function marker(id: string, edge: "start" | "end"): TElement {
   return { children: [{ text: "" }], edge, ids: id, type: "commentMarker" };
 }
 
-/**
- * Wrap the current selection with a start/end marker pair for `id`. End
- * first: inserting at the range's end leaves its start point untouched, so
- * the second insert lands exactly where the selection began. One
- * `withoutNormalizing` batch — one undo step.
- * Returns false (inserting nothing) on a collapsed selection.
- */
+// End first: inserting at the end leaves the start point untouched.
 export function insertCommentMarkers(editor: SlateEditor, id: string): boolean {
   const selection = editor.selection;
   if (!selection || RangeApi.isCollapsed(selection)) return false;
@@ -27,11 +20,7 @@ export function insertCommentMarkers(editor: SlateEditor, id: string): boolean {
   return true;
 }
 
-/**
- * Strip every marker naming any of `ids`. A multi-root marker
- * (`%%i:a,b:…%%`) keeps its other ids — the shared range survives the death
- * of one thread — and is removed only when the last id dies.
- */
+// A multi-root marker keeps its other ids and is removed only when the last dies.
 export function removeCommentMarkers(editor: SlateEditor, ids: readonly string[]): void {
   const dead = new Set(ids);
   const entries = [
@@ -41,8 +30,7 @@ export function removeCommentMarkers(editor: SlateEditor, ids: readonly string[]
     }),
   ];
   editor.tf.withoutNormalizing(() => {
-    // Reverse document order so earlier paths stay valid while later markers
-    // are removed.
+    // reverse order so earlier paths stay valid while later markers are removed
     for (const [node, path] of entries.toReversed()) {
       const raw = stringProp(node, "ids") ?? "";
       const kept = raw.split(",").filter((one) => one !== "" && !dead.has(one));
@@ -55,7 +43,6 @@ export function removeCommentMarkers(editor: SlateEditor, ids: readonly string[]
   });
 }
 
-/** The path of the FIRST marker naming `id`, or null. */
 export function findCommentMarker(editor: SlateEditor, id: string) {
   for (const entry of editor.api.nodes<TElement>({
     at: [],

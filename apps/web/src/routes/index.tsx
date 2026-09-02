@@ -6,9 +6,7 @@ import { createDownloadUrlReader } from "@/lib/download-url";
 import { SiteHeader } from "@/components/site-header";
 import { ThemeProvider } from "@/components/theme-provider";
 
-/** Geometry shared by both arms of the download CTA; each arm adds its own
- *  palette. Themed tokens rather than literal hex — dark is the default theme,
- *  so a hardcoded near-black pill paints itself onto the background. */
+// themed tokens, not literal hex: dark is the default theme, so a hardcoded near-black pill vanishes into it
 const CTA_PILL =
   "inline-flex items-center gap-2 rounded-full px-6 py-3 text-sm font-medium shadow-lg";
 
@@ -20,10 +18,6 @@ function MacLogoIcon({ className }: { className?: string }) {
   );
 }
 
-// Isolate-local memo: at most one GitHub API hit per TTL window, whichever
-// way each read settles (`download-url.ts` owns the policy and the reasons).
-// A null url means no downloadable release exists — the page renders "coming
-// soon" until the first desktop release is published.
 const readDownloadUrl = createDownloadUrlReader();
 
 const getDownloadUrl = createServerFn().handler(() => readDownloadUrl());
@@ -36,10 +30,7 @@ export const Route = createFileRoute("/")({
 function Page() {
   const downloadUrl = Route.useLoaderData();
 
-  // The three.js canvas is client-only — no SSR in the worker.
   return (
-    // The theme provider lives on the page, not in the document shell — see
-    // __root.tsx.
     <ThemeProvider>
       <SiteHeader />
       <main className="flex min-h-dvh w-full flex-col">

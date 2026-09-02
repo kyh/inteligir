@@ -1,8 +1,3 @@
-// INTELIGIR_AGENT=scripted end to end over real HTTP: the deterministic turn
-// streams into the timeline, the note lands in the vault through the vault
-// service, and the commit is agent-attributed (author = the agent, committer
-// = the engine, thread id in the trailer).
-
 import { execFile } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -74,8 +69,6 @@ describe("the scripted driver over real HTTP", () => {
     const [authorName, authorEmail, committerName, subject, ...trailerLines] = head.split("\n");
     expect(authorName).toBe("inteligir-agent");
     expect(authorEmail).toBe("agent@inteligir.local");
-    // The committer stays the engine identity, so the machine that wrote the
-    // commit remains legible next to the agent authorship.
     expect(committerName).toBe("inteligir");
     expect(subject).toBe("agent: vault update");
     expect(trailerLines.join("\n")).toContain(`Thread: ${threadId}`);

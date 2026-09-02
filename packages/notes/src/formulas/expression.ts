@@ -1,12 +1,3 @@
-// The executable-expression grammar, exactly as the vendored skill states it:
-// `+ - * / ( )`, decimals, `$`, thousands commas, `%`, and numeric `k`/`m`/`b`
-// suffixes — no functions, no exponentiation. Bound references
-// `@(name#note-id#formula-id)` are factors whose value the caller resolves.
-//
-// A recursive-descent parser over a hand tokenizer rather than any eval: the
-// grammar is closed, and "not executable" is a NORMAL answer (it is what makes
-// a pill symbolic), so parse failure carries no error object — just null.
-
 export type BoundRef = {
   name: string;
   noteId: string;
@@ -25,11 +16,7 @@ export type ExpressionNode =
   | { kind: "binary"; op: "+" | "-" | "*" | "/"; left: ExpressionNode; right: ExpressionNode };
 
 const REF_RE = /^@\(([A-Za-z][A-Za-z0-9_-]*)#([^#()\s]+)#([^#()\s]+)\)/u;
-// Optional $, digits with optional well-formed thousands groups, optional
-// decimals, then an optional magnitude suffix in either case (`5k` and
-// `5K`) and an optional trailing `%` that composes with it (`5k%`). A
-// malformed comma run is not a number, which makes the whole expression
-// symbolic rather than half-parsed.
+// a malformed thousands run is not a number, so the whole expression goes symbolic rather than half-parsed
 const NUMBER_RE = /^\$?(\d{1,3}(?:,\d{3})+|\d+)(\.\d+)?([kmb])?(%)?/iu;
 
 function tokenize(source: string): Token[] | null {
@@ -74,8 +61,7 @@ function tokenize(source: string): Token[] | null {
   return tokens.length === 0 ? null : tokens;
 }
 
-/** Parse `source` into an expression tree, or null when it is not executable
- * (which is the symbolic-variable answer, not an error). */
+/** null = not executable (the symbolic answer, not an error). */
 export function parseExpression(source: string): ExpressionNode | null {
   const tokens = tokenize(source);
   if (tokens === null) return null;
@@ -165,9 +151,6 @@ export type EvaluateOutcome =
   | { ok: true; value: number }
   | { ok: false; reason: "missing-ref" | "not-finite" };
 
-/** Evaluate a parsed expression. `resolveRef` answers a referenced variable's
- * numeric value, or null when it is missing, cyclic or non-numeric — every
- * such miss makes the whole expression stale rather than half-computed. */
 export function evaluateExpression(
   node: ExpressionNode,
   resolveRef: (ref: BoundRef) => number | null,

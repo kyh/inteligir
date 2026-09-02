@@ -1,10 +1,5 @@
 // @vitest-environment jsdom
 
-// The merged Related section (panel): linked mentions keep their count
-// semantics and lead the list carrying "Links here" plus the linking
-// sentence; the scorer's rows follow carrying their own reasons; a click
-// opens the note; and "still loading" reads differently from "nothing".
-
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -22,8 +17,6 @@ describe("the mentions count", () => {
   it("counts what the VAULT holds, and says so when the list was cut", () => {
     expect(linkedMentionsSummary(1, 1)).toBe("1 linked mention");
     expect(linkedMentionsSummary(2, 2)).toBe("2 linked mentions");
-    // The route caps the list; a summary counting the array would quietly
-    // under-report a vault that hit the cap.
     expect(linkedMentionsSummary(500, 812)).toBe("812 linked mentions (500 shown)");
   });
 });
@@ -44,8 +37,6 @@ describe("the unfolded list", () => {
         onOpenDoc={onOpenDoc}
       />,
     );
-    // The counted half carries the linking sentence; the inferred half its
-    // scorer reasons — a bare filename row would be a claim nobody can check.
     expect(screen.getByText("Links here · blocked on [[Welcome]]")).toBeTruthy();
     expect(screen.getByText("2 shared links · tag #planning")).toBeTruthy();
     fireEvent.click(screen.getByText("Meeting Notes"));
@@ -84,7 +75,6 @@ describe("linked-mention previews", () => {
     );
     expect(plainSnippet("> Cost is {{2*3|6}} today")).toBe("Cost is 6 today");
     expect(plainSnippet("%%i:abc:start%%Reviewed%%i:abc:end%%")).toBe("Reviewed");
-    // A uuid alias is identity, so the title stands in for it.
     expect(plainSnippet("see [[Use Cases|f2745aa0-f394-4469-963d-438f2dd9fd5a]] first")).toBe(
       "see Use Cases first",
     );

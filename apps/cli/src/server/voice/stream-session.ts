@@ -1,53 +1,24 @@
-// A dictation session: the thing behind ONE `/voice/stream` websocket. Frames
-// come in, partials and a final go out, and it is torn down on every exit path
-// — release, cancel, disconnect, app teardown.
-//
-// TWO IMPLEMENTATIONS OF ONE SEAM. The worker session holds a persistent
-// transcription worker (the model loads ONCE and the recognizer stays open for
-// the whole hold); the scripted session emits fake partials and a final with no
-// worker and no native dep, so a scenario can drive the whole streaming path on
-// a machine with no model.
-//
-// THE WORKER IS TORN DOWN, ALWAYS. `dispose` terminates it and is idempotent,
-// and every path reaches it: a `final`, an `onError`, a disconnect, and the
-// ordered teardown. No async path escapes without catching — the prepare and
-// the spawn both fail INTO `onError` rather than out as a rejection.
-//
-// FRAMES ARE BOUNDED. `prepare` is async (a native probe, a filesystem check),
-// so frames can arrive before the worker exists; they queue here until it does.
-// Both that queue and the total audio ever forwarded are capped at
-// `STREAM_MAX_SAMPLES`, so a microphone left running cannot grow this session's
-// memory — or the recognizer's internal state — without limit.
+// every exit path reaches dispose: prepare and spawn fail into onError, never out as a
+// rejection. frames arriving before the worker exists queue here; the total is capped.
 
 import { VOICE_MAX_AUDIO_SECONDS, VOICE_SAMPLE_RATE } from "@repo/api/local/voice/voice-schema";
 import type { VoiceModelFiles } from "./worker-protocol";
 import type { VoiceStreamWorkerCallbacks, VoiceStreamWorkerHandle } from "./voice-worker-host";
 
-/**
- * The ceiling on ONE hold, in samples — the same two minutes the batch contract
- * caps a clip at. Past it, frames are dropped: the partial freezes and the final
- * reflects the first two minutes, which is far past a spoken composer message
- * and is what keeps a runaway microphone from growing the recognizer's state.
- */
+// past this, frames are dropped and the final reflects the first two minutes; keeps a runaway
+// mic from growing the recognizer's state.
 export const STREAM_MAX_SAMPLES = VOICE_SAMPLE_RATE * VOICE_MAX_AUDIO_SECONDS;
 
-/** What a `/voice/stream` socket is told; the hub turns these into frames. */
 export interface StreamHandlers {
   onPartial(text: string): void;
   onFinal(text: string): void;
-  /** A refusal for a person. The session has already resolved the user-facing
-   *  sentence (including nuking a model that would not load). */
   onError(message: string): void;
 }
 
-/** One dictation session, driven by the websocket it belongs to. */
 export interface StreamSession {
-  /** A PCM16 chunk (Int16 LE, mono, 16 kHz). Owns the buffer — it is forwarded
-   *  by transfer, so the caller must not touch it afterwards. */
+  // forwarded by transfer; the caller must not touch the buffer afterwards.
   pushPcm(pcm: ArrayBuffer): void;
-  /** The user released: transcribe what was fed and answer one `final`. */
   finalize(): void;
-  /** Tear the worker down. Idempotent; safe on every exit path. */
   dispose(): Promise<void>;
 }
 
@@ -57,11 +28,8 @@ function samplesIn(pcm: ArrayBuffer): number {
 
 export interface WorkerStreamSessionDeps {
   handlers: StreamHandlers;
-  /** Probe the runtime and resolve the model files, or say why it cannot run. */
   prepare(): Promise<{ ok: true; model: VoiceModelFiles } | { ok: false; reason: string }>;
-  /** Spawn the persistent worker for `model`, wired to these callbacks. */
   spawn(model: VoiceModelFiles, callbacks: VoiceStreamWorkerCallbacks): VoiceStreamWorkerHandle;
-  /** A model the worker reported unusable was nuked; produce the user sentence. */
   onModelUnusable(): Promise<string>;
 }
 
@@ -111,14 +79,12 @@ export class WorkerStreamSession implements StreamSession {
       },
     });
     if (this.#dead) {
-      // Disposed while prepare was in flight — do not leak the worker we just
-      // spawned.
+      // disposed while prepare was in flight; do not leak the worker.
       void worker.dispose();
       return;
     }
     this.#worker = worker;
-    // The port preserves order, so flushing the queued audio and only then
-    // forwarding a finalize keeps "all frames before the final" true.
+    // the port preserves order: queued audio, then the finalize.
     for (const pcm of this.#pending) {
       worker.pushPcm(pcm);
     }
@@ -157,7 +123,7 @@ export class WorkerStreamSession implements StreamSession {
     }
     const samples = samplesIn(pcm);
     if (this.#totalSamples + samples > STREAM_MAX_SAMPLES) {
-      // Past the cap: drop the frame. The final still answers what was fed.
+      // past the cap: drop the frame; the final answers what was fed.
       return;
     }
     this.#totalSamples += samples;
@@ -189,13 +155,8 @@ export class WorkerStreamSession implements StreamSession {
   }
 }
 
-/**
- * The e2e session. It runs the WHOLE streaming path with no worker and no
- * model: it counts the samples it is fed and NAMES the count in its partials
- * and its final, so a scenario asserting the composer's text proves the
- * microphone's bytes reached the server over the socket — not merely that a
- * button was clicked.
- */
+// names the sample count in its partials and final, so an e2e asserting the composer's text
+// proves the mic's bytes reached the server.
 export class ScriptedStreamSession implements StreamSession {
   readonly #handlers: StreamHandlers;
   #samples = 0;
@@ -214,8 +175,6 @@ export class ScriptedStreamSession implements StreamSession {
       return;
     }
     this.#samples += samplesIn(pcm);
-    // A partial per frame proves bytes are flowing DURING the hold, and it grows
-    // exactly as the real recognizer's would.
     this.#handlers.onPartial(this.#transcript());
   }
 

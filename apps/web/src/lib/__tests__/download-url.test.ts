@@ -1,7 +1,3 @@
-// The CTA's memo caches every SETTLED outcome, not only the happy path: a
-// repo with no release answers 404 on every read, and an uncached miss turns
-// GitHub's 60/hour unauthenticated quota into an hour of 403s.
-
 import { describe, expect, it } from "vitest";
 import { createDownloadUrlReader } from "../download-url";
 

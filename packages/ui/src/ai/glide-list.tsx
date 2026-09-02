@@ -1,12 +1,6 @@
 "use client";
 
-// OURS, not vendored. Several Beautiful UI components compose an internal
-// `GlideMenu` primitive that its copy-paste payload does not include — a
-// menu whose hover highlight SLIDES between rows instead of blinking on each
-// one. This is that behavior, written here: rows mark themselves
-// `data-menu-row`, and the highlight measures the hovered row and animates to
-// it. Keyboard focus drives it too, so the pointer is not the only way to see
-// where you are.
+// Not vendored: Beautiful UI's payload omits its GlideMenu primitive, so this one is original.
 
 import { useCallback, useRef, useState } from "react";
 import type { CSSProperties, FocusEvent, HTMLAttributes, PointerEvent } from "react";
@@ -14,7 +8,6 @@ import type { CSSProperties, FocusEvent, HTMLAttributes, PointerEvent } from "re
 import { cn } from "@repo/ui/lib/utils";
 
 interface GlideListProps extends HTMLAttributes<HTMLDivElement> {
-  /** Classes for the moving highlight itself. */
   highlightClassName?: string;
 }
 

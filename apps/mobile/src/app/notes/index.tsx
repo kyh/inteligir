@@ -6,11 +6,8 @@ import { docStem, isDocPath } from "@repo/notes/knowledge/doc-file";
 import { refreshNotes, useNotesTree, useSyncStatus } from "@/lib/app-runtime";
 import { RADIUS, SPACE, useTheme } from "@/lib/theme";
 
-// The vault, read-only: every doc in the hosted repo, title first with its
-// folder as the caption. The tree fetch pins one commit, so a list and the
-// notes opened from it agree with each other even mid-push elsewhere.
-// A FlatList, not a ScrollView: the vault's own design targets thousands of
-// notes, and mounting a row per doc eagerly janks the list open.
+// FlatList, not ScrollView: a vault can hold thousands of docs and an eager row per doc janks the
+// open.
 export default function NotesScreen() {
   const theme = useTheme();
   const router = useRouter();
@@ -24,9 +21,8 @@ export default function NotesScreen() {
     setRefreshing(false);
   }, []);
 
-  // Gated on the PAIRING state, not just the tree: a revoked credential
-  // leaves the tree "ready" with the old listing, and rendering it would
-  // show a vault this device may no longer read.
+  // gated on pairing too: a revoked credential leaves the tree "ready" with a listing this device
+  // may no longer read.
   const docs =
     status.state === "paired" && tree.state === "ready"
       ? tree.entries.filter((entry) => isDocPath(entry.path))

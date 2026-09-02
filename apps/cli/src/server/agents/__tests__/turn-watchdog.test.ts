@@ -1,9 +1,3 @@
-// The silent-turn watchdog with NO child process: the runtime construction
-// seam hands back a fake, so what these cases pin is the sweep's own
-// arithmetic — silence measured against the budget, any provider frame
-// resetting the clock, and a parked approval exempting its thread until the
-// answer restarts the count.
-
 import { join } from "node:path";
 import type { AcpAgentRuntimeOptions } from "@repo/agent-runtime/acp/acp-runtime";
 import type { AgentRuntime } from "@repo/agent-runtime/types";
@@ -29,7 +23,6 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-/** The engine surface a turn's write set touches, with no repo behind it. */
 function fakeGitEngine(): GitEngine {
   return {
     scheduleCommit: () => undefined,
@@ -47,7 +40,6 @@ function fakeGitEngine(): GitEngine {
   };
 }
 
-/** A provider that accepts every turn and then says nothing on its own. */
 function fakeAgentRuntime(): AgentRuntime {
   return {
     startThread: () => Promise.resolve({ providerThreadId: "pt_1" }),
@@ -65,8 +57,6 @@ interface Harness {
   driver: TurnDriver;
   manager: AcpRuntimeManager;
   ingested: ThreadEvent[];
-  /** The options the driver handed the (fake) runtime — the event and
-   *  interaction inlets a real provider would speak through. */
   runtimeOptions: () => AcpAgentRuntimeOptions;
 }
 
@@ -134,7 +124,7 @@ function providerFrame(threadId: string, delta: string): ProviderEvent {
 
 async function startSilentTurn(harness: Harness): Promise<void> {
   harness.driver.startTurn({ threadId: harness.threadId, turnId: "turn_1", text: "go" });
-  // Let the dispatch settle onto the fake runtime before the clock advances.
+  // let the dispatch settle onto the fake runtime before the clock advances.
   await vi.advanceTimersByTimeAsync(0);
   harness.runtimeOptions().onEvent({
     type: "turn/started",
@@ -166,7 +156,6 @@ describe("the silent-turn watchdog", () => {
     const harness = makeHarness();
     await startSilentTurn(harness);
 
-    // Three quiet-but-alive stretches, together well past the budget.
     for (let frame = 0; frame < 3; frame += 1) {
       await vi.advanceTimersByTimeAsync(BUDGET_MS / 2);
       harness.runtimeOptions().onEvent(providerFrame(harness.threadId, `t${frame} `));
@@ -200,7 +189,6 @@ describe("the silent-turn watchdog", () => {
       },
     });
 
-    // Parked well past the budget: the wait belongs to the user.
     await vi.advanceTimersByTimeAsync(BUDGET_MS * 4);
     expect(turnFailed(harness.ingested)).toBe(false);
 
@@ -221,7 +209,6 @@ describe("the silent-turn watchdog", () => {
     });
     await expect(parked).resolves.toEqual({ decision: "allow_once" });
 
-    // Silence counts from the answer, not from before the park.
     await vi.advanceTimersByTimeAsync(BUDGET_MS / 2);
     expect(turnFailed(harness.ingested)).toBe(false);
     await vi.advanceTimersByTimeAsync(BUDGET_MS * 2);

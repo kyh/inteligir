@@ -1,8 +1,3 @@
-// Floating controls shown on a selected embed node (video/media_embed/file):
-// URL edit (writes the node's `url` through setNodes — serialized), Open in
-// browser, Delete. Rendered inside the node's non-editable figure, so no
-// popover primitive is needed. URL entry only, uploads are out of scope.
-
 import { useEffect, useRef, useState } from "react";
 import { CheckIcon, ExternalLinkIcon, PencilIcon, Trash2Icon } from "lucide-react";
 import { useEditorRef, useElement, useReadOnly, useSelected } from "platejs/react";
@@ -12,8 +7,6 @@ import { Button } from "@repo/ui/components/button";
 
 import { stringProp } from "@repo/editor/node-props";
 
-// Overrides on the stock ghost icon button: toolbar radius, muted resting
-// color, and the 3.5 icon this toolbar uses.
 const BUTTON_CLASS = "rounded-md text-muted-foreground [&_svg:not([class*='size-'])]:size-3.5";
 
 export function MediaToolbar() {
@@ -30,8 +23,7 @@ export function MediaToolbar() {
     if (editing) inputRef.current?.select();
   }, [editing]);
 
-  // Deselecting the node closes the URL editor — decided during render, so the
-  // toolbar never paints a frame of an open input on an unselected embed.
+  // decided during render so the toolbar never paints an open input on an unselected embed.
   if (editing && !selected) setEditing(false);
 
   if (readOnly) return null;

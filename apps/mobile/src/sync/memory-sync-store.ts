@@ -1,21 +1,5 @@
-// The in-memory `SyncStore` — the v1 concrete storage, and the fake the unit
-// suite drives.
-//
-// WHY IN-MEMORY IS THE V1 CHOICE, stated because the issue asks for it: the two
-// stores must agree (see sync-store.ts), and the applied thread log is the one
-// the UI reads. Persisting the cursor beside an in-memory log would claim rows
-// the log never held; persisting the log needs expo-sqlite, which adds a native
-// build step to a client whose whole job is to be a thin reader. So v1 keeps
-// both in memory and rebuilds from the account log on launch — which is CORRECT,
-// not degraded: a pull from cursor 0 re-applies idempotently (own rows skipped,
-// every row deduped on its origin identity), so a cold start simply re-reads the
-// account's history. The ONE durable thing in v1 is the device credential
-// (expo-secure-store), because it is the sync switch and a secret. The durable
-// follow-up is an expo-sqlite adapter that persists both together.
-//
-// Snapshot references are CACHED and rebuilt only on change, because
-// `useSyncExternalStore` treats a fresh reference as new state — a snapshot
-// rebuilt every render is an infinite loop.
+// snapshots are cached and rebuilt only on change: useSyncExternalStore treats a fresh reference as
+// new state.
 
 import type { ApplyThreadEventsArgs, StoredThread, SyncStore } from "./sync-store";
 import type { ThreadEvent } from "@repo/domain/provider-event";
@@ -23,7 +7,6 @@ import type { ThreadEvent } from "@repo/domain/provider-event";
 interface ThreadState {
   events: ThreadEvent[];
   lastSeq: number;
-  /** The stable snapshot the UI holds — rebuilt only when this thread changes. */
   snapshot: StoredThread;
 }
 
@@ -76,8 +59,7 @@ export function createMemorySyncStore(): SyncStore {
         state.lastSeq = Math.max(state.lastSeq, row.seq);
         changed = true;
       }
-      // The cursor moves WITH the append — in JS one synchronous call is the
-      // whole transaction, so there is no window a crash could split.
+      // the cursor moves with the append: one synchronous call is the whole transaction.
       cursor = args.cursor;
       if (changed && state !== undefined) {
         rebuildThreadSnapshot(state, args.threadId);

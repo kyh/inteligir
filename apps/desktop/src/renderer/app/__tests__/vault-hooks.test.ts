@@ -29,13 +29,6 @@ const tree = (...paths: string[]): VaultTreeResponse => ({
   ),
 });
 
-/**
- * The shapes of a client re-deciding what a doc is, derived from the extension
- * rather than typed out. Two spellings of the rule disagree the moment a name
- * is not lowercase — a case-sensitive `endsWith` prints `Notes.MD` verbatim
- * where a case-insensitive one prints `Notes` — and a `.md`-only predicate
- * hides every `.txt`/`.markdown`/`.mdx` note the server indexes.
- */
 const EXTENSION = DEFAULT_DOC_EXTENSION.slice(1);
 const PRIVATE_DOC_RULES: readonly RegExp[] = [
   new RegExp(`endsWith\\(["']\\.${EXTENSION}["']\\)`, "u"),
@@ -46,7 +39,6 @@ describe("what the client calls a doc, and what it calls it by", () => {
   const files = rendererSources(join(REPO_ROOT, "apps/desktop/src/renderer"));
 
   it("finds the renderer at all", () => {
-    // A walk that matched nothing would satisfy the assertion below.
     expect(files.length).toBeGreaterThan(20);
   });
 
@@ -64,16 +56,11 @@ describe("what the client calls a doc, and what it calls it by", () => {
   );
 });
 
-/** The port `renameVaultEntry` declares — one procedure, so a stub is a
- *  function rather than a mocked client. */
 function renameApi(answer: () => Promise<{ path: string; rewritten: string[] }>): RenameVaultApi {
   return { vault: { rename: answer } };
 }
 
 describe("renaming a vault entry", () => {
-  // A surface that words the refusal itself ("that name is already taken")
-  // drops the half the user needs — WHICH target — and nothing the server
-  // ever adds to that sentence reaches them.
   it("carries the server's refusal, verbatim", async () => {
     const api = renameApi(() =>
       Promise.reject(
@@ -125,8 +112,6 @@ const EVERY_STATUS: readonly VaultStatusResponse[] = [
 
 describe("naming a sync state", () => {
   it("covers every state the contract can answer", () => {
-    // Derived from the union rather than counted by hand, so a ninth state
-    // fails here instead of rendering as nothing.
     expect(new Set(EVERY_STATUS.map((status) => status.state)).size).toBe(
       vaultStatusResponseSchema.options.length,
     );
@@ -135,16 +120,12 @@ describe("naming a sync state", () => {
     }
   });
 
-  // Two tables over eight states drift, and the drift is invisible until one
-  // vault answers two sentences in two pieces of the same window — which a
-  // reader cannot tell from two different states.
   it.each(["app/sidebar/sidebar.tsx", "app/settings/settings-page.tsx"])(
     "%s writes none of the sentences itself",
     (relative) => {
       const source = readFileSync(join(REPO_ROOT, "apps/desktop/src/renderer", relative), "utf8");
       for (const status of EVERY_STATUS) {
-        // Before the interpolated count, so the conflict label is matched by
-        // the part that is not a number.
+        // the conflict label carries an interpolated count; match the part before it.
         const sentence = syncStateLabel(status).split(" (")[0] ?? "";
         expect(source).not.toContain(sentence);
       }

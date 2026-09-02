@@ -1,7 +1,5 @@
-// The registry rows → ACP mcpServers composition every session boots
-// through. Lives beside the service so serve.ts passes only a thunk — the
-// thunk must stay LAZY (called per session open), which is what lets a
-// Settings edit reach the next session without a reboot.
+// the caller's thunk must stay lazy (called per session open), so a settings edit
+// reaches the next session without a reboot.
 
 import type { AcpMcpServerConfig } from "@repo/agent-runtime/acp/acp-runtime";
 import type { ConnectorsService } from "./connectors-service";
@@ -23,10 +21,8 @@ export async function composeSessionMcpServers(
       continue;
     }
     if (row.transport.kind === "oauth") {
-      // A row that cannot present a live token is EXCLUDED, not injected
-      // to 401 on every call — Settings shows needs-reauth in its place.
-      // Sequential on purpose: freshAccessToken writes needs-reauth into the
-      // shared store, and parallel refreshes would interleave those writes.
+      // a row without a live token is excluded rather than injected to 401 on every call.
+      // sequential: freshAccessToken writes needs-reauth into the shared store.
       const accessToken = await oauth.freshAccessToken(row.name);
       if (accessToken !== null) {
         servers.push({

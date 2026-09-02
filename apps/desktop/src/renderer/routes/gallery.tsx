@@ -1,7 +1,5 @@
-// The component gallery as its own route. LAZY on purpose: the gallery imports
-// every component in the design system, so bundling it with the product would
-// make every reader download a reference only a developer opens. The dynamic
-// import puts it in its own chunk, fetched on the first visit to /gallery.
+// Lazy: the gallery imports every component in the design system, so it gets
+// its own chunk.
 
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Suspense, lazy } from "react";

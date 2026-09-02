@@ -1,14 +1,4 @@
-// The packaging smoke: pack the tarball npm would publish, install it into a
-// scratch prefix, boot it from a scratch data dir through its own bin, and
-// check the four things a published artifact can be wrong about — that it
-// serves, that its own CLI verbs run, that its native runtime dependencies
-// resolve from the installed tree, and that it leaves nothing behind.
-//
-// It packs a real tarball rather than reading dist/ directly, so `files` is
-// under test too: an omitted entry fails here instead of on someone's machine.
-//
-// Deliberately outside `pnpm verify` (it builds, installs and binds a port);
-// run it with `pnpm smoke:cli`.
+// packs a real tarball so `files` is under test too. outside verify: builds, installs, binds a port.
 
 import { spawn } from "node:child_process";
 import { mkdtemp, readdir, rm } from "node:fs/promises";
@@ -68,9 +58,7 @@ async function waitForUrl(url, deadlineMs) {
       if (response.ok) {
         return response;
       }
-    } catch {
-      // Not listening yet.
-    }
+    } catch {}
     if (Date.now() > deadline) {
       return null;
     }
@@ -96,10 +84,7 @@ const baseUrl = `http://127.0.0.1:${port}`;
 let server = null;
 
 try {
-  // `pnpm pack`, never `npm pack`: the catalog: protocol on the runtime
-  // dependencies (the native pair and the ACP adapters) is a pnpm workspace fact, and only pnpm rewrites it to real
-  // ranges on the way out. An npm-packed tarball installs with
-  // EUNSUPPORTEDPROTOCOL — which is also what publishing with npm would do.
+  // pnpm pack, not npm: only pnpm rewrites catalog: ranges on the way out
   process.stdout.write(`smoke: packing ${packageRoot}\n`);
   const { stdout: packOutput } = await run("pnpm", ["pack", "--pack-destination", scratch], {
     cwd: packageRoot,
@@ -108,9 +93,6 @@ try {
   if (!existsSync(tarball)) {
     fail(`pnpm pack did not name a tarball (got ${JSON.stringify(packOutput)})`);
   }
-  // A scratch npm cache, so the run is hermetic and never contends with the
-  // developer's own — this install exists to prove the tarball, not to warm
-  // anything.
   process.stdout.write(`smoke: installing ${tarball}\n`);
   await run("npm", ["install", "--prefix", installDir, "--no-audit", "--no-fund", tarball], {
     env: { ...process.env, npm_config_cache: join(scratch, "npm-cache") },
@@ -120,9 +102,7 @@ try {
   if (!existsSync(bin)) {
     fail(`the installed package exposes no bin at ${bin}`);
   }
-  // The execute bit, explicitly: npm strips it from every packed file not
-  // named in `bin`, and the agent's PATH resolver refuses a non-executable
-  // file — which is the capability disappearing with no error anywhere.
+  // npm strips the execute bit from every packed file not named in `bin`
   const installRoot = join(installDir, "node_modules", CLI_BIN_NAME);
   const cliBin = join(installRoot, "bin", CLI_BIN_NAME);
   try {
@@ -130,11 +110,7 @@ try {
   } catch {
     fail(`the packaged CLI is not executable (${cliBin}) — it must stay in package.json's bin map`);
   }
-  // The three trees this program READS rather than imports. Each one silently
-  // disables a capability when it is missing: no skills means the agent's
-  // instructions stop promising the dialect spec, no UI means `--open` lands a
-  // browser on a 404, and no seed means a virgin vault opens to one fallback
-  // note instead of the onboarding set.
+  // each of these silently disables a capability when missing
   for (const [what, path] of [
     ["the dialect skills", join(installRoot, "dist", "skills", "inteligir-notes", "SKILL.md")],
     ["the workspace UI", join(installRoot, "dist", "ui", "index.html")],
@@ -145,10 +121,7 @@ try {
     }
   }
 
-  // The licence texts, derived from the repo's own directory rather than a
-  // hand-copied list. Nothing READS them, so no capability check can notice
-  // their absence — and the artifact is public and inlines MIT sources, so the
-  // notice obligation is real and this is the only place it can be tested.
+  // nothing reads the licence texts, so only this can notice them missing
   for (const name of await readdir(join(repoRoot, "tools", "licenses"))) {
     const staged = join(installRoot, "dist", "licenses", name);
     if (!existsSync(staged)) {
@@ -159,17 +132,11 @@ try {
   const { stdout: cliVersion } = await run(bin, ["--version"]);
   process.stdout.write(`smoke: packaged CLI --version -> ${cliVersion.trim()}\n`);
 
-  /** The device token the booted server published for this scratch instance —
-   *  every privileged route is behind it. */
   const authHeaders = () => ({
     authorization: `Bearer ${JSON.parse(readFileSync(join(dataDir, "server.json"), "utf8")).token}`,
   });
 
-  /**
-   * ONE procedure call over the RPC protocol, hand-rolled because this script
-   * runs against a PACKED tarball with no bundler and no workspace link — the
-   * wire is `POST /rpc/<path>` with a JSON body and an answer under `json`.
-   */
+  // hand-rolled: no bundler and no workspace link against a packed tarball
   const rpc = async (procedure) => {
     const response = await fetch(`${baseUrl}/rpc/${procedure}`, {
       method: "POST",
@@ -187,7 +154,6 @@ try {
     bin,
     ["serve", "--port", String(port), "--data-dir", dataDir, "--vault", vaultDir],
     {
-      // Its own process group, so the teardown can prove no orphan survived.
       detached: true,
       stdio: ["ignore", "inherit", "inherit"],
       env: { ...process.env, INTELIGIR_AGENT: "off", INTELIGIR_SYNC_INTERVAL_MS: "0" },
@@ -210,10 +176,7 @@ try {
   const vaultList = await rpc("vault/tree");
   process.stdout.write(`smoke: vault tree -> ${vaultList.entries.length} entries\n`);
 
-  // The packaged CLIENT half — server.json discovery, the oRPC client and the
-  // bearer attach — driven from the SAME bundle, which the hand-rolled fetch
-  // above bypasses. A bundling regression confined to it would pass every
-  // source-run suite and this fetch path alike.
+  // exercises the bundled client half the hand-rolled fetch above bypasses
   const { stdout: statusJson } = await run(bin, ["status", "--json"], {
     env: { ...process.env, INTELIGIR_DATA_DIR: dataDir },
   });
@@ -223,16 +186,8 @@ try {
   }
   process.stdout.write(`smoke: packaged CLI status --json -> dataDir ${status.dataDir}\n`);
 
-  // Dictation's native binding is the ONE runtime dependency this smoke checks
-  // by BEHAVIOUR rather than presence, and it is a real check because the
-  // status is computed from a worker that spawns from the staged bundle,
-  // resolves `sherpa-onnx-node` from the installed tree and dlopens the
-  // addon. So a fresh install must answer `no-model` (binding loaded, no model
-  // downloaded) — `ready` is also accepted, since the model dir is shared
-  // across installs and this machine may already hold one. `unavailable` is
-  // REFUSED: this smoke runs on a platform the artifact ships a prebuild for,
-  // so a runtime that will not load there is a packaging or ABI regression,
-  // which is exactly the class a green smoke on `unavailable` would hide.
+  // `ready` is allowed because the model dir is shared across installs; `unavailable`
+  // is refused because this platform ships a prebuild, so a load failure is an ABI regression
   const voiceStatus = await rpc("voice/status");
   if (!["no-model", "ready"].includes(voiceStatus.state)) {
     fail(
@@ -246,12 +201,8 @@ try {
   if (pid === undefined) {
     fail("the server process has no pid — it never spawned");
   }
-  // Signalled by PID, never by process GROUP. `kill(-pid)` reaches the forked
-  // watcher too, so the server would never have had to clean it up and the
-  // orphan assertion below would prove nothing — it would be checking that a
-  // process this script killed is dead. Signalling only the leader is what a
-  // terminal's ^C and a supervisor's stop both do, and it is what makes the
-  // group check a real question about the server's own teardown.
+  // the leader only: kill(-pid) would take the forked watcher too and make the
+  // orphan check below a tautology
   process.stdout.write(`smoke: SIGTERM ${pid} (the server alone)\n`);
   process.kill(pid, "SIGTERM");
   const exit = await Promise.race([
@@ -268,10 +219,7 @@ try {
   }
   process.stdout.write("smoke: exited 0\n");
 
-  // POSIX-only: signal 0 against a negative pid asks "does this process group
-  // still have members". The server was spawned detached, so it IS the group
-  // leader and its forked watcher child is the only other member — anything
-  // left here is an orphan the teardown failed to take with it.
+  // POSIX: signal 0 against -pid asks whether the group still has members
   await delay(500);
   if (processAlive(-pid)) {
     fail(`process group ${pid} still has members — the watcher child was orphaned`);
@@ -286,9 +234,7 @@ try {
   if (server?.pid !== undefined) {
     try {
       process.kill(-server.pid, "SIGKILL");
-    } catch {
-      // Already gone.
-    }
+    } catch {}
   }
   await rm(scratch, { recursive: true, force: true });
 }

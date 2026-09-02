@@ -1,14 +1,3 @@
-// Boots ONE real server on a scratch instance dir (data/ and vault/ as
-// siblings — the app refuses nesting) and hands back the typed client.
-//
-// ONE MODE, because there is one build: the workspace is a plain SPA built
-// once and served as files, so the suite drives the same bytes and the same
-// policy a user gets. A dev entry that mounted Vite in the server process
-// would serve different code and force a second run.
-//
-// The child-process half — the group, the kill ladder, the output ring, the
-// port-retry boot loop — is `tracked-child.ts`, shared with the cloud Worker.
-
 import { existsSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
@@ -25,24 +14,15 @@ const HEALTH_POLL_INTERVAL_MS = 250;
 const HEALTH_DEADLINE_MS = 60_000;
 
 export interface LaunchAppArgs {
-  /** Short label for transcript lines ("a", "b", "solo"). */
   name: string;
-  /** Scratch dir owned by this instance; data/ and vault/ are created inside. */
   instanceDir: string;
   repoRoot: string;
-  /** Git remote URL for the vault sync loop; omitted = local-only. */
   vaultRemote?: string;
-  /** Extra child env (e.g. the scripted-agent contract). Harness-owned keys
-   *  (the paths, the port, NODE_ENV, anything GIT_*) are refused. */
   extraEnv?: Readonly<Record<string, string>>;
   onLog: (line: string) => void;
-  /** Called as soon as the process exists — BEFORE the health wait — so the
-   *  caller's teardown owns the group through every early-exit path. */
   register: (instance: AppInstance) => void;
 }
 
-/** The typed client every scenario drives. A refusal THROWS, so a scenario
- *  that forgot to check one fails rather than asserting on a refusal body. */
 export type InstanceApi = ContractRouterClient<LocalContract>;
 
 export interface AppInstance extends TrackedProcess {
@@ -74,13 +54,13 @@ function buildChildEnv(
     }
   }
   const env = hermeticProcessEnv();
-  // The outer shell's own INTELIGIR_* must never leak into an instance.
+  // the outer shell's own INTELIGIR_* must not leak into an instance.
   for (const key of Object.keys(env)) {
     if (key.startsWith("INTELIGIR_")) {
       delete env[key];
     }
   }
-  // extraEnv merges FIRST; the harness-owned keys below always win.
+  // extraEnv merges first; the harness-owned keys below always win.
   Object.assign(env, args.extraEnv ?? {});
   env.INTELIGIR_DATA_DIR = dataDir;
   env.INTELIGIR_VAULT_DIR = vaultDir;
@@ -91,20 +71,12 @@ function buildChildEnv(
   return env;
 }
 
-/** The executable and argv every instance spawns. */
 interface LaunchCommand {
   file: string;
   argv: string[];
 }
 
-/**
- * `inteligir serve` through its own bin — the same entry a user's shell
- * resolves, which under a checkout runs the SOURCE under tsx.
- *
- * The built workspace UI is required rather than optional: the browser
- * scenarios drive the real page, and a server with no UI would answer their
- * navigation with a 404 no assertion could explain.
- */
+// the same bin a user's shell resolves; under a checkout it runs the source under tsx.
 function resolveCommand(cliDir: string): LaunchCommand {
   const ui = join(cliDir, "dist", "ui", "index.html");
   if (!existsSync(ui)) {
@@ -123,8 +95,7 @@ async function healthAnswered(baseUrl: string): Promise<boolean> {
     if (!response.ok) {
       return false;
     }
-    // The body shape, not just a 2xx: a proxy or a wrong process on the port
-    // can answer 200 with anything.
+    // a proxy or a wrong process on the port can answer 200 with anything.
     const body: unknown = await response.json().catch(() => undefined);
     return healthResponseSchema.safeParse(body).success;
   } catch {
@@ -132,8 +103,6 @@ async function healthAnswered(baseUrl: string): Promise<boolean> {
   }
 }
 
-/** The instance client over a spawned child — everything about an app
- *  instance that is not the child process itself. */
 function attachInstance(
   args: LaunchAppArgs,
   child: TrackedProcess,
@@ -141,9 +110,8 @@ function attachInstance(
   vaultDir: string,
   port: number,
 ): AppInstance {
-  // The device token is read from the instance's own data dir on every call
-  // rather than captured once: it is published after listen, and this client is
-  // built before the health wait.
+  // read per call, not captured once: server.json is written after listen and this client is built
+  // before the health wait.
   const link = new RPCLink({
     origin: `http://127.0.0.1:${String(port)}`,
     url: RPC_PREFIX,
@@ -163,6 +131,7 @@ function attachInstance(
 }
 
 export async function launchApp(args: LaunchAppArgs): Promise<AppInstance> {
+  // siblings: the app refuses a data dir inside the vault.
   const dataDir = join(args.instanceDir, "data");
   const vaultDir = join(args.instanceDir, "vault");
   await mkdir(dataDir, { recursive: true });
@@ -186,8 +155,6 @@ export async function launchApp(args: LaunchAppArgs): Promise<AppInstance> {
         env: buildChildEnv(args, dataDir, vaultDir, port),
       });
       const handle = attachInstance(args, child, dataDir, vaultDir, port);
-      // Registered at SPAWN, before the health wait, so the runner's teardown
-      // owns the group through every early-exit path.
       args.register(handle);
       args.onLog(`booting instance "${args.name}" on ${handle.baseUrl}`);
       return { handle, child };

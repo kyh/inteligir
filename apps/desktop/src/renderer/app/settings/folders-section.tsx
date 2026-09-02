@@ -1,10 +1,5 @@
-// Settings → Connected folders: directories agent
-// sessions are TOLD ABOUT as read-only reference context. Deliberately not
-// described as granting anything — the agent's shell can already read what
-// this user can; these rows only name what the user wants treated as
-// reference. A typed path field rather than a picker: a browser has no native
-// directory picker worth the name, and the desktop shell ships no IPC to add
-// one (its whole security story is having none).
+// A typed path field rather than a picker: a browser has no native directory
+// picker, and the desktop shell ships no IPC to add one.
 
 import type { ConnectedFoldersResponse } from "@repo/api/local/folders/folders-schema";
 import { Button } from "@repo/ui/components/button";
@@ -32,10 +27,8 @@ export function FoldersSection() {
     setError(null);
   };
 
-  // Each `onError` splits the same way, and it narrows where the mutation's
-  // own error type is known: a refusal the contract DECLARES is a judgement
-  // about this path, so it belongs beside the field that holds it; anything
-  // else is about the connection and gets the section's toast.
+  // A declared refusal is about this path and sits beside the field; anything
+  // else is about the connection and toasts.
   const addFolder = useMutation(
     orpc.folders.add.mutationOptions({
       onMutate: clearError,

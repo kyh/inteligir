@@ -31,14 +31,11 @@ describe("data dir", () => {
 
     const instanceDir = join(homeDir, DEV_DATA_ROOT_DIR, resolveDevInstanceId("/checkout/a"));
     expect(a.dataDir).toBe(join(instanceDir, "data"));
-    // Siblings under the instance dir: the vault is a git repo the sync loop
-    // pushes, so it and the data dir must be disjoint.
     expect(a.vaultDir).toBe(join(instanceDir, "vault"));
     expect(a.dataDir).not.toBe(b.dataDir);
     expect(a.port).toBe(resolveDevDefaultPort("/checkout/a"));
     expect(a.port).not.toBe(b.port);
 
-    // Deterministic: the same checkout always lands in the same place.
     const again = resolveAppConfig({
       checkoutPath: "/checkout/a",
       env: {},
@@ -245,7 +242,7 @@ describe("the vault dir and remote", () => {
       "git@github.com:kyh/vault.git",
     );
 
-    // A value git would parse as an OPTION must never reach an argv slot.
+    // a value git would parse as an option must never reach an argv slot.
     expect(() => resolveWithRemote("--upload-pack=/bin/evil")).toThrow(/INTELIGIR_VAULT_REMOTE/);
     expect(() => resolveWithRemote("/plain/local/path")).toThrow(/INTELIGIR_VAULT_REMOTE/);
     expect(() => resolveWithRemote("ext::sh -c evil")).toThrow(/INTELIGIR_VAULT_REMOTE/);

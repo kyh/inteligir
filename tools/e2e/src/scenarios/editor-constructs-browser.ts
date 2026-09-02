@@ -1,12 +1,3 @@
-// Every construct the Plate editor draws, rendered by a REAL browser over the
-// real product against one seeded note. The unit suite proves the kits under
-// jsdom, which has no layout and no real bundle — this proves the constructs
-// survive the build, the parse gate and a real mount.
-//
-// The second assertion is the sharper one: OPENING a note must write nothing.
-// The serializer is allowed to canonicalize bytes a real EDIT touches, but a
-// render alone dirties nothing — the seeded bytes are the oracle.
-
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
@@ -40,8 +31,6 @@ const x = 1;
 | a    | 1     |
 `;
 
-/** One eval pass reporting every construct: adding one is a probe line and an
- *  assertion, not another round trip. */
 const PROBE = `JSON.stringify({
   bold: !!document.querySelector('${EDITOR} strong, ${EDITOR} b'),
   blockquotes: document.querySelectorAll('${EDITOR} blockquote').length,
@@ -66,7 +55,7 @@ export const editorConstructsBrowser: Scenario = {
   async run(ctx) {
     const app = await ctx.boot({
       name: "solo",
-      // Sorts before the seeded welcome note, so the virgin boot opens it.
+      // sorts before the seeded welcome note, so the virgin boot opens it.
       seedVault: async (vaultDir) => {
         await writeFile(join(vaultDir, DOC_PATH), DOC, "utf8");
       },
@@ -83,8 +72,7 @@ export const editorConstructsBrowser: Scenario = {
       ctx.log("probing the rendered constructs");
       const probe = parseEval(await agentBrowser(["eval", PROBE]), probeSchema);
       expect(probe.bold, "bold text did not render as <strong>");
-      // The alert AND the ordinary quote both render as blockquotes; the
-      // callout kit styles the first, but both must at least be present.
+      // the callout and the ordinary quote both render as blockquotes.
       expect(probe.blockquotes >= 2, `expected 2 blockquotes, got ${probe.blockquotes}`);
       expect(probe.checkboxes >= 2, `expected the 2 task checkboxes, got ${probe.checkboxes}`);
       expect(probe.fence, "the code fence did not render as <pre>");
@@ -96,9 +84,8 @@ export const editorConstructsBrowser: Scenario = {
       expectEq(onDisk, DOC, "opening the note changed its bytes");
 
       ctx.log("an edit keeps every construct on disk");
-      // The bottom toolbar floats over the note's lower half, so a text-target
-      // click can land under it; clicking the editable surface itself always
-      // hits, and the caret lands wherever — the edit below types at Home.
+      // the bottom toolbar floats over the note's lower half, so a text-target click can land under
+      // it.
       await agentBrowser(["click", EDITOR]);
       await agentBrowser(["press", "Meta+Home"]);
       await agentBrowser(["press", "End"]);

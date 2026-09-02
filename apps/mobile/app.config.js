@@ -1,12 +1,4 @@
-// Native + product identity for the inteligir mobile companion. `scheme` is the
-// custom URL scheme the pairing deep-link callback rides
-// (`inteligir://pair/callback`, src/pairing/) — it is the redirect target a
-// browser-approve hands the code back through.
-//
-// Plain JS, not TS: the workspace TypeScript is the 7.x native preview, which
-// drops the compiler JS API that expo's config loader (@expo/require-utils)
-// needs to evaluate a .ts config — a TS config crashes `expo start` on every
-// target.
+// plain JS: expo's config loader needs the compiler JS API that TypeScript 7 dropped
 /** @param {import("expo/config").ConfigContext} ctx
  *  @returns {import("expo/config").ExpoConfig} */
 module.exports = ({ config }) => ({
@@ -33,19 +25,10 @@ module.exports = ({ config }) => ({
       backgroundColor: "#171717",
     },
   },
-  // The cloud Worker origin, baked at build time. `EXPO_PUBLIC_CLOUD_URL` in
-  // the shell is the other spelling of the same value; with neither set the
-  // client throws (src/lib/cloud-url.ts). Fill `eas.projectId` once the app is
-  // registered with EAS (`eas init`).
   extra: {
     cloudUrl: process.env.EXPO_PUBLIC_CLOUD_URL,
-    // eas: { projectId: "your-eas-project-id" },
   },
-  // No OTA updates: this is a sync/read companion shipped through the store,
-  // and the app is not registered with EAS. Declared explicitly rather than
-  // left to default — Expo's tooling (and knip's expo plugin) otherwise assume
-  // `expo-updates` is a dependency, which meant carrying a knip ignore for a
-  // package nothing installs. State the truth in the native config instead.
+  // declared explicitly: knip's expo plugin otherwise assumes expo-updates is a dependency
   updates: { enabled: false },
   experiments: {
     typedRoutes: true,

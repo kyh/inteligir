@@ -25,8 +25,7 @@ describe("the server file", () => {
   });
 
   it("is owner-only, and stays so when it is rewritten", () => {
-    // writeFileSync's mode applies only on CREATE, so a file inherited from a
-    // laxer umask would keep those bits forever.
+    // writeFileSync's mode applies only on create, so the chmod simulates a file inherited from a laxer umask.
     const dataDir = makeTempDir("inteligir-server-file-");
     writeServerFile(dataDir, ROW);
     chmodSync(join(dataDir, SERVER_FILE_NAME), 0o644);
@@ -49,8 +48,6 @@ describe("the server file", () => {
     writeServerFile(dataDir, ROW);
     removeServerFile(dataDir);
     expect(readServerFile(dataDir)).toBeNull();
-    // Removing what is not there is not a failure — a crashed boot leaves
-    // nothing to remove and shutdown must not throw over it.
     expect(() => removeServerFile(dataDir)).not.toThrow();
   });
 
@@ -111,8 +108,7 @@ describe("the browser's carrier", () => {
     expect(cookie).toContain("HttpOnly");
     expect(cookie).toContain("SameSite=Strict");
     expect(cookie).toContain("Path=/");
-    // Never `Secure`: this origin is plain http on loopback, and some browsers
-    // drop a Secure cookie there rather than merely ignoring the attribute.
+    // never `Secure`: some browsers drop a Secure cookie on plain-http loopback rather than ignoring the attribute.
     expect(cookie).not.toContain("Secure");
   });
 });

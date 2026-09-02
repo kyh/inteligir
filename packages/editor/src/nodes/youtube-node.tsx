@@ -1,10 +1,4 @@
 // Vendored from plate (github.com/udecode/plate), MIT. © Plate contributors.
-// `video` node (URL-only, no uploads/resize/captions): youtube renders through
-// react-lite-youtube-embed (thumbnail-first, no iframe until click); every
-// other provider parseVideoUrl understands (vimeo/dailymotion/coub/youku)
-// renders its embed URL in a player iframe. Unparseable URLs fall back to a
-// plain link card. Never writes `align`/`width`/`isUpload` — the canonical
-// byte-form stays `<video src="…" />`.
 
 import { lazy, Suspense } from "react";
 import { parseVideoUrl } from "@platejs/media";
@@ -15,9 +9,7 @@ import { cn } from "@repo/ui/lib/utils";
 import { stringProp } from "@repo/editor/node-props";
 import { MediaToolbar } from "@repo/editor/nodes/media-toolbar";
 
-// The stylesheet rides the same lazy chunk as the component (Vite injects it
-// when the dynamic import resolves) — a static import would put it in the
-// initial bundle for notes that never embed a video.
+// the stylesheet rides the lazy chunk; a static import would land it in the initial bundle.
 const LiteYouTubeEmbed = lazy(() =>
   Promise.all([
     import("react-lite-youtube-embed"),
@@ -25,9 +17,7 @@ const LiteYouTubeEmbed = lazy(() =>
   ]).then(([mod]) => ({ default: mod.default })),
 );
 
-// Per-provider aspect ratios, keyed by the provider name parseVideoUrl
-// reports — an open string, so the lookup is a Map rather than a record whose
-// keys would claim to be the whole vocabulary.
+// a Map, not a record: the provider name is an open string.
 const PROVIDER_ASPECT = new Map([
   ["coub", "pb-[51.25%]"],
   ["dailymotion", "pb-[56.0417%]"],
@@ -61,10 +51,6 @@ export function VideoElement(props: PlateElementProps) {
           >
             <iframe
               allowFullScreen
-              // No allow-popups: an embedded player has no business spawning
-              // windows, and embed-node carries the same trim. The src is
-              // provider-constructed from a parsed video id, so this is
-              // defense-in-depth consistency rather than a live hole.
               sandbox="allow-scripts allow-presentation"
               className={cn(
                 "absolute top-0 left-0 size-full rounded-md border-0",

@@ -1,15 +1,3 @@
-// External writes against the OPEN note, both sides of the dirty gate.
-//
-// CLEAN BUFFER: the scripted agent rewrites the note through the vault
-// service — watcher, ws ping, session reload, buffer adoption — and the
-// rendered editor updates on its own. Every hop is production code.
-//
-// DIRTY BUFFER: the user is mid-keystroke when the file changes under them.
-// The reload refuses (unsaved edits win the buffer), and the autosave's
-// guarded write meets the CAS 409 instead — the port three-way merges and
-// retries, so DISK ends up holding both changes. No silent clobber in either
-// direction is the invariant.
-
 import { readFile, writeFile } from "node:fs/promises";
 import { setTimeout as delay } from "node:timers/promises";
 import { join } from "node:path";
@@ -34,8 +22,7 @@ export const externalEditBrowser: Scenario = {
 
     ctx.log("create the thread whose scripted turn owns a note path");
     const { thread } = await app.api.threads.create({ title: PROMPT });
-    // The scripted driver writes exactly here; folders sort before root
-    // files, so the virgin boot opens this note without a deep link.
+    // the scripted driver writes exactly here.
     const notePath = `Agent/${thread.id}.md`;
     await app.api.vault.write({ path: notePath, content: BASE_NOTE, ifAbsent: true });
 
@@ -43,9 +30,7 @@ export const externalEditBrowser: Scenario = {
       await probeHeadlessOrSkip(agentBrowser, ctx.log);
 
       ctx.log(`opening ${app.baseUrl}/`);
-      // Name the note in the deep link rather than relying on listing order:
-      // the seeded vault's front door (Welcome) outranks "first doc", and this
-      // scenario is about external edits, not the boot pick.
+      // deep link rather than listing order: the seeded Welcome note outranks "first doc".
       await agentBrowser(["open", `${app.baseUrl}/?note=${encodeURIComponent(notePath)}`], 60_000);
       await agentBrowser(["wait", EDITOR], 90_000);
       const opened = await agentBrowser(["get", "text", EDITOR]);
@@ -77,7 +62,7 @@ export const externalEditBrowser: Scenario = {
       await agentBrowser(["click", EDITOR]);
       await agentBrowser(["press", "End"]);
       await agentBrowser(["type", EDITOR, " user-typed-tail"]);
-      // Inside the autosave debounce: append a line the buffer does not hold.
+      // inside the autosave debounce: append a line the buffer does not hold.
       const external = `${rewritten}\nexternal-appended-line\n`;
       await writeFile(join(app.vaultDir, notePath), external, "utf8");
 

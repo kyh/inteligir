@@ -16,16 +16,6 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { Collapse } from "@repo/ui/lib/collapse";
 import { cn } from "@repo/ui/lib/utils";
 
-/* ─────────────────────────────────────────────────────────
- * TOOL CHIPS — what the agent ran, one row per call
- *
- * A collapsible run header over rows that each carry a chip
- * (the call's target) and expand to their own detail lines.
- * The ROWS ARE THE INPUT. Diff chips are deliberately absent:
- * they render hunks this product's timeline does not carry, so
- * they would be a hover surface with nothing behind it.
- * ───────────────────────────────────────────────────────── */
-
 const ICONS = {
   think: <path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8z" />,
   write: (
@@ -84,7 +74,6 @@ interface ToolChipContextValue {
 const ToolChipContext = createContext<ToolChipContextValue>({ open: false, mono: false });
 
 interface ToolChipListProps extends HTMLAttributes<HTMLDivElement> {
-  /** The run header — "4 tool calls, 2 messages". */
   summary: string;
   defaultExpanded?: boolean;
 }
@@ -92,8 +81,7 @@ interface ToolChipListProps extends HTMLAttributes<HTMLDivElement> {
 const ToolChipList = forwardRef<HTMLDivElement, ToolChipListProps>(
   ({ summary, defaultExpanded = true, className, children, ...props }, ref) => {
     const [open, setOpen] = useState(defaultExpanded);
-    // -mx-1 + px-1.5 keeps content at the same x while giving the row hover
-    // pills room inside the collapse's clip box.
+    // the collapse's -mx-1 + px-1.5 keeps x while giving hover pills room inside its clip box
     return (
       <div ref={ref} data-slot="tool-chip-list" className={cn("w-full pb-1", className)} {...props}>
         <button
@@ -131,18 +119,12 @@ ToolChipList.displayName = "ToolChipList";
 
 interface ToolChipProps
   extends HTMLAttributes<HTMLDivElement>, VariantProps<typeof toolChipVariants> {
-  /** "Write 204 lines", "Rebuild and verify". */
   label: string;
-  /** The call's target — a path, a command, a one-line summary. */
   chip: string;
-  /** Render the chip in the mono face (paths, commands). */
   mono?: boolean;
-  /** Render the detail lines in the mono face. */
   detailMono?: boolean;
 }
 
-/** Children are the chip's detail lines: a chip with none is not
- *  expandable. */
 const ToolChip = forwardRef<HTMLDivElement, ToolChipProps>(
   (
     {
@@ -238,7 +220,6 @@ const ToolChip = forwardRef<HTMLDivElement, ToolChipProps>(
 ToolChip.displayName = "ToolChip";
 
 interface ToolChipDetailProps extends HTMLAttributes<HTMLSpanElement> {
-  /** An added line renders in the diff-add ink. */
   tone?: "add";
 }
 

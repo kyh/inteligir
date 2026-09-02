@@ -21,16 +21,11 @@ import { cn } from "@repo/ui/lib/utils";
 interface SwitchProps extends HTMLAttributes<HTMLDivElement> {
   checked: boolean;
   onCheckedChange: (checked: boolean) => void;
-  /** Visible label beside the track. Omitted, the control is named by `aria-label` alone. */
   label?: string;
   disabled?: boolean;
-  /** Pins the switch to one step of the size ladder. Omitted, it follows the
-   *  surrounding SizeProvider. */
   size?: SizeVariant;
 }
 
-// Track/thumb geometry per ladder step. The hover pill-extend and press
-// squash scale down with the thumb so the compact switch keeps the same feel.
 const METRICS = {
   default: {
     trackWidth: 34,
@@ -229,8 +224,6 @@ const Switch = forwardRef<HTMLDivElement, SwitchProps>(
           style={{
             width: m.trackWidth,
             height: m.trackHeight,
-            // The monochrome skin themes the checked track off primary
-            // (the --focus-ring precedent).
             backgroundColor: checked
               ? hovered
                 ? "color-mix(in oklab, var(--primary), rgb(var(--overlay)) 12%)"
@@ -266,8 +259,6 @@ const Switch = forwardRef<HTMLDivElement, SwitchProps>(
           <span
             id={labelId}
             className={cn(
-              // text-box trim recenters the letterforms against the track; the
-              // track is taller than the label, so layout doesn't change.
               "[text-box:trim-both_cap_alphabetic] transition-[color] duration-80",
               sizeClasses.text,
               checked ? "text-foreground" : "text-muted-foreground",

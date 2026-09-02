@@ -1,8 +1,5 @@
-// URL prompt for the slash menu's Embed item. The slash combobox unmounts
-// itself on selection, so the item can't host UI — it calls the module-level
-// opener and this host (rendered from SlashKit's render.afterEditable, inside
-// the Plate context) shows the dialog and routes the URL to
-// insertEmbedFromUrl. Same runner-bridge pattern as triggerInlineAi.
+// The slash combobox unmounts itself on selection, so the item cannot host UI;
+// it calls the module-level opener instead.
 
 import { useEffect, useState } from "react";
 import { useEditorRef } from "platejs/react";
@@ -21,7 +18,6 @@ import { insertEmbedFromUrl } from "@repo/editor/kits/embed-kit";
 
 let activeOpener: (() => void) | null = null;
 
-/** Open the embed URL prompt (callable from outside React, e.g. slash items). */
 export function openEmbedUrlDialog(): void {
   activeOpener?.();
 }
@@ -31,9 +27,6 @@ export function EmbedUrlDialogHost() {
   const [open, setOpen] = useState(false);
   const [url, setUrl] = useState("");
 
-  // The module-level opener is a single global slot claimed by the one
-  // mounted editor's host, so the slash menu (which runs outside React) can
-  // reach the dialog.
   useEffect(() => {
     const opener = () => {
       setUrl("");

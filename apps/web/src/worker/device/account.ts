@@ -5,10 +5,6 @@ import { createDb } from "../db/client";
 import { user } from "../db/schema";
 import { verifyDeviceCredential } from "./device-auth";
 
-// `GET /v1/account` — whose account this device credential syncs as. The
-// contract module states why this is its own route; what this handler owns is
-// the same verified-credential-names-the-state rule as every device surface.
-
 export async function handleAccountRoute(request: Request, env: Env): Promise<Response> {
   if (request.method !== "GET") return refuse("not-found", "No such route.");
   const db = createDb(env.DB);
@@ -20,8 +16,7 @@ export async function handleAccountRoute(request: Request, env: Env): Promise<Re
     .from(user)
     .where(eq(user.id, verified.userId))
     .get();
-  // A live credential whose user row is gone can only be the deletion race's
-  // in-flight sliver; answer what the tombstone would.
+  // a live credential with no user row is the deletion race's in-flight sliver; answer what the tombstone would
   if (row === undefined) return refuse("account-deleted", "This account was deleted.");
 
   const response: AccountResponse = { id: row.id, email: row.email };

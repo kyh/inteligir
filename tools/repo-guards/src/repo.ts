@@ -1,10 +1,3 @@
-// The one tree walk every guard in this workspace shares: which workspaces
-// exist, which of their files SHIP, and what each file imports.
-//
-// Nothing here is a list. Workspaces come from the pnpm globs' own layout on
-// disk, shipped files from a walk, and imports from the source — so a guard
-// built on this cannot be satisfied by editing the guard.
-
 import fs from "node:fs";
 import path from "node:path";
 import { parse as parseYaml } from "yaml";
@@ -14,18 +7,12 @@ export const REPO_ROOT = path.resolve(import.meta.dirname, "../../..");
 
 export const WORKSPACE_MANIFEST = "pnpm-workspace.yaml";
 
-/** Directories no guard walks: dependencies, and build output that would be
- *  read as source. Shared, because a guard with its own shorter list passes on
- *  CI and fails on a machine that has run a build. */
+// shared: a guard with its own shorter list passes on CI and fails on a machine that has run a
+// build.
 const SKIP_DIR_NAMES = new Set(["node_modules", "dist", "coverage"]);
 
-/**
- * Directories a guard must not walk. Dot-directories are excluded wholesale
- * rather than listed: none of pnpm's globs reaches one, so anything in there
- * is tooling state (`.turbo`, `.cache`), an ignored sidecar (`.ds-sync`), or —
- * worst for a guard — an agent worktree under `.claude`, which is a whole
- * checkout of THIS repo and would be read as if it were this commit's tree.
- */
+// dot-directories wholesale: none of pnpm's globs reaches one, and an agent worktree under .claude
+// is a whole checkout of this repo that would be read as this commit's tree.
 export function isSkippedDir(name: string): boolean {
   return name.startsWith(".") || SKIP_DIR_NAMES.has(name);
 }
@@ -34,8 +21,6 @@ const SOURCE_FILE = /\.(?:tsx?|mts|cts|mjs|cjs|jsx?)$/;
 
 const STYLE_FILE = /\.css$/;
 
-/** A dependency group that is not a name→range map is dropped rather than
- *  read partially — the original reader skipped malformed groups the same way. */
 const versionMapSchema = z.record(z.string(), z.string()).optional().catch(undefined);
 
 const manifestSchema = z.object({
@@ -48,15 +33,11 @@ const manifestSchema = z.object({
 export type Manifest = z.infer<typeof manifestSchema>;
 
 export interface Workspace {
-  /** The manifest's `name`, e.g. `@repo/notes` — the id every guard speaks. */
   name: string;
-  /** Repo-relative directory, e.g. `packages/notes`. */
   dir: string;
   manifest: Manifest;
 }
 
-/** Parse at the boundary: a manifest is JSON on disk, so a shape this cannot
- *  reason about is refused rather than read through `any`. */
 function parseManifest(file: string): Manifest {
   const value: unknown = JSON.parse(fs.readFileSync(file, "utf8"));
   const manifest = manifestSchema.safeParse(value);
@@ -67,23 +48,17 @@ function parseManifest(file: string): Manifest {
 }
 
 export interface WorkspaceGlobs {
-  /** `apps/*` → `apps`: every child directory of it is a candidate workspace. */
+  // `apps/*` → `apps`: every child directory is a candidate workspace.
   groups: string[];
-  /** A bare `docs` → `docs`: the directory IS the workspace. */
+  // a bare `docs` → `docs`: the directory is the workspace.
   standalone: string[];
 }
 
 let cachedGlobs: WorkspaceGlobs | undefined;
 
-/**
- * The workspace globs, read from pnpm's own manifest rather than restated.
- *
- * A guard that carries its own copy stops covering a workspace group the day
- * one is added, and the symptom is silence — every assertion still passes,
- * over a smaller tree. Only the two glob shapes this repo uses are understood;
- * anything else THROWS, because the alternative is skipping it quietly, which
- * is the failure this reader exists to remove.
- */
+// read from pnpm's own manifest: a copy stops covering a group the day one is added, and the
+// symptom is a green run over a smaller tree. an unknown glob shape throws rather than being
+// skipped.
 export function workspaceGlobs(): WorkspaceGlobs {
   if (cachedGlobs !== undefined) return cachedGlobs;
   const parsed = z
@@ -118,7 +93,6 @@ export function workspaceGlobs(): WorkspaceGlobs {
 
 let cachedWorkspaces: Workspace[] | undefined;
 
-/** Every workspace in the repo, discovered from the pnpm globs' own layout. */
 export function workspaces(): Workspace[] {
   if (cachedWorkspaces !== undefined) return cachedWorkspaces;
   const globs = workspaceGlobs();
@@ -141,16 +115,8 @@ export function workspaces(): Workspace[] {
   return cachedWorkspaces;
 }
 
-/**
- * Every WORKSPACE this manifest declares, in any dependency group.
- *
- * Membership is decided by `workspaces()`, never by a name prefix. A prefix
- * filter reads the repo's naming CONVENTION as if it were the repo's layout,
- * and the one workspace that breaks the convention is the published artifact —
- * `inteligir` — which is exactly the dependency a shipping surface installs.
- * Filtering on `@repo/` made that declaration invisible to both manifest
- * checks: neither the missing-dependency one nor the phantom one could see it.
- */
+// membership by workspaces(), never by name prefix: `inteligir` breaks the @repo/ convention and is
+// exactly the dependency a shipping surface installs.
 export function manifestWorkspaceDeps(manifest: Manifest): Set<string> {
   const all = {
     ...manifest.dependencies,
@@ -174,7 +140,6 @@ function walk(dir: string, matches: RegExp, out: string[]): void {
   }
 }
 
-/** A file that never reaches a user: a suite, a fixture, or a test-only port. */
 export function isTestFile(relativePath: string): boolean {
   return (
     /(?:^|\/)__tests__\//.test(relativePath) ||
@@ -184,18 +149,14 @@ export function isTestFile(relativePath: string): boolean {
 }
 
 export interface WorkspaceFiles {
-  /** `src/**` minus the test files — what a consumer of this package runs. */
   shipped: string[];
   test: string[];
 }
 
 const cachedFiles = new Map<string, WorkspaceFiles>();
 
-/**
- * A workspace's source, split by whether it ships. SHIPPED is `src/**` only:
- * build scripts, vite/vitest configs and the editor's `dev/` demo live outside
- * it and are not what a dependent gets.
- */
+// shipped is `src/**` only: build scripts, configs and the editor's dev/ demo are not what a
+// dependent gets.
 export function workspaceFiles(workspace: Workspace): WorkspaceFiles {
   const cached = cachedFiles.get(workspace.name);
   if (cached !== undefined) return cached;
@@ -211,16 +172,8 @@ export function workspaceFiles(workspace: Workspace): WorkspaceFiles {
 
 const cachedWorkspaceSources = new Map<string, string[]>();
 
-/**
- * Every source file a workspace CONTAINS, wherever it sits — `src/`, the build
- * and smoke scripts beside it, a config at its root.
- *
- * `workspaceFiles` answers what SHIPS, which is the population a dependency
- * edge is about. This answers what the repo HOLDS, which is the population a
- * guard about SPELLING needs: a smoke script that hand-writes a route path
- * drifts from the table exactly the way a handler does, and it lives nowhere
- * near `src/`.
- */
+// what the workspace holds rather than ships: a smoke script that hand-writes a route path drifts
+// like a handler does, and lives nowhere near src/.
 export function workspaceSourceFiles(workspace: Workspace): string[] {
   const cached = cachedWorkspaceSources.get(workspace.name);
   if (cached !== undefined) return cached;
@@ -233,13 +186,8 @@ export function workspaceSourceFiles(workspace: Workspace): string[] {
 
 const cachedWorkspaceStyles = new Map<string, string[]>();
 
-/**
- * Every stylesheet a workspace CONTAINS, on the same walk and the same skip
- * list as its source. A guard that reads CSS is asking about the same tree as
- * one that reads TypeScript — a token is declared in one and read from the
- * other — so the two populations must be drawn the same way or a build output
- * answers for one half of the pair.
- */
+// the same walk and skip list as the source, or a build output answers for one half of a token
+// pair.
 export function styleFiles(workspace: Workspace): string[] {
   const cached = cachedWorkspaceStyles.get(workspace.name);
   if (cached !== undefined) return cached;
@@ -255,14 +203,9 @@ const IMPORT_SPECIFIER = /\b(?:from|import|require)\s*\(?\s*["']([^"'\n]+)["']/g
 
 const cachedSources = new Map<string, string>();
 
-/**
- * A file's source with its full-line comments dropped — the bytes every guard
- * in this workspace reads, so two guards can never disagree about what a file
- * says. Prose naming a package or a change kind therefore cannot invent one; a
- * TRAILING comment is left alone, because stripping one safely would mean
- * parsing the line, and a walk that eats real code fails OPEN, which is the one
- * failure mode a fitness test may not have.
- */
+// full-line comments dropped, so prose naming a package or a change kind cannot invent one; a
+// trailing comment is left alone because stripping it safely means parsing the line, and eating
+// real code fails open.
 export function sourceOf(relativePath: string): string {
   const cached = cachedSources.get(relativePath);
   if (cached !== undefined) return cached;
@@ -275,10 +218,6 @@ export function sourceOf(relativePath: string): string {
   return source;
 }
 
-/**
- * Every module specifier a file imports — static, `export … from`, dynamic and
- * `require`.
- */
 export function importsOf(relativePath: string): string[] {
   const source = sourceOf(relativePath);
   const specifiers: string[] = [];
@@ -292,7 +231,6 @@ export function importsOf(relativePath: string): string[] {
   return specifiers;
 }
 
-/** Which workspace a specifier resolves to, or null for an npm/builtin one. */
 export function resolveWorkspace(specifier: string): Workspace | null {
   return (
     workspaces().find(

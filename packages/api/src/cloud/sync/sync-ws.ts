@@ -1,42 +1,21 @@
 import { z } from "zod";
 
-// ---------------------------------------------------------------------------
-// The live-follow socket: `GET /v1/sync/ws`, authenticated by the device
-// credential as a Bearer header ON THE UPGRADE. Native callers can set
-// headers on a WebSocket dial; there is deliberately no browser cookie path,
-// so the ticket machinery a cookie transport would force never exists here.
-//
-// The socket is INVALIDATION-ONLY, one direction. The server pushes small
-// pings; the client answers every one of them with an HTTP pull/list — state
-// never rides the socket, so a missed ping costs staleness until the next
-// sync, never correctness.
-// ---------------------------------------------------------------------------
+// the bearer rides the upgrade header, and there is no browser cookie path, so no ticket
+// machinery. invalidation only: state never rides the socket, a missed ping costs staleness.
 
 export const SYNC_WS_PATH = "/v1/sync/ws";
 
-/** Upgrade query param: which device class this socket is. A delivery hint for
- * `dispatch` targeting, never a capability — every socket may pull everything. */
+// a delivery hint for dispatch targeting, never a capability: every socket may pull everything
 export const SYNC_WS_PLATFORM_PARAM = "platform";
 export const devicePlatformSchema = z.enum(["desktop", "mobile", "other"]);
 export type DevicePlatform = z.infer<typeof devicePlatformSchema>;
 
-/** Client keepalive: send the literal ping, the server answers the literal
- * pong without waking the hibernated object (WebSocket auto-response). */
+// the durable object answers the literal pong by auto-response, without waking from hibernation
 export const SYNC_WS_KEEPALIVE_PING = "ping";
 export const SYNC_WS_KEEPALIVE_PONG = "pong";
 
-/**
- * Server→client frames.
- * - `sync`: the log grew past `seq` — pull if your cursor is behind it. Not
- *   sent to the pushing device's own sockets (it has what it pushed).
- * - `capture`: the capture inbox is non-empty — list and ack.
- * - `dispatch`: a desktop-lane thread landed new work; sent only to sockets
- *   whose platform is `desktop`. The mailbox poke that makes a phone-started
- *   thread run on the machine with the agent.
- * - `vault`: the hosted vault repo advanced — run a vault sync pass. Bare by
- *   design (the pull is what carries state), and not sent to the pushing
- *   device's own sockets, same as `sync`. Stale clients drop it unparsed.
- */
+// sync and vault are not sent to the pushing device's own sockets; dispatch goes only to
+// desktop-platform sockets. every frame is bare: the pull carries the state.
 export const syncPingSchema = z.discriminatedUnion("type", [
   z
     .object({

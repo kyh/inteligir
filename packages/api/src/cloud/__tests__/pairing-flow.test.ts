@@ -1,8 +1,3 @@
-// The pairing machine's own suite. Every way a callback can fail to bind to
-// the approval THIS app armed is a way a reachable callback surface turns
-// into a pairing nobody asked for, so each one is pinned here — at the one
-// implementation — rather than once per platform.
-
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import type { CloudFetch } from "../cloud-client";
@@ -30,9 +25,6 @@ interface RecordedRedeem {
   body: string;
 }
 
-/** A fetch that answers the redeem with a durable credential and records what
- *  it was asked. The machine only ever sends string bodies — parsed as such
- *  at this boundary. */
 function redeemOk() {
   const calls: RecordedRedeem[] = [];
   const fetch: CloudFetch = (input, init) => {
@@ -91,8 +83,6 @@ describe("complete", () => {
     const completion = await flow.complete({ code: "ABCD-EFGH", state: stateOf(begun.url) });
     expect(completion).toStrictEqual({ kind: "paired", credential: REDEEMED });
 
-    // The redeem carried the SECRET half of the pair the browser never saw —
-    // S256(verifier) is exactly the challenge begin() put on the approve URL.
     expect(redeem.calls).toHaveLength(1);
     const body = redeemDeviceRequestSchema.parse(JSON.parse(redeem.calls[0]?.body ?? ""));
     expect(body.deviceName).toBe("Laptop");
@@ -108,7 +98,6 @@ describe("complete", () => {
     const state = stateOf(begun.url);
     expect((await flow.complete({ code: "ABCD-EFGH", state })).kind).toBe("paired");
 
-    // The same URL out of a browser history: no second redeem, no request.
     expect(await flow.complete({ code: "ABCD-EFGH", state })).toStrictEqual({
       kind: "no-pending",
     });
@@ -124,7 +113,6 @@ describe("complete", () => {
     });
     expect(redeem.calls).toHaveLength(0);
 
-    // Still armed: a wrong state is someone else's traffic, not a cancel.
     expect((await flow.complete({ code: "ABCD-EFGH", state: stateOf(begun.url) })).kind).toBe(
       "paired",
     );

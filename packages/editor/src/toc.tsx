@@ -1,8 +1,5 @@
-// A potion-style table-of-contents rail pinned to the right edge: a column of
-// dashes (one per heading, indented by depth, the active one filled) that
-// expands into a clickable outline on hover. Built directly off the editor's
-// heading nodes — no @platejs/toc, so it stays decoupled from Plate's scroll-ref
-// (our scroll container is the workspace <main>, not a PlateContainer).
+// built off the editor's heading nodes, not @platejs/toc: the scroll container is the
+// workspace <main>, not a PlateContainer.
 
 import { useEffect, useRef, useState } from "react";
 import { ElementApi, KEYS, NodeApi, type Path, type TElement } from "platejs";
@@ -18,16 +15,11 @@ const HEADING_DEPTH = new Map<string, number>([
   [KEYS.h3, 3],
 ]);
 
-// Clearance for the sticky header so a scrolled-to heading isn't tucked under it.
 const HEADER_OFFSET = 64;
 
 const SCROLL_DURATION_MS = 200;
 
-// `behavior: "smooth"` is ignored by both scrollIntoView and scrollTo on this
-// scroller, so the offset is tweened by hand: a short rAF ease-out to the
-// target, leaving room for the sticky header. Module scope, not a closure in
-// the component: the tween is a DOM animation driven by a click, and reading
-// the clock is not something a render may do.
+// `behavior: "smooth"` is ignored by scrollIntoView and scrollTo on this scroller.
 function tweenScrollTo(scroller: Element, el: HTMLElement): void {
   const from = scroller.scrollTop;
   const to =
@@ -56,12 +48,8 @@ export function collectHeadings(editor: PlateEditor): HeadingItem[] {
   return out;
 }
 
-/** The DOM element one outline row targets, resolved through the row's own
- *  NODE rather than by position among the editable's `<h*>`s: that DOM also
- *  holds headings the outline skips (an empty one, mid-creation) and headings
- *  it never listed (a transclusion's static render), so "the i-th heading
- *  element" is the wrong element as soon as either exists. Null when the path
- *  went stale under an edit — scroll nowhere rather than somewhere wrong. */
+// resolved through the row's own node, not by index among the editable's `<h*>`s: that dom
+// also holds headings the outline skips (empty ones) and never listed (a transclusion's).
 export function headingElement(editor: PlateEditor, heading: HeadingItem): HTMLElement | null {
   const entry = editor.api.node<TElement>(heading.path);
   if (entry === undefined) return null;
@@ -70,27 +58,19 @@ export function headingElement(editor: PlateEditor, heading: HeadingItem): HTMLE
   return editor.api.toDOMNode(node) ?? null;
 }
 
-/** How many dashes the collapsed rail draws at once. */
 export const TOC_RAIL_CAP = 20;
 
-/** The outline slice the collapsed rail shows. The cap keeps a long doc's
- *  rail a glanceable minimap, and the window slides just far enough that the
- *  ACTIVE row is always inside it — cut at a fixed index instead, every
- *  heading past the cap highlights nothing. A stale index (the doc shrank
- *  under it) clamps rather than sliding the window off the end. */
+// the window slides so the active row is always inside it; cut at a fixed index, every heading
+// past the cap would highlight nothing.
 export function railWindow(count: number, activeIndex: number) {
   const active = Math.max(0, Math.min(activeIndex, count - 1));
   const start = Math.max(0, active - TOC_RAIL_CAP + 1);
   return { start, end: start + TOC_RAIL_CAP };
 }
 
-// collectHeadings walks the whole document and returns a FRESH array, and
-// useEditorSelector's default equality is `===` — so without this the outline
-// re-renders and the scrollspy Effect below tears down and re-adds its scroll
-// listener (plus a layout read per heading) on every keystroke and every caret
-// move. Compare structurally instead. `title` is part of the comparison on
-// purpose: typing inside a heading changes no id or depth, but the outline
-// still has to show the new text.
+// collectHeadings returns a fresh array and useEditorSelector's default equality is `===`, so
+// without this the scrollspy effect re-arms on every keystroke. `title` is compared on purpose:
+// typing inside a heading changes no id or depth.
 function sameHeadings(a: readonly HeadingItem[], b: readonly HeadingItem[]): boolean {
   if (a.length !== b.length) return false;
   return a.every((h, i) => {
@@ -103,19 +83,13 @@ function sameHeadings(a: readonly HeadingItem[], b: readonly HeadingItem[]): boo
 
 export function TableOfContents() {
   const editor = useEditorRef();
-  // useEditorSelector recomputes when the editor changes; read the outer editor
-  // ref inside so the helper keeps its concrete PlateEditor type. The structural
-  // equalityFn is load-bearing — see sameHeadings.
   const headings = useEditorSelector(() => collectHeadings(editor), [], {
     equalityFn: sameHeadings,
   });
   const [activeIndex, setActiveIndex] = useState(0);
 
-  // Scrollspy: the last heading scrolled above the header line is "active". A
-  // scroll listener rather than an IntersectionObserver, which never fires
-  // against this scroller as a custom root. closest() from the TOC's own node
-  // finds the stamped scroller it actually sits in, never a document-wide
-  // first match.
+  // a scroll listener rather than an IntersectionObserver, which never fires against this
+  // scroller as a custom root.
   const rootRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const scroller = rootRef.current?.closest("[data-editor-scroller]");

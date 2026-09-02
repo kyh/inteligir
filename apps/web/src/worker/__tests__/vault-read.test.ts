@@ -11,9 +11,6 @@ import { describe, expect, it } from "vitest";
 import { deviceHeaders, ORIGIN, pairDevice, signUpUser } from "./cloud-helpers";
 import { pushVaultFiles, ZERO_OID } from "./git-pack";
 
-// The vault READ rows over content a real push put there: paging, the pinned
-// ref, the ceilings, and the two refusals that keep this wire text-only.
-
 const TREE = `${ORIGIN}${VAULT_API_PATHS.tree}`;
 const FILE = `${ORIGIN}${VAULT_API_PATHS.file}`;
 const ASSET = `${ORIGIN}${VAULT_API_PATHS.asset}`;
@@ -71,8 +68,7 @@ describe("vault read rows", () => {
   });
 
   it("omits an entry the contract's path grammar refuses, rather than failing the page", async () => {
-    // Git accepts these names and a push carries them; the wire's own parse
-    // does not, so emitting them would hand the phone a 200 it refuses whole.
+    // git accepts these names; the wire's parse does not, so listing them would hand the phone a 200 it refuses whole
     const { credential } = await pairAndPush("vault-read-grammar@example.test", [
       { path: "a.md", content: "# a\n" },
       { path: "a\\b.md", content: "# backslash\n" },
@@ -157,7 +153,6 @@ describe("vault read rows", () => {
     const asBeta = await SELF.fetch(`${FILE}?path=secret.md&ref=${alpha.commit}`, {
       headers: deviceHeaders(betaDevice.credential),
     });
-    // Beta has no hosted vault at all; alpha's commit sha buys nothing.
     expect(asBeta.status).toBe(404);
   });
 
@@ -189,8 +184,6 @@ describe("the vault asset route", () => {
     expect(response.headers.get("content-type")).toBe("image/png");
     expect(response.headers.get("x-content-type-options")).toBe("nosniff");
     expect(response.headers.get("content-security-policy")).toBe("default-src 'none'; sandbox");
-    // Pinned to a commit, so immutable is the truth — and private, because
-    // the answer is credential-gated.
     expect(response.headers.get("cache-control")).toBe("private, max-age=31536000, immutable");
     expect(new Uint8Array(await response.arrayBuffer())).toEqual(PNG_BYTES);
   });
@@ -257,7 +250,6 @@ describe("the vault asset route", () => {
     const asBeta = await SELF.fetch(`${ASSET}?path=secret.png&ref=${alpha.commit}`, {
       headers: deviceHeaders(betaDevice.credential),
     });
-    // Beta's own repo has no such commit; alpha's sha buys nothing.
     expect(asBeta.status).toBe(404);
   });
 });

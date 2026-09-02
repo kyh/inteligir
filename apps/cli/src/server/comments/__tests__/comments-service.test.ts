@@ -1,7 +1,3 @@
-// The comments service over a REAL vault service: the sidecar is an ordinary
-// vault file (containment, notify, auto-commit all ride the same write), and
-// `anchored` derives from the note's own markers on every answer.
-
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { noopNotifier } from "@repo/domain/notifier";
@@ -28,10 +24,8 @@ function boot() {
   return { root, vault, comments };
 }
 
-/** A vault whose reads of the note's sidecar are each followed by a writer
- *  landing the next of `landing` on disk, merged over what the read saw — the
- *  window between the service's read and its write, opened on purpose. Reads
- *  past the list run clean. */
+// each sidecar read is followed by a writer landing the next of `landing` on disk,
+// merged over what the read saw; reads past the list run clean.
 function racedVault(args: {
   vault: VaultService;
   root: string;

@@ -1,9 +1,5 @@
-// The chart block's inline data grid: labels down, one
-// value column per series, editing whole cells and committing each change as
-// one editor transaction through the block's one writer. Every transform here
-// is a pure ChartPayload -> ChartPayload map that PRESERVES what the grid does
-// not show — title, options, per-point and per-series colors — so a grid edit
-// can never silently strip a field the raw editor would have kept.
+// Every transform preserves what the grid does not show (title, options, colors), so a grid
+// edit never strips a field the raw editor would have kept.
 
 import { useState } from "react";
 
@@ -13,19 +9,11 @@ import type { ChartPayload } from "./chart-node";
 
 export interface ChartGridView {
   labels: string[];
-  /** Column headers; null for the single-data-array shapes (bar/stacked-bar
-   *  without `series`), whose one column has no name to edit. */
   seriesNames: string[] | null;
-  /** values[column][row], aligned to `labels`. */
   values: number[][];
 }
 
-/**
- * Project a chart onto the grid, or refuse. The schema allows multi-series
- * payloads whose series disagree on length or labels; a grid cell model cannot
- * hold that shape faithfully, so it stays raw-editor-only rather than being
- * quietly realigned.
- */
+// misaligned multi-series payloads stay raw-only rather than being quietly realigned.
 export function chartGridView(chart: ChartPayload): ChartGridView | null {
   if ("data" in chart) {
     return {
@@ -46,9 +34,6 @@ export function chartGridView(chart: ChartPayload): ChartGridView | null {
   };
 }
 
-/** The one spelling a grid commit writes. A committed edit is a real edit, so
- *  the payload re-emits in this stable form; untouched blocks are never
- *  rewritten. */
 export function emitChartPayload(chart: ChartPayload): string {
   return JSON.stringify(chart, null, 2);
 }
@@ -106,15 +91,12 @@ export function chartWithRowAdded(chart: ChartPayload): ChartPayload {
   return mapPoints(chart, (points) => [...points, { label, value: 0 }]);
 }
 
-/** Null when the last row would go — the schema's min(1) is the floor. */
 export function chartWithRowRemoved(chart: ChartPayload, row: number): ChartPayload | null {
   const count = "data" in chart ? chart.data.length : (chart.series[0]?.data.length ?? 0);
   if (count <= 1) return null;
   return mapPoints(chart, (points) => points.filter((_, i) => i !== row));
 }
 
-/** Series-shaped charts only; the single-data-array shapes (incl. stacked-bar,
- *  whose schema forbids `series`) have no column to add. */
 export function chartWithSeriesAdded(chart: ChartPayload): ChartPayload | null {
   if ("data" in chart) return null;
   const labels = chart.series[0]?.data.map((point) => point.label) ?? [];
@@ -136,12 +118,6 @@ export function chartWithSeriesRemoved(chart: ChartPayload, column: number): Cha
   return { ...chart, series: chart.series.filter((_, i) => i !== column) };
 }
 
-// ---------------------------------------------------------------------------
-// The editor. Each cell commits on blur/Enter as its own transaction (one
-// undo step per committed cell), so the component holds no draft copy of the
-// chart — the node's value is the single source and a commit re-renders it.
-// ---------------------------------------------------------------------------
-
 function CellInput({
   align,
   ariaLabel,
@@ -150,7 +126,6 @@ function CellInput({
 }: {
   align: "left" | "right";
   ariaLabel: string;
-  /** Answer false to refuse (the cell snaps back to the committed value). */
   onCommit: (text: string) => boolean;
   text: string;
 }) {
@@ -198,7 +173,6 @@ export function ChartGridEditor({
 }) {
   const view = chartGridView(chart);
   if (view === null) {
-    // Misaligned series: representable in JSON, not in cells.
     return (
       <div className="px-3 py-2 text-xs text-muted-foreground">
         The series disagree on labels, which the grid cannot show faithfully.{" "}
@@ -209,9 +183,8 @@ export function ChartGridEditor({
     );
   }
   const columns = view.values.length;
-  // Cells are uncontrolled (defaultValue); keying the table by the payload
-  // remounts them after every commit, so a row removal can never leave a
-  // neighbor showing the value of the row that used to sit there.
+  // cells are uncontrolled; keying the table by the payload remounts them after every commit,
+  // so a row removal never leaves a neighbor showing the removed row's value.
   const version = emitChartPayload(chart);
   return (
     <div className="px-2 py-1.5">

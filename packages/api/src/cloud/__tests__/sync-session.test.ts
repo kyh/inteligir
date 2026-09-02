@@ -1,9 +1,3 @@
-// The session machinery's own suite: the fence (a pass that started under
-// session N writes nothing after N ends), the terminal-code→unauthorized
-// transition, abort rotation, the page loop's bounds and the single-flight
-// coalescing — pinned at the one implementation rather than once per
-// platform.
-
 import { describe, expect, it } from "vitest";
 import type { CloudClient, CloudFailure, CloudResult } from "../cloud-client";
 import type { LogPlanStep } from "../sync/plan-page";
@@ -34,15 +28,12 @@ function ok<T>(value: T): CloudResult<T> {
   return { ok: true, value };
 }
 
-/** Only ever the placeholder a `new Promise` executor overwrites. */
 function noop(): void {}
 
 function unreachable<T>(): Promise<CloudResult<T>> {
   return Promise.resolve({ ok: false, failure: { kind: "unreachable", message: "fake" } });
 }
 
-/** A full client whose only live row is `pull`; the session machine never
- *  calls the rest. */
 function fakeClient(pull: CloudClient["pull"]): CloudClient {
   return {
     pull,
@@ -165,9 +156,7 @@ function row(seq: number, deviceId: string): SyncEventRow {
     threadId: "thr_1",
     deviceId,
     deviceSeq: seq,
-    // Not a ThreadEvent this build understands — planPage turns it into a
-    // cursor-only skip step plus a skipped message, which is all this loop's
-    // own behaviour needs.
+    // not a ThreadEvent: planPage answers a cursor-only skip step, all this loop needs
     event: { opaque: true },
     createdAt: 0,
   };
@@ -267,8 +256,6 @@ describe("pullPages", () => {
       recordFailure: session.recordFailure,
     });
 
-    // The page ARRIVES after a re-pair. "Is a session live?" would answer yes
-    // — about a different pairing — so only the identity check can refuse it.
     session.open({ deviceId: "dev_2" });
     release(ok({ events: [row(1, "dev_other")], lastSeq: 1, hasMore: false }));
 
@@ -304,7 +291,6 @@ describe("createSingleFlight", () => {
     release();
     await Promise.all([first, second]);
 
-    // One more pass after the held one covers what arrived while it ran.
     expect(passes).toBe(2);
     expect(flight.inflight()).toBeNull();
   });

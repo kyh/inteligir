@@ -1,19 +1,9 @@
-// The client half of the dictation stream: one socket to `/voice/stream` that
-// carries PCM16 frames UP and `partial`/`final`/`error` messages DOWN.
-//
-// The socket is INJECTED (a factory), so the whole lifecycle is unit-testable
-// with a fake — the same shape the invalidation client uses. Exactly one of
-// `onFinal`/`onError` fires, and it is terminal: the client closes the socket
-// after either, and a `cancel` (release-to-cancel, or an unmount) closes it with
-// nothing delivered. Frames pushed before the socket opens are queued and
-// flushed on open, and a `finalize` that races the open is held behind them so
-// the server sees every frame before it is asked for the final.
+// A finalize that races the open is held behind the queued frames, so the
+// server sees every frame before it is asked for the final.
 
 import { voiceStreamDownMessageSchema } from "@repo/api/local/voice/voice-schema";
 import { z } from "zod";
 
-/** The slice of the WebSocket surface this client drives; the browser's
- *  WebSocket satisfies it, tests hand in a scriptable fake. */
 export interface DictationSocket {
   send(data: string | ArrayBuffer): void;
   close(): void;
@@ -24,12 +14,8 @@ export interface DictationSocket {
 }
 
 export interface DictationStreamHandlers {
-  /** A growing preview; rewrites as more audio arrives. */
   onPartial(text: string): void;
-  /** The authoritative transcript, on release. Terminal. */
   onFinal(text: string): void;
-  /** A refusal (a server `error` frame, or the connection dropping before a
-   *  final). Terminal. Never fired for a `cancel`. */
   onError(message: string): void;
 }
 
@@ -88,9 +74,8 @@ export class DictationStreamClient {
       const down = parsed.data;
       switch (down.type) {
         case "partial":
-          // Once the user has released, the final is authoritative and any
-          // partial still in flight is stale — dropping it keeps a late one
-          // from reappearing after the preview was cleared.
+          // A partial in flight at finalize is stale and would reappear after
+          // the preview was cleared.
           if (!this.#settled && !this.#finalizing) {
             this.#handlers.onPartial(down.text);
           }
@@ -104,7 +89,6 @@ export class DictationStreamClient {
       }
     };
     socket.onClose = () => {
-      // A close with no final and no cancel is a dropped connection.
       if (!this.#settled && !this.#cancelled) {
         this.#settle(() => this.#handlers.onError("The dictation connection closed."));
       }
@@ -116,7 +100,6 @@ export class DictationStreamClient {
     };
   }
 
-  /** A PCM16 chunk (Int16 LE, mono, 16 kHz). Queued until the socket opens. */
   pushPcm(pcm: ArrayBuffer): void {
     if (this.#settled || this.#cancelled) {
       return;
@@ -128,8 +111,6 @@ export class DictationStreamClient {
     }
   }
 
-  /** The user released: ask the server for the final over everything fed. From
-   *  here on, partials are dropped — the final is what lands. */
   finalize(): void {
     if (this.#settled || this.#cancelled) {
       return;
@@ -142,7 +123,6 @@ export class DictationStreamClient {
     }
   }
 
-  /** Abandon: close the socket, deliver nothing, insert nothing. */
   cancel(): void {
     if (this.#cancelled || this.#settled) {
       this.#teardown();
@@ -176,8 +156,6 @@ export class DictationStreamClient {
   }
 }
 
-/** The browser boundary: adapts a real WebSocket to `DictationSocket`, with a
- *  binary type so a `final`/`partial` text frame arrives as a string. */
 export function browserDictationSocket(url: string): DictationSocket {
   const ws = new WebSocket(url);
   ws.binaryType = "arraybuffer";

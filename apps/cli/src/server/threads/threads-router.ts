@@ -1,9 +1,4 @@
-// The thread handlers. Each one translates a typed service outcome into the
-// contract's response union — nothing here reads the db or decides a send.
-//
-// The refusals stay INLINE rather than behind one table: a send's conflict is
-// the service's own outcome union, not a thrown class, so each switch is
-// already exhaustive over what its own procedure can answer.
+// refusals stay inline: a send's conflict is the service's outcome union, so each switch is already exhaustive.
 
 import { base } from "../orpc";
 

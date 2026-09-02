@@ -1,18 +1,10 @@
-// Which comment roots the note's BODY anchors. Extraction runs the same parse
-// the editor's pipeline runs (remark-inline-constructs' nodes), so a marker inside
-// a code fence or a rich-block payload stays literal here exactly as it renders
-// there — a raw regex over the source would count what the dialect says is
-// not a marker.
+// Parsed, not regexed: a marker inside a code fence is literal in the editor and must be here too.
 
 import type { Nodes } from "mdast";
 
 import { parseMdast } from "../markdown/parse";
 
-/** Root ids named by any body marker (start and end edges union — a lone edge
- * is malformed, but the id it names still deserves a sidecar match rather
- * than a silent drop). Answers null when the doc does not parse: an
- * unparseable doc has no marker answer, and pretending "none" would let a
- * cleanup pass delete every thread. */
+// null when the doc does not parse: answering "none" would let a cleanup pass delete every thread
 export function markerRootIds(source: string): Set<string> | null {
   const parsed = parseMdast(source);
   if (!parsed.ok) return null;

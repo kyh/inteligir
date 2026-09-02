@@ -1,7 +1,3 @@
-// The inference child's spawn, against a fake `claude` on PATH: the note
-// body reaches the child on stdin and never on argv, because argv is
-// readable by every process on the machine.
-
 import { chmodSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { delimiter, join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -12,7 +8,6 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
-/** A `claude` that records what it was handed and answers a fixed envelope. */
 function fakeClaudeOnPath(recordDir: string): void {
   const binDir = join(makeTempDir("inteligir-infer-bin-"), "bin");
   mkdirSync(binDir);

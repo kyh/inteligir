@@ -18,18 +18,12 @@ type RuntimeMode = "dev" | "prod";
 export const PROD_DATA_DIR_NAME = ".inteligir";
 export const DEV_DATA_ROOT_DIR = ".inteligir-dev";
 const PROD_VAULT_DIR_NAME = "Inteligir";
-// Dev instance layout: data/ and vault/ are SIBLINGS under one per-checkout
-// instance dir, because the vault and the data dir must be disjoint (the
-// vault is a git repo the sync loop pushes — a nested data dir would stage
-// the SQLite file into it).
+// siblings, not nested: the vault is a git repo the sync loop pushes, and a nested data dir
+// would stage the sqlite file into it.
 const DEV_INSTANCE_DATA_DIR_NAME = "data";
 const DEV_INSTANCE_VAULT_DIR_NAME = "vault";
 const SQLITE_DATABASE_FILE_NAME = "inteligir.db";
-/** Under the PROD data dir in both modes — see `AppConfig.modelDir`. */
 const MODELS_DIR_NAME = "models";
-/** The managed config layer, in the data dir. Exported because it is WRITTEN
- *  from outside this program — a file whose name only its reader knows is a
- *  file a writer spells wrong once and never notices. */
 export const CONFIG_FILE_NAME = "config.json";
 export const PROD_SERVER_PORT = 4664;
 
@@ -54,8 +48,7 @@ function parseDataDirValue(name: string, rawValue: string, homeDir: string): str
   if (trimmed.startsWith("~/")) {
     return resolve(homeDir, trimmed.slice(2));
   }
-  // Checked BEFORE any resolve(): a relative value would silently anchor to
-  // whatever cwd this process happened to start in.
+  // before resolve(): a relative value would anchor to whatever cwd the process started in.
   if (!isAbsolute(trimmed)) {
     throw new Error(
       `${name} must be an absolute path (got "${trimmed}"). Pass an absolute path, or a ~/ path for a home-relative one.`,
@@ -64,13 +57,8 @@ function parseDataDirValue(name: string, rawValue: string, homeDir: string): str
   return resolve(trimmed);
 }
 
-/**
- * Git remote "URLs" include scp-like forms (git@host:path) that no URL parser
- * accepts, so validation is an allowlist of the shapes git actually dials:
- * https/ssh/git/file schemes plus scp-like user@host:path. Everything else is
- * refused — in particular anything a git invocation could parse as an OPTION
- * (a leading "-"), which no allowed shape can start with.
- */
+// git remotes include scp-like `git@host:path`, which no url parser accepts, so this is an
+// allowlist of the shapes git dials; none can start with "-", which git would parse as an option.
 function parseRemoteUrlValue(name: string, rawValue: string): string {
   const trimmed = rawValue.trim();
   if (trimmed.length === 0) {
@@ -89,17 +77,9 @@ function parseRemoteUrlValue(name: string, rawValue: string): string {
   return trimmed;
 }
 
-/**
- * The hosted deployment this install pairs against. Configurable rather than
- * compiled in, because the local loop needs to point at a miniflare origin and
- * a self-hosted Worker is the same shape — but it has a DEFAULT, because a
- * value every ordinary install would have to set is a value that belongs in
- * the code.
- */
 export const DEFAULT_CLOUD_URL = "https://inteligir.com";
 
-/** Origin only: the paths are `@repo/api/cloud`'s, and a base carrying a
- *  path would silently truncate them (`new URL("/v1/…", base)` drops it). */
+// origin only: `new URL("/v1/…", base)` drops any path the base carries.
 function parseCloudUrlValue(name: string, rawValue: string): string {
   const trimmed = rawValue.trim();
   let url: URL;
@@ -147,9 +127,7 @@ function parseNonEmptyValue(name: string, rawValue: string): string {
   return trimmed;
 }
 
-/** Exported because `serve`'s `--port` must accept exactly what
- *  `INTELIGIR_PORT` does — the flag resolves to that variable, so two
- *  predicates would be a value the flag takes and the boot then refuses. */
+// shared with serve's --port, so the flag accepts exactly what INTELIGIR_PORT does.
 export function parsePortValue(name: string, rawPort: string): number {
   const port = Number(rawPort);
   if (String(port) !== rawPort || !Number.isInteger(port) || port < 1 || port > 65_535) {
@@ -167,7 +145,6 @@ function parseSyncIntervalValue(name: string, rawValue: string): number {
   return value;
 }
 
-/** Every env var this process reads, declared exactly once. */
 const ENV_VARS = {
   dataDir: defineEnvVar({
     name: "INTELIGIR_DATA_DIR",
@@ -228,15 +205,8 @@ const ENV_VARS = {
   }),
 };
 
-/**
- * Every variable the table above declares, DERIVED from it rather than
- * retyped. `apps/desktop/turbo.json`'s `dev.passThroughEnv` must name exactly
- * these: turbo runs in strict env mode and strips anything unnamed, so a
- * variable declared here and missing there is silently IGNORED through the
- * root `pnpm dev` rather than refused — the failure mode has no error message
- * at all. `tools/repo-guards/src/turbo-passthrough.test.ts` holds the two
- * against each other.
- */
+// apps/desktop/turbo.json's dev.passThroughEnv must name exactly these: turbo strips anything
+// unnamed in strict env mode, so a missing one is silently ignored under `pnpm dev`.
 export const ENV_VAR_NAMES: readonly string[] = Object.values(ENV_VARS)
   .map((definition) => definition.name)
   .toSorted();
@@ -253,10 +223,7 @@ function readEnvVar<TValue>(
   return definition.parse({ homeDir, name: definition.name, value: rawValue });
 }
 
-/**
- * The managed config file (`<dataDir>/config.json`). Lenient on purpose:
- * unknown keys from a newer build must not brick an older one.
- */
+// lenient: unknown keys from a newer build must not brick an older one.
 const managedConfigSchema = z.object({
   port: z.number().int().min(1).max(65_535).optional(),
   vaultDir: z.string().min(1).optional(),
@@ -288,46 +255,29 @@ function readManagedConfig(dataDir: string): z.infer<typeof managedConfigSchema>
 export interface AppConfig {
   databasePath: string;
   dataDir: string;
-  /** "default" means derived (prod dir / per-checkout dev dir). */
   dataDirSource: "env" | "default";
   mode: RuntimeMode;
   port: number;
-  /** Where the port came from; main only probes dev-derived defaults on EADDRINUSE. */
   portSource: "env" | "managed-config" | "default";
-  /** The vault: a git repo of markdown files, created on first boot if absent. */
   vaultDir: string;
-  /** The EXPLICIT remote (env/config.json), or null when none is set — in
-   *  which case a paired install still derives the hosted one per pass
-   *  (cloud/vault-remote.ts); truly local-only means null here AND unpaired. */
+  // null is not local-only: a paired install still derives the hosted remote per pass.
   vaultRemote: string | null;
-  /** Absent = the runtime's default cadence; null = disabled (explicit syncs
-   *  only); a positive number = the cadence in ms. */
+  // absent = runtime default, null = disabled, number = ms.
   vaultSyncIntervalMs?: number | null;
-  /**
-   * Where downloaded models live. NOT under the data dir: a model
-   * is a cache of the network keyed by its own id, so every checkout on this
-   * machine shares one copy rather than each paying the download.
-   */
+  // under the prod data dir in both modes: a model is a network cache keyed by id, so checkouts share one copy.
   modelDir: string;
-  /** Which transcription runtime dictation uses; "scripted" is the e2e fake. */
   voice: VoiceMode;
-  /** Which turn driver boots; "auto" resolves at boot by binary presence. */
   agent: AgentMode;
-  /** Model passed through to the provider; null means the provider's default. */
   agentModel: string | null;
-  /** Origin of the hosted deployment cloud sync pairs against.
-   *  Says WHERE, never WHETHER — the credential in the data dir is the switch. */
   cloudUrl: string;
 }
 
 export interface ResolveAppConfigArgs {
-  /** The running checkout (dev instance derivation); typically process.cwd(). */
   checkoutPath: string;
   env: NodeJS.ProcessEnv;
   homeDir?: string;
 }
 
-/** Layering, per value: env var → managed config file → default. */
 export function resolveAppConfig(args: ResolveAppConfigArgs): AppConfig {
   const homeDir = args.homeDir ?? homedir();
   const mode: RuntimeMode = args.env.NODE_ENV === "production" ? "prod" : "dev";

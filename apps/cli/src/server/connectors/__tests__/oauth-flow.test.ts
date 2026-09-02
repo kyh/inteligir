@@ -1,9 +1,3 @@
-// The OAuth dance against a FAKE provider — a real HTTP token endpoint in the
-// test, so the exchange's own bytes are what's asserted: PKCE verifier
-// matching the challenge the authorize URL carried, state consumed exactly
-// once, a wrong state consuming nothing, refresh rotating tokens, and a
-// refused refresh marking needs-reauth instead of failing a session boot.
-
 import { createHash } from "node:crypto";
 import { createServer, type Server } from "node:http";
 import { describe, expect, it, onTestFinished } from "vitest";
@@ -18,9 +12,7 @@ const REDIRECT_URI = "http://127.0.0.1:4664/connectors/oauth/callback";
 interface FakeProvider {
   server: Server;
   tokenEndpoint: string;
-  /** Every form body the token endpoint saw, decoded. */
   requests: URLSearchParams[];
-  /** The next token answer; a status other than 200 refuses. */
   respondWith: { status: number; body: unknown };
   close(): Promise<void>;
 }
@@ -116,8 +108,6 @@ describe("the connector OAuth flow", () => {
     const completion = await flow.complete({ code: "code-abc", state });
     expect(completion).toEqual({ kind: "connected", name: "linear" });
 
-    // The provider saw the code, the exact redirect, and a verifier whose
-    // S256 IS the challenge the browser carried.
     const exchange = provider.requests[0];
     expect(exchange).toBeDefined();
     if (exchange === undefined) return;
@@ -129,12 +119,9 @@ describe("the connector OAuth flow", () => {
     if (verifier === null) return;
     expect(s256(verifier)).toBe(challenge);
 
-    // Tokens landed on the row; a live token serves sessions without a
-    // second provider round trip.
     expect(await flow.freshAccessToken("linear")).toBe("at-1");
     expect(provider.requests).toHaveLength(1);
 
-    // The state was consumed by success: replaying the callback is inert.
     expect(await flow.complete({ code: "code-abc", state })).toEqual({ kind: "no-pending" });
   });
 
@@ -191,12 +178,10 @@ describe("the connector OAuth flow", () => {
     expect(refresh.get("grant_type")).toBe("refresh_token");
     expect(refresh.get("refresh_token")).toBe("rt-keep");
 
-    // The rotated-less refresh kept rt-keep: a second refresh still works.
     provider.respondWith = {
       status: 200,
       body: { access_token: "at-old2", refresh_token: "rt-keep", expires_in: 1 },
     };
-    // Force staleness again by exchanging a short-lived answer in.
     expect(await flow.freshAccessToken("linear")).toBe("at-new");
   });
 
@@ -235,7 +220,6 @@ describe("the connector OAuth flow", () => {
     if (state === null) return;
     await flow.complete({ code: "code", state });
 
-    // No read carries token material.
     expect(JSON.stringify(service.list())).not.toContain("at-1");
     expect(JSON.stringify(service.list())).not.toContain("rt-1");
 

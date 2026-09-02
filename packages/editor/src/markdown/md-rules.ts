@@ -1,13 +1,5 @@
-// Custom markdown rules layered over @platejs/markdown's defaultRules. Free
-// from defaults (do NOT redefine, only fixture-test): column, column_group,
-// date, equation, inline_equation. Wrapped-with-delegation (fixes layered on
-// the stock behavior): a, table, blockquote; serialize-only id/src overrides:
-// callout, video/media_embed/file.
-//
-// Rule dispatch (verified against the installed dist): deserialize routes by
-// mdast type (JSX elements by tag name), serialize by the Slate node's plugin
-// key — hence the yaml/frontmatter split below: mdast `yaml` deserializes to a
-// Slate `frontmatter` node, which serializes back under its own key.
+// Rule dispatch: deserialize routes by mdast type (JSX by tag name), serialize by the Slate
+// node's plugin key — hence the yaml/frontmatter split.
 
 import type { AlignType } from "mdast";
 import {
@@ -60,23 +52,17 @@ import type { WikiEmbed, WikiLink } from "@repo/notes/markdown/remark-wiki-link"
 
 import { stringProp } from "@repo/editor/node-props";
 
-// Fail fast if a @platejs/markdown bump reshapes defaultRules — the alert rule
-// delegates every non-alert blockquote to the stock path, and the table rule
-// wraps the stock table deserializer.
-/** Serialized panel children must fit the dialect node's vocabulary — the
- * conversion can only produce root-level mdast, so this narrows by exclusion
- * the same way the remark transform does. */
 function isPanelContent(
   node: TabPanel["children"][number] | { type: string },
 ): node is TabPanel["children"][number] {
   return node.type !== "yaml" && node.type !== "tabGroup" && node.type !== "tabPanel";
 }
 
-/** A tab panel's children must be blocks; an empty panel gets one empty p. */
 function ensureBlocks(children: Descendant[]): Descendant[] {
   return children.length > 0 ? children : [{ children: [{ text: "" }], type: "p" }];
 }
 
+// fail fast if a @platejs/markdown bump reshapes defaultRules.
 const defaultCodeBlock = defaultRules.code_block;
 const defaultCodeBlockDeserialize = defaultCodeBlock?.deserialize;
 if (defaultCodeBlockDeserialize === undefined || defaultCodeBlockDeserialize === null) {
@@ -110,28 +96,13 @@ if (!defaultParagraphSerialize) {
 
 const ALERT_RE = /^\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]/;
 
-// Two rules below emit VERBATIM BYTES as a raw `html` node: the stringifier
-// prints such a node's value untouched, and the serialize engine emits
-// whatever node a rule returns (Plate's own `a` defaultRule returns `html` for
-// bare autolinks). `MdRules` over-narrows each keyed rule's return to the one
-// mdast node that key maps to, so those two are declared against the
-// intersection's OTHER half — its index signature, whose serialize is
-// deliberately wide — instead of casting past the narrow one.
+// `MdRules` narrows each keyed rule's return to that key's mdast node; rules emitting verbatim
+// bytes as a raw `html` node are declared against the index signature's wide serialize instead of casting.
 type WideMdRule = NonNullable<MdRules[string]>;
 
-// Plate's NodeIdPlugin is a v53 core DEFAULT (disabled only under
-// NODE_ENV=test): every block in a live editor carries an `id`. Plate's own
-// column rules strip it before propsToAttributes, but its callout and media
-// rules spread it — leaking `id="…"` junk into user files. These serialize
-// overrides mirror the defaults minus the leak; deserialize is not overridden
-// (rule dispatch falls back to the default per-function).
-// Shared body of the four MDX-flow serialize rules below (media, toggle,
-// column, callout): drop the leaked `id`, serialize children, emit an
-// `mdxJsxFlowElement`. Overrides carry each rule's specifics — `name` defaults
-// to the node's own type (media's video/media_embed/file) and `children`
-// overrides the default child serialization (column's empty `[]`). Every other
-// prop rides through in the node's own key order, which IS the emitted
-// attribute order.
+// NodeIdPlugin is a core default (off only under NODE_ENV=test), so every live block carries an
+// `id`; Plate's callout and media rules spread it into user files as `id="…"`. The node's key
+// order is the emitted attribute order.
 type JsxFlowOverrides = {
   name?: string;
   children?: ReturnType<typeof convertNodesSerialize>;
@@ -152,11 +123,8 @@ function jsxFlowSerialize(
   };
 }
 
-// A url-less media node (`<video />`) must OMIT src entirely: spreading
-// `src: undefined` emits a bare `src` attribute, which the next parse reads as
-// a non-string attribute and turns the whole element opaque — the media node
-// would stop rendering. `src` replaces `url` in place at the END of the prop
-// order, which is where the shared serializer's `propsToAttributes` reads it.
+// A url-less node must omit src: spreading `src: undefined` emits a bare `src` attribute, which
+// the next parse turns opaque. `src` goes at the end of the prop order, where propsToAttributes reads it.
 function mediaSerializeWithoutId(node: TElement, options: SerializeMdOptions) {
   const { url, ...withoutUrl } = node;
   void url;
@@ -165,26 +133,16 @@ function mediaSerializeWithoutId(node: TElement, options: SerializeMdOptions) {
   return jsxFlowSerialize(media, options, {});
 }
 
-// --- links -----------------------------------------------------------------
-
 const BARE_AUTOLINK_PROTOCOL_RE = /^https?:\/\//i;
 
-// Mirrors micromark-extension-gfm-autolink-literal's email tokenizer (lib/
-// syntax.js): atext run, `@`, then a domain of [-_.alnum] that has content,
-// contains a dot followed by an alphanumeric, and ends in a LETTER. A string
-// matching this — emitted as raw bytes — is guaranteed to re-parse as the same
-// gfm email autolink, so the literal form is byte-canonical for bare emails.
+// mirrors micromark-extension-gfm-autolink-literal's email tokenizer, so a match emitted as raw
+// bytes re-parses as the same autolink.
 const GFM_EMAIL_RE = /^[+\-.\w]+@(?=[^@]*\.[\dA-Za-z])(?:[-_\dA-Za-z]|\.(?=[\dA-Za-z]))*[A-Za-z]$/;
 
-// convertNodesSerialize returns loose unist nodes; narrow to an mdast text.
 function isMdText(node: { type: string }): node is MdText {
   return node.type === "text";
 }
 
-// --- tables ------------------------------------------------------------------
-
-// The mdast `align` array as it survives a trip through a Slate node prop —
-// the one table field the round trip carries that Plate's own rule does not.
 const TABLE_ALIGN = z.array(z.enum(["center", "left", "right"]).nullable());
 
 function tableAlign(node: TElement): AlignType[] | undefined {
@@ -192,15 +150,10 @@ function tableAlign(node: TElement): AlignType[] | undefined {
   return parsed.success ? parsed.data : undefined;
 }
 
-// Slate normalization pads inline elements with empty text siblings (a live
-// editor's paragraph holding `[[a]]![[b]]` is [text"", wiki, text"", embed,
-// text""]). Plate's default p rule converts EVERY empty text child to a
-// zero-width space on serialize (its empty-PARAGRAPH preservation mechanism),
-// which would sprinkle invisible U+200B bytes around chips/dates in user
-// files after any live edit. Element-adjacent empties are pure normalization
-// artifacts — parse never produces them — so they're dropped before the
-// default rule runs. A lone empty text (a genuinely empty paragraph, or the
-// ZWSP table-cell placeholder) has no element neighbor and is preserved.
+// Slate pads inline elements with empty text siblings, and Plate's default p rule turns every
+// empty text child into U+200B on serialize — ZWSPs around every chip after any live edit.
+// Element-adjacent empties are normalization artifacts; a lone empty text (empty paragraph,
+// ZWSP cell placeholder) is preserved.
 function pruneElementAdjacentEmptyTexts(children: Descendant[]): Descendant[] {
   const pruned = children.filter((child, i) => {
     if (!TextApi.isText(child) || child.text !== "") return true;
@@ -214,20 +167,11 @@ function pruneElementAdjacentEmptyTexts(children: Descendant[]): Descendant[] {
   return pruned.length > 0 ? pruned : children;
 }
 
-// Serialize-only override of Plate's `a` rule (deserialize dispatch falls back
-// to the default). Plate's default emits bare https literals as raw bytes but
-// lets mailto links reach mdast-util-to-markdown, whose formatLinkAsAutolink
-// turns them into `<a@b.cd>` — unparseable under MDX, so a rich save would
-// corrupt the file (worse: bare emails analyze as richSafe). Bare gfm emails
-// emit their literal bytes instead, which re-parse as the same autolink; every
-// remaining link stays `[text](url)` (MD_STRINGIFY's resourceLink: true — a
-// blanket resourceLink alone would ALSO force bare-https literals into resource
-// form, hence this rule).
+// Plate's default lets mailto links reach mdast-util-to-markdown, whose formatLinkAsAutolink emits
+// `<a@b.cd>` — unparseable under MDX. Bare gfm emails emit their literal bytes; every other link
+// stays `[text](url)` under MD_STRINGIFY's resourceLink, which alone would also force bare https into resource form.
 const linkRule: WideMdRule = {
   serialize: (node: TLinkElement, options: SerializeMdOptions) => {
-    // The literal check mirrors the default rule's bare-link check: the
-    // CONVERTED children must be a single plain text node (marks inside the
-    // link text disqualify it) whose bytes are the address itself.
     const children = convertNodesSerialize(node.children, options);
     const url = node.url;
     const only = children.length === 1 ? children[0] : undefined;
@@ -237,13 +181,8 @@ const linkRule: WideMdRule = {
       ((text === url && BARE_AUTOLINK_PROTOCOL_RE.test(url)) ||
         (`mailto:${text}` === url && GFM_EMAIL_RE.test(text)));
     if (literal) {
-      // Verbatim bytes — guaranteed by the regexes above to re-parse as the
-      // same autolink (as with blockquote's alert emission).
       return { type: "html", value: text };
     }
-    // Under MD_STRINGIFY's resourceLink: true the default skips its own
-    // bare-https html path (hence the interception above) and every link
-    // reaching the stringifier stays in resource form.
     return defaultLinkSerialize(node, options);
   },
 };
@@ -252,27 +191,22 @@ const blockquoteRule: WideMdRule = {
   deserialize: defaultBlockquoteDeserialize,
   serialize: (node: TElement, options: SerializeMdOptions) => {
     const editor = options.editor;
-    // Plate keeps blockquote soft breaks as "\n" inside text leaves, so the
-    // subtree's concatenated text carries the alert marker on its first line.
+    // Plate keeps blockquote soft breaks as "\n" in text leaves, so the marker leads the concatenated text.
     if (!editor || !ALERT_RE.test(NodeApi.string(node))) {
       return defaultBlockquoteSerialize(node, options);
     }
     const children: Descendant[] = node.children;
     const inner = serializeMd(editor, {
       value: children,
-      // Keep MD_STRINGIFY's handlers (doc-leading-hr guard — harmless here:
-      // every line gets a `> ` prefix, so `---` can't land on byte 0 either
-      // way) and add the soft-break override for alert continuation lines.
+      // break → "\n": alert continuation lines carry no trailing backslash.
       remarkStringifyOptions: {
         ...MD_STRINGIFY,
         handlers: { ...MD_STRINGIFY.handlers, break: () => "\n" },
       },
     })
       .trimEnd()
-      // The nested pass escapes the marker's leading `[` — undo just that.
+      // the nested pass escapes the marker's leading `[`.
       .replace(/^\\(?=\[!)/, "");
-    // Verbatim `html` is the point here — self-managed `> ` prefixes the
-    // stringifier must not touch.
     return {
       type: "html",
       value: inner
@@ -284,8 +218,6 @@ const blockquoteRule: WideMdRule = {
 };
 
 export const MD_RULES: MdRules = {
-  // Serialize-only override of the default p rule (deserialize dispatch falls
-  // back to the default): see pruneElementAdjacentEmptyTexts.
   p: {
     serialize: (node, options) =>
       defaultParagraphSerialize(
@@ -296,10 +228,7 @@ export const MD_RULES: MdRules = {
 
   a: linkRule,
 
-  // Plate maps `toggle` in its type table but ships NO rule — serializing a
-  // toggle without this one silently DROPS the block (probe-proven).
-  // Collapsed/open state lives in the toggle plugin's store (openIds), never on
-  // the node, so a toggle serializes with zero attributes.
+  // Plate maps `toggle` in its type table but ships no rule; without this a toggle silently drops on serialize.
   toggle: {
     deserialize: (
       node: MdMdxJsxFlowElement,
@@ -314,14 +243,9 @@ export const MD_RULES: MdRules = {
       jsxFlowSerialize(node, options, { name: "toggle" }),
   },
 
-  // Serialize-only override of Plate's column rule. A column holding only an
-  // empty paragraph — the live editor's shape for an empty column (the
-  // insert seeds one; normalization keeps one) — must emit self-closed
-  // `<column />`, the same bytes its parse produces. The default serializes
-  // it as blank expanded content (`<column>\n\n  </column>`), which
-  // re-parses to zero children and re-emits self-closed: a non-idempotent
-  // first pass, which knocks the file to Raw on any autosave that lands
-  // before every column has content.
+  // An empty column must emit self-closed `<column />`: the default emits expanded blank content
+  // that re-parses to zero children and re-emits self-closed — a non-idempotent first pass that
+  // knocks the file to Raw on autosave.
   column: {
     serialize: (node: TElement, options: SerializeMdOptions) => {
       const { children } = node;
@@ -334,22 +258,15 @@ export const MD_RULES: MdRules = {
           ? only.children[0]
           : undefined;
       const isEmpty = onlyText !== undefined && TextApi.isText(onlyText) && onlyText.text === "";
-      // Empty column ⇒ self-closed `<column />` (children: []); populated ⇒
-      // default child serialization.
       const overrides: JsxFlowOverrides = { name: "column" };
       if (isEmpty) overrides.children = [];
       return jsxFlowSerialize(node, options, overrides);
     },
   },
 
-  // Deserialize-only override of Plate's date rule (serialize dispatch falls
-  // back to the default `<date value="…" />` emitter). A paragraph holding
-  // ONLY a date chip serializes to `<date value="…" />` alone on its line —
-  // bytes the NEXT parse classifies as a FLOW JSX element (micromark reads
-  // any line-filling tag as flow). The default rule would return the inline
-  // void at block level; wrapping it back into a paragraph restores the exact
-  // shape that produced the bytes, so the form round-trips canonically.
-  // remark-opaque admits flow `<date>` as a component to match.
+  // A paragraph holding only a date chip serializes to `<date value="…" />` alone on its line,
+  // which micromark re-parses as a flow element; wrapping it back into a paragraph restores the
+  // shape that produced the bytes.
   date: {
     deserialize: (
       node: MdMdxJsxFlowElement | MdMdxJsxTextElement,
@@ -358,19 +275,12 @@ export const MD_RULES: MdRules = {
     ): TElement => {
       const chip: TElement = defaultDateDeserialize(node, deco, options);
       if (node.type !== "mdxJsxFlowElement") return chip;
-      // Empty-text padding mirrors Slate's normalized inline-void shape (the
-      // p serialize rule prunes it back out, so bytes are unaffected).
+      // the padding mirrors Slate's inline-void shape; the p rule prunes it on serialize.
       return { children: [{ text: "" }, chip, { text: "" }], type: "p" };
     },
   },
 
-  // Callout: an ```inteligir-callout fence whose payload is a kind line
-  // (info | warning | priority), an optional priority level line, then the
-  // body as markdown. The body round-trips through the SAME pipeline
-  // (nested serializeMd / convertChildrenDeserialize), so marks, wiki links
-  // and pills inside a callout survive byte-exact. The fence form is the
-  // the dialect's; the old <callout> JSX form now parses
-  // as opaque MDX and is preserved verbatim rather than converted.
+  // the body round-trips through the same pipeline so inline constructs inside survive byte-exact.
   callout: {
     serialize: (node: TElement, options: SerializeMdOptions): MdCode => {
       const editor = options.editor;
@@ -400,9 +310,6 @@ export const MD_RULES: MdRules = {
   media_embed: { serialize: mediaSerializeWithoutId },
   file: { serialize: mediaSerializeWithoutId },
 
-  // Void nodes holding a construct this editor has no model for; `value` stays
-  // verbatim both directions. The remark plugin decides what becomes opaque and
-  // registers the toMarkdown handlers that emit `value` unescaped.
   opaqueBlock: {
     deserialize: (node: OpaqueBlock): TElement => ({
       children: [{ text: "" }],
@@ -426,8 +333,6 @@ export const MD_RULES: MdRules = {
     }),
   },
 
-  // Inline-void wiki nodes; `body` stays verbatim both directions. The remark
-  // plugin's toMarkdown handler emits the actual `[[…]]` / `![[…]]` bytes.
   wikiLink: {
     deserialize: (node: WikiLink): TElement => ({
       body: node.body,
@@ -462,9 +367,7 @@ export const MD_RULES: MdRules = {
         const children: Descendant[] = parsed.ok
           ? convertChildrenDeserialize(parsed.root.children, deco, options)
           : [{ children: [{ text: payload.body }], type: "p" }];
-        // The `type:` / `level:` prefixes are payload spellings the callout
-        // serializer replays, so a note that wrote one keeps it; a note that
-        // did not must carry no prop at all rather than a false one.
+        // a prefix prop is set only when the note wrote one; a false prop would replay a spelling it never had.
         const callout: TElement = {
           children: children.length > 0 ? children : [{ children: [{ text: "" }], type: "p" }],
           type: "callout",
@@ -479,17 +382,13 @@ export const MD_RULES: MdRules = {
       }
       const richBlock = RICH_FENCE_LANGS.get(node.lang ?? "");
       if (richBlock !== undefined) {
-        // A legacy spelling lands on the same node and re-emits as ours, so
-        // the note canonicalizes on its first save (churn fixtures pin it).
+        // a legacy spelling lands on the same node and re-emits as ours, canonicalizing on first save.
         return { children: [{ text: "" }], type: richBlock, value: node.value };
       }
       return defaultCodeBlockDeserialize(node, deco, options);
     },
   },
 
-  // Rich fence blocks: the payload is VERBATIM on the node, so
-  // serialization is the identity fence — always in OUR spelling, which is
-  // what canonicalizes a legacy note on its first save.
   chart_block: {
     serialize: (node: TElement): MdCode => ({
       lang: CHART_LANG,
@@ -512,9 +411,6 @@ export const MD_RULES: MdRules = {
     }),
   },
 
-  // Tab groups: tabGroup/tabPanel (remark-tabs owns the line
-  // grammar) ↔ tab_group/tab_panel elements. Panel children ride the shared
-  // conversion both ways, so anything a note can hold survives inside a tab.
   tabGroup: {
     deserialize: (node: TabGroup, deco, options): TElement => ({
       children: node.children.map((panel): TElement => ({
@@ -544,8 +440,6 @@ export const MD_RULES: MdRules = {
     }),
   },
 
-  // Inline constructs; inner text stays verbatim both directions (the
-  // remark plugin's toMarkdown handlers emit the actual bytes).
   formulaPill: {
     deserialize: (node: FormulaPill): TElement => ({
       children: [{ text: "" }],
@@ -574,18 +468,10 @@ export const MD_RULES: MdRules = {
     }),
   },
 
-  // Wrapped default table rule, two fixes:
-  // 1. Ragged rows are padded into REAL empty cells at deserialize.
-  //    mdast-util-gfm-table pads short rows only in the emitted string (after
-  //    rules ran), so pass 1 writes truly-empty `|   |` cells while a re-parse
-  //    of that output turns them into empty paragraphs that serialize as the
-  //    ZWSP placeholder — so the document reaches its fixpoint only on pass 3.
-  //    Padding up front makes pass 1 emit the stable ZWSP-cell form directly.
-  // 2. Column alignment survives. Plate's default rule drops mdast `align`,
-  //    which would let a rich-mode save silently strip a `:-:` delimiter row;
-  //    the align array rides on the Slate table node instead and is
-  //    re-attached at serialize (mdast-util-gfm-table emits the delimiters
-  //    from it).
+  // Ragged rows are padded into real empty cells: mdast-util-gfm-table pads only in the emitted
+  // string, so pass 1 writes empty cells that re-parse to ZWSP placeholders and the fixpoint
+  // lands on pass 3. Plate's default drops mdast `align`, so a rich save would strip a `:-:`
+  // delimiter row; align rides on the Slate node instead.
   table: {
     deserialize: (node, deco, options) => {
       const rows = node.children ?? [];
@@ -615,21 +501,11 @@ export const MD_RULES: MdRules = {
     },
   },
 
-  // GitHub-alert-aware blockquote. Alerts stay plain blockquotes in the model
-  // (the view keys off the `[!TYPE]` text) — only serialization changes:
-  // remark-stringify unconditionally escapes `[` at phrasing start, which would
-  // re-emit the marker as `> \[!NOTE]`, so alerts emit as a raw `html` node
-  // with self-managed `> ` prefixes. The body is produced by a nested
-  // serializeMd pass so marks/math/wiki-links inside survive byte-exact; the
-  // nested pass emits soft-break `break` nodes as plain newlines (handler
-  // override) because GitHub alert continuation lines carry no trailing `\`.
+  // remark-stringify escapes `[` at phrasing start, which would re-emit an alert marker as
+  // `> \[!NOTE]`; alerts emit as a raw `html` node with self-managed `> ` prefixes.
   blockquote: blockquoteRule,
 
-  // Frontmatter: Plate maps mdast `yaml` in its type table but ships no rule —
-  // parsed-then-dropped without this pair. The Slate node is a void element
-  // pinned to path [0] by kits/frontmatter-kit.tsx (mdast-util-frontmatter
-  // emits the `---` fence wherever the node sits, and a mid-document fence
-  // re-parses as a thematic break — the position pin is what keeps idempotency).
+  // Plate maps mdast `yaml` in its type table but ships no rule; parsed-then-dropped without this pair.
   yaml: {
     deserialize: (node: MdYaml): TElement => ({
       children: [{ text: "" }],

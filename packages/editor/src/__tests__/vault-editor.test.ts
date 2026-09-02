@@ -29,11 +29,9 @@ describe("VaultEditorController", () => {
     c.edit("v1");
     const flush1 = c.flush();
     await tick();
-    // Type more while the write is in flight.
     c.edit("v2");
     io.pendingWrites[0]?.resolve();
     await flush1;
-    // The write for v1 landed but the buffer moved on — still dirty.
     expect(c.getState().dirty).toBe(true);
     expect(c.getState().content).toBe("v2");
     io.manualWrite = false;
@@ -52,7 +50,6 @@ describe("VaultEditorController", () => {
     await tick();
     const openB = c.open("b.md");
     await tick();
-    // Resolve B (newer) first, then the stale A.
     io.pendingReads[1]?.resolve("B");
     io.pendingReads[0]?.resolve("A");
     await Promise.all([openA, openB]);
@@ -66,7 +63,6 @@ describe("VaultEditorController", () => {
     const c = new VaultEditorController(io);
     await c.open("a.md");
     c.edit("typed");
-    // External change fires while dirty — reload must be skipped.
     io.files.set("a.md", "external");
     c.externalChange(""); // same (empty) root → not a switch
     await tick();
@@ -102,7 +98,6 @@ describe("VaultEditorController", () => {
     const c = new VaultEditorController(io);
     await c.open("a.md");
     c.edit("unsaved");
-    // root still "" — first broadcast adopts it without clearing edits.
     c.externalChange("/vault");
     await tick();
     expect(c.getState()).toMatchObject({
@@ -129,10 +124,6 @@ describe("VaultEditorController", () => {
     expect(io.files.has("a.md")).toBe(false);
   });
 
-  // The deletion gate holds a delete WHOLE — the file is still there, on
-  // purpose. A controller that cleared the buffer anyway would close the note
-  // silently over a file nobody deleted, which is the one report a delete must
-  // never make, and the caller would have nothing to say about it.
   it("keeps the note open when the host holds the delete", async () => {
     const io = new FakeVault();
     io.files.set("a.md", "A");
@@ -165,7 +156,6 @@ describe("VaultEditorController", () => {
     const c = new VaultEditorController(io);
     await c.open("a.md");
     c.edit("v1");
-    // Make the write reject so flush leaves the buffer dirty.
     io.write = () => Promise.reject(new Error("disk full"));
     const opened = await c.open("b.md");
     expect(opened).toBe(false);
@@ -175,7 +165,7 @@ describe("VaultEditorController", () => {
   it("a failed open clears instead of reviving a deleted path", async () => {
     const io = new FakeVault();
     const c = new VaultEditorController(io);
-    await c.open("gone.md"); // read rejects (not in files)
+    await c.open("gone.md");
     expect(c.getState().path).toBe(null);
     expect(c.getState().content).toBe("");
   });
@@ -186,7 +176,7 @@ describe("VaultEditorController", () => {
     const c = new VaultEditorController(io);
     c.setRoot("/vault");
     await c.open("a.md");
-    io.files.delete("a.md"); // removed externally
+    io.files.delete("a.md");
     c.externalChange("/vault");
     await tick();
     expect(c.getState().path).toBe(null);

@@ -27,15 +27,8 @@ import {
   type SidebarCollapsible,
 } from "@repo/ui/components/sidebar-core";
 
-// ─── Mobile sheet ────────────────────────────────────────────────────────────
-//
-// Built on Base UI Dialog rather than Base UI Drawer: Drawer's
-// swipe-to-dismiss writes inline `transform` + `--drawer-swipe-movement-*`
-// CSS vars onto its Popup and expects CSS-transition choreography (plus a
-// mandatory <Drawer.Viewport>), which fights framer-motion's transform
-// management on the same element. Dialog provides everything we actually
-// need — scroll lock, focus trap, focus restore, Esc + outside-click
-// dismissal — while leaving the slide animation to framer-motion.
+// Base UI Dialog, not Drawer: Drawer's swipe-to-dismiss writes inline transform onto its Popup
+// and expects CSS-transition choreography, which fights framer-motion on the same element.
 
 interface SidebarSheetProps {
   side: SidebarSide;
@@ -46,18 +39,14 @@ interface SidebarSheetProps {
 
 function SidebarSheet({ side, open, onClose, children }: SidebarSheetProps) {
   const { widthMobile } = useSidebar();
-  // The panel takes initial focus itself. Left to the primitive, the focus
-  // trap lands on the first focusable child — the top nav row — which reads
-  // as a selected item the moment the drawer opens, and Chrome grants
-  // :focus-visible to script-driven focus so it shows the keyboard ring too.
+  // the panel takes initial focus itself: left to the primitive, the trap lands on the top nav
+  // row, and Chrome grants :focus-visible to script-driven focus, so it shows the keyboard ring
   const panelRef = useRef<HTMLDivElement | null>(null);
   const substrate = useSurface();
   const level = Math.min(substrate + 2, 8);
 
-  // The primitive tears its portal down the moment it closes — an outside
-  // press would snap the panel away with no exit. So the dialog is held OPEN
-  // through the exit: `closing` slides the panel offscreen first, and only
-  // when the spring lands does the real close propagate.
+  // the primitive tears its portal down the moment it closes, so the dialog is held open through
+  // the exit and the real close propagates when the spring lands
   const [closing, setClosing] = useState(false);
   const visible = open && !closing;
 
@@ -66,15 +55,13 @@ function SidebarSheet({ side, open, onClose, children }: SidebarSheetProps) {
     onClose();
   }, [onClose]);
 
-  // A parent-driven close (trigger, shortcut, route change) gets the same
-  // exit as a primitive-driven one.
   const wasOpen = useRef(open);
   useEffect(() => {
     if (wasOpen.current && !open) setClosing(true);
     wasOpen.current = open;
   }, [open]);
 
-  // Fallback: rAF-driven animation callbacks stall in throttled tabs.
+  // fallback: rAF-driven animation callbacks stall in throttled tabs
   useEffect(() => {
     if (!closing) return;
     const id = setTimeout(finishClose, exitFallbackMs(spring.moderate));
@@ -83,9 +70,7 @@ function SidebarSheet({ side, open, onClose, children }: SidebarSheetProps) {
 
   const offscreen = side === "left" ? "-100%" : "100%";
 
-  // The scrim is an always-on bg-black/40 base that stays visible for system-
-  // dark users (`dark:` only matches the explicit .dark class), boosted to
-  // /80 in explicit dark mode.
+  // `dark:` only matches the explicit .dark class, so the base tint carries system-dark users
   return (
     <DialogPrimitive.Root
       open={open || closing}
@@ -117,8 +102,7 @@ function SidebarSheet({ side, open, onClose, children }: SidebarSheetProps) {
             return (
               <motion.div
                 {...rest}
-                // Merge, don't replace: the primitive needs its own handle on
-                // the panel as much as initialFocus needs ours.
+                // merge, don't replace: the primitive needs its own handle on the panel
                 ref={composeRefs(panelRef, baseRef)}
                 tabIndex={-1}
                 data-sidebar="sidebar"
@@ -132,9 +116,6 @@ function SidebarSheet({ side, open, onClose, children }: SidebarSheetProps) {
                 )}
                 style={motionStyle(baseStyle, { width: widthMobile })}
                 initial={{ x: offscreen }}
-                // spring.moderate: critically damped, so the panel decelerates
-                // into x: 0 without overshooting and exposing the page behind
-                // its leading edge.
                 animate={{ x: visible ? 0 : offscreen }}
                 transition={visible ? spring.moderate : spring.moderate.exit}
                 onAnimationComplete={() => {
@@ -151,16 +132,11 @@ function SidebarSheet({ side, open, onClose, children }: SidebarSheetProps) {
   );
 }
 
-// ─── Sidebar ─────────────────────────────────────────────────────────────────
-
 interface SidebarProps extends Omit<HTMLAttributes<HTMLDivElement>, MotionConflictHandler> {
   side?: SidebarSide;
   variant?: SidebarVariant;
-  /** `"icon"` collapse is intentionally not supported — offcanvas or none. */
   collapsible?: SidebarCollapsible;
-  /** The `sidebar` variant's inner-edge border. Default true. */
   bordered?: boolean;
-  /** Render the built-in resize/collapse rail. Default true. */
   rail?: boolean;
 }
 
@@ -181,8 +157,6 @@ const Sidebar = forwardRef<HTMLDivElement, SidebarProps>(
   ) => {
     const { isMobile, openMobile, setOpenMobile, width, registerSide } = useSidebar();
 
-    // The provider mirrors the side into the default shortcut ("[" / "]")
-    // and the rail handle.
     useEffect(() => registerSide(side), [side, registerSide]);
 
     if (collapsible === "none") {
@@ -241,16 +215,13 @@ const Sidebar = forwardRef<HTMLDivElement, SidebarProps>(
 );
 Sidebar.displayName = "Sidebar";
 
-// ─── SidebarContent ──────────────────────────────────────────────────────────
-
 type SidebarContentProps = HTMLAttributes<HTMLDivElement>;
 
 const SidebarContent = forwardRef<HTMLDivElement, SidebarContentProps>(
   ({ className, children, ...props }, ref) => {
     const { isMobile } = useSidebar();
 
-    // Inside the mobile sheet, the sheet's flex column owns layout and this
-    // region scrolls natively — a nested ScrollArea would double-scroll.
+    // inside the mobile sheet a nested ScrollArea would double-scroll
     if (isMobile) {
       return (
         <div
@@ -277,7 +248,6 @@ SidebarContent.displayName = "SidebarContent";
 
 export { Sidebar, SidebarContent };
 
-// Re-export the flavor-neutral parts so `sidebar` is a one-stop import.
 export {
   SidebarProvider,
   useSidebar,

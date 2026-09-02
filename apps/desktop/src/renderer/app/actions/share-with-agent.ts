@@ -1,8 +1,4 @@
-// "Share with agent": one clipboard payload handing an
-// EXTERNAL agent — a shell session, another tool — enough to edit this vault
-// without breaking it. Static text on purpose: it promises only what is true
-// from outside the app (files, git, the dialect), never the in-app agent's
-// environment.
+// static on purpose: it promises only what is true from outside the app, never the in-app agent's environment.
 
 export function shareWithAgentText(docPath: string): string {
   return `Note: ${docPath} (vault-relative path)

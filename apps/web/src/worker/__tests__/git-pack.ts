@@ -2,11 +2,7 @@ import { hexFromBytes } from "@repo/api/cloud/bytes";
 import { SELF } from "cloudflare:test";
 import { deviceHeaders, ORIGIN } from "./cloud-helpers";
 
-// A minimal git object/pack builder — enough of the receive-pack wire to push
-// REAL commits at the in-process Worker. workerd has SHA-1 and zlib, git's
-// formats are documented, and nothing else proves the ingest path: the
-// vault-git suite drives the protocol with it, and the vault-read suite uses
-// it to put content behind the read rows.
+// enough of the receive-pack wire to push real commits at the in-process Worker
 
 const REMOTE = `${ORIGIN}/v1/git/vault.git`;
 
@@ -28,7 +24,6 @@ async function sha1(bytes: Uint8Array): Promise<Uint8Array> {
   return new Uint8Array(await crypto.subtle.digest("SHA-1", bytes));
 }
 
-/** zlib-wrapped DEFLATE, the per-object encoding inside a pack. */
 async function deflate(bytes: Uint8Array): Promise<Uint8Array> {
   const stream = new CompressionStream("deflate");
   const writer = stream.writable.getWriter();
@@ -42,7 +37,6 @@ async function deflate(bytes: Uint8Array): Promise<Uint8Array> {
 }
 
 type GitObject = {
-  /** pack type code: commit=1, tree=2, blob=3 */
   type: 1 | 2 | 3;
   oid: string;
   raw: Uint8Array;
@@ -61,7 +55,7 @@ function oidBytes(oid: string): Uint8Array {
   return out;
 }
 
-/** The pack entry header: 4 bits of type, size in little-endian 7-bit groups. */
+// pack entry header: 4 bits of type, then the size in little-endian 7-bit groups
 function entryHeader(type: number, size: number): Uint8Array {
   const bytes: number[] = [];
   let first = (type << 4) | (size & 0x0f);
@@ -96,7 +90,6 @@ function pktLine(text: string): Uint8Array {
 
 export interface PushFile {
   path: string;
-  /** A string is UTF-8 text; bytes stay verbatim (binary fixtures). */
   content: string | Uint8Array;
 }
 
@@ -125,8 +118,7 @@ function insert(root: DirNode, path: string, bytes: Uint8Array): void {
   node.files.set(leaf, bytes);
 }
 
-/** git's tree order: bytewise on the name, with a directory compared AS IF
- *  its name carried a trailing slash. */
+// git sorts tree entries as if a directory name carried a trailing slash
 function treeSortKey(name: string, isTree: boolean): string {
   return isTree ? `${name}/` : name;
 }
@@ -157,8 +149,6 @@ async function writeTree(node: DirNode, objects: GitObject[]): Promise<string> {
   return tree.oid;
 }
 
-/** One commit holding `files` as the WHOLE tree, pushed to refs/heads/main
- *  from `oldOid` (ZERO_OID creates the branch; `parent` chains history). */
 export async function pushVaultFiles(
   credential: string,
   message: string,
@@ -186,8 +176,7 @@ export async function pushVaultFiles(
     ),
   );
   objects.push(commit);
-  // The same bytes in two files is one blob; a pack that carries it twice is
-  // malformed.
+  // a pack carrying the same blob twice is malformed
   const unique = [...new Map(objects.map((object) => [object.oid, object])).values()];
   const command = pktLine(`${oldOid} ${commit.oid} refs/heads/main\0report-status`);
   const body = concat([command, encoder.encode("0000"), await buildPack(unique)]);

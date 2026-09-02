@@ -9,13 +9,7 @@ export const EXIT_ERROR = 1;
 export const EXIT_WAIT_TIMEOUT = 2;
 export const EXIT_UNREACHABLE = 3;
 
-/**
- * A machine-readable failure class, so `--json` callers can branch without
- * parsing prose. Server refusals pass the SERVER's own class through
- * (`NOT_FOUND`, `BAD_REQUEST`, …) rather than being flattened into one CLI
- * code — which is why the CLI's own classes are spelled the same way. One
- * vocabulary, one casing, whichever side raised it.
- */
+// server refusals keep the server's own class (`NOT_FOUND`, …), so the CLI's own classes share that spelling.
 export class CliExitError extends Error {
   readonly exitCode: number;
   readonly code: string;
@@ -28,27 +22,15 @@ export class CliExitError extends Error {
   }
 }
 
-/** Local refusal: bad flags, contradictory arguments, oversized input. */
 export function invalidUsage(message: string): CliExitError {
   return new CliExitError(message, { code: "INVALID_USAGE" });
 }
 
-/** The errno codes a dial gets when nothing is listening, or when whatever is
- *  listening drops the connection. Read through a schema rather than off the
- *  object: `code` is not part of `Error`, and a node errno is exactly the kind
- *  of untyped shape this repo parses at its boundary. */
 const UNREACHABLE_ERRNOS = ["ECONNREFUSED", "ECONNRESET", "ENOTFOUND", "EHOSTUNREACH"];
 const errnoSchema = z.object({ code: z.enum(UNREACHABLE_ERRNOS) });
 
-/**
- * Did this failure happen because no server answered?
- *
- * `SERVER_UNREACHABLE`/exit 3 is a class the served guide teaches agents to
- * branch on, and discovery alone cannot decide it: `server.json` is left
- * behind by a crash ON PURPOSE, so the ORDINARY way a server stops being
- * reachable is a stale file and a refused dial — which without this reads as
- * `UNEXPECTED`/exit 1 and a raw `ECONNREFUSED`.
- */
+// a crash leaves server.json behind, so a stale row and a refused dial is the ordinary "no server"
+// and must read as SERVER_UNREACHABLE rather than UNEXPECTED.
 export function isUnreachable(cause: unknown): boolean {
   if (!(cause instanceof Error)) {
     return false;
@@ -74,11 +56,7 @@ export function isUnreachable(cause: unknown): boolean {
   return false;
 }
 
-/**
- * Node's fetch says "fetch failed" and keeps the actionable socket errors
- * under `cause`. Multi-address connections use an AggregateError, so walk
- * both links while guarding against malformed cyclic error graphs.
- */
+// node's fetch says "fetch failed" and keeps the socket error under `cause`; multi-address dials wrap an AggregateError.
 export function getErrorMessage(cause: unknown): string {
   if (!(cause instanceof Error)) {
     return String(cause);

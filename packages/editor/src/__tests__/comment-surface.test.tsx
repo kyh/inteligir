@@ -1,12 +1,5 @@
 // @vitest-environment jsdom
 
-// The comment surface answers from the OPEN note, and it has to say so
-// explicitly: the sidecar arrives from a query and the pending create from a
-// keystroke, so either can land while the editor has moved on to another file.
-// Judged against whatever published last instead, the tint would grade one
-// note's ranges by another's ids, and the create popover would offer to cancel
-// markers out of a document that never minted them.
-
 import { cleanup, fireEvent, render } from "@testing-library/react";
 import type { Value } from "platejs";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -39,7 +32,6 @@ function renderOpenNote() {
   return render(<EditorHarness value={openValue()} store={store} livePath={OPEN_PATH} />);
 }
 
-/** The rendered leaf carrying the commented words. */
 function tintedLeaf(view: ReturnType<typeof renderOpenNote>): string {
   const leaf = view.getByText("tinted words").closest('[data-slate-leaf="true"]');
   return leaf?.outerHTML ?? "";
@@ -64,8 +56,6 @@ describe("the comment surface", () => {
   it("ignores a sidecar published for a different note", () => {
     setCommentMeta(OTHER_PATH, RESOLVED_ABC);
 
-    // Nothing known here, so the same id reads as a comment that no longer
-    // exists rather than borrowing the other note's resolved verdict.
     const leaf = tintedLeaf(renderOpenNote());
     expect(leaf).toContain("decoration-dotted");
     expect(leaf).not.toContain("emerald");

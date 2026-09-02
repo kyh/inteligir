@@ -1,10 +1,5 @@
-// `GET /connectors/oauth/callback` — where the browser lands after a provider's
-// consent page. Outside the contract table and the browser-origin guard for
-// pair-callback's own reasons (cloud/pair-callback.ts): what arrives
-// is a cross-site top-level navigation wanting a page, no typed client has any
-// use for the row, and the armed `state` stands where the origin guard cannot.
-// The page is inert by construction: no script, no external asset, a policy
-// that says so.
+// outside the contract table and the browser-origin guard: what arrives is a cross-site
+// top-level navigation, and the armed `state` stands where the origin guard cannot.
 
 import type { ConnectorOauthFlow, OauthCompletion } from "./oauth-flow";
 import {
@@ -47,11 +42,7 @@ function oauthCallbackPage(completion: OauthCompletion): InertCallbackPage {
   }
 }
 
-/**
- * Missing or malformed parameters take the same road as a wrong state — this
- * URL is reachable by anything on the machine, so "called wrong" and "called
- * without an authorization" are the same non-event.
- */
+// missing params take the wrong-state road: this url is reachable by anything on the machine.
 export async function handleConnectorOauthCallback(
   flow: ConnectorOauthFlow,
   url: URL,

@@ -1,32 +1,14 @@
-// ---------------------------------------------------------------------------
-// What the guards can SEE: the tree walk every other guard in this workspace
-// is built on, held against pnpm's own workspace manifest.
-//
-// A literal copy of the workspace globs in `repo.ts` is the one failure mode
-// a fitness test may not have: adding a workspace group means every guard
-// quietly stops covering it, and the symptom is a green run over a smaller
-// tree. Nothing else in the repo notices — turbo reads pnpm-workspace.yaml,
-// pnpm reads pnpm-workspace.yaml, and the guards would read a copy that
-// agrees with neither.
-//
-// So the globs come from the manifest, an unreadable glob shape THROWS rather
-// than being skipped, and the walk is checked from the other end too: a
-// package.json that no glob reaches is a workspace pnpm ignores and every
-// guard here is blind to.
-//
-// What this CANNOT see, stated rather than implied: `workspaceFiles` walks
-// `src/**` only, so a workspace's build scripts, its `bin/`, its configs and
-// the repo-root `.github`/`.githooks` trees are outside every guard built on
-// it. Guards that need those read them directly and say so in their own header.
-// ---------------------------------------------------------------------------
+// a copy of the workspace globs in repo.ts would let a new group drop out of every guard with a
+// green run over a smaller tree; so the globs come from the manifest and every package.json on disk
+// must be reached by one. workspaceFiles walks src/** only: build scripts, bin/, configs and
+// .github are outside every guard built on it.
 
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { REPO_ROOT, isSkippedDir, WORKSPACE_MANIFEST, workspaceGlobs, workspaces } from "./repo";
 
-/** Every package.json in the tree except the repo root's, which is the
- *  monorepo's own and is a member of no glob. */
+// except the repo root's, which is a member of no glob.
 function manifestsOnDisk(): string[] {
   const found: string[] = [];
   const walk = (dir: string): void => {
@@ -44,9 +26,7 @@ function manifestsOnDisk(): string[] {
   return found.toSorted();
 }
 
-/** How many globs the manifest declares, counted from its raw text rather
- *  than from the reader under test — the cross-check that no entry was parsed
- *  into neither arm. Negated globs are pnpm's exclusions, not workspaces. */
+// counted from the raw text rather than the reader under test; negated globs are pnpm's exclusions.
 function declaredGlobCount(): number {
   const raw = fs.readFileSync(path.join(REPO_ROOT, WORKSPACE_MANIFEST), "utf8");
   const packages = raw.match(/^packages:\n(?:[ \t]+-.*\n)+/m);
@@ -61,14 +41,8 @@ describe("the guards' tree walk", () => {
   const globs = workspaceGlobs();
 
   it("reads its globs from pnpm's manifest, not from a copy", () => {
-    // A reader that silently returned nothing would satisfy every assertion
-    // below by covering nothing, so pin that it came back populated and that
-    // the guards' own home is among them — `tools/` is the group a
-    // hand-copied list in this repo had already lost. The arms are checked by
-    // COUNT rather than by requiring a member of each: every layout here is a
-    // `<dir>/*` group today, so demanding a standalone workspace would pin a
-    // shape the repo does not have, while the sum still fails the moment an
-    // entry lands in neither arm.
+    // arms checked by count rather than a member of each: every layout is a `<dir>/*` group today,
+    // so demanding a standalone workspace would pin a shape the repo does not have.
     expect(globs.groups.length, `${WORKSPACE_MANIFEST} declares no "<dir>/*" glob`).toBeGreaterThan(
       0,
     );
@@ -80,10 +54,6 @@ describe("the guards' tree walk", () => {
   });
 
   it("every workspace pnpm's globs reach is discovered", () => {
-    // The globs are the claim; this is the check. A manifest under a directory
-    // no glob matches is a package pnpm does not link and no guard here walks
-    // — it would sit outside the dependency DAG, the change-kind sweep and the
-    // provenance sweep at once, with nothing failing.
     const discovered = new Set(workspaces().map((workspace) => `${workspace.dir}/package.json`));
     const violations = manifestsOnDisk()
       .filter((manifest) => !discovered.has(manifest))

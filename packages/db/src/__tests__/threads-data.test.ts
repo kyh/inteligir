@@ -17,7 +17,6 @@ interface RecordedThreadChange {
   changes: ThreadChangeKind[];
 }
 
-/** A notifier plus the list it appends every thread change to. */
 interface RecordingNotifier {
   notifier: DbNotifier;
   threadChanges: RecordedThreadChange[];
@@ -120,7 +119,6 @@ describe("applyThreadLifecycleEvent", () => {
       event: { type: "run.started", turnId: "turn_b" },
     });
 
-    // The late (duplicate) completion for turn_a must not settle turn_b.
     const stale = applyThreadLifecycleEvent(db, noopNotifier, {
       threadId: thread.id,
       event: { type: "run.succeeded", turnId: "turn_a" },
@@ -160,8 +158,6 @@ describe("applyThreadLifecycleEvent", () => {
     const rival = createConnection(db.$client.name);
     const thread = createThread(db, noopNotifier, {});
 
-    // Each step is a full immediate transaction on its own connection; the
-    // (status, activeTurnId) CAS turns every lost race into a typed no-op.
     const first = applyThreadLifecycleEvent(db, noopNotifier, {
       threadId: thread.id,
       event: { type: "run.started", turnId: "turn_1" },
@@ -211,10 +207,7 @@ describe("listThreads query plan", () => {
 describe("doc-attached threads", () => {
   it("rebinds a moved doc's threads from the origin index, not a table scan", () => {
     const db = openTempDb();
-    // The statement is rebindThreadOrigins' file-move UPDATE, spelled out
-    // because EXPLAIN needs raw SQL; the pin is the planner of the BUNDLED
-    // sqlite choosing threads_origin_doc_idx, same style as the listThreads
-    // plan suite above.
+    // rebindThreadOrigins' file-move UPDATE, spelled out because EXPLAIN needs raw sql.
     const plan = db.$client
       .prepare(
         "EXPLAIN QUERY PLAN UPDATE threads SET origin_doc_path = 'b.md' WHERE origin_doc_path = 'a.md'",
@@ -248,7 +241,6 @@ describe("rebindThreadOrigins", () => {
   it("follows a renamed DIRECTORY for every doc under it", () => {
     const db = openTempDb();
     const nested = createThread(db, noopNotifier, { originDocPath: "Notes/deep/a.md" });
-    // A sibling whose path merely shares the prefix must NOT move.
     const sibling = createThread(db, noopNotifier, { originDocPath: "Notes2/b.md" });
 
     expect(rebindThreadOrigins(db, noopNotifier, { from: "Notes", to: "Archive" })).toBe(1);

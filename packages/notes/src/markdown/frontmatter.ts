@@ -1,48 +1,24 @@
-// ---------------------------------------------------------------------------
-// The typed-properties kernel over a doc's leading `---` block.
-//
-// Two layers. `splitFrontmatter` is the body↔properties seam: it touches only
-// the leading fence and preserves the body verbatim — no markdown reparse, no
-// byte surgery. Above it, the typed-property ADT is the file-properties
-// parse/serialize contract (CLAUDE.md § Decisions: the markdown file is the
-// ONLY property store), so YAML the ADT cannot represent is preserved
-// byte-exactly rather than coerced or dropped.
-//
-// Platform-neutral (pure `yaml`, no node/dom) like the rest of @repo/notes.
-// ---------------------------------------------------------------------------
+// yaml the typed ADT cannot represent is preserved byte-exactly, never coerced or dropped.
 
 import { isMap, isScalar, parse as parseYaml, parseDocument } from "yaml";
 import { z } from "zod";
 
-// A single frontmatter value as the YAML 1.2 core schema yields it. Core has
-// no timestamp tag, so everything is JSON-shaped; the non-JSON stragglers
-// (`.nan`/`.inf`) fail the schema and are treated as absent/unsupported, which
-// is the same "what we can't read we don't guess at" posture as a non-mapping
-// root.
+// yaml 1.2 core has no timestamp tag, so every value is json-shaped; `.nan`/`.inf` fail the
+// schema and read as unsupported.
 const yamlValue = z.json();
 type YamlValue = z.infer<typeof yamlValue>;
 
-/** A doc's frontmatter as a parsed top-level mapping. */
 const propertiesSchema = z.record(z.string(), yamlValue);
 type Properties = z.infer<typeof propertiesSchema>;
 
 export type SplitDoc = {
-  /** Parsed frontmatter mapping. `{}` when there is no frontmatter (or it was
-   * empty / not a mapping — a non-mapping frontmatter is rare and treated as
-   * absent rather than guessed at). */
   properties: Properties;
-  /** Everything after the frontmatter block, byte-for-byte. */
   body: string;
 };
 
-// A leading YAML frontmatter block: `---` on its own line, the yaml, then a
-// closing `---` line. Matches remark-frontmatter's default (`yaml`). The
-// content line(s) are optional so an empty block (`---\n---\n`) still matches.
-// The body begins immediately after the closing fence's line terminator.
+// remark-frontmatter's default `yaml` fence; the content group is optional so an empty block matches.
 const FRONTMATTER_RE = /^---[ \t]*\r?\n(?:([\s\S]*?)\r?\n)?---[ \t]*(?:\r?\n|$)/;
 
-/** Parse yaml source into a top-level mapping; malformed yaml or a
- * non-mapping root yields `{}`. */
 function parseYamlRecord(source: string): Properties {
   try {
     const parsed = propertiesSchema.safeParse(parseYaml(source));
@@ -52,21 +28,12 @@ function parseYamlRecord(source: string): Properties {
   }
 }
 
-/** The raw yaml source inside a doc's leading frontmatter fences (no fences,
- * no trailing line terminator — the shape `parseProperties` expects), or
- * `null` when the doc has no frontmatter block. The one place besides
- * `splitFrontmatter` allowed to know the fence grammar, so a consumer that
- * needs the header's SOURCE rather than its parsed value never forks the
- * regex. */
 function frontmatterYaml(text: string): string | null {
   const match = FRONTMATTER_RE.exec(text);
   if (!match) return null;
   return match[1] ?? "";
 }
 
-/** Split raw doc text into `{ properties, body }`. Never throws on malformed
- * yaml — a block that doesn't parse to a mapping yields empty properties, and
- * the body is always the exact remainder. */
 export function splitFrontmatter(text: string): SplitDoc {
   const match = FRONTMATTER_RE.exec(text);
   if (!match) return { properties: {}, body: text };
@@ -74,28 +41,10 @@ export function splitFrontmatter(text: string): SplitDoc {
   return { properties: parseYamlRecord(match[1] ?? ""), body };
 }
 
-// ---------------------------------------------------------------------------
-// Typed properties — the editable-property contract over a frontmatter block's
-// raw yaml (CLAUDE.md § Decisions: the markdown file is the ONLY property
-// store). It sits ONE layer above splitFrontmatter and works on the yaml TEXT,
-// so a caller holding only the header's source never forks a second YAML
-// parser.
-//
-// Conservative typing (YAML 1.2 core schema, the `yaml` package's default):
-// `true`/`false` are the ONLY booleans, so `yes/no/on/off` stay text; the core
-// schema has no timestamp tag, so dates are recognized ONLY from explicit
-// `YYYY-MM-DD` strings; anything that cannot round-trip through the ADT
-// (nested maps, mixed/non-string arrays, nulls, anchors) is "unsupported" —
-// carried as its own source bytes and written back untouched.
-// ---------------------------------------------------------------------------
-
-/** The tag set of {@link TypedProperty} — what a property EDITOR switches on,
- * separately nameable from the value shapes it carries. */
+// yaml 1.2 core schema: `true`/`false` are the only booleans (yes/no/on/off stay text) and
+// dates are recognized only from explicit `YYYY-MM-DD` strings.
 export type PropertyType = "text" | "number" | "checkbox" | "date" | "tags" | "unsupported";
 
-/** A frontmatter key parsed into a typed control. The ADT keeps illegal
- * states unrepresentable: each type carries exactly the value shape its field
- * edits, and `unsupported` carries the raw source bytes it must preserve. */
 export type TypedProperty =
   | { key: string; type: "text"; value: string }
   | { key: string; type: "number"; value: number }
@@ -104,25 +53,16 @@ export type TypedProperty =
   | { key: string; type: "tags"; value: string[] }
   | { key: string; type: "unsupported"; rawYaml: string };
 
-/** The result of typing a frontmatter block:
- *  - `none`    — the block is empty (no properties to show).
- *  - `invalid` — malformed yaml, duplicate keys, or a non-mapping root. A
- *                caller must NEVER rewrite the block on this verdict: what it
- *                can't read, it can't destroy.
- *  - `valid`   — a top-level mapping, each key classified. */
+// a caller must never rewrite the block on `invalid`.
 export type ParsedProperties =
   | { kind: "valid"; properties: TypedProperty[] }
   | { kind: "invalid" }
   | { kind: "none" };
 
-// Explicit calendar-date shape only — no month/day range check, so an
-// out-of-range `2026-13-40` still edits as a (plain-text) date field rather
-// than being silently reclassified; the point is byte-safety, not validation.
+// no month/day range check: an out-of-range date still edits as a date field rather than being reclassified.
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
-// The branch order is the classification precedence; each zod check replaces
-// a typeof/shape test one-for-one (z.number() already rejects NaN/±Infinity,
-// so no Number.isFinite gate is needed).
+// branch order is the precedence; z.number() already rejects NaN/±Infinity.
 function classify(key: string, value: YamlValue, rawYaml: string): TypedProperty {
   const checkbox = z.boolean().safeParse(value);
   if (checkbox.success) return { key, type: "checkbox", value: checkbox.data };
@@ -140,9 +80,6 @@ function classify(key: string, value: YamlValue, rawYaml: string): TypedProperty
   return { key, type: "unsupported", rawYaml };
 }
 
-/** Type a frontmatter block's raw yaml into editable properties. Never throws:
- * a parse failure (or non-mapping root) is reported as `invalid`, leaving the
- * caller to preserve the raw block untouched. */
 export function parseProperties(yamlText: string): ParsedProperties {
   if (yamlText.trim() === "") return { kind: "none" };
   let doc;
@@ -151,7 +88,7 @@ export function parseProperties(yamlText: string): ParsedProperties {
   } catch {
     return { kind: "invalid" };
   }
-  // Duplicate keys and malformed yaml both surface as document errors.
+  // duplicate keys surface as document errors too.
   if (doc.errors.length > 0) return { kind: "invalid" };
   const contents = doc.contents;
   if (!isMap(contents)) return { kind: "invalid" };
@@ -160,8 +97,7 @@ export function parseProperties(yamlText: string): ParsedProperties {
     const keyNode = item.key;
     const key = isScalar(keyNode) ? String(keyNode.value) : String(keyNode);
     const valueNode = item.value;
-    // Slice the value's source bytes for the unsupported read-only display;
-    // range[0..1] is the value span (excludes the key and trailing node gap).
+    // range[0..1] is the value span, excluding the key and trailing node gap.
     const range = valueNode?.range;
     const rawYaml = range ? yamlText.slice(range[0], range[1]).trimEnd() : "";
     const value = yamlValue.safeParse(valueNode == null ? null : valueNode.toJSON());
@@ -172,19 +108,8 @@ export function parseProperties(yamlText: string): ParsedProperties {
   return { kind: "valid", properties };
 }
 
-/** Record `alias` in a doc's frontmatter `aliases:` — the byte-preserving
- * writer the rename pipeline uses so an old title keeps resolving. Runs over
- * the yaml Document API (serializeProperties) rather than a parse-and-restringify
- * of the whole block, so untouched keys keep their exact source bytes, comments
- * included. Returns null (write NOTHING) when:
- *   - the frontmatter can't be typed (`invalid` — never rewrite what we
- *     can't read),
- *   - the alias list key exists but is not a plain string array,
- *   - the alias is already present case-insensitively.
- * The legacy `alias:` key is honored when it is the doc's only alias list
- * (extraction prefers `aliases`, so minting `aliases` beside an existing
- * `alias` would silently shadow the old entries). A doc with no frontmatter
- * gains a block; the body is preserved byte-exactly. */
+// `alias:` is honored only when it is the doc's only alias list: extraction prefers `aliases`,
+// so minting one beside `alias` would shadow the old entries.
 export function addFrontmatterAlias(content: string, alias: string): string | null {
   const trimmed = alias.trim();
   if (trimmed === "") return null;
@@ -213,18 +138,11 @@ export function addFrontmatterAlias(content: string, alias: string): string | nu
   return `---\n${nextYaml}\n---\n${body}`;
 }
 
-/** A field Note Intelligence (or any additive writer) may mint: a text scalar
- * or a tag list. */
 export type AbsentFrontmatterField =
   | { key: string; kind: "text"; value: string }
   | { key: string; kind: "tags"; value: string[] };
 
-/** Add ONLY the fields whose keys are absent from the doc's frontmatter,
- * preserving every existing byte the typing rules can't represent (the same
- * serializeProperties discipline `addFrontmatterAlias` rides). A doc with no
- * frontmatter gains a block; the body is preserved byte-exactly. Answers null
- * when nothing was absent — or when the block cannot be edited safely
- * (invalid yaml), which the caller must treat as a skip, never a retry loop. */
+// null on invalid yaml is a skip, never a retry.
 export function addAbsentFrontmatterFields(
   content: string,
   fields: readonly AbsentFrontmatterField[],
@@ -252,13 +170,6 @@ ${nextYaml}
 ${body}`;
 }
 
-/** Type a single new key from a user-entered raw value: the value is read as a
- * YAML scalar so `true`, `42`, `2026-07-01`, `[a, b]` type naturally, exactly
- * as if it had been typed into the block. An empty value is an empty text
- * property.
- *
- * The read path classifies keys already IN a block; this is the add-a-property
- * half the properties panel offers. */
 export function typeNewProperty(key: string, rawValue: string): TypedProperty {
   if (rawValue.trim() === "") return { key, type: "text", value: "" };
   try {
@@ -275,8 +186,6 @@ function typedValue(prop: TypedProperty) {
   return prop.type === "unsupported" ? undefined : prop.value;
 }
 
-/** Property-value equality as the typed ADT defines it: strict for scalars,
- * element-wise for the flat string arrays `tags` carries. */
 function valueEqual(a: YamlValue | undefined, b: ReturnType<typeof typedValue>): boolean {
   if (Array.isArray(a) && Array.isArray(b)) {
     return a.length === b.length && a.every((item, i) => item === b[i]);
@@ -284,13 +193,8 @@ function valueEqual(a: YamlValue | undefined, b: ReturnType<typeof typedValue>):
   return a === b;
 }
 
-/** Recombine typed properties back into a frontmatter block's raw yaml (no
- * fences, no trailing newline — matching remark-frontmatter's node `value`).
- * Works over the `yaml` Document parsed from `priorRaw` so untouched keys —
- * crucially every `unsupported` one — keep their exact source bytes, comments
- * included; key ORDER is preserved and new keys append. Only keys whose value
- * actually changed are re-set, so an edit to one property yields a minimal
- * diff. An empty property list clears the block entirely (returns ""). */
+// edits the Document parsed from `priorRaw` rather than re-stringifying, so untouched keys
+// (every `unsupported` one) keep their source bytes, comments included.
 export function serializeProperties(properties: TypedProperty[], priorRaw: string): string {
   if (properties.length === 0) return "";
   const doc = parseDocument(priorRaw);
@@ -303,13 +207,11 @@ export function serializeProperties(properties: TypedProperty[], priorRaw: strin
     for (const key of removable) doc.delete(key);
   }
   for (const prop of properties) {
-    // Unsupported keys are never re-set — the Document keeps their raw bytes.
     if (prop.type === "unsupported") continue;
     const next = typedValue(prop);
     const had = Object.prototype.hasOwnProperty.call(priorValues, prop.key);
     if (!had || !valueEqual(priorValues[prop.key], next)) doc.set(prop.key, next);
   }
-  // A mapping always stringifies with a single trailing newline; the frontmatter
-  // node value carries none, so drop exactly one.
+  // a mapping stringifies with one trailing newline; the frontmatter node value carries none.
   return doc.toString().replace(/\n$/, "");
 }

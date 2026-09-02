@@ -1,6 +1,3 @@
-// Vault file CRUD through the typed client, with every mutation verified on
-// disk — the vault is real files, so the wire answer alone proves nothing.
-
 import { readFile, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
@@ -12,8 +9,6 @@ const FIXTURE_CONTENT = "# Seeded fixture\n";
 const FIRST_CONTENT = "# Hello\n\nWritten by the e2e harness.\n";
 const SECOND_CONTENT = "# Hello again\n\nOverwritten by the e2e harness.\n";
 
-/** The class a refusal carries, or its own text when it carries none — so a
- *  failure message names what actually came back. */
 function refusalClass(cause: unknown): string {
   return cause instanceof ORPCError ? cause.code : String(cause);
 }
@@ -60,8 +55,6 @@ export const vaultCrud: Scenario = {
     ctx.log("rename notes/hello.md -> notes/renamed.md");
     await api.vault.rename({ from: "notes/hello.md", to: "notes/renamed.md" });
     expect(!existsSync(join(vaultDir, "notes", "hello.md")), "old path gone on disk");
-    // Rename records the old stem in frontmatter aliases so wiki links keep
-    // resolving; the body must ride along byte-intact below it.
     const renamedBytes = await readFile(join(vaultDir, "notes", "renamed.md"), "utf8");
     expect(renamedBytes.endsWith(SECOND_CONTENT), "renamed body bytes intact on disk");
     expect(
@@ -99,10 +92,8 @@ export const vaultCrud: Scenario = {
 
     ctx.log("path refusals, and the disk stays untouched");
     const gitHeadBefore = await readFile(join(vaultDir, ".git", "HEAD"), "utf8");
-    // A traversal never reaches a handler: the vault-path grammar rides the
-    // INPUT schema, so it is the validator that refuses — which is the point,
-    // since a refusal each handler had to remember to catch is one a new
-    // handler forgets.
+    // the path grammar rides the input schema, so the validator refuses (BAD_REQUEST), never a
+    // handler.
     for (const path of ["../escape.md", ".git/hooks/pwn.md"]) {
       const [readError] = await safe(api.vault.read({ path }));
       expect(

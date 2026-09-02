@@ -1,9 +1,5 @@
-// Tab-group kit: the `:::tabs` container as editable Plate elements.
-// tab_group > tab_panel(label) > any blocks. One panel shows at a time; the
-// rest stay MOUNTED but hidden (display:none), so Slate's model — and any
-// pending edit inside a hidden panel — survives switching. The active index
-// is view state on the group element's React instance: switching tabs is not
-// an edit and must never touch bytes or history.
+// Hidden panels stay mounted so Slate's model and pending edits survive switching; the active
+// index is React state, never a node prop, because switching is not an edit.
 
 import { createContext, useContext, useMemo, useState } from "react";
 import { createSlatePlugin, ElementApi, type SlateEditor, type TElement } from "platejs";
@@ -129,8 +125,6 @@ function TabPanelElement(props: PlateElementProps) {
   return (
     <PlateElement
       {...props}
-      // Print stacks every panel (hidden ones included), each captioned with
-      // its own label — paper has no tab strip to switch with.
       className={cn("px-3 py-2 print:block", index === active ? "" : "hidden")}
       attributes={{ ...props.attributes, "data-tab-panel": "" }}
     >
@@ -162,7 +156,6 @@ export const TabsKit = [
   tabPanelBasePlugin.withComponent(TabPanelElement),
 ];
 
-/** Insert an empty two-tab group at the caret's block (the slash item's verb). */
 export function insertTabGroup(editor: SlateEditor): void {
   editor.tf.insertNodes({
     children: [

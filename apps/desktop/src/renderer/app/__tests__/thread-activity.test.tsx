@@ -39,8 +39,6 @@ describe("threadActivity", () => {
 });
 
 describe("the palette renders that answer and no other", () => {
-  // Pre-dedup the palette carried its own status table and said "idle" where
-  // the doc chip said "done" for the very same thread.
   it.each(threadStatusValues)("says what the derivation says for %s", (status) => {
     const subject = thread({ id: `thr_${status}`, status, title: "A thread" });
     render(
@@ -72,10 +70,6 @@ const REPO_ROOT = resolve(import.meta.dirname, "../../../../../..");
 const sourceOf = (relative: string): string => readFileSync(join(REPO_ROOT, relative), "utf8");
 
 describe("only one module reads a thread's lifecycle", () => {
-  // The lifecycle literals are the fingerprint of a surface deriving activity
-  // for itself. A fourth vocabulary is how one thread reads "running" in the
-  // palette while another surface paints it amber — and the editor
-  // must not carry one at all, being a package with no domain to have it in.
   const LIFECYCLE = /["'](?:starting|stopping)["']/u;
 
   it.each([

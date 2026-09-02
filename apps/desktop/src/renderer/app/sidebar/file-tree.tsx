@@ -1,9 +1,3 @@
-// VS Code-style file tree: full-width rows, depth as in-row padding, folders
-// collapse, roving-tabindex keyboard nav (one tab stop; arrows move it), and
-// context ops (new note, new folder, rename, delete) through one controlled
-// menu anchored to the row that asked. Rename and create are inline input
-// rows; the tree owns only view state — every mutation goes out through ops.
-
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,24 +20,15 @@ export interface TreeOps {
   removeEntry: (path: string, kind: "file" | "dir") => void;
 }
 
-/**
- * Why a tree with no rows has no rows. THREE different sentences, and only one
- * of them is "empty": a listing that has not answered yet, one that FAILED,
- * and a vault that genuinely holds nothing. Collapsing the first two into the
- * third tells a user whose vault is unreadable that they have no notes.
- */
 export type TreeLoadState = "loading" | "loaded" | "failed";
 
 export interface FileTreeProps {
   entries: readonly VaultEntry[];
   loadState: TreeLoadState;
-  /** Offered on `failed`, because a refusal the user cannot act on is a blank
-   *  panel with extra words. */
   onRetry: () => void;
   openPath: string | null;
   onOpenFile: (path: string) => void;
   ops: TreeOps;
-  /** Set by the sidebar's header buttons to start a root-level create. */
   pendingCreate: { kind: "file" | "dir"; parentDir: string } | null;
   onPendingCreateHandled: () => void;
 }
@@ -123,7 +108,6 @@ function InlineNameInput({
       onCancel();
       return;
     }
-    // The domain's ONE name gate — same rules the title H1 applies.
     const verdict = checkNoteName(value);
     if (!verdict.ok) {
       toast.error(noteNameErrorMessage(verdict.reason));
@@ -195,13 +179,9 @@ export function FileTree({
   const [menu, setMenu] = useState<{ node: TreeNode; anchor: HTMLElement } | null>(null);
   const treeRef = useRef<HTMLDivElement>(null);
 
-  // A header-initiated create arrives as a prop; adopt it into local editing
-  // state (expanding the target folder) as the token arrives, then hand it
-  // back. Adopting in the render that brings it in rather than after the commit
-  // spares the input row a second paint; the handback stays an effect because
-  // it updates the SIDEBAR, and no component may set another component's state
-  // while rendering. Seeded as "nothing adopted" rather than as the current
-  // token, so a tree mounting on one already set still adopts it.
+  // Adopted during render to spare the input row a second paint; the handback
+  // stays an effect because it sets the sidebar's state. Seeded null so a tree
+  // mounting on an already-set token still adopts it.
   const [adoptedCreate, setAdoptedCreate] = useState<FileTreeProps["pendingCreate"]>(null);
   if (adoptedCreate !== pendingCreate) {
     setAdoptedCreate(pendingCreate);
@@ -218,10 +198,8 @@ export function FileTree({
     }
   }, [pendingCreate, onPendingCreateHandled]);
 
-  // Reconcile the roving tab stop when the tree CHANGES (delete clears it,
-  // a followed rename survives its refetch). Keyed on entries alone: running
-  // on every activePath change would clear an optimistic rename-follow
-  // before the refetched tree can confirm it.
+  // Keyed on entries alone: reconciling on every activePath change would clear
+  // an optimistic rename-follow before the refetched tree confirms it.
   const [reconciledEntries, setReconciledEntries] = useState(entries);
   if (reconciledEntries !== entries) {
     setReconciledEntries(entries);
@@ -230,8 +208,6 @@ export function FileTree({
     }
   }
 
-  // Keep the open note visible: expand its ancestor folders whenever it
-  // changes (the user may still collapse them afterwards).
   // Seeded null so a tree mounting on an already-open note expands to it.
   const [expandedFor, setExpandedFor] = useState<string | null>(null);
   if (expandedFor !== openPath) {
@@ -264,11 +240,9 @@ export function FileTree({
     });
   };
 
-  // Resolved from the DOM by the `data-path` every row already carries, rather
-  // than through a per-row ref callback: an inline arrow has a new identity on
-  // every render, so React detached and re-attached EVERY row's ref whenever
-  // anything moved this tree — and the Map it maintained held exactly what the
-  // rows already announce about themselves.
+  // Resolved from the DOM rather than per-row ref callbacks: an inline ref
+  // arrow has a new identity every render, so React re-attached every row's
+  // ref whenever anything moved.
   const focusPath = (path: string): void => {
     setActivePath(path);
     for (const candidate of treeRef.current?.querySelectorAll<HTMLElement>("[data-path]") ?? []) {
@@ -362,8 +336,7 @@ export function FileTree({
     setEditing(null);
     const toPath = joinPath(dirnamePath(node.path), newName);
     if (toPath !== node.path) {
-      // Follow the rename with the tab stop; the reconcile effect clears it
-      // if the rename never lands.
+      // The reconcile above clears this if the rename never lands.
       setActivePath(toPath);
       ops.renameEntry(node.path, toPath);
     }
@@ -381,11 +354,7 @@ export function FileTree({
     }
   };
 
-  // The roving tab stop: the active row, else the open note's row, else the
-  // first row.
-  // The tab stop must name a VISIBLE row — an active or open path hidden by
-  // a collapse (or gone entirely) falls through, so the tree always keeps
-  // exactly one reachable stop.
+  // The tab stop must be a visible row, or the tree has no reachable stop.
   const visible = (path: string | null): string | null =>
     path !== null && nodeRows.some((row) => row.node.path === path) ? path : null;
   const tabStopPath = visible(activePath) ?? visible(openPath) ?? nodeRows[0]?.node.path ?? null;

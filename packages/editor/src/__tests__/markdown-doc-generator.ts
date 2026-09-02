@@ -1,16 +1,6 @@
-// Deterministic seeded document generator over the app's modelled constructs
-// (headings, marks, lists, tables, blockquotes/alerts, code fences, math,
-// wiki-links, images, toggles, columns) — the property test's source of
-// "arbitrary but legal" documents. Test-only; the header of
-// markdown-roundtrip-property.test.ts carries the rationale + seed contract.
-//
-// The generator does NOT aim to produce byte-canonical markdown (padding,
-// exact list markers, etc.) — `toCanonical` normalizes whatever it produces.
-// It stays clear of opaque constructs (unknown JSX, expressions, HTML) so the
-// property test exercises the MODELLED nodes; those are pinned by the fixture
-// matrix and markdown-pipeline.test.ts instead.
+// Output is not byte-canonical (toCanonical normalizes it) and avoids opaque
+// constructs, so the property test exercises the modelled nodes.
 
-// Tiny seeded PRNG (mulberry32) — deterministic, no dependency.
 function mulberry32(seed: number): () => number {
   let a = seed >>> 0;
   return () => {
@@ -74,16 +64,12 @@ function words(rng: Rng, n: number): string {
   return Array.from({ length: n }, () => pick(rng, WORDS)).join(" ");
 }
 
-// A wiki-link/embed with NO pipe alias — safe to drop inside a GFM table cell
-// without needing `\|` escaping (the generator's choice, not a vocabulary
-// limit: markdown-adversarial.test.ts already covers escaped-pipe cells).
+// no pipe alias, so it can sit in a table cell without `\|` escaping
 function wikiLinkPlain(rng: Rng): string {
   const target = pick(rng, WIKI_TARGETS);
   return chance(rng, 0.2) ? `![[${target}]]` : `[[${target}]]`;
 }
 
-// Every wiki-link shape the vocabulary supports: plain, alias, section+alias,
-// transclusion.
 function wikiLink(rng: Rng): string {
   const target = pick(rng, WIKI_TARGETS);
   switch (int(rng, 4)) {
@@ -98,25 +84,23 @@ function wikiLink(rng: Rng): string {
   }
 }
 
-// Leaf inline generators — the classic serializer killers: adjacent marks,
-// nested marks, marks wrapping a wiki-link, inline math, date chips.
 const INLINE_LEAVES: Array<(rng: Rng) => string> = [
   (rng) => words(rng, 1),
   (rng) => `**${words(rng, 1)}**`,
   (rng) => `_${words(rng, 1)}_`,
   (rng) => `\`${words(rng, 1)}\``,
-  (rng) => `**_${words(rng, 1)}_**`, // nested bold+italic
-  (rng) => `_**${words(rng, 1)}**_`, // nested italic+bold
-  (rng) => `**${words(rng, 1)}**_${words(rng, 1)}_`, // adjacent, no separating space
-  (rng) => `**${words(rng, 1)}** **${words(rng, 1)}**`, // adjacent bold, separated
+  (rng) => `**_${words(rng, 1)}_**`,
+  (rng) => `_**${words(rng, 1)}**_`,
+  (rng) => `**${words(rng, 1)}**_${words(rng, 1)}_`,
+  (rng) => `**${words(rng, 1)}** **${words(rng, 1)}**`,
   (rng) => wikiLink(rng),
-  (rng) => `_${wikiLink(rng)}_`, // marked wiki-link
+  (rng) => `_${wikiLink(rng)}_`,
   (rng) => `**${wikiLink(rng)}**`,
   (rng) =>
     `$$${pick(
       rng,
       MATH_BODIES.map((b) => b.split(" ")[0] ?? b),
-    )}$$`, // inline math
+    )}$$`,
   (rng) => `<date value="2026-07-0${1 + int(rng, 9)}" />`,
 ];
 
@@ -128,8 +112,6 @@ function inlineText(rng: Rng, minWords = 3, maxWords = 10): string {
   }
   return parts.join(" ");
 }
-
-// --- block generators -----------------------------------------------------
 
 function heading(rng: Rng): string {
   const level = 1 + int(rng, 6);
@@ -148,7 +130,6 @@ function listBlock(rng: Rng): string {
     const marker = task ? (chance(rng, 0.5) ? "- [x] " : "- [ ] ") : "- ";
     lines.push(`${marker}${inlineText(rng, 2, 6)}`);
     if (!task && chance(rng, 0.3)) {
-      // nested sub-item
       lines.push(`  - ${inlineText(rng, 2, 5)}`);
     }
   }
@@ -212,7 +193,7 @@ function columns(rng: Rng): string {
 const BLOCK_GENERATORS: Array<(rng: Rng) => string> = [
   heading,
   paragraph,
-  paragraph, // weighted — prose dominates real documents
+  paragraph, // weighted: prose dominates real documents
   listBlock,
   table,
   blockquote,
@@ -223,7 +204,6 @@ const BLOCK_GENERATORS: Array<(rng: Rng) => string> = [
   columns,
 ];
 
-/** Generate a ~5-40 block vocabulary-legal document for seed `seed`. */
 export function generateDoc(seed: number): string {
   const rng = mulberry32(seed);
   const n = 5 + int(rng, 36);

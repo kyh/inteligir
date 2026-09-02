@@ -1,52 +1,27 @@
-/* Geist + the theme tokens both come from @repo/ui/globals.css. */
 @import "@repo/ui/globals.css";
-/* The editor's behaviour rules: toggle collapse, callout markers, the code
-   highlight theme. */
 @import "@repo/editor/styles.css";
 @import "./print.css";
-/* The editor package renders inside this app but is outside its scan root,
-   so its classes only exist when named here — an editor-only utility (the
-   drag gutter's -left-11, print:block) otherwise silently never generates. */
+/* The editor package is outside this app's scan root, so an editor-only
+   utility silently never generates unless its sources are named here. */
 @source "../../../../../packages/editor/src/**/*.{ts,tsx}";
 
 :root {
-  /* The editor's appearance, in the tokens the document reads — `.typeset-docs`
-     maps them onto the typeset scale, and the note title and Raw textarea
-     read them directly. THIS BLOCK IS THE DEFAULT, and the only place each
-     default value is written: `app/appearance.tsx` sets an inline property for
-     an option the reader actually chose and clears it back to here otherwise,
-     so no default is spelled twice.
-
-     `--editor-font` names the chrome's own face on purpose: a document set in
-     the system UI face beside a Geist sidebar is two typefaces on one screen.
-     `--editor-size` is the document's BASE size, which typeset scales its
-     headings, code and captions off. */
+  /* The only place each appearance default is written: app/appearance.tsx
+     sets an inline property for a chosen option and clears it back to here
+     otherwise. */
   --editor-font: var(--font-geist);
   --editor-mono: var(--font-geist-mono);
   --editor-size: 14px;
   --editor-line-height: 1.75;
 
-  /* THE header band. The note's top bar and the right panel's tab row are the
-     two headers that start at the shell's top edge, and their bottom borders
-     read as one rule across the window — but they live in different stacking
-     contexts (an inset and a positioned sidebar), so no ancestor can size them
-     together and no grid can span them. Same reasoning as the measure below:
-     one name here, or two paddings that agree until someone edits one. The
-     left rail is deliberately NOT on this token — it is a floating card inset
-     from the edge, so its first row lands on the band by its own inset math.
-
-     Grid/subgrid is the right tool when the things to align are siblings in
-     one formatting context; across a positioned sidebar boundary it is not,
-     and reaching for it would mean rewriting the vendored sidebar's layout. */
+  /* The note's top bar and the right panel's tab row live in different
+     stacking contexts, so no grid can span them; their bottom borders read as
+     one rule only while both use this. The left rail is a floating card and
+     is not on it. */
   --app-header-h: 2.5rem;
 
-  /* THE measure. Three columns have to line up on it — the page title, the
-     editor's own content, and the composer under them — and they sit in
-     different stacking contexts, so :root is the only ancestor all three
-     share. A fallback repeated at each use is three values wearing one
-     name, which is exactly how they stop agreeing. */
+  /* The page title, the editor and the composer sit in different stacking
+     contexts; :root is the only ancestor all three share. */
   --editor-width: 38rem;
-  /* The Plate column centers itself from this inset; deriving it here keeps
-     the appearance dial (--editor-width) the one measure everything obeys. */
   --editor-column-inset: calc(50% - var(--editor-width) / 2);
 }

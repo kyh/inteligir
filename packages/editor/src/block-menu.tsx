@@ -1,14 +1,5 @@
-// THE block menu — one implementation for both the right-click context menu
-// and the drag-grip click (block-draggable), driven by BlockMenuPlugin's
-// openId/position and anchored to a virtual element at that position (Base UI
-// Positioner takes a rect-returning function; no 0×0 anchor div needed).
-// Actions operate on the block-selection set.
-//
-// Flat by design: a Turn-into group instead of a nested submenu — Base UI's
-// SubmenuRoot inside this controlled virtual-anchor menu closes the root with
-// reason "sibling-open" (parent/child floating-tree linkage doesn't form);
-// revisit if upstream fixes the nesting. Omitted: copy-link-to-block
-// (markdown files have no block-anchor concept).
+// Flat, not a nested Turn-into submenu: Base UI's SubmenuRoot inside this
+// controlled virtual-anchor menu closes the root with reason "sibling-open".
 
 import { useMemo } from "react";
 import { BlockMenuPlugin, BlockSelectionPlugin } from "@platejs/selection/react";

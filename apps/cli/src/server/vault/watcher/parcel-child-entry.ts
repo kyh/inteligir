@@ -1,8 +1,6 @@
 // Vendored from bb (github.com/get-bb/bb), MIT. © bb contributors.
 
-// Child process entry: the ONLY place the native @parcel/watcher addon runs.
-// Any inotify EINTR leak/deadlock is contained here and reclaimed wholesale
-// when the parent SIGKILLs and respawns us.
+// the only place the native @parcel/watcher addon runs; a stuck one is sigkilled and respawned.
 
 import fs from "node:fs/promises";
 import parcelWatcher from "@parcel/watcher";
@@ -27,8 +25,7 @@ process.on("message", (message) => {
 const DISPOSE_TIMEOUT_MS = 2_000;
 
 process.on("disconnect", () => {
-  // Bounded: a wedged native unsubscribe must not orphan this child — the
-  // whole design assumes a stuck watcher dies and is respawned.
+  // bounded: a wedged native unsubscribe must not orphan this child.
   const deadline = setTimeout(() => process.exit(0), DISPOSE_TIMEOUT_MS);
   deadline.unref?.();
   void handler.dispose().finally(() => process.exit(0));

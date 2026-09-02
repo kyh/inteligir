@@ -1,7 +1,3 @@
-// A refused sidecar read is a FAILURE and the tab must say so: "Loading…"
-// forever tells the user nothing is wrong with a file that is. The refusal is
-// the server's own — a sidecar the schema cannot parse — not a mock of one.
-
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -37,7 +33,6 @@ describe("the comments tab under a refused read", () => {
       expect(screen.getByText("The comments could not be read.")).toBeTruthy();
     });
     expect(screen.queryByText("Loading…")).toBeNull();
-    // The server's sentence names the sidecar file — what the user can act on.
     expect(screen.getByText(/note\.md\.comments\.json/u)).toBeTruthy();
   });
 

@@ -1,13 +1,3 @@
-// The real program object, and ONE runnable invocation per leaf — the table
-// the surface fitness tests (--json enforcement + honest exits, guide
-// coverage) drive. The walk itself is shipped code (`src/command-tree.ts`),
-// because `--help` and the unknown-flag gate resolve against the same tree;
-// these tests read the surface through exactly what the CLI reads it through.
-//
-// The invocation table is what makes "every leaf" mean every leaf: it is
-// checked for completeness against the walked tree, so a command added
-// without a row here fails the suite rather than quietly skipping the checks.
-
 import type { CommandDef } from "citty";
 import type { CliDeps } from "../context";
 import { buildProgram } from "../program";
@@ -26,7 +16,6 @@ export function testProgram(): CommandDef {
   return buildProgram(deps);
 }
 
-/** Every leaf's argv, minus `--json`, against the seeded fixture state. */
 export const LEAF_INVOCATIONS = new Map<string, readonly string[]>([
   ["vault list", ["vault", "list"]],
   ["vault read", ["vault", "read", "notes/hello.md"]],
