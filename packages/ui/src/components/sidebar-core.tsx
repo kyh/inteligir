@@ -88,10 +88,8 @@ interface SidebarContextValue {
 // Mounted-provider registry for the global toggle shortcut. The listener has
 // to be global (the key should work without focus in the sidebar), but only
 // ONE provider may answer a keypress: the innermost one containing focus, or —
-// when focus is outside every provider — the OUTERMOST mounted one (the
-// app-shell provider that wraps everything else; mount order can't be used
-// because a persistent layout provider mounts once while demos mount later
-// on navigation). Same pattern as AskUserQuestions' 1-9 shortcuts.
+// when focus is outside every provider — the OUTERMOST mounted one, the
+// app-shell provider that wraps everything else.
 const mountedProviders: HTMLElement[] = [];
 
 const SidebarContext = createContext<SidebarContextValue | null>(null);
@@ -254,7 +252,7 @@ const SidebarProvider = forwardRef<HTMLDivElement, SidebarProviderProps>(
         )
           return;
         // Only one mounted provider answers (see mountedProviders). Providers
-        // can NEST (an app shell wrapping doc previews), so containment alone
+        // can NEST (the gallery inside the app shell), so containment alone
         // isn't enough: the innermost provider containing focus wins.
         const root = wrapperRef.current;
         if (!root) return;
@@ -266,8 +264,8 @@ const SidebarProvider = forwardRef<HTMLDivElement, SidebarProviderProps>(
         } else {
           if (mountedProviders.some((el) => el !== root && el.contains(target))) return;
           // Focus outside every provider: the OUTERMOST one answers — mount
-          // order is unreliable here (a persistent app-shell provider mounts
-          // once, while doc demos mount later on client-side navigation).
+          // order is unreliable here (the app-shell provider mounts once; a
+          // nested provider — the gallery's — mounts later).
           const outermost = mountedProviders.find(
             (el) => !mountedProviders.some((other) => other !== el && other.contains(el)),
           );
@@ -818,8 +816,6 @@ SidebarFooter.displayName = "SidebarFooter";
 
 // ─── SidebarGroup family ─────────────────────────────────────────────────────
 
-// SSR-safe layout effect (client components still server-render in Next).
-
 interface SidebarGroupContextValue {
   open: boolean;
   toggle: () => void;
@@ -881,12 +877,11 @@ const SidebarGroup = forwardRef<HTMLDivElement, SidebarGroupProps>(
     const [settled, setSettled] = useState(open);
     if (settled && !open) setSettled(false);
 
-    // Height animates only when THIS group toggles. When the measured height
-    // changes underneath it instead — a nested sub-menu collapsing inside the
-    // group — the wrapper must snap: a spring re-targeted every frame chases
-    // the child's own animation, lands well after it, and drags everything
-    // below the group along late. Tracked in state so a controlled `open`
-    // is covered too, and cleared once the toggle's animation lands.
+    // Height springs only when THIS group toggles. A re-measure with `open`
+    // unchanged — rows added or removed under a settled group — must snap, or
+    // a list edit animates as a height slide and everything below the group
+    // moves late. Tracked in state so a controlled `open` is covered too, and
+    // cleared once the toggle's animation lands.
     const [prevOpen, setPrevOpen] = useState(open);
     const [toggling, setToggling] = useState(false);
     if (prevOpen !== open) {
@@ -920,8 +915,8 @@ const SidebarGroup = forwardRef<HTMLDivElement, SidebarGroupProps>(
               }
               // Do NOT simplify this to `open ? spring.moderate : …`. The
               // `toggling` arm is what stops a re-measure from springing —
-              // without it a nested collapse makes this wrapper chase its own
-              // child and everything below the group moves late.
+              // without it a row added or removed under a settled group slides
+              // the wrapper's height and everything below the group moves late.
               transition={
                 toggling ? (open ? spring.moderate : spring.moderate.exit) : { duration: 0 }
               }

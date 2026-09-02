@@ -24,8 +24,8 @@ interface SwitchProps extends HTMLAttributes<HTMLDivElement> {
   /** Visible label beside the track. Omitted, the control is named by `aria-label` alone. */
   label?: string;
   disabled?: boolean;
-  /** Pins the switch to one step of the size ladder (see /docs/sizes).
-   *  Omitted, it follows the surrounding SizeProvider. */
+  /** Pins the switch to one step of the size ladder. Omitted, it follows the
+   *  surrounding SizeProvider. */
   size?: SizeVariant;
 }
 

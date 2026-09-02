@@ -247,8 +247,8 @@ function useMenuScope(containerRef: RefObject<HTMLElement | null>): MenuScope {
       const currentIdx = items.indexOf(e.target);
       if (currentIdx === -1) return;
       e.preventDefault();
-      // Keep handled arrows from also reaching window-level listeners — same
-      // rule as AskUserQuestions.
+      // Keep handled arrows from reaching window-level listeners (the shell's
+      // own key bindings).
       e.stopPropagation();
       if (e.key === "Home") items[0]?.focus();
       else if (e.key === "End") items[items.length - 1]?.focus();

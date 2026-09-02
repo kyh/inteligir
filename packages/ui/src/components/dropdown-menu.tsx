@@ -40,8 +40,7 @@ const radius = radiusMap.rounded;
 // positioning (collision flipping, anchor tracking), dismissal (outside
 // press, focus-out, Escape), roving highlight, typeahead, and close-on-select.
 // This layer keeps the proximity-hover overlays and the
-// spring open/close animation (via actionsRef deferred unmount) — the same
-// verified pattern as select.tsx.
+// spring open/close animation (via actionsRef deferred unmount).
 // ---------------------------------------------------------------------------
 
 interface DropdownMenuActions {

@@ -14,8 +14,7 @@
     // `@repo/ui/*` paths, so `preserve` checks the same files twice under two
     // JSX resolution rules.
     "jsx": "react-jsx",
-    // node: the orphan-component guard walks the repo from src/__tests__.
-    "types": ["node"]
+    "types": []
   },
   "include": ["src", "vitest.config.ts"]
 }

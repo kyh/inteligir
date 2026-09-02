@@ -23,4 +23,10 @@ describe("composeRefs", () => {
     expect(box.current).toBeNull();
     expect(seen).toEqual(["node", null]);
   });
+
+  it("writes a lone box through, so a forwarded ref can reach an element it does not name", () => {
+    const box = createRef<string>();
+    composeRefs<string>(box)("node");
+    expect(box.current).toBe("node");
+  });
 });

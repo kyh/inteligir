@@ -1,17 +1,17 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 
 // Shared theme primitive for every surface that renders this design system.
-// The *state source* differs per surface — the workspace persists through the
-// Bridge, the marketing site to localStorage with an SSR no-flash script — so
-// the provider is **controlled**: each owns persistence and passes the current
-// `theme` + `setTheme`, and this owns the OS-preference resolution, the `.dark`
-// class on <html>, and the shared context/API.
+// The *state source* differs per surface — the desktop reads and writes
+// prefs.ts's localStorage key, the marketing site its own key with an SSR
+// no-flash script — so the provider is **controlled**: each owns persistence
+// and passes the current `theme` + `setTheme`, and this owns the OS-preference
+// resolution, the `.dark` class on <html>, and the shared context/API.
 
 export type Theme = "system" | "light" | "dark";
 type ResolvedTheme = "light" | "dark";
 
-/** A stored theme preference, read back from wherever a surface persisted it
- *  (localStorage, the desktop bridge). Anything else is no preference. */
+/** A stored theme preference, read back from the localStorage key a surface
+ *  persisted it under. Anything else is no preference. */
 export function parseTheme(value: string | null | undefined): Theme | undefined {
   if (value === "system" || value === "light" || value === "dark") return value;
   return undefined;
