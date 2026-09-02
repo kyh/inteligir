@@ -6,10 +6,8 @@ headless browser, and asserts on the wire AND on disk. It is orchestration
 plus plain assertions on purpose — no test framework; the runner exits
 non-zero on any failure with a readable transcript.
 
-ONE mode, and that is what deleting the document server bought: the workspace
-is a plain SPA, built once and served as files, so the suite drives the same
-bytes and the same policy a user gets. It ran twice while a dev entry mounted
-Vite in the server process and served no CSP at all.
+ONE mode: the workspace is a plain SPA, built once and served as files, so the
+suite drives the same bytes and the same policy a user gets.
 
 ## Run it
 
@@ -96,7 +94,7 @@ what each one is FOR.
 2. Register it in `SCENARIOS` in `src/run.ts` (a static import — knip reads
    reachability from there).
 
-Each feature issue lands with its scenario here (#556).
+Each feature issue lands with its scenario here.
 
 ## The env contract the harness drives
 

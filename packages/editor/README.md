@@ -11,8 +11,6 @@ bytes**. Splitting it out makes that invariant a package boundary: the byte
 contract, its fixture matrix and the kit-parity guards live together, and the
 workspace above it consumes an editor rather than containing one.
 
-The product's privacy posture lives in `docs/privacy.md`.
-
 Deps: `@repo/notes` (the parse pipeline and the knowledge types), `@repo/ui`
 (the components). No node, no electron. The host contract is this package's own
 `host.tsx` / `host-io.ts`; the app implements it. The package also ships ONE

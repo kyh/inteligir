@@ -12,7 +12,6 @@
     "./migrate": "./src/migrate.ts",
     "./pending-interactions": "./src/pending-interactions.ts",
     "./queued-messages": "./src/queued-messages.ts",
-    "./schema": "./src/schema.ts",
     "./sync-outbox": "./src/sync-outbox.ts",
     "./threads": "./src/threads.ts"
   },

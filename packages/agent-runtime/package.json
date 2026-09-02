@@ -5,8 +5,6 @@
   "description": "The ACP agent runtime: one adapter speaks Zed's agent-client-protocol to claude-code-acp and codex-acp children; harnesses are data rows, and events translate into the runtime's own provider grammar. Consumers say \"start a session, run a turn, give me events\" — they never touch processes or wire formats.",
   "type": "module",
   "exports": {
-    "./acp/acp-event-mapping": "./src/acp/acp-event-mapping.ts",
-    "./acp/acp-permission-mapping": "./src/acp/acp-permission-mapping.ts",
     "./acp/acp-runtime": "./src/acp/acp-runtime.ts",
     "./acp/harness-registry": "./src/acp/harness-registry.ts",
     "./types": "./src/types.ts",

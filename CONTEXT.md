@@ -82,9 +82,8 @@ a row no query can place.
 
 **view context vs thread origin** — two answers to "which doc is this about",
 and they are not interchangeable. A **view context**
-(`@repo/domain/view-context`) rides ONE message: the path, the revision those
-bytes hashed to, and the selection, taken at submit and consumed by that turn's
-prompt. It is EPHEMERAL and it is a statement about the PAST — the screen the
+(`@repo/domain/view-context`) rides ONE message: the path and the revision those
+bytes hashed to, taken at submit and consumed by that turn's prompt. It is EPHEMERAL and it is a statement about the PAST — the screen the
 message left from, which is what "this" and "here" in it refer to — so nothing
 has to reconcile it when the user navigates away. A **thread origin**
 (`threads.originDocPath`) is the DURABLE binding an action makes: the note it

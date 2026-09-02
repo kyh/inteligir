@@ -1,16 +1,15 @@
-# @repo/mobile — the inteligir phone companion (issue #576)
+# @repo/mobile — the inteligir phone companion
 
 A read-and-capture content client. **The agent and the vault ENGINE stay on
 the desktop** (issue #542's re-founding): the phone holds the SYNCED THREADS,
-FEEDS the CAPTURE inbox and — since #618 — carries a READ surface over the
+FEEDS the CAPTURE inbox and carries a READ surface over the
 account's hosted vault, reaching `@repo/api/cloud` (the wire), `@repo/domain`
 (the `ThreadEvent` grammar) and `@repo/notes` (the dialect's parse + wiki
-resolution, guard-pure). No Codex, no vault checkout, no git client — notes
+resolution, guard-pure). No agent, no vault checkout, no git client — notes
 arrive over the /v1/vault read rows, rendered read-only.
 
-Expo + expo-router, recovered from the pre-purge app's shape (`3a62a4cb`) with a
-brand-new transport: the old sync engine spoke to the deleted hosted platform, so
-`src/sync` is the RN implementation of today's `@repo/api/cloud` wire.
+Expo + expo-router; `src/sync` is the RN implementation of the `@repo/api/cloud`
+wire.
 
 ## Layout
 

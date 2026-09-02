@@ -62,7 +62,7 @@ src/
 - **Frontmatter is the ONLY property store** (repo Decisions). YAML the
   typing rules can't represent is preserved byte-exactly, never coerced.
 - **One SCAN per doc** (`projectDoc`), over one grammar (`scan-parse.ts`) —
-  which is NOT the editor's (`md-plugins.ts`), and cannot be: the mdx tokenizer
+  which is NOT the editor's plugin list (`md-plugins.ts`), and cannot be: the mdx tokenizer
   THROWS, and a malformed tag must not cost a note its place in the index.
   Where the two disagree — the byte ranges the editor carries verbatim —
   `verbatim-spans.ts` asks the editor's grammar rather than guessing, and a

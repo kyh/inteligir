@@ -28,10 +28,12 @@ apps/
   desktop/       @repo/desktop — THE SHIPPED PRODUCT (issue #611). THREE
                  bundles under electron-vite: src/main/ (the window, the
                  inteligir:// protocol handler, the forked server),
-                 src/preload/ (ONE string — the loopback ws origin, because a
-                 browser WebSocket cannot be proxied and window.location.origin
-                 no longer names a server), and src/renderer/ (the SPA:
-                 TanStack Router file routes over @repo/api/local). The whole
+                 src/preload/ (ONE string for the app window — the loopback ws
+                 origin, because a browser WebSocket cannot be proxied and
+                 window.location.origin no longer names a server; the in-app
+                 browser window, src/main/browser-*.ts, has its own preload and
+                 IPC), and src/renderer/ (the SPA: TanStack Router file routes
+                 over @repo/api/local). The whole
                  security surface is the ORIGIN PIN (src/main/origin-pin.ts,
                  pure + unit-tested): one origin, top-level navigation away
                  goes to the system browser, window.open denied
@@ -154,11 +156,11 @@ packages/
                  repo's own — it obeys this repo's rules, not upstream's
                  shape. What survives of the origin is the MIT attribution
                  header on each file and its licence text in tools/licenses.
-                 A LIBRARY AHEAD OF ITS CONSUMERS: `src/ai` holds fourteen
+                 A LIBRARY AHEAD OF ITS CONSUMERS: `src/ai` holds fifteen
                  components no surface draws on yet, kept by owner decision
                  and listed one by one in the PER-EXPORT orphan guard
                  (`tools/repo-guards/src/ui-orphan-exports.test.ts`), so a
-                 fifteenth still fails. Leaf.
+                 sixteenth still fails. Leaf.
 tools/
   repo-guards/   @repo/repo-guards — derived fitness tests over the REPO: the
                  package dependency DAG + its platform-purity rules, ws

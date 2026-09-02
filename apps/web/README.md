@@ -47,7 +47,6 @@ its own `tsconfig.json`.
 | `/app/devices`                 | session | The device table: list and revoke                          |
 | `/api/auth/*`                  | —       | Better Auth (email+password, bearer, optional social)      |
 | `/auth/reset`                  | —       | The ONE reset page — Worker-served, static, `no-store`     |
-| `/v1/capabilities`             | —       | Which social providers this deployment serves              |
 | `/v1/auth/sign-up`             | —       | The invite gate in front of Better Auth's sign-up          |
 | `POST /v1/device/code`         | session | Mint a one-time code for `/app/pair` (10 min, single-use)  |
 | `POST /v1/device/redeem`       | code    | Exchange the code for the durable device credential        |

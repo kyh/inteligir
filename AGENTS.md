@@ -133,9 +133,8 @@ rather than moving the app somewhere the docs don't name.
   clock).
 - **`pnpm knip` is a CI gate.** A new file must be reachable from a knip
   `entry` glob in `knip.json` or it reads as unused and CI goes red.
-  `@libsql/client` survives because it is an optional peer of the used
-  `drizzle-orm`; `ignoreDependencies` is the escape hatch for what knip
-  genuinely can't see, not a blanket rule.
+  `ignoreDependencies` is the escape hatch for what knip genuinely can't see,
+  not a blanket rule.
 - Plan files and ADR docs are deleted on purpose — `CLAUDE.md` § Decisions plus
   GitHub Issues are the record. Don't add `plans/` or `*_GAPS.md`.
 

@@ -18,7 +18,7 @@ routes and deploy, `AGENTS.md` the runnable quickstart for coding agents.
 
 ```bash
 pnpm dev              # THE PRODUCT — the shell over its own server
-pnpm dev:desktop      # Alias of dev, kept deliberately (owner call 2026-08-26)
+pnpm dev:desktop      # Alias of dev
 pnpm dev:mobile       # apps/mobile: expo start
 pnpm cli serve        # The server ALONE, from source, no window; a shell adopts it
 pnpm cli <verb>       # Every other verb, against this checkout's instance

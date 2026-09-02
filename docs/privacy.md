@@ -37,7 +37,7 @@ anything shared across accounts.
   cloud stores these as opaque JSON and fans them out; it does not interpret
   them.
 - **Captures** — quick-capture text you post from a device, held in the same
-  per-user object until one of your devices applies it to your daily note and
+  per-user object until one of your devices applies it to your Inbox note and
   acknowledges it, which deletes the row. A capture is handed to one device at
   a time (a claim), and the row is deleted only by the device that held that
   claim. If that device dies mid-apply the claim lapses after five minutes and
