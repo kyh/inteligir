@@ -19,13 +19,19 @@ import { spliceIntoComposer } from "../voice/dictation";
 import { MicButton } from "../voice/mic-button";
 import { useVoiceStatus } from "../voice-hooks";
 import { useWikiTargets } from "../vault-hooks";
-import { createAction, type CreateActionArgs } from "./action-service";
+import { createAction } from "./action-service";
 import {
   activeMentionAt,
   filterMentionTargets,
   MentionCombobox,
   type MentionSpan,
 } from "./mention-combobox";
+
+interface PendingAction {
+  threadId: string;
+  /** The attachment the thread was created over — null for an unattached one. */
+  docPath: string | null;
+}
 
 export interface ActionComposerProps {
   open: boolean;
@@ -51,10 +57,14 @@ export function ActionComposer({
   const { api } = useWorkspace();
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
-  /** The thread a refused first send already created. The retry sends into
-   * it — minting another would leave an empty action behind every refusal —
-   * and it clears only when a send lands, the draft's own lifetime. */
-  const [pendingThreadId, setPendingThreadId] = useState<string | null>(null);
+  /** The thread a refused first send already created, and the note it was
+   * created over. The retry sends into it — minting another would leave an
+   * empty action behind every refusal — but only over the SAME attachment: a
+   * thread's originDocPath is set at creation and never moves, and the
+   * composer outlives a close, so a retry from another note would otherwise
+   * land in a thread that note's Actions list never shows. It clears only
+   * when a send lands, the draft's own lifetime. */
+  const [pending, setPending] = useState<PendingAction | null>(null);
   // The chip is armed per OPEN: dismissing it composes an unattached action;
   // the next open re-offers the note.
   const [attached, setAttached] = useState(true);
@@ -149,24 +159,21 @@ export function ActionComposer({
         // The context describes the screen the action LEFT FROM; an action
         // detached from its note carries none.
         const viewContext = attachedPath === null ? null : await readViewContext();
-        const args: CreateActionArgs = {
+        const created = await createAction(api, {
           contextPaths: mentions,
           docPath: attachedPath,
           prompt: trimmed,
+          threadId: pending !== null && pending.docPath === attachedPath ? pending.threadId : null,
           viewContext,
-        };
-        if (pendingThreadId !== null) {
-          args.threadId = pendingThreadId;
-        }
-        const created = await createAction(api, args);
+        });
         if (created.send.kind === "refused") {
           // A refusal costs nothing: the prompt stays, the composer stays
           // open, and the created thread is kept for the retry.
-          setPendingThreadId(created.threadId);
+          setPending({ threadId: created.threadId, docPath: attachedPath });
           toast.error(created.send.message);
           return;
         }
-        setPendingThreadId(null);
+        setPending(null);
         setText("");
         setMentions([]);
         onOpenChange(false);

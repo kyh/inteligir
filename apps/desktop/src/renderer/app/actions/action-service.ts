@@ -25,10 +25,10 @@ export interface CreateActionArgs {
   /** The note this action is about; null composes an unattached action. */
   docPath: string | null;
   viewContext: ViewContext | null;
-  /** A thread a refused first send already created. Given, the send lands in
-   * it: minting another on retry would leave an empty action behind every
-   * refusal. */
-  threadId?: string;
+  /** A thread a refused first send already created; null mints one. Given,
+   * the send lands in it: minting another on retry would leave an empty
+   * action behind every refusal. */
+  threadId: string | null;
 }
 
 export interface CreateActionResult {
