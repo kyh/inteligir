@@ -207,10 +207,12 @@ describe("evaluateThreadLifecycleEvent", () => {
     expect(THREAD_LIFECYCLE.stopping["run.preparing"]).toBeUndefined();
   });
 
-  it("declares predicates for every event type", () => {
-    for (const type of eventTypes) {
-      expect(THREAD_LIFECYCLE_EVENT_PREDICATES[type]).toBeDefined();
-    }
+  it("fuzzes every event type the predicate table declares", () => {
+    // The alphabet is spelled out so `randomEvent` stays an exhaustive switch
+    // over it; this is what fails when a type joins the union and not the fuzz.
+    expect([...eventTypes].toSorted()).toEqual(
+      Object.keys(THREAD_LIFECYCLE_EVENT_PREDICATES).toSorted(),
+    );
   });
 
   it("every reachable status can reach idle again", () => {

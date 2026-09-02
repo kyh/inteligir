@@ -110,7 +110,7 @@
     // today that is zero, and any that appears needs its own stated reason,
     // which is the point.
     "packages/editor": {
-      "entry": ["src/**/__tests__/**/*.test.ts", "src/**/*.test.{ts,tsx}"],
+      "entry": ["src/**/__tests__/**/*.test.{ts,tsx}"],
       "project": ["src/**/*.{ts,tsx}"],
       "includeEntryExports": true,
       "ignoreExportsUsedInFile": true
@@ -145,7 +145,7 @@
     // That is the right trade here: the contract is the surface, and a
     // procedure with no caller yet is a promise, not dead weight.
     "packages/api": {
-      "entry": ["src/**/__tests__/**/*.test.ts", "src/**/*.test.ts"],
+      "entry": ["src/**/__tests__/**/*.test.ts"],
       "project": ["src/**/*.ts"]
     },
     "packages/db": {

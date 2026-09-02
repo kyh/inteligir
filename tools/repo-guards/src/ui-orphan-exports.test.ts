@@ -22,19 +22,12 @@
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { z } from "zod";
 
 import { REPO_ROOT, sourceOf, workspaces, workspaceSourceFiles } from "./repo";
+import { GALLERY_DIR, sweptRoots, UI_DIR, UI_PACKAGE } from "./ui-package";
 
-const UI_DIR = "packages/ui";
-const UI_PACKAGE = "@repo/ui";
-
-/**
- * The component gallery imports EVERY component by design, so counting it as
- * a consumer would answer this guard's question before it was asked. A
- * gallery proves a component RENDERS, not that the product NEEDS it.
- */
-const NON_CONSUMER_DIRS = ["apps/desktop/src/renderer/app/gallery"];
+/** Importers that answer this guard's question before it was asked. */
+const NON_CONSUMER_DIRS = [GALLERY_DIR];
 
 /**
  * The Beautiful UI set is held WHOLE by owner decision: these have no product
@@ -90,32 +83,6 @@ const ALLOWED_EXPORTS = new Map<string, string>([
     "The consumed StreamingText's inline action chip — held with the Beautiful UI set for answer-with-actions turns.",
   ],
 ]);
-
-/** The swept roots, derived from the package's own exports map: every
- *  `./<dir>/*` wildcard row publishes `src/<dir>`, which is exactly the set of
- *  directories whose files are orphanable public entries. */
-function sweptRoots(): string[] {
-  const manifestPath = path.join(REPO_ROOT, UI_DIR, "package.json");
-  const parsed = z
-    .looseObject({ exports: z.record(z.string(), z.string()) })
-    .safeParse(JSON.parse(fs.readFileSync(manifestPath, "utf8")));
-  if (!parsed.success) {
-    throw new Error(`${manifestPath}: expected an "exports" map of subpath → file`);
-  }
-  const roots: string[] = [];
-  for (const [key, target] of Object.entries(parsed.data.exports)) {
-    const wildcard = /^\.\/([\w-]+)\/\*$/.exec(key);
-    if (wildcard?.[1] !== undefined && target.startsWith("./src/")) {
-      roots.push(wildcard[1]);
-    }
-  }
-  if (roots.length === 0) {
-    throw new Error(
-      `${manifestPath}: no "./<dir>/*" wildcard exports found — the guard has nothing to sweep`,
-    );
-  }
-  return roots;
-}
 
 const SOURCE_FILE = /\.tsx?$/;
 
