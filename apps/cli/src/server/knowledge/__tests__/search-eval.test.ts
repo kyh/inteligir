@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// The search evaluation harness — issue #570 stage 3.
+// The search evaluation harness.
 //
 // It exists to turn "how much of vault retrieval is still broken" into a
 // number, because every stage after this one (a reranker, an embedding index,
@@ -9,8 +9,8 @@
 //   pnpm --filter inteligir exec vitest run src/server/knowledge/__tests__/search-eval
 //
 // It scores the labelled corpus in search-eval-vault.ts three times — under
-// the AND-every-token expression this repo shipped before stage 1, under the
-// relaxed plan with no stemming, and under what it ships now — over the REAL
+// the AND-every-token expression, under the relaxed plan with no stemming,
+// and under what the store runs — over the REAL
 // store, so the numbers are FTS5's and bm25's rather than a model of them.
 // Each column is one policy's whole contribution, which is the point: a stage
 // that does not move these numbers is not worth its weight.
@@ -50,7 +50,7 @@ const REACHABLE = 200;
 /** What a search policy answers: ranked paths, best first. */
 type Retrieve = (query: string, limit: number) => string[];
 
-/** The expression this repo shipped BEFORE stage 1: every token quoted and
+/** The AND-every-token expression: every token quoted and
  * ANDed, the last one prefix-matched. Frozen — it is the baseline the report
  * measures against, so it must stay what shipped rather than track what the
  * store does now. The tokenizer is inlined for the same reason. */
@@ -62,7 +62,7 @@ function legacyMatchExpression(query: string): string | null {
     .join(" ");
 }
 
-/** The relaxed plan rendered over the LITERAL columns only — stage 1 without
+/** The relaxed plan rendered over the LITERAL columns only — the ladder without
  * the stem shadow. The literal columns are still indexed, so the intermediate
  * stays RUNNABLE rather than becoming a number in an old commit message, and
  * what stemming bought is a column of this report instead of a claim. */

@@ -1,6 +1,6 @@
 // The sync loop's own behaviour, against `FakeCloud` — the contract's rules
-// over Maps. What each case pins is a promise made in issue #572 that no unit
-// below the runtime can keep on its own.
+// over Maps. What each case pins is a promise of the sync contract that no
+// unit below the runtime can keep on its own.
 
 import { ACCOUNT_API_PATHS } from "@repo/api/cloud/account/account-schema";
 import { CAPTURE_API_PATHS } from "@repo/api/cloud/captures/captures-schema";

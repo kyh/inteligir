@@ -53,7 +53,7 @@ describe("buildContentSecurityPolicy", () => {
   });
 
   it("names no remote image host, so a note cannot phone one on open", () => {
-    // The editor renders `![](src)` embeds, so this directive is now what
+    // The editor renders `![](src)` embeds, so this directive is what
     // decides whether a note can reach a third party by being LOOKED at. A
     // vault image is 'self'; a remote one is refused and the widget shows the
     // embed's own bytes. Pinned because widening it is a privacy decision.

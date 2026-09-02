@@ -1,7 +1,8 @@
 // The cloud wire's vault-path grammar IS the vault engine's own
-// (`parseVaultPath`, verbatim). One corpus through both deciders keeps them in
-// lockstep; the expectation is DERIVED from the engine, so a value they
-// disagree on is named rather than hand-listed.
+// (`parseVaultPath`, taken verbatim): a hand-rolled copy drifts in exactly the
+// cases that matter (`.GIT/hooks/x`, `a\b`), so one corpus goes through both
+// deciders to keep them in lockstep; the expectation is DERIVED from the
+// engine, so a value they disagree on is named rather than hand-listed.
 
 import { parseVaultPath } from "@repo/notes/knowledge/vault-path";
 import { describe, expect, it } from "vitest";

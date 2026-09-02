@@ -1,4 +1,4 @@
-// Discovery is now a FILE READ, so what there is to pin is which data dir the
+// Discovery is a FILE READ, so what there is to pin is which data dir the
 // CLI decides it means, and that a missing or unreadable row fails closed with
 // a sentence a user can act on rather than dialing something.
 

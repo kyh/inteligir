@@ -195,14 +195,14 @@ interface UiFile {
 function uiFiles(): UiFile[] {
   const found: UiFile[] = [];
   for (const root of sweptRoots()) {
-    const rootDir = path.join(REPO_ROOT, UI_DIR, "src", root);
+    const rootDir = path.join(REPO_ROOT, UI_DIR, "src", root.dir);
     if (!fs.existsSync(rootDir)) continue;
     for (const entry of fs.readdirSync(rootDir, { withFileTypes: true })) {
       if (!entry.isFile() || !SOURCE_FILE.test(entry.name)) continue;
       const name = entry.name.replace(SOURCE_FILE, "");
       found.push({
-        file: `${UI_DIR}/src/${root}/${entry.name}`,
-        specifier: `${UI_PACKAGE}/${root}/${name}`,
+        file: `${UI_DIR}/src/${root.dir}/${entry.name}`,
+        specifier: `${UI_PACKAGE}/${root.subpath}/${name}`,
       });
     }
   }

@@ -725,7 +725,7 @@ describe("--json failures", () => {
 
 describe("a server that stopped answering", () => {
   it("classifies a refused dial as SERVER_UNREACHABLE / exit 3", async () => {
-    // The stale-file path #611 states: a crash leaves server.json behind, so
+    // The stale-file path: a crash leaves server.json behind, so
     // discovery finds a row and the dial reaches a DEAD port. The refused
     // connection must read as SERVER_UNREACHABLE (exit 3) — the class the served
     // guide teaches agents to branch on — not the raw ECONNREFUSED it rests on,

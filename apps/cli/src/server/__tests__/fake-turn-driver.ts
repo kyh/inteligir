@@ -1,5 +1,5 @@
-// Test-only turn driver: proves the flow without a provider (#549 owns the
-// real adapter). Everything it emits goes through the SAME ingest path a
+// Test-only turn driver: proves the flow without a provider — the ACP runtime
+// owns the real adapter. Everything it emits goes through the SAME ingest path a
 // real adapter reports into, so sequences are server-assigned and lifecycle
 // events fire exactly as they will in production.
 

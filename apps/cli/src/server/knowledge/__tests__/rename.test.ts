@@ -94,7 +94,7 @@ describe("rename with link rewrite", () => {
       to: "note.md",
     });
 
-    // `[[note]]` used to reach a/note.md; the new root note.md would shadow
+    // `[[note]]` resolved to a/note.md before the move; the new root note.md would shadow
     // it, so the link is qualified to keep meaning what it meant.
     expect(readFileSync(join(root, "s.md"), "utf8")).toBe("Ref [[a/note]] here.\n");
     const backlinks = await knowledge.backlinks("a/note.md");

@@ -1,5 +1,5 @@
-// TWO INSTALLS, ONE ACCOUNT — issue #572's second acceptance, and the only
-// test here that drives the WHOLE stack: the real thread service, the real
+// TWO INSTALLS, ONE ACCOUNT — the only test here that drives the WHOLE stack:
+// the real thread service, the real
 // ingest, the real routes, on two separate databases and vaults, against one
 // `FakeCloud`.
 //
@@ -38,7 +38,7 @@ async function bootInstall(
 }
 
 /**
- * Pair an install the way a user does (issue #573), through the composed app
+ * Pair an install the way a user does, through the composed app
  * rather than the runtime: `cloud.pairBegin` over the typed client, then the
  * callback a browser would follow — a plain `GET` on the loopback route, with
  * the state read off the approve URL exactly as the approve page reads it.

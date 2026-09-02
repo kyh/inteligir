@@ -165,7 +165,7 @@ describe("inline combobox cancel safety (the about:blank crash class)", () => {
   });
 });
 
-describe("reconcileInsertionCaret (the #367 first-commit caret quirk)", () => {
+describe("reconcileInsertionCaret (the first-commit caret quirk)", () => {
   // Chromium's first IME-style commit into the freshly focused input leaves
   // the caret BEFORE the inserted text; every later keystroke then lands one
   // run too early ('deep' → 'eepd', ':tada' → 'adat').

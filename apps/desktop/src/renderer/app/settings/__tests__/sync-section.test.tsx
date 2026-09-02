@@ -50,7 +50,7 @@ describe("the pair prompt", () => {
       />,
     );
     expect(screen.getByRole("button", { name: "Pair with browser" })).toBeDefined();
-    // The whole point of issue #573: there is nowhere left to type a code.
+    // Browser-approved pairing: there is nowhere left to type a code.
     expect(screen.queryByRole("textbox")).toBeNull();
   });
 

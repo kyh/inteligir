@@ -1,4 +1,4 @@
-// The browser-facing half of browser-approve pairing (issue #573), driven
+// The browser-facing half of browser-approve pairing, driven
 // through the COMPOSED app — because the things worth pinning here are the
 // route's, not the runtime's: what a drive-by GET on a loopback route does,
 // what address the redirect is aimed at, and what the browser is handed back.
