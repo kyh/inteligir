@@ -19,19 +19,16 @@ describe("createApprovalSlot", () => {
     const slot = slotWith();
     const state = slot.arm("payload");
     expect(state).toMatch(PAIR_STATE_PATTERN);
-    expect(slot.isPending()).toBe(true);
 
     expect(slot.claim(state)).toStrictEqual({ kind: "claimed", payload: "payload" });
     // Consumed by its own claim: a replayed callback completes nothing.
     expect(slot.claim(state)).toStrictEqual({ kind: "no-pending" });
-    expect(slot.isPending()).toBe(false);
   });
 
   it("refuses a wrong state WITHOUT spending the armed approval", () => {
     const slot = slotWith();
     const state = slot.arm("payload");
     expect(slot.claim("f".repeat(32))).toStrictEqual({ kind: "state-mismatch" });
-    expect(slot.isPending()).toBe(true);
     expect(slot.claim(state)).toStrictEqual({ kind: "claimed", payload: "payload" });
   });
 
@@ -61,7 +58,6 @@ describe("createApprovalSlot", () => {
     const slot = slotWith();
     const state = slot.arm("payload");
     slot.clear();
-    expect(slot.isPending()).toBe(false);
     expect(slot.claim(state)).toStrictEqual({ kind: "no-pending" });
   });
 });

@@ -105,7 +105,6 @@ export interface PairingFlow {
   begin(args: PairingBeginArgs): Promise<PairingBegin>;
   /** Redeem `code`, but only for the approval this app is actually waiting on. */
   complete(callback: PairCallback): Promise<PairCompletion>;
-  isPending(): boolean;
   /** Drop any armed approval (the user cancelled, an unpair, a teardown). */
   cancel(): void;
 }
@@ -154,16 +153,8 @@ export function createPairingFlow(args: PairingFlowArgs): PairingFlow {
       if (!redeemed.ok) {
         return { kind: "refused", failure: redeemed.failure };
       }
-      return {
-        kind: "paired",
-        credential: {
-          deviceId: redeemed.value.deviceId,
-          credential: redeemed.value.credential,
-        },
-      };
+      return { kind: "paired", credential: redeemed.value };
     },
-
-    isPending: () => slot.isPending(),
 
     cancel: () => slot.clear(),
   };

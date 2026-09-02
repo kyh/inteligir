@@ -53,9 +53,9 @@ export const DEVICE_CREDENTIAL_PATTERN = /^igd_[0-9a-f]{64}$/;
 // the app, so an intercepted code alone cannot be spent.
 //
 // One spelling of the transform, here, because both ends compute it: the app at
-// begin, the cloud at redeem. Web crypto globals only (`crypto`,
-// `TextEncoder`, `btoa`) — this leaf runs on workerd, Node and the browser, and
-// all three carry them.
+// begin, the cloud at redeem. The primitives are the web-crypto globals
+// (`crypto`, `TextEncoder`, `btoa`) by default — workerd, Node and the browser
+// carry them — and injected where Hermes does not.
 
 /** 32 random bytes as base64url — 43 chars, inside RFC 7636's 43–128 range. */
 export const PKCE_VERIFIER_BYTES = 32;
@@ -64,11 +64,9 @@ export const PKCE_VERIFIER_BYTES = 32;
  *  challenge (SHA-256 is 32 bytes → 43 base64url chars). */
 export const PKCE_S256_PATTERN = /^[A-Za-z0-9_-]{43}$/;
 
-/** Byte array → base64url with no padding — the exact encoding
- *  `PKCE_S256_PATTERN` admits. `btoa` is a global on workerd, node, the
- *  browser and Hermes (RN 0.74+), so this one spelling runs everywhere the
- *  contract does. */
-export function base64UrlFromBytes(bytes: Uint8Array): string {
+/** `btoa` is a global on workerd, node, the browser and Hermes (RN 0.74+), so
+ *  one spelling of base64url runs everywhere the contract does. */
+function base64UrlFromBytes(bytes: Uint8Array): string {
   let binary = "";
   for (const byte of bytes) {
     binary += String.fromCharCode(byte);
@@ -100,27 +98,26 @@ export interface PkcePair {
   challenge: string;
 }
 
-/** A fresh verifier + its S256 challenge over the injected primitives —
- *  pinned against {@link pkceChallengeS256}, so the two spellings of the
- *  transform cannot drift. */
-export async function createPkcePair(crypto: PkceCrypto = webPkceCrypto): Promise<PkcePair> {
-  const verifier = base64UrlFromBytes(crypto.randomBytes(PKCE_VERIFIER_BYTES));
-  const challenge = base64UrlFromBytes(await crypto.sha256(verifier));
-  return { verifier, challenge };
-}
-
 /** A fresh code verifier — the secret that never leaves the app. */
-export function generatePkceVerifier(): string {
-  const bytes = new Uint8Array(PKCE_VERIFIER_BYTES);
-  crypto.getRandomValues(bytes);
-  return base64UrlFromBytes(bytes);
+export function generatePkceVerifier(
+  crypto: Pick<PkceCrypto, "randomBytes"> = webPkceCrypto,
+): string {
+  return base64UrlFromBytes(crypto.randomBytes(PKCE_VERIFIER_BYTES));
 }
 
 /** `BASE64URL(SHA-256(ASCII(verifier)))` — the S256 challenge, computed the
  *  same way on both ends so a compare is meaningful. */
-export async function pkceChallengeS256(verifier: string): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier));
-  return base64UrlFromBytes(new Uint8Array(digest));
+export async function pkceChallengeS256(
+  verifier: string,
+  crypto: Pick<PkceCrypto, "sha256"> = webPkceCrypto,
+): Promise<string> {
+  return base64UrlFromBytes(await crypto.sha256(verifier));
+}
+
+/** A fresh verifier + its S256 challenge. */
+export async function createPkcePair(crypto: PkceCrypto = webPkceCrypto): Promise<PkcePair> {
+  const verifier = generatePkceVerifier(crypto);
+  return { verifier, challenge: await pkceChallengeS256(verifier, crypto) };
 }
 
 export const mintPairingCodeResponseSchema = z
@@ -167,29 +164,25 @@ export const redeemDeviceRequestSchema = z
   .strict();
 export type RedeemDeviceRequest = z.infer<typeof redeemDeviceRequestSchema>;
 
-/** The credential appears here ONCE, in plaintext; the server keeps only its
- * hash. Losing it means revoking the device and pairing again. */
-export const redeemDeviceResponseSchema = z
-  .object({
-    deviceId: z.string().min(1),
-    credential: z.string().regex(DEVICE_CREDENTIAL_PATTERN),
-  })
-  .strict();
-export type RedeemDeviceResponse = z.infer<typeof redeemDeviceResponseSchema>;
-
 /** The device credential AT REST — parsed rather than trusted on every read,
  * because the boundary is between bytes on a store anyone with the machine
  * could edit and a value a runtime puts in an `Authorization` header: a
  * malformed record must read as "not paired", never as a credential the cloud
  * refuses on every request forever. The CLI extends it with the account id
  * its vault fence learns later; the phone stores exactly this. */
-export const deviceCredentialSchema = z
-  .object({
-    deviceId: z.string().min(1),
-    credential: z.string().regex(DEVICE_CREDENTIAL_PATTERN),
-  })
-  .strict();
+const deviceCredentialFields = {
+  deviceId: z.string().min(1),
+  credential: z.string().regex(DEVICE_CREDENTIAL_PATTERN),
+};
+export const deviceCredentialSchema = z.object(deviceCredentialFields).strict();
 export type DeviceCredential = z.infer<typeof deviceCredentialSchema>;
+
+/** The credential appears here ONCE, in plaintext; the server keeps only its
+ * hash. Losing it means revoking the device and pairing again. The redeem
+ * answers exactly the record a device stores — the one field list above, so
+ * the wire and the store cannot drift. */
+export const redeemDeviceResponseSchema = z.object(deviceCredentialFields).strict();
+export type RedeemDeviceResponse = z.infer<typeof redeemDeviceResponseSchema>;
 
 // GET /v1/device/list (session-authed). Revoked devices stay listed — the
 // dashboard is the audit surface, and a row vanishing on revoke would erase

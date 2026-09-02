@@ -498,19 +498,29 @@ describe("PKCE (S256)", () => {
     expect(await pkceChallengeS256(verifier)).toBe("E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM");
   });
 
-  it("assembles the same challenge through injected primitives as its own transform", async () => {
-    // The phone injects expo-crypto here; if the assembly drifts from the
-    // transform the cloud computes at redeem, an intercepted code becomes
-    // spendable. Node's web crypto stands in for the injected pair.
+  it("mints the pair through the injected primitives — RFC 7636's octets in, its vector out", async () => {
+    // The phone injects expo-crypto here, because Hermes carries no web
+    // crypto; a pair minted past the seam would throw there, so both halves
+    // are pinned to have gone through it.
+    const hashed: string[] = [];
     const injected: PkceCrypto = {
-      randomBytes: (length) => crypto.getRandomValues(new Uint8Array(length)),
-      sha256: async (input) =>
-        new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(input))),
+      randomBytes: () =>
+        new Uint8Array([
+          116, 24, 223, 180, 151, 153, 224, 37, 79, 250, 96, 125, 216, 173, 187, 186, 22, 212, 37,
+          77, 105, 214, 191, 240, 91, 88, 5, 88, 83, 132, 141, 121,
+        ]),
+      sha256: async (input) => {
+        hashed.push(input);
+        return new Uint8Array(
+          await crypto.subtle.digest("SHA-256", new TextEncoder().encode(input)),
+        );
+      },
     };
-    for (const pair of [await createPkcePair(injected), await createPkcePair()]) {
-      expect(pair.verifier).toMatch(PKCE_S256_PATTERN);
-      expect(pair.challenge).toBe(await pkceChallengeS256(pair.verifier));
-    }
+    expect(await createPkcePair(injected)).toStrictEqual({
+      verifier: "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk",
+      challenge: "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM",
+    });
+    expect(hashed).toEqual(["dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"]);
   });
 
   it("mint demands an S256 challenge, and refuses a plain or absent one", () => {

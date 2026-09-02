@@ -37,7 +37,6 @@ export interface ApprovalSlot<T> {
    *  CONSUMES the slot before the caller exchanges anything; expiry consumes
    *  it too; a mismatch leaves it armed. */
   claim(state: string): ApprovalClaim<T>;
-  isPending(): boolean;
   /** Disarm without a callback (the user cancelled, an unpair, a teardown). */
   clear(): void;
 }
@@ -68,10 +67,6 @@ export function createApprovalSlot<T>(args: ApprovalSlotArgs): ApprovalSlot<T> {
       }
       pending = null;
       return { kind: "claimed", payload: current.payload };
-    },
-
-    isPending() {
-      return pending !== null;
     },
 
     clear() {

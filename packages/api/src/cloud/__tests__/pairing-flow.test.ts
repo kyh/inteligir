@@ -80,7 +80,6 @@ describe("begin", () => {
     expect(url.searchParams.get(PAIR_APPROVE_PARAMS.challenge)).toMatch(PKCE_S256_PATTERN);
     expect(begun.deviceName).toBe("Test Laptop");
     expect(begun.expiresInMs).toBe(PENDING_PAIR_TTL_MS);
-    expect(flow.isPending()).toBe(true);
   });
 });
 
@@ -114,7 +113,6 @@ describe("complete", () => {
       kind: "no-pending",
     });
     expect(redeem.calls).toHaveLength(1);
-    expect(flow.isPending()).toBe(false);
   });
 
   it("refuses a wrong state WITHOUT consuming the approval, and without a redeem", async () => {
@@ -179,7 +177,6 @@ describe("complete", () => {
     const flow = flowWith(redeem.fetch);
     const begun = await flow.begin({ redirect: REDIRECT, deviceName: "Laptop" });
     flow.cancel();
-    expect(flow.isPending()).toBe(false);
     expect(await flow.complete({ code: "ABCD-EFGH", state: stateOf(begun.url) })).toStrictEqual({
       kind: "no-pending",
     });
