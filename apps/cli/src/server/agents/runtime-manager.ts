@@ -15,12 +15,11 @@
 //   ingest grammar (turn/started if none was bound, provider/error,
 //   turn/completed failed), so the thread lands in `error` instead of
 //   wedging in `starting`.
-// - INTERACTIONS: the runtime's onInteractiveRequest is the producer for
-//   pending_interactions — the row is created (idempotent on the provider's
-//   request key), the ws invalidation rides the notifier, and the promise
-//   parks until the answer route resolves the row (the service calls
-//   onInteractionResolved) or the turn settles, which interrupts open rows
-//   and answers the provider with a deny.
+// - INTERACTIONS: the driver binds a provider request to the host turn id
+//   and hands it to interaction-waiters.ts, which owns the row, the parked
+//   promise and its clock; the answer route reaches it through
+//   onInteractionResolved, and a settle cancels that thread's waiters and
+//   interrupts its open rows.
 // - WRITES: a turn takes the vault's commit hold at dispatch and the settle
 //   path commits the recorded write set as the agent — see agent-commits.ts
 //   for the race design.
@@ -121,7 +120,8 @@ export interface AcpRuntimeManagerDeps {
   spawnAdapter?: AcpAgentRuntimeOptions["spawnAdapter"];
   /** The enabled connector rows every session gets. */
   mcpServers: () => AcpMcpServerConfig[] | Promise<AcpMcpServerConfig[]>;
-  /** Tests: observe/replace runtime construction (the shellEnv wiring test). */
+  /** Tests: replace runtime construction with a fake (the watchdog and
+   *  shell-env suites). */
   createRuntime?: typeof createAcpAgentRuntime;
   /** null disables the reap interval (tests drive reaping directly). */
   reapIntervalMs?: number | null;

@@ -638,7 +638,7 @@ export class ThreadService implements ProviderEventSink {
   }
 
   /**
-   * Crash recovery, run at construction: this process just booted, so no
+   * Crash recovery, run from `boot()`: this process just booted, so no
    * turn driver claim is live — any thread still marked running is an orphan
    * of a previous process. run.failed is legal from starting, active and
    * stopping alike, and it names the orphaned turn so the CAS matches by
