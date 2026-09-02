@@ -207,15 +207,19 @@ function collectScopes(node: HastNode, into: Set<string>): void {
 /** Small but deliberate: together these snippets emit every scope the theme
  *  names, so the theme↔emission comparison can run both directions. A
  *  grammar update that starts emitting a new scope fails the suite, which is
- *  the moment to decide the scope's colour rather than render it colourless. */
+ *  the moment to decide the scope's colour rather than render it colourless.
+ *  The pin reaches only the grammars a snippet here exercises — a scope some
+ *  other shipped grammar emits is caught the day a snippet for it lands. */
 const HIGHLIGHT_CORPUS = {
   css: "a.b#c[href]:hover::before { color: #fff; margin: 1px !important; }",
   diff: "--- a\n+++ b\n@@ -1 +1 @@\n-old\n+new",
   go: 'type T struct { x int }\nfunc main() { fmt.Println("hi", 1, nil) }',
   json: '{"a": [1, true, null]}',
   markdown: "# Title\n> quote\n- **strong** _em_ `code` [link](http://x)",
+  php: "class A extends B { public $x; }",
   python: 'def f(x: int = 1) -> None:\n    """doc"""\n    print(f"{x}")',
   ruby: ':sym\ndef f(a) puts "#{a}" end',
+  sql: "SELECT a FROM t WHERE a > 1 AND b IS NOT NULL",
   typescript: [
     "// note",
     "/** @param x */",
@@ -223,6 +227,7 @@ const HIGHLIGHT_CORPUS = {
     "  const s = `t ${x}`;",
     '  if (x === null || true) return await new Map<string, T>().get("k");',
     "  class C extends B { #p = /re+/g; get z() { return this.#p; } }",
+    "  document.body.innerHTML = a?.b;",
     "  return x;",
     "}",
   ].join("\n"),

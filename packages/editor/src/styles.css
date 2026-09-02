@@ -43,10 +43,13 @@
 /* Code-block syntax colours for lowlight's `.hljs-*` token classes (emitted
    by CodeSyntaxPlugin, kits/code-block-kit.tsx). Six roles, desaturated to
    sit inside the monochrome UI: chroma low enough that a code block reads as
-   part of the page, lightness set per theme's ground. The theme names EVERY
-   scope the shipped grammars emit — pinned by the guard — because a scope
-   left unnamed renders colourless by accident, so the ones that deliberately
-   ride the foreground say so. */
+   part of the page, lightness set per theme's ground. The theme names every
+   scope the guard's corpus emits (__tests__/style-hooks.test.ts
+   HIGHLIGHT_CORPUS), in both directions: a scope the corpus emits and the
+   theme leaves unnamed fails, because it would render colourless by
+   accident, and so does a rule over a scope the corpus never emits. Grammars
+   outside the corpus are unpinned — add a snippet to widen the pin. The
+   scopes that deliberately ride the foreground say so. */
 :root {
   --syntax-keyword: oklch(0.5 0.12 20);
   --syntax-string: oklch(0.47 0.09 155);
@@ -63,11 +66,15 @@
 }
 /* Deliberately on the foreground: colouring every token leaves nothing to
    stand out. FIRST, because Plate flattens ancestor scopes onto every leaf
-   (`hljs-function hljs-keyword`, `hljs-params hljs-type`) and these are the
-   container scopes — at equal specificity the cascade is source order, so a
-   container's rule placed last would uncolour everything inside it. */
+   (`hljs-function hljs-keyword`, `hljs-params hljs-type`, `hljs-class
+   hljs-title`) and class/function/params/subst are container scopes — at
+   equal specificity the cascade is source order, so a container's rule placed
+   last would uncolour everything inside it. */
+.hljs-class,
 .hljs-function,
+.hljs-operator,
 .hljs-params,
+.hljs-property,
 .hljs-punctuation,
 .hljs-subst {
   color: inherit;
