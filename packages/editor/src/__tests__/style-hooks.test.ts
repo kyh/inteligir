@@ -58,6 +58,11 @@ function readStylesheet() {
   return { rules, unparsed: css.replace(RULE, "").trim() };
 }
 
+/** The value a rule's `color:` declaration sets, if it sets one. */
+function colourOf(rule: Rule): string | undefined {
+  return /(?:^|;)\s*color\s*:\s*([^;]+)/u.exec(rule.body)?.[1]?.trim();
+}
+
 /** A rule that only declares custom properties (the `:root`/`.dark` syntax
  *  palette) defines tokens, not behaviour — its selector is theme plumbing,
  *  not a hook. */
@@ -170,7 +175,6 @@ describe("editor style hooks", () => {
     const theme = readStylesheet().rules.filter((rule) =>
       rule.selector.includes(`.${HLJS_PREFIX}`),
     );
-    const colourOf = (rule: Rule) => /(?:^|;)\s*color\s*:\s*([^;]+)/u.exec(rule.body)?.[1]?.trim();
     const lastInherit = theme.findLastIndex((rule) => colourOf(rule) === "inherit");
     const firstColoured = theme.findIndex((rule) => {
       const colour = colourOf(rule);
