@@ -1,7 +1,10 @@
 # @repo/ui
 
-Shared web UI. Stock shadcn on Base UI, Fluid Functionalism primitives and
-system helpers, Beautiful UI AI surfaces, and a small local layer.
+Shared web UI on Base UI: the shadcn components, the Fluid Functionalism
+sidebar and system helpers, and the Beautiful UI surfaces in `ai/`. Every
+origin was vendored once and the code is this repo's own now — it obeys this
+repo's rules, not upstream's shape; what survives of the origin is the MIT
+attribution header on each file.
 
 ## Consumers
 
@@ -21,7 +24,7 @@ src/ai/          Beautiful UI components
 src/hooks/       shared hooks
 src/lib/         UI system helpers and controlled theme provider
 src/styles/      Tailwind theme, Geist fonts, typeset styles
-components.json  shadcn config: base-rhea, zinc, preset beqC8BzG
+components.json  shadcn config: base-rhea, zinc, the @fluid registry
 ```
 
 ## Invariants
@@ -57,7 +60,10 @@ document-class effect races the others.
 
 ## Verification
 
-`pnpm --filter @repo/ui test` runs the no-orphan component guard. Knip cannot
-find these orphans because the component export wildcard makes each file look
-like intentional public API. Consumer tests cover behavior; package type safety
-is `pnpm --filter @repo/ui typecheck`.
+`pnpm --filter @repo/ui test` runs the lib helpers' suites. The orphan
+invariant lives in `tools/repo-guards/src/ui-orphan-exports.test.ts`, PER
+EXPORT: every named export under the wildcard-exported directories needs a
+consumer outside the gallery or a reasoned allowance row. Knip alone cannot
+ask that — the export wildcard makes each file look like intentional public
+API. Consumer tests cover behavior; package type safety is
+`pnpm --filter @repo/ui typecheck`.

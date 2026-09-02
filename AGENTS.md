@@ -31,7 +31,8 @@ worktrees never collide and every command in one checkout names one instance;
 `INTELIGIR_PORT` and `INTELIGIR_DATA_DIR` override. SQLite lives at
 `<data-dir>/inteligir.db` (dev default: `~/.inteligir-dev/<hash>/`).
 
-Requirements: **Node ≥ 24** and **pnpm 10** (`corepack enable`).
+Requirements: **Node 24** and **pnpm 12** (`corepack enable` reads the
+root `packageManager`).
 (`.codex/environments/environment.toml` runs `pnpm i` for cloud runners.)
 
 The agent RUNTIME is selected by `INTELIGIR_AGENT` (`auto` · `scripted` ·
@@ -150,14 +151,18 @@ apps/cli                 THE PUBLISHED BINARY: `serve` is the whole
 apps/web                 ONE CF Worker: marketing + Better Auth (D1) @repo/web
 apps/mobile              Expo: threads, captures and a read-only
                          notes surface over the hosted vault    @repo/mobile
+packages/domain          zod-only leaf vocabulary: view context,
+                         provider events                           @repo/domain
 packages/api             ONE contract, TWO entries: /local and
                          /cloud                                      @repo/api
 packages/db              drizzle + better-sqlite3, migrations,
                          DbNotifier, ids                             @repo/db
 packages/agent-runtime   The ACP runtime: one adapter, harness rows @repo/agent-runtime
+packages/agent-skills    The dialect spec, as files agents read   @repo/agent-skills
 packages/notes           Pure domain — knowledge + markdown          @repo/notes
 packages/editor          The Plate WYSIWYG over the serializer      @repo/editor
-packages/ui              Shared components (vendored shadcn)         @repo/ui
+packages/ui              Shared components on Base UI — this repo's
+                         own code, MIT headers kept                  @repo/ui
 tools/repo-guards        Fitness tests over the repo: the dep DAG, ws
                          change kinds, CI parity, dangling refs     @repo/repo-guards
 tools/e2e                The scenario suite `pnpm e2e` drives           @repo/e2e

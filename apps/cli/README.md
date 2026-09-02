@@ -61,7 +61,8 @@ agent shells are given.
 
 ## Command surface
 
-`serve` · `vault list|read|write|rename|delete|mkdir|status|sync` ·
+`serve` · `vault
+list|read|history|revision|restore|write|rename|delete|mkdir|status|sync` ·
 `search` (`tag:` terms pass through) · `backlinks` · `related` · `tags` ·
 `action list|new|send|show|wait|archive` · `comment` · `interactions
 list|answer` · `connectors` · `folders` · `trash` · `sync` · `status` ·

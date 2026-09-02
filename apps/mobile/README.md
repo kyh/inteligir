@@ -20,15 +20,18 @@ src/
     sync-store.ts          the storage PORT (pull cursor + applied thread log)
     memory-sync-store.ts   the in-memory implementation (v1 runtime + the test fake)
     thread-log.ts          execute a planned page (@repo/api/cloud/sync/plan-page plans it)
-    sync-runtime.ts        the session-fenced, single-flight pull loop
+    sync-runtime.ts        the pull loop over the contract's own session machine
+                           (@repo/api/cloud/sync/sync-session); publishes the
+                           status store the screens subscribe to
     thread-projection.ts   fold a thread's events into display rows
   credential/   the device credential at rest
     credential-codec.ts        parse/serialize + the wire pattern
     credential-store.ts        the port
     secure-store-credential.ts expo-secure-store adapter (Keychain/Keystore)
   pairing/      browser-approve pairing, from the phone
-    pkce.ts             pure PKCE assembly over injected crypto
-    pairing-manager.ts  beginPair/completePair (state + PKCE, pure)
+    pairing-flow.ts     the screen's state machine (idle | pairing | failed) over
+                        the contract's pairing machine
+                        (@repo/api/cloud/pairing/pairing-flow)
     expo-pairing.ts     expo-crypto / expo-linking / expo-web-browser wiring
   notes/        the vault read surface (#618)
     notes-store.ts      tree + cached note reads + wiki resolver (pure, unit-tested)
@@ -36,7 +39,8 @@ src/
     expo-note-cache.ts  expo-file-system adapter ((commit, path)-keyed, durable)
     note-projection.ts  dialect markdown → typed blocks (pure, unit-tested)
     markdown-view.tsx   projected blocks → RN elements (the thin half)
-  lib/          composition root + hooks (app-runtime.ts), theme, cloud URL
+  lib/          composition root + hooks (app-runtime.ts), the external
+                store the runtimes publish through, theme, cloud URL
   app/          expo-router screens: thread list + quick-capture, a thread
                 view, the notes list + read-only note view
 ```
@@ -91,15 +95,17 @@ custom scheme `inteligir://pair/callback` instead of
 judged field-by-field with no wildcards, so the production approve page
 completes this redirect. The flow:
 
-1. `pairing-manager.beginPair` mints a single-use `state` and a PKCE verifier
-   (the secret stays on the phone), and builds the account's approve URL with the
-   S256 challenge.
+1. The contract's pairing machine (`@repo/api/cloud/pairing/pairing-flow`,
+   the same one the desktop runs) mints a single-use `state` and a PKCE
+   verifier (the secret stays on the phone), and builds the account's approve
+   URL with the S256 challenge.
 2. `expo-web-browser` opens it; the browser redirects back to the deep-link (the
    global `expo-linking` listener and `openAuthSessionAsync` both route into
-   `completePair`).
-3. `completePair` verifies the state (constant-time, consumed **before** the
+   the flow's `complete`).
+3. `complete` verifies the state (constant-time, consumed **before** the
    redeem) and redeems the code with the verifier — so an intercepted code alone
-   cannot be spent.
+   cannot be spent. A failure on either path lands in the one store the screen
+   reads, so it is shown rather than dropped.
 
 **The residual, stated:** the allowlist cannot stop another app from registering
 the `inteligir://` scheme on the same OS — a squatter can receive the redirect,

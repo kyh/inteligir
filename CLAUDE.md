@@ -303,11 +303,13 @@ command is `db:push:local`.
   by a commit — while the lock they would take is the chain a whole sync pass
   holds, its 120-second network timeout included. The residual: a read landing
   inside a rebase sees that rebase's temporary HEAD.
-  Three `git log` flags make the answer depend on the repo rather than the
+  Four `git log` flags make the answer depend on the repo rather than the
   user's git config, and each is load-bearing: `--literal-pathspecs` (a
   pathspec is a GLOB — a note called `[a].md` otherwise reports `a.md`'s
   history, and `*.md` reports the whole vault's, whose bytes a restore would
-  then write into it), `--root` and `--no-show-signature`. A commit reports
+  then write into it), `-c diff.renames=true` (`--follow` IS rename
+  detection, and a user who turned it off globally would get the truncation
+  with no sign), `--root` and `--no-show-signature`. A commit reports
   MORE THAN ONE name-status tuple for one followed path (a note that became a
   folder and a note again), so the parse consumes the whole block; a commit
   whose every tuple is a deletion is dropped, because every row this surface
@@ -353,8 +355,9 @@ pull` from a hostile remote is enough to plant one.
   ACTION is an ordinary thread ATTACHED to the note it was composed over
   (`threads.originDocPath` alone). The agent edits the vault directly, and
   ANCHORED COMMENTS are the review channel (#583): the panel's Actions |
-  Comments | Properties tabs are the transcript, review and metadata surfaces;
-  approvals answer inline.
+  Comments | History tabs are the transcript, review and revision surfaces,
+  with the frontmatter properties inlined above them; approvals answer
+  inline.
   The palette moved to ⌘P; ⌘\ is zen. The selection toolbar's "Ask agent"
   seeds the composer with the quoted selection through a module-store seam
   the app registers — the editor package never imports the shell.
@@ -478,7 +481,7 @@ body_stems` at the same bm25 weights, and `@repo/notes/knowledge/search-query`
   capitalization. Do not bolt whisper back on to fix that — the two were weighed
   and the live partials won.
 - **ONE MODEL, BOTH PATHS.** The mic streams over a websocket; the batch
-  `POST /voice/transcribe` stays for a whole-clip caller (scripted mode, any
+  `voice.transcribe` procedure stays for a whole-clip caller (scripted mode, any
   non-interactive path) and feeds the SAME engine — it pushes the clip through a
   stream and reads the final. The model is the int8 variant
   (`…-480ms-int8`, ~106 MB download vs 450 MB fp32, the size the one-model path
@@ -920,7 +923,7 @@ export` over `src/worker/db/schema.ts`. A second deployer or a destructive
   (`tools/repo-guards`), route-table completeness
   (`apps/cli/src/server/__tests__/http-surface.test.ts`), migration↔schema
   agreement (`packages/db/src/__tests__/schema-agreement.test.ts`),
-  no-orphan-components, the CLI guide and its `--json`
+  the per-export orphan guard over `@repo/ui`, the CLI guide and its `--json`
   flags, the editor's buffer invariant. A test that fails when a THIRD dispatch
   path appears is worth more than a percentage a suite asserting nothing can
   satisfy. If coverage is ever added: `coverage.include` is MANDATORY in

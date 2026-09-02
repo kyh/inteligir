@@ -6,7 +6,7 @@ the runnable quickstart for coding agents.
 
 ## Prerequisites
 
-- Node ≥ 24, pnpm 10 (`corepack enable`)
+- Node 24, pnpm 12 (`corepack enable` reads the root `packageManager`)
 - `pnpm install` at the repo root (workspace-wide)
 - For `dev:web` only: `cp apps/web/.dev.vars.example apps/web/.dev.vars`,
   then set `BETTER_AUTH_SECRET` to anything. Without it every `/api/auth/*`
@@ -31,7 +31,7 @@ TypeScript source under tsx, and a shell started afterwards ADOPTS it instead
 of forking a second one.
 
 The dev port and data dir are DERIVED PER CHECKOUT (sha256 of the checkout
-root — `apps/cli/src/server/config.ts` documents the scheme), so parallel
+root — `apps/cli/src/server/dev-instance.ts` is the whole scheme), so parallel
 worktrees never share a database or collide on a socket; a busy derived port
 is probed upward and the winner logged. The checkout is walked up to from
 wherever the command started, so `pnpm dev` (from apps/desktop) and
@@ -81,23 +81,10 @@ red format cannot hide test regressions behind it.
 
 ## Tests
 
-- `pnpm --filter inteligir test` — the server and the CLI: every procedure
-  against the contract, the device-token gate, a REAL ws upgrade round-trip
-  (serve + injectWebSocket + `WebSocket`), the ws bus, config layering,
-  port probing, the dev-dir ownership marker, and every CLI leaf EXECUTED
-  against its refusal path.
-- `pnpm --filter @repo/api test` — the contract itself: the vault path
-  grammar, the ws change kinds, the cloud wire's envelopes and ceilings.
-- `pnpm --filter @repo/desktop test` — the window's decisions (the origin pin,
-  the server verdicts, the packaged layout) and the renderer's own suites.
-- `pnpm --filter @repo/db test` — migrate-on-boot, WAL pragmas, ids.
-- `pnpm --filter @repo/notes test` — the pure domain: the knowledge engine
-  (link graph, search, related notes, rename), tags and tasks, markdown
-  parse/opaque-nodes/frontmatter.
-- `pnpm --filter @repo/web test` — the Worker, against real in-process
-  miniflare (D1 + Better Auth): the invite gate and the password-reset flow.
-- `pnpm --filter @repo/ui test` — the lib helpers (compose-refs). The orphan
-  invariant moved to `@repo/repo-guards` (ui-orphan-exports, per export).
+Every workspace answers `pnpm --filter <name> test`; each suite's own file
+header says what it pins, and `tools/repo-guards` holds the invariants that
+span workspaces (the dep DAG, ws change kinds, CI parity, dangling references,
+the per-export orphan guard over `@repo/ui`).
 
 End-to-end: `pnpm e2e` boots real app instances on scratch dirs (fixture
 vaults, scratch git remotes, a headless browser) and is deliberately outside

@@ -20,8 +20,9 @@ src/
   knowledge/           # derived-index engine
     projection.ts      # projectDoc — the ONE parse per doc (PROJECTION_VERSION)
     link-graph-index.ts  # pure link/tag/title/graph resolution, fed projections
-    link-extract.ts, link-resolve.ts, rename-links.ts  # scan → 5-tier
-                       # resolution (aliases last) → byte-surgical rename
+    link-extract.ts, link-resolve.ts, rename-links.ts  # scan → resolution
+                       # (the `[[Title|uuid]]` id tier, then five path/alias
+                       # tiers, aliases last) → byte-surgical rename
     knowledge-store.ts, sql-knowledge-store.ts  # persistence port (types
                        # only) + schema/FTS5-bm25 written once over SqlDriver
     knowledge-index.ts, search-index.ts  # zero-dep reference composition +
@@ -60,8 +61,6 @@ src/
   Nothing durable may ever live in it; it is rebuilt from the vault.
 - **Frontmatter is the ONLY property store** (repo Decisions). YAML the
   typing rules can't represent is preserved byte-exactly, never coerced.
-- **Refusals are values.** A guarded line edit refuses (a VALUE) on any byte
-  drift — never a silent wrong write.
 - **One SCAN per doc** (`projectDoc`), over one grammar (`scan-parse.ts`) —
   which is NOT the editor's (`md-plugins.ts`), and cannot be: the mdx tokenizer
   THROWS, and a malformed tag must not cost a note its place in the index.
@@ -81,4 +80,5 @@ src/
 
 `pnpm --filter @repo/notes test` — vitest. `src/__tests__/` pins the
 knowledge engine: resolver tiers (including an oracle equivalence for the
-basename buckets), rename byte surgery, and guarded edits.
+basename buckets), rename byte surgery, the search policy against both
+engines, task ordinals against the editor's parse, and the diff3 merge.

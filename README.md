@@ -52,8 +52,9 @@ apps/
   web/               @repo/web — ONE Cloudflare Worker: the marketing site,
                      Better Auth on D1, device pairing, the thread-sync
                      Durable Object and the capture inbox
-  mobile/            @repo/mobile — the Expo client: a sync-only thread and
-                     capture surface over the cloud contract
+  mobile/            @repo/mobile — the Expo client: synced threads, quick
+                     capture and a read-only notes surface over the hosted
+                     vault, all over the cloud contract
 packages/
   api/               @repo/api — ONE contract, TWO entry points: /local (the
                      renderer and the CLI → the local server) and /cloud (the
@@ -63,8 +64,10 @@ packages/
   editor/            @repo/editor — the Plate.js WYSIWYG over the fixpoint
                      serializer: kits/nodes for every dialect construct,
                      wiki chips, formula pills, comments, tag chips
-  ui/                @repo/ui — vendored shadcn components
-  domain/            @repo/domain — the thread grammar and lifecycle, zod-only
+  ui/                @repo/ui — the shared component vocabulary on Base UI;
+                     vendored once, this repo's own code now
+  domain/            @repo/domain — zod-only leaf vocabulary (view context,
+                     provider events)
   db/                @repo/db — drizzle + better-sqlite3, migrations, notifier
   agent-runtime/     @repo/agent-runtime — the ACP adapter over the harnesses
   agent-skills/      @repo/agent-skills — the dialect spec, as files agents read

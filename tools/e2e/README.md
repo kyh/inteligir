@@ -112,6 +112,9 @@ Each feature issue lands with its scenario here (#556).
 |                              | boot sync (the sync scenarios set it for determinism)  |
 | `INTELIGIR_AGENT`            | `scripted` — the deterministic in-process driver the   |
 |                              | thread and action scenarios run against                |
+| `INTELIGIR_VOICE`            | `scripted` — a dictation session with no model and no  |
+|                              | native binding, so dictation-browser drives the whole  |
+|                              | streaming path on any machine                          |
 
 Instances run with every host `GIT_*` variable stripped, `GIT_CONFIG_GLOBAL`
 /`GIT_CONFIG_SYSTEM` pinned to `/dev/null` and an explicit harness git
