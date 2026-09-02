@@ -15,13 +15,10 @@ export interface PorcelainEntry {
 }
 
 /**
- * THE reader of `git status --porcelain`, and the only one. Three callers used
- * to decode the same bytes three ways and disagreed about all of it: two split
- * on newlines and one on NUL, two required four characters and one accepted
- * any non-empty line, one understood rename entries and two did not. Two of
- * them therefore handed back git's C-QUOTED spelling (`"a\tb"`, and every
- * non-ASCII name) as if it were a path — a bug you cannot see until a vault
- * holds a filename with a space in it.
+ * THE reader of `git status --porcelain`, and the only one —
+ * one-spelling.test.ts holds every other caller to it. git C-QUOTES any path
+ * holding a space or a non-ASCII byte in the line format (`"a\tb"`), so a
+ * second decoder is a file silently left out of a commit.
  *
  * `-z` is not an option here, it is the format: NUL-separated, never quoted,
  * with a rename's origin arriving as its own token. Every caller runs it, and

@@ -1,5 +1,5 @@
-// One responsibility: the two halves of device pairing (issue #573) as this
-// server runs them, over the contract's own machine
+// One responsibility: the two halves of device pairing as this server runs
+// them, over the contract's own machine
 // (`@repo/api/cloud/pairing/pairing-flow`). A browser is in the middle of
 // them: `beginPair` arms a single-use `state` and answers the approve page's
 // URL, and `completePair` is what the loopback callback runs when that browser

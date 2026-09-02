@@ -1,5 +1,5 @@
-// The OAuth authorize dance for hosted MCP connectors (issue #602), in the
-// pairing discipline exactly: the SAME pending slot device pairing runs
+// The OAuth authorize dance for hosted MCP connectors, in the pairing
+// discipline exactly: the SAME pending slot device pairing runs
 // (`@repo/api/cloud/pairing/approval-slot` — one armed approval, 128-bit
 // state compared in constant time, CONSUMED before the code is exchanged),
 // PKCE S256 so an intercepted loopback redirect holds a code nobody else can

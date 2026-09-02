@@ -1,5 +1,5 @@
 // `GET /pair/callback` — where the browser lands after someone approves this
-// device on their account (issue #573).
+// device on their account.
 //
 // WHY IT IS NOT A ROW IN THE CONTRACT TABLE, stated the way `/ws` states its
 // own: what arrives here is a BROWSER following a top-level redirect, and what
