@@ -684,7 +684,7 @@ start` is refused, is `apps/cli/src/server/cloud/browser-opener.ts`.
   in-session return and the deep-link listener, so a failure on either path
   is SHOWN. A refused capture keeps its text and says why (#647).
   `apps/mobile/src/sync/sync-runtime.ts`,
-  `apps/mobile/src/pairing/pairing-flow.ts`, `apps/mobile/src/app/index.tsx`.
+  `apps/mobile/src/pairing/pairing-store.ts`, `apps/mobile/src/app/index.tsx`.
 - **A pulled event lands through the SAME ingest, marked with its origin**
   (`ThreadService.applySyncedEvents`, issue #572). A second append path would
   be a second answer to thread lifecycle. The origin changes exactly three
