@@ -42,7 +42,8 @@ apps/
   cli/           inteligir — THE PUBLISHED BINARY, and THE SERVER (issues #553,
                  #611). `serve` is the whole local process — src/server/ owns
                  the vault, the knowledge index, the agent runtime, the oRPC
-                 handler at /rpc, the /ws invalidation bus and the db; every
+                 handler at /rpc, the /ws invalidation bus and the db, built
+                 by the ONE composition root (`compose.ts`); every
                  other verb is a citty leaf that is a CLIENT of a running one,
                  with consola for the human path (raw writes for anything
                  verbatim — consola rewrites `backtick` spans). Every leaf
@@ -99,7 +100,10 @@ packages/
                  every reader of the merged log runs (`cloud/sync/plan-page`) —
                  two copies of that planner would be two answers to "did this
                  row move the cursor?", and a mis-set cursor is a duplicated
-                 conversation. apps/web SERVES every row; the CLI's sync client
+                 conversation — and, for the same reason, the CLIENT RUNTIME
+                 CORE both consumers run (the byte primitives, the approval
+                 slot, the pairing machine, the sync session; #639 below).
+                 apps/web SERVES every row; the CLI's sync client
                  consumes all of them; apps/mobile consumes the read half alone
                  — it pulls threads and produces captures, and never pushes or
                  claims, because the desktop runs the turns and owns applying a
@@ -152,8 +156,9 @@ packages/
                  header on each file and its licence text in tools/licenses.
                  A LIBRARY AHEAD OF ITS CONSUMERS: `src/ai` holds fourteen
                  components no surface draws on yet, kept by owner decision
-                 and listed one by one in the orphan guard, so a fifteenth
-                 still fails. Leaf.
+                 and listed one by one in the PER-EXPORT orphan guard
+                 (`tools/repo-guards/src/ui-orphan-exports.test.ts`), so a
+                 fifteenth still fails. Leaf.
 tools/
   repo-guards/   @repo/repo-guards — derived fitness tests over the REPO: the
                  package dependency DAG + its platform-purity rules, ws
@@ -240,6 +245,15 @@ command is `db:push:local`.
   (legacy forms, marker normalization) may canonicalize on the first save,
   stated per fixture; a file the pipeline cannot round-trip safely opens RAW.
   The fixtures are formatter-exempt — their bytes ARE the assertion.
+
+- **THE EDITOR SHIPS ITS BEHAVIOUR CSS** (#633). A kit's hook is only behaviour
+  while a rule reads it: `packages/editor/src/styles.css` carries the
+  toggle-body collapse, the callout marker/badge swap and the code highlight
+  theme, and reaches the app through the desktop renderer's `globals.css`
+  import. Every hook is spelled ONCE in `packages/editor/src/style-hooks.ts`,
+  and `packages/editor/src/__tests__/style-hooks.test.ts` pins sheet and
+  hooks to each other in BOTH directions — the whole editor once shipped with
+  the stylesheet missing and no test noticed.
 
 - **NOTES SPEAK THE INTELIGIR DIALECT**
   (#581, renamed 2026-08-22 — the product is inteligir, so the format carries
@@ -333,6 +347,23 @@ command is `db:push:local`.
   uses diff3 instead of an active-user-wins rebase that discards concurrent
   disk body edits wholesale. Merging non-overlapping regions is less lossy
   (#603).
+- **A CREATE IS NOT A WRITE WITH AN EMPTY BASE** (#632). Note creation sends
+  `ifAbsent` and no hash: a path with no bytes on disk has no base to name,
+  and hashing the content about to be written names bytes that are not there,
+  which the server can only refuse — every session create answered
+  `CAS_MISMATCH`, and no note could be made from the UI. A guarded write with
+  NO recorded base THROWS rather than inferring one, because a hash of the
+  outgoing content would make a concurrent edit merge to the disk's bytes
+  alone and drop this one silently; every open reads first, so reaching it is
+  a caller bug that should be loud. The whole write policy is one
+  framework-free module tested against the real vault:
+  `apps/desktop/src/renderer/app/note/guarded-vault-io.ts`.
+- **EVERY ERROR A VAULT ROW DECLARES HAS A PRODUCER.** `ALREADY_EXISTS` is
+  declared on `vault.write` alone — it is `ifAbsent`'s refusal — because a
+  row advertising a code no handler raises hands the client a branch that
+  never runs, while the refusal it meant to catch arrives as another class and
+  falls through. Derived from both sides rather than listed:
+  `apps/cli/src/server/vault/__tests__/vault-contract-errors.test.ts`.
 - **Containment is PHYSICAL, not lexical.** The vault realpaths the deepest
   existing ancestor and refuses symlinked leaves. A lexical check passes
   `notes.md` when that name is a symlink to `~/.ssh/id_ed25519`, and a `git
@@ -349,6 +380,29 @@ pull` from a hostile remote is enough to plant one.
   events, under a counted commit hold that defers the vault's debounce and
   blocks a sync from starting. Committing the whole dirty tree attributes a
   concurrent turn's writes — and the user's — to whoever settles first.
+- **`runGit` PREPENDS `--literal-pathspecs` TO EVERY INVOCATION** (#635) — the
+  commit path included, not only the log. A pathspec is a GLOB: `[a].md` names
+  `a.md` too, so a commit scoped to one note staged its neighbour's edits
+  under the wrong revision. Every path the engine passes is a filesystem name,
+  never a pattern, and the one argv builder is where the flag lives and the
+  one place it can be forgotten: `apps/cli/src/server/vault/git-run.ts`.
+- **THE SERVER IS SPLIT ALONG ONE-RESPONSIBILITY SEAMS** (#641), each file's
+  header stating its own: `vault/git-run` (running git) / `git-porcelain`
+  (the ONE status invocation beside its ONE decode) / `git-bootstrap` (the
+  repo's birth, over an injectable `runGit`) / `git-engine` (debounce, hold,
+  sync); `cloud/sync-pass` (one pass, the fence injected) / `socket-link`
+  (dialling, backoff, generation) / `sync-cadence` (the poll and the push
+  debounce) / `pair-flow` (the contract's machine plus this server's guards);
+  `agents/interaction-waiters` (park/resolve/cancel, drivable with no child
+  process), with the idle watchdog a SWEEP over per-turn timestamps rather
+  than a timer re-armed per frame — a streaming turn is thousands of frames;
+  `writeTransaction` in `@repo/db/connection` as the one spelling of `BEGIN
+IMMEDIATE`, so the one-transaction-ingest law is structural; and
+  `ThreadService.boot()` called from the composition root, because crash
+  recovery WRITES and a side effect that big belongs where the boot order is
+  decided. Two defects the split surfaced and fixed: `dispose` no longer
+  swallows a failed shutdown flush (the vault teardown step must be able to
+  exit non-zero naming it), and the trash sweep counts only real purges.
 - **THE AGENT SURFACE IS THE ⌘K ACTION COMPOSER AND THE RIGHT PANEL** (#587 —
   retiring the chat dock, the delegation checkbox/selection
   affordances, thread-chip markers, and #560's proposals pipeline whole). An
@@ -361,6 +415,28 @@ pull` from a hostile remote is enough to plant one.
   The palette moved to ⌘P; ⌘\ is zen. The selection toolbar's "Ask agent"
   seeds the composer with the quoted selection through a module-store seam
   the app registers — the editor package never imports the shell.
+
+- **COMMENTS CARRY THE AUTHOR'S `source`, AND THE SIDECAR WRITE IS A CAS**
+  (#634). Every comment was signed `user`, the agent's included, while the
+  served guide routes agent review through `inteligir comment …` — the review
+  channel misattributed its own reviewer. `source` rides add/reply/resolve;
+  the server signs `user` when a caller says nothing; the CLI signs `agent`
+  under `INTELIGIR_THREAD_ID`, `user` from a terminal, `--source` for a
+  script. The sidecar joins the write-carries-its-base invariant:
+  `writeIfUnchanged` against the bytes the fold read, one re-read-and-retry
+  (additive edits make it safe), then the declared `CONFLICT` — two writers
+  of one file no longer silently lose an update. The comment-id grammar is
+  ONE spelling, `mintCommentId` beside `COMMENT_ID_RE` in
+  `@repo/notes/comments/sidecar-schema`, on `globalThis.crypto` so the
+  package stays node-free. `apps/cli/src/server/comments/comments-service.ts`
+  and `apps/cli/src/commands/comment.ts` carry the rest.
+
+- **WINDOW-LEVEL HOSTS MOUNT AT THE ROOT ROUTE** (#636). `ConfirmDialogHost`,
+  `Toaster` and the one `TooltipProvider` live in
+  `apps/desktop/src/renderer/routes/__root.tsx`: `confirm()` parks a promise
+  until a host settles it and `toast()` paints nothing without one, so a host
+  mounted by one route left /settings' Unpair awaiting a dialog that never
+  opened and every refusal deferred until the user navigated back.
 
 - **A VIEW CONTEXT RIDES THE MESSAGE, and it is a statement about the past.**
   What the user was looking at when they pressed Enter travels on the send
@@ -382,7 +458,11 @@ pull` from a hostile remote is enough to plant one.
   widens nothing, because the agent could already write any file in the vault,
   so no permission model belongs around it. A queued send carries none — the
   drain is minutes later, and storing a context for later gives away the exact
-  property that makes it immune to rot.
+  property that makes it immune to rot. The SELECTION field is cut end to
+  end (#638): nothing ever produced one — the offsets were pinned
+  `{from:0,to:0}` — and no stored or synced event carries it; real offsets
+  need a Slate→markdown offset map, which is its own issue. `getVaultFileFacts`
+  went with it, a port stubbed to null with no caller.
 
 - **RELATED IS ONE PANEL SECTION — linked mentions and the scorer's
   suggestions merged in the right sidebar** (owner's call 2026-08-22,
@@ -412,7 +492,14 @@ pull` from a hostile remote is enough to plant one.
   open note. The registries that key on a note's PATH (the comment-meta map,
   the title-focus entry) keep that key anyway — a module outlives the document
   it describes, so a late query answer or a keystroke must not land on the note
-  that replaced it.
+  that replaced it. The pane VOCABULARY is gone with the pane (#638):
+  `editor-column` / `EditorColumn`, and prose says column or note. **The
+  raw/rich TOGGLE is cut** (#638): the surface derives from the gate alone
+  (`packages/editor/src/note/markdown-gate.ts`) — a parseable note edits
+  richly, a gated note opens the textarea with its reason, a recovery pops
+  back to Rich. `setMode`/`richAvailable` had no product caller, and the
+  Properties copy pointed users at a Raw mode they could not reach; re-adding
+  the toggle is a revert of that commit, not a feature.
 
 - **THE APPEARANCE DIALS ARE ONE DECLARATION, READ THROUGH `.typeset-docs`.** The
   funnel's tokens (`--editor-font`, `-mono`, `-size`, `-line-height`, `-width`)
@@ -468,6 +555,16 @@ body_stems` at the same bm25 weights, and `@repo/notes/knowledge/search-query`
   `INTELIGIR_SKILLS_DIR` (resolved from `@repo/agent-skills`, staged beside
   the app bundle in the packaged layout), with a three-sentence pointer
   delivered on the session's first turn prompt, never the spec inlined.
+
+- **ONE SET OF SESSION FACTS, TWO PROJECTIONS** (#636). A session is told about
+  this instance twice — through the env its shell inherits (`toShellEnv`) and
+  through the prompt that describes that env (`toInstructions`) — and both are
+  pure functions of one `AgentSessionFacts`, so a variable the instructions
+  name is one the env carries and vice versa. The runtime's `shellEnv` is a
+  GETTER read at every adapter spawn, the `mcpServers` rule: read once as a
+  value, `INTELIGIR_CONNECTED_DIRS` froze at the first turn and every later
+  session was told a list its env did not carry.
+  `apps/cli/src/server/agents/agent-shell-env.ts`.
 
 - **DICTATION IS STREAMING PARAKEET AGAIN, REVERSING #574's whisper.cpp**
   (issue #578). This is a deliberate reversal, and it must not be "fixed" back
@@ -670,6 +767,33 @@ body_stems` at the same bm25 weights, and `@repo/notes/knowledge/search-query`
   guarded by `disposed` and `dispose` clears the pending slot**, so a callback
   in flight during ordered shutdown redeems nothing and writes no credential
   after teardown.
+- **`@repo/api/cloud` IS THE CLIENT RUNTIME CORE, not only the wire** (#639).
+  `bytes.ts` (one web-crypto spelling of hex, sha256 and constant-time
+  equal), `pairing/approval-slot.ts` (arm, TTL, constant-time claim,
+  consume-before-exchange — device pairing and connector OAuth run the SAME
+  slot), `pairing/pairing-flow.ts` (the PKCE-bound pairing machine) and
+  `sync/sync-session.ts` (the session fence, the single-flight pass, the page
+  loop). The CLI and the phone ride the same machines and inject only their
+  stores, timers and sockets: a security-bearing discipline with two spellings
+  is two to audit. The cloud vault-path grammar IS `parseVaultPath`, with the
+  parse required to be the identity — stricter by design, since the hand-rolled
+  copy admitted `.GIT/hooks/x` and `a\b`. The `[[Title|uuid]]` id tier lives
+  in `buildResolver` (tier 0) so every resolver can read it, not only the
+  server's backlinks; the stated residual is that the desktop and mobile
+  listings carry no `id`, so their resolvers cannot feed it until the wire
+  does.
+- **ON THE PHONE, THE RUNTIME THAT MOVES A VALUE IS THE ONE THAT NOTIFIES**
+  (#646). A mirrored status snapshot has one writer and every write is user-
+  or boot-driven, so a poll pass, a pass after pairing and a dashboard
+  revocation never reached the screen. `SyncRuntime` and the pairing flow
+  publish stores the screens read through `useSyncExternalStore`, rebuilt at
+  every session, pass and cursor move and cached between them; the pairing
+  flow is ONE machine (idle | pairing | failed) fed by both the in-session
+  return and the deep-link listener, so a failure on either path is SHOWN.
+  A refused capture keeps its text and says why (#647): the field clears only
+  on success, and a submit while one is in flight is refused so one capture
+  stays one row. `apps/mobile/src/sync/sync-runtime.ts`,
+  `apps/mobile/src/pairing/pairing-flow.ts`, `apps/mobile/src/app/index.tsx`.
 - **A pulled event lands through the SAME ingest, marked with its origin**
   (`ThreadService.applySyncedEvents`, issue #572). A second append path would
   be a second answer to thread lifecycle. The origin changes exactly three
@@ -779,6 +903,22 @@ body_stems` at the same bm25 weights, and `@repo/notes/knowledge/search-query`
   deliberate ABSENCE of a restart are `src/main/server-process.ts`'s own.
   The shell adopts an already-listening server rather than fighting it, and
   only kills the child it started.
+- **ONE COMPOSITION ROOT** (#640). `apps/cli/src/server/compose.ts` constructs
+  every service in boot order and returns `{ context, teardown }` as a VALUE;
+  `createApp` (`app.ts`) is route wiring over the injected context; `serve.ts`
+  is listen + `server.json` + signals + exit code; the booted suites call the
+  same composition with hermetic ports, so the production graph and the
+  suites' graph cannot diverge — three hand-built copies had. Two dials, the
+  cloud socket opener and the agent driver, are INJECTED by `serve.ts` rather
+  than imported, because compose is reachable from the renderer's test program
+  through `inteligir/server/testing` and neither may load into a
+  browser-tsconfig suite. `dev-instance.ts` owns the per-checkout derivation
+  (the hash, the port bucket, the probe bound); `config.ts` stays the parser.
+- **THE BIN EXITS 128+n WHEN THE SERVER DIES BY SIGNAL, NEVER 0** (#636).
+  Re-raising the child's signal at the wrapper ran the still-installed relay
+  against a dead child and exited 0; 128+n is the encoding a shell reports and
+  Node's own default handlers use, and the exit code is the truth about the
+  child. `apps/cli/bin/inteligir`.
 - **THE CREDENTIAL IS A FILE, NOT A CHALLENGE** (#611, reversing the
   loopback-adoption-is-earned line — its premise, that a client had no channel
   to the server but the port, is what died). On boot the server writes
@@ -946,6 +1086,37 @@ from X, MIT.` header, and the third-party license texts live under
 - **`packages/ui/components.json` declares `rsc: true` and it is deliberately
   inert** — the `"use client"` directives it produces are ignored by every
   consumer, all plain Vite builds with no RSC bundler in the graph.
+- **THE ORPHAN GUARD OVER `@repo/ui` IS PER EXPORT** (#648): every named
+  export under the wildcard-exported directories needs a consumer outside the
+  gallery or a reasoned allowance row
+  (`tools/repo-guards/src/ui-orphan-exports.test.ts`) — a file guard cannot
+  see intra-file rot, and knip cannot ask the question because the export
+  wildcard makes each file public API. What the cut settled: both Slot copies
+  are deleted and NOT replaced — Base UI's `render` prop is the polymorphism
+  channel; one `lib/compose-refs`, one `lib/collapse`, one
+  `hooks/proximity-overlays`; one name per size, variant and part (the shadcn
+  alias maps and the Radix `delayDuration` / `data-state` spellings are gone).
+- **THE REACT COMPILER IS ON FOR ALL THREE APPS** (#644): `compiler: true` on
+  `@vitejs/plugin-react` in `apps/desktop/electron.vite.config.ts` and
+  `apps/web/vite.config.ts` (it loads `oxc-transform-react`, pinned in the
+  catalog), `reactCompiler: true` in `apps/mobile/app.config.js`. Three apps,
+  one story, so a reviewer never re-derives which app memoizes by hand. The
+  manual-memo sweep is a follow-up; a render-time `Date.now()` the compiler
+  would freeze became the shared `useNow` clock first.
+- **TOOLING PINS, each with its reason beside it** (#642): `vite` is a pnpm
+  OVERRIDE, not only a catalog entry — the catalog bound only the two
+  manifests that spell it, while vitest pulled the bundle-breaking rolldown for
+  everyone else; `@types/node` tracks `engines.node`, because a newer major's
+  types let a 25-only API typecheck and then throw; one root `clean` script
+  with explicit pathspecs; `lint` is bare `oxlint` (the flags restated
+  `.oxlintrc.json`'s own options); `compatibility_date` is the lockfile's
+  OLDEST resolved workerd, held by
+  `tools/repo-guards/src/wrangler-compat-date.test.ts`; `pnpm e2e` boots the
+  BUILT Worker bundle (`tools/e2e/src/scenarios/built-worker-boot.ts`),
+  because nothing else executes the artifact `wrangler deploy` ships; and
+  agent-browser installs pinned in `.github/workflows/ci.yml`, since a global
+  install rides no lockfile and no cooldown. The arguments live in
+  `pnpm-workspace.yaml`'s own comments.
 
 **Before raising a "new" finding, read
 [#542](https://github.com/kyh/inteligir/issues/542)** — the decision record
