@@ -14,7 +14,7 @@
 // a `notify<Entity>([… "kind" …])` call somewhere that is not a test, and every
 // kind such a call passes must be declared.
 //
-// Sibling of packages/ui's no-orphan-components guard, and the same shape the
+// Sibling of ui-orphan-exports.test.ts beside it, and the same shape the
 // deleted `no-dead-channels` had: assert the architectural rule as a failing
 // test over a walk of the real tree.
 // ---------------------------------------------------------------------------

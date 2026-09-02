@@ -4,11 +4,11 @@
 // right, and `pnpm dev:site` — which drove `apps/web` for months — taught them
 // a folder that does not exist.
 //
-// Only suffixes that match a directory are judged. `format:fix`, `lint:fix`
-// and `clean:workspaces` name what they do rather than where, and nothing here
-// asks them to change. The unqualified `dev` is the flagship by convention —
-// no suffix because there is no ambiguity about which surface a notes app
-// develops by default — so it has no directory to agree with either.
+// Only suffixes that match a directory are judged. `format:fix` and `lint:fix`
+// name what they do rather than where, and nothing here asks them to change.
+// The unqualified `dev` is the flagship by convention — no suffix because
+// there is no ambiguity about which surface a notes app develops by default —
+// so it has no directory to agree with either.
 
 import fs from "node:fs";
 import path from "node:path";
