@@ -1,4 +1,6 @@
+import type { DbConnection } from "@repo/db/connection";
 import { describe, expect, it, vi } from "vitest";
+import { registerListener } from "../compose";
 import { bootTestApp } from "./boot-app";
 import {
   createGracefulShutdown,
@@ -363,15 +365,17 @@ describe("installFatalErrorHandlers", () => {
 // the composition root returns, because compose.ts fills the list as each
 // resource comes up and both production callers (serve.ts, boot-app.ts) run
 // exactly that list. The one step the composition cannot register is the
-// listener, which needs a bound port and is serve.ts's own.
+// listener, which needs a bound port; `registerListener` is the one spelling
+// serve.ts adds it through, so the list is asserted WITH it in place.
 // ---------------------------------------------------------------------------
 describe("the composed teardown", () => {
-  it("holds every budgeted step except the listener, in the budgets table's order", async () => {
+  it("holds every budgeted step in the budgets table's order once the listener joins", async () => {
     const { composed } = await bootTestApp();
+    registerListener(composed.teardown, () => Promise.resolve());
     expect(
       composed.teardown.map((step) => step.name),
-      "compose.ts must register every step TEARDOWN_BUDGETS_MS budgets (except `listener`, which only serve.ts can add once a port is bound), in the table's own order — the table is written in teardown order",
-    ).toEqual(Object.keys(TEARDOWN_BUDGETS_MS).filter((name) => name !== "listener"));
+      "compose.ts must register every step TEARDOWN_BUDGETS_MS budgets in the table's own order (it is written in teardown order), and registerListener must put the one step only a bound port can add at the FRONT — the listener closes the sockets before the vault flush behind it",
+    ).toEqual(Object.keys(TEARDOWN_BUDGETS_MS));
   });
 
   it("carries each step's budget from the one table", async () => {
@@ -383,5 +387,31 @@ describe("the composed teardown", () => {
         `compose.ts step "${step.name}" must carry the budget TEARDOWN_BUDGETS_MS assigns that name — a step cannot arrive with a number of its own`,
       ).toBe(budgets[step.name]);
     }
+  });
+
+  // A compose that throws part-way (here, the driver dial refusing) has a
+  // database open and a vault runtime up. Two tests in order: the harness's
+  // afterEach runs between them, and the second observes what it released.
+  describe.sequential("a boot the driver dial refuses", () => {
+    let db: DbConnection | null = null;
+
+    it("rejects with the refusal, its database open at that moment", async () => {
+      await expect(
+        bootTestApp({
+          makeDriver: (deps) => {
+            db = deps.db;
+            throw new Error("driver refused");
+          },
+        }),
+      ).rejects.toThrow("driver refused");
+      expect(db?.$client.open).toBe(true);
+    });
+
+    it("has released what came up before the refusal", () => {
+      expect(
+        db?.$client.open,
+        "boot-app.ts must register the composed teardown over the LIVE steps array BEFORE composing — a compose that throws after the database opened otherwise leaks its handle for the rest of the worker",
+      ).toBe(false);
+    });
   });
 });

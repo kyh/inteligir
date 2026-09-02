@@ -23,6 +23,7 @@ import {
 import type { AppConfig } from "../config";
 import { localRouter } from "../root-router";
 import { authorizationHeader } from "../server-file";
+import type { ShutdownStep } from "../shutdown";
 import { unavailableTurnDriver, type CreateTurnDriver } from "../threads/turn-driver";
 import { hermeticGitEnv } from "../vault/__tests__/git-test-env";
 import type { VaultRuntime } from "../vault/vault-runtime";
@@ -125,11 +126,24 @@ export async function bootTestApp(options: BootTestAppOptions = {}): Promise<Boo
   };
   if (options.openExternalUrl !== undefined) ports.openExternalUrl = options.openExternalUrl;
 
+  // The composed teardown IS the cleanup, in its own order — the same steps
+  // serve.ts's shutdown runs, minus the listener no test binds. Registered
+  // over the LIVE array BEFORE composing, for the reason serve.ts installs
+  // its handlers first: a compose that throws part-way has a database open
+  // and a vault runtime up, and the steps already on the array are what
+  // release them.
+  const teardown: ShutdownStep[] = [];
+  cleanups.push(async () => {
+    for (const step of teardown) {
+      await step.run();
+    }
+  });
   const composeArgs: ComposeRuntimeArgs = {
     config,
     env: {},
     version: "0.1.0-test",
     ports,
+    teardown,
     driver: (deps) => {
       const made = options.makeDriver?.({
         db: deps.db,
@@ -146,13 +160,6 @@ export async function bootTestApp(options: BootTestAppOptions = {}): Promise<Boo
   };
   if (options.cloudTransport !== undefined) composeArgs.cloudTransport = options.cloudTransport;
   const runtime = await composeRuntime(composeArgs);
-  // The composed teardown IS the cleanup, in its own order — the same steps
-  // serve.ts's shutdown runs, minus the listener no test binds.
-  cleanups.push(async () => {
-    for (const step of runtime.teardown) {
-      await step.run();
-    }
-  });
 
   const wired = createApp({
     context: runtime.context,
