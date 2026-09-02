@@ -57,7 +57,9 @@ export interface EnsureVaultRepoArgs {
   remote?: VaultRemoteSpec | null;
   env?: Record<string, string>;
   /** How git is invoked; the real binary unless a test drives the bootstrap
-   *  through a fake — the same port shape git-history reads through. */
+   *  through a fake. The FULL runGit surface, not git-history's repo-bound
+   *  `RunGitCommand`, because the clone runs in the parent directory and
+   *  everything after it in the root. */
   run?: RunGit;
 }
 
@@ -69,9 +71,8 @@ export interface EnsureVaultRepoArgs {
  *   first push, an absent BYO path). Nothing existed to join, so the welcome
  *   seed is safe — the first push creates the remote.
  * - "failed": the remote may exist but could not answer (offline boot, a
- *   refused credential). Seeding HERE is the trap cubic's review named: a
- *   populated remote comes back later and the seed's history has to rebase
- *   through it. The vault boots EMPTY instead (one empty init commit, which
+ *   refused credential). Seeding HERE is the trap: a populated remote comes
+ *   back later and the seed's history has to rebase through it. The vault boots EMPTY instead (one empty init commit, which
  *   `--empty=drop` discards on the eventual first sync), and a revoked
  *   credential surfaces as `unauthorized` rather than failing the boot —
  *   which would take down the very server the user re-pairs through.

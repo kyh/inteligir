@@ -2,14 +2,10 @@
 //
 // `--follow` is not a nicety: the vault renames notes routinely (the rename
 // route does byte surgery on links), and without it a renamed note's history
-// truncates silently at the rename. Four invocation flags exist to make the
-// answer depend on the repo rather than on the user's git config, and each is
-// load-bearing:
+// truncates silently at the rename. Three invocation flags this call adds make
+// the answer depend on the repo rather than on the user's git config, and each
+// is load-bearing:
 //
-// - `--literal-pathspecs`, because a pathspec is a GLOB. A note called
-//   `[a].md` otherwise reports `a.md`'s history, and one called `*.md`
-//   reports the whole vault's — with revisions whose bytes belong to another
-//   note, which a restore would then write into this one.
 // - `-c diff.renames=true`, because `--follow` IS rename detection, and a
 //   user who turned it off globally would get the truncation with no sign.
 // - `--root`, because `log.showRoot=false` hides the commit that created a
@@ -17,6 +13,12 @@
 // - `--no-show-signature`, because `log.showSignature=true` prints gpg's
 //   verification lines ahead of the format output, and this parse frames on
 //   position.
+//
+// `--literal-pathspecs` rides EVERY invocation from git-run.ts's builder, and
+// the read side is why it must: a pathspec is a GLOB, so a note called
+// `[a].md` otherwise reports `a.md`'s history, and one called `*.md` reports
+// the whole vault's — with revisions whose bytes belong to another note,
+// which a restore would then write into this one.
 
 import { VAULT_MAX_CONTENT_LENGTH, type VaultRevision } from "@repo/api/local/vault/vault-schema";
 import type { RunGitCommand } from "./git-run";
@@ -137,7 +139,6 @@ export async function readNoteHistory(
   page: NoteHistoryPage,
 ): Promise<VaultRevision[]> {
   const { stdout } = await run([
-    "--literal-pathspecs",
     "-c",
     "diff.renames=true",
     "log",

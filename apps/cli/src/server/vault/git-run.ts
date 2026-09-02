@@ -75,7 +75,7 @@ function nonInteractiveGitEnv(env: NodeJS.ProcessEnv) {
  * `--literal-pathspecs` lives and the one place it can be forgotten. A
  * pathspec is a GLOB: `[a].md` names `a.md` too, and a commit scoped to one
  * note would stage its neighbour's edits under the wrong revision. Every path
- * this module passes is a filesystem name, never a pattern (git-history.ts's
+ * a caller passes is a filesystem name, never a pattern (git-history.ts's
  * header carries the full case for the read side).
  */
 export function runGit(
@@ -103,7 +103,7 @@ export function runGit(
       },
     );
     // execFile hands the child a stdin PIPE nobody ever writes to. No command
-    // this engine runs reads stdin, so closing it turns anything that asks
+    // the vault runs reads stdin, so closing it turns anything that asks
     // anyway into an immediate EOF rather than a wait on the timeout.
     child.stdin?.end();
   });
@@ -133,7 +133,7 @@ export function redactRemoteUrl(url: string): string {
  * Whether a failed network invocation was the remote REFUSING the credential,
  * as opposed to being unreachable. Three spellings, because git's own varies:
  * an explicit 401/403 from the HTTP layer, "Authentication failed", and —
- * the one this engine's non-interactive env actually produces — "could not
+ * the one the non-interactive env above actually produces — "could not
  * read Username … terminal prompts disabled", which is git answering a 401
  * challenge with a prompt this process forbids.
  */
@@ -162,8 +162,8 @@ export function isMissingRemoteRepo(cause: unknown): boolean {
  * A remote with nothing to fetch YET: the branch is missing ("couldn't find
  * remote ref"), or the repository itself is (the hosted remote answers 404
  * until the first push creates it). Both mean the same thing to a sync pass —
- * rebase onto nothing, and let the push below create what was missing. A
- * mistyped BYO remote also lands here and fails honestly at that push.
+ * rebase onto nothing, and let the sync pass's push create what was missing.
+ * A mistyped BYO remote also lands here and fails honestly at that push.
  */
 export function isMissingRemoteRef(cause: unknown): boolean {
   return (
