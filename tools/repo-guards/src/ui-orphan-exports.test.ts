@@ -37,10 +37,11 @@ const UI_PACKAGE = "@repo/ui";
 const NON_CONSUMER_DIRS = ["apps/desktop/src/renderer/app/gallery"];
 
 /**
- * The Beautiful UI set is held WHOLE by owner decision: these fourteen have no
- * product surface yet and are kept for one the product will grow. Named PER
- * FILE so a fifteenth unwired component still fails, and a meta test below
- * fails when an entry outlives its file.
+ * The Beautiful UI set is held WHOLE by owner decision: these have no product
+ * surface yet and are kept for one the product will grow. Named PER FILE so
+ * an unlisted unwired component still fails — which holds only because a held
+ * file is NOT a consumer: what it imports proves nothing about the product
+ * needing it. dangling-references fails when an entry outlives its file.
  */
 const AWAITING_CONSUMER = new Set([
   "packages/ui/src/ai/chat.tsx",
@@ -50,6 +51,7 @@ const AWAITING_CONSUMER = new Set([
   "packages/ui/src/ai/filter-table.tsx",
   "packages/ui/src/ai/fine-tune-card.tsx",
   "packages/ui/src/ai/flowchart.tsx",
+  "packages/ui/src/ai/glide-list.tsx",
   "packages/ui/src/ai/insight-cards.tsx",
   "packages/ui/src/ai/prompt-bar.tsx",
   "packages/ui/src/ai/recommendation-card.tsx",
@@ -92,7 +94,7 @@ const ALLOWED_EXPORTS = new Map<string, string>([
 /** The swept roots, derived from the package's own exports map: every
  *  `./<dir>/*` wildcard row publishes `src/<dir>`, which is exactly the set of
  *  directories whose files are orphanable public entries. */
-function sweptRoots(): { dir: string; subpath: string }[] {
+function sweptRoots(): string[] {
   const manifestPath = path.join(REPO_ROOT, UI_DIR, "package.json");
   const parsed = z
     .looseObject({ exports: z.record(z.string(), z.string()) })
@@ -100,11 +102,11 @@ function sweptRoots(): { dir: string; subpath: string }[] {
   if (!parsed.success) {
     throw new Error(`${manifestPath}: expected an "exports" map of subpath → file`);
   }
-  const roots: { dir: string; subpath: string }[] = [];
+  const roots: string[] = [];
   for (const [key, target] of Object.entries(parsed.data.exports)) {
     const wildcard = /^\.\/([\w-]+)\/\*$/.exec(key);
     if (wildcard?.[1] !== undefined && target.startsWith("./src/")) {
-      roots.push({ dir: wildcard[1], subpath: wildcard[1] });
+      roots.push(wildcard[1]);
     }
   }
   if (roots.length === 0) {
@@ -116,6 +118,30 @@ function sweptRoots(): { dir: string; subpath: string }[] {
 }
 
 const SOURCE_FILE = /\.tsx?$/;
+
+interface BraceEntry {
+  /** The name before any `as`. */
+  original: string;
+  /** The name after it — the same name when there is none. */
+  exported: string;
+}
+
+/** The entries of one `{ a, b as c, type d }` list — the one tokenization
+ *  both the export walk and the import walk read. */
+function braceEntries(body: string): BraceEntry[] {
+  const entries: BraceEntry[] = [];
+  for (const entry of body.split(",")) {
+    const cleaned = entry.replace(/^\s*type\s+/, "").trim();
+    if (cleaned === "") continue;
+    const parts = cleaned.split(/\s+as\s+/);
+    const original = parts[0]?.trim();
+    const exported = parts[parts.length - 1]?.trim();
+    if (original !== undefined && original !== "" && exported !== undefined && exported !== "") {
+      entries.push({ original, exported });
+    }
+  }
+  return entries;
+}
 
 /** One file's exported names, read from its source (full-line comments
  *  already stripped by `sourceOf`). Shapes this cannot attribute a name to —
@@ -142,14 +168,7 @@ function exportedNames(relativePath: string): string[] {
   while (match !== null) {
     const body = match[1];
     if (body !== undefined) {
-      for (const entry of body.split(",")) {
-        const cleaned = entry.replace(/^\s*type\s+/, "").trim();
-        if (cleaned === "") continue;
-        // `A as B` exports the name AFTER `as`.
-        const parts = cleaned.split(/\s+as\s+/);
-        const exported = parts[parts.length - 1]?.trim();
-        if (exported !== undefined && exported !== "") names.push(exported);
-      }
+      for (const { exported } of braceEntries(body)) names.push(exported);
     }
     match = list.exec(source);
   }
@@ -183,13 +202,7 @@ function consumptionOf(source: string, specifier: string): Consumption {
     } else {
       const braces = /\{([^}]*)\}/.exec(clause);
       if (braces?.[1] !== undefined) {
-        for (const entry of braces[1].split(",")) {
-          const cleaned = entry.replace(/^\s*type\s+/, "").trim();
-          if (cleaned === "") continue;
-          // `A as B` imports the name BEFORE `as`.
-          const original = cleaned.split(/\s+as\s+/)[0]?.trim();
-          if (original !== undefined && original !== "") result.names.add(original);
-        }
+        for (const { original } of braceEntries(braces[1])) result.names.add(original);
       }
       const beforeBraces = braces === null ? clause : clause.slice(0, braces.index);
       if (/^[A-Za-z_$][\w$]*\s*,?\s*$/.test(beforeBraces.trim()) && beforeBraces.trim() !== "") {
@@ -215,14 +228,14 @@ interface UiFile {
 function uiFiles(): UiFile[] {
   const found: UiFile[] = [];
   for (const root of sweptRoots()) {
-    const rootDir = path.join(REPO_ROOT, UI_DIR, "src", root.dir);
+    const rootDir = path.join(REPO_ROOT, UI_DIR, "src", root);
     if (!fs.existsSync(rootDir)) continue;
     for (const entry of fs.readdirSync(rootDir, { withFileTypes: true })) {
       if (!entry.isFile() || !SOURCE_FILE.test(entry.name)) continue;
       const name = entry.name.replace(SOURCE_FILE, "");
       found.push({
-        file: `${UI_DIR}/src/${root.dir}/${entry.name}`,
-        specifier: `${UI_PACKAGE}/${root.subpath}/${name}`,
+        file: `${UI_DIR}/src/${root}/${entry.name}`,
+        specifier: `${UI_PACKAGE}/${root}/${name}`,
       });
     }
   }
@@ -230,18 +243,18 @@ function uiFiles(): UiFile[] {
 }
 
 /** Every source file in the repo that may consume a @repo/ui export, on
- *  repo.ts's own workspace walk (tests included — the same population the
- *  per-file guard read). */
+ *  repo.ts's own workspace walk (tests included). A held file is not one: its
+ *  imports would keep every helper it reaches alive with no row naming them. */
 function consumerFiles(): string[] {
   return workspaces()
     .flatMap((workspace) => workspaceSourceFiles(workspace))
-    .filter((file) => !isNonConsumer(file));
+    .filter((file) => !isNonConsumer(file) && !AWAITING_CONSUMER.has(file));
 }
 
 describe("no orphan @repo/ui exports", () => {
   const files = uiFiles();
   const sweptDirs = sweptRoots()
-    .map((root) => `src/${root.dir}`)
+    .map((root) => `src/${root}`)
     .join(", ");
 
   it(`every export under ${sweptDirs} has a consumer outside the gallery`, () => {
@@ -283,32 +296,21 @@ describe("no orphan @repo/ui exports", () => {
     ).toEqual([]);
   });
 
-  it("every NON_CONSUMER_DIRS entry names a directory that exists", () => {
-    // An exclusion pointing nowhere excludes nothing, and the failure is
-    // silent in the direction that matters: the gallery counts as a consumer
-    // and every component it renders looks wired.
-    const missing = NON_CONSUMER_DIRS.filter((dir) => !fs.existsSync(path.join(REPO_ROOT, dir)));
+  it("no AWAITING_CONSUMER file counts as a consumer", () => {
+    // A held file that imports a helper would otherwise hold that helper too,
+    // with no row naming it — and the per-file list exists so that every held
+    // component is written down.
+    const held = consumerFiles().filter((file) => AWAITING_CONSUMER.has(file));
     expect(
-      missing,
-      `NON_CONSUMER_DIRS names directories that do not exist:\n${missing.map((dir) => `  ${dir}`).join("\n")}`,
-    ).toEqual([]);
-  });
-
-  it("no AWAITING_CONSUMER entry outlives its file", () => {
-    // The allowance is a promise to wire these, not a place to hide a deleted
-    // path — a stale entry is how an allowance becomes permanent.
-    const missing = [...AWAITING_CONSUMER].filter(
-      (relative) => !fs.existsSync(path.join(REPO_ROOT, relative)),
-    );
-    expect(
-      missing,
-      `AWAITING_CONSUMER names files that do not exist:\n${missing.map((file) => `  ${file}`).join("\n")}`,
+      held,
+      `AWAITING_CONSUMER files counted as consumers:\n${held.map((file) => `  ${file}`).join("\n")}`,
     ).toEqual([]);
   });
 
   it("no ALLOWED_EXPORTS row outlives its export", () => {
-    // Same maintenance rule as AWAITING_CONSUMER, one level down: a row naming
-    // a deleted export silently excuses the next export to take its name.
+    // A row naming a deleted export silently excuses the next export to take
+    // its name. dangling-references holds the file half of every path here;
+    // the export half is a question only this guard can ask.
     const stale = [...ALLOWED_EXPORTS.keys()].filter((key) => {
       const [file, name] = key.split("#");
       if (file === undefined || name === undefined) return true;

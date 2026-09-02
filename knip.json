@@ -169,7 +169,7 @@
     // gallery imports everything by design and knip counts it as a consumer —
     // so the per-export orphan guard
     // (tools/repo-guards/src/ui-orphan-exports.test.ts) holds the
-    // gallery-is-not-a-consumer line, with the fourteen held `src/ai` files
+    // gallery-is-not-a-consumer line, with the held `src/ai` files
     // and the per-export allowances recorded there. knip's pass here catches
     // what even the gallery does not import.
     "packages/ui": {
