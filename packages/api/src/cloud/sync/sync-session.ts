@@ -1,9 +1,8 @@
 // The client-side sync machinery every platform runs the same way: the
 // session union and its fence, the single-flight pass, and the pull-page
-// loop. The CLI and the phone each restated these; the fence discipline in
-// particular is security-bearing (a page applied after a re-pair writes
-// another account's events into this one), and a discipline with two
-// spellings is two spellings to audit.
+// loop. The CLI and the phone both run it, and the fence discipline is
+// security-bearing (a page applied after a re-pair writes another account's
+// events into this one), so it has ONE spelling — two would be two to audit.
 //
 // What stays platform code is everything that touches a store: applying a
 // plan, reading and moving the cursor, the outbox, timers and sockets.
@@ -44,9 +43,6 @@ export interface SyncSessionHandle<TCredential> {
   open(credential: TCredential): void;
   /** End the current session; the machine goes `off`. */
   close(): void;
-  /** live → unauthorized, keeping the credential so a surface can name the
-   *  device the account refused. Always cancels in-flight work. */
-  endUnauthorized(detail: string): void;
   /** Cancel in-flight work with no transition — a disposing runtime's half:
    *  the pass must observe cancellation, not be waited out. */
   abort(): void;
@@ -77,6 +73,10 @@ export function createSyncSession<TCredential>(
     sessionAbort = new AbortController();
   }
 
+  /** live → unauthorized, keeping the credential so a surface can name the
+   *  device the account refused. Always cancels in-flight work. Reached only
+   *  through `recordFailure`: the terminal-code check and `onEnded` are what
+   *  keep a session's end and its transport's teardown one event. */
   function endUnauthorized(detail: string): void {
     if (session.kind === "live") {
       counter += 1;
@@ -104,8 +104,6 @@ export function createSyncSession<TCredential>(
       counter += 1;
       session = { kind: "off", id: counter };
     },
-
-    endUnauthorized,
 
     abort() {
       sessionAbort.abort();
@@ -151,14 +149,12 @@ export interface PullPagesArgs {
   onPage?(): void;
   /** A row this build could not read, reported rather than dropped silently. */
   onSkipped?(message: string): void;
-  maxPages?: number;
 }
 
 /** Page the log forward and apply everything this device did not write.
  *  Returns false when the session ended. */
 export async function pullPages(args: PullPagesArgs): Promise<boolean> {
-  const maxPages = args.maxPages ?? MAX_PULL_PAGES_PER_PASS;
-  for (let page = 0; page < maxPages; page += 1) {
+  for (let page = 0; page < MAX_PULL_PAGES_PER_PASS; page += 1) {
     if (!args.fenced()) return false;
     const result = await args.client.pull({
       afterSeq: args.readCursor(),

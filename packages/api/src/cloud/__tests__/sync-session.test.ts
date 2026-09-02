@@ -184,7 +184,6 @@ function pageLoop(args: {
   results: Array<CloudResult<PullResponse>>;
   fenced?: () => boolean;
   recordFailure?: (failure: CloudFailure) => "continue" | "ended";
-  maxPages?: number;
 }) {
   const loop: PageLoop = { applied: [], skipped: [], pages: [], cursor: 0 };
   const pullArgs: PullPagesArgs = {
@@ -208,7 +207,6 @@ function pageLoop(args: {
     recordFailure: args.recordFailure ?? (() => "continue"),
     onSkipped: (message) => loop.skipped.push(message),
   };
-  if (args.maxPages !== undefined) pullArgs.maxPages = args.maxPages;
   const run = () => pullPages(pullArgs);
   return { loop, run };
 }
@@ -232,10 +230,9 @@ describe("pullPages", () => {
     const endless = ok({ events: [row(1, "dev_other")], lastSeq: 1, hasMore: true });
     const { loop, run } = pageLoop({
       results: Array.from({ length: MAX_PULL_PAGES_PER_PASS + 5 }, () => endless),
-      maxPages: 3,
     });
     expect(await run()).toBe(true);
-    expect(loop.pages).toHaveLength(3);
+    expect(loop.pages).toHaveLength(MAX_PULL_PAGES_PER_PASS);
   });
 
   it("answers the session's own verdict on a failed pull", async () => {
