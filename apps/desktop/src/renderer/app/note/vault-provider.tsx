@@ -1,14 +1,10 @@
 import {
-  EditorHostProvider,
-  type EditorHost,
-  type VaultActions,
-  type VaultListing,
-} from "@repo/editor/host";
-import {
   setEditorHostIo,
   type EditorHostIo,
+  type VaultActions,
   type VaultChangedEvent,
   type VaultEntry,
+  type VaultListing,
 } from "@repo/editor/host-io";
 import { createDebouncer } from "@repo/editor/lib/debounce";
 import { useWikiTargets } from "../vault-hooks";
@@ -27,11 +23,14 @@ import {
 } from "@repo/notes/formulas/collect-formulas";
 import { isDocPath } from "@repo/notes/knowledge/doc-file";
 import { buildResolver } from "@repo/notes/knowledge/link-resolve";
+import { basenamePath } from "@repo/notes/knowledge/vault-path";
+import { base64FromBytes } from "@repo/api/cloud/bytes";
 import type { KnowledgeWikiTargetsResponse } from "@repo/api/local/knowledge/knowledge-schema";
 import { vaultAssetUrl } from "@repo/api/local/routes";
 import type { VaultTreeResponse } from "@repo/api/local/vault/vault-schema";
 import { toast } from "@repo/ui/components/sonner";
 import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
+import { createStore, type StoreApi } from "zustand/vanilla";
 
 import { refusalMessage, safe } from "../api";
 import { readLastOpenNote, writeLastOpenNote } from "../prefs";
@@ -42,7 +41,10 @@ const FOCUS_REFRESH_DEBOUNCE_MS = 400;
 
 const noOpenPathMirror = (): void => {};
 
+const EMPTY_LISTING: VaultListing = { entries: [], resolveWikiTarget: () => null };
+
 type Api = WorkspaceRuntime["api"];
+type WikiTargets = KnowledgeWikiTargetsResponse["targets"];
 
 function listingEntries(tree: VaultTreeResponse): VaultEntry[] {
   return tree.entries.flatMap((entry) =>
@@ -50,7 +52,7 @@ function listingEntries(tree: VaultTreeResponse): VaultEntry[] {
       ? [
           {
             path: entry.path,
-            name: entry.path.split("/").pop() ?? entry.path,
+            name: basenamePath(entry.path),
             kind: isDocPath(entry.path) ? ("doc" as const) : ("other" as const),
           },
         ]
@@ -82,31 +84,18 @@ export function VaultProvider({
   const [bootPath] = useState(initialPath);
   const { api, docEvents } = useWorkspace();
 
-  const [entries, setEntries] = useState<VaultEntry[]>([]);
-  const [vaultName, setVaultName] = useState("");
   const formulaScanRef = useRef<Promise<
     Map<string, { path: string; formulas: CollectedFormula[] }>
   > | null>(null);
 
   const wikiTargetsQuery = useWikiTargets();
-  const wikiTargets = useMemo<KnowledgeWikiTargetsResponse["targets"]>(
+  const wikiTargets = useMemo<WikiTargets>(
     () => wikiTargetsQuery.data?.targets ?? [],
     [wikiTargetsQuery.data],
   );
-  const wikiTargetsRef = useRef<KnowledgeWikiTargetsResponse["targets"]>([]);
-  useEffect(() => {
-    wikiTargetsRef.current = wikiTargets;
-  }, [wikiTargets]);
 
   const port = useMemo<VaultPort>(
-    () =>
-      createVaultPort({
-        api,
-        bootPath,
-        store,
-        publishEntries: setEntries,
-        publishVaultName: setVaultName,
-      }),
+    () => createVaultPort({ api, bootPath, store }),
     [api, bootPath, store],
   );
   const { session } = port;
@@ -120,65 +109,19 @@ export function VaultProvider({
   }, [port, onOpenPath]);
 
   useEffect(() => {
+    port.setWikiTargets(wikiTargets);
+  }, [port, wikiTargets]);
+
+  useEffect(() => {
     actionsRef.current = session.actions;
   }, [session, actionsRef]);
 
+  // Installed ahead of start(): the note the boot publishes mounts hooks that
+  // read this singleton during render.
   useEffect(() => {
-    void session.start();
-    return () => {
-      session.stop();
-    };
-  }, [session]);
-
-  useEffect(
-    () =>
-      docEvents.subscribe((docId) => {
-        formulaScanRef.current = null;
-        session.handleVaultChanged({
-          root: port.root(),
-          changed: docId === null ? null : { upserted: [docId], removed: [] },
-        });
-      }),
-    [docEvents, port, session],
-  );
-
-  // A socket that dropped while the agent wrote comes back to a listing
-  // nobody re-announced.
-  useEffect(() => {
-    const refresh = createDebouncer(() => {
-      session.handleVaultChanged({ root: port.root(), changed: null });
-    }, FOCUS_REFRESH_DEBOUNCE_MS);
-    const onFocus = (): void => {
-      refresh.schedule();
-    };
-    window.addEventListener("focus", onFocus);
-    return () => {
-      window.removeEventListener("focus", onFocus);
-      refresh.cancel();
-    };
-  }, [port, session]);
-
-  // No unload/pagehide flush: a `keepalive` write is best-effort, and a tab
-  // closed mid-debounce losing that window is the accepted trade.
-  useEffect(() => {
-    store.setFlush(session.actions.flush);
-    const unregister = registerOpenNoteStore(store);
-    return () => {
-      store.setFlush(null);
-      unregister();
-    };
-  }, [session, store]);
-
-  useEffect(() => {
-    const toBase64 = (bytes: Uint8Array): string => {
-      let binary = "";
-      const chunk = 0x8000;
-      for (let i = 0; i < bytes.length; i += chunk) {
-        binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
-      }
-      return btoa(binary);
-    };
     const io: EditorHostIo = {
+      actions: session.actions,
+      listing: port.listing,
       readVaultFile: ({ path }) => readFile(api, path),
       // A plain fetch, not a procedure: the ETag and sandbox CSP do not
       // survive an RPC envelope.
@@ -188,13 +131,13 @@ export function VaultProvider({
         return { ok: true, bytes: await response.blob() };
       },
       writeVaultAsset: async ({ dir, baseName, file }) => {
-        const bytesBase64 = toBase64(new Uint8Array(await file.arrayBuffer()));
+        const bytesBase64 = base64FromBytes(new Uint8Array(await file.arrayBuffer()));
         return api.vault.assetWrite({ dir, baseName, bytesBase64 });
       },
       listWikiTargets: () =>
         // exactOptionalPropertyTypes: drop the explicit-undefined members.
         Promise.resolve(
-          wikiTargetsRef.current.map(({ aliases, pinned, ...target }) => {
+          port.wikiTargets().map(({ aliases, pinned, ...target }) => {
             const withAliases = aliases === undefined ? target : Object.assign(target, { aliases });
             return pinned === undefined ? withAliases : Object.assign(withAliases, { pinned });
           }),
@@ -246,9 +189,83 @@ export function VaultProvider({
         }),
     };
     setEditorHostIo(io);
-  }, [api, docEvents, port]);
+  }, [api, docEvents, port, session]);
 
-  const listing = useMemo<VaultListing>(() => {
+  useEffect(() => {
+    void session.start();
+    return () => {
+      session.stop();
+    };
+  }, [session]);
+
+  useEffect(
+    () =>
+      docEvents.subscribe((docId) => {
+        formulaScanRef.current = null;
+        session.handleVaultChanged({
+          root: port.root(),
+          changed: docId === null ? null : { upserted: [docId], removed: [] },
+        });
+      }),
+    [docEvents, port, session],
+  );
+
+  // A socket that dropped while the agent wrote comes back to a listing
+  // nobody re-announced.
+  useEffect(() => {
+    const refresh = createDebouncer(() => {
+      session.handleVaultChanged({ root: port.root(), changed: null });
+    }, FOCUS_REFRESH_DEBOUNCE_MS);
+    const onFocus = (): void => {
+      refresh.schedule();
+    };
+    window.addEventListener("focus", onFocus);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      refresh.cancel();
+    };
+  }, [port, session]);
+
+  // No unload/pagehide flush: a `keepalive` write is best-effort, and a tab
+  // closed mid-debounce losing that window is the accepted trade.
+  useEffect(() => {
+    store.setFlush(session.actions.flush);
+    const unregister = registerOpenNoteStore(store);
+    return () => {
+      store.setFlush(null);
+      unregister();
+    };
+  }, [session, store]);
+
+  return <OpenNoteStoreProvider store={store}>{children}</OpenNoteStoreProvider>;
+}
+
+// Closure state rather than the provider's refs: the session is built during
+// render, and a ref read by a function render calls is a ref read in render.
+type VaultPort = {
+  readonly session: VaultSession;
+  readonly listing: StoreApi<VaultListing>;
+  root: () => string;
+  entries: () => readonly VaultEntry[];
+  wikiTargets: () => WikiTargets;
+  setWikiTargets: (next: WikiTargets) => void;
+  setOnOpenPath: (next: (path: string | null) => void) => void;
+};
+
+type VaultPortInputs = {
+  api: Api;
+  bootPath: string | null;
+  store: OpenNoteStore;
+};
+
+function createVaultPort({ api, bootPath, store }: VaultPortInputs): VaultPort {
+  let root = "";
+  let entries: readonly VaultEntry[] = [];
+  let wikiTargets: WikiTargets = [];
+  let mirrorOpenPath: (path: string | null) => void = noOpenPathMirror;
+  const listing = createStore<VaultListing>()(() => EMPTY_LISTING);
+  // Rebuilt whole from either input: the resolver's identity is what tells a chip to re-render.
+  const rebuildListing = (): void => {
     const aliasEntries: Array<readonly [string, string]> = [];
     for (const target of wikiTargets) {
       for (const alias of target.aliases ?? []) aliasEntries.push([alias, target.path]);
@@ -257,57 +274,12 @@ export function VaultProvider({
       entries.map((entry) => entry.path),
       aliasEntries,
     );
-    return {
-      entries,
-      folderName: vaultName,
-      resolveWikiTarget: (target) => resolver.resolveWiki(target),
-    };
-  }, [entries, vaultName, wikiTargets]);
-
-  const host = useMemo<EditorHost>(
-    () => ({ actions: session.actions, listing }),
-    [session, listing],
-  );
-
-  return (
-    <OpenNoteStoreProvider store={store}>
-      <EditorHostProvider host={host}>{children}</EditorHostProvider>
-    </OpenNoteStoreProvider>
-  );
-}
-
-// Closure state rather than the provider's refs: the session is built during
-// render, and a ref read by a function render calls is a ref read in render.
-type VaultPort = {
-  readonly session: VaultSession;
-  root: () => string;
-  entries: () => readonly VaultEntry[];
-  setOnOpenPath: (next: (path: string | null) => void) => void;
-};
-
-type VaultPortInputs = {
-  api: Api;
-  bootPath: string | null;
-  store: OpenNoteStore;
-  publishEntries: (entries: VaultEntry[]) => void;
-  publishVaultName: (name: string) => void;
-};
-
-function createVaultPort({
-  api,
-  bootPath,
-  store,
-  publishEntries,
-  publishVaultName,
-}: VaultPortInputs): VaultPort {
-  let root = "";
-  let listing: readonly VaultEntry[] = [];
-  let mirrorOpenPath: (path: string | null) => void = noOpenPathMirror;
+    listing.setState({ entries, resolveWikiTarget: (target) => resolver.resolveWiki(target) });
+  };
   const io = createGuardedVaultIo(api);
   const session = createVaultSession({
     boot: async (): Promise<WorkspaceBoot> => {
       const tree = await api.vault.tree();
-      publishVaultName(tree.name);
       const flat = listingEntries(tree);
       const known = (path: string | null): path is string =>
         path !== null && flat.some((entry) => entry.path === path && entry.kind === "doc");
@@ -346,8 +318,8 @@ function createVaultPort({
     },
     note: io,
     publishListing: (next) => {
-      listing = next;
-      publishEntries(next);
+      entries = next;
+      rebuildListing();
     },
     publishRoot: (next) => {
       root = next;
@@ -368,8 +340,14 @@ function createVaultPort({
 
   return {
     session,
+    listing,
     root: () => root,
-    entries: () => listing,
+    entries: () => entries,
+    wikiTargets: () => wikiTargets,
+    setWikiTargets: (next) => {
+      wikiTargets = next;
+      rebuildListing();
+    },
     setOnOpenPath: (next) => {
       mirrorOpenPath = next;
     },

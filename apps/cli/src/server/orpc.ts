@@ -12,7 +12,6 @@ import type { ConnectorOauthFlow } from "./connectors/oauth-flow";
 import type { OpenExternalUrl } from "./cloud/browser-opener";
 import type { FoldersService } from "./folders/folders-service";
 import type { KnowledgeRuntime } from "./knowledge/knowledge-runtime";
-import type { NoteIntelligence } from "./note-intelligence/note-intelligence";
 import type { ThreadService } from "./threads/service";
 import type { VaultRuntime } from "./vault/vault-runtime";
 import type { RenameNote } from "./vault/vault-router";
@@ -34,7 +33,6 @@ export interface AppContext {
   connectorsOauth: ConnectorOauthFlow;
   folders: FoldersService;
   knowledge: KnowledgeRuntime;
-  noteIntelligence: NoteIntelligence;
   // injected so a suite can watch a pairing begin without opening a window.
   openExternalUrl: OpenExternalUrl;
   // the one per-request value: a callback url must name the port the caller

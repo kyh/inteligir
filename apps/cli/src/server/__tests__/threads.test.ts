@@ -536,7 +536,7 @@ describe("a fake-provider turn end-to-end", () => {
       socket.addEventListener("open", () => resolve());
       socket.addEventListener("error", () => reject(new Error("ws error")));
     });
-    socket.send(JSON.stringify({ type: "subscribe", target: { kind: "thread-detail", threadId } }));
+    socket.send(JSON.stringify({ type: "subscribe", target: { kind: "thread-list" } }));
 
     // the client acts on ws frames only, never polls; every frame up to the match is consumed so the next wait starts after it.
     async function waitForThreadChange(kind: string): Promise<void> {

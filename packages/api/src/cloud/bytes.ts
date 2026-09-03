@@ -8,6 +8,21 @@ export function hexFromBytes(bytes: Uint8Array): string {
   return hex;
 }
 
+// btoa is a global on workerd, node, the browser and hermes (rn 0.74+); Buffer is not. chunked:
+// a whole asset spread into fromCharCode overflows the argument list.
+export function base64FromBytes(bytes: Uint8Array): string {
+  let binary = "";
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  }
+  return btoa(binary);
+}
+
+export function base64UrlFromBytes(bytes: Uint8Array): string {
+  return base64FromBytes(bytes).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
+}
+
 export async function sha256Hex(value: string): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
   return hexFromBytes(new Uint8Array(digest));

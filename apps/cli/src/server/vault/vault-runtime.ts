@@ -6,15 +6,11 @@ import { assertVaultAndDataDirDisjoint } from "../path-containment";
 import { ensureVaultRepo, type EnsureVaultRepoArgs } from "./git-bootstrap";
 import { createGitEngine, type GitEngine, type GitEngineArgs } from "./git-engine";
 import { seedVault } from "./seed-vault";
-import { sweepExpiredTrash } from "./trash";
 import { createVaultService, sweepStaleTmpFiles, type VaultService } from "./vault-service";
 import { createVaultWatcher, type VaultWatcher, type VaultWatcherArgs } from "./watcher";
 import type { ParcelWatcherBackend } from "./watcher/parcel-backend";
 
 const DEFAULT_SYNC_INTERVAL_MS = 60_000;
-
-// retention is 30 days, so a daily sweep bounds overshoot at ~3%.
-const TRASH_SWEEP_INTERVAL_MS = 24 * 60 * 60 * 1000;
 
 const SELF_WRITE_ECHO_WINDOW_MS = 2_000;
 
@@ -141,15 +137,6 @@ export async function createVaultRuntime(args: VaultRuntimeArgs): Promise<VaultR
   // a crash between a write and its debounced commit leaves the tree dirty with no event.
   git.scheduleCommit();
 
-  const sweepTrash = (): void => {
-    void sweepExpiredTrash(service).catch((cause: unknown) => {
-      console.error(`vault: trash retention sweep failed: ${String(cause)}`);
-    });
-  };
-  sweepTrash();
-  const trashSweepTimer = setInterval(sweepTrash, TRASH_SWEEP_INTERVAL_MS);
-  trashSweepTimer.unref();
-
   const syncIntervalMs =
     args.syncIntervalMs === undefined ? DEFAULT_SYNC_INTERVAL_MS : args.syncIntervalMs;
   if (syncIntervalMs !== null) {
@@ -163,7 +150,6 @@ export async function createVaultRuntime(args: VaultRuntimeArgs): Promise<VaultR
     status: () => git.status(),
     syncNow: () => git.syncNow(),
     async dispose() {
-      clearInterval(trashSweepTimer);
       await watcher?.dispose();
       await git.dispose();
     },

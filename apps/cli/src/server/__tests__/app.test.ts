@@ -312,7 +312,7 @@ describe("the real socket upgrade", () => {
     const hello = await nextFrame();
     expect(hello).toEqual({ type: "hello" });
 
-    socket.send(JSON.stringify({ type: "subscribe", target: { kind: "doc-detail", docId: "d1" } }));
+    socket.send(JSON.stringify({ type: "subscribe", target: { kind: "vault" } }));
     // a notification sent before the subscribe lands is dropped, so re-notify on every probe.
     const changed = await vi.waitFor(
       () => {

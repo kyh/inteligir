@@ -15,7 +15,7 @@ function describe(status: CloudStatusResponse): string[] {
     case "off":
       return [
         `not paired  ${new URL(status.cloudUrl).host}`,
-        "Run: inteligir sync pair — then approve this device in the browser it opens.",
+        "Run: inteligir cloud pair — then approve this device in the browser it opens.",
       ];
     case "unauthorized":
       return [
@@ -44,11 +44,12 @@ function describeBegun(begun: CloudPairBeginResponse): string[] {
   ];
 }
 
-export function syncCommand(deps: CliDeps) {
+export function cloudCommand(deps: CliDeps) {
   return defineCommand({
     meta: {
-      name: "sync",
-      description: "Account sync: pairing state, pairing, and an immediate thread pass",
+      name: "cloud",
+      description:
+        "Account sync over the cloud: pairing state, pairing, and an immediate thread pass",
     },
     subCommands: {
       status: defineCommand({
@@ -90,9 +91,9 @@ export function syncCommand(deps: CliDeps) {
           writeLines(describeBegun(body));
         },
       }),
-      push: defineCommand({
+      sync: defineCommand({
         meta: {
-          name: "push",
+          name: "sync",
           description: "Run a sync pass now — drain the outbox, pull, apply — and print the state",
         },
         args: { ...jsonArg },

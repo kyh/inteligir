@@ -47,6 +47,9 @@ function recordingEngine(): RecordingEngine {
     async revision() {
       return "";
     },
+    async deleted() {
+      return [];
+    },
     async syncNow() {
       return { state: "no-remote", lastSyncAt: null, lastError: null };
     },

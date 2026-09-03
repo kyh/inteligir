@@ -1,16 +1,14 @@
 import type { DeleteVaultEntryResult } from "@repo/editor/host-io";
-import type { VaultNoteIO } from "@repo/editor/note/vault-session";
-import { isNotePath } from "@repo/notes/knowledge/doc-file";
-import { isTrashedPath } from "@repo/notes/knowledge/vault-path";
+import type { VaultIO } from "@repo/editor/vault-editor";
 import { diff3 } from "@repo/notes/text/diff3";
 import { contentHashHex } from "@repo/api/local/vault/vault-schema";
 import { isDefinedError, refusalMessage, safe, type client } from "../api";
 
 export interface GuardedVaultApi {
-  vault: Pick<(typeof client)["vault"], "read" | "write" | "trash" | "remove">;
+  vault: Pick<(typeof client)["vault"], "read" | "write" | "remove">;
 }
 
-export function createGuardedVaultIo(api: GuardedVaultApi): VaultNoteIO {
+export function createGuardedVaultIo(api: GuardedVaultApi): VaultIO {
   const bases = new Map<string, string>();
 
   const read = async (path: string): Promise<string> => {
@@ -61,14 +59,8 @@ export function createGuardedVaultIo(api: GuardedVaultApi): VaultNoteIO {
   };
 
   const remove = async (path: string): Promise<DeleteVaultEntryResult> => {
-    // Answers "trashed" for a real delete too: the session only needs the row gone.
-    const isNote = isNotePath(path);
-    const inTrash = isTrashedPath(path);
-    const { error } =
-      isNote && !inTrash
-        ? await safe(api.vault.trash({ path }))
-        : await safe(api.vault.remove({ path }));
-    if (error === null) return { outcome: "trashed" };
+    const { error } = await safe(api.vault.remove({ path }));
+    if (error === null) return { outcome: "removed" };
     if (isDefinedError(error) && error.code === "NOT_FOUND") return { outcome: "absent" };
     throw error;
   };

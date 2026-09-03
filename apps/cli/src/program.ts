@@ -18,8 +18,7 @@ import { guideCommand } from "./commands/guide";
 import { interactionsCommand } from "./commands/interactions";
 import { backlinksCommand, relatedCommand, searchCommand, tagsCommand } from "./commands/knowledge";
 import { statusCommand } from "./commands/status";
-import { syncCommand } from "./commands/sync";
-import { trashCommand } from "./commands/trash";
+import { cloudCommand } from "./commands/cloud";
 import { actionCommand } from "./commands/action";
 import { commentCommand } from "./commands/comment";
 import { serveCommand } from "./commands/serve";
@@ -49,8 +48,7 @@ export function buildProgram(deps: CliDeps): CommandDef {
       interactions: interactionsCommand(deps),
       connectors: connectorsCommand(deps),
       folders: foldersCommand(deps),
-      trash: trashCommand(deps),
-      sync: syncCommand(deps),
+      cloud: cloudCommand(deps),
       status: statusCommand(deps),
       guide: guideCommand(deps),
     },

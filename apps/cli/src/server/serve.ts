@@ -119,7 +119,6 @@ async function boot(
 
   const runtime = await composeRuntime({
     config,
-    env,
     version,
     teardown,
     // injected: it cannot be imported from the composed graph (cloud/cloud-socket.ts).

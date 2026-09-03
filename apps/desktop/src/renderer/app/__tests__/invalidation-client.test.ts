@@ -89,10 +89,8 @@ describe("subscriptions", () => {
     h.client.start();
     const socket = h.sockets[0];
     socket?.open();
-    h.client.subscribe({ kind: "doc-detail", docId: "notes/a.md" });
-    expect(socket?.sentFrames()).toEqual([
-      { type: "subscribe", target: { kind: "doc-detail", docId: "notes/a.md" } },
-    ]);
+    h.client.subscribe({ kind: "thread-list" });
+    expect(socket?.sentFrames()).toEqual([{ type: "subscribe", target: { kind: "thread-list" } }]);
   });
 
   it("ref-counts a target: one subscribe, unsubscribe only on the last release", () => {
@@ -166,7 +164,7 @@ describe("reconnect", () => {
     const h = harness();
     h.client.start();
     h.client.subscribe({ kind: "vault" });
-    h.client.subscribe({ kind: "doc-detail", docId: "a.md" });
+    h.client.subscribe({ kind: "thread-list" });
     const first = h.sockets[0];
     first?.open();
     expect(first?.sent).toHaveLength(2);
@@ -180,7 +178,7 @@ describe("reconnect", () => {
     second?.open();
     expect(second?.sentFrames()).toEqual([
       { type: "subscribe", target: { kind: "vault" } },
-      { type: "subscribe", target: { kind: "doc-detail", docId: "a.md" } },
+      { type: "subscribe", target: { kind: "thread-list" } },
     ]);
   });
 

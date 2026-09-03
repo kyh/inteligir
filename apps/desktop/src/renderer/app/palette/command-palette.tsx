@@ -13,6 +13,7 @@ import {
 import type { Thread } from "@repo/api/local/threads/threads-schema";
 import type { VaultEntry } from "@repo/api/local/vault/vault-schema";
 import {
+  ArchiveRestoreIcon,
   CalendarIcon,
   FilePlusIcon,
   FileTextIcon,
@@ -20,7 +21,6 @@ import {
   MessagesSquareIcon,
   RefreshCwIcon,
   SettingsIcon,
-  Trash2Icon,
   PrinterIcon,
 } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -34,7 +34,7 @@ export interface PaletteActions {
   openThread: (threadId: string) => void;
   syncNow: () => void;
   openSettings: () => void;
-  openTrash: () => void;
+  openDeletedNotes: () => void;
   exportPdf: (() => void) | null;
 }
 
@@ -187,10 +187,10 @@ export function CommandPalette({
         ]
       : []),
     {
-      id: "open-trash",
-      label: "Open trash",
-      icon: <Trash2Icon />,
-      run: () => actions.openTrash(),
+      id: "deleted-notes",
+      label: "Deleted notes",
+      icon: <ArchiveRestoreIcon />,
+      run: () => actions.openDeletedNotes(),
     },
     {
       id: "settings",

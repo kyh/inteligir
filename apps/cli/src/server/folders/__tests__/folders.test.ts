@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { createFoldersService, FolderRefusedError } from "../folders-service";
-import { createFoldersStore, FoldersStoreError } from "../folders-store";
+import { FoldersStore, FoldersStoreError } from "../folders-store";
 import { makeTempDir } from "../../__tests__/temp-dir";
 
 let root: string;
@@ -26,7 +26,7 @@ beforeEach(() => {
 afterEach(() => {});
 
 function service() {
-  return createFoldersService({ store: createFoldersStore(dataDir), dataDir, vaultDir });
+  return createFoldersService({ store: new FoldersStore(dataDir), dataDir, vaultDir });
 }
 
 function refusalKind(run: () => string[]): string | null {
@@ -43,16 +43,16 @@ function refusalKind(run: () => string[]): string | null {
 
 describe("folders store", () => {
   it("round-trips through the file and answers [] for a missing one", () => {
-    const store = createFoldersStore(dataDir);
+    const store = new FoldersStore(dataDir);
     expect(store.read()).toEqual([]);
     store.write([refDir]);
     expect(store.read()).toEqual([refDir]);
-    expect(createFoldersStore(dataDir).read()).toEqual([refDir]);
+    expect(new FoldersStore(dataDir).read()).toEqual([refDir]);
   });
 
   it("surfaces a malformed file as an error, never an empty list", () => {
     writeFileSync(join(dataDir, "connected-folders.json"), "{nope", "utf8");
-    expect(() => createFoldersStore(dataDir).read()).toThrow(FoldersStoreError);
+    expect(() => new FoldersStore(dataDir).read()).toThrow(FoldersStoreError);
   });
 });
 

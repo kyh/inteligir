@@ -90,7 +90,6 @@ export async function bootTestApp(options: BootTestAppOptions = {}): Promise<Boo
   };
 
   const ports: ComposePorts = {
-    inference: { availability: { kind: "available" }, infer: () => Promise.resolve(null) },
     vault: { watch: false, gitEnv: hermeticGitEnv(), remote: () => null },
   };
   if (options.openExternalUrl !== undefined) ports.openExternalUrl = options.openExternalUrl;
@@ -104,7 +103,6 @@ export async function bootTestApp(options: BootTestAppOptions = {}): Promise<Boo
   });
   const composeArgs: ComposeRuntimeArgs = {
     config,
-    env: {},
     version: "0.1.0-test",
     ports,
     teardown,

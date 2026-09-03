@@ -69,41 +69,39 @@ const storeFileSchema = z.object({ servers: z.array(storedConnectorSchema) }).st
 
 export class ConnectorsStoreError extends Error {}
 
-export interface ConnectorsStore {
-  read(): StoredConnector[];
-  write(servers: StoredConnector[]): void;
-}
-
 // a malformed file is an error, not an empty list: an empty list lets the next write erase what the bytes held.
-export function createConnectorsStore(dataDir: string): ConnectorsStore {
-  const path = join(dataDir, CONNECTORS_FILE);
-  return {
-    read(): StoredConnector[] {
-      let raw: string;
-      try {
-        raw = readFileSync(path, "utf8");
-      } catch {
-        return [];
-      }
-      let parsed: unknown;
-      try {
-        parsed = JSON.parse(raw);
-      } catch {
-        throw new ConnectorsStoreError(
-          `${path} is not valid JSON — fix or remove the file; refusing to read it as empty`,
-        );
-      }
-      const verdict = storeFileSchema.safeParse(parsed);
-      if (!verdict.success) {
-        throw new ConnectorsStoreError(
-          `${path} does not match the connectors shape — fix or remove the file; refusing to read it as empty`,
-        );
-      }
-      return verdict.data.servers;
-    },
+export class ConnectorsStore {
+  private readonly path: string;
 
-    write(servers: StoredConnector[]): void {
-      stagedWriteFileSync(path, `${JSON.stringify({ servers }, null, 2)}\n`, { mode: 0o600 });
-    },
-  };
+  constructor(dataDir: string) {
+    this.path = join(dataDir, CONNECTORS_FILE);
+  }
+
+  read(): StoredConnector[] {
+    let raw: string;
+    try {
+      raw = readFileSync(this.path, "utf8");
+    } catch {
+      return [];
+    }
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      throw new ConnectorsStoreError(
+        `${this.path} is not valid JSON — fix or remove the file; refusing to read it as empty`,
+      );
+    }
+    const verdict = storeFileSchema.safeParse(parsed);
+    if (!verdict.success) {
+      throw new ConnectorsStoreError(
+        `${this.path} does not match the connectors shape — fix or remove the file; refusing to read it as empty`,
+      );
+    }
+    return verdict.data.servers;
+  }
+
+  write(servers: StoredConnector[]): void {
+    stagedWriteFileSync(this.path, `${JSON.stringify({ servers }, null, 2)}\n`, { mode: 0o600 });
+  }
 }

@@ -21,13 +21,13 @@ import { flushOpenNote } from "@repo/editor/note/open-note-flush";
 import { openDocPath } from "@repo/editor/note/open-doc";
 import { backTarget, createOpenNoteStore, forwardTarget } from "@repo/editor/note/open-note-store";
 import { exportNoteAsPdf } from "./note/export-pdf";
-import type { VaultActions } from "@repo/editor/host";
+import type { VaultActions } from "@repo/editor/host-io";
 import { dailyNotePath, dailyNoteTemplate } from "./note/daily";
 import { readNoteViewContext } from "./note/note-view-context";
 import { VaultProvider } from "./note/vault-provider";
 import { CommandPalette } from "./palette/command-palette";
 import { createSearchSource, sortedNotePaths } from "./palette/search-source";
-import { TrashDialog } from "./sidebar/trash-dialog";
+import { DeletedNotesDialog } from "./sidebar/deleted-notes-dialog";
 import { Sidebar, SidebarInset, SidebarProvider, useSidebar } from "@repo/ui/components/sidebar";
 import { SidebarRailContent } from "./sidebar/sidebar";
 import { useTreeOps } from "./sidebar/tree-ops";
@@ -59,7 +59,7 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
 
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [paletteQuery, setPaletteQuery] = useState("");
-  const [trashOpen, setTrashOpen] = useState(false);
+  const [deletedNotesOpen, setDeletedNotesOpen] = useState(false);
   const [shortcutModifier] = useState(platformShortcutModifier);
 
   // The action surface's state lives beside the note, never above it, so no
@@ -264,7 +264,7 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
       openThread,
       syncNow,
       openSettings: onOpenSettings,
-      openTrash: () => setTrashOpen(true),
+      openDeletedNotes: () => setDeletedNotesOpen(true),
       exportPdf:
         openPath === null
           ? null
@@ -304,8 +304,8 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
             ops={treeOps}
             onSyncNow={syncNow}
             onOpenSettings={onOpenSettings}
-            onOpenTrash={() => {
-              setTrashOpen(true);
+            onOpenDeletedNotes={() => {
+              setDeletedNotesOpen(true);
             }}
             onOpenSearch={() => {
               setPaletteQuery("");
@@ -395,7 +395,11 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
           canSync={canSync}
           actions={paletteActions}
         />
-        <TrashDialog open={trashOpen} onOpenChange={setTrashOpen} onOpenNote={setOpenNote} />
+        <DeletedNotesDialog
+          open={deletedNotesOpen}
+          onOpenChange={setDeletedNotesOpen}
+          onOpenNote={setOpenNote}
+        />
       </SidebarProvider>
     </VaultProvider>
   );

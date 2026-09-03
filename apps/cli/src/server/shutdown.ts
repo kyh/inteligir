@@ -12,7 +12,6 @@ export const TEARDOWN_BUDGETS_MS = {
   // cloud sync writes the db and the vault, so it stops above both.
   cloud: DEFAULT_STEP_TIMEOUT_MS,
   agent: DEFAULT_STEP_TIMEOUT_MS,
-  intelligence: DEFAULT_STEP_TIMEOUT_MS,
   knowledge: DEFAULT_STEP_TIMEOUT_MS,
   // a git commit over a large dirty tree; the step the ordering exists to protect.
   vault: 8_000,

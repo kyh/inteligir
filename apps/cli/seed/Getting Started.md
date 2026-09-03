@@ -20,14 +20,13 @@ vault/
   Getting Started.md.comments.json   # only when a note has comments
   Projects/Roadmap.md                # folders nest freely
   assets/diagram.png
-  Trash/                             # deleted notes wait here
 ```
 
 The filename is the title. There is no database, no proprietary container, and no lock-in: edit a note here, in vim, or from a script, and every tool sees the same bytes. The vault is a git repository, so your history is real history.
 
 ```inteligir-callout
 info
-Because the vault is git, "undo" survives quitting the app. Deleting a note moves it to `Trash/` first, and it stays restorable there.
+Because the vault is git, "undo" survives quitting the app. A deleted note stays in the history, and Deleted notes in the sidebar brings it back.
 ```
 
 ## Writing

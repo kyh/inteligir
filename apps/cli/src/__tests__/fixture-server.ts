@@ -313,21 +313,6 @@ const knowledgeRouter = {
   })),
 };
 
-const noteIntelligenceRouter = {
-  status: base.noteIntelligence.status.handler(() => ({
-    availability: { kind: "available" },
-    enabled: false,
-    running: false,
-    lastSweep: null,
-  })),
-  toggle: base.noteIntelligence.toggle.handler(({ input }) => ({
-    availability: { kind: "available" },
-    enabled: input.enabled,
-    running: false,
-    lastSweep: null,
-  })),
-};
-
 const systemRouter = {
   status: base.system.status.handler(({ context }) => {
     const status: SystemStatusResponse = {
@@ -450,7 +435,10 @@ const vaultRouter = {
     return { content: row.content };
   }),
   commitNow: base.vault.commitNow.handler(() => ({ files: 0 })),
-  write: base.vault.write.handler(({ context, input }) => {
+  write: base.vault.write.handler(({ context, input, errors }) => {
+    if (input.ifAbsent === true && context.vault.has(input.path)) {
+      throw errors.ALREADY_EXISTS({ message: `A file already exists at ${input.path}` });
+    }
     context.vault.set(input.path, input.content);
     return { path: input.path };
   }),
@@ -467,37 +455,17 @@ const vaultRouter = {
     return { path: input.to, rewritten: [], skipped: [] };
   }),
   mkdir: base.vault.mkdir.handler(({ input }) => ({ path: input.path })),
-  trashList: base.vault.trashList.handler(({ context }) => ({
-    entries: [...context.vault.keys()]
-      .filter((path) => path.startsWith("Trash/") && path.endsWith(".md"))
-      .map((path) => ({ path, trashedAt: null, trashedFrom: null })),
+  // a path with revisions and no bytes on disk: the fixture's "deleted".
+  deleted: base.vault.deleted.handler(({ context }) => ({
+    entries: [...context.revisions]
+      .filter(([path]) => !context.vault.has(path))
+      .flatMap(([path, rows]) => {
+        const newest = rows[0];
+        return newest === undefined
+          ? []
+          : [{ path, deletedAt: newest.revision.authoredAt, sha: newest.revision.sha }];
+      }),
   })),
-  trash: base.vault.trash.handler(({ context, input, errors }) => {
-    const content = context.vault.get(input.path);
-    if (content === undefined) {
-      throw errors.NOT_FOUND({ message: `No file at ${input.path}` });
-    }
-    context.vault.delete(input.path);
-    const target = `Trash/${input.path}`;
-    context.vault.set(target, content);
-    return { path: target };
-  }),
-  trashRestore: base.vault.trashRestore.handler(({ context, input, errors }) => {
-    const content = context.vault.get(input.path);
-    if (content === undefined) {
-      throw errors.NOT_FOUND({ message: `No file at ${input.path}` });
-    }
-    context.vault.delete(input.path);
-    const target = input.path.replace(/^Trash\//, "");
-    context.vault.set(target, content);
-    return { path: target };
-  }),
-  trashPurge: base.vault.trashPurge.handler(({ context, input, errors }) => {
-    if (!context.vault.delete(input.path)) {
-      throw errors.NOT_FOUND({ message: `No file at ${input.path}` });
-    }
-    return { ok: true } as const;
-  }),
   remove: base.vault.remove.handler(({ context, input, errors }) => {
     if (!context.vault.delete(input.path)) {
       throw errors.NOT_FOUND({ message: `No file at ${input.path}` });
@@ -521,7 +489,6 @@ const voiceRouter = {
     state: "unavailable",
     detail: "the fixture server does not dictate",
   })),
-  transcribe: base.voice.transcribe.handler(() => ({ text: "" })),
 };
 
 // a middleware rather than a handler interceptor, so the refusal reaches the client as an ORPCError like a real one.
@@ -540,7 +507,6 @@ const fixtureRouter = base
     connectors: connectorsRouter,
     folders: foldersRouter,
     knowledge: knowledgeRouter,
-    noteIntelligence: noteIntelligenceRouter,
     system: systemRouter,
     threads: threadsRouter,
     vault: vaultRouter,

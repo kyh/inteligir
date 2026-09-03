@@ -8,12 +8,8 @@ import { z } from "zod";
 export const VOICE_SAMPLE_RATE = 16_000;
 export const VOICE_BYTES_PER_SAMPLE = 2;
 
-// also the cap the streaming session enforces on a long hold.
+// the cap the streaming session enforces on a long hold.
 export const VOICE_MAX_AUDIO_SECONDS = 120;
-export const VOICE_MAX_AUDIO_BYTES =
-  VOICE_SAMPLE_RATE * VOICE_BYTES_PER_SAMPLE * VOICE_MAX_AUDIO_SECONDS;
-// 4 chars per 3 bytes, rounded up to the padded quantum.
-export const VOICE_MAX_AUDIO_BASE64_LENGTH = Math.ceil(VOICE_MAX_AUDIO_BYTES / 3) * 4;
 
 export const voiceModelSchema = z
   .object({
@@ -48,18 +44,6 @@ export const voiceStatusResponseSchema = z.discriminatedUnion("state", [
   z.object({ state: z.literal("ready"), model: voiceModelSchema }).strict(),
 ]);
 export type VoiceStatusResponse = z.infer<typeof voiceStatusResponseSchema>;
-
-// raw sample bytes, no container: a header would be a second place the format is stated.
-export const voiceTranscribeRequestSchema = z
-  .object({
-    pcm: z.base64().max(VOICE_MAX_AUDIO_BASE64_LENGTH),
-  })
-  .strict();
-export type VoiceTranscribeRequest = z.infer<typeof voiceTranscribeRequestSchema>;
-
-// empty when the clip held no speech; silence is not a refusal.
-export const voiceTranscribeResponseSchema = z.object({ text: z.string() }).strict();
-export type VoiceTranscribeResponse = z.infer<typeof voiceTranscribeResponseSchema>;
 
 // the dictation stream is its own websocket, off the /ws bus (which carries pings, never a
 // payload). audio goes up as binary frames (base64 would inflate every 128 ms chunk by a third);

@@ -1,11 +1,18 @@
 // against real git: the parse frames git's own -z bytes, so a fake would only prove the fake.
 
+import { existsSync } from "node:fs";
 import { mkdir, rename, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { ensureVaultRepo } from "../git-bootstrap";
 import { runGit } from "../git-run";
-import { parseFollowLog, readNoteHistory, readNoteRevision } from "../git-history";
+import {
+  parseDeletionLog,
+  parseFollowLog,
+  readDeletedNotes,
+  readNoteHistory,
+  readNoteRevision,
+} from "../git-history";
 import { VaultServiceError } from "../vault-service";
 import { hermeticGitEnv } from "./git-test-env";
 import { makeTempDir } from "../../__tests__/temp-dir";
@@ -199,5 +206,100 @@ describe("readNoteRevision", () => {
     await expect(readNoteRevision(run, "notes", head?.sha ?? "")).rejects.toThrow(
       VaultServiceError,
     );
+  });
+});
+
+describe("parseDeletionLog", () => {
+  it("frames each commit's first parent, date and deleted paths", () => {
+    const sha = "a".repeat(40);
+    const parent = "b".repeat(40);
+    const stdout = [
+      sha,
+      `${parent} ${"c".repeat(40)}`,
+      "2026-01-01T00:00:00+00:00",
+      "\nD",
+      "one.md",
+      "D",
+      "two.md",
+      "",
+    ].join("\0");
+    expect(parseDeletionLog(stdout)).toEqual([
+      { parent, deletedAt: "2026-01-01T00:00:00+00:00", paths: ["one.md", "two.md"] },
+    ]);
+  });
+
+  it("stops rather than mis-framing bytes that are not a commit record", () => {
+    expect(parseDeletionLog("not-a-sha\0anything")).toEqual([]);
+  });
+});
+
+const onDisk = (root: string) => (path: string) => existsSync(join(root, path));
+
+describe("readDeletedNotes", () => {
+  it("lists a committed deletion under the parent whose tree still holds the bytes, docs only", async () => {
+    const { root, run, commit } = await makeVault();
+    await writeFile(join(root, "Gone.md"), "bytes\n", "utf8");
+    await writeFile(join(root, "Gone.md.comments.json"), "{}", "utf8");
+    await writeFile(join(root, "Kept.md"), "kept\n", "utf8");
+    await commit("vault: create");
+    const [created] = await readNoteHistory(run, "Gone.md", { skip: 0, limit: 1 });
+    await rm(join(root, "Gone.md"));
+    await rm(join(root, "Gone.md.comments.json"));
+    await commit("vault: delete");
+
+    const entries = await readDeletedNotes(run, onDisk(root));
+    expect(entries).toEqual([
+      {
+        path: "Gone.md",
+        deletedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/u),
+        sha: created?.sha,
+      },
+    ]);
+    expect(await readNoteRevision(run, "Gone.md", entries[0]?.sha ?? "")).toBe("bytes\n");
+  });
+
+  it("lists a deletion the auto-commit has not flushed under HEAD", async () => {
+    const { root, run, commit } = await makeVault();
+    await writeFile(join(root, "Fresh.md"), "fresh\n", "utf8");
+    await commit("vault: create");
+    await rm(join(root, "Fresh.md"));
+
+    const entries = await readDeletedNotes(run, onDisk(root));
+    const head = (await run(["rev-parse", "HEAD"])).stdout.trim();
+    expect(entries).toEqual([
+      { path: "Fresh.md", deletedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/u), sha: head },
+    ]);
+    expect(Number.isNaN(Date.parse(entries[0]?.deletedAt ?? ""))).toBe(false);
+    expect(await readNoteRevision(run, "Fresh.md", head)).toBe("fresh\n");
+  });
+
+  it("names a path once, at its latest deletion, and not at all once it is back on disk", async () => {
+    const { root, run, commit } = await makeVault();
+    await writeFile(join(root, "Twice.md"), "first\n", "utf8");
+    await writeFile(join(root, "Back.md"), "back\n", "utf8");
+    await commit("vault: create");
+    await rm(join(root, "Twice.md"));
+    await rm(join(root, "Back.md"));
+    await commit("vault: delete both");
+    await writeFile(join(root, "Twice.md"), "second\n", "utf8");
+    await commit("vault: recreate Twice");
+    await rm(join(root, "Twice.md"));
+    await commit("vault: delete Twice again");
+    // re-created and not yet committed: on disk is on disk.
+    await writeFile(join(root, "Back.md"), "back again\n", "utf8");
+
+    const entries = await readDeletedNotes(run, onDisk(root));
+    expect(entries.map((entry) => entry.path)).toEqual(["Twice.md"]);
+    expect(await readNoteRevision(run, "Twice.md", entries[0]?.sha ?? "")).toBe("second\n");
+  });
+
+  it("does not report a rename as a deletion", async () => {
+    const { root, run, commit } = await makeVault();
+    await writeFile(join(root, "Old.md"), "same bytes\n", "utf8");
+    await commit("vault: create");
+    await rename(join(root, "Old.md"), join(root, "New.md"));
+    await commit("vault: rename");
+
+    expect(await readDeletedNotes(run, onDisk(root))).toEqual([]);
   });
 });

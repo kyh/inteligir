@@ -12,7 +12,7 @@ export class FakeVault implements VaultIO {
   manualWrite = false;
   pendingReads: PromiseWithResolvers<string>[] = [];
   pendingWrites: PromiseWithResolvers<void>[] = [];
-  removeOutcome: DeleteVaultEntryResult = { outcome: "trashed" };
+  removeOutcome: DeleteVaultEntryResult = { outcome: "removed" };
 
   read = (path: string): Promise<string> => {
     if (this.hangReads) return new Promise<string>(() => {});
@@ -32,6 +32,12 @@ export class FakeVault implements VaultIO {
     const pending = Promise.withResolvers<void>();
     this.pendingWrites.push(pending);
     return pending.promise;
+  };
+
+  create = (path: string, content: string): Promise<void> => {
+    if (this.files.has(path)) return Promise.reject(new Error("EEXIST"));
+    this.files.set(path, content);
+    return Promise.resolve();
   };
 
   remove = (path: string): Promise<DeleteVaultEntryResult> => {

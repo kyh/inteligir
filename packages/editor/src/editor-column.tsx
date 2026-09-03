@@ -9,7 +9,7 @@ import { useOpenNote, useOpenNotePath } from "@repo/editor/note/open-note-contex
 import { registerNoteTitleFocus } from "@repo/editor/note-title-focus";
 import { useVaultActions } from "@repo/editor/host";
 import { checkNoteName, noteNameErrorMessage } from "@repo/notes/knowledge/note-name";
-import { basenamePath } from "@repo/notes/knowledge/vault-path";
+import { basenamePath, dirnamePath, joinPath } from "@repo/notes/knowledge/vault-path";
 
 export function EditorColumn() {
   // Never select the content buffer here: typing must re-render only NoteDocument.
@@ -65,8 +65,7 @@ function NoteDocument({ path, showRich }: { path: string; showRich: boolean }) {
   );
 
   const ext = dot > 0 ? fileName.slice(dot) : "";
-  const slash = path.lastIndexOf("/");
-  const dir = slash === -1 ? "" : path.slice(0, slash + 1);
+  const dir = dirnamePath(path);
 
   const commitTitle = (raw: string) => {
     const next = raw.trim();
@@ -81,7 +80,7 @@ function NoteDocument({ path, showRich }: { path: string; showRich: boolean }) {
       if (titleRef.current) titleRef.current.textContent = displayName;
       return;
     }
-    void renameEntry(path, `${dir}${verdict.name}`).then((ok) => {
+    void renameEntry(path, joinPath(dir, verdict.name)).then((ok) => {
       if (!ok && titleRef.current) titleRef.current.textContent = displayName;
       return undefined;
     });

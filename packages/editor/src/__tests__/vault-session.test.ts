@@ -26,7 +26,7 @@ function sessionOver(options: { exists: boolean; createRefuses?: boolean }) {
           ? Promise.reject(new Error("A file already exists at Fresh.md"))
           : Promise.resolve();
       },
-      remove: () => Promise.resolve({ outcome: "trashed" }),
+      remove: () => Promise.resolve({ outcome: "removed" }),
     },
     publishListing: () => {},
     publishRoot: () => {},

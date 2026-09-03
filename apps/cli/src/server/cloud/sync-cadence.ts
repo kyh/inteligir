@@ -1,3 +1,5 @@
+import { createCoalescingTimer } from "../coalescing-timer";
+
 // the socket makes sync immediate; this makes it correct when the socket is down.
 const POLL_INTERVAL_MS = 60_000;
 
@@ -21,7 +23,9 @@ export interface SyncCadence {
 export function createSyncCadence(args: SyncCadenceArgs): SyncCadence {
   const pollIntervalMs = args.pollIntervalMs === undefined ? POLL_INTERVAL_MS : args.pollIntervalMs;
   let pollTimer: ReturnType<typeof setInterval> | null = null;
-  let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+  const drain = createCoalescingTimer(PUSH_DEBOUNCE_MS, () => {
+    args.run();
+  });
 
   return {
     armPoll() {
@@ -35,14 +39,10 @@ export function createSyncCadence(args: SyncCadenceArgs): SyncCadence {
     },
 
     scheduleDrain() {
-      if (!args.canRun() || pollIntervalMs === null || debounceTimer !== null) {
+      if (!args.canRun() || pollIntervalMs === null) {
         return;
       }
-      debounceTimer = setTimeout(() => {
-        debounceTimer = null;
-        args.run();
-      }, PUSH_DEBOUNCE_MS);
-      debounceTimer.unref?.();
+      drain.arm();
     },
 
     clear() {
@@ -50,10 +50,7 @@ export function createSyncCadence(args: SyncCadenceArgs): SyncCadence {
         clearInterval(pollTimer);
         pollTimer = null;
       }
-      if (debounceTimer !== null) {
-        clearTimeout(debounceTimer);
-        debounceTimer = null;
-      }
+      drain.clear();
     },
   };
 }

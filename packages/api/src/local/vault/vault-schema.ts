@@ -194,27 +194,25 @@ export type VaultMkdirRequest = z.infer<typeof vaultMkdirRequestSchema>;
 export const vaultMkdirResponseSchema = z.object({ path: z.string().min(1) }).strict();
 export type VaultMkdirResponse = z.infer<typeof vaultMkdirResponseSchema>;
 
-// null when the frontmatter stamp is missing (yaml refused it, or a file dropped into Trash/
-// by hand): still restorable, never auto-purged.
-export const vaultTrashEntrySchema = z
+// doc paths no longer on disk. `sha` names the revision whose tree still holds the bytes — the
+// deleting commit's parent, or HEAD for a deletion the auto-commit has not flushed yet — so a
+// restore is `revision` read plus an `ifAbsent` write. latest deletion per path, newest first.
+export const vaultDeletedEntrySchema = z
   .object({
     path: z.string().min(1),
-    trashedFrom: z.string().min(1).nullable(),
-    trashedAt: z.string().min(1).nullable(),
+    // git's `%aI` of the deleting commit; the read time for an unflushed deletion.
+    deletedAt: z.string().min(1),
+    sha: vaultRevisionShaSchema,
   })
   .strict();
-export type VaultTrashEntry = z.infer<typeof vaultTrashEntrySchema>;
+export type VaultDeletedEntry = z.infer<typeof vaultDeletedEntrySchema>;
 
-export const vaultTrashListResponseSchema = z
-  .object({ entries: z.array(vaultTrashEntrySchema) })
+export const VAULT_DELETED_MAX_ENTRIES = 200;
+
+export const vaultDeletedResponseSchema = z
+  .object({ entries: z.array(vaultDeletedEntrySchema).max(VAULT_DELETED_MAX_ENTRIES) })
   .strict();
-export type VaultTrashListResponse = z.infer<typeof vaultTrashListResponseSchema>;
-
-export const vaultTrashRequestSchema = z.object({ path: vaultPathSchema }).strict();
-export type VaultTrashRequest = z.infer<typeof vaultTrashRequestSchema>;
-
-export const vaultTrashMoveResponseSchema = z.object({ path: z.string().min(1) }).strict();
-export type VaultTrashMoveResponse = z.infer<typeof vaultTrashMoveResponseSchema>;
+export type VaultDeletedResponse = z.infer<typeof vaultDeletedResponseSchema>;
 
 export const vaultDeleteRequestSchema = z.object({ path: vaultPathSchema }).strict();
 export type VaultDeleteRequest = z.infer<typeof vaultDeleteRequestSchema>;

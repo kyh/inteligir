@@ -10,11 +10,11 @@ import {
 } from "@repo/ui/components/sidebar";
 import { cn } from "@repo/ui/lib/utils";
 import {
+  ArchiveRestoreIcon,
   FilePlusIcon,
   FolderPlusIcon,
   FolderTreeIcon,
   SettingsIcon,
-  Trash2Icon,
 } from "lucide-react";
 import { useState } from "react";
 import { platformShortcutModifier } from "../global-shortcuts";
@@ -67,7 +67,7 @@ export interface SidebarRailContentProps {
   ops: TreeOps;
   onSyncNow: () => void;
   onOpenSettings: () => void;
-  onOpenTrash: () => void;
+  onOpenDeletedNotes: () => void;
   onOpenSearch: () => void;
 }
 
@@ -77,7 +77,7 @@ export function SidebarRailContent({
   ops,
   onSyncNow,
   onOpenSettings,
-  onOpenTrash,
+  onOpenDeletedNotes,
   onOpenSearch,
 }: SidebarRailContentProps) {
   const treeQuery = useVaultTree();
@@ -178,8 +178,13 @@ export function SidebarRailContent({
       <SidebarFooter className="flex-row items-center justify-between">
         <SyncStatusRow onSyncNow={onSyncNow} />
         <div className="flex items-center">
-          <Button variant="ghost" size="icon-compact" aria-label="Trash" onClick={onOpenTrash}>
-            <Trash2Icon className="size-4 text-muted-foreground" />
+          <Button
+            variant="ghost"
+            size="icon-compact"
+            aria-label="Deleted notes"
+            onClick={onOpenDeletedNotes}
+          >
+            <ArchiveRestoreIcon className="size-4 text-muted-foreground" />
           </Button>
           <Button
             variant="ghost"

@@ -54,7 +54,7 @@ describe("a vault change", () => {
 
     expect(applied.invalidated).toEqual([
       [...orpc.vault.tree.key()],
-      [...orpc.vault.trashList.key()],
+      [...orpc.vault.deleted.key()],
       [...orpc.knowledge.key()],
       [...orpc.comments.key()],
     ]);

@@ -1,17 +1,21 @@
-import type { VaultEntry } from "@repo/editor/host-io";
-import type { EditorHost, VaultActions } from "@repo/editor/host";
+import { createStore } from "zustand/vanilla";
+
+import {
+  setEditorHostIo,
+  type VaultActions,
+  type VaultEntry,
+  type VaultListing,
+} from "@repo/editor/host-io";
 
 export type HostCall = { readonly action: keyof VaultActions; readonly args: readonly unknown[] };
 
 export type FakeEditorHostOptions = {
   readonly resolveWikiTarget?: (target: string) => string | null;
   readonly entries?: VaultEntry[];
-  readonly folderName?: string;
 };
 
-export type FakeEditorHost = { readonly host: EditorHost; readonly calls: HostCall[] };
-
-export function fakeEditorHost(options: FakeEditorHostOptions = {}): FakeEditorHost {
+// Installs the singleton the hooks read; the io half answers as an empty, read-only vault.
+export function installFakeEditorHost(options: FakeEditorHostOptions = {}) {
   const calls: HostCall[] = [];
   const record =
     <T>(action: keyof VaultActions, answer: T) =>
@@ -35,15 +39,24 @@ export function fakeEditorHost(options: FakeEditorHostOptions = {}): FakeEditorH
     refreshVault: record("refreshVault", undefined),
   };
 
-  return {
-    calls,
-    host: {
-      actions,
-      listing: {
-        entries: options.entries ?? [],
-        folderName: options.folderName ?? "vault",
-        resolveWikiTarget: options.resolveWikiTarget ?? (() => null),
-      },
-    },
-  };
+  const listing = createStore<VaultListing>()(() => ({
+    entries: options.entries ?? [],
+    resolveWikiTarget: options.resolveWikiTarget ?? (() => null),
+  }));
+
+  setEditorHostIo({
+    actions,
+    listing,
+    readVaultFile: ({ path }) => Promise.reject(new Error(`ENOENT ${path}`)),
+    readVaultAsset: () => Promise.resolve({ ok: false, error: "no assets" }),
+    writeVaultAsset: () => Promise.reject(new Error("read-only")),
+    listWikiTargets: () => Promise.resolve([]),
+    getBacklinks: () => Promise.resolve([]),
+    readNoteFormulas: () => Promise.resolve(null),
+    getForwardLinks: () => Promise.resolve([]),
+    onVaultChanged: () => () => {},
+    onKnowledgeUpdated: () => () => {},
+  });
+
+  return { calls };
 }

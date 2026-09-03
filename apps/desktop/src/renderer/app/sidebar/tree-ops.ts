@@ -1,7 +1,7 @@
 import { useMemo, type RefObject } from "react";
 import { confirm } from "@repo/ui/components/confirm-dialog";
 import { toast } from "@repo/ui/components/sonner";
-import type { VaultActions } from "@repo/editor/host";
+import type { VaultActions } from "@repo/editor/host-io";
 import type { VaultMkdirRequest, VaultMkdirResponse } from "@repo/api/local/vault/vault-schema";
 import { refusalMessage } from "../api";
 import type { TreeOps } from "./file-tree";
@@ -76,8 +76,8 @@ export function useTreeOps({
             title: kind === "dir" ? `Delete the folder ${path}?` : `Delete ${path}?`,
             body:
               kind === "dir"
-                ? "Everything inside it is deleted with it."
-                : "It moves to Trash and is kept for 30 days.",
+                ? "Everything inside it goes with it. Notes stay recoverable from Deleted notes."
+                : "It stays recoverable from Deleted notes.",
             confirmLabel: "Delete",
             destructive: true,
           });

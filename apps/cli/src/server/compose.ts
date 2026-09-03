@@ -8,7 +8,6 @@ import { runMigrations } from "@repo/db/migrate";
 import { rebindThreadOrigins } from "@repo/db/threads";
 import { resolveMigrationsFolder } from "../paths";
 import type { ResolvedAgentDriver } from "./agents/agent-driver";
-import { binaryOnPath } from "./agents/binary-on-path";
 import { createCommentsService } from "./comments/comments-service";
 import { systemOpenExternalUrl, type OpenExternalUrl } from "./cloud/browser-opener";
 import {
@@ -19,19 +18,12 @@ import {
 import { createVaultRemoteProvider, type VaultRemoteProvider } from "./cloud/vault-remote";
 import type { AppConfig } from "./config";
 import { createConnectorsService, type ConnectorsService } from "./connectors/connectors-service";
-import { createConnectorsStore } from "./connectors/connectors-store";
+import { ConnectorsStore } from "./connectors/connectors-store";
 import { createConnectorOauthFlow, type ConnectorOauthFlow } from "./connectors/oauth-flow";
 import { createFoldersService, type FoldersService } from "./folders/folders-service";
-import { createFoldersStore } from "./folders/folders-store";
+import { FoldersStore } from "./folders/folders-store";
 import { createKnowledgeRuntime, type KnowledgeRuntime } from "./knowledge/knowledge-runtime";
 import { renameNoteWithLinkRewrite } from "./knowledge/rename";
-import { createCliInferenceRunner, INFERENCE_BINARY } from "./note-intelligence/infer";
-import {
-  createNoteIntelligence,
-  type NoteIntelligence,
-  type NoteIntelligenceDeps,
-} from "./note-intelligence/note-intelligence";
-import { createNoteIntelligenceSettingsStore } from "./note-intelligence/settings-store";
 import type { AppServices } from "./orpc";
 import { teardownStep, type ShutdownStep, type TeardownStepName } from "./shutdown";
 import { ThreadService } from "./threads/service";
@@ -65,13 +57,11 @@ interface ComposeDriverDeps {
 
 export interface ComposePorts {
   openExternalUrl?: OpenExternalUrl;
-  inference?: Pick<NoteIntelligenceDeps, "availability" | "infer">;
   vault?: Pick<VaultRuntimeArgs, "watch" | "gitEnv" | "remote">;
 }
 
 export interface ComposeRuntimeArgs {
   config: AppConfig;
-  env: NodeJS.ProcessEnv;
   version: string;
   // required, not defaulted: a silent default is an agent that is off.
   driver: (deps: ComposeDriverDeps) => ResolvedAgentDriver;
@@ -94,7 +84,7 @@ export interface ComposedRuntime {
 }
 
 export async function composeRuntime(args: ComposeRuntimeArgs): Promise<ComposedRuntime> {
-  const { config, env } = args;
+  const { config } = args;
   const ports = args.ports ?? {};
   const teardown = args.teardown ?? [];
   const register = (name: TeardownStepName, run: () => Promise<void>): void => {
@@ -111,7 +101,6 @@ export async function composeRuntime(args: ComposeRuntimeArgs): Promise<Composed
   // late-bound: the knowledge runtime needs the vault service; changes before it exists
   // are covered by the boot reconcile.
   let knowledgeRef: KnowledgeRuntime | null = null;
-  let noteIntelligenceRef: NoteIntelligence | null = null;
   const vaultRemote =
     ports.vault?.remote ??
     createVaultRemoteProvider({
@@ -126,7 +115,6 @@ export async function composeRuntime(args: ComposeRuntimeArgs): Promise<Composed
     notifier: bus,
     onFilesChanged: (change) => {
       knowledgeRef?.noteVaultChange(change);
-      noteIntelligenceRef?.noteVaultChange();
     },
   };
   if (config.vaultSyncIntervalMs !== undefined) {
@@ -145,40 +133,14 @@ export async function composeRuntime(args: ComposeRuntimeArgs): Promise<Composed
   register("knowledge", () => knowledge.dispose());
   knowledgeRef = knowledge;
 
-  const connectorsStore = createConnectorsStore(config.dataDir);
+  const connectorsStore = new ConnectorsStore(config.dataDir);
   const connectors = createConnectorsService(connectorsStore);
   const connectorsOauth = createConnectorOauthFlow(connectorsStore);
   const folders = createFoldersService({
-    store: createFoldersStore(config.dataDir),
+    store: new FoldersStore(config.dataDir),
     vaultDir: config.vaultDir,
     dataDir: config.dataDir,
   });
-
-  // probed once: an install without the vendor cli reports it in status rather than
-  // spawning a missing command per note.
-  const inference = ports.inference ?? {
-    availability:
-      binaryOnPath(INFERENCE_BINARY, env) === null
-        ? {
-            kind: "unavailable",
-            detail: `\`${INFERENCE_BINARY}\` was not found on PATH — note intelligence infers fields by running it.`,
-          }
-        : { kind: "available" },
-    infer: createCliInferenceRunner({ cwd: config.dataDir }),
-  };
-  const noteIntelligence = createNoteIntelligence({
-    availability: inference.availability,
-    infer: inference.infer,
-    settings: createNoteIntelligenceSettingsStore(config.dataDir),
-    vault: vault.service,
-    onLog: (message) => {
-      console.error(message);
-    },
-  });
-  register("intelligence", async () => {
-    noteIntelligence.dispose();
-  });
-  noteIntelligenceRef = noteIntelligence;
 
   const agentDriver = args.driver({
     config,
@@ -239,7 +201,6 @@ export async function composeRuntime(args: ComposeRuntimeArgs): Promise<Composed
     connectorsOauth,
     folders,
     knowledge,
-    noteIntelligence,
     openExternalUrl: ports.openExternalUrl ?? systemOpenExternalUrl,
     renameNote: (from: string, to: string) =>
       renameNoteWithLinkRewrite({

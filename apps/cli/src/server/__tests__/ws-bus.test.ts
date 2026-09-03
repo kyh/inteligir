@@ -49,40 +49,37 @@ describe("registerClient", () => {
 });
 
 describe("subscribe/broadcast", () => {
-  it("fans a doc change out to its detail subscribers and the vault list", () => {
+  it("routes a doc change to the vault subscribers and not the thread-list ones", () => {
     const bus = createBus();
     const vaultSocket = createFakeSocket();
-    const docSocket = createFakeSocket();
-    const otherDocSocket = createFakeSocket();
-    for (const socket of [vaultSocket, docSocket, otherDocSocket]) {
+    const threadSocket = createFakeSocket();
+    for (const socket of [vaultSocket, threadSocket]) {
       bus.registerClient(socket);
     }
     bus.subscribe(vaultSocket, { kind: "vault" });
-    bus.subscribe(docSocket, { kind: "doc-detail", docId: "d1" });
-    bus.subscribe(otherDocSocket, { kind: "doc-detail", docId: "d2" });
+    bus.subscribe(threadSocket, { kind: "thread-list" });
 
     bus.notifyDoc("d1", ["content-changed"]);
 
-    const expected = {
+    expect(lastFrame(vaultSocket)).toEqual({
       type: "changed",
       entity: "doc",
       id: "d1",
       changes: ["content-changed"],
-    };
-    expect(lastFrame(vaultSocket)).toEqual(expected);
-    expect(lastFrame(docSocket)).toEqual(expected);
-    expect(otherDocSocket.sent).toHaveLength(1);
+    });
+    expect(threadSocket.sent).toHaveLength(1);
   });
 
-  it("delivers a message once to a socket subscribed to both matching targets", () => {
+  it("delivers each message once to a socket holding both targets", () => {
     const bus = createBus();
     const socket = createFakeSocket();
     bus.registerClient(socket);
+    bus.subscribe(socket, { kind: "vault" });
     bus.subscribe(socket, { kind: "thread-list" });
-    bus.subscribe(socket, { kind: "thread-detail", threadId: "t1" });
 
     bus.notifyThread("t1", ["events-appended"]);
-    expect(socket.sent).toHaveLength(2);
+    bus.notifyDoc("d1", ["content-changed"]);
+    expect(socket.sent).toHaveLength(3);
   });
 
   it("skips sockets that are no longer open", () => {

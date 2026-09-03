@@ -15,19 +15,7 @@ export const realtimeSubscriptionTargetSchema = z.discriminatedUnion("kind", [
     .strict(),
   z
     .object({
-      kind: z.literal("doc-detail"),
-      docId: z.string().min(1),
-    })
-    .strict(),
-  z
-    .object({
       kind: z.literal("thread-list"),
-    })
-    .strict(),
-  z
-    .object({
-      kind: z.literal("thread-detail"),
-      threadId: z.string().min(1),
     })
     .strict(),
 ]);
@@ -65,12 +53,8 @@ export function realtimeSubscriptionTargetKey(target: RealtimeSubscriptionTarget
   switch (target.kind) {
     case "vault":
       return "vault";
-    case "doc-detail":
-      return `doc-detail:${target.docId}`;
     case "thread-list":
       return "thread-list";
-    case "thread-detail":
-      return `thread-detail:${target.threadId}`;
     default:
       return assertUnhandledRealtimeSubscriptionTarget(target);
   }
@@ -162,22 +146,13 @@ export const serverMessageLenientSchema = z.union([
 const VAULT_TARGET_KEY = realtimeSubscriptionTargetKey({ kind: "vault" });
 const THREAD_LIST_TARGET_KEY = realtimeSubscriptionTargetKey({ kind: "thread-list" });
 
-// `vault` is the doc list target: a doc change reaches it alongside its own doc-detail subscribers
+// `vault` is the doc list target: a doc change reaches it too
 export function subscriptionKeysForMessage(message: ChangedMessage): string[] {
   switch (message.entity) {
     case "vault":
-      return [VAULT_TARGET_KEY];
     case "doc":
-      return [
-        VAULT_TARGET_KEY,
-        realtimeSubscriptionTargetKey({ kind: "doc-detail", docId: message.id }),
-      ];
+      return [VAULT_TARGET_KEY];
     case "thread":
-      return message.id === undefined
-        ? [THREAD_LIST_TARGET_KEY]
-        : [
-            THREAD_LIST_TARGET_KEY,
-            realtimeSubscriptionTargetKey({ kind: "thread-detail", threadId: message.id }),
-          ];
+      return [THREAD_LIST_TARGET_KEY];
   }
 }

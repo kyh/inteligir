@@ -21,7 +21,6 @@ import {
 import { AgentsSection } from "./agents-section";
 import { ConnectorsSection } from "./connectors-section";
 import { FoldersSection } from "./folders-section";
-import { NoteIntelligenceSection } from "./note-intelligence-section";
 import { ChoiceRow, Row, SectionHeading } from "./settings-chrome";
 import { SyncSection } from "./sync-section";
 import { VoiceSection } from "./voice-section";
@@ -40,7 +39,6 @@ const NAV = [
   { id: "connectors", label: "Connectors" },
   { id: "folders", label: "Connected folders" },
   { id: "voice", label: "Voice" },
-  { id: "intelligence", label: "Note intelligence" },
   { id: "devices", label: "Devices" },
   { id: "appearance", label: "Appearance" },
   { id: "about", label: "About" },
@@ -169,10 +167,6 @@ export function SettingsPage({ onBack }: { onBack: () => void }) {
           <Separator />
           <div id="voice" className="scroll-mt-10">
             <VoiceSection />
-          </div>
-          <Separator />
-          <div id="intelligence" className="scroll-mt-10">
-            <NoteIntelligenceSection />
           </div>
           <Separator />
           <div id="devices" className="scroll-mt-10">

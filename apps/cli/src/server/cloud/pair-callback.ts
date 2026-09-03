@@ -44,7 +44,7 @@ function pairCallbackPage(completion: PairCompletion): InertCallbackPage {
         status: 400,
         title: "Nothing to approve",
         detail:
-          "This app is not waiting on a pairing. Nothing was changed. Start one from Settings → Devices, or run `inteligir sync pair`.",
+          "This app is not waiting on a pairing. Nothing was changed. Start one from Settings → Devices, or run `inteligir cloud pair`.",
       };
     case "state-mismatch":
       return {

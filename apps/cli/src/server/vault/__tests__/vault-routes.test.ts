@@ -71,6 +71,36 @@ describe("the vault routes", () => {
     expect(toORPCError(shaError).code).toBe("BAD_REQUEST");
   });
 
+  it("lists deleted docs, flushed or not, and a restore is a revision read plus an ifAbsent write", async () => {
+    const { client, vault } = await bootTestApp();
+    await client.vault.write({ path: "notes/gone.md", content: "# gone\n" });
+    await client.vault.write({ path: "notes/gone.md.comments.json", content: "{}" });
+    await vault.git.commitNow();
+    await client.vault.remove({ path: "notes/gone.md" });
+    await client.vault.remove({ path: "notes/gone.md.comments.json" });
+
+    // the auto-commit is session-shaped: a note deleted seconds ago is in no commit yet.
+    const unflushed = await client.vault.deleted();
+    expect(unflushed.entries.map((entry) => entry.path)).toEqual(["notes/gone.md"]);
+
+    await vault.git.commitNow();
+    const { entries } = await client.vault.deleted();
+    expect(entries.map((entry) => entry.path)).toEqual(["notes/gone.md"]);
+    const entry = entries[0];
+    const { content } = await client.vault.revision({
+      path: entry?.path ?? "",
+      sha: entry?.sha ?? "",
+    });
+    expect(content).toBe("# gone\n");
+
+    await client.vault.write({ path: entry?.path ?? "", content, ifAbsent: true });
+    expect(await client.vault.read({ path: "notes/gone.md" })).toEqual({
+      path: "notes/gone.md",
+      content: "# gone\n",
+    });
+    expect((await client.vault.deleted()).entries).toEqual([]);
+  });
+
   it("answers refusals with their declared classes", async () => {
     const { client } = await bootTestApp();
 

@@ -14,40 +14,39 @@ const storeFileSchema = z.object({ folders: z.array(connectedFolderPathSchema) }
 
 export class FoldersStoreError extends Error {}
 
-export interface FoldersStore {
-  read(): string[];
-  write(folders: readonly string[]): void;
-}
+export class FoldersStore {
+  private readonly path: string;
 
-export function createFoldersStore(dataDir: string): FoldersStore {
-  const path = join(dataDir, CONNECTED_FOLDERS_FILE);
-  return {
-    read(): string[] {
-      let raw: string;
-      try {
-        raw = readFileSync(path, "utf8");
-      } catch {
-        return [];
-      }
-      let parsed: unknown;
-      try {
-        parsed = JSON.parse(raw);
-      } catch {
-        throw new FoldersStoreError(
-          `${path} is not valid JSON — fix or remove the file; refusing to read it as empty`,
-        );
-      }
-      const verdict = storeFileSchema.safeParse(parsed);
-      if (!verdict.success) {
-        throw new FoldersStoreError(
-          `${path} does not match the connected-folders shape — fix or remove the file`,
-        );
-      }
-      return verdict.data.folders;
-    },
-    write(folders: readonly string[]): void {
-      // no 0600: paths are not secrets.
-      stagedWriteFileSync(path, `${JSON.stringify({ folders }, null, 2)}\n`);
-    },
-  };
+  constructor(dataDir: string) {
+    this.path = join(dataDir, CONNECTED_FOLDERS_FILE);
+  }
+
+  read(): string[] {
+    let raw: string;
+    try {
+      raw = readFileSync(this.path, "utf8");
+    } catch {
+      return [];
+    }
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      throw new FoldersStoreError(
+        `${this.path} is not valid JSON — fix or remove the file; refusing to read it as empty`,
+      );
+    }
+    const verdict = storeFileSchema.safeParse(parsed);
+    if (!verdict.success) {
+      throw new FoldersStoreError(
+        `${this.path} does not match the connected-folders shape — fix or remove the file`,
+      );
+    }
+    return verdict.data.folders;
+  }
+
+  write(folders: readonly string[]): void {
+    // no 0600: paths are not secrets.
+    stagedWriteFileSync(this.path, `${JSON.stringify({ folders }, null, 2)}\n`);
+  }
 }

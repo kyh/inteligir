@@ -7,6 +7,8 @@ import type { DeleteVaultEntryResult } from "@repo/editor/host-io";
 export type VaultIO = {
   read: (path: string) => Promise<string>;
   write: (path: string, content: string) => Promise<void>;
+  // refuses an existing path.
+  create: (path: string, content: string) => Promise<void>;
   // answers the outcome: the host can hold a delete, and closing the note anyway would report
   // a deletion that did not happen.
   remove: (path: string) => Promise<DeleteVaultEntryResult>;

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { base64UrlFromBytes } from "../bytes";
 
 // pattern after bb's connect code (github.com/get-bb/bb, MIT)
 
@@ -29,15 +30,6 @@ export const DEVICE_CREDENTIAL_PATTERN = /^igd_[0-9a-f]{64}$/;
 export const PKCE_VERIFIER_BYTES = 32;
 
 export const PKCE_S256_PATTERN = /^[A-Za-z0-9_-]{43}$/;
-
-// btoa is a global on workerd, node, the browser and hermes (rn 0.74+); Buffer is not
-function base64UrlFromBytes(bytes: Uint8Array): string {
-  let binary = "";
-  for (const byte of bytes) {
-    binary += String.fromCharCode(byte);
-  }
-  return btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
-}
 
 // injectable because hermes carries neither crypto.getRandomValues nor crypto.subtle
 // reliably; the phone injects expo-crypto

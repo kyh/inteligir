@@ -33,7 +33,6 @@ function seedFixture(state: FixtureState): void {
   state.revisions.set("notes/hello.md", [
     { revision: makeRevision({ sha: FIXTURE_REVISION_SHA }), content: "# Hello\n" },
   ]);
-  state.vault.set("Trash/notes/hello.md", "# Trashed\n");
   state.searchResults = [{ path: "notes/hello.md", title: "hello", snippet: "hi", score: 1 }];
   state.tags = [{ tag: "project", count: 2 }];
   state.backlinks = [

@@ -31,7 +31,6 @@ vault/
   Some Note.md.comments.json     # only when the note has comments
   Projects/Roadmap.md            # folders nest freely
   assets/diagram.png             # images and media
-  Trash/                         # deleted notes, restorable
 ```
 
 The title is the filename, not a frontmatter field and not the H1. Renaming a
@@ -156,10 +155,8 @@ table instead when the reader needs to see all panels at once.
 | Tag          | `#tag`                                  |
 | Formula pill | `{{2+2\|4}}`                            |
 
-Color literals become swatches in three forms only: `#rrggbb`, `rgb()`/`rgba()`,
-and `hsl()`/`hsla()`. Named CSS colors stay text. Code — inline or fenced — is
-inert: nothing inside it is parsed as a construct, which is how you write an
-example of any syntax on this page.
+Code — inline or fenced — is inert: nothing inside it is parsed as a construct,
+which is how you write an example of any syntax on this page.
 
 Raw HTML beyond `<mark>`, `<u>`, and an existing preserved `<blockquote>`
 belongs in an `inteligir-html` fence.

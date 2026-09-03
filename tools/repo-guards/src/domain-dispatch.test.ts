@@ -3,19 +3,17 @@
 // by iterating the array is invisible here and cannot drift. no subset rule: a derived `as const`
 // subset spells literals too, and UI leaves collide on common words ("idle", "error").
 
-import {
-  DOC_CHANGE_KINDS,
-  THREAD_CHANGE_KINDS,
-  VAULT_CHANGE_KINDS,
-} from "@repo/domain/change-kinds";
+import { THREAD_CHANGE_KINDS, VAULT_CHANGE_KINDS } from "@repo/domain/change-kinds";
 import { pendingInteractionStatusValues } from "@repo/domain/pending-interaction-status";
 import { threadStatusValues } from "@repo/domain/thread-status";
 import { vaultStatusResponseSchema } from "@repo/api/local/vault/vault-schema";
 import { describe, expect, it } from "vitest";
 import { sourceOf, workspaceFiles, workspaces } from "./repo";
 
-// below this, naming every member is a coincidence rather than a table.
-const TOTALITY_FLOOR = 3;
+// below this, naming every member is a coincidence rather than a table: one literal is a use, not
+// a dispatch, so a one-member vocabulary (DOC_CHANGE_KINDS) has no row here — the guard cannot
+// tell its producer from its table.
+const TOTALITY_FLOOR = 2;
 
 // read off the discriminated union: there is no exported tuple, and copying one here is the drift
 // this file is about.
@@ -80,13 +78,12 @@ const VOCABULARIES: Vocabulary[] = [
     name: "vault change kind",
     members: VAULT_CHANGE_KINDS,
     declaredIn: "packages/domain/src/change-kinds.ts",
-    dispatchedIn: {},
-  },
-  {
-    name: "doc change kind",
-    members: DOC_CHANGE_KINDS,
-    declaredIn: "packages/domain/src/change-kinds.ts",
-    dispatchedIn: {},
+    dispatchedIn: {
+      "apps/cli/src/server/vault/vault-runtime.ts":
+        "the PRODUCER — the seam where the git engine's status changes and the watcher's batches become kinds on the bus, which is the only place that decides which kind a vault event is",
+      "apps/desktop/src/renderer/app/workspace-context.tsx":
+        "the client's ONE answer to which queries each kind invalidates; a kind weighed nowhere here is a frame the screen ignores",
+    },
   },
 ];
 

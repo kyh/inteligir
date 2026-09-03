@@ -13,7 +13,8 @@ workspace above it consumes an editor rather than containing one.
 
 Deps: `@repo/notes` (the parse pipeline and the knowledge types), `@repo/ui`
 (the components). No node, no electron. The host contract is this package's own
-`host.tsx` / `host-io.ts`; the app implements it. The package also ships ONE
+`host-io.ts` (`EditorHostIo`) and `note/vault-session.ts` (`VaultSessionPorts`);
+the app implements both. The package also ships ONE
 stylesheet, `styles.css` (toggle collapse, the callout marker swap, the hljs
 theme), inert until the host `@import`s `@repo/editor/styles.css` —
 `style-hooks.ts` spells the selectors it reads, and
@@ -47,15 +48,15 @@ src/
   formulas/            # `{{…}}` pill entry, editing and recompute
   properties/          # the typed frontmatter panel
   lib/                 # debounce, the dark-class hook, the wire helper
-  host.tsx, host-io.ts # the injected EditorHost (vault actions + listing) and
-                       # its non-React twin for modules Plate renders outside
-                       # a provider
+  host-io.ts, host.ts  # the injected host as a MODULE SINGLETON (vault actions,
+                       # the listing store, IO, change events) and the two hooks
+                       # React reads it through
   node-props.ts        # the Slate decode boundary: a node's dialect fields ride
                        # TElement's open index signature, so every read arrives
                        # unknown and becomes a domain value here, once
   slash-menu.tsx, selection-toolbar.tsx, block-menu.tsx, block-*.tsx,
   toc.tsx, transclusion*.ts(x), heading-collapse.tsx, find-bar.tsx,
-  embed-url-dialog.tsx, emoji-input.tsx, inline-combobox.tsx,
+  embed-url-dialog.tsx, inline-combobox.tsx,
   cursor-overlay.tsx, insert-void.ts
                        # the in-document affordances — every surface a node can
                        # be inserted from, and the transforms behind them
@@ -94,12 +95,19 @@ src/
 
 ## Seams
 
-- `host.tsx` — the injected `EditorHost`: vault actions, the listing, and the
-  wiki resolver. The editor never reaches the server for those; the app
-  supplies them (`apps/desktop/src/renderer/app/note/vault-provider.tsx`).
-- `host-io.ts` — the same boundary as a MODULE SINGLETON, because kit factories
-  and paste handlers run outside React: vault reads, asset bytes in and out,
-  the knowledge queries, and the change events that invalidate them.
+- `host-io.ts` — the injected host, `EditorHostIo`, as a MODULE SINGLETON
+  because kit factories and paste handlers run outside React: the vault
+  actions, the listing store (entries + the wiki resolver — subscribed to
+  rather than read, because it moves with every refresh while the actions
+  never do), vault reads, asset bytes in and out, the knowledge queries, and
+  the change events that invalidate them. The editor never reaches the server
+  for any of it; the app installs it once
+  (`apps/desktop/src/renderer/app/note/vault-provider.tsx`), and `host.ts` is
+  React's door (`useVaultActions`, `useVaultListing`).
+- `note/vault-session.ts` — `VaultSessionPorts`, what the open note's ordering
+  is driven through: boot, list, rename, the `VaultIO` it reads and writes
+  notes with (`vault-editor.ts`: read/write/create/remove), and the
+  publish/notify callbacks. Drivable without React.
 - `note/open-note-context.tsx` — the open-note store. Every consumer under
   the editor reads the open note through `useOpenNote(sel)`.
 

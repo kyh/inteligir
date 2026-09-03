@@ -4,13 +4,13 @@ import { ORPCError, safe } from "@orpc/client";
 import { connectorsResponseSchema } from "@repo/api/local/connectors/connectors-schema";
 import { describe, expect, it } from "vitest";
 import { ConnectorConflictError, createConnectorsService } from "../connectors-service";
-import { ConnectorsStoreError, createConnectorsStore } from "../connectors-store";
+import { ConnectorsStore, ConnectorsStoreError } from "../connectors-store";
 import { bootTestApp } from "../../__tests__/boot-app";
 import { makeTempDir } from "../../__tests__/temp-dir";
 
 function tempService() {
   const dir = makeTempDir("inteligir-connectors-");
-  return { dir, service: createConnectorsService(createConnectorsStore(dir)) };
+  return { dir, service: createConnectorsService(new ConnectorsStore(dir)) };
 }
 
 describe("the connectors registry", () => {

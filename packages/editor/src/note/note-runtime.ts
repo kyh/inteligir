@@ -9,19 +9,7 @@ export type NoteRuntimeCallbacks = {
   onVanished(path: string): void;
 };
 
-export type NoteRuntime = {
-  /** not the controller's path, which is null until the first load. */
-  readonly path: string;
-  readonly controller: VaultEditorController;
-  edit(next: string): void;
-  /** runs at the top of flush() and remove(); the rich editor drains its serialize
-   * debounce here so a pending keystroke persists. last registration wins. */
-  registerPreFlush(fn: (() => void) | null): void;
-  flush(): Promise<boolean>;
-  dispose(): void;
-  /** a held delete leaves the note open because the file is still there; null is a delete that threw. */
-  remove(): Promise<DeleteVaultEntryResult | null>;
-};
+export type NoteRuntime = ReturnType<typeof createNoteRuntime>;
 
 // the caller disposes the previous runtime first; this one never checks.
 export function createNoteRuntime(
@@ -30,7 +18,7 @@ export function createNoteRuntime(
   io: VaultIO,
   cb: NoteRuntimeCallbacks,
   initial?: string,
-): NoteRuntime {
+) {
   const controller = new VaultEditorController(io);
   controller.setRoot(root);
 
@@ -57,6 +45,7 @@ export function createNoteRuntime(
   });
 
   return {
+    // not the controller's path, which is null until the first load.
     path,
     controller,
     edit(next: string): void {
@@ -65,6 +54,8 @@ export function createNoteRuntime(
       controller.edit(next);
       autosave.schedule();
     },
+    // runs at the top of flush() and remove(); the rich editor drains its serialize debounce
+    // here so a pending keystroke persists. last registration wins.
     registerPreFlush(fn: (() => void) | null): void {
       preFlush = fn;
     },
@@ -79,6 +70,7 @@ export function createNoteRuntime(
       autosave.cancel();
       unsubscribe();
     },
+    // a held delete leaves the note open because the file is still there; null is a delete that threw.
     remove(): Promise<DeleteVaultEntryResult | null> {
       preFlush?.();
       autosave.cancel();

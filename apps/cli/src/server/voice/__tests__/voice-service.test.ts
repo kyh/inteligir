@@ -9,18 +9,12 @@ import {
   ParakeetVoiceService,
   ScriptedVoiceService,
   VoiceBusyError,
-  VoiceTranscriptionError,
   VoiceUnavailableError,
 } from "../voice-service";
 import type { VoiceStreamWorkerCallbacks, VoiceStreamWorkerHandle } from "../voice-worker-host";
 import type { VoiceModelFiles, VoiceWorkerResponse } from "../worker-protocol";
 
 const workerOk = async (): Promise<VoiceWorkerResponse> => ({ kind: "probed" });
-
-function transcribingWorker(text: string) {
-  return async (request: { kind: string }): Promise<VoiceWorkerResponse> =>
-    request.kind === "probe" ? { kind: "probed" } : { kind: "transcribed", text };
-}
 
 // non-empty, or isModelInstalled refuses it.
 async function installFakeModel(modelDir: string): Promise<void> {
@@ -52,12 +46,8 @@ function captureSpawn() {
   return { spawn, spawnCount: () => count, latest: () => last, disposed: () => disposeCount };
 }
 
-interface Gate {
-  release?: () => void;
-}
-
 describe("ParakeetVoiceService", () => {
-  it("reports a runtime that will not load as unavailable, and refuses both verbs", async () => {
+  it("reports a runtime that will not load as unavailable, and refuses install", async () => {
     const service = new ParakeetVoiceService({
       modelDir: makeTempDir("inteligir-voice-"),
       runWorker: async () => ({
@@ -72,9 +62,6 @@ describe("ParakeetVoiceService", () => {
       detail: expect.stringContaining("dlopen: image not found"),
     });
     await expect(service.install()).rejects.toBeInstanceOf(VoiceUnavailableError);
-    await expect(service.transcribe(new ArrayBuffer(2))).rejects.toBeInstanceOf(
-      VoiceUnavailableError,
-    );
   });
 
   it("probes once and keeps the answer — a native load is a fact about this build", async () => {
@@ -104,29 +91,13 @@ describe("ParakeetVoiceService", () => {
     });
   });
 
-  it("refuses to transcribe without a model, and says how to get one", async () => {
-    const service = new ParakeetVoiceService({
-      modelDir: makeTempDir("inteligir-voice-"),
-      runWorker: workerOk,
-    });
-    await expect(service.transcribe(new ArrayBuffer(2))).rejects.toThrow(/Settings/u);
-  });
-
-  it("transcribes with a model present and refuses once it is removed", async () => {
+  it("reads ready with a model present and drops to no-model once it is removed", async () => {
     const modelDir = makeTempDir("inteligir-voice-");
-    const service = new ParakeetVoiceService({
-      modelDir,
-      runWorker: transcribingWorker("hello there"),
-    });
+    const service = new ParakeetVoiceService({ modelDir, runWorker: workerOk });
     // placed, not downloaded: the pinned digest is the real model's, so no fetch fake passes it.
     await installFakeModel(modelDir);
     expect((await service.status()).state).toBe("ready");
-    expect(await service.transcribe(new ArrayBuffer(2))).toBe("hello there");
-
     expect((await service.remove()).state).toBe("no-model");
-    await expect(service.transcribe(new ArrayBuffer(2))).rejects.toBeInstanceOf(
-      VoiceUnavailableError,
-    );
   });
 
   it("refuses a second install while one is installed", async () => {
@@ -155,69 +126,6 @@ describe("ParakeetVoiceService", () => {
       expect(second.reason).toBeInstanceOf(VoiceBusyError);
     }
     expect(downloads).toBeLessThanOrEqual(1);
-  });
-
-  it("refuses a second dictation while one is in flight", async () => {
-    const modelDir = makeTempDir("inteligir-voice-");
-    await installFakeModel(modelDir);
-    const gate: Gate = {};
-    const held = new Promise<void>((resolve) => {
-      gate.release = resolve;
-    });
-    const service = new ParakeetVoiceService({
-      modelDir,
-      runWorker: async (request) => {
-        if (request.kind === "probe") {
-          return { kind: "probed" };
-        }
-        await held;
-        return { kind: "transcribed", text: "first" };
-      },
-    });
-    await service.status();
-    const first = service.transcribe(new ArrayBuffer(2));
-    await expect(service.transcribe(new ArrayBuffer(2))).rejects.toBeInstanceOf(VoiceBusyError);
-    gate.release?.();
-    expect(await first).toBe("first");
-  });
-
-  it("a decode failure is a transcription error and KEEPS the model", async () => {
-    const modelDir = makeTempDir("inteligir-voice-");
-    await installFakeModel(modelDir);
-    const service = new ParakeetVoiceService({
-      modelDir,
-      runWorker: async (request) =>
-        request.kind === "probe"
-          ? { kind: "probed" }
-          : { kind: "failed", message: "the runtime choked on this clip", modelUnusable: false },
-    });
-    await expect(service.transcribe(new ArrayBuffer(2))).rejects.toBeInstanceOf(
-      VoiceTranscriptionError,
-    );
-    expect(existsSync(resolveModelFiles(modelDir, VOICE_MODEL).encoder)).toBe(true);
-    expect((await service.status()).state).toBe("ready");
-  });
-
-  it("nukes a model that will not LOAD and drops to no-model with the reason", async () => {
-    const modelDir = makeTempDir("inteligir-voice-");
-    await installFakeModel(modelDir);
-    const service = new ParakeetVoiceService({
-      modelDir,
-      runWorker: async (request) =>
-        request.kind === "probe"
-          ? { kind: "probed" }
-          : { kind: "failed", message: "failed to open the model", modelUnusable: true },
-    });
-    expect((await service.status()).state).toBe("ready");
-    await expect(service.transcribe(new ArrayBuffer(2))).rejects.toBeInstanceOf(
-      VoiceUnavailableError,
-    );
-    expect(existsSync(modelDirFor(modelDir, VOICE_MODEL))).toBe(false);
-    const after = await service.status();
-    expect(after.state).toBe("no-model");
-    if (after.state === "no-model") {
-      expect(after.lastError).toMatch(/failed to open/u);
-    }
   });
 
   it("reports a failed download as the reason it has no model", async () => {
@@ -278,7 +186,29 @@ describe("ParakeetVoiceService", () => {
     await session.dispose();
   });
 
-  it("nukes the model when a streaming worker reports it unusable", async () => {
+  it("a decode failure from a streaming worker is relayed and KEEPS the model", async () => {
+    const modelDir = makeTempDir("inteligir-voice-");
+    await installFakeModel(modelDir);
+    const spawn = captureSpawn();
+    const service = new ParakeetVoiceService({
+      modelDir,
+      runWorker: workerOk,
+      spawnStreamWorker: spawn.spawn,
+    });
+    const errors: string[] = [];
+    service.createStreamSession({
+      onPartial: () => undefined,
+      onFinal: () => undefined,
+      onError: (message) => errors.push(message),
+    });
+    await vi.waitFor(() => expect(spawn.latest()).not.toBeNull());
+    spawn.latest()?.callbacks.onError("the runtime choked on this clip", false);
+    await vi.waitFor(() => expect(errors).toEqual(["the runtime choked on this clip"]));
+    expect(existsSync(resolveModelFiles(modelDir, VOICE_MODEL).encoder)).toBe(true);
+    expect((await service.status()).state).toBe("ready");
+  });
+
+  it("nukes a model a streaming worker will not LOAD and drops to no-model with the reason", async () => {
     const modelDir = makeTempDir("inteligir-voice-");
     await installFakeModel(modelDir);
     const spawn = captureSpawn();
@@ -298,14 +228,18 @@ describe("ParakeetVoiceService", () => {
     await vi.waitFor(() => expect(errors).not.toHaveLength(0));
     expect(existsSync(modelDirFor(modelDir, VOICE_MODEL))).toBe(false);
     expect(errors[0]).toMatch(/removed/u);
+    const after = await service.status();
+    expect(after.state).toBe("no-model");
+    if (after.state === "no-model") {
+      expect(after.lastError).toMatch(/removed/u);
+    }
   });
 });
 
 describe("ScriptedVoiceService", () => {
-  it("is ready with no model on disk and names the sample count it was given", async () => {
+  it("is ready with no model on disk", async () => {
     const service = new ScriptedVoiceService();
     expect((await service.status()).state).toBe("ready");
-    expect(await service.transcribe(new ArrayBuffer(64))).toBe("scripted dictation of 32 samples");
   });
 
   it("streams scripted partials and a final over a session", () => {

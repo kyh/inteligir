@@ -6,7 +6,6 @@ import {
 } from "@repo/api/local/vault/vault-schema";
 import { base, refusals } from "../orpc";
 import { vaultWireError } from "./vault-refusals";
-import { listTrash, purgeTrashedNote, restoreNote, trashNote } from "./trash";
 import type { GuardedWriteGuard } from "./vault-service";
 
 export type RenameNote = (from: string, to: string) => Promise<VaultRenameResponse>;
@@ -78,24 +77,9 @@ const mkdir = base.vault.mkdir.handler(({ context, input }) =>
   refusing(() => context.vault.service.createDir(input.path)),
 );
 
-const trashList = base.vault.trashList.handler(async ({ context }) => ({
-  entries: await listTrash(context.vault.service),
+const deleted = base.vault.deleted.handler(async ({ context }) => ({
+  entries: await context.vault.git.deleted(),
 }));
-
-const trash = base.vault.trash.handler(({ context, input }) =>
-  refusing(() => trashNote(context.vault.service, input.path)),
-);
-
-const trashRestore = base.vault.trashRestore.handler(({ context, input }) =>
-  refusing(() => restoreNote(context.vault.service, input.path)),
-);
-
-const trashPurge = base.vault.trashPurge.handler(({ context, input }) =>
-  refusing(async () => {
-    await purgeTrashedNote(context.vault.service, input.path);
-    return { ok: true } as const;
-  }),
-);
 
 const remove = base.vault.remove.handler(({ context, input }) =>
   refusing(async () => {
@@ -121,10 +105,7 @@ export const vaultRouter = {
   assetWrite,
   rename,
   mkdir,
-  trashList,
-  trash,
-  trashRestore,
-  trashPurge,
+  deleted,
   remove,
   commitNow,
   status,

@@ -196,6 +196,35 @@ describe("vault commands", () => {
       lastError: null,
     });
   });
+
+  it("lists deleted docs, and restores one that is gone with an exclusive create", async () => {
+    const state = seededState();
+    state.revisions.set("notes/gone.md", [
+      {
+        revision: makeRevision({ sha: FIXTURE_REVISION_SHA, path: "notes/gone.md" }),
+        content: "# Gone\n",
+      },
+    ]);
+    const server = await boot(state);
+
+    const deleted = await runCliForTest({ argv: ["vault", "deleted"], baseUrl: server.baseUrl });
+    expect(deleted.stdout).toBe(
+      `${FIXTURE_REVISION_SHA}\t2026-08-01T10:00:00+00:00\tnotes/gone.md\n`,
+    );
+
+    const restore = await runCliForTest({
+      argv: ["vault", "restore", "notes/gone.md", FIXTURE_REVISION_SHA],
+      baseUrl: server.baseUrl,
+    });
+    expect(restore.stdout).toBe(`✔ Restored notes/gone.md to ${FIXTURE_REVISION_SHA}\n`);
+    expect(state.vault.get("notes/gone.md")).toBe("# Gone\n");
+
+    const again = await runCliForTest({
+      argv: ["vault", "deleted"],
+      baseUrl: server.baseUrl,
+    });
+    expect(again.stdout).toContain("Nothing has been deleted.");
+  });
 });
 
 describe("knowledge commands", () => {

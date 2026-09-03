@@ -62,10 +62,10 @@ agent shells are given.
 ## Command surface
 
 `serve` · `vault
-list|read|history|revision|restore|write|rename|delete|mkdir|status|sync` ·
+list|read|history|revision|restore|write|rename|delete|deleted|mkdir|status|sync` ·
 `search` (`tag:` terms pass through) · `backlinks` · `related` · `tags` ·
 `action list|new|send|show|wait|archive` · `comment` · `interactions
-list|answer` · `connectors` · `folders` · `trash` · `sync` · `status` ·
+list|answer` · `connectors` · `folders` · `cloud` · `status` ·
 `guide`.
 
 Exit codes: 0 success · 1 error (including an action settling in error) ·

@@ -3,7 +3,7 @@ import { createServer, type Server } from "node:http";
 import { describe, expect, it, onTestFinished } from "vitest";
 
 import { createConnectorsService } from "../connectors-service";
-import { createConnectorsStore, type ConnectorsStore } from "../connectors-store";
+import { ConnectorsStore } from "../connectors-store";
 import { createConnectorOauthFlow } from "../oauth-flow";
 import { makeTempDir } from "../../__tests__/temp-dir";
 
@@ -66,7 +66,7 @@ async function startFakeProvider(): Promise<FakeProvider> {
 
 function storeWithOauthRow(tokenEndpoint: string): ConnectorsStore {
   const dir = makeTempDir("inteligir-oauth-");
-  const store = createConnectorsStore(dir);
+  const store = new ConnectorsStore(dir);
   const service = createConnectorsService(store);
   service.add({
     name: "linear",

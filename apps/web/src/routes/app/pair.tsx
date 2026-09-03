@@ -70,8 +70,8 @@ function PairPage() {
     return (
       <PairShell title="That link isn't a pairing request">
         <p className="mt-1 text-sm text-muted-foreground">
-          Start pairing from the app — Settings → Devices, or <code>inteligir sync pair</code> — and
-          use the page it opens.
+          Start pairing from the app — Settings → Devices, or <code>inteligir cloud pair</code> —
+          and use the page it opens.
         </p>
       </PairShell>
     );

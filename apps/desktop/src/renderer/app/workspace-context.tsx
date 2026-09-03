@@ -52,7 +52,7 @@ export function applyChangedMessage(
     case "vault":
       if (message.changes.includes("files-changed")) {
         void queryClient.invalidateQueries({ queryKey: orpc.vault.tree.key() });
-        void queryClient.invalidateQueries({ queryKey: orpc.vault.trashList.key() });
+        void queryClient.invalidateQueries({ queryKey: orpc.vault.deleted.key() });
         void queryClient.invalidateQueries({ queryKey: orpc.knowledge.key() });
         void queryClient.invalidateQueries({ queryKey: orpc.comments.key() });
         if (message.paths === undefined) {

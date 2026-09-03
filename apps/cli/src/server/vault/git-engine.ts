@@ -2,12 +2,18 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import type {
   VaultConflict,
+  VaultDeletedEntry,
   VaultRevision,
   VaultStatusResponse,
 } from "@repo/api/local/vault/vault-schema";
 import type { VaultRemoteProvider, VaultRemoteSpec } from "../cloud/vault-remote";
 import { ACCOUNT_MARKER_KEY } from "./git-bootstrap";
-import { readNoteHistory, readNoteRevision, type NoteHistoryPage } from "./git-history";
+import {
+  readDeletedNotes,
+  readNoteHistory,
+  readNoteRevision,
+  type NoteHistoryPage,
+} from "./git-history";
 import { entryPaths, isUnmerged, readPorcelain, type PorcelainEntry } from "./git-porcelain";
 import {
   identityEnv,
@@ -71,6 +77,7 @@ export interface GitEngine {
   // temporary head.
   history(path: string, page: NoteHistoryPage): Promise<VaultRevision[]>;
   revision(path: string, sha: string): Promise<string>;
+  deleted(): Promise<VaultDeletedEntry[]>;
   syncNow(): Promise<VaultStatusResponse>;
   status(): Promise<VaultStatusResponse>;
   isSyncing(): boolean;
@@ -488,6 +495,9 @@ export function createGitEngine(args: GitEngineArgs): GitEngine {
     },
     revision(path, sha) {
       return readNoteRevision(run, path, sha);
+    },
+    deleted() {
+      return readDeletedNotes(run, (path) => existsSync(join(root, path)));
     },
     syncNow,
     status: statusSnapshot,

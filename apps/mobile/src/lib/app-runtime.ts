@@ -1,7 +1,10 @@
 import { useMemo, useSyncExternalStore } from "react";
 import { createPairingFlow } from "@repo/api/cloud/pairing/pairing-flow";
-import { createSecureStoreCredential } from "../credential/secure-store-credential";
-import type { CredentialStore } from "../credential/credential-store";
+import {
+  clearDeviceCredential,
+  readDeviceCredential,
+  writeDeviceCredential,
+} from "../credential/secure-store-credential";
 import { createPairingStore, type PairingState, type PairingStore } from "../pairing/pairing-store";
 import {
   defaultDeviceName,
@@ -31,7 +34,6 @@ interface AppRuntime {
   sync: SyncRuntime;
   notes: NotesStore;
   pairing: PairingStore;
-  credentials: CredentialStore;
   removeDeepLink: (() => void) | null;
 }
 
@@ -59,7 +61,6 @@ function build(): AppRuntime {
   const cloudUrl = resolveCloudUrl();
   const sync = createSyncRuntime({ store, cloudUrl });
   const notes = createNotesStore({ cloudUrl, cache: createExpoNoteCache() });
-  const credentials = createSecureStoreCredential();
   const callbackUrl = pairCallbackUrl();
   const pairing = createPairingStore({
     machine: createPairingFlow({ cloudUrl, crypto: expoPkceCrypto }),
@@ -67,11 +68,11 @@ function build(): AppRuntime {
     deviceName: defaultDeviceName(),
     openApprove: (approveUrl) => openApproveAndAwait(approveUrl, callbackUrl),
     onPaired: async (credential) => {
-      await credentials.write(credential);
+      await writeDeviceCredential(credential);
       activate({ sync, notes }, { credential, source: "paired" });
     },
   });
-  return { store, sync, notes, pairing, credentials, removeDeepLink: null };
+  return { store, sync, notes, pairing, removeDeepLink: null };
 }
 
 function getRuntime(): AppRuntime {
@@ -92,7 +93,7 @@ export async function ensureStarted(): Promise<void> {
   rt.removeDeepLink = () => {
     subscription.remove();
   };
-  const stored = await rt.credentials.read();
+  const stored = await readDeviceCredential();
   if (stored !== null) activate(rt, { credential: stored, source: "restored" });
 }
 
@@ -102,7 +103,7 @@ export function syncNow(): Promise<void> {
 
 export async function unpair(): Promise<void> {
   const rt = getRuntime();
-  await rt.credentials.clear();
+  await clearDeviceCredential();
   rt.sync.setCredential(null);
   rt.notes.setCredential(null);
 }

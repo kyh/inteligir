@@ -1,19 +1,14 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { EditorHostProvider } from "@repo/editor/host";
 import WikiChip from "@repo/editor/wiki-chip";
-import { fakeEditorHost, type FakeEditorHostOptions } from "./fake-editor-host";
+import { installFakeEditorHost, type FakeEditorHostOptions } from "./fake-editor-host";
 
 afterEach(cleanup);
 
 function mountChip(body: string, options?: FakeEditorHostOptions) {
-  const { host, calls } = fakeEditorHost(options ?? {});
-  render(
-    <EditorHostProvider host={host}>
-      <WikiChip body={body} />
-    </EditorHostProvider>,
-  );
+  const { calls } = installFakeEditorHost(options ?? {});
+  render(<WikiChip body={body} />);
   return calls;
 }
 

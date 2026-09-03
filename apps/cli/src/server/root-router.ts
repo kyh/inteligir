@@ -7,7 +7,6 @@ import { commentsRouter } from "./comments/comments-router";
 import { connectorsRouter } from "./connectors/connectors-router";
 import { foldersRouter } from "./folders/folders-router";
 import { knowledgeRouter } from "./knowledge/knowledge-router";
-import { noteIntelligenceRouter } from "./note-intelligence/note-intelligence-router";
 import { base } from "./orpc";
 import { systemRouter } from "./system/system-router";
 import { threadsRouter } from "./threads/threads-router";
@@ -21,7 +20,6 @@ export const localRouter = base.router({
   connectors: connectorsRouter,
   folders: foldersRouter,
   knowledge: knowledgeRouter,
-  noteIntelligence: noteIntelligenceRouter,
   system: systemRouter,
   threads: threadsRouter,
   vault: vaultRouter,

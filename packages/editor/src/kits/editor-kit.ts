@@ -8,7 +8,6 @@ import { CodeBlockKit } from "@repo/editor/kits/code-block-kit";
 import { ColumnKit } from "@repo/editor/kits/column-kit";
 import { DateKit } from "@repo/editor/kits/date-kit";
 import { EmbedKit } from "@repo/editor/kits/embed-kit";
-import { EmojiKit } from "@repo/editor/kits/emoji-kit";
 import { FloatingToolbarKit } from "@repo/editor/kits/floating-toolbar-kit";
 import { FrontmatterKit } from "@repo/editor/kits/frontmatter-kit";
 import { ImageKit } from "@repo/editor/kits/image-kit";
@@ -28,7 +27,6 @@ import { RichBlocksKit } from "@repo/editor/kits/rich-blocks-kit";
 import { InlineConstructsKit } from "@repo/editor/kits/inline-constructs-kit";
 import { TabsKit } from "@repo/editor/kits/tabs-kit";
 import { HeadingCollapseKit } from "@repo/editor/heading-collapse";
-import { ColorPillKit } from "@repo/editor/kits/color-pill-kit";
 import { WikiLinkKit } from "@repo/editor/kits/wiki-link-kit";
 import { SlashKit } from "@repo/editor/slash-menu";
 import { FormulaAutocompleteKit } from "@repo/editor/formula-autocomplete";
@@ -57,12 +55,10 @@ export const EDITOR_KIT = [
   ...CommentGutterKit,
   ...TabsKit,
   ...HeadingCollapseKit,
-  ...ColorPillKit,
   ...WikiAutocompleteKit,
   ...FormulaAutocompleteKit,
   // no BASE_KIT twin: a leaf decoration never reaches the value, so there is nothing to serialize.
   ...TagChipKit,
-  ...EmojiKit,
   ...SlashKit,
   ...EditorShortcutsKit,
   ...FindBarKit,

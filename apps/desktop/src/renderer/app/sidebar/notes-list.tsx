@@ -1,5 +1,4 @@
 import { docStem, isDocPath } from "@repo/notes/knowledge/doc-file";
-import { isTrashedPath } from "@repo/notes/knowledge/vault-path";
 import type { VaultTreeResponse } from "@repo/api/local/vault/vault-schema";
 import {
   SidebarGroup,
@@ -53,10 +52,7 @@ export function NotesList({ entries, openPath, onOpenFile }: NotesListProps) {
   const pinnedPaths = usePinnedPaths();
   const now = useNow();
   const notes = entries
-    .filter(
-      (entry): entry is FileEntry =>
-        entry.kind === "file" && isDocPath(entry.path) && !isTrashedPath(entry.path),
-    )
+    .filter((entry): entry is FileEntry => entry.kind === "file" && isDocPath(entry.path))
     .toSorted((a, b) => (b.modifiedMs ?? 0) - (a.modifiedMs ?? 0));
 
   if (notes.length === 0) {

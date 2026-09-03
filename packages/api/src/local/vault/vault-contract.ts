@@ -7,6 +7,7 @@ import {
   vaultAssetWriteRequestSchema,
   vaultAssetWriteResponseSchema,
   vaultCommitResponseSchema,
+  vaultDeletedResponseSchema,
   vaultDeleteRequestSchema,
   vaultDeleteResponseSchema,
   vaultHistoryRequestSchema,
@@ -20,9 +21,6 @@ import {
   vaultRevisionRequestSchema,
   vaultRevisionResponseSchema,
   vaultStatusResponseSchema,
-  vaultTrashListResponseSchema,
-  vaultTrashMoveResponseSchema,
-  vaultTrashRequestSchema,
   vaultTreeResponseSchema,
   vaultWriteRequestSchema,
   vaultWriteResponseSchema,
@@ -40,8 +38,8 @@ export const vaultContract = {
   // window has no revisions yet.
   history: oc.input(vaultHistoryRequestSchema).output(vaultHistoryResponseSchema),
 
-  // no vault.restore: restore is the client composing this with write + expectedHash, so there
-  // is one cas.
+  // no vault.restore: restore is the client composing this with write + expectedHash (or
+  // ifAbsent for a deleted note), so there is one cas.
   revision: oc
     .input(vaultRevisionRequestSchema)
     .output(vaultRevisionResponseSchema)
@@ -69,22 +67,8 @@ export const vaultContract = {
     .output(vaultMkdirResponseSchema)
     .errors({ INVALID_PATH, CONFLICT: {} }),
 
-  trashList: oc.output(vaultTrashListResponseSchema),
-
-  trash: oc
-    .input(vaultTrashRequestSchema)
-    .output(vaultTrashMoveResponseSchema)
-    .errors({ INVALID_PATH, NOT_FOUND: {}, CONFLICT: {} }),
-
-  trashRestore: oc
-    .input(vaultTrashRequestSchema)
-    .output(vaultTrashMoveResponseSchema)
-    .errors({ INVALID_PATH, NOT_FOUND: {}, CONFLICT: {} }),
-
-  trashPurge: oc
-    .input(vaultTrashRequestSchema)
-    .output(vaultDeleteResponseSchema)
-    .errors({ INVALID_PATH, NOT_FOUND: {} }),
+  // the recovery surface: there is no trash folder, the git log is the record of what was deleted.
+  deleted: oc.output(vaultDeletedResponseSchema),
 
   remove: oc
     .input(vaultDeleteRequestSchema)

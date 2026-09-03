@@ -1,5 +1,5 @@
-// Pure halves of the Inteligir dialect: the /month chip's first-day ISO, the
-// hover preview's markdown strip, and the swatch picker's lossless respell.
+// Pure halves of the Inteligir dialect: the /month chip's first-day ISO and the
+// hover preview's markdown strip.
 
 import { describe, expect, it } from "vitest";
 import { ElementApi, type Descendant } from "platejs";
@@ -9,7 +9,6 @@ import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
 import { insertDate, insertMonthDate } from "@repo/editor/kits/date-kit";
 import { notePreviewHead } from "@repo/editor/note-preview";
 import { stringProp } from "@repo/editor/node-props";
-import { pickerHexFor, repaintLiteral } from "@repo/editor/kits/color-pill-kit";
 
 function chipDates(nodes: Descendant[]): string[] {
   const out: string[] = [];
@@ -68,23 +67,5 @@ describe("notePreviewHead", () => {
     const lines = notePreviewHead(md).split("\n");
     expect(lines).toHaveLength(20);
     expect(lines[0]).toBe("line 0");
-  });
-});
-
-describe("color pill picker mapping", () => {
-  it("reads every matched form as #rrggbb", () => {
-    expect(pickerHexFor("#abc")).toBe("#aabbcc");
-    expect(pickerHexFor("#A1B2C3")).toBe("#a1b2c3");
-    expect(pickerHexFor("#a1b2c3d4")).toBe("#a1b2c3");
-    expect(pickerHexFor("rgb(10, 11, 12)")).toBe("#0a0b0c");
-    expect(pickerHexFor("rgba(10,11,12,0.5)")).toBe("#0a0b0c");
-  });
-
-  it("respells in the literal's own form, alpha preserved", () => {
-    expect(repaintLiteral("#abc", "#112233")).toBe("#112233");
-    expect(repaintLiteral("#aabbcc", "#112233")).toBe("#112233");
-    expect(repaintLiteral("#aabbccdd", "#112233")).toBe("#112233dd");
-    expect(repaintLiteral("rgb(1,2,3)", "#0a0b0c")).toBe("rgb(10, 11, 12)");
-    expect(repaintLiteral("rgba(1, 2, 3, .5)", "#0a0b0c")).toBe("rgba(10, 11, 12, .5)");
   });
 });

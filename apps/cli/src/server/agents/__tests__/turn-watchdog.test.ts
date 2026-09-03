@@ -31,6 +31,7 @@ function fakeGitEngine(): GitEngine {
     holdCommits: () => () => undefined,
     history: () => Promise.resolve([]),
     revision: () => Promise.resolve(""),
+    deleted: () => Promise.resolve([]),
     syncNow: () => Promise.resolve({ state: "no-remote", lastSyncAt: null, lastError: null }),
     status: () => Promise.resolve({ state: "no-remote", lastSyncAt: null, lastError: null }),
     isSyncing: () => false,

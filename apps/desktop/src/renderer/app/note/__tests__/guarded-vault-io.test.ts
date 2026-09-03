@@ -10,7 +10,6 @@ function recordingWrites(client: BootedTestApp["client"]) {
   const api: GuardedVaultApi = {
     vault: {
       read: client.vault.read,
-      trash: client.vault.trash,
       remove: client.vault.remove,
       write: (input, ...rest) => {
         sent.push(input);

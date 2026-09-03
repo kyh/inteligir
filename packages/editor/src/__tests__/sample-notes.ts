@@ -171,7 +171,7 @@ $$
 \\int_0^1 x^2 \\, dx = \\frac{1}{3}
 $$
 
-Inline math $$E = mc^2$$ mid-sentence, and an emoji trigger to try: type a colon.
+Inline math $$E = mc^2$$ mid-sentence.
 `,
   "math-and-diagrams.md": `# Math and diagrams
 

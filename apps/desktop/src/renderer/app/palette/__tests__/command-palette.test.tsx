@@ -26,7 +26,7 @@ function makeActions(): PaletteActions {
     openThread: vi.fn(),
     syncNow: vi.fn(),
     openSettings: vi.fn(),
-    openTrash: vi.fn(),
+    openDeletedNotes: vi.fn(),
     exportPdf: null,
   };
 }

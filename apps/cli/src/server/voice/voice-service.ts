@@ -28,13 +28,11 @@ import { runVoiceWorker, spawnVoiceStreamWorker } from "./voice-worker-host";
 
 export class VoiceUnavailableError extends Error {}
 export class VoiceBusyError extends Error {}
-export class VoiceTranscriptionError extends Error {}
 
 export interface VoiceService {
   status(): Promise<VoiceStatusResponse>;
   install(): Promise<VoiceStatusResponse>;
   remove(): Promise<VoiceStatusResponse>;
-  transcribe(pcm: ArrayBuffer): Promise<string>;
   createStreamSession(handlers: StreamHandlers): StreamSession;
   dispose(): Promise<void>;
 }
@@ -68,7 +66,6 @@ export class ParakeetVoiceService implements VoiceService {
   #download: DownloadInFlight | null = null;
   #lastError: string | null = null;
   #preparing = false;
-  #transcribing = false;
   #disposed = false;
   // kept for the process: whether a native binding loads cannot change under us.
   #runtimeProblem: string | null | undefined = undefined;
@@ -204,48 +201,6 @@ export class ParakeetVoiceService implements VoiceService {
     return this.status();
   }
 
-  async transcribe(pcm: ArrayBuffer): Promise<string> {
-    // claimed before any await: two dictations in one tick would both pass and spawn two workers.
-    if (this.#preparing) {
-      throw new VoiceBusyError("The speech model is still being prepared.");
-    }
-    if (this.#transcribing) {
-      throw new VoiceBusyError("Another dictation is still being transcribed.");
-    }
-    this.#transcribing = true;
-    try {
-      const problem = await this.#probe();
-      if (problem !== null) {
-        throw new VoiceUnavailableError(problem);
-      }
-      if (!(await isModelInstalled(this.#modelDir, VOICE_MODEL))) {
-        throw new VoiceUnavailableError(
-          `Dictation needs the ${VOICE_MODEL.label} model. Turn on voice input in Settings to download it.`,
-        );
-      }
-      const answer = await this.#runWorker({
-        kind: "transcribe",
-        model: resolveModelFiles(this.#modelDir, VOICE_MODEL),
-        pcm,
-      });
-      if (answer.kind === "transcribed") {
-        return answer.text;
-      }
-      if (answer.kind === "probed") {
-        throw new VoiceTranscriptionError(
-          "The transcription runtime answered a probe instead of a transcript.",
-        );
-      }
-      await this.#recordWorkerFailure(answer.message, answer.modelUnusable);
-      // a model that would not load is now gone, so this is unavailable, not a bad clip.
-      throw answer.modelUnusable
-        ? new VoiceUnavailableError(MODEL_REMOVED_MESSAGE)
-        : new VoiceTranscriptionError(answer.message);
-    } finally {
-      this.#transcribing = false;
-    }
-  }
-
   createStreamSession(handlers: StreamHandlers): StreamSession {
     return new WorkerStreamSession({
       handlers,
@@ -302,10 +257,6 @@ export class ScriptedVoiceService implements VoiceService {
 
   async remove(): Promise<VoiceStatusResponse> {
     return this.status();
-  }
-
-  async transcribe(pcm: ArrayBuffer): Promise<string> {
-    return `scripted dictation of ${pcm.byteLength / VOICE_BYTES_PER_SAMPLE} samples`;
   }
 
   createStreamSession(handlers: StreamHandlers): StreamSession {

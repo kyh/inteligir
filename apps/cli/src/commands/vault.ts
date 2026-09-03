@@ -1,10 +1,12 @@
 import { buffer } from "node:stream/consumers";
+import { isDefinedError, safe } from "@orpc/client";
 import {
   VAULT_HISTORY_MAX_LIMIT,
   VAULT_MAX_CONTENT_LENGTH,
   contentHashHex,
   type VaultHistoryRequest,
   type VaultStatusResponse,
+  type VaultWriteRequest,
 } from "@repo/api/local/vault/vault-schema";
 import { parseBoundedInteger } from "../args";
 import { defineCommand } from "citty";
@@ -178,7 +180,11 @@ export function vaultCommand(deps: CliDeps) {
           description: "Put a note back to what it held at one revision",
         },
         args: {
-          path: { type: "positional", required: true, description: "The note's path TODAY" },
+          path: {
+            type: "positional",
+            required: true,
+            description: "The note's path TODAY, or the path `vault deleted` lists",
+          },
           sha: { type: "positional", required: true, description: "The revision's commit sha" },
           ...jsonArg,
         },
@@ -188,12 +194,22 @@ export function vaultCommand(deps: CliDeps) {
           const api = apiFor(deps);
           const revision = await api.vault.revision({ path: args.path, sha: args.sha });
           await api.vault.commitNow();
-          const current = await api.vault.read({ path: args.path });
-          const body = await api.vault.write({
-            path: args.path,
-            content: revision.content,
-            expectedHash: await contentHashHex(current.content),
-          });
+          const current = await safe(api.vault.read({ path: args.path }));
+          let request: VaultWriteRequest;
+          if (current.error === null) {
+            request = {
+              path: args.path,
+              content: revision.content,
+              expectedHash: await contentHashHex(current.data.content),
+            };
+          } else if (isDefinedError(current.error) && current.error.code === "NOT_FOUND") {
+            // a deleted note has no base to guard against; create-exclusively, so a note that
+            // reappeared there in the meantime is refused rather than replaced.
+            request = { path: args.path, content: revision.content, ifAbsent: true };
+          } else {
+            throw current.error;
+          }
+          const body = await api.vault.write(request);
           if (outputJson(args, body)) {
             return;
           }
@@ -268,6 +284,30 @@ export function vaultCommand(deps: CliDeps) {
             return;
           }
           out.success(`Deleted ${args.path}`);
+        },
+      }),
+
+      deleted: defineCommand({
+        meta: {
+          name: "deleted",
+          description:
+            "Docs no longer on disk, newest deletion first, with the sha that holds them",
+        },
+        args: { ...jsonArg },
+        run: async ({ args }) => {
+          const api = apiFor(deps);
+          const body = await api.vault.deleted();
+          if (outputJson(args, body)) {
+            return;
+          }
+          if (body.entries.length === 0) {
+            out.info("Nothing has been deleted.");
+            return;
+          }
+          // sha first so `cut -f1` feeds `vault restore`.
+          writeLines(
+            body.entries.map((entry) => [entry.sha, entry.deletedAt, entry.path].join("\t")),
+          );
         },
       }),
 

@@ -70,7 +70,7 @@ describe("the palette's Export as PDF row", () => {
     openThread: vi.fn(),
     syncNow: vi.fn(),
     openSettings: vi.fn(),
-    openTrash: vi.fn(),
+    openDeletedNotes: vi.fn(),
   };
 
   function mount(exportPdf: (() => void) | null) {

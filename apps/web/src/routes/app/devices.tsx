@@ -67,7 +67,7 @@ function DevicesPage() {
       <h1 className="text-lg font-medium tracking-tight">Devices</h1>
       <p className="mt-1 text-sm text-muted-foreground">
         To pair a machine, start it there — Settings → Devices in the app, or{" "}
-        <code>inteligir sync pair</code> — and approve it in the browser it opens. Each device gets
+        <code>inteligir cloud pair</code> — and approve it in the browser it opens. Each device gets
         its own credential; revoking one cuts it off immediately.
       </p>
 

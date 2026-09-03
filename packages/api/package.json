@@ -28,7 +28,6 @@
     "./local/errors": "./src/local/local-errors.ts",
     "./local/folders/folders-schema": "./src/local/folders/folders-schema.ts",
     "./local/knowledge/knowledge-schema": "./src/local/knowledge/knowledge-schema.ts",
-    "./local/note-intelligence/note-intelligence-schema": "./src/local/note-intelligence/note-intelligence-schema.ts",
     "./local/notifications": "./src/local/notifications.ts",
     "./local/routes": "./src/local/local-routes.ts",
     "./local/system/system-schema": "./src/local/system/system-schema.ts",

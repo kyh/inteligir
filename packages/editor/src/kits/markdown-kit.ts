@@ -16,7 +16,7 @@ export const MarkdownKit = [
     options: {
       // combobox trigger elements are UI state; an autosave mid-combobox must skip them rather
       // than hit the serializer's "Unreachable code" fallback.
-      disallowedNodes: [KEYS.slashInput, KEYS.emojiInput, WIKI_INPUT_KEY, FORMULA_INPUT_KEY],
+      disallowedNodes: [KEYS.slashInput, WIKI_INPUT_KEY, FORMULA_INPUT_KEY],
       remarkPlugins: MD_REMARK_PLUGINS,
       rules: MD_RULES,
     },

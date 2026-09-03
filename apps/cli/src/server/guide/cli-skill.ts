@@ -52,17 +52,18 @@ output; without it the output is compact human text.
   revision. \`<path>\` is the path \`vault history\` reported for that row, not
   necessarily today's name.
 - \`inteligir vault restore <path> <sha>\` — put the note back to that
-  revision. \`<path>\` here is the note's path TODAY. It checkpoints the vault
-  first (so the bytes being replaced survive as their own revision) and writes
-  against the base it read, so a concurrent write is refused rather than
-  overwritten. Prefer this over piping \`revision\` into \`write\`, which
-  carries no such guard.
-- \`inteligir vault delete <path>\` — delete a file or folder.
+  revision. \`<path>\` here is the note's path TODAY, or a path \`vault
+  deleted\` lists. It checkpoints the vault first (so the bytes being replaced
+  survive as their own revision) and writes against the base it read, so a
+  concurrent write is refused rather than overwritten; a deleted note is
+  created afresh, and refused if something reappeared at its path. Prefer this
+  over piping \`revision\` into \`write\`, which carries no such guard.
+- \`inteligir vault delete <path>\` — delete a file or folder. There is no
+  trash: a deleted doc stays in the vault's git history.
+- \`inteligir vault deleted\` — docs no longer on disk, newest deletion first,
+  one tab-separated line each: the sha that still holds the bytes, when, path.
+  Feed a row to \`vault restore <path> <sha>\` to bring it back.
 - \`inteligir vault mkdir <path>\` — create a folder.
-- \`inteligir trash list\` — notes in the trash (30-day retention).
-- \`inteligir trash put <path>\` — move a note into the trash, restorably.
-- \`inteligir trash restore <Trash/path>\` — move a trashed note back.
-- \`inteligir trash purge <Trash/path>\` — delete a trashed note for good.
 - \`inteligir vault status\` — git sync state (remote, dirty, conflicts).
 - \`inteligir vault sync\` — run a sync against the configured remote now.
 
@@ -158,21 +159,21 @@ them as read-only — do not modify them.
   request may offer only some of them, and the CLI says which). \`--thread\`
   names the owning thread; omitted, it is looked up from the listing.
 
-## Sync — this install's account pairing
+## Cloud — this install's account pairing
 
 Cloud sync carries THREADS and their history between the devices on one
 account. It is off until someone pairs, and it never carries vault files —
 those are git's job.
 
-- \`inteligir sync status\` — whether this install is paired, how many events
+- \`inteligir cloud status\` — whether this install is paired, how many events
   are queued for the account, and how far behind it is.
-- \`inteligir sync pair\` — start a pairing. The SERVER opens a browser at the
+- \`inteligir cloud pair\` — start a pairing. The SERVER opens a browser at the
   account's approve page and prints the URL; a person approves it there and
   the pairing completes on its own. \`--name\` sets how this machine appears in
   the account's device list (default: the hostname). Under \`--json\` nothing
   is opened and the URL is printed for you to hand to the user — pairing is a
   person's act, so print the link and stop rather than waiting on it.
-- \`inteligir sync push\` — run a pass now (drain the outbox, pull, apply) and
+- \`inteligir cloud sync\` — run a pass now (drain the outbox, pull, apply) and
   print the state it left behind. Use it before reporting a long task done, so
   the work has actually reached the account.
 

@@ -138,38 +138,6 @@ export function addFrontmatterAlias(content: string, alias: string): string | nu
   return `---\n${nextYaml}\n---\n${body}`;
 }
 
-export type AbsentFrontmatterField =
-  | { key: string; kind: "text"; value: string }
-  | { key: string; kind: "tags"; value: string[] };
-
-// null on invalid yaml is a skip, never a retry.
-export function addAbsentFrontmatterFields(
-  content: string,
-  fields: readonly AbsentFrontmatterField[],
-): string | null {
-  const yaml = frontmatterYaml(content);
-  const parsed = parseProperties(yaml ?? "");
-  if (parsed.kind === "invalid") return null;
-  const props = parsed.kind === "valid" ? parsed.properties : [];
-  const present = new Set(props.map((prop) => prop.key));
-  const absent = fields.filter((field) => !present.has(field.key));
-  if (absent.length === 0) return null;
-  const nextProps: TypedProperty[] = [
-    ...props,
-    ...absent.map((field): TypedProperty =>
-      field.kind === "tags"
-        ? { key: field.key, type: "tags", value: field.value }
-        : { key: field.key, type: "text", value: field.value },
-    ),
-  ];
-  const nextYaml = serializeProperties(nextProps, yaml ?? "");
-  const body = splitFrontmatter(content).body;
-  return `---
-${nextYaml}
----
-${body}`;
-}
-
 export function typeNewProperty(key: string, rawValue: string): TypedProperty {
   if (rawValue.trim() === "") return { key, type: "text", value: "" };
   try {

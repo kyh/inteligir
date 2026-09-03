@@ -8,15 +8,9 @@ import {
 } from "../notifications";
 
 describe("realtimeSubscriptionTargetKey", () => {
-  it("keys detail targets by id and list targets by kind", () => {
+  it("keys list targets by kind", () => {
     expect(realtimeSubscriptionTargetKey({ kind: "vault" })).toBe("vault");
-    expect(realtimeSubscriptionTargetKey({ kind: "doc-detail", docId: "d1" })).toBe(
-      "doc-detail:d1",
-    );
     expect(realtimeSubscriptionTargetKey({ kind: "thread-list" })).toBe("thread-list");
-    expect(realtimeSubscriptionTargetKey({ kind: "thread-detail", threadId: "t1" })).toBe(
-      "thread-detail:t1",
-    );
   });
 });
 

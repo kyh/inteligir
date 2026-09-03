@@ -19,9 +19,10 @@ import {
   type SqlKnowledgeStore,
 } from "@repo/notes/knowledge/sql-knowledge-store";
 import type { TagCount } from "@repo/notes/knowledge/tag-index";
-import { isTrashedPath, normalizePath } from "@repo/notes/knowledge/vault-path";
+import { normalizePath } from "@repo/notes/knowledge/vault-path";
 import { searchVaultNotes } from "@repo/notes/knowledge/vault-search";
 import { contentHashBytesHex, type VaultEntry } from "@repo/api/local/vault/vault-schema";
+import { createCoalescingTimer } from "../coalescing-timer";
 import { mapWithConcurrency } from "../concurrency";
 import { VaultServiceError, type VaultService } from "../vault/vault-service";
 import type { VaultFilesChange } from "../vault/vault-runtime";
@@ -87,7 +88,6 @@ export function createKnowledgeRuntime(args: KnowledgeRuntimeArgs): KnowledgeRun
   let lastReconcile: ReconcileStats | null = null;
 
   const pendingPaths = new Set<string>();
-  let debounceTimer: NodeJS.Timeout | null = null;
   let disposed = false;
 
   // at most one pass runs and one is queued; later triggers fold into the queued one.
@@ -113,16 +113,11 @@ export function createKnowledgeRuntime(args: KnowledgeRuntimeArgs): KnowledgeRun
     return run;
   }
 
-  function scheduleDebounced(): void {
-    if (disposed || debounceTimer !== null) return;
-    debounceTimer = setTimeout(() => {
-      debounceTimer = null;
-      enqueuePass().catch(() => {
-        // already logged inside the pass; nothing to surface it to.
-      });
-    }, CHANGE_DEBOUNCE_MS);
-    debounceTimer.unref?.();
-  }
+  const debounce = createCoalescingTimer(CHANGE_DEBOUNCE_MS, () => {
+    enqueuePass().catch(() => {
+      // already logged inside the pass; nothing to surface it to.
+    });
+  });
 
   async function pass(): Promise<void> {
     if (disposed) return;
@@ -295,12 +290,7 @@ export function createKnowledgeRuntime(args: KnowledgeRuntimeArgs): KnowledgeRun
 
   async function listFiles(): Promise<string[]> {
     const { entries } = await args.vault.listTree();
-    return (
-      entries
-        // indexing Trash/ would keep every trashed note resolving links and answering search.
-        .filter((entry: VaultEntry) => entry.kind === "file" && !isTrashedPath(entry.path))
-        .map((entry) => entry.path)
-    );
+    return entries.filter((entry: VaultEntry) => entry.kind === "file").map((entry) => entry.path);
   }
 
   async function reconcile(): Promise<ReconcileStats> {
@@ -330,17 +320,11 @@ export function createKnowledgeRuntime(args: KnowledgeRuntimeArgs): KnowledgeRun
       const path = paths[index];
       if (path === undefined) continue;
       if (kind === "file") {
-        // a move into Trash/ announces the trash path as a created file; it must not enter the index.
-        if (isTrashedPath(path)) {
-          removeIndexed(path);
-          continue;
-        }
         files.push(path);
         continue;
       }
       if (kind === "dir") {
-        const under = await args.vault.listFilesUnder(path);
-        files.push(...under.filter((filePath) => !isTrashedPath(filePath)));
+        files.push(...(await args.vault.listFilesUnder(path)));
         continue;
       }
       const prefix = `${path}/`;
@@ -353,10 +337,7 @@ export function createKnowledgeRuntime(args: KnowledgeRuntimeArgs): KnowledgeRun
   }
 
   function settle(): Promise<void> {
-    if (debounceTimer !== null) {
-      clearTimeout(debounceTimer);
-      debounceTimer = null;
-    }
+    debounce.clear();
     return enqueuePass();
   }
 
@@ -368,7 +349,7 @@ export function createKnowledgeRuntime(args: KnowledgeRuntimeArgs): KnowledgeRun
       } else {
         needsReconcile = true;
       }
-      scheduleDebounced();
+      debounce.arm();
     },
 
     settle,
@@ -421,10 +402,7 @@ export function createKnowledgeRuntime(args: KnowledgeRuntimeArgs): KnowledgeRun
 
     async dispose() {
       disposed = true;
-      if (debounceTimer !== null) {
-        clearTimeout(debounceTimer);
-        debounceTimer = null;
-      }
+      debounce.clear();
       await queuedPass?.catch(() => {});
       await runningPass?.catch(() => {});
       store.dispose();

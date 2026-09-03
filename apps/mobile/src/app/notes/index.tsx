@@ -3,6 +3,7 @@ import { useCallback, useState } from "react";
 import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { docStem, isDocPath } from "@repo/notes/knowledge/doc-file";
+import { dirnamePath } from "@repo/notes/knowledge/vault-path";
 import { refreshNotes, useNotesTree, useSyncStatus } from "@/lib/app-runtime";
 import { RADIUS, SPACE, useTheme } from "@/lib/theme";
 
@@ -50,9 +51,7 @@ export default function NotesScreen() {
         keyExtractor={(entry) => entry.path}
         ListEmptyComponent={<Empty text={emptyText} />}
         renderItem={({ item: entry }) => {
-          const dir = entry.path.includes("/")
-            ? entry.path.slice(0, entry.path.lastIndexOf("/"))
-            : null;
+          const dir = dirnamePath(entry.path);
           return (
             <Pressable
               style={({ pressed }) => [
@@ -70,7 +69,7 @@ export default function NotesScreen() {
               <Text style={[styles.title, { color: theme.cardForeground }]} numberOfLines={1}>
                 {docStem(entry.path)}
               </Text>
-              {dir !== null ? (
+              {dir !== "" ? (
                 <Text style={[styles.caption, { color: theme.mutedForeground }]} numberOfLines={1}>
                   {dir}
                 </Text>

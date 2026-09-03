@@ -4,14 +4,48 @@ import type {
   ForwardLinkEntry,
   WikiTarget,
 } from "@repo/notes/knowledge/link-graph-index";
+import type { StoreApi } from "zustand/vanilla";
 
-// A module singleton rather than context: kit factories and paste handlers run outside React.
+// The host as a module singleton rather than context: kit factories and paste handlers run
+// outside React, and host.ts hands components the same object. The shell implements these
+// types; declaring them beside the app's provider would put a type edge back across the
+// package boundary.
 
 export type VaultEntry = {
   path: string;
   name: string;
   kind: "doc" | "other";
 };
+
+export type VaultActions = {
+  /** Also raises the editor surface; a failed flush of the current note refuses to navigate. */
+  openFile: (path: string) => void;
+  /** Keyed by path: a teardown or surface switch can emit after the open note changed, and those bytes must no-op. */
+  editNote: (path: string, content: string) => void;
+  /** Drains the serialize debounce before a save/rename/delete; keyed by path for the same reason as editNote. */
+  registerNoteSerializeFlush: (path: string, flush: () => void) => void;
+  /** Open-or-create: an existing file opens untouched, so templates and daily notes can re-run it. */
+  createFile: (path: string, content?: string) => Promise<void>;
+  /** Creates without opening; an existing file counts as success. */
+  createFileAt: (path: string, seedContent?: string) => Promise<string | null>;
+  renameEntry: (from: string, to: string) => Promise<boolean>;
+  deleteEntry: (path: string) => Promise<void>;
+  flush: () => Promise<boolean>;
+  refreshVault: () => void;
+};
+
+export type VaultListing = {
+  entries: readonly VaultEntry[];
+  /** Identity changes when the listing or aliases refresh, so chips re-render on that alone. */
+  resolveWikiTarget: (target: string) => string | null;
+};
+
+// The read half only: the app owns the writer. A store rather than a field because the listing
+// moves with every vault refresh while the actions never do, so only its readers re-render.
+export type VaultListingStore = Pick<
+  StoreApi<VaultListing>,
+  "getState" | "getInitialState" | "subscribe"
+>;
 
 // A Blob, not base64: the asset route already answers the media type, and re-deriving it from the extension is a second allowlist.
 export type ReadVaultAssetResult = { ok: true; bytes: Blob } | { ok: false; error: string };
@@ -26,7 +60,7 @@ export type HeldDeletions = {
 };
 
 export type DeleteVaultEntryResult =
-  | { readonly outcome: "trashed" }
+  | { readonly outcome: "removed" }
   | { readonly outcome: "absent" }
   | { readonly outcome: "held"; readonly held: HeldDeletions };
 
@@ -58,6 +92,8 @@ export function heldDeletionMessage(held: HeldDeletions): string {
 }
 
 export type EditorHostIo = {
+  actions: VaultActions;
+  listing: VaultListingStore;
   readVaultFile(payload: { path: string }): Promise<string>;
   readVaultAsset(payload: { path: string }): Promise<ReadVaultAssetResult>;
   /** Picks a collision-free name from `baseName`. */

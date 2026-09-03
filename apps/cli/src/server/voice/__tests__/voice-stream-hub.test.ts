@@ -65,7 +65,6 @@ function fakeVoice() {
     status: async () => ({ state: "ready", model }),
     install: async () => ({ state: "ready", model }),
     remove: async () => ({ state: "ready", model }),
-    transcribe: async () => "",
     createStreamSession: (handlers) => {
       created += 1;
       const session = makeFakeSession(handlers);

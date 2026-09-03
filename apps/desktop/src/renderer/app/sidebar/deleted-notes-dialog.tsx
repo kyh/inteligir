@@ -7,69 +7,64 @@ import {
   DialogTitle,
 } from "@repo/ui/components/dialog";
 import { docStem } from "@repo/notes/knowledge/doc-file";
+import type { VaultDeletedEntry } from "@repo/api/local/vault/vault-schema";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "@repo/ui/components/sonner";
 import { orpc, refusalMessage } from "../api";
 import { relativeTimeLabel } from "../relative-time";
 import { useWorkspace } from "../workspace-context";
 
-export interface TrashDialogProps {
+export interface DeletedNotesDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onOpenNote: (path: string) => void;
 }
 
-export function TrashDialog({ open, onOpenChange, onOpenNote }: TrashDialogProps) {
+export function DeletedNotesDialog({ open, onOpenChange, onOpenNote }: DeletedNotesDialogProps) {
   const { api } = useWorkspace();
   const queryClient = useQueryClient();
-  const trashQuery = useQuery({ ...orpc.vault.trashList.queryOptions(), enabled: open });
+  const deletedQuery = useQuery({ ...orpc.vault.deleted.queryOptions(), enabled: open });
 
-  const invalidate = (): void => {
-    void queryClient.invalidateQueries({ queryKey: orpc.vault.trashList.key() });
-  };
-
+  // The same composition as a history restore, with no bytes on disk to base
+  // it on: create-exclusively, so a note re-created there since is refused
+  // rather than replaced.
   const restore = useMutation({
-    mutationFn: async (path: string) => api.vault.trashRestore({ path }),
-    onError: (error, path) => {
-      toast.error(refusalMessage(error, `Could not restore ${path}.`));
+    mutationFn: async (entry: VaultDeletedEntry) => {
+      const { content } = await api.vault.revision({ path: entry.path, sha: entry.sha });
+      return api.vault.write({ path: entry.path, content, ifAbsent: true });
+    },
+    onError: (error, entry) => {
+      toast.error(refusalMessage(error, `Could not restore ${entry.path}.`));
     },
     onSuccess: (restored) => {
-      invalidate();
+      void queryClient.invalidateQueries({ queryKey: orpc.vault.deleted.key() });
       onOpenChange(false);
       onOpenNote(restored.path);
     },
   });
 
-  const purge = useMutation({
-    mutationFn: async (path: string) => api.vault.trashPurge({ path }),
-    onError: (error, path) => {
-      toast.error(refusalMessage(error, `Could not delete ${path}.`));
-    },
-    onSuccess: invalidate,
-  });
-
-  const entries = trashQuery.data?.entries ?? [];
+  const entries = deletedQuery.data?.entries ?? [];
   // Not Date.now(): a clock read in render is impure, and the query refetches
   // on every open anyway.
-  const now = trashQuery.dataUpdatedAt;
+  const now = deletedQuery.dataUpdatedAt;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>Trash</DialogTitle>
+          <DialogTitle>Deleted notes</DialogTitle>
           <DialogDescription>
-            Deleted notes are kept for 30 days, then removed for good.
+            A deleted note stays in the vault's history. Restore one to bring it back where it was.
           </DialogDescription>
         </DialogHeader>
         <div className="-mr-2 max-h-[60dvh] space-y-1 overflow-y-auto pr-2">
-          {trashQuery.isPending && open ? (
+          {deletedQuery.isPending && open ? (
             <p className="px-1 py-4 text-sm text-muted-foreground">Loading…</p>
           ) : entries.length === 0 ? (
-            <p className="px-1 py-4 text-sm text-muted-foreground">The trash is empty.</p>
+            <p className="px-1 py-4 text-sm text-muted-foreground">Nothing has been deleted.</p>
           ) : (
             entries.map((entry) => {
-              const at = entry.trashedAt === null ? null : Date.parse(entry.trashedAt);
+              const at = Date.parse(entry.deletedAt);
               return (
                 <div
                   key={entry.path}
@@ -78,26 +73,17 @@ export function TrashDialog({ open, onOpenChange, onOpenNote }: TrashDialogProps
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm">{docStem(entry.path)}</p>
                     <p className="truncate text-xs text-muted-foreground">
-                      {entry.trashedFrom ?? entry.path.replace(/^Trash\//, "")}
-                      {at !== null && !Number.isNaN(at) ? ` · ${relativeTimeLabel(at, now)}` : null}
+                      {entry.path}
+                      {Number.isNaN(at) ? null : ` · ${relativeTimeLabel(at, now)}`}
                     </p>
                   </div>
                   <Button
                     variant="tertiary"
                     size="compact"
                     disabled={restore.isPending}
-                    onClick={() => restore.mutate(entry.path)}
+                    onClick={() => restore.mutate(entry)}
                   >
                     Restore
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="compact"
-                    className="text-destructive"
-                    disabled={purge.isPending}
-                    onClick={() => purge.mutate(entry.path)}
-                  >
-                    Delete forever
                   </Button>
                 </div>
               );

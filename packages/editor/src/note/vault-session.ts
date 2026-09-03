@@ -5,10 +5,10 @@ import {
   heldDeletionMessage,
   vaultChangeTouches,
   type DeleteVaultEntryResult,
+  type VaultActions,
   type VaultChangedEvent,
   type VaultEntry,
 } from "@repo/editor/host-io";
-import type { VaultActions } from "@repo/editor/host";
 import type { OpenPathChange } from "@repo/editor/note/open-note-store";
 import { createNoteRuntime, type NoteRuntime } from "@repo/editor/note/note-runtime";
 import type { VaultEditorState, VaultIO } from "@repo/editor/vault-editor";
@@ -25,18 +25,13 @@ export type RenameResult = { ok: true } | { ok: false; error: string };
 
 export type NoticeLevel = "error" | "warning";
 
-// `create` refuses an existing path.
-export type VaultNoteIO = VaultIO & {
-  create: (path: string, content: string) => Promise<void>;
-};
-
 export type VaultSessionPorts = {
   boot: () => Promise<WorkspaceBoot>;
   list: () => Promise<VaultEntry[]>;
   refresh: () => Promise<void>;
   exists: (path: string) => Promise<boolean>;
   rename: (from: string, to: string) => Promise<RenameResult>;
-  note: VaultNoteIO;
+  note: VaultIO;
   publishListing: (entries: VaultEntry[]) => void;
   publishRoot: (root: string) => void;
   publishOpenPath: (path: string | null, change: OpenPathChange) => void;

@@ -50,7 +50,7 @@ describe("what the client calls a doc, and what it calls it by", () => {
         .map((file) => file.slice(REPO_ROOT.length + 1));
       expect(
         offenders,
-        "@repo/notes/knowledge/doc-file answers this — isDocPath / isNotePath / docStem",
+        "@repo/notes/knowledge/doc-file answers this — isDocPath / docStem",
       ).toEqual([]);
     },
   );

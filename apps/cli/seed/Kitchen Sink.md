@@ -17,8 +17,6 @@ A link to a note that does not exist yet renders dashed: [[Field Notes]].
 
 **Bold**, _italic_, ~~strikethrough~~, `inline code`, a [link](https://example.com), an inline equation $$a^2+b^2=c^2$$, and a date chip <date value="2026-08-22" /> in prose.
 
-Color literals render as swatches: #4f8a6b, rgb(72, 67, 60), hsl(154, 28%, 42%).
-
 A tag chip: #reference
 
 ## Formulas

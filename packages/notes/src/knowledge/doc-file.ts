@@ -8,11 +8,6 @@ export function isDocPath(path: string): boolean {
   return DOC_EXTENSIONS.has(extnamePath(path).toLowerCase());
 }
 
-// narrower than isDocPath on purpose: a caller splicing frontmatter must not write YAML into a .txt
-export function isNotePath(path: string): boolean {
-  return extnamePath(path).toLowerCase() === DEFAULT_DOC_EXTENSION;
-}
-
 export function docExtension(path: string): string {
   return isDocPath(path) ? extnamePath(path) : "";
 }
