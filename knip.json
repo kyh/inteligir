@@ -1,6 +1,5 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
-  "ignore": [".design-sync/**"],
   // packages/* export every file as a subpath, so knip reads each as an entry and trusts its
   // exports; includeEntryExports turns reporting back on where the exports are not the API
   "workspaces": {

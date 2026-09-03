@@ -2,13 +2,12 @@
 
 The window, and the page inside it. This process owns **no vault, no agent and
 no index**: those live in the server it forks, and everything here is the OS
-affordances a browser tab cannot give — a dedicated window, a tray, a menu, an
-in-app browser, and a process that starts and stops the server with the app.
+affordances a browser tab cannot give — a dedicated window, a tray, a menu, and
+a process that starts and stops the server with the app.
 
 ```
 src/main/       the Electron main process: the window, the protocol, the fork
-src/preload/    the app window's bridge (the loopback ws origin); the in-app
-                browser window has its own preload + IPC (src/main/browser-*)
+src/preload/    the ONE bridge into the app window (the loopback ws origin)
 src/renderer/   the SPA — TanStack Router file routes over @repo/api/local
 ```
 
@@ -43,8 +42,8 @@ between this shell and a browser:
   a phishing surface inside the product's chrome, so it is blocked; an http(s)
   target is handed to the system browser instead.
 - **`window.open` is denied unconditionally**, even same-origin.
-- `nodeIntegration: false`, `contextIsolation: true`, `sandbox: true`. The app
-  window's preload exposes one string.
+- `nodeIntegration: false`, `contextIsolation: true`, `sandbox: true`. The one
+  preload exposes one string.
 
 Origins are compared **field by field** — scheme, host, and port only where the
 scheme has one — never with `URL.origin`: Node's parser answers the opaque
@@ -185,7 +184,6 @@ spawned from inside an archive and a `.node` binary cannot be loaded from one.
 - **No deep-link scheme.** `inteligir://` is the renderer's own origin now; a
   cross-device link would need a second, registered scheme and there is nothing
   to receive yet.
-- **The app window has no IPC beyond the socket origin.** Its bridge exposes one
-  string, computed in main, because a browser `WebSocket` cannot be proxied.
-  Every other question the page has, it asks its own server over `/rpc`. The
-  in-app browser window is a separate surface with its own preload and IPC.
+- **No IPC beyond the socket origin.** The bridge exposes one string, computed
+  in main, because a browser `WebSocket` cannot be proxied. Every other question
+  the page has, it asks its own server over `/rpc`.

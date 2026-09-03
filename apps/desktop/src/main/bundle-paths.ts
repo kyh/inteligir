@@ -17,11 +17,3 @@ export function rendererDir(): string {
 export function appPreloadScript(): string {
   return bundlePath("preload", "index.cjs");
 }
-
-export function browserChromePreloadScript(): string {
-  return bundlePath("preload", "browser-preload.cjs");
-}
-
-export function browserChromePage(): string {
-  return bundlePath("preload", "browser-chrome.html");
-}

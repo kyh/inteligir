@@ -8,7 +8,7 @@ export const UI_PACKAGE = "@repo/ui";
 
 // a gallery proves a component renders, not that the product needs it, so the orphan guard does not
 // count it as a consumer.
-export const GALLERY_DIR = "apps/desktop/src/renderer/app/gallery";
+export const GALLERY_DIR = "apps/web/src/components/gallery";
 
 export interface UiRoot {
   dir: string;

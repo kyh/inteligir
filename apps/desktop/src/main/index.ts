@@ -15,8 +15,6 @@ import {
 } from "electron";
 import { rendererDir, appPreloadScript } from "./bundle-paths";
 import { socketCredentialFilter } from "./credential-scope";
-import { BROWSER_ACCELERATOR } from "./browser-panel";
-import { showBrowserWindow } from "./browser-window";
 import {
   appWindowWebPreferences,
   classifyNavigation,
@@ -253,15 +251,7 @@ function configureApplicationMenu(target: ServerTarget, server: LiveServer): voi
     },
     {
       label: "File",
-      submenu: [
-        {
-          label: "Browser",
-          accelerator: BROWSER_ACCELERATOR,
-          click: () => showBrowserWindow(server),
-        },
-        { type: "separator" },
-        { role: "close" },
-      ],
+      submenu: [{ role: "close" }],
     },
     { role: "editMenu" },
     { role: "viewMenu" },

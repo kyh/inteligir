@@ -28,12 +28,10 @@ apps/
   desktop/       @repo/desktop — THE SHIPPED PRODUCT (issue #611). THREE
                  bundles under electron-vite: src/main/ (the window, the
                  inteligir:// protocol handler, the forked server),
-                 src/preload/ (ONE string for the app window — the loopback ws
-                 origin, because a browser WebSocket cannot be proxied and
-                 window.location.origin no longer names a server; the in-app
-                 browser window, src/main/browser-*.ts, has its own preload and
-                 IPC), and src/renderer/ (the SPA: TanStack Router file routes
-                 over @repo/api/local). The whole
+                 src/preload/ (ONE string — the loopback ws origin, because a
+                 browser WebSocket cannot be proxied and window.location.origin
+                 no longer names a server), and src/renderer/ (the SPA:
+                 TanStack Router file routes over @repo/api/local). The whole
                  security surface is the ORIGIN PIN (src/main/origin-pin.ts,
                  pure + unit-tested): one origin, top-level navigation away
                  goes to the system browser, window.open denied
@@ -71,7 +69,8 @@ apps/
                  vendored licence texts, and the desktop renderer's bundle as
                  dist/ui, which `serve --open` answers over plain HTTP.
   web/           @repo/web — ONE Cloudflare Worker: the TanStack Start
-                 marketing site, the auth pages, Better Auth on D1
+                 marketing site, the auth pages, the @repo/ui gallery at
+                 /design (src/components/gallery), Better Auth on D1
                  (invite-gated sign-up), and the v3 cloud (issue #554):
                  device pairing (/app/pair approves one, /app/devices lists and
                  revokes), the per-user ThreadSyncDO (merged thread log +

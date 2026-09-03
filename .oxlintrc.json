@@ -30,9 +30,7 @@
     "*.tsbuildinfo",
     ".tanstack",
     "routeTree.gen.ts",
-    "worker-configuration.d.ts",
-    ".design-sync",
-    ".ds-sync"
+    "worker-configuration.d.ts"
   ],
   "plugins": ["eslint", "typescript", "unicorn", "react", "oxc", "node", "promise"],
   "jsPlugins": [{ "name": "anti-slop", "specifier": "@kyh/oxlint/anti-slop" }],

@@ -1,11 +1,9 @@
-import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import tailwindcss from "@tailwindcss/vite";
 import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import viteReact from "@vitejs/plugin-react";
 import { defineConfig } from "electron-vite";
-import type { Plugin } from "vite";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -21,20 +19,6 @@ const PRELOAD_OUTPUT = {
   chunkFileNames: "[name].cjs",
 } as const;
 
-function chromeBarPage(): Plugin {
-  const source = resolve(here, "src/main/browser-chrome.html");
-  return {
-    name: "inteligir:chrome-bar-page",
-    generateBundle() {
-      this.emitFile({
-        type: "asset",
-        fileName: "browser-chrome.html",
-        source: readFileSync(source, "utf8"),
-      });
-    },
-  };
-}
-
 export default defineConfig({
   main: {
     build: {
@@ -46,13 +30,11 @@ export default defineConfig({
     },
   },
   preload: {
-    plugins: [chromeBarPage()],
     build: {
       outDir: ".output/app/preload",
       rollupOptions: {
         input: {
           index: resolve(here, "src/preload/index.ts"),
-          "browser-preload": resolve(here, "src/main/browser-preload.ts"),
         },
         external: ELECTRON_RUNTIME,
         output: PRELOAD_OUTPUT,

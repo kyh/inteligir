@@ -1,7 +1,0 @@
-/* design-sync Tailwind compile entry.
-   Imports the real DS stylesheet (tokens + @theme + utilities layer) and adds
-   the authored preview dir to the content scan so preview layout utilities
-   are materialized. globals.css already @sources the ui src + the apps that
-   consume the DS, so real usage drives utility coverage. */
-@import "../packages/ui/src/styles/globals.css";
-@source "./previews/**/*.tsx";
