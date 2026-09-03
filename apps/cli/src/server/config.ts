@@ -166,7 +166,7 @@ const ENV_VARS = {
   vaultRemote: defineEnvVar({
     name: "INTELIGIR_VAULT_REMOTE",
     description:
-      "Git remote URL the vault syncs against. Unset, a PAIRED install derives the hosted remote from its device credential; unset and unpaired means local-only.",
+      "Git remote URL the vault syncs against. Unset, a SIGNED-IN install derives the hosted remote from its device credential; unset and signed out means local-only.",
     parse: ({ name, value }) => parseRemoteUrlValue(name, value),
   }),
   vaultSyncIntervalMs: defineEnvVar({
@@ -200,7 +200,7 @@ const ENV_VARS = {
   }),
   cloudUrl: defineEnvVar({
     name: "INTELIGIR_CLOUD_URL",
-    description: `Origin of the hosted deployment this install pairs against for thread sync; unset means ${DEFAULT_CLOUD_URL}. Pairing is what turns sync on — an unpaired install opens no socket and makes no request whatever this says.`,
+    description: `Origin of the hosted deployment this install signs in to for thread sync; unset means ${DEFAULT_CLOUD_URL}. Signing in is what turns sync on — an install with no device credential opens no socket and makes no request whatever this says.`,
     parse: ({ name, value }) => parseCloudUrlValue(name, value),
   }),
 };

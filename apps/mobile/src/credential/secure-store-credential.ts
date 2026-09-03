@@ -1,7 +1,7 @@
 // expo-secure-store, never AsyncStorage: a bearer secret in plaintext in the app sandbox.
 
 import * as SecureStore from "expo-secure-store";
-import type { DeviceCredential } from "@repo/api/cloud/pairing/pairing-schema";
+import type { DeviceCredential } from "@repo/api/cloud/device/device-schema";
 import { parseStoredCredential, serializeCredential } from "./credential-codec";
 
 const CREDENTIAL_KEY = "device-credential";

@@ -1,16 +1,14 @@
 import { z } from "zod";
 
-// pairing refusals are distinct (the screen says "mint a new code" only when that is the
-// fix, and a code is high-entropy and rate-limited, so the split leaks nothing spendable);
-// a revoked and an unknown credential both answer `unauthorized`: "revoked" tells a thief it once worked.
+// a wrong password on the login route is `invalid-credentials`, not `unauthorized`: the latter
+// ends a sync session, and a refused login is no verdict on any credential. a revoked and an
+// unknown credential both answer `unauthorized`: "revoked" tells a thief it once worked.
 export const CLOUD_ERROR_CODES = [
   "bad-request",
   "unauthorized",
+  "invalid-credentials",
   "not-found",
   "rate-limited",
-  "invalid-code",
-  "code-expired",
-  "code-consumed",
   "device-limit",
   "sync-conflict",
   "sync-out-of-order",
@@ -26,11 +24,9 @@ export type CloudErrorCode = z.infer<typeof cloudErrorCodeSchema>;
 export const CLOUD_ERROR_STATUS = {
   "bad-request": 400,
   unauthorized: 401,
+  "invalid-credentials": 401,
   "not-found": 404,
   "rate-limited": 429,
-  "invalid-code": 404,
-  "code-expired": 410,
-  "code-consumed": 409,
   "device-limit": 409,
   "sync-conflict": 409,
   "sync-out-of-order": 409,

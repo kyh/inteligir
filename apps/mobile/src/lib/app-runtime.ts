@@ -1,18 +1,16 @@
 import { useMemo, useSyncExternalStore } from "react";
-import { createPairingFlow } from "@repo/api/cloud/pairing/pairing-flow";
+import * as Crypto from "expo-crypto";
 import {
   clearDeviceCredential,
   readDeviceCredential,
   writeDeviceCredential,
 } from "../credential/secure-store-credential";
-import { createPairingStore, type PairingState, type PairingStore } from "../pairing/pairing-store";
 import {
-  defaultDeviceName,
-  expoPkceCrypto,
-  openApproveAndAwait,
-  pairCallbackUrl,
-  parsePairCallback,
-} from "../pairing/expo-pairing";
+  createLoginStore,
+  type LoginRequest,
+  type LoginState,
+  type LoginStore,
+} from "../login/login-store";
 import { createMemorySyncStore } from "../sync/memory-sync-store";
 import { createExpoNoteCache } from "../notes/expo-note-cache";
 import {
@@ -33,8 +31,8 @@ interface AppRuntime {
   store: SyncStore;
   sync: SyncRuntime;
   notes: NotesStore;
-  pairing: PairingStore;
-  removeDeepLink: (() => void) | null;
+  login: LoginStore;
+  started: boolean;
 }
 
 // the tree is fetched here so no screen carries its own cold-fetch effect.
@@ -61,18 +59,16 @@ function build(): AppRuntime {
   const cloudUrl = resolveCloudUrl();
   const sync = createSyncRuntime({ store, cloudUrl });
   const notes = createNotesStore({ cloudUrl, cache: createExpoNoteCache() });
-  const callbackUrl = pairCallbackUrl();
-  const pairing = createPairingStore({
-    machine: createPairingFlow({ cloudUrl, crypto: expoPkceCrypto }),
-    redirect: callbackUrl,
-    deviceName: defaultDeviceName(),
-    openApprove: (approveUrl) => openApproveAndAwait(approveUrl, callbackUrl),
-    onPaired: async (credential) => {
-      await writeDeviceCredential(credential);
-      activate({ sync, notes }, { credential, source: "paired" });
+  const login = createLoginStore({
+    client: { baseUrl: cloudUrl },
+    store: {
+      write: async (credential) => {
+        await writeDeviceCredential(credential);
+        activate({ sync, notes }, { credential, source: "paired" });
+      },
     },
   });
-  return { store, sync, notes, pairing, removeDeepLink: null };
+  return { store, sync, notes, login, started: false };
 }
 
 function getRuntime(): AppRuntime {
@@ -82,17 +78,8 @@ function getRuntime(): AppRuntime {
 
 export async function ensureStarted(): Promise<void> {
   const rt = getRuntime();
-  if (rt.removeDeepLink !== null) return;
-  // the redirect arrives as a deep link when the app was backgrounded during browser approval.
-  const { addEventListener } = await import("expo-linking");
-  const subscription = addEventListener("url", (event) => {
-    const parsed = parsePairCallback(event.url);
-    if (parsed === null) return;
-    void rt.pairing.complete(parsed);
-  });
-  rt.removeDeepLink = () => {
-    subscription.remove();
-  };
+  if (rt.started) return;
+  rt.started = true;
   const stored = await readDeviceCredential();
   if (stored !== null) activate(rt, { credential: stored, source: "restored" });
 }
@@ -108,8 +95,8 @@ export async function unpair(): Promise<void> {
   rt.notes.setCredential(null);
 }
 
-export function startPair(): Promise<void> {
-  return getRuntime().pairing.startPair();
+export function login(request: LoginRequest): Promise<void> {
+  return getRuntime().login.login(request);
 }
 
 export async function submitCapture(
@@ -124,7 +111,7 @@ export async function submitCapture(
 
 // the contract requires an idempotency key of at least 8 chars.
 function newIdempotencyKey(): string {
-  return hexFromBytes(expoPkceCrypto.randomBytes(16));
+  return hexFromBytes(Crypto.getRandomBytes(16));
 }
 
 export async function refreshNotes(): Promise<void> {
@@ -153,9 +140,9 @@ export function useSyncStatus(): SyncStatus {
   return useSyncExternalStore(rt.sync.subscribe, rt.sync.get);
 }
 
-export function usePairingState(): PairingState {
+export function useLoginState(): LoginState {
   const rt = getRuntime();
-  return useSyncExternalStore(rt.pairing.subscribe, rt.pairing.get);
+  return useSyncExternalStore(rt.login.subscribe, rt.login.get);
 }
 
 export function useThreads(): readonly ThreadProjection[] {

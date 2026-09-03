@@ -40,7 +40,7 @@ export function syncStateLabel(status: VaultStatusResponse): string {
     case "offline":
       return "Offline";
     case "unauthorized":
-      return "Not authorized — re-pair this device";
+      return "Not authorized — sign this device in again";
     case "account-mismatch":
       return "This vault belongs to a different account";
     case "conflict":
@@ -155,7 +155,8 @@ function syncNowNotice(status: VaultStatusResponse): SyncNowNotice | null {
     case "unauthorized":
       return {
         tone: "error",
-        message: "The remote refused this device's credential — re-pair in Settings → Devices.",
+        message:
+          "The remote refused this device's credential — sign in again in Settings → Devices.",
       };
     case "clean":
     case "dirty":

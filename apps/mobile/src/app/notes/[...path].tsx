@@ -71,7 +71,7 @@ export default function NoteScreen() {
       <ScrollView style={styles.screen} contentContainerStyle={styles.body}>
         {!paired ? (
           <Text style={[styles.status, { color: theme.mutedForeground }]}>
-            Pair this device to read your notes.
+            Sign in to read your notes.
           </Text>
         ) : screen.state === "loading" ? (
           <Text style={[styles.status, { color: theme.mutedForeground }]}>Loading…</Text>

@@ -27,11 +27,11 @@ src/
     credential-codec.ts        parse/serialize + the wire pattern
     credential-store.ts        the port
     secure-store-credential.ts expo-secure-store adapter (Keychain/Keystore)
-  pairing/      browser-approve pairing, from the phone
-    pairing-flow.ts     the screen's state machine (idle | pairing | failed) over
-                        the contract's pairing machine
-                        (@repo/api/cloud/pairing/pairing-flow)
-    expo-pairing.ts     expo-crypto / expo-linking / expo-web-browser wiring
+  login/        signing this phone in to an account
+    login-store.ts      the screen's state machine (idle | signing-in | failed)
+                        over the contract's login flow
+                        (@repo/api/cloud/device/login-flow)
+    device-name.ts      the name this phone offers the device list
   notes/        the vault read surface (#618)
     notes-store.ts      tree + cached note reads + wiki resolver (pure, unit-tested)
     note-cache.ts       the note-body cache port + its memory implementation
@@ -66,7 +66,7 @@ mirroring the desktop's `<dataDir>/device-credential`.
 moves the tree's commit makes old rows unreachable and sweeps them. The TREE
 stays in memory on purpose: the resolver and the commit must be current before
 any read is pinned, so a cold launch re-fetches the listing and then reads
-note bodies from disk. A pairing and an unpair wipe the rows; the boot
+note bodies from disk. A sign-in and a sign-out wipe the rows; the boot
 RESTORE keeps them — that launch is what the cache exists for. Which
 transition it is comes from the composition root, which knows, rather than
 from comparing bearers inside the store. Image BYTES are the stated residual:
@@ -85,46 +85,29 @@ capture to the vault, so a phone claiming would take a capture the desktop then
 never sees — and the consumer half therefore does not exist on this device at
 all.
 
-## The pairing seam
+## The sign-in seam
 
-A phone has no loopback callback, so browser-approve redirects to the app's own
-custom scheme `inteligir://pair/callback` instead of
-`http://127.0.0.1:<port>/pair/callback`. The contract's `pairRedirectUrlSchema`
-(`@repo/api/cloud/pairing/pairing-schema`) admits exactly those two shapes, each
-judged field-by-field with no wildcards, so the production approve page
-completes this redirect. The flow:
-
-1. The contract's pairing machine (`@repo/api/cloud/pairing/pairing-flow`,
-   the same one the desktop runs) mints a single-use `state` and a PKCE
-   verifier (the secret stays on the phone), and builds the account's approve
-   URL with the S256 challenge.
-2. `expo-web-browser` opens it; the browser redirects back to the deep-link (the
-   global `expo-linking` listener and `openAuthSessionAsync` both route into
-   the flow's `complete`).
-3. `complete` verifies the state (constant-time, consumed **before** the
-   redeem) and redeems the code with the verifier — so an intercepted code alone
-   cannot be spent. A failure on either path lands in the one store the screen
-   reads, so it is shown rather than dropped.
-
-**The residual, stated:** the allowlist cannot stop another app from registering
-the `inteligir://` scheme on the same OS — a squatter can receive the redirect,
-code included. The PKCE verifier, which never leaves this app, is what keeps
-that code unredeemable — the same property that keeps the desktop's
-deliberately-open loopback port safe. In Expo Go the callback composes to
-Metro's `exp://…/--/pair/callback`, which the allowlist refuses; end-to-end
-pairing needs a build that owns the scheme, and the dev loop hand-feeds the
-listener a deep link instead.
+A phone joins an account the way the desktop does: the account's own email
+and password, posted once to `POST /v1/device/login`, answered with this
+phone's own `igd_…` device credential. The contract's login flow
+(`@repo/api/cloud/device/login-flow`, the same one the desktop runs) posts the
+row and writes the answer through the injected credential store — here the
+Keychain adapter, which also activates the sync and notes runtimes. The
+password is held nowhere on the phone: it crosses the wire once and only the
+device credential remains, revocable from the account's Devices page. A
+refusal on the wire and a Keychain that cannot write both land in the one
+store the screen reads, so each is shown rather than dropped.
 
 ## Verified vs device-side
 
 - **Verified here** (`pnpm --filter @repo/mobile typecheck` + `test`, and the
   repo-wide `pnpm verify`): the sync client (pull applies by global seq
   idempotently, and a pass neither pushes a thread event nor claims a capture),
-  the credential codec, and the PKCE + pairing handshake — all against faked
-  storage / crypto / fetch. Unit tests, no device.
+  the credential codec, and the sign-in store — all against faked storage /
+  fetch. Unit tests, no device.
 - **Needs the owner's device / simulator** (no headless Expo boot in CI): the app
-  actually booting, the expo-secure-store Keychain round trip, and the live
-  pairing browser flow against a running cloud Worker.
+  actually booting, the expo-secure-store Keychain round trip, and a live
+  sign-in against a running cloud Worker.
 
 ## Dev
 

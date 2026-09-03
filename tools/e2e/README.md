@@ -58,7 +58,7 @@ what each one is FOR.
 |                           | ops verified to leave the disk untouched                                  |
 | vault-sync                | two instances + one bare remote (auto-sync off, every sync explicit):     |
 |                           | propagation, then a typed conflict + git-verified repo integrity          |
-| hosted-vault-sync         | the hosted loop for real: a wrangler-dev Worker, production pairing,      |
+| hosted-vault-sync         | the hosted loop for real: a wrangler-dev Worker, production login,        |
 |                           | convergence through the derived remote, boot clone, revoke → unauthorized |
 | built-worker-boot         | the vite-built bundle — what `wrangler deploy` ships — boots under        |
 |                           | wrangler dev and answers; built through turbo on every run, so it is the  |

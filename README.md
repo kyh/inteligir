@@ -47,7 +47,7 @@ the owned description of each.
 ```
 apps/desktop            @repo/desktop — THE SHIPPED PRODUCT: the window and the SPA in it
 apps/cli                inteligir — THE PUBLISHED BINARY: `serve` is the server, every other verb a client
-apps/web                @repo/web — ONE Cloudflare Worker: site, auth, pairing, thread sync, captures, hosted vault
+apps/web                @repo/web — ONE Cloudflare Worker: site, auth, device login, thread sync, captures, hosted vault
 apps/mobile             @repo/mobile — the Expo client: threads, captures, read-only notes
 packages/domain         @repo/domain — zod-only leaf vocabulary
 packages/api            @repo/api — ONE contract, TWO entries: /local and /cloud

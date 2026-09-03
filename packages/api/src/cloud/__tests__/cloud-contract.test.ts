@@ -4,24 +4,17 @@ import {
   ackCapturesResponseSchema,
   captureRequestSchema,
 } from "../captures/captures-schema";
-import { cloudError, cloudErrorSchema } from "../cloud-errors";
+import { CLOUD_ERROR_CODES, cloudError, cloudErrorSchema } from "../cloud-errors";
 import {
-  buildPairApproveUrl,
-  buildPairCallbackUrl,
-  createPkcePair,
   DEVICE_CREDENTIAL_PATTERN,
-  generatePkceVerifier,
-  mintPairingCodeRequestSchema,
-  PAIR_APPROVE_PATH,
-  PAIR_CALLBACK_PATH,
-  PAIRING_CODE_PATTERN,
-  pairApproveSearchSchema,
-  pairRedirectUrlSchema,
-  PKCE_S256_PATTERN,
-  pkceChallengeS256,
-  redeemDeviceRequestSchema,
-  type PkceCrypto,
-} from "../pairing/pairing-schema";
+  DEVICE_LOGIN_REFUSALS,
+  DEVICE_NAME_MAX_LENGTH,
+  deviceLoginRequestSchema,
+  deviceLoginResponseSchema,
+  isDeviceLoginRefusal,
+  PASSWORD_MAX_LENGTH,
+  PASSWORD_MIN_LENGTH,
+} from "../device/device-schema";
 import { createCloudClient } from "../cloud-client";
 import { EVENT_MAX_BYTES, pullQuerySchema, pushRequestSchema } from "../sync/sync-schema";
 import { syncPingSchema } from "../sync/sync-ws";
@@ -55,206 +48,76 @@ describe("error envelope", () => {
   });
 });
 
-describe("pairing grammar", () => {
-  it("accepts the minted shape and refuses ambiguous characters", () => {
-    expect(PAIRING_CODE_PATTERN.test("K7QP-2M4X")).toBe(true);
-    expect(PAIRING_CODE_PATTERN.test("K0QP-2M4X")).toBe(false);
-    expect(PAIRING_CODE_PATTERN.test("k7qp-2m4x")).toBe(false);
-  });
+describe("device login", () => {
+  const LOGIN = {
+    email: "owner@example.test",
+    password: "correct horse battery",
+    deviceName: "Laptop",
+  };
 
-  it("trims what a human pastes", () => {
-    const parsed = redeemDeviceRequestSchema.parse({
-      code: " K7QP-2M4X ",
+  it("folds the email the way the account stores it, and trims what a human pastes", () => {
+    const parsed = deviceLoginRequestSchema.parse({
+      ...LOGIN,
+      email: "  Owner@Example.TEST ",
       deviceName: "  Kaiyu's MacBook ",
-      verifier: "a".repeat(43),
     });
-    expect(parsed.code).toBe("K7QP-2M4X");
+    expect(parsed.email).toBe("owner@example.test");
     expect(parsed.deviceName).toBe("Kaiyu's MacBook");
+    expect(parsed.password).toBe("correct horse battery");
   });
 
-  it("pins the credential shape the server mints", () => {
-    expect(DEVICE_CREDENTIAL_PATTERN.test(`igd_${"a".repeat(64)}`)).toBe(true);
-    expect(DEVICE_CREDENTIAL_PATTERN.test(`igd_${"a".repeat(63)}`)).toBe(false);
-    expect(DEVICE_CREDENTIAL_PATTERN.test("not-a-credential")).toBe(false);
-  });
-});
-
-describe("the pairing redirect allowlist", () => {
-  const OK = `http://127.0.0.1:4664${PAIR_CALLBACK_PATH}`;
-  const MOBILE = "inteligir://pair/callback";
-
-  it("accepts the loopback callback on any port", () => {
-    expect(pairRedirectUrlSchema.safeParse(OK).success).toBe(true);
-    expect(pairRedirectUrlSchema.safeParse(`http://127.0.0.1:1${PAIR_CALLBACK_PATH}`).success).toBe(
-      true,
+  it("refuses what is not an address, and never trims a password", () => {
+    expect(deviceLoginRequestSchema.safeParse({ ...LOGIN, email: "owner" }).success).toBe(false);
+    expect(deviceLoginRequestSchema.parse({ ...LOGIN, password: " padded pw " }).password).toBe(
+      " padded pw ",
     );
+  });
+
+  it("bounds the password to better auth's own window", () => {
     expect(
-      pairRedirectUrlSchema.safeParse(`http://127.0.0.1:65535${PAIR_CALLBACK_PATH}`).success,
+      deviceLoginRequestSchema.safeParse({
+        ...LOGIN,
+        password: "x".repeat(PASSWORD_MIN_LENGTH - 1),
+      }).success,
+    ).toBe(false);
+    expect(
+      deviceLoginRequestSchema.safeParse({
+        ...LOGIN,
+        password: "x".repeat(PASSWORD_MAX_LENGTH + 1),
+      }).success,
+    ).toBe(false);
+    expect(
+      deviceLoginRequestSchema.safeParse({ ...LOGIN, password: "x".repeat(PASSWORD_MAX_LENGTH) })
+        .success,
     ).toBe(true);
   });
 
-  it("refuses a USERINFO trick, which is the one that reads as loopback", () => {
-    const trick = `http://127.0.0.1@evil.example:4664${PAIR_CALLBACK_PATH}`;
-    expect(new URL(trick).username).toBe("127.0.0.1");
-    expect(new URL(trick).hostname).toBe("evil.example");
-    expect(pairRedirectUrlSchema.safeParse(trick).success).toBe(false);
+  it("bounds the device name and refuses a field it does not know", () => {
     expect(
-      pairRedirectUrlSchema.safeParse(`http://user:pass@127.0.0.1:4664${PAIR_CALLBACK_PATH}`)
-        .success,
-    ).toBe(false);
-  });
-
-  it("refuses a non-loopback host, however it is spelled", () => {
-    for (const host of [
-      "evil.example",
-      "localhost",
-      "[::1]",
-      "127.0.0.1.evil.example",
-      "0.0.0.0",
-    ]) {
-      expect(
-        pairRedirectUrlSchema.safeParse(`http://${host}:4664${PAIR_CALLBACK_PATH}`).success,
-        host,
-      ).toBe(false);
-    }
-  });
-
-  it("refuses https on loopback — TLS there is somebody else's server", () => {
-    expect(
-      pairRedirectUrlSchema.safeParse(`https://127.0.0.1:4664${PAIR_CALLBACK_PATH}`).success,
-    ).toBe(false);
-  });
-
-  it("refuses any path but the callback's own", () => {
-    for (const path of [
-      "/",
-      "/pair",
-      "/pair/callback/",
-      "/pair/callback/../evil",
-      "/api/v1/vault",
-    ]) {
-      expect(pairRedirectUrlSchema.safeParse(`http://127.0.0.1:4664${path}`).success, path).toBe(
-        false,
-      );
-    }
-  });
-
-  it("refuses a target that already carries a query or a fragment", () => {
-    expect(pairRedirectUrlSchema.safeParse(`${OK}?code=X`).success).toBe(false);
-    expect(pairRedirectUrlSchema.safeParse(`${OK}#x`).success).toBe(false);
-  });
-
-  it("leaves the port alone, default included — loopback is loopback", () => {
-    expect(pairRedirectUrlSchema.safeParse(`http://127.0.0.1${PAIR_CALLBACK_PATH}`).success).toBe(
-      true,
-    );
-  });
-
-  it("refuses anything that is not an absolute URL", () => {
-    expect(pairRedirectUrlSchema.safeParse("not a url").success).toBe(false);
-    expect(pairRedirectUrlSchema.safeParse(`//127.0.0.1:4664${PAIR_CALLBACK_PATH}`).success).toBe(
-      false,
-    );
-    expect(pairRedirectUrlSchema.safeParse(PAIR_CALLBACK_PATH).success).toBe(false);
-  });
-
-  it("accepts the mobile deep link, exactly", () => {
-    expect(pairRedirectUrlSchema.safeParse(MOBILE).success).toBe(true);
-  });
-
-  it("refuses every near-miss of the deep link — scheme, host and path are each exact", () => {
-    for (const value of [
-      "inteligir://evil/callback",
-      "inteligir://pair/other",
-      "inteligir://pair",
-      "inteligir://pair/",
-      "inteligir://pair/callback/",
-      "inteligir://pair/callback/../evil",
-      "inteligir2://pair/callback",
-      // non-special schemes never case-fold the host
-      "inteligir://PAIR/callback",
-      // no authority: `pair` lands in pathname, hostname is empty
-      "inteligir:pair/callback",
-      "inteligir:///callback",
-      // metro's exp:// carries the phone's LAN address, so admitting it is a wildcard host
-      "exp://192.168.0.10:8081/--/pair/callback",
-    ]) {
-      expect(pairRedirectUrlSchema.safeParse(value).success, value).toBe(false);
-    }
-  });
-
-  it("refuses a deep link dressed with userinfo, a port, a query or a fragment", () => {
-    for (const value of [
-      "inteligir://user:pass@pair/callback",
-      "inteligir://127.0.0.1@pair/callback",
-      "inteligir://pair:99/callback",
-      `${MOBILE}?code=X`,
-      `${MOBILE}#x`,
-    ]) {
-      expect(pairRedirectUrlSchema.safeParse(value).success, value).toBe(false);
-    }
-  });
-
-  it("round-trips the deep link through the callback builder", () => {
-    const callback = new URL(
-      buildPairCallbackUrl(MOBILE, { code: "ABCD-EFGH", state: "c".repeat(32) }),
-    );
-    expect(callback.protocol).toBe("inteligir:");
-    expect(callback.hostname).toBe("pair");
-    expect(callback.pathname).toBe("/callback");
-    expect(callback.searchParams.get("code")).toBe("ABCD-EFGH");
-    expect(callback.searchParams.get("state")).toBe("c".repeat(32));
-  });
-
-  it("gates the approve page's whole search, and strips what it does not know", () => {
-    const challenge = "a".repeat(43);
-    const parsed = pairApproveSearchSchema.parse({
-      redirect: OK,
-      state: "0".repeat(32),
-      name: "  Work laptop ",
-      challenge,
-      utm_source: "somewhere",
-    });
-    expect(parsed).toEqual({ redirect: OK, state: "0".repeat(32), name: "Work laptop", challenge });
-    expect(
-      pairApproveSearchSchema.safeParse({ redirect: OK, state: "0".repeat(32), name: "Laptop" })
-        .success,
-    ).toBe(false);
-    expect(
-      pairApproveSearchSchema.safeParse({
-        redirect: OK,
-        state: "short",
-        name: "Laptop",
-        challenge,
+      deviceLoginRequestSchema.safeParse({
+        ...LOGIN,
+        deviceName: "x".repeat(DEVICE_NAME_MAX_LENGTH + 1),
       }).success,
     ).toBe(false);
+    expect(deviceLoginRequestSchema.safeParse({ ...LOGIN, deviceName: "  " }).success).toBe(false);
+    expect(deviceLoginRequestSchema.safeParse({ ...LOGIN, rememberMe: true }).success).toBe(false);
   });
 
-  it("round-trips through the two builders both ends compose with", () => {
-    const challenge = "b".repeat(43);
-    const approve = new URL(
-      buildPairApproveUrl("https://cloud.test", {
-        redirect: OK,
-        state: "a".repeat(32),
-        name: "Laptop",
-        challenge,
-      }),
-    );
-    expect(approve.pathname).toBe(PAIR_APPROVE_PATH);
-    expect(pairApproveSearchSchema.parse(Object.fromEntries(approve.searchParams))).toEqual({
-      redirect: OK,
-      state: "a".repeat(32),
-      name: "Laptop",
-      challenge,
-    });
+  it("pins the credential shape the server mints, and the answer that carries it", () => {
+    expect(DEVICE_CREDENTIAL_PATTERN.test(`igd_${"a".repeat(64)}`)).toBe(true);
+    expect(DEVICE_CREDENTIAL_PATTERN.test(`igd_${"a".repeat(63)}`)).toBe(false);
+    expect(DEVICE_CREDENTIAL_PATTERN.test("not-a-credential")).toBe(false);
+    const answer = { deviceId: "dev_1", credential: `igd_${"a".repeat(64)}` };
+    expect(deviceLoginResponseSchema.parse(answer)).toEqual(answer);
+    expect(deviceLoginResponseSchema.safeParse({ ...answer, token: "x" }).success).toBe(false);
+  });
 
-    const callback = new URL(
-      buildPairCallbackUrl(OK, { code: "ABCD-EFGH", state: "a".repeat(32) }),
-    );
-    expect(callback.origin).toBe("http://127.0.0.1:4664");
-    expect(callback.pathname).toBe(PAIR_CALLBACK_PATH);
-    expect(callback.searchParams.get("code")).toBe("ABCD-EFGH");
-    expect(callback.searchParams.get("state")).toBe("a".repeat(32));
+  it("names refusals the envelope can carry, and nothing else as one", () => {
+    for (const refusal of DEVICE_LOGIN_REFUSALS) {
+      expect(CLOUD_ERROR_CODES).toContain(refusal);
+      expect(isDeviceLoginRefusal(refusal)).toBe(true);
+    }
+    expect(isDeviceLoginRefusal("unauthorized")).toBe(false);
   });
 });
 
@@ -442,73 +305,5 @@ describe("vault read rows", () => {
       ".svg": "image/svg+xml",
       ".webp": "image/webp",
     });
-  });
-});
-
-describe("PKCE (S256)", () => {
-  it("generates a verifier in the base64url shape both ends expect", () => {
-    const verifier = generatePkceVerifier();
-    expect(PKCE_S256_PATTERN.test(verifier)).toBe(true);
-    expect(generatePkceVerifier()).not.toBe(verifier);
-  });
-
-  it("computes the challenge the same way every time, and it is base64url", async () => {
-    const verifier = generatePkceVerifier();
-    const challenge = await pkceChallengeS256(verifier);
-    expect(PKCE_S256_PATTERN.test(challenge)).toBe(true);
-    expect(await pkceChallengeS256(verifier)).toBe(challenge);
-    expect(await pkceChallengeS256(generatePkceVerifier())).not.toBe(challenge);
-  });
-
-  it("matches RFC 7636's own S256 test vector", async () => {
-    // rfc 7636 appendix b
-    const verifier = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk";
-    expect(await pkceChallengeS256(verifier)).toBe("E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM");
-  });
-
-  it("mints the pair through the injected primitives — RFC 7636's octets in, its vector out", async () => {
-    const hashed: string[] = [];
-    const injected: PkceCrypto = {
-      randomBytes: () =>
-        new Uint8Array([
-          116, 24, 223, 180, 151, 153, 224, 37, 79, 250, 96, 125, 216, 173, 187, 186, 22, 212, 37,
-          77, 105, 214, 191, 240, 91, 88, 5, 88, 83, 132, 141, 121,
-        ]),
-      sha256: async (input) => {
-        hashed.push(input);
-        return new Uint8Array(
-          await crypto.subtle.digest("SHA-256", new TextEncoder().encode(input)),
-        );
-      },
-    };
-    expect(await createPkcePair(injected)).toStrictEqual({
-      verifier: "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk",
-      challenge: "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM",
-    });
-    expect(hashed).toEqual(["dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"]);
-  });
-
-  it("mint demands an S256 challenge, and refuses a plain or absent one", () => {
-    const challenge = "c".repeat(43);
-    expect(
-      mintPairingCodeRequestSchema.safeParse({ challenge, challengeMethod: "S256" }).success,
-    ).toBe(true);
-    expect(
-      mintPairingCodeRequestSchema.safeParse({ challenge, challengeMethod: "plain" }).success,
-    ).toBe(false);
-    expect(mintPairingCodeRequestSchema.safeParse({ challengeMethod: "S256" }).success).toBe(false);
-    expect(
-      mintPairingCodeRequestSchema.safeParse({ challenge: "short", challengeMethod: "S256" })
-        .success,
-    ).toBe(false);
-  });
-
-  it("redeem requires the verifier — the code alone does not parse", () => {
-    const base = { code: "ABCD-EFGH", deviceName: "Laptop" };
-    expect(redeemDeviceRequestSchema.safeParse(base).success).toBe(false);
-    expect(redeemDeviceRequestSchema.safeParse({ ...base, verifier: "d".repeat(43) }).success).toBe(
-      true,
-    );
-    expect(redeemDeviceRequestSchema.safeParse({ ...base, verifier: "nope" }).success).toBe(false);
   });
 });

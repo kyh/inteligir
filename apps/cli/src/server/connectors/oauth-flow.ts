@@ -1,13 +1,13 @@
-// the same slot device pairing runs: state consumed before the exchange, pkce s256 so an
-// intercepted loopback redirect holds a code nobody else can spend, and a `disposed` guard
-// so a callback in flight during shutdown exchanges nothing.
+// state consumed before the exchange, pkce s256 so an intercepted loopback redirect holds a
+// code nobody else can spend, and a `disposed` guard so a callback in flight during shutdown
+// exchanges nothing.
 
-import { createApprovalSlot } from "@repo/api/cloud/pairing/approval-slot";
-import { generatePkceVerifier, pkceChallengeS256 } from "@repo/api/cloud/pairing/pairing-schema";
+import { createApprovalSlot } from "@repo/api/cloud/approval-slot";
 import { z } from "zod";
 
 import type { ConnectorsStore, StoredOauthTokens } from "./connectors-store";
 import { ConnectorConflictError } from "./connectors-service";
+import { generatePkceVerifier, pkceChallengeS256 } from "./pkce";
 
 const PENDING_TTL_MS = 10 * 60 * 1000;
 // refreshed this close to expiry: a token that dies mid-turn is worse than one refresh early.

@@ -15,10 +15,9 @@ import { CLOUD_ERROR_STATUS, cloudError, type CloudErrorCode } from "@repo/api/c
 import {
   DEVICE_API_PATHS,
   DEVICE_CREDENTIAL_PREFIX,
-  pkceChallengeS256,
-  redeemDeviceRequestSchema,
-  type RedeemDeviceResponse,
-} from "@repo/api/cloud/pairing/pairing-schema";
+  deviceLoginRequestSchema,
+  type DeviceLoginResponse,
+} from "@repo/api/cloud/device/device-schema";
 import {
   pullQuerySchema,
   pushRequestSchema,
@@ -57,9 +56,14 @@ interface InboxRow {
   claimedAt: number;
 }
 
+// the one account every fake cloud holds; the runtime under test signs in as it.
+export const FAKE_ACCOUNT = { email: "owner@example.test", password: "correct horse battery" };
+
 export class FakeCloud {
   private readonly devices = new Map<string, { deviceId: string; revoked: boolean }>();
-  private readonly codes = new Map<string, string>();
+  private readonly accounts = new Map<string, string>([
+    [FAKE_ACCOUNT.email, FAKE_ACCOUNT.password],
+  ]);
   private readonly log: LogRow[] = [];
   private readonly inbox: InboxRow[] = [];
   private nextDevice = 0;
@@ -68,10 +72,10 @@ export class FakeCloud {
   readonly requests: string[] = [];
   /** fails the next push after its first event is stored — an interrupted push. */
   dropNextPushResponse = false;
-
-  mintCode(code: string, challenge: string): void {
-    this.codes.set(code, challenge);
-  }
+  /** the account's device cap, as the worker enforces it. */
+  maxDevices = Number.POSITIVE_INFINITY;
+  /** the login window is shut: every login answers rate-limited. */
+  loginWindowShut = false;
 
   revoke(deviceId: string): void {
     for (const device of this.devices.values()) {
@@ -109,8 +113,8 @@ export class FakeCloud {
     const text = z.string().safeParse(init?.body);
     const body: RequestBody = text.success ? JSON.parse(text.data) : null;
 
-    if (method === "POST" && url.pathname === DEVICE_API_PATHS.redeem) {
-      return await this.redeem(body);
+    if (method === "POST" && url.pathname === DEVICE_API_PATHS.login) {
+      return this.login(body);
     }
 
     const device = this.authorize(init);
@@ -130,7 +134,7 @@ export class FakeCloud {
       return this.ack(body);
     }
     if (method === "GET" && url.pathname === ACCOUNT_API_PATHS.account) {
-      return Response.json({ id: "user_fake", email: "paired@example.test" });
+      return Response.json({ id: "user_fake", email: FAKE_ACCOUNT.email });
     }
     return refuse("not-found", "No such route.");
   };
@@ -155,25 +159,27 @@ export class FakeCloud {
     return { deviceId: device.deviceId };
   }
 
-  private async redeem(body: RequestBody): Promise<Response> {
-    const parsed = redeemDeviceRequestSchema.safeParse(body);
+  private login(body: RequestBody): Response {
+    if (this.loginWindowShut) {
+      return refuse("rate-limited", "Too many attempts — wait a minute.");
+    }
+    const parsed = deviceLoginRequestSchema.safeParse(body);
     if (!parsed.success) {
-      return refuse("bad-request", "Send { code, deviceName, verifier }.");
+      return refuse("bad-request", "Send { email, password, deviceName }.");
     }
-    const challenge = this.codes.get(parsed.data.code);
-    if (challenge === undefined) {
-      return refuse("invalid-code", "That pairing code isn't valid.");
+    // mirrors the worker: an unknown address and a wrong password are one answer.
+    if (this.accounts.get(parsed.data.email) !== parsed.data.password) {
+      return refuse("invalid-credentials", "Wrong email or password.");
     }
-    // mirrors the worker: a wrong verifier does not consume the code.
-    if ((await pkceChallengeS256(parsed.data.verifier)) !== challenge) {
-      return refuse("invalid-code", "That pairing code isn't valid.");
+    const active = [...this.devices.values()].filter((device) => !device.revoked).length;
+    if (active >= this.maxDevices) {
+      return refuse("device-limit", "This account has too many active devices — revoke one first.");
     }
-    this.codes.delete(parsed.data.code);
     this.nextDevice += 1;
     const deviceId = `dev_${this.nextDevice}`;
     const credential = `${DEVICE_CREDENTIAL_PREFIX}${String(this.nextDevice).padStart(64, "0")}`;
     this.devices.set(credential, { deviceId, revoked: false });
-    const response: RedeemDeviceResponse = { deviceId, credential };
+    const response: DeviceLoginResponse = { deviceId, credential };
     return Response.json(response);
   }
 

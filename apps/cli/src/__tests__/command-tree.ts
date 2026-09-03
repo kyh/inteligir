@@ -53,7 +53,10 @@ export const LEAF_INVOCATIONS = new Map<string, readonly string[]>([
   ["folders add", ["folders", "add", "/tmp/reference-docs"]],
   ["folders remove", ["folders", "remove", "/tmp/reference-docs"]],
   ["cloud status", ["cloud", "status"]],
-  ["cloud pair", ["cloud", "pair"]],
+  [
+    "cloud login",
+    ["cloud", "login", "--email", "owner@example.test", "--password", "correct-horse-battery"],
+  ],
   ["cloud sync", ["cloud", "sync"]],
   ["status", ["status"]],
   ["guide", ["guide"]],

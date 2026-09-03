@@ -1,9 +1,7 @@
 import {
-  generatePkceVerifier,
-  mintPairingCodeResponseSchema,
-  pkceChallengeS256,
-  redeemDeviceResponseSchema,
-} from "@repo/api/cloud/pairing/pairing-schema";
+  deviceLoginResponseSchema,
+  type DeviceLoginRequest,
+} from "@repo/api/cloud/device/device-schema";
 import { syncPingSchema, type SyncPing } from "@repo/api/cloud/sync/sync-ws";
 import { env, SELF } from "cloudflare:test";
 import { expect, vi } from "vitest";
@@ -12,7 +10,7 @@ import { createDb } from "../db/client";
 import { inviteCode } from "../db/schema";
 
 export const ORIGIN = "https://inteligir-web.workers.dev";
-const PASSWORD = "test-password-1234";
+export const PASSWORD = "test-password-1234";
 
 let inviteCounter = 0;
 
@@ -34,42 +32,41 @@ export function sessionHeaders(bearer: string) {
   return { authorization: `Bearer ${bearer}`, origin: ORIGIN };
 }
 
-const sessionUserSchema = z.looseObject({ user: z.looseObject({ id: z.string() }) });
+const sessionUserSchema = z.looseObject({
+  user: z.looseObject({ id: z.string(), email: z.string() }),
+});
 
-// ask before a test deletes the account; afterwards the session no longer answers
-export async function userIdOf(bearer: string): Promise<string> {
+async function sessionUser(bearer: string): Promise<{ id: string; email: string }> {
   const response = await SELF.fetch(`${ORIGIN}/api/auth/get-session`, {
     headers: sessionHeaders(bearer),
   });
   const body = sessionUserSchema.safeParse(await response.json());
   if (!body.success) throw new Error("no session for that bearer");
-  return body.data.user.id;
+  return body.data.user;
 }
 
-export async function mintCode(bearer: string): Promise<{ code: string; verifier: string }> {
-  const verifier = generatePkceVerifier();
-  const challenge = await pkceChallengeS256(verifier);
-  const response = await SELF.fetch(`${ORIGIN}/v1/device/code`, {
+// ask before a test deletes the account; afterwards the session no longer answers
+export async function userIdOf(bearer: string): Promise<string> {
+  return (await sessionUser(bearer)).id;
+}
+
+export function postLogin(body: DeviceLoginRequest): Promise<Response> {
+  return SELF.fetch(`${ORIGIN}/v1/device/login`, {
     method: "POST",
-    headers: { ...sessionHeaders(bearer), "content-type": "application/json" },
-    body: JSON.stringify({ challenge, challengeMethod: "S256" }),
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
   });
-  expect(response.status).toBe(200);
-  return { code: mintPairingCodeResponseSchema.parse(await response.json()).code, verifier };
 }
 
-export async function pairDevice(
+// the bearer only names the account: the device credential comes from the account's own password
+export async function loginDevice(
   bearer: string,
   deviceName: string,
 ): Promise<{ deviceId: string; credential: string }> {
-  const { code, verifier } = await mintCode(bearer);
-  const response = await SELF.fetch(`${ORIGIN}/v1/device/redeem`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ code, deviceName, verifier }),
-  });
+  const { email } = await sessionUser(bearer);
+  const response = await postLogin({ email, password: PASSWORD, deviceName });
   expect(response.status).toBe(200);
-  return redeemDeviceResponseSchema.parse(await response.json());
+  return deviceLoginResponseSchema.parse(await response.json());
 }
 
 export function deviceHeaders(credential: string) {

@@ -38,7 +38,7 @@ export interface BootTestAppOptions {
   // omitted, the real transport does nothing: a scratch data dir holds no device credential.
   cloudTransport?: CloudTransport;
   clientDir?: string;
-  // a suite that begins a pairing must supply this, or `pnpm test` pops a browser window.
+  // a suite that begins a connector authorization must supply this, or `pnpm test` pops a browser window.
   openExternalUrl?: OpenExternalUrl;
   port?: number;
   voice?: AppConfig["voice"];
@@ -135,7 +135,7 @@ export async function bootTestApp(options: BootTestAppOptions = {}): Promise<Boo
   const client = createRouterClient(localRouter, {
     context: {
       ...runtime.context,
-      // no request reached this client, so the two procedures that need a callback host refuse.
+      // no request reached this client, so the procedure that needs a callback host refuses.
       requestHost: undefined,
     },
   });

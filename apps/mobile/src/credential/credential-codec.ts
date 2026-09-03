@@ -1,7 +1,7 @@
 import {
   deviceCredentialSchema,
   type DeviceCredential,
-} from "@repo/api/cloud/pairing/pairing-schema";
+} from "@repo/api/cloud/device/device-schema";
 
 // a malformed record reads as "not paired", not as a credential the cloud refuses on every request.
 export function parseStoredCredential(raw: string | null): DeviceCredential | null {

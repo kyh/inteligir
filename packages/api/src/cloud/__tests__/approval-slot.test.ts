@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createApprovalSlot, type ApprovalSlot } from "../pairing/approval-slot";
-import { PAIR_STATE_PATTERN } from "../pairing/pairing-schema";
+import { APPROVAL_STATE_PATTERN, createApprovalSlot, type ApprovalSlot } from "../approval-slot";
 
 const TTL_MS = 1_000;
 
@@ -14,7 +13,7 @@ describe("createApprovalSlot", () => {
   it("mints a fresh 128-bit state per arm and claims exactly once", () => {
     const slot = slotWith();
     const state = slot.arm("payload");
-    expect(state).toMatch(PAIR_STATE_PATTERN);
+    expect(state).toMatch(APPROVAL_STATE_PATTERN);
 
     expect(slot.claim(state)).toStrictEqual({ kind: "claimed", payload: "payload" });
     expect(slot.claim(state)).toStrictEqual({ kind: "no-pending" });

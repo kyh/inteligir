@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { resolveOpenCommand } from "../browser-opener";
 
-const URL_WITH_QUERY = "https://cloud.test/app/pair?redirect=x&state=y&name=Work%20laptop";
+const URL_WITH_QUERY =
+  "https://provider.test/oauth/authorize?client_id=x&state=y&scope=read%20write";
 
 describe("resolveOpenCommand", () => {
   it("hands the URL over as ONE argument, never as shell text", () => {

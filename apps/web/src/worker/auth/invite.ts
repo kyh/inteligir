@@ -4,7 +4,7 @@ import { createSignUpAuth } from "./auth";
 import { createDb } from "../db/client";
 import { inviteCode } from "../db/schema";
 
-import { allowInWindow, callerIp, type RateWindow } from "../rate-limit";
+import { allowInWindow, callerRateKey, type RateWindow } from "../rate-limit";
 
 // The invite is claimed before the account exists: one UPDATE … WHERE redeemed_at IS NULL is
 // the only atomic step, so it settles two simultaneous sign-ups on one code. A failed sign-up
@@ -12,7 +12,6 @@ import { allowInWindow, callerIp, type RateWindow } from "../rate-limit";
 
 // low: a code is short enough to guess at volume, and Better Auth's limiter never sees a rejected invite
 const INVITE_WINDOW: RateWindow = { max: 10, windowMs: 60_000 };
-const INVITE_RATE_KEY_PREFIX = "invite-signup:";
 
 const CODE_PATTERN = /^[A-Za-z0-9-]{6,64}$/;
 
@@ -38,8 +37,7 @@ export async function handleInviteSignUp(request: Request, env: Env): Promise<Re
   const url = new URL(request.url);
   const db = createDb(env.DB);
 
-  const inviteKey = `${INVITE_RATE_KEY_PREFIX}${callerIp(request)}`;
-  if (!(await allowInWindow(env, db, inviteKey, INVITE_WINDOW))) {
+  if (!(await allowInWindow(env, db, callerRateKey("inviteSignUp", request), INVITE_WINDOW))) {
     // the page renders { message }; a bare-text body is the one refusal it cannot explain
     return refuse(429, "Too many attempts — wait a minute.");
   }

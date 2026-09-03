@@ -5,7 +5,6 @@ import {
   VOICE_STREAM_PATH,
   WS_PATH,
 } from "@repo/api/local/routes";
-import { PAIR_CALLBACK_PATH } from "@repo/api/cloud/pairing/pairing-schema";
 import { CONNECTOR_OAUTH_CALLBACK_PATH } from "@repo/api/local/connectors/connectors-schema";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -33,12 +32,8 @@ const DECLARED_ROUTES = new Map<string, string>([
   [key("GET", WS_PATH), "the invalidation bus: subscribe and ping, no payload, by decision"],
   [key("GET", VOICE_STREAM_PATH), "dictation: PCM16 frames up, partial/final down"],
   [
-    key("GET", PAIR_CALLBACK_PATH),
-    "a BROWSER arriving from the approve page — a cross-site top-level navigation that can carry no token, guarded by its single-use state instead",
-  ],
-  [
     key("GET", CONNECTOR_OAUTH_CALLBACK_PATH),
-    "the same argument with a different provider on the far side",
+    "a BROWSER arriving from a connector's authorization page — a cross-site top-level navigation that can carry no token, guarded by its single-use state instead",
   ],
 ]);
 

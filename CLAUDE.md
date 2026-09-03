@@ -72,7 +72,8 @@ apps/
                  marketing site, the auth pages, the @repo/ui gallery at
                  /design (src/components/gallery), Better Auth on D1
                  (invite-gated sign-up), and the v3 cloud (issue #554):
-                 device pairing (/app/pair approves one, /app/devices lists and
+                 device login (POST /v1/device/login mints the device
+                 credential from email + password; /app/devices lists and
                  revokes), the per-user ThreadSyncDO (merged thread log +
                  capture inbox + ws invalidation), and the hosted vault git
                  remote (issue #618): durable-git repo cells behind
@@ -96,14 +97,14 @@ packages/
                  the paths that are NOT procedures, and `build-thread-timeline`
                  — the pure fold from stored events into the timeline rows the
                  delta algebra beside it diffs. `./cloud/*` is the cloud wire:
-                 pairing, device auth, sync push/pull, captures, the ws ping
+                 device login, device auth, sync push/pull, captures, the ws ping
                  frames, the typed error envelope, and the ONE page planner
                  every reader of the merged log runs (`cloud/sync/plan-page`) —
                  two copies of that planner would be two answers to "did this
                  row move the cursor?", and a mis-set cursor is a duplicated
                  conversation — and, for the same reason, the CLIENT RUNTIME
                  CORE both consumers run (the byte primitives, the approval
-                 slot, the pairing machine, the sync session; #639 below).
+                 slot, the login flow, the sync session; #639 below).
                  apps/web SERVES every row; the CLI's sync client
                  consumes all of them; apps/mobile consumes the read half alone
                  — it pulls threads and produces captures, and never pushes or
@@ -324,7 +325,7 @@ carries the mechanism. The dangling-reference guard keeps the pointers honest.
 
 - **THE SERVER IS SPLIT ALONG ONE-RESPONSIBILITY SEAMS**: `vault/git-run` /
   `git-porcelain` / `git-bootstrap` / `git-engine`; `cloud/sync-pass` /
-  `socket-link` / `sync-cadence` / `pair-flow`; `agents/interaction-waiters`
+  `socket-link` / `sync-cadence`; `agents/interaction-waiters`
   beside a watchdog that sweeps per-turn timestamps rather than re-arming a
   timer per frame; `writeTransaction` in `@repo/db/connection` as the one
   spelling of `BEGIN IMMEDIATE`. `ThreadService.boot()` is called from the
@@ -467,52 +468,39 @@ carries the mechanism. The dangling-reference guard keeps the pointers honest.
   and is not built; the trigger is a second party holding a credential for
   someone else's account.
 
-- **PAIRING IS APPROVED IN A BROWSER, and the code survives only as plumbing.**
-  Nothing shows a code to a human. The mint route, the code table, the
-  ten-minute TTL and the one-time redeem stay because they are the security
-  story; the redirect carries what eyes used to. The credential never transits
-  the browser: the local app's own redeem mints it into
-  `<dataDir>/device-credential`. The app is already a loopback server, so the
-  callback is one more route. No typed-code fallback: a browser that can reach
-  the loopback can complete the redirect.
-  **The redirect allowlist is contract** (`@repo/api/cloud/pairing/pairing-schema`),
-  judged on `URL` fields never a host string; `[::1]` and `localhost` are
-  refused because this process binds `127.0.0.1` and nothing else; the port is
-  unconstrained. The other arm is `inteligir://pair/callback`, exact on every
-  field; an app squatting the scheme is held by PKCE.
-  **The state is the app's** (`@repo/api/cloud/pairing/approval-slot.ts`): one
-  slot, constant-time compare, consumed before the redeem, and a wrong state does
-  not consume it. `GET /pair/callback` sits outside the contract table and the
-  browser-origin guard (`apps/cli/src/server/cloud/pair-callback.ts`).
-  **The server opens the browser** via `execFile` with an argv list, never a
-  shell (`apps/cli/src/server/cloud/browser-opener.ts`); whether to open is a
-  required request field because the agent's `--json` path must say `false`.
-  **The code is bound with PKCE S256**, which is why the open port is safe:
-  `redeem` is unauthenticated, so an intercepted code alone must be unspendable.
-  `pairing-schema.ts` and `pairing-flow.ts`.
-  **The approve page names the account** it joins, so an ambient session cannot
-  pair a device to the wrong account. `beginPair`/`completePair` are guarded by
-  `disposed` (`apps/cli/src/server/cloud/pair-flow.ts`).
-
+- **A DEVICE SIGNS IN WITH EMAIL + PASSWORD, and gets the same device
+  credential** (owner decision, the Obsidian model, reversing the
+  browser-approved pairing line). `POST /v1/device/login` verifies the password
+  through Better Auth's server API, mints the device credential and deletes the
+  session the sign-in created, so a device holds exactly one secret and the
+  devices page is what revokes it. The route is unauthenticated and throttled
+  per caller address: a login route with no throttle is a password oracle.
+  Rejected: the browser approve page, the one-time code, PKCE and the loopback
+  callback, a ceremony whose point was keeping the password out of the app.
+  Residuals: the password passes through the app once over HTTPS, and an
+  account created through a social provider has no password until it sets one
+  on the site. The one flow both the CLI and the phone run is
+  `@repo/api/cloud/device/login-flow.ts`; the route is
+  `apps/web/src/worker/device/login.ts`.
 - **`@repo/api/cloud` IS THE CLIENT RUNTIME CORE, not only the wire**:
-  `bytes.ts`, `pairing/approval-slot.ts` (pairing and connector OAuth run the
-  same slot), `pairing/pairing-flow.ts`, `sync/sync-session.ts`. The CLI and the
+  `bytes.ts`, `approval-slot.ts` (connector OAuth's one slot),
+  `device/login-flow.ts`, `sync/sync-session.ts`. The CLI and the
   phone inject only stores, timers and sockets; a security discipline with two
   spellings is two to audit. The cloud vault-path grammar is `parseVaultPath`
   with the parse required to be the identity. The `[[Title|uuid]]` tier lives in
   `buildResolver` (tier 0); the desktop and mobile listings carry no `id` yet.
 
 - **ON THE PHONE, THE RUNTIME THAT MOVES A VALUE IS THE ONE THAT NOTIFIES.**
-  `SyncRuntime` and the pairing flow publish stores the screens subscribe to;
-  the pairing flow is one machine fed by both the in-session return and the
-  deep-link listener. A refused capture keeps its text and says why.
-  `apps/mobile/src/sync/sync-runtime.ts`, `apps/mobile/src/pairing/pairing-store.ts`.
+  `SyncRuntime` and the login flow publish stores the screens subscribe to, so
+  a poll pass, a revocation or a refused login is shown. A refused capture keeps
+  its text and says why. `apps/mobile/src/sync/sync-runtime.ts`,
+  `apps/mobile/src/login/login-store.ts`.
 
 - **A pulled event lands through the SAME ingest, marked with its origin**
   (`ThreadService.applySyncedEvents`). The origin changes three things: the
   thread row takes the log's id, nothing is re-enqueued, and a settle does not
   drain this device's queue. The cursor moves inside that transaction, which is
-  what makes the apply exactly-once. A re-pair resets the cursor, so a synced
+  what makes the apply exactly-once. Signing in again resets the cursor, so a synced
   row also carries `events.origin_device_id` / `origin_device_seq` under a
   unique index, keyed `(device, position)` rather than the account-global `seq`.
   Lifecycle projects over what landed, never what arrived.
@@ -531,7 +519,7 @@ carries the mechanism. The dangling-reference guard keeps the pointers honest.
 
 - **A SYNC PASS IS FENCED BY SESSION IDENTITY, not by "is a session live?".**
   Every step re-checks the id after every await, because the dangerous case is
-  a different pairing: an old ack deletes rows a re-pairing queued. `dispose`
+  a different sign-in: an old ack deletes rows a later sign-in queued. `dispose`
   aborts too. The fence is `@repo/api/cloud/sync/sync-session.ts`.
 
 - **The outbox stores the bytes it will send, once, at enqueue.** The log calls

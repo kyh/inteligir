@@ -8,7 +8,7 @@ running one — which is how an agent drives the product from bash.
 `apps/desktop` is THE SHIPPED PRODUCT: one window on that server, forking it as
 a child, with the SPA as its renderer. `apps/web` is the one hosted piece — a
 Cloudflare Worker carrying the marketing site, Better Auth on D1, device
-pairing and cross-device thread sync. This is the tool-agnostic guide for
+login and cross-device thread sync. This is the tool-agnostic guide for
 coding agents; `CLAUDE.md` holds the architecture and the durable decisions,
 GitHub issues #542 and #611 the decision record, `CONTEXT.md` the domain
 glossary, `apps/web/README.md` the Worker's own routes and deploy.
@@ -146,7 +146,7 @@ description of each.
 ```
 apps/desktop            @repo/desktop — THE SHIPPED PRODUCT: the window and the SPA in it
 apps/cli                inteligir — THE PUBLISHED BINARY: `serve` is the server, every other verb a client
-apps/web                @repo/web — ONE Cloudflare Worker: site, auth, pairing, thread sync, captures, hosted vault
+apps/web                @repo/web — ONE Cloudflare Worker: site, auth, device login, thread sync, captures, hosted vault
 apps/mobile             @repo/mobile — the Expo client: threads, captures, read-only notes
 packages/domain         @repo/domain — zod-only leaf vocabulary
 packages/api            @repo/api — ONE contract, TWO entries: /local and /cloud

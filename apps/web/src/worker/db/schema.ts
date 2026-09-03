@@ -88,23 +88,6 @@ export const inviteCode = sqliteTable("invite_code", {
   redeemedAt: integer("redeemed_at", { mode: "timestamp" }),
 });
 
-// deviceId chains the consume to the device insert inside one D1 batch: redeem writes the id it
-// is about to create and the insert is guarded on finding it here, so a batch with no abort lands
-// both statements or neither. Dead rows are swept only at the user's next mint.
-export const pairingCode = sqliteTable("pairing_code", {
-  code: text("code").primaryKey(),
-  userId: text("user_id")
-    .notNull()
-    .references(() => user.id, { onDelete: "cascade" }),
-  purpose: text("purpose").notNull(),
-  expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
-  consumedAt: integer("consumed_at", { mode: "timestamp" }),
-  deviceId: text("device_id"),
-  // nullable only because the column is additive over a deployed table; redeem refuses a null
-  challenge: text("challenge"),
-  createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
-});
-
 // credentialHash is SHA-256 of the minted credential, whose plaintext is never stored;
 // rows survive revocation as the dashboard's audit surface and die with the account
 export const device = sqliteTable("device", {

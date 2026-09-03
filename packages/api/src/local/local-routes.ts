@@ -1,7 +1,7 @@
 // the paths outside the rpc handler, none of which may acquire a typed client: /health is an
 // unauthenticated supervisor probe, /vault/asset answers bytes with an etag, a 304 and a
-// sandbox csp, and the two sockets carry frames. the browser landings (/pair/callback, the
-// connector oauth callback) are spelled by the flows that own their state.
+// sandbox csp, and the two sockets carry frames. the connector oauth callback, a browser
+// landing, is spelled by the flow that owns its state.
 
 import { z } from "zod";
 

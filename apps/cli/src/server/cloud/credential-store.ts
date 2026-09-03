@@ -5,7 +5,7 @@
 import { readFileSync, rmSync } from "node:fs";
 import { stagedWriteFileSync } from "../staged-write";
 import { join } from "node:path";
-import { deviceCredentialSchema } from "@repo/api/cloud/pairing/pairing-schema";
+import { deviceCredentialSchema } from "@repo/api/cloud/device/device-schema";
 import { z } from "zod";
 import { errnoCode } from "../errno";
 
@@ -14,7 +14,7 @@ export const DEVICE_CREDENTIAL_FILE_NAME = "device-credential";
 const CREDENTIAL_FILE_MODE = 0o600;
 
 const storedCredentialSchema = deviceCredentialSchema.extend({
-  /** learned from /v1/account after the session opens; the redeem's wire predates the field. */
+  /** learned from /v1/account after the session opens; the login's answer carries no account. */
   userId: z.string().min(1).optional(),
 });
 
@@ -44,7 +44,7 @@ export function readDeviceCredential(dataDir: string): DeviceCredential | null {
   return result.success ? result.data : null;
 }
 
-// the only plaintext copy anywhere: a torn write reads back as "never paired".
+// the only plaintext copy anywhere: a torn write reads back as "never signed in".
 export function writeDeviceCredential(dataDir: string, credential: DeviceCredential): void {
   const path = deviceCredentialPath(dataDir);
   stagedWriteFileSync(path, `${JSON.stringify(credential)}\n`, { mode: CREDENTIAL_FILE_MODE });

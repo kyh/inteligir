@@ -1,13 +1,10 @@
-import { createRouterClient } from "@orpc/server";
 import { listStoredThreadEvents } from "@repo/db/events";
 import { NotificationBuffer } from "@repo/domain/notifier";
 import { describe, expect, it } from "vitest";
 import { bootThreadHarness, type BootedTestApp } from "../../__tests__/boot-app";
-import { localRouter } from "../../root-router";
 import { ThreadService } from "../../threads/service";
 import { unavailableTurnDriver } from "../../threads/turn-driver";
-import { FakeCloud } from "./fake-cloud";
-import { approveMint, callbackFor, LOOPBACK_HOST, stateOf } from "./pair-fixtures";
+import { FAKE_ACCOUNT, FakeCloud } from "./fake-cloud";
 
 // pollIntervalMs: null — the test triggers every pass itself.
 async function bootInstall(
@@ -20,23 +17,9 @@ async function bootInstall(
   );
 }
 
-async function pair(install: BootedTestApp, cloud: FakeCloud, code: string): Promise<void> {
-  // the harness client carries no Host, and pairBegin refuses without one.
-  const fromLoopback = createRouterClient(localRouter, {
-    context: { ...install.composed.context, requestHost: LOOPBACK_HOST },
-  });
-  const begun = await fromLoopback.cloud.pairBegin({
-    deviceName: `device-${code}`,
-    openBrowser: false,
-  });
-  approveMint(cloud, begun.url, code);
-  const callback = callbackFor(begun.url, code, stateOf(begun.url));
-  expect(new URL(callback).origin).toBe(`http://${LOOPBACK_HOST}`);
-
-  const landed = await install.composed.app.request(callback);
-  expect(landed.status).toBe(200);
-  expect(await landed.text()).toContain("Paired");
-  expect((await install.client.cloud.status()).state).toBe("paired");
+async function login(install: BootedTestApp, deviceName: string): Promise<void> {
+  const status = await install.client.cloud.login({ ...FAKE_ACCOUNT, deviceName });
+  expect(status.state).toBe("paired");
 }
 
 async function syncNow(install: BootedTestApp): Promise<void> {
@@ -73,8 +56,8 @@ describe("two installs against one account", () => {
     const cloud = new FakeCloud();
     const a = await bootInstall(cloud);
     const b = await bootInstall(cloud);
-    await pair(a, cloud, "AAAA-AAAA");
-    await pair(b, cloud, "BBBB-BBBB");
+    await login(a, "A");
+    await login(b, "B");
 
     const { thread } = await a.client.threads.create({ title: "Shared" });
 
@@ -107,8 +90,8 @@ describe("two installs against one account", () => {
     const cloud = new FakeCloud();
     const a = await bootInstall(cloud);
     const b = await bootInstall(cloud);
-    await pair(a, cloud, "AAAA-AAAA");
-    await pair(b, cloud, "BBBB-BBBB");
+    await login(a, "A");
+    await login(b, "B");
 
     const { thread } = await a.client.threads.create({ title: "Idempotent" });
     await a.client.threads.send({
@@ -128,8 +111,8 @@ describe("two installs against one account", () => {
     const cloud = new FakeCloud();
     const a = await bootInstall(cloud);
     const b = await bootInstall(cloud);
-    await pair(a, cloud, "AAAA-AAAA");
-    await pair(b, cloud, "BBBB-BBBB");
+    await login(a, "A");
+    await login(b, "B");
 
     const { thread } = await a.client.threads.create({ title: "Concurrent" });
     await a.client.threads.send({
@@ -161,17 +144,17 @@ describe("two installs against one account", () => {
     }
   });
 
-  it("adds nothing when a re-paired device replays the account's whole log", async () => {
+  it("adds nothing when a device that signed in again replays the account's whole log", async () => {
     const cloud = new FakeCloud();
     const a = await bootInstall(cloud);
     const b = await bootInstall(cloud);
-    await pair(a, cloud, "AAAA-AAAA");
-    await pair(b, cloud, "BBBB-BBBB");
+    await login(a, "A");
+    await login(b, "B");
 
-    const { thread } = await a.client.threads.create({ title: "Re-paired" });
+    const { thread } = await a.client.threads.create({ title: "Signed in again" });
     await a.client.threads.send({
       threadId: thread.id,
-      text: "before the re-pair",
+      text: "before signing out",
     });
     await syncNow(a);
     await syncNow(b);
@@ -179,7 +162,7 @@ describe("two installs against one account", () => {
     expect(before.length).toBeGreaterThan(3);
 
     await b.client.cloud.unpair();
-    await pair(b, cloud, "CCCC-CCCC");
+    await login(b, "B again");
     await syncNow(b);
     await syncNow(b);
 
@@ -193,8 +176,8 @@ describe("two installs against one account", () => {
     // manual: emits turn/started and nothing after, so the turn stays open.
     const a = await bootInstall(cloud, "manual");
     const b = await bootInstall(cloud);
-    await pair(a, cloud, "AAAA-AAAA");
-    await pair(b, cloud, "BBBB-BBBB");
+    await login(a, "A");
+    await login(b, "B");
 
     const { thread } = await a.client.threads.create({ title: "Long task" });
     await a.client.threads.send({
@@ -223,8 +206,8 @@ describe("two installs against one account", () => {
     const cloud = new FakeCloud();
     const a = await bootInstall(cloud);
     const b = await bootInstall(cloud);
-    await pair(a, cloud, "AAAA-AAAA");
-    await pair(b, cloud, "BBBB-BBBB");
+    await login(a, "A");
+    await login(b, "B");
 
     const { thread } = await a.client.threads.create({ title: "Two-way" });
     await a.client.threads.send({

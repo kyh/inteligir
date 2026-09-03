@@ -4,13 +4,8 @@ import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import {
   DEVICE_CREDENTIAL_PREFIX,
-  generatePkceVerifier,
-  mintPairingCodeResponseSchema,
-  PAIR_APPROVE_PARAMS,
-  PAIR_CALLBACK_PARAMS,
-  pkceChallengeS256,
-  redeemDeviceResponseSchema,
-} from "@repo/api/cloud/pairing/pairing-schema";
+  deviceLoginResponseSchema,
+} from "@repo/api/cloud/device/device-schema";
 import {
   readDeviceCredential,
   writeDeviceCredential,
@@ -37,16 +32,14 @@ function cloudEnv(origin: string) {
 
 const sessionUserSchema = z.looseObject({ user: z.looseObject({ id: z.string() }) });
 
+// the account every device signs in as; the password is what login needs
+const OWNER = { email: "e2e-owner@inteligir.local", password: "e2e-password-1234" };
+
 async function signUp(origin: string): Promise<{ bearer: string; userId: string }> {
   const response = await fetch(`${origin}/v1/auth/sign-up`, {
     method: "POST",
     headers: { "content-type": "application/json", origin },
-    body: JSON.stringify({
-      name: "E2E Owner",
-      email: "e2e-owner@inteligir.local",
-      password: "e2e-password-1234",
-      inviteCode: E2E_INVITE_CODE,
-    }),
+    body: JSON.stringify({ name: "E2E Owner", ...OWNER, inviteCode: E2E_INVITE_CODE }),
   });
   expect(response.ok, `sign-up answered ${response.status}`);
   const bearer = response.headers.get("set-auth-token");
@@ -60,30 +53,17 @@ async function signUp(origin: string): Promise<{ bearer: string; userId: string 
   return { bearer, userId: parsed.data.user.id };
 }
 
-async function mintCode(origin: string, bearer: string, challenge: string): Promise<string> {
-  const response = await fetch(`${origin}/v1/device/code`, {
-    method: "POST",
-    headers: { authorization: `Bearer ${bearer}`, origin, "content-type": "application/json" },
-    body: JSON.stringify({ challenge, challengeMethod: "S256" }),
-  });
-  expect(response.ok, `mint answered ${response.status}`);
-  return mintPairingCodeResponseSchema.parse(await response.json()).code;
-}
-
-async function redeemDevice(
+async function loginDevice(
   origin: string,
-  bearer: string,
   deviceName: string,
 ): Promise<{ deviceId: string; credential: string }> {
-  const verifier = generatePkceVerifier();
-  const code = await mintCode(origin, bearer, await pkceChallengeS256(verifier));
-  const response = await fetch(`${origin}/v1/device/redeem`, {
+  const response = await fetch(`${origin}/v1/device/login`, {
     method: "POST",
     headers: { origin, "content-type": "application/json" },
-    body: JSON.stringify({ code, deviceName, verifier }),
+    body: JSON.stringify({ ...OWNER, deviceName }),
   });
-  expect(response.ok, `redeem answered ${response.status}`);
-  return redeemDeviceResponseSchema.parse(await response.json());
+  expect(response.ok, `login answered ${response.status}`);
+  return deviceLoginResponseSchema.parse(await response.json());
 }
 
 async function revokeDevice(origin: string, bearer: string, deviceId: string): Promise<void> {
@@ -95,32 +75,7 @@ async function revokeDevice(origin: string, bearer: string, deviceId: string): P
   expect(response.ok, `revoke answered ${response.status}`);
 }
 
-function requiredParam(url: URL, key: string): string {
-  const value = url.searchParams.get(key);
-  expect(value !== null, `the approve URL carries ${key}`);
-  return value;
-}
-
-async function pairThroughBrowserFlow(
-  api: InstanceApi,
-  origin: string,
-  bearer: string,
-): Promise<void> {
-  const begun = await api.cloud.pairBegin({ openBrowser: false });
-  const approve = new URL(begun.url);
-  const state = requiredParam(approve, PAIR_APPROVE_PARAMS.state);
-  const challenge = requiredParam(approve, PAIR_APPROVE_PARAMS.challenge);
-  const redirect = requiredParam(approve, PAIR_APPROVE_PARAMS.redirect);
-
-  const code = await mintCode(origin, bearer, challenge);
-  const callback = new URL(redirect);
-  callback.searchParams.set(PAIR_CALLBACK_PARAMS.code, code);
-  callback.searchParams.set(PAIR_CALLBACK_PARAMS.state, state);
-  const answered = await fetch(callback);
-  expect(answered.ok, `the pair callback answered ${answered.status}`);
-}
-
-// the account identity lands asynchronously after pairing, and the cross-account fence fails closed
+// the account identity lands asynchronously after the login, and the cross-account fence fails closed
 // until it does.
 async function untilIdentityKnown(api: InstanceApi, label: string): Promise<void> {
   const deadline = Date.now() + IDENTITY_DEADLINE_MS;
@@ -192,16 +147,17 @@ async function expectNoTokenInGitConfig(
 
 export const hostedVaultSync: Scenario = {
   name: "hosted-vault-sync",
-  description: "two instances against a real dev Worker: pair, converge, clone, revoke",
+  description: "two instances against a real dev Worker: sign in, converge, clone, revoke",
   async run(ctx) {
     const worker = await ctx.cloudWorker();
 
     ctx.log("creating the account through the invite gate");
     const { bearer, userId } = await signUp(worker.origin);
 
-    ctx.log("A boots accountless, then pairs through the production flow");
+    ctx.log("A boots accountless, then signs in through the production route");
     const a = await ctx.boot({ name: "a", extraEnv: cloudEnv(worker.origin) });
-    await pairThroughBrowserFlow(a.api, worker.origin, bearer);
+    const signedIn = await a.api.cloud.login({ ...OWNER, deviceName: "E2E Device A" });
+    expect(signedIn.state === "paired", `A's login answered ${signedIn.state}`);
     await untilIdentityKnown(a.api, "A");
 
     ctx.log("A writes and pushes through the derived hosted remote");
@@ -209,7 +165,7 @@ export const hostedVaultSync: Scenario = {
     await syncUntil(a.api, "A after write", "clean");
 
     ctx.log("B holds a credential BEFORE boot: the clone path, not init+seed");
-    const deviceB = await redeemDevice(worker.origin, bearer, "E2E Device B");
+    const deviceB = await loginDevice(worker.origin, "E2E Device B");
     const b = await ctx.boot({
       name: "b",
       extraEnv: cloudEnv(worker.origin),

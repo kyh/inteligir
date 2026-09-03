@@ -4,7 +4,7 @@ import {
   deviceHeaders,
   openSocket,
   ORIGIN,
-  pairDevice,
+  loginDevice,
   sessionHeaders,
   signUpUser,
   userIdOf,
@@ -34,7 +34,7 @@ describe("vault git remote auth", () => {
 
   it("serves the receive-pack advertisement to a Bearer credential", async () => {
     const { bearer } = await signUpUser("vault-git-bearer@example.test");
-    const { credential } = await pairDevice(bearer, "Laptop");
+    const { credential } = await loginDevice(bearer, "Laptop");
     const response = await SELF.fetch(`${REMOTE}/info/refs?service=git-receive-pack`, {
       headers: deviceHeaders(credential),
     });
@@ -46,7 +46,7 @@ describe("vault git remote auth", () => {
 
   it("accepts the credential as a Basic password — stock git's carrier", async () => {
     const { bearer } = await signUpUser("vault-git-basic@example.test");
-    const { credential } = await pairDevice(bearer, "Laptop");
+    const { credential } = await loginDevice(bearer, "Laptop");
     const response = await SELF.fetch(`${REMOTE}/info/refs?service=git-receive-pack`, {
       headers: { authorization: `Basic ${btoa(`x:${credential}`)}` },
     });
@@ -55,7 +55,7 @@ describe("vault git remote auth", () => {
 
   it("answers 404 on the fetch leg of a vault never pushed", async () => {
     const { bearer } = await signUpUser("vault-git-empty@example.test");
-    const { credential } = await pairDevice(bearer, "Laptop");
+    const { credential } = await loginDevice(bearer, "Laptop");
     const response = await SELF.fetch(`${REMOTE}/info/refs?service=git-upload-pack`, {
       headers: deviceHeaders(credential),
     });
@@ -64,7 +64,7 @@ describe("vault git remote auth", () => {
 
   it("refuses an upload-pack body that declares no length", async () => {
     const { bearer } = await signUpUser("vault-git-chunked@example.test");
-    const { credential } = await pairDevice(bearer, "Laptop");
+    const { credential } = await loginDevice(bearer, "Laptop");
     const body = new ReadableStream<Uint8Array>({
       start(controller) {
         controller.enqueue(new TextEncoder().encode("0000"));
@@ -84,7 +84,7 @@ describe("vault git remote auth", () => {
 
   it("keeps the JSON API and admin surface off the wire", async () => {
     const { bearer } = await signUpUser("vault-git-surface@example.test");
-    const { credential } = await pairDevice(bearer, "Laptop");
+    const { credential } = await loginDevice(bearer, "Laptop");
     const api = await SELF.fetch(`${REMOTE}/api/refs`, { headers: deviceHeaders(credential) });
     expect(api.status).toBe(404);
     const admin = await SELF.fetch(`${REMOTE}/`, {
@@ -98,8 +98,8 @@ describe("vault git remote auth", () => {
 describe("vault git remote round-trip", () => {
   it("pushes, advertises what was pushed, and pings every device but the pusher", async () => {
     const { bearer } = await signUpUser("vault-git-push@example.test");
-    const pusher = await pairDevice(bearer, "Laptop");
-    const other = await pairDevice(bearer, "Phone");
+    const pusher = await loginDevice(bearer, "Laptop");
+    const other = await loginDevice(bearer, "Phone");
 
     const pusherSocket = await openSocket(pusher.credential, "desktop");
     const otherSocket = await openSocket(other.credential, "desktop");
@@ -135,9 +135,9 @@ describe("vault git remote round-trip", () => {
 
   it("keeps two users' vaults apart — the URL never names a repo", async () => {
     const alpha = await signUpUser("vault-git-alpha@example.test");
-    const alphaDevice = await pairDevice(alpha.bearer, "Laptop");
+    const alphaDevice = await loginDevice(alpha.bearer, "Laptop");
     const beta = await signUpUser("vault-git-beta@example.test");
-    const betaDevice = await pairDevice(beta.bearer, "Laptop");
+    const betaDevice = await loginDevice(beta.bearer, "Laptop");
 
     const pushed = await pushVaultFiles(
       alphaDevice.credential,
@@ -157,7 +157,7 @@ describe("vault git remote round-trip", () => {
 describe("account deletion's vault half", () => {
   it("wipes the repo cell and the registry row with the account", async () => {
     const { bearer, password } = await signUpUser("vault-git-delete@example.test");
-    const { credential } = await pairDevice(bearer, "Laptop");
+    const { credential } = await loginDevice(bearer, "Laptop");
     const pushed = await pushVaultFiles(
       credential,
       "vault: initialize",

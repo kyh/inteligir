@@ -1,21 +1,19 @@
 // no `unpair` here on purpose: it discards a queue of unsent writes, a decision for a person in front of
 // that state rather than a verb for a model to drive.
 
-import type {
-  CloudPairBeginRequest,
-  CloudPairBeginResponse,
-  CloudStatusResponse,
-} from "@repo/api/local/cloud/cloud-schema";
+import type { CloudLoginRequest, CloudStatusResponse } from "@repo/api/local/cloud/cloud-schema";
 import { defineCommand } from "citty";
+import { invalidUsage } from "../cli-error";
 import { apiFor, type CliDeps } from "../context";
 import { jsonArg, outputJson, writeLines } from "../output";
+import { promptPassword, readPasswordFromStdin } from "./password-prompt";
 
 function describe(status: CloudStatusResponse): string[] {
   switch (status.state) {
     case "off":
       return [
-        `not paired  ${new URL(status.cloudUrl).host}`,
-        "Run: inteligir cloud pair — then approve this device in the browser it opens.",
+        `signed out  ${new URL(status.cloudUrl).host}`,
+        "Run: inteligir cloud login --email <address> — with your account's password.",
       ];
     case "unauthorized":
       return [
@@ -26,7 +24,7 @@ function describe(status: CloudStatusResponse): string[] {
       const synced =
         status.lastSyncedAt === null ? "never" : new Date(status.lastSyncedAt).toISOString();
       return [
-        `paired  ${new URL(status.cloudUrl).host}  device ${status.deviceId}`,
+        `signed in  ${new URL(status.cloudUrl).host}  device ${status.deviceId}`,
         `${status.connected ? "following" : "polling"}  ${status.pending} queued  cursor ${status.cursor}  synced ${synced}`,
         ...(status.lastError === null ? [] : [`last error: ${status.lastError}`]),
       ];
@@ -34,14 +32,27 @@ function describe(status: CloudStatusResponse): string[] {
   }
 }
 
-function describeBegun(begun: CloudPairBeginResponse): string[] {
-  const minutes = Math.round(begun.expiresInMs / 60_000);
-  return [
-    begun.opened
-      ? `opened your browser — approve "${begun.deviceName}" there (${minutes} min)`
-      : `approve "${begun.deviceName}" here (${minutes} min):`,
-    begun.url,
-  ];
+// the password never rides argv when a terminal can take it unseen; `-` is the pipe's way in,
+// and --json is the agent path, which gets no prompt to wait on.
+async function resolvePassword(args: {
+  password?: string | undefined;
+  json?: boolean | undefined;
+}): Promise<string> {
+  if (args.password === "-") {
+    return await readPasswordFromStdin();
+  }
+  if (args.password !== undefined) {
+    return args.password;
+  }
+  if (args.json === true) {
+    throw invalidUsage("--password is required under --json (pass `-` to read it from stdin)");
+  }
+  if (!process.stdin.isTTY) {
+    throw invalidUsage(
+      "--password is required when stdin is not a terminal (pass `-` to read it from stdin)",
+    );
+  }
+  return await promptPassword("Password");
 }
 
 export function cloudCommand(deps: CliDeps) {
@@ -49,11 +60,14 @@ export function cloudCommand(deps: CliDeps) {
     meta: {
       name: "cloud",
       description:
-        "Account sync over the cloud: pairing state, pairing, and an immediate thread pass",
+        "Account sync over the cloud: whether this install is signed in, signing in, and an immediate thread pass",
     },
     subCommands: {
       status: defineCommand({
-        meta: { name: "status", description: "Whether this install is paired, and how far behind" },
+        meta: {
+          name: "status",
+          description: "Whether this install is signed in, and how far behind",
+        },
         args: { ...jsonArg },
         run: async ({ args }) => {
           const api = apiFor(deps);
@@ -64,12 +78,19 @@ export function cloudCommand(deps: CliDeps) {
           writeLines(describe(body));
         },
       }),
-      pair: defineCommand({
+      login: defineCommand({
         meta: {
-          name: "pair",
-          description: "Approve this device in a browser signed in to your account",
+          name: "login",
+          description:
+            "Sign this machine in with your account's email and password; it gets its own device credential",
         },
         args: {
+          email: { type: "string", required: true, description: "The account's email address" },
+          password: {
+            type: "string",
+            description:
+              "The account's password; `-` reads it from stdin. Omitted on a terminal it is prompted for without echo; required under --json",
+          },
           name: {
             type: "string",
             description:
@@ -78,17 +99,17 @@ export function cloudCommand(deps: CliDeps) {
           ...jsonArg,
         },
         run: async ({ args }) => {
+          const password = await resolvePassword(args);
           const api = apiFor(deps);
-          // --json is the agent path, and a browser window nobody asked for is what it must not open.
-          const input: CloudPairBeginRequest = { openBrowser: !args.json };
+          const input: CloudLoginRequest = { email: args.email, password };
           if (args.name !== undefined) {
             input.deviceName = args.name;
           }
-          const body = await api.cloud.pairBegin(input);
+          const body = await api.cloud.login(input);
           if (outputJson(args, body)) {
             return;
           }
-          writeLines(describeBegun(body));
+          writeLines(describe(body));
         },
       }),
       sync: defineCommand({

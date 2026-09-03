@@ -1,28 +1,16 @@
-import { PAIR_APPROVE_PATH } from "@repo/api/cloud/pairing/pairing-schema";
 import { describe, expect, it } from "vitest";
 import { internalNextPath } from "../next-path";
 
 describe("the sign-in return path", () => {
-  it("carries a pairing request's parameters through unchanged", () => {
-    const pairHref = `${PAIR_APPROVE_PATH}?redirect=${encodeURIComponent(
-      "http://127.0.0.1:4664/pair/callback",
-    )}&state=${"a".repeat(32)}&name=Work+laptop`;
+  it("carries a same-document path's query through unchanged", () => {
+    const href = `/app/devices?highlight=${encodeURIComponent("dev_1")}&name=Work+laptop`;
 
-    const returned = internalNextPath(pairHref);
-    expect(returned).toBe(pairHref);
+    const returned = internalNextPath(href);
+    expect(returned).toBe(href);
 
     const search = new URLSearchParams(new URL(returned ?? "", "http://x.test").search);
-    expect(search.get("state")).toBe("a".repeat(32));
-    expect(search.get("redirect")).toBe("http://127.0.0.1:4664/pair/callback");
+    expect(search.get("highlight")).toBe("dev_1");
     expect(search.get("name")).toBe("Work laptop");
-  });
-
-  it("carries the mobile deep-link redirect through the same round trip", () => {
-    const pairHref = `${PAIR_APPROVE_PATH}?redirect=${encodeURIComponent(
-      "inteligir://pair/callback",
-    )}&state=${"b".repeat(32)}&name=Phone`;
-
-    expect(internalNextPath(pairHref)).toBe(pairHref);
   });
 
   it("keeps a fragment, which is part of where someone was", () => {

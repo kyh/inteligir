@@ -1,10 +1,13 @@
 // the credential never crosses this wire; deviceId is the only identity a client is shown.
 // no separate "sync enabled" flag beside the credential: two values that must agree can disagree.
 
-import { DEVICE_NAME_MAX_LENGTH } from "@repo/api/cloud/pairing/pairing-schema";
+import {
+  DEVICE_NAME_MAX_LENGTH,
+  deviceLoginRequestSchema,
+} from "@repo/api/cloud/device/device-schema";
 import { z } from "zod";
 
-// imported, not restated: a name accepted here and refused at redeem is a shape error long after the click
+// imported, not restated: a name accepted here and refused at login is a shape error long after the click
 export const CLOUD_DEVICE_NAME_MAX_LENGTH = DEVICE_NAME_MAX_LENGTH;
 
 export const cloudStatusResponseSchema = z.discriminatedUnion("state", [
@@ -29,7 +32,7 @@ export const cloudStatusResponseSchema = z.discriminatedUnion("state", [
       lastError: z.string().nullable(),
     })
     .strict(),
-  // distinct from off: the fix is unpair and pair again. no timer or socket runs here either
+  // distinct from off: the fix is unpair and sign in again. no timer or socket runs here either
   z
     .object({
       state: z.literal("unauthorized"),
@@ -41,23 +44,12 @@ export const cloudStatusResponseSchema = z.discriminatedUnion("state", [
 ]);
 export type CloudStatusResponse = z.infer<typeof cloudStatusResponseSchema>;
 
-export const cloudPairBeginRequestSchema = z
-  .object({
+// the cloud's own email and password fields, so a value refused there is refused here first
+export const cloudLoginRequestSchema = deviceLoginRequestSchema
+  .pick({ email: true, password: true })
+  .extend({
     // absent means the server's own hostname
     deviceName: z.string().trim().min(1).max(CLOUD_DEVICE_NAME_MAX_LENGTH).optional(),
-    // required, not defaulted: the caller that must say false is an agent shell, which a default lets forget
-    openBrowser: z.boolean(),
   })
   .strict();
-export type CloudPairBeginRequest = z.infer<typeof cloudPairBeginRequestSchema>;
-
-export const cloudPairBeginResponseSchema = z
-  .object({
-    url: z.url(),
-    // false is not a failure: it is also what openBrowser: false asks for
-    opened: z.boolean(),
-    deviceName: z.string().min(1),
-    expiresInMs: z.number().int().positive(),
-  })
-  .strict();
-export type CloudPairBeginResponse = z.infer<typeof cloudPairBeginResponseSchema>;
+export type CloudLoginRequest = z.infer<typeof cloudLoginRequestSchema>;

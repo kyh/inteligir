@@ -16,20 +16,11 @@ anything shared across accounts.
   (Better Auth).
 - **Device records** — a name per device (that machine's hostname unless it was
   given another), timestamps (created, last seen, revoked) and the SHA-256 hash
-  of each device credential. The credential itself is answered once at pairing
-  and never stored.
-- **Pairing codes** — one row per pairing you approve, holding the code IN
-  PLAINTEXT (it is a ten-minute single-use token carried in a redirect, not a
-  secret at rest), your user id, when it expires, whether it was consumed, and
-  the device it created. Nothing ever shows it to you: your browser mints it on
-  Approve and hands it straight to the app on your machine.
-
-  What actually happens to a spent code, stated because the tidy version would
-  be a lie: **nothing collects it on a timer.** An expired or consumed row is
-  already unusable — redeem judges expiry in the same statement that consumes —
-  but the row itself sits there until the next time YOU approve a pairing,
-  which is when your own dead rows are swept. If you pair once and never again,
-  that one row persists until you delete the account.
+  of each device credential. The credential itself is answered once, when the
+  device signs in with your email and password, and never stored. The password
+  crosses the wire for that one request and is held nowhere on the device; the
+  browser session that sign-in would have created is deleted in the same
+  request, so the device holds its credential and nothing else.
 
 - **Thread events** — the append-only log of your agent conversations
   (messages, tool activity, status), pushed by each device to your account's
@@ -43,9 +34,9 @@ anything shared across accounts.
   claim. If that device dies mid-apply the claim lapses after five minutes and
   the capture is offered again — so a capture can be delivered twice and is
   never silently lost. The app deduplicates on the capture's id.
-- **Your vault — ONLY if you configure a git remote or pair a device.** Sync
-  is `git push` to a remote you choose. No remote configured and no pairing,
-  no vault bytes leave the machine. The hosted remote is exactly that: a git
+- **Your vault — ONLY if you configure a git remote or sign a device in.** Sync
+  is `git push` to a remote you choose. No remote configured and no device
+  signed in, no vault bytes leave the machine. The hosted remote is exactly that: a git
   host for your repo, per user, reachable only with a device credential from
   your own account. It is encrypted at rest by Cloudflare, but this
   deployment can read it — there is no end-to-end encryption; the trade is
@@ -76,18 +67,17 @@ anything shared across accounts.
   makes multi-device merge trivial — so assume a synced conversation persists
   until account deletion.
 - Device rows (including revoked ones) persist as the dashboard's audit trail
-  until account deletion. Pairing-code rows are usable for ten minutes and are
-  swept the next time you mint one — see the caveat above.
+  until account deletion.
 
 ## Account deletion
 
 Deleting the account deletes the account's data, in this order, before the
 account row itself goes:
 
-1. **Every device and pairing row you own** is deleted from D1. This is first
+1. **Every device row you own** is deleted from D1. This is first
    on purpose: while a device row lives its credential still works, so any
    later step could be undone by a request that arrives a moment after it.
-2. **Your hosted vault repo** — created once a paired device first pushes. A
+2. **Your hosted vault repo** — created once a signed-in device first pushes. A
    never-pushed account wipes empty tables, so the step is idempotent either
    way.
 3. **Your thread-sync Durable Object** is purged whole: every thread event,

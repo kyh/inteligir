@@ -1,4 +1,4 @@
-import { DEVICE_API_PATHS } from "@repo/api/cloud/pairing/pairing-schema";
+import { DEVICE_API_PATHS } from "@repo/api/cloud/device/device-schema";
 import { VAULT_API_PATHS } from "@repo/api/cloud/vault/vault-schema";
 import { VAULT_GIT_PATH } from "@repo/api/cloud/vault/vault-git";
 import { cloudErrorSchema } from "@repo/api/cloud/errors";
@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createDb } from "../db/client";
 import { rateLimit } from "../db/schema";
 import { deviceRateKey } from "../rate-limit";
-import { deviceHeaders, ORIGIN, pairDevice, sessionHeaders, signUpUser } from "./cloud-helpers";
+import { deviceHeaders, ORIGIN, loginDevice, sessionHeaders, signUpUser } from "./cloud-helpers";
 
 const TREE = `${ORIGIN}${VAULT_API_PATHS.tree}`;
 const GIT_REFS = `${ORIGIN}${VAULT_GIT_PATH}/info/refs?service=git-upload-pack`;
@@ -34,8 +34,8 @@ describe("the hosted vault's per-device budgets", () => {
 
   it("refuses vault reads once the device's budget is spent, and only that device's", async () => {
     const { bearer } = await signUpUser("vault-budget-read@example.test");
-    const phone = await pairDevice(bearer, "Phone");
-    const laptop = await pairDevice(bearer, "Laptop");
+    const phone = await loginDevice(bearer, "Phone");
+    const laptop = await loginDevice(bearer, "Laptop");
 
     await spendBudget(deviceRateKey("vaultRead", phone.deviceId));
 
@@ -49,7 +49,7 @@ describe("the hosted vault's per-device budgets", () => {
 
   it("keeps the git remote's budget separate from the read rows'", async () => {
     const { bearer } = await signUpUser("vault-budget-families@example.test");
-    const device = await pairDevice(bearer, "Laptop");
+    const device = await loginDevice(bearer, "Laptop");
 
     await spendBudget(deviceRateKey("vaultRead", device.deviceId));
 
@@ -63,7 +63,7 @@ describe("the hosted vault's per-device budgets", () => {
 
   it("drops a revoked device's rows — nothing else ever deletes one", async () => {
     const { bearer } = await signUpUser("vault-budget-revoke@example.test");
-    const device = await pairDevice(bearer, "Laptop");
+    const device = await loginDevice(bearer, "Laptop");
     const key = deviceRateKey("vaultRead", device.deviceId);
     await spendBudget(key);
 

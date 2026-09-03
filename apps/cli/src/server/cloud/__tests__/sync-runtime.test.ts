@@ -9,7 +9,6 @@ import {
 } from "@repo/db/connection";
 import { runMigrations } from "@repo/db/migrate";
 import { countSyncOutbox, readSyncState, writeSyncCursor } from "@repo/db/sync-outbox";
-import type { CloudPairBeginResponse } from "@repo/api/local/cloud/cloud-schema";
 import type { ThreadEvent } from "@repo/domain/provider-event";
 import { threadScope } from "@repo/domain/thread-event-scope";
 import { join } from "node:path";
@@ -17,13 +16,16 @@ import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { CAPTURE_INBOX_PATH, type CaptureVault } from "../captures";
 import type { CloudFetch, CloudSocket, OpenCloudSocketArgs } from "@repo/api/cloud/client";
 import { readDeviceCredential } from "../credential-store";
-import type { PairCompletion } from "../pair-flow";
 import type { SyncedEventSink } from "../sync-pass";
-import { createCloudRuntime, type CloudRuntime, type CloudTransport } from "../sync-runtime";
+import {
+  createCloudRuntime,
+  type CloudRuntime,
+  type CloudTransport,
+  type LoginOutcome,
+} from "../sync-runtime";
 import { VaultServiceError } from "../../vault/vault-service";
 import { makeTempDir } from "../../__tests__/temp-dir";
-import { FakeCloud } from "./fake-cloud";
-import { approveMint, CALLBACK_URL, PAIR_CODE, stateOf } from "./pair-fixtures";
+import { FAKE_ACCOUNT, FakeCloud } from "./fake-cloud";
 
 const CLOUD_URL = "https://cloud.test";
 
@@ -75,7 +77,6 @@ interface Harness {
   runtime: CloudRuntime;
   applied: Array<{ threadId: string; events: readonly ThreadEvent[]; cursor: number }>;
   socketOpens: OpenCloudSocketArgs[];
-  opened: string[];
   vaultPings: () => number;
 }
 
@@ -84,7 +85,6 @@ function makeHarness(
     fetch?: CloudFetch;
     pollIntervalMs?: number | null;
     cloud?: FakeCloud;
-    canOpenBrowser?: boolean;
   } = {},
 ): Harness {
   const dataDir = makeTempDir("inteligir-sync-");
@@ -94,7 +94,6 @@ function makeHarness(
   const vault = makeVault();
   const applied: Harness["applied"] = [];
   const socketOpens: OpenCloudSocketArgs[] = [];
-  const opened: string[] = [];
   let vaultPings = 0;
   const sink: SyncedEventSink = {
     applySyncedEvents: (args) => {
@@ -124,10 +123,6 @@ function makeHarness(
     onVaultPing: () => {
       vaultPings += 1;
     },
-    openExternalUrl: async (url) => {
-      opened.push(url);
-      return options.canOpenBrowser ?? true;
-    },
     transport,
   });
   runtime.attach(sink);
@@ -143,7 +138,6 @@ function makeHarness(
     runtime,
     applied,
     socketOpens,
-    opened,
     vaultPings: () => vaultPings,
   };
 }
@@ -158,35 +152,19 @@ function append(harness: Harness, events: readonly ThreadEvent[]): void {
   });
 }
 
-function approve(cloud: FakeCloud, begun: CloudPairBeginResponse, code: string): string {
-  approveMint(cloud, begun.url, code);
-  return stateOf(begun.url);
-}
-
-async function pairWithCode(
-  runtime: CloudRuntime,
-  cloud: FakeCloud,
-  code: string,
-  deviceName: string,
-): Promise<PairCompletion> {
-  const begun = await runtime.beginPair({
-    callbackUrl: CALLBACK_URL,
-    deviceName,
-    openBrowser: false,
-  });
-  const state = approve(cloud, begun, code);
-  return await runtime.completePair({ code, state });
+function loginAs(runtime: CloudRuntime, deviceName: string): Promise<LoginOutcome> {
+  return runtime.login({ ...FAKE_ACCOUNT, deviceName });
 }
 
 async function pair(harness: Harness): Promise<string> {
-  const outcome = await pairWithCode(harness.runtime, harness.cloud, PAIR_CODE, "Laptop");
-  if (outcome.kind !== "paired") {
-    throw new Error(`pairing refused: ${JSON.stringify(outcome)}`);
+  const outcome = await loginAs(harness.runtime, "Laptop");
+  if (outcome.kind !== "logged-in") {
+    throw new Error(`login refused: ${JSON.stringify(outcome)}`);
   }
   return outcome.status.state === "paired" ? outcome.status.deviceId : "";
 }
 
-describe("sync is off until someone pairs", () => {
+describe("sync is off until someone signs in", () => {
   it("opens no socket, arms no timer and makes no request", async () => {
     vi.useFakeTimers();
     const harness = makeHarness();
@@ -217,8 +195,8 @@ describe("sync is off until someone pairs", () => {
   });
 });
 
-describe("pairing", () => {
-  it("redeems a code and leaves the credential in the data dir", async () => {
+describe("signing in", () => {
+  it("logs in and leaves the credential in the data dir", async () => {
     const harness = makeHarness({ pollIntervalMs: null });
     const deviceId = await pair(harness);
 
@@ -256,169 +234,50 @@ describe("pairing", () => {
     expect(harness.vaultPings()).toBe(pingsWhileBlind + 1);
   });
 
-  it("reports the cloud's own refusal for a code it will not take", async () => {
+  it("reports the cloud's own refusal for a wrong password, and keeps nothing", async () => {
     const harness = makeHarness({ pollIntervalMs: null });
-    // no approve(): the code was never minted.
-    const begun = await harness.runtime.beginPair({
-      callbackUrl: CALLBACK_URL,
-      openBrowser: false,
-    });
-    const state = new URL(begun.url).searchParams.get("state") ?? "";
-    const outcome = await harness.runtime.completePair({ code: "ZZZZ-ZZZZ", state });
-    expect(outcome.kind).toBe("refused");
-    if (outcome.kind !== "refused") throw new Error("expected a refusal");
-    expect(outcome.failure).toEqual({
-      kind: "refused",
-      code: "invalid-code",
-      message: "That pairing code isn't valid.",
-      deviceSeq: null,
-    });
-    expect(readDeviceCredential(harness.dataDir)).toBeNull();
-  });
-});
-
-describe("the pending approval", () => {
-  it("puts the callback, the state and the device name on the approve URL", async () => {
-    const harness = makeHarness({ pollIntervalMs: null });
-    const begun = await harness.runtime.beginPair({
-      callbackUrl: CALLBACK_URL,
-      deviceName: "Work laptop",
-      openBrowser: true,
-    });
-
-    const url = new URL(begun.url);
-    expect(url.origin).toBe(CLOUD_URL);
-    expect(url.pathname).toBe("/app/pair");
-    expect(url.searchParams.get("redirect")).toBe(CALLBACK_URL);
-    expect(url.searchParams.get("name")).toBe("Work laptop");
-    expect(url.searchParams.get("state")).toMatch(/^[0-9a-f]{32}$/u);
-    expect(begun).toMatchObject({ opened: true, deviceName: "Work laptop" });
-    expect(harness.opened).toEqual([begun.url]);
-  });
-
-  it("opens nothing when the caller did not ask, and still answers the URL", async () => {
-    const harness = makeHarness({ pollIntervalMs: null });
-    const begun = await harness.runtime.beginPair({
-      callbackUrl: CALLBACK_URL,
-      openBrowser: false,
-    });
-    expect(harness.opened).toEqual([]);
-    expect(begun.opened).toBe(false);
-    expect(begun.url.length).toBeGreaterThan(0);
-  });
-
-  it("reports a failed open rather than claiming one", async () => {
-    const harness = makeHarness({ pollIntervalMs: null, canOpenBrowser: false });
-    const begun = await harness.runtime.beginPair({
-      callbackUrl: CALLBACK_URL,
-      openBrowser: true,
-    });
-    expect(begun.opened).toBe(false);
-  });
-
-  it("is CONSUMED by the callback it completes, so a replay applies nothing", async () => {
-    const harness = makeHarness({ pollIntervalMs: null });
-    const begun = await harness.runtime.beginPair({
-      callbackUrl: CALLBACK_URL,
+    const outcome = await harness.runtime.login({
+      email: FAKE_ACCOUNT.email,
+      password: "not-the-password",
       deviceName: "Laptop",
-      openBrowser: false,
     });
-    const state = approve(harness.cloud, begun, PAIR_CODE);
-
-    expect((await harness.runtime.completePair({ code: PAIR_CODE, state })).kind).toBe("paired");
-    const credential = readDeviceCredential(harness.dataDir);
-    expect(credential).not.toBeNull();
-
-    const replayed = await harness.runtime.completePair({ code: PAIR_CODE, state });
-    expect(replayed.kind).toBe("no-pending");
-    expect(readDeviceCredential(harness.dataDir)).toEqual(credential);
-  });
-
-  it("is inert with nothing armed — any local page can reach this route", async () => {
-    const harness = makeHarness({ pollIntervalMs: null });
-    const outcome = await harness.runtime.completePair({ code: PAIR_CODE, state: "0".repeat(32) });
-    expect(outcome.kind).toBe("no-pending");
-    expect(harness.cloud.requests).toEqual([]);
+    expect(outcome).toStrictEqual({
+      kind: "refused",
+      failure: {
+        kind: "refused",
+        code: "invalid-credentials",
+        message: "Wrong email or password.",
+        deviceSeq: null,
+      },
+    });
     expect(readDeviceCredential(harness.dataDir)).toBeNull();
+    expect(harness.runtime.status()).toEqual({ state: "off", cloudUrl: CLOUD_URL });
   });
 
-  it("refuses a wrong state WITHOUT spending the approval it does not match", async () => {
+  it("defaults the device name to this machine's hostname", async () => {
     const harness = makeHarness({ pollIntervalMs: null });
-    const begun = await harness.runtime.beginPair({
-      callbackUrl: CALLBACK_URL,
-      openBrowser: false,
-    });
-    const state = approve(harness.cloud, begun, PAIR_CODE);
-
-    expect(
-      (await harness.runtime.completePair({ code: PAIR_CODE, state: "f".repeat(32) })).kind,
-    ).toBe("state-mismatch");
-    expect(harness.cloud.requests).toEqual([]);
-    expect((await harness.runtime.completePair({ code: PAIR_CODE, state })).kind).toBe("paired");
+    const outcome = await harness.runtime.login(FAKE_ACCOUNT);
+    expect(outcome.kind).toBe("logged-in");
+    expect(harness.cloud.deviceCount()).toBe(1);
   });
 
-  it("expires, and redeems nothing once it has", async () => {
-    vi.useFakeTimers();
+  it("replaces the previous account's queue and positions with a clean slate", async () => {
     const harness = makeHarness({ pollIntervalMs: null });
-    const begun = await harness.runtime.beginPair({
-      callbackUrl: CALLBACK_URL,
-      openBrowser: false,
-    });
-    const state = approve(harness.cloud, begun, PAIR_CODE);
+    await pair(harness);
+    append(harness, [message("thr_1", "queued under the first login")]);
+    expect(countSyncOutbox(harness.db)).toBe(1);
 
-    vi.setSystemTime(Date.now() + begun.expiresInMs + 1);
-    expect((await harness.runtime.completePair({ code: PAIR_CODE, state })).kind).toBe("expired");
-    expect(harness.cloud.requests).toEqual([]);
-    expect(readDeviceCredential(harness.dataDir)).toBeNull();
+    const second = await loginAs(harness.runtime, "Laptop again");
+    expect(second.kind).toBe("logged-in");
+    expect(readDeviceCredential(harness.dataDir)?.deviceId).toBe("dev_2");
+    expect(countSyncOutbox(harness.db)).toBe(0);
   });
 
-  it("keeps ONE slot: a second begin is the button pressed again", async () => {
+  it("is inert after dispose — a login landing during shutdown writes nothing", async () => {
     const harness = makeHarness({ pollIntervalMs: null });
-    const first = await harness.runtime.beginPair({
-      callbackUrl: CALLBACK_URL,
-      openBrowser: false,
-    });
-    const stale = new URL(first.url).searchParams.get("state") ?? "";
-    const second = await harness.runtime.beginPair({
-      callbackUrl: CALLBACK_URL,
-      openBrowser: false,
-    });
-    const live = approve(harness.cloud, second, PAIR_CODE);
-    expect(stale).not.toBe(live);
-
-    expect((await harness.runtime.completePair({ code: PAIR_CODE, state: stale })).kind).toBe(
-      "state-mismatch",
-    );
-    expect((await harness.runtime.completePair({ code: PAIR_CODE, state: live })).kind).toBe(
-      "paired",
-    );
-  });
-
-  it("is dropped by an unpair — that button said stop", async () => {
-    const harness = makeHarness({ pollIntervalMs: null });
-    const begun = await harness.runtime.beginPair({
-      callbackUrl: CALLBACK_URL,
-      openBrowser: false,
-    });
-    const state = approve(harness.cloud, begun, PAIR_CODE);
-    harness.runtime.unpair();
-    expect((await harness.runtime.completePair({ code: PAIR_CODE, state })).kind).toBe(
-      "no-pending",
-    );
-  });
-
-  it("is inert after dispose — a callback in flight during shutdown redeems nothing", async () => {
-    const harness = makeHarness({ pollIntervalMs: null });
-    const begun = await harness.runtime.beginPair({
-      callbackUrl: CALLBACK_URL,
-      openBrowser: false,
-    });
-    const state = approve(harness.cloud, begun, PAIR_CODE);
-
     await harness.runtime.dispose();
-    const outcome = await harness.runtime.completePair({ code: PAIR_CODE, state });
-
-    expect(outcome.kind).toBe("no-pending");
+    const outcome = await loginAs(harness.runtime, "Laptop");
+    expect(outcome.kind).toBe("refused");
     expect(harness.cloud.requests).toEqual([]);
     expect(readDeviceCredential(harness.dataDir)).toBeNull();
   });
@@ -456,9 +315,9 @@ describe("a capture delivered twice", () => {
       return cloud.fetch(input, init);
     };
     const harness = makeHarness({ pollIntervalMs: null, fetch: fetchWithLapse });
-    // pair against the cloud the wrapped fetch reaches, not the harness's own.
-    const outcome = await pairWithCode(harness.runtime, cloud, PAIR_CODE, "Laptop");
-    expect(outcome.kind).toBe("paired");
+    // the login goes through the wrapped fetch, so it lands on the cloud that fetch reaches.
+    const outcome = await loginAs(harness.runtime, "Laptop");
+    expect(outcome.kind).toBe("logged-in");
 
     cloud.capture("buy oat milk");
     await harness.runtime.syncNow();
@@ -517,7 +376,7 @@ describe("the invalidation socket", () => {
     await pair(harness);
     const dial = harness.socketOpens[0];
     if (dial === undefined) throw new Error("expected a socket dial");
-    // one from the pairing, one from the account-identity learner.
+    // one from the login, one from the account-identity learner.
     expect(harness.vaultPings()).toBe(2);
     const quiet = harness.cloud.requests.length;
 
@@ -543,7 +402,7 @@ describe("the invalidation socket", () => {
 // holds the first call to one path until released; honours the abort signal.
 interface Gate {
   fetch: CloudFetch;
-  /** inert until armed, so a pairing's own pass runs through. */
+  /** inert until armed, so a login's own pass runs through. */
   arm: () => void;
   reached: Promise<void>;
   release: () => void;
@@ -600,7 +459,7 @@ function gatedFetch(cloud: FakeCloud, path: string, when: GateWhen = "before"): 
   };
 }
 
-async function waitForPairing(runtime: CloudRuntime, deviceId: string): Promise<void> {
+async function waitForLogin(runtime: CloudRuntime, deviceId: string): Promise<void> {
   await vi.waitFor(() => {
     const status = runtime.status();
     expect(status.state === "paired" ? status.deviceId : null).toBe(deviceId);
@@ -612,18 +471,18 @@ describe("a session that changes mid-pass", () => {
     const cloud = new FakeCloud();
     const gate = gatedFetch(cloud, SYNC_API_PATHS.push, "after");
     const harness = makeHarness({ pollIntervalMs: null, fetch: gate.fetch, cloud });
-    await pairWithCode(harness.runtime, cloud, PAIR_CODE, "Laptop");
-    append(harness, [message("thr_1", "belongs to the first pairing")]);
+    await loginAs(harness.runtime, "Laptop");
+    append(harness, [message("thr_1", "belongs to the first login")]);
 
     gate.arm();
     const pass = harness.runtime.syncNow();
     await gate.reached;
 
-    // not awaited: pair waits on the very pass the gate is holding.
-    const repaired = pairWithCode(harness.runtime, cloud, "WXYZ-WXYZ", "Laptop again");
-    await waitForPairing(harness.runtime, "dev_2");
+    // not awaited: login waits on the very pass the gate is holding.
+    const repaired = loginAs(harness.runtime, "Laptop again");
+    await waitForLogin(harness.runtime, "dev_2");
 
-    append(harness, [message("thr_1", "belongs to the second pairing")]);
+    append(harness, [message("thr_1", "belongs to the second login")]);
 
     gate.release();
     await repaired;
@@ -633,7 +492,7 @@ describe("a session that changes mid-pass", () => {
     expect(countSyncOutbox(harness.db)).toBe(0);
   });
 
-  it("does not apply one account's page into a pairing with another", async () => {
+  it("does not apply one account's page into a login to another", async () => {
     const leaving = makeHarness({ pollIntervalMs: null });
     await pair(leaving);
     append(leaving, [message("thr_leaving", "from the account being left")]);
@@ -652,7 +511,7 @@ describe("a session that changes mid-pass", () => {
       fetch: (input, init) =>
         current === leaving.cloud ? gate.fetch(input, init) : current.fetch(input, init),
     });
-    await pairWithCode(reader.runtime, leaving.cloud, "READ-ONCE", "Reader");
+    await loginAs(reader.runtime, "Reader");
 
     append(leaving, [message("thr_leaving", "the page held mid-flight")]);
     await leaving.runtime.syncNow();
@@ -662,9 +521,9 @@ describe("a session that changes mid-pass", () => {
     await gate.reached;
 
     current = joining.cloud;
-    const repaired = pairWithCode(reader.runtime, joining.cloud, "JOIN-NOW", "Reader elsewhere");
-    // not waitForPairing: the reader is already dev_2 on leaving.cloud, so it would
-    // resolve before the session swap. the redeem landing on joining.cloud is the signal.
+    const repaired = loginAs(reader.runtime, "Reader elsewhere");
+    // not waitForLogin: the reader is already dev_2 on leaving.cloud, so it would
+    // resolve before the session swap. the login landing on joining.cloud is the signal.
     await vi.waitFor(() => expect(joining.cloud.deviceCount()).toBe(2));
     // let openSession's microtask drain before releasing the held page.
     await Promise.resolve();
@@ -684,7 +543,7 @@ describe("dispose", () => {
     const cloud = new FakeCloud();
     const gate = gatedFetch(cloud, SYNC_API_PATHS.pull);
     const harness = makeHarness({ pollIntervalMs: null, fetch: gate.fetch, cloud });
-    await pairWithCode(harness.runtime, cloud, PAIR_CODE, "Laptop");
+    await loginAs(harness.runtime, "Laptop");
     cloud.capture("something the inbox is holding");
 
     gate.arm();
@@ -702,7 +561,7 @@ describe("dispose", () => {
 });
 
 describe("every cloud call carries a deadline", () => {
-  it("attaches a signal to every request, redeem included", async () => {
+  it("attaches a signal to every request, login included", async () => {
     const cloud = new FakeCloud();
     const signalled: Array<{ path: string; hasSignal: boolean }> = [];
     const harness = makeHarness({
@@ -752,7 +611,7 @@ describe("applying the account's log", () => {
         writeSyncCursor(harness.db, args.cursor);
       },
     });
-    await pairWithCode(harness.runtime, cloud, "READ-ONCE", "Reader");
+    await loginAs(harness.runtime, "Reader");
 
     expect(cursors).toEqual([1, 3]);
     expect(readSyncState(harness.db).cursor).toBe(3);
@@ -767,8 +626,8 @@ describe("applying the account's log", () => {
     expect(writer.applied).toEqual([]);
 
     const reader = makeHarness({ pollIntervalMs: null, fetch: cloud.fetch });
-    const paired = await pairWithCode(reader.runtime, cloud, "WXYZ-WXYZ", "Desktop");
-    expect(paired.kind).toBe("paired");
+    const paired = await loginAs(reader.runtime, "Desktop");
+    expect(paired.kind).toBe("logged-in");
 
     await reader.runtime.syncNow();
     expect(reader.applied).toHaveLength(1);

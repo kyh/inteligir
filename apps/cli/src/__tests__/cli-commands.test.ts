@@ -704,6 +704,44 @@ describe("interactions answer validates the resolution locally", () => {
   });
 });
 
+describe("cloud login", () => {
+  it("reads the password from stdin under `--password -`, one line and its newline", async () => {
+    const server = await boot(seededState());
+    const result = await runCliForTest({
+      argv: ["cloud", "login", "--email", "Owner@Example.test", "--password", "-", "--json"],
+      baseUrl: server.baseUrl,
+      stdin: new TextEncoder().encode("correct horse battery\n"),
+    });
+    expect(result.code).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      state: "paired",
+      accountEmail: "owner@example.test",
+    });
+  });
+
+  it("refuses to prompt under --json — the agent path has no terminal to wait on", async () => {
+    const server = await boot(seededState());
+    const result = await runCliForTest({
+      argv: ["cloud", "login", "--email", "owner@example.test", "--json"],
+      baseUrl: server.baseUrl,
+    });
+    expect(result.code).toBe(1);
+    expect(result.stdout).toBe("");
+    expect(JSON.parse(result.stderr)).toMatchObject({ error: "INVALID_USAGE" });
+  });
+
+  it("refuses an empty stdin rather than sending an empty password", async () => {
+    const server = await boot(seededState());
+    const result = await runCliForTest({
+      argv: ["cloud", "login", "--email", "owner@example.test", "--password", "-"],
+      baseUrl: server.baseUrl,
+      stdin: new TextEncoder().encode("\n"),
+    });
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("stdin carried no password");
+  });
+});
+
 describe("--json failures", () => {
   it("puts the error envelope on stderr and leaves stdout empty", async () => {
     const server = await boot(seededState());

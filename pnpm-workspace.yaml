@@ -53,13 +53,11 @@ catalog:
   expo-constants: ~57.0.7
   expo-crypto: ~57.0.1
   expo-file-system: ~57.0.1
-  expo-linking: ~57.0.4
   expo-router: ~57.0.8
   expo-secure-store: ~57.0.1
   expo-splash-screen: ~57.0.5
   expo-status-bar: ~57.0.1
   expo-system-ui: ~57.0.1
-  expo-web-browser: ~57.0.2
   hono: ^4.13.5
   jsdom: ^30.0.1
   lucide-react: ^1.35.0

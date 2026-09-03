@@ -15,10 +15,8 @@ import {
 import { onError, ORPCError } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
 import { Hono, type Context, type MiddlewareHandler, type Next } from "hono";
-import { PAIR_CALLBACK_PATH } from "@repo/api/cloud/pairing/pairing-schema";
 import { CONNECTOR_OAUTH_CALLBACK_PATH } from "@repo/api/local/connectors/connectors-schema";
 import { isSameOriginBrowserRequest } from "./browser-request";
-import { handlePairCallback } from "./cloud/pair-callback";
 import { handleConnectorOauthCallback } from "./connectors/oauth-callback";
 import { documentSecurityHeaders } from "./csp";
 import { ERROR_STATUS_MAP, errorStatus } from "./error-status";
@@ -66,8 +64,8 @@ export function createApp(args: CreateAppArgs) {
   const injectWebSocket = nodeWebSocket.injectWebSocket.bind(nodeWebSocket);
 
   // one gate at the http boundary: three of the four surfaces it protects are not procedures.
-  // /health stays outside (a supervisor's spawn probe holds no credential yet), and so do the two
-  // browser landings (a cross-site top-level navigation carries none; their single-use state
+  // /health stays outside (a supervisor's spawn probe holds no credential yet), and so does the
+  // oauth browser landing (a cross-site top-level navigation carries none; its single-use state
   // stands in). a cookie is ambient and loopback "site" ignores the port, so a co-resident page
   // on another 127.0.0.1 port carries it: a cookie-authed request must also prove same-origin.
   const requireServerToken = async (c: Context, next: Next) => {
@@ -151,11 +149,6 @@ export function createApp(args: CreateAppArgs) {
   );
 
   // no token: the redirect is a cross-site top-level navigation, which cannot carry one.
-  app.get(PAIR_CALLBACK_PATH, async (c) => {
-    const answer = await handlePairCallback(args.context.cloud, new URL(c.req.url));
-    return c.body(answer.body, answer.status, answer.headers);
-  });
-
   app.get(CONNECTOR_OAUTH_CALLBACK_PATH, async (c) => {
     const answer = await handleConnectorOauthCallback(
       args.context.connectorsOauth,

@@ -1,23 +1,29 @@
-// no procedure takes a pairing code: it lands on GET /pair/callback, a browser
-// route outside the contract table.
-
+import { describeCloudFailure } from "@repo/api/cloud/client";
+import { isDeviceLoginRefusal } from "@repo/api/cloud/device/device-schema";
 import { base } from "../orpc";
-import { pairCallbackUrlFor } from "./pair-callback";
-import type { BeginPairArgs } from "./pair-flow";
 
 const status = base.cloud.status.handler(({ context }) => context.cloud.status());
 
-const pairBegin = base.cloud.pairBegin.handler(({ context, input, errors }) => {
-  // the port the caller reached, not the configured one — listen may probe past a busy dev port.
-  const callbackUrl = pairCallbackUrlFor(context.requestHost);
-  if (callbackUrl === null) {
-    throw errors.BAD_REQUEST({
-      message: "Pairing must be started from this app's own address (127.0.0.1 or localhost).",
-    });
+// each of the cloud's own refusals keeps its class; anything else — unreachable, a body this
+// build cannot read, a code the login route never answers — is the cloud being unavailable
+const login = base.cloud.login.handler(async ({ context, input, errors }) => {
+  const outcome = await context.cloud.login(input);
+  if (outcome.kind === "logged-in") {
+    return outcome.status;
   }
-  const begin: BeginPairArgs = { callbackUrl, openBrowser: input.openBrowser };
-  if (input.deviceName !== undefined) begin.deviceName = input.deviceName;
-  return context.cloud.beginPair(begin);
+  const { failure } = outcome;
+  if (failure.kind === "refused" && isDeviceLoginRefusal(failure.code)) {
+    const message = failure.message;
+    switch (failure.code) {
+      case "invalid-credentials":
+        throw errors.UNAUTHORIZED({ message });
+      case "device-limit":
+        throw errors.CONFLICT({ message });
+      case "rate-limited":
+        throw errors.TOO_MANY_REQUESTS({ message });
+    }
+  }
+  throw errors.PROVIDER_UNAVAILABLE({ message: describeCloudFailure(failure) });
 });
 
 const unpair = base.cloud.unpair.handler(({ context }) => context.cloud.unpair());
@@ -26,7 +32,7 @@ const syncNow = base.cloud.syncNow.handler(({ context }) => context.cloud.syncNo
 
 export const cloudRouter = {
   status,
-  pairBegin,
+  login,
   unpair,
   syncNow,
 };

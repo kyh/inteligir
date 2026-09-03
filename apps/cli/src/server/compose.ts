@@ -169,7 +169,6 @@ export async function composeRuntime(args: ComposeRuntimeArgs): Promise<Composed
     },
   };
   if (args.cloudTransport !== undefined) cloudArgs.transport = args.cloudTransport;
-  if (ports.openExternalUrl !== undefined) cloudArgs.openExternalUrl = ports.openExternalUrl;
   const cloud = createCloudRuntime(cloudArgs);
   register("cloud", () => cloud.dispose());
   const threads = new ThreadService({

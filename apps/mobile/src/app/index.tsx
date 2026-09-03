@@ -12,57 +12,94 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
-  startPair,
+  login,
   submitCapture,
   syncNow,
   unpair,
-  usePairingState,
+  useLoginState,
   useSyncStatus,
   useThreads,
 } from "@/lib/app-runtime";
 import { RADIUS, SPACE, type Theme, useTheme } from "@/lib/theme";
+import { defaultDeviceName } from "@/login/device-name";
 import type { SyncStatus } from "@/sync/sync-runtime";
 import { describeCloudFailure } from "@repo/api/cloud/client";
 
 export default function Index() {
   const status = useSyncStatus();
-  return status.state === "paired" ? <HomeScreen /> : <PairScreen status={status} />;
+  return status.state === "paired" ? <HomeScreen /> : <SignInScreen status={status} />;
 }
 
-function PairScreen({ status }: { status: SyncStatus }) {
+function SignInScreen({ status }: { status: SyncStatus }) {
   const theme = useTheme();
-  const pairing = usePairingState();
-  const opening = pairing.kind === "pairing";
+  const signIn = useLoginState();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [deviceName, setDeviceName] = useState(defaultDeviceName);
+  const busy = signIn.kind === "signing-in";
+  const ready = email.trim() !== "" && password !== "" && deviceName.trim() !== "";
   const reason =
     status.state === "unauthorized"
-      ? "This device was unpaired. Pair again to resume syncing."
-      : "Pair this phone with your account to read your notes and threads, and capture ideas.";
+      ? "This device was signed out. Sign in again to resume syncing."
+      : "Sign in with your account to read your notes and threads, and capture ideas.";
+  const fieldStyle = [
+    styles.input,
+    { borderColor: theme.input, backgroundColor: theme.card, color: theme.foreground },
+  ];
 
   return (
     <SafeAreaView style={[styles.screen, styles.center, { backgroundColor: theme.background }]}>
       <Stack.Screen options={{ title: "inteligir" }} />
-      <View style={styles.pairBody}>
+      <View style={styles.signInBody}>
         <Text style={[styles.title, { color: theme.foreground }]}>inteligir</Text>
         <Text style={[styles.bodyText, { color: theme.mutedForeground }]}>{reason}</Text>
-        {pairing.kind === "failed" ? (
-          <Text style={[styles.smallText, { color: theme.destructive }]}>{pairing.message}</Text>
+        <TextInput
+          style={fieldStyle}
+          placeholder="Email"
+          placeholderTextColor={theme.mutedForeground}
+          value={email}
+          onChangeText={setEmail}
+          autoCapitalize="none"
+          autoCorrect={false}
+          keyboardType="email-address"
+          textContentType="username"
+          editable={!busy}
+        />
+        <TextInput
+          style={fieldStyle}
+          placeholder="Password"
+          placeholderTextColor={theme.mutedForeground}
+          value={password}
+          onChangeText={setPassword}
+          secureTextEntry
+          textContentType="password"
+          editable={!busy}
+        />
+        <TextInput
+          style={fieldStyle}
+          placeholder="This device's name"
+          placeholderTextColor={theme.mutedForeground}
+          value={deviceName}
+          onChangeText={setDeviceName}
+          editable={!busy}
+        />
+        {signIn.kind === "failed" ? (
+          <Text style={[styles.smallText, { color: theme.destructive }]}>{signIn.message}</Text>
         ) : null}
         <Pressable
           style={({ pressed }) => [
             styles.primaryButton,
             { backgroundColor: theme.primary },
             pressed && styles.pressed80,
-            opening && styles.disabled,
+            (busy || !ready) && styles.disabled,
           ]}
-          disabled={opening}
-          onPress={() => void startPair()}
+          disabled={busy || !ready}
+          onPress={() => void login({ email, password, deviceName })}
         >
-          {opening ? (
+          {busy ? (
             <ActivityIndicator color={theme.primaryForeground} />
           ) : (
-            <Text style={[styles.buttonLabel, { color: theme.primaryForeground }]}>
-              Pair this device
-            </Text>
+            <Text style={[styles.buttonLabel, { color: theme.primaryForeground }]}>Sign in</Text>
           )}
         </Pressable>
       </View>
@@ -171,7 +208,7 @@ function HomeScreen() {
       <View style={[styles.footer, { borderTopColor: theme.border }]}>
         <Pressable onPress={() => void unpair()}>
           <Text style={[styles.smallText, { color: theme.mutedForeground }]}>
-            Unpair this device
+            Sign this device out
           </Text>
         </Pressable>
       </View>
@@ -255,7 +292,7 @@ function CaptureBox() {
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   center: { alignItems: "center", justifyContent: "center" },
-  pairBody: { gap: SPACE.md, paddingHorizontal: SPACE.xxl, alignItems: "center" },
+  signInBody: { gap: SPACE.md, paddingHorizontal: SPACE.xxl, alignSelf: "stretch" },
   captureBox: { gap: SPACE.sm, paddingHorizontal: SPACE.lg, paddingTop: SPACE.md },
   input: {
     borderRadius: RADIUS.md,

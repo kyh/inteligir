@@ -8,7 +8,7 @@ import {
 import { cloudErrorSchema } from "@repo/api/cloud/errors";
 import { SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
-import { deviceHeaders, ORIGIN, pairDevice, signUpUser } from "./cloud-helpers";
+import { deviceHeaders, ORIGIN, loginDevice, signUpUser } from "./cloud-helpers";
 import { pushVaultFiles, ZERO_OID } from "./git-pack";
 
 const TREE = `${ORIGIN}${VAULT_API_PATHS.tree}`;
@@ -19,9 +19,9 @@ async function errorCode(response: Response): Promise<string> {
   return cloudErrorSchema.parse(await response.json()).error.code;
 }
 
-async function pairAndPush(email: string, files: Parameters<typeof pushVaultFiles>[2]) {
+async function loginAndPush(email: string, files: Parameters<typeof pushVaultFiles>[2]) {
   const { bearer } = await signUpUser(email);
-  const { credential } = await pairDevice(bearer, "Laptop");
+  const { credential } = await loginDevice(bearer, "Laptop");
   const pushed = await pushVaultFiles(credential, "vault: initialize", files, ZERO_OID);
   expect(pushed.response.status).toBe(200);
   expect(await pushed.response.text()).toContain("unpack ok");
@@ -37,14 +37,14 @@ describe("vault read rows", () => {
 
   it("answers not-found for an account with no hosted vault — without creating one", async () => {
     const { bearer } = await signUpUser("vault-read-none@example.test");
-    const { credential } = await pairDevice(bearer, "Laptop");
+    const { credential } = await loginDevice(bearer, "Laptop");
     const tree = await SELF.fetch(TREE, { headers: deviceHeaders(credential) });
     expect(tree.status).toBe(404);
     expect(await errorCode(tree)).toBe("not-found");
   });
 
   it("lists the pushed tree flat, and pages it by path cursor at one commit", async () => {
-    const { credential, commit } = await pairAndPush("vault-read-tree@example.test", [
+    const { credential, commit } = await loginAndPush("vault-read-tree@example.test", [
       { path: "a.md", content: "# a\n" },
       { path: "notes/b.md", content: "# b\n" },
       { path: "notes/deep/c.md", content: "# c\n" },
@@ -69,7 +69,7 @@ describe("vault read rows", () => {
 
   it("omits an entry the contract's path grammar refuses, rather than failing the page", async () => {
     // git accepts these names; the wire's parse does not, so listing them would hand the phone a 200 it refuses whole
-    const { credential } = await pairAndPush("vault-read-grammar@example.test", [
+    const { credential } = await loginAndPush("vault-read-grammar@example.test", [
       { path: "a.md", content: "# a\n" },
       { path: "a\\b.md", content: "# backslash\n" },
       { path: "2024\\q1/c.md", content: "# under a refused directory\n" },
@@ -82,7 +82,7 @@ describe("vault read rows", () => {
   });
 
   it("answers a file's text with the commit and blob oid", async () => {
-    const { credential, commit } = await pairAndPush("vault-read-file@example.test", [
+    const { credential, commit } = await loginAndPush("vault-read-file@example.test", [
       { path: "notes/hello.md", content: "# hello\n\nfrom the vault\n" },
     ]);
     const response = await SELF.fetch(`${FILE}?path=${encodeURIComponent("notes/hello.md")}`, {
@@ -97,7 +97,7 @@ describe("vault read rows", () => {
   });
 
   it("serves a filename holding a percent sign — git allows it, the cell decodes", async () => {
-    const { credential } = await pairAndPush("vault-read-percent@example.test", [
+    const { credential } = await loginAndPush("vault-read-percent@example.test", [
       { path: "100%done.md", content: "# done\n" },
     ]);
     const response = await SELF.fetch(`${FILE}?path=${encodeURIComponent("100%done.md")}`, {
@@ -112,7 +112,7 @@ describe("vault read rows", () => {
   });
 
   it("answers not-found for a path the revision does not carry", async () => {
-    const { credential } = await pairAndPush("vault-read-miss@example.test", [
+    const { credential } = await loginAndPush("vault-read-miss@example.test", [
       { path: "a.md", content: "# a\n" },
     ]);
     const response = await SELF.fetch(`${FILE}?path=gone.md`, {
@@ -125,7 +125,7 @@ describe("vault read rows", () => {
   it("keeps the wire text-only: binary refuses, and so does the byte ceiling", async () => {
     const invalidUtf8 = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0xff, 0xfe]);
     const huge = new Uint8Array(VAULT_FILE_MAX_BYTES + 1).fill(0x61);
-    const { credential } = await pairAndPush("vault-read-binary@example.test", [
+    const { credential } = await loginAndPush("vault-read-binary@example.test", [
       { path: "image.png", content: invalidUtf8 },
       { path: "huge.md", content: huge },
     ]);
@@ -144,11 +144,11 @@ describe("vault read rows", () => {
   });
 
   it("keeps two users' vaults apart on the read wire too", async () => {
-    const alpha = await pairAndPush("vault-read-alpha@example.test", [
+    const alpha = await loginAndPush("vault-read-alpha@example.test", [
       { path: "secret.md", content: "alpha's note\n" },
     ]);
     const beta = await signUpUser("vault-read-beta@example.test");
-    const betaDevice = await pairDevice(beta.bearer, "Laptop");
+    const betaDevice = await loginDevice(beta.bearer, "Laptop");
 
     const asBeta = await SELF.fetch(`${FILE}?path=secret.md&ref=${alpha.commit}`, {
       headers: deviceHeaders(betaDevice.credential),
@@ -157,7 +157,7 @@ describe("vault read rows", () => {
   });
 
   it("refuses a malformed path at parse", async () => {
-    const { credential } = await pairAndPush("vault-read-path@example.test", [
+    const { credential } = await loginAndPush("vault-read-path@example.test", [
       { path: "a.md", content: "# a\n" },
     ]);
     for (const bad of ["../escape.md", "/rooted.md", "a//b.md"]) {
@@ -173,7 +173,7 @@ describe("the vault asset route", () => {
   const PNG_BYTES = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0xff]);
 
   it("answers an image embed's raw bytes with the allowlist's type", async () => {
-    const { credential, commit } = await pairAndPush("vault-asset-read@example.test", [
+    const { credential, commit } = await loginAndPush("vault-asset-read@example.test", [
       { path: "media/diagram.png", content: PNG_BYTES },
     ]);
     const response = await SELF.fetch(
@@ -195,7 +195,7 @@ describe("the vault asset route", () => {
   });
 
   it("requires the pinning ref — an unpinned asset URL is not a cache key", async () => {
-    const { credential } = await pairAndPush("vault-asset-ref@example.test", [
+    const { credential } = await loginAndPush("vault-asset-ref@example.test", [
       { path: "a.png", content: PNG_BYTES },
     ]);
     const response = await SELF.fetch(`${ASSET}?path=a.png`, {
@@ -206,7 +206,7 @@ describe("the vault asset route", () => {
   });
 
   it("refuses an extension outside the allowlist — never a fallback type", async () => {
-    const { credential, commit } = await pairAndPush("vault-asset-ext@example.test", [
+    const { credential, commit } = await loginAndPush("vault-asset-ext@example.test", [
       { path: "notes.md", content: "# text\n" },
     ]);
     for (const path of ["notes.md", "script.html", "no-extension"]) {
@@ -219,7 +219,7 @@ describe("the vault asset route", () => {
   });
 
   it("answers not-found for a path the revision does not carry", async () => {
-    const { credential, commit } = await pairAndPush("vault-asset-miss@example.test", [
+    const { credential, commit } = await loginAndPush("vault-asset-miss@example.test", [
       { path: "a.png", content: PNG_BYTES },
     ]);
     const response = await SELF.fetch(`${ASSET}?path=gone.png&ref=${commit}`, {
@@ -231,7 +231,7 @@ describe("the vault asset route", () => {
 
   it("refuses bytes over the asset ceiling", async () => {
     const huge = new Uint8Array(VAULT_ASSET_MAX_BYTES + 1).fill(0x61);
-    const { credential, commit } = await pairAndPush("vault-asset-huge@example.test", [
+    const { credential, commit } = await loginAndPush("vault-asset-huge@example.test", [
       { path: "huge.png", content: huge },
     ]);
     const response = await SELF.fetch(`${ASSET}?path=huge.png&ref=${commit}`, {
@@ -242,11 +242,11 @@ describe("the vault asset route", () => {
   });
 
   it("keeps two users' vaults apart on the asset wire too", async () => {
-    const alpha = await pairAndPush("vault-asset-alpha@example.test", [
+    const alpha = await loginAndPush("vault-asset-alpha@example.test", [
       { path: "secret.png", content: PNG_BYTES },
     ]);
     const beta = await signUpUser("vault-asset-beta@example.test");
-    const betaDevice = await pairDevice(beta.bearer, "Laptop");
+    const betaDevice = await loginDevice(beta.bearer, "Laptop");
     const asBeta = await SELF.fetch(`${ASSET}?path=secret.png&ref=${alpha.commit}`, {
       headers: deviceHeaders(betaDevice.credential),
     });

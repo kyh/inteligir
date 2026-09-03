@@ -37,7 +37,6 @@ module.exports = ({ config }) => ({
   plugins: [
     "expo-router",
     "expo-secure-store",
-    "expo-web-browser",
     [
       "expo-splash-screen",
       {

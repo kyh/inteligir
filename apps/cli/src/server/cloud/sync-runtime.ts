@@ -2,6 +2,7 @@
 // values that must agree can disagree. a pass is single-flight and coalescing —
 // two concurrent drains push one batch twice. the socket is latency, never correctness.
 
+import { hostname } from "node:os";
 import {
   createCloudClient,
   describeCloudFailure,
@@ -11,15 +12,15 @@ import {
   type CloudSocketOpener,
   type CreateCloudClientArgs,
 } from "@repo/api/cloud/client";
+import {
+  loginDevice,
+  type LoginOutcome as DeviceLoginOutcome,
+} from "@repo/api/cloud/device/login-flow";
 import { createSingleFlight, createSyncSession } from "@repo/api/cloud/sync/sync-session";
 import type { DbConnection, DbTransaction } from "@repo/db/connection";
 import { countSyncOutbox, readSyncState, resetSyncState } from "@repo/db/sync-outbox";
 import type { ThreadEvent } from "@repo/domain/provider-event";
-import type {
-  CloudPairBeginResponse,
-  CloudStatusResponse,
-} from "@repo/api/local/cloud/cloud-schema";
-import { systemOpenExternalUrl, type OpenExternalUrl } from "./browser-opener";
+import type { CloudLoginRequest, CloudStatusResponse } from "@repo/api/local/cloud/cloud-schema";
 import type { CaptureVault } from "./captures";
 import {
   clearDeviceCredential,
@@ -28,12 +29,6 @@ import {
   type DeviceCredential,
 } from "./credential-store";
 import { enqueueThreadEvents } from "./outbox";
-import {
-  createPairFlow,
-  type BeginPairArgs,
-  type PairCompletion,
-  type PairFlowDeps,
-} from "./pair-flow";
 import { createSocketLink } from "./socket-link";
 import { createSyncCadence, type SyncCadenceArgs } from "./sync-cadence";
 import {
@@ -58,11 +53,14 @@ export interface CloudRuntimeArgs {
   cloudUrl: string;
   vault: CaptureVault;
   transport?: CloudTransport;
-  openExternalUrl?: OpenExternalUrl;
-  /** the vault ping's handler; also kicked once after a pairing so the derived remote syncs now. */
+  /** the vault ping's handler; also kicked once after a login so the derived remote syncs now. */
   onVaultPing?: () => void;
   onDebug?: (message: string) => void;
 }
+
+export type LoginOutcome =
+  | { kind: "logged-in"; status: CloudStatusResponse }
+  | Extract<DeviceLoginOutcome, { kind: "refused" }>;
 
 export interface CloudRuntime {
   status(): CloudStatusResponse;
@@ -70,8 +68,7 @@ export interface CloudRuntime {
   /** late-bound: the thread service needs enqueue at construction. */
   attach(sink: SyncedEventSink): void;
   start(): void;
-  beginPair(args: BeginPairArgs): Promise<CloudPairBeginResponse>;
-  completePair(args: { code: string; state: string }): Promise<PairCompletion>;
+  login(request: CloudLoginRequest): Promise<LoginOutcome>;
   unpair(): CloudStatusResponse;
   syncNow(): Promise<CloudStatusResponse>;
   dispose(): Promise<void>;
@@ -80,7 +77,6 @@ export interface CloudRuntime {
 export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
   const transport = args.transport ?? {};
   const debug = args.onDebug ?? ((message: string) => console.error(`cloud: ${message}`));
-  const openExternalUrl = args.openExternalUrl ?? systemOpenExternalUrl;
 
   let sink: SyncedEventSink | null = null;
   let lastError: string | null = null;
@@ -88,7 +84,7 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
   const flight = createSingleFlight();
   // best-effort; a failure costs the label, never the sync.
   let accountEmail: string | null = null;
-  // keyed by session: joining the previous pairing's fetch answers about an account this device left.
+  // keyed by session: joining the previous login's fetch answers about an account this device left.
   let learningIdentity: { sessionId: number; pass: Promise<void> } | null = null;
 
   function endpoint(): CloudEndpoint {
@@ -127,7 +123,7 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
     if (learningIdentity?.sessionId === sessionId) return learningIdentity.pass;
     const pass = (async () => {
       const result = await client.account();
-      // a re-pair mid-flight must not label the new session with the old account.
+      // a re-login mid-flight must not label the new session with the old account.
       if (!sessionAlive(sessionId)) return;
       accountEmail = result.ok ? result.value.email : null;
       if (result.ok && credential.userId !== result.value.id) {
@@ -287,7 +283,11 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
     return status();
   }
 
-  async function adoptPairedCredential(credential: DeviceCredential): Promise<void> {
+  async function adoptCredential(credential: DeviceCredential): Promise<void> {
+    if (disposed) {
+      // teardown ran during the login round trip: write nothing after it.
+      throw new Error("This app is shutting down; the credential was not kept.");
+    }
     // clean slate: the outbox and both positions describe an account this device
     // may have left. openSession ends the old session, which stops a running pass
     // from acking into the emptied queue.
@@ -300,26 +300,16 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
     cadence.armPoll();
     link.connect();
     await syncNow();
-    // the pairing just derived a hosted remote; sync it now.
+    // the login just derived a hosted remote; sync it now.
     args.onVaultPing?.();
   }
-
-  const pairFlowDeps: PairFlowDeps = {
-    cloudUrl: args.cloudUrl,
-    openExternalUrl,
-    isDisposed: () => disposed,
-    adoptCredential: adoptPairedCredential,
-    status,
-  };
-  if (transport.fetch !== undefined) pairFlowDeps.fetch = transport.fetch;
-  const pairFlow = createPairFlow(pairFlowDeps);
 
   return {
     status,
 
     enqueue(tx, events) {
       if (session.current().kind !== "live" || events.length === 0) {
-        // an unpaired install queues nothing: pairing later syncs from that
+        // a signed-out install queues nothing: signing in later syncs from that
         // moment, not a backlog no other device has a base for.
         return;
       }
@@ -340,14 +330,27 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
       void syncNow();
     },
 
-    beginPair: (request) => pairFlow.beginPair(request),
-    completePair: (request) => pairFlow.completePair(request),
+    async login(request) {
+      if (disposed) {
+        return {
+          kind: "refused",
+          failure: { kind: "unreachable", message: "This app is shutting down." },
+        };
+      }
+      const outcome = await loginDevice({
+        client: endpoint(),
+        store: { write: adoptCredential },
+        email: request.email,
+        password: request.password,
+        // raw hostname(): the flow bounds and defaults the name.
+        deviceName: request.deviceName ?? hostname(),
+      });
+      return outcome.kind === "logged-in" ? { kind: "logged-in", status: status() } : outcome;
+    },
 
     unpair() {
       session.close();
       haltTransport();
-      // an armed approval must not outlive the credential it was meant to replace.
-      pairFlow.cancel();
       clearDeviceCredential(args.dataDir);
       resetSyncState(args.db);
       lastError = null;
@@ -360,8 +363,6 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
     async dispose() {
       disposed = true;
       haltTransport();
-      // the slot must not outlive the runtime that owns it.
-      pairFlow.cancel();
       // without the abort the teardown budget is a hope: the pass would wait out
       // every round trip and keep writing.
       session.abort();

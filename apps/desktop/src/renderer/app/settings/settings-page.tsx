@@ -104,8 +104,8 @@ export function SettingsPage({ onBack }: { onBack: () => void }) {
                   "…"
                 ) : status.state === "no-remote" ? (
                   <span className="text-muted-foreground">
-                    {syncBlockedReason(status)} — pair a device below to sync through your account,
-                    or set INTELIGIR_VAULT_REMOTE / config.json for your own remote.
+                    {syncBlockedReason(status)} — sign in below to sync through your account, or set
+                    INTELIGIR_VAULT_REMOTE / config.json for your own remote.
                   </span>
                 ) : (
                   <span className="block truncate font-mono text-xs" title={status.remote}>

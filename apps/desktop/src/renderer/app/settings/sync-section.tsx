@@ -2,15 +2,14 @@
 // has a "Sync now" that pushes files. No on/off toggle: the credential on disk
 // is the switch, and a second value could disagree with it.
 
-import type {
-  CloudPairBeginResponse,
-  CloudStatusResponse,
-} from "@repo/api/local/cloud/cloud-schema";
+import type { CloudStatusResponse } from "@repo/api/local/cloud/cloud-schema";
 import { Button } from "@repo/ui/components/button";
 import { confirm } from "@repo/ui/components/confirm-dialog";
+import { Input } from "@repo/ui/components/input";
+import { Label } from "@repo/ui/components/label";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
-import { orpc } from "../api";
+import { useId, useState } from "react";
+import { orpc, refusalMessage } from "../api";
 import { relativeTimeLabel, useNow } from "../relative-time";
 import { useVaultStatus } from "../vault-hooks";
 import { failed, Row, SectionHeading } from "./settings-chrome";
@@ -34,45 +33,67 @@ function lastSyncedLabel(epochMs: number | null, nowMs: number): string {
 // Must match the seconds tier above, or "40s ago" freezes until the minute tick.
 const LAST_SYNCED_TICK_MS = 1_000;
 
-export function describeBegun(begun: CloudPairBeginResponse): string {
-  const minutes = Math.round(begun.expiresInMs / 60_000);
-  return begun.opened
-    ? `Approve “${begun.deviceName}” in the browser window that just opened. The link works for ${minutes} minutes.`
-    : `Open this link to approve “${begun.deviceName}”. It works for ${minutes} minutes.`;
-}
-
-export interface PairPromptProps {
+export interface SignInFormProps {
   cloudUrl: string;
-  begun: CloudPairBeginResponse | null;
-  onBegin: () => void;
+  onSignIn: (login: { email: string; password: string }) => void;
   pending: boolean;
+  // the cloud's own words for why it said no, shown beside the fields it applies to
+  refusal: string | null;
 }
 
-export function PairPrompt({ cloudUrl, begun, onBegin, pending }: PairPromptProps) {
+export function SignInForm({ cloudUrl, onSignIn, pending, refusal }: SignInFormProps) {
+  const formId = useId();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const ready = email.trim() !== "" && password !== "";
+
   return (
-    <div className="space-y-3 rounded-md border border-border p-3">
+    <form
+      className="space-y-3 rounded-md border border-border p-3"
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (ready && !pending) {
+          onSignIn({ email, password });
+        }
+      }}
+    >
       <p className="text-xs text-muted-foreground">
-        Pairing sends you to {new URL(cloudUrl).host} to approve this device. Your threads and your
-        vault then sync through your account — unless this machine is configured with its own git
-        remote.
+        Sign in with your {new URL(cloudUrl).host} account. Your threads and your vault then sync
+        through it — unless this machine is configured with its own git remote.
       </p>
-      <Button type="button" size="compact" onClick={onBegin} disabled={pending}>
-        Pair with browser
+      <div className="flex items-center gap-2">
+        <Label htmlFor={`${formId}-email`} className="w-24 shrink-0 text-xs">
+          Email
+        </Label>
+        <Input
+          id={`${formId}-email`}
+          type="email"
+          autoComplete="username"
+          value={email}
+          onChange={(event) => {
+            setEmail(event.target.value);
+          }}
+        />
+      </div>
+      <div className="flex items-center gap-2">
+        <Label htmlFor={`${formId}-password`} className="w-24 shrink-0 text-xs">
+          Password
+        </Label>
+        <Input
+          id={`${formId}-password`}
+          type="password"
+          autoComplete="current-password"
+          value={password}
+          onChange={(event) => {
+            setPassword(event.target.value);
+          }}
+        />
+      </div>
+      {refusal === null ? null : <p className="text-xs text-destructive">{refusal}</p>}
+      <Button type="submit" size="compact" disabled={pending || !ready}>
+        Sign in
       </Button>
-      {begun === null ? null : (
-        <div className="space-y-1">
-          <p className="text-xs text-muted-foreground">{describeBegun(begun)}</p>
-          <a
-            href={begun.url}
-            target="_blank"
-            rel="noreferrer"
-            className="block truncate font-mono text-xs underline underline-offset-2"
-          >
-            {begun.url}
-          </a>
-        </div>
-      )}
-    </div>
+    </form>
   );
 }
 
@@ -112,17 +133,20 @@ export function SyncSection() {
   const { data: vaultStatus } = useVaultStatus();
   const statusQuery = useCloudStatus();
   const now = useNow(LAST_SYNCED_TICK_MS);
-  const [begun, setBegun] = useState<CloudPairBeginResponse | null>(null);
+  const [refusal, setRefusal] = useState<string | null>(null);
 
   const applyStatus = (next: CloudStatusResponse): void => {
     queryClient.setQueryData(orpc.cloud.status.queryKey(), next);
   };
 
-  const pairBegin = useMutation(
-    orpc.cloud.pairBegin.mutationOptions({
-      onSuccess: setBegun,
+  const signIn = useMutation(
+    orpc.cloud.login.mutationOptions({
+      onSuccess: (next) => {
+        setRefusal(null);
+        applyStatus(next);
+      },
       onError: (error) => {
-        failed(error, "Could not start pairing.");
+        setRefusal(refusalMessage(error, "Could not sign in."));
       },
     }),
   );
@@ -142,7 +166,7 @@ export function SyncSection() {
       },
     }),
   );
-  const pending = pairBegin.isPending || unpairDevice.isPending || syncThreads.isPending;
+  const pending = signIn.isPending || unpairDevice.isPending || syncThreads.isPending;
 
   // Confirm before mutate: a section greyed out while the dialog waits claims
   // work that has not started.
@@ -162,7 +186,7 @@ export function SyncSection() {
       if (!confirmed) {
         return;
       }
-      setBegun(null);
+      setRefusal(null);
       unpairDevice.mutate();
     })();
   };
@@ -175,18 +199,18 @@ export function SyncSection() {
       {status === undefined ? (
         <p className="text-sm text-muted-foreground">…</p>
       ) : status.state === "off" ? (
-        <PairPrompt
+        <SignInForm
           cloudUrl={status.cloudUrl}
-          begun={begun}
-          onBegin={() => {
-            pairBegin.mutate({ openBrowser: true });
+          onSignIn={(login) => {
+            signIn.mutate(login);
           }}
           pending={pending}
+          refusal={refusal}
         />
       ) : status.state === "unauthorized" ? (
         <div className="space-y-2">
           <p className="text-xs text-muted-foreground">
-            {status.detail} Sync is stopped. Unpair, then pair this device again.
+            {status.detail} Sync is stopped. Unpair, then sign this device in again.
           </p>
           <Button size="compact" variant="tertiary" onClick={unpair} disabled={pending}>
             Unpair

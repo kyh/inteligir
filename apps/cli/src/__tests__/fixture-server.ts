@@ -151,13 +151,20 @@ const agentsRouter = {
 
 const cloudRouter = {
   status: base.cloud.status.handler(({ context }) => context.cloud),
-  // nothing opens here; `opened` echoes the request so the CLI's own claim can be checked.
-  pairBegin: base.cloud.pairBegin.handler(({ input }) => ({
-    url: `${FIXTURE_CLOUD_URL}/app/pair?redirect=http%3A%2F%2F127.0.0.1%3A4664%2Fpair%2Fcallback&state=${"0".repeat(32)}&name=fixture`,
-    opened: input.openBrowser,
-    deviceName: input.deviceName ?? "fixture-host",
-    expiresInMs: 600_000,
-  })),
+  login: base.cloud.login.handler(({ context, input }) => {
+    context.cloud = {
+      state: "paired",
+      cloudUrl: FIXTURE_CLOUD_URL,
+      accountEmail: input.email,
+      deviceId: `dev_${input.deviceName ?? "fixture-host"}`,
+      connected: false,
+      pending: 0,
+      cursor: 0,
+      lastSyncedAt: null,
+      lastError: null,
+    };
+    return context.cloud;
+  }),
   unpair: base.cloud.unpair.handler(({ context }) => {
     context.cloud = { state: "off", cloudUrl: FIXTURE_CLOUD_URL };
     return context.cloud;

@@ -5,16 +5,16 @@ import {
   DEVICE_API_PATHS,
   listDevicesResponseSchema,
   type Device,
-} from "@repo/api/cloud/pairing/pairing-schema";
+} from "@repo/api/cloud/device/device-schema";
 import { Button } from "@repo/ui/components/button";
 
 import { AuthError } from "@/components/auth-shell";
 import { currentSession } from "@/lib/session-guard";
 import { siteConfig } from "@/lib/site-config";
 
-// No "mint a code" button: /app/pair mints one straight into a redirect, and a code a
-// human retypes would be a second pairing path. ssr: false because everything here
-// depends on the live session, and only the client can send a signed-out visitor to sign-in.
+// Nothing here adds a device: a device signs in from the app with the account's own password.
+// ssr: false because everything here depends on the live session, and only the client can send
+// a signed-out visitor to sign-in.
 
 export const Route = createFileRoute("/app/devices")({
   ssr: false,
@@ -66,16 +66,16 @@ function DevicesPage() {
       </Link>
       <h1 className="text-lg font-medium tracking-tight">Devices</h1>
       <p className="mt-1 text-sm text-muted-foreground">
-        To pair a machine, start it there — Settings → Devices in the app, or{" "}
-        <code>inteligir cloud pair</code> — and approve it in the browser it opens. Each device gets
-        its own credential; revoking one cuts it off immediately.
+        To add a machine, sign in there — Settings → Devices in the app, or{" "}
+        <code>inteligir cloud login</code>. Each device gets its own credential; revoking one cuts
+        it off immediately.
       </p>
 
       <div className="mt-6">
         <AuthError message={error} />
       </div>
 
-      <h2 className="mt-4 text-sm font-medium">Paired devices</h2>
+      <h2 className="mt-4 text-sm font-medium">Signed-in devices</h2>
       <DeviceList devices={devices} onRevoke={onRevoke} />
     </main>
   );
@@ -92,7 +92,7 @@ function DeviceList({
     return <p className="mt-2 text-sm text-muted-foreground">Loading…</p>;
   }
   if (devices.length === 0) {
-    return <p className="mt-2 text-sm text-muted-foreground">No devices paired yet.</p>;
+    return <p className="mt-2 text-sm text-muted-foreground">No devices signed in yet.</p>;
   }
   return (
     <ul className="mt-2 divide-y rounded-md border">

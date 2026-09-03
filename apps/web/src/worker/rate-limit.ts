@@ -61,6 +61,15 @@ export async function forgetDeviceBudgets(
   await db.delete(rateLimit).where(inArray(rateLimit.key, keys));
 }
 
-export function callerIp(request: Request): string {
-  return request.headers.get("cf-connecting-ip") ?? "unknown";
+// the unauthenticated routes, keyed on the caller's address: nothing else about the caller is
+// known yet, and a login with no throttle is a password oracle
+const CALLER_RATE_KEY_PREFIXES = {
+  login: "device-login:",
+  inviteSignUp: "invite-signup:",
+} as const;
+
+export type CallerRateFamily = keyof typeof CALLER_RATE_KEY_PREFIXES;
+
+export function callerRateKey(family: CallerRateFamily, request: Request): string {
+  return `${CALLER_RATE_KEY_PREFIXES[family]}${request.headers.get("cf-connecting-ip") ?? "unknown"}`;
 }

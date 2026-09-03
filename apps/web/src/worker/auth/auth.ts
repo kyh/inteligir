@@ -5,7 +5,7 @@ import { sql } from "drizzle-orm";
 import { deleteVaultGitRepo } from "../vault/git-remote";
 import { createDb } from "../db/client";
 import { inviteCode } from "../db/schema";
-import { purgeDeviceRows } from "../device/pairing";
+import { purgeDeviceRows } from "../device/login";
 import { purgeThreadSync } from "../sync/routes";
 import { sendResetEmail } from "./reset-email";
 

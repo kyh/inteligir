@@ -1,9 +1,11 @@
-// one slot, shared by device pairing and connector oauth: a second arm replaces the first.
-// a matching claim consumes the slot before the caller redeems, so a callback replayed from
-// browser history completes nothing; a wrong state leaves it armed, or any local page could cancel a dance.
+// one slot per browser round trip: a second arm replaces the first. a matching claim consumes
+// the slot before the caller exchanges anything, so a callback replayed from browser history
+// completes nothing; a wrong state leaves it armed, or any local page could cancel a dance.
 
-import { constantTimeEqual, hexFromBytes } from "../bytes";
-import { PAIR_STATE_BYTES, webPkceCrypto, type PkceCrypto } from "./pairing-schema";
+import { constantTimeEqual, hexFromBytes } from "./bytes";
+
+export const APPROVAL_STATE_BYTES = 16;
+export const APPROVAL_STATE_PATTERN = /^[0-9a-f]{32}$/;
 
 export type ApprovalClaim<T> =
   | { kind: "claimed"; payload: T }
@@ -13,7 +15,6 @@ export type ApprovalClaim<T> =
 
 export interface ApprovalSlotArgs {
   ttlMs: number;
-  crypto?: Pick<PkceCrypto, "randomBytes">;
   now?: () => number;
 }
 
@@ -24,13 +25,12 @@ export interface ApprovalSlot<T> {
 }
 
 export function createApprovalSlot<T>(args: ApprovalSlotArgs): ApprovalSlot<T> {
-  const crypto = args.crypto ?? webPkceCrypto;
   const now = args.now ?? Date.now;
   let pending: { state: string; payload: T; expiresAt: number } | null = null;
 
   return {
     arm(payload) {
-      const state = hexFromBytes(crypto.randomBytes(PAIR_STATE_BYTES));
+      const state = hexFromBytes(crypto.getRandomValues(new Uint8Array(APPROVAL_STATE_BYTES)));
       pending = { state, payload, expiresAt: now() + args.ttlMs };
       return state;
     },

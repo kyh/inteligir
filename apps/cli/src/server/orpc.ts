@@ -33,7 +33,7 @@ export interface AppContext {
   connectorsOauth: ConnectorOauthFlow;
   folders: FoldersService;
   knowledge: KnowledgeRuntime;
-  // injected so a suite can watch a pairing begin without opening a window.
+  // injected so a suite can watch an authorization begin without opening a window.
   openExternalUrl: OpenExternalUrl;
   // the one per-request value: a callback url must name the port the caller
   // reached, since listen may have probed past the configured one.

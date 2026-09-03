@@ -22,10 +22,10 @@ import {
 import { cloudErrorSchema, type CloudErrorCode } from "./cloud-errors";
 import {
   DEVICE_API_PATHS,
-  redeemDeviceResponseSchema,
-  type RedeemDeviceRequest,
-  type RedeemDeviceResponse,
-} from "./pairing/pairing-schema";
+  deviceLoginResponseSchema,
+  type DeviceLoginRequest,
+  type DeviceLoginResponse,
+} from "./device/device-schema";
 import {
   pullResponseSchema,
   pushResponseSchema,
@@ -151,14 +151,15 @@ function queryString(values: Record<string, string | number | undefined>): strin
   return rendered === "" ? "" : `?${rendered}`;
 }
 
-export async function redeemDevice(
+// the one call made without a credential: its answer is the credential
+export async function postDeviceLogin(
   endpoint: CloudEndpoint,
-  request: RedeemDeviceRequest,
-): Promise<CloudResult<RedeemDeviceResponse>> {
+  request: DeviceLoginRequest,
+): Promise<CloudResult<DeviceLoginResponse>> {
   const call = endpoint.fetch ?? fetch;
   let response: Response;
   try {
-    response = await call(endpointUrl(endpoint.baseUrl, DEVICE_API_PATHS.redeem), {
+    response = await call(endpointUrl(endpoint.baseUrl, DEVICE_API_PATHS.login), {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(request),
@@ -167,7 +168,7 @@ export async function redeemDevice(
   } catch (error) {
     return { ok: false, failure: unreachable(error) };
   }
-  return await readValue(response, redeemDeviceResponseSchema);
+  return await readValue(response, deviceLoginResponseSchema);
 }
 
 export interface CloudClient {

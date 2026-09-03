@@ -1,20 +1,17 @@
 import { oc } from "@orpc/contract";
-import {
-  cloudPairBeginRequestSchema,
-  cloudPairBeginResponseSchema,
-  cloudStatusResponseSchema,
-} from "./cloud-schema";
+import { PROVIDER_UNAVAILABLE } from "../local-errors";
+import { cloudLoginRequestSchema, cloudStatusResponseSchema } from "./cloud-schema";
 
 export const cloudContract = {
   status: oc.output(cloudStatusResponseSchema),
 
-  // no procedure takes a code: only a browser arriving at GET /pair/callback with a state
-  // this handed out completes a pairing. BAD_REQUEST: the call did not arrive over this
-  // server's own loopback origin, so it names no callback address
-  pairBegin: oc
-    .input(cloudPairBeginRequestSchema)
-    .output(cloudPairBeginResponseSchema)
-    .errors({ BAD_REQUEST: {} }),
+  // the account's own refusals, each its own class so a client can say which: UNAUTHORIZED is a
+  // wrong email or password, CONFLICT the account's device cap, TOO_MANY_REQUESTS the login
+  // window, and PROVIDER_UNAVAILABLE a cloud that did not answer or answered nothing this build reads
+  login: oc
+    .input(cloudLoginRequestSchema)
+    .output(cloudStatusResponseSchema)
+    .errors({ UNAUTHORIZED: {}, CONFLICT: {}, TOO_MANY_REQUESTS: {}, PROVIDER_UNAVAILABLE }),
 
   // only forgets the credential; the device row on the account survives until revoked there
   unpair: oc.output(cloudStatusResponseSchema),

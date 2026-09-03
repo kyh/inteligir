@@ -2,7 +2,7 @@
 // desktop never sees.
 
 import type { CaptureRequest, CaptureResponse } from "@repo/api/cloud/captures/captures-schema";
-import type { DeviceCredential } from "@repo/api/cloud/pairing/pairing-schema";
+import type { DeviceCredential } from "@repo/api/cloud/device/device-schema";
 import {
   createSingleFlight,
   createSyncSession,

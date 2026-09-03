@@ -159,20 +159,22 @@ them as read-only — do not modify them.
   request may offer only some of them, and the CLI says which). \`--thread\`
   names the owning thread; omitted, it is looked up from the listing.
 
-## Cloud — this install's account pairing
+## Cloud — this install's account
 
 Cloud sync carries THREADS and their history between the devices on one
-account. It is off until someone pairs, and it never carries vault files —
-those are git's job.
+account. It is off until this install signs in, and it never carries vault
+files — those are git's job.
 
-- \`inteligir cloud status\` — whether this install is paired, how many events
-  are queued for the account, and how far behind it is.
-- \`inteligir cloud pair\` — start a pairing. The SERVER opens a browser at the
-  account's approve page and prints the URL; a person approves it there and
-  the pairing completes on its own. \`--name\` sets how this machine appears in
-  the account's device list (default: the hostname). Under \`--json\` nothing
-  is opened and the URL is printed for you to hand to the user — pairing is a
-  person's act, so print the link and stop rather than waiting on it.
+- \`inteligir cloud status\` — whether this install is signed in, how many
+  events are queued for the account, and how far behind it is.
+- \`inteligir cloud login --email <address> [--password <password>] [--name <device>]\`
+  — sign this machine in with the account's own email and password; it gets
+  its own device credential, revocable from the account's Devices page.
+  \`--password -\` reads the password from stdin; omitted on a terminal, it is
+  prompted for without echo; under \`--json\` it is required. \`--name\` sets how
+  this machine appears in the account's device list (default: the hostname).
+  Signing in is a person's act: never guess or retry a password — ask the user
+  for theirs, and prefer handing them the command to running it yourself.
 - \`inteligir cloud sync\` — run a pass now (drain the outbox, pull, apply) and
   print the state it left behind. Use it before reporting a long task done, so
   the work has actually reached the account.

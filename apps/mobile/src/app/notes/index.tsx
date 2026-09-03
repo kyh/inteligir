@@ -22,7 +22,7 @@ export default function NotesScreen() {
     setRefreshing(false);
   }, []);
 
-  // gated on pairing too: a revoked credential leaves the tree "ready" with a listing this device
+  // gated on the credential too: a revoked credential leaves the tree "ready" with a listing this device
   // may no longer read.
   const docs =
     status.state === "paired" && tree.state === "ready"
@@ -30,7 +30,7 @@ export default function NotesScreen() {
       : [];
   const emptyText =
     status.state !== "paired"
-      ? "Pair this device to read your notes."
+      ? "Sign in to read your notes."
       : tree.state === "loading" || tree.state === "idle"
         ? "Loading your vault…"
         : tree.state === "empty" || tree.state === "error"

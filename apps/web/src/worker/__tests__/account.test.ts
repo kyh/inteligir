@@ -1,7 +1,7 @@
 import { ACCOUNT_API_PATHS, accountResponseSchema } from "@repo/api/cloud/account/account-schema";
 import { SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
-import { deviceHeaders, ORIGIN, pairDevice, signUpUser } from "./cloud-helpers";
+import { deviceHeaders, ORIGIN, loginDevice, signUpUser } from "./cloud-helpers";
 
 // `GET /v1/account` — the row that lets the product NAME the account an
 // install syncs as (the account is the entitlement; Settings shows whose).
@@ -16,7 +16,7 @@ describe("the account row", () => {
 
   it("answers the credential's own account email", async () => {
     const { bearer } = await signUpUser("whoami@example.test");
-    const { credential } = await pairDevice(bearer, "Laptop");
+    const { credential } = await loginDevice(bearer, "Laptop");
     const response = await SELF.fetch(ACCOUNT, { headers: deviceHeaders(credential) });
     expect(response.status).toBe(200);
     const account = accountResponseSchema.parse(await response.json());

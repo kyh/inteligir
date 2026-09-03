@@ -1,7 +1,7 @@
 # `@repo/web` — inteligir.com
 
 One Cloudflare Worker serving the marketing site and the whole v3 cloud from
-one origin: the TanStack Start pages, Better Auth on D1, device pairing, the
+one origin: the TanStack Start pages, Better Auth on D1, device login, the
 per-user thread-sync Durable Object, the capture inbox and the hosted vault
 git remote. The wire contract is `@repo/api/cloud` — the Worker implements
 it, the local app's sync client consumes it.
@@ -12,16 +12,15 @@ it, the local app's sync client consumes it.
 src/
   routes/            TanStack Start file routes (SSR)
     index.tsx        The marketing page
-    app/             /app/sign-in, /app/sign-up, /app/forgot-password,
-                     /app/pair (the approve screen) and /app/devices (the
-                     device table), both client-only
+    app/             /app/sign-in, /app/sign-up, /app/forgot-password and
+                     /app/devices (the device table, client-only)
   components/        The site's own components (auth card, header, theme, orb)
   lib/               Better Auth client, session guard, site config
   worker/            The Worker's API half — its OWN tsconfig program (no DOM)
     server.ts        The deployed entry: path-splits API vs site SSR
     index.ts         The API route table (also the test suite's entry)
     auth/            Better Auth factory, invite gate, reset email + page
-    device/          Pairing mint/redeem, credential verification, /v1/account
+    device/          Device login, credential verification, /v1/account
     sync/            ThreadSyncDO + the device-authed route chokepoint
     vault/           The hosted vault git remote (durable-git behind the
                      wrapper) + the git-less /v1/vault/* read routes
@@ -43,13 +42,11 @@ its own `tsconfig.json`.
 | `/app/sign-in`                 | —       | Sign-in (SSR when signed out — see `lib/session-guard.ts`) |
 | `/app/sign-up`                 | —       | Sign-up form; submits to the invite gate                   |
 | `/app/forgot-password`         | —       | Requests the reset link                                    |
-| `/app/pair`                    | session | Approve a device: mints a code and redirects it to the app |
 | `/app/devices`                 | session | The device table: list and revoke                          |
 | `/api/auth/*`                  | —       | Better Auth (email+password, bearer, optional social)      |
 | `/auth/reset`                  | —       | The ONE reset page — Worker-served, static, `no-store`     |
 | `/v1/auth/sign-up`             | —       | The invite gate in front of Better Auth's sign-up          |
-| `POST /v1/device/code`         | session | Mint a one-time code for `/app/pair` (10 min, single-use)  |
-| `POST /v1/device/redeem`       | code    | Exchange the code for the durable device credential        |
+| `POST /v1/device/login`        | —       | Email + password in, the durable device credential out     |
 | `GET /v1/device/list`          | session | The device table (revoked rows included)                   |
 | `POST /v1/device/revoke`       | session | Cut a device off — bites on its next request               |
 | `POST /v1/sync/push`           | device  | Outbox batch in — idempotent, conflict-aware               |
@@ -64,7 +61,7 @@ its own `tsconfig.json`.
 | `GET /v1/vault/asset`          | device  | One embedded binary at that commit                         |
 | `GET /v1/account`              | device  | Whose account this device credential syncs as              |
 
-"device" auth is the `igd_…` credential pairing minted, verified per request by
+"device" auth is the `igd_…` credential a login minted, verified per request by
 hash compare against D1 — never cached, so revocation is immediate. The
 VERIFIED credential's userId — never a path or a body — names the state it
 reaches: the sync and capture routes fan out to that user's own
@@ -88,9 +85,17 @@ durable-git `RepoCell`, and `/v1/account` reads D1 directly.
   `/api/auth/sign-up/email` and `auth.api.signUpEmail` together; each social
   provider carries its own `disableSignUp`, so a provider is a sign-in for an
   account that already linked it, never a way to get one.
+- **A device signs in with the account's own email and password**
+  (`src/worker/device/login.ts`, the Obsidian Sync model). `POST /v1/device/login`
+  verifies the pair through `auth.api.signInEmail`, mints the `igd_…` credential
+  under the twenty-device cap, and DELETES the browser session that sign-in
+  created — the device holds its credential and nothing else, and a session
+  nobody sees is a bearer nobody revokes. A wrong password, an unknown address
+  and a social-only account all answer one `invalid-credentials`, throttled
+  per address; `/app/devices` is where a credential is revoked.
 - **Rate limits live in D1** (`rate_limit` table): Better Auth's own database
   limiter on the auth routes, and the same table behind the invite gate's and
-  the pairing redeem's 10/60s-per-IP windows (`src/worker/rate-limit.ts`). The
+  the device login's 10/60s-per-IP windows (`src/worker/rate-limit.ts`). The
   window is one upsert that RETURNS the count it settled on — a read-then-write
   limiter lets N concurrent requests all read the same count and all decide
   they are under the cap, which is the burst it exists to stop.
@@ -100,9 +105,9 @@ durable-git `RepoCell`, and `/v1/account` reads D1 directly.
   auth surface is cookie-bearing.
 - **Deleting the account deletes the account's data** in a `beforeDelete` hook,
   so a failed step aborts the deletion rather than orphaning data. THE ORDER IS
-  LOAD-BEARING: device + pairing rows first (while one lives its credential
-  still verifies, and a request on it can rebuild whatever was deleted before
-  it), then the hosted vault git repo, then the
+  LOAD-BEARING: device rows first (while one lives its credential still
+  verifies, and a request on it can rebuild whatever was deleted before it),
+  then the hosted vault git repo, then the
   ThreadSyncDO — purged whole and TOMBSTONED, which refuses the request that
   authenticated microseconds before step one — then the deleted email off the
   invite it spent (`redeemed_at` stays set, so the code stays burned).
