@@ -1,5 +1,5 @@
 {
-  "name": "inteligir",
+  "name": "inteligir-monorepo",
   "private": true,
   "scripts": {
     "build": "turbo run build",

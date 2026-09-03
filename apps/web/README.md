@@ -43,7 +43,7 @@ its own `tsconfig.json`.
 | `/app/sign-up`                 | —       | Sign-up form; submits to the invite gate                   |
 | `/app/forgot-password`         | —       | Requests the reset link                                    |
 | `/app/devices`                 | session | The device table: list and revoke                          |
-| `/api/auth/*`                  | —       | Better Auth (email+password, bearer, optional social)      |
+| `/api/auth/*`                  | —       | Better Auth (email+password, bearer)                       |
 | `/auth/reset`                  | —       | The ONE reset page — Worker-served, static, `no-store`     |
 | `/v1/auth/sign-up`             | —       | The invite gate in front of Better Auth's sign-up          |
 | `POST /v1/device/login`        | —       | Email + password in, the durable device credential out     |
@@ -82,16 +82,14 @@ durable-git `RepoCell`, and `/v1/account` reads D1 directly.
   instance built with sign-up enabled — so the response (cookie,
   `set-auth-token`, validation errors) is Better Auth's own, untouched. Every
   other caller's instance carries `disableSignUp`, which shuts
-  `/api/auth/sign-up/email` and `auth.api.signUpEmail` together; each social
-  provider carries its own `disableSignUp`, so a provider is a sign-in for an
-  account that already linked it, never a way to get one.
+  `/api/auth/sign-up/email` and `auth.api.signUpEmail` together.
 - **A device signs in with the account's own email and password**
   (`src/worker/device/login.ts`, the Obsidian Sync model). `POST /v1/device/login`
   verifies the pair through `auth.api.signInEmail`, mints the `igd_…` credential
   under the twenty-device cap, and DELETES the browser session that sign-in
   created — the device holds its credential and nothing else, and a session
-  nobody sees is a bearer nobody revokes. A wrong password, an unknown address
-  and a social-only account all answer one `invalid-credentials`, throttled
+  nobody sees is a bearer nobody revokes. A wrong password and an unknown
+  address answer one `invalid-credentials`, throttled
   per address; `/app/devices` is where a credential is revoked.
 - **Rate limits live in D1** (`rate_limit` table): Better Auth's own database
   limiter on the auth routes, and the same table behind the invite gate's and
@@ -162,13 +160,6 @@ pnpm --filter @repo/web db:push
 # 4. Set the runtime secrets (NOT committed). BETTER_AUTH_SECRET is a DEDICATED
 #    signing key — generate a fresh random 32+ char value, don't reuse another.
 wrangler secret put BETTER_AUTH_SECRET
-#    Optional social OAuth (a provider is live only when BOTH its secrets are
-#    set). Register `https://<worker-host>/api/auth/callback/github` (or
-#    …/google) as the authorized redirect URI:
-# wrangler secret put GITHUB_CLIENT_ID
-# wrangler secret put GITHUB_CLIENT_SECRET
-# wrangler secret put GOOGLE_CLIENT_ID
-# wrangler secret put GOOGLE_CLIENT_SECRET
 
 # 5. Password reset. Until the sending domain is onboarded, every reset email
 #    fails server-side and is only logged — the request response stays neutral

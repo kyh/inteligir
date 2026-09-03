@@ -210,7 +210,7 @@ export function SyncSection() {
       ) : status.state === "unauthorized" ? (
         <div className="space-y-2">
           <p className="text-xs text-muted-foreground">
-            {status.detail} Sync is stopped. Sign out, then sign this device in again.
+            {status.detail} Sync is stopped. Sign this device out, then sign it in again.
           </p>
           <Button size="compact" variant="tertiary" onClick={signOut} disabled={pending}>
             Sign out

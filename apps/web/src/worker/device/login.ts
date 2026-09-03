@@ -53,7 +53,7 @@ export async function loginDevice(
   try {
     signedIn = await auth.api.signInEmail({ body: { email: args.email, password: args.password } });
   } catch (error) {
-    // 401 is INVALID_EMAIL_OR_PASSWORD, which is also what a social-only account with no
+    // 401 is INVALID_EMAIL_OR_PASSWORD, which is also what a user with no credential account and no
     // password gets; anything else is a fault, not a refusal
     if (error instanceof APIError && error.statusCode === 401) {
       return refuseLogin("invalid-credentials");

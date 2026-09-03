@@ -65,7 +65,8 @@ export const settingsBrowser: Scenario = {
       }
 
       ctx.log("Sign out awaits a confirm: the dialog opens on this route");
-      await agentBrowser(["find", "text", "Sign out", "click"]);
+      // the button by role: the prose in the unauthorized state also contains the words.
+      await agentBrowser(["find", "role", "button", "click", "--name", "Sign out", "--exact"]);
       await agentBrowser(["wait", ALERT_DIALOG], 30_000);
       const dialog = await agentBrowser(["get", "text", ALERT_DIALOG]);
       expect(

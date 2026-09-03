@@ -123,29 +123,6 @@ describe("invite-gated sign-up", () => {
     expect(signIn.status).not.toBe(200);
   });
 
-  // asserted over the built config: driving a callback needs the provider to answer
-  it("refuses account creation through every social provider it can serve", () => {
-    const configured = createAuth(
-      {
-        ...env,
-        GITHUB_CLIENT_ID: "gh-id",
-        GITHUB_CLIENT_SECRET: "gh-secret",
-        GOOGLE_CLIENT_ID: "goo-id",
-        GOOGLE_CLIENT_SECRET: "goo-secret",
-      },
-      ORIGIN,
-    );
-
-    const social = configured.options.socialProviders ?? {};
-    expect(Object.keys(social).toSorted()).toEqual(["github", "google"]);
-    for (const [name, provider] of Object.entries(social)) {
-      expect(
-        provider?.disableSignUp,
-        `${name} may sign a linked account in, never create one`,
-      ).toBe(true);
-    }
-  });
-
   it("still signs an invited account back in through Better Auth", async () => {
     await mintCode("INVITE-RETURNS");
     expect(

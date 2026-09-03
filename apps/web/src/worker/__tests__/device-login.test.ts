@@ -108,30 +108,30 @@ describe("device login", () => {
     );
   });
 
-  it("refuses a social-only account the same way — it has no password to check", async () => {
+  it("refuses a user with no credential account the same way — there is no password to check", async () => {
     const db = createDb(env.DB);
     const now = new Date();
     await db.insert(user).values({
-      id: "social-only-user",
-      name: "Social Only",
-      email: "social-only@example.test",
+      id: "passwordless-user",
+      name: "Passwordless",
+      email: "passwordless@example.test",
       createdAt: now,
       updatedAt: now,
     });
     await db.insert(account).values({
-      id: "social-only-account",
+      id: "passwordless-account",
       issuer: "github",
       accountId: "gh-123",
       providerId: "github",
-      userId: "social-only-user",
+      userId: "passwordless-user",
       createdAt: now,
       updatedAt: now,
     });
 
     await expectInvalidCredentials(
-      await postLogin({ email: "social-only@example.test", password: PASSWORD, deviceName: "L" }),
+      await postLogin({ email: "passwordless@example.test", password: PASSWORD, deviceName: "L" }),
     );
-    expect(await activeDevices("social-only-user")).toEqual([]);
+    expect(await activeDevices("passwordless-user")).toEqual([]);
   });
 
   it("refuses a body it cannot read as a login", async () => {

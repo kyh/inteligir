@@ -180,7 +180,7 @@ tools/
 - **Monorepo**: Turborepo + pnpm workspaces, oxlint/oxfmt, vitest, knip
 - **Web**: TanStack Start + React 19 + Tailwind CSS 4 on a Cloudflare Worker
 - **Auth**: Better Auth on D1 via Drizzle — email+password, bearer tokens,
-  optional GitHub/Google, invite-gated sign-up
+  invite-gated sign-up; no social providers
 
 ## Commands and gates
 
@@ -477,9 +477,9 @@ carries the mechanism. The dangling-reference guard keeps the pointers honest.
   per caller address: a login route with no throttle is a password oracle.
   Rejected: the browser approve page, the one-time code, PKCE and the loopback
   callback, a ceremony whose point was keeping the password out of the app.
-  Residuals: the password passes through the app once over HTTPS, and an
-  account created through a social provider has no password until it sets one
-  on the site. The one flow both the CLI and the phone run is
+  Residual: the password passes through the app once over HTTPS. Social
+  providers are gone with it: a login that must work inside the app can only be
+  a password. The one flow both the CLI and the phone run is
   `@repo/api/cloud/device/login-flow.ts`; the route is
   `apps/web/src/worker/device/login.ts`.
 - **`@repo/api/cloud` IS THE CLIENT RUNTIME CORE, not only the wire**:
@@ -618,7 +618,7 @@ carries the mechanism. The dangling-reference guard keeps the pointers honest.
 - **Sign-up is invite-gated by a Worker route in front of Better Auth**
   (`apps/web/src/worker/auth/invite.ts`): claims the code atomically and
   forwards into the one instance with `disableSignUp` off; every other instance
-  and each social provider carries the flag. `apps/web/README.md` § Auth.
+  carries the flag. `apps/web/README.md` § Auth.
 
 - **The D1 auth schema ships via `drizzle-kit push`; there are no migration
   files.** One deployer and an additive schema; `apps/web/vitest.config.ts`

@@ -5,10 +5,6 @@
 interface Env {
   readonly BETTER_AUTH_SECRET: string;
   readonly BETTER_AUTH_TRUSTED_ORIGINS?: string;
-  readonly GITHUB_CLIENT_ID?: string;
-  readonly GITHUB_CLIENT_SECRET?: string;
-  readonly GOOGLE_CLIENT_ID?: string;
-  readonly GOOGLE_CLIENT_SECRET?: string;
   // must belong to a domain onboarded with `wrangler email sending enable`
   readonly RESET_FROM_ADDRESS?: string;
   // "true" only in tests: the in-process Worker serves every request from one IP

@@ -89,7 +89,7 @@ export async function handleDeviceRoutes(request: Request, env: Env, url: URL): 
   return refuse("not-found", "No such route.");
 }
 
-// one message for a wrong password, an unknown address and a social-only account: a caller
+// one message for a wrong password and an unknown address: a caller
 // learns only that this pair will not work
 function loginFailureMessage(failure: LoginFailure): string {
   switch (failure) {

@@ -19,43 +19,6 @@ function trustedOrigins(env: Env): string[] {
   return extra ?? [];
 }
 
-// A provider exists only when both its secrets are bound. Every one carries disableSignUp:
-// an OAuth callback creates an account from the provider's profile, asking no invite code.
-type SocialCredential = {
-  readonly clientId: string;
-  readonly clientSecret: string;
-  readonly disableSignUp: true;
-};
-
-type SocialProviders = {
-  github?: SocialCredential;
-  google?: SocialCredential;
-};
-
-function socialCredentials(env: Env): SocialProviders {
-  const providers: SocialProviders = {};
-  if (env.GITHUB_CLIENT_ID !== undefined && env.GITHUB_CLIENT_SECRET !== undefined) {
-    providers.github = {
-      clientId: env.GITHUB_CLIENT_ID,
-      clientSecret: env.GITHUB_CLIENT_SECRET,
-      disableSignUp: true,
-    };
-  }
-  if (env.GOOGLE_CLIENT_ID !== undefined && env.GOOGLE_CLIENT_SECRET !== undefined) {
-    providers.google = {
-      clientId: env.GOOGLE_CLIENT_ID,
-      clientSecret: env.GOOGLE_CLIENT_SECRET,
-      disableSignUp: true,
-    };
-  }
-  return providers;
-}
-
-function socialProviders(env: Env) {
-  const providers = socialCredentials(env);
-  return Object.keys(providers).length > 0 ? { socialProviders: providers } : {};
-}
-
 // redeemed_at stays set: clearing it would hand a working sign-up to whoever still holds the
 // code. Case-insensitive because the gate stores the address as typed and Better Auth lowercases it.
 async function forgetInviteRedeemer(env: Env, email: string): Promise<void> {
@@ -114,6 +77,5 @@ function buildAuth(env: Env, baseURL: string, disableSignUp: boolean) {
       },
     },
     trustedOrigins: trustedOrigins(env),
-    ...socialProviders(env),
   });
 }
