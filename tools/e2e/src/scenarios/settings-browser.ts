@@ -65,9 +65,17 @@ export const settingsBrowser: Scenario = {
       }
 
       ctx.log("Sign out awaits a confirm: the dialog opens on this route");
-      // the button by role: the prose in the unauthorized state also contains the words.
-      await agentBrowser(["find", "role", "button", "click", "--name", "Sign out", "--exact"]);
-      await agentBrowser(["wait", ALERT_DIALOG], 30_000);
+      // by role, since the unauthorized state's prose carries the words too; retried, because a
+      // click that lands before React attaches the handler is lost on a slow runner.
+      let opened = false;
+      for (let attempt = 0; attempt < 3 && !opened; attempt += 1) {
+        await agentBrowser(["find", "role", "button", "click", "--name", "Sign out", "--exact"]);
+        opened = await agentBrowser(["wait", ALERT_DIALOG], 10_000).then(
+          () => true,
+          () => false,
+        );
+      }
+      expect(opened, "the Sign out confirm dialog never opened");
       const dialog = await agentBrowser(["get", "text", ALERT_DIALOG]);
       expect(
         dialog.includes("Stop syncing this device?"),

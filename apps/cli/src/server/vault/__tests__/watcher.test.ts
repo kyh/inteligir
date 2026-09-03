@@ -18,6 +18,9 @@ describe("the vault watcher over the real backend", () => {
     async (ctx) => {
       const root = makeTempDir("inteligir-watch-test-");
       await mkdir(join(root, ".git"), { recursive: true });
+      // before the subscription: inotify watches a new directory only after its create event
+      // lands, so a file written right behind the mkdir can be missed.
+      await mkdir(join(root, "notes"), { recursive: true });
 
       const batches: string[][] = [];
       const errors: string[] = [];
@@ -51,7 +54,6 @@ describe("the vault watcher over the real backend", () => {
       batches.length = 0;
       await writeFile(join(root, ".git", "index.lock"), "lock", "utf8");
       await writeFile(join(root, ".inteligir-tmp-cafe"), "staging", "utf8");
-      await mkdir(join(root, "notes"), { recursive: true });
       await writeFile(join(root, "notes", "deep.md"), "external edit\n", "utf8");
       await vi.waitFor(() => expect(batches.flat()).toContain("notes/deep.md"), {
         timeout: PROBE_TIMEOUT_MS,
