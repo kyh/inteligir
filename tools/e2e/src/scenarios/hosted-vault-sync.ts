@@ -81,7 +81,7 @@ async function untilIdentityKnown(api: InstanceApi, label: string): Promise<void
   const deadline = Date.now() + IDENTITY_DEADLINE_MS;
   for (;;) {
     const status = await api.cloud.status();
-    if (status.state === "paired" && status.accountEmail !== null) {
+    if (status.state === "signed-in" && status.accountEmail !== null) {
       return;
     }
     expect(
@@ -157,7 +157,7 @@ export const hostedVaultSync: Scenario = {
     ctx.log("A boots accountless, then signs in through the production route");
     const a = await ctx.boot({ name: "a", extraEnv: cloudEnv(worker.origin) });
     const signedIn = await a.api.cloud.login({ ...OWNER, deviceName: "E2E Device A" });
-    expect(signedIn.state === "paired", `A's login answered ${signedIn.state}`);
+    expect(signedIn.state === "signed-in", `A's login answered ${signedIn.state}`);
     await untilIdentityKnown(a.api, "A");
 
     ctx.log("A writes and pushes through the derived hosted remote");

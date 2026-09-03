@@ -8,11 +8,11 @@ describe("the credential codec parses at the boundary", () => {
     expect(parseStoredCredential(serializeCredential(VALID))).toStrictEqual(VALID);
   });
 
-  it("reads a null, malformed, or wrong-shaped record as unpaired", () => {
+  it("reads a null, malformed, or wrong-shaped record as signed out", () => {
     expect(parseStoredCredential(null)).toBeNull();
     expect(parseStoredCredential("{ not json")).toBeNull();
-    // A credential that does not match the wire pattern must read as "not
-    // paired", never as a token the cloud refuses on every request forever.
+    // A credential that does not match the wire pattern must read as "signed out",
+    // never as a token the cloud refuses on every request forever.
     expect(parseStoredCredential(JSON.stringify({ deviceId: "d", credential: "nope" }))).toBeNull();
     expect(parseStoredCredential(JSON.stringify({ deviceId: "d" }))).toBeNull();
   });

@@ -3,7 +3,7 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import type { CloudStatusResponse } from "@repo/api/local/cloud/cloud-schema";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { PairedDetails, SignInForm } from "../sync-section";
+import { SignedInDetails, SignInForm } from "../sync-section";
 
 afterEach(cleanup);
 
@@ -61,8 +61,8 @@ describe("the sign-in form", () => {
 
 const NOW_MS = 1_756_600_000_000;
 
-const PAIRED: Extract<CloudStatusResponse, { state: "paired" }> = {
-  state: "paired",
+const SIGNED_IN: Extract<CloudStatusResponse, { state: "signed-in" }> = {
+  state: "signed-in",
   cloudUrl: "https://cloud.test",
   accountEmail: "k@example.test",
   deviceId: "dev_1",
@@ -73,16 +73,18 @@ const PAIRED: Extract<CloudStatusResponse, { state: "paired" }> = {
   lastError: null,
 };
 
-describe("the paired details", () => {
+describe("the signed-in details", () => {
   it("says POLLING when no socket is up, rather than implying a live follow", () => {
-    render(<PairedDetails status={PAIRED} nowMs={NOW_MS} />);
+    render(<SignedInDetails status={SIGNED_IN} nowMs={NOW_MS} />);
     expect(screen.getByText(/Polling/u)).toBeDefined();
     expect(screen.getByText(/3 queued/u)).toBeDefined();
     expect(screen.getByText(/synced never/u)).toBeDefined();
   });
 
   it("dates the last sync from the clock it is handed, never its own", () => {
-    render(<PairedDetails status={{ ...PAIRED, lastSyncedAt: NOW_MS - 40_000 }} nowMs={NOW_MS} />);
+    render(
+      <SignedInDetails status={{ ...SIGNED_IN, lastSyncedAt: NOW_MS - 40_000 }} nowMs={NOW_MS} />,
+    );
     expect(screen.getByText(/synced 40s ago/u)).toBeDefined();
   });
 });

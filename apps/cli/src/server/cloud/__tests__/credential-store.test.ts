@@ -39,7 +39,7 @@ describe("the device credential at rest", () => {
     expect(statSync(path).mode & 0o777).toBe(0o600);
   });
 
-  it("reads a missing, empty or malformed file as NOT PAIRED", () => {
+  it("reads a missing, empty or malformed file as SIGNED OUT", () => {
     const dataDir = makeTempDir("inteligir-credential-");
     expect(readDeviceCredential(dataDir)).toBeNull();
 
@@ -56,7 +56,7 @@ describe("the device credential at rest", () => {
     expect(readDeviceCredential(dataDir)).toBeNull();
   });
 
-  it("clears, and clearing an unpaired install is not an error", () => {
+  it("clears, and clearing a signed-out install is not an error", () => {
     const dataDir = makeTempDir("inteligir-credential-");
     clearDeviceCredential(dataDir);
     writeDeviceCredential(dataDir, CREDENTIAL);

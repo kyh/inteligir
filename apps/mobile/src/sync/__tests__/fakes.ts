@@ -100,7 +100,7 @@ export function createFakeCloud(): FakeCloud {
         Promise.resolve<CloudResult<AckCapturesResponse>>(
           ok({ results: request.ids.map((id) => ({ id, outcome: "deleted" as const })) }),
         ),
-      account: () => Promise.resolve(ok({ id: "user_fake", email: "paired@example.test" })),
+      account: () => Promise.resolve(ok({ id: "user_fake", email: "signed-in@example.test" })),
       vaultTree: () => Promise.resolve(ok({ commit: "0".repeat(40), entries: [], next: null })),
       vaultAssetSource: (query) => ({
         uri: `https://cloud.test/v1/vault/asset?path=${query.path}&ref=${query.ref}`,

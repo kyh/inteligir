@@ -235,10 +235,11 @@ const syncStatusFields = {
   lastError: z.string().nullable(),
 };
 
-// "paired" is the account-derived remote (unpair removes it); "explicit" is the user's own.
+// "account" is the remote derived from the signed-in account (signing out removes it); "explicit"
+// is the user's own.
 const remoteFields = {
   remote: z.string().min(1),
-  remoteSource: z.enum(["explicit", "paired"]),
+  remoteSource: z.enum(["explicit", "account"]),
 };
 
 export const vaultStatusResponseSchema = z.discriminatedUnion("state", [
@@ -290,7 +291,7 @@ export const vaultStatusResponseSchema = z.discriminatedUnion("state", [
       ...syncStatusFields,
     })
     .strict(),
-  // not `offline`: offline heals on its own, this fails the same way until the user re-pairs.
+  // not `offline`: offline heals on its own, this fails the same way until the user signs in again.
   z
     .object({
       state: z.literal("unauthorized"),
@@ -298,7 +299,7 @@ export const vaultStatusResponseSchema = z.discriminatedUnion("state", [
       ...syncStatusFields,
     })
     .strict(),
-  // the paired account is not the one this vault last synced with; no pass runs, since a push
+  // the signed-in account is not the one this vault last synced with; no pass runs, since a push
   // would upload these notes into an account that never held them.
   z
     .object({

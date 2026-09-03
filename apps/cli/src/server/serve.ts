@@ -189,7 +189,7 @@ async function boot(
   const bootRemote = runtime.vaultRemote();
   const agent = runtime.context.system.agent;
   console.log(
-    `inteligir ${version} (${config.mode}) listening on http://127.0.0.1:${port} — data: ${config.dataDir} — vault: ${config.vaultDir}${bootRemote === null ? "" : ` ⇄ ${redactRemoteUrl(bootRemote.url)}${bootRemote.source === "paired" ? " (paired)" : ""}`}`,
+    `inteligir ${version} (${config.mode}) listening on http://127.0.0.1:${port} — data: ${config.dataDir} — vault: ${config.vaultDir}${bootRemote === null ? "" : ` ⇄ ${redactRemoteUrl(bootRemote.url)}${bootRemote.source === "account" ? " (account)" : ""}`}`,
   );
   console.log(`agent: ${agent.runtime}${agent.detail === null ? "" : ` — ${agent.detail}`}`);
   const serverUrl = `http://127.0.0.1:${port}`;

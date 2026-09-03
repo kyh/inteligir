@@ -13,9 +13,9 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   login,
+  logout,
   submitCapture,
   syncNow,
-  unpair,
   useLoginState,
   useSyncStatus,
   useThreads,
@@ -27,7 +27,7 @@ import { describeCloudFailure } from "@repo/api/cloud/client";
 
 export default function Index() {
   const status = useSyncStatus();
-  return status.state === "paired" ? <HomeScreen /> : <SignInScreen status={status} />;
+  return status.state === "signed-in" ? <HomeScreen /> : <SignInScreen status={status} />;
 }
 
 function SignInScreen({ status }: { status: SyncStatus }) {
@@ -108,7 +108,7 @@ function SignInScreen({ status }: { status: SyncStatus }) {
 }
 
 function describeStatus(status: SyncStatus): string {
-  if (status.state !== "paired") return "";
+  if (status.state !== "signed-in") return "";
   if (status.lastError !== null) return `Sync issue: ${status.lastError}`;
   return status.lastSyncedAt === null ? "Not synced yet" : "Synced";
 }
@@ -206,7 +206,7 @@ function HomeScreen() {
       </ScrollView>
 
       <View style={[styles.footer, { borderTopColor: theme.border }]}>
-        <Pressable onPress={() => void unpair()}>
+        <Pressable onPress={() => void logout()}>
           <Text style={[styles.smallText, { color: theme.mutedForeground }]}>
             Sign this device out
           </Text>

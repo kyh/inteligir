@@ -59,7 +59,7 @@ export const events = sqliteTable(
     itemKind: text("item_kind").$type<ThreadEventItemType>(),
     data: text("data").notNull().default("{}"),
     // (device, position) of the merged-log row, both null for a local event. not the
-    // account-global seq: after a re-pair the same seq names another account's row, so an
+    // account-global seq: after signing in again the same seq names another account's row, so an
     // idempotency check keyed on it would skip a genuine event. no CHECK pairs them, for the
     // reason on threads.provider_id.
     originDeviceId: text("origin_device_id"),

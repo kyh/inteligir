@@ -2,13 +2,13 @@ import { VAULT_GIT_PATH } from "@repo/api/cloud/vault/vault-git";
 import { endpointUrl } from "@repo/api/cloud/client";
 import { readDeviceCredential } from "./credential-store";
 
-// resolved per pass, not at boot, so pair/unpair flips vault sync live. the
+// resolved per pass, not at boot, so sign-in / sign-out flips vault sync live. the
 // credential rides per-invocation env, never the url: the engine persists the
 // remote url into <vault>/.git/config, which users back up and copy.
 
 export interface VaultRemoteSpec {
   url: string;
-  source: "explicit" | "paired";
+  source: "explicit" | "account";
   /** what the engine's inteligir.account marker is compared against; absent, the fence is inert. */
   account?: string;
   /** for the network git invocations (fetch/push/clone) only. */
@@ -41,7 +41,7 @@ export function createVaultRemoteProvider(
     const url = hostedVaultRemoteUrl(args.cloudUrl);
     const spec: VaultRemoteSpec = {
       url,
-      source: "paired",
+      source: "account",
       env: {
         GIT_CONFIG_COUNT: "1",
         GIT_CONFIG_KEY_0: `http.${url}.extraHeader`,

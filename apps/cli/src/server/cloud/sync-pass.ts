@@ -75,7 +75,7 @@ async function drain(deps: SyncPassDeps, context: PassContext): Promise<boolean>
       continue;
     }
     const result = await context.client.push(batch.request);
-    // the ack deletes rows; a re-pair mid-flight re-numbered the queue, so an old session's ack deletes new work.
+    // the ack deletes rows; a sign-in mid-flight re-numbered the queue, so an old session's ack deletes new work.
     if (!deps.fenced(context)) {
       return false;
     }

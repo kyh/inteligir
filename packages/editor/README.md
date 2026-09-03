@@ -103,7 +103,7 @@ src/
   the change events that invalidate them. The editor never reaches the server
   for any of it; the app installs it once
   (`apps/desktop/src/renderer/app/note/vault-provider.tsx`), and `host.ts` is
-  React's door (`useVaultActions`, `useVaultListing`).
+  React's door (`useVaultActions`, `useWikiResolver`).
 - `note/vault-session.ts` — `VaultSessionPorts`, what the open note's ordering
   is driven through: boot, list, rename, the `VaultIO` it reads and writes
   notes with (`vault-editor.ts`: read/write/create/remove), and the

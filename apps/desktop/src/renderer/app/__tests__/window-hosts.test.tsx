@@ -18,7 +18,7 @@ import { InertSocket } from "./inert-socket";
 import { rendererSources } from "./renderer-sources";
 
 const CONFIRM_TITLE = "Stop syncing this device?";
-const REFUSAL = "Could not unpair this device.";
+const REFUSAL = "Could not sign this device out.";
 
 let answered: boolean | null = null;
 
@@ -29,11 +29,11 @@ function SettingsStandIn() {
         type="button"
         onClick={() => {
           void (async () => {
-            answered = await confirm({ title: CONFIRM_TITLE, confirmLabel: "Unpair" });
+            answered = await confirm({ title: CONFIRM_TITLE, confirmLabel: "Sign out" });
           })();
         }}
       >
-        Unpair
+        Sign out
       </button>
       <button
         type="button"
@@ -78,12 +78,12 @@ afterEach(() => {
 describe("the window-level hosts", () => {
   it("open the confirm dialog from a non-index route, and settle its promise", async () => {
     mountAtSettings();
-    fireEvent.click(await screen.findByText("Unpair"));
+    fireEvent.click(await screen.findByText("Sign out"));
     const dialog = await screen.findByRole("alertdialog");
     expect(dialog.textContent).toContain(CONFIRM_TITLE);
 
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "Unpair" }));
+      fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
     });
     expect(answered).toBe(true);
   });

@@ -714,7 +714,7 @@ describe("cloud login", () => {
     });
     expect(result.code).toBe(0);
     expect(JSON.parse(result.stdout)).toMatchObject({
-      state: "paired",
+      state: "signed-in",
       accountEmail: "owner@example.test",
     });
   });

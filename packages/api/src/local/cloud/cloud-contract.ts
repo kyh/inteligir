@@ -14,7 +14,7 @@ export const cloudContract = {
     .errors({ UNAUTHORIZED: {}, CONFLICT: {}, TOO_MANY_REQUESTS: {}, PROVIDER_UNAVAILABLE }),
 
   // only forgets the credential; the device row on the account survives until revoked there
-  unpair: oc.output(cloudStatusResponseSchema),
+  logout: oc.output(cloudStatusResponseSchema),
 
   // a refusal along the way is reported in lastError, never raised
   syncNow: oc.output(cloudStatusResponseSchema),

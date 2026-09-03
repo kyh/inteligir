@@ -10,15 +10,15 @@ async function boot(cloud: FakeCloud): Promise<BootedTestApp> {
 }
 
 describe("cloud.login over the router", () => {
-  it("signs in, keeps the credential at 0600, and answers the paired status", async () => {
+  it("signs in, keeps the credential at 0600, and answers the signed-in status", async () => {
     const cloud = new FakeCloud();
     const app = await boot(cloud);
 
     const status = await app.client.cloud.login({ ...FAKE_ACCOUNT, deviceName: "Laptop" });
-    expect(status.state).toBe("paired");
+    expect(status.state).toBe("signed-in");
     expect(statSync(deviceCredentialPath(app.dataDir)).mode & 0o777).toBe(0o600);
     expect(readDeviceCredential(app.dataDir)?.deviceId).toBe("dev_1");
-    expect((await app.client.cloud.status()).state).toBe("paired");
+    expect((await app.client.cloud.status()).state).toBe("signed-in");
   });
 
   it("refuses a wrong password as UNAUTHORIZED and keeps no credential", async () => {
@@ -30,7 +30,7 @@ describe("cloud.login over the router", () => {
     expect(isDefinedError(refusal) && refusal.code).toBe("UNAUTHORIZED");
     expect(isDefinedError(refusal) && refusal.message).toBe("Wrong email or password.");
     expect(readDeviceCredential(app.dataDir)).toBeNull();
-    expect((await app.client.cloud.status()).state).toBe("off");
+    expect((await app.client.cloud.status()).state).toBe("signed-out");
   });
 
   it("refuses the account's device cap as CONFLICT", async () => {

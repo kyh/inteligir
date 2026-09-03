@@ -81,7 +81,7 @@ export function syncBlockedReason(status: VaultStatusResponse): string | null {
     case "held":
       return "An agent turn holds the vault; the next sync runs when it finishes";
     case "account-mismatch":
-      return "This vault last synced with a different account — unpair, or move the vault aside";
+      return "This vault last synced with a different account — sign out, or move the vault aside";
     case "clean":
     case "dirty":
     case "offline":

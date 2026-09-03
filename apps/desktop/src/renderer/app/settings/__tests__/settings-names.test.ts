@@ -21,7 +21,7 @@ function sources(): Array<{ file: string; text: string }> {
     .map((file) => ({ file, text: readFileSync(join(settingsDir, file), "utf8") }));
 }
 
-// A set per file: one file spelling "Unpair" twice is two branches of one conditional.
+// A set per file: one file spelling "Sign out" twice is two branches of one conditional.
 function namesByFile(patterns: readonly RegExp[]): Array<{ file: string; names: Set<string> }> {
   return sources().map(({ file, text }) => ({
     file,

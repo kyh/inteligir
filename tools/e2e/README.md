@@ -37,7 +37,7 @@ scratch dir and tears everything down afterwards:
   group. `extraEnv` may not touch harness-owned keys (paths, port, NODE_ENV,
   `GIT_*`) — collisions are refused loudly. `seedVault` writes fixture files
   before boot; the app's repo init commits them. `seedData` does the same for
-  the data dir — a device credential, so the instance boots already paired.
+  the data dir — a device credential, so the instance boots already signed in.
 - `bareRemote()` — a scratch bare git repo, returned as the `file://` URL for
   `INTELIGIR_VAULT_REMOTE`.
 - `cloudWorker()` — the product Worker (apps/web) under `wrangler dev` on a
@@ -83,7 +83,7 @@ what each one is FOR.
 |                           | clobbering                                                                |
 | view-context-browser      | the agent is told which note the message left from, and at what revision  |
 | dictation-browser         | the composer's mic captures, transcribes and inserts — never sends        |
-| settings-browser          | /settings hosts the window-level surfaces: Unpair opens its confirm       |
+| settings-browser          | /settings hosts the window-level surfaces: Sign out opens its confirm     |
 |                           | dialog on that route, and a refused connector add toasts there            |
 
 ## Adding a scenario

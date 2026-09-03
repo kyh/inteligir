@@ -20,10 +20,10 @@ import { applyPlan } from "./thread-log";
 import type { SyncStore } from "./sync-store";
 
 export type SyncStatus =
-  | { state: "off" }
+  | { state: "signed-out" }
   | { state: "unauthorized"; deviceId: string; detail: string }
   | {
-      state: "paired";
+      state: "signed-in";
       deviceId: string;
       cursor: number;
       lastSyncedAt: number | null;
@@ -60,7 +60,7 @@ export function createSyncRuntime(args: SyncRuntimeArgs): SyncRuntime {
   let pollTimer: ReturnType<typeof setInterval> | null = null;
   let lastError: string | null = null;
   let lastSyncedAt: number | null = null;
-  const status = createExternalStore<SyncStatus>({ state: "off" });
+  const status = createExternalStore<SyncStatus>({ state: "signed-out" });
 
   const session = createSyncSession<DeviceCredential>({
     makeClient: (credential, signal) => {
@@ -82,7 +82,7 @@ export function createSyncRuntime(args: SyncRuntimeArgs): SyncRuntime {
     const current = session.current();
     switch (current.kind) {
       case "off":
-        status.set({ state: "off" });
+        status.set({ state: "signed-out" });
         return;
       case "unauthorized":
         status.set({
@@ -93,7 +93,7 @@ export function createSyncRuntime(args: SyncRuntimeArgs): SyncRuntime {
         return;
       case "live":
         status.set({
-          state: "paired",
+          state: "signed-in",
           deviceId: current.credential.deviceId,
           cursor: args.store.readCursor(),
           lastSyncedAt,
@@ -190,7 +190,7 @@ export function createSyncRuntime(args: SyncRuntimeArgs): SyncRuntime {
       if (current.kind !== "live") {
         return Promise.resolve({
           ok: false,
-          failure: { kind: "unreachable", message: "not paired" },
+          failure: { kind: "unreachable", message: "signed out" },
         });
       }
       return current.client.createCapture(request);

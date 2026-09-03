@@ -1,17 +1,11 @@
 import { createStore } from "zustand/vanilla";
 
-import {
-  setEditorHostIo,
-  type VaultActions,
-  type VaultEntry,
-  type VaultListing,
-} from "@repo/editor/host-io";
+import { setEditorHostIo, type VaultActions, type WikiResolver } from "@repo/editor/host-io";
 
 export type HostCall = { readonly action: keyof VaultActions; readonly args: readonly unknown[] };
 
 export type FakeEditorHostOptions = {
   readonly resolveWikiTarget?: (target: string) => string | null;
-  readonly entries?: VaultEntry[];
 };
 
 // Installs the singleton the hooks read; the io half answers as an empty, read-only vault.
@@ -39,14 +33,13 @@ export function installFakeEditorHost(options: FakeEditorHostOptions = {}) {
     refreshVault: record("refreshVault", undefined),
   };
 
-  const listing = createStore<VaultListing>()(() => ({
-    entries: options.entries ?? [],
+  const wikiResolver = createStore<WikiResolver>()(() => ({
     resolveWikiTarget: options.resolveWikiTarget ?? (() => null),
   }));
 
   setEditorHostIo({
     actions,
-    listing,
+    wikiResolver,
     readVaultFile: ({ path }) => Promise.reject(new Error(`ENOENT ${path}`)),
     readVaultAsset: () => Promise.resolve({ ok: false, error: "no assets" }),
     writeVaultAsset: () => Promise.reject(new Error("read-only")),

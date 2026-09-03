@@ -260,7 +260,7 @@ export interface AppConfig {
   port: number;
   portSource: "env" | "managed-config" | "default";
   vaultDir: string;
-  // null is not local-only: a paired install still derives the hosted remote per pass.
+  // null is not local-only: a signed-in install still derives the hosted remote per pass.
   vaultRemote: string | null;
   // absent = runtime default, null = disabled, number = ms.
   vaultSyncIntervalMs?: number | null;

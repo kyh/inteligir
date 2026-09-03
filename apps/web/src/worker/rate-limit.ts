@@ -47,7 +47,7 @@ export function deviceRateKey(family: DeviceRateFamily, deviceId: string): strin
   return `${DEVICE_RATE_KEY_PREFIXES[family]}${deviceId}`;
 }
 
-// nothing else deletes a row here, so a pair-then-revoke loop would leave rows behind forever
+// nothing else deletes a row here, so a sign-in-then-revoke loop would leave rows behind forever
 export async function forgetDeviceBudgets(
   db: ReturnType<typeof createDb>,
   deviceIds: readonly string[],

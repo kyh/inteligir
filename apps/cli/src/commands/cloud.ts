@@ -1,4 +1,4 @@
-// no `unpair` here on purpose: it discards a queue of unsent writes, a decision for a person in front of
+// no `logout` here on purpose: it discards a queue of unsent writes, a decision for a person in front of
 // that state rather than a verb for a model to drive.
 
 import type { CloudLoginRequest, CloudStatusResponse } from "@repo/api/local/cloud/cloud-schema";
@@ -10,7 +10,7 @@ import { promptPassword, readPasswordFromStdin } from "./password-prompt";
 
 function describe(status: CloudStatusResponse): string[] {
   switch (status.state) {
-    case "off":
+    case "signed-out":
       return [
         `signed out  ${new URL(status.cloudUrl).host}`,
         "Run: inteligir cloud login --email <address> — with your account's password.",
@@ -20,7 +20,7 @@ function describe(status: CloudStatusResponse): string[] {
         `unauthorized  ${new URL(status.cloudUrl).host}  device ${status.deviceId}`,
         status.detail,
       ];
-    case "paired": {
+    case "signed-in": {
       const synced =
         status.lastSyncedAt === null ? "never" : new Date(status.lastSyncedAt).toISOString();
       return [

@@ -64,7 +64,7 @@ function build(): AppRuntime {
     store: {
       write: async (credential) => {
         await writeDeviceCredential(credential);
-        activate({ sync, notes }, { credential, source: "paired" });
+        activate({ sync, notes }, { credential, source: "signed-in" });
       },
     },
   });
@@ -88,7 +88,7 @@ export function syncNow(): Promise<void> {
   return getRuntime().sync.syncNow();
 }
 
-export async function unpair(): Promise<void> {
+export async function logout(): Promise<void> {
   const rt = getRuntime();
   await clearDeviceCredential();
   rt.sync.setCredential(null);

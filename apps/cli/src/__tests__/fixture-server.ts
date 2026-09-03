@@ -108,7 +108,7 @@ export function makeFixtureState(): FixtureState {
     related: [],
     connectors: { servers: [] },
     folders: { folders: [] },
-    cloud: { state: "off", cloudUrl: FIXTURE_CLOUD_URL },
+    cloud: { state: "signed-out", cloudUrl: FIXTURE_CLOUD_URL },
     threads: [],
     comments: new Map(),
     guideMarkdown: "# Fixture guide\n\nBe kind to the vault.\n",
@@ -153,7 +153,7 @@ const cloudRouter = {
   status: base.cloud.status.handler(({ context }) => context.cloud),
   login: base.cloud.login.handler(({ context, input }) => {
     context.cloud = {
-      state: "paired",
+      state: "signed-in",
       cloudUrl: FIXTURE_CLOUD_URL,
       accountEmail: input.email,
       deviceId: `dev_${input.deviceName ?? "fixture-host"}`,
@@ -165,8 +165,8 @@ const cloudRouter = {
     };
     return context.cloud;
   }),
-  unpair: base.cloud.unpair.handler(({ context }) => {
-    context.cloud = { state: "off", cloudUrl: FIXTURE_CLOUD_URL };
+  logout: base.cloud.logout.handler(({ context }) => {
+    context.cloud = { state: "signed-out", cloudUrl: FIXTURE_CLOUD_URL };
     return context.cloud;
   }),
   syncNow: base.cloud.syncNow.handler(({ context }) => context.cloud),

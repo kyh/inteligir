@@ -25,9 +25,9 @@ export type NoteRead = ({ ok: true } & CachedNote) | { ok: false; message: strin
 
 export interface CredentialHandover {
   credential: DeviceCredential;
-  // restored: the boot read of a credential whose cached rows are on disk. paired: nothing on disk
-  // is this pairing's.
-  source: "restored" | "paired";
+  // restored: the boot read of a credential whose cached rows are on disk. signed-in: nothing on
+  // disk is this sign-in's.
+  source: "restored" | "signed-in";
 }
 
 export interface NotesStore {
@@ -37,7 +37,7 @@ export interface NotesStore {
   readNote(path: string): Promise<NoteRead>;
   resolveWiki(target: string): string | null;
   // null until a tree is ready: the route refuses an unpinned asset url. the bytes then sit in the
-  // platform image caches (NSURLCache, Fresco), which core RN Image cannot purge on unpair.
+  // platform image caches (NSURLCache, Fresco), which core RN Image cannot purge on sign-out.
   assetSource(path: string): VaultAssetSource | null;
 }
 
@@ -56,11 +56,11 @@ function bestEffort(work: Promise<void>): void {
 export function createNotesStore(args: CreateNotesStoreArgs): NotesStore {
   let client: Client | null = null;
   let resolver: TargetResolver | null = null;
-  // a generation, not a boolean, so a re-pair's refresh is never blocked by the previous pairing's
+  // a generation, not a boolean, so a new sign-in's refresh is never blocked by the previous sign-in's
   // stalled one.
   let refreshingFor = -1;
   // bumped on every credential change and checked after every await: a response from the previous
-  // pairing must not land.
+  // sign-in must not land.
   let generation = 0;
   const noteCache = args.cache ?? createMemoryNoteCache(NOTE_CACHE_MAX);
   const tree = createExternalStore<NotesTreeState>({ state: "idle" });
@@ -73,7 +73,7 @@ export function createNotesStore(args: CreateNotesStoreArgs): NotesStore {
       assetSources.clear();
       tree.set({ state: "idle" });
       // durable rows survive only the boot restore of the credential that wrote them.
-      if (next === null || next.source === "paired") {
+      if (next === null || next.source === "signed-in") {
         bestEffort(noteCache.clear());
       }
       if (next === null) {
@@ -141,8 +141,8 @@ export function createNotesStore(args: CreateNotesStoreArgs): NotesStore {
     tree,
 
     async readNote(path) {
-      if (client === null) return { ok: false, message: "Not paired." };
-      // captured: an unpair nulls the closure's client mid-await.
+      if (client === null) return { ok: false, message: "Not signed in." };
+      // captured: a sign-out nulls the closure's client mid-await.
       const activeClient = client;
       const startedAt = generation;
       const current = tree.get();
@@ -151,7 +151,7 @@ export function createNotesStore(args: CreateNotesStoreArgs): NotesStore {
       // only a read pinned to the tree's commit touches the cache: head moves.
       if (commit !== undefined) {
         const cached = await noteCache.get(commit, path).catch(() => null);
-        if (generation !== startedAt) return { ok: false, message: "Not paired." };
+        if (generation !== startedAt) return { ok: false, message: "Not signed in." };
         if (cached !== null) {
           return { ok: true, ...cached };
         }
@@ -161,7 +161,7 @@ export function createNotesStore(args: CreateNotesStoreArgs): NotesStore {
       if (commit !== undefined) query.ref = commit;
       const result = await activeClient.vaultFile(query);
       if (generation !== startedAt) {
-        return { ok: false, message: "Not paired." };
+        return { ok: false, message: "Not signed in." };
       }
       if (!result.ok) {
         return { ok: false, message: describeCloudFailure(result.failure) };

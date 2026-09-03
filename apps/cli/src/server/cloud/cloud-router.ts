@@ -26,13 +26,13 @@ const login = base.cloud.login.handler(async ({ context, input, errors }) => {
   throw errors.PROVIDER_UNAVAILABLE({ message: describeCloudFailure(failure) });
 });
 
-const unpair = base.cloud.unpair.handler(({ context }) => context.cloud.unpair());
+const logout = base.cloud.logout.handler(({ context }) => context.cloud.logout());
 
 const syncNow = base.cloud.syncNow.handler(({ context }) => context.cloud.syncNow());
 
 export const cloudRouter = {
   status,
   login,
-  unpair,
+  logout,
   syncNow,
 };

@@ -28,7 +28,7 @@ export default function NoteScreen() {
   // subscribed, not read once: a deep link can mount this screen before the tree lands,
   // and the subscription is what re-renders the embeds when it does.
   useNotesTree();
-  const paired = status.state === "paired";
+  const signedIn = status.state === "signed-in";
 
   useEffect(() => {
     let cancelled = false;
@@ -60,7 +60,7 @@ export default function NoteScreen() {
     return resolved === null ? null : assetSource(resolved);
   }, []);
 
-  const title = paired && screen.state === "ready" ? screen.projection.title : "…";
+  const title = signedIn && screen.state === "ready" ? screen.projection.title : "…";
 
   return (
     <SafeAreaView
@@ -69,7 +69,7 @@ export default function NoteScreen() {
     >
       <Stack.Screen options={{ title }} />
       <ScrollView style={styles.screen} contentContainerStyle={styles.body}>
-        {!paired ? (
+        {!signedIn ? (
           <Text style={[styles.status, { color: theme.mutedForeground }]}>
             Sign in to read your notes.
           </Text>

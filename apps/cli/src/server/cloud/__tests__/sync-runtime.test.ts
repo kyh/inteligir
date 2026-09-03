@@ -156,12 +156,12 @@ function loginAs(runtime: CloudRuntime, deviceName: string): Promise<LoginOutcom
   return runtime.login({ ...FAKE_ACCOUNT, deviceName });
 }
 
-async function pair(harness: Harness): Promise<string> {
+async function signIn(harness: Harness): Promise<string> {
   const outcome = await loginAs(harness.runtime, "Laptop");
   if (outcome.kind !== "logged-in") {
     throw new Error(`login refused: ${JSON.stringify(outcome)}`);
   }
-  return outcome.status.state === "paired" ? outcome.status.deviceId : "";
+  return outcome.status.state === "signed-in" ? outcome.status.deviceId : "";
 }
 
 describe("sync is off until someone signs in", () => {
@@ -176,29 +176,29 @@ describe("sync is off until someone signs in", () => {
 
     expect(harness.cloud.requests).toEqual([]);
     expect(harness.socketOpens).toEqual([]);
-    expect(harness.runtime.status()).toEqual({ state: "off", cloudUrl: CLOUD_URL });
+    expect(harness.runtime.status()).toEqual({ state: "signed-out", cloudUrl: CLOUD_URL });
     expect(countSyncOutbox(harness.db)).toBe(0);
   });
 
-  it("makes no request after an unpair either", async () => {
+  it("makes no request after a logout either", async () => {
     const harness = makeHarness({ pollIntervalMs: null });
-    await pair(harness);
+    await signIn(harness);
     append(harness, [message("thr_1", "before")]);
     await harness.runtime.syncNow();
-    const requestsWhilePaired = harness.cloud.requests.length;
+    const requestsWhileSignedIn = harness.cloud.requests.length;
 
-    expect(harness.runtime.unpair()).toEqual({ state: "off", cloudUrl: CLOUD_URL });
+    expect(harness.runtime.logout()).toEqual({ state: "signed-out", cloudUrl: CLOUD_URL });
     expect(readDeviceCredential(harness.dataDir)).toBeNull();
     append(harness, [message("thr_1", "after")]);
     await harness.runtime.syncNow();
-    expect(harness.cloud.requests).toHaveLength(requestsWhilePaired);
+    expect(harness.cloud.requests).toHaveLength(requestsWhileSignedIn);
   });
 });
 
 describe("signing in", () => {
   it("logs in and leaves the credential in the data dir", async () => {
     const harness = makeHarness({ pollIntervalMs: null });
-    const deviceId = await pair(harness);
+    const deviceId = await signIn(harness);
 
     expect(readDeviceCredential(harness.dataDir)).toEqual({
       deviceId,
@@ -206,7 +206,7 @@ describe("signing in", () => {
       userId: "user_fake",
     });
     const status = harness.runtime.status();
-    expect(status.state).toBe("paired");
+    expect(status.state).toBe("signed-in");
   });
 
   it("retries the account identity on the next pass rather than losing vault sync for good", async () => {
@@ -224,7 +224,7 @@ describe("signing in", () => {
       },
     });
 
-    await pair(harness);
+    await signIn(harness);
     expect(readDeviceCredential(harness.dataDir)?.userId).toBeUndefined();
     const pingsWhileBlind = harness.vaultPings();
 
@@ -251,7 +251,7 @@ describe("signing in", () => {
       },
     });
     expect(readDeviceCredential(harness.dataDir)).toBeNull();
-    expect(harness.runtime.status()).toEqual({ state: "off", cloudUrl: CLOUD_URL });
+    expect(harness.runtime.status()).toEqual({ state: "signed-out", cloudUrl: CLOUD_URL });
   });
 
   it("defaults the device name to this machine's hostname", async () => {
@@ -263,7 +263,7 @@ describe("signing in", () => {
 
   it("replaces the previous account's queue and positions with a clean slate", async () => {
     const harness = makeHarness({ pollIntervalMs: null });
-    await pair(harness);
+    await signIn(harness);
     append(harness, [message("thr_1", "queued under the first login")]);
     expect(countSyncOutbox(harness.db)).toBe(1);
 
@@ -286,7 +286,7 @@ describe("signing in", () => {
 describe("a push interrupted mid-batch", () => {
   it("retries to no duplicate and no conflict", async () => {
     const harness = makeHarness({ pollIntervalMs: null });
-    await pair(harness);
+    await signIn(harness);
     append(harness, [message("thr_1", "one"), message("thr_1", "two")]);
 
     harness.cloud.dropNextPushResponse = true;
@@ -298,7 +298,7 @@ describe("a push interrupted mid-batch", () => {
     expect(harness.cloud.logSize()).toBe(2);
     expect(countSyncOutbox(harness.db)).toBe(0);
     const status = harness.runtime.status();
-    expect(status.state === "paired" ? status.lastError : "not paired").toBeNull();
+    expect(status.state === "signed-in" ? status.lastError : "signed out").toBeNull();
   });
 });
 
@@ -332,7 +332,7 @@ describe("a capture delivered twice", () => {
 describe("a revoked device", () => {
   it("fails closed and surfaces as unauthorized rather than retrying forever", async () => {
     const harness = makeHarness({ pollIntervalMs: null });
-    const deviceId = await pair(harness);
+    const deviceId = await signIn(harness);
     append(harness, [message("thr_1", "before the revoke")]);
     await harness.runtime.syncNow();
     expect(harness.cloud.logSize()).toBe(1);
@@ -356,7 +356,7 @@ describe("a revoked device", () => {
 describe("the invalidation socket", () => {
   it("ignores a sync ping this device's cursor already covers", async () => {
     const harness = makeHarness({ pollIntervalMs: null });
-    await pair(harness);
+    await signIn(harness);
     const dial = harness.socketOpens[0];
     if (dial === undefined) throw new Error("expected a socket dial");
     const quiet = harness.cloud.requests.length;
@@ -373,7 +373,7 @@ describe("the invalidation socket", () => {
 
   it("routes a vault ping to the vault hook and starts no thread pass", async () => {
     const harness = makeHarness({ pollIntervalMs: null });
-    await pair(harness);
+    await signIn(harness);
     const dial = harness.socketOpens[0];
     if (dial === undefined) throw new Error("expected a socket dial");
     // one from the login, one from the account-identity learner.
@@ -387,7 +387,7 @@ describe("the invalidation socket", () => {
 
   it("re-dials after a close, and a severed socket turns into a refusal", async () => {
     const harness = makeHarness({ pollIntervalMs: null });
-    const deviceId = await pair(harness);
+    const deviceId = await signIn(harness);
     const dial = harness.socketOpens[0];
     if (dial === undefined) throw new Error("expected a socket dial");
 
@@ -462,7 +462,7 @@ function gatedFetch(cloud: FakeCloud, path: string, when: GateWhen = "before"): 
 async function waitForLogin(runtime: CloudRuntime, deviceId: string): Promise<void> {
   await vi.waitFor(() => {
     const status = runtime.status();
-    expect(status.state === "paired" ? status.deviceId : null).toBe(deviceId);
+    expect(status.state === "signed-in" ? status.deviceId : null).toBe(deviceId);
   });
 }
 
@@ -479,13 +479,13 @@ describe("a session that changes mid-pass", () => {
     await gate.reached;
 
     // not awaited: login waits on the very pass the gate is holding.
-    const repaired = loginAs(harness.runtime, "Laptop again");
+    const signedInAgain = loginAs(harness.runtime, "Laptop again");
     await waitForLogin(harness.runtime, "dev_2");
 
     append(harness, [message("thr_1", "belongs to the second login")]);
 
     gate.release();
-    await repaired;
+    await signedInAgain;
     await pass;
 
     expect(cloud.logSize()).toBe(2);
@@ -494,12 +494,12 @@ describe("a session that changes mid-pass", () => {
 
   it("does not apply one account's page into a login to another", async () => {
     const leaving = makeHarness({ pollIntervalMs: null });
-    await pair(leaving);
+    await signIn(leaving);
     append(leaving, [message("thr_leaving", "from the account being left")]);
     await leaving.runtime.syncNow();
 
     const joining = makeHarness({ pollIntervalMs: null });
-    await pair(joining);
+    await signIn(joining);
     append(joining, [message("thr_joining", "from the account being joined")]);
     await joining.runtime.syncNow();
 
@@ -521,7 +521,7 @@ describe("a session that changes mid-pass", () => {
     await gate.reached;
 
     current = joining.cloud;
-    const repaired = loginAs(reader.runtime, "Reader elsewhere");
+    const signedInAgain = loginAs(reader.runtime, "Reader elsewhere");
     // not waitForLogin: the reader is already dev_2 on leaving.cloud, so it would
     // resolve before the session swap. the login landing on joining.cloud is the signal.
     await vi.waitFor(() => expect(joining.cloud.deviceCount()).toBe(2));
@@ -530,7 +530,7 @@ describe("a session that changes mid-pass", () => {
     reader.applied.length = 0;
 
     gate.release();
-    await repaired;
+    await signedInAgain;
     await pass;
 
     expect(reader.applied.length).toBeGreaterThan(0);
@@ -576,7 +576,7 @@ describe("every cloud call carries a deadline", () => {
       },
     });
     cloud.capture("so the capture calls happen too");
-    await pair(harness);
+    await signIn(harness);
     append(harness, [message("thr_1", "so the push happens too")]);
     await harness.runtime.syncNow();
 
@@ -590,7 +590,7 @@ describe("applying the account's log", () => {
     const cloud = new FakeCloud();
     const harness = makeHarness({ pollIntervalMs: null, cloud });
     const writer = makeHarness({ pollIntervalMs: null, cloud });
-    await pair(writer);
+    await signIn(writer);
     append(writer, [message("thr_1", "one"), message("thr_1", "two"), message("thr_1", "three")]);
     await writer.runtime.syncNow();
 
@@ -620,14 +620,14 @@ describe("applying the account's log", () => {
   it("skips this device's own rows and settles the cursor on the rest", async () => {
     const writer = makeHarness({ pollIntervalMs: null });
     const cloud = writer.cloud;
-    await pair(writer);
+    await signIn(writer);
     append(writer, [message("thr_shared", "from the writer")]);
     await writer.runtime.syncNow();
     expect(writer.applied).toEqual([]);
 
     const reader = makeHarness({ pollIntervalMs: null, fetch: cloud.fetch });
-    const paired = await loginAs(reader.runtime, "Desktop");
-    expect(paired.kind).toBe("logged-in");
+    const signedIn = await loginAs(reader.runtime, "Desktop");
+    expect(signedIn.kind).toBe("logged-in");
 
     await reader.runtime.syncNow();
     expect(reader.applied).toHaveLength(1);

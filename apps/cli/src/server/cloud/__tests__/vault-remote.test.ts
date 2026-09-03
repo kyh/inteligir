@@ -11,7 +11,7 @@ function makeDataDir(): string {
 }
 
 describe("createVaultRemoteProvider", () => {
-  it("answers null for an unpaired install with no explicit remote", () => {
+  it("answers null for a signed-out install with no explicit remote", () => {
     const provider = createVaultRemoteProvider({
       explicitRemote: null,
       cloudUrl: CLOUD_URL,
@@ -32,7 +32,7 @@ describe("createVaultRemoteProvider", () => {
     expect(remote).not.toBeNull();
     if (remote === null) throw new Error("unreachable");
     expect(remote.url).toBe(hostedVaultRemoteUrl(CLOUD_URL));
-    expect(remote.source).toBe("paired");
+    expect(remote.source).toBe("account");
     expect(remote.env).toEqual({
       GIT_CONFIG_COUNT: "1",
       GIT_CONFIG_KEY_0: `http.${remote.url}.extraHeader`,
@@ -40,7 +40,7 @@ describe("createVaultRemoteProvider", () => {
     });
   });
 
-  it("flips live: pairing turns the remote on, unpairing turns it off", () => {
+  it("flips live: signing in turns the remote on, signing out turns it off", () => {
     const dataDir = makeDataDir();
     const provider = createVaultRemoteProvider({
       explicitRemote: null,
@@ -49,7 +49,7 @@ describe("createVaultRemoteProvider", () => {
     });
     expect(provider()).toBeNull();
     writeDeviceCredential(dataDir, { deviceId: "dev_1", credential: CREDENTIAL });
-    expect(provider()?.source).toBe("paired");
+    expect(provider()?.source).toBe("account");
     clearDeviceCredential(dataDir);
     expect(provider()).toBeNull();
   });

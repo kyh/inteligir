@@ -70,7 +70,7 @@ note bodies from disk. A sign-in and a sign-out wipe the rows; the boot
 RESTORE keeps them — that launch is what the cache exists for. Which
 transition it is comes from the composition root, which knows, rather than
 from comparing bearers inside the store. Image BYTES are the stated residual:
-an embed's fetch lands in the platform's own image caches, which an unpair
+an embed's fetch lands in the platform's own image caches, which a sign-out
 cannot clear — safe to serve (the URL pins a commit sha), but at rest until
 the OS evicts them.
 

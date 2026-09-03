@@ -4,7 +4,7 @@ import {
   type VaultActions,
   type VaultChangedEvent,
   type VaultEntry,
-  type VaultListing,
+  type WikiResolver,
 } from "@repo/editor/host-io";
 import { createDebouncer } from "@repo/editor/lib/debounce";
 import { useWikiTargets } from "../vault-hooks";
@@ -41,7 +41,7 @@ const FOCUS_REFRESH_DEBOUNCE_MS = 400;
 
 const noOpenPathMirror = (): void => {};
 
-const EMPTY_LISTING: VaultListing = { entries: [], resolveWikiTarget: () => null };
+const NO_RESOLVER: WikiResolver = { resolveWikiTarget: () => null };
 
 type Api = WorkspaceRuntime["api"];
 type WikiTargets = KnowledgeWikiTargetsResponse["targets"];
@@ -121,7 +121,7 @@ export function VaultProvider({
   useEffect(() => {
     const io: EditorHostIo = {
       actions: session.actions,
-      listing: port.listing,
+      wikiResolver: port.wikiResolver,
       readVaultFile: ({ path }) => readFile(api, path),
       // A plain fetch, not a procedure: the ETag and sandbox CSP do not
       // survive an RPC envelope.
@@ -244,7 +244,7 @@ export function VaultProvider({
 // render, and a ref read by a function render calls is a ref read in render.
 type VaultPort = {
   readonly session: VaultSession;
-  readonly listing: StoreApi<VaultListing>;
+  readonly wikiResolver: StoreApi<WikiResolver>;
   root: () => string;
   entries: () => readonly VaultEntry[];
   wikiTargets: () => WikiTargets;
@@ -263,9 +263,9 @@ function createVaultPort({ api, bootPath, store }: VaultPortInputs): VaultPort {
   let entries: readonly VaultEntry[] = [];
   let wikiTargets: WikiTargets = [];
   let mirrorOpenPath: (path: string | null) => void = noOpenPathMirror;
-  const listing = createStore<VaultListing>()(() => EMPTY_LISTING);
+  const wikiResolver = createStore<WikiResolver>()(() => NO_RESOLVER);
   // Rebuilt whole from either input: the resolver's identity is what tells a chip to re-render.
-  const rebuildListing = (): void => {
+  const rebuildResolver = (): void => {
     const aliasEntries: Array<readonly [string, string]> = [];
     for (const target of wikiTargets) {
       for (const alias of target.aliases ?? []) aliasEntries.push([alias, target.path]);
@@ -274,7 +274,7 @@ function createVaultPort({ api, bootPath, store }: VaultPortInputs): VaultPort {
       entries.map((entry) => entry.path),
       aliasEntries,
     );
-    listing.setState({ entries, resolveWikiTarget: (target) => resolver.resolveWiki(target) });
+    wikiResolver.setState({ resolveWikiTarget: (target) => resolver.resolveWiki(target) });
   };
   const io = createGuardedVaultIo(api);
   const session = createVaultSession({
@@ -319,7 +319,7 @@ function createVaultPort({ api, bootPath, store }: VaultPortInputs): VaultPort {
     note: io,
     publishListing: (next) => {
       entries = next;
-      rebuildListing();
+      rebuildResolver();
     },
     publishRoot: (next) => {
       root = next;
@@ -340,13 +340,13 @@ function createVaultPort({ api, bootPath, store }: VaultPortInputs): VaultPort {
 
   return {
     session,
-    listing,
+    wikiResolver,
     root: () => root,
     entries: () => entries,
     wikiTargets: () => wikiTargets,
     setWikiTargets: (next) => {
       wikiTargets = next;
-      rebuildListing();
+      rebuildResolver();
     },
     setOnOpenPath: (next) => {
       mirrorOpenPath = next;

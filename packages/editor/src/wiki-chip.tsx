@@ -7,7 +7,7 @@ import { FilePlusIcon } from "lucide-react";
 import { Popover, PopoverContent } from "@repo/ui/components/popover";
 import { cn } from "@repo/ui/lib/utils";
 
-import { useVaultActions, useVaultListing } from "@repo/editor/host";
+import { useVaultActions, useWikiResolver } from "@repo/editor/host";
 import { getEditorHostIo } from "@repo/editor/host-io";
 import { notePreviewHead } from "@repo/editor/note-preview";
 import { isUuidWikiAlias, parseWikiBody } from "@repo/notes/markdown/remark-wiki-link";
@@ -32,7 +32,7 @@ type PreviewState = {
 };
 
 export default function WikiChip({ body }: { body: string }) {
-  const { resolveWikiTarget } = useVaultListing();
+  const { resolveWikiTarget } = useWikiResolver();
   const { openFile, createFile } = useVaultActions();
   const [createOpen, setCreateOpen] = useState(false);
   const [preview, setPreview] = useState<PreviewState | null>(null);

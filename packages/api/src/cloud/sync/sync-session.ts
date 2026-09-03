@@ -1,5 +1,5 @@
 // one spelling for the cli and the phone: the fence is security-bearing (a page applied after
-// a re-pair writes another account's events into this one).
+// signing in again writes another account's events into this one).
 
 import type { CloudClient, CloudFailure } from "../cloud-client";
 import { SYNC_TERMINAL_CODES } from "../cloud-errors";
@@ -8,7 +8,7 @@ import { PULL_DEFAULT_LIMIT } from "./sync-schema";
 
 // `id` is the fence: a pass captures the id it started under and re-checks it after every await,
 // because "is a session live?" can be yes about a different session — an old push's ack deletes
-// rows a re-pairing queued, and an old pull's page applies into the new pairing.
+// rows a new sign-in queued, and an old pull's page applies into the new session.
 export type SyncSession<TCredential> =
   | { kind: "off"; id: number }
   | { kind: "live"; id: number; credential: TCredential; client: CloudClient }
@@ -26,7 +26,7 @@ export interface SyncSessionHandle<TCredential> {
   // no transition: a disposing runtime's pass must observe cancellation, not be waited out.
   abort(): void;
   fenced(sessionId: number): boolean;
-  // the id and client stand: only what is known about the same pairing changed.
+  // the id and client stand: only what is known about the same sign-in changed.
   replaceCredential(sessionId: number, credential: TCredential): void;
   recordFailure(failure: CloudFailure): "continue" | "ended";
 }

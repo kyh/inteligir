@@ -69,7 +69,7 @@ export interface CloudRuntime {
   attach(sink: SyncedEventSink): void;
   start(): void;
   login(request: CloudLoginRequest): Promise<LoginOutcome>;
-  unpair(): CloudStatusResponse;
+  logout(): CloudStatusResponse;
   syncNow(): Promise<CloudStatusResponse>;
   dispose(): Promise<void>;
 }
@@ -243,7 +243,7 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
     const current = session.current();
     switch (current.kind) {
       case "off":
-        return { state: "off", cloudUrl: args.cloudUrl };
+        return { state: "signed-out", cloudUrl: args.cloudUrl };
       case "unauthorized":
         return {
           state: "unauthorized",
@@ -254,7 +254,7 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
       case "live": {
         const state = readSyncState(args.db);
         return {
-          state: "paired",
+          state: "signed-in",
           cloudUrl: args.cloudUrl,
           accountEmail,
           deviceId: current.credential.deviceId,
@@ -348,7 +348,7 @@ export function createCloudRuntime(args: CloudRuntimeArgs): CloudRuntime {
       return outcome.kind === "logged-in" ? { kind: "logged-in", status: status() } : outcome;
     },
 
-    unpair() {
+    logout() {
       session.close();
       haltTransport();
       clearDeviceCredential(args.dataDir);

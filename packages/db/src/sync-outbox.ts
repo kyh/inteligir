@@ -100,7 +100,7 @@ export function touchSyncedAt(db: DbConnection, at: number): void {
   db.update(syncState).set({ lastSyncedAt: at }).where(eq(syncState.id, SYNC_STATE_ID)).run();
 }
 
-// on unpair: a cursor carried into a second account would skip that account's log from its
+// on logout: a cursor carried into a second account would skip that account's log from its
 // first row.
 export function resetSyncState(db: DbConnection): void {
   db.delete(syncOutbox).run();

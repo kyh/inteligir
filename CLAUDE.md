@@ -450,10 +450,10 @@ carries the mechanism. The dangling-reference guard keeps the pointers honest.
 - **THE DEVICE CREDENTIAL IS THE SYNC SWITCH, and it lives in the data dir.**
   `<dataDir>/device-credential` at 0600: not in `inteligir.db` (the thread log it
   uploads) and not in the vault (a git repo pushed to a remote). No separate
-  "sync enabled" flag: two values that must agree can disagree. Unpaired, the
+  "sync enabled" flag: two values that must agree can disagree. Signed out, the
   app opens no socket, arms no timer and makes no request, asserted at the
   shipping cadence in `apps/cli/src/server/cloud/__tests__/sync-runtime.test.ts`.
-  Cost accepted: "pause sync" is unpair, which discards the queue.
+  Cost accepted: "pause sync" is signing out, which discards the queue.
   `apps/cli/src/server/cloud/credential-store.ts` and `sync-runtime.ts`.
 
 - **THE HOSTED VAULT'S READ PATHS ARE BUDGETED PER DEVICE, and the budget buys
@@ -529,7 +529,7 @@ carries the mechanism. The dangling-reference guard keeps the pointers honest.
   stranding every event behind it (`packages/db/src/sync-outbox.ts`).
 
 - **SYNC IS PERMISSIONED BY ACCOUNT; the account IS the entitlement.**
-  Accountless, the app is local-only and makes zero cloud requests. Paired, the
+  Accountless, the app is local-only and makes zero cloud requests. Signed in, the
   credential alone entitles threads, captures and the hosted vault, with no
   second flag. The invite gate is account-creation policy. The BYO git remote
   (`INTELIGIR_VAULT_REMOTE`) stays accountless.

@@ -97,12 +97,12 @@ export function SignInForm({ cloudUrl, onSignIn, pending, refusal }: SignInFormP
   );
 }
 
-export interface PairedDetailsProps {
-  status: Extract<CloudStatusResponse, { state: "paired" }>;
+export interface SignedInDetailsProps {
+  status: Extract<CloudStatusResponse, { state: "signed-in" }>;
   nowMs: number;
 }
 
-export function PairedDetails({ status, nowMs }: PairedDetailsProps) {
+export function SignedInDetails({ status, nowMs }: SignedInDetailsProps) {
   return (
     <dl className="space-y-1.5">
       <Row label="Account">
@@ -150,11 +150,11 @@ export function SyncSection() {
       },
     }),
   );
-  const unpairDevice = useMutation(
-    orpc.cloud.unpair.mutationOptions({
+  const logout = useMutation(
+    orpc.cloud.logout.mutationOptions({
       onSuccess: applyStatus,
       onError: (error) => {
-        failed(error, "Could not unpair this device.");
+        failed(error, "Could not sign this device out.");
       },
     }),
   );
@@ -166,28 +166,28 @@ export function SyncSection() {
       },
     }),
   );
-  const pending = signIn.isPending || unpairDevice.isPending || syncThreads.isPending;
+  const pending = signIn.isPending || logout.isPending || syncThreads.isPending;
 
   // Confirm before mutate: a section greyed out while the dialog waits claims
   // work that has not started.
-  const unpair = (): void => {
+  const signOut = (): void => {
     void (async () => {
       // Only an account-derived vault remote dies with the credential.
-      const vaultPaired =
+      const vaultViaAccount =
         vaultStatus !== undefined &&
         vaultStatus.state !== "no-remote" &&
-        vaultStatus.remoteSource === "paired";
+        vaultStatus.remoteSource === "account";
       const confirmed = await confirm({
         title: "Stop syncing this device?",
-        body: `This machine forgets its credential and everything queued for the cloud.${vaultPaired ? " Your vault stops syncing through your account." : ""} Your notes and threads stay here. The device stays listed on your account until you revoke it there.`,
-        confirmLabel: "Unpair",
+        body: `This machine forgets its credential and everything queued for the cloud.${vaultViaAccount ? " Your vault stops syncing through your account." : ""} Your notes and threads stay here. The device stays listed on your account until you revoke it there.`,
+        confirmLabel: "Sign out",
         destructive: true,
       });
       if (!confirmed) {
         return;
       }
       setRefusal(null);
-      unpairDevice.mutate();
+      logout.mutate();
     })();
   };
 
@@ -198,7 +198,7 @@ export function SyncSection() {
       <SectionHeading>Devices</SectionHeading>
       {status === undefined ? (
         <p className="text-sm text-muted-foreground">…</p>
-      ) : status.state === "off" ? (
+      ) : status.state === "signed-out" ? (
         <SignInForm
           cloudUrl={status.cloudUrl}
           onSignIn={(login) => {
@@ -210,15 +210,15 @@ export function SyncSection() {
       ) : status.state === "unauthorized" ? (
         <div className="space-y-2">
           <p className="text-xs text-muted-foreground">
-            {status.detail} Sync is stopped. Unpair, then sign this device in again.
+            {status.detail} Sync is stopped. Sign out, then sign this device in again.
           </p>
-          <Button size="compact" variant="tertiary" onClick={unpair} disabled={pending}>
-            Unpair
+          <Button size="compact" variant="tertiary" onClick={signOut} disabled={pending}>
+            Sign out
           </Button>
         </div>
       ) : (
         <div className="space-y-2">
-          <PairedDetails status={status} nowMs={now} />
+          <SignedInDetails status={status} nowMs={now} />
           <div className="flex gap-2">
             <Button
               size="compact"
@@ -230,8 +230,8 @@ export function SyncSection() {
             >
               Sync threads now
             </Button>
-            <Button size="compact" variant="ghost" onClick={unpair} disabled={pending}>
-              Unpair
+            <Button size="compact" variant="ghost" onClick={signOut} disabled={pending}>
+              Sign out
             </Button>
           </div>
         </div>

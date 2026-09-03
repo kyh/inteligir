@@ -34,16 +34,15 @@ export type VaultActions = {
   refreshVault: () => void;
 };
 
-export type VaultListing = {
-  entries: readonly VaultEntry[];
+export type WikiResolver = {
   /** Identity changes when the listing or aliases refresh, so chips re-render on that alone. */
   resolveWikiTarget: (target: string) => string | null;
 };
 
-// The read half only: the app owns the writer. A store rather than a field because the listing
-// moves with every vault refresh while the actions never do, so only its readers re-render.
-export type VaultListingStore = Pick<
-  StoreApi<VaultListing>,
+// The read half only: the app owns the writer. A store rather than a field because the resolver
+// is rebuilt on every vault refresh while the actions never change, so only its readers re-render.
+export type WikiResolverStore = Pick<
+  StoreApi<WikiResolver>,
   "getState" | "getInitialState" | "subscribe"
 >;
 
@@ -93,7 +92,7 @@ export function heldDeletionMessage(held: HeldDeletions): string {
 
 export type EditorHostIo = {
   actions: VaultActions;
-  listing: VaultListingStore;
+  wikiResolver: WikiResolverStore;
   readVaultFile(payload: { path: string }): Promise<string>;
   readVaultAsset(payload: { path: string }): Promise<ReadVaultAssetResult>;
   /** Picks a collision-free name from `baseName`. */

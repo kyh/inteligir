@@ -13,13 +13,13 @@ export const CLOUD_DEVICE_NAME_MAX_LENGTH = DEVICE_NAME_MAX_LENGTH;
 export const cloudStatusResponseSchema = z.discriminatedUnion("state", [
   z
     .object({
-      state: z.literal("off"),
+      state: z.literal("signed-out"),
       cloudUrl: z.url(),
     })
     .strict(),
   z
     .object({
-      state: z.literal("paired"),
+      state: z.literal("signed-in"),
       cloudUrl: z.url(),
       // null until the best-effort fetch lands, or against a stale cloud with no account route
       accountEmail: z.string().nullable(),
@@ -32,7 +32,7 @@ export const cloudStatusResponseSchema = z.discriminatedUnion("state", [
       lastError: z.string().nullable(),
     })
     .strict(),
-  // distinct from off: the fix is unpair and sign in again. no timer or socket runs here either
+  // distinct from signed-out: the fix is sign out and sign in again. no timer or socket runs here either
   z
     .object({
       state: z.literal("unauthorized"),

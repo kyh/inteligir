@@ -25,11 +25,11 @@ export default function NotesScreen() {
   // gated on the credential too: a revoked credential leaves the tree "ready" with a listing this device
   // may no longer read.
   const docs =
-    status.state === "paired" && tree.state === "ready"
+    status.state === "signed-in" && tree.state === "ready"
       ? tree.entries.filter((entry) => isDocPath(entry.path))
       : [];
   const emptyText =
-    status.state !== "paired"
+    status.state !== "signed-in"
       ? "Sign in to read your notes."
       : tree.state === "loading" || tree.state === "idle"
         ? "Loading your vault…"

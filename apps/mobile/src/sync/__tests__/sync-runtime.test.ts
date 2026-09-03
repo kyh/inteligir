@@ -41,7 +41,7 @@ describe("the sync runtime", () => {
       createClient: () => cloud.client,
       pollIntervalMs: null,
     });
-    expect(runtime.get().state).toBe("off");
+    expect(runtime.get().state).toBe("signed-out");
     await runtime.syncNow();
     expect(cloud.pushes).toHaveLength(0);
   });
@@ -75,7 +75,7 @@ describe("the sync runtime", () => {
 
     expect(store.snapshotThread("thr_x")?.events).toHaveLength(1);
     expect(store.readCursor()).toBe(1);
-    expect(runtime.get()).toMatchObject({ state: "paired", cursor: 1, lastError: null });
+    expect(runtime.get()).toMatchObject({ state: "signed-in", cursor: 1, lastError: null });
     expect(cloud.pushes).toHaveLength(0);
     expect(cloud.claims).toBe(0);
   });
@@ -97,7 +97,7 @@ describe("the sync runtime", () => {
     expect(runtime.get().state).toBe("unauthorized");
   });
 
-  it("resets the store on a re-pair — the old account's rows do not carry over", async () => {
+  it("resets the store when signing in again — the old account's rows do not carry over", async () => {
     const store = createMemorySyncStore();
     const cloud = createFakeCloud();
     cloud.pullResults.push(
@@ -122,10 +122,10 @@ describe("the sync runtime", () => {
     runtime.setCredential({ deviceId: "dev_new", credential: `igd_${"b".repeat(64)}` });
     expect(store.snapshotThreads()).toHaveLength(0);
     expect(store.readCursor()).toBe(0);
-    expect(runtime.get()).toMatchObject({ state: "paired", deviceId: "dev_new", cursor: 0 });
+    expect(runtime.get()).toMatchObject({ state: "signed-in", deviceId: "dev_new", cursor: 0 });
 
     runtime.setCredential(null);
-    expect(runtime.get()).toStrictEqual({ state: "off" });
+    expect(runtime.get()).toStrictEqual({ state: "signed-out" });
   });
 
   it("publishes a poll pass — the snapshot moves with no caller on this side", async () => {
@@ -157,17 +157,17 @@ describe("the sync runtime", () => {
 
     const booted = await published(
       runtime,
-      (status) => status.state === "paired" && status.lastSyncedAt !== null,
+      (status) => status.state === "signed-in" && status.lastSyncedAt !== null,
     );
-    expect(booted).toMatchObject({ state: "paired", cursor: 0 });
+    expect(booted).toMatchObject({ state: "signed-in", cursor: 0 });
     // identity, not equality: a snapshot rebuilt per read loops useSyncExternalStore.
     expect(runtime.get()).toBe(booted);
 
     const polled = await published(
       runtime,
-      (status) => status.state === "paired" && status.cursor === 1,
+      (status) => status.state === "signed-in" && status.cursor === 1,
     );
-    expect(polled).toMatchObject({ state: "paired", cursor: 1, lastError: null });
+    expect(polled).toMatchObject({ state: "signed-in", cursor: 1, lastError: null });
     expect(store.snapshotThread("thr_x")?.events).toHaveLength(1);
 
     runtime.setCredential(null);

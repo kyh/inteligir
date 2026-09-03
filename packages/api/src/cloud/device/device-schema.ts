@@ -50,7 +50,7 @@ export function isDeviceLoginRefusal(code: CloudErrorCode): code is DeviceLoginR
 }
 
 // the credential at rest is parsed on every read: a malformed record must read as
-// "not paired", never as a credential the cloud refuses on every request forever
+// "signed out", never as a credential the cloud refuses on every request forever
 const deviceCredentialFields = {
   deviceId: z.string().min(1),
   credential: z.string().regex(DEVICE_CREDENTIAL_PATTERN),

@@ -19,7 +19,7 @@ async function bootInstall(
 
 async function login(install: BootedTestApp, deviceName: string): Promise<void> {
   const status = await install.client.cloud.login({ ...FAKE_ACCOUNT, deviceName });
-  expect(status.state).toBe("paired");
+  expect(status.state).toBe("signed-in");
 }
 
 async function syncNow(install: BootedTestApp): Promise<void> {
@@ -161,7 +161,7 @@ describe("two installs against one account", () => {
     const before = eventOrder(b, thread.id);
     expect(before.length).toBeGreaterThan(3);
 
-    await b.client.cloud.unpair();
+    await b.client.cloud.logout();
     await login(b, "B again");
     await syncNow(b);
     await syncNow(b);

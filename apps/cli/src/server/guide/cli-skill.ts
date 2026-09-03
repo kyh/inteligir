@@ -179,7 +179,7 @@ files — those are git's job.
   print the state it left behind. Use it before reporting a long task done, so
   the work has actually reached the account.
 
-There is no \`unpair\` here: it discards writes that have not reached the
+There is no \`logout\` here: it discards writes that have not reached the
 account yet, so it lives in the app's Settings → Devices, in front of the state
 it would throw away.
 

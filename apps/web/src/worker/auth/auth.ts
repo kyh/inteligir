@@ -87,7 +87,7 @@ function buildAuth(env: Env, baseURL: string, disableSignUp: boolean) {
       // the client requests with redirectTo "/auth/reset", so the URL's GET leg lands on ./reset-page.ts
       sendResetPassword: ({ user, url }) => sendResetEmail(env, user.email, url),
       // sessions only, not device credentials: most resets are the owner rotating a password,
-      // and cutting every paired device would unpair their own machines; per-device revoke is the hatch
+      // and cutting every signed-in device would sign their own machines out; per-device revoke is the hatch
       revokeSessionsOnPasswordReset: true,
     },
     // D1 storage: the default in-memory store is per isolate, so the limit multiplies across isolates and resets on recycle

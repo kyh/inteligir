@@ -43,7 +43,7 @@ import {
 } from "@repo/editor/transclusion-guard";
 import WikiChip, { wikiChipLabel } from "@repo/editor/wiki-chip";
 import { useOpenNote } from "@repo/editor/note/open-note-context";
-import { useVaultActions, useVaultListing } from "@repo/editor/host";
+import { useVaultActions, useWikiResolver } from "@repo/editor/host";
 import { parseWikiBody } from "@repo/notes/markdown/remark-wiki-link";
 
 const TransclusionScopeContext = createContext<TransclusionScope | null>(null);
@@ -320,7 +320,7 @@ function TransclusionBody({ content }: { content: string }) {
 }
 
 export default function Transclusion({ body }: { body: string }) {
-  const { resolveWikiTarget } = useVaultListing();
+  const { resolveWikiTarget } = useWikiResolver();
   const { openFile } = useVaultActions();
   const hostPath = useOpenNote((s) => s.editor.path);
   const scope = useContext(TransclusionScopeContext);

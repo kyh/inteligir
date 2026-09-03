@@ -474,22 +474,22 @@ describe("the clone path", () => {
     expect(seeded).toBe(false);
     expect(existsSync(join(bRoot, ".git"))).toBe(true);
 
-    const pairedRoot = join(scratchDir("inteligir-git-clone-miss-paired-"), "vault");
-    let pairedSeeded = false;
-    const paired = await ensureVaultRepo({
-      root: pairedRoot,
+    const accountRoot = join(scratchDir("inteligir-git-clone-miss-account-"), "vault");
+    let accountSeeded = false;
+    const viaAccount = await ensureVaultRepo({
+      root: accountRoot,
       remote: {
         url: join(scratchDir("inteligir-git-nowhere-2-"), "gone.git"),
-        source: "paired",
+        source: "account",
         account: "user-a",
       },
       seed: async () => {
-        pairedSeeded = true;
+        accountSeeded = true;
       },
       env,
     });
-    expect(paired.cloned).toBe(false);
-    expect(pairedSeeded).toBe(true);
+    expect(viaAccount.cloned).toBe(false);
+    expect(accountSeeded).toBe(true);
   });
 });
 
@@ -501,7 +501,7 @@ describe("the cross-account fence", () => {
     let account = "user-a";
     const engine = createGitEngine({
       root,
-      remote: () => ({ url: remote, source: "paired", account }),
+      remote: () => ({ url: remote, source: "account", account }),
       env,
     });
     onTestFinished(() => engine.dispose());
@@ -534,7 +534,7 @@ describe("the cross-account fence", () => {
     let account = "user-a";
     const engine = createGitEngine({
       root,
-      remote: () => ({ url: remote, source: "paired", account }),
+      remote: () => ({ url: remote, source: "account", account }),
       env,
     });
     onTestFinished(() => engine.dispose());
@@ -559,7 +559,7 @@ describe("the cross-account fence", () => {
 
 describe("a refused credential", () => {
   it("surfaces as `unauthorized`, not `offline`", async () => {
-    // offline heals on its own; a revoked device fails every retry until re-paired.
+    // offline heals on its own; a revoked device fails every retry until the user signs in again.
     const server = createServer((_request, response) => {
       response.writeHead(401, { "www-authenticate": 'Basic realm="test"' });
       response.end("auth required\n");
@@ -591,7 +591,7 @@ describe("clone failure classes", () => {
     let seeded = false;
     const { created, cloned } = await ensureVaultRepo({
       root,
-      remote: { url: `http://127.0.0.1:${String(port)}/vault.git`, source: "paired" },
+      remote: { url: `http://127.0.0.1:${String(port)}/vault.git`, source: "account" },
       seed: async () => {
         seeded = true;
       },
@@ -650,7 +650,7 @@ describe("the bootstrap port", () => {
     let seeded = false;
     const args: EnsureVaultRepoArgs = {
       root,
-      remote: { url: "https://cloud.test/v1/git/me/", source: "paired", account: "user-x" },
+      remote: { url: "https://cloud.test/v1/git/me/", source: "account", account: "user-x" },
       seed: async () => {
         seeded = true;
       },
@@ -682,7 +682,7 @@ describe("the bootstrap port", () => {
     let seeded = false;
     await ensureVaultRepo({
       root,
-      remote: { url: "https://cloud.test/v1/git/me/", source: "paired", account: "user-x" },
+      remote: { url: "https://cloud.test/v1/git/me/", source: "account", account: "user-x" },
       seed: async () => {
         seeded = true;
       },
@@ -725,18 +725,18 @@ describe("a live remote provider", () => {
     await expect(runGit(root, ["remote", "get-url", "origin"], { env })).rejects.toThrow();
   });
 
-  it("turns sync on mid-life — the pairing flip needs no engine restart", async () => {
+  it("turns sync on mid-life — the sign-in flip needs no engine restart", async () => {
     const remote = await makeBareRemote();
     const root = scratchDir("inteligir-git-live-");
     await ensureVaultRepo({ root, env });
-    let current: { url: string; source: "paired"; account: string } | null = null;
+    let current: { url: string; source: "account"; account: string } | null = null;
     const engine = createGitEngine({ root, remote: () => current, env });
     onTestFinished(() => engine.dispose());
 
     expect((await engine.status()).state).toBe("no-remote");
 
-    current = { url: remote, source: "paired", account: "user-live" };
-    await writeFile(join(root, "note.md"), "# paired\n");
+    current = { url: remote, source: "account", account: "user-live" };
+    await writeFile(join(root, "note.md"), "# signed in\n");
     await engine.commitNow();
     expect((await engine.syncNow()).state).toBe("clean");
 

@@ -451,7 +451,7 @@ export class ThreadService implements ProviderEventSink {
     const buffer = new NotificationBuffer();
     const drains: ClaimedQueuedThreadMessageRow[] = [];
     writeTransaction(this.db, (tx) => {
-      // lifecycle projects over the rows that landed, so a re-pair's full replay is a no-op rather than a status flap.
+      // lifecycle projects over the rows that landed, so a full replay after signing in again is a no-op rather than a status flap.
       let projected: readonly ThreadEvent[] = events;
       if (args.origin === "remote") {
         if (ensureThreadInTransaction(tx, threadId).created) {
@@ -504,7 +504,7 @@ export class ThreadService implements ProviderEventSink {
 
   // the queue row and its request event are one transaction: deleting after
   // the dispatch left a window where a refused start released the row and the
-  // next drain appended the message a second time, on every paired device.
+  // next drain appended the message a second time, on every signed-in device.
   private dispatchQueuedMessage(threadId: string, claimed: ClaimedQueuedThreadMessageRow): void {
     const buffer = new NotificationBuffer();
     const decision = writeTransaction(this.db, (tx): SendDecision => {

@@ -45,7 +45,7 @@ function autoCommitSubject(paths: readonly string[]): string {
 
 export interface GitEngineArgs {
   root: string;
-  // re-read every pass so a pairing or unpair flips sync live without a restart.
+  // re-read every pass so a sign-in or sign-out flips sync live without a restart.
   remote: VaultRemoteProvider;
   // fired on a sync transition, never on a commit: the state is dirty on both sides of a
   // commit, and each announcement costs every client a porcelain read under the repo lock.
@@ -96,7 +96,7 @@ export function createGitEngine(args: GitEngineArgs): GitEngine {
   let lastConflict: VaultConflict | null = null;
   let broken = false;
   // one value, not two booleans: "offline" heals on its own while "unauthorized" refuses every
-  // retry until a re-pair, and the latest outcome wins. it outranks the porcelain read because
+  // retry until the user signs in again, and the latest outcome wins. it outranks the porcelain read because
   // a failed fetch leaves the tracking ref stale, so "unpushed" would read clean.
   let networkFailure: "offline" | "unauthorized" | null = null;
   // while true no network invocation runs: pushing would upload this vault into an account
@@ -293,13 +293,13 @@ export function createGitEngine(args: GitEngineArgs): GitEngine {
   }
 
   async function doSync(remote: VaultRemoteSpec): Promise<void> {
-    if (remote.source === "paired" && remote.account === undefined) {
+    if (remote.source === "account" && remote.account === undefined) {
       // fail closed: the account id is not known yet (the /v1/account fetch is in flight), and
-      // a pass now would skip the marker check, the window a re-pair pushes the old vault
+      // a pass now would skip the marker check, the window a new sign-in pushes the old vault
       // through. the thread sync retries that fetch and pings this engine when it lands.
       return;
     }
-    if (remote.source === "paired" && remote.account !== undefined) {
+    if (remote.source === "account" && remote.account !== undefined) {
       const marker = await readAccountMarker();
       if (marker !== null && marker !== remote.account) {
         accountMismatch = true;
@@ -307,7 +307,7 @@ export function createGitEngine(args: GitEngineArgs): GitEngine {
         // statusSnapshot ranks conflict above mismatch.
         lastConflict = null;
         lastError =
-          "This vault last synced with a different account. Unpair, or move this vault aside " +
+          "This vault last synced with a different account. Sign out, or move this vault aside " +
           "and restart to pull the new account's vault.";
         return;
       }
@@ -379,7 +379,7 @@ export function createGitEngine(args: GitEngineArgs): GitEngine {
     }
 
     await runNetwork(["push", "origin", branch], remote.env);
-    if (remote.source === "paired" && remote.account !== undefined) {
+    if (remote.source === "account" && remote.account !== undefined) {
       const marker = await readAccountMarker();
       if (marker === null) {
         await run(["config", ACCOUNT_MARKER_KEY, remote.account]);
@@ -504,7 +504,7 @@ export function createGitEngine(args: GitEngineArgs): GitEngine {
     isSyncing: () => syncing,
     runExclusive: withRepoLock,
     startAutoSync(intervalMs: number) {
-      // armed with no remote too: a pairing minted after boot starts syncing on the next tick.
+      // armed with no remote too: a sign-in after boot starts syncing on the next tick.
       if (disposed || autoSyncTimer !== null) {
         return;
       }

@@ -49,7 +49,7 @@ export interface EnsureVaultRepoArgs {
 // "missing" (no repository at the remote) may seed: the first push creates it. "failed"
 // (offline, refused credential) boots empty instead: seeding beside a populated remote plants
 // a history the first sync must rebase through, and failing the boot would take down the
-// server the user re-pairs through. git removes its own partial clone dir on failure.
+// server the user signs in through again. git removes its own partial clone dir on failure.
 async function tryCloneVault(
   run: RunGit,
   args: EnsureVaultRepoArgs,
@@ -84,13 +84,13 @@ export async function ensureVaultRepo(
     await run(args.root, ["init", "-b", "main"], runOptions);
   }
   await ensureLocalExclude(args.root);
-  if (created && remote?.source === "paired" && remote.account !== undefined && cloned) {
-    // so a later re-pair to a different account refuses rather than pushing these notes into it.
+  if (created && remote?.source === "account" && remote.account !== undefined && cloned) {
+    // so a later sign-in to a different account refuses rather than pushing these notes into it.
     await run(args.root, ["config", ACCOUNT_MARKER_KEY, remote.account], runOptions);
   }
   // the hosted worker says "no repository" only for a truly absent repo (auth precedes it);
   // github answers 404 for a private repo the credential cannot see, so a byo not-found boots empty.
-  const seedable = remote === null || (outcome === "missing" && remote.source === "paired");
+  const seedable = remote === null || (outcome === "missing" && remote.source === "account");
   if (created && seedable && args.seed) {
     await args.seed(args.root);
   }

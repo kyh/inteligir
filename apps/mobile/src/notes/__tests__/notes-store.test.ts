@@ -11,8 +11,8 @@ function restored(credential: typeof CREDENTIAL) {
   return { credential, source: "restored" } as const;
 }
 
-function paired(credential: typeof CREDENTIAL) {
-  return { credential, source: "paired" } as const;
+function signedIn(credential: typeof CREDENTIAL) {
+  return { credential, source: "signed-in" } as const;
 }
 
 interface FakeCloud {
@@ -73,7 +73,7 @@ describe("the notes store", () => {
     const cloud = fakeCloud();
     const store = createNotesStore({ cloudUrl: "https://cloud.test", fetch: cloud.fetch });
     await store.refresh();
-    expect(await store.readNote("a.md")).toEqual({ ok: false, message: "Not paired." });
+    expect(await store.readNote("a.md")).toEqual({ ok: false, message: "Not signed in." });
     expect(cloud.requests).toEqual([]);
     expect(store.tree.get()).toEqual({ state: "idle" });
   });
@@ -137,7 +137,7 @@ describe("the notes store", () => {
     expect(tree.state).toBe("empty");
   });
 
-  it("a response from the previous pairing never lands — the generation fence", async () => {
+  it("a response from the previous sign-in never lands — the generation fence", async () => {
     const releases: Array<() => void> = [];
     const gate = new Promise<void>((resolve) => releases.push(resolve));
     const inner = fakeCloud();
@@ -156,18 +156,18 @@ describe("the notes store", () => {
     expect(store.tree.get()).toEqual({ state: "idle" });
   });
 
-  it("re-pairing resets the previous account's state before the new client serves", async () => {
+  it("signing in again resets the previous account's state before the new client serves", async () => {
     const cloud = fakeCloud();
     const store = createNotesStore({ cloudUrl: "https://cloud.test", fetch: cloud.fetch });
     store.setCredential(restored(CREDENTIAL));
     await store.refresh();
     expect(store.tree.get().state).toBe("ready");
-    store.setCredential(paired(OTHER_CREDENTIAL));
+    store.setCredential(signedIn(OTHER_CREDENTIAL));
     expect(store.tree.get()).toEqual({ state: "idle" });
     expect(store.resolveWiki("b")).toBeNull();
   });
 
-  it("unpairing clears everything and answers idle", async () => {
+  it("signing out clears everything and answers idle", async () => {
     const cloud = fakeCloud();
     const store = createNotesStore({ cloudUrl: "https://cloud.test", fetch: cloud.fetch });
     store.setCredential(restored(CREDENTIAL));
@@ -175,7 +175,7 @@ describe("the notes store", () => {
     store.setCredential(null);
     expect(store.tree.get()).toEqual({ state: "idle" });
     expect(store.resolveWiki("b")).toBeNull();
-    expect(await store.readNote("a.md")).toEqual({ ok: false, message: "Not paired." });
+    expect(await store.readNote("a.md")).toEqual({ ok: false, message: "Not signed in." });
   });
 
   it("composes an asset source pinned to the tree's commit, credential in a header", async () => {
@@ -273,7 +273,7 @@ describe("the notes store over a durable cache", () => {
     expect(calls).toContain(`sweep ${COMMIT}`);
   });
 
-  it("a cache hit landing after an unpair is refused — the fence covers the disk too", async () => {
+  it("a cache hit landing after a sign-out is refused — the fence covers the disk too", async () => {
     const inner = createMemoryNoteCache(100);
     const releases: Array<() => void> = [];
     const cache: NoteCache = {
@@ -292,17 +292,17 @@ describe("the notes store over a durable cache", () => {
     const pending = store.readNote("a.md");
     store.setCredential(null);
     releases[0]?.();
-    expect(await pending).toEqual({ ok: false, message: "Not paired." });
+    expect(await pending).toEqual({ ok: false, message: "Not signed in." });
   });
 
-  it("wipes on a pairing and on unpair; the boot restore keeps its rows", () => {
+  it("wipes on a sign-in and on sign-out; the boot restore keeps its rows", () => {
     const { cache, calls } = recordingCache();
     const store = createNotesStore({ cloudUrl: "https://cloud.test", cache });
     store.setCredential(restored(CREDENTIAL));
     expect(calls).toEqual([]);
-    store.setCredential(paired(CREDENTIAL));
+    store.setCredential(signedIn(CREDENTIAL));
     expect(calls).toEqual(["clear"]);
-    store.setCredential(paired(OTHER_CREDENTIAL));
+    store.setCredential(signedIn(OTHER_CREDENTIAL));
     expect(calls).toEqual(["clear", "clear"]);
     store.setCredential(null);
     expect(calls).toEqual(["clear", "clear", "clear"]);

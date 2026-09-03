@@ -7,7 +7,7 @@ import type { Scenario } from "../harness/scenario";
 
 const agentBrowser = agentBrowserSession("settings");
 // nothing listens on port 1, so every cloud request is refused at once; the credential file alone
-// puts Unpair on screen.
+// puts Sign out on screen.
 const DEAD_CLOUD_URL = "http://127.0.0.1:1";
 const CONNECTOR_NAME = "dupe";
 const CONNECTOR_URL = "https://mcp.example.com/mcp";
@@ -28,7 +28,8 @@ const CLICK_ADD = `(() => {
 
 export const settingsBrowser: Scenario = {
   name: "settings-browser",
-  description: "/settings hosts the dialog and the toaster: Unpair confirms, a refused add toasts",
+  description:
+    "/settings hosts the dialog and the toaster: Sign out confirms, a refused add toasts",
   async run(ctx) {
     const app = await ctx.boot({
       name: "solo",
@@ -52,24 +53,24 @@ export const settingsBrowser: Scenario = {
       await agentBrowser(["open", `${app.baseUrl}/settings`], 60_000);
       await agentBrowser(["wait", NAME_INPUT], 90_000);
 
-      ctx.log("waiting for the paired status to reach the page");
+      ctx.log("waiting for the signed-in status to reach the page");
       const statusDeadline = Date.now() + STATUS_DEADLINE_MS;
       for (;;) {
         const body = await agentBrowser(["get", "text", "body"]);
-        if (body.includes("Unpair")) {
+        if (body.includes("Sign out")) {
           break;
         }
-        expect(Date.now() < statusDeadline, `the Devices section never showed Unpair:\n${body}`);
+        expect(Date.now() < statusDeadline, `the Devices section never showed Sign out:\n${body}`);
         await delay(500);
       }
 
-      ctx.log("Unpair awaits a confirm: the dialog opens on this route");
-      await agentBrowser(["find", "text", "Unpair", "click"]);
+      ctx.log("Sign out awaits a confirm: the dialog opens on this route");
+      await agentBrowser(["find", "text", "Sign out", "click"]);
       await agentBrowser(["wait", ALERT_DIALOG], 30_000);
       const dialog = await agentBrowser(["get", "text", ALERT_DIALOG]);
       expect(
         dialog.includes("Stop syncing this device?"),
-        `the confirm dialog did not carry the Unpair prompt:\n${dialog}`,
+        `the confirm dialog did not carry the Sign out prompt:\n${dialog}`,
       );
       await agentBrowser(["press", "Escape"]);
 
