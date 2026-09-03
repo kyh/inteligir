@@ -1,7 +1,6 @@
 import { eq } from "drizzle-orm";
 import { env, SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
-import { createAuth } from "../auth/auth";
 import { createDb } from "../db/client";
 import { inviteCode } from "../db/schema";
 
