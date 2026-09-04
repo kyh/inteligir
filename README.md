@@ -12,9 +12,10 @@ account, which syncs your threads, captures and the vault itself across devices.
 ## Install & run
 
 The desktop app is the product: one window on that local server, which it
-starts and stops with itself — [`apps/desktop`](./apps/desktop/README.md). It
-is built unsigned from this repo (`pnpm package:desktop`); there is no download
-and no update feed yet.
+starts and stops with itself — [`apps/desktop`](./apps/desktop/README.md). The
+signed, notarized macOS build is on the latest GitHub release (the site's
+Download button reads it), and an installed app offers each new release from
+Settings › About.
 
 Without installing anything:
 

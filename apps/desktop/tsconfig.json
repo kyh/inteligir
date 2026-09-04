@@ -9,6 +9,7 @@
     "src/main",
     "src/preload",
     "src/types.ts",
+    "src/update-state.ts",
     "electron.vite.config.ts",
     "vitest.config.ts"
   ],

@@ -19,7 +19,7 @@ glossary, `apps/web/README.md` the Worker's own routes and deploy.
 ```sh
 pnpm install
 pnpm dev             # → THE PRODUCT: the shell over its own server, e.g.
-                     #   inteligir 0.3.0 (dev) listening on http://127.0.0.1:26723
+                     #   inteligir 0.4.0 (dev) listening on http://127.0.0.1:26723
 pnpm cli serve       # → the server ALONE, from source, no window. A shell
                      #   started afterwards ADOPTS it, so this is the loop for
                      #   iterating on server code.

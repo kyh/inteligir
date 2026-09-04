@@ -5,6 +5,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { NoteTopbar } from "../note-topbar";
+import { initialUpdateState } from "../../../update-state";
 
 afterEach(() => {
   cleanup();
@@ -43,9 +44,20 @@ function copiedAfterClick(): string | undefined {
   return copied[0];
 }
 
+const inert = initialUpdateState("0.0.0", "a test stub");
+
 describe("copy link", () => {
   it("names the loopback server, not the shell's own scheme", () => {
-    window.desktopBridge = { socketOrigin: "http://127.0.0.1:26723" };
+    window.desktopBridge = {
+      socketOrigin: "http://127.0.0.1:26723",
+      updates: {
+        getState: () => Promise.resolve(inert),
+        check: () => Promise.resolve(inert),
+        download: () => Promise.resolve(inert),
+        install: () => Promise.resolve(inert),
+        onState: () => () => {},
+      },
+    };
     expect(copiedAfterClick()).toBe("http://127.0.0.1:26723/?note=Plans%2FWeekly+Plan.md");
   });
 

@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
+import { autoUpdater } from "electron-updater";
 import {
   app,
   BrowserWindow,
@@ -24,6 +25,7 @@ import {
 } from "./origin-pin";
 import { APP_ORIGIN, registerAppProtocol, registerAppScheme } from "./protocol";
 import { createServerProcess, type ServerProcess } from "./server-process";
+import { createUpdates, type UpdaterPort, type Updates } from "./updates";
 import {
   describeServerVerdict,
   planServerStart,
@@ -49,6 +51,7 @@ let tray: Tray | null = null;
 let serverProcess: ServerProcess | null = null;
 let lastInputAt: number | null = null;
 let live: LiveServer | null = null;
+let updates: Updates | null = null;
 
 // must precede `app.whenReady`; Electron enforces the ordering.
 registerAppScheme();
@@ -231,12 +234,178 @@ function openDataDir(target: ServerTarget): void {
   void shell.openPath(target.dataDir);
 }
 
+// electron-builder writes the feed beside the app; without it a check can only fail.
+function updateFeedDisabledReason(): string | null {
+  if (!app.isPackaged) {
+    return "Automatic updates are only available in the packaged app.";
+  }
+  if (!existsSync(join(process.resourcesPath, "app-update.yml"))) {
+    return "This build carries no update feed.";
+  }
+  return null;
+}
+
+// the same window that took the bridge; a stranger's webContents has no business here
+function fromMainWindow(event: Electron.IpcMainInvokeEvent): boolean {
+  return mainWindow !== null && event.sender === mainWindow.webContents;
+}
+
+async function askToRestart(version: string): Promise<void> {
+  const { response } = await dialog.showMessageBox({
+    type: "info",
+    title: "Update ready",
+    message: `Inteligir ${version} is ready to install.`,
+    detail: "The app restarts to finish. Your notes are saved first.",
+    buttons: ["Restart now", "Later"],
+    defaultId: 0,
+    cancelId: 1,
+  });
+  if (response === 0) {
+    await installUpdate();
+  }
+}
+
+function logUpdater(message: string): void {
+  console.log(`[updater] ${message}`);
+}
+
+// the server is already down when this fails, so the honest move is to say so and quit
+async function installUpdate(): Promise<void> {
+  if (updates === null) return;
+  const outcome = await updates.install();
+  if (outcome.kind === "failed") {
+    dialog.showErrorBox(
+      "Update failed",
+      `${outcome.state.message ?? "The installer refused."} Reopen Inteligir to continue.`,
+    );
+    app.quit();
+  }
+}
+
+async function checkForUpdatesFromMenu(): Promise<void> {
+  if (updates === null) return;
+  const state = await updates.check("menu");
+  switch (state.status) {
+    case "up-to-date":
+      await dialog.showMessageBox({
+        type: "info",
+        title: "You're up to date",
+        message: `Inteligir ${state.currentVersion} is the newest version.`,
+        buttons: ["OK"],
+      });
+      return;
+    case "available": {
+      const { response } = await dialog.showMessageBox({
+        type: "info",
+        title: "Update available",
+        message: `Inteligir ${state.availableVersion ?? ""} is available.`,
+        buttons: ["Download", "Later"],
+        defaultId: 0,
+        cancelId: 1,
+      });
+      if (response !== 0) return;
+      const downloaded = await updates.download();
+      if (downloaded.status === "downloaded" && downloaded.downloadedVersion !== null) {
+        await askToRestart(downloaded.downloadedVersion);
+      } else if (downloaded.status === "error") {
+        dialog.showErrorBox(
+          "Download failed",
+          downloaded.message ?? "The download did not finish.",
+        );
+      }
+      return;
+    }
+    case "downloaded":
+      await askToRestart(state.downloadedVersion ?? "");
+      return;
+    case "disabled":
+    case "error":
+      await dialog.showMessageBox({
+        type: "warning",
+        title: state.status === "disabled" ? "Updates are off" : "Update check failed",
+        message: state.message ?? "Could not check for updates.",
+        buttons: ["OK"],
+      });
+      return;
+    case "idle":
+    case "checking":
+    case "downloading":
+      return;
+  }
+}
+
+function electronUpdaterPort(): UpdaterPort {
+  return {
+    disarmAutomation() {
+      autoUpdater.autoDownload = false;
+      autoUpdater.autoInstallOnAppQuit = false;
+    },
+    checkForUpdates: () => autoUpdater.checkForUpdates(),
+    downloadUpdate: () => autoUpdater.downloadUpdate(),
+    quitAndInstall(isSilent, isForceRunAfter) {
+      autoUpdater.quitAndInstall(isSilent, isForceRunAfter);
+    },
+    subscribe(handlers) {
+      autoUpdater.on("update-available", handlers.updateAvailable);
+      autoUpdater.on("update-not-available", handlers.updateNotAvailable);
+      autoUpdater.on("download-progress", handlers.downloadProgress);
+      autoUpdater.on("update-downloaded", handlers.updateDownloaded);
+      autoUpdater.on("error", handlers.error);
+    },
+  };
+}
+
+function configureUpdates(): Updates {
+  autoUpdater.logger = {
+    info: (message?: string) => logUpdater(message ?? ""),
+    warn: (message?: string) => logUpdater(`warn: ${message ?? ""}`),
+    error: (message?: string) => logUpdater(`error: ${message ?? ""}`),
+  };
+  const created = createUpdates({
+    updater: electronUpdaterPort(),
+    currentVersion: app.getVersion(),
+    disabledReason: updateFeedDisabledReason(),
+    // an adopted server is nobody's to stop and outlives the shell
+    stopServer: async () => {
+      await serverProcess?.stop();
+    },
+    broadcast: (state) => {
+      mainWindow?.webContents.send(IPC_CHANNELS.UPDATE_STATE, state);
+    },
+    log: logUpdater,
+  });
+  ipcMain.handle(IPC_CHANNELS.UPDATE_GET_STATE, (event) => {
+    if (!fromMainWindow(event)) throw new Error("refused");
+    return created.state();
+  });
+  ipcMain.handle(IPC_CHANNELS.UPDATE_CHECK, (event) => {
+    if (!fromMainWindow(event)) throw new Error("refused");
+    return created.check("settings");
+  });
+  ipcMain.handle(IPC_CHANNELS.UPDATE_DOWNLOAD, (event) => {
+    if (!fromMainWindow(event)) throw new Error("refused");
+    return created.download();
+  });
+  ipcMain.handle(IPC_CHANNELS.UPDATE_INSTALL, async (event) => {
+    if (!fromMainWindow(event)) throw new Error("refused");
+    await installUpdate();
+    return created.state();
+  });
+  return created;
+}
+
 function configureApplicationMenu(target: ServerTarget, server: LiveServer): void {
   const template: MenuItemConstructorOptions[] = [
     {
       label: app.name,
       submenu: [
         { role: "about" },
+        {
+          label: "Check for Updates…",
+          click: () => {
+            void checkForUpdatesFromMenu();
+          },
+        },
         { type: "separator" },
         { label: "Open Data Folder", click: () => openDataDir(target) },
         { type: "separator" },
@@ -314,7 +483,9 @@ async function onAppReady(target: ServerTarget): Promise<void> {
   });
   configureApplicationMenu(target, server);
   tray = createTray(target);
+  updates = configureUpdates();
   mainWindow = createWindow(target);
+  updates.start();
 }
 
 const target = resolveServerTarget({ isPackaged: app.isPackaged, env: process.env });

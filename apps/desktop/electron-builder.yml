@@ -25,6 +25,10 @@ mac:
     - target: dmg
       arch:
         - arm64
+    # electron-updater installs from the zip; the dmg is what a person downloads
+    - target: zip
+      arch:
+        - arm64
   artifactName: Inteligir-${version}-${arch}.${ext}
   category: public.app-category.productivity
   icon: resources/icon.icns
@@ -37,5 +41,10 @@ mac:
     # macOS kills a process that touches the microphone without this string
     NSMicrophoneUsageDescription: Inteligir uses the microphone for dictation. Audio goes to the local server on this machine and no further.
 dmg:
-  sign: false
-publish: null
+  sign: true
+# the feed electron-updater reads (app-update.yml beside the app) and the manifest it fetches
+# (latest-mac.yml) derive from this; uploading is `gh release create`, never electron-builder
+publish:
+  provider: github
+  owner: kyh
+  repo: inteligir

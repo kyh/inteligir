@@ -28,9 +28,10 @@ apps/
   desktop/       @repo/desktop — THE SHIPPED PRODUCT (issue #611). THREE
                  bundles under electron-vite: src/main/ (the window, the
                  inteligir:// protocol handler, the forked server),
-                 src/preload/ (ONE string — the loopback ws origin, because a
+                 src/preload/ (the bridge: the loopback ws origin, because a
                  browser WebSocket cannot be proxied and window.location.origin
-                 no longer names a server), and src/renderer/ (the SPA:
+                 no longer names a server, and the updater, because it lives in
+                 main; nothing that holds a token), and src/renderer/ (the SPA:
                  TanStack Router file routes over @repo/api/local). The whole
                  security surface is the ORIGIN PIN (src/main/origin-pin.ts,
                  pure + unit-tested): one origin, top-level navigation away
@@ -610,6 +611,21 @@ carries the mechanism. The dangling-reference guard keeps the pointers honest.
   never the page's. `apps/desktop/src/main/protocol.ts`, `origin-pin.ts`,
   `credential-scope.ts`, `apps/desktop/src/types.ts`,
   `apps/desktop/src/renderer/app/socket-origin.ts`.
+
+- **UPDATES ARE electron-updater OVER THE GITHUB RELEASE, and nothing moves
+  without a click** (reversing "no update feed"). electron-builder's `publish`
+  row writes `app-update.yml` beside the app and `latest-mac.yml` into the
+  output; the release carries the dmg, the zip (Squirrel installs from the zip,
+  never the dmg), its blockmap and that manifest, uploaded by `gh release
+create`, never by electron-builder. `autoDownload` and `autoInstallOnAppQuit`
+  are off: a check 15s after launch and every 4 minutes, the download and the
+  restart each a click, in Settings › About or the app menu. Install stops the
+  server child first, so the vault's pending commit flushes before Squirrel
+  swaps the bundle. THE BRIDGE CARRIES TWO THINGS: the loopback origin and the
+  updater, because the updater lives in main and no server can answer for it;
+  every frame crosses as `unknown` and the page parses it. Still no token in
+  the renderer. `apps/desktop/src/main/updates.ts` (the policy over an
+  injectable port) and `apps/desktop/src/update-state.ts` (the one state).
 
 - **Better Auth's `baseURL` is derived per-request from the request origin.**
   Every hostname reaching this Worker is one the deployment owns, and Cloudflare

@@ -23,6 +23,7 @@ import { ConnectorsSection } from "./connectors-section";
 import { FoldersSection } from "./folders-section";
 import { ChoiceRow, Row, SectionHeading } from "./settings-chrome";
 import { SyncSection } from "./sync-section";
+import { UpdatesRow } from "./updates-row";
 import { VoiceSection } from "./voice-section";
 
 const THEMES: readonly { value: Theme; label: string }[] = [
@@ -220,6 +221,7 @@ export function SettingsPage({ onBack }: { onBack: () => void }) {
               <Row label="Version">
                 <span className="font-mono text-xs">{system?.version ?? "…"}</span>
               </Row>
+              <UpdatesRow />
               <Row label="Data dir">
                 <span className="block truncate font-mono text-xs" title={system?.dataDir}>
                   {system?.dataDir ?? "…"}

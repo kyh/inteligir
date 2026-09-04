@@ -7,7 +7,7 @@ a process that starts and stops the server with the app.
 
 ```
 src/main/       the Electron main process: the window, the protocol, the fork
-src/preload/    the ONE bridge into the app window (the loopback ws origin)
+src/preload/    the ONE bridge into the app window (the loopback ws origin, the updater)
 src/renderer/   the SPA — TanStack Router file routes over @repo/api/local
 ```
 
@@ -43,7 +43,8 @@ between this shell and a browser:
   target is handed to the system browser instead.
 - **`window.open` is denied unconditionally**, even same-origin.
 - `nodeIntegration: false`, `contextIsolation: true`, `sandbox: true`. The one
-  preload exposes one string.
+  preload exposes the loopback origin and the updater, nothing that holds a
+  token.
 
 Origins are compared **field by field** — scheme, host, and port only where the
 scheme has one — never with `URL.origin`: Node's parser answers the opaque
@@ -177,25 +178,47 @@ spawned from inside an archive and a `.node` binary cannot be loaded from one.
    shell reports its own version and ships the CLI's tree.
 2. `pnpm format:fix && pnpm verify && pnpm smoke:cli`.
 3. `pnpm smoke:desktop` — packages, notarizes with `.release/`, and boots it.
-4. Tag and publish the dmg — the site's Download button reads the latest
-   release's `.dmg` (`apps/web/src/lib/download-url.ts`, cached up to an hour):
+4. Tag and publish — the site's Download button reads the latest release's
+   `.dmg` (`apps/web/src/lib/download-url.ts`, cached up to an hour), and every
+   installed app reads its `latest-mac.yml` and zip:
    ```sh
    git tag v<version> && git push origin v<version>
-   gh release create v<version> apps/desktop/.output/bin/Inteligir-<version>-arm64.dmg
+   gh release create v<version> \
+     apps/desktop/.output/bin/Inteligir-<version>-arm64.dmg \
+     apps/desktop/.output/bin/Inteligir-<version>-arm64.zip \
+     apps/desktop/.output/bin/Inteligir-<version>-arm64.zip.blockmap \
+     apps/desktop/.output/bin/latest-mac.yml
    ```
+   A release missing the zip or the manifest is one no installed app can
+   update to.
 5. `pnpm --filter inteligir publish` — the `npx inteligir serve --open` path.
    pnpm rewrites the manifest on the way out (`publishConfig.exports`).
-6. **There is no update feed.** A shell that checks an empty channel is worse
-   than one that does not check — it reports failures the user cannot act on.
-   Wiring `electron-updater` starts with choosing the channel; `publish: null`
-   says so until then.
+
+## Updates
+
+`src/main/updates.ts` drives electron-updater against the GitHub release.
+`electron-builder.yml`'s `publish` row is what writes `app-update.yml` beside
+the packaged app and `latest-mac.yml` into `.output/bin`; the release must
+carry the dmg, the zip (Squirrel installs from the zip — the dmg is what a
+person downloads), the zip's blockmap and that manifest. Nothing moves without
+a click: `autoDownload` and `autoInstallOnAppQuit` are off, a check runs 15s
+after launch and every 4 minutes, and the download and the restart are each a
+button — in Settings › About, or the app menu's Check for Updates… with native
+dialogs. Install stops the server child first (the same SIGTERM + grace as
+quit, so the vault's pending commit flushes), then hands Squirrel a silent
+forced relaunch. One step at a time: a poll during a download is skipped, not
+queued. An unpackaged build, or one with no `app-update.yml`, reports itself
+disabled with the reason instead of checking a feed it does not have. The state
+is one plain value (`src/update-state.ts`) reduced in main and parsed off the
+bridge by the page; the policy is unit-tested against a fake updater
+(`src/main/__tests__/updates.test.ts`).
 
 ## What is deliberately not here
 
-- **No auto-update.** See above.
 - **No deep-link scheme.** `inteligir://` is the renderer's own origin now; a
   cross-device link would need a second, registered scheme and there is nothing
   to receive yet.
-- **No IPC beyond the socket origin.** The bridge exposes one string, computed
-  in main, because a browser `WebSocket` cannot be proxied. Every other question
-  the page has, it asks its own server over `/rpc`.
+- **No IPC beyond the socket origin and the updater.** The bridge carries what
+  the page cannot ask its server: the loopback origin, because a browser
+  `WebSocket` cannot be proxied, and the updater, because it lives in main.
+  Every other question the page has, it asks its own server over `/rpc`.

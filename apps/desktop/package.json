@@ -1,6 +1,6 @@
 {
   "name": "@repo/desktop",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "description": "The Inteligir desktop shell: one Electron window pinned to the local server's origin, supervising that server as a child process.",
   "author": "kyh",
@@ -39,6 +39,7 @@
     "@vitejs/plugin-react": "catalog:",
     "electron": "^44.0.0",
     "electron-builder": "^26.15.3",
+    "electron-updater": "^6.8.9",
     "electron-vite": "^5.0.0",
     "jsdom": "catalog:",
     "lucide-react": "catalog:",
