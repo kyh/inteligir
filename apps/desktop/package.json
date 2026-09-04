@@ -9,7 +9,7 @@
   "scripts": {
     "build": "electron-vite build",
     "dev": "electron-vite dev",
-    "package": "electron-builder --mac --arm64 --publish never",
+    "package": "node scripts/package.mjs",
     "smoke": "node scripts/smoke-packaged.mjs",
     "test": "vitest run",
     "typecheck": "tsc --noEmit && tsc --noEmit -p src/renderer"

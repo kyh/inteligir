@@ -145,10 +145,14 @@ pnpm smoke:desktop        # package, boot its server, drive it, SIGTERM
 
 The app is signed with the Developer ID electron-builder finds in the keychain,
 under the hardened runtime with `resources/entitlements.mac.plist`, and
-notarized when `APPLE_API_KEY`, `APPLE_API_KEY_ID` and `APPLE_API_ISSUER` name
-an App Store Connect key. A tree with no cert or no key still packages — both
-steps are skipped with a warning — but that artifact opens only on the machine
-that built it.
+notarized with the App Store Connect key in `<repo>/.release/` (gitignored):
+`notary.env` carries `APPLE_API_KEY` (the `.p8`'s filename, resolved against
+that directory), `APPLE_API_KEY_ID` and `APPLE_API_ISSUER`, and
+`scripts/package.mjs` sets them before electron-builder starts — inside the
+turbo task, because turbo's strict env mode strips an undeclared variable
+before the task begins. A tree with no cert or no `.release/` still packages
+— both steps are skipped with a warning — but that artifact opens only on the
+machine that built it.
 
 The smoke boots the packaged server exactly as the shell does — the app's own
 Electron binary with `ELECTRON_RUN_AS_NODE=1` — and checks that the native
@@ -172,11 +176,7 @@ spawned from inside an archive and a `.node` binary cannot be loaded from one.
 1. Bump `apps/cli/package.json` and `apps/desktop/package.json` together — the
    shell reports its own version and ships the CLI's tree.
 2. `pnpm format:fix && pnpm verify && pnpm smoke:cli`.
-3. Package, notarize and boot it:
-   ```sh
-   APPLE_API_KEY=<path to AuthKey_XXXX.p8> APPLE_API_KEY_ID=<key id> \
-   APPLE_API_ISSUER=<issuer uuid> pnpm smoke:desktop
-   ```
+3. `pnpm smoke:desktop` — packages, notarizes with `.release/`, and boots it.
 4. Tag and publish the dmg — the site's Download button reads the latest
    release's `.dmg` (`apps/web/src/lib/download-url.ts`, cached up to an hour):
    ```sh

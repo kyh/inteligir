@@ -14,7 +14,11 @@
     // bundle from node_modules, and that bundle already carries the renderer.
     "package": {
       "dependsOn": ["build", "inteligir#build"],
-      "outputs": [".output/bin/**"]
+      "outputs": [".output/bin/**"],
+      // Not a pure function of the source: the signature comes from the keychain and
+      // the notarization ticket from Apple, and a cache hit would replay an unsigned
+      // artifact over a signing key that has since appeared.
+      "cache": false
     },
     "dev": {
       "cache": false,

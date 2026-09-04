@@ -27,6 +27,8 @@ dist/
 .DS_Store
 *.pem
 *.p8
+# the publishing material: the notarization key and ids (apps/desktop/README.md § Packaging)
+.release/
 
 # debug
 npm-debug.log*

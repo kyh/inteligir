@@ -1,6 +1,7 @@
 # Signed with the Developer ID electron-builder finds in the keychain and notarized when
-# APPLE_API_KEY / APPLE_API_KEY_ID / APPLE_API_ISSUER are set; README.md § Packaging has
-# the release path. Without a cert or those variables the step is skipped, not failed.
+# APPLE_API_KEY / APPLE_API_KEY_ID / APPLE_API_ISSUER are set — scripts/package.mjs sets
+# them from <repo>/.release/notary.env; README.md § Packaging has the release path. Without
+# a cert or those variables the step is skipped, not failed.
 appId: com.inteligir.desktop
 productName: Inteligir
 directories:
