@@ -1,4 +1,6 @@
-# unsigned, un-notarized local artifact; README.md documents the release path
+# Signed with the Developer ID electron-builder finds in the keychain and notarized when
+# APPLE_API_KEY / APPLE_API_KEY_ID / APPLE_API_ISSUER are set; README.md § Packaging has
+# the release path. Without a cert or those variables the step is skipped, not failed.
 appId: com.inteligir.desktop
 productName: Inteligir
 directories:
@@ -25,10 +27,14 @@ mac:
   artifactName: Inteligir-${version}-${arch}.${ext}
   category: public.app-category.productivity
   icon: resources/icon.icns
-  # hardenedRuntime without a signature produces an app Gatekeeper refuses elsewhere
-  identity: null
-  notarize: false
-  hardenedRuntime: false
+  hardenedRuntime: true
+  # named explicitly: the default is "if exists", and a missing file signs an app with no
+  # entitlements, which Electron then cannot start
+  entitlements: resources/entitlements.mac.plist
+  notarize: true
+  extendInfo:
+    # macOS kills a process that touches the microphone without this string
+    NSMicrophoneUsageDescription: Inteligir uses the microphone for dictation. Audio goes to the local server on this machine and no further.
 dmg:
   sign: false
 publish: null

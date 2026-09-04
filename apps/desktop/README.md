@@ -143,10 +143,12 @@ pnpm package:desktop      # → .output/bin/Inteligir-<version>-arm64.dmg
 pnpm smoke:desktop        # package, boot its server, drive it, SIGTERM
 ```
 
-The artifact is **unsigned and un-notarized**, deliberately: the signing
-identity is owner-gated and not present in a working tree. macOS will refuse to
-open the dmg's app on another machine until it is signed; on the build machine,
-right-click → Open.
+The app is signed with the Developer ID electron-builder finds in the keychain,
+under the hardened runtime with `resources/entitlements.mac.plist`, and
+notarized when `APPLE_API_KEY`, `APPLE_API_KEY_ID` and `APPLE_API_ISSUER` name
+an App Store Connect key. A tree with no cert or no key still packages — both
+steps are skipped with a warning — but that artifact opens only on the machine
+that built it.
 
 The smoke boots the packaged server exactly as the shell does — the app's own
 Electron binary with `ELECTRON_RUN_AS_NODE=1` — and checks that the native
@@ -165,18 +167,28 @@ build.
 `node_modules` is unpacked from the asar because a child process cannot be
 spawned from inside an archive and a `.node` binary cannot be loaded from one.
 
-### The release path (documented, not run)
+### The release path
 
 1. Bump `apps/cli/package.json` and `apps/desktop/package.json` together — the
    shell reports its own version and ships the CLI's tree.
-2. `pnpm format:fix && pnpm verify && pnpm smoke:cli && pnpm smoke:desktop`.
-3. Sign and notarize: set `CSC_LINK`/`CSC_KEY_PASSWORD` and an Apple API key,
-   flip `mac.identity`, `mac.hardenedRuntime` and `mac.notarize` in
-   `electron-builder.yml`, then re-run `pnpm package:desktop`.
-4. Publish the dmg. **There is no update feed.** A shell that checks an empty
-   channel is worse than one that does not check — it reports failures the
-   user cannot act on. Wiring `electron-updater` starts
-   with choosing the channel; `publish: null` says so until then.
+2. `pnpm format:fix && pnpm verify && pnpm smoke:cli`.
+3. Package, notarize and boot it:
+   ```sh
+   APPLE_API_KEY=<path to AuthKey_XXXX.p8> APPLE_API_KEY_ID=<key id> \
+   APPLE_API_ISSUER=<issuer uuid> pnpm smoke:desktop
+   ```
+4. Tag and publish the dmg — the site's Download button reads the latest
+   release's `.dmg` (`apps/web/src/lib/download-url.ts`, cached up to an hour):
+   ```sh
+   git tag v<version> && git push origin v<version>
+   gh release create v<version> apps/desktop/.output/bin/Inteligir-<version>-arm64.dmg
+   ```
+5. `pnpm --filter inteligir publish` — the `npx inteligir serve --open` path.
+   pnpm rewrites the manifest on the way out (`publishConfig.exports`).
+6. **There is no update feed.** A shell that checks an empty channel is worse
+   than one that does not check — it reports failures the user cannot act on.
+   Wiring `electron-updater` starts with choosing the channel; `publish: null`
+   says so until then.
 
 ## What is deliberately not here
 

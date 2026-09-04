@@ -1,6 +1,6 @@
 {
   "name": "inteligir",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "The `inteligir` binary: `serve` runs the whole local server — vault, index, agent, API — and every other verb is an oRPC client against a running one. Agent-facing by design: every leaf takes --json, the server serves the manual, and agent shells get INTELIGIR_DATA_DIR/INTELIGIR_THREAD_ID injected.",
   "keywords": [
     "agent",
