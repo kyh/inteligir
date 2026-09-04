@@ -8,6 +8,7 @@ import { AuthError, AuthField, AuthShell, fieldValue } from "@/components/auth-s
 import { authClient, authErrorMessage } from "@/lib/auth-client";
 import { internalNextPath } from "@/lib/next-path";
 import { currentSession, ssrWhenSignedOut } from "@/lib/session-guard";
+import { siteConfig } from "@/lib/site-config";
 
 interface SignInSearch {
   next?: string;
@@ -57,7 +58,7 @@ function SignInPage() {
   return (
     <AuthShell
       title="Sign in"
-      subtitle="Your notes, and an agent that edits them."
+      subtitle={siteConfig.description}
       footer={
         <>
           No account?{" "}

@@ -8,7 +8,8 @@ running one — which is how an agent drives the product from bash.
 `apps/desktop` is THE SHIPPED PRODUCT: one window on that server, forking it as
 a child, with the SPA as its renderer. `apps/web` is the one hosted piece — a
 Cloudflare Worker carrying the marketing site, Better Auth on D1, device
-login and cross-device thread sync. This is the tool-agnostic guide for
+login, cross-device thread sync, the capture inbox and the hosted vault git
+remote. This is the tool-agnostic guide for
 coding agents; `CLAUDE.md` holds the architecture and the durable decisions,
 GitHub issues #542 and #611 the decision record, `CONTEXT.md` the domain
 glossary, `apps/web/README.md` the Worker's own routes and deploy.

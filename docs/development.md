@@ -70,19 +70,21 @@ staged workspace UI into `apps/cli/dist`; `inteligir serve` then runs plain
 `node` on port 4664. `pnpm package:desktop` wraps that same package in the
 unsigned .app.
 
-`pnpm dev:web` runs the marketing site and `/api/auth/*` over a local D1
-file. Sign-up is invite-only and there is no seeded account — `AGENTS.md`
+`pnpm dev:web` runs the site and the whole cloud — `/api/auth/*`, thread sync,
+the capture inbox, the hosted vault git remote — over a local D1 file and
+miniflare's Durable Objects. Sign-up is invite-only and there is no seeded account — `AGENTS.md`
 § "There is no seeded login" has the exact commands.
 
 ## Where state lives
 
-| What                                | Where                                             |
-| ----------------------------------- | ------------------------------------------------- |
-| The product (`pnpm dev`)            | derived port 21000–28999 (hash of checkout root)  |
-| The renderer's vite dev server      | 31000, searching upward                           |
-| The product's SQLite + config.json  | `~/.inteligir-dev/<hash>/` (prod: `~/.inteligir`) |
-| Site + auth Worker (`pnpm dev:web`) | 5174 (pinned — `strictPort`)                      |
-| Accounts, sessions, invites         | D1 (local file under `apps/web/.wrangler`)        |
+| What                                 | Where                                             |
+| ------------------------------------ | ------------------------------------------------- |
+| The product (`pnpm dev`)             | derived port 21000–28999 (hash of checkout root)  |
+| The renderer's vite dev server       | 31000, searching upward                           |
+| The product's SQLite + config.json   | `~/.inteligir-dev/<hash>/` (prod: `~/.inteligir`) |
+| Site + cloud Worker (`pnpm dev:web`) | 5174 (pinned — `strictPort`)                      |
+| Accounts, sessions, devices, invites | D1 (local file under `apps/web/.wrangler`)        |
+| Thread log, captures, hosted vault   | Durable Objects (same `.wrangler` dir)            |
 
 ## Quality gates
 

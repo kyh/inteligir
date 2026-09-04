@@ -12,10 +12,13 @@ it, the local app's sync client consumes it.
 src/
   routes/            TanStack Start file routes (SSR)
     index.tsx        The marketing page
+    design.tsx       The @repo/ui gallery, client-only
     app/             /app/sign-in, /app/sign-up, /app/forgot-password and
                      /app/devices (the device table, client-only)
   components/        The site's own components (auth card, header, theme, orb)
-  lib/               Better Auth client, session guard, site config
+    gallery/         The design-system gallery /design renders
+  lib/               Better Auth client, session guard, site config, and the
+                     GitHub-release reader behind the Download button
   worker/            The Worker's API half — its OWN tsconfig program (no DOM)
     server.ts        The deployed entry: path-splits API vs site SSR
     index.ts         The API route table (also the test suite's entry)
@@ -25,6 +28,9 @@ src/
     vault/           The hosted vault git remote (durable-git behind the
                      wrapper) + the git-less /v1/vault/* read routes
     db/              Drizzle schema + client for the D1 auth database
+    rate-limit.ts    The D1 fixed window every throttled route spends
+    types/           The hand-authored durable-git .d.ts (it ships untyped TS
+                     source) — re-check on every version bump
     __tests__/       vitest-pool-workers suites (real miniflare + D1 + DO)
 ```
 
@@ -39,6 +45,7 @@ its own `tsconfig.json`.
 | Route                          | Auth    | What                                                       |
 | ------------------------------ | ------- | ---------------------------------------------------------- |
 | `/`                            | —       | Marketing page (SSR)                                       |
+| `/design`                      | —       | The @repo/ui gallery (client-only)                         |
 | `/app/sign-in`                 | —       | Sign-in (SSR when signed out — see `lib/session-guard.ts`) |
 | `/app/sign-up`                 | —       | Sign-up form; submits to the invite gate                   |
 | `/app/forgot-password`         | —       | Requests the reset link                                    |
@@ -85,7 +92,7 @@ durable-git `RepoCell`, and `/v1/account` reads D1 directly.
   `/api/auth/sign-up/email` and `auth.api.signUpEmail` together.
 - **A device signs in with the account's own email and password**
   (`src/worker/device/login.ts`, the Obsidian Sync model). `POST /v1/device/login`
-  verifies the pair through `auth.api.signInEmail`, mints the `igd_…` credential
+  verifies the email and password through `auth.api.signInEmail`, mints the `igd_…` credential
   under the twenty-device cap, and DELETES the browser session that sign-in
   created — the device holds its credential and nothing else, and a session
   nobody sees is a bearer nobody revokes. A wrong password and an unknown
@@ -96,7 +103,12 @@ durable-git `RepoCell`, and `/v1/account` reads D1 directly.
   the device login's 10/60s-per-IP windows (`src/worker/rate-limit.ts`). The
   window is one upsert that RETURNS the count it settled on — a read-then-write
   limiter lets N concurrent requests all read the same count and all decide
-  they are under the cap, which is the burst it exists to stop.
+  they are under the cap, which is the burst it exists to stop. The hosted
+  vault's two read budgets (`/v1/git/*` 600/min, `/v1/vault/*` 3,000/min) spend
+  the same table keyed on the DEVICE, never the address: a stolen credential
+  moves between addresses, and the device row is what `/app/devices` revokes.
+  Two families so a drained read budget never takes sync down; revocation and
+  account deletion drop the rows.
 - **No CORS**, deliberately: every browser client is served by this Worker from
   this origin, and a native client is not subject to CORS at all. If CORS is
   ever reintroduced, `access-control-allow-credentials` must stay absent — the

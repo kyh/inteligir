@@ -25,14 +25,15 @@ src/
     thread-projection.ts   fold a thread's events into display rows
   credential/   the device credential at rest
     credential-codec.ts        parse/serialize + the wire pattern
-    credential-store.ts        the port
     secure-store-credential.ts expo-secure-store adapter (Keychain/Keystore)
+                               behind the contract's DeviceCredentialStore port
+                               (@repo/api/cloud/device/login-flow)
   login/        signing this phone in to an account
     login-store.ts      the screen's state machine (idle | signing-in | failed)
                         over the contract's login flow
                         (@repo/api/cloud/device/login-flow)
     device-name.ts      the name this phone offers the device list
-  notes/        the vault read surface (#618)
+  notes/        the vault read surface over the /v1/vault rows
     notes-store.ts      tree + cached note reads + wiki resolver (pure, unit-tested)
     note-cache.ts       the note-body cache port + its memory implementation
     expo-note-cache.ts  expo-file-system adapter ((commit, path)-keyed, durable)

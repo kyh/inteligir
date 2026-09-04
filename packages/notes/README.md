@@ -33,6 +33,11 @@ src/
                        # whichever flavor — stated once, for every reader
     vault-search.ts    # the text ∧ tag composition, shared VERBATIM by the
                        # command palette and `inteligir search`
+    search-query.ts, search-excerpt.ts  # the ONE literal+stem query policy
+                       # both engines run, and the excerpt both cut over the
+                       # literal text (never FTS5's snippet())
+    projection-row.ts, rename-candidates.ts  # the stored projection's one
+                       # json column; which links a rename may rewrite
     tag-index.ts, related-notes.ts, note-name.ts, doc-file.ts,
     vault-path.ts      # tags, related-notes scorer, name validation, doc
                        # test, posix path helpers
@@ -43,6 +48,17 @@ src/
     verbatim-spans.ts  # the ranges the EDITOR holds verbatim (opaque nodes,
                        # math) — what keeps rename byte-surgery out of them
     remark-wiki-link.ts  # own [[wiki-link]] tokenizer, byte-exact both ways
+    remark-inline-constructs.ts, remark-opaque.ts, remark-tabs.ts,
+    remark-mdx-agnostic.ts, table-pipes.ts, line-scan.ts
+                       # the rest of the dialect's own remark plugins
+    md-plugins.ts      # the EDITOR's plugin list, owned here so verbatim-spans
+                       # can run it as a bare parse
+    parse.ts           # the total parse the phone renders through
+    mdast-nodes.ts     # the mdast NARROWING boundary: a walk asks it what a
+                       # node is, never discriminates structurally
+    fence-langs.ts, callout-payload.ts  # ONE spelling of every dialect fence
+                       # and ONE callout-payload grammar — the rule table, the
+                       # scan and the mobile projection all read them
     frontmatter.ts     # split/recombine + the typed-property ADT (YAML it
                        # cannot represent is preserved byte-exactly)
   comments/            # the %%i:id:start/end%% anchor sidecar: thread bodies,
@@ -62,7 +78,8 @@ src/
 - **Frontmatter is the ONLY property store** (repo Decisions). YAML the
   typing rules can't represent is preserved byte-exactly, never coerced.
 - **One SCAN per doc** (`projectDoc`), over one grammar (`scan-parse.ts`) —
-  which is NOT the editor's plugin list (`md-plugins.ts`), and cannot be: the mdx tokenizer
+  which is NOT the editor's plugin list (`markdown/md-plugins.ts`, owned here
+  so the scan can borrow it), and cannot be: the mdx tokenizer
   THROWS, and a malformed tag must not cost a note its place in the index.
   Where the two disagree — the byte ranges the editor carries verbatim —
   `verbatim-spans.ts` asks the editor's grammar rather than guessing, and a

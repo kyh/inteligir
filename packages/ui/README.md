@@ -10,7 +10,7 @@ attribution header on each file.
 
 - `apps/desktop` — the product's renderer
 - `packages/editor` — note editor
-- `apps/web` — marketing/auth site
+- `apps/web` — the site, the auth pages and the `/design` gallery
 
 The package stays a leaf: no `@repo/*` runtime dependencies. Consumers import
 path exports such as `@repo/ui/components/button` and

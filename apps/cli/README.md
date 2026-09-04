@@ -64,9 +64,10 @@ agent shells are given.
 `serve` · `vault
 list|read|history|revision|restore|write|rename|delete|deleted|mkdir|status|sync` ·
 `search` (`tag:` terms pass through) · `backlinks` · `related` · `tags` ·
-`action list|new|send|show|wait|archive` · `comment` · `interactions
-list|answer` · `connectors` · `folders` · `cloud` · `status` ·
-`guide`.
+`action list|new|send|show|wait|archive` · `comment
+list|add|reply|resolve|remove` · `interactions list|answer` · `connectors
+list|add|remove` · `folders list|add|remove` · `cloud status|login|sync` ·
+`status` · `guide`.
 
 Exit codes: 0 success · 1 error (including an action settling in error) ·
 2 `action wait` timeout · 3 no server reachable.

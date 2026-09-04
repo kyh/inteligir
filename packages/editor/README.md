@@ -61,6 +61,9 @@ src/
                        # the in-document affordances — every surface a node can
                        # be inserted from, and the transforms behind them
   wiki-*.ts(x)         # the `[[` picker, chips, insertion, key handling
+  agent-request.ts, search-request.ts
+                       # one-shot stores the app adopts ("Ask agent", a `#tag`
+                       # search), so the editor never imports the shell
   style-hooks.ts, styles.css
                        # the behaviour rules the host @imports, and the one
                        # spelling of every selector hook they read

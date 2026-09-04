@@ -1,12 +1,13 @@
 # Inteligir
 
-> An AI-native notes app — Obsidian with an agent.
+> The workspace for knowledge work.
 
-Your notes are plain markdown files in a folder you own, versioned with git.
+An AI-native notes app — Obsidian with an agent, local-first. Your notes are
+plain markdown files in a folder you own, versioned with git.
 The app runs on your machine: one local Node process owns the vault, indexes
 it, serves the API, and drives a coding agent that edits those same files.
-Nothing leaves the machine unless you configure a git remote or sign in to sync
-threads across devices.
+Nothing leaves the machine unless you configure a git remote or sign in to your
+account, which syncs your threads, captures and the vault itself across devices.
 
 ## Install & run
 
