@@ -9,8 +9,8 @@
   /* The only place each appearance default is written: app/appearance.tsx
      sets an inline property for a chosen option and clears it back to here
      otherwise. */
-  --editor-font: var(--font-geist);
-  --editor-mono: var(--font-geist-mono);
+  --editor-font: var(--font-body);
+  --editor-mono: var(--font-code);
   --editor-size: 14px;
   --editor-line-height: 1.75;
 

@@ -19,7 +19,7 @@ interface Option<Value extends string> {
 export const EDITOR_FONTS: readonly Option<EditorFont>[] = [
   { value: "sans", label: "Sans", css: null },
   { value: "serif", label: "Serif", css: 'ui-serif, Charter, Georgia, "Times New Roman", serif' },
-  { value: "mono", label: "Mono", css: "var(--font-geist-mono)" },
+  { value: "mono", label: "Mono", css: "var(--font-code)" },
 ];
 
 export const EDITOR_SIZES: readonly Option<EditorSize>[] = [

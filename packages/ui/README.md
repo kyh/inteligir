@@ -23,7 +23,7 @@ src/components/  shadcn, Fluid Functionalism, local confirm-dialog
 src/ai/          Beautiful UI components
 src/hooks/       shared hooks
 src/lib/         UI system helpers and controlled theme provider
-src/styles/      Tailwind theme, Geist fonts, typeset styles
+src/styles/      Tailwind theme, Inter, typeset styles
 components.json  shadcn config: base-rhea, zinc, the @fluid registry
 ```
 
