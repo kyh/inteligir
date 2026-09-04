@@ -526,7 +526,9 @@ carries the mechanism. The dangling-reference guard keeps the pointers honest.
   a position replayed with a different body `sync-conflict`. `deviceSeq` is its
   own counter in `sync_state`, not `MAX()` over a shrinking queue and not
   `events.sequence`. An event the contract refuses is dropped rather than
-  stranding every event behind it (`packages/db/src/sync-outbox.ts`).
+  stranding every event behind it (`takePushBatch` in
+  `apps/cli/src/server/cloud/outbox.ts`; the frozen-body store is
+  `packages/db/src/sync-outbox.ts`).
 
 - **SYNC IS PERMISSIONED BY ACCOUNT; the account IS the entitlement.**
   Accountless, the app is local-only and makes zero cloud requests. Signed in, the

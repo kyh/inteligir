@@ -1,4 +1,4 @@
-// every other guard reads source with comments stripped, so prose and configuration rot unwatched;
+// the other guards read source, not prose, so prose and configuration rot unwatched;
 // this walks what the repo says (comments, markdown, configs, strings) against what it has.
 
 import { execFileSync, spawnSync } from "node:child_process";

@@ -2,7 +2,7 @@
   "name": "@repo/api",
   "version": "0.1.0",
   "private": true,
-  "description": "ONE contract package, TWO entry points. `./local` is the desktop renderer and the CLI talking to the local server; `./cloud` is the local server and mobile talking to the Worker. Separate routers because their compatibility obligations are opposite: /local's two ends ship in one bundle and may break freely, /cloud is a deployed Worker answering installs that may be months stale.",
+  "description": "ONE contract package, TWO entry points. `./local` is the desktop renderer and the CLI talking to the local server; `./cloud` is the local server and mobile talking to the Worker. Separate entry points because their compatibility obligations are opposite: /local's two ends ship in one bundle and may break freely, /cloud is a deployed Worker answering installs that may be months stale.",
   "type": "module",
   "exports": {
     "./cloud/account/account-schema": "./src/cloud/account/account-schema.ts",
