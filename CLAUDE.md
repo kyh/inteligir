@@ -754,6 +754,16 @@ create`, never by electron-builder. `autoDownload` and `autoInstallOnAppQuit`
   has no source here and is ignored. No second write path: the move rides
   `vault.rename`, which rewrites links, and the open note follows through
   `openNoteAfterRename`.
+- **TEMPLATES ARE A FOLDER, AND PLACEHOLDERS EXPAND ON BYTES BEFORE ANY PARSER.**
+  A template is a doc under `templates/` (a fixed convention like the daily
+  folder, no setting); `templates/Daily.md` shapes the daily note. Exactly three
+  placeholders, `{{date}}`, `{{time}}`, `{{title}}`, replaced textually on the
+  raw markdown, so the formula grammar never sees them and every other `{{…}}`
+  is a pill left byte-exact. Insert lands the body through the paste parser at
+  the selection and leaves the template's frontmatter behind; a note minted
+  from a template drops the template's `id:`, because two notes with one id
+  make the uuid link tier ambiguous. `@repo/notes/templates/placeholders`,
+  `packages/editor/src/insert-template.ts`.
 
 **Before raising a "new" finding, read
 [#542](https://github.com/kyh/inteligir/issues/542)**: the decision record

@@ -18,13 +18,17 @@ import { setAgentRequestActions } from "@repo/editor/agent-request";
 import { consumeSearchRequest, useSearchRequest } from "@repo/editor/search-request";
 import { EditorColumn } from "@repo/editor/editor-column";
 import { openFindBar } from "@repo/editor/find-bar";
+import { insertTemplate } from "@repo/editor/insert-template";
 import { getLiveEditor } from "@repo/editor/live-editor";
+import { removeFrontmatterId } from "@repo/notes/markdown/frontmatter";
+import { DAILY_TEMPLATE_PATH, expandTemplate } from "@repo/notes/templates/placeholders";
+import { toast } from "@repo/ui/components/sonner";
 import { flushOpenNote } from "@repo/editor/note/open-note-flush";
 import { openDocPath } from "@repo/editor/note/open-doc";
 import { backTarget, createOpenNoteStore, forwardTarget } from "@repo/editor/note/open-note-store";
 import { exportNoteAsPdf } from "./note/export-pdf";
 import type { VaultActions } from "@repo/editor/host-io";
-import { dailyNotePath, dailyNoteTemplate } from "./note/daily";
+import { dailyNoteFromTemplate, dailyNotePath, dailyNoteTemplate } from "./note/daily";
 import { readNoteViewContext } from "./note/note-view-context";
 import { VaultProvider } from "./note/vault-provider";
 import { CommandPalette } from "./palette/command-palette";
@@ -190,11 +194,49 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
     if (editor !== null) openFindBar(editor);
   }, [noteStore]);
 
+  // the template is read on every ⌘D rather than looked up in the tree, which can be stale; a
+  // refused read keeps the built-in shape, so the day's note opens either way.
   const openDailyNote = useCallback((): void => {
     const now = new Date();
-    // Create-exclusive rather than checking the tree first, which can be stale.
-    void createNote(dailyNotePath(now), dailyNoteTemplate(now));
-  }, [createNote]);
+    void (async () => {
+      let content = dailyNoteTemplate(now);
+      try {
+        const template = await api.vault.read({ path: DAILY_TEMPLATE_PATH });
+        content = dailyNoteFromTemplate(template.content, now);
+      } catch {
+        // no template in this vault
+      }
+      // Create-exclusive rather than checking the tree first, which can be stale.
+      await createNote(dailyNotePath(now), content);
+    })();
+  }, [api, createNote]);
+
+  const newNoteFromTemplate = useCallback(
+    (templatePath: string): void => {
+      void (async () => {
+        let template: string;
+        try {
+          ({ content: template } = await api.vault.read({ path: templatePath }));
+        } catch {
+          toast.error("Could not read the template.");
+          return;
+        }
+        const path = untitledNotePath("", filePathsLowercased(treeQuery.data));
+        const body = expandTemplate(template, { now: new Date(), title: docStem(path) });
+        await createNote(path, removeFrontmatterId(body));
+      })();
+    },
+    [api, treeQuery.data, createNote],
+  );
+
+  const insertTemplateIntoNote = useCallback(
+    (templatePath: string): void => {
+      const { openPath: path } = noteStore.state();
+      const editor = path === null ? null : getLiveEditor(path);
+      if (editor !== null) void insertTemplate(editor, templatePath);
+    },
+    [noteStore],
+  );
 
   const { syncNow, inFlight: syncInFlight } = useSyncNow();
 
@@ -276,12 +318,14 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
     () => ({
       openNote: setOpenNote,
       newNote: newUntitledNote,
+      newNoteFromTemplate,
       openDailyNote,
       openThread,
       syncNow,
       openSettings: onOpenSettings,
       openDeletedNotes: () => setDeletedNotesOpen(true),
       findInNote: openPath === null ? null : findInNote,
+      insertTemplate: openPath === null ? null : insertTemplateIntoNote,
       exportPdf:
         openPath === null
           ? null
@@ -293,11 +337,13 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
     [
       setOpenNote,
       newUntitledNote,
+      newNoteFromTemplate,
       openDailyNote,
       openThread,
       syncNow,
       onOpenSettings,
       findInNote,
+      insertTemplateIntoNote,
       openPath,
       treeOps,
     ],

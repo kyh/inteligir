@@ -108,6 +108,21 @@ export function parseProperties(yamlText: string): ParsedProperties {
   return { kind: "valid", properties };
 }
 
+// a note minted from a template must not inherit the template's identity: two notes with one
+// `id:` make the `[[Title|uuid]]` tier ambiguous. a line cut, not a re-serialization:
+// serializeProperties normalizes what it touches (a flow list's spacing), and the template's
+// other keys must land byte-exact. an id is a one-line scalar, so its line is the whole value.
+export function removeFrontmatterId(content: string): string {
+  const match = FRONTMATTER_RE.exec(content);
+  if (!match) return content;
+  const lines = (match[1] ?? "").split("\n");
+  const kept = lines.filter((line) => !/^id\s*:/.test(line));
+  if (kept.length === lines.length) return content;
+  const body = content.slice(match[0].length);
+  if (kept.every((line) => line.trim() === "")) return body;
+  return `---\n${kept.join("\n")}\n---\n${body}`;
+}
+
 // `alias:` is honored only when it is the doc's only alias list: extraction prefers `aliases`,
 // so minting one beside `alias` would shadow the old entries.
 export function addFrontmatterAlias(content: string, alias: string): string | null {

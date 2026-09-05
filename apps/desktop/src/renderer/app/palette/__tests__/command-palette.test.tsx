@@ -22,12 +22,14 @@ function makeActions(): PaletteActions {
   return {
     openNote: vi.fn(),
     newNote: vi.fn(),
+    newNoteFromTemplate: vi.fn(),
     openDailyNote: vi.fn(),
     openThread: vi.fn(),
     syncNow: vi.fn(),
     openSettings: vi.fn(),
     openDeletedNotes: vi.fn(),
     findInNote: null,
+    insertTemplate: null,
     exportPdf: null,
     moveNote: vi.fn(),
   };
@@ -175,6 +177,40 @@ describe("commands", () => {
     const { actions } = renderPalette();
     fireEvent.click(screen.getByText("Settings"));
     expect(actions.openSettings).toHaveBeenCalled();
+  });
+});
+
+const TEMPLATE: VaultEntry = { kind: "file", path: "templates/Meeting.md" };
+
+describe("the template pages", () => {
+  it("lists templates by stem and creates a note from the picked one", () => {
+    const { actions, onOpenChange } = renderPalette({ entries: [...ENTRIES, TEMPLATE] });
+    fireEvent.click(screen.getByText("New note from template…"));
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+    fireEvent.click(screen.getByText("Meeting"));
+    expect(actions.newNoteFromTemplate).toHaveBeenCalledWith("templates/Meeting.md");
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("offers Insert template only over an open note, and inserts the picked one", () => {
+    renderPalette({ entries: [...ENTRIES, TEMPLATE] });
+    expect(screen.queryByText("Insert template…")).toBeNull();
+    cleanup();
+    const insertTemplate = vi.fn();
+    const { actions } = renderPalette({
+      entries: [...ENTRIES, TEMPLATE],
+      actions: { ...makeActions(), insertTemplate },
+    });
+    fireEvent.click(screen.getByText("Insert template…"));
+    fireEvent.click(screen.getByText("Meeting"));
+    expect(insertTemplate).toHaveBeenCalledWith("templates/Meeting.md");
+    expect(actions.insertTemplate).toBeNull();
+  });
+
+  it("says where templates come from when the folder is empty", () => {
+    renderPalette();
+    fireEvent.click(screen.getByText("New note from template…"));
+    expect(screen.getByText(/No templates yet/)).toBeDefined();
   });
 });
 

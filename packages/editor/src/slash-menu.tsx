@@ -3,6 +3,7 @@
 import { SlashInputPlugin, SlashPlugin } from "@platejs/slash-command/react";
 import { insertTable } from "@platejs/table";
 import {
+  FileTextIcon,
   PencilRulerIcon,
   BarChart3Icon,
   AppWindowIcon,
@@ -31,8 +32,14 @@ import {
 import { KEYS } from "platejs";
 import type { PlateEditor, PlateElementProps } from "platejs/react";
 import { PlateElement, createPlatePlugin } from "platejs/react";
+import { useEffect, useState } from "react";
+
+import type { WikiTarget } from "@repo/notes/knowledge/link-graph-index";
+import { isTemplatePath } from "@repo/notes/templates/placeholders";
 
 import { turnIntoOption, turnIntoSelection, type TurnIntoId } from "@repo/editor/block-transforms";
+import { getEditorHostIo } from "@repo/editor/host-io";
+import { insertTemplate } from "@repo/editor/insert-template";
 import {
   insertCanvasBlock,
   insertChartBlock,
@@ -314,15 +321,57 @@ const GROUPS: { group: string; items: SlashItem[] }[] = [
   },
 ];
 
+const TEMPLATES_GROUP = "Templates";
+
+// a template is a row only while it exists: the list is read when the menu opens rather than
+// pinned in GROUPS, and the group is absent when the folder is.
+function templateItems(targets: readonly WikiTarget[]): SlashItem[] {
+  return targets
+    .filter((target) => isTemplatePath(target.path))
+    .map((target) => ({
+      icon: <FileTextIcon />,
+      label: target.title,
+      value: `template:${target.path}`,
+      description: target.path,
+      keywords: ["template"],
+      onSelect: (editor) => {
+        void insertTemplate(editor, target.path);
+      },
+    }));
+}
+
+function useTemplateItems(): SlashItem[] {
+  const [items, setItems] = useState<SlashItem[]>([]);
+  useEffect(() => {
+    let live = true;
+    getEditorHostIo()
+      .listWikiTargets()
+      .then((targets) => {
+        if (live) setItems(templateItems(targets));
+        return undefined;
+      })
+      .catch(() => {
+        // an unanswered listing is no group, not an error to show
+      });
+    return () => {
+      live = false;
+    };
+  }, []);
+  return items;
+}
+
 function SlashInputElement(props: PlateElementProps) {
   const { children, editor, element } = props;
+  const templates = useTemplateItems();
+  const groups =
+    templates.length === 0 ? GROUPS : [...GROUPS, { group: TEMPLATES_GROUP, items: templates }];
   return (
     <PlateElement {...props} as="span">
       <InlineCombobox element={element} trigger="/">
         <InlineComboboxInput />
         <InlineComboboxContent variant="slash">
           <InlineComboboxEmpty>No results</InlineComboboxEmpty>
-          {GROUPS.map(({ group, items }) => (
+          {groups.map(({ group, items }) => (
             <InlineComboboxGroup key={group}>
               <InlineComboboxGroupLabel>{group}</InlineComboboxGroupLabel>
               {items.map((item) => (

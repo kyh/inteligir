@@ -13,6 +13,8 @@ import {
 import type { Thread } from "@repo/api/local/threads/threads-schema";
 import type { VaultEntry } from "@repo/api/local/vault/vault-schema";
 import { basenamePath } from "@repo/notes/knowledge/vault-path";
+import { docStem } from "@repo/notes/knowledge/doc-file";
+import { isTemplatePath, TEMPLATES_FOLDER } from "@repo/notes/templates/placeholders";
 import {
   ArchiveRestoreIcon,
   CalendarIcon,
@@ -20,6 +22,7 @@ import {
   FileTextIcon,
   FolderIcon,
   FolderInputIcon,
+  LayoutTemplateIcon,
   MessagesSquareIcon,
   RefreshCwIcon,
   SettingsIcon,
@@ -34,12 +37,14 @@ import type { NoteSearchHit, NoteSearchSource } from "./note-search";
 export interface PaletteActions {
   openNote: (path: string) => void;
   newNote: (parentDir: string) => void;
+  newNoteFromTemplate: (templatePath: string) => void;
   openDailyNote: () => void;
   openThread: (threadId: string) => void;
   syncNow: () => void;
   openSettings: () => void;
   openDeletedNotes: () => void;
   findInNote: (() => void) | null;
+  insertTemplate: ((templatePath: string) => void) | null;
   exportPdf: (() => void) | null;
   moveNote: (path: string, toDir: string) => void;
 }
@@ -59,7 +64,68 @@ export interface CommandPaletteProps {
   moveRequest?: string | null;
 }
 
-type Page = "root" | "new-note-folder" | "threads" | "move-to-folder";
+type Page =
+  | "root"
+  | "new-note-folder"
+  | "new-note-template"
+  | "insert-template"
+  | "threads"
+  | "move-to-folder";
+
+interface TemplatePageProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  title: string;
+  description: string;
+  placeholder: string;
+  query: string;
+  onQueryChange: (query: string) => void;
+  templatePaths: readonly string[];
+  onPick: (templatePath: string) => void;
+}
+
+// one page for both template commands: the list, the filter and the empty state are the same
+// question, "which template?"; only the verb that follows differs.
+function TemplatePage({
+  open,
+  onOpenChange,
+  title,
+  description,
+  placeholder,
+  query,
+  onQueryChange,
+  templatePaths,
+  onPick,
+}: TemplatePageProps) {
+  const visible = templatePaths.filter((path) => matchesQuery(docStem(path), query));
+  return (
+    <CommandDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={title}
+      description={description}
+      shouldFilter={false}
+    >
+      <CommandInput placeholder={placeholder} value={query} onValueChange={onQueryChange} />
+      <CommandList>
+        <CommandEmpty>
+          {templatePaths.length === 0
+            ? `No templates yet — notes under ${TEMPLATES_FOLDER}/ appear here.`
+            : "No matching template."}
+        </CommandEmpty>
+        <CommandGroup heading="Templates">
+          {visible.map((path) => (
+            <CommandItem key={path} onSelect={() => onPick(path)}>
+              <LayoutTemplateIcon />
+              <span className="truncate">{docStem(path)}</span>
+              <span className="ml-auto truncate pl-3 text-xs text-muted-foreground">{path}</span>
+            </CommandItem>
+          ))}
+        </CommandGroup>
+      </CommandList>
+    </CommandDialog>
+  );
+}
 
 function threadRowLabel(thread: Thread): string {
   return thread.title ?? "Action";
@@ -149,6 +215,9 @@ export function CommandPalette({
   };
 
   const dirPaths = entries.filter((entry) => entry.kind === "dir").map((entry) => entry.path);
+  const templatePaths = entries
+    .filter((entry) => entry.kind === "file" && isTemplatePath(entry.path))
+    .map((entry) => entry.path);
 
   const commands: StaticCommand[] = [
     {
@@ -168,6 +237,16 @@ export function CommandPalette({
       },
     },
     {
+      id: "new-note-from-template",
+      label: "New note from template…",
+      icon: <LayoutTemplateIcon />,
+      keepOpen: true,
+      run: () => {
+        setQuery("");
+        setPage("new-note-template");
+      },
+    },
+    {
       id: "daily-note",
       label: "Daily note",
       shortcut: "⌘D",
@@ -182,6 +261,20 @@ export function CommandPalette({
             shortcut: "⌘F",
             icon: <TextSearchIcon />,
             run: () => actions.findInNote?.(),
+          },
+        ]
+      : []),
+    ...(actions.insertTemplate !== null
+      ? [
+          {
+            id: "insert-template",
+            label: "Insert template…",
+            icon: <LayoutTemplateIcon />,
+            keepOpen: true,
+            run: () => {
+              setQuery("");
+              setPage("insert-template");
+            },
           },
         ]
       : []),
@@ -279,6 +372,38 @@ export function CommandPalette({
           </CommandGroup>
         </CommandList>
       </CommandDialog>
+    );
+  }
+
+  if (page === "new-note-template") {
+    return (
+      <TemplatePage
+        open={open}
+        onOpenChange={onOpenChange}
+        title="New note from template"
+        description="Pick the template the new note starts from"
+        placeholder="New note from which template?"
+        query={query}
+        onQueryChange={setQuery}
+        templatePaths={templatePaths}
+        onPick={(path) => run(() => actions.newNoteFromTemplate(path))}
+      />
+    );
+  }
+
+  if (page === "insert-template") {
+    return (
+      <TemplatePage
+        open={open}
+        onOpenChange={onOpenChange}
+        title="Insert template"
+        description="Pick the template to insert at the cursor"
+        placeholder="Insert which template?"
+        query={query}
+        onQueryChange={setQuery}
+        templatePaths={templatePaths}
+        onPick={(path) => run(() => actions.insertTemplate?.(path))}
+      />
     );
   }
 
