@@ -7,6 +7,11 @@ import { applyStoredSpellcheck, chooseSpellcheck } from "../desktop-spellcheck";
 import { readSpellcheck, writeSpellcheck } from "../prefs";
 
 const inert = initialUpdateState("0.0.0", "a test stub");
+const inertVaults = {
+  current: { path: "/home/me/Inteligir", name: "Inteligir" },
+  recent: [],
+  blocked: null,
+};
 
 function state(choice: SpellcheckChoice | null): SpellcheckState {
   return {
@@ -42,6 +47,12 @@ function installBridge() {
     paths: {
       reveal: () => Promise.resolve({ ok: true }),
       open: () => Promise.resolve({ ok: true }),
+    },
+    vaults: {
+      getState: () => Promise.resolve(inertVaults),
+      pick: () => Promise.resolve(inertVaults),
+      open: () => Promise.resolve(inertVaults),
+      forget: () => Promise.resolve(inertVaults),
     },
   };
   return log;

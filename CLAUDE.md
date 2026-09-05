@@ -911,6 +911,26 @@ rename`.
   see it; the find bar is the fallback when the note no longer carries the
   link. Each family is capped on its own with its own total.
   `@repo/notes/knowledge/vault-problems.ts`.
+- **A SECOND VAULT GETS ITS OWN DATA DIR, AND A SWITCH IS A NEW CHILD, A NEW
+  SESSION AND A NEW WINDOW.** The default vault keeps the root data dir every
+  install already has; any other vault's db, index and `server.json` live in
+  `<root>/vaults/<sha256(path)[:16]>/`, derived once in `config.ts` so the
+  shell's child and `inteligir serve` name the same dir, and the root's
+  `config.json` is the selector both read. The root refuses a vault beneath it.
+  Cost accepted: the credential, the connectors and the agent default live in
+  the data dir, so a second vault starts signed out and unconfigured, which is
+  also what keeps it off the account's hosted remote. The shell switches only a
+  child it started (an adopted server is nobody's to restart) and only when
+  neither the vault nor the data dir is env-pinned: it stops the child, whose
+  ordered shutdown flushes the pending commit, rewrites `vaultDir`, re-resolves
+  as a boot would, boots the new child, and opens a new window on the new data
+  dir's session partition, since a `BrowserWindow`'s session is fixed at
+  creation; a vault revisited in one launch re-registers the app protocol on its
+  old partition. A child that fails to boot puts the previous vault back. The
+  folder is picked in main, so the page never names a path it was not handed;
+  the recent-vaults list is the shell's own `userData`, never a vault's.
+  `apps/desktop/src/main/vaults.ts` (the policy), `main/index.ts`
+  (`switchVault`), `apps/desktop/src/vaults-state.ts`.
 
 **Before raising a "new" finding, read
 [#542](https://github.com/kyh/inteligir/issues/542)**: the decision record

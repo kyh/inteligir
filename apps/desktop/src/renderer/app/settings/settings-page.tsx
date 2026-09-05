@@ -26,6 +26,7 @@ import { ChoiceRow, Row, SectionHeading } from "./settings-chrome";
 import { SpellcheckRows } from "./spellcheck-rows";
 import { SyncSection } from "./sync-section";
 import { UpdatesRow } from "./updates-row";
+import { VaultsRow } from "./vaults-rows";
 import { VoiceSection } from "./voice-section";
 
 const THEMES: readonly { value: Theme; label: string }[] = [
@@ -137,6 +138,7 @@ export function SettingsPage({ onBack }: { onBack: () => void }) {
                 ) : null}
               </Row>
               <AttachmentsRow />
+              <VaultsRow />
             </dl>
           </section>
           <Separator />

@@ -7,6 +7,7 @@ import type { DesktopBridge } from "../types";
 import { pathActionResultSchema, type PathActionRequest } from "../path-action";
 import { spellcheckStateSchema } from "../spellcheck-state";
 import { updateStateSchema, type UpdateState } from "../update-state";
+import { vaultsStateSchema, type VaultsState } from "../vaults-state";
 
 const socketOrigin = socketOriginSchema.parse(ipcRenderer.sendSync(IPC_CHANNELS.SOCKET_ORIGIN));
 
@@ -51,9 +52,29 @@ const paths: DesktopBridge["paths"] = {
     ),
 };
 
+// a refusal crosses as Electron's wrapped error; the page gets the sentence main wrote
+const INVOKE_PREFIX = /^Error invoking remote method '[^']*': (?:Error: )?/u;
+
+async function invokeForVaults(channel: string, ...frames: unknown[]): Promise<VaultsState> {
+  try {
+    return vaultsStateSchema.parse(await ipcRenderer.invoke(channel, ...frames));
+  } catch (cause) {
+    const message = cause instanceof Error ? cause.message : String(cause);
+    throw new Error(message.replace(INVOKE_PREFIX, ""), { cause });
+  }
+}
+
+const vaults: DesktopBridge["vaults"] = {
+  getState: () => invokeForVaults(IPC_CHANNELS.VAULTS_GET_STATE),
+  pick: () => invokeForVaults(IPC_CHANNELS.VAULTS_PICK),
+  open: (path) => invokeForVaults(IPC_CHANNELS.VAULTS_OPEN, path),
+  forget: (path) => invokeForVaults(IPC_CHANNELS.VAULTS_FORGET, path),
+};
+
 contextBridge.exposeInMainWorld("desktopBridge", {
   socketOrigin,
   updates,
   spellcheck,
   paths,
+  vaults,
 } satisfies DesktopBridge);

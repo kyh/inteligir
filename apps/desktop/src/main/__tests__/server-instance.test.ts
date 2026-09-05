@@ -43,6 +43,9 @@ describe("resolveServerTarget", () => {
       target: {
         dataDir: join(homeDir, PROD_DATA_DIR_NAME),
         vaultDir: join(homeDir, "Inteligir"),
+        rootDataDir: join(homeDir, PROD_DATA_DIR_NAME),
+        vaultDirSource: "default",
+        dataDirSource: "default",
       },
     });
   });
@@ -57,6 +60,35 @@ describe("resolveServerTarget", () => {
       homeDir,
     });
     expect(resolved.kind === "resolved" && resolved.target.vaultDir).toBe(vaultDir);
+    expect(resolved.kind === "resolved" && resolved.target.vaultDirSource).toBe("managed-config");
+    // not the root: a vault other than the default gets a dir of its own beneath it
+    expect(resolved.kind === "resolved" && resolved.target.dataDir).not.toBe(
+      join(homeDir, PROD_DATA_DIR_NAME),
+    );
+    expect(resolved.kind === "resolved" && resolved.target.rootDataDir).toBe(
+      join(homeDir, PROD_DATA_DIR_NAME),
+    );
+  });
+
+  it("resolves a switch candidate as a boot would, refusing a vault that nests the data dir", () => {
+    const homeDir = scratchHome();
+    const candidate = resolveServerTarget({
+      isPackaged: true,
+      env: {},
+      homeDir,
+      vaultDir: join(homeDir, "Second"),
+    });
+    expect(candidate.kind === "resolved" && candidate.target.vaultDir).toBe(
+      join(homeDir, "Second"),
+    );
+    expect(candidate.kind === "resolved" && candidate.target.vaultDirSource).toBe("env");
+    const nested = resolveServerTarget({
+      isPackaged: true,
+      env: {},
+      homeDir,
+      vaultDir: join(homeDir, PROD_DATA_DIR_NAME, "notes"),
+    });
+    expect(nested.kind).toBe("refused");
   });
 
   it("a checkout resolves the per-checkout dev instance, whatever NODE_ENV says", () => {

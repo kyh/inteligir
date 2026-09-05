@@ -40,6 +40,11 @@ export function registerAppProtocol(args: AppProtocolArgs): void {
     wsOrigin: websocketOrigin(args.serverOrigin),
   });
 
+  // a vault revisited in one launch gets a fresh child and a fresh token, so the handler is
+  // replaced; handling a scheme twice on one session throws.
+  if (args.session.protocol.isProtocolHandled(APP_SCHEME)) {
+    args.session.protocol.unhandle(APP_SCHEME);
+  }
   args.session.protocol.handle(APP_SCHEME, async (request) => {
     const { pathname, search } = new URL(request.url);
 

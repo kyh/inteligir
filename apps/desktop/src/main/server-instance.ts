@@ -1,7 +1,11 @@
 import { createHash } from "node:crypto";
 import { join } from "node:path";
 import type { SystemStatusResponse } from "@repo/api/local/system/system-schema";
-import { resolveAppConfig, type ResolveAppConfigArgs } from "inteligir/server/config";
+import {
+  resolveAppConfig,
+  type ResolveAppConfigArgs,
+  type VaultDirSource,
+} from "inteligir/server/config";
 import { resolveCheckoutRoot } from "inteligir/server/dev-instance";
 import { toErrorMessage } from "../types";
 import { createLocalClient } from "inteligir/server/local-client";
@@ -15,6 +19,11 @@ export function serverOrigin(port: number): string {
 export interface ServerTarget {
   dataDir: string;
   vaultDir: string;
+  // where config.json lives; the data dir of any vault but the default sits beneath it
+  rootDataDir: string;
+  // env-pinned values are not the shell's to change, so a switch is refused while either is
+  vaultDirSource: VaultDirSource;
+  dataDirSource: "env" | "default";
 }
 
 export type ServerTargetResult =
@@ -25,16 +34,22 @@ export interface ResolveServerTargetArgs {
   isPackaged: boolean;
   env: NodeJS.ProcessEnv;
   homeDir?: string;
+  // a candidate for a switch: resolved and refused exactly as a boot would, before anything moves
+  vaultDir?: string;
 }
 
 export function resolveServerTarget(args: ResolveServerTargetArgs): ServerTargetResult {
   try {
-    const configArgs: ResolveAppConfigArgs = {
-      checkoutPath: resolveCheckoutRoot(),
-      // `isPackaged` decides the mode, never the ambient NODE_ENV: a checkout run as
-      // production would drive the developer's real ~/.inteligir and ~/Inteligir.
-      env: { ...args.env, NODE_ENV: args.isPackaged ? "production" : "development" },
+    // `isPackaged` decides the mode, never the ambient NODE_ENV: a checkout run as
+    // production would drive the developer's real ~/.inteligir and ~/Inteligir.
+    const env: NodeJS.ProcessEnv = {
+      ...args.env,
+      NODE_ENV: args.isPackaged ? "production" : "development",
     };
+    if (args.vaultDir !== undefined) {
+      env.INTELIGIR_VAULT_DIR = args.vaultDir;
+    }
+    const configArgs: ResolveAppConfigArgs = { checkoutPath: resolveCheckoutRoot(), env };
     if (args.homeDir !== undefined) {
       configArgs.homeDir = args.homeDir;
     }
@@ -44,6 +59,9 @@ export function resolveServerTarget(args: ResolveServerTargetArgs): ServerTarget
       target: {
         dataDir: config.dataDir,
         vaultDir: config.vaultDir,
+        rootDataDir: config.rootDataDir,
+        vaultDirSource: config.vaultDirSource,
+        dataDirSource: config.dataDirSource,
       },
     };
   } catch (error) {

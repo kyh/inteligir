@@ -73,10 +73,12 @@ export async function bootTestApp(options: BootTestAppOptions = {}): Promise<Boo
     databasePath: join(dataDir, "inteligir.db"),
     dataDir,
     dataDirSource: "env",
+    rootDataDir: dataDir,
     mode: "dev",
     port: options.port ?? 0,
     portSource: "env",
     vaultDir,
+    vaultDirSource: "env",
     vaultRemote: null,
     // tests drive syncNow directly; a timer would race the assertions.
     vaultSyncIntervalMs: null,
