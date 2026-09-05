@@ -808,15 +808,18 @@ rename`.
   `apps/desktop/src/spellcheck-state.ts` (the one state),
   `apps/desktop/src/renderer/app/desktop-spellcheck.ts`.
 - **A BINDING IS SPELLED FROM THE TABLE ITS LISTENER READS, never as a
-  literal.** Three tables own every chord: `GLOBAL_SHORTCUTS`
+  literal.** Four tables own every chord: `GLOBAL_SHORTCUTS`
   (`apps/desktop/src/renderer/app/global-shortcuts.ts`, the window listener),
-  `EDITOR_SHORTCUTS` (`packages/editor/src/editor-shortcuts.ts`) and
+  `MARK_SHORTCUTS` (`packages/editor/src/mark-shortcuts.ts`, which the marks
+  kit BUILDS Plate's `shortcuts` config from, so Plate's own defaults never
+  run), `EDITOR_SHORTCUTS` (`packages/editor/src/editor-shortcuts.ts`) and
   `FIND_BAR_SHORTCUTS` (`packages/editor/src/find-bar.tsx`), and each handler
-  matches by walking its table. The palette's "Keyboard shortcuts" page and
-  every `CommandShortcut` are derived from those rows through `spellHotkey`
-  (⌃⌥⇧⌘ on a mac keyboard, `Ctrl+Shift+…` elsewhere), so a rebinding cannot
-  leave a stale label behind. `shortcut-tables.test.ts` refuses a chord two
-  tables share, because a key both claim runs both. ⌘O is Obsidian's quick
+  matches by walking its table. The palette's "Keyboard shortcuts" page, every
+  `CommandShortcut` and the selection toolbar's tooltips are derived from those
+  rows through `spellHotkey` (`@repo/editor/hotkey-spelling`: ⌃⌥⇧⌘ on a mac
+  keyboard, `Ctrl+Shift+…` elsewhere), so a rebinding cannot leave a stale
+  label behind. `shortcut-tables.test.ts` refuses a chord two tables share,
+  because a key both claim runs both. ⌘O is Obsidian's quick
   switcher (the palette with its commands folded away) and ⌘, is Settings; a
   browser tab may keep either for itself, the shell delivers both.
 

@@ -26,6 +26,12 @@ import { docStem } from "@repo/notes/knowledge/doc-file";
 import { isTemplatePath, TEMPLATES_FOLDER } from "@repo/notes/templates/placeholders";
 import { EDITOR_SHORTCUTS } from "@repo/editor/editor-shortcuts";
 import { FIND_BAR_SHORTCUTS } from "@repo/editor/find-bar";
+import {
+  platformShortcutModifier,
+  spellHotkey,
+  type ShortcutModifier,
+} from "@repo/editor/hotkey-spelling";
+import { MARK_SHORTCUTS } from "@repo/editor/mark-shortcuts";
 import type { HeadingItem } from "@repo/editor/toc";
 import {
   ArchiveRestoreIcon,
@@ -52,10 +58,7 @@ import {
   bindingFor,
   GLOBAL_SHORTCUTS,
   globalShortcutHotkey,
-  platformShortcutModifier,
-  spellHotkey,
   type GlobalShortcutAction,
-  type ShortcutModifier,
 } from "../global-shortcuts";
 import { planMove } from "../sidebar/tree-ops";
 import { threadActivity, THREAD_ACTIVITY_LABELS } from "../thread-activity";
@@ -212,7 +215,7 @@ function problemsHidden(problems: KnowledgeProblemsResponse): number {
   ].reduce((hidden, family) => hidden + (family.total - family.rows.length), 0);
 }
 
-// derived from the two tables the listeners read, never a list of its own
+// derived from the tables the listeners read, never a list of its own
 function shortcutGroups(
   modifier: ShortcutModifier,
 ): readonly { heading: string; rows: ShortcutRow[] }[] {
@@ -227,7 +230,7 @@ function shortcutGroups(
     },
     {
       heading: "In the note",
-      rows: [...EDITOR_SHORTCUTS, ...FIND_BAR_SHORTCUTS].map((row) => ({
+      rows: [...MARK_SHORTCUTS, ...EDITOR_SHORTCUTS, ...FIND_BAR_SHORTCUTS].map((row) => ({
         id: row.action,
         label: row.label,
         chord: spellHotkey(row.hotkey, modifier),

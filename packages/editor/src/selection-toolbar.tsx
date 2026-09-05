@@ -32,6 +32,9 @@ import {
 import { cn } from "@repo/ui/lib/utils";
 
 import { useAgentRequestActions } from "@repo/editor/agent-request";
+import { EDITOR_SHORTCUTS } from "@repo/editor/editor-shortcuts";
+import { platformShortcutModifier, spellHotkey } from "@repo/editor/hotkey-spelling";
+import { markShortcut } from "@repo/editor/mark-shortcuts";
 import { Button } from "@repo/ui/components/button";
 import {
   DropdownMenu,
@@ -125,22 +128,25 @@ function TurnIntoTrigger({ children }: { children: ReactNode }) {
   );
 }
 
-function MarkButton({
-  nodeType,
-  title,
-  children,
-}: {
-  nodeType: string;
-  title: string;
-  children: ReactNode;
-}) {
+// the tooltip is the table's label and chord, so it cannot disagree with the palette's page;
+// a mark with no chord still needs a name on the button
+function markTitle(nodeType: string): string {
+  const row =
+    nodeType === KEYS.code
+      ? (EDITOR_SHORTCUTS.find((candidate) => candidate.action === "toggle-code-mark") ?? null)
+      : markShortcut(nodeType);
+  if (row !== null) return `${row.label} ${spellHotkey(row.hotkey, platformShortcutModifier())}`;
+  return nodeType === KEYS.strikethrough ? "Strikethrough" : nodeType;
+}
+
+function MarkButton({ nodeType, children }: { nodeType: string; children: ReactNode }) {
   const { props } = useMarkToolbarButton(useMarkToolbarButtonState({ nodeType }));
   return (
     <IconButton
       pressed={props.pressed}
       onMouseDown={props.onMouseDown}
       onClick={props.onClick}
-      title={title}
+      title={markTitle(nodeType)}
     >
       {children}
     </IconButton>
@@ -288,16 +294,16 @@ export function SelectionToolbar() {
 
             <Sep />
 
-            <MarkButton nodeType={KEYS.bold} title="Bold ⌘B">
+            <MarkButton nodeType={KEYS.bold}>
               <BoldIcon />
             </MarkButton>
-            <MarkButton nodeType={KEYS.italic} title="Italic ⌘I">
+            <MarkButton nodeType={KEYS.italic}>
               <ItalicIcon />
             </MarkButton>
-            <MarkButton nodeType={KEYS.strikethrough} title="Strikethrough">
+            <MarkButton nodeType={KEYS.strikethrough}>
               <StrikethroughIcon />
             </MarkButton>
-            <MarkButton nodeType={KEYS.code} title="Code ⌘E">
+            <MarkButton nodeType={KEYS.code}>
               <CodeIcon />
             </MarkButton>
 

@@ -1,5 +1,6 @@
 // a key both this table and `packages/editor/src/editor-shortcuts.ts` claim runs both.
 
+import { spellHotkey, type ShortcutModifier } from "@repo/editor/hotkey-spelling";
 import { useEffect, useLayoutEffect, useRef } from "react";
 
 export type GlobalShortcutAction =
@@ -33,30 +34,9 @@ export const GLOBAL_SHORTCUTS: readonly GlobalShortcut[] = [
   { key: ",", action: "open-settings", label: "Settings" },
 ];
 
-export type ShortcutModifier = "meta" | "ctrl";
-
 // is-hotkey's spelling, so a global row and an editor row compare as one chord
 export function globalShortcutHotkey(shortcut: GlobalShortcut): string {
   return `mod+${shortcut.shift === true ? "shift+" : ""}${shortcut.key}`;
-}
-
-// Apple's menu order (⌃⌥⇧⌘) on a mac keyboard; words joined with + elsewhere
-export function spellHotkey(hotkey: string, modifier: ShortcutModifier): string {
-  const parts = hotkey.split("+");
-  const key = parts.at(-1) ?? "";
-  const mods = new Set(parts.slice(0, -1));
-  const keyLabel = key.charAt(0).toUpperCase() + key.slice(1);
-  if (modifier === "meta") {
-    return `${mods.has("ctrl") ? "⌃" : ""}${mods.has("alt") ? "⌥" : ""}${mods.has("shift") ? "⇧" : ""}${mods.has("mod") ? "⌘" : ""}${keyLabel}`;
-  }
-  return [
-    mods.has("ctrl") || mods.has("mod") ? "Ctrl" : null,
-    mods.has("alt") ? "Alt" : null,
-    mods.has("shift") ? "Shift" : null,
-    keyLabel,
-  ]
-    .filter((part) => part !== null)
-    .join("+");
 }
 
 export function bindingFor(
@@ -65,11 +45,6 @@ export function bindingFor(
 ): string | null {
   const row = GLOBAL_SHORTCUTS.find((shortcut) => shortcut.action === action);
   return row === undefined ? null : spellHotkey(globalShortcutHotkey(row), modifier);
-}
-
-// never "either": on mac the editor's Ctrl-K is an emacs line kill, and both modifiers would double-fire.
-export function platformShortcutModifier(): ShortcutModifier {
-  return /mac|iphone|ipad|ipod/iu.test(navigator.userAgent) ? "meta" : "ctrl";
 }
 
 // alt disqualifies outright; shift only matches the row that claims it.

@@ -36,7 +36,8 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { openRecentVault, pickVault, useDesktopVaults } from "../desktop-vaults";
-import { bindingFor, platformShortcutModifier } from "../global-shortcuts";
+import { platformShortcutModifier } from "@repo/editor/hotkey-spelling";
+import { bindingFor } from "../global-shortcuts";
 import {
   readSidebarView,
   readTreeSort,
