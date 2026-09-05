@@ -39,11 +39,19 @@ type FindBarState = {
 let state: FindBarState = { active: null, open: false, query: "", replace: "", replaceOpen: false };
 const listeners = new Set<() => void>();
 
-// A module store because decorate runs outside React; decorations read it rather
-// than the document, so every change must also redecorate.
+// A module store because decorate runs outside React; decorations read it rather than the
+// document, so a change to what they read must also redecorate. The replace field is not
+// something they read, so typing into it never re-walks every text leaf.
 function setState(editor: SlateEditor, next: Partial<FindBarState>): void {
+  const previous = state;
   state = { ...state, ...next };
-  editor.api.redecorate();
+  if (
+    state.open !== previous.open ||
+    state.query !== previous.query ||
+    state.active !== previous.active
+  ) {
+    editor.api.redecorate();
+  }
   for (const listener of listeners) listener();
 }
 

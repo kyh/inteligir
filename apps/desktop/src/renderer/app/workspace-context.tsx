@@ -1,4 +1,4 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { partialMatchKey, QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { THREAD_CHANGE_KINDS } from "@repo/domain/change-kinds";
 import { ThemeProvider, useTheme, type Theme } from "@repo/ui/lib/theme";
 import { RadiusProvider } from "@repo/ui/lib/radius-context";
@@ -42,6 +42,10 @@ export function useWorkspace(): WorkspaceRuntime {
   return runtime;
 }
 
+function isUnlinkedMentionsQuery(queryKey: readonly unknown[]): boolean {
+  return partialMatchKey(queryKey, orpc.knowledge.unlinkedMentions.key());
+}
+
 export function applyChangedMessage(
   queryClient: QueryClient,
   notifyDoc: (docId: string | null) => void,
@@ -71,10 +75,15 @@ export function applyChangedMessage(
       // The note's bytes are not query state, so content-changed goes to the
       // open note's reader alone; a query alongside bought a second read of the
       // same bytes. Knowledge is swept whole: this doc's links are some other
-      // note's backlinks, and which note is not knowable here.
+      // note's backlinks, and which note is not knowable here. The one exception
+      // is the vault-wide prose scan behind unlinked mentions, which would re-read
+      // every doc body per autosave; it waits for files-changed or a refold.
       if (message.changes.includes("content-changed")) {
         notifyDoc(message.id);
-        void queryClient.invalidateQueries({ queryKey: orpc.knowledge.key() });
+        void queryClient.invalidateQueries({
+          queryKey: orpc.knowledge.key(),
+          predicate: (query) => !isUnlinkedMentionsQuery(query.queryKey),
+        });
       }
       break;
     case "thread":

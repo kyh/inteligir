@@ -1,4 +1,4 @@
-import { QueryClient } from "@tanstack/react-query";
+import { QueryClient, type QueryKey } from "@tanstack/react-query";
 import { describe, expect, it, vi } from "vitest";
 import { orpc } from "../api";
 import { applyChangedMessage } from "../workspace-context";
@@ -89,5 +89,30 @@ describe("the other entities", () => {
 
     expect(applied.invalidated).toEqual([[...orpc.threads.key()]]);
     expect(applied.threads).toBe(1);
+  });
+});
+
+describe("the unlinked-mentions scan", () => {
+  it("is the one knowledge query a content change leaves alone", () => {
+    const queryClient = new QueryClient();
+    const seen: boolean[] = [];
+    vi.spyOn(queryClient, "invalidateQueries").mockImplementation(async (filters) => {
+      // the predicate reads the key alone; the cache builds its Query from the same key
+      const keys: readonly QueryKey[] = [
+        orpc.knowledge.backlinks.key({ input: { path: "a.md" } }),
+        orpc.knowledge.unlinkedMentions.key({ input: { path: "a.md" } }),
+      ];
+      for (const queryKey of keys) {
+        const query = queryClient.getQueryCache().build(queryClient, { queryKey });
+        seen.push(filters?.predicate === undefined || filters.predicate(query));
+      }
+    });
+    applyChangedMessage(
+      queryClient,
+      () => {},
+      () => {},
+      { type: "changed", entity: "doc", id: "a.md", changes: ["content-changed"] },
+    );
+    expect(seen).toEqual([true, false]);
   });
 });
