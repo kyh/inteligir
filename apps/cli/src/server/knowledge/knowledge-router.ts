@@ -3,6 +3,7 @@ import { RELATED_DEFAULT_LIMIT } from "@repo/notes/knowledge/related-notes";
 import { parseSearchQuery } from "@repo/notes/knowledge/vault-search";
 import {
   KNOWLEDGE_BACKLINKS_MAX,
+  KNOWLEDGE_MATCHES_DEFAULT_LIMIT,
   KNOWLEDGE_TAGS_MAX,
   type KnowledgeRenameTagResponse,
 } from "@repo/api/local/knowledge/knowledge-schema";
@@ -19,6 +20,14 @@ const search = base.knowledge.search.handler(async ({ context, input }) => {
   });
   return { results };
 });
+
+const matches = base.knowledge.matches.handler(({ context, input }) =>
+  context.knowledge.matches({
+    needle: input.q,
+    options: { caseSensitive: input.caseSensitive ?? false, wholeWord: input.wholeWord ?? false },
+    limit: input.limit ?? KNOWLEDGE_MATCHES_DEFAULT_LIMIT,
+  }),
+);
 
 const wikiTargets = base.knowledge.wikiTargets.handler(async ({ context }) => ({
   targets: await context.knowledge.wikiTargets(),
@@ -49,6 +58,7 @@ const renameTag = base.knowledge.renameTag.handler(({ context, input }) =>
 
 export const knowledgeRouter = {
   search,
+  matches,
   wikiTargets,
   backlinks,
   related,

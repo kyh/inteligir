@@ -75,6 +75,8 @@ describe("the palette's Export as PDF row", () => {
     findInNote: null,
     moveNote: vi.fn(),
     insertTemplate: null,
+    openMatch: vi.fn(),
+    replaceAll: vi.fn(),
   };
 
   function mount(exportPdf: (() => void) | null) {
@@ -85,6 +87,7 @@ describe("the palette's Export as PDF row", () => {
         entries={[]}
         threads={[]}
         searchSource={() => Promise.resolve([])}
+        matchSource={() => Promise.resolve({ matches: [], total: 0 })}
         canSync={false}
         actions={{ ...actions, exportPdf }}
       />,

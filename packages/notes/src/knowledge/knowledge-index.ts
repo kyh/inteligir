@@ -13,6 +13,7 @@ import { SearchIndex } from "./search-index";
 import { searchExcerpt } from "./search-excerpt";
 import { planSearchQuery, type SearchQueryTerm } from "./search-query";
 import type { TagCount } from "./tag-index";
+import { collectVaultMatches, type TextMatchOptions, type VaultMatches } from "./text-matches";
 
 export type SearchResult = { path: string; title: string; snippet: string; score: number };
 
@@ -22,10 +23,12 @@ export class KnowledgeIndex {
   private readonly linkGraph = new LinkGraphIndex();
   private readonly searchIndex = new SearchIndex();
   private readonly lines = new Map<string, string[]>();
+  private readonly bodies = new Map<string, string>();
 
   setDoc(path: string, content: string): void {
     const projection = projectDoc(path, content);
     this.lines.set(path, splitLines(content));
+    this.bodies.set(path, content);
     this.linkGraph.applyDoc(path, projection);
     this.searchIndex.set(path, {
       title: projection.title,
@@ -37,16 +40,19 @@ export class KnowledgeIndex {
 
   setOther(path: string): void {
     if (this.lines.delete(path)) this.searchIndex.remove(path);
+    this.bodies.delete(path);
     this.linkGraph.setOther(path);
   }
 
   remove(path: string): void {
     if (this.lines.delete(path)) this.searchIndex.remove(path);
+    this.bodies.delete(path);
     this.linkGraph.remove(path);
   }
 
   clear(): void {
     this.lines.clear();
+    this.bodies.clear();
     this.searchIndex.clear();
     this.linkGraph.clear();
   }
@@ -78,6 +84,16 @@ export class KnowledgeIndex {
       snippet: this.searchSnippet(path, terms),
       score,
     }));
+  }
+
+  // the literal scan beside the ranked search; the sql store answers the same fold over docTexts
+  matches(needle: string, options: TextMatchOptions, limit: number): VaultMatches {
+    const docs = [...this.bodies].map(([path, body]) => ({
+      path,
+      title: this.linkGraph.titleOf(path) ?? docStem(path),
+      body,
+    }));
+    return collectVaultMatches(docs, needle, options, limit);
   }
 
   tags(): TagCount[] {

@@ -13,6 +13,7 @@ import { searchExcerpt } from "./search-excerpt";
 import type { SearchHit } from "./search-index";
 import { planSearchQuery, stemText, type SearchQueryPlan } from "./search-query";
 import { splitLines } from "./source-lines";
+import type { DocText } from "./text-matches";
 
 // bump on any DDL change; a mismatch wipes and rebuilds
 export const KNOWLEDGE_SCHEMA_VERSION = 11;
@@ -132,6 +133,16 @@ function columnString(row: SqlRow, key: string): string {
 // bm25 is lower-is-better; flip to match the pure index's direction
 function rankScore(row: SqlRow): number {
   return -columnNumber(row, "rank");
+}
+
+// the literal scan's candidates: LIKE folds ascii case only, which is why text-matches hands
+// over a prefilter for ascii needles alone and asks for every doc otherwise
+const DOC_TEXTS_SQL = "SELECT path, title, body FROM search_fts ORDER BY path";
+const DOC_TEXTS_LIKE_SQL =
+  "SELECT path, title, body FROM search_fts WHERE body LIKE ? ESCAPE '\\' ORDER BY path";
+
+function likePattern(prefilter: string): string {
+  return `%${prefilter.replace(/[\\%_]/gu, "\\$&")}%`;
 }
 
 export function createSqlKnowledgeStore(driver: SqlDriver, vaultRoot: string): SqlKnowledgeStore {
@@ -380,6 +391,18 @@ export function createSqlKnowledgeStore(driver: SqlDriver, vaultRoot: string): S
       return answered.rows.map((row) => ({
         path: columnString(row, "path"),
         score: rankScore(row),
+      }));
+    },
+
+    docTexts(prefilter): DocText[] {
+      const rows =
+        prefilter === null
+          ? driver.all(DOC_TEXTS_SQL, [])
+          : driver.all(DOC_TEXTS_LIKE_SQL, [likePattern(prefilter)]);
+      return rows.map((row) => ({
+        path: columnString(row, "path"),
+        title: columnString(row, "title"),
+        body: columnString(row, "body"),
       }));
     },
 

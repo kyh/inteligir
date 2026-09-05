@@ -1,8 +1,11 @@
 import { docStem } from "@repo/notes/knowledge/doc-file";
 import type { ViewContext } from "@repo/domain/view-context";
 import type { ViewContextSource } from "./thread-activity";
+import type { VaultMatchWire } from "@repo/api/local/knowledge/knowledge-schema";
 import type { Thread } from "@repo/api/local/threads/threads-schema";
 import type { VaultEntry } from "@repo/api/local/vault/vault-schema";
+import { confirm } from "@repo/ui/components/confirm-dialog";
+import { toast } from "@repo/ui/components/sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "zustand";
@@ -17,12 +20,11 @@ import { platformShortcutModifier, useGlobalShortcuts } from "./global-shortcuts
 import { setAgentRequestActions } from "@repo/editor/agent-request";
 import { consumeTagRequest, useTagRequest } from "@repo/editor/tag-request";
 import { EditorColumn } from "@repo/editor/editor-column";
-import { openFindBar } from "@repo/editor/find-bar";
+import { jumpToFindMatch, openFindBar } from "@repo/editor/find-bar";
 import { insertTemplate } from "@repo/editor/insert-template";
-import { getLiveEditor } from "@repo/editor/live-editor";
+import { getLiveEditor, whenLiveEditor } from "@repo/editor/live-editor";
 import { removeFrontmatterId } from "@repo/notes/markdown/frontmatter";
 import { DAILY_TEMPLATE_PATH, expandTemplate } from "@repo/notes/templates/placeholders";
-import { toast } from "@repo/ui/components/sonner";
 import { flushOpenNote } from "@repo/editor/note/open-note-flush";
 import { openDocPath } from "@repo/editor/note/open-doc";
 import { backTarget, createOpenNoteStore, forwardTarget } from "@repo/editor/note/open-note-store";
@@ -31,8 +33,14 @@ import type { VaultActions } from "@repo/editor/host-io";
 import { dailyNoteFromTemplate, dailyNotePath, dailyNoteTemplate } from "./note/daily";
 import { readNoteViewContext } from "./note/note-view-context";
 import { VaultProvider } from "./note/vault-provider";
-import { CommandPalette } from "./palette/command-palette";
+import { CommandPalette, type PalettePage } from "./palette/command-palette";
+import { createMatchSource } from "./palette/match-source";
 import { createSearchSource, sortedNotePaths } from "./palette/search-source";
+import {
+  replaceInVault,
+  summarizeReplace,
+  type VaultReplaceRequest,
+} from "./palette/vault-replace";
 import { DeletedNotesDialog } from "./sidebar/deleted-notes-dialog";
 import { Sidebar, SidebarInset, SidebarProvider, useSidebar } from "@repo/ui/components/sidebar";
 import { SidebarRailContent } from "./sidebar/sidebar";
@@ -58,6 +66,9 @@ export interface WorkspaceProps {
 const EMPTY_ENTRIES: readonly VaultEntry[] = [];
 const EMPTY_THREADS: readonly Thread[] = [];
 
+// a note that never mounts (a refused open) must not leave a jump waiting forever
+const LIVE_EDITOR_WAIT_MS = 5000;
+
 export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
   const { api } = useWorkspace();
   const queryClient = useQueryClient();
@@ -68,6 +79,7 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
   const [paletteQuery, setPaletteQuery] = useState("");
   // the entry a tree "Move to…" opened the palette for; cleared with the palette
   const [paletteMove, setPaletteMove] = useState<string | null>(null);
+  const [palettePage, setPalettePage] = useState<PalettePage>("root");
   const [deletedNotesOpen, setDeletedNotesOpen] = useState(false);
   const [shortcutModifier] = useState(platformShortcutModifier);
   const [insetTitleBar] = useState(hasInsetTitleBar);
@@ -194,6 +206,37 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
     if (editor !== null) openFindBar(editor);
   }, [noteStore]);
 
+  // the note opens first; the find bar takes the match once its editor is live
+  const openMatch = useCallback(
+    (match: VaultMatchWire, query: string): void => {
+      setOpenNote(match.path);
+      void whenLiveEditor(match.path, LIVE_EDITOR_WAIT_MS).then((editor) => {
+        if (editor !== null) jumpToFindMatch(editor, query, match.ordinal);
+        return undefined;
+      });
+    },
+    [setOpenNote],
+  );
+
+  const replaceAll = useCallback(
+    (request: VaultReplaceRequest): void => {
+      void (async () => {
+        const noteCount = request.paths.length;
+        const confirmed = await confirm({
+          title: `Replace in ${String(noteCount)} note${noteCount === 1 ? "" : "s"}?`,
+          body: `Every match of "${request.needle}" becomes "${request.replacement}". A note stays recoverable from its History.`,
+          confirmLabel: "Replace all",
+        });
+        if (!confirmed) return;
+        // the open note's buffer lands first, so its file is not the one that "changed since read"
+        await flushOpenNote();
+        const summary = summarizeReplace(await replaceInVault(api, request));
+        toast[summary.tone](summary.message);
+      })();
+    },
+    [api],
+  );
+
   // the template is read on every ⌘D rather than looked up in the tree, which can be stale; a
   // refused read keeps the built-in shape, so the day's note opens either way.
   const openDailyNote = useCallback((): void => {
@@ -289,10 +332,16 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
         break;
       case "open-palette":
         setPaletteQuery("");
+        setPalettePage("root");
         setPaletteOpen((current) => !current);
         break;
       case "find-in-note":
         findInNote();
+        break;
+      case "open-search":
+        setPaletteQuery("");
+        setPalettePage("search");
+        setPaletteOpen(true);
         break;
       case "open-daily-note":
         openDailyNote();
@@ -311,6 +360,7 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
     () => createSearchSource(api, sortedFilePaths),
     [api, sortedFilePaths],
   );
+  const matchSource = useMemo(() => createMatchSource(api), [api]);
 
   const paletteActions = useMemo(
     () => ({
@@ -331,6 +381,8 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
               exportNoteAsPdf(docStem(openPath));
             },
       moveNote: treeOps.moveEntry,
+      openMatch,
+      replaceAll,
     }),
     [
       setOpenNote,
@@ -344,6 +396,8 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
       insertTemplateIntoNote,
       openPath,
       treeOps,
+      openMatch,
+      replaceAll,
     ],
   );
 
@@ -392,6 +446,7 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
             }}
             onOpenSearch={() => {
               setPaletteQuery("");
+              setPalettePage("root");
               setPaletteOpen(true);
             }}
             onMoveRequest={(path) => {
@@ -479,6 +534,7 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
           initialQuery={paletteQuery}
           openNotePath={openPath}
           moveRequest={paletteMove}
+          initialPage={palettePage}
           onOpenChange={(open) => {
             setPaletteOpen(open);
             if (!open) setPaletteMove(null);
@@ -486,6 +542,7 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
           entries={treeEntries}
           threads={threads}
           searchSource={searchSource}
+          matchSource={matchSource}
           canSync={canSync}
           actions={paletteActions}
         />

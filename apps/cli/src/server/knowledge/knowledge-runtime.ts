@@ -20,6 +20,12 @@ import {
   type SqlKnowledgeStore,
 } from "@repo/notes/knowledge/sql-knowledge-store";
 import type { TagCount } from "@repo/notes/knowledge/tag-index";
+import {
+  bodyPrefilter,
+  collectVaultMatches,
+  type TextMatchOptions,
+  type VaultMatches,
+} from "@repo/notes/knowledge/text-matches";
 import { normalizePath } from "@repo/notes/knowledge/vault-path";
 import { searchVaultNotes } from "@repo/notes/knowledge/vault-search";
 import { contentHashBytesHex, type VaultEntry } from "@repo/api/local/vault/vault-schema";
@@ -58,6 +64,11 @@ export interface KnowledgeRuntime {
   // a failed pass rebuilds before this resolves; rejects only if the rebuild failed too.
   settle(): Promise<void>;
   search(params: { query: string; tag?: string; limit: number }): Promise<SearchResult[]>;
+  matches(params: {
+    needle: string;
+    options: TextMatchOptions;
+    limit: number;
+  }): Promise<VaultMatches>;
   backlinks(path: string): Promise<BacklinkEntry[]>;
   wikiTargets(): Promise<WikiTarget[]>;
   relatedNotes(path: string, limit: number): Promise<RelatedNoteEntry[]>;
@@ -365,6 +376,18 @@ export function createKnowledgeRuntime(args: KnowledgeRuntimeArgs): KnowledgeRun
             notesWithTag: (tag) => graph.notesWithTag(tag),
           },
           { query: params.query, tag: params.tag, limit: params.limit },
+        ),
+      );
+    },
+
+    // the literal scan, off the fts index: fts5 cannot say where inside a line a hit sits
+    async matches(params) {
+      return readThroughIndex("matches", () =>
+        collectVaultMatches(
+          store.docTexts(bodyPrefilter(params.needle)),
+          params.needle,
+          params.options,
+          params.limit,
         ),
       );
     },

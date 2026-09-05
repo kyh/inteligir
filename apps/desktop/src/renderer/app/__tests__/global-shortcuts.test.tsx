@@ -45,7 +45,11 @@ describe("the window listener", () => {
   it("covers every table row", () => {
     const fired = mountListener("ctrl");
     for (const shortcut of GLOBAL_SHORTCUTS) {
-      fireEvent.keyDown(window, { key: shortcut.key, ctrlKey: true });
+      fireEvent.keyDown(window, {
+        key: shortcut.key,
+        ctrlKey: true,
+        shiftKey: shortcut.shift === true,
+      });
     }
     expect(fired).toEqual(GLOBAL_SHORTCUTS.map((shortcut) => shortcut.action));
   });
@@ -72,5 +76,17 @@ describe("the matcher", () => {
     expect(globalShortcutFor(keydown({ metaKey: true, altKey: true }), "meta")).toBeNull();
     expect(globalShortcutFor(keydown({ metaKey: true, ctrlKey: true }), "meta")).toBeNull();
     expect(globalShortcutFor(keydown({}), "meta")).toBeNull();
+  });
+
+  it("tells a shifted key from its unshifted row, whatever case the key reports", () => {
+    expect(globalShortcutFor(keydown({ key: "f", metaKey: true }), "meta")?.action).toBe(
+      "find-in-note",
+    );
+    expect(
+      globalShortcutFor(keydown({ key: "F", metaKey: true, shiftKey: true }), "meta")?.action,
+    ).toBe("open-search");
+    expect(
+      globalShortcutFor(keydown({ key: "f", metaKey: true, shiftKey: true, altKey: true }), "meta"),
+    ).toBeNull();
   });
 });

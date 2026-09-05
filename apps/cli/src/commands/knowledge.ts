@@ -1,6 +1,8 @@
 import {
+  KNOWLEDGE_MATCHES_MAX_LIMIT,
   KNOWLEDGE_RELATED_MAX_LIMIT,
   KNOWLEDGE_SEARCH_MAX_LIMIT,
+  type KnowledgeMatchesRequest,
   type KnowledgeRelatedRequest,
   type KnowledgeSearchRequest,
 } from "@repo/api/local/knowledge/knowledge-schema";
@@ -45,6 +47,51 @@ export function searchCommand(deps: CliDeps) {
             : [`${result.path}  ${result.title}`],
         ),
       );
+    },
+  });
+}
+
+export function matchesCommand(deps: CliDeps) {
+  return defineCommand({
+    meta: { name: "matches", description: "Every literal occurrence of a text, with its line" },
+    args: {
+      text: { type: "positional", required: true, description: "The text to find, one line" },
+      "case-sensitive": { type: "boolean", description: "Match case exactly" },
+      "whole-word": { type: "boolean", description: "Match whole words only" },
+      limit: { type: "string", description: "Maximum matches" },
+      ...jsonArg,
+    },
+    run: async ({ args }) => {
+      const limit = parseLimit(args.limit, KNOWLEDGE_MATCHES_MAX_LIMIT);
+      const api = apiFor(deps);
+      const request: KnowledgeMatchesRequest = { q: args.text };
+      if (args["case-sensitive"] === true) {
+        request.caseSensitive = true;
+      }
+      if (args["whole-word"] === true) {
+        request.wholeWord = true;
+      }
+      if (limit !== undefined) {
+        request.limit = limit;
+      }
+      const body = await api.knowledge.matches(request);
+      if (outputJson(args, body)) {
+        return;
+      }
+      if (body.matches.length === 0) {
+        out.info("No matches.");
+        return;
+      }
+      // columns count from 1 here, as editors do; the wire's are offsets
+      writeLines([
+        ...body.matches.map(
+          (match) =>
+            `${match.path}:${match.line}:${match.column + 1}  ${match.before}${match.text}${match.after}`,
+        ),
+        ...(body.matches.length < body.total
+          ? [`(${body.total - body.matches.length} more not shown)`]
+          : []),
+      ]);
     },
   });
 }

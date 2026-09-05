@@ -28,6 +28,7 @@
     "./knowledge/search-query": "./src/knowledge/search-query.ts",
     "./knowledge/sql-knowledge-store": "./src/knowledge/sql-knowledge-store.ts",
     "./knowledge/tag-index": "./src/knowledge/tag-index.ts",
+    "./knowledge/text-matches": "./src/knowledge/text-matches.ts",
     "./knowledge/vault-path": "./src/knowledge/vault-path.ts",
     "./knowledge/vault-search": "./src/knowledge/vault-search.ts",
     "./markdown/callout-payload": "./src/markdown/callout-payload.ts",

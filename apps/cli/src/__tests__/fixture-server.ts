@@ -6,12 +6,15 @@ import type { CloudStatusResponse } from "@repo/api/local/cloud/cloud-schema";
 import type { CommentThreadWire } from "@repo/api/local/comments/comments-schema";
 import type { ConnectorsResponse } from "@repo/api/local/connectors/connectors-schema";
 import type { ConnectedFoldersResponse } from "@repo/api/local/folders/folders-schema";
-import type {
-  BacklinkEntryWire,
-  RelatedNoteWire,
-  SearchResultWire,
-  TagCountWire,
+import {
+  KNOWLEDGE_MATCHES_DEFAULT_LIMIT,
+  type BacklinkEntryWire,
+  type RelatedNoteWire,
+  type SearchResultWire,
+  type TagCountWire,
 } from "@repo/api/local/knowledge/knowledge-schema";
+import { docStem } from "@repo/notes/knowledge/doc-file";
+import { collectVaultMatches } from "@repo/notes/knowledge/text-matches";
 import { RPC_PREFIX } from "@repo/api/local/routes";
 import type { AgentStatus, SystemStatusResponse } from "@repo/api/local/system/system-schema";
 import type { ThreadTimeline } from "@repo/api/local/thread-timeline";
@@ -308,6 +311,15 @@ const knowledgeRouter = {
   search: base.knowledge.search.handler(({ context, input }) => ({
     results: input.q.length === 0 ? [] : context.searchResults,
   })),
+  // the real fold over the fixture vault: a stub list would not exercise the rows' shape
+  matches: base.knowledge.matches.handler(({ context, input }) =>
+    collectVaultMatches(
+      [...context.vault].map(([path, body]) => ({ path, title: docStem(path), body })),
+      input.q,
+      { caseSensitive: input.caseSensitive ?? false, wholeWord: input.wholeWord ?? false },
+      input.limit ?? KNOWLEDGE_MATCHES_DEFAULT_LIMIT,
+    ),
+  ),
   wikiTargets: base.knowledge.wikiTargets.handler(() => ({ targets: [] })),
   backlinks: base.knowledge.backlinks.handler(({ context, input }) => ({
     path: input.path,
