@@ -66,12 +66,14 @@ describe("the palette's Export as PDF row", () => {
   const actions = {
     openNote: vi.fn(),
     newNote: vi.fn(),
+    newNoteFromTemplate: vi.fn(),
     openDailyNote: vi.fn(),
     openThread: vi.fn(),
     syncNow: vi.fn(),
     openSettings: vi.fn(),
     openDeletedNotes: vi.fn(),
     findInNote: null,
+    insertTemplate: null,
   };
 
   function mount(exportPdf: (() => void) | null) {

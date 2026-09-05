@@ -32,6 +32,8 @@
     "./host": "./src/host.ts",
     "./host-io": "./src/host-io.ts",
     "./inline-combobox": "./src/inline-combobox.tsx",
+    "./insert-markdown": "./src/insert-markdown.ts",
+    "./insert-template": "./src/insert-template.ts",
     "./insert-void": "./src/insert-void.ts",
     "./kits/base-kit": "./src/kits/base-kit.ts",
     "./kits/basic-blocks-kit": "./src/kits/basic-blocks-kit.tsx",

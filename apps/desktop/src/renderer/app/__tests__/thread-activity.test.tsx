@@ -52,12 +52,14 @@ describe("the palette renders that answer and no other", () => {
         actions={{
           openNote: vi.fn(),
           newNote: vi.fn(),
+          newNoteFromTemplate: vi.fn(),
           openDailyNote: vi.fn(),
           openThread: vi.fn(),
           syncNow: vi.fn(),
           openSettings: vi.fn(),
           openDeletedNotes: vi.fn(),
           findInNote: null,
+          insertTemplate: null,
           exportPdf: null,
         }}
       />,
