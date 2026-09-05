@@ -12,6 +12,7 @@ import {
 } from "platejs/react";
 import { PlusIcon, XIcon } from "lucide-react";
 
+import { Tooltip } from "@repo/ui/components/tooltip";
 import { cn } from "@repo/ui/lib/utils";
 
 import { stringProp } from "@repo/editor/node-props";
@@ -84,33 +85,37 @@ function TabGroupElement(props: PlateElementProps) {
               {panel.label}
             </button>
             {panels.length > 1 && panel.index === shown ? (
-              <button
-                type="button"
-                aria-label={`Remove ${panel.label}`}
-                onMouseDown={(event) => {
-                  event.preventDefault();
-                }}
-                onClick={() => {
-                  removePanel(panel.index);
-                }}
-                className="absolute -top-1 -right-1 hidden size-3.5 items-center justify-center rounded-full bg-muted text-muted-foreground group-hover/tab:flex hover:text-foreground [&_svg]:size-2.5"
-              >
-                <XIcon />
-              </button>
+              <Tooltip content={`Remove ${panel.label}`}>
+                <button
+                  type="button"
+                  aria-label={`Remove ${panel.label}`}
+                  onMouseDown={(event) => {
+                    event.preventDefault();
+                  }}
+                  onClick={() => {
+                    removePanel(panel.index);
+                  }}
+                  className="absolute -top-1 -right-1 hidden size-3.5 items-center justify-center rounded-full bg-muted text-muted-foreground group-hover/tab:flex hover:text-foreground [&_svg]:size-2.5"
+                >
+                  <XIcon />
+                </button>
+              </Tooltip>
             ) : null}
           </span>
         ))}
-        <button
-          type="button"
-          aria-label="Add tab"
-          onMouseDown={(event) => {
-            event.preventDefault();
-          }}
-          onClick={addPanel}
-          className="ml-auto flex size-5 items-center justify-center rounded-sm text-muted-foreground hover:bg-accent hover:text-foreground [&_svg]:size-3.5"
-        >
-          <PlusIcon />
-        </button>
+        <Tooltip content="Add tab">
+          <button
+            type="button"
+            aria-label="Add tab"
+            onMouseDown={(event) => {
+              event.preventDefault();
+            }}
+            onClick={addPanel}
+            className="ml-auto flex size-5 items-center justify-center rounded-sm text-muted-foreground hover:bg-accent hover:text-foreground [&_svg]:size-3.5"
+          >
+            <PlusIcon />
+          </button>
+        </Tooltip>
       </div>
       <ActiveTabContext.Provider value={shown}>{props.children}</ActiveTabContext.Provider>
     </PlateElement>

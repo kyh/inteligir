@@ -13,6 +13,7 @@ import {
 import { ChevronDownIcon } from "lucide-react";
 import { z } from "zod";
 
+import { Tooltip } from "@repo/ui/components/tooltip";
 import { cn } from "@repo/ui/lib/utils";
 
 import { useOpenNotePath } from "@repo/editor/note/open-note-context";
@@ -166,24 +167,26 @@ function CollapsibleBlock(props: PlateElementProps) {
   const isCollapsed = derived.folded.has(key);
   return (
     <div className={cn("group/heading relative", isHidden && "hidden")}>
-      <button
-        type="button"
-        contentEditable={false}
-        aria-label={isCollapsed ? "Expand section" : "Collapse section"}
-        aria-expanded={!isCollapsed}
-        onMouseDown={(event) => {
-          event.preventDefault();
-        }}
-        onClick={() => {
-          toggleHeadingCollapse(path, key);
-        }}
-        className={cn(
-          "absolute top-1/2 -left-6 -translate-y-1/2 rounded-sm p-0.5 text-muted-foreground transition-transform select-none hover:bg-accent [&_svg]:size-3.5",
-          isCollapsed ? "-rotate-90 opacity-100" : "opacity-0 group-hover/heading:opacity-100",
-        )}
-      >
-        <ChevronDownIcon />
-      </button>
+      <Tooltip content={isCollapsed ? "Expand section" : "Collapse section"}>
+        <button
+          type="button"
+          contentEditable={false}
+          aria-label={isCollapsed ? "Expand section" : "Collapse section"}
+          aria-expanded={!isCollapsed}
+          onMouseDown={(event) => {
+            event.preventDefault();
+          }}
+          onClick={() => {
+            toggleHeadingCollapse(path, key);
+          }}
+          className={cn(
+            "absolute top-1/2 -left-6 -translate-y-1/2 rounded-sm p-0.5 text-muted-foreground transition-transform select-none hover:bg-accent [&_svg]:size-3.5",
+            isCollapsed ? "-rotate-90 opacity-100" : "opacity-0 group-hover/heading:opacity-100",
+          )}
+        >
+          <ChevronDownIcon />
+        </button>
+      </Tooltip>
       {props.children}
     </div>
   );

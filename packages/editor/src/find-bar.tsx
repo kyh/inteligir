@@ -11,6 +11,7 @@ import {
 } from "platejs";
 import { PlateLeaf, createPlatePlugin, useEditorRef, type PlateLeafProps } from "platejs/react";
 
+import { Tooltip } from "@repo/ui/components/tooltip";
 import { cn } from "@repo/ui/lib/utils";
 
 type MatchLocation = { path: Path; offset: number };
@@ -176,16 +177,18 @@ function FindBar() {
       <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
         {matches.length === 0 ? "0/0" : `${activeIndex + 1}/${matches.length}`}
       </span>
-      <button
-        type="button"
-        aria-label="Close find bar"
-        onClick={() => {
-          closeFindBar(editor);
-        }}
-        className="shrink-0 rounded-sm p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground [&_svg]:size-3.5"
-      >
-        <XIcon />
-      </button>
+      <Tooltip content="Close find bar">
+        <button
+          type="button"
+          aria-label="Close find bar"
+          onClick={() => {
+            closeFindBar(editor);
+          }}
+          className="shrink-0 rounded-sm p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground [&_svg]:size-3.5"
+        >
+          <XIcon />
+        </button>
+      </Tooltip>
     </div>
   );
 }

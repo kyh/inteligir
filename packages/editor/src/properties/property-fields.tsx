@@ -4,6 +4,7 @@ import { XIcon } from "lucide-react";
 import type { TypedProperty } from "@repo/notes/markdown/frontmatter";
 import { Checkbox } from "@repo/ui/components/checkbox";
 import { Input } from "@repo/ui/components/input";
+import { Tooltip } from "@repo/ui/components/tooltip";
 import { cn } from "@repo/ui/lib/utils";
 
 const FIELD_CLASS =
@@ -113,14 +114,16 @@ export function TagsField({
           className="inline-flex items-center gap-0.5 rounded-[6px] bg-muted px-1.5 py-0.5 text-xs text-foreground"
         >
           {tag}
-          <button
-            type="button"
-            aria-label={`Remove ${tag}`}
-            onClick={() => onChange({ ...prop, value: prop.value.filter((t) => t !== tag) })}
-            className="text-muted-foreground hover:text-foreground"
-          >
-            <XIcon className="size-3" />
-          </button>
+          <Tooltip content={`Remove ${tag}`}>
+            <button
+              type="button"
+              aria-label={`Remove ${tag}`}
+              onClick={() => onChange({ ...prop, value: prop.value.filter((t) => t !== tag) })}
+              className="text-muted-foreground hover:text-foreground"
+            >
+              <XIcon className="size-3" />
+            </button>
+          </Tooltip>
         </span>
       ))}
       <input

@@ -2,23 +2,25 @@
 
 import type { ReactNode } from "react";
 
+import { Tooltip } from "@repo/ui/components/tooltip";
 import { cn } from "@repo/ui/lib/utils";
 
 export function BarButton({
   onClick,
-  title,
+  label,
   children,
   variant = "default",
 }: {
   onClick: () => void;
-  title?: string;
+  /** For an icon-only face: the tooltip and the accessible name. A face with text needs none. */
+  label?: string;
   children: ReactNode;
   variant?: "default" | "primary" | "danger";
 }) {
-  return (
+  const button = (
     <button
       type="button"
-      title={title}
+      aria-label={label}
       onClick={onClick}
       onMouseDown={(event) => event.preventDefault()}
       className={cn(
@@ -31,4 +33,5 @@ export function BarButton({
       {children}
     </button>
   );
+  return label === undefined ? button : <Tooltip content={label}>{button}</Tooltip>;
 }
