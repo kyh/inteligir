@@ -337,7 +337,7 @@ carries the mechanism. The dangling-reference guard keeps the pointers honest.
   ordinary thread attached to the note it was composed over
   (`threads.originDocPath`). The agent edits the vault directly and anchored
   comments are the review channel; the panel's Actions | Comments | History |
-  Settings tabs are transcript, review, revision, and the note's own properties,
+  Metadata tabs are transcript, review, revision, and the note's own properties,
   related notes and delete. ⌘P is the palette, ⌘F the find bar, ⌘\ is zen.
   "Ask agent" seeds the composer through
   `packages/editor/src/agent-request.ts`, so the editor never imports the shell.
@@ -387,7 +387,8 @@ carries the mechanism. The dangling-reference guard keeps the pointers honest.
   (`packages/editor/src/wiki-chip.tsx`).
 
 - **THE DEFAULT HARNESS IS A STORED CHOICE, read per thread start.**
-  `<dataDir>/agent-prefs.json`, edited from Settings › Agents; unset falls back
+  `<dataDir>/agent-prefs.json`, edited from Settings › Agents and `inteligir
+  agents default`; unset falls back
   to claude when it is on PATH. Not config.json, which is read once at boot and
   never written by the app. A thread keeps the harness it started on
   (`threads.providerId`); the choice reaches the next one. The store is

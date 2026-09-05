@@ -299,7 +299,7 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
     ],
   );
 
-  const noteSettings = useMemo(
+  const noteMetadata = useMemo(
     () => ({
       deleteNote: () => {
         const { openPath: path } = noteStore.state();
@@ -414,7 +414,7 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
                 selectedThreadId={panelThreadId}
                 onSelectThread={setPanelThreadId}
                 onOpenDoc={setOpenNote}
-                noteSettings={noteSettings}
+                noteMetadata={noteMetadata}
               />
             </Sidebar>
           </SidebarProvider>

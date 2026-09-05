@@ -35,18 +35,18 @@ import { HistoryTab } from "./history-tab";
 import { TimelineRowView } from "./timeline-rows";
 import { useWorkspace } from "../workspace-context";
 
-export type PanelTab = "actions" | "comments" | "history" | "settings";
+export type PanelTab = "actions" | "comments" | "history" | "metadata";
 
-const PANEL_TABS: readonly PanelTab[] = ["actions", "comments", "history", "settings"];
+const PANEL_TABS: readonly PanelTab[] = ["actions", "comments", "history", "metadata"];
 const PANEL_TAB_LABELS = {
   actions: "Actions",
   comments: "Comments",
   history: "History",
-  settings: "Settings",
+  metadata: "Metadata",
 } satisfies Record<PanelTab, string>;
 
 // the note's own buttons: deleting it, and the list a deleted note comes back from
-interface NoteSettingsActions {
+interface NoteMetadataActions {
   deleteNote: () => void;
   openDeletedNotes: () => void;
 }
@@ -60,7 +60,7 @@ export interface ActionsPanelProps {
   selectedThreadId: string | null;
   onSelectThread: (threadId: string | null) => void;
   onOpenDoc: (path: string) => void;
-  noteSettings: NoteSettingsActions;
+  noteMetadata: NoteMetadataActions;
 }
 
 function InlineProperties({
@@ -99,7 +99,7 @@ function InlineProperties({
   );
 }
 
-function NoteSettingsTab({
+function NoteMetadataTab({
   docPath,
   propertiesOpen,
   onPropertiesOpenChange,
@@ -110,10 +110,10 @@ function NoteSettingsTab({
   propertiesOpen: boolean;
   onPropertiesOpenChange: (open: boolean) => void;
   onOpenDoc: (path: string) => void;
-  actions: NoteSettingsActions;
+  actions: NoteMetadataActions;
 }) {
   if (docPath === null) {
-    return <p className="p-3 text-sm text-muted-foreground">Open a note to see its settings.</p>;
+    return <p className="p-3 text-sm text-muted-foreground">Open a note to see its metadata.</p>;
   }
   return (
     <div className="min-h-0 flex-1 overflow-y-auto">
@@ -324,7 +324,7 @@ export function ActionsPanel({
   selectedThreadId,
   onSelectThread,
   onOpenDoc,
-  noteSettings,
+  noteMetadata,
 }: ActionsPanelProps) {
   const [propertiesOpen, setPropertiesOpen] = useState(true);
   const threadsQuery = useThreads();
@@ -355,13 +355,13 @@ export function ActionsPanel({
         <CommentsTab docPath={docPath} focusIds={commentFocus?.ids ?? []} />
       ) : tab === "history" ? (
         <HistoryTab key={docPath} docPath={docPath} />
-      ) : tab === "settings" ? (
-        <NoteSettingsTab
+      ) : tab === "metadata" ? (
+        <NoteMetadataTab
           docPath={docPath}
           propertiesOpen={propertiesOpen}
           onPropertiesOpenChange={setPropertiesOpen}
           onOpenDoc={onOpenDoc}
-          actions={noteSettings}
+          actions={noteMetadata}
         />
       ) : selectedThreadId !== null ? (
         <ActionDetail

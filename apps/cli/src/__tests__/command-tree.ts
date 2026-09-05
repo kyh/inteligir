@@ -52,6 +52,8 @@ export const LEAF_INVOCATIONS = new Map<string, readonly string[]>([
   ["folders list", ["folders", "list"]],
   ["folders add", ["folders", "add", "/tmp/reference-docs"]],
   ["folders remove", ["folders", "remove", "/tmp/reference-docs"]],
+  ["agents list", ["agents", "list"]],
+  ["agents default", ["agents", "default", "codex"]],
   ["cloud status", ["cloud", "status"]],
   [
     "cloud login",

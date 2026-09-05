@@ -150,6 +150,13 @@ them as read-only — do not modify them.
 - \`inteligir folders add <absolute-path>\` — connect one.
 - \`inteligir folders remove <path>\` — disconnect one.
 
+## Agents — the harnesses actions run on
+
+- \`inteligir agents list\` — each harness (claude, codex): CLI on PATH, signed
+  in, and which is the default.
+- \`inteligir agents default <id>\` — the harness a NEW action starts on; a
+  running action keeps the one it started on.
+
 ## Interactions — approvals the agent is waiting on
 
 - \`inteligir interactions list [--thread <id>]\` — pending approval requests;

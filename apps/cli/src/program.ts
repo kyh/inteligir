@@ -12,6 +12,7 @@ import {
   isUnreachable,
 } from "./cli-error";
 import { argsOf, assertKnownFlags, resolveCommandPath } from "./command-tree";
+import { agentsCommand } from "./commands/agents";
 import { connectorsCommand } from "./commands/connectors";
 import { foldersCommand } from "./commands/folders";
 import { guideCommand } from "./commands/guide";
@@ -48,6 +49,7 @@ export function buildProgram(deps: CliDeps): CommandDef {
       interactions: interactionsCommand(deps),
       connectors: connectorsCommand(deps),
       folders: foldersCommand(deps),
+      agents: agentsCommand(deps),
       cloud: cloudCommand(deps),
       status: statusCommand(deps),
       guide: guideCommand(deps),
