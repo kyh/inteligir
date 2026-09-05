@@ -42,15 +42,7 @@ export const treeOpsBrowser: Scenario = {
       await agentBrowser(["wait", EDITOR], 90_000);
 
       ctx.log("switching the rail to the tree");
-      await agentBrowser([
-        "find",
-        "role",
-        "button",
-        "click",
-        "--name",
-        "Show file tree",
-        "--exact",
-      ]);
+      await agentBrowser(["find", "role", "tab", "click", "--name", "Files", "--exact"]);
       await agentBrowser(["wait", row(NOTE)], 30_000);
 
       ctx.log("Pin from the row menu lands pinned: true in the frontmatter");
