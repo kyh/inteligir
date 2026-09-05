@@ -4,6 +4,7 @@ import { contextBridge, ipcRenderer } from "electron";
 
 import { IPC_CHANNELS, socketOriginSchema } from "../types";
 import type { DesktopBridge } from "../types";
+import { pathActionResultSchema, type PathActionRequest } from "../path-action";
 import { spellcheckStateSchema } from "../spellcheck-state";
 import { updateStateSchema, type UpdateState } from "../update-state";
 
@@ -39,8 +40,20 @@ const spellcheck: DesktopBridge["spellcheck"] = {
     spellcheckStateSchema.parse(await ipcRenderer.invoke(IPC_CHANNELS.SPELLCHECK_APPLY, choice)),
 };
 
+const paths: DesktopBridge["paths"] = {
+  reveal: async (path) =>
+    pathActionResultSchema.parse(
+      await ipcRenderer.invoke(IPC_CHANNELS.REVEAL_PATH, { path } satisfies PathActionRequest),
+    ),
+  open: async (path) =>
+    pathActionResultSchema.parse(
+      await ipcRenderer.invoke(IPC_CHANNELS.OPEN_PATH, { path } satisfies PathActionRequest),
+    ),
+};
+
 contextBridge.exposeInMainWorld("desktopBridge", {
   socketOrigin,
   updates,
   spellcheck,
+  paths,
 } satisfies DesktopBridge);

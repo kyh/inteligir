@@ -68,6 +68,10 @@ describe("copy link", () => {
         getState: () => Promise.resolve(inertSpellcheck),
         apply: () => Promise.resolve(inertSpellcheck),
       },
+      paths: {
+        reveal: () => Promise.resolve({ ok: true }),
+        open: () => Promise.resolve({ ok: true }),
+      },
     };
     expect(copiedAfterClick()).toBe("http://127.0.0.1:26723/?note=Plans%2FWeekly+Plan.md");
   });

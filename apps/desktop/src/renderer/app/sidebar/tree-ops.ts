@@ -5,6 +5,7 @@ import type { VaultActions } from "@repo/editor/host-io";
 import type { VaultMkdirRequest, VaultMkdirResponse } from "@repo/api/local/vault/vault-schema";
 import { basenamePath, dirnamePath, joinPath } from "@repo/notes/knowledge/vault-path";
 import { refusalMessage } from "../api";
+import { desktopPaths, runPathAction } from "../desktop-paths";
 import type { TreeOps } from "./file-tree";
 
 interface TreeOpsApi {
@@ -31,6 +32,12 @@ export function openNoteAfterRename(
 
 export function deleteSwallowsOpenNote(openNote: string | null, path: string): boolean {
   return openNote !== null && openNote !== path && openNote.startsWith(`${path}/`);
+}
+
+// the server's root is a native path, so the join keeps its separator; the entry is always "/"-joined
+export function absoluteEntryPath(root: string, path: string): string {
+  const separator = root.includes("\\") ? "\\" : "/";
+  return `${root}${separator}${path.split("/").join(separator)}`;
 }
 
 export type MoveVerdict =
@@ -64,6 +71,19 @@ export function useTreeOps({
   setPinned,
 }: TreeOpsDeps): TreeOps {
   return useMemo<TreeOps>(() => {
+    const paths = desktopPaths();
+    // absent outside the shell, so the tree draws no row for them there
+    const shellOps: Pick<TreeOps, "revealEntry" | "openEntry"> =
+      paths === undefined
+        ? {}
+        : {
+            revealEntry: (path) => {
+              runPathAction(() => paths.reveal(path), `Could not reveal ${path}.`);
+            },
+            openEntry: (path) => {
+              runPathAction(() => paths.open(path), `Could not open ${path}.`);
+            },
+          };
     const renameEntry: TreeOps["renameEntry"] = (fromPath, toPath) => {
       void (async () => {
         const moved = await actions.current?.renameEntry(fromPath, toPath);
@@ -88,6 +108,7 @@ export function useTreeOps({
       },
       renameEntry,
       setPinned,
+      ...shellOps,
       moveEntry: (fromPath, toDir) => {
         const plan = planMove(fromPath, toDir);
         if (plan.ok) {

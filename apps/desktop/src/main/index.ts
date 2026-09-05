@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 import { autoUpdater } from "electron-updater";
 import {
@@ -27,6 +27,7 @@ import { APP_ORIGIN, registerAppProtocol, registerAppScheme } from "./protocol";
 import { createServerProcess, type ServerProcess } from "./server-process";
 import { createSpellcheck, senderIsWindow } from "./spellcheck";
 import { createUpdates, type UpdaterPort, type Updates } from "./updates";
+import { resolveVaultEntry } from "./vault-entry";
 import {
   describeServerVerdict,
   planServerStart,
@@ -39,6 +40,11 @@ import {
   type ServerTarget,
 } from "./server-instance";
 import { authorizationHeader } from "inteligir/server/server-file";
+import {
+  pathActionRequestSchema,
+  type PathActionRequest,
+  type PathActionResult,
+} from "../path-action";
 import { spellcheckChoiceSchema } from "../spellcheck-state";
 import { IPC_CHANNELS, toErrorMessage } from "../types";
 
@@ -164,6 +170,28 @@ function configureSpellcheck(windowSession: Electron.Session): void {
   ipcMain.handle(IPC_CHANNELS.SPELLCHECK_APPLY, (event, frame) => {
     if (!fromMainWindow(event)) throw new Error("refused");
     return created.apply(spellcheckChoiceSchema.parse(frame));
+  });
+}
+
+// the page names an entry vault-relative; main resolves it against the vault it launched
+// with and hands the OS nothing the vault does not physically contain
+function configurePathActions(target: ServerTarget): void {
+  const resolve = (request: PathActionRequest) =>
+    resolveVaultEntry({ vaultDir: target.vaultDir, path: request.path, realpath: realpathSync });
+  ipcMain.handle(IPC_CHANNELS.REVEAL_PATH, (event, frame): PathActionResult => {
+    if (!fromMainWindow(event)) throw new Error("refused");
+    const verdict = resolve(pathActionRequestSchema.parse(frame));
+    if (!verdict.ok) return verdict;
+    shell.showItemInFolder(verdict.absPath);
+    return { ok: true };
+  });
+  ipcMain.handle(IPC_CHANNELS.OPEN_PATH, async (event, frame): Promise<PathActionResult> => {
+    if (!fromMainWindow(event)) throw new Error("refused");
+    const verdict = resolve(pathActionRequestSchema.parse(frame));
+    if (!verdict.ok) return verdict;
+    // answers "" when the OS took the file, else its own words for why not
+    const refusal = await shell.openPath(verdict.absPath);
+    return refusal === "" ? { ok: true } : { ok: false, reason: refusal };
   });
 }
 
@@ -503,6 +531,7 @@ async function onAppReady(target: ServerTarget): Promise<void> {
     throw new Error("the server reported ready without publishing its address");
   }
   prepareWindowSession(target, server);
+  configurePathActions(target);
   ipcMain.on(IPC_CHANNELS.SOCKET_ORIGIN, (event) => {
     event.returnValue = server.origin;
   });

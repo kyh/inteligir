@@ -18,9 +18,11 @@ import { basenamePath } from "@repo/notes/knowledge/vault-path";
 import type { VaultEntry } from "@repo/api/local/vault/vault-schema";
 import {
   ArchiveRestoreIcon,
+  ArrowDownAZIcon,
   CheckIcon,
   ChevronDownIcon,
   ChevronsDownUpIcon,
+  ClockArrowDownIcon,
   FilePlusIcon,
   FolderIcon,
   FolderPlusIcon,
@@ -33,9 +35,12 @@ import { bindingFor, platformShortcutModifier } from "../global-shortcuts";
 import {
   readSidebarFolder,
   readSidebarView,
+  readTreeSort,
   writeSidebarFolder,
   writeSidebarView,
+  writeTreeSort,
   type SidebarView,
+  type TreeSort,
 } from "../prefs";
 import { hasInsetTitleBar } from "../title-bar";
 import {
@@ -185,6 +190,9 @@ export function SidebarRailContent({
   } | null>(null);
   const [treeCreateDir, setTreeCreateDir] = useState("");
   const [collapseAllNonce, setCollapseAllNonce] = useState(0);
+  const [treeSort, setTreeSort] = useState<TreeSort>(readTreeSort);
+  // not persisted: a filter is a question about now
+  const [treeFilter, setTreeFilter] = useState("");
   const [insetTitleBar] = useState(hasInsetTitleBar);
   const modifier = platformShortcutModifier();
 
@@ -331,6 +339,37 @@ export function SidebarRailContent({
             {bindingFor("open-palette", modifier)}
           </kbd>
         </div>
+        {showTree ? (
+          <div className="flex items-center gap-0.5">
+            <SidebarInput
+              value={treeFilter}
+              placeholder="Filter files…"
+              aria-label="Filter files"
+              onChange={(event) => {
+                setTreeFilter(event.currentTarget.value);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Escape") {
+                  event.preventDefault();
+                  setTreeFilter("");
+                  event.currentTarget.blur();
+                }
+              }}
+            />
+            <Button
+              variant="ghost"
+              size="icon-compact"
+              aria-label={treeSort === "name" ? "Sort by modified" : "Sort by name"}
+              onClick={() => {
+                const next: TreeSort = treeSort === "name" ? "modified" : "name";
+                writeTreeSort(next);
+                setTreeSort(next);
+              }}
+            >
+              {treeSort === "name" ? <ArrowDownAZIcon /> : <ClockArrowDownIcon />}
+            </Button>
+          </div>
+        ) : null}
       </SidebarHeader>
       <SidebarContent>
         {showTree ? (
@@ -348,6 +387,9 @@ export function SidebarRailContent({
             collapseAllNonce={collapseAllNonce}
             onMoveRequest={onMoveRequest}
             pinnedPaths={pinnedPaths}
+            sort={treeSort}
+            filter={treeFilter}
+            {...(treeQuery.data === undefined ? {} : { vaultRoot: treeQuery.data.root })}
           />
         ) : showTags && selectedTag === null ? (
           <TagsView

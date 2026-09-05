@@ -39,6 +39,10 @@ function installBridge() {
         return Promise.resolve(state(choice));
       },
     },
+    paths: {
+      reveal: () => Promise.resolve({ ok: true }),
+      open: () => Promise.resolve({ ok: true }),
+    },
   };
   return log;
 }

@@ -12,6 +12,7 @@ const KEYS = {
   relatedOpen: "inteligir.related-open",
   sidebarView: "inteligir.sidebar-view",
   sidebarFolder: "inteligir.sidebar-folder",
+  treeSort: "inteligir.tree-sort",
   spellcheck: "inteligir.spellcheck",
 };
 
@@ -94,6 +95,16 @@ export function readSidebarFolder(): string {
 
 export function writeSidebarFolder(folder: string): void {
   write(KEYS.sidebarFolder, folder === "" ? null : folder);
+}
+
+export type TreeSort = "name" | "modified";
+
+export function readTreeSort(): TreeSort {
+  return read(KEYS.treeSort) === "modified" ? "modified" : "name";
+}
+
+export function writeTreeSort(sort: TreeSort): void {
+  write(KEYS.treeSort, sort);
 }
 
 export function readTheme(): Theme {

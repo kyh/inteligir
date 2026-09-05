@@ -857,6 +857,19 @@ rename`.
   asset write's wire, because a vault path is never empty.
   `apps/cli/src/server/vault/vault-prefs-store.ts`.
 
+- **THE OS SEES A VAULT ENTRY THROUGH MAIN ALONE, and main checks physically.**
+  Reveal in Finder and Open with default app ride `desktop:reveal-path` /
+  `desktop:open-path`: the page sends a vault-relative path, main parses it
+  with the vault grammar, joins it under the vault it launched with, realpaths
+  both sides and asks `pathContains` (`inteligir/server/path-containment`), so
+  a `..`, an absolute path or a symlink planted in the vault reaches no
+  `shell.*` call (`apps/desktop/src/main/vault-entry.ts`, tested). A browser
+  tab has no bridge and draws no row. Copy path and Copy absolute path need
+  no main: the listing already carries the root. The tree sorts folders first
+  either way and files by name or newest-first (`prefs.ts`, persisted); the
+  filter withholds rows that neither match nor hold a match and opens every
+  kept folder, without touching the fold state it restores when cleared.
+
 **Before raising a "new" finding, read
 [#542](https://github.com/kyh/inteligir/issues/542)**: the decision record
 carries what was rejected as well as what was chosen. The older `note` issues

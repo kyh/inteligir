@@ -6,6 +6,7 @@
 // token.
 
 import { z } from "zod";
+import type { PathActionResult } from "./path-action";
 import type { SpellcheckChoice, SpellcheckState } from "./spellcheck-state";
 import type { UpdateState } from "./update-state";
 
@@ -18,6 +19,8 @@ export const IPC_CHANNELS = {
   UPDATE_INSTALL: "desktop:update-install",
   SPELLCHECK_GET_STATE: "desktop:spellcheck-get-state",
   SPELLCHECK_APPLY: "desktop:spellcheck-apply",
+  REVEAL_PATH: "desktop:reveal-path",
+  OPEN_PATH: "desktop:open-path",
 } as const;
 
 export const socketOriginSchema = z.string().url();
@@ -37,10 +40,17 @@ export interface DesktopSpellcheckBridge {
   apply(choice: SpellcheckChoice): Promise<SpellcheckState>;
 }
 
+// the OS reaches a vault entry through main alone, which resolves and checks the path itself
+export interface DesktopPathsBridge {
+  reveal(path: string): Promise<PathActionResult>;
+  open(path: string): Promise<PathActionResult>;
+}
+
 export interface DesktopBridge {
   socketOrigin: string;
   updates: DesktopUpdatesBridge;
   spellcheck: DesktopSpellcheckBridge;
+  paths: DesktopPathsBridge;
 }
 
 export function toErrorMessage(cause: unknown): string {
