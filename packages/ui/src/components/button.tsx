@@ -5,6 +5,7 @@ import { forwardRef, type CSSProperties } from "react";
 import { Button as ButtonPrimitive } from "@base-ui/react/button";
 import { cva } from "class-variance-authority";
 
+import { Tooltip } from "@repo/ui/components/tooltip";
 import type { IconComponent } from "@repo/ui/lib/icon";
 import { useRadius } from "@repo/ui/lib/radius-context";
 import { useSizeVariant } from "@repo/ui/lib/size-context";
@@ -124,6 +125,8 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       disabled,
       children,
       style,
+      "aria-label": ariaLabel,
+      title,
       ...props
     },
     ref,
@@ -213,17 +216,23 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       className,
     );
 
-    return (
+    // an icon-only button says nothing on its face: its label becomes the product's tooltip
+    // and its accessible name, and the native title is dropped so the OS does not show a second one.
+    const iconLabel = isIconOnly ? (ariaLabel ?? title) : undefined;
+    const element = (
       <ButtonPrimitive
         ref={ref}
         className={rootClassName}
         disabled={disabled || loading}
         style={style}
+        aria-label={ariaLabel ?? iconLabel}
+        title={isIconOnly ? undefined : title}
         {...props}
       >
         {internals}
       </ButtonPrimitive>
     );
+    return iconLabel === undefined ? element : <Tooltip content={iconLabel}>{element}</Tooltip>;
   },
 );
 
