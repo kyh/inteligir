@@ -108,15 +108,32 @@ export function parseProperties(yamlText: string): ParsedProperties {
   return { kind: "valid", properties };
 }
 
+// A line cut, not a re-serialization: serializeProperties restyles what it re-emits (a flow
+// list's spacing), and a key edit must leave the other keys byte-exact. The key's own lines are
+// its `key:` line and the indented or `- ` lines that continue a block value under it.
+function withoutTopLevelKey(lines: readonly string[], key: string): string[] {
+  const keyLine = new RegExp(`^${key}[ \\t]*:`);
+  const kept: string[] = [];
+  let inValue = false;
+  for (const line of lines) {
+    if (keyLine.test(line)) {
+      inValue = true;
+      continue;
+    }
+    if (inValue && /^[ \t-]/.test(line)) continue;
+    inValue = false;
+    kept.push(line);
+  }
+  return kept;
+}
+
 // a note minted from a template must not inherit the template's identity: two notes with one
-// `id:` make the `[[Title|uuid]]` tier ambiguous. a line cut, not a re-serialization:
-// serializeProperties normalizes what it touches (a flow list's spacing), and the template's
-// other keys must land byte-exact. an id is a one-line scalar, so its line is the whole value.
+// `id:` make the `[[Title|uuid]]` tier ambiguous.
 export function removeFrontmatterId(content: string): string {
   const match = FRONTMATTER_RE.exec(content);
   if (!match) return content;
   const lines = (match[1] ?? "").split("\n");
-  const kept = lines.filter((line) => !/^id\s*:/.test(line));
+  const kept = withoutTopLevelKey(lines, "id");
   if (kept.length === lines.length) return content;
   const body = content.slice(match[0].length);
   if (kept.every((line) => line.trim() === "")) return body;
@@ -151,6 +168,37 @@ export function addFrontmatterAlias(content: string, alias: string): string | nu
   const nextYaml = serializeProperties(nextProps, yaml ?? "");
   const body = splitFrontmatter(content).body;
   return `---\n${nextYaml}\n---\n${body}`;
+}
+
+export const PINNED_KEY = "pinned";
+
+export type PinnedYamlVerdict =
+  | { kind: "unchanged" }
+  | { kind: "invalid" }
+  | { kind: "changed"; yaml: string };
+
+// A pin is a frontmatter key, so it travels with the file. Unpinning removes the key rather than
+// writing `false`, and a block that empties goes with it ("" is the caller's cue to drop it).
+export function pinnedFrontmatterYaml(yaml: string | null, pinned: boolean): PinnedYamlVerdict {
+  const parsed = parseProperties(yaml ?? "");
+  if (parsed.kind === "invalid") return { kind: "invalid" };
+  const props = parsed.kind === "valid" ? parsed.properties : [];
+  const current = props.find((p) => p.key === PINNED_KEY);
+  const isPinned = current !== undefined && current.type === "checkbox" && current.value;
+  if (isPinned === pinned) return { kind: "unchanged" };
+  const lines = yaml === null || yaml === "" ? [] : yaml.split("\n");
+  const kept = withoutTopLevelKey(lines, PINNED_KEY);
+  const next = pinned ? [...kept, `${PINNED_KEY}: true`] : kept;
+  return { kind: "changed", yaml: next.every((line) => line.trim() === "") ? "" : next.join("\n") };
+}
+
+// null: the frontmatter is not valid YAML, and nothing here may rewrite bytes it cannot read.
+export function setFrontmatterPinned(content: string, pinned: boolean): string | null {
+  const verdict = pinnedFrontmatterYaml(frontmatterYaml(content), pinned);
+  if (verdict.kind === "invalid") return null;
+  if (verdict.kind === "unchanged") return content;
+  const body = splitFrontmatter(content).body;
+  return verdict.yaml === "" ? body : `---\n${verdict.yaml}\n---\n${body}`;
 }
 
 export function typeNewProperty(key: string, rawValue: string): TypedProperty {

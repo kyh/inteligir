@@ -6,7 +6,7 @@ import {
 } from "@repo/ui/components/dropdown-menu";
 import { toast } from "@repo/ui/components/sonner";
 import { cn } from "@repo/ui/lib/utils";
-import { DEFAULT_DOC_EXTENSION } from "@repo/notes/knowledge/doc-file";
+import { DEFAULT_DOC_EXTENSION, isDocPath } from "@repo/notes/knowledge/doc-file";
 import { checkNoteName, noteNameErrorMessage } from "@repo/notes/knowledge/note-name";
 import { basenamePath, dirnamePath, extnamePath, joinPath } from "@repo/notes/knowledge/vault-path";
 import type { VaultEntry } from "@repo/api/local/vault/vault-schema";
@@ -21,7 +21,10 @@ export interface TreeOps {
   // into `toDir` ("" is the vault root), keeping the entry's own name
   moveEntry: (fromPath: string, toDir: string) => void;
   removeEntry: (path: string, kind: "file" | "dir") => void;
+  setPinned: (path: string, pinned: boolean) => void;
 }
+
+const NO_PINS: ReadonlySet<string> = new Set();
 
 export type TreeLoadState = "loading" | "loaded" | "failed";
 
@@ -42,6 +45,8 @@ export interface FileTreeProps {
   collapseAllNonce?: number;
   // the keyboard path to a move: the caller opens its folder picker for this entry
   onMoveRequest?: (path: string) => void;
+  // which notes the index holds pinned; the row menu's verb follows it
+  pinnedPaths?: ReadonlySet<string>;
 }
 
 // a file row stands for its folder: dropping beside a note puts the entry next to it
@@ -191,6 +196,7 @@ export function FileTree({
   onCreateDirChange,
   collapseAllNonce = 0,
   onMoveRequest,
+  pinnedPaths = NO_PINS,
 }: FileTreeProps) {
   const { roots, byPath } = useMemo(() => buildTree(entries), [entries]);
 
@@ -585,6 +591,17 @@ export function FileTree({
             >
               Rename
             </DropdownMenuItem>
+            {menu.node.kind === "file" && isDocPath(menu.node.path) ? (
+              <DropdownMenuItem
+                onClick={() => {
+                  const target = menu.node.path;
+                  setMenu(null);
+                  ops.setPinned(target, !pinnedPaths.has(target));
+                }}
+              >
+                {pinnedPaths.has(menu.node.path) ? "Unpin" : "Pin"}
+              </DropdownMenuItem>
+            ) : null}
             {onMoveRequest === undefined ? null : (
               <DropdownMenuItem
                 onClick={() => {

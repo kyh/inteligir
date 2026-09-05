@@ -793,6 +793,20 @@ rename`.
   the note's matches, because a markdown column is not a Slate offset. ⌘⇧F is
   the one shifted row in `global-shortcuts.ts`; a row claims shift explicitly
   so ⌘⇧K stays the editor's.
+- **A PIN IS THE FRONTMATTER KEY `pinned: true`, AND ITS EDIT IS A LINE CUT.**
+  Pinning travels with the file, so the recents' Pinned group agrees on every
+  device and with the agent. `pinnedFrontmatterYaml` in
+  `@repo/notes/markdown/frontmatter` cuts or appends the key's own lines like
+  `removeFrontmatterId` does, rather than re-serializing through
+  `serializeProperties`, which restyles every flow list it re-emits; unpinning
+  removes the key, never writes `false`, and a block it empties goes with it.
+  One desktop function behind the Metadata tab, the tree and list menus and
+  the palette (`apps/desktop/src/renderer/app/note/pin-note.ts`): the open
+  note takes the edit through the live editor's frontmatter node, the
+  properties panel's own path, so the buffer and the autosave carry it; any
+  other note is read, edited and written with the hash of what was read, and a
+  mismatch is reported, never merged. The pinned set every surface shows is
+  the index's (`usePinnedPaths`), so a pin appears after the sweep, not before.
 
 **Before raising a "new" finding, read
 [#542](https://github.com/kyh/inteligir/issues/542)**: the decision record

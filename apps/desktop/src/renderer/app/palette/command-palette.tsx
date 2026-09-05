@@ -31,6 +31,8 @@ import {
   FolderInputIcon,
   LayoutTemplateIcon,
   MessagesSquareIcon,
+  PinIcon,
+  PinOffIcon,
   RefreshCwIcon,
   SearchIcon,
   SettingsIcon,
@@ -57,6 +59,9 @@ export interface PaletteActions {
   insertTemplate: ((templatePath: string) => void) | null;
   exportPdf: (() => void) | null;
   moveNote: (path: string, toDir: string) => void;
+  // exactly one of the two is offered while a note is open
+  pinNote: (() => void) | null;
+  unpinNote: (() => void) | null;
   openMatch: (match: VaultMatchWire, query: string) => void;
   replaceAll: (request: VaultReplaceRequest) => void;
 }
@@ -408,6 +413,26 @@ export function CommandPalette({
             label: "Export as PDF",
             icon: <PrinterIcon />,
             run: () => actions.exportPdf?.(),
+          },
+        ]
+      : []),
+    ...(actions.pinNote !== null
+      ? [
+          {
+            id: "pin-note",
+            label: "Pin note",
+            icon: <PinIcon />,
+            run: () => actions.pinNote?.(),
+          },
+        ]
+      : []),
+    ...(actions.unpinNote !== null
+      ? [
+          {
+            id: "unpin-note",
+            label: "Unpin note",
+            icon: <PinOffIcon />,
+            run: () => actions.unpinNote?.(),
           },
         ]
       : []),

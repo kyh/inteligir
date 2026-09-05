@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { addFrontmatterAlias, splitFrontmatter } from "@repo/notes/markdown/frontmatter";
+import {
+  addFrontmatterAlias,
+  pinnedFrontmatterYaml,
+  setFrontmatterPinned,
+  splitFrontmatter,
+} from "@repo/notes/markdown/frontmatter";
 
 describe("splitFrontmatter", () => {
   it("returns empty properties + full body when there is no frontmatter", () => {
@@ -89,5 +94,50 @@ describe("addFrontmatterAlias", () => {
     expect(addFrontmatterAlias("---\n---\nbody\n", "Name")).toBe(
       "---\naliases:\n  - Name\n---\nbody\n",
     );
+  });
+});
+
+describe("setFrontmatterPinned", () => {
+  const doc = "---\ntitle: 'Quoted: yes'\ntags: [a,  b]   # kept\n---\nbody\n";
+
+  it("adds the key and leaves every other byte alone", () => {
+    expect(setFrontmatterPinned(doc, true)).toBe(
+      "---\ntitle: 'Quoted: yes'\ntags: [a,  b]   # kept\npinned: true\n---\nbody\n",
+    );
+  });
+
+  it("removes the key rather than writing false, byte-exact elsewhere", () => {
+    const pinned = "---\npinned: true\ntitle: 'Quoted: yes'\ntags: [a,  b]   # kept\n---\nbody\n";
+    expect(setFrontmatterPinned(pinned, false)).toBe(doc);
+  });
+
+  it("mints a block for a note without one, and drops a block it empties", () => {
+    expect(setFrontmatterPinned("body\n", true)).toBe("---\npinned: true\n---\nbody\n");
+    expect(setFrontmatterPinned("---\npinned: true\n---\nbody\n", false)).toBe("body\n");
+  });
+
+  it("answers the same bytes when there is nothing to change", () => {
+    expect(setFrontmatterPinned("body\n", false)).toBe("body\n");
+    const pinned = "---\npinned: true\n---\nbody\n";
+    expect(setFrontmatterPinned(pinned, true)).toBe(pinned);
+  });
+
+  it("treats a pinned value that is not `true` as unpinned, and sets it", () => {
+    expect(setFrontmatterPinned("---\npinned: false\n---\nbody\n", true)).toBe(
+      "---\npinned: true\n---\nbody\n",
+    );
+    expect(setFrontmatterPinned("---\npinned: yes\n---\nbody\n", true)).toBe(
+      "---\npinned: true\n---\nbody\n",
+    );
+  });
+
+  it("refuses frontmatter it cannot read", () => {
+    expect(setFrontmatterPinned("---\na: [unclosed\n---\nbody\n", true)).toBeNull();
+  });
+
+  it("is the yaml-level edit the editor's frontmatter node runs", () => {
+    expect(pinnedFrontmatterYaml(null, true)).toEqual({ kind: "changed", yaml: "pinned: true" });
+    expect(pinnedFrontmatterYaml("pinned: true", false)).toEqual({ kind: "changed", yaml: "" });
+    expect(pinnedFrontmatterYaml("x: 1", false)).toEqual({ kind: "unchanged" });
   });
 });
