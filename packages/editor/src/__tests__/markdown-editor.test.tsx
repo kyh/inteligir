@@ -41,6 +41,12 @@ vi.mock("@repo/editor/live-editor", () => ({
   registerLiveEditor: vi.fn(() => () => {}),
 }));
 
+vi.mock("@repo/editor/note-stats", () => ({
+  clearNoteStats: vi.fn(),
+  collectNoteStats: vi.fn(() => ({ characters: 0, words: 0 })),
+  publishNoteStats: vi.fn(),
+}));
+
 vi.mock("@repo/editor/kits/block-placeholder-kit", () => ({
   WRITE_PLACEHOLDER: "Write something…",
 }));

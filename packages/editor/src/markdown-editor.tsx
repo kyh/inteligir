@@ -5,6 +5,7 @@ import { serializeMd } from "@platejs/markdown";
 
 import { Editor, EditorContainer } from "@repo/editor/editor-chrome";
 import { registerLiveEditor } from "@repo/editor/live-editor";
+import { clearNoteStats, collectNoteStats, publishNoteStats } from "@repo/editor/note-stats";
 import { WRITE_PLACEHOLDER } from "@repo/editor/kits/block-placeholder-kit";
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
 import { MD_STRINGIFY, parseMarkdown } from "@repo/editor/markdown/markdown-doc";
@@ -48,6 +49,10 @@ export function MarkdownEditor({ path, value, onChange, onRegisterSerializeFlush
   );
   const seeded = useRef<string | null>(initialSeed);
 
+  const publishStats = useCallback(() => {
+    publishNoteStats(path, collectNoteStats(editor));
+  }, [path, editor]);
+
   const onChangeRef = useRef(onChange);
   const doSerialize = useCallback(() => {
     const md = serializeMd(editor, { remarkStringifyOptions: MD_STRINGIFY });
@@ -55,9 +60,10 @@ export function MarkdownEditor({ path, value, onChange, onRegisterSerializeFlush
     seeded.current = null;
     lastValueProp.current = md;
     onChangeRef.current(md);
+    publishStats();
     // behind the settle, never per keystroke; a changed display re-enters this path as an ordinary edit.
     scheduleFormulaRecompute(editor);
-  }, [editor]);
+  }, [editor, publishStats]);
   useLayoutEffect(() => {
     onChangeRef.current = onChange;
   }, [onChange]);
@@ -73,7 +79,8 @@ export function MarkdownEditor({ path, value, onChange, onRegisterSerializeFlush
     lastValueProp.current = value;
     editor.tf.setValue(seedValue(value));
     seeded.current = serializeMd(editor, { remarkStringifyOptions: MD_STRINGIFY });
-  }, [value, editor, scheduler]);
+    publishStats();
+  }, [value, editor, scheduler, publishStats]);
 
   const registerSerializeFlush = useEffectEvent((flush: () => void) => {
     onRegisterSerializeFlush?.(flush);
@@ -103,6 +110,12 @@ export function MarkdownEditor({ path, value, onChange, onRegisterSerializeFlush
   }, [editor]);
 
   useEffect(() => registerLiveEditor(path, editor), [path, editor]);
+  useEffect(() => {
+    publishStats();
+    return () => {
+      clearNoteStats(path);
+    };
+  }, [path, publishStats]);
 
   return (
     <Plate

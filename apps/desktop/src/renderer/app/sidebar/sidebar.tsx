@@ -30,13 +30,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { bindingFor, platformShortcutModifier } from "../global-shortcuts";
-import {
-  readSidebarFolder,
-  readSidebarView,
-  writeSidebarFolder,
-  writeSidebarView,
-  type SidebarView,
-} from "../prefs";
+import { readSidebarView, writeSidebarView, type SidebarView } from "../prefs";
 import { hasInsetTitleBar } from "../title-bar";
 import {
   canSyncNow,
@@ -159,6 +153,10 @@ export interface SidebarRailContentProps {
   // a `#tag` chip's ask: show that tag's notes; handled once the rail is on it
   tagRequest: string | null;
   onTagRequestHandled: () => void;
+  // the listing's folder ("" is the vault): owned by the workspace, since the top bar's
+  // breadcrumb sets it too
+  folder: string;
+  onFolderChange: (folder: string) => void;
 }
 
 export function SidebarRailContent({
@@ -172,11 +170,12 @@ export function SidebarRailContent({
   onMoveRequest,
   tagRequest,
   onTagRequestHandled,
+  folder,
+  onFolderChange,
 }: SidebarRailContentProps) {
   const treeQuery = useVaultTree();
   const pinnedPaths = usePinnedPaths();
   const [view, setView] = useState<SidebarView>(readSidebarView);
-  const [folder, setFolder] = useState<string>(readSidebarFolder);
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [renamingTag, setRenamingTag] = useState<string | null>(null);
   const [pendingCreate, setPendingCreate] = useState<{
@@ -252,10 +251,7 @@ export function SidebarRailContent({
             vaultName={treeQuery.data?.name ?? "Vault"}
             folders={folders}
             value={scope}
-            onChange={(next) => {
-              writeSidebarFolder(next);
-              setFolder(next);
-            }}
+            onChange={onFolderChange}
           />
           <Button
             variant="ghost"
