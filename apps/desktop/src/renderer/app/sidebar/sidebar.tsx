@@ -147,6 +147,7 @@ function VaultButton({ vaultName }: { vaultName: string }) {
         {state.recent.map((vault) => (
           <DropdownMenuItem
             key={vault.path}
+            className="h-auto py-1.5"
             onClick={() => {
               run(() => openRecentVault(vault.path));
             }}
