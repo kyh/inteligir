@@ -20,6 +20,7 @@ import { interactionsCommand } from "./commands/interactions";
 import {
   backlinksCommand,
   matchesCommand,
+  unlinkedCommand,
   relatedCommand,
   searchCommand,
   tagsCommand,
@@ -51,6 +52,7 @@ export function buildProgram(deps: CliDeps): CommandDef {
       matches: matchesCommand(deps),
       backlinks: backlinksCommand(deps),
       related: relatedCommand(deps),
+      unlinked: unlinkedCommand(deps),
       tags: tagsCommand(deps),
       tag: tagCommand(deps),
       action: actionCommand(deps),

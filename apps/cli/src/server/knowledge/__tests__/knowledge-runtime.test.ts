@@ -246,3 +246,29 @@ describe("the knowledge runtime", () => {
     expect(hits.map((h) => h.path)).toEqual(["b.md"]);
   });
 });
+
+describe("unlinked mentions", () => {
+  it("names the notes that spell this one in prose, and drops one once it links", async () => {
+    const { service, knowledge } = boot(makeDirs());
+    await service.write("Roadmap.md", "---\naliases: [the plan]\n---\n# Roadmap\n");
+    await service.write("a.md", "We revisit the roadmap on Monday.\n");
+    await service.write("b.md", "Follow the plan.\n");
+    await service.write("c.md", "See [[Roadmap]] and the roadmap again.\n");
+    await service.write("d.md", "`roadmap` in code only.\n");
+
+    const found = await knowledge.unlinkedMentions("Roadmap.md", 10);
+    expect(found.total).toBe(2);
+    expect(found.mentions.map((mention) => [mention.path, mention.text])).toEqual([
+      ["a.md", "roadmap"],
+      ["b.md", "the plan"],
+    ]);
+
+    await service.write("a.md", "We revisit the [[Roadmap|roadmap]] on Monday.\n");
+    const after = await knowledge.unlinkedMentions("Roadmap.md", 10);
+    expect(after.mentions.map((mention) => mention.path)).toEqual(["b.md"]);
+    expect((await knowledge.backlinks("Roadmap.md")).map((b) => b.sourcePath).toSorted()).toEqual([
+      "a.md",
+      "c.md",
+    ]);
+  });
+});

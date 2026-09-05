@@ -5,6 +5,7 @@ import {
   KNOWLEDGE_BACKLINKS_MAX,
   KNOWLEDGE_MATCHES_DEFAULT_LIMIT,
   KNOWLEDGE_TAGS_MAX,
+  KNOWLEDGE_UNLINKED_DEFAULT_LIMIT,
   type KnowledgeRenameTagResponse,
 } from "@repo/api/local/knowledge/knowledge-schema";
 import { base } from "../orpc";
@@ -42,6 +43,14 @@ const backlinks = base.knowledge.backlinks.handler(async ({ context, input }) =>
   };
 });
 
+const unlinkedMentions = base.knowledge.unlinkedMentions.handler(async ({ context, input }) => ({
+  path: input.path,
+  ...(await context.knowledge.unlinkedMentions(
+    input.path,
+    input.limit ?? KNOWLEDGE_UNLINKED_DEFAULT_LIMIT,
+  )),
+}));
+
 const related = base.knowledge.related.handler(async ({ context, input }) => ({
   path: input.path,
   related: await context.knowledge.relatedNotes(input.path, input.limit ?? RELATED_DEFAULT_LIMIT),
@@ -62,6 +71,7 @@ export const knowledgeRouter = {
   wikiTargets,
   backlinks,
   related,
+  unlinkedMentions,
   tags,
   renameTag,
 };

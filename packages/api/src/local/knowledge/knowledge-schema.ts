@@ -12,6 +12,8 @@ export const KNOWLEDGE_BACKLINKS_MAX = 500;
 export const KNOWLEDGE_TAGS_MAX = 1000;
 export const KNOWLEDGE_MATCHES_MAX_LIMIT = 500;
 export const KNOWLEDGE_MATCHES_DEFAULT_LIMIT = 200;
+export const KNOWLEDGE_UNLINKED_MAX_LIMIT = 200;
+export const KNOWLEDGE_UNLINKED_DEFAULT_LIMIT = 50;
 
 // q is the raw box text, parsed engine-side so a typed tag: term and a composed one resolve alike
 export const knowledgeSearchRequestSchema = z
@@ -78,6 +80,47 @@ export const knowledgeMatchesResponseSchema = z
   })
   .strict();
 export type KnowledgeMatchesResponse = z.infer<typeof knowledgeMatchesResponseSchema>;
+
+// a note that names this one in prose without linking it: the stem or an alias as a whole
+// word, outside code, links, urls and frontmatter. one row per note, on its first mention
+export const knowledgeUnlinkedMentionsRequestSchema = z
+  .object({
+    path: vaultPathSchema,
+    limit: z.number().int().min(1).max(KNOWLEDGE_UNLINKED_MAX_LIMIT).optional(),
+  })
+  .strict();
+export type KnowledgeUnlinkedMentionsRequest = z.infer<
+  typeof knowledgeUnlinkedMentionsRequestSchema
+>;
+
+export const unlinkedMentionSchema = z
+  .object({
+    path: z.string().min(1),
+    title: z.string(),
+    // 1-based
+    line: z.number().int().min(1),
+    // utf-16 offset inside the line
+    column: z.number().int().min(0),
+    length: z.number().int().min(1),
+    before: z.string(),
+    text: z.string(),
+    after: z.string(),
+    // every plain mention in that note, this one included
+    count: z.number().int().min(1),
+  })
+  .strict();
+export type UnlinkedMentionWire = z.infer<typeof unlinkedMentionSchema>;
+
+export const knowledgeUnlinkedMentionsResponseSchema = z
+  .object({
+    path: z.string().min(1),
+    mentions: z.array(unlinkedMentionSchema).max(KNOWLEDGE_UNLINKED_MAX_LIMIT),
+    total: z.number().int().min(0),
+  })
+  .strict();
+export type KnowledgeUnlinkedMentionsResponse = z.infer<
+  typeof knowledgeUnlinkedMentionsResponseSchema
+>;
 
 export const linkKindSchema = z.enum(["wiki", "md", "image"]);
 export type LinkKindWire = z.infer<typeof linkKindSchema>;
