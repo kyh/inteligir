@@ -149,6 +149,7 @@ export interface SidebarRailContentProps {
   onOpenSettings: () => void;
   onOpenDeletedNotes: () => void;
   onOpenSearch: () => void;
+  onMoveRequest: (path: string) => void;
 }
 
 export function SidebarRailContent({
@@ -159,6 +160,7 @@ export function SidebarRailContent({
   onOpenSettings,
   onOpenDeletedNotes,
   onOpenSearch,
+  onMoveRequest,
 }: SidebarRailContentProps) {
   const treeQuery = useVaultTree();
   const [view, setView] = useState<SidebarView>(readSidebarView);
@@ -292,6 +294,7 @@ export function SidebarRailContent({
             rootDir={scope}
             onCreateDirChange={setTreeCreateDir}
             collapseAllNonce={collapseAllNonce}
+            onMoveRequest={onMoveRequest}
           />
         ) : (
           <NotesList entries={scoped} scope={scope} openPath={openPath} onOpenFile={onOpenFile} />

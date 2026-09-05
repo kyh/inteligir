@@ -29,6 +29,7 @@ function makeActions(): PaletteActions {
     openDeletedNotes: vi.fn(),
     findInNote: null,
     exportPdf: null,
+    moveNote: vi.fn(),
   };
 }
 
@@ -197,5 +198,38 @@ describe("the new-note-in-folder page", () => {
     expect(screen.getByText("notes/daily")).toBeDefined();
     expect(screen.queryByText(/^notes$/)).toBeNull();
     expect(screen.getByText("Vault root")).toBeDefined();
+  });
+});
+
+describe("the move-to-folder page", () => {
+  it("is offered for the open note and moves it into the picked folder", () => {
+    const { actions, onOpenChange } = renderPalette({ openNotePath: "Welcome.md" });
+    fireEvent.click(screen.getByText("Move note to folder…"));
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+    fireEvent.click(screen.getByText("notes/daily"));
+    expect(actions.moveNote).toHaveBeenCalledWith("Welcome.md", "notes/daily");
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("hides the folder the note is already in, and the root when that is it", () => {
+    renderPalette({ openNotePath: "Welcome.md" });
+    fireEvent.click(screen.getByText("Move note to folder…"));
+    expect(screen.queryByText("Vault root")).toBeNull();
+    expect(screen.getByText(/^notes$/)).toBeDefined();
+  });
+
+  it("opens straight on the page for a requested entry, and hides its own subtree", () => {
+    const { actions } = renderPalette({ moveRequest: "notes" });
+    expect(screen.getByPlaceholderText("Move to which folder?")).toBeDefined();
+    expect(screen.queryByText(/^notes$/)).toBeNull();
+    expect(screen.queryByText("notes/daily")).toBeNull();
+    expect(screen.queryByText("Vault root")).toBeNull();
+    expect(screen.getByText("No folder it can move to.")).toBeDefined();
+    expect(actions.moveNote).not.toHaveBeenCalled();
+  });
+
+  it("is absent from the root page with no note open", () => {
+    renderPalette();
+    expect(screen.queryByText("Move note to folder…")).toBeNull();
   });
 });

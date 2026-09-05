@@ -72,6 +72,7 @@ describe("the palette's Export as PDF row", () => {
     openSettings: vi.fn(),
     openDeletedNotes: vi.fn(),
     findInNote: null,
+    moveNote: vi.fn(),
   };
 
   function mount(exportPdf: (() => void) | null) {
