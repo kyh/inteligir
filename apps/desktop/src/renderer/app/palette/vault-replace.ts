@@ -3,6 +3,7 @@
 // replacements in these exact lines, and a merge would be a guess about a file that moved.
 
 import { replaceTextMatches, type TextMatchOptions } from "@repo/notes/knowledge/text-matches";
+import { plural } from "@repo/ui/lib/plural";
 import { rewriteNote, type RewriteNoteApi } from "../note/rewrite-note";
 
 export type ReplaceVaultApi = RewriteNoteApi;
@@ -72,10 +73,6 @@ export async function replaceInVault(
 export interface ReplaceSummary {
   tone: "success" | "warning" | "error";
   message: string;
-}
-
-function plural(count: number, one: string, many: string): string {
-  return `${count} ${count === 1 ? one : many}`;
 }
 
 // `untouched` is how many notes a cancel left unvisited; zero for a run that finished

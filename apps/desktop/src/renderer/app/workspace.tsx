@@ -5,6 +5,7 @@ import type { VaultMatchWire } from "@repo/api/local/knowledge/knowledge-schema"
 import type { Thread } from "@repo/api/local/threads/threads-schema";
 import type { VaultEntry } from "@repo/api/local/vault/vault-schema";
 import { confirm } from "@repo/ui/components/confirm-dialog";
+import { plural } from "@repo/ui/lib/plural";
 import { toast } from "@repo/ui/components/sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -257,7 +258,7 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
     async (request: VaultReplaceRequest, port: ReplaceProgressPort): Promise<void> => {
       const noteCount = request.paths.length;
       const confirmed = await confirm({
-        title: `Replace in ${String(noteCount)} note${noteCount === 1 ? "" : "s"}?`,
+        title: `Replace in ${plural(noteCount, "note")}?`,
         body: `Every match of "${request.needle}" becomes "${request.replacement}". A note stays recoverable from its History.`,
         confirmLabel: "Replace all",
       });

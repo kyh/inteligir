@@ -10,6 +10,7 @@ import {
 } from "@repo/ui/components/dialog";
 import { Input } from "@repo/ui/components/input";
 import { toast } from "@repo/ui/components/sonner";
+import { plural } from "@repo/ui/lib/plural";
 import { cn } from "@repo/ui/lib/utils";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeftIcon, ChevronRightIcon, PencilIcon } from "lucide-react";
@@ -213,9 +214,7 @@ export function RenameTagDialog({
     orpc.knowledge.renameTag.mutationOptions({
       onSuccess: (body) => {
         const count = body.rewritten.length;
-        toast.success(
-          `Renamed #${body.from} to #${body.to} in ${count} note${count === 1 ? "" : "s"}.`,
-        );
+        toast.success(`Renamed #${body.from} to #${body.to} in ${plural(count, "note")}.`);
         if (body.skipped.length > 0) {
           toast.warning(
             `Skipped ${body.skipped.map((skip) => skip.path).join(", ")}: changed while renaming.`,

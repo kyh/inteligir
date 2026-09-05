@@ -6,6 +6,7 @@ import { isUuidWikiAlias } from "@repo/notes/markdown/remark-wiki-link";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@repo/ui/components/button";
 import { toast } from "@repo/ui/components/sonner";
+import { plural } from "@repo/ui/lib/plural";
 import { cn } from "@repo/ui/lib/utils";
 import { ChevronRightIcon } from "lucide-react";
 import { useState } from "react";
@@ -66,7 +67,7 @@ export function groupBacklinks(
 }
 
 export function linkedMentionsSummary(shown: number, total: number): string {
-  const counted = `${total} linked mention${total === 1 ? "" : "s"}`;
+  const counted = plural(total, "linked mention");
   return shown < total ? `${counted} (${shown} shown)` : counted;
 }
 

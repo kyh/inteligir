@@ -49,7 +49,6 @@ export function VaultsRow() {
                 <button
                   type="button"
                   disabled={busy !== null || !switchable}
-                  title={vault.path}
                   className="min-w-0 flex-1 rounded-md px-1.5 py-1 text-left hover:bg-hover disabled:pointer-events-none disabled:opacity-50"
                   onClick={() => {
                     run("opening", () => openRecentVault(vault.path));

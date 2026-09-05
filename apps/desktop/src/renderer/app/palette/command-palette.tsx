@@ -11,6 +11,7 @@ import {
   CommandList,
   CommandShortcut,
 } from "@repo/ui/components/command";
+import { Tooltip } from "@repo/ui/components/tooltip";
 import { cn } from "@repo/ui/lib/utils";
 import {
   KNOWLEDGE_MATCHES_DEFAULT_LIMIT,
@@ -354,19 +355,20 @@ function SearchToggle({
   children: React.ReactNode;
 }) {
   return (
-    <button
-      type="button"
-      aria-pressed={pressed}
-      aria-label={label}
-      title={label}
-      onClick={onToggle}
-      className={cn(
-        "h-7 shrink-0 rounded-md px-1.5 text-xs font-medium text-muted-foreground hover:bg-hover hover:text-foreground",
-        pressed && "bg-muted text-foreground",
-      )}
-    >
-      {children}
-    </button>
+    <Tooltip content={label}>
+      <button
+        type="button"
+        aria-pressed={pressed}
+        aria-label={label}
+        onClick={onToggle}
+        className={cn(
+          "h-7 shrink-0 rounded-md px-1.5 text-xs font-medium text-muted-foreground hover:bg-hover hover:text-foreground",
+          pressed && "bg-muted text-foreground",
+        )}
+      >
+        {children}
+      </button>
+    </Tooltip>
   );
 }
 

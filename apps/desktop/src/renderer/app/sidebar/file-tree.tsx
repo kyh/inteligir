@@ -593,7 +593,6 @@ export function FileTree({
               type="button"
               tabIndex={-1}
               aria-label={`Actions for ${node.name}`}
-              title="Actions"
               className="rounded p-0.5 text-muted-foreground opacity-0 group-hover:opacity-100 focus-visible:opacity-100 hover:bg-muted-foreground/10 data-open:opacity-100"
               {...(menu?.node.path === node.path ? { "data-open": "" } : {})}
               onClick={(event) => {
