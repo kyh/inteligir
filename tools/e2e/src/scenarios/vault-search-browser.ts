@@ -79,7 +79,14 @@ export const vaultSearchBrowser: Scenario = {
           ]),
           z.string(),
         );
-        const body = await agentBrowser(["get", "text", EDITOR]);
+        // the editor remounts on the note switch; a read in that gap finds no element
+        const body = parseEval(
+          await agentBrowser([
+            "eval",
+            `String(document.querySelector('${EDITOR}')?.textContent ?? "")`,
+          ]),
+          z.string(),
+        );
         if (value === NEEDLE && body.includes("Another zebrafish")) {
           break;
         }
