@@ -31,10 +31,17 @@ export interface NotesListProps {
   scope: string;
   openPath: string | null;
   onOpenFile: (path: string) => void;
+  emptyText?: string;
 }
 
 // One list by recency: folders are the tree view's business.
-export function NotesList({ entries, scope, openPath, onOpenFile }: NotesListProps) {
+export function NotesList({
+  entries,
+  scope,
+  openPath,
+  onOpenFile,
+  emptyText = "No notes yet.",
+}: NotesListProps) {
   const pinnedPaths = usePinnedPaths();
   const now = useNow();
   const notes = entries
@@ -42,7 +49,7 @@ export function NotesList({ entries, scope, openPath, onOpenFile }: NotesListPro
     .toSorted((a, b) => (b.modifiedMs ?? 0) - (a.modifiedMs ?? 0));
 
   if (notes.length === 0) {
-    return <p className="px-3 py-2 text-sm text-muted-foreground">No notes yet.</p>;
+    return <p className="px-3 py-2 text-sm text-muted-foreground">{emptyText}</p>;
   }
 
   const pinned = notes.filter((note) => pinnedPaths.has(note.path));

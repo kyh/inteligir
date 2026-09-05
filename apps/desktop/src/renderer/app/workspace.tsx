@@ -15,7 +15,7 @@ import { NoteTopbar } from "./note-topbar";
 import { useThreads } from "./actions/thread-hooks";
 import { platformShortcutModifier, useGlobalShortcuts } from "./global-shortcuts";
 import { setAgentRequestActions } from "@repo/editor/agent-request";
-import { consumeSearchRequest, useSearchRequest } from "@repo/editor/search-request";
+import { consumeTagRequest, useTagRequest } from "@repo/editor/tag-request";
 import { EditorColumn } from "@repo/editor/editor-column";
 import { openFindBar } from "@repo/editor/find-bar";
 import { getLiveEditor } from "@repo/editor/live-editor";
@@ -225,19 +225,17 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
     };
   }, []);
 
-  // Adopted during render, consumed after commit, and cleared only once the
-  // palette is open on it: that keeps a StrictMode re-fire idempotent, and the
-  // paletteOpen guard keeps a re-fire from clobbering a box being typed in.
-  const searchRequest = useSearchRequest((state) => state.query);
-  if (searchRequest !== null && !paletteOpen) {
-    setPaletteQuery(searchRequest);
-    setPaletteOpen(true);
-  }
-  useEffect(() => {
-    if (searchRequest !== null && paletteOpen && paletteQuery === searchRequest) {
-      consumeSearchRequest();
+  // Adopted during render so the rail opens in the same paint; the rail itself
+  // consumes the request once it shows the tag.
+  const tagRequest = useTagRequest((state) => state.tag);
+  const [seenTagRequest, setSeenTagRequest] = useState<string | null>(null);
+  if (seenTagRequest !== tagRequest) {
+    setSeenTagRequest(tagRequest);
+    if (tagRequest !== null) {
+      setZen(false);
+      setRailOpen(true);
     }
-  }, [searchRequest, paletteOpen, paletteQuery]);
+  }
 
   useGlobalShortcuts(shortcutModifier, (action) => {
     switch (action) {
@@ -346,6 +344,8 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
               setPaletteQuery("");
               setPaletteOpen(true);
             }}
+            tagRequest={tagRequest}
+            onTagRequestHandled={consumeTagRequest}
           />
         </Sidebar>
         <SidebarInset className="relative bg-surface">
