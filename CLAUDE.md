@@ -367,11 +367,12 @@ carries the mechanism. The dangling-reference guard keeps the pointers honest.
   field; real offsets need a Slate to markdown offset map.
   `apps/cli/src/server/agents/view-context-prompt.ts`.
 
-- **THE RAIL IS THE WORKSPACE; THE TOP BAR IS THE OPEN NOTE.** The vault
-  button (recent vaults, Open another vault…), search, new note and folder,
-  the recents/tree/tags toggle, sync, deleted notes and Settings live in the
-  left rail; find in note, copy link, comments, export and the panel toggle
-  live above the note. The folder scope is set by the top bar's breadcrumb
+- **THE RAIL IS THE WORKSPACE; THE TOP BAR IS THE OPEN NOTE.** The rail's
+  header is two rows: the vault button alone (recent vaults, Open another
+  vault…), because a vault's name is the one label that must never truncate,
+  then the Recent | Files | Tags switch beside New note and New folder; search,
+  sync, deleted notes and Settings follow. Find in note, copy link, comments,
+  export and the panel toggle live above the note. The folder scope is set by the top bar's breadcrumb
   and cleared from the scope row above the list, never picked in the header:
   the header switches the vault, the breadcrumb narrows within it. Two lists, one rule: the
   recents view is one list by recency with a folder hint, and folders exist only

@@ -14,6 +14,7 @@ import {
   SidebarHeader,
   SidebarInput,
 } from "@repo/ui/components/sidebar";
+import { TabsSubtle, TabsSubtleItem } from "@repo/ui/components/tabs-subtle";
 import { cn } from "@repo/ui/lib/utils";
 import { isVaultMetadataPath } from "@repo/notes/knowledge/doc-file";
 import { renamedTag } from "@repo/notes/knowledge/rename-tags";
@@ -29,9 +30,7 @@ import {
   FolderIcon,
   FolderOpenIcon,
   FolderPlusIcon,
-  FolderTreeIcon,
   SettingsIcon,
-  TagIcon,
   VaultIcon,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -104,7 +103,15 @@ function SyncStatusRow({ onSyncNow }: { onSyncNow: () => void }) {
 }
 
 const VAULT_TRIGGER_CLASS =
-  "flex h-7 min-w-0 flex-1 items-center gap-1 rounded-md px-1.5 text-sm font-medium outline-none";
+  "flex h-7 w-full min-w-0 items-center gap-1 rounded-md px-1.5 text-sm font-medium outline-none";
+
+// the switch's order; the pref stores the name, never the index
+const SIDEBAR_VIEWS: readonly SidebarView[] = ["recents", "tree", "tags"];
+const SIDEBAR_VIEW_LABELS = {
+  recents: "Recent",
+  tree: "Files",
+  tags: "Tags",
+} satisfies Record<SidebarView, string>;
 
 // The vault is the server's: switching it restarts the child and replaces this window, and the
 // folder is picked in main, so this is a menu over what main remembers. A browser tab has no
@@ -112,12 +119,8 @@ const VAULT_TRIGGER_CLASS =
 function VaultButton({ vaultName }: { vaultName: string }) {
   const vaults = useDesktopVaults();
   const [busy, setBusy] = useState(false);
-  const label = (
-    <>
-      <VaultIcon className="size-3.5 shrink-0 text-muted-foreground" />
-      <span className="min-w-0 truncate">{vaultName}</span>
-    </>
-  );
+  // no icon: the row is the name's, and a long vault name is the whole point of the row
+  const label = <span className="min-w-0 flex-1 truncate">{vaultName}</span>;
   if (vaults.kind !== "state") {
     return <span className={VAULT_TRIGGER_CLASS}>{label}</span>;
   }
@@ -304,51 +307,43 @@ export function SidebarRailContent({
         {insetTitleBar ? (
           <div aria-hidden="true" className="h-5 shrink-0 [-webkit-app-region:drag]" />
         ) : null}
-        <div className="flex items-center gap-0.5">
-          <VaultButton vaultName={treeQuery.data?.name ?? "Vault"} />
-          <Button
-            variant="ghost"
-            size="icon-compact"
-            aria-label="New note"
-            onClick={() => {
-              startCreate("file");
+        <VaultButton vaultName={treeQuery.data?.name ?? "Vault"} />
+        <div className="flex items-center justify-between gap-1">
+          <TabsSubtle
+            aria-label="Sidebar view"
+            size="compact"
+            selectedIndex={SIDEBAR_VIEWS.indexOf(view)}
+            onSelect={(index) => {
+              const next = SIDEBAR_VIEWS[index];
+              if (next !== undefined) chooseView(next);
             }}
           >
-            <FilePlusIcon />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon-compact"
-            aria-label="New folder"
-            onClick={() => {
-              startCreate("dir");
-            }}
-          >
-            <FolderPlusIcon />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon-compact"
-            aria-label={showTree ? "Show recent notes" : "Show file tree"}
-            aria-pressed={showTree}
-            onClick={() => {
-              chooseView(showTree ? "recents" : "tree");
-            }}
-          >
-            <FolderTreeIcon className={cn(showTree && "text-foreground")} />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon-compact"
-            aria-label={showTags ? "Show recent notes" : "Show tags"}
-            title={showTags ? "Show recent notes" : "Show tags"}
-            aria-pressed={showTags}
-            onClick={() => {
-              chooseView(showTags ? "recents" : "tags");
-            }}
-          >
-            <TagIcon className={cn(showTags && "text-foreground")} />
-          </Button>
+            {SIDEBAR_VIEWS.map((name, index) => (
+              <TabsSubtleItem key={name} index={index} label={SIDEBAR_VIEW_LABELS[name]} />
+            ))}
+          </TabsSubtle>
+          <div className="flex shrink-0 items-center gap-0.5">
+            <Button
+              variant="ghost"
+              size="icon-compact"
+              aria-label="New note"
+              onClick={() => {
+                startCreate("file");
+              }}
+            >
+              <FilePlusIcon />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon-compact"
+              aria-label="New folder"
+              onClick={() => {
+                startCreate("dir");
+              }}
+            >
+              <FolderPlusIcon />
+            </Button>
+          </div>
         </div>
         <div className="relative">
           <SidebarInput
