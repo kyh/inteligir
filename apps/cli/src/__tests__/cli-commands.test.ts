@@ -273,6 +273,26 @@ describe("knowledge commands", () => {
     expect(tags.stdout).toBe("project  3\nidea  1\n");
   });
 
+  it("renames a tag and names the notes it rewrote, in both voices", async () => {
+    const server = await boot(seededState());
+    const json = await runCliForTest({
+      argv: ["tag", "rename", "project", "work", "--json"],
+      baseUrl: server.baseUrl,
+    });
+    expect(JSON.parse(json.stdout)).toEqual({
+      from: "project",
+      to: "work",
+      rewritten: ["notes/hello.md"],
+      skipped: [],
+    });
+
+    const human = await runCliForTest({
+      argv: ["tag", "rename", "project", "work"],
+      baseUrl: server.baseUrl,
+    });
+    expect(human.stdout).toContain("Renamed #project to #work in 1 note.");
+  });
+
   it("renders a related note with the reasons it is related", async () => {
     const server = await boot(seededState());
     const related = await runCliForTest({

@@ -12,6 +12,7 @@ import {
   type WikiTarget,
 } from "@repo/notes/knowledge/link-graph-index";
 import { renameCandidates } from "@repo/notes/knowledge/rename-candidates";
+import { tagInFamily } from "@repo/notes/knowledge/rename-tags";
 import { relatedNotes, type RelatedNoteEntry } from "@repo/notes/knowledge/related-notes";
 import { projectDoc } from "@repo/notes/knowledge/projection";
 import {
@@ -62,6 +63,8 @@ export interface KnowledgeRuntime {
   relatedNotes(path: string, limit: number): Promise<RelatedNoteEntry[]>;
   tags(): Promise<TagCount[]>;
   renameCandidates(from: string, to: string): Promise<string[]>;
+  // every doc holding the tag or one nested under it, computed with no reads
+  tagRenameCandidates(from: string): Promise<string[]>;
   readonly lastReconcile: ReconcileStats | null;
   dispose(): Promise<void>;
 }
@@ -394,6 +397,16 @@ export function createKnowledgeRuntime(args: KnowledgeRuntimeArgs): KnowledgeRun
     async renameCandidates(from, to) {
       await settle();
       return renameCandidates(graph, from, to);
+    },
+
+    async tagRenameCandidates(from) {
+      await settle();
+      const paths = new Set<string>();
+      for (const { tag } of graph.tags()) {
+        if (!tagInFamily(tag, from)) continue;
+        for (const path of graph.notesWithTag(tag)) paths.add(path);
+      }
+      return [...paths].toSorted();
     },
 
     get lastReconcile() {

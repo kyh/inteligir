@@ -19,6 +19,7 @@ import { guideCommand } from "./commands/guide";
 import { interactionsCommand } from "./commands/interactions";
 import { backlinksCommand, relatedCommand, searchCommand, tagsCommand } from "./commands/knowledge";
 import { statusCommand } from "./commands/status";
+import { tagCommand } from "./commands/tag";
 import { cloudCommand } from "./commands/cloud";
 import { actionCommand } from "./commands/action";
 import { commentCommand } from "./commands/comment";
@@ -44,6 +45,7 @@ export function buildProgram(deps: CliDeps): CommandDef {
       backlinks: backlinksCommand(deps),
       related: relatedCommand(deps),
       tags: tagsCommand(deps),
+      tag: tagCommand(deps),
       action: actionCommand(deps),
       comment: commentCommand(deps),
       interactions: interactionsCommand(deps),

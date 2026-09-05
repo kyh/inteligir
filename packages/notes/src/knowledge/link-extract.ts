@@ -165,9 +165,17 @@ function textOf(node: Nodes): string {
   return "";
 }
 
-// `#` must not follow a word char, `#` or `/` (so `C#`, `##h` and url fragments miss)
-// and the name is letter-first (so `#123` and hex colors miss). stateful `g` flag: use matchAll.
-const INLINE_TAG_RE = /(?<![\p{L}\p{N}_/#])#(\p{L}[\p{L}\p{N}_-]*(?:\/[\p{L}\p{N}_-]+)*)/gu;
+// the name is letter-first (so `#123` and hex colors miss); one source string, so the inline
+// grammar and the name a rename accepts cannot drift.
+const TAG_NAME_SOURCE = String.raw`\p{L}[\p{L}\p{N}_-]*(?:\/[\p{L}\p{N}_-]+)*`;
+// `#` must not follow a word char, `#` or `/` (so `C#`, `##h` and url fragments miss).
+// stateful `g` flag: use matchAll.
+const INLINE_TAG_RE = new RegExp(String.raw`(?<![\p{L}\p{N}_/#])#(${TAG_NAME_SOURCE})`, "gu");
+const TAG_NAME_RE = new RegExp(`^(?:${TAG_NAME_SOURCE})$`, "u");
+
+export function isTagName(value: string): boolean {
+  return TAG_NAME_RE.test(value);
+}
 
 export type InlineTagSpan = { start: number; end: number; tag: string };
 
@@ -197,6 +205,41 @@ function extractTags(tree: Nodes, frontmatter: ParsedProperties | null): string[
   const tags = [...frontmatterTags(frontmatter)];
   collectInlineTags(tree, tags, false);
   return tags;
+}
+
+// the spans a rename may splice: the index's own walk, each span verified against the raw
+// bytes (a text node's value can differ from its source through an escape) and held outside
+// the verbatim ranges, on the link policy's terms.
+export function documentTagSpans(source: string): InlineTagSpan[] {
+  const tree = parseScan(source);
+  const verbatim = verbatimSpans(source);
+  const spans: InlineTagSpan[] = [];
+  const visit = (node: Nodes, suppressed: boolean): void => {
+    if (node.type === "text") {
+      if (suppressed) return;
+      const pos = position(node);
+      if (pos === null) return;
+      for (const span of inlineTagSpans(node.value)) {
+        const start = pos.span.start + span.start;
+        const end = pos.span.start + span.end;
+        if (source.slice(start, end) !== `#${span.tag}`) continue;
+        if (insideVerbatim(verbatim, start, end)) continue;
+        spans.push({ start, end, tag: span.tag });
+      }
+      return;
+    }
+    const nextSuppressed =
+      suppressed ||
+      node.type === "link" ||
+      node.type === "linkReference" ||
+      node.type === "image" ||
+      node.type === "imageReference";
+    if ("children" in node) {
+      for (const child of node.children) visit(child, nextSuppressed);
+    }
+  };
+  visit(tree, false);
+  return spans;
 }
 
 function frontmatterTags(parsed: ParsedProperties | null): string[] {

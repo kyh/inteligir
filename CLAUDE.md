@@ -764,6 +764,22 @@ create`, never by electron-builder. `autoDownload` and `autoInstallOnAppQuit`
   from a template drops the template's `id:`, because two notes with one id
   make the uuid link tier ambiguous. `@repo/notes/templates/placeholders`,
   `packages/editor/src/insert-template.ts`.
+- **TAGS ARE A RAIL VIEW, AND A TAG RENAME IS THE LINK RENAME'S SURGERY.** The
+  rail's third view lists `knowledge.tags` folded by `/`, a row's count being
+  its family's; a click scopes the recents list to that tag through the search
+  route's `tag:` term, and a `#tag` chip asks for the same through
+  `@repo/editor/tag-request`, never the palette. `knowledge.renameTag` moves a
+  tag and everything nested under it, matched case-insensitively because the
+  index is: inline spans are the scan's own, verified against the raw bytes and
+  withheld inside verbatim ranges (`documentTagSpans`), frontmatter `tags`
+  re-serialize through the properties panel's CST edit, and every write is
+  `writeIfUnchanged` from a snapshot, so a note that changed mid-rename is
+  reported `changed`, never overwritten. The one name grammar is
+  `isTagName` in `@repo/notes/knowledge/link-extract`, shared by the chip, the
+  scan and the contract. `@repo/notes/knowledge/rename-tags.ts`,
+  `apps/cli/src/server/knowledge/rename-tag.ts`,
+  `apps/desktop/src/renderer/app/sidebar/tags-view.tsx`, and `inteligir tag
+rename`.
 
 **Before raising a "new" finding, read
 [#542](https://github.com/kyh/inteligir/issues/542)**: the decision record

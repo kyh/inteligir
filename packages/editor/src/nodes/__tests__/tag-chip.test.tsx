@@ -4,14 +4,14 @@ import { createPlateEditor, Plate, PlateContent } from "platejs/react";
 import { serializeMd } from "@platejs/markdown";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { useSearchRequest } from "@repo/editor/search-request";
+import { useTagRequest } from "@repo/editor/tag-request";
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
 import { TagChipKit } from "@repo/editor/kits/tag-chip-kit";
 import { MD_STRINGIFY, parseMarkdown } from "@repo/editor/markdown/markdown-doc";
 import { inlineTagSpans } from "@repo/notes/knowledge/link-extract";
 
 afterEach(cleanup);
-beforeEach(() => useSearchRequest.setState({ query: null }));
+beforeEach(() => useTagRequest.setState({ tag: null }));
 
 // only TagChipKit: unregistered types still resolve through editor.getType's key fallback, which the suppression checks compare against.
 function renderValue(value: Value) {
@@ -28,7 +28,7 @@ function paragraph(children: Descendant[]): TElement {
 }
 
 function chips(container: HTMLElement): string[] {
-  return [...container.querySelectorAll("[title^='Search notes tagged']")].map(
+  return [...container.querySelectorAll("[title^='Show notes tagged']")].map(
     (node) => node.textContent ?? "",
   );
 }
@@ -60,13 +60,13 @@ describe("tag chip rendering", () => {
     expect(container.textContent).toBe("todo #alpha and #beta");
   });
 
-  it("clicking a chip seeds the search box with that tag's filter", () => {
+  it("clicking a chip asks the rail for that tag's notes", () => {
     const { container } = renderValue([paragraph([{ text: "todo #alpha" }])]);
-    const chip = container.querySelector("[title^='Search notes tagged']");
+    const chip = container.querySelector("[title^='Show notes tagged']");
     expect(chip).not.toBeNull();
     if (chip === null) return;
     fireEvent.click(chip);
-    expect(useSearchRequest.getState().query).toBe("tag:alpha");
+    expect(useTagRequest.getState().tag).toBe("alpha");
   });
 
   it("skips inline code, code blocks and link labels (index parity)", () => {

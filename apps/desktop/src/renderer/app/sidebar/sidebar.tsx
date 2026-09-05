@@ -13,6 +13,7 @@ import {
 } from "@repo/ui/components/sidebar";
 import { cn } from "@repo/ui/lib/utils";
 import { isVaultMetadataPath } from "@repo/notes/knowledge/doc-file";
+import { renamedTag } from "@repo/notes/knowledge/rename-tags";
 import { basenamePath } from "@repo/notes/knowledge/vault-path";
 import type { VaultEntry } from "@repo/api/local/vault/vault-schema";
 import {
@@ -25,8 +26,9 @@ import {
   FolderPlusIcon,
   FolderTreeIcon,
   SettingsIcon,
+  TagIcon,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { platformShortcutModifier } from "../global-shortcuts";
 import {
   readSidebarFolder,
@@ -41,11 +43,14 @@ import {
   syncBlockedReason,
   syncStateDotClass,
   syncStateLabel,
+  useNotesWithTag,
+  useTags,
   useVaultStatus,
   useVaultTree,
 } from "../vault-hooks";
 import { FileTree, type TreeLoadState, type TreeOps } from "./file-tree";
 import { NotesList } from "./notes-list";
+import { RenameTagDialog, TagScopeHeader, TagsView } from "./tags-view";
 
 const EMPTY_ENTRIES: readonly VaultEntry[] = [];
 
@@ -150,6 +155,9 @@ export interface SidebarRailContentProps {
   onOpenDeletedNotes: () => void;
   onOpenSearch: () => void;
   onMoveRequest: (path: string) => void;
+  // a `#tag` chip's ask: show that tag's notes; handled once the rail is on it
+  tagRequest: string | null;
+  onTagRequestHandled: () => void;
 }
 
 export function SidebarRailContent({
@@ -161,10 +169,14 @@ export function SidebarRailContent({
   onOpenDeletedNotes,
   onOpenSearch,
   onMoveRequest,
+  tagRequest,
+  onTagRequestHandled,
 }: SidebarRailContentProps) {
   const treeQuery = useVaultTree();
   const [view, setView] = useState<SidebarView>(readSidebarView);
   const [folder, setFolder] = useState<string>(readSidebarFolder);
+  const [selectedTag, setSelectedTag] = useState<string | null>(null);
+  const [renamingTag, setRenamingTag] = useState<string | null>(null);
   const [pendingCreate, setPendingCreate] = useState<{
     kind: "file" | "dir";
     parentDir: string;
@@ -187,10 +199,36 @@ export function SidebarRailContent({
   const scoped = useMemo(() => entriesUnder(entries, scope), [entries, scope]);
 
   const showTree = view === "tree";
+  const showTags = view === "tags";
   const chooseView = (next: SidebarView): void => {
     writeSidebarView(next);
     setView(next);
   };
+
+  // Adopted during render so the first paint is already on the tag; the handback
+  // stays an effect because it clears the store the chip wrote.
+  const [adoptedTagRequest, setAdoptedTagRequest] = useState<string | null>(null);
+  if (adoptedTagRequest !== tagRequest) {
+    setAdoptedTagRequest(tagRequest);
+    if (tagRequest !== null) {
+      chooseView("tags");
+      setSelectedTag(tagRequest);
+    }
+  }
+  useEffect(() => {
+    if (tagRequest !== null) onTagRequestHandled();
+  }, [tagRequest, onTagRequestHandled]);
+
+  const tagsQuery = useTags(showTags);
+  const taggedQuery = useNotesWithTag(showTags ? selectedTag : null);
+  const taggedPaths = useMemo(
+    () => new Set((taggedQuery.data?.results ?? []).map((result) => result.path)),
+    [taggedQuery.data],
+  );
+  const taggedEntries = useMemo(
+    () => scoped.filter((entry) => entry.kind === "file" && taggedPaths.has(entry.path)),
+    [scoped, taggedPaths],
+  );
   // A create lands where an IDE's would: in the tree's selected folder. The recents view
   // selects nothing, so it lands at the scope.
   const startCreate = (kind: "file" | "dir"): void => {
@@ -260,6 +298,18 @@ export function SidebarRailContent({
           >
             <FolderTreeIcon className={cn(showTree && "text-foreground")} />
           </Button>
+          <Button
+            variant="ghost"
+            size="icon-compact"
+            aria-label={showTags ? "Show recent notes" : "Show tags"}
+            title={showTags ? "Show recent notes" : "Show tags"}
+            aria-pressed={showTags}
+            onClick={() => {
+              chooseView(showTags ? "recents" : "tags");
+            }}
+          >
+            <TagIcon className={cn(showTags && "text-foreground")} />
+          </Button>
         </div>
         <div className="relative">
           <SidebarInput
@@ -296,10 +346,50 @@ export function SidebarRailContent({
             collapseAllNonce={collapseAllNonce}
             onMoveRequest={onMoveRequest}
           />
+        ) : showTags && selectedTag === null ? (
+          <TagsView
+            tags={tagsQuery.data?.tags ?? []}
+            loaded={tagsQuery.data !== undefined}
+            onSelect={setSelectedTag}
+            onRename={setRenamingTag}
+          />
+        ) : showTags && selectedTag !== null ? (
+          <>
+            <TagScopeHeader
+              tag={selectedTag}
+              count={taggedQuery.data === undefined ? undefined : taggedEntries.length}
+              onClear={() => {
+                setSelectedTag(null);
+              }}
+              onRename={() => {
+                setRenamingTag(selectedTag);
+              }}
+            />
+            <NotesList
+              entries={taggedEntries}
+              scope={scope}
+              openPath={openPath}
+              onOpenFile={onOpenFile}
+              emptyText={
+                taggedQuery.data === undefined ? "…" : `No notes tagged #${selectedTag} here.`
+              }
+            />
+          </>
         ) : (
           <NotesList entries={scoped} scope={scope} openPath={openPath} onOpenFile={onOpenFile} />
         )}
       </SidebarContent>
+      <RenameTagDialog
+        tag={renamingTag}
+        onOpenChange={(open) => {
+          if (!open) setRenamingTag(null);
+        }}
+        onRenamed={(from, to) => {
+          setSelectedTag((current) =>
+            current === null ? null : (renamedTag(current, from, to) ?? current),
+          );
+        }}
+      />
       <SidebarFooter className="flex-row items-center justify-between">
         <SyncStatusRow onSyncNow={onSyncNow} />
         <div className="flex items-center">

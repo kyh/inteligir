@@ -322,6 +322,12 @@ const knowledgeRouter = {
     tags: context.tags,
     total: context.tags.length,
   })),
+  renameTag: base.knowledge.renameTag.handler(({ context, input }) => ({
+    from: input.from,
+    to: input.to,
+    rewritten: [...context.vault.keys()].filter((path) => path.startsWith("notes/")),
+    skipped: [],
+  })),
 };
 
 const systemRouter = {

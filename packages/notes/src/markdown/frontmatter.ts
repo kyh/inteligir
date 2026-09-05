@@ -28,7 +28,7 @@ function parseYamlRecord(source: string): Properties {
   }
 }
 
-function frontmatterYaml(text: string): string | null {
+export function frontmatterYaml(text: string): string | null {
   const match = FRONTMATTER_RE.exec(text);
   if (!match) return null;
   return match[1] ?? "";

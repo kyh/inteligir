@@ -74,10 +74,11 @@ export function writeRelatedOpen(open: boolean): void {
   write(KEYS.relatedOpen, open ? "true" : "false");
 }
 
-export type SidebarView = "recents" | "tree";
+export type SidebarView = "recents" | "tree" | "tags";
 
 export function readSidebarView(): SidebarView {
-  return read(KEYS.sidebarView) === "tree" ? "tree" : "recents";
+  const raw = read(KEYS.sidebarView);
+  return raw === "tree" || raw === "tags" ? raw : "recents";
 }
 
 export function writeSidebarView(view: SidebarView): void {

@@ -5,6 +5,7 @@ import { useCallback } from "react";
 import { useIsMutating, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "@repo/ui/components/sonner";
 import { DEFAULT_DOC_EXTENSION } from "@repo/notes/knowledge/doc-file";
+import { KNOWLEDGE_SEARCH_MAX_LIMIT } from "@repo/api/local/knowledge/knowledge-schema";
 import type { VaultStatusResponse, VaultTreeResponse } from "@repo/api/local/vault/vault-schema";
 import { orpc, refusalMessage } from "./api";
 
@@ -14,6 +15,20 @@ export function useVaultTree() {
 
 export function useWikiTargets() {
   return useQuery(orpc.knowledge.wikiTargets.queryOptions());
+}
+
+export function useTags(enabled: boolean) {
+  return useQuery({ ...orpc.knowledge.tags.queryOptions(), enabled });
+}
+
+// the search route with a bare `tag:` term answers the tagged notes, sorted, cut at its ceiling
+export function useNotesWithTag(tag: string | null) {
+  return useQuery({
+    ...orpc.knowledge.search.queryOptions({
+      input: { q: tag === null ? "" : `tag:${tag}`, limit: KNOWLEDGE_SEARCH_MAX_LIMIT },
+    }),
+    enabled: tag !== null,
+  });
 }
 
 export function useVaultStatus() {

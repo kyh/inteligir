@@ -1,5 +1,5 @@
-// no row declares a refusal: every handler answers from the index, and a bad path is
-// vaultPathSchema's BAD_REQUEST at the input boundary
+// no row declares a refusal: every handler answers from the index, and a bad path or tag is
+// the input schema's BAD_REQUEST at the boundary; a tag rename reports skips, it never refuses
 
 import { oc } from "@orpc/contract";
 import {
@@ -7,6 +7,8 @@ import {
   knowledgeBacklinksResponseSchema,
   knowledgeRelatedRequestSchema,
   knowledgeRelatedResponseSchema,
+  knowledgeRenameTagRequestSchema,
+  knowledgeRenameTagResponseSchema,
   knowledgeSearchRequestSchema,
   knowledgeSearchResponseSchema,
   knowledgeTagsResponseSchema,
@@ -23,4 +25,6 @@ export const knowledgeContract = {
   related: oc.input(knowledgeRelatedRequestSchema).output(knowledgeRelatedResponseSchema),
 
   tags: oc.output(knowledgeTagsResponseSchema),
+
+  renameTag: oc.input(knowledgeRenameTagRequestSchema).output(knowledgeRenameTagResponseSchema),
 };
