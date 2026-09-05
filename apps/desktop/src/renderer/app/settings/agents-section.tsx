@@ -1,7 +1,8 @@
 import type { HarnessProbe } from "@repo/api/local/agents/agents-schema";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { orpc } from "../api";
-import { ChoiceRow, failed, Row, SectionHeading } from "./settings-chrome";
+import { useDataDirScope } from "../vault-hooks";
+import { ChoiceRow, failed, Row, SecondVaultNote, SectionHeading } from "./settings-chrome";
 
 function credentialSentence(probe: HarnessProbe): string {
   switch (probe.credentials) {
@@ -60,6 +61,7 @@ export function AgentsSection() {
   );
   const status = statusQuery.data;
   const harnesses = status?.harnesses ?? [];
+  const scope = useDataDirScope();
 
   return (
     <section>
@@ -87,6 +89,7 @@ export function AgentsSection() {
             <span className="mt-1 block text-xs text-muted-foreground">
               New actions start on this agent. An action keeps the agent it started on.
             </span>
+            <SecondVaultNote scope={scope} />
           </Row>
         </dl>
       )}

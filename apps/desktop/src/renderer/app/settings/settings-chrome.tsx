@@ -1,9 +1,24 @@
+import type { DataDirScope } from "@repo/api/local/system/system-schema";
 import { toast } from "@repo/ui/components/sonner";
 import { cn } from "@repo/ui/lib/utils";
 import { refusalMessage } from "../api";
 
 export function failed(cause: unknown, fallback: string): void {
   toast.error(refusalMessage(cause, fallback));
+}
+
+// The credential, the connectors and the agent default live in the data dir, and a second
+// vault has one of its own: one sentence, wherever a surface would otherwise look reset.
+export function SecondVaultNote({ scope }: { scope: DataDirScope | undefined }) {
+  if (scope !== "vault") {
+    return null;
+  }
+  return (
+    <p className="text-xs text-muted-foreground">
+      This is a second vault with a data dir of its own: its sign-in, connectors and default agent
+      start empty and stay with it.
+    </p>
+  );
 }
 
 export function Row({ label, children }: { label: string; children: React.ReactNode }) {

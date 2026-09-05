@@ -137,6 +137,7 @@ function systemStatus(dataDir: string): SystemStatusResponse {
   return {
     version: "0.1.0",
     dataDir,
+    dataDirScope: "root",
     vaultDir: join(dataDir, "vault"),
     schemaVersion: 1,
     uptimeMs: 1,

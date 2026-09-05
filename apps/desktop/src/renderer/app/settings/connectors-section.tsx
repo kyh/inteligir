@@ -15,7 +15,8 @@ import { Textarea } from "@repo/ui/components/textarea";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useId, useState } from "react";
 import { orpc } from "../api";
-import { ChoiceRow, failed, SectionHeading } from "./settings-chrome";
+import { useDataDirScope } from "../vault-hooks";
+import { ChoiceRow, failed, SecondVaultNote, SectionHeading } from "./settings-chrome";
 
 function useConnectors() {
   return useQuery({ ...orpc.connectors.list.queryOptions(), staleTime: 0 });
@@ -400,6 +401,8 @@ export function ConnectorsSection() {
     });
   };
 
+  const scope = useDataDirScope();
+
   return (
     <section>
       <SectionHeading>Connectors</SectionHeading>
@@ -411,7 +414,10 @@ export function ConnectorsSection() {
       {query.isError ? (
         <p className="text-sm text-destructive">The connector list could not be read.</p>
       ) : servers.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No connectors configured.</p>
+        <div className="space-y-1">
+          <p className="text-sm text-muted-foreground">No connectors configured.</p>
+          <SecondVaultNote scope={scope} />
+        </div>
       ) : (
         <div className="divide-y divide-line">
           {servers.map((server) => (

@@ -11,8 +11,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useId, useState } from "react";
 import { orpc, refusalMessage } from "../api";
 import { relativeTimeLabel, useNow } from "../relative-time";
-import { useVaultStatus } from "../vault-hooks";
-import { failed, Row, SectionHeading } from "./settings-chrome";
+import { useDataDirScope, useVaultStatus } from "../vault-hooks";
+import { failed, Row, SecondVaultNote, SectionHeading } from "./settings-chrome";
 
 // Nothing on the ws bus announces a sync pass, so the status polls while the
 // page is mounted.
@@ -192,6 +192,7 @@ export function SyncSection() {
   };
 
   const status = statusQuery.data;
+  const scope = useDataDirScope();
 
   return (
     <section className="space-y-2">
@@ -199,14 +200,17 @@ export function SyncSection() {
       {status === undefined ? (
         <p className="text-sm text-muted-foreground">…</p>
       ) : status.state === "signed-out" ? (
-        <SignInForm
-          cloudUrl={status.cloudUrl}
-          onSignIn={(login) => {
-            signIn.mutate(login);
-          }}
-          pending={pending}
-          refusal={refusal}
-        />
+        <div className="space-y-2">
+          <SecondVaultNote scope={scope} />
+          <SignInForm
+            cloudUrl={status.cloudUrl}
+            onSignIn={(login) => {
+              signIn.mutate(login);
+            }}
+            pending={pending}
+            refusal={refusal}
+          />
+        </div>
       ) : status.state === "unauthorized" ? (
         <div className="space-y-2">
           <p className="text-xs text-muted-foreground">

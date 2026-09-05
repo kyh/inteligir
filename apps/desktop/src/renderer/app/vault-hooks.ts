@@ -6,6 +6,7 @@ import { useIsMutating, useMutation, useQuery, useQueryClient } from "@tanstack/
 import { toast } from "@repo/ui/components/sonner";
 import { DEFAULT_DOC_EXTENSION } from "@repo/notes/knowledge/doc-file";
 import { KNOWLEDGE_SEARCH_MAX_LIMIT } from "@repo/api/local/knowledge/knowledge-schema";
+import type { DataDirScope } from "@repo/api/local/system/system-schema";
 import type { VaultStatusResponse, VaultTreeResponse } from "@repo/api/local/vault/vault-schema";
 import { orpc, refusalMessage } from "./api";
 
@@ -45,6 +46,11 @@ export function useVaultStatus() {
 // No change kind names this query, so it re-reads on every mount.
 export function useSystemStatus() {
   return useQuery({ ...orpc.system.status.queryOptions(), staleTime: 0 });
+}
+
+// undefined until the status answers; the sections say nothing rather than guess
+export function useDataDirScope(): DataDirScope | undefined {
+  return useSystemStatus().data?.dataDirScope;
 }
 
 export function syncStateLabel(status: VaultStatusResponse): string {

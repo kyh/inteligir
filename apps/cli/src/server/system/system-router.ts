@@ -4,6 +4,7 @@ import { CLI_SKILL_MD } from "../guide/cli-skill";
 const status = base.system.status.handler(({ context }) => ({
   version: context.system.version,
   dataDir: context.system.dataDir,
+  dataDirScope: context.system.dataDirScope,
   vaultDir: context.system.vaultDir,
   schemaVersion: context.system.schemaVersion,
   uptimeMs: Date.now() - context.system.startedAt,

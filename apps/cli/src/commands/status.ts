@@ -27,7 +27,7 @@ export function statusCommand(deps: CliDeps) {
       out.box(
         [
           `inteligir ${body.version} — ${server.baseUrl}`,
-          `Data dir: ${body.dataDir}`,
+          `Data dir: ${body.dataDir}${body.dataDirScope === "vault" ? " (this vault's own)" : ""}`,
           `Vault: ${body.vaultDir}`,
           `Schema: v${body.schemaVersion} — uptime ${Math.round(body.uptimeMs / 1_000)}s`,
           `Agent: ${body.agent.runtime} (mode ${body.agent.mode})${agentDetail}`,

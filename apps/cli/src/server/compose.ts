@@ -225,6 +225,7 @@ export async function composeRuntime(args: ComposeRuntimeArgs): Promise<Composed
     system: {
       version: args.version,
       dataDir: config.dataDir,
+      dataDirScope: config.dataDir === config.rootDataDir ? "root" : "vault",
       vaultDir: config.vaultDir,
       schemaVersion,
       startedAt: Date.now(),
