@@ -5,6 +5,8 @@ import { oc } from "@orpc/contract";
 import {
   knowledgeBacklinksRequestSchema,
   knowledgeBacklinksResponseSchema,
+  knowledgeMatchesRequestSchema,
+  knowledgeMatchesResponseSchema,
   knowledgeRelatedRequestSchema,
   knowledgeRelatedResponseSchema,
   knowledgeSearchRequestSchema,
@@ -15,6 +17,8 @@ import {
 
 export const knowledgeContract = {
   search: oc.input(knowledgeSearchRequestSchema).output(knowledgeSearchResponseSchema),
+
+  matches: oc.input(knowledgeMatchesRequestSchema).output(knowledgeMatchesResponseSchema),
 
   wikiTargets: oc.output(knowledgeWikiTargetsResponseSchema),
 

@@ -75,6 +75,10 @@ Paths are vault-relative POSIX paths (\`notes/idea.md\`). Prefer wiki links
 - \`inteligir search <query>\` — full-text search; \`tag:<name>\` terms narrow
   by tag and compose with text (\`inteligir search "tag:project deadline"\`).
   \`--limit <n>\` caps results (1–100).
+- \`inteligir matches <text>\` — every literal occurrence of a text, one row
+  per match as \`path:line:column\` with the line around it. Unlike \`search\`
+  it scans the bytes: no stemming, no ranking. \`--case-sensitive\` and
+  \`--whole-word\` narrow; \`--limit <n>\` caps rows (1–500).
 - \`inteligir backlinks <path>\` — the notes linking INTO a note.
 - \`inteligir related <path>\` — notes connected to a note WITHOUT linking to
   it: shared link targets, shared tags, similar text. Each row is followed by

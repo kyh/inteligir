@@ -16,7 +16,13 @@ import { connectorsCommand } from "./commands/connectors";
 import { foldersCommand } from "./commands/folders";
 import { guideCommand } from "./commands/guide";
 import { interactionsCommand } from "./commands/interactions";
-import { backlinksCommand, relatedCommand, searchCommand, tagsCommand } from "./commands/knowledge";
+import {
+  backlinksCommand,
+  matchesCommand,
+  relatedCommand,
+  searchCommand,
+  tagsCommand,
+} from "./commands/knowledge";
 import { statusCommand } from "./commands/status";
 import { cloudCommand } from "./commands/cloud";
 import { actionCommand } from "./commands/action";
@@ -40,6 +46,7 @@ export function buildProgram(deps: CliDeps): CommandDef {
       serve: serveCommand(),
       vault: vaultCommand(deps),
       search: searchCommand(deps),
+      matches: matchesCommand(deps),
       backlinks: backlinksCommand(deps),
       related: relatedCommand(deps),
       tags: tagsCommand(deps),

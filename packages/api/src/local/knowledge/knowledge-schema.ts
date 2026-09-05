@@ -9,6 +9,8 @@ export const KNOWLEDGE_SEARCH_MAX_LIMIT = 100;
 export const KNOWLEDGE_RELATED_MAX_LIMIT = 50;
 export const KNOWLEDGE_BACKLINKS_MAX = 500;
 export const KNOWLEDGE_TAGS_MAX = 1000;
+export const KNOWLEDGE_MATCHES_MAX_LIMIT = 500;
+export const KNOWLEDGE_MATCHES_DEFAULT_LIMIT = 200;
 
 // q is the raw box text, parsed engine-side so a typed tag: term and a composed one resolve alike
 export const knowledgeSearchRequestSchema = z
@@ -33,6 +35,48 @@ export const knowledgeSearchResponseSchema = z
   .object({ results: z.array(searchResultSchema) })
   .strict();
 export type KnowledgeSearchResponse = z.infer<typeof knowledgeSearchResponseSchema>;
+
+// the literal scan, not the ranked search: every occurrence, with the line it sits on.
+// one line of text: a needle spanning a terminator cannot be found per line, so it is refused
+export const knowledgeMatchesRequestSchema = z
+  .object({
+    q: z
+      .string()
+      .min(1)
+      .max(200)
+      .refine((value) => !/[\r\n]/u.test(value), { message: "q must be one line" }),
+    caseSensitive: z.boolean().optional(),
+    wholeWord: z.boolean().optional(),
+    limit: z.number().int().min(1).max(KNOWLEDGE_MATCHES_MAX_LIMIT).optional(),
+  })
+  .strict();
+export type KnowledgeMatchesRequest = z.infer<typeof knowledgeMatchesRequestSchema>;
+
+export const vaultMatchSchema = z
+  .object({
+    path: z.string().min(1),
+    title: z.string(),
+    // this match's index among the doc's matches, in document order: what a jump lands on
+    ordinal: z.number().int().min(0),
+    // 1-based
+    line: z.number().int().min(1),
+    // utf-16 offset inside the line
+    column: z.number().int().min(0),
+    length: z.number().int().min(1),
+    before: z.string(),
+    text: z.string(),
+    after: z.string(),
+  })
+  .strict();
+export type VaultMatchWire = z.infer<typeof vaultMatchSchema>;
+
+export const knowledgeMatchesResponseSchema = z
+  .object({
+    matches: z.array(vaultMatchSchema).max(KNOWLEDGE_MATCHES_MAX_LIMIT),
+    total: z.number().int().min(0),
+  })
+  .strict();
+export type KnowledgeMatchesResponse = z.infer<typeof knowledgeMatchesResponseSchema>;
 
 export const linkKindSchema = z.enum(["wiki", "md", "image"]);
 export type LinkKindWire = z.infer<typeof linkKindSchema>;

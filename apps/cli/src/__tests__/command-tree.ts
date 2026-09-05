@@ -30,6 +30,7 @@ export const LEAF_INVOCATIONS = new Map<string, readonly string[]>([
   ["vault status", ["vault", "status"]],
   ["vault sync", ["vault", "sync"]],
   ["search", ["search", "hello"]],
+  ["matches", ["matches", "Hello"]],
   ["backlinks", ["backlinks", "notes/hello.md"]],
   ["related", ["related", "notes/hello.md"]],
   ["tags", ["tags"]],

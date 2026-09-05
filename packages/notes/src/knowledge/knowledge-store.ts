@@ -5,6 +5,7 @@
 import type { SearchResult } from "./knowledge-index";
 import type { DocProjection } from "./projection";
 import type { SearchHit } from "./search-index";
+import type { DocText } from "./text-matches";
 
 export type StoredDocRow = {
   path: string;
@@ -27,6 +28,13 @@ export type KnowledgeStore = {
 
   /** paths and scores only — the related-notes probe shows no row, so no excerpt is cut. */
   searchRanked(query: string, limit: number): SearchHit[];
+
+  /**
+   * every doc's text for the literal scan, in path order; `prefilter` (text-matches'
+   * bodyPrefilter) lets the store drop docs that cannot hold the needle, case-insensitively
+   * over ascii, and null asks for all of them.
+   */
+  docTexts(prefilter: string | null): DocText[];
 
   transaction(fn: () => void): void;
 
