@@ -285,18 +285,6 @@ export function SidebarRailContent({
           >
             <FolderPlusIcon />
           </Button>
-          {showTree ? (
-            <Button
-              variant="ghost"
-              size="icon-compact"
-              aria-label="Collapse all"
-              onClick={() => {
-                setCollapseAllNonce((nonce) => nonce + 1);
-              }}
-            >
-              <ChevronsDownUpIcon />
-            </Button>
-          ) : null}
           <Button
             variant="ghost"
             size="icon-compact"
@@ -367,6 +355,16 @@ export function SidebarRailContent({
               }}
             >
               {treeSort === "name" ? <ArrowDownAZIcon /> : <ClockArrowDownIcon />}
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon-compact"
+              aria-label="Collapse all"
+              onClick={() => {
+                setCollapseAllNonce((nonce) => nonce + 1);
+              }}
+            >
+              <ChevronsDownUpIcon />
             </Button>
           </div>
         ) : null}
