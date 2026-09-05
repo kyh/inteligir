@@ -67,6 +67,8 @@ describe("the palette renders that answer and no other", () => {
           unpinNote: null,
           openMatch: vi.fn(),
           replaceAll: vi.fn(),
+          listHeadings: null,
+          goToHeading: vi.fn(),
         }}
       />,
     );

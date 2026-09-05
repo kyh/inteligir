@@ -1,11 +1,16 @@
 import { createStore } from "zustand/vanilla";
 
+import type { WikiTarget } from "@repo/notes/knowledge/link-graph-index";
+
 import { setEditorHostIo, type VaultActions, type WikiResolver } from "@repo/editor/host-io";
 
 export type HostCall = { readonly action: keyof VaultActions; readonly args: readonly unknown[] };
 
 export type FakeEditorHostOptions = {
   readonly resolveWikiTarget?: (target: string) => string | null;
+  readonly wikiTargets?: readonly WikiTarget[];
+  // a create the session refuses answers null, as the real one does after it has said why
+  readonly refuseCreates?: boolean;
 };
 
 // Installs the singleton the hooks read; the io half answers as an empty, read-only vault.
@@ -23,9 +28,9 @@ export function installFakeEditorHost(options: FakeEditorHostOptions = {}) {
     editNote: record("editNote", undefined),
     registerNoteSerializeFlush: record("registerNoteSerializeFlush", undefined),
     createFile: record("createFile", Promise.resolve()),
-    createFileAt: (path) => {
-      calls.push({ action: "createFileAt", args: [path] });
-      return Promise.resolve(path);
+    createFileAt: (path, seedContent) => {
+      calls.push({ action: "createFileAt", args: [path, seedContent] });
+      return Promise.resolve(options.refuseCreates === true ? null : path);
     },
     renameEntry: record("renameEntry", Promise.resolve(true)),
     deleteEntry: record("deleteEntry", Promise.resolve()),
@@ -43,7 +48,7 @@ export function installFakeEditorHost(options: FakeEditorHostOptions = {}) {
     readVaultFile: ({ path }) => Promise.reject(new Error(`ENOENT ${path}`)),
     readVaultAsset: () => Promise.resolve({ ok: false, error: "no assets" }),
     writeVaultAsset: () => Promise.reject(new Error("read-only")),
-    listWikiTargets: () => Promise.resolve([]),
+    listWikiTargets: () => Promise.resolve([...(options.wikiTargets ?? [])]),
     getBacklinks: () => Promise.resolve([]),
     readNoteFormulas: () => Promise.resolve(null),
     getForwardLinks: () => Promise.resolve([]),

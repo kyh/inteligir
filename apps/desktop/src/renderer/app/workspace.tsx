@@ -23,6 +23,7 @@ import { EditorColumn } from "@repo/editor/editor-column";
 import { jumpToFindMatch, openFindBar } from "@repo/editor/find-bar";
 import { insertTemplate } from "@repo/editor/insert-template";
 import { getLiveEditor, whenLiveEditor } from "@repo/editor/live-editor";
+import { collectHeadings, goToHeading, type HeadingItem } from "@repo/editor/toc";
 import { removeFrontmatterId } from "@repo/notes/markdown/frontmatter";
 import { DAILY_TEMPLATE_PATH, expandTemplate } from "@repo/notes/templates/placeholders";
 import { flushOpenNote } from "@repo/editor/note/open-note-flush";
@@ -376,6 +377,11 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
         setPalettePage("notes");
         setPaletteOpen(true);
         break;
+      case "open-headings":
+        setPaletteQuery("");
+        setPalettePage("headings");
+        setPaletteOpen(true);
+        break;
       case "open-settings":
         onOpenSettings();
         break;
@@ -421,6 +427,18 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
       unpinNote: openPath !== null && openPinned ? () => setPinned(openPath, false) : null,
       openMatch,
       replaceAll,
+      listHeadings:
+        openPath === null
+          ? null
+          : () => {
+              const editor = getLiveEditor(openPath);
+              return editor === null ? [] : collectHeadings(editor);
+            },
+      goToHeading: (heading: HeadingItem) => {
+        const { openPath: path } = noteStore.state();
+        const editor = path === null ? null : getLiveEditor(path);
+        if (editor !== null) goToHeading(editor, heading);
+      },
     }),
     [
       setOpenNote,
@@ -438,6 +456,7 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
       treeOps,
       openMatch,
       replaceAll,
+      noteStore,
     ],
   );
 

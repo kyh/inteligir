@@ -22,6 +22,7 @@
     "./editor-column": "./src/editor-column.tsx",
     "./editor-shortcuts": "./src/editor-shortcuts.ts",
     "./embed-url-dialog": "./src/embed-url-dialog.tsx",
+    "./extract-note": "./src/extract-note.ts",
     "./find-bar": "./src/find-bar.tsx",
     "./formula-autocomplete": "./src/formula-autocomplete.tsx",
     "./formula-input-key": "./src/formula-input-key.ts",

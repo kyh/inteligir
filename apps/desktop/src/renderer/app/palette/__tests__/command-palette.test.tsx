@@ -40,8 +40,52 @@ function makeActions(): PaletteActions {
     unpinNote: null,
     openMatch: vi.fn(),
     replaceAll: vi.fn(),
+    listHeadings: null,
+    goToHeading: vi.fn(),
   };
 }
+
+const OUTLINE = [
+  { id: "0", path: [0], depth: 1, title: "Plan" },
+  { id: "2", path: [2], depth: 2, title: "Week one" },
+  { id: "5", path: [5], depth: 3, title: "Monday" },
+];
+
+describe("the headings page", () => {
+  it("is offered while a note is open, and lists the outline with its levels", () => {
+    const goToHeading = vi.fn();
+    const { onOpenChange } = renderPalette({
+      actions: { ...makeActions(), listHeadings: () => OUTLINE, goToHeading },
+    });
+    fireEvent.click(screen.getByText("Go to heading…"));
+    expect(screen.getByPlaceholderText("Go to heading…")).toBeDefined();
+    expect(screen.getByText("Week one")).toBeDefined();
+    expect(screen.getByText("H3")).toBeDefined();
+    fireEvent.click(screen.getByText("Monday"));
+    expect(goToHeading).toHaveBeenCalledWith(OUTLINE[2]);
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("opens straight on the page a shortcut names, and filters by title", () => {
+    renderPalette({
+      initialPage: "headings",
+      actions: { ...makeActions(), listHeadings: () => OUTLINE },
+    });
+    fireEvent.change(screen.getByPlaceholderText("Go to heading…"), {
+      target: { value: "week" },
+    });
+    expect(screen.getByText("Week one")).toBeDefined();
+    expect(screen.queryByText("Monday")).toBeNull();
+  });
+
+  it("says so with no note open, and hides the root command", () => {
+    renderPalette({ initialPage: "headings" });
+    expect(screen.getByText("Open a note to jump to its headings.")).toBeDefined();
+    cleanup();
+    renderPalette();
+    expect(screen.queryByText("Go to heading…")).toBeNull();
+  });
+});
 
 describe("pinning from the palette", () => {
   it("offers the one verb the open note needs, and runs it", () => {

@@ -12,6 +12,7 @@ import {
   BoldIcon,
   ChevronDownIcon,
   CodeIcon,
+  FileOutputIcon,
   ItalicIcon,
   Link2Icon,
   StrikethroughIcon,
@@ -47,6 +48,7 @@ import {
   turnIntoOptionFor,
   turnIntoSelection,
 } from "@repo/editor/block-transforms";
+import { extractBlocksToNote, selectedTopLevelPaths } from "@repo/editor/extract-note";
 import { BarButton } from "@repo/editor/toolbar-button";
 
 const BAR_CLASS =
@@ -310,6 +312,18 @@ export function SelectionToolbar() {
               title="Link"
             >
               <Link2Icon />
+            </IconButton>
+
+            <Sep />
+
+            <IconButton
+              onClick={() => {
+                void extractBlocksToNote(editor, selectedTopLevelPaths(editor));
+              }}
+              onMouseDown={(e) => e.preventDefault()}
+              title="Extract to new note"
+            >
+              <FileOutputIcon />
             </IconButton>
           </>
         )}

@@ -2,12 +2,12 @@
 // workspace <main>, not a PlateContainer.
 
 import { useEffect, useRef, useState } from "react";
-import { ElementApi, KEYS, NodeApi, type Path, type TElement } from "platejs";
-import { useEditorRef, useEditorSelector, type PlateEditor } from "platejs/react";
+import { ElementApi, KEYS, NodeApi, type Path, type SlateEditor, type TElement } from "platejs";
+import { useEditorRef, useEditorSelector } from "platejs/react";
 
 import { cn } from "@repo/ui/lib/utils";
 
-type HeadingItem = { id: string; path: Path; depth: number; title: string };
+export type HeadingItem = { id: string; path: Path; depth: number; title: string };
 
 const HEADING_DEPTH = new Map<string, number>([
   [KEYS.h1, 1],
@@ -34,7 +34,7 @@ function tweenScrollTo(scroller: Element, el: HTMLElement): void {
   requestAnimationFrame(step);
 }
 
-export function collectHeadings(editor: PlateEditor): HeadingItem[] {
+export function collectHeadings(editor: SlateEditor): HeadingItem[] {
   const out: HeadingItem[] = [];
   for (const [node, path] of editor.api.nodes<TElement>({
     at: [],
@@ -50,12 +50,25 @@ export function collectHeadings(editor: PlateEditor): HeadingItem[] {
 
 // resolved through the row's own node, not by index among the editable's `<h*>`s: that dom
 // also holds headings the outline skips (empty ones) and never listed (a transclusion's).
-export function headingElement(editor: PlateEditor, heading: HeadingItem): HTMLElement | null {
+export function headingElement(editor: SlateEditor, heading: HeadingItem): HTMLElement | null {
   const entry = editor.api.node<TElement>(heading.path);
   if (entry === undefined) return null;
   const [node] = entry;
   if (!ElementApi.isElement(node) || !HEADING_DEPTH.has(node.type)) return null;
   return editor.api.toDOMNode(node) ?? null;
+}
+
+// the palette's jump: the rail's own scroll, and the caret at the heading so typing continues
+// there once the dialog hands focus back; no focus() here, like the find bar's jump, so a
+// jsdom mount does not arm slate-react's deferred DOM-selection sync.
+export function goToHeading(editor: SlateEditor, heading: HeadingItem): boolean {
+  const el = headingElement(editor, heading);
+  if (el === null) return false;
+  const scroller = el.closest("[data-editor-scroller]");
+  if (scroller !== null) tweenScrollTo(scroller, el);
+  const start = editor.api.start(heading.path);
+  if (start !== undefined) editor.tf.select(start);
+  return true;
 }
 
 export const TOC_RAIL_CAP = 20;
