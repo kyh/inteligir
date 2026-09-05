@@ -14,11 +14,24 @@ import {
   formatAttachmentLocation,
   parseAttachmentLocation,
 } from "@repo/api/local/vault/attachment-location";
+import { statSync } from "node:fs";
 import { parseBoundedInteger } from "../args";
 import { defineCommand } from "citty";
 import { invalidUsage } from "../cli-error";
 import { apiFor, type CliDeps } from "../context";
 import { jsonArg, out, outputJson, writeLines, writeOut } from "../output";
+import {
+  resolveAppConfig,
+  writeManagedVaultDir,
+  type ResolveAppConfigArgs,
+} from "../server/config";
+import { resolveCheckoutRoot } from "../server/dev-instance";
+import { readServerFile } from "../server/server-file";
+import {
+  planVaultSelection,
+  resolveVaultCandidate,
+  selectionRefusalMessage,
+} from "../server/vault-switch";
 
 function renderVaultStatus(status: VaultStatusResponse): string[] {
   const lines = [`state: ${status.state}`];
@@ -63,6 +76,51 @@ function assertContentWithinBound(content: string): void {
       `--content is ${byteLength} bytes; the vault refuses anything over ${VAULT_MAX_CONTENT_LENGTH}`,
     );
   }
+}
+
+interface VaultSelection {
+  vaultDir: string;
+  dataDir: string;
+  previousVaultDir: string;
+  // the server serving the previous vault, if one is up: a selection never restarts it
+  running: { baseUrl: string } | null;
+}
+
+// the same plan the shell's switch runs, minus the restart: the root config.json is the selector
+// `inteligir serve` reads, so the next boot is on the new vault and a running server is untouched
+function selectVault(deps: CliDeps, rawDir: string): VaultSelection {
+  const configArgs: ResolveAppConfigArgs = { checkoutPath: resolveCheckoutRoot(), env: deps.env };
+  if (deps.homeDir !== undefined) {
+    configArgs.homeDir = deps.homeDir;
+  }
+  const current = resolveAppConfig(configArgs);
+  let candidate: ReturnType<typeof resolveVaultCandidate>;
+  try {
+    candidate = resolveVaultCandidate(configArgs, rawDir);
+  } catch (cause) {
+    throw invalidUsage(cause instanceof Error ? cause.message : String(cause));
+  }
+  const plan = planVaultSelection(current, candidate.vaultDir);
+  if (plan.kind === "refused") {
+    throw invalidUsage(selectionRefusalMessage(plan.reason));
+  }
+  let isDirectory = false;
+  try {
+    isDirectory = statSync(candidate.vaultDir).isDirectory();
+  } catch {
+    isDirectory = false;
+  }
+  if (!isDirectory) {
+    throw invalidUsage(`${candidate.vaultDir} is not a directory; a vault is an existing folder`);
+  }
+  writeManagedVaultDir(current.rootDataDir, candidate.vaultDir);
+  const server = readServerFile(current.dataDir);
+  return {
+    vaultDir: candidate.vaultDir,
+    dataDir: candidate.dataDir,
+    previousVaultDir: current.vaultDir,
+    running: server === null ? null : { baseUrl: `http://127.0.0.1:${String(server.port)}` },
+  };
 }
 
 export function vaultCommand(deps: CliDeps) {
@@ -330,6 +388,34 @@ export function vaultCommand(deps: CliDeps) {
             return;
           }
           out.success(`Created ${body.path}/`);
+        },
+      }),
+
+      open: defineCommand({
+        meta: {
+          name: "open",
+          description: "Select the vault the next `serve` boots on; a running server is untouched",
+        },
+        args: {
+          dir: {
+            type: "positional",
+            required: true,
+            description: "Absolute path of an existing folder (a ~/ path is fine)",
+          },
+          ...jsonArg,
+        },
+        run: ({ args }) => {
+          const body = selectVault(deps, args.dir);
+          if (outputJson(args, body)) {
+            return;
+          }
+          out.success(`Selected ${body.vaultDir}; the next \`inteligir serve\` boots on it.`);
+          writeLines([`  data: ${body.dataDir}`]);
+          if (body.running !== null) {
+            out.info(
+              `The server at ${body.running.baseUrl} keeps serving ${body.previousVaultDir}; restart it, or reopen Inteligir, to switch.`,
+            );
+          }
         },
       }),
 

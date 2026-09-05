@@ -64,6 +64,11 @@ output; without it the output is compact human text.
   one tab-separated line each: the sha that still holds the bytes, when, path.
   Feed a row to \`vault restore <path> <sha>\` to bring it back.
 - \`inteligir vault mkdir <path>\` — create a folder.
+- \`inteligir vault open <dir>\` — select the vault the next \`inteligir serve\`
+  boots on (the app's own vault switch writes the same selector). A running
+  server is untouched and named; restart it, or reopen the app, to switch. A
+  vault other than the default keeps its own data dir beneath the root, so it
+  starts with no index, no credential and no connectors.
 - \`inteligir vault attachments [root|beside-note|folder:<path>]\` — where a
   pasted image lands; with no argument, print the current choice.
 - \`inteligir vault status\` — git sync state (remote, dirty, conflicts).

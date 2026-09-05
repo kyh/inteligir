@@ -42,6 +42,7 @@
     "./server/server-file": "./src/server/server-file.ts",
     "./server/shutdown": "./src/server/shutdown.ts",
     "./server/staged-write": "./src/server/staged-write.ts",
+    "./server/vault-switch": "./src/server/vault-switch.ts",
     "./server/testing": "./src/server/__tests__/boot-app.ts",
     "./server/vault/seed-vault": "./src/server/vault/seed-vault.ts",
     "./scripts/smoke-lib.mjs": "./scripts/smoke-lib.mjs"

@@ -1,18 +1,21 @@
 // A vault switch restarts the child the shell started; this owns what may be switched and
-// what the shell remembers, over files a test can point at a temp dir.
+// what the shell remembers, over files a test can point at a temp dir. The plan itself is
+// `inteligir/server/vault-switch`, shared with `inteligir vault open`.
 
 import { readFileSync } from "node:fs";
-import { basename, resolve } from "node:path";
+import { basename } from "node:path";
 import { z } from "zod";
 import { stagedWriteFileSync } from "inteligir/server/staged-write";
+import {
+  planVaultSelection,
+  selectionBlockedByEnv,
+  selectionRefusalMessage,
+  type VaultSelectionRefusal,
+} from "inteligir/server/vault-switch";
 import type { VaultRef } from "../vaults-state";
 import type { ServerTarget } from "./server-instance";
 
-export type VaultSwitchRefusal =
-  | "adopted-server"
-  | "vault-pinned-by-env"
-  | "data-dir-pinned-by-env"
-  | "already-open";
+export type VaultSwitchRefusal = "adopted-server" | VaultSelectionRefusal;
 
 export interface SwitchContext {
   // false when the shell adopted a server it did not start: that one is nobody's to restart
@@ -23,33 +26,21 @@ export interface SwitchContext {
 // what stands in the way before any folder is picked, or null
 export function switchBlockedBy(context: SwitchContext): VaultSwitchRefusal | null {
   if (!context.ownsServer) return "adopted-server";
-  if (context.current.vaultDirSource === "env") return "vault-pinned-by-env";
-  if (context.current.dataDirSource === "env") return "data-dir-pinned-by-env";
-  return null;
+  return selectionBlockedByEnv(context.current);
 }
 
 export type VaultSwitchPlan = { kind: "switch" } | { kind: "refused"; reason: VaultSwitchRefusal };
 
 export function planVaultSwitch(context: SwitchContext, vaultDir: string): VaultSwitchPlan {
-  const blocked = switchBlockedBy(context);
-  if (blocked !== null) return { kind: "refused", reason: blocked };
-  if (resolve(vaultDir) === resolve(context.current.vaultDir)) {
-    return { kind: "refused", reason: "already-open" };
-  }
-  return { kind: "switch" };
+  if (!context.ownsServer) return { kind: "refused", reason: "adopted-server" };
+  return planVaultSelection(context.current, vaultDir);
 }
 
 export function switchRefusalMessage(reason: VaultSwitchRefusal): string {
-  switch (reason) {
-    case "adopted-server":
-      return "This server was started outside the app, so the app cannot restart it on another vault. Stop it and reopen Inteligir to switch.";
-    case "vault-pinned-by-env":
-      return "INTELIGIR_VAULT_DIR chose the vault for this launch; unset it to switch from here.";
-    case "data-dir-pinned-by-env":
-      return "INTELIGIR_DATA_DIR pins one data dir for this launch, and a second vault would share it; unset it to switch from here.";
-    case "already-open":
-      return "That vault is already open.";
+  if (reason === "adopted-server") {
+    return "This server was started outside the app, so the app cannot restart it on another vault. Stop it and reopen Inteligir to switch.";
   }
+  return selectionRefusalMessage(reason);
 }
 
 export function vaultRef(path: string): VaultRef {

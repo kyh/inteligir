@@ -932,8 +932,11 @@ rename`.
   old partition. A child that fails to boot puts the previous vault back. The
   folder is picked in main, so the page never names a path it was not handed;
   the recent-vaults list is the shell's own `userData`, never a vault's.
-  `apps/desktop/src/main/vaults.ts` (the policy), `main/index.ts`
-  (`switchVault`), `apps/desktop/src/vaults-state.ts`.
+  `inteligir vault open <dir>` writes the same selector under the same plan
+  and refusals (`apps/cli/src/server/vault-switch.ts`, the one spelling both
+  run), and restarts nothing: the next `serve` is the switch.
+  `apps/desktop/src/main/vaults.ts` (the shell's policy over it),
+  `main/index.ts` (`switchVault`), `apps/desktop/src/vaults-state.ts`.
 
 **Before raising a "new" finding, read
 [#542](https://github.com/kyh/inteligir/issues/542)**: the decision record
