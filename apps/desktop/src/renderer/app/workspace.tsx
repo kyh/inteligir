@@ -343,6 +343,14 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
         setPalettePage("search");
         setPaletteOpen(true);
         break;
+      case "open-quick-switcher":
+        setPaletteQuery("");
+        setPalettePage("notes");
+        setPaletteOpen(true);
+        break;
+      case "open-settings":
+        onOpenSettings();
+        break;
       case "open-daily-note":
         openDailyNote();
         break;
@@ -535,6 +543,7 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
           openNotePath={openPath}
           moveRequest={paletteMove}
           initialPage={palettePage}
+          modifier={shortcutModifier}
           onOpenChange={(open) => {
             setPaletteOpen(open);
             if (!open) setPaletteMove(null);

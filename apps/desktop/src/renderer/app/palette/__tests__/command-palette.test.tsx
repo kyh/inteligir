@@ -3,6 +3,9 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { VaultEntry } from "@repo/api/local/vault/vault-schema";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { EDITOR_SHORTCUTS } from "@repo/editor/editor-shortcuts";
+import { FIND_BAR_SHORTCUTS } from "@repo/editor/find-bar";
+import { GLOBAL_SHORTCUTS, globalShortcutHotkey, spellHotkey } from "../../global-shortcuts";
 import { CommandPalette, type PaletteActions } from "../command-palette";
 import type { MatchSource } from "../match-source";
 import { searchNotesByFilename, type NoteSearchSource } from "../note-search";
@@ -53,6 +56,7 @@ function renderPalette(overrides: Partial<React.ComponentProps<typeof CommandPal
       matchSource={noMatches}
       canSync={false}
       actions={actions}
+      modifier="meta"
       {...overrides}
     />,
   );
@@ -363,5 +367,58 @@ describe("the search page", () => {
     expect(screen.getByText(/2 of 5 matches shown/)).toBeDefined();
     fireEvent.click(screen.getByText("Replace all"));
     expect(actions.replaceAll).not.toHaveBeenCalled();
+  });
+});
+
+describe("the keyboard shortcuts page", () => {
+  it("lists every row of every table, spelled for the keyboard the palette was given", () => {
+    renderPalette();
+    fireEvent.click(screen.getByText("Keyboard shortcuts"));
+    expect(screen.getByPlaceholderText("Filter shortcuts…")).toBeDefined();
+    for (const row of GLOBAL_SHORTCUTS) {
+      expect(screen.getByText(row.label)).toBeDefined();
+      expect(screen.getByText(spellHotkey(globalShortcutHotkey(row), "meta"))).toBeDefined();
+    }
+    for (const row of [...EDITOR_SHORTCUTS, ...FIND_BAR_SHORTCUTS]) {
+      expect(screen.getByText(row.label)).toBeDefined();
+      expect(screen.getByText(spellHotkey(row.hotkey, "meta"))).toBeDefined();
+    }
+  });
+
+  it("filters by label or chord", () => {
+    renderPalette();
+    fireEvent.click(screen.getByText("Keyboard shortcuts"));
+    fireEvent.change(screen.getByPlaceholderText("Filter shortcuts…"), {
+      target: { value: "⇧⌘G" },
+    });
+    expect(screen.getByText("Previous match")).toBeDefined();
+    expect(screen.queryByText("Next match")).toBeNull();
+  });
+});
+
+describe("a command's binding", () => {
+  it("is the global table's row, not a literal", () => {
+    renderPalette();
+    expect(screen.getByText("⌘D")).toBeDefined();
+    expect(screen.getByText("⇧⌘F")).toBeDefined();
+    cleanup();
+    renderPalette({ modifier: "ctrl" });
+    expect(screen.getByText("Ctrl+D")).toBeDefined();
+    expect(screen.getByText("Ctrl+Shift+F")).toBeDefined();
+  });
+});
+
+describe("the quick switcher (⌘O)", () => {
+  it("is the root with its commands folded away", async () => {
+    const { actions } = renderPalette({ initialPage: "notes" });
+    const box = screen.getByPlaceholderText("Open a note…");
+    expect(screen.queryByText("Settings")).toBeNull();
+    expect(screen.queryByText("Keyboard shortcuts")).toBeNull();
+    fireEvent.change(box, { target: { value: "welcome" } });
+    await waitFor(() => {
+      expect(screen.getByText("Welcome.md")).toBeDefined();
+    });
+    fireEvent.click(screen.getByText("Welcome.md"));
+    expect(actions.openNote).toHaveBeenCalledWith("Welcome.md");
   });
 });

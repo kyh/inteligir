@@ -5,7 +5,14 @@ import { describe, expect, it, vi } from "vitest";
 import { createPlateEditor, type PlateEditor } from "platejs/react";
 import type { Value } from "platejs";
 
-import { handleEditorShortcut, type ShortcutKeyEvent } from "@repo/editor/editor-shortcuts";
+import {
+  EDITOR_SHORTCUTS,
+  editorShortcutFor,
+  handleEditorShortcut,
+  type EditorShortcut,
+  type ShortcutKeyEvent,
+} from "@repo/editor/editor-shortcuts";
+import { FIND_BAR_SHORTCUTS } from "@repo/editor/find-bar";
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
 import { registerLiveEditor } from "@repo/editor/live-editor";
 import { registerNoteTitleFocus } from "@repo/editor/note-title-focus";
@@ -115,5 +122,36 @@ describe("editor shortcuts", () => {
     expect(editor.children[0]).toMatchObject({ listStyleType: "decimal" });
     press(editor, "l", 76, { shift: true });
     expect(editor.children[0]).not.toHaveProperty("listStyleType");
+  });
+});
+
+// the chord a row spells, pressed: "mod" is ctrl where no Mac platform is detectable
+function chordEvent(hotkey: string): ShortcutKeyEvent {
+  const parts = hotkey.split("+");
+  const key = parts.at(-1) ?? "";
+  const keyCode = key.toUpperCase().charCodeAt(0);
+  return {
+    altKey: parts.includes("alt"),
+    ctrlKey: parts.includes("mod"),
+    key,
+    keyCode,
+    metaKey: false,
+    preventDefault: () => {},
+    shiftKey: parts.includes("shift"),
+    which: keyCode,
+  };
+}
+
+describe("the shortcut tables", () => {
+  it("resolve each row from its own chord, and no other row from it", () => {
+    const tables: readonly (readonly EditorShortcut<string>[])[] = [
+      EDITOR_SHORTCUTS,
+      FIND_BAR_SHORTCUTS,
+    ];
+    for (const rows of tables) {
+      for (const row of rows) {
+        expect(editorShortcutFor(rows, chordEvent(row.hotkey))?.action).toBe(row.action);
+      }
+    }
   });
 });
