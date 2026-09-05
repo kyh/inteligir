@@ -53,7 +53,7 @@ import {
   TextSearchIcon,
   TriangleAlertIcon,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   bindingFor,
   GLOBAL_SHORTCUTS,
@@ -65,7 +65,7 @@ import { threadActivity, THREAD_ACTIVITY_LABELS } from "../thread-activity";
 import type { MatchSource } from "./match-source";
 import type { NoteSearchHit, NoteSearchSource } from "./note-search";
 import type { ProblemSource } from "./problem-source";
-import type { VaultReplaceRequest } from "./vault-replace";
+import type { ReplaceProgressPort, VaultReplaceRequest } from "./vault-replace";
 
 export interface PaletteActions {
   openNote: (path: string) => void;
@@ -84,7 +84,8 @@ export interface PaletteActions {
   pinNote: (() => void) | null;
   unpinNote: (() => void) | null;
   openMatch: (match: VaultMatchWire, query: string) => void;
-  replaceAll: (request: VaultReplaceRequest) => void;
+  // settles when the run is over, cancelled or declined included; the palette shows it running
+  replaceAll: (request: VaultReplaceRequest, port: ReplaceProgressPort) => Promise<void>;
   // the open note's outline, walked when the page asks; absent with no note open
   listHeadings: (() => readonly HeadingItem[]) | null;
   goToHeading: (heading: HeadingItem) => void;
@@ -392,6 +393,13 @@ export function CommandPalette({
   const [caseSensitive, setCaseSensitive] = useState(false);
   const [wholeWord, setWholeWord] = useState(false);
   const [replacement, setReplacement] = useState("");
+  // the run in flight: its counts, and the controller the Cancel button aborts
+  const [replaceRun, setReplaceRun] = useState<{
+    done: number;
+    total: number;
+    cancelled: boolean;
+    controller: AbortController;
+  } | null>(null);
   const [matchResult, setMatchResult] = useState<KnowledgeMatchesResponse | null>(null);
   const [matchesFailed, setMatchesFailed] = useState(false);
   const [problems, setProblems] = useState<KnowledgeProblemsResponse | null>(null);
@@ -475,37 +483,60 @@ export function CommandPalette({
     };
   }, [open, page, query, searchSource]);
 
+  // one read of the index for the typed query; the debounce and a finished replace both run it
+  const searchMatches = useCallback(
+    async (signal: AbortSignal): Promise<void> => {
+      try {
+        const result = await matchSource(
+          { q: query, caseSensitive, wholeWord, limit: KNOWLEDGE_MATCHES_DEFAULT_LIMIT },
+          signal,
+        );
+        if (!signal.aborted) {
+          setMatchResult(result);
+          setMatchesFailed(false);
+        }
+      } catch {
+        if (!signal.aborted) {
+          setMatchResult(null);
+          setMatchesFailed(true);
+        }
+      }
+    },
+    [query, caseSensitive, wholeWord, matchSource],
+  );
+
   useEffect(() => {
     if (!open || page !== "search" || query === "") {
       return undefined;
     }
     const controller = new AbortController();
     const timer = setTimeout(() => {
-      void (async () => {
-        try {
-          const result = await matchSource(
-            { q: query, caseSensitive, wholeWord, limit: KNOWLEDGE_MATCHES_DEFAULT_LIMIT },
-            controller.signal,
-          );
-          if (!controller.signal.aborted) {
-            setMatchResult(result);
-            setMatchesFailed(false);
-          }
-        } catch {
-          if (!controller.signal.aborted) {
-            setMatchResult(null);
-            setMatchesFailed(true);
-          }
-        }
-      })();
+      void searchMatches(controller.signal);
     }, SEARCH_DEBOUNCE_MS);
     return () => {
       clearTimeout(timer);
       controller.abort();
     };
-  }, [open, page, query, caseSensitive, wholeWord, matchSource]);
+  }, [open, page, query, searchMatches]);
 
   const close = (): void => onOpenChange(false);
+
+  const startReplace = (request: VaultReplaceRequest): void => {
+    const controller = new AbortController();
+    setReplaceRun({ done: 0, total: request.paths.length, cancelled: false, controller });
+    void actions
+      .replaceAll(request, {
+        signal: controller.signal,
+        onProgress: (done, total) => {
+          setReplaceRun((current) => (current === null ? null : { ...current, done, total }));
+        },
+      })
+      .finally(() => {
+        setReplaceRun(null);
+        // the listing re-reads what the rewrite left, so the replaced needle shows as gone
+        void searchMatches(new AbortController().signal);
+      });
+  };
   const run = (action: () => void): void => {
     close();
     action();
@@ -843,7 +874,7 @@ export function CommandPalette({
     // a cut listing names some of the notes a replace would touch, not all of them
     const truncated = matches.length < total;
     const paths = [...new Set(matches.map((match) => match.path))];
-    const canReplace = matches.length > 0 && !truncated;
+    const canReplace = matches.length > 0 && !truncated && replaceRun === null;
     return (
       <CommandDialog
         open={open}
@@ -890,20 +921,38 @@ export function CommandPalette({
             variant="secondary"
             size="compact"
             disabled={!canReplace}
-            onClick={() =>
-              run(() =>
-                actions.replaceAll({
-                  needle: query,
-                  replacement,
-                  options: { caseSensitive, wholeWord },
-                  paths,
-                }),
-              )
-            }
+            onClick={() => {
+              startReplace({
+                needle: query,
+                replacement,
+                options: { caseSensitive, wholeWord },
+                paths,
+              });
+            }}
           >
             Replace all
           </Button>
         </div>
+        {replaceRun === null ? null : (
+          <div className="flex items-center gap-2 px-3 pt-1.5 text-xs text-muted-foreground">
+            <span aria-live="polite" className="tabular-nums">
+              Replacing… {replaceRun.done} of {replaceRun.total} notes
+            </span>
+            <Button
+              variant="ghost"
+              size="compact"
+              disabled={replaceRun.cancelled}
+              onClick={() => {
+                replaceRun.controller.abort();
+                setReplaceRun((current) =>
+                  current === null ? null : { ...current, cancelled: true },
+                );
+              }}
+            >
+              {replaceRun.cancelled ? "Stopping…" : "Cancel"}
+            </Button>
+          </div>
+        )}
         <CommandList className="max-h-96">
           <CommandEmpty>
             {query === ""

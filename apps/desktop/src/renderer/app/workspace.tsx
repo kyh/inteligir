@@ -44,6 +44,7 @@ import { createSearchSource, sortedNotePaths } from "./palette/search-source";
 import {
   replaceInVault,
   summarizeReplace,
+  type ReplaceProgressPort,
   type VaultReplaceRequest,
 } from "./palette/vault-replace";
 import { DeletedNotesDialog } from "./sidebar/deleted-notes-dialog";
@@ -251,21 +252,21 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
     [setOpenNote],
   );
 
+  // settles when the run is over, so the palette can show it running and offer the cancel
   const replaceAll = useCallback(
-    (request: VaultReplaceRequest): void => {
-      void (async () => {
-        const noteCount = request.paths.length;
-        const confirmed = await confirm({
-          title: `Replace in ${String(noteCount)} note${noteCount === 1 ? "" : "s"}?`,
-          body: `Every match of "${request.needle}" becomes "${request.replacement}". A note stays recoverable from its History.`,
-          confirmLabel: "Replace all",
-        });
-        if (!confirmed) return;
-        // the open note's buffer lands first, so its file is not the one that "changed since read"
-        await flushOpenNote();
-        const summary = summarizeReplace(await replaceInVault(api, request));
-        toast[summary.tone](summary.message);
-      })();
+    async (request: VaultReplaceRequest, port: ReplaceProgressPort): Promise<void> => {
+      const noteCount = request.paths.length;
+      const confirmed = await confirm({
+        title: `Replace in ${String(noteCount)} note${noteCount === 1 ? "" : "s"}?`,
+        body: `Every match of "${request.needle}" becomes "${request.replacement}". A note stays recoverable from its History.`,
+        confirmLabel: "Replace all",
+      });
+      if (!confirmed) return;
+      // the open note's buffer lands first, so its file is not the one that "changed since read"
+      await flushOpenNote();
+      const outcomes = await replaceInVault(api, request, port);
+      const summary = summarizeReplace(outcomes, noteCount - outcomes.length);
+      toast[summary.tone](summary.message);
     },
     [api],
   );

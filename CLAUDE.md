@@ -792,7 +792,10 @@ rename`.
   notes is a per-file write with the hash of the bytes it read, and a mismatch
   is REPORTED by name, never diff3-merged: the user named exact bytes
   (`apps/desktop/src/renderer/app/palette/vault-replace.ts`). A cut listing
-  cannot replace: it does not name every note. The jump lands by ordinal among
+  cannot replace: it does not name every note. The run reports a count after
+  every note and honours a cancel between notes, never inside one, and the
+  summary counts what a stop left untouched; the palette stays open on the run
+  so it can show the count and offer the cancel. The jump lands by ordinal among
   the note's matches, because a markdown column is not a Slate offset. ⌘⇧F is
   the one shifted row in `global-shortcuts.ts`; a row claims shift explicitly
   so ⌘⇧K stays the editor's.
