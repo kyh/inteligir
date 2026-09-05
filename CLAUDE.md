@@ -30,9 +30,16 @@ apps/
                  inteligir:// protocol handler, the forked server),
                  src/preload/ (the bridge: the loopback ws origin, because a
                  browser WebSocket cannot be proxied and window.location.origin
-                 no longer names a server, and the updater, because it lives in
-                 main; nothing that holds a token), and src/renderer/ (the SPA:
-                 TanStack Router file routes over @repo/api/local). The whole
+                 no longer names a server; the updater, the spell checker and
+                 the vault switch, because each lives in main; Reveal/Open of
+                 a vault entry, because only main may hand the OS a path;
+                 nothing that holds a token — every frame crosses as `unknown`
+                 and is parsed on both sides, the page mirroring each through
+                 one `bridge-store.ts`), and src/renderer/ (the SPA: TanStack
+                 Router file routes over @repo/api/local; `app/workspace.tsx`
+                 owns the note, the rail, the palette and the panel; `app/note/`
+                 the guarded writes; `app/palette/` the ⌘P pages; `app/sidebar/`
+                 the rail's recents | tree | tags views). The whole
                  security surface is the ORIGIN PIN (src/main/origin-pin.ts,
                  pure + unit-tested): one origin, top-level navigation away
                  goes to the system browser, window.open denied
@@ -40,6 +47,9 @@ apps/
                  media. utilityProcess forks `inteligir serve`; a server
                  already listening is ADOPTED once it answers this instance's
                  token, and only a child the shell started is killed on quit.
+                 A vault switch (`main/vaults.ts` over the CLI's shared plan)
+                 stops that child, rewrites the root config.json's `vaultDir`
+                 and boots a new one on the new vault's own data dir.
   cli/           inteligir — THE PUBLISHED BINARY, and THE SERVER (issues #553,
                  #611). `serve` is the whole local process — src/server/ owns
                  the vault, the knowledge index, the agent runtime, the oRPC
@@ -57,7 +67,16 @@ apps/
                  streaming Parakeet (sherpa-onnx) on a persistent session
                  worker per hold, over a dedicated /voice/stream websocket.
                  src/server/comments/ serves the anchored-comment sidecars
-                 through the vault (#583). Agent memory was REMOVED (#589
+                 through the vault (#583). src/server/knowledge/ runs the
+                 index and every route over it (search, matches, backlinks,
+                 related, unlinked mentions, problems, tags, tag notes) plus
+                 the two rewrite sets (note rename, tag rename) over one
+                 snapshot loop. Every app-written file in the data dir
+                 (connectors, connected folders, agent prefs, vault prefs) is a
+                 `json-file-store.ts` over `staged-write.ts`; `config.json` is
+                 the one file read at boot and never written by the app, except
+                 its `vaultDir`, the selector a switch rewrites
+                 (`vault-switch.ts`). Agent memory was REMOVED (#589
                  reversed #575) — the harnesses carry their own. Discovery is
                  ONE FILE: `<dataDir>/server.json` carries the bound port and
                  the bearer together, so the address and the credential cannot
@@ -127,9 +146,13 @@ packages/
                  seam, prefixed-nanoid ids.
   notes/         @repo/notes — PURE platform-neutral domain: the knowledge
                  engine (link graph, FTS5 search over an injected SqlDriver,
-                 tags, tasks, rename byte-surgery) over ONE markdown scan
-                 (scan-parse + wiki-links), frontmatter, the dialect's own
-                 modules (markdown/remark-*, comments/, formulas/),
+                 the literal text scan behind matches and unlinked mentions,
+                 the resolver's problems report, tags and tag families, tasks,
+                 the rename and tag-rename byte-surgery) over ONE markdown scan
+                 (scan-parse + wiki-links), frontmatter (the pin and id line
+                 cuts included), `templates/` (the three placeholders and the
+                 convention folders), the dialect's own modules
+                 (markdown/remark-*, comments/, formulas/),
                  and `text/` — ONE Myers diff under diff3. No node/react/ui
                  imports — lint-enforced. `markdown/mdast-nodes.ts` is the
                  mdast NARROWING boundary: a walk asks it what a node is
@@ -138,7 +161,11 @@ packages/
                  kits/nodes for every dialect construct, the md-rules table,
                  the fixpoint serializer + fixture matrix, the open-note
                  runtime (vault-session/note-runtime/open-note-store) the app
-                 drives through two seams: `VaultSessionPorts`
+                 drives through two seams, plus the note-level verbs the shell
+                 reaches by path (find bar, headings, extract, insert template,
+                 note stats, link locate) and the request stores a deep node
+                 uses to ask the shell for something (`agent-request`,
+                 `tag-request`): `VaultSessionPorts`
                  (note/vault-session.ts) and the `EditorHostIo` singleton
                  (host-io.ts), which host.ts opens to React.
                  `node-props.ts` is the SLATE DECODE BOUNDARY, and it is the
@@ -212,6 +239,21 @@ local loop and the owner-only deploy. `AGENTS.md` is the runnable quickstart;
 Each bullet is the decision, what it rejected and why, and the file that
 carries the mechanism. The dangling-reference guard keeps the pointers honest.
 
+The list is grouped by the part of the system a decision governs; append a new bullet
+to the END of its group.
+
+- [Editor and dialect](#editor-and-dialect) — 12
+- [Vault: writes, git and containment](#vault-writes-git-and-containment) — 13
+- [Knowledge: index, search and links](#knowledge-index-search-and-links) — 12
+- [Agents and threads](#agents-and-threads) — 10
+- [Dictation](#dictation) — 6
+- [Cloud, sync and accounts](#cloud-sync-and-accounts) — 17
+- [Server process and the desktop shell](#server-process-and-the-desktop-shell) — 10
+- [Desktop workspace surfaces](#desktop-workspace-surfaces) — 3
+- [Repo guards, vendoring and tooling](#repo-guards-vendoring-and-tooling) — 7
+
+### Editor and dialect
+
 - **THE EDITOR IS A WYSIWYG OVER A BYTE-DISCIPLINED SERIALIZER** (epic #579,
   reversing #542's editor line by owner decision; do not "fix" it back). Plate.js
   over one owned parse, one rule table and a bounded fixpoint. Byte stability is
@@ -243,21 +285,97 @@ carries the mechanism. The dangling-reference guard keeps the pointers honest.
   on both braces. Comment thread bodies live in a `<note>.comments.json`
   sidecar.
 
-- **A turn row's `sourceSeqEnd` names its own contributors**, not every
-  turn-scoped event. A streaming assistant message is turn-scoped but lands as a
-  top-level row; counting it moved the turn row and resent the whole subtree on
-  every token.
+- **THE WIKI-LINK PREVIEW IS A HOVER CARD, NOT A TOOLTIP.** Base UI's
+  PreviewCard (`@repo/ui/components/hover-card`): the pointer can move into it,
+  the text selects, the title opens the note. Base UI's Popover has no hover
+  mode; a hand-positioned `pointer-events-none` div is what it replaced
+  (`packages/editor/src/wiki-chip.tsx`).
+
+- **THE EDITOR COLUMN SHOWS ONE NOTE.** No second pane and no pane vocabulary:
+  one `OpenNoteStore`, and every surface reads the open note. Registries keyed
+  on a note's path keep that key so a late answer cannot land on the note that
+  replaced it. There is no raw/rich toggle: the surface derives from
+  `packages/editor/src/note/markdown-gate.ts` alone.
+
+- **THE APPEARANCE DIALS ARE ONE DECLARATION, READ THROUGH `.typeset-docs`.**
+  The tokens are declared once in `apps/desktop/src/renderer/styles/globals.css`.
+  No accent axis: nothing in Plate consumes a hue.
+
+- **THE PLATE SLASH MENU AND BOTTOM TOOLBAR ARE THE INSERTION SURFACES.** Slash
+  items are grouped data in `packages/editor/src/slash-menu.tsx`; the toolbar is
+  selection-stateless. Every insertable row's markdown must re-parse to a
+  modeled construct; the kit-parity vocabulary pins the set. Legacy
+  `<!-- inteligir:thread anc_… -->` markers parse as opaque comments and are
+  preserved; nothing writes new ones.
+
+- **Frontmatter is the ONLY property store.** No metadata table. YAML the typing
+  rules cannot represent is preserved byte-exactly.
+
+- **TEMPLATES ARE A FOLDER, AND PLACEHOLDERS EXPAND ON BYTES BEFORE ANY PARSER.**
+  A template is a doc under `templates/` (a fixed convention like the daily
+  folder, no setting); `templates/Daily.md` shapes the daily note. Exactly three
+  placeholders, `{{date}}`, `{{time}}`, `{{title}}`, replaced textually on the
+  raw markdown, so the formula grammar never sees them and every other `{{…}}`
+  is a pill left byte-exact. Insert lands the body through the paste parser at
+  the selection and leaves the template's frontmatter behind; a note minted
+  from a template drops the template's `id:`, because two notes with one id
+  make the uuid link tier ambiguous. `@repo/notes/templates/placeholders`,
+  `packages/editor/src/insert-template.ts`.
+
+- **A BINDING IS SPELLED FROM THE TABLE ITS LISTENER READS, never as a
+  literal.** Four tables own every chord: `GLOBAL_SHORTCUTS`
+  (`apps/desktop/src/renderer/app/global-shortcuts.ts`, the window listener),
+  `MARK_SHORTCUTS` (`packages/editor/src/mark-shortcuts.ts`, which the marks
+  kit BUILDS Plate's `shortcuts` config from, so Plate's own defaults never
+  run), `EDITOR_SHORTCUTS` (`packages/editor/src/editor-shortcuts.ts`) and
+  `FIND_BAR_SHORTCUTS` (`packages/editor/src/find-bar.tsx`), and each handler
+  matches by walking its table. The palette's "Keyboard shortcuts" page, every
+  `CommandShortcut` and the selection toolbar's tooltips are derived from those
+  rows through `spellHotkey` (`@repo/editor/hotkey-spelling`: ⌃⌥⇧⌘ on a mac
+  keyboard, `Ctrl+Shift+…` elsewhere), so a rebinding cannot leave a stale
+  label behind. `shortcut-tables.test.ts` refuses a chord two tables share,
+  because a key both claim runs both. ⌘O is Obsidian's quick
+  switcher (the palette with its commands folded away) and ⌘, is Settings; a
+  browser tab may keep either for itself, the shell delivers both.
+
+- **A PIN IS THE FRONTMATTER KEY `pinned: true`, AND ITS EDIT IS A LINE CUT.**
+  Pinning travels with the file, so the recents' Pinned group agrees on every
+  device and with the agent. `pinnedFrontmatterYaml` in
+  `@repo/notes/markdown/frontmatter` cuts or appends the key's own lines like
+  `removeFrontmatterId` does, rather than re-serializing through
+  `serializeProperties`, which restyles every flow list it re-emits; unpinning
+  removes the key, never writes `false`, and a block it empties goes with it.
+  One desktop function behind the Metadata tab, the tree and list menus and
+  the palette (`apps/desktop/src/renderer/app/note/pin-note.ts`): the open
+  note takes the edit through the live editor's frontmatter node, the
+  properties panel's own path, so the buffer and the autosave carry it; any
+  other note is read, edited and written with the hash of what was read, and a
+  mismatch is reported, never merged. The pinned set every surface shows is
+  the index's (`usePinnedPaths`), so a pin appears after the sweep, not before.
+
+- **GO TO HEADING IS THE PALETTE OVER THE TOC'S WALK, AND AN EXTRACT IS ONE
+  HISTORY BATCH.** ⌘⇧O (a shifted row in `GLOBAL_SHORTCUTS`) opens the palette
+  on the open note's outline, read through `collectHeadings` and landed through
+  `goToHeading` (`packages/editor/src/toc.tsx`): the rail's own scroll, and the
+  caret at the heading. "Extract to new note" (`packages/editor/src/extract-note.ts`,
+  from the selection toolbar and the block menu) takes the top-level blocks the
+  selection touches, serializes them with the editor's own `MD_STRINGIFY`, so
+  the new note holds the bytes the file would have, names it after the first
+  heading among them, else the first line, else Untitled (a name the vault
+  would refuse falls back rather than being sanitized), steps past what
+  `listWikiTargets` already holds like the rail's Untitled does, and creates it
+  through `createFileAt` before touching the buffer. The removal and the
+  `[[link]]` that replaces it land in one flush, so one undo restores both; the
+  created file stays, because the vault has no transaction and a note that
+  exists is truer than an edit that never happened.
+
+### Vault: writes, git and containment
 
 - **The auto-commit stages what the window's writers named.** A scheduler that
   names no paths makes the flush unscoped, which only the boot sweep and the
   post-sync drain do; a change nobody announced waits for a whole-tree caller.
   Unscoped `add -A` survives for a large vault's first commit, where a pathspec
   would exceed ARG_MAX (`apps/cli/src/server/vault/git-engine.ts`).
-
-- **The knowledge index does not persist a stat fingerprint.** A warm reconcile
-  over 2000 notes is ~105ms off the critical path; a second persisted table in a
-  cache whose recovery primitive is deleting the file is a crash waiting for a
-  missed re-create.
 
 - **NOTE HISTORY IS LOCAL, AND A RESTORE IS A WRITE.** The history surface reads
   the vault's own git repo, so it works offline with no remote. Restoring
@@ -310,6 +428,203 @@ carries the mechanism. The dangling-reference guard keeps the pointers honest.
 - **The vault dir and the data dir must be disjoint**, refused at boot: a data
   dir inside the vault gets committed and pushed, database and config included.
 
+- **`runGit` PREPENDS `--literal-pathspecs` TO EVERY INVOCATION.** A pathspec is
+  a glob, so `[a].md` names `a.md` too and a commit scoped to one note staged
+  its neighbour. The one argv builder is `apps/cli/src/server/vault/git-run.ts`.
+
+- **A MOVE IS A RENAME THAT KEEPS THE NAME, and `planMove` is its one verdict.**
+  The tree's drop target and the palette's "Move note to folder…" page both ask
+  `planMove` (`apps/desktop/src/renderer/app/sidebar/tree-ops.ts`) and refuse for
+  the same three reasons: itself, its own descendant, the folder it is already
+  in. A drop on a note row means that note's folder; a drop on the empty area
+  means the listing's scope, never the vault root. The drag's source is
+  component state, not `dataTransfer`, so a file dragged in from the desktop
+  has no source here and is ignored. No second write path: the move rides
+  `vault.rename`, which rewrites links, and the open note follows through
+  `openNoteAfterRename`.
+
+- **WHERE A PASTE LANDS IS A STORED VAULT CHOICE, and the host resolves it, not
+  the editor.** `<dataDir>/vault-prefs.json` holds `attachments`: the vault
+  root, beside the note, or one named folder (default `assets/`), read per
+  paste so a Settings or `inteligir vault attachments` change reaches the next
+  one. The editor hands the host a base name alone; the host answers the folder
+  through `attachmentDir` (`@repo/api/local/vault/attachment-location`, also
+  the CLI's `root | beside-note | folder:<path>` spelling) from the open note.
+  The folder is created on the first write; `setPrefs` refuses only a path that
+  is a file today, which would refuse every paste. `""` is the root on the
+  asset write's wire, because a vault path is never empty.
+  `apps/cli/src/server/vault/vault-prefs-store.ts`.
+
+- **THE OS SEES A VAULT ENTRY THROUGH MAIN ALONE, and main checks physically.**
+  Reveal in Finder and Open with default app ride `desktop:reveal-path` /
+  `desktop:open-path`: the page sends a vault-relative path, main parses it
+  with the vault grammar, joins it under the vault it launched with, realpaths
+  both sides and asks `pathContains` (`inteligir/server/path-containment`), so
+  a `..`, an absolute path or a symlink planted in the vault reaches no
+  `shell.*` call (`apps/desktop/src/main/vault-entry.ts`, tested). A browser
+  tab has no bridge and draws no row. Copy path and Copy absolute path need
+  no main: the listing already carries the root. The tree sorts folders first
+  either way and files by name or newest-first (`prefs.ts`, persisted); the
+  filter withholds rows that neither match nor hold a match and opens every
+  kept folder, without touching the fold state it restores when cleared.
+
+- **A SECOND VAULT GETS ITS OWN DATA DIR, AND A SWITCH IS A NEW CHILD, A NEW
+  SESSION AND A NEW WINDOW.** The default vault keeps the root data dir every
+  install already has; any other vault's db, index and `server.json` live in
+  `<root>/vaults/<sha256(path)[:16]>/`, derived once in `config.ts` so the
+  shell's child and `inteligir serve` name the same dir, and the root's
+  `config.json` is the selector both read. The root refuses a vault beneath it.
+  Cost accepted: the credential, the connectors and the agent default live in
+  the data dir, so a second vault starts signed out and unconfigured, which is
+  also what keeps it off the account's hosted remote. The shell switches only a
+  child it started (an adopted server is nobody's to restart) and only when
+  neither the vault nor the data dir is env-pinned: it stops the child, whose
+  ordered shutdown flushes the pending commit, rewrites `vaultDir`, re-resolves
+  as a boot would, boots the new child, and opens a new window on the new data
+  dir's session partition, since a `BrowserWindow`'s session is fixed at
+  creation; a vault revisited in one launch re-registers the app protocol on its
+  old partition. A child that fails to boot puts the previous vault back. The
+  folder is picked in main, so the page never names a path it was not handed;
+  the recent-vaults list is the shell's own `userData`, never a vault's.
+  `inteligir vault open <dir>` writes the same selector under the same plan
+  and refusals (`apps/cli/src/server/vault-switch.ts`, the one spelling both
+  run), and restarts nothing: the next `serve` is the switch.
+  `apps/desktop/src/main/vaults.ts` (the shell's policy over it),
+  `main/index.ts` (`switchVault`), `apps/desktop/src/vaults-state.ts`.
+
+### Knowledge: index, search and links
+
+- **The knowledge index does not persist a stat fingerprint.** A warm reconcile
+  over 2000 notes is ~105ms off the critical path; a second persisted table in a
+  cache whose recovery primitive is deleting the file is a crash waiting for a
+  missed re-create.
+
+- **RELATED IS ONE PANEL SECTION**: backlinks first because they are counted,
+  then the scorer's rows with their reasons, no dedup between the halves
+  (`apps/desktop/src/renderer/app/actions/related-section.tsx`). Outgoing links
+  stay absent (they are on screen as wiki-links); no graph view; the route stays
+  search-shaped (a `limit`, no `total`); suggestions are fetched only while the
+  section is unfolded; refresh rides the existing `files-changed` and
+  `content-changed` kinds, which sweep the `knowledgeRoot` family whole because
+  a link into a note lives in another note's bytes.
+
+- **Stemming is a SHADOW of the indexed text, never a rewrite of it.** Literal
+  and stem columns at equal bm25 weight; `@repo/notes/knowledge/search-query`
+  owns the one policy both engines run. FTS5's `porter` tokenizer is rejected
+  for a measured reason: it stems the index, so a prefix query for a half-typed
+  word stops retrieving (86 of 1,555 prefixes over the labelled corpus), and it
+  puts half a shared policy inside SQLite's C. Every term asks both halves, and
+  that OR is the exact tier: a doc holding the literal word scores about twice a
+  stem-only hit. Residual: the title/body gap is 10x, so a title collision still
+  beats a body exact match. `search-query.ts` and `knowledge/search-excerpt.ts`.
+
+- **`KnowledgeIndex` in @repo/notes is not dead code.** `@repo/notes` carries no
+  sqlite dependency (`SqlDriver` is injected), so this in-memory composition is
+  the only way the package tests its own engine.
+
+- **THE CLIENT DOES NOT DECIDE WHAT A DOC IS.** `@repo/notes/knowledge/doc-file`
+  is the one answer: `isDocPath` (`.md`, `.markdown`, `.mdx`, `.txt`) and
+  `docStem`. A private `.md` rule in a client hides every `.txt` note and
+  disagrees on display the moment a name is not lowercase.
+  `apps/desktop/src/renderer/app/__tests__/vault-hooks.test.ts` walks the
+  renderer for either shape.
+
+- **The knowledge scan disables `codeIndented` and `htmlFlow`**
+  (`@repo/notes/markdown/scan-parse`). A checkbox is addressed by position among
+  a doc's task items, so the scan's count must agree with the editor's, whose
+  plugin list disables both too; pinned by
+  `packages/notes/src/__tests__/task-ordinal.test.ts`.
+
+- **THE SCAN'S GRAMMAR IS NOT THE EDITOR'S, and `verbatim-spans` is the one
+  bridge.** The scan is total so a malformed tag cannot cost a note its index
+  row; the editor's MDX tokenizer throws. A `targetSpan` is a licence to rewrite
+  bytes, so the scan runs the editor's plugin list as a bare parse
+  (`@repo/notes/markdown/verbatim-spans`) and withholds the span inside those
+  ranges. Unifying the grammars is rejected: one malformed tag would stop a note
+  indexing. A doc the editor refuses yields no ranges, correctly: it opens raw.
+
+- **TAGS ARE A RAIL VIEW, AND A TAG RENAME IS THE LINK RENAME'S SURGERY.** The
+  rail's third view lists `knowledge.tags` folded by `/`, a row's count being
+  its family's; a click scopes the recents list to that tag through the search
+  route's `tag:` term, and a `#tag` chip asks for the same through
+  `@repo/editor/tag-request`, never the palette. `knowledge.renameTag` moves a
+  tag and everything nested under it, matched case-insensitively because the
+  index is: inline spans are the scan's own, verified against the raw bytes and
+  withheld inside verbatim ranges (`documentTagSpans`), frontmatter `tags`
+  re-serialize through the properties panel's CST edit, and every write is
+  `writeIfUnchanged` from a snapshot, so a note that changed mid-rename is
+  reported `changed`, never overwritten. The one name grammar is
+  `isTagName` in `@repo/notes/knowledge/link-extract`, shared by the chip, the
+  scan and the contract. `@repo/notes/knowledge/rename-tags.ts`,
+  `apps/cli/src/server/knowledge/rename-tag.ts`,
+  `apps/desktop/src/renderer/app/sidebar/tags-view.tsx`, and `inteligir tag
+rename`.
+
+- **VAULT SEARCH IS A LITERAL SCAN BESIDE THE RANKED INDEX, and a replace
+  rewrites exactly what the rows showed.** FTS5 cannot say where inside a line
+  a hit sits, so `knowledge.matches` (⌘⇧F, `inteligir matches`) scans doc
+  bodies with ONE matcher, `@repo/notes/knowledge/text-matches`, that the
+  listing and the rewrite both run; the store only pre-narrows by an ascii
+  substring (`docTexts`), because LIKE folds ascii case alone. A replace across
+  notes is a per-file write with the hash of the bytes it read, and a mismatch
+  is REPORTED by name, never diff3-merged: the user named exact bytes
+  (`apps/desktop/src/renderer/app/palette/vault-replace.ts`). A cut listing
+  cannot replace: it does not name every note. The run reports a count after
+  every note and honours a cancel between notes, never inside one, and the
+  summary counts what a stop left untouched; the palette stays open on the run
+  so it can show the count and offer the cancel. The jump lands by ordinal among
+  the note's matches, because a markdown column is not a Slate offset. ⌘⇧F is
+  the one shifted row in `global-shortcuts.ts`; a row claims shift explicitly
+  so ⌘⇧K stays the editor's.
+
+- **AN UNLINKED MENTION IS THE STEM OR AN ALIAS IN PROSE, and Link rewrites the
+  bytes the row showed.** `knowledge.unlinkedMentions` (`inteligir unlinked`)
+  runs the literal scan's matcher over the target's names as whole words, any
+  case, one row per note on its first mention, excluding the note itself and
+  every note that already links here; a hit inside code, math, a link, a url,
+  frontmatter, an html tag or a comment marker is withheld by the scan's own
+  regexes as well as the editor's verbatim ranges, because those ranges come
+  back empty for a doc the editor's grammar refuses. Not the H1: `[[H1 text]]`
+  resolves to nothing unless it is the stem or an alias. Link wraps exactly
+  that site as `[[Stem]]`, or `[[Stem|as written]]` when the prose differs,
+  through a write with the hash of the bytes it read; a mismatch is reported,
+  never merged. `@repo/notes/knowledge/unlinked-mentions.ts`,
+  `apps/desktop/src/renderer/app/actions/link-mention.ts`.
+
+- **A PROBLEM IS THE RESOLVER'S VERDICT, never a scan's.** `knowledge.problems`
+  (the palette's Problems page, `inteligir problems`) reads the resolved graph
+  alone: a wiki or md link the resolver answered null is an unresolved link
+  (once per source and target, on its first line), one that is embedded or
+  names a file is a missing embed, a doc no other doc links to is an orphan,
+  and a stem spelled at two paths is a duplicate the resolver is quietly
+  breaking a tie on. Every row disappears with the sweep that fixes it, so no
+  row is ever stale against the index. Daily notes and templates are orphans by
+  design and are left out unless asked (`includeConventionFolders`); the two
+  folders are spelled once, in `@repo/notes/templates/placeholders`. A row lands
+  on the link ELEMENT (`packages/editor/src/link-locate.ts`), not the find bar:
+  a wiki chip is an inline void whose label is a prop, so the find bar cannot
+  see it; the find bar is the fallback when the note no longer carries the
+  link. Each family is capped on its own with its own total.
+  `@repo/notes/knowledge/vault-problems.ts`.
+
+- **A TAG'S NOTES ARE A LISTING, NOT A SEARCH.** `knowledge.tagNotes`
+  (`inteligir tag notes <tag>`) answers the tag's family by path with the
+  whole count, paged by `limit` and `offset`, from the index alone: the search
+  route ranks and stops at its ceiling, so a tag on more notes than that showed
+  a hundred with no sign of a cut. The family is one predicate,
+  `notesInTagFamily` (`@repo/notes/knowledge/tag-notes`), which the rename's
+  candidate list runs too. The rail re-reads one growing page rather than
+  stitching pages, because the list it draws is filtered by the folder scope
+  and sorted by recency after the fact, and says `listed of total` while cut.
+  `apps/desktop/src/renderer/app/sidebar/tags-view.tsx`.
+
+### Agents and threads
+
+- **A turn row's `sourceSeqEnd` names its own contributors**, not every
+  turn-scoped event. A streaming assistant message is turn-scoped but lands as a
+  top-level row; counting it moved the turn row and resent the whole subtree on
+  every token.
+
 - **Ingest is ONE transaction.** Append, lifecycle projection and queue touch
   happen in one immediate transaction; notifications flush after commit.
   Lifecycle CAS predicates include the turn identity so a late completion for
@@ -319,18 +634,6 @@ carries the mechanism. The dangling-reference guard keeps the pointers honest.
   under a counted commit hold that defers the vault debounce and blocks a sync.
   Committing the whole dirty tree attributes a concurrent turn's writes to
   whoever settles first (`apps/cli/src/server/agents/agent-commits.ts`).
-
-- **`runGit` PREPENDS `--literal-pathspecs` TO EVERY INVOCATION.** A pathspec is
-  a glob, so `[a].md` names `a.md` too and a commit scoped to one note staged
-  its neighbour. The one argv builder is `apps/cli/src/server/vault/git-run.ts`.
-
-- **THE SERVER IS SPLIT ALONG ONE-RESPONSIBILITY SEAMS**: `vault/git-run` /
-  `git-porcelain` / `git-bootstrap` / `git-engine`; `cloud/sync-pass` /
-  `socket-link` / `sync-cadence`; `agents/interaction-waiters`
-  beside a watchdog that sweeps per-turn timestamps rather than re-arming a
-  timer per frame; `writeTransaction` in `@repo/db/connection` as the one
-  spelling of `BEGIN IMMEDIATE`. `ThreadService.boot()` is called from the
-  composition root because crash recovery writes.
 
 - **THE AGENT SURFACE IS THE ⌘K ACTION COMPOSER AND THE RIGHT PANEL** (what it
   retired is the register on #645; do not bring any of it back). An action is an
@@ -352,11 +655,6 @@ carries the mechanism. The dangling-reference guard keeps the pointers honest.
   `apps/cli/src/server/comments/comments-service.ts` and
   `apps/cli/src/commands/comment.ts`.
 
-- **WINDOW-LEVEL HOSTS MOUNT AT THE ROOT ROUTE.** `ConfirmDialogHost`, `Toaster`
-  and the one `TooltipProvider` live in
-  `apps/desktop/src/renderer/routes/__root.tsx`; a host mounted by one route
-  leaves another route's `confirm()` parked on a dialog that never opens.
-
 - **A VIEW CONTEXT RIDES THE MESSAGE, and it is a statement about the past.**
   What the user was looking at travels on the send (`@repo/domain/view-context`),
   never as a thread column or a server-side "current view" that has no owner.
@@ -367,29 +665,6 @@ carries the mechanism. The dangling-reference guard keeps the pointers honest.
   field; real offsets need a Slate to markdown offset map.
   `apps/cli/src/server/agents/view-context-prompt.ts`.
 
-- **THE RAIL IS THE WORKSPACE; THE TOP BAR IS THE OPEN NOTE.** The rail's
-  header is two rows: the vault button alone (recent vaults, Open another
-  vault…), because a vault's name is the one label that must never truncate,
-  then the Recent | Files | Tags switch beside New note and New folder; search,
-  sync, deleted notes and Settings follow. Find in note, copy link, comments,
-  export and the panel toggle live above the note. The folder scope is set by the top bar's breadcrumb
-  and cleared from the scope row above the list, never picked in the header:
-  the header switches the vault, the breadcrumb narrows within it. Two lists, one rule: the
-  recents view is one list by recency with a folder hint, and folders exist only
-  in the tree. A create lands where an IDE's would, in the tree's selected
-  folder, else at the scope. The rail hides what the user did not write
-  (`@repo/notes/knowledge/doc-file`'s `isVaultMetadataPath`: comment sidecars,
-  dot-entries); the server's listing stays complete because the CLI and the
-  agent read it. Under the macOS shell the rail reserves the traffic-light
-  corner (`apps/desktop/src/renderer/app/title-bar.ts`); nothing else is a
-  logo. `apps/desktop/src/renderer/app/sidebar/sidebar.tsx`.
-
-- **THE WIKI-LINK PREVIEW IS A HOVER CARD, NOT A TOOLTIP.** Base UI's
-  PreviewCard (`@repo/ui/components/hover-card`): the pointer can move into it,
-  the text selects, the title opens the note. Base UI's Popover has no hover
-  mode; a hand-positioned `pointer-events-none` div is what it replaced
-  (`packages/editor/src/wiki-chip.tsx`).
-
 - **THE DEFAULT HARNESS IS A STORED CHOICE, read per thread start.**
   `<dataDir>/agent-prefs.json`, edited from Settings › Agents and `inteligir
 agents default`; unset falls back
@@ -398,35 +673,6 @@ agents default`; unset falls back
   (`threads.providerId`); the choice reaches the next one. The store is
   `apps/cli/src/server/agents/agent-prefs-store.ts`; the one fallback rule is
   `defaultHarnessId` in `agent-driver.ts`.
-
-- **RELATED IS ONE PANEL SECTION**: backlinks first because they are counted,
-  then the scorer's rows with their reasons, no dedup between the halves
-  (`apps/desktop/src/renderer/app/actions/related-section.tsx`). Outgoing links
-  stay absent (they are on screen as wiki-links); no graph view; the route stays
-  search-shaped (a `limit`, no `total`); suggestions are fetched only while the
-  section is unfolded; refresh rides the existing `files-changed` and
-  `content-changed` kinds, which sweep the `knowledgeRoot` family whole because
-  a link into a note lives in another note's bytes.
-
-- **THE EDITOR COLUMN SHOWS ONE NOTE.** No second pane and no pane vocabulary:
-  one `OpenNoteStore`, and every surface reads the open note. Registries keyed
-  on a note's path keep that key so a late answer cannot land on the note that
-  replaced it. There is no raw/rich toggle: the surface derives from
-  `packages/editor/src/note/markdown-gate.ts` alone.
-
-- **THE APPEARANCE DIALS ARE ONE DECLARATION, READ THROUGH `.typeset-docs`.**
-  The tokens are declared once in `apps/desktop/src/renderer/styles/globals.css`.
-  No accent axis: nothing in Plate consumes a hue.
-
-- **Stemming is a SHADOW of the indexed text, never a rewrite of it.** Literal
-  and stem columns at equal bm25 weight; `@repo/notes/knowledge/search-query`
-  owns the one policy both engines run. FTS5's `porter` tokenizer is rejected
-  for a measured reason: it stems the index, so a prefix query for a half-typed
-  word stops retrieving (86 of 1,555 prefixes over the labelled corpus), and it
-  puts half a shared policy inside SQLite's C. Every term asks both halves, and
-  that OR is the exact tier: a doc holding the literal word scores about twice a
-  stem-only hit. Residual: the title/body gap is 10x, so a title collision still
-  beats a body exact match. `search-query.ts` and `knowledge/search-excerpt.ts`.
 
 - **CONNECTORS ARE AN APP-OWNED REGISTRY, injected per-session over ACP**
   (reversing the codex-owned registry, whose premise died with the ACP runtime).
@@ -446,32 +692,39 @@ agents default`; unset falls back
   a getter read at every spawn, because read once `INTELIGIR_CONNECTED_DIRS`
   froze at the first turn (`apps/cli/src/server/agents/agent-shell-env.ts`).
 
+### Dictation
+
 - **DICTATION IS STREAMING PARAKEET, REVERSING whisper.cpp** (#574 → #578, by
   owner decision; do not "fix" it back). whisper gave punctuation and capitals
   but made dictation batch; the owner chose live partials. So the engine is
   `sherpa-onnx-node` with a streaming Parakeet transducer, and the final has no
   punctuation and no capitalization. That trade is the point.
+
 - **THE MODEL FILE IS THE SWITCH.** No `voiceEnabled` flag: `install` fetches
   against the pinned sha, `remove` deletes, off is no model on disk. The mic
   streams over a websocket; there is no batch procedure. The pick, the atomic
   download and the pure-JS `.tar.bz2` extraction are
   `apps/cli/src/server/voice/model-catalog.ts` and `model-store.ts`.
+
 - **A PERSISTENT SESSION WORKER, not one per clip, and THE SESSION IS BOUNDED.**
   The model loads once per hold and stays warm. The worker is not optional:
   `better-sqlite3` is synchronous and the watcher's liveness ping rides a bare
   timer, so an inline native decode would stall a save, a query and the ping
   together. A hold is capped at `VOICE_MAX_AUDIO_SECONDS`. Teardown on every
   exit path is `apps/cli/src/server/voice/stream-session.ts`.
+
 - **A DEDICATED DICTATION WEBSOCKET, off the invalidation bus.** `/voice/stream`
   carries PCM16 up and partial/final/error down; `/ws` carries pings and never a
   payload. It sits behind the same loopback guard, is exempt from the
   route-table guard like `/ws`, and its sockets are closed by name at teardown
   so a live hold cannot stall exit.
+
 - **THE RENDERER STREAMS WITH A `ScriptProcessorNode`, not an `AudioWorklet`.**
   A worklet is fetched as a script and the prod CSP names `worker-src 'none'`;
   ScriptProcessorNode is deprecated but loads no module. Partials render outside
   the composer field and only the final splices in
   (`apps/desktop/src/renderer/app/voice/dictation.ts`).
+
 - **THE SHA GATE IS THE REAL GUARD; the `modelUnusable` nuke is the backstop.**
   Only bytes matching the pin reach the recognizer. onnxruntime does not
   translate a parse failure into a catchable error, so an unparseable model
@@ -480,6 +733,8 @@ agents default`; unset falls back
   answers `unavailable`. The shell grants `media` origin-scoped. No CLI verb:
   holding a key over a live microphone is not something a shell can express.
   English only.
+
+### Cloud, sync and accounts
 
 - **THE DEVICE CREDENTIAL IS THE SYNC SWITCH, and it lives in the data dir.**
   `<dataDir>/device-credential` at 0600: not in `inteligir.db` (the thread log it
@@ -516,6 +771,7 @@ agents default`; unset falls back
   a password. The one flow both the CLI and the phone run is
   `@repo/api/cloud/device/login-flow.ts`; the route is
   `apps/web/src/worker/device/login.ts`.
+
 - **`@repo/api/cloud` IS THE CLIENT RUNTIME CORE, not only the wire**:
   `bytes.ts`, `approval-slot.ts` (connector OAuth's one slot),
   `device/login-flow.ts`, `sync/sync-session.ts`. The CLI and the
@@ -582,12 +838,34 @@ agents default`; unset falls back
   delivery with exactly-once deletion by the owning claim, so the apply must be
   idempotent on the capture id (`@repo/api/cloud/captures/captures-schema`).
 
-- **THE PLATE SLASH MENU AND BOTTOM TOOLBAR ARE THE INSERTION SURFACES.** Slash
-  items are grouped data in `packages/editor/src/slash-menu.tsx`; the toolbar is
-  selection-stateless. Every insertable row's markdown must re-parse to a
-  modeled construct; the kit-parity vocabulary pins the set. Legacy
-  `<!-- inteligir:thread anc_… -->` markers parse as opaque comments and are
-  preserved; nothing writes new ones.
+- **Better Auth's `baseURL` is derived per-request from the request origin.**
+  Every hostname reaching this Worker is one the deployment owns, and Cloudflare
+  routes by hostname; a fixed fallback would mint reset links at the wrong
+  deployment. Revisit if a hostname the deployment does not control reaches the
+  Worker (`apps/web/src/worker/auth/auth.ts`).
+
+- **Sign-up is invite-gated by a Worker route in front of Better Auth**
+  (`apps/web/src/worker/auth/invite.ts`): claims the code atomically and
+  forwards into the one instance with `disableSignUp` off; every other instance
+  carries the flag. `apps/web/README.md` § Auth.
+
+- **The D1 auth schema ships via `drizzle-kit push`; there are no migration
+  files.** One deployer and an additive schema; `apps/web/vitest.config.ts`
+  derives the test DDL by `drizzle-kit export`. A second deployer or a
+  destructive column change is the trigger for migrations. Never flip the
+  timestamp mode in place: both modes read the same INTEGER column and a
+  redeploy without `UPDATE <table> SET <col> = <col> * 1000` reads every date as
+  1970 and expires every session.
+
+### Server process and the desktop shell
+
+- **THE SERVER IS SPLIT ALONG ONE-RESPONSIBILITY SEAMS**: `vault/git-run` /
+  `git-porcelain` / `git-bootstrap` / `git-engine`; `cloud/sync-pass` /
+  `socket-link` / `sync-cadence`; `agents/interaction-waiters`
+  beside a watchdog that sweeps per-turn timestamps rather than re-arming a
+  timer per frame; `writeTransaction` in `@repo/db/connection` as the one
+  spelling of `BEGIN IMMEDIATE`. `ThreadService.boot()` is called from the
+  composition root because crash recovery writes.
 
 - **ONE BINARY, TWO MODES: `inteligir serve` IS the server, and `npx` is a verb**
   (reversing the launcher-boots-in-process line). `npx inteligir serve --open`
@@ -660,52 +938,56 @@ create`, never by electron-builder. `autoDownload` and `autoInstallOnAppQuit`
   the renderer. `apps/desktop/src/main/updates.ts` (the policy over an
   injectable port) and `apps/desktop/src/update-state.ts` (the one state).
 
-- **Better Auth's `baseURL` is derived per-request from the request origin.**
-  Every hostname reaching this Worker is one the deployment owns, and Cloudflare
-  routes by hostname; a fixed fallback would mint reset links at the wrong
-  deployment. Revisit if a hostname the deployment does not control reaches the
-  Worker (`apps/web/src/worker/auth/auth.ts`).
+- **SPELL CHECK IS THE SESSION'S SWITCH, AND THE PAGE KEEPS THE CHOICE.** Only
+  main can flip Chromium's checker, so Settings › Editor asks through the bridge
+  (`desktop:spellcheck-*`, every frame parsed on both sides) and stores the
+  choice in the page's own prefs, re-applied before the first paint; no
+  main-side store, because the choice is a page preference like the theme. The
+  language list is offered only where Electron honours it: on macOS the OS
+  checker detects the language itself and the setter is a no-op, so the row
+  says so instead of pretending. Outside the shell there is no bridge and no
+  row. `apps/desktop/src/main/spellcheck.ts` (the policy over a port),
+  `apps/desktop/src/spellcheck-state.ts` (the one state),
+  `apps/desktop/src/renderer/app/desktop-spellcheck.ts`.
 
-- **Sign-up is invite-gated by a Worker route in front of Better Auth**
-  (`apps/web/src/worker/auth/invite.ts`): claims the code atomically and
-  forwards into the one instance with `disableSignUp` off; every other instance
-  carries the flag. `apps/web/README.md` § Auth.
+### Desktop workspace surfaces
 
-- **The D1 auth schema ships via `drizzle-kit push`; there are no migration
-  files.** One deployer and an additive schema; `apps/web/vitest.config.ts`
-  derives the test DDL by `drizzle-kit export`. A second deployer or a
-  destructive column change is the trigger for migrations. Never flip the
-  timestamp mode in place: both modes read the same INTEGER column and a
-  redeploy without `UPDATE <table> SET <col> = <col> * 1000` reads every date as
-  1970 and expires every session.
+- **WINDOW-LEVEL HOSTS MOUNT AT THE ROOT ROUTE.** `ConfirmDialogHost`, `Toaster`
+  and the one `TooltipProvider` live in
+  `apps/desktop/src/renderer/routes/__root.tsx`; a host mounted by one route
+  leaves another route's `confirm()` parked on a dialog that never opens.
 
-- **`KnowledgeIndex` in @repo/notes is not dead code.** `@repo/notes` carries no
-  sqlite dependency (`SqlDriver` is injected), so this in-memory composition is
-  the only way the package tests its own engine.
+- **THE RAIL IS THE WORKSPACE; THE TOP BAR IS THE OPEN NOTE.** The rail's
+  header is two rows: the vault button alone (recent vaults, Open another
+  vault…), because a vault's name is the one label that must never truncate,
+  then the Recent | Files | Tags switch beside New note and New folder; search,
+  sync, deleted notes and Settings follow. Find in note, copy link, comments,
+  export and the panel toggle live above the note. The folder scope is set by the top bar's breadcrumb
+  and cleared from the scope row above the list, never picked in the header:
+  the header switches the vault, the breadcrumb narrows within it. Two lists, one rule: the
+  recents view is one list by recency with a folder hint, and folders exist only
+  in the tree. A create lands where an IDE's would, in the tree's selected
+  folder, else at the scope. The rail hides what the user did not write
+  (`@repo/notes/knowledge/doc-file`'s `isVaultMetadataPath`: comment sidecars,
+  dot-entries); the server's listing stays complete because the CLI and the
+  agent read it. Under the macOS shell the rail reserves the traffic-light
+  corner (`apps/desktop/src/renderer/app/title-bar.ts`); nothing else is a
+  logo. `apps/desktop/src/renderer/app/sidebar/sidebar.tsx`.
 
-- **THE CLIENT DOES NOT DECIDE WHAT A DOC IS.** `@repo/notes/knowledge/doc-file`
-  is the one answer: `isDocPath` (`.md`, `.markdown`, `.mdx`, `.txt`) and
-  `docStem`. A private `.md` rule in a client hides every `.txt` note and
-  disagrees on display the moment a name is not lowercase.
-  `apps/desktop/src/renderer/app/__tests__/vault-hooks.test.ts` walks the
-  renderer for either shape.
+- **A NOTE'S FACTS ARE READ WHERE THEY ARE CHEAP, and the count rides the
+  serializer.** The Metadata tab's "About" block is folded by default because
+  unfolding it is what reads the git log for the created date (the oldest
+  revision, the last row of the last page of `vault.history`, re-read only
+  while it is still null). Words, characters and reading time are counted by
+  `@repo/editor/note-stats` over the editor's lowest blocks, beside the TOC's
+  walk so both agree on the document, and published by the serializer's
+  debounce, never per keystroke; the panel reads a path-keyed store like the
+  live editor's. The top bar's breadcrumb scopes the rail to a folder, so the
+  folder is the workspace's state and a prop to both, not a request store: a
+  store is for a surface with no route to the owner, and both are one hop away.
+  `apps/desktop/src/renderer/app/actions/note-facts.tsx`.
 
-- **The knowledge scan disables `codeIndented` and `htmlFlow`**
-  (`@repo/notes/markdown/scan-parse`). A checkbox is addressed by position among
-  a doc's task items, so the scan's count must agree with the editor's, whose
-  plugin list disables both too; pinned by
-  `packages/notes/src/__tests__/task-ordinal.test.ts`.
-
-- **THE SCAN'S GRAMMAR IS NOT THE EDITOR'S, and `verbatim-spans` is the one
-  bridge.** The scan is total so a malformed tag cannot cost a note its index
-  row; the editor's MDX tokenizer throws. A `targetSpan` is a licence to rewrite
-  bytes, so the scan runs the editor's plugin list as a bare parse
-  (`@repo/notes/markdown/verbatim-spans`) and withholds the span inside those
-  ranges. Unifying the grammars is rejected: one malformed tag would stop a note
-  indexing. A doc the editor refuses yields no ranges, correctly: it opens raw.
-
-- **Frontmatter is the ONLY property store.** No metadata table. YAML the typing
-  rules cannot represent is preserved byte-exactly.
+### Repo guards, vendoring and tooling
 
 - **No coverage tooling, on purpose.** Targeted structural invariants instead:
   the dependency DAG and platform rules, ws change-kind reachability
@@ -748,216 +1030,10 @@ create`, never by electron-builder. `autoDownload` and `autoInstallOnAppQuit`
   agent-browser is pinned by hand in `.github/workflows/ci.yml` because a global
   install rides no lockfile. The arguments are `pnpm-workspace.yaml`'s comments.
 
-- **A MOVE IS A RENAME THAT KEEPS THE NAME, and `planMove` is its one verdict.**
-  The tree's drop target and the palette's "Move note to folder…" page both ask
-  `planMove` (`apps/desktop/src/renderer/app/sidebar/tree-ops.ts`) and refuse for
-  the same three reasons: itself, its own descendant, the folder it is already
-  in. A drop on a note row means that note's folder; a drop on the empty area
-  means the listing's scope, never the vault root. The drag's source is
-  component state, not `dataTransfer`, so a file dragged in from the desktop
-  has no source here and is ignored. No second write path: the move rides
-  `vault.rename`, which rewrites links, and the open note follows through
-  `openNoteAfterRename`.
-- **TEMPLATES ARE A FOLDER, AND PLACEHOLDERS EXPAND ON BYTES BEFORE ANY PARSER.**
-  A template is a doc under `templates/` (a fixed convention like the daily
-  folder, no setting); `templates/Daily.md` shapes the daily note. Exactly three
-  placeholders, `{{date}}`, `{{time}}`, `{{title}}`, replaced textually on the
-  raw markdown, so the formula grammar never sees them and every other `{{…}}`
-  is a pill left byte-exact. Insert lands the body through the paste parser at
-  the selection and leaves the template's frontmatter behind; a note minted
-  from a template drops the template's `id:`, because two notes with one id
-  make the uuid link tier ambiguous. `@repo/notes/templates/placeholders`,
-  `packages/editor/src/insert-template.ts`.
-- **TAGS ARE A RAIL VIEW, AND A TAG RENAME IS THE LINK RENAME'S SURGERY.** The
-  rail's third view lists `knowledge.tags` folded by `/`, a row's count being
-  its family's; a click scopes the recents list to that tag through the search
-  route's `tag:` term, and a `#tag` chip asks for the same through
-  `@repo/editor/tag-request`, never the palette. `knowledge.renameTag` moves a
-  tag and everything nested under it, matched case-insensitively because the
-  index is: inline spans are the scan's own, verified against the raw bytes and
-  withheld inside verbatim ranges (`documentTagSpans`), frontmatter `tags`
-  re-serialize through the properties panel's CST edit, and every write is
-  `writeIfUnchanged` from a snapshot, so a note that changed mid-rename is
-  reported `changed`, never overwritten. The one name grammar is
-  `isTagName` in `@repo/notes/knowledge/link-extract`, shared by the chip, the
-  scan and the contract. `@repo/notes/knowledge/rename-tags.ts`,
-  `apps/cli/src/server/knowledge/rename-tag.ts`,
-  `apps/desktop/src/renderer/app/sidebar/tags-view.tsx`, and `inteligir tag
-rename`.
-- **VAULT SEARCH IS A LITERAL SCAN BESIDE THE RANKED INDEX, and a replace
-  rewrites exactly what the rows showed.** FTS5 cannot say where inside a line
-  a hit sits, so `knowledge.matches` (⌘⇧F, `inteligir matches`) scans doc
-  bodies with ONE matcher, `@repo/notes/knowledge/text-matches`, that the
-  listing and the rewrite both run; the store only pre-narrows by an ascii
-  substring (`docTexts`), because LIKE folds ascii case alone. A replace across
-  notes is a per-file write with the hash of the bytes it read, and a mismatch
-  is REPORTED by name, never diff3-merged: the user named exact bytes
-  (`apps/desktop/src/renderer/app/palette/vault-replace.ts`). A cut listing
-  cannot replace: it does not name every note. The run reports a count after
-  every note and honours a cancel between notes, never inside one, and the
-  summary counts what a stop left untouched; the palette stays open on the run
-  so it can show the count and offer the cancel. The jump lands by ordinal among
-  the note's matches, because a markdown column is not a Slate offset. ⌘⇧F is
-  the one shifted row in `global-shortcuts.ts`; a row claims shift explicitly
-  so ⌘⇧K stays the editor's.
-- **SPELL CHECK IS THE SESSION'S SWITCH, AND THE PAGE KEEPS THE CHOICE.** Only
-  main can flip Chromium's checker, so Settings › Editor asks through the bridge
-  (`desktop:spellcheck-*`, every frame parsed on both sides) and stores the
-  choice in the page's own prefs, re-applied before the first paint; no
-  main-side store, because the choice is a page preference like the theme. The
-  language list is offered only where Electron honours it: on macOS the OS
-  checker detects the language itself and the setter is a no-op, so the row
-  says so instead of pretending. Outside the shell there is no bridge and no
-  row. `apps/desktop/src/main/spellcheck.ts` (the policy over a port),
-  `apps/desktop/src/spellcheck-state.ts` (the one state),
-  `apps/desktop/src/renderer/app/desktop-spellcheck.ts`.
-- **A BINDING IS SPELLED FROM THE TABLE ITS LISTENER READS, never as a
-  literal.** Four tables own every chord: `GLOBAL_SHORTCUTS`
-  (`apps/desktop/src/renderer/app/global-shortcuts.ts`, the window listener),
-  `MARK_SHORTCUTS` (`packages/editor/src/mark-shortcuts.ts`, which the marks
-  kit BUILDS Plate's `shortcuts` config from, so Plate's own defaults never
-  run), `EDITOR_SHORTCUTS` (`packages/editor/src/editor-shortcuts.ts`) and
-  `FIND_BAR_SHORTCUTS` (`packages/editor/src/find-bar.tsx`), and each handler
-  matches by walking its table. The palette's "Keyboard shortcuts" page, every
-  `CommandShortcut` and the selection toolbar's tooltips are derived from those
-  rows through `spellHotkey` (`@repo/editor/hotkey-spelling`: ⌃⌥⇧⌘ on a mac
-  keyboard, `Ctrl+Shift+…` elsewhere), so a rebinding cannot leave a stale
-  label behind. `shortcut-tables.test.ts` refuses a chord two tables share,
-  because a key both claim runs both. ⌘O is Obsidian's quick
-  switcher (the palette with its commands folded away) and ⌘, is Settings; a
-  browser tab may keep either for itself, the shell delivers both.
-
-- **AN UNLINKED MENTION IS THE STEM OR AN ALIAS IN PROSE, and Link rewrites the
-  bytes the row showed.** `knowledge.unlinkedMentions` (`inteligir unlinked`)
-  runs the literal scan's matcher over the target's names as whole words, any
-  case, one row per note on its first mention, excluding the note itself and
-  every note that already links here; a hit inside code, math, a link, a url,
-  frontmatter, an html tag or a comment marker is withheld by the scan's own
-  regexes as well as the editor's verbatim ranges, because those ranges come
-  back empty for a doc the editor's grammar refuses. Not the H1: `[[H1 text]]`
-  resolves to nothing unless it is the stem or an alias. Link wraps exactly
-  that site as `[[Stem]]`, or `[[Stem|as written]]` when the prose differs,
-  through a write with the hash of the bytes it read; a mismatch is reported,
-  never merged. `@repo/notes/knowledge/unlinked-mentions.ts`,
-  `apps/desktop/src/renderer/app/actions/link-mention.ts`.
-- **A PIN IS THE FRONTMATTER KEY `pinned: true`, AND ITS EDIT IS A LINE CUT.**
-  Pinning travels with the file, so the recents' Pinned group agrees on every
-  device and with the agent. `pinnedFrontmatterYaml` in
-  `@repo/notes/markdown/frontmatter` cuts or appends the key's own lines like
-  `removeFrontmatterId` does, rather than re-serializing through
-  `serializeProperties`, which restyles every flow list it re-emits; unpinning
-  removes the key, never writes `false`, and a block it empties goes with it.
-  One desktop function behind the Metadata tab, the tree and list menus and
-  the palette (`apps/desktop/src/renderer/app/note/pin-note.ts`): the open
-  note takes the edit through the live editor's frontmatter node, the
-  properties panel's own path, so the buffer and the autosave carry it; any
-  other note is read, edited and written with the hash of what was read, and a
-  mismatch is reported, never merged. The pinned set every surface shows is
-  the index's (`usePinnedPaths`), so a pin appears after the sweep, not before.
-
-- **WHERE A PASTE LANDS IS A STORED VAULT CHOICE, and the host resolves it, not
-  the editor.** `<dataDir>/vault-prefs.json` holds `attachments`: the vault
-  root, beside the note, or one named folder (default `assets/`), read per
-  paste so a Settings or `inteligir vault attachments` change reaches the next
-  one. The editor hands the host a base name alone; the host answers the folder
-  through `attachmentDir` (`@repo/api/local/vault/attachment-location`, also
-  the CLI's `root | beside-note | folder:<path>` spelling) from the open note.
-  The folder is created on the first write; `setPrefs` refuses only a path that
-  is a file today, which would refuse every paste. `""` is the root on the
-  asset write's wire, because a vault path is never empty.
-  `apps/cli/src/server/vault/vault-prefs-store.ts`.
-
-- **THE OS SEES A VAULT ENTRY THROUGH MAIN ALONE, and main checks physically.**
-  Reveal in Finder and Open with default app ride `desktop:reveal-path` /
-  `desktop:open-path`: the page sends a vault-relative path, main parses it
-  with the vault grammar, joins it under the vault it launched with, realpaths
-  both sides and asks `pathContains` (`inteligir/server/path-containment`), so
-  a `..`, an absolute path or a symlink planted in the vault reaches no
-  `shell.*` call (`apps/desktop/src/main/vault-entry.ts`, tested). A browser
-  tab has no bridge and draws no row. Copy path and Copy absolute path need
-  no main: the listing already carries the root. The tree sorts folders first
-  either way and files by name or newest-first (`prefs.ts`, persisted); the
-  filter withholds rows that neither match nor hold a match and opens every
-  kept folder, without touching the fold state it restores when cleared.
-- **A NOTE'S FACTS ARE READ WHERE THEY ARE CHEAP, and the count rides the
-  serializer.** The Metadata tab's "About" block is folded by default because
-  unfolding it is what reads the git log for the created date (the oldest
-  revision, the last row of the last page of `vault.history`, re-read only
-  while it is still null). Words, characters and reading time are counted by
-  `@repo/editor/note-stats` over the editor's lowest blocks, beside the TOC's
-  walk so both agree on the document, and published by the serializer's
-  debounce, never per keystroke; the panel reads a path-keyed store like the
-  live editor's. The top bar's breadcrumb scopes the rail to a folder, so the
-  folder is the workspace's state and a prop to both, not a request store: a
-  store is for a surface with no route to the owner, and both are one hop away.
-  `apps/desktop/src/renderer/app/actions/note-facts.tsx`.
-- **GO TO HEADING IS THE PALETTE OVER THE TOC'S WALK, AND AN EXTRACT IS ONE
-  HISTORY BATCH.** ⌘⇧O (a shifted row in `GLOBAL_SHORTCUTS`) opens the palette
-  on the open note's outline, read through `collectHeadings` and landed through
-  `goToHeading` (`packages/editor/src/toc.tsx`): the rail's own scroll, and the
-  caret at the heading. "Extract to new note" (`packages/editor/src/extract-note.ts`,
-  from the selection toolbar and the block menu) takes the top-level blocks the
-  selection touches, serializes them with the editor's own `MD_STRINGIFY`, so
-  the new note holds the bytes the file would have, names it after the first
-  heading among them, else the first line, else Untitled (a name the vault
-  would refuse falls back rather than being sanitized), steps past what
-  `listWikiTargets` already holds like the rail's Untitled does, and creates it
-  through `createFileAt` before touching the buffer. The removal and the
-  `[[link]]` that replaces it land in one flush, so one undo restores both; the
-  created file stays, because the vault has no transaction and a note that
-  exists is truer than an edit that never happened.
-- **A PROBLEM IS THE RESOLVER'S VERDICT, never a scan's.** `knowledge.problems`
-  (the palette's Problems page, `inteligir problems`) reads the resolved graph
-  alone: a wiki or md link the resolver answered null is an unresolved link
-  (once per source and target, on its first line), one that is embedded or
-  names a file is a missing embed, a doc no other doc links to is an orphan,
-  and a stem spelled at two paths is a duplicate the resolver is quietly
-  breaking a tie on. Every row disappears with the sweep that fixes it, so no
-  row is ever stale against the index. Daily notes and templates are orphans by
-  design and are left out unless asked (`includeConventionFolders`); the two
-  folders are spelled once, in `@repo/notes/templates/placeholders`. A row lands
-  on the link ELEMENT (`packages/editor/src/link-locate.ts`), not the find bar:
-  a wiki chip is an inline void whose label is a prop, so the find bar cannot
-  see it; the find bar is the fallback when the note no longer carries the
-  link. Each family is capped on its own with its own total.
-  `@repo/notes/knowledge/vault-problems.ts`.
-- **A SECOND VAULT GETS ITS OWN DATA DIR, AND A SWITCH IS A NEW CHILD, A NEW
-  SESSION AND A NEW WINDOW.** The default vault keeps the root data dir every
-  install already has; any other vault's db, index and `server.json` live in
-  `<root>/vaults/<sha256(path)[:16]>/`, derived once in `config.ts` so the
-  shell's child and `inteligir serve` name the same dir, and the root's
-  `config.json` is the selector both read. The root refuses a vault beneath it.
-  Cost accepted: the credential, the connectors and the agent default live in
-  the data dir, so a second vault starts signed out and unconfigured, which is
-  also what keeps it off the account's hosted remote. The shell switches only a
-  child it started (an adopted server is nobody's to restart) and only when
-  neither the vault nor the data dir is env-pinned: it stops the child, whose
-  ordered shutdown flushes the pending commit, rewrites `vaultDir`, re-resolves
-  as a boot would, boots the new child, and opens a new window on the new data
-  dir's session partition, since a `BrowserWindow`'s session is fixed at
-  creation; a vault revisited in one launch re-registers the app protocol on its
-  old partition. A child that fails to boot puts the previous vault back. The
-  folder is picked in main, so the page never names a path it was not handed;
-  the recent-vaults list is the shell's own `userData`, never a vault's.
-  `inteligir vault open <dir>` writes the same selector under the same plan
-  and refusals (`apps/cli/src/server/vault-switch.ts`, the one spelling both
-  run), and restarts nothing: the next `serve` is the switch.
-  `apps/desktop/src/main/vaults.ts` (the shell's policy over it),
-  `main/index.ts` (`switchVault`), `apps/desktop/src/vaults-state.ts`.
-
-- **A TAG'S NOTES ARE A LISTING, NOT A SEARCH.** `knowledge.tagNotes`
-  (`inteligir tag notes <tag>`) answers the tag's family by path with the
-  whole count, paged by `limit` and `offset`, from the index alone: the search
-  route ranks and stops at its ceiling, so a tag on more notes than that showed
-  a hundred with no sign of a cut. The family is one predicate,
-  `notesInTagFamily` (`@repo/notes/knowledge/tag-notes`), which the rename's
-  candidate list runs too. The rail re-reads one growing page rather than
-  stitching pages, because the list it draws is filtered by the folder scope
-  and sorted by recency after the fact, and says `listed of total` while cut.
-  `apps/desktop/src/renderer/app/sidebar/tags-view.tsx`.
-
 **Before raising a "new" finding, read
 [#542](https://github.com/kyh/inteligir/issues/542)**: the decision record
-carries what was rejected as well as what was chosen. The older `note` issues
-(#446, #453, #472, #474) catalogue findings declined against the hosted
-Durable-Object architecture this rewrite replaced.
+carries what was rejected as well as what was chosen. The `note` issues are
+the declines register: #645 (the 2026-09-01 review) and #674 (the 2026-09-05
+simplify pass over the feature wave) name findings weighed and not fixed; the
+older ones (#446, #453, #472, #474) catalogue findings declined against the
+hosted Durable-Object architecture this rewrite replaced.
