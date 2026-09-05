@@ -2,8 +2,8 @@
 // (BrowserWindow needs a display). outside CI: it needs a macOS runner.
 
 import { spawn } from "node:child_process";
-import { accessSync, constants, existsSync, readFileSync } from "node:fs";
-import { mkdtemp, rm } from "node:fs/promises";
+import { accessSync, constants, existsSync, readdirSync, readFileSync } from "node:fs";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -20,6 +20,11 @@ const runtimeRoot = join(unpacked, "node_modules", CLI_BIN_NAME);
 const serverEntry = join(runtimeRoot, "dist", "index.js");
 const BOOT_TIMEOUT_MS = 60_000;
 const EXIT_TIMEOUT_MS = 20_000;
+// the prod layout the packaged server derives under a home (apps/cli/src/server/config.ts)
+const PROD_DATA_DIR_NAME = ".inteligir";
+const PROD_VAULT_DIR_NAME = "Inteligir";
+const VAULTS_DIR_NAME = "vaults";
+const CONFIG_FILE_NAME = "config.json";
 
 /**
  * @param {string} message
@@ -29,6 +34,10 @@ function fail(message) {
   process.stderr.write(`smoke: ${message}\n`);
   process.exitCode = 1;
   throw new Error(message);
+}
+
+function log(line) {
+  process.stdout.write(`smoke: ${line}\n`);
 }
 
 function delay(ms) {
@@ -73,6 +82,78 @@ function run(file, argv, options = {}) {
   });
 }
 
+// the server alone: no window, no shell, so nothing here reaches the bridge
+function spawnServer(env) {
+  return spawn(electronBinary, [serverEntry, "serve"], {
+    detached: true,
+    stdio: ["ignore", "inherit", "inherit"],
+    env: {
+      ...process.env,
+      ELECTRON_RUN_AS_NODE: "1",
+      NODE_ENV: "production",
+      INTELIGIR_AGENT: "off",
+      INTELIGIR_SYNC_INTERVAL_MS: "0",
+      ...env,
+    },
+  });
+}
+
+async function waitHealthy(baseUrl) {
+  const health = await waitForUrl(`${baseUrl}/health`, BOOT_TIMEOUT_MS);
+  if (health === null) {
+    fail(`no health answer within ${BOOT_TIMEOUT_MS}ms — see the output above`);
+  }
+  log(`health -> ${await health.text()}`);
+}
+
+// hand-rolled: the typed client needs a bundler this script does not have
+function rpcClient(baseUrl, dataDir) {
+  const row = JSON.parse(readFileSync(join(dataDir, "server.json"), "utf8"));
+  return async (procedure, input) => {
+    const response = await fetch(`${baseUrl}/rpc/${procedure}`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${row.token}`, "content-type": "application/json" },
+      body: input === undefined ? "{}" : JSON.stringify({ json: input }),
+    });
+    if (!response.ok) {
+      fail(`${procedure} answered ${response.status}`);
+    }
+    const body = await response.json();
+    return body.json;
+  };
+}
+
+// the leader only: kill(-pid) would take the forked watcher too and make the check a tautology
+async function stopServer(server) {
+  const pid = server.pid;
+  if (pid === undefined) {
+    fail("the packaged server has no pid — it never spawned");
+  }
+  log(`SIGTERM ${pid} (the server alone)`);
+  process.kill(pid, "SIGTERM");
+  const exit = await Promise.race([
+    new Promise((resolvePromise) =>
+      server.on("close", (code, signal) => resolvePromise({ code, signal })),
+    ),
+    delay(EXIT_TIMEOUT_MS).then(() => null),
+  ]);
+  if (exit === null) {
+    fail(`the packaged server did not exit within ${EXIT_TIMEOUT_MS}ms of SIGTERM`);
+  }
+  if (exit.code !== 0) {
+    fail(`the packaged server exited ${exit.code ?? exit.signal} — a graceful stop must exit 0`);
+  }
+  log("exited 0");
+}
+
+function killGroup(server) {
+  if (server?.pid !== undefined) {
+    try {
+      process.kill(-server.pid, "SIGKILL");
+    } catch {}
+  }
+}
+
 if (!existsSync(electronBinary)) {
   fail(`no packaged app at ${appDir} — run \`pnpm package:desktop\` first`);
 }
@@ -101,66 +182,29 @@ const baseUrl = `http://127.0.0.1:${port}`;
 const dataDir = join(scratch, "data");
 const vaultDir = join(scratch, "vault");
 
-function authHeaders() {
-  const row = JSON.parse(readFileSync(join(dataDir, "server.json"), "utf8"));
-  return { authorization: `Bearer ${row.token}` };
-}
-
-// hand-rolled: the typed client needs a bundler this script does not have
-async function rpc(procedure, input) {
-  const response = await fetch(`${baseUrl}/rpc/${procedure}`, {
-    method: "POST",
-    headers: { ...authHeaders(), "content-type": "application/json" },
-    body: input === undefined ? "{}" : JSON.stringify({ json: input }),
-  });
-  if (!response.ok) {
-    fail(`${procedure} answered ${response.status}`);
-  }
-  const body = await response.json();
-  return body.json;
-}
-
 let server = null;
 
 try {
-  process.stdout.write(`smoke: booting the packaged server on ${baseUrl}\n`);
-  server = spawn(electronBinary, [serverEntry, "serve"], {
-    detached: true,
-    stdio: ["ignore", "inherit", "inherit"],
-    env: {
-      ...process.env,
-      ELECTRON_RUN_AS_NODE: "1",
-      NODE_ENV: "production",
-      INTELIGIR_DATA_DIR: dataDir,
-      INTELIGIR_VAULT_DIR: vaultDir,
-      INTELIGIR_PORT: String(port),
-      INTELIGIR_AGENT: "off",
-      INTELIGIR_SYNC_INTERVAL_MS: "0",
-    },
+  log(`booting the packaged server on ${baseUrl}`);
+  server = spawnServer({
+    INTELIGIR_DATA_DIR: dataDir,
+    INTELIGIR_VAULT_DIR: vaultDir,
+    INTELIGIR_PORT: String(port),
   });
-
-  const health = await waitForUrl(`${baseUrl}/health`, BOOT_TIMEOUT_MS);
-  if (health === null) {
-    fail(`no health answer within ${BOOT_TIMEOUT_MS}ms — see the output above`);
-  }
-  process.stdout.write(`smoke: health -> ${await health.text()}\n`);
+  await waitHealthy(baseUrl);
+  const rpc = rpcClient(baseUrl, dataDir);
 
   const shell = await fetch(baseUrl, { headers: { accept: "text/html" } });
   const html = await shell.text();
   if (!shell.ok || !html.includes("<title>inteligir</title>")) {
     fail(`the SPA shell did not answer (${shell.status}, ${html.length} bytes)`);
   }
-  process.stdout.write(`smoke: SPA shell -> ${shell.status} ${html.length} bytes\n`);
+  log(`SPA shell -> ${shell.status} ${html.length} bytes`);
 
   // exercises better-sqlite3, @parcel/watcher and git init, the first to fail on an ABI mismatch
   const tree = await rpc("vault/tree");
-  process.stdout.write(`smoke: vault tree -> ${tree.entries.length} entries under ${tree.root}\n`);
-  await proveWatcherAlive({
-    rpc,
-    vaultDir,
-    fail,
-    log: (line) => process.stdout.write(`smoke: ${line}\n`),
-  });
+  log(`vault tree -> ${tree.entries.length} entries under ${tree.root}`);
+  await proveWatcherAlive({ rpc, vaultDir, fail, log });
 
   // proves a worker thread can dlopen the addon from app.asar.unpacked. `ready` is
   // allowed (shared model dir); `unavailable` is refused (this .app ships the prebuild)
@@ -171,7 +215,7 @@ try {
         `the transcription worker could not dlopen its binding from app.asar.unpacked`,
     );
   }
-  process.stdout.write(`smoke: voice -> ${voiceStatus.state}\n`);
+  log(`voice -> ${voiceStatus.state}`);
 
   const status = await run(cliBin, ["status", "--json"], {
     env: { ...process.env, INTELIGIR_DATA_DIR: dataDir },
@@ -179,35 +223,73 @@ try {
   if (!status.includes(baseUrl)) {
     fail(`the packaged CLI did not reach the packaged server: ${status}`);
   }
-  process.stdout.write("smoke: packaged CLI drove the packaged server\n");
+  log("packaged CLI drove the packaged server");
 
-  const pid = server.pid;
-  if (pid === undefined) {
-    fail("the packaged server has no pid — it never spawned");
-  }
-  // the leader only: kill(-pid) would take the forked watcher too and make the check a tautology
-  process.stdout.write(`smoke: SIGTERM ${pid} (the server alone)\n`);
-  process.kill(pid, "SIGTERM");
-  const exit = await Promise.race([
-    new Promise((resolvePromise) =>
-      server.on("close", (code, signal) => resolvePromise({ code, signal })),
-    ),
-    delay(EXIT_TIMEOUT_MS).then(() => null),
-  ]);
-  if (exit === null) {
-    fail(`the packaged server did not exit within ${EXIT_TIMEOUT_MS}ms of SIGTERM`);
-  }
-  if (exit.code !== 0) {
-    fail(`the packaged server exited ${exit.code ?? exit.signal} — a graceful stop must exit 0`);
-  }
+  await stopServer(server);
   server = null;
-  process.stdout.write("smoke: exited 0\n");
-  process.stdout.write("smoke: PASS (the window itself is not covered — it needs a display)\n");
-} finally {
-  if (server?.pid !== undefined) {
-    try {
-      process.kill(-server.pid, "SIGKILL");
-    } catch {}
+
+  // the shell's vault switch is a rewrite of the root config.json's vaultDir and a restart of
+  // its child; the window and the bridge need a display, so this proves the server half under
+  // a scratch home: the default vault keeps the root data dir, the selector boots the packaged
+  // server on a data dir of that vault's own, and each stop exits 0.
+  const home = join(scratch, "home");
+  const rootDataDir = join(home, PROD_DATA_DIR_NAME);
+  const secondVault = join(scratch, "second-vault");
+  await mkdir(home, { recursive: true });
+  const selectorPort = port + 1;
+  const selectorUrl = `http://127.0.0.1:${selectorPort}`;
+  const selectorEnv = { ...process.env, HOME: home, INTELIGIR_PORT: String(selectorPort) };
+  delete selectorEnv.INTELIGIR_DATA_DIR;
+  delete selectorEnv.INTELIGIR_VAULT_DIR;
+
+  log(`booting under a scratch home on ${selectorUrl}: the default vault`);
+  server = spawnServer(selectorEnv);
+  await waitHealthy(selectorUrl);
+  const defaultStatus = await rpcClient(selectorUrl, rootDataDir)("system/status");
+  if (
+    defaultStatus.dataDir !== rootDataDir ||
+    defaultStatus.vaultDir !== join(home, PROD_VAULT_DIR_NAME)
+  ) {
+    fail(
+      `the default vault did not keep the root data dir: ${JSON.stringify({ dataDir: defaultStatus.dataDir, vaultDir: defaultStatus.vaultDir })}`,
+    );
   }
+  log(`default vault -> ${defaultStatus.vaultDir} on ${defaultStatus.dataDir}`);
+  await stopServer(server);
+  server = null;
+
+  await writeFile(
+    join(rootDataDir, CONFIG_FILE_NAME),
+    `${JSON.stringify({ vaultDir: secondVault }, null, 2)}\n`,
+  );
+  log(`booting the selector's vault ${secondVault}`);
+  server = spawnServer(selectorEnv);
+  await waitHealthy(selectorUrl);
+  const vaultDirs = readdirSync(join(rootDataDir, VAULTS_DIR_NAME));
+  if (vaultDirs.length !== 1) {
+    fail(
+      `expected one per-vault data dir under ${VAULTS_DIR_NAME}/, found ${vaultDirs.join(", ")}`,
+    );
+  }
+  const secondDataDir = join(rootDataDir, VAULTS_DIR_NAME, vaultDirs[0]);
+  const secondStatus = await rpcClient(selectorUrl, secondDataDir)("system/status");
+  if (secondStatus.dataDir !== secondDataDir || secondStatus.vaultDir !== secondVault) {
+    fail(
+      `the selector's vault did not get its own data dir: ${JSON.stringify({ dataDir: secondStatus.dataDir, vaultDir: secondStatus.vaultDir })}`,
+    );
+  }
+  if (
+    !existsSync(join(rootDataDir, "inteligir.db")) ||
+    !existsSync(join(secondDataDir, "inteligir.db"))
+  ) {
+    fail("the two vaults do not each hold a database of their own");
+  }
+  log(`selector vault -> ${secondStatus.vaultDir} on ${secondStatus.dataDir}`);
+  await stopServer(server);
+  server = null;
+
+  log("PASS (the window and the bridge are not covered — they need a display)");
+} finally {
+  killGroup(server);
   await rm(scratch, { recursive: true, force: true });
 }
