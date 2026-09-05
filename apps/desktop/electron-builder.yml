@@ -17,6 +17,10 @@ files:
   - package.json
   - resources/icon.png
   - "!**/*.map"
+# electron-updater names its cache dir from the package name, and @repo/desktop sanitizes to
+# "@repodesktop-updater"; the app's own name is what lands in ~/Library/Caches
+extraMetadata:
+  name: inteligir
 # npmRebuild off: the three native modules are prebuilt Node-API addons (ABI-stable across
 # Node and Electron), and a rebuild would clobber the pnpm store's shared copy
 npmRebuild: false

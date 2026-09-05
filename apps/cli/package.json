@@ -42,7 +42,8 @@
     "./server/server-file": "./src/server/server-file.ts",
     "./server/shutdown": "./src/server/shutdown.ts",
     "./server/testing": "./src/server/__tests__/boot-app.ts",
-    "./server/vault/seed-vault": "./src/server/vault/seed-vault.ts"
+    "./server/vault/seed-vault": "./src/server/vault/seed-vault.ts",
+    "./scripts/smoke-lib.mjs": "./scripts/smoke-lib.mjs"
   },
   "publishConfig": {
     "exports": {},
