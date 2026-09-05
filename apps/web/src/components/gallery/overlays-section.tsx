@@ -26,6 +26,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@repo/ui/components/dialog";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@repo/ui/components/hover-card";
 import { Popover, PopoverContent, PopoverTrigger } from "@repo/ui/components/popover";
 import { Tooltip } from "@repo/ui/components/tooltip";
 import { FileTextIcon, SettingsIcon } from "lucide-react";
@@ -122,6 +123,24 @@ export function OverlaysSection() {
             </div>
           </PopoverContent>
         </Popover>
+      </Demo>
+
+      <Demo
+        name="Hover card"
+        purpose="A preview of what a link points at. Opens on hover, and the pointer can move into it."
+      >
+        <HoverCard>
+          <HoverCardTrigger delay={300} render={<Button variant="secondary">Welcome</Button>} />
+          <HoverCardContent>
+            <div className="flex flex-col gap-1 text-xs">
+              <p className="text-sm font-medium">Welcome to inteligir</p>
+              <p className="whitespace-pre-wrap text-muted-foreground">
+                This folder is your vault: plain markdown files that belong to you, versioned with
+                git.
+              </p>
+            </div>
+          </HoverCardContent>
+        </HoverCard>
       </Demo>
 
       <Demo

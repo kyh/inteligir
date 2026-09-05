@@ -1,15 +1,17 @@
 // loaded via React.lazy from wiki-link-kit: this module reaches the editor host seam, so an
 // eager import from a kit file base-kit composes would close an import cycle.
 
-import { useEffect, useRef, useState, type MouseEvent } from "react";
+import { useRef, useState, type MouseEvent } from "react";
 import { FilePlusIcon } from "lucide-react";
 
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@repo/ui/components/hover-card";
 import { Popover, PopoverContent } from "@repo/ui/components/popover";
 import { cn } from "@repo/ui/lib/utils";
 
 import { useVaultActions, useWikiResolver } from "@repo/editor/host";
 import { getEditorHostIo } from "@repo/editor/host-io";
 import { notePreviewHead } from "@repo/editor/note-preview";
+import { docStem } from "@repo/notes/knowledge/doc-file";
 import { isUuidWikiAlias, parseWikiBody } from "@repo/notes/markdown/remark-wiki-link";
 
 const HOVER_PREVIEW_DELAY_MS = 350;
@@ -26,73 +28,50 @@ export const RESOLVED_CHIP_CLASS =
 export const UNRESOLVED_CHIP_CLASS =
   "cursor-pointer rounded-sm px-1 text-muted-foreground underline decoration-dashed decoration-muted-foreground/60 underline-offset-2 transition-colors hover:bg-muted";
 
-type PreviewState = {
-  rect: { left: number; bottom: number };
-  text: string | null;
-};
+function PreviewBody({ text }: { text: string | null }) {
+  if (text === null) return <span className="text-muted-foreground">…</span>;
+  if (text === "") return <span className="text-muted-foreground">Empty note</span>;
+  return <>{text}</>;
+}
 
 export default function WikiChip({ body }: { body: string }) {
   const { resolveWikiTarget } = useWikiResolver();
   const { openFile, createFile } = useVaultActions();
   const [createOpen, setCreateOpen] = useState(false);
-  const [preview, setPreview] = useState<PreviewState | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewText, setPreviewText] = useState<string | null>(null);
   const chipRef = useRef<HTMLButtonElement>(null);
-  const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const previewCache = useRef(new Map<string, string>());
+  // the path the open preview was read for; a read landing after a close or a re-resolve is dropped
+  const previewFor = useRef<string | null>(null);
 
   const parsed = parseWikiBody(body);
   const label = wikiChipLabel(body);
   // a pure-anchor link (`[[#sec]]`) points at the open note: nothing to resolve or create.
   const resolved = parsed.target === "" ? null : resolveWikiTarget(parsed.target);
 
-  useEffect(
-    () => () => {
-      if (hoverTimer.current !== null) clearTimeout(hoverTimer.current);
-    },
-    [],
-  );
-
-  const openPreview = (): void => {
-    const rect = chipRef.current?.getBoundingClientRect();
-    if (rect === undefined) return;
-    const anchor = { bottom: rect.bottom, left: rect.left };
-    if (resolved === null) {
-      setPreview({ rect: anchor, text: "Not created yet — click to create" });
+  // read on every open, never cached across hovers, so an agent edit between them is never shown stale.
+  const onPreviewOpenChange = (open: boolean): void => {
+    setPreviewOpen(open);
+    if (!open) {
+      previewFor.current = null;
+      setPreviewText(null);
       return;
     }
-    const cached = previewCache.current.get(resolved);
-    if (cached !== undefined) {
-      setPreview({ rect: anchor, text: cached });
-      return;
-    }
-    setPreview({ rect: anchor, text: null });
+    if (resolved === null) return;
+    previewFor.current = resolved;
     getEditorHostIo()
       .readVaultFile({ path: resolved })
       .then((content) => {
-        const head = notePreviewHead(content);
-        previewCache.current.set(resolved, head);
-        setPreview((current) => (current === null ? null : { ...current, text: head }));
+        if (previewFor.current === resolved) setPreviewText(notePreviewHead(content));
         return undefined;
       })
       .catch(() => {
-        setPreview(null);
+        if (previewFor.current === resolved) setPreviewOpen(false);
       });
   };
 
   const closePreview = (): void => {
-    if (hoverTimer.current !== null) {
-      clearTimeout(hoverTimer.current);
-      hoverTimer.current = null;
-    }
-    setPreview(null);
-    // the cache lives for one hover, so an agent edit between hovers is never shown stale.
-    previewCache.current.clear();
-  };
-
-  const onMouseEnter = (): void => {
-    if (parsed.target === "" || createOpen) return;
-    if (hoverTimer.current !== null) clearTimeout(hoverTimer.current);
-    hoverTimer.current = setTimeout(openPreview, HOVER_PREVIEW_DELAY_MS);
+    onPreviewOpenChange(false);
   };
 
   const onClick = (e: MouseEvent) => {
@@ -106,39 +85,50 @@ export default function WikiChip({ body }: { body: string }) {
     setCreateOpen(true);
   };
 
+  // no `title` on a previewable chip: the OS tooltip would land on top of the hover card
+  const chip = (
+    <button
+      ref={chipRef}
+      type="button"
+      contentEditable={false}
+      onClick={onClick}
+      className={cn(resolved !== null ? RESOLVED_CHIP_CLASS : UNRESOLVED_CHIP_CLASS)}
+    >
+      {label}
+    </button>
+  );
+
+  if (parsed.target === "") return chip;
+
   return (
     <>
-      <button
-        ref={chipRef}
-        type="button"
-        contentEditable={false}
-        title={
-          parsed.target === ""
-            ? label
-            : (resolved ?? `${parsed.target} — not created yet (click to create)`)
-        }
-        onClick={onClick}
-        onMouseEnter={onMouseEnter}
-        onMouseLeave={closePreview}
-        className={cn(resolved !== null ? RESOLVED_CHIP_CLASS : UNRESOLVED_CHIP_CLASS)}
-      >
-        {label}
-      </button>
-      {preview !== null && (
-        <div
-          className="pointer-events-none fixed z-50 max-h-72 w-80 overflow-hidden rounded-lg border border-border bg-popover p-3 text-xs whitespace-pre-wrap text-popover-foreground shadow-md"
-          style={{ left: preview.rect.left, top: preview.rect.bottom + 6 }}
-        >
-          {preview.text === null ? (
-            <span className="text-muted-foreground">…</span>
-          ) : preview.text === "" ? (
-            <span className="text-muted-foreground">Empty note</span>
+      <HoverCard open={previewOpen && !createOpen} onOpenChange={onPreviewOpenChange}>
+        <HoverCardTrigger delay={HOVER_PREVIEW_DELAY_MS} render={chip} />
+        <HoverCardContent className="max-h-72 overflow-y-auto p-0">
+          {resolved === null ? (
+            <p className="px-3 py-2.5 text-xs text-muted-foreground">
+              Not created yet — click to create
+            </p>
           ) : (
-            preview.text
+            <>
+              <button
+                type="button"
+                className="block w-full px-3 pt-2.5 pb-1 text-left text-xs font-medium hover:underline"
+                onClick={() => {
+                  closePreview();
+                  openFile(resolved);
+                }}
+              >
+                {docStem(resolved)}
+              </button>
+              <div className="px-3 pb-3 text-xs whitespace-pre-wrap select-text">
+                <PreviewBody text={previewText} />
+              </div>
+            </>
           )}
-        </div>
-      )}
-      {resolved === null && parsed.target !== "" && (
+        </HoverCardContent>
+      </HoverCard>
+      {resolved === null && (
         <Popover open={createOpen} onOpenChange={setCreateOpen}>
           <PopoverContent anchor={chipRef} className="p-1">
             <button

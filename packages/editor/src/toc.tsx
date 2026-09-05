@@ -123,7 +123,7 @@ export function TableOfContents() {
   return (
     <div
       ref={rootRef}
-      className="pointer-events-none fixed top-1/2 right-2 z-40 -translate-y-1/2 print:hidden"
+      className="pointer-events-none absolute top-1/2 right-2 z-40 -translate-y-1/2 print:hidden"
     >
       <div className="group pointer-events-auto flex flex-col items-end py-2">
         <div className="flex flex-col items-end gap-2 pr-2 transition-opacity duration-300 group-hover:opacity-0">
