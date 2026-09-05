@@ -3,8 +3,11 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@repo/ui/components/dropdown-menu";
+import { toast } from "@repo/ui/components/sonner";
 import {
   SidebarContent,
   SidebarFooter,
@@ -14,23 +17,25 @@ import {
 import { cn } from "@repo/ui/lib/utils";
 import { isVaultMetadataPath } from "@repo/notes/knowledge/doc-file";
 import { renamedTag } from "@repo/notes/knowledge/rename-tags";
-import { basenamePath } from "@repo/notes/knowledge/vault-path";
 import type { VaultEntry } from "@repo/api/local/vault/vault-schema";
 import {
   ArchiveRestoreIcon,
   ArrowDownAZIcon,
-  CheckIcon,
+  ArrowLeftIcon,
   ChevronDownIcon,
   ChevronsDownUpIcon,
   ClockArrowDownIcon,
   FilePlusIcon,
   FolderIcon,
+  FolderOpenIcon,
   FolderPlusIcon,
   FolderTreeIcon,
   SettingsIcon,
   TagIcon,
+  VaultIcon,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { openRecentVault, pickVault, useDesktopVaults } from "../desktop-vaults";
 import { bindingFor, platformShortcutModifier } from "../global-shortcuts";
 import {
   readSidebarView,
@@ -98,55 +103,95 @@ function SyncStatusRow({ onSyncNow }: { onSyncNow: () => void }) {
   );
 }
 
-function FolderPicker({
-  vaultName,
-  folders,
-  value,
-  onChange,
-}: {
-  vaultName: string;
-  folders: readonly string[];
-  value: string;
-  onChange: (folder: string) => void;
-}) {
-  const label = value === "" ? vaultName : basenamePath(value);
+const VAULT_TRIGGER_CLASS =
+  "flex h-7 min-w-0 flex-1 items-center gap-1 rounded-md px-1.5 text-sm font-medium outline-none";
+
+// The vault is the server's: switching it restarts the child and replaces this window, and the
+// folder is picked in main, so this is a menu over what main remembers. A browser tab has no
+// bridge and did not start the server, so it gets the name alone.
+function VaultButton({ vaultName }: { vaultName: string }) {
+  const vaults = useDesktopVaults();
+  const [busy, setBusy] = useState(false);
+  const label = (
+    <>
+      <VaultIcon className="size-3.5 shrink-0 text-muted-foreground" />
+      <span className="min-w-0 truncate">{vaultName}</span>
+    </>
+  );
+  if (vaults.kind !== "state") {
+    return <span className={VAULT_TRIGGER_CLASS}>{label}</span>;
+  }
+  const { state } = vaults;
+  // answers only when nothing moved: a cancelled picker or a refusal; a switch replaces the window
+  const run = (work: () => Promise<void>): void => {
+    setBusy(true);
+    void work()
+      .catch((cause: unknown) => {
+        toast.error(cause instanceof Error ? cause.message : "Could not open that vault.");
+      })
+      .finally(() => {
+        setBusy(false);
+      });
+  };
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
-        aria-label="Folder"
-        className="flex h-7 min-w-0 flex-1 items-center gap-1 rounded-md px-1.5 text-sm font-medium outline-none hover:bg-hover"
+        aria-label="Vault"
+        disabled={busy}
+        className={cn(VAULT_TRIGGER_CLASS, "hover:bg-hover disabled:opacity-50")}
       >
-        <FolderIcon className="size-3.5 shrink-0 text-muted-foreground" />
-        <span className="min-w-0 truncate">{label}</span>
+        {label}
         <ChevronDownIcon className="size-3 shrink-0 text-muted-foreground" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start">
-        <DropdownMenuItem
-          onClick={() => {
-            onChange("");
-          }}
-        >
-          <CheckIcon className={cn("size-3.5", value !== "" && "invisible")} />
-          {vaultName}
-        </DropdownMenuItem>
-        {folders.map((folder) => (
+        {state.recent.map((vault) => (
           <DropdownMenuItem
-            key={folder}
+            key={vault.path}
             onClick={() => {
-              onChange(folder);
+              run(() => openRecentVault(vault.path));
             }}
           >
-            <CheckIcon className={cn("size-3.5", value !== folder && "invisible")} />
-            <span
-              className="min-w-0 truncate"
-              style={{ paddingLeft: folder.split("/").length * 12 - 12 }}
-            >
-              {basenamePath(folder)}
+            <VaultIcon className="size-3.5 shrink-0 text-muted-foreground" />
+            <span className="flex min-w-0 flex-col">
+              <span className="truncate">{vault.name}</span>
+              <span className="truncate font-mono text-[11px] text-muted-foreground">
+                {vault.path}
+              </span>
             </span>
           </DropdownMenuItem>
         ))}
+        {state.recent.length > 0 ? <DropdownMenuSeparator /> : null}
+        {state.blocked === null ? (
+          <DropdownMenuItem
+            onClick={() => {
+              run(pickVault);
+            }}
+          >
+            <FolderOpenIcon className="size-3.5 shrink-0 text-muted-foreground" />
+            Open another vault…
+          </DropdownMenuItem>
+        ) : (
+          <DropdownMenuLabel className="max-w-64 whitespace-normal">
+            {state.blocked}
+          </DropdownMenuLabel>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+// the breadcrumb sets the scope; this is where it is seen and cleared
+function FolderScopeHeader({ folder, onClear }: { folder: string; onClear: () => void }) {
+  return (
+    <div className="flex items-center gap-1 px-1.5 py-1">
+      <Button variant="ghost" size="icon-compact" aria-label="Whole vault" onClick={onClear}>
+        <ArrowLeftIcon />
+      </Button>
+      <FolderIcon className="size-3.5 shrink-0 text-muted-foreground" />
+      <span className="min-w-0 flex-1 truncate text-sm font-medium" title={folder}>
+        {folder}
+      </span>
+    </div>
   );
 }
 
@@ -259,12 +304,7 @@ export function SidebarRailContent({
           <div aria-hidden="true" className="h-5 shrink-0 [-webkit-app-region:drag]" />
         ) : null}
         <div className="flex items-center gap-0.5">
-          <FolderPicker
-            vaultName={treeQuery.data?.name ?? "Vault"}
-            folders={folders}
-            value={scope}
-            onChange={onFolderChange}
-          />
+          <VaultButton vaultName={treeQuery.data?.name ?? "Vault"} />
           <Button
             variant="ghost"
             size="icon-compact"
@@ -370,6 +410,14 @@ export function SidebarRailContent({
         ) : null}
       </SidebarHeader>
       <SidebarContent>
+        {scope === "" ? null : (
+          <FolderScopeHeader
+            folder={scope}
+            onClear={() => {
+              onFolderChange("");
+            }}
+          />
+        )}
         {showTree ? (
           <FileTree
             entries={scoped}
