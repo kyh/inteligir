@@ -336,9 +336,10 @@ carries the mechanism. The dangling-reference guard keeps the pointers honest.
   retired is the register on #645; do not bring any of it back). An action is an
   ordinary thread attached to the note it was composed over
   (`threads.originDocPath`). The agent edits the vault directly and anchored
-  comments are the review channel; the panel's Actions | Comments | History tabs
-  are transcript, review and revision, with properties inlined above. ⌘P is the
-  palette, ⌘\ is zen. "Ask agent" seeds the composer through
+  comments are the review channel; the panel's Actions | Comments | History |
+  Settings tabs are transcript, review, revision, and the note's own properties,
+  related notes and delete. ⌘P is the palette, ⌘F the find bar, ⌘\ is zen.
+  "Ask agent" seeds the composer through
   `packages/editor/src/agent-request.ts`, so the editor never imports the shell.
   `apps/desktop/src/renderer/app/actions/actions-panel.tsx` and
   `action-composer.tsx`.
@@ -365,6 +366,33 @@ carries the mechanism. The dangling-reference guard keeps the pointers honest.
   a statement, not a grant. A queued send carries none. There is no selection
   field; real offsets need a Slate to markdown offset map.
   `apps/cli/src/server/agents/view-context-prompt.ts`.
+
+- **THE RAIL IS THE WORKSPACE; THE TOP BAR IS THE OPEN NOTE.** Search, new
+  note and folder, the folder scope, the recents/tree toggle, sync, deleted
+  notes and Settings live in the left rail; find in note, copy link, comments,
+  export and the panel toggle live above the note. Two lists, one rule: the
+  recents view is one list by recency with a folder hint, and folders exist only
+  in the tree. A create lands where an IDE's would, in the tree's selected
+  folder, else at the scope. The rail hides what the user did not write
+  (`@repo/notes/knowledge/doc-file`'s `isVaultMetadataPath`: comment sidecars,
+  dot-entries); the server's listing stays complete because the CLI and the
+  agent read it. Under the macOS shell the rail reserves the traffic-light
+  corner (`apps/desktop/src/renderer/app/title-bar.ts`); nothing else is a
+  logo. `apps/desktop/src/renderer/app/sidebar/sidebar.tsx`.
+
+- **THE WIKI-LINK PREVIEW IS A HOVER CARD, NOT A TOOLTIP.** Base UI's
+  PreviewCard (`@repo/ui/components/hover-card`): the pointer can move into it,
+  the text selects, the title opens the note. Base UI's Popover has no hover
+  mode; a hand-positioned `pointer-events-none` div is what it replaced
+  (`packages/editor/src/wiki-chip.tsx`).
+
+- **THE DEFAULT HARNESS IS A STORED CHOICE, read per thread start.**
+  `<dataDir>/agent-prefs.json`, edited from Settings › Agents; unset falls back
+  to claude when it is on PATH. Not config.json, which is read once at boot and
+  never written by the app. A thread keeps the harness it started on
+  (`threads.providerId`); the choice reaches the next one. The store is
+  `apps/cli/src/server/agents/agent-prefs-store.ts`; the one fallback rule is
+  `defaultHarnessId` in `agent-driver.ts`.
 
 - **RELATED IS ONE PANEL SECTION**: backlinks first because they are counted,
   then the scorer's rows with their reasons, no dedup between the halves
