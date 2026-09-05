@@ -272,3 +272,23 @@ describe("unlinked mentions", () => {
     ]);
   });
 });
+
+describe("vault problems", () => {
+  it("lists a dangling link once with its source, and drops it once the note exists", async () => {
+    const { service, knowledge } = boot(makeDirs());
+    await service.write("Welcome.md", "# Welcome\n\nOpen [[Nowhere]] twice: [[nowhere]].\n");
+    await service.write("Guide.md", "# Guide\n\nBack to [[Welcome]].\n");
+
+    const before = await knowledge.problems({ limit: 10 });
+    expect(
+      before.unresolvedLinks.rows.map((row) => [row.sourcePath, row.target, row.line]),
+    ).toEqual([["Welcome.md", "Nowhere", 3]]);
+    expect(before.orphans.rows.map((row) => row.path)).toEqual(["Guide.md"]);
+
+    // the new note is what Welcome linked to, so it is linked, not orphaned
+    await service.write("Nowhere.md", "# Nowhere\n");
+    const after = await knowledge.problems({ limit: 10 });
+    expect(after.unresolvedLinks.rows).toEqual([]);
+    expect(after.orphans.rows.map((row) => row.path)).toEqual(["Guide.md"]);
+  });
+});

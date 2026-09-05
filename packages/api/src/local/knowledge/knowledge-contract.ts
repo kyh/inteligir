@@ -7,6 +7,8 @@ import {
   knowledgeBacklinksResponseSchema,
   knowledgeMatchesRequestSchema,
   knowledgeMatchesResponseSchema,
+  knowledgeProblemsRequestSchema,
+  knowledgeProblemsResponseSchema,
   knowledgeRelatedRequestSchema,
   knowledgeRelatedResponseSchema,
   knowledgeRenameTagRequestSchema,
@@ -33,6 +35,8 @@ export const knowledgeContract = {
   unlinkedMentions: oc
     .input(knowledgeUnlinkedMentionsRequestSchema)
     .output(knowledgeUnlinkedMentionsResponseSchema),
+
+  problems: oc.input(knowledgeProblemsRequestSchema).output(knowledgeProblemsResponseSchema),
 
   tags: oc.output(knowledgeTagsResponseSchema),
 

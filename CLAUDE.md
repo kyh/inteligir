@@ -896,6 +896,21 @@ rename`.
   `[[link]]` that replaces it land in one flush, so one undo restores both; the
   created file stays, because the vault has no transaction and a note that
   exists is truer than an edit that never happened.
+- **A PROBLEM IS THE RESOLVER'S VERDICT, never a scan's.** `knowledge.problems`
+  (the palette's Problems page, `inteligir problems`) reads the resolved graph
+  alone: a wiki or md link the resolver answered null is an unresolved link
+  (once per source and target, on its first line), one that is embedded or
+  names a file is a missing embed, a doc no other doc links to is an orphan,
+  and a stem spelled at two paths is a duplicate the resolver is quietly
+  breaking a tie on. Every row disappears with the sweep that fixes it, so no
+  row is ever stale against the index. Daily notes and templates are orphans by
+  design and are left out unless asked (`includeConventionFolders`); the two
+  folders are spelled once, in `@repo/notes/templates/placeholders`. A row lands
+  on the link ELEMENT (`packages/editor/src/link-locate.ts`), not the find bar:
+  a wiki chip is an inline void whose label is a prop, so the find bar cannot
+  see it; the find bar is the fallback when the note no longer carries the
+  link. Each family is capped on its own with its own total.
+  `@repo/notes/knowledge/vault-problems.ts`.
 
 **Before raising a "new" finding, read
 [#542](https://github.com/kyh/inteligir/issues/542)**: the decision record

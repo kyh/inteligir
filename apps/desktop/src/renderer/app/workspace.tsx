@@ -22,6 +22,7 @@ import { consumeTagRequest, useTagRequest } from "@repo/editor/tag-request";
 import { EditorColumn } from "@repo/editor/editor-column";
 import { jumpToFindMatch, openFindBar } from "@repo/editor/find-bar";
 import { insertTemplate } from "@repo/editor/insert-template";
+import { scrollToLinkTarget } from "@repo/editor/link-locate";
 import { getLiveEditor, whenLiveEditor } from "@repo/editor/live-editor";
 import { collectHeadings, goToHeading, type HeadingItem } from "@repo/editor/toc";
 import { removeFrontmatterId } from "@repo/notes/markdown/frontmatter";
@@ -37,6 +38,7 @@ import { setNotePinned } from "./note/pin-note";
 import { VaultProvider } from "./note/vault-provider";
 import { CommandPalette, type PalettePage } from "./palette/command-palette";
 import { createMatchSource } from "./palette/match-source";
+import { createProblemSource } from "./palette/problem-source";
 import { createSearchSource, sortedNotePaths } from "./palette/search-source";
 import {
   replaceInVault,
@@ -234,6 +236,20 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
     [setOpenNote],
   );
 
+  // the link element itself when the note still carries it; else the find bar shows the target
+  const openProblemLink = useCallback(
+    (sourcePath: string, target: string): void => {
+      setOpenNote(sourcePath);
+      void whenLiveEditor(sourcePath, LIVE_EDITOR_WAIT_MS).then((editor) => {
+        if (editor !== null && !scrollToLinkTarget(editor, target)) {
+          jumpToFindMatch(editor, target, 0);
+        }
+        return undefined;
+      });
+    },
+    [setOpenNote],
+  );
+
   const replaceAll = useCallback(
     (request: VaultReplaceRequest): void => {
       void (async () => {
@@ -403,6 +419,7 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
     [api, sortedFilePaths],
   );
   const matchSource = useMemo(() => createMatchSource(api), [api]);
+  const problemSource = useMemo(() => createProblemSource(api), [api]);
 
   const paletteActions = useMemo(
     () => ({
@@ -439,6 +456,7 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
         const editor = path === null ? null : getLiveEditor(path);
         if (editor !== null) goToHeading(editor, heading);
       },
+      openProblemLink,
     }),
     [
       setOpenNote,
@@ -457,6 +475,7 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
       openMatch,
       replaceAll,
       noteStore,
+      openProblemLink,
     ],
   );
 
@@ -614,6 +633,7 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
           threads={threads}
           searchSource={searchSource}
           matchSource={matchSource}
+          problemSource={problemSource}
           canSync={canSync}
           actions={paletteActions}
         />

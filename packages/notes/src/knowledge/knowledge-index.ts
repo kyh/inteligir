@@ -14,6 +14,11 @@ import { searchExcerpt } from "./search-excerpt";
 import { planSearchQuery, type SearchQueryTerm } from "./search-query";
 import type { TagCount } from "./tag-index";
 import { collectVaultMatches, type TextMatchOptions, type VaultMatches } from "./text-matches";
+import {
+  collectVaultProblems,
+  type VaultProblems,
+  type VaultProblemsOptions,
+} from "./vault-problems";
 
 export type SearchResult = { path: string; title: string; snippet: string; score: number };
 
@@ -67,6 +72,10 @@ export class KnowledgeIndex {
 
   graph(): LinkGraph {
     return this.linkGraph.graph();
+  }
+
+  problems(options: VaultProblemsOptions): VaultProblems {
+    return collectVaultProblems(this.linkGraph, options);
   }
 
   wikiTargets(): WikiTarget[] {

@@ -81,7 +81,9 @@ describe("the palette's Export as PDF row", () => {
     replaceAll: vi.fn(),
     listHeadings: null,
     goToHeading: vi.fn(),
+    openProblemLink: vi.fn(),
   };
+  const emptyFamily = { rows: [], total: 0 };
 
   function mount(exportPdf: (() => void) | null) {
     return render(
@@ -92,6 +94,14 @@ describe("the palette's Export as PDF row", () => {
         threads={[]}
         searchSource={() => Promise.resolve([])}
         matchSource={() => Promise.resolve({ matches: [], total: 0 })}
+        problemSource={() =>
+          Promise.resolve({
+            unresolvedLinks: emptyFamily,
+            missingEmbeds: emptyFamily,
+            orphans: emptyFamily,
+            duplicateStems: emptyFamily,
+          })
+        }
         canSync={false}
         actions={{ ...actions, exportPdf }}
       />,
