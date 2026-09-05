@@ -19,6 +19,7 @@ import {
   useVaultTree,
 } from "../vault-hooks";
 import { AgentsSection } from "./agents-section";
+import { AttachmentsRow } from "./attachments-row";
 import { ConnectorsSection } from "./connectors-section";
 import { FoldersSection } from "./folders-section";
 import { ChoiceRow, Row, SectionHeading } from "./settings-chrome";
@@ -134,6 +135,7 @@ export function SettingsPage({ onBack }: { onBack: () => void }) {
                   </span>
                 ) : null}
               </Row>
+              <AttachmentsRow />
             </dl>
           </section>
           <Separator />

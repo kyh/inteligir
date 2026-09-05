@@ -15,7 +15,6 @@ const imageBasePlugin = createSlatePlugin({
 export const ImageBaseKit = [imageBasePlugin];
 
 const IMAGE_MIME_RE = /^image\//;
-const ASSET_DIR = "assets";
 
 function extFromMime(mime: string): string {
   const subtype = mime.slice("image/".length).split("+")[0] ?? "";
@@ -30,11 +29,7 @@ function imageFilesFrom(files: FileList | null | undefined): File[] {
 }
 
 async function writeAsset(file: File, name: string): Promise<string> {
-  const written = await getEditorHostIo().writeVaultAsset({
-    dir: ASSET_DIR,
-    baseName: name,
-    file,
-  });
+  const written = await getEditorHostIo().writeVaultAsset({ baseName: name, file });
   return written.path;
 }
 

@@ -263,3 +263,15 @@ describe("physical containment (symlinks)", () => {
     ]);
   });
 });
+
+describe("where an attachment lands", () => {
+  it('takes "" as the root, and creates a folder on the first write into it', async () => {
+    const { root, service } = bootService();
+    const bytes = new Uint8Array([137, 80, 78, 71]);
+    expect(await service.writeAsset("", "shot.png", bytes)).toEqual({ path: "shot.png" });
+    expect(await service.writeAsset("media/2026", "shot.png", bytes)).toEqual({
+      path: "media/2026/shot.png",
+    });
+    expect((await stat(join(root, "media", "2026"))).isDirectory()).toBe(true);
+  });
+});

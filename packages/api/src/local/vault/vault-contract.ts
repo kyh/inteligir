@@ -14,6 +14,8 @@ import {
   vaultHistoryResponseSchema,
   vaultMkdirRequestSchema,
   vaultMkdirResponseSchema,
+  vaultPrefsResponseSchema,
+  vaultSetPrefsRequestSchema,
   vaultReadRequestSchema,
   vaultReadResponseSchema,
   vaultRenameRequestSchema,
@@ -66,6 +68,16 @@ export const vaultContract = {
     .input(vaultMkdirRequestSchema)
     .output(vaultMkdirResponseSchema)
     .errors({ INVALID_PATH, CONFLICT: {} }),
+
+  // the vault's own choices, stored beside the data dir's other app-written files; the
+  // attachments folder need not exist, it is created on the first paste.
+  prefs: oc.output(vaultPrefsResponseSchema),
+
+  // INVALID_PATH: the named attachments folder is a file today, which would refuse every paste
+  setPrefs: oc
+    .input(vaultSetPrefsRequestSchema)
+    .output(vaultPrefsResponseSchema)
+    .errors({ INVALID_PATH }),
 
   // the recovery surface: there is no trash folder, the git log is the record of what was deleted.
   deleted: oc.output(vaultDeletedResponseSchema),

@@ -8,6 +8,12 @@ import {
   type VaultStatusResponse,
   type VaultWriteRequest,
 } from "@repo/api/local/vault/vault-schema";
+import {
+  ATTACHMENT_LOCATION_SPELLINGS,
+  describeAttachmentLocation,
+  formatAttachmentLocation,
+  parseAttachmentLocation,
+} from "@repo/api/local/vault/attachment-location";
 import { parseBoundedInteger } from "../args";
 import { defineCommand } from "citty";
 import { invalidUsage } from "../cli-error";
@@ -324,6 +330,43 @@ export function vaultCommand(deps: CliDeps) {
             return;
           }
           out.success(`Created ${body.path}/`);
+        },
+      }),
+
+      attachments: defineCommand({
+        meta: {
+          name: "attachments",
+          description: "Where a pasted image lands; with no argument, print the current choice",
+        },
+        args: {
+          location: {
+            type: "positional",
+            required: false,
+            description: ATTACHMENT_LOCATION_SPELLINGS,
+          },
+          ...jsonArg,
+        },
+        run: async ({ args }) => {
+          const api = apiFor(deps);
+          if (args.location === undefined) {
+            const body = await api.vault.prefs();
+            if (outputJson(args, body)) {
+              return;
+            }
+            writeOut(`${formatAttachmentLocation(body.attachments)}\n`);
+            return;
+          }
+          const location = parseAttachmentLocation(args.location);
+          if (location === null) {
+            throw invalidUsage(
+              `"${args.location}" is not a location — use ${ATTACHMENT_LOCATION_SPELLINGS}`,
+            );
+          }
+          const body = await api.vault.setPrefs({ attachments: location });
+          if (outputJson(args, body)) {
+            return;
+          }
+          out.success(`Pasted images land ${describeAttachmentLocation(body.attachments)}.`);
         },
       }),
 

@@ -35,6 +35,7 @@ import {
   type VaultRuntime,
   type VaultRuntimeArgs,
 } from "./vault/vault-runtime";
+import { VaultPrefsStore } from "./vault/vault-prefs-store";
 import {
   ParakeetVoiceService,
   ScriptedVoiceService,
@@ -127,6 +128,7 @@ export async function composeRuntime(args: ComposeRuntimeArgs): Promise<Composed
   if (ports.vault?.watch !== undefined) vaultArgs.watch = ports.vault.watch;
   if (ports.vault?.gitEnv !== undefined) vaultArgs.gitEnv = ports.vault.gitEnv;
   const vault = await createVaultRuntime(vaultArgs);
+  const vaultPrefs = new VaultPrefsStore(config.dataDir);
   register("vault", () => vault.dispose());
 
   const knowledge = createKnowledgeRuntime({
@@ -230,6 +232,7 @@ export async function composeRuntime(args: ComposeRuntimeArgs): Promise<Composed
     },
     threads,
     vault,
+    vaultPrefs,
     voice,
   };
 

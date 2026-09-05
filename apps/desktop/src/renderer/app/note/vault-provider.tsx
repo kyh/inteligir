@@ -27,6 +27,7 @@ import { basenamePath } from "@repo/notes/knowledge/vault-path";
 import { base64FromBytes } from "@repo/api/cloud/bytes";
 import type { KnowledgeWikiTargetsResponse } from "@repo/api/local/knowledge/knowledge-schema";
 import { vaultAssetUrl } from "@repo/api/local/routes";
+import { attachmentDir } from "@repo/api/local/vault/attachment-location";
 import type { VaultTreeResponse } from "@repo/api/local/vault/vault-schema";
 import { toast } from "@repo/ui/components/sonner";
 import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
@@ -130,7 +131,10 @@ export function VaultProvider({
         if (!response.ok) return { ok: false, error: `asset ${String(response.status)}` };
         return { ok: true, bytes: await response.blob() };
       },
-      writeVaultAsset: async ({ dir, baseName, file }) => {
+      // the choice is read per paste, not cached: the CLI can change it between two pastes.
+      writeVaultAsset: async ({ baseName, file }) => {
+        const { attachments } = await api.vault.prefs();
+        const dir = attachmentDir(attachments, store.state().openPath);
         const bytesBase64 = base64FromBytes(new Uint8Array(await file.arrayBuffer()));
         return api.vault.assetWrite({ dir, baseName, bytesBase64 });
       },
@@ -189,7 +193,7 @@ export function VaultProvider({
         }),
     };
     setEditorHostIo(io);
-  }, [api, docEvents, port, session]);
+  }, [api, docEvents, port, session, store]);
 
   useEffect(() => {
     void session.start();

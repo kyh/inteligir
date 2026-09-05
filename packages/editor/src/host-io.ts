@@ -95,10 +95,8 @@ export type EditorHostIo = {
   wikiResolver: WikiResolverStore;
   readVaultFile(payload: { path: string }): Promise<string>;
   readVaultAsset(payload: { path: string }): Promise<ReadVaultAssetResult>;
-  /** Picks a collision-free name from `baseName`. */
-  writeVaultAsset(payload: { dir: string; baseName: string; file: Blob }): Promise<{
-    path: string;
-  }>;
+  /** Picks a collision-free name from `baseName`; the host decides the folder from the vault's attachments choice and the open note. */
+  writeVaultAsset(payload: { baseName: string; file: Blob }): Promise<{ path: string }>;
   /** Notes first, then attachments. */
   listWikiTargets(): Promise<WikiTarget[]>;
   getBacklinks(payload: { path: string }): Promise<BacklinkEntry[]>;

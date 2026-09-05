@@ -351,7 +351,10 @@ export function createVaultService(args: VaultServiceArgs): VaultService {
         const safeStem = stem === "" ? "asset" : stem;
         for (let attempt = 0; attempt < 1000; attempt++) {
           const name = attempt === 0 ? `${safeStem}${ext}` : `${safeStem}-${attempt + 1}${ext}`;
-          const { relPath, absPath } = resolveVaultPath(rootReal, `${dir}/${name}`);
+          const { relPath, absPath } = resolveVaultPath(
+            rootReal,
+            dir === "" ? name : `${dir}/${name}`,
+          );
           await assertAncestryInsideVault(absPath);
           const existing = await lstatRefusingSymlink(absPath, relPath);
           if (existing !== null) continue;

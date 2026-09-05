@@ -50,11 +50,7 @@ describe("image ingestion", () => {
 
     await ingestImageFiles(editor, [shot]);
 
-    expect(helpers.writeVaultAsset).toHaveBeenCalledWith({
-      dir: "assets",
-      baseName: "shot.png",
-      file: shot,
-    });
+    expect(helpers.writeVaultAsset).toHaveBeenCalledWith({ baseName: "shot.png", file: shot });
     expect(imageUrls(editor)).toEqual(["assets/landed.png"]);
   });
 

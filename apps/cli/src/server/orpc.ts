@@ -15,6 +15,7 @@ import type { FoldersService } from "./folders/folders-service";
 import type { RenameTag } from "./knowledge/knowledge-router";
 import type { KnowledgeRuntime } from "./knowledge/knowledge-runtime";
 import type { ThreadService } from "./threads/service";
+import type { VaultPrefsStore } from "./vault/vault-prefs-store";
 import type { VaultRuntime } from "./vault/vault-runtime";
 import type { RenameNote } from "./vault/vault-router";
 import type { VoiceService } from "./voice/voice-service";
@@ -46,6 +47,7 @@ export interface AppContext {
   system: SystemFacts;
   threads: ThreadService;
   vault: VaultRuntime;
+  vaultPrefs: VaultPrefsStore;
   voice: VoiceService;
 }
 
