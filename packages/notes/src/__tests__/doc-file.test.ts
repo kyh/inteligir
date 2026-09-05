@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_DOC_EXTENSION, docExtension, docStem, isDocPath } from "../knowledge/doc-file";
+import {
+  DEFAULT_DOC_EXTENSION,
+  docExtension,
+  docStem,
+  isDocPath,
+  isVaultMetadataPath,
+} from "../knowledge/doc-file";
 
 describe("what counts as a doc", () => {
   it("names every extension the index and the listing carry", () => {
@@ -13,6 +19,26 @@ describe("what counts as a doc", () => {
 
   it("mints new docs with the default extension", () => {
     expect(isDocPath(`Untitled${DEFAULT_DOC_EXTENSION}`)).toBe(true);
+  });
+});
+
+describe("what a listing hides", () => {
+  it("hides the comment sidecar and every dot-entry, at any depth", () => {
+    for (const path of [
+      "Welcome.md.comments.json",
+      "notes/a.md.comments.json",
+      ".obsidian/app.json",
+      "notes/.DS_Store",
+      ".trash",
+    ]) {
+      expect(isVaultMetadataPath(path)).toBe(true);
+    }
+  });
+
+  it("shows notes, folders and attachments", () => {
+    for (const path of ["Welcome.md", "notes", "notes/comments.json", "assets/logo.png"]) {
+      expect(isVaultMetadataPath(path)).toBe(false);
+    }
   });
 });
 

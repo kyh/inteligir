@@ -1,7 +1,13 @@
 import { z } from "zod";
 
+const SIDECAR_SUFFIX = ".comments.json";
+
 export function commentsSidecarPath(notePath: string): string {
-  return `${notePath}.comments.json`;
+  return `${notePath}${SIDECAR_SUFFIX}`;
+}
+
+export function isCommentsSidecarPath(path: string): boolean {
+  return path.endsWith(SIDECAR_SUFFIX);
 }
 
 export const COMMENT_SOURCES = ["user", "agent", "external"] as const;

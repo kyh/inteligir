@@ -31,6 +31,12 @@ export interface FileTreeProps {
   ops: TreeOps;
   pendingCreate: { kind: "file" | "dir"; parentDir: string } | null;
   onPendingCreateHandled: () => void;
+  // the folder the listing is rooted at ("" is the vault): its children are the top-level rows
+  rootDir?: string;
+  // where a create from outside the tree lands: the selected folder, or the selected file's
+  onCreateDirChange?: (dir: string) => void;
+  // a changed value collapses every folder
+  collapseAllNonce?: number;
 }
 
 interface TreeNode {
@@ -40,7 +46,7 @@ interface TreeNode {
   children: TreeNode[];
 }
 
-function buildTree(entries: readonly VaultEntry[]): TreeNode[] {
+function buildTree(entries: readonly VaultEntry[]) {
   const roots: TreeNode[] = [];
   const byPath = new Map<string, TreeNode>();
   for (const entry of entries) {
@@ -55,7 +61,7 @@ function buildTree(entries: readonly VaultEntry[]): TreeNode[] {
     const parent = parentDir === "" ? undefined : byPath.get(parentDir);
     (parent?.children ?? roots).push(node);
   }
-  return roots;
+  return { roots, byPath };
 }
 
 type EditingState =
@@ -68,10 +74,11 @@ function visibleRows(
   nodes: readonly TreeNode[],
   expanded: ReadonlySet<string>,
   editing: EditingState | null,
+  rootDir: string,
   depth: number,
   out: Row[],
 ): void {
-  if (editing?.mode === "create" && editing.parentDir === "" && depth === 0) {
+  if (editing?.mode === "create" && editing.parentDir === rootDir && depth === 0) {
     out.push({ kind: "editor", depth: 0 });
   }
   for (const node of nodes) {
@@ -80,7 +87,7 @@ function visibleRows(
       if (editing?.mode === "create" && editing.parentDir === node.path) {
         out.push({ kind: "editor", depth: depth + 1 });
       }
-      visibleRows(node.children, expanded, editing, depth + 1, out);
+      visibleRows(node.children, expanded, editing, rootDir, depth + 1, out);
     }
   }
 }
@@ -170,8 +177,11 @@ export function FileTree({
   ops,
   pendingCreate,
   onPendingCreateHandled,
+  rootDir = "",
+  onCreateDirChange,
+  collapseAllNonce = 0,
 }: FileTreeProps) {
-  const roots = useMemo(() => buildTree(entries), [entries]);
+  const { roots, byPath } = useMemo(() => buildTree(entries), [entries]);
 
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set());
   const [activePath, setActivePath] = useState<string | null>(null);
@@ -197,6 +207,12 @@ export function FileTree({
       onPendingCreateHandled();
     }
   }, [pendingCreate, onPendingCreateHandled]);
+
+  const [adoptedCollapse, setAdoptedCollapse] = useState(collapseAllNonce);
+  if (adoptedCollapse !== collapseAllNonce) {
+    setAdoptedCollapse(collapseAllNonce);
+    setExpanded(new Set());
+  }
 
   // Keyed on entries alone: reconciling on every activePath change would clear
   // an optimistic rename-follow before the refetched tree confirms it.
@@ -224,8 +240,18 @@ export function FileTree({
     }
   }
 
+  const createDir =
+    activePath === null
+      ? rootDir
+      : byPath.get(activePath)?.kind === "dir"
+        ? activePath
+        : dirnamePath(activePath);
+  useEffect(() => {
+    onCreateDirChange?.(createDir);
+  }, [createDir, onCreateDirChange]);
+
   const rows: Row[] = [];
-  visibleRows(roots, expanded, editing, 0, rows);
+  visibleRows(roots, expanded, editing, rootDir, 0, rows);
   const nodeRows = rows.filter((row): row is Extract<Row, { kind: "node" }> => row.kind === "node");
 
   const toggleDir = (path: string): void => {
@@ -296,7 +322,7 @@ export function FileTree({
           toggleDir(node.path);
         } else {
           const parent = dirnamePath(node.path);
-          if (parent !== "") {
+          if (parent !== rootDir) {
             focusPath(parent);
           }
         }

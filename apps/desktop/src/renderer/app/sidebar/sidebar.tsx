@@ -1,23 +1,41 @@
 import { Button } from "@repo/ui/components/button";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@repo/ui/components/dropdown-menu";
+import {
   SidebarContent,
   SidebarFooter,
   SidebarHeader,
   SidebarInput,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
 } from "@repo/ui/components/sidebar";
 import { cn } from "@repo/ui/lib/utils";
+import { isVaultMetadataPath } from "@repo/notes/knowledge/doc-file";
+import { basenamePath } from "@repo/notes/knowledge/vault-path";
+import type { VaultEntry } from "@repo/api/local/vault/vault-schema";
 import {
   ArchiveRestoreIcon,
+  CheckIcon,
+  ChevronDownIcon,
+  ChevronsDownUpIcon,
   FilePlusIcon,
+  FolderIcon,
   FolderPlusIcon,
   FolderTreeIcon,
   SettingsIcon,
 } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { platformShortcutModifier } from "../global-shortcuts";
+import {
+  readSidebarFolder,
+  readSidebarView,
+  writeSidebarFolder,
+  writeSidebarView,
+  type SidebarView,
+} from "../prefs";
+import { hasInsetTitleBar } from "../title-bar";
 import {
   canSyncNow,
   syncBlockedReason,
@@ -28,6 +46,16 @@ import {
 } from "../vault-hooks";
 import { FileTree, type TreeLoadState, type TreeOps } from "./file-tree";
 import { NotesList } from "./notes-list";
+
+const EMPTY_ENTRIES: readonly VaultEntry[] = [];
+
+// "" is the vault root. The folder itself is not a row: its children are.
+export function entriesUnder(entries: readonly VaultEntry[], folder: string): VaultEntry[] {
+  return entries.filter(
+    (entry) =>
+      !isVaultMetadataPath(entry.path) && (folder === "" || entry.path.startsWith(`${folder}/`)),
+  );
+}
 
 function treeLoadState(query: ReturnType<typeof useVaultTree>): TreeLoadState {
   if (query.isError) {
@@ -61,6 +89,58 @@ function SyncStatusRow({ onSyncNow }: { onSyncNow: () => void }) {
   );
 }
 
+function FolderPicker({
+  vaultName,
+  folders,
+  value,
+  onChange,
+}: {
+  vaultName: string;
+  folders: readonly string[];
+  value: string;
+  onChange: (folder: string) => void;
+}) {
+  const label = value === "" ? vaultName : basenamePath(value);
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        aria-label="Folder"
+        className="flex h-7 min-w-0 flex-1 items-center gap-1 rounded-md px-1.5 text-sm font-medium outline-none hover:bg-hover"
+      >
+        <FolderIcon className="size-3.5 shrink-0 text-muted-foreground" />
+        <span className="min-w-0 truncate">{label}</span>
+        <ChevronDownIcon className="size-3 shrink-0 text-muted-foreground" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start">
+        <DropdownMenuItem
+          onClick={() => {
+            onChange("");
+          }}
+        >
+          <CheckIcon className={cn("size-3.5", value !== "" && "invisible")} />
+          {vaultName}
+        </DropdownMenuItem>
+        {folders.map((folder) => (
+          <DropdownMenuItem
+            key={folder}
+            onClick={() => {
+              onChange(folder);
+            }}
+          >
+            <CheckIcon className={cn("size-3.5", value !== folder && "invisible")} />
+            <span
+              className="min-w-0 truncate"
+              style={{ paddingLeft: folder.split("/").length * 12 - 12 }}
+            >
+              {basenamePath(folder)}
+            </span>
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 export interface SidebarRailContentProps {
   openPath: string | null;
   onOpenFile: (path: string) => void;
@@ -81,12 +161,40 @@ export function SidebarRailContent({
   onOpenSearch,
 }: SidebarRailContentProps) {
   const treeQuery = useVaultTree();
+  const [view, setView] = useState<SidebarView>(readSidebarView);
+  const [folder, setFolder] = useState<string>(readSidebarFolder);
   const [pendingCreate, setPendingCreate] = useState<{
     kind: "file" | "dir";
     parentDir: string;
   } | null>(null);
-  const [showTree, setShowTree] = useState(false);
+  const [treeCreateDir, setTreeCreateDir] = useState("");
+  const [collapseAllNonce, setCollapseAllNonce] = useState(0);
+  const [insetTitleBar] = useState(hasInsetTitleBar);
   const modifier = platformShortcutModifier();
+
+  const entries = treeQuery.data?.entries ?? EMPTY_ENTRIES;
+  const folders = useMemo(
+    () =>
+      entries
+        .filter((entry) => entry.kind === "dir" && !isVaultMetadataPath(entry.path))
+        .map((entry) => entry.path),
+    [entries],
+  );
+  // a remembered folder the vault no longer holds shows the root, once the listing has answered
+  const scope = treeQuery.data !== undefined && !folders.includes(folder) ? "" : folder;
+  const scoped = useMemo(() => entriesUnder(entries, scope), [entries, scope]);
+
+  const showTree = view === "tree";
+  const chooseView = (next: SidebarView): void => {
+    writeSidebarView(next);
+    setView(next);
+  };
+  // A create lands where an IDE's would: in the tree's selected folder. The recents view
+  // selects nothing, so it lands at the scope.
+  const startCreate = (kind: "file" | "dir"): void => {
+    chooseView("tree");
+    setPendingCreate({ kind, parentDir: showTree ? treeCreateDir : scope });
+  };
 
   // The search input opens the palette on pointerup, never on click or
   // pointerdown: a dialog mounted mid-gesture reads the release as an outside
@@ -94,33 +202,65 @@ export function SidebarRailContent({
   return (
     <>
       <SidebarHeader className="gap-2">
-        <div className="flex items-center gap-1">
-          <h2 className="min-w-0 flex-1 truncate px-1 text-sm font-medium">
-            {treeQuery.data?.name ?? "Vault"}
-          </h2>
+        {insetTitleBar ? (
+          <div aria-hidden="true" className="h-5 shrink-0 [-webkit-app-region:drag]" />
+        ) : null}
+        <div className="flex items-center gap-0.5">
+          <FolderPicker
+            vaultName={treeQuery.data?.name ?? "Vault"}
+            folders={folders}
+            value={scope}
+            onChange={(next) => {
+              writeSidebarFolder(next);
+              setFolder(next);
+            }}
+          />
           <Button
             variant="ghost"
             size="icon-compact"
-            aria-label="New folder"
+            aria-label="New note"
+            title="New note"
             onClick={() => {
-              setShowTree(true);
-              setPendingCreate({ kind: "dir", parentDir: "" });
+              startCreate("file");
             }}
           >
-            <FolderPlusIcon className="size-4 text-muted-foreground" />
+            <FilePlusIcon />
           </Button>
           <Button
             variant="ghost"
             size="icon-compact"
-            aria-label={showTree ? "Show notes list" : "Show file tree"}
-            aria-pressed={showTree}
+            aria-label="New folder"
+            title="New folder"
             onClick={() => {
-              setShowTree((current) => !current);
+              startCreate("dir");
             }}
           >
-            <FolderTreeIcon
-              className={cn("size-4", showTree ? "text-foreground" : "text-muted-foreground")}
-            />
+            <FolderPlusIcon />
+          </Button>
+          {showTree ? (
+            <Button
+              variant="ghost"
+              size="icon-compact"
+              aria-label="Collapse all"
+              title="Collapse all"
+              onClick={() => {
+                setCollapseAllNonce((nonce) => nonce + 1);
+              }}
+            >
+              <ChevronsDownUpIcon />
+            </Button>
+          ) : null}
+          <Button
+            variant="ghost"
+            size="icon-compact"
+            aria-label={showTree ? "Show recent notes" : "Show file tree"}
+            title={showTree ? "Show recent notes" : "Show file tree"}
+            aria-pressed={showTree}
+            onClick={() => {
+              chooseView(showTree ? "recents" : "tree");
+            }}
+          >
+            <FolderTreeIcon className={cn(showTree && "text-foreground")} />
           </Button>
         </div>
         <div className="relative">
@@ -141,24 +281,11 @@ export function SidebarRailContent({
             {modifier === "meta" ? "⌘" : "Ctrl-"}P
           </kbd>
         </div>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              icon={FilePlusIcon}
-              onClick={() => {
-                setShowTree(true);
-                setPendingCreate({ kind: "file", parentDir: "" });
-              }}
-            >
-              New note
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
         {showTree ? (
           <FileTree
-            entries={treeQuery.data?.entries ?? []}
+            entries={scoped}
             loadState={treeLoadState(treeQuery)}
             onRetry={() => void treeQuery.refetch()}
             openPath={openPath}
@@ -166,13 +293,12 @@ export function SidebarRailContent({
             ops={ops}
             pendingCreate={pendingCreate}
             onPendingCreateHandled={() => setPendingCreate(null)}
+            rootDir={scope}
+            onCreateDirChange={setTreeCreateDir}
+            collapseAllNonce={collapseAllNonce}
           />
         ) : (
-          <NotesList
-            entries={treeQuery.data?.entries ?? []}
-            openPath={openPath}
-            onOpenFile={onOpenFile}
-          />
+          <NotesList entries={scoped} scope={scope} openPath={openPath} onOpenFile={onOpenFile} />
         )}
       </SidebarContent>
       <SidebarFooter className="flex-row items-center justify-between">

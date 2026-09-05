@@ -272,3 +272,60 @@ describe("the context menu", () => {
     expect(ops.createNote).toHaveBeenCalledWith("notes/inbox.md");
   });
 });
+
+describe("a listing rooted at a folder", () => {
+  const scoped = ENTRIES.filter((entry) => entry.path.startsWith("notes/"));
+
+  it("shows the folder's children as top-level rows", () => {
+    renderTree({ entries: scoped, rootDir: "notes" });
+    expect(row("notes/ideas.md").getAttribute("aria-level")).toBe("1");
+    expect(screen.queryByText("notes")).toBeNull();
+  });
+
+  it("lands a root create inside the folder", () => {
+    const { ops } = renderTree({
+      entries: scoped,
+      rootDir: "notes",
+      pendingCreate: { kind: "file", parentDir: "notes" },
+    });
+    const input = screen.getByLabelText("Name");
+    fireEvent.change(input, { target: { value: "todo" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(ops.createNote).toHaveBeenCalledWith("notes/todo.md");
+  });
+});
+
+describe("where a create from outside the tree lands", () => {
+  it("is the selected folder, or the selected file's, else the root", () => {
+    const onCreateDirChange = vi.fn();
+    renderTree({ onCreateDirChange });
+    expect(onCreateDirChange).toHaveBeenLastCalledWith("");
+    fireEvent.click(row("notes"));
+    expect(onCreateDirChange).toHaveBeenLastCalledWith("notes");
+    fireEvent.click(row("notes/ideas.md"));
+    expect(onCreateDirChange).toHaveBeenLastCalledWith("notes");
+    fireEvent.click(row("Welcome.md"));
+    expect(onCreateDirChange).toHaveBeenLastCalledWith("");
+  });
+});
+
+describe("collapse all", () => {
+  it("folds every folder when the nonce changes", () => {
+    const ops = makeOps();
+    const props = {
+      entries: ENTRIES,
+      loadState: "loaded" as const,
+      onRetry: vi.fn(),
+      openPath: "notes/daily/2026-08-16.md",
+      onOpenFile: vi.fn(),
+      ops,
+      pendingCreate: null,
+      onPendingCreateHandled: vi.fn(),
+    };
+    const { rerender } = render(<FileTree {...props} collapseAllNonce={0} />);
+    expect(screen.getByText("2026-08-16.md")).toBeDefined();
+    rerender(<FileTree {...props} collapseAllNonce={1} />);
+    expect(screen.queryByText("2026-08-16.md")).toBeNull();
+    expect(screen.queryByText("daily")).toBeNull();
+  });
+});

@@ -9,6 +9,8 @@ const KEYS = {
   theme: "inteligir.theme",
   appearance: "inteligir.appearance",
   relatedOpen: "inteligir.related-open",
+  sidebarView: "inteligir.sidebar-view",
+  sidebarFolder: "inteligir.sidebar-folder",
 };
 
 function read(key: string): string | null {
@@ -70,6 +72,25 @@ export function readRelatedOpen(): boolean {
 
 export function writeRelatedOpen(open: boolean): void {
   write(KEYS.relatedOpen, open ? "true" : "false");
+}
+
+export type SidebarView = "recents" | "tree";
+
+export function readSidebarView(): SidebarView {
+  return read(KEYS.sidebarView) === "tree" ? "tree" : "recents";
+}
+
+export function writeSidebarView(view: SidebarView): void {
+  write(KEYS.sidebarView, view);
+}
+
+// "" is the vault root. A remembered folder the vault no longer holds is the rail's to fall back from.
+export function readSidebarFolder(): string {
+  return read(KEYS.sidebarFolder) ?? "";
+}
+
+export function writeSidebarFolder(folder: string): void {
+  write(KEYS.sidebarFolder, folder === "" ? null : folder);
 }
 
 export function readTheme(): Theme {
