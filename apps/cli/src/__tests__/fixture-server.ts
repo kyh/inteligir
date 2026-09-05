@@ -8,6 +8,7 @@ import type { ConnectorsResponse } from "@repo/api/local/connectors/connectors-s
 import type { ConnectedFoldersResponse } from "@repo/api/local/folders/folders-schema";
 import {
   KNOWLEDGE_MATCHES_DEFAULT_LIMIT,
+  KNOWLEDGE_UNLINKED_DEFAULT_LIMIT,
   type BacklinkEntryWire,
   type RelatedNoteWire,
   type SearchResultWire,
@@ -15,6 +16,7 @@ import {
 } from "@repo/api/local/knowledge/knowledge-schema";
 import { docStem } from "@repo/notes/knowledge/doc-file";
 import { collectVaultMatches } from "@repo/notes/knowledge/text-matches";
+import { findUnlinkedMentions, mentionNames } from "@repo/notes/knowledge/unlinked-mentions";
 import { RPC_PREFIX } from "@repo/api/local/routes";
 import type { AgentStatus, SystemStatusResponse } from "@repo/api/local/system/system-schema";
 import type { ThreadTimeline } from "@repo/api/local/thread-timeline";
@@ -325,6 +327,18 @@ const knowledgeRouter = {
     path: input.path,
     backlinks: context.backlinks,
     total: context.backlinks.length,
+  })),
+  // the real scan over the fixture vault, excluding what the fixture's backlinks already link
+  unlinkedMentions: base.knowledge.unlinkedMentions.handler(({ context, input }) => ({
+    path: input.path,
+    ...findUnlinkedMentions(
+      [...context.vault].map(([path, body]) => ({ path, title: docStem(path), body })),
+      {
+        names: mentionNames(input.path, []),
+        exclude: new Set([input.path, ...context.backlinks.map((entry) => entry.sourcePath)]),
+        limit: input.limit ?? KNOWLEDGE_UNLINKED_DEFAULT_LIMIT,
+      },
+    ),
   })),
   related: base.knowledge.related.handler(({ context, input }) => ({
     path: input.path,

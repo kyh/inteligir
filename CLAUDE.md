@@ -817,6 +817,20 @@ rename`.
   switcher (the palette with its commands folded away) and ⌘, is Settings; a
   browser tab may keep either for itself, the shell delivers both.
 
+- **AN UNLINKED MENTION IS THE STEM OR AN ALIAS IN PROSE, and Link rewrites the
+  bytes the row showed.** `knowledge.unlinkedMentions` (`inteligir unlinked`)
+  runs the literal scan's matcher over the target's names as whole words, any
+  case, one row per note on its first mention, excluding the note itself and
+  every note that already links here; a hit inside code, math, a link, a url,
+  frontmatter, an html tag or a comment marker is withheld by the scan's own
+  regexes as well as the editor's verbatim ranges, because those ranges come
+  back empty for a doc the editor's grammar refuses. Not the H1: `[[H1 text]]`
+  resolves to nothing unless it is the stem or an alias. Link wraps exactly
+  that site as `[[Stem]]`, or `[[Stem|as written]]` when the prose differs,
+  through a write with the hash of the bytes it read; a mismatch is reported,
+  never merged. `@repo/notes/knowledge/unlinked-mentions.ts`,
+  `apps/desktop/src/renderer/app/actions/link-mention.ts`.
+
 **Before raising a "new" finding, read
 [#542](https://github.com/kyh/inteligir/issues/542)**: the decision record
 carries what was rejected as well as what was chosen. The older `note` issues

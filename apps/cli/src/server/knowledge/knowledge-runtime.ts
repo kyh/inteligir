@@ -26,6 +26,11 @@ import {
   type TextMatchOptions,
   type VaultMatches,
 } from "@repo/notes/knowledge/text-matches";
+import {
+  findUnlinkedMentions,
+  mentionNames,
+  type UnlinkedMentions,
+} from "@repo/notes/knowledge/unlinked-mentions";
 import { normalizePath } from "@repo/notes/knowledge/vault-path";
 import { searchVaultNotes } from "@repo/notes/knowledge/vault-search";
 import { contentHashBytesHex, type VaultEntry } from "@repo/api/local/vault/vault-schema";
@@ -71,6 +76,8 @@ export interface KnowledgeRuntime {
   }): Promise<VaultMatches>;
   backlinks(path: string): Promise<BacklinkEntry[]>;
   wikiTargets(): Promise<WikiTarget[]>;
+  // notes naming this one in prose without a link, one row per note on its first mention
+  unlinkedMentions(path: string, limit: number): Promise<UnlinkedMentions>;
   relatedNotes(path: string, limit: number): Promise<RelatedNoteEntry[]>;
   tags(): Promise<TagCount[]>;
   renameCandidates(from: string, to: string): Promise<string[]>;
@@ -395,6 +402,23 @@ export function createKnowledgeRuntime(args: KnowledgeRuntimeArgs): KnowledgeRun
     async backlinks(path) {
       await settle();
       return graph.backlinks(normalizePath(path));
+    },
+
+    // the literal scan again, over the stem and the aliases; a single ascii name lets the
+    // store pre-narrow, several names read every doc
+    async unlinkedMentions(path, limit) {
+      const normalized = normalizePath(path);
+      return readThroughIndex("unlinked mentions", () => {
+        const target = graph.wikiTargets().find((candidate) => candidate.path === normalized);
+        const names = mentionNames(normalized, target?.aliases ?? []);
+        const exclude = new Set([
+          normalized,
+          ...graph.backlinks(normalized).map((backlink) => backlink.sourcePath),
+        ]);
+        const only = names.length === 1 ? names[0] : undefined;
+        const docs = store.docTexts(only === undefined ? null : bodyPrefilter(only));
+        return findUnlinkedMentions(docs, { names, exclude, limit });
+      });
     },
 
     async wikiTargets() {

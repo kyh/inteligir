@@ -2,9 +2,11 @@ import {
   KNOWLEDGE_MATCHES_MAX_LIMIT,
   KNOWLEDGE_RELATED_MAX_LIMIT,
   KNOWLEDGE_SEARCH_MAX_LIMIT,
+  KNOWLEDGE_UNLINKED_MAX_LIMIT,
   type KnowledgeMatchesRequest,
   type KnowledgeRelatedRequest,
   type KnowledgeSearchRequest,
+  type KnowledgeUnlinkedMentionsRequest,
 } from "@repo/api/local/knowledge/knowledge-schema";
 import { defineCommand } from "citty";
 import { parseBoundedInteger } from "../args";
@@ -115,6 +117,45 @@ export function backlinksCommand(deps: CliDeps) {
         ),
         ...(body.backlinks.length < body.total
           ? [`(${body.total - body.backlinks.length} more not shown)`]
+          : []),
+      ]);
+    },
+  });
+}
+
+export function unlinkedCommand(deps: CliDeps) {
+  return defineCommand({
+    meta: { name: "unlinked", description: "Notes naming a note in prose without linking it" },
+    args: {
+      path: { type: "positional", required: true, description: "The vault-relative path" },
+      limit: { type: "string", description: "Maximum notes" },
+      ...jsonArg,
+    },
+    run: async ({ args }) => {
+      const limit = parseLimit(args.limit, KNOWLEDGE_UNLINKED_MAX_LIMIT);
+      const api = apiFor(deps);
+      const request: KnowledgeUnlinkedMentionsRequest = { path: args.path };
+      if (limit !== undefined) {
+        request.limit = limit;
+      }
+      const body = await api.knowledge.unlinkedMentions(request);
+      if (outputJson(args, body)) {
+        return;
+      }
+      if (body.mentions.length === 0) {
+        out.info("No unlinked mentions.");
+        return;
+      }
+      // columns count from 1 here, as editors do; the wire's are offsets
+      writeLines([
+        ...body.mentions.map(
+          (mention) =>
+            `${mention.path}:${mention.line}:${mention.column + 1}  ${mention.before}${mention.text}${mention.after}${
+              mention.count > 1 ? `  (${mention.count} mentions)` : ""
+            }`,
+        ),
+        ...(body.mentions.length < body.total
+          ? [`(${body.total - body.mentions.length} more notes not shown)`]
           : []),
       ]);
     },

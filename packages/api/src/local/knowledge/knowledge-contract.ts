@@ -14,6 +14,8 @@ import {
   knowledgeSearchRequestSchema,
   knowledgeSearchResponseSchema,
   knowledgeTagsResponseSchema,
+  knowledgeUnlinkedMentionsRequestSchema,
+  knowledgeUnlinkedMentionsResponseSchema,
   knowledgeWikiTargetsResponseSchema,
 } from "./knowledge-schema";
 
@@ -27,6 +29,10 @@ export const knowledgeContract = {
   backlinks: oc.input(knowledgeBacklinksRequestSchema).output(knowledgeBacklinksResponseSchema),
 
   related: oc.input(knowledgeRelatedRequestSchema).output(knowledgeRelatedResponseSchema),
+
+  unlinkedMentions: oc
+    .input(knowledgeUnlinkedMentionsRequestSchema)
+    .output(knowledgeUnlinkedMentionsResponseSchema),
 
   tags: oc.output(knowledgeTagsResponseSchema),
 

@@ -80,6 +80,11 @@ Paths are vault-relative POSIX paths (\`notes/idea.md\`). Prefer wiki links
   it scans the bytes: no stemming, no ranking. \`--case-sensitive\` and
   \`--whole-word\` narrow; \`--limit <n>\` caps rows (1–500).
 - \`inteligir backlinks <path>\` — the notes linking INTO a note.
+- \`inteligir unlinked <path>\` — notes that name a note in prose (its stem or
+  an alias, as a whole word) without linking it, one row per note as
+  \`path:line:column\` with the sentence; code, links, urls and frontmatter do
+  not count. Wrap that text as \`[[Title]]\` to make it a link. \`--limit <n>\`
+  caps rows (1–200).
 - \`inteligir related <path>\` — notes connected to a note WITHOUT linking to
   it: shared link targets, shared tags, similar text. Each row is followed by
   the reasons it is there. \`--limit <n>\` caps results (1–50).
