@@ -935,6 +935,17 @@ rename`.
   `apps/desktop/src/main/vaults.ts` (the policy), `main/index.ts`
   (`switchVault`), `apps/desktop/src/vaults-state.ts`.
 
+- **A TAG'S NOTES ARE A LISTING, NOT A SEARCH.** `knowledge.tagNotes`
+  (`inteligir tag notes <tag>`) answers the tag's family by path with the
+  whole count, paged by `limit` and `offset`, from the index alone: the search
+  route ranks and stops at its ceiling, so a tag on more notes than that showed
+  a hundred with no sign of a cut. The family is one predicate,
+  `notesInTagFamily` (`@repo/notes/knowledge/tag-notes`), which the rename's
+  candidate list runs too. The rail re-reads one growing page rather than
+  stitching pages, because the list it draws is filtered by the folder scope
+  and sorted by recency after the fact, and says `listed of total` while cut.
+  `apps/desktop/src/renderer/app/sidebar/tags-view.tsx`.
+
 **Before raising a "new" finding, read
 [#542](https://github.com/kyh/inteligir/issues/542)**: the decision record
 carries what was rejected as well as what was chosen. The older `note` issues

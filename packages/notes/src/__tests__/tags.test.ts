@@ -134,4 +134,14 @@ describe("KnowledgeIndex — tags", () => {
     index.setOther("b.md");
     expect(index.notesWithTag("toother")).toEqual([]);
   });
+
+  it("lists a tag's family by path, each note once, in any case", () => {
+    const index = new KnowledgeIndex();
+    index.setDoc("b.md", "# B\n\nBoth #Work and #work/deep here.\n");
+    index.setDoc("a.md", "# A\n\nOnly #work/deep.\n");
+    index.setDoc("c.md", "# C\n\nA #workshop is not the family.\n");
+    expect(index.notesInTagFamily("work")).toEqual(["a.md", "b.md"]);
+    expect(index.notesInTagFamily("work/deep")).toEqual(["a.md", "b.md"]);
+    expect(index.notesInTagFamily("nothing")).toEqual([]);
+  });
 });

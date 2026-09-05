@@ -152,6 +152,17 @@ export function TagsView({
   );
 }
 
+export interface TagScopeCount {
+  // how many of the family the listing holds, and how many there are
+  listed: number;
+  total: number;
+}
+
+// the count says when the list is cut, so a cut is never mistaken for the whole
+export function tagScopeCountLabel({ listed, total }: TagScopeCount): string {
+  return listed < total ? `${String(listed)} of ${String(total)}` : String(total);
+}
+
 export function TagScopeHeader({
   tag,
   count,
@@ -159,7 +170,7 @@ export function TagScopeHeader({
   onRename,
 }: {
   tag: string;
-  count: number | undefined;
+  count: TagScopeCount | undefined;
   onClear: () => void;
   onRename: () => void;
 }) {
@@ -170,7 +181,9 @@ export function TagScopeHeader({
       </Button>
       <span className="min-w-0 flex-1 truncate text-sm font-medium">#{tag}</span>
       {count === undefined ? null : (
-        <span className="shrink-0 text-[11px] text-muted-foreground tabular-nums">{count}</span>
+        <span className="shrink-0 text-[11px] text-muted-foreground tabular-nums">
+          {tagScopeCountLabel(count)}
+        </span>
       )}
       <Button variant="ghost" size="icon-compact" aria-label={`Rename ${tag}`} onClick={onRename}>
         <PencilIcon />

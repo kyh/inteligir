@@ -4,6 +4,7 @@ import {
   knowledgeBacklinksResponseSchema,
   knowledgeRelatedResponseSchema,
   knowledgeSearchResponseSchema,
+  knowledgeTagNotesResponseSchema,
   knowledgeTagsResponseSchema,
 } from "@repo/api/local/knowledge/knowledge-schema";
 import { describe, expect, it } from "vitest";
@@ -37,6 +38,23 @@ describe("the knowledge routes", () => {
       tags: [{ tag: "project", count: 1 }],
       total: 1,
     });
+  });
+
+  it("lists a tag's family by path, paged, with the whole count", async () => {
+    const { client } = await bootTestApp();
+    await client.vault.write({ path: "b.md", content: "# B\n\n#Work here.\n" });
+    await client.vault.write({ path: "a.md", content: "# A\n\n#work/deep here.\n" });
+    await client.vault.write({ path: "c.md", content: "# C\n\n#workshop is not it.\n" });
+
+    const whole = knowledgeTagNotesResponseSchema.parse(
+      await client.knowledge.tagNotes({ tag: "work" }),
+    );
+    expect(whole).toEqual({ tag: "work", paths: ["a.md", "b.md"], total: 2 });
+
+    const page = knowledgeTagNotesResponseSchema.parse(
+      await client.knowledge.tagNotes({ tag: "work", limit: 1, offset: 1 }),
+    );
+    expect(page).toEqual({ tag: "work", paths: ["b.md"], total: 2 });
   });
 
   it("ranks related notes with the reasons they are related", async () => {

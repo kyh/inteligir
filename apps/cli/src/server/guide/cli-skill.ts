@@ -96,6 +96,9 @@ Paths are vault-relative POSIX paths (\`notes/idea.md\`). Prefer wiki links
   it: shared link targets, shared tags, similar text. Each row is followed by
   the reasons it is there. \`--limit <n>\` caps results (1–50).
 - \`inteligir tags\` — every tag with its usage count, most used first.
+- \`inteligir tag notes <tag>\` — every note holding the tag or one nested under
+  it, by path; \`--limit <n>\` is the page (1–500, default 100) and
+  \`--offset <n>\` skips to the next one.
 - \`inteligir tag rename <from> <to>\` — rename a tag (spelled without the
   \`#\`) in every note, nested tags under it included; a note that changed
   mid-rename is reported as skipped, never overwritten.

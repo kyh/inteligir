@@ -270,6 +270,28 @@ export const tagNameSchema = z.string().refine(isTagName, {
   message: "a tag is letter-first: letters, digits, _ and -, with / between levels",
 });
 
+export const KNOWLEDGE_TAG_NOTES_DEFAULT_LIMIT = 100;
+export const KNOWLEDGE_TAG_NOTES_MAX_LIMIT = 500;
+
+// a listing, not a search: the tag's family by path, paged, with the whole count
+export const knowledgeTagNotesRequestSchema = z
+  .object({
+    tag: tagNameSchema,
+    limit: z.number().int().min(1).max(KNOWLEDGE_TAG_NOTES_MAX_LIMIT).optional(),
+    offset: z.number().int().min(0).optional(),
+  })
+  .strict();
+export type KnowledgeTagNotesRequest = z.infer<typeof knowledgeTagNotesRequestSchema>;
+
+export const knowledgeTagNotesResponseSchema = z
+  .object({
+    tag: z.string().min(1),
+    paths: z.array(z.string().min(1)).max(KNOWLEDGE_TAG_NOTES_MAX_LIMIT),
+    total: z.number().int().min(0),
+  })
+  .strict();
+export type KnowledgeTagNotesResponse = z.infer<typeof knowledgeTagNotesResponseSchema>;
+
 export const knowledgeRenameTagRequestSchema = z
   .object({
     from: tagNameSchema,

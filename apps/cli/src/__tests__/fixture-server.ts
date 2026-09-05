@@ -14,6 +14,7 @@ import {
   type RelatedNoteWire,
   type SearchResultWire,
   type TagCountWire,
+  KNOWLEDGE_TAG_NOTES_DEFAULT_LIMIT,
 } from "@repo/api/local/knowledge/knowledge-schema";
 import { docStem, isDocPath } from "@repo/notes/knowledge/doc-file";
 import { collectVaultMatches } from "@repo/notes/knowledge/text-matches";
@@ -366,6 +367,20 @@ const knowledgeRouter = {
     tags: context.tags,
     total: context.tags.length,
   })),
+  // the fixture vault's own bytes, the family by prefix: a tag is `[\w/-]`, so anything else ends it
+  tagNotes: base.knowledge.tagNotes.handler(({ context, input }) => {
+    const family = new RegExp(`(^|\\s)#${input.tag}(?:/[\\w-]+)*(?![\\w/-])`, "iu");
+    const all = [...context.vault.entries()]
+      .filter(([, content]) => family.test(content))
+      .map(([path]) => path)
+      .toSorted();
+    const offset = input.offset ?? 0;
+    return {
+      tag: input.tag,
+      paths: all.slice(offset, offset + (input.limit ?? KNOWLEDGE_TAG_NOTES_DEFAULT_LIMIT)),
+      total: all.length,
+    };
+  }),
   renameTag: base.knowledge.renameTag.handler(({ context, input }) => ({
     from: input.from,
     to: input.to,

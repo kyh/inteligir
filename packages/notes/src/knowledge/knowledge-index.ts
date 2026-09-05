@@ -13,6 +13,7 @@ import { SearchIndex } from "./search-index";
 import { searchExcerpt } from "./search-excerpt";
 import { planSearchQuery, type SearchQueryTerm } from "./search-query";
 import type { TagCount } from "./tag-index";
+import { notesInTagFamily } from "./tag-notes";
 import { collectVaultMatches, type TextMatchOptions, type VaultMatches } from "./text-matches";
 import {
   collectVaultProblems,
@@ -111,6 +112,10 @@ export class KnowledgeIndex {
 
   notesWithTag(tag: string): string[] {
     return this.linkGraph.notesWithTag(tag);
+  }
+
+  notesInTagFamily(tag: string): string[] {
+    return notesInTagFamily(this.linkGraph, tag);
   }
 
   relatedNotes(path: string, opts?: RelatedNotesOpts): RelatedNoteEntry[] {
