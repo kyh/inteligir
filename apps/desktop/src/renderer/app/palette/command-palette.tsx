@@ -22,6 +22,8 @@ import type { VaultEntry } from "@repo/api/local/vault/vault-schema";
 import { basenamePath } from "@repo/notes/knowledge/vault-path";
 import { docStem } from "@repo/notes/knowledge/doc-file";
 import { isTemplatePath, TEMPLATES_FOLDER } from "@repo/notes/templates/placeholders";
+import { EDITOR_SHORTCUTS } from "@repo/editor/editor-shortcuts";
+import { FIND_BAR_SHORTCUTS } from "@repo/editor/find-bar";
 import {
   ArchiveRestoreIcon,
   CalendarIcon,
@@ -29,6 +31,7 @@ import {
   FileTextIcon,
   FolderIcon,
   FolderInputIcon,
+  KeyboardIcon,
   LayoutTemplateIcon,
   MessagesSquareIcon,
   RefreshCwIcon,
@@ -38,6 +41,15 @@ import {
   TextSearchIcon,
 } from "lucide-react";
 import { useEffect, useState } from "react";
+import {
+  bindingFor,
+  GLOBAL_SHORTCUTS,
+  globalShortcutHotkey,
+  platformShortcutModifier,
+  spellHotkey,
+  type GlobalShortcutAction,
+  type ShortcutModifier,
+} from "../global-shortcuts";
 import { planMove } from "../sidebar/tree-ops";
 import { threadActivity, THREAD_ACTIVITY_LABELS } from "../thread-activity";
 import type { MatchSource } from "./match-source";
@@ -61,13 +73,15 @@ export interface PaletteActions {
   replaceAll: (request: VaultReplaceRequest) => void;
 }
 
-// the pages a shortcut opens onto
-export type PalettePage = "root" | "search";
+// the pages a shortcut opens onto; "notes" is the root with its commands folded away (⌘O)
+export type PalettePage = "root" | "search" | "notes";
 
 export interface CommandPaletteProps {
   open: boolean;
   initialQuery?: string;
   initialPage?: PalettePage;
+  // how a binding is spelled; the workspace passes the one it listens with
+  modifier?: ShortcutModifier;
   onOpenChange: (open: boolean) => void;
   entries: readonly VaultEntry[];
   threads: readonly Thread[];
@@ -87,7 +101,38 @@ type Page =
   | "new-note-template"
   | "insert-template"
   | "threads"
-  | "move-to-folder";
+  | "move-to-folder"
+  | "shortcuts";
+
+interface ShortcutRow {
+  id: string;
+  label: string;
+  chord: string;
+}
+
+// derived from the two tables the listeners read, never a list of its own
+function shortcutGroups(
+  modifier: ShortcutModifier,
+): readonly { heading: string; rows: ShortcutRow[] }[] {
+  return [
+    {
+      heading: "Everywhere",
+      rows: GLOBAL_SHORTCUTS.map((row) => ({
+        id: row.action,
+        label: row.label,
+        chord: spellHotkey(globalShortcutHotkey(row), modifier),
+      })),
+    },
+    {
+      heading: "In the note",
+      rows: [...EDITOR_SHORTCUTS, ...FIND_BAR_SHORTCUTS].map((row) => ({
+        id: row.action,
+        label: row.label,
+        chord: spellHotkey(row.hotkey, modifier),
+      })),
+    },
+  ];
+}
 
 interface TemplatePageProps {
   open: boolean;
@@ -158,7 +203,8 @@ const SEARCH_DEBOUNCE_MS = 120;
 interface StaticCommand {
   id: string;
   label: string;
-  shortcut?: string;
+  // the row's binding comes from the global table, so the palette never spells a chord itself
+  binding?: GlobalShortcutAction;
   icon: React.ReactNode;
   keepOpen?: boolean;
   run: () => void;
@@ -222,6 +268,7 @@ export function CommandPalette({
   open,
   initialQuery = "",
   initialPage = "root",
+  modifier = platformShortcutModifier(),
   onOpenChange,
   entries,
   threads,
@@ -267,7 +314,7 @@ export function CommandPalette({
   }
 
   useEffect(() => {
-    if (!open || page !== "root") {
+    if (!open || (page !== "root" && page !== "notes")) {
       return undefined;
     }
     const controller = new AbortController();
@@ -361,7 +408,7 @@ export function CommandPalette({
     {
       id: "daily-note",
       label: "Daily note",
-      shortcut: "⌘D",
+      binding: "open-daily-note",
       icon: <CalendarIcon />,
       run: () => actions.openDailyNote(),
     },
@@ -370,7 +417,7 @@ export function CommandPalette({
           {
             id: "find-in-note",
             label: "Find in note",
-            shortcut: "⌘F",
+            binding: "find-in-note" as const,
             icon: <TextSearchIcon />,
             run: () => actions.findInNote?.(),
           },
@@ -393,7 +440,7 @@ export function CommandPalette({
     {
       id: "search-vault",
       label: "Search across the vault…",
-      shortcut: "⌘⇧F",
+      binding: "open-search",
       icon: <SearchIcon />,
       keepOpen: true,
       run: () => {
@@ -453,12 +500,58 @@ export function CommandPalette({
       run: () => actions.openDeletedNotes(),
     },
     {
+      id: "keyboard-shortcuts",
+      label: "Keyboard shortcuts",
+      icon: <KeyboardIcon />,
+      keepOpen: true,
+      run: () => {
+        setQuery("");
+        setPage("shortcuts");
+      },
+    },
+    {
       id: "settings",
       label: "Settings",
+      binding: "open-settings",
       icon: <SettingsIcon />,
       run: () => actions.openSettings(),
     },
   ];
+
+  if (page === "shortcuts") {
+    const groups = shortcutGroups(modifier)
+      .map((group) => ({
+        heading: group.heading,
+        rows: group.rows.filter(
+          (row) => matchesQuery(row.label, query) || matchesQuery(row.chord, query),
+        ),
+      }))
+      .filter((group) => group.rows.length > 0);
+    return (
+      <CommandDialog
+        open={open}
+        onOpenChange={onOpenChange}
+        title="Keyboard shortcuts"
+        description="Every binding, spelled for this keyboard"
+        shouldFilter={false}
+      >
+        <CommandInput placeholder="Filter shortcuts…" value={query} onValueChange={setQuery} />
+        <CommandList>
+          <CommandEmpty>No shortcut matches.</CommandEmpty>
+          {groups.map((group) => (
+            <CommandGroup key={group.heading} heading={group.heading}>
+              {group.rows.map((row) => (
+                <CommandItem key={row.id} value={row.id} onSelect={close}>
+                  {row.label}
+                  <CommandShortcut>{row.chord}</CommandShortcut>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          ))}
+        </CommandList>
+      </CommandDialog>
+    );
+  }
 
   if (page === "search") {
     const result = query === "" ? null : matchResult;
@@ -708,18 +801,21 @@ export function CommandPalette({
     );
   }
 
-  const visibleCommands = commands.filter((command) => matchesQuery(command.label, query));
+  const quickOpen = page === "notes";
+  const visibleCommands = quickOpen
+    ? []
+    : commands.filter((command) => matchesQuery(command.label, query));
 
   return (
     <CommandDialog
       open={open}
       onOpenChange={onOpenChange}
-      title="Command palette"
-      description="Open a note or run a command"
+      title={quickOpen ? "Open a note" : "Command palette"}
+      description={quickOpen ? "Jump to a note by name" : "Open a note or run a command"}
       shouldFilter={false}
     >
       <CommandInput
-        placeholder="Search notes or commands…"
+        placeholder={quickOpen ? "Open a note…" : "Search notes or commands…"}
         value={query}
         onValueChange={setQuery}
       />
@@ -751,8 +847,8 @@ export function CommandPalette({
               >
                 {command.icon}
                 {command.label}
-                {command.shortcut !== undefined ? (
-                  <CommandShortcut>{command.shortcut}</CommandShortcut>
+                {command.binding !== undefined ? (
+                  <CommandShortcut>{bindingFor(command.binding, modifier)}</CommandShortcut>
                 ) : null}
               </CommandItem>
             ))}

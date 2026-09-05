@@ -29,7 +29,7 @@ import {
   TagIcon,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { platformShortcutModifier } from "../global-shortcuts";
+import { bindingFor, platformShortcutModifier } from "../global-shortcuts";
 import {
   readSidebarFolder,
   readSidebarView,
@@ -326,7 +326,7 @@ export function SidebarRailContent({
             onPointerUp={onOpenSearch}
           />
           <kbd className="pointer-events-none absolute top-1/2 right-2 -translate-y-1/2 text-[10px] text-muted-foreground">
-            {modifier === "meta" ? "⌘" : "Ctrl-"}P
+            {bindingFor("open-palette", modifier)}
           </kbd>
         </div>
       </SidebarHeader>

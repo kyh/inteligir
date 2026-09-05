@@ -15,6 +15,17 @@ import { PlateLeaf, createPlatePlugin, useEditorRef, type PlateLeafProps } from 
 import { Tooltip } from "@repo/ui/components/tooltip";
 import { cn } from "@repo/ui/lib/utils";
 
+import { editorShortcutFor, type EditorShortcut } from "@repo/editor/editor-shortcuts";
+
+export type FindBarShortcutAction = "find-next" | "find-previous" | "open-replace";
+
+// ⌘F itself is the shell's row: global-shortcuts.ts opens the bar from the window listener
+export const FIND_BAR_SHORTCUTS: readonly EditorShortcut<FindBarShortcutAction>[] = [
+  { hotkey: "mod+g", action: "find-next", label: "Next match" },
+  { hotkey: "mod+shift+g", action: "find-previous", label: "Previous match" },
+  { hotkey: "mod+alt+f", action: "open-replace", label: "Find and replace in the note" },
+];
+
 type MatchLocation = { path: Path; offset: number };
 
 type FindBarState = {
@@ -239,10 +250,11 @@ function FindBar() {
           }}
           onKeyDown={(event) => {
             if (onEscape(event)) return;
+            const row = editorShortcutFor(FIND_BAR_SHORTCUTS, event);
             if (
               event.key === "Enter" ||
-              isHotkey("mod+g", event) ||
-              isHotkey("mod+shift+g", event)
+              row?.action === "find-next" ||
+              row?.action === "find-previous"
             ) {
               event.preventDefault();
               cycleFindMatch(editor, event.shiftKey ? -1 : 1);
@@ -357,19 +369,18 @@ export const FindBarKit = [
   }).extend(() => ({
     handlers: {
       onKeyDown: ({ editor, event }) => {
-        // ⌥⌘F is VS Code's replace; ⌘F is the shell's, so the bar opens from the window listener
-        if (isHotkey("mod+alt+f", event)) {
-          event.preventDefault();
+        const row = editorShortcutFor(FIND_BAR_SHORTCUTS, event);
+        if (row === null) return;
+        event.preventDefault();
+        if (row.action === "open-replace") {
           openFindBar(editor, { replace: true });
           return;
         }
-        if (!isHotkey("mod+g", event) && !isHotkey("mod+shift+g", event)) return;
-        event.preventDefault();
         if (!state.open) {
           openFindBar(editor);
           return;
         }
-        cycleFindMatch(editor, isHotkey("mod+shift+g", event) ? -1 : 1);
+        cycleFindMatch(editor, row.action === "find-previous" ? -1 : 1);
       },
     },
   })),
