@@ -62,6 +62,8 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
 
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [paletteQuery, setPaletteQuery] = useState("");
+  // the entry a tree "Move to…" opened the palette for; cleared with the palette
+  const [paletteMove, setPaletteMove] = useState<string | null>(null);
   const [deletedNotesOpen, setDeletedNotesOpen] = useState(false);
   const [shortcutModifier] = useState(platformShortcutModifier);
   const [insetTitleBar] = useState(hasInsetTitleBar);
@@ -286,6 +288,7 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
           : () => {
               exportNoteAsPdf(docStem(openPath));
             },
+      moveNote: treeOps.moveEntry,
     }),
     [
       setOpenNote,
@@ -296,6 +299,7 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
       onOpenSettings,
       findInNote,
       openPath,
+      treeOps,
     ],
   );
 
@@ -344,6 +348,11 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
             }}
             onOpenSearch={() => {
               setPaletteQuery("");
+              setPaletteOpen(true);
+            }}
+            onMoveRequest={(path) => {
+              setPaletteQuery("");
+              setPaletteMove(path);
               setPaletteOpen(true);
             }}
           />
@@ -422,7 +431,12 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
         <CommandPalette
           open={paletteOpen}
           initialQuery={paletteQuery}
-          onOpenChange={setPaletteOpen}
+          openNotePath={openPath}
+          moveRequest={paletteMove}
+          onOpenChange={(open) => {
+            setPaletteOpen(open);
+            if (!open) setPaletteMove(null);
+          }}
           entries={treeEntries}
           threads={threads}
           searchSource={searchSource}

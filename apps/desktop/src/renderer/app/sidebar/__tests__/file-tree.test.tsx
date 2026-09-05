@@ -18,8 +18,20 @@ function makeOps(): TreeOps {
     createNote: vi.fn(),
     createFolder: vi.fn(),
     renameEntry: vi.fn(),
+    moveEntry: vi.fn(),
     removeEntry: vi.fn(),
   };
+}
+
+// jsdom has no DataTransfer; the component writes to it and reads nothing back
+function dataTransfer() {
+  return { dataTransfer: { setData: vi.fn(), effectAllowed: "", dropEffect: "" } };
+}
+
+function dragTo(from: HTMLElement, to: HTMLElement): void {
+  fireEvent.dragStart(from, dataTransfer());
+  fireEvent.dragOver(to, dataTransfer());
+  fireEvent.drop(to, dataTransfer());
 }
 
 interface RenderedTree {
@@ -306,6 +318,60 @@ describe("where a create from outside the tree lands", () => {
     expect(onCreateDirChange).toHaveBeenLastCalledWith("notes");
     fireEvent.click(row("Welcome.md"));
     expect(onCreateDirChange).toHaveBeenLastCalledWith("");
+  });
+});
+
+describe("moving by drag and drop", () => {
+  it("drops a note into a folder", () => {
+    const { ops } = renderTree();
+    dragTo(row("Welcome.md"), row("notes"));
+    expect(ops.moveEntry).toHaveBeenCalledWith("Welcome.md", "notes");
+  });
+
+  it("a note dropped beside another lands in that note's folder", () => {
+    const { ops } = renderTree({ openPath: "notes/ideas.md" });
+    dragTo(row("Welcome.md"), row("notes/ideas.md"));
+    expect(ops.moveEntry).toHaveBeenCalledWith("Welcome.md", "notes");
+  });
+
+  it("refuses a folder dropped on itself, inside itself, or a note on its own folder", () => {
+    const { ops } = renderTree({ openPath: "notes/daily/2026-08-16.md" });
+    dragTo(row("notes"), row("notes"));
+    dragTo(row("notes"), row("notes/daily"));
+    dragTo(row("notes/ideas.md"), row("notes"));
+    expect(ops.moveEntry).not.toHaveBeenCalled();
+  });
+
+  it("a refused row does not fall through to the root", () => {
+    const { ops } = renderTree({ openPath: "notes/ideas.md" });
+    fireEvent.dragStart(row("notes/ideas.md"), dataTransfer());
+    fireEvent.dragOver(row("notes"), dataTransfer());
+    fireEvent.drop(row("notes"), dataTransfer());
+    expect(ops.moveEntry).not.toHaveBeenCalled();
+  });
+
+  it("drops on the empty area into the listing's root", () => {
+    const { ops } = renderTree({ openPath: "notes/ideas.md" });
+    dragTo(row("notes/ideas.md"), screen.getByRole("tree"));
+    expect(ops.moveEntry).toHaveBeenCalledWith("notes/ideas.md", "");
+  });
+
+  it("a scoped listing's empty area is the scope, not the vault root", () => {
+    const { ops } = renderTree({
+      entries: ENTRIES.filter((entry) => entry.path.startsWith("notes/")),
+      rootDir: "notes",
+      openPath: "notes/daily/2026-08-16.md",
+    });
+    dragTo(row("notes/daily/2026-08-16.md"), screen.getByRole("tree"));
+    expect(ops.moveEntry).toHaveBeenCalledWith("notes/daily/2026-08-16.md", "notes");
+  });
+
+  it("offers Move to… in the row menu when a picker is wired", async () => {
+    const onMoveRequest = vi.fn();
+    renderTree({ onMoveRequest });
+    fireEvent.click(screen.getByLabelText("Actions for Welcome.md"));
+    fireEvent.click(await screen.findByText("Move to…"));
+    expect(onMoveRequest).toHaveBeenCalledWith("Welcome.md");
   });
 });
 

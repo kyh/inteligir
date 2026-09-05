@@ -59,6 +59,7 @@ describe("the palette renders that answer and no other", () => {
           openDeletedNotes: vi.fn(),
           findInNote: null,
           exportPdf: null,
+          moveNote: vi.fn(),
         }}
       />,
     );

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { deleteSwallowsOpenNote, openNoteAfterRename } from "../tree-ops";
+import { deleteSwallowsOpenNote, openNoteAfterRename, planMove } from "../tree-ops";
 
 const OPEN = "notes/plans/weekly.md";
 
@@ -40,5 +40,27 @@ describe("what a tree delete means for the open note", () => {
     expect(deleteSwallowsOpenNote(OPEN, "notes/plan")).toBe(false);
     expect(deleteSwallowsOpenNote(OPEN, "archive")).toBe(false);
     expect(deleteSwallowsOpenNote(null, "notes/plans")).toBe(false);
+  });
+});
+
+describe("where a move may land", () => {
+  it("names the destination path under the folder", () => {
+    expect(planMove("a/x.md", "b")).toEqual({ ok: true, to: "b/x.md" });
+    expect(planMove("a/x.md", "")).toEqual({ ok: true, to: "x.md" });
+    expect(planMove("a", "b/c")).toEqual({ ok: true, to: "b/c/a" });
+  });
+
+  it("refuses a folder dropped on itself or inside itself", () => {
+    expect(planMove("a", "a")).toEqual({ ok: false, reason: "self" });
+    expect(planMove("a", "a/b")).toEqual({ ok: false, reason: "descendant" });
+  });
+
+  it("refuses the folder the entry is already in", () => {
+    expect(planMove("a/x.md", "a")).toEqual({ ok: false, reason: "same-parent" });
+    expect(planMove("x.md", "")).toEqual({ ok: false, reason: "same-parent" });
+  });
+
+  it("is not fooled by a folder whose name is a prefix", () => {
+    expect(planMove("a", "ab").ok).toBe(true);
   });
 });

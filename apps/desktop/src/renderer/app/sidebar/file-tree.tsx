@@ -11,12 +11,15 @@ import { checkNoteName, noteNameErrorMessage } from "@repo/notes/knowledge/note-
 import { basenamePath, dirnamePath, extnamePath, joinPath } from "@repo/notes/knowledge/vault-path";
 import type { VaultEntry } from "@repo/api/local/vault/vault-schema";
 import { ChevronRightIcon, EllipsisIcon } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
+import { planMove } from "./tree-ops";
 
 export interface TreeOps {
   createNote: (path: string) => void;
   createFolder: (path: string) => void;
   renameEntry: (fromPath: string, toPath: string) => void;
+  // into `toDir` ("" is the vault root), keeping the entry's own name
+  moveEntry: (fromPath: string, toDir: string) => void;
   removeEntry: (path: string, kind: "file" | "dir") => void;
 }
 
@@ -37,6 +40,13 @@ export interface FileTreeProps {
   onCreateDirChange?: (dir: string) => void;
   // a changed value collapses every folder
   collapseAllNonce?: number;
+  // the keyboard path to a move: the caller opens its folder picker for this entry
+  onMoveRequest?: (path: string) => void;
+}
+
+// a file row stands for its folder: dropping beside a note puts the entry next to it
+function dropDirFor(node: TreeNode): string {
+  return node.kind === "dir" ? node.path : dirnamePath(node.path);
 }
 
 interface TreeNode {
@@ -180,6 +190,7 @@ export function FileTree({
   rootDir = "",
   onCreateDirChange,
   collapseAllNonce = 0,
+  onMoveRequest,
 }: FileTreeProps) {
   const { roots, byPath } = useMemo(() => buildTree(entries), [entries]);
 
@@ -187,7 +198,41 @@ export function FileTree({
   const [activePath, setActivePath] = useState<string | null>(null);
   const [editing, setEditing] = useState<EditingState | null>(null);
   const [menu, setMenu] = useState<{ node: TreeNode; anchor: HTMLElement } | null>(null);
+  // the drag's source is component state, not dataTransfer: a drop reads it synchronously
+  // and a drag that started elsewhere (a file from the desktop) has no source here
+  const [dragging, setDragging] = useState<string | null>(null);
+  const [dropDir, setDropDir] = useState<string | null>(null);
   const treeRef = useRef<HTMLDivElement>(null);
+
+  const endDrag = (): void => {
+    setDragging(null);
+    setDropDir(null);
+  };
+
+  // a row answers for itself even when it refuses, or the refusal would bubble to the
+  // container and land the entry at the root instead
+  const dragOverDir = (event: DragEvent, dir: string): void => {
+    if (dragging === null) return;
+    event.stopPropagation();
+    if (!planMove(dragging, dir).ok) {
+      setDropDir(null);
+      return;
+    }
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    setDropDir(dir);
+  };
+
+  const dropIntoDir = (event: DragEvent, dir: string): void => {
+    if (dragging === null) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const from = dragging;
+    endDrag();
+    if (planMove(from, dir).ok) {
+      ops.moveEntry(from, dir);
+    }
+  };
 
   // Adopted during render to spare the input row a second paint; the handback
   // stays an effect because it sets the sidebar's state. Seeded null so a tree
@@ -386,7 +431,17 @@ export function FileTree({
   const tabStopPath = visible(activePath) ?? visible(openPath) ?? nodeRows[0]?.node.path ?? null;
 
   return (
-    <div ref={treeRef} role="tree" aria-label="Vault files" className="flex flex-col py-1">
+    <div
+      ref={treeRef}
+      role="tree"
+      aria-label="Vault files"
+      className={cn(
+        "flex min-h-full flex-col py-1",
+        dropDir === rootDir && dragging !== null && "ring-1 ring-primary/40 ring-inset",
+      )}
+      onDragOver={(event) => dragOverDir(event, rootDir)}
+      onDrop={(event) => dropIntoDir(event, rootDir)}
+    >
       {rows.map((row) => {
         if (row.kind === "editor") {
           if (editing?.mode !== "create") {
@@ -417,6 +472,7 @@ export function FileTree({
         }
         const isOpen = node.kind === "file" && node.path === openPath;
         const isExpanded = node.kind === "dir" && expanded.has(node.path);
+        const isDropTarget = node.kind === "dir" && dropDir === node.path && dragging !== null;
         return (
           <div
             key={node.path}
@@ -426,16 +482,27 @@ export function FileTree({
             aria-selected={isOpen}
             data-path={node.path}
             tabIndex={node.path === tabStopPath ? 0 : -1}
+            draggable
             className={cn(
               "group flex w-full cursor-default items-center gap-1 py-1 pr-1 text-sm outline-none select-none",
               "hover:bg-muted/60 focus-visible:bg-muted",
               isOpen ? "bg-muted text-foreground" : "text-foreground/80",
+              isDropTarget && "bg-primary/10 text-foreground",
+              dragging === node.path && "opacity-50",
             )}
             style={{ paddingLeft: row.depth * 12 + 4 }}
             onClick={() => {
               setActivePath(node.path);
               activate(node);
             }}
+            onDragStart={(event) => {
+              event.dataTransfer.effectAllowed = "move";
+              event.dataTransfer.setData("text/plain", node.path);
+              setDragging(node.path);
+            }}
+            onDragEnd={endDrag}
+            onDragOver={(event) => dragOverDir(event, dropDirFor(node))}
+            onDrop={(event) => dropIntoDir(event, dropDirFor(node))}
             onKeyDown={(event) => handleRowKeyDown(event, node)}
             onFocus={() => setActivePath(node.path)}
             onContextMenu={(event) => {
@@ -517,6 +584,17 @@ export function FileTree({
             >
               Rename
             </DropdownMenuItem>
+            {onMoveRequest === undefined ? null : (
+              <DropdownMenuItem
+                onClick={() => {
+                  const target = menu.node;
+                  setMenu(null);
+                  onMoveRequest(target.path);
+                }}
+              >
+                Move to…
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem
               variant="destructive"
               onClick={() => {

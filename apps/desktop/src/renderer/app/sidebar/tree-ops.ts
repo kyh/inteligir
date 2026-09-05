@@ -3,6 +3,7 @@ import { confirm } from "@repo/ui/components/confirm-dialog";
 import { toast } from "@repo/ui/components/sonner";
 import type { VaultActions } from "@repo/editor/host-io";
 import type { VaultMkdirRequest, VaultMkdirResponse } from "@repo/api/local/vault/vault-schema";
+import { basenamePath, dirnamePath, joinPath } from "@repo/notes/knowledge/vault-path";
 import { refusalMessage } from "../api";
 import type { TreeOps } from "./file-tree";
 
@@ -32,6 +33,19 @@ export function deleteSwallowsOpenNote(openNote: string | null, path: string): b
   return openNote !== null && openNote !== path && openNote.startsWith(`${path}/`);
 }
 
+export type MoveVerdict =
+  | { ok: true; to: string }
+  | { ok: false; reason: "self" | "descendant" | "same-parent" };
+
+// One predicate for the drop target and the palette's folder page, so the tree refuses a
+// drop and the palette hides a folder for the same three reasons. "" is the vault root.
+export function planMove(from: string, toDir: string): MoveVerdict {
+  if (toDir === from) return { ok: false, reason: "self" };
+  if (toDir.startsWith(`${from}/`)) return { ok: false, reason: "descendant" };
+  if (toDir === dirnamePath(from)) return { ok: false, reason: "same-parent" };
+  return { ok: true, to: joinPath(toDir, basenamePath(from)) };
+}
+
 interface TreeOpsDeps {
   api: TreeOpsApi;
   actions: RefObject<TreeVaultActions | null>;
@@ -47,8 +61,17 @@ export function useTreeOps({
   openNote,
   setOpenNote,
 }: TreeOpsDeps): TreeOps {
-  return useMemo<TreeOps>(
-    () => ({
+  return useMemo<TreeOps>(() => {
+    const renameEntry: TreeOps["renameEntry"] = (fromPath, toPath) => {
+      void (async () => {
+        const moved = await actions.current?.renameEntry(fromPath, toPath);
+        const carried = openNoteAfterRename(openNote, fromPath, toPath);
+        if (moved === true && carried !== null) {
+          setOpenNote(carried);
+        }
+      })();
+    };
+    return {
       createNote: (path) => {
         void createNote(path);
       },
@@ -61,14 +84,12 @@ export function useTreeOps({
           }
         })();
       },
-      renameEntry: (fromPath, toPath) => {
-        void (async () => {
-          const moved = await actions.current?.renameEntry(fromPath, toPath);
-          const carried = openNoteAfterRename(openNote, fromPath, toPath);
-          if (moved === true && carried !== null) {
-            setOpenNote(carried);
-          }
-        })();
+      renameEntry,
+      moveEntry: (fromPath, toDir) => {
+        const plan = planMove(fromPath, toDir);
+        if (plan.ok) {
+          renameEntry(fromPath, plan.to);
+        }
       },
       removeEntry: (path, kind) => {
         void (async () => {
@@ -90,7 +111,6 @@ export function useTreeOps({
           }
         })();
       },
-    }),
-    [api, actions, createNote, openNote, setOpenNote],
-  );
+    };
+  }, [api, actions, createNote, openNote, setOpenNote]);
 }

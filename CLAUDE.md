@@ -743,6 +743,17 @@ create`, never by electron-builder. `autoDownload` and `autoInstallOnAppQuit`
   agent-browser is pinned by hand in `.github/workflows/ci.yml` because a global
   install rides no lockfile. The arguments are `pnpm-workspace.yaml`'s comments.
 
+- **A MOVE IS A RENAME THAT KEEPS THE NAME, and `planMove` is its one verdict.**
+  The tree's drop target and the palette's "Move note to folder…" page both ask
+  `planMove` (`apps/desktop/src/renderer/app/sidebar/tree-ops.ts`) and refuse for
+  the same three reasons: itself, its own descendant, the folder it is already
+  in. A drop on a note row means that note's folder; a drop on the empty area
+  means the listing's scope, never the vault root. The drag's source is
+  component state, not `dataTransfer`, so a file dragged in from the desktop
+  has no source here and is ignored. No second write path: the move rides
+  `vault.rename`, which rewrites links, and the open note follows through
+  `openNoteAfterRename`.
+
 **Before raising a "new" finding, read
 [#542](https://github.com/kyh/inteligir/issues/542)**: the decision record
 carries what was rejected as well as what was chosen. The older `note` issues
