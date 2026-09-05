@@ -122,7 +122,7 @@ describe("inteligir vault open", () => {
     it("a folder that does not exist", async () => {
       const { homeDir } = scratch();
       const envelope = await refused(homeDir, join(homeDir, "Nowhere"));
-      expect(envelope.message).toMatch(/not a directory/u);
+      expect(envelope.message).toMatch(/not an existing folder/u);
     });
 
     it("the vault already selected", async () => {

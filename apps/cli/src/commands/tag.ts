@@ -1,5 +1,9 @@
-import type { KnowledgeTagNotesRequest } from "@repo/api/local/knowledge/knowledge-schema";
+import {
+  KNOWLEDGE_TAG_NOTES_MAX_LIMIT,
+  type KnowledgeTagNotesRequest,
+} from "@repo/api/local/knowledge/knowledge-schema";
 import { defineCommand } from "citty";
+import { parseBoundedInteger } from "../args";
 import { apiFor, type CliDeps } from "../context";
 import { jsonArg, out, outputJson, writeLines } from "../output";
 
@@ -20,9 +24,17 @@ export function tagCommand(deps: CliDeps) {
         },
         run: async ({ args }) => {
           const api = apiFor(deps);
-          const offset = args.offset === undefined ? 0 : Number(args.offset);
+          const offset =
+            args.offset === undefined
+              ? 0
+              : parseBoundedInteger(args.offset, "--offset", { min: 0 });
           const request: KnowledgeTagNotesRequest = { tag: args.tag };
-          if (args.limit !== undefined) request.limit = Number(args.limit);
+          if (args.limit !== undefined) {
+            request.limit = parseBoundedInteger(args.limit, "--limit", {
+              min: 1,
+              max: KNOWLEDGE_TAG_NOTES_MAX_LIMIT,
+            });
+          }
           if (args.offset !== undefined) request.offset = offset;
           const body = await api.knowledge.tagNotes(request);
           if (outputJson(args, body)) {

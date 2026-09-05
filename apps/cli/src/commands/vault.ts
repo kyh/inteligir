@@ -14,7 +14,6 @@ import {
   formatAttachmentLocation,
   parseAttachmentLocation,
 } from "@repo/api/local/vault/attachment-location";
-import { statSync } from "node:fs";
 import { parseBoundedInteger } from "../args";
 import { defineCommand } from "citty";
 import { invalidUsage } from "../cli-error";
@@ -103,15 +102,6 @@ function selectVault(deps: CliDeps, rawDir: string): VaultSelection {
   const plan = planVaultSelection(current, candidate.vaultDir);
   if (plan.kind === "refused") {
     throw invalidUsage(selectionRefusalMessage(plan.reason));
-  }
-  let isDirectory = false;
-  try {
-    isDirectory = statSync(candidate.vaultDir).isDirectory();
-  } catch {
-    isDirectory = false;
-  }
-  if (!isDirectory) {
-    throw invalidUsage(`${candidate.vaultDir} is not a directory; a vault is an existing folder`);
   }
   writeManagedVaultDir(current.rootDataDir, candidate.vaultDir);
   const server = readServerFile(current.dataDir);

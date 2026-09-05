@@ -28,9 +28,17 @@ function target(overrides: Partial<ServerTarget> = {}): ServerTarget {
 }
 
 describe("what may be switched", () => {
-  it("switches an owned child to another folder", () => {
-    expect(planVaultSwitch({ ownsServer: true, current: target() }, "/home/me/Work")).toEqual({
+  it("switches an owned child to another folder that exists", () => {
+    const folder = makeTempDir("inteligir-vault-");
+    expect(planVaultSwitch({ ownsServer: true, current: target() }, folder)).toEqual({
       kind: "switch",
+    });
+  });
+
+  it("refuses a folder that is gone before anything is stopped", () => {
+    expect(planVaultSwitch({ ownsServer: true, current: target() }, "/home/me/Gone")).toEqual({
+      kind: "refused",
+      reason: "not-a-directory",
     });
   });
 
@@ -59,6 +67,7 @@ describe("what may be switched", () => {
       "vault-pinned-by-env",
       "data-dir-pinned-by-env",
       "already-open",
+      "not-a-directory",
     ];
     for (const reason of reasons) {
       expect(switchRefusalMessage(reason).length).toBeGreaterThan(10);

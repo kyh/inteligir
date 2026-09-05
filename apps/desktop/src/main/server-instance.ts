@@ -7,6 +7,7 @@ import {
   type VaultDirSource,
 } from "inteligir/server/config";
 import { resolveCheckoutRoot } from "inteligir/server/dev-instance";
+import { resolveVaultCandidate } from "inteligir/server/vault-switch";
 import { toErrorMessage } from "../types";
 import { createLocalClient } from "inteligir/server/local-client";
 import { readServerFile } from "inteligir/server/server-file";
@@ -46,14 +47,14 @@ export function resolveServerTarget(args: ResolveServerTargetArgs): ServerTarget
       ...args.env,
       NODE_ENV: args.isPackaged ? "production" : "development",
     };
-    if (args.vaultDir !== undefined) {
-      env.INTELIGIR_VAULT_DIR = args.vaultDir;
-    }
     const configArgs: ResolveAppConfigArgs = { checkoutPath: resolveCheckoutRoot(), env };
     if (args.homeDir !== undefined) {
       configArgs.homeDir = args.homeDir;
     }
-    const config = resolveAppConfig(configArgs);
+    const config =
+      args.vaultDir === undefined
+        ? resolveAppConfig(configArgs)
+        : resolveVaultCandidate(configArgs, args.vaultDir);
     return {
       kind: "resolved",
       target: {
