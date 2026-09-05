@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import type { VaultEntry } from "@repo/api/local/vault/vault-schema";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CommandPalette, type PaletteActions } from "../command-palette";
+import type { MatchSource } from "../match-source";
 import { searchNotesByFilename, type NoteSearchSource } from "../note-search";
 
 const ENTRIES: VaultEntry[] = [
@@ -29,8 +30,12 @@ function makeActions(): PaletteActions {
     openDeletedNotes: vi.fn(),
     findInNote: null,
     exportPdf: null,
+    openMatch: vi.fn(),
+    replaceAll: vi.fn(),
   };
 }
+
+const noMatches: MatchSource = () => Promise.resolve({ matches: [], total: 0 });
 
 function renderPalette(overrides: Partial<React.ComponentProps<typeof CommandPalette>> = {}) {
   const actions = makeActions();
@@ -42,6 +47,7 @@ function renderPalette(overrides: Partial<React.ComponentProps<typeof CommandPal
       entries={ENTRIES}
       threads={[]}
       searchSource={filenameSource}
+      matchSource={noMatches}
       canSync={false}
       actions={actions}
       {...overrides}
@@ -197,5 +203,95 @@ describe("the new-note-in-folder page", () => {
     expect(screen.getByText("notes/daily")).toBeDefined();
     expect(screen.queryByText(/^notes$/)).toBeNull();
     expect(screen.getByText("Vault root")).toBeDefined();
+  });
+});
+
+const twoMatches = (total: number): MatchSource => {
+  return (request) =>
+    Promise.resolve({
+      matches: [
+        {
+          path: "notes/ideas.md",
+          title: "Big Ideas",
+          ordinal: 0,
+          line: 3,
+          column: 4,
+          length: request.q.length,
+          before: "the ",
+          text: request.q,
+          after: " idea",
+        },
+        {
+          path: "notes/ideas.md",
+          title: "Big Ideas",
+          ordinal: 1,
+          line: 9,
+          column: 0,
+          length: request.q.length,
+          before: "",
+          text: request.q,
+          after: " again",
+        },
+      ],
+      total,
+    });
+};
+
+function vaultSearchBox(): HTMLElement {
+  return screen.getByPlaceholderText("Search across the vault…");
+}
+
+describe("the search page", () => {
+  it("is reached from the root's command and from the page a shortcut names", () => {
+    renderPalette();
+    fireEvent.click(screen.getByText("Search across the vault…"));
+    expect(vaultSearchBox()).toBeDefined();
+    cleanup();
+    renderPalette({ initialPage: "search" });
+    expect(vaultSearchBox()).toBeDefined();
+  });
+
+  it("lists match rows under their note, and a pick lands on that match", async () => {
+    const { actions, onOpenChange } = renderPalette({
+      initialPage: "search",
+      matchSource: twoMatches(2),
+    });
+    fireEvent.change(vaultSearchBox(), { target: { value: "big" } });
+    expect(await screen.findByText("again")).toBeDefined();
+    expect(screen.getByText("Big Ideas · notes/ideas.md")).toBeDefined();
+    const rows = screen.getAllByText("big");
+    expect(rows).toHaveLength(2);
+    const second = rows[1];
+    if (second === undefined) throw new Error("the second match row is missing");
+    fireEvent.click(second);
+    expect(actions.openMatch).toHaveBeenCalledWith(
+      expect.objectContaining({ path: "notes/ideas.md", ordinal: 1, line: 9 }),
+      "big",
+    );
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("replaces across the listed notes with the toggles it shows", async () => {
+    const { actions } = renderPalette({ initialPage: "search", matchSource: twoMatches(2) });
+    fireEvent.change(vaultSearchBox(), { target: { value: "big" } });
+    await screen.findByText("again");
+    fireEvent.click(screen.getByLabelText("Match case"));
+    fireEvent.change(screen.getByLabelText("Replace with"), { target: { value: "huge" } });
+    fireEvent.click(screen.getByText("Replace all"));
+    expect(actions.replaceAll).toHaveBeenCalledWith({
+      needle: "big",
+      replacement: "huge",
+      options: { caseSensitive: true, wholeWord: false },
+      paths: ["notes/ideas.md"],
+    });
+  });
+
+  it("refuses to replace while the listing is cut, and says so", async () => {
+    const { actions } = renderPalette({ initialPage: "search", matchSource: twoMatches(5) });
+    fireEvent.change(vaultSearchBox(), { target: { value: "big" } });
+    await screen.findByText("again");
+    expect(screen.getByText(/2 of 5 matches shown/)).toBeDefined();
+    fireEvent.click(screen.getByText("Replace all"));
+    expect(actions.replaceAll).not.toHaveBeenCalled();
   });
 });

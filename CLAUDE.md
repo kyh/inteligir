@@ -743,6 +743,20 @@ create`, never by electron-builder. `autoDownload` and `autoInstallOnAppQuit`
   agent-browser is pinned by hand in `.github/workflows/ci.yml` because a global
   install rides no lockfile. The arguments are `pnpm-workspace.yaml`'s comments.
 
+- **VAULT SEARCH IS A LITERAL SCAN BESIDE THE RANKED INDEX, and a replace
+  rewrites exactly what the rows showed.** FTS5 cannot say where inside a line
+  a hit sits, so `knowledge.matches` (⌘⇧F, `inteligir matches`) scans doc
+  bodies with ONE matcher, `@repo/notes/knowledge/text-matches`, that the
+  listing and the rewrite both run; the store only pre-narrows by an ascii
+  substring (`docTexts`), because LIKE folds ascii case alone. A replace across
+  notes is a per-file write with the hash of the bytes it read, and a mismatch
+  is REPORTED by name, never diff3-merged: the user named exact bytes
+  (`apps/desktop/src/renderer/app/palette/vault-replace.ts`). A cut listing
+  cannot replace: it does not name every note. The jump lands by ordinal among
+  the note's matches, because a markdown column is not a Slate offset. ⌘⇧F is
+  the one shifted row in `global-shortcuts.ts`; a row claims shift explicitly
+  so ⌘⇧K stays the editor's.
+
 **Before raising a "new" finding, read
 [#542](https://github.com/kyh/inteligir/issues/542)**: the decision record
 carries what was rejected as well as what was chosen. The older `note` issues

@@ -48,6 +48,7 @@ describe("the palette renders that answer and no other", () => {
         entries={[]}
         threads={[subject]}
         searchSource={() => Promise.resolve([])}
+        matchSource={() => Promise.resolve({ matches: [], total: 0 })}
         canSync={false}
         actions={{
           openNote: vi.fn(),
@@ -59,6 +60,8 @@ describe("the palette renders that answer and no other", () => {
           openDeletedNotes: vi.fn(),
           findInNote: null,
           exportPdf: null,
+          openMatch: vi.fn(),
+          replaceAll: vi.fn(),
         }}
       />,
     );

@@ -6,11 +6,14 @@ export type GlobalShortcutAction =
   | "open-action-composer"
   | "open-palette"
   | "find-in-note"
+  | "open-search"
   | "open-daily-note"
   | "toggle-zen";
 
 export interface GlobalShortcut {
   readonly key: string;
+  // a row claims shift explicitly; an unshifted row never fires shifted, so ⌘⇧K stays the editor's link insert
+  readonly shift?: true;
   readonly action: GlobalShortcutAction;
   readonly label: string;
 }
@@ -19,6 +22,7 @@ export const GLOBAL_SHORTCUTS: readonly GlobalShortcut[] = [
   { key: "k", action: "open-action-composer", label: "the action composer" },
   { key: "p", action: "open-palette", label: "the command palette" },
   { key: "f", action: "find-in-note", label: "find in the note" },
+  { key: "f", shift: true, action: "open-search", label: "search across the vault" },
   { key: "d", action: "open-daily-note", label: "the daily note" },
   { key: "\\", action: "toggle-zen", label: "zen mode" },
 ];
@@ -30,18 +34,22 @@ export function platformShortcutModifier(): ShortcutModifier {
   return /mac|iphone|ipad|ipod/iu.test(navigator.userAgent) ? "meta" : "ctrl";
 }
 
-// shift and alt disqualify: ⌘⇧K is the editor's link insert.
+// alt disqualifies outright; shift only matches the row that claims it.
 export function globalShortcutFor(
   event: KeyboardEvent,
   modifier: ShortcutModifier,
 ): GlobalShortcut | null {
   const claimed = modifier === "meta" ? event.metaKey : event.ctrlKey;
   const foreign = modifier === "meta" ? event.ctrlKey : event.metaKey;
-  if (!claimed || foreign || event.shiftKey || event.altKey) {
+  if (!claimed || foreign || event.altKey) {
     return null;
   }
   const key = event.key.toLowerCase();
-  return GLOBAL_SHORTCUTS.find((shortcut) => shortcut.key === key) ?? null;
+  return (
+    GLOBAL_SHORTCUTS.find(
+      (shortcut) => shortcut.key === key && (shortcut.shift === true) === event.shiftKey,
+    ) ?? null
+  );
 }
 
 export function useGlobalShortcuts(
