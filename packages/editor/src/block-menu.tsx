@@ -3,7 +3,7 @@
 
 import { useMemo } from "react";
 import { BlockMenuPlugin, BlockSelectionPlugin } from "@platejs/selection/react";
-import { ArrowDownIcon, ArrowUpIcon, CopyIcon, Trash2Icon } from "lucide-react";
+import { ArrowDownIcon, ArrowUpIcon, CopyIcon, FileOutputIcon, Trash2Icon } from "lucide-react";
 import type { Path } from "platejs";
 import { useEditorPlugin, usePluginOption } from "platejs/react";
 
@@ -17,6 +17,7 @@ import {
 } from "@repo/ui/components/dropdown-menu";
 
 import { TURN_INTO, moveBlocks, turnIntoBlocks } from "@repo/editor/block-transforms";
+import { extractBlocksToNote } from "@repo/editor/extract-note";
 
 export function BlockMenu() {
   const { api, editor } = useEditorPlugin(BlockMenuPlugin);
@@ -37,6 +38,15 @@ export function BlockMenu() {
       .map(([, path]) => path);
 
   const blockTf = editor.getTransforms(BlockSelectionPlugin).blockSelection;
+  const blockApi = editor.getApi(BlockSelectionPlugin).blockSelection;
+
+  // the selected ids name blocks that are gone once the extract lands
+  const extract = (): void => {
+    void extractBlocksToNote(editor, selectedPaths()).then((created) => {
+      if (created !== null) blockApi.clear();
+      return undefined;
+    });
+  };
 
   return (
     <DropdownMenu
@@ -57,6 +67,10 @@ export function BlockMenu() {
         <DropdownMenuItem onClick={() => moveBlocks(editor, selectedPaths(), "down")}>
           <ArrowDownIcon />
           Move down
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={extract}>
+          <FileOutputIcon />
+          Extract to new note…
         </DropdownMenuItem>
         <DropdownMenuItem variant="destructive" onClick={() => blockTf.removeNodes()}>
           <Trash2Icon />

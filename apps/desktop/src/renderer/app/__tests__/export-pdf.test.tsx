@@ -79,6 +79,8 @@ describe("the palette's Export as PDF row", () => {
     insertTemplate: null,
     openMatch: vi.fn(),
     replaceAll: vi.fn(),
+    listHeadings: null,
+    goToHeading: vi.fn(),
   };
 
   function mount(exportPdf: (() => void) | null) {

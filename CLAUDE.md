@@ -857,6 +857,22 @@ rename`.
   asset write's wire, because a vault path is never empty.
   `apps/cli/src/server/vault/vault-prefs-store.ts`.
 
+- **GO TO HEADING IS THE PALETTE OVER THE TOC'S WALK, AND AN EXTRACT IS ONE
+  HISTORY BATCH.** ⌘⇧O (a shifted row in `GLOBAL_SHORTCUTS`) opens the palette
+  on the open note's outline, read through `collectHeadings` and landed through
+  `goToHeading` (`packages/editor/src/toc.tsx`): the rail's own scroll, and the
+  caret at the heading. "Extract to new note" (`packages/editor/src/extract-note.ts`,
+  from the selection toolbar and the block menu) takes the top-level blocks the
+  selection touches, serializes them with the editor's own `MD_STRINGIFY`, so
+  the new note holds the bytes the file would have, names it after the first
+  heading among them, else the first line, else Untitled (a name the vault
+  would refuse falls back rather than being sanitized), steps past what
+  `listWikiTargets` already holds like the rail's Untitled does, and creates it
+  through `createFileAt` before touching the buffer. The removal and the
+  `[[link]]` that replaces it land in one flush, so one undo restores both; the
+  created file stays, because the vault has no transaction and a note that
+  exists is truer than an edit that never happened.
+
 **Before raising a "new" finding, read
 [#542](https://github.com/kyh/inteligir/issues/542)**: the decision record
 carries what was rejected as well as what was chosen. The older `note` issues

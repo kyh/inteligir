@@ -24,6 +24,7 @@ import { docStem } from "@repo/notes/knowledge/doc-file";
 import { isTemplatePath, TEMPLATES_FOLDER } from "@repo/notes/templates/placeholders";
 import { EDITOR_SHORTCUTS } from "@repo/editor/editor-shortcuts";
 import { FIND_BAR_SHORTCUTS } from "@repo/editor/find-bar";
+import type { HeadingItem } from "@repo/editor/toc";
 import {
   ArchiveRestoreIcon,
   CalendarIcon,
@@ -31,6 +32,7 @@ import {
   FileTextIcon,
   FolderIcon,
   FolderInputIcon,
+  HeadingIcon,
   KeyboardIcon,
   LayoutTemplateIcon,
   MessagesSquareIcon,
@@ -76,10 +78,13 @@ export interface PaletteActions {
   unpinNote: (() => void) | null;
   openMatch: (match: VaultMatchWire, query: string) => void;
   replaceAll: (request: VaultReplaceRequest) => void;
+  // the open note's outline, walked when the page asks; absent with no note open
+  listHeadings: (() => readonly HeadingItem[]) | null;
+  goToHeading: (heading: HeadingItem) => void;
 }
 
 // the pages a shortcut opens onto; "notes" is the root with its commands folded away (⌘O)
-export type PalettePage = "root" | "search" | "notes";
+export type PalettePage = "root" | "search" | "notes" | "headings";
 
 export interface CommandPaletteProps {
   open: boolean;
@@ -453,6 +458,21 @@ export function CommandPalette({
         setPage("search");
       },
     },
+    ...(actions.listHeadings !== null
+      ? [
+          {
+            id: "go-to-heading",
+            label: "Go to heading…",
+            binding: "open-headings" as const,
+            icon: <HeadingIcon />,
+            keepOpen: true,
+            run: () => {
+              setQuery("");
+              setPage("headings");
+            },
+          },
+        ]
+      : []),
     ...(actions.exportPdf !== null
       ? [
           {
@@ -542,6 +562,51 @@ export function CommandPalette({
       run: () => actions.openSettings(),
     },
   ];
+
+  if (page === "headings") {
+    const rows = actions.listHeadings === null ? [] : actions.listHeadings();
+    const visible = rows.filter((row) => matchesQuery(row.title, query));
+    return (
+      <CommandDialog
+        open={open}
+        onOpenChange={onOpenChange}
+        title="Go to heading"
+        description="Jump to a heading in this note"
+        shouldFilter={false}
+      >
+        <CommandInput placeholder="Go to heading…" value={query} onValueChange={setQuery} />
+        <CommandList>
+          <CommandEmpty>
+            {actions.listHeadings === null
+              ? "Open a note to jump to its headings."
+              : rows.length === 0
+                ? "This note has no headings."
+                : "No heading matches."}
+          </CommandEmpty>
+          {visible.length > 0 ? (
+            <CommandGroup heading="Headings">
+              {visible.map((row) => (
+                <CommandItem
+                  key={row.id}
+                  value={row.id}
+                  onSelect={() => run(() => actions.goToHeading(row))}
+                >
+                  <HeadingIcon />
+                  <span
+                    className="truncate"
+                    style={{ paddingLeft: `${String(12 * (row.depth - 1))}px` }}
+                  >
+                    {row.title}
+                  </span>
+                  <span className="ml-auto pl-3 text-xs text-muted-foreground">H{row.depth}</span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          ) : null}
+        </CommandList>
+      </CommandDialog>
+    );
+  }
 
   if (page === "shortcuts") {
     const groups = shortcutGroups(modifier)
