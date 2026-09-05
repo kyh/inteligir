@@ -845,6 +845,18 @@ rename`.
   mismatch is reported, never merged. The pinned set every surface shows is
   the index's (`usePinnedPaths`), so a pin appears after the sweep, not before.
 
+- **WHERE A PASTE LANDS IS A STORED VAULT CHOICE, and the host resolves it, not
+  the editor.** `<dataDir>/vault-prefs.json` holds `attachments`: the vault
+  root, beside the note, or one named folder (default `assets/`), read per
+  paste so a Settings or `inteligir vault attachments` change reaches the next
+  one. The editor hands the host a base name alone; the host answers the folder
+  through `attachmentDir` (`@repo/api/local/vault/attachment-location`, also
+  the CLI's `root | beside-note | folder:<path>` spelling) from the open note.
+  The folder is created on the first write; `setPrefs` refuses only a path that
+  is a file today, which would refuse every paste. `""` is the root on the
+  asset write's wire, because a vault path is never empty.
+  `apps/cli/src/server/vault/vault-prefs-store.ts`.
+
 **Before raising a "new" finding, read
 [#542](https://github.com/kyh/inteligir/issues/542)**: the decision record
 carries what was rejected as well as what was chosen. The older `note` issues

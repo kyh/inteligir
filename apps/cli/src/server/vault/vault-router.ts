@@ -1,5 +1,6 @@
 import {
   assetMediaType,
+  DEFAULT_ATTACHMENT_LOCATION,
   VAULT_ASSET_MAX_BYTES,
   VAULT_HISTORY_DEFAULT_LIMIT,
   type VaultRenameResponse,
@@ -96,6 +97,22 @@ const status = base.vault.status.handler(({ context }) => context.vault.status()
 
 const syncNow = base.vault.syncNow.handler(({ context }) => context.vault.syncNow());
 
+const prefs = base.vault.prefs.handler(({ context }) => ({
+  attachments: context.vaultPrefs.read().attachments ?? DEFAULT_ATTACHMENT_LOCATION,
+}));
+
+// a folder that is a file today would refuse every paste; refused here, once, instead.
+const setPrefs = base.vault.setPrefs.handler(async ({ context, input, errors }) => {
+  if (input.attachments.kind === "folder") {
+    const existing = await context.vault.service.statEntry(input.attachments.path);
+    if (existing === "file") {
+      throw errors.INVALID_PATH({ message: `${input.attachments.path} is a file, not a folder` });
+    }
+  }
+  context.vaultPrefs.write({ ...context.vaultPrefs.read(), attachments: input.attachments });
+  return { attachments: input.attachments };
+});
+
 export const vaultRouter = {
   tree,
   read,
@@ -110,4 +127,6 @@ export const vaultRouter = {
   commitNow,
   status,
   syncNow,
+  prefs,
+  setPrefs,
 };

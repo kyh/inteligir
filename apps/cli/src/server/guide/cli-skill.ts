@@ -64,6 +64,8 @@ output; without it the output is compact human text.
   one tab-separated line each: the sha that still holds the bytes, when, path.
   Feed a row to \`vault restore <path> <sha>\` to bring it back.
 - \`inteligir vault mkdir <path>\` — create a folder.
+- \`inteligir vault attachments [root|beside-note|folder:<path>]\` — where a
+  pasted image lands; with no argument, print the current choice.
 - \`inteligir vault status\` — git sync state (remote, dirty, conflicts).
 - \`inteligir vault sync\` — run a sync against the configured remote now.
 

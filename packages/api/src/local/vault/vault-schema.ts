@@ -176,9 +176,12 @@ export type VaultRenameResponse = z.infer<typeof vaultRenameResponseSchema>;
 // image accepted here and refused there renders on one device only.
 export const VAULT_ASSET_MAX_BYTES = 10 * 1024 * 1024;
 
+// "" is the vault root: a vault path is never empty, and the root is a place an attachment can land.
+export const vaultDirSchema = z.union([z.literal(""), vaultPathSchema]);
+
 export const vaultAssetWriteRequestSchema = z
   .object({
-    dir: vaultPathSchema,
+    dir: vaultDirSchema,
     baseName: z.string().min(1),
     bytesBase64: z.string().min(1),
   })
@@ -187,6 +190,30 @@ export type VaultAssetWriteRequest = z.infer<typeof vaultAssetWriteRequestSchema
 
 export const vaultAssetWriteResponseSchema = z.object({ path: z.string().min(1) }).strict();
 export type VaultAssetWriteResponse = z.infer<typeof vaultAssetWriteResponseSchema>;
+
+// where a pasted image lands: the vault root, the note's own folder, or one named folder
+export const attachmentLocationSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("root") }).strict(),
+  z.object({ kind: z.literal("beside-note") }).strict(),
+  z.object({ kind: z.literal("folder"), path: vaultPathSchema }).strict(),
+]);
+export type AttachmentLocation = z.infer<typeof attachmentLocationSchema>;
+
+export const DEFAULT_ATTACHMENTS_FOLDER = "assets";
+export const DEFAULT_ATTACHMENT_LOCATION: AttachmentLocation = {
+  kind: "folder",
+  path: DEFAULT_ATTACHMENTS_FOLDER,
+};
+
+export const vaultPrefsResponseSchema = z
+  .object({ attachments: attachmentLocationSchema })
+  .strict();
+export type VaultPrefsResponse = z.infer<typeof vaultPrefsResponseSchema>;
+
+export const vaultSetPrefsRequestSchema = z
+  .object({ attachments: attachmentLocationSchema })
+  .strict();
+export type VaultSetPrefsRequest = z.infer<typeof vaultSetPrefsRequestSchema>;
 
 export const vaultMkdirRequestSchema = z.object({ path: vaultPathSchema }).strict();
 export type VaultMkdirRequest = z.infer<typeof vaultMkdirRequestSchema>;

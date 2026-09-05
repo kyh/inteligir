@@ -82,7 +82,7 @@ miniflare's Durable Objects. Sign-up is invite-only and there is no seeded accou
 | The product (`pnpm dev`)             | derived port 21000–28999 (hash of checkout root)  |
 | The renderer's vite dev server       | 31000, searching upward                           |
 | The product's SQLite + config.json   | `~/.inteligir-dev/<hash>/` (prod: `~/.inteligir`) |
-| Connectors, folders, agent default   | JSON files beside them (the app writes these)     |
+| Connectors, folders, agent, vault    | JSON files beside them (the app writes these)     |
 | Site + cloud Worker (`pnpm dev:web`) | 5174 (pinned — `strictPort`)                      |
 | Accounts, sessions, devices, invites | D1 (local file under `apps/web/.wrangler`)        |
 | Thread log, captures, hosted vault   | Durable Objects (same `.wrangler` dir)            |

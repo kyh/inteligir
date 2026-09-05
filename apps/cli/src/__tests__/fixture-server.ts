@@ -26,7 +26,9 @@ import type {
   Thread,
 } from "@repo/api/local/threads/threads-schema";
 import {
+  DEFAULT_ATTACHMENT_LOCATION,
   type VaultEntry,
+  type VaultPrefsResponse,
   type VaultRevision,
   type VaultStatusResponse,
 } from "@repo/api/local/vault/vault-schema";
@@ -66,6 +68,7 @@ export interface FixtureState {
   guideMarkdown: string;
   agent: AgentStatus;
   vaultStatus: VaultStatusResponse;
+  vaultPrefs: VaultPrefsResponse;
   nextCreatedThreadId: string;
 }
 
@@ -119,6 +122,7 @@ export function makeFixtureState(): FixtureState {
     guideMarkdown: "# Fixture guide\n\nBe kind to the vault.\n",
     agent: { mode: "auto", runtime: "acp", detail: null },
     vaultStatus: { state: "no-remote", lastSyncAt: null, lastError: null },
+    vaultPrefs: { attachments: DEFAULT_ATTACHMENT_LOCATION },
     nextCreatedThreadId: "thr_created_1",
   };
 }
@@ -517,6 +521,11 @@ const vaultRouter = {
   }),
   status: base.vault.status.handler(({ context }) => context.vaultStatus),
   syncNow: base.vault.syncNow.handler(({ context }) => context.vaultStatus),
+  prefs: base.vault.prefs.handler(({ context }) => context.vaultPrefs),
+  setPrefs: base.vault.setPrefs.handler(({ context, input }) => {
+    context.vaultPrefs = { attachments: input.attachments };
+    return context.vaultPrefs;
+  }),
 };
 
 const voiceRouter = {
