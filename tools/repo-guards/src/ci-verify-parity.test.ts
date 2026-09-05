@@ -41,7 +41,7 @@ const MANUAL_SMOKES = new Map<string, string>([
   ],
   [
     "smoke:desktop",
-    "it drives a packaged macOS arm64 .app through that app's own Electron binary; the gate runs on ubuntu, where neither packaging it nor executing it is possible — running it means adding a macOS job, which is worth doing the day the shell is something users install",
+    "it drives a packaged macOS arm64 .app through that app's own Electron binary, including the vault selector (config.json's vaultDir booting the packaged server on a per-vault data dir, the server half of the shell's vault switch); the gate runs on ubuntu, where neither packaging it nor executing it is possible — running it means adding a macOS job, which is worth doing the day the shell is something users install",
   ],
 ]);
 

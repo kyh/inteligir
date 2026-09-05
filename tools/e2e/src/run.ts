@@ -12,12 +12,15 @@ import { cliDrive } from "./scenarios/cli-drive";
 import { dictationBrowser } from "./scenarios/dictation-browser";
 import { editorConstructsBrowser } from "./scenarios/editor-constructs-browser";
 import { externalEditBrowser } from "./scenarios/external-edit-browser";
+import { extractNoteBrowser } from "./scenarios/extract-note-browser";
 import { hostedVaultSync } from "./scenarios/hosted-vault-sync";
 import { noteCreateBrowser } from "./scenarios/note-create-browser";
 import { settingsBrowser } from "./scenarios/settings-browser";
 import { slashMenuBrowser } from "./scenarios/slash-menu-browser";
 import { threadsScripted } from "./scenarios/threads-scripted";
+import { treeOpsBrowser } from "./scenarios/tree-ops-browser";
 import { vaultCrud } from "./scenarios/vault-crud";
+import { vaultSearchBrowser } from "./scenarios/vault-search-browser";
 import { vaultSync } from "./scenarios/vault-sync";
 import { viewContextBrowser } from "./scenarios/view-context-browser";
 
@@ -37,6 +40,9 @@ const SCENARIOS: readonly Scenario[] = [
   viewContextBrowser,
   dictationBrowser,
   settingsBrowser,
+  vaultSearchBrowser,
+  treeOpsBrowser,
+  extractNoteBrowser,
 ];
 
 const USAGE = `Usage: pnpm e2e [--only <names>] [--keep] [--list]
