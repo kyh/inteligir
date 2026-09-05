@@ -17,6 +17,10 @@ import {
 import { cn } from "@repo/ui/lib/utils";
 import { isVaultMetadataPath } from "@repo/notes/knowledge/doc-file";
 import { renamedTag } from "@repo/notes/knowledge/rename-tags";
+import {
+  KNOWLEDGE_TAG_NOTES_DEFAULT_LIMIT,
+  KNOWLEDGE_TAG_NOTES_MAX_LIMIT,
+} from "@repo/api/local/knowledge/knowledge-schema";
 import type { VaultEntry } from "@repo/api/local/vault/vault-schema";
 import {
   ArchiveRestoreIcon,
@@ -279,11 +283,16 @@ export function SidebarRailContent({
   }, [tagRequest, onTagRequestHandled]);
 
   const tagsQuery = useTags(showTags);
-  const taggedQuery = useNotesWithTag(showTags ? selectedTag : null);
-  const taggedPaths = useMemo(
-    () => new Set((taggedQuery.data?.results ?? []).map((result) => result.path)),
-    [taggedQuery.data],
-  );
+  // one page that grows: the list is re-read whole rather than stitched, and a new tag starts over
+  const [tagPage, setTagPage] = useState<{ tag: string | null; limit: number }>({
+    tag: null,
+    limit: KNOWLEDGE_TAG_NOTES_DEFAULT_LIMIT,
+  });
+  const tagLimit = tagPage.tag === selectedTag ? tagPage.limit : KNOWLEDGE_TAG_NOTES_DEFAULT_LIMIT;
+  const taggedQuery = useNotesWithTag(showTags ? selectedTag : null, tagLimit);
+  const taggedPaths = useMemo(() => new Set(taggedQuery.data?.paths ?? []), [taggedQuery.data]);
+  const taggedCut =
+    taggedQuery.data !== undefined && taggedQuery.data.paths.length < taggedQuery.data.total;
   const taggedEntries = useMemo(
     () => scoped.filter((entry) => entry.kind === "file" && taggedPaths.has(entry.path)),
     [scoped, taggedPaths],
@@ -449,7 +458,11 @@ export function SidebarRailContent({
           <>
             <TagScopeHeader
               tag={selectedTag}
-              count={taggedQuery.data === undefined ? undefined : taggedEntries.length}
+              count={
+                taggedQuery.data === undefined
+                  ? undefined
+                  : { listed: taggedQuery.data.paths.length, total: taggedQuery.data.total }
+              }
               onClear={() => {
                 setSelectedTag(null);
               }}
@@ -467,6 +480,25 @@ export function SidebarRailContent({
               }
               onSetPinned={ops.setPinned}
             />
+            {taggedCut && tagLimit < KNOWLEDGE_TAG_NOTES_MAX_LIMIT ? (
+              <div className="px-2 py-1">
+                <Button
+                  variant="ghost"
+                  size="compact"
+                  onClick={() => {
+                    setTagPage({
+                      tag: selectedTag,
+                      limit: Math.min(
+                        tagLimit + KNOWLEDGE_TAG_NOTES_DEFAULT_LIMIT,
+                        KNOWLEDGE_TAG_NOTES_MAX_LIMIT,
+                      ),
+                    });
+                  }}
+                >
+                  Show more
+                </Button>
+              </div>
+            ) : null}
           </>
         ) : (
           <NotesList

@@ -12,7 +12,7 @@ import {
   type WikiTarget,
 } from "@repo/notes/knowledge/link-graph-index";
 import { renameCandidates } from "@repo/notes/knowledge/rename-candidates";
-import { tagInFamily } from "@repo/notes/knowledge/rename-tags";
+import { notesInTagFamily } from "@repo/notes/knowledge/tag-notes";
 import { relatedNotes, type RelatedNoteEntry } from "@repo/notes/knowledge/related-notes";
 import { projectDoc } from "@repo/notes/knowledge/projection";
 import {
@@ -87,6 +87,8 @@ export interface KnowledgeRuntime {
   problems(options: VaultProblemsOptions): Promise<VaultProblems>;
   relatedNotes(path: string, limit: number): Promise<RelatedNoteEntry[]>;
   tags(): Promise<TagCount[]>;
+  // the tag's family by path: a page of it and the whole count
+  tagNotes(tag: string, limit: number, offset: number): Promise<{ paths: string[]; total: number }>;
   renameCandidates(from: string, to: string): Promise<string[]>;
   // every doc holding the tag or one nested under it, computed with no reads
   tagRenameCandidates(from: string): Promise<string[]>;
@@ -457,14 +459,15 @@ export function createKnowledgeRuntime(args: KnowledgeRuntimeArgs): KnowledgeRun
       return renameCandidates(graph, from, to);
     },
 
+    async tagNotes(tag, limit, offset) {
+      await settle();
+      const all = notesInTagFamily(graph, tag);
+      return { paths: all.slice(offset, offset + limit), total: all.length };
+    },
+
     async tagRenameCandidates(from) {
       await settle();
-      const paths = new Set<string>();
-      for (const { tag } of graph.tags()) {
-        if (!tagInFamily(tag, from)) continue;
-        for (const path of graph.notesWithTag(tag)) paths.add(path);
-      }
-      return [...paths].toSorted();
+      return notesInTagFamily(graph, from);
     },
 
     get lastReconcile() {

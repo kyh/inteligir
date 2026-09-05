@@ -15,6 +15,8 @@ import {
   knowledgeRenameTagResponseSchema,
   knowledgeSearchRequestSchema,
   knowledgeSearchResponseSchema,
+  knowledgeTagNotesRequestSchema,
+  knowledgeTagNotesResponseSchema,
   knowledgeTagsResponseSchema,
   knowledgeUnlinkedMentionsRequestSchema,
   knowledgeUnlinkedMentionsResponseSchema,
@@ -39,6 +41,8 @@ export const knowledgeContract = {
   problems: oc.input(knowledgeProblemsRequestSchema).output(knowledgeProblemsResponseSchema),
 
   tags: oc.output(knowledgeTagsResponseSchema),
+
+  tagNotes: oc.input(knowledgeTagNotesRequestSchema).output(knowledgeTagNotesResponseSchema),
 
   renameTag: oc.input(knowledgeRenameTagRequestSchema).output(knowledgeRenameTagResponseSchema),
 };

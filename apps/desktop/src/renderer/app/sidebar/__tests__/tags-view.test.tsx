@@ -3,9 +3,16 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { foldTags, TagsView } from "../tags-view";
+import { foldTags, tagScopeCountLabel, TagsView } from "../tags-view";
 
 afterEach(cleanup);
+
+describe("the scoped list's count", () => {
+  it("says the whole count, and 'listed of total' while the listing is cut", () => {
+    expect(tagScopeCountLabel({ listed: 3, total: 3 })).toBe("3");
+    expect(tagScopeCountLabel({ listed: 100, total: 250 })).toBe("100 of 250");
+  });
+});
 
 const TAGS = [
   { tag: "project", count: 3 },

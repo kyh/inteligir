@@ -5,6 +5,7 @@ import {
   KNOWLEDGE_BACKLINKS_MAX,
   KNOWLEDGE_MATCHES_DEFAULT_LIMIT,
   KNOWLEDGE_PROBLEMS_DEFAULT_LIMIT,
+  KNOWLEDGE_TAG_NOTES_DEFAULT_LIMIT,
   KNOWLEDGE_TAGS_MAX,
   KNOWLEDGE_UNLINKED_DEFAULT_LIMIT,
   type KnowledgeRenameTagResponse,
@@ -64,6 +65,15 @@ const related = base.knowledge.related.handler(async ({ context, input }) => ({
   related: await context.knowledge.relatedNotes(input.path, input.limit ?? RELATED_DEFAULT_LIMIT),
 }));
 
+const tagNotes = base.knowledge.tagNotes.handler(async ({ context, input }) => {
+  const page = await context.knowledge.tagNotes(
+    input.tag,
+    input.limit ?? KNOWLEDGE_TAG_NOTES_DEFAULT_LIMIT,
+    input.offset ?? 0,
+  );
+  return { tag: input.tag, ...page };
+});
+
 const tags = base.knowledge.tags.handler(async ({ context }) => {
   const found = await context.knowledge.tags();
   return { tags: found.slice(0, KNOWLEDGE_TAGS_MAX), total: found.length };
@@ -82,5 +92,6 @@ export const knowledgeRouter = {
   unlinkedMentions,
   problems,
   tags,
+  tagNotes,
   renameTag,
 };
