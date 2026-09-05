@@ -4,7 +4,8 @@ import { ORPCError, safe } from "@orpc/client";
 import { connectorsResponseSchema } from "@repo/api/local/connectors/connectors-schema";
 import { describe, expect, it } from "vitest";
 import { ConnectorConflictError, createConnectorsService } from "../connectors-service";
-import { ConnectorsStore, ConnectorsStoreError } from "../connectors-store";
+import { ConnectorsStore } from "../connectors-store";
+import { JsonFileStoreError } from "../../json-file-store";
 import { bootTestApp } from "../../__tests__/boot-app";
 import { makeTempDir } from "../../__tests__/temp-dir";
 
@@ -92,7 +93,7 @@ describe("the connectors registry", () => {
     expect(JSON.parse(readFileSync(path, "utf8")).servers).toHaveLength(1);
 
     writeFileSync(path, "{not json");
-    expect(() => service.list()).toThrowError(ConnectorsStoreError);
+    expect(() => service.list()).toThrowError(JsonFileStoreError);
   });
 });
 

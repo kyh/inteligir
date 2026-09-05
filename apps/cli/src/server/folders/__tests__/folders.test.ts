@@ -3,7 +3,8 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { createFoldersService, FolderRefusedError } from "../folders-service";
-import { FoldersStore, FoldersStoreError } from "../folders-store";
+import { FoldersStore } from "../folders-store";
+import { JsonFileStoreError } from "../../json-file-store";
 import { makeTempDir } from "../../__tests__/temp-dir";
 
 let root: string;
@@ -52,7 +53,7 @@ describe("folders store", () => {
 
   it("surfaces a malformed file as an error, never an empty list", () => {
     writeFileSync(join(dataDir, "connected-folders.json"), "{nope", "utf8");
-    expect(() => new FoldersStore(dataDir).read()).toThrow(FoldersStoreError);
+    expect(() => new FoldersStore(dataDir).read()).toThrow(JsonFileStoreError);
   });
 });
 

@@ -2,9 +2,7 @@
 // thread db (synced). a json file, not a db table: a handful of rows read whole per session
 // launch, with no query to earn migrations.
 
-import { readFileSync } from "node:fs";
-import { stagedWriteFileSync } from "../staged-write";
-import { join } from "node:path";
+import { JsonFileStore } from "../json-file-store";
 import { z } from "zod";
 
 import {
@@ -67,41 +65,25 @@ export type StoredConnector = z.infer<typeof storedConnectorSchema>;
 
 const storeFileSchema = z.object({ servers: z.array(storedConnectorSchema) }).strict();
 
-export class ConnectorsStoreError extends Error {}
-
-// a malformed file is an error, not an empty list: an empty list lets the next write erase what the bytes held.
 export class ConnectorsStore {
-  private readonly path: string;
+  private readonly file: JsonFileStore<typeof storeFileSchema>;
 
   constructor(dataDir: string) {
-    this.path = join(dataDir, CONNECTORS_FILE);
+    this.file = new JsonFileStore({
+      dataDir,
+      fileName: CONNECTORS_FILE,
+      schema: storeFileSchema,
+      empty: { servers: [] },
+      // holds api keys
+      mode: 0o600,
+    });
   }
 
   read(): StoredConnector[] {
-    let raw: string;
-    try {
-      raw = readFileSync(this.path, "utf8");
-    } catch {
-      return [];
-    }
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(raw);
-    } catch {
-      throw new ConnectorsStoreError(
-        `${this.path} is not valid JSON — fix or remove the file; refusing to read it as empty`,
-      );
-    }
-    const verdict = storeFileSchema.safeParse(parsed);
-    if (!verdict.success) {
-      throw new ConnectorsStoreError(
-        `${this.path} does not match the connectors shape — fix or remove the file; refusing to read it as empty`,
-      );
-    }
-    return verdict.data.servers;
+    return this.file.read().servers;
   }
 
   write(servers: StoredConnector[]): void {
-    stagedWriteFileSync(this.path, `${JSON.stringify({ servers }, null, 2)}\n`, { mode: 0o600 });
+    this.file.write({ servers });
   }
 }

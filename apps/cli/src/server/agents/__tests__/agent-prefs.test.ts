@@ -4,7 +4,8 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { defaultHarnessId } from "../agent-driver";
-import { AgentPrefsStore, AgentPrefsStoreError } from "../agent-prefs-store";
+import { AgentPrefsStore } from "../agent-prefs-store";
+import { JsonFileStoreError } from "../../json-file-store";
 import { createAgentsService, UnknownHarnessError } from "../agents-service";
 
 const NOTHING_ON_PATH = { PATH: "/nonexistent-dir" };
@@ -31,13 +32,13 @@ describe("the stored default", () => {
   it("refuses malformed bytes rather than reading them as no choice", () => {
     const dir = scratch();
     writeFileSync(join(dir, "agent-prefs.json"), "{");
-    expect(() => new AgentPrefsStore(dir).read()).toThrow(AgentPrefsStoreError);
+    expect(() => new AgentPrefsStore(dir).read()).toThrow(JsonFileStoreError);
   });
 
   it("refuses a harness it does not know", () => {
     const dir = scratch();
     writeFileSync(join(dir, "agent-prefs.json"), JSON.stringify({ defaultHarness: "gemini" }));
-    expect(() => new AgentPrefsStore(dir).read()).toThrow(AgentPrefsStoreError);
+    expect(() => new AgentPrefsStore(dir).read()).toThrow(JsonFileStoreError);
   });
 });
 

@@ -2,13 +2,10 @@
 // from. A mismatch is reported, never diff3-merged: the user asked for these exact
 // replacements in these exact lines, and a merge would be a guess about a file that moved.
 
-import { contentHashHex } from "@repo/api/local/vault/vault-schema";
 import { replaceTextMatches, type TextMatchOptions } from "@repo/notes/knowledge/text-matches";
-import { isDefinedError, refusalMessage, safe, type client } from "../api";
+import { rewriteNote, type RewriteNoteApi } from "../note/rewrite-note";
 
-export interface ReplaceVaultApi {
-  vault: Pick<(typeof client)["vault"], "read" | "write">;
-}
+export type ReplaceVaultApi = RewriteNoteApi;
 
 export interface VaultReplaceRequest {
   needle: string;
@@ -36,23 +33,25 @@ async function replaceInNote(
   path: string,
   request: VaultReplaceRequest,
 ): Promise<VaultReplaceOutcome> {
-  const read = await safe(api.vault.read({ path }));
-  if (read.error !== null) {
-    return { path, kind: "failed", message: refusalMessage(read.error, "could not read it") };
+  const outcome = await rewriteNote(api, path, (content) => {
+    const { text, count } = replaceTextMatches(
+      content,
+      request.needle,
+      request.replacement,
+      request.options,
+    );
+    return { content: text, result: count };
+  });
+  switch (outcome.kind) {
+    case "written":
+      return { path, kind: "replaced", count: outcome.result };
+    case "unchanged":
+      return { path, kind: "unchanged" };
+    case "changed":
+      return { path, kind: "changed" };
+    case "failed":
+      return { path, kind: "failed", message: outcome.message };
   }
-  const content = read.data.content;
-  const { text, count } = replaceTextMatches(
-    content,
-    request.needle,
-    request.replacement,
-    request.options,
-  );
-  if (count === 0) return { path, kind: "unchanged" };
-  const expectedHash = await contentHashHex(content);
-  const { error } = await safe(api.vault.write({ path, content: text, expectedHash }));
-  if (error === null) return { path, kind: "replaced", count };
-  if (isDefinedError(error) && error.code === "CAS_MISMATCH") return { path, kind: "changed" };
-  return { path, kind: "failed", message: refusalMessage(error, "the write was refused") };
 }
 
 // the outcomes stop at the cancel: their count against `request.paths` is what was left alone

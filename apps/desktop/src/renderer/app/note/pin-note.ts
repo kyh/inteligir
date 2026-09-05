@@ -1,12 +1,9 @@
-import { contentHashHex } from "@repo/api/local/vault/vault-schema";
 import { getLiveEditor } from "@repo/editor/live-editor";
 import { readFrontmatterRaw, writeFrontmatterRaw } from "@repo/editor/properties/properties-node";
 import { pinnedFrontmatterYaml, setFrontmatterPinned } from "@repo/notes/markdown/frontmatter";
-import { refusalMessage, safe, type client } from "../api";
+import { rewriteNote, type RewriteNoteApi } from "./rewrite-note";
 
-export interface PinNoteApi {
-  vault: Pick<(typeof client)["vault"], "read" | "write">;
-}
+export type PinNoteApi = RewriteNoteApi;
 
 export type PinNoteOutcome =
   | { kind: "done" }
@@ -15,10 +12,10 @@ export type PinNoteOutcome =
 
 // One edit behind the panel, the tree and the palette. The open note takes it the way the
 // properties panel writes, through the live editor's frontmatter node, so the buffer and the
-// autosave carry it. Any other note is read, edited and written back with the hash of what was
-// read; a note that moved underneath is refused, never merged: a pin is one click to repeat.
+// autosave carry it. Any other note goes through the guarded rewrite; a note that moved
+// underneath is refused, never merged: a pin is one click to repeat.
 export async function setNotePinned(
-  api: PinNoteApi,
+  api: RewriteNoteApi,
   path: string,
   pinned: boolean,
 ): Promise<PinNoteOutcome> {
@@ -32,15 +29,24 @@ export async function setNotePinned(
     writeFrontmatterRaw(editor, verdict.yaml);
     return { kind: "done" };
   }
-  const { content } = await api.vault.read({ path });
-  const next = setFrontmatterPinned(content, pinned);
-  if (next === null) return { kind: "refused", message: unreadable };
-  if (next === content) return { kind: "unchanged" };
-  const expectedHash = await contentHashHex(content);
-  const { error } = await safe(api.vault.write({ path, content: next, expectedHash }));
-  if (error !== null) {
-    const reason = refusalMessage(error, "the write was refused");
-    return { kind: "refused", message: `Could not ${verb} ${path}: ${reason}` };
+  // invalid YAML answers the same bytes with the verdict beside them, so nothing is written
+  const outcome = await rewriteNote(api, path, (content) => {
+    const next = setFrontmatterPinned(content, pinned);
+    return next === null ? { content, result: "invalid" } : { content: next, result: "edited" };
+  });
+  switch (outcome.kind) {
+    case "written":
+      return { kind: "done" };
+    case "unchanged":
+      return outcome.result === "invalid"
+        ? { kind: "refused", message: unreadable }
+        : { kind: "unchanged" };
+    case "changed":
+      return {
+        kind: "refused",
+        message: `Could not ${verb} ${path}: it changed since it was read.`,
+      };
+    case "failed":
+      return { kind: "refused", message: `Could not ${verb} ${path}: ${outcome.message}` };
   }
-  return { kind: "done" };
 }

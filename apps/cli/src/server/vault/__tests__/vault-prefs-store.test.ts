@@ -3,7 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { VaultPrefsStore, VaultPrefsStoreError } from "../vault-prefs-store";
+import { VaultPrefsStore } from "../vault-prefs-store";
+import { JsonFileStoreError } from "../../json-file-store";
 
 const dirs: string[] = [];
 
@@ -39,7 +40,7 @@ describe("the vault's stored choices", () => {
   it("refuse malformed bytes rather than reading them as defaults", () => {
     const dir = scratch();
     writeFileSync(join(dir, "vault-prefs.json"), "{");
-    expect(() => new VaultPrefsStore(dir).read()).toThrow(VaultPrefsStoreError);
+    expect(() => new VaultPrefsStore(dir).read()).toThrow(JsonFileStoreError);
   });
 
   it("refuse a location they do not know", () => {
@@ -48,6 +49,6 @@ describe("the vault's stored choices", () => {
       join(dir, "vault-prefs.json"),
       JSON.stringify({ attachments: { kind: "cloud" } }),
     );
-    expect(() => new VaultPrefsStore(dir).read()).toThrow(VaultPrefsStoreError);
+    expect(() => new VaultPrefsStore(dir).read()).toThrow(JsonFileStoreError);
   });
 });

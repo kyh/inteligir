@@ -33,7 +33,10 @@ describe("linking an unlinked mention", () => {
   it("writes the wrapped bytes with the hash of what it read", async () => {
     const content = "We revisit the roadmap on Monday.\n";
     const api = apiOver(content);
-    expect(await linkMentionInNote(api, mention, "Roadmap")).toEqual({ kind: "linked" });
+    expect(await linkMentionInNote(api, mention, "Roadmap")).toEqual({
+      kind: "written",
+      result: undefined,
+    });
     expect(api.writes).toEqual([
       {
         path: "a.md",

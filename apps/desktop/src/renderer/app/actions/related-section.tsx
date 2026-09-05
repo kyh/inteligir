@@ -114,7 +114,7 @@ export function RelatedInline({
   const link = (mention: UnlinkedMentionWire): void => {
     void (async () => {
       const outcome = await linkMentionInNote(api, mention, docStem(docPath));
-      toast[outcome.kind === "linked" ? "success" : "error"](
+      toast[outcome.kind === "written" ? "success" : "error"](
         linkMentionMessage(outcome, mention.path),
       );
       void queryClient.invalidateQueries({ queryKey: orpc.knowledge.key() });
