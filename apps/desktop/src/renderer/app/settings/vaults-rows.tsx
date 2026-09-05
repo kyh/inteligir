@@ -1,29 +1,24 @@
 import { Button } from "@repo/ui/components/button";
 import { XIcon } from "lucide-react";
-import { useState } from "react";
-import { forgetRecentVault, openRecentVault, pickVault, useDesktopVaults } from "../desktop-vaults";
-import { failed, Row } from "./settings-chrome";
-
-type Busy = "picking" | "opening" | "forgetting";
+import {
+  forgetRecentVault,
+  openRecentVault,
+  pickVault,
+  RecentVaultLabel,
+  useDesktopVaults,
+  useVaultSwitch,
+} from "../desktop-vaults";
+import { toast } from "@repo/ui/components/sonner";
+import { Row } from "./settings-chrome";
 
 // rendered only under the shell: a browser tab did not start the server it talks to
 export function VaultsRow() {
   const vaults = useDesktopVaults();
-  const [busy, setBusy] = useState<Busy | null>(null);
+  const { busy, run } = useVaultSwitch(toast.error);
   if (vaults.kind !== "state") {
     return null;
   }
   const { state } = vaults;
-  const run = (kind: Busy, work: () => Promise<void>): void => {
-    setBusy(kind);
-    void work()
-      .catch((cause: unknown) => {
-        failed(cause, "Could not open that vault.");
-      })
-      .finally(() => {
-        setBusy(null);
-      });
-  };
   const switchable = state.blocked === null;
   return (
     <Row label="Vaults">
@@ -54,10 +49,7 @@ export function VaultsRow() {
                     run("opening", () => openRecentVault(vault.path));
                   }}
                 >
-                  <span className="block truncate text-sm">{vault.name}</span>
-                  <span className="block truncate font-mono text-xs text-muted-foreground">
-                    {vault.path}
-                  </span>
+                  <RecentVaultLabel vault={vault} />
                 </button>
                 <Button
                   variant="ghost"

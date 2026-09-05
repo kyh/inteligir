@@ -20,7 +20,6 @@ import { useThreads } from "./actions/thread-hooks";
 import { platformShortcutModifier } from "@repo/editor/hotkey-spelling";
 import { useGlobalShortcuts } from "./global-shortcuts";
 import { setAgentRequestActions } from "@repo/editor/agent-request";
-import { consumeTagRequest, useTagRequest } from "@repo/editor/tag-request";
 import { EditorColumn } from "@repo/editor/editor-column";
 import { jumpToFindMatch, openFindBar } from "@repo/editor/find-bar";
 import { insertTemplate } from "@repo/editor/insert-template";
@@ -65,10 +64,13 @@ import {
 import {
   readPanelOpen,
   readSidebarFolder,
+  readSidebarView,
   readSidebarWidth,
   writePanelOpen,
   writeSidebarFolder,
+  writeSidebarView,
   writeSidebarWidth,
+  type SidebarView,
 } from "./prefs";
 import { hasInsetTitleBar } from "./title-bar";
 import { useWorkspace } from "./workspace-context";
@@ -207,6 +209,14 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
     writeSidebarFolder(folder);
     setSidebarFolder(folder);
   }, []);
+  // the rail's view and its tag, owned here for the same reason: a `#tag` chip deep in the note
+  // sets both, and it reaches the shell through the editor's action registry
+  const [sidebarView, setSidebarView] = useState<SidebarView>(readSidebarView);
+  const chooseView = useCallback((view: SidebarView): void => {
+    writeSidebarView(view);
+    setSidebarView(view);
+  }, []);
+  const [selectedTag, setSelectedTag] = useState<string | null>(null);
 
   const createNote = useCallback(async (path: string, content = ""): Promise<void> => {
     await actionsRef.current?.createFile(path, content);
@@ -354,23 +364,17 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
         setComposerSeed(`${quoted}\n\n`);
         setComposerOpen(true);
       },
+      showTag: (tag) => {
+        setZen(false);
+        setRailOpen(true);
+        chooseView("tags");
+        setSelectedTag(tag);
+      },
     });
     return () => {
       setAgentRequestActions(null);
     };
-  }, []);
-
-  // Adopted during render so the rail opens in the same paint; the rail itself
-  // consumes the request once it shows the tag.
-  const tagRequest = useTagRequest((state) => state.tag);
-  const [seenTagRequest, setSeenTagRequest] = useState<string | null>(null);
-  if (seenTagRequest !== tagRequest) {
-    setSeenTagRequest(tagRequest);
-    if (tagRequest !== null) {
-      setZen(false);
-      setRailOpen(true);
-    }
-  }
+  }, [chooseView]);
 
   useGlobalShortcuts(shortcutModifier, (action) => {
     switch (action) {
@@ -539,8 +543,10 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
               setPaletteMove(path);
               setPaletteOpen(true);
             }}
-            tagRequest={tagRequest}
-            onTagRequestHandled={consumeTagRequest}
+            view={sidebarView}
+            onViewChange={chooseView}
+            selectedTag={selectedTag}
+            onSelectTag={setSelectedTag}
             folder={sidebarFolder}
             onFolderChange={chooseFolder}
           />

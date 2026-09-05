@@ -3,7 +3,8 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import type { VaultEntry } from "@repo/api/local/vault/vault-schema";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { FileTree, type TreeOps } from "../file-tree";
+import type { TreeOps } from "../file-tree";
+import { RailTree } from "./rail-tree";
 
 const ENTRIES: VaultEntry[] = [
   { kind: "dir", path: "notes" },
@@ -12,6 +13,8 @@ const ENTRIES: VaultEntry[] = [
   { kind: "file", path: "notes/ideas.md" },
   { kind: "file", path: "Welcome.md" },
 ];
+
+const NO_PINS: ReadonlySet<string> = new Set();
 
 function makeOps(): TreeOps {
   return {
@@ -40,11 +43,11 @@ interface RenderedTree {
   onOpenFile: ReturnType<typeof vi.fn>;
 }
 
-function renderTree(overrides: Partial<React.ComponentProps<typeof FileTree>> = {}): RenderedTree {
+function renderTree(overrides: Partial<React.ComponentProps<typeof RailTree>> = {}): RenderedTree {
   const ops = makeOps();
   const onOpenFile = vi.fn();
   render(
-    <FileTree
+    <RailTree
       entries={ENTRIES}
       loadState="loaded"
       onRetry={() => {}}
@@ -52,11 +55,21 @@ function renderTree(overrides: Partial<React.ComponentProps<typeof FileTree>> = 
       onOpenFile={onOpenFile}
       ops={ops}
       pendingCreate={null}
-      onPendingCreateHandled={() => {}}
+      onPendingCreateDone={() => {}}
+      rootDir=""
+      onMoveRequest={() => {}}
+      pinnedPaths={NO_PINS}
+      sort="name"
+      filter=""
+      vaultRoot={null}
       {...overrides}
     />,
   );
   return { ops, onOpenFile };
+}
+
+function createDir(): string | null {
+  return document.querySelector("[data-create-dir]")?.getAttribute("data-create-dir") ?? null;
 }
 
 function row(path: string): HTMLElement {
@@ -215,41 +228,27 @@ describe("inline rename", () => {
 
 describe("inline create", () => {
   it("a pending root create renders the input and commits with .md appended", () => {
-    const ops = makeOps();
-    const handled = vi.fn();
-    render(
-      <FileTree
-        entries={ENTRIES}
-        loadState="loaded"
-        onRetry={vi.fn()}
-        openPath={null}
-        onOpenFile={vi.fn()}
-        ops={ops}
-        pendingCreate={{ kind: "file", parentDir: "" }}
-        onPendingCreateHandled={handled}
-      />,
-    );
-    expect(handled).toHaveBeenCalled();
+    const onPendingCreateDone = vi.fn();
+    const { ops } = renderTree({
+      pendingCreate: { kind: "file", parentDir: "" },
+      onPendingCreateDone,
+    });
     const input = screen.getByLabelText("Name");
     fireEvent.change(input, { target: { value: "Fresh" } });
     fireEvent.keyDown(input, { key: "Enter" });
     expect(ops.createNote).toHaveBeenCalledWith("Fresh.md");
+    expect(onPendingCreateDone).toHaveBeenCalled();
+  });
+
+  it("a cancelled create is reported done too", () => {
+    const onPendingCreateDone = vi.fn();
+    renderTree({ pendingCreate: { kind: "file", parentDir: "" }, onPendingCreateDone });
+    fireEvent.keyDown(screen.getByLabelText("Name"), { key: "Escape" });
+    expect(onPendingCreateDone).toHaveBeenCalled();
   });
 
   it("a folder create passes the name through untouched", () => {
-    const ops = makeOps();
-    render(
-      <FileTree
-        entries={ENTRIES}
-        loadState="loaded"
-        onRetry={vi.fn()}
-        openPath={null}
-        onOpenFile={vi.fn()}
-        ops={ops}
-        pendingCreate={{ kind: "dir", parentDir: "" }}
-        onPendingCreateHandled={vi.fn()}
-      />,
-    );
+    const { ops } = renderTree({ pendingCreate: { kind: "dir", parentDir: "" } });
     const input = screen.getByLabelText("Name");
     fireEvent.change(input, { target: { value: "projects" } });
     fireEvent.keyDown(input, { key: "Enter" });
@@ -310,15 +309,14 @@ describe("a listing rooted at a folder", () => {
 
 describe("where a create from outside the tree lands", () => {
   it("is the selected folder, or the selected file's, else the root", () => {
-    const onCreateDirChange = vi.fn();
-    renderTree({ onCreateDirChange });
-    expect(onCreateDirChange).toHaveBeenLastCalledWith("");
+    renderTree();
+    expect(createDir()).toBe("");
     fireEvent.click(row("notes"));
-    expect(onCreateDirChange).toHaveBeenLastCalledWith("notes");
+    expect(createDir()).toBe("notes");
     fireEvent.click(row("notes/ideas.md"));
-    expect(onCreateDirChange).toHaveBeenLastCalledWith("notes");
+    expect(createDir()).toBe("notes");
     fireEvent.click(row("Welcome.md"));
-    expect(onCreateDirChange).toHaveBeenLastCalledWith("");
+    expect(createDir()).toBe("");
   });
 });
 
@@ -377,21 +375,10 @@ describe("moving by drag and drop", () => {
 });
 
 describe("collapse all", () => {
-  it("folds every folder when the nonce changes", () => {
-    const ops = makeOps();
-    const props = {
-      entries: ENTRIES,
-      loadState: "loaded" as const,
-      onRetry: vi.fn(),
-      openPath: "notes/daily/2026-08-16.md",
-      onOpenFile: vi.fn(),
-      ops,
-      pendingCreate: null,
-      onPendingCreateHandled: vi.fn(),
-    };
-    const { rerender } = render(<FileTree {...props} collapseAllNonce={0} />);
+  it("folds every folder", () => {
+    renderTree({ openPath: "notes/daily/2026-08-16.md" });
     expect(screen.getByText("2026-08-16.md")).toBeDefined();
-    rerender(<FileTree {...props} collapseAllNonce={1} />);
+    fireEvent.click(screen.getByText("Collapse all"));
     expect(screen.queryByText("2026-08-16.md")).toBeNull();
     expect(screen.queryByText("daily")).toBeNull();
   });

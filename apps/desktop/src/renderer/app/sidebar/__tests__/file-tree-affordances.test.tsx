@@ -3,7 +3,8 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import type { VaultEntry } from "@repo/api/local/vault/vault-schema";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { FileTree, type TreeOps } from "../file-tree";
+import type { TreeOps } from "../file-tree";
+import { RailTree } from "./rail-tree";
 import { absoluteEntryPath } from "../tree-ops";
 
 const ENTRIES: VaultEntry[] = [
@@ -17,6 +18,8 @@ const ENTRIES: VaultEntry[] = [
   { kind: "file", path: "Zed notes.md", modifiedMs: 4_000 },
 ];
 
+const NO_PINS: ReadonlySet<string> = new Set();
+
 function makeOps(): TreeOps {
   return {
     createNote: vi.fn(),
@@ -28,10 +31,10 @@ function makeOps(): TreeOps {
   };
 }
 
-function renderTree(overrides: Partial<React.ComponentProps<typeof FileTree>> = {}) {
+function renderTree(overrides: Partial<React.ComponentProps<typeof RailTree>> = {}) {
   const ops = makeOps();
   render(
-    <FileTree
+    <RailTree
       entries={ENTRIES}
       loadState="loaded"
       onRetry={() => {}}
@@ -39,7 +42,13 @@ function renderTree(overrides: Partial<React.ComponentProps<typeof FileTree>> = 
       onOpenFile={vi.fn()}
       ops={ops}
       pendingCreate={null}
-      onPendingCreateHandled={() => {}}
+      onPendingCreateDone={() => {}}
+      rootDir=""
+      onMoveRequest={() => {}}
+      pinnedPaths={NO_PINS}
+      sort="name"
+      filter=""
+      vaultRoot={null}
       {...overrides}
     />,
   );
@@ -113,7 +122,7 @@ describe("the filter", () => {
 
   it("clearing it restores the folded tree", () => {
     const { rerender } = render(
-      <FileTree
+      <RailTree
         entries={ENTRIES}
         loadState="loaded"
         onRetry={() => {}}
@@ -121,13 +130,18 @@ describe("the filter", () => {
         onOpenFile={vi.fn()}
         ops={makeOps()}
         pendingCreate={null}
-        onPendingCreateHandled={() => {}}
+        onPendingCreateDone={() => {}}
+        rootDir=""
+        onMoveRequest={() => {}}
+        pinnedPaths={NO_PINS}
+        sort="name"
+        vaultRoot={null}
         filter="mid"
       />,
     );
     expect(visiblePaths()).toEqual(["notes", "notes/middle.md"]);
     rerender(
-      <FileTree
+      <RailTree
         entries={ENTRIES}
         loadState="loaded"
         onRetry={() => {}}
@@ -135,7 +149,12 @@ describe("the filter", () => {
         onOpenFile={vi.fn()}
         ops={makeOps()}
         pendingCreate={null}
-        onPendingCreateHandled={() => {}}
+        onPendingCreateDone={() => {}}
+        rootDir=""
+        onMoveRequest={() => {}}
+        pinnedPaths={NO_PINS}
+        sort="name"
+        vaultRoot={null}
         filter=""
       />,
     );

@@ -163,9 +163,9 @@ packages/
                  runtime (vault-session/note-runtime/open-note-store) the app
                  drives through two seams, plus the note-level verbs the shell
                  reaches by path (find bar, headings, extract, insert template,
-                 note stats, link locate) and the request stores a deep node
-                 uses to ask the shell for something (`agent-request`,
-                 `tag-request`): `VaultSessionPorts`
+                 note stats, link locate) and the one action registry a deep
+                 node uses to ask the shell for something (`agent-request`):
+                 `VaultSessionPorts`
                  (note/vault-session.ts) and the `EditorHostIo` singleton
                  (host-io.ts), which host.ts opens to React.
                  `node-props.ts` is the SLATE DECODE BOUNDARY, and it is the
@@ -546,8 +546,13 @@ to the END of its group.
 - **TAGS ARE A RAIL VIEW, AND A TAG RENAME IS THE LINK RENAME'S SURGERY.** The
   rail's third view lists `knowledge.tags` folded by `/`, a row's count being
   its family's; a click scopes the recents list to that tag through the search
-  route's `tag:` term, and a `#tag` chip asks for the same through
-  `@repo/editor/tag-request`, never the palette. `knowledge.renameTag` moves a
+  route's `tag:` term, and a `#tag` chip asks for the same through the editor
+  host registry's `showTag` (`packages/editor/src/agent-request.ts`, the one
+  channel from a node to the shell), never the palette. The selected tag is the
+  workspace's state like the folder, and everything only the Tags view holds
+  (the rename dialog, the tag's paged listing, both tag queries) is
+  `apps/desktop/src/renderer/app/sidebar/tags-pane.tsx`, mounted on its tab
+  alone. `knowledge.renameTag` moves a
   tag and everything nested under it, matched case-insensitively because the
   index is: inline spans are the scan's own, verified against the raw bytes and
   withheld inside verbatim ranges (`documentTagSpans`), frontmatter `tags`
@@ -966,8 +971,15 @@ create`, never by electron-builder. `autoDownload` and `autoInstallOnAppQuit`
   and cleared from the scope row above the list, never picked in the header:
   the header switches the vault, the breadcrumb narrows within it. Two lists, one rule: the
   recents view is one list by recency with a folder hint, and folders exist only
-  in the tree. A create lands where an IDE's would, in the tree's selected
-  folder, else at the scope. The rail hides what the user did not write
+  in the tree. The tree's fold and selection are the rail's state
+  (`sidebar/tree-state.ts`), not the tree's: Collapse all clears that set and a
+  create lands where an IDE's would, in the tree's selected folder, else at the
+  scope, both derived from it rather than requested through a nonce or a
+  callback; the header's pending create is a plain prop the tree reports done.
+  The view and the selected tag are the workspace's, because a `#tag` chip sets
+  both. One `useVaultSwitch` and one `RecentVaultLabel`
+  (`app/desktop-vaults.tsx`) serve the rail's vault button and Settings alike.
+  The rail hides what the user did not write
   (`@repo/notes/knowledge/doc-file`'s `isVaultMetadataPath`: comment sidecars,
   dot-entries); the server's listing stays complete because the CLI and the
   agent read it. Under the macOS shell the rail reserves the traffic-light

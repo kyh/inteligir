@@ -7,7 +7,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@repo/ui/components/dropdown-menu";
-import { toast } from "@repo/ui/components/sonner";
 import {
   SidebarContent,
   SidebarFooter,
@@ -17,11 +16,6 @@ import {
 import { TabsSubtle, TabsSubtleItem } from "@repo/ui/components/tabs-subtle";
 import { cn } from "@repo/ui/lib/utils";
 import { isVaultMetadataPath } from "@repo/notes/knowledge/doc-file";
-import { renamedTag } from "@repo/notes/knowledge/rename-tags";
-import {
-  KNOWLEDGE_TAG_NOTES_DEFAULT_LIMIT,
-  KNOWLEDGE_TAG_NOTES_MAX_LIMIT,
-} from "@repo/api/local/knowledge/knowledge-schema";
 import type { VaultEntry } from "@repo/api/local/vault/vault-schema";
 import {
   ArchiveRestoreIcon,
@@ -37,33 +31,32 @@ import {
   SettingsIcon,
   VaultIcon,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
-import { openRecentVault, pickVault, useDesktopVaults } from "../desktop-vaults";
+import { useMemo, useState } from "react";
+import { toast } from "@repo/ui/components/sonner";
+import {
+  openRecentVault,
+  pickVault,
+  RecentVaultLabel,
+  useDesktopVaults,
+  useVaultSwitch,
+} from "../desktop-vaults";
 import { platformShortcutModifier } from "@repo/editor/hotkey-spelling";
 import { bindingFor } from "../global-shortcuts";
-import {
-  readSidebarView,
-  readTreeSort,
-  writeSidebarView,
-  writeTreeSort,
-  type SidebarView,
-  type TreeSort,
-} from "../prefs";
+import { readTreeSort, writeTreeSort, type SidebarView, type TreeSort } from "../prefs";
 import { hasInsetTitleBar } from "../title-bar";
 import {
   canSyncNow,
   syncBlockedReason,
   syncStateDotClass,
   syncStateLabel,
-  useNotesWithTag,
   usePinnedPaths,
-  useTags,
   useVaultStatus,
   useVaultTree,
 } from "../vault-hooks";
-import { FileTree, type TreeLoadState, type TreeOps } from "./file-tree";
+import { FileTree, type PendingCreate, type TreeLoadState, type TreeOps } from "./file-tree";
 import { NotesList } from "./notes-list";
-import { RenameTagDialog, TagScopeHeader, TagsView } from "./tags-view";
+import { TagsPane } from "./tags-pane";
+import { createDirFor, useTreeState } from "./tree-state";
 
 const EMPTY_ENTRIES: readonly VaultEntry[] = [];
 
@@ -123,29 +116,18 @@ const SIDEBAR_VIEW_LABELS = {
 // bridge and did not start the server, so it gets the name alone.
 function VaultButton({ vaultName }: { vaultName: string }) {
   const vaults = useDesktopVaults();
-  const [busy, setBusy] = useState(false);
+  const { busy, run } = useVaultSwitch(toast.error);
   // no icon: the row is the name's, and a long vault name is the whole point of the row
   const label = <span className="min-w-0 flex-1 truncate">{vaultName}</span>;
   if (vaults.kind !== "state") {
     return <span className={VAULT_TRIGGER_CLASS}>{label}</span>;
   }
   const { state } = vaults;
-  // answers only when nothing moved: a cancelled picker or a refusal; a switch replaces the window
-  const run = (work: () => Promise<void>): void => {
-    setBusy(true);
-    void work()
-      .catch((cause: unknown) => {
-        toast.error(cause instanceof Error ? cause.message : "Could not open that vault.");
-      })
-      .finally(() => {
-        setBusy(false);
-      });
-  };
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
         aria-label="Vault"
-        disabled={busy}
+        disabled={busy !== null}
         className={cn(VAULT_TRIGGER_CLASS, "hover:bg-hover disabled:opacity-50")}
       >
         {label}
@@ -157,23 +139,18 @@ function VaultButton({ vaultName }: { vaultName: string }) {
             key={vault.path}
             className="h-auto py-1.5"
             onClick={() => {
-              run(() => openRecentVault(vault.path));
+              run("opening", () => openRecentVault(vault.path));
             }}
           >
             <VaultIcon className="size-3.5 shrink-0 text-muted-foreground" />
-            <span className="flex min-w-0 flex-col">
-              <span className="truncate">{vault.name}</span>
-              <span className="truncate font-mono text-[11px] text-muted-foreground">
-                {vault.path}
-              </span>
-            </span>
+            <RecentVaultLabel vault={vault} />
           </DropdownMenuItem>
         ))}
         {state.recent.length > 0 ? <DropdownMenuSeparator /> : null}
         {state.blocked === null ? (
           <DropdownMenuItem
             onClick={() => {
-              run(pickVault);
+              run("picking", pickVault);
             }}
           >
             <FolderOpenIcon className="size-3.5 shrink-0 text-muted-foreground" />
@@ -213,9 +190,11 @@ export interface SidebarRailContentProps {
   onOpenDeletedNotes: () => void;
   onOpenSearch: () => void;
   onMoveRequest: (path: string) => void;
-  // a `#tag` chip's ask: show that tag's notes; handled once the rail is on it
-  tagRequest: string | null;
-  onTagRequestHandled: () => void;
+  // the view and the tag are the workspace's: a `#tag` chip in the note sets both
+  view: SidebarView;
+  onViewChange: (view: SidebarView) => void;
+  selectedTag: string | null;
+  onSelectTag: (tag: string | null) => void;
   // the listing's folder ("" is the vault): owned by the workspace, since the top bar's
   // breadcrumb sets it too
   folder: string;
@@ -231,22 +210,17 @@ export function SidebarRailContent({
   onOpenDeletedNotes,
   onOpenSearch,
   onMoveRequest,
-  tagRequest,
-  onTagRequestHandled,
+  view,
+  onViewChange,
+  selectedTag,
+  onSelectTag,
   folder,
   onFolderChange,
 }: SidebarRailContentProps) {
   const treeQuery = useVaultTree();
   const pinnedPaths = usePinnedPaths();
-  const [view, setView] = useState<SidebarView>(readSidebarView);
-  const [selectedTag, setSelectedTag] = useState<string | null>(null);
-  const [renamingTag, setRenamingTag] = useState<string | null>(null);
-  const [pendingCreate, setPendingCreate] = useState<{
-    kind: "file" | "dir";
-    parentDir: string;
-  } | null>(null);
-  const [treeCreateDir, setTreeCreateDir] = useState("");
-  const [collapseAllNonce, setCollapseAllNonce] = useState(0);
+  const tree = useTreeState();
+  const [pendingCreate, setPendingCreate] = useState<PendingCreate | null>(null);
   const [treeSort, setTreeSort] = useState<TreeSort>(readTreeSort);
   // not persisted: a filter is a question about now
   const [treeFilter, setTreeFilter] = useState("");
@@ -256,56 +230,26 @@ export function SidebarRailContent({
   const entries = treeQuery.data?.entries ?? EMPTY_ENTRIES;
   const folders = useMemo(
     () =>
-      entries
-        .filter((entry) => entry.kind === "dir" && !isVaultMetadataPath(entry.path))
-        .map((entry) => entry.path),
+      new Set(
+        entries
+          .filter((entry) => entry.kind === "dir" && !isVaultMetadataPath(entry.path))
+          .map((entry) => entry.path),
+      ),
     [entries],
   );
   // a remembered folder the vault no longer holds shows the root, once the listing has answered
-  const scope = treeQuery.data !== undefined && !folders.includes(folder) ? "" : folder;
+  const scope = treeQuery.data !== undefined && !folders.has(folder) ? "" : folder;
   const scoped = useMemo(() => entriesUnder(entries, scope), [entries, scope]);
 
   const showTree = view === "tree";
-  const showTags = view === "tags";
-  const chooseView = (next: SidebarView): void => {
-    writeSidebarView(next);
-    setView(next);
-  };
-
-  // Adopted during render so the first paint is already on the tag; the handback
-  // stays an effect because it clears the store the chip wrote.
-  const [adoptedTagRequest, setAdoptedTagRequest] = useState<string | null>(null);
-  if (adoptedTagRequest !== tagRequest) {
-    setAdoptedTagRequest(tagRequest);
-    if (tagRequest !== null) {
-      chooseView("tags");
-      setSelectedTag(tagRequest);
-    }
-  }
-  useEffect(() => {
-    if (tagRequest !== null) onTagRequestHandled();
-  }, [tagRequest, onTagRequestHandled]);
-
-  const tagsQuery = useTags(showTags);
-  // one page that grows: the list is re-read whole rather than stitched, and a new tag starts over
-  const [tagPage, setTagPage] = useState<{ tag: string | null; limit: number }>({
-    tag: null,
-    limit: KNOWLEDGE_TAG_NOTES_DEFAULT_LIMIT,
-  });
-  const tagLimit = tagPage.tag === selectedTag ? tagPage.limit : KNOWLEDGE_TAG_NOTES_DEFAULT_LIMIT;
-  const taggedQuery = useNotesWithTag(showTags ? selectedTag : null, tagLimit);
-  const taggedPaths = useMemo(() => new Set(taggedQuery.data?.paths ?? []), [taggedQuery.data]);
-  const taggedCut =
-    taggedQuery.data !== undefined && taggedQuery.data.paths.length < taggedQuery.data.total;
-  const taggedEntries = useMemo(
-    () => scoped.filter((entry) => entry.kind === "file" && taggedPaths.has(entry.path)),
-    [scoped, taggedPaths],
-  );
   // A create lands where an IDE's would: in the tree's selected folder. The recents view
   // selects nothing, so it lands at the scope.
   const startCreate = (kind: "file" | "dir"): void => {
-    chooseView("tree");
-    setPendingCreate({ kind, parentDir: showTree ? treeCreateDir : scope });
+    onViewChange("tree");
+    const parentDir = showTree
+      ? createDirFor(scope, tree.activePath, (path) => folders.has(path))
+      : scope;
+    setPendingCreate({ kind, parentDir });
   };
 
   // The search input opens the palette on pointerup, never on click or
@@ -325,7 +269,7 @@ export function SidebarRailContent({
             selectedIndex={SIDEBAR_VIEWS.indexOf(view)}
             onSelect={(index) => {
               const next = SIDEBAR_VIEWS[index];
-              if (next !== undefined) chooseView(next);
+              if (next !== undefined) onViewChange(next);
             }}
           >
             {SIDEBAR_VIEWS.map((name, index) => (
@@ -406,9 +350,7 @@ export function SidebarRailContent({
               variant="ghost"
               size="icon-compact"
               aria-label="Collapse all"
-              onClick={() => {
-                setCollapseAllNonce((nonce) => nonce + 1);
-              }}
+              onClick={tree.collapseAll}
             >
               <ChevronsDownUpIcon />
             </Button>
@@ -432,70 +374,26 @@ export function SidebarRailContent({
             openPath={openPath}
             onOpenFile={onOpenFile}
             ops={ops}
+            state={tree}
             pendingCreate={pendingCreate}
-            onPendingCreateHandled={() => setPendingCreate(null)}
+            onPendingCreateDone={() => setPendingCreate(null)}
             rootDir={scope}
-            onCreateDirChange={setTreeCreateDir}
-            collapseAllNonce={collapseAllNonce}
             onMoveRequest={onMoveRequest}
             pinnedPaths={pinnedPaths}
             sort={treeSort}
             filter={treeFilter}
-            {...(treeQuery.data === undefined ? {} : { vaultRoot: treeQuery.data.root })}
+            vaultRoot={treeQuery.data?.root ?? null}
           />
-        ) : showTags && selectedTag === null ? (
-          <TagsView
-            tags={tagsQuery.data?.tags ?? []}
-            loaded={tagsQuery.data !== undefined}
-            onSelect={setSelectedTag}
-            onRename={setRenamingTag}
+        ) : view === "tags" ? (
+          <TagsPane
+            entries={scoped}
+            scope={scope}
+            openPath={openPath}
+            onOpenFile={onOpenFile}
+            onSetPinned={ops.setPinned}
+            selectedTag={selectedTag}
+            onSelectTag={onSelectTag}
           />
-        ) : showTags && selectedTag !== null ? (
-          <>
-            <TagScopeHeader
-              tag={selectedTag}
-              count={
-                taggedQuery.data === undefined
-                  ? undefined
-                  : { listed: taggedQuery.data.paths.length, total: taggedQuery.data.total }
-              }
-              onClear={() => {
-                setSelectedTag(null);
-              }}
-              onRename={() => {
-                setRenamingTag(selectedTag);
-              }}
-            />
-            <NotesList
-              entries={taggedEntries}
-              scope={scope}
-              openPath={openPath}
-              onOpenFile={onOpenFile}
-              emptyText={
-                taggedQuery.data === undefined ? "…" : `No notes tagged #${selectedTag} here.`
-              }
-              onSetPinned={ops.setPinned}
-            />
-            {taggedCut && tagLimit < KNOWLEDGE_TAG_NOTES_MAX_LIMIT ? (
-              <div className="px-2 py-1">
-                <Button
-                  variant="ghost"
-                  size="compact"
-                  onClick={() => {
-                    setTagPage({
-                      tag: selectedTag,
-                      limit: Math.min(
-                        tagLimit + KNOWLEDGE_TAG_NOTES_DEFAULT_LIMIT,
-                        KNOWLEDGE_TAG_NOTES_MAX_LIMIT,
-                      ),
-                    });
-                  }}
-                >
-                  Show more
-                </Button>
-              </div>
-            ) : null}
-          </>
         ) : (
           <NotesList
             entries={scoped}
@@ -506,17 +404,6 @@ export function SidebarRailContent({
           />
         )}
       </SidebarContent>
-      <RenameTagDialog
-        tag={renamingTag}
-        onOpenChange={(open) => {
-          if (!open) setRenamingTag(null);
-        }}
-        onRenamed={(from, to) => {
-          setSelectedTag((current) =>
-            current === null ? null : (renamedTag(current, from, to) ?? current),
-          );
-        }}
-      />
       <SidebarFooter className="flex-row items-center justify-between">
         <SyncStatusRow onSyncNow={onSyncNow} />
         <div className="flex items-center">

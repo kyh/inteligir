@@ -14,6 +14,7 @@ import { ChevronRightIcon, EllipsisIcon } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import type { TreeSort } from "../prefs";
 import { absoluteEntryPath, planMove } from "./tree-ops";
+import type { TreeState } from "./tree-state";
 
 export interface TreeOps {
   createNote: (path: string) => void;
@@ -28,9 +29,12 @@ export interface TreeOps {
   openEntry?: (path: string) => void;
 }
 
-const NO_PINS: ReadonlySet<string> = new Set();
-
 export type TreeLoadState = "loading" | "loaded" | "failed";
+
+export interface PendingCreate {
+  kind: "file" | "dir";
+  parentDir: string;
+}
 
 export interface FileTreeProps {
   entries: readonly VaultEntry[];
@@ -39,24 +43,23 @@ export interface FileTreeProps {
   openPath: string | null;
   onOpenFile: (path: string) => void;
   ops: TreeOps;
-  pendingCreate: { kind: "file" | "dir"; parentDir: string } | null;
-  onPendingCreateHandled: () => void;
+  // the fold and focus state, owned by the rail so its header can act on it
+  state: TreeState;
+  // a create the header started: the input row shows until it commits or cancels
+  pendingCreate: PendingCreate | null;
+  onPendingCreateDone: () => void;
   // the folder the listing is rooted at ("" is the vault): its children are the top-level rows
-  rootDir?: string;
-  // where a create from outside the tree lands: the selected folder, or the selected file's
-  onCreateDirChange?: (dir: string) => void;
-  // a changed value collapses every folder
-  collapseAllNonce?: number;
+  rootDir: string;
   // the keyboard path to a move: the caller opens its folder picker for this entry
-  onMoveRequest?: (path: string) => void;
+  onMoveRequest: (path: string) => void;
   // which notes the index holds pinned; the row menu's verb follows it
-  pinnedPaths?: ReadonlySet<string>;
+  pinnedPaths: ReadonlySet<string>;
   // folders first either way; "modified" orders the files in a folder newest first
-  sort?: TreeSort;
+  sort: TreeSort;
   // a substring of a name; rows that neither match nor hold a match are withheld
-  filter?: string;
-  // the vault's absolute root, for the absolute path row; absent, the row is too
-  vaultRoot?: string;
+  filter: string;
+  // the vault's absolute root, for the absolute path row; null until the listing answers
+  vaultRoot: string | null;
 }
 
 // a file row stands for its folder: dropping beside a note puts the entry next to it
@@ -105,7 +108,7 @@ function buildTree(entries: readonly VaultEntry[], sort: TreeSort) {
     (parent?.children ?? roots).push(node);
   }
   sortTree(roots, sort);
-  return { roots, byPath };
+  return roots;
 }
 
 // the matches and every folder above them, so a folder holding a match is never hidden
@@ -244,26 +247,24 @@ export function FileTree({
   openPath,
   onOpenFile,
   ops,
+  state,
   pendingCreate,
-  onPendingCreateHandled,
-  rootDir = "",
-  onCreateDirChange,
-  collapseAllNonce = 0,
+  onPendingCreateDone,
+  rootDir,
   onMoveRequest,
-  pinnedPaths = NO_PINS,
-  sort = "name",
-  filter = "",
+  pinnedPaths,
+  sort,
+  filter,
   vaultRoot,
 }: FileTreeProps) {
-  const { roots, byPath } = useMemo(() => buildTree(entries, sort), [entries, sort]);
+  const { expanded, setExpanded, activePath, setActivePath } = state;
+  const roots = useMemo(() => buildTree(entries, sort), [entries, sort]);
   const needle = filter.trim().toLowerCase();
   const kept = useMemo(
     () => (needle === "" ? null : filteredPaths(roots, needle)),
     [roots, needle],
   );
 
-  const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set());
-  const [activePath, setActivePath] = useState<string | null>(null);
   const [editing, setEditing] = useState<EditingState | null>(null);
   const [menu, setMenu] = useState<{ node: TreeNode; anchor: HTMLElement } | null>(null);
   // the drag's source is component state, not dataTransfer: a drop reads it synchronously
@@ -302,30 +303,24 @@ export function FileTree({
     }
   };
 
-  // Adopted during render to spare the input row a second paint; the handback
-  // stays an effect because it sets the sidebar's state. Seeded null so a tree
-  // mounting on an already-set token still adopts it.
-  const [adoptedCreate, setAdoptedCreate] = useState<FileTreeProps["pendingCreate"]>(null);
-  if (adoptedCreate !== pendingCreate) {
-    setAdoptedCreate(pendingCreate);
-    if (pendingCreate !== null) {
-      setEditing({ mode: "create", kind: pendingCreate.kind, parentDir: pendingCreate.parentDir });
-      if (pendingCreate.parentDir !== "") {
-        setExpanded((current) => new Set(current).add(pendingCreate.parentDir));
-      }
+  // The header's create is the rail's state until the input commits or cancels; the row menu's
+  // edits are the tree's own. Both draw the one input row. The parent folder opens during
+  // render so the row is in the first paint.
+  const activeEditing: EditingState | null =
+    pendingCreate === null
+      ? editing
+      : { mode: "create", kind: pendingCreate.kind, parentDir: pendingCreate.parentDir };
+  const [expandedForCreate, setExpandedForCreate] = useState<PendingCreate | null>(null);
+  if (expandedForCreate !== pendingCreate) {
+    setExpandedForCreate(pendingCreate);
+    if (pendingCreate !== null && pendingCreate.parentDir !== "") {
+      setExpanded((current) => new Set(current).add(pendingCreate.parentDir));
     }
   }
-  useEffect(() => {
-    if (pendingCreate !== null) {
-      onPendingCreateHandled();
-    }
-  }, [pendingCreate, onPendingCreateHandled]);
-
-  const [adoptedCollapse, setAdoptedCollapse] = useState(collapseAllNonce);
-  if (adoptedCollapse !== collapseAllNonce) {
-    setAdoptedCollapse(collapseAllNonce);
-    setExpanded(new Set());
-  }
+  const stopEditing = (): void => {
+    setEditing(null);
+    if (pendingCreate !== null) onPendingCreateDone();
+  };
 
   // Keyed on entries alone: reconciling on every activePath change would clear
   // an optimistic rename-follow before the refetched tree confirms it.
@@ -353,18 +348,8 @@ export function FileTree({
     }
   }
 
-  const createDir =
-    activePath === null
-      ? rootDir
-      : byPath.get(activePath)?.kind === "dir"
-        ? activePath
-        : dirnamePath(activePath);
-  useEffect(() => {
-    onCreateDirChange?.(createDir);
-  }, [createDir, onCreateDirChange]);
-
   const rows: Row[] = [];
-  visibleRows(roots, expanded, kept, editing, rootDir, 0, rows);
+  visibleRows(roots, expanded, kept, activeEditing, rootDir, 0, rows);
   const nodeRows = rows.filter((row): row is Extract<Row, { kind: "node" }> => row.kind === "node");
 
   const toggleDir = (path: string): void => {
@@ -472,7 +457,7 @@ export function FileTree({
   };
 
   const commitRename = (node: { path: string }, newName: string): void => {
-    setEditing(null);
+    stopEditing();
     const toPath = joinPath(dirnamePath(node.path), newName);
     if (toPath !== node.path) {
       // The reconcile above clears this if the rename never lands.
@@ -481,12 +466,12 @@ export function FileTree({
     }
   };
 
-  const commitCreate = (state: EditingState & { mode: "create" }, name: string): void => {
-    setEditing(null);
+  const commitCreate = (create: EditingState & { mode: "create" }, name: string): void => {
+    stopEditing();
     const fileName =
-      state.kind === "file" && extnamePath(name) === "" ? `${name}${DEFAULT_DOC_EXTENSION}` : name;
-    const path = joinPath(state.parentDir, fileName);
-    if (state.kind === "file") {
+      create.kind === "file" && extnamePath(name) === "" ? `${name}${DEFAULT_DOC_EXTENSION}` : name;
+    const path = joinPath(create.parentDir, fileName);
+    if (create.kind === "file") {
       ops.createNote(path);
     } else {
       ops.createFolder(path);
@@ -512,29 +497,29 @@ export function FileTree({
     >
       {rows.map((row) => {
         if (row.kind === "editor") {
-          if (editing?.mode !== "create") {
+          if (activeEditing?.mode !== "create") {
             return null;
           }
-          const createState = editing;
+          const createState = activeEditing;
           return (
             <InlineNameInput
               key="create-editor"
               initialValue=""
               depth={row.depth}
               onCommit={(name) => commitCreate(createState, name)}
-              onCancel={() => setEditing(null)}
+              onCancel={stopEditing}
             />
           );
         }
         const node = row.node;
-        if (editing?.mode === "rename" && editing.path === node.path) {
+        if (activeEditing?.mode === "rename" && activeEditing.path === node.path) {
           return (
             <InlineNameInput
               key={node.path}
               initialValue={node.name}
               depth={row.depth}
               onCommit={(name) => commitRename(node, name)}
-              onCancel={() => setEditing(null)}
+              onCancel={stopEditing}
             />
           );
         }
@@ -605,7 +590,7 @@ export function FileTree({
           </div>
         );
       })}
-      {entries.length === 0 && editing === null ? (
+      {entries.length === 0 && activeEditing === null ? (
         <EmptyRows loadState={loadState} onRetry={onRetry} />
       ) : null}
       {kept !== null && rows.length === 0 ? (
@@ -664,7 +649,7 @@ export function FileTree({
             >
               Copy path
             </DropdownMenuItem>
-            {vaultRoot === undefined ? null : (
+            {vaultRoot === null ? null : (
               <DropdownMenuItem
                 onClick={() => {
                   const target = menu.node.path;
@@ -708,17 +693,15 @@ export function FileTree({
                 {pinnedPaths.has(menu.node.path) ? "Unpin" : "Pin"}
               </DropdownMenuItem>
             ) : null}
-            {onMoveRequest === undefined ? null : (
-              <DropdownMenuItem
-                onClick={() => {
-                  const target = menu.node;
-                  setMenu(null);
-                  onMoveRequest(target.path);
-                }}
-              >
-                Move to…
-              </DropdownMenuItem>
-            )}
+            <DropdownMenuItem
+              onClick={() => {
+                const target = menu.node;
+                setMenu(null);
+                onMoveRequest(target.path);
+              }}
+            >
+              Move to…
+            </DropdownMenuItem>
             <DropdownMenuItem
               variant="destructive"
               onClick={() => {

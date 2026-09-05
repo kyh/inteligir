@@ -2,16 +2,20 @@ import { cleanup, fireEvent, render } from "@testing-library/react";
 import { createSlateEditor, type Descendant, type TElement, type Value } from "platejs";
 import { createPlateEditor, Plate, PlateContent } from "platejs/react";
 import { serializeMd } from "@platejs/markdown";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useTagRequest } from "@repo/editor/tag-request";
+import { setAgentRequestActions } from "@repo/editor/agent-request";
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
 import { TagChipKit } from "@repo/editor/kits/tag-chip-kit";
 import { MD_STRINGIFY, parseMarkdown } from "@repo/editor/markdown/markdown-doc";
 import { inlineTagSpans } from "@repo/notes/knowledge/link-extract";
 
 afterEach(cleanup);
-beforeEach(() => useTagRequest.setState({ tag: null }));
+const showTag = vi.fn();
+beforeEach(() => {
+  showTag.mockClear();
+  setAgentRequestActions({ askAboutSelection: vi.fn(), showTag });
+});
 
 // only TagChipKit: unregistered types still resolve through editor.getType's key fallback, which the suppression checks compare against.
 function renderValue(value: Value) {
@@ -66,7 +70,7 @@ describe("tag chip rendering", () => {
     expect(chip).not.toBeNull();
     if (chip === null) return;
     fireEvent.click(chip);
-    expect(useTagRequest.getState().tag).toBe("alpha");
+    expect(showTag).toHaveBeenCalledWith("alpha");
   });
 
   it("skips inline code, code blocks and link labels (index parity)", () => {

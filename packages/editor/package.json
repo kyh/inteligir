@@ -115,7 +115,6 @@
     "./slash-menu": "./src/slash-menu.tsx",
     "./style-hooks": "./src/style-hooks.ts",
     "./styles.css": "./src/styles.css",
-    "./tag-request": "./src/tag-request.ts",
     "./toc": "./src/toc.tsx",
     "./toolbar-button": "./src/toolbar-button.tsx",
     "./transclusion": "./src/transclusion.tsx",
