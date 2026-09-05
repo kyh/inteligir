@@ -621,7 +621,7 @@ rename`.
   candidate list runs too. The rail re-reads one growing page rather than
   stitching pages, because the list it draws is filtered by the folder scope
   and sorted by recency after the fact, and says `listed of total` while cut.
-  `apps/desktop/src/renderer/app/sidebar/tags-view.tsx`.
+  `apps/desktop/src/renderer/app/sidebar/tags-pane.tsx`.
 
 ### Agents and threads
 
