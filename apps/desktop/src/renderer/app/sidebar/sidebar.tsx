@@ -219,7 +219,6 @@ export function SidebarRailContent({
             variant="ghost"
             size="icon-compact"
             aria-label="New note"
-            title="New note"
             onClick={() => {
               startCreate("file");
             }}
@@ -230,7 +229,6 @@ export function SidebarRailContent({
             variant="ghost"
             size="icon-compact"
             aria-label="New folder"
-            title="New folder"
             onClick={() => {
               startCreate("dir");
             }}
@@ -242,7 +240,6 @@ export function SidebarRailContent({
               variant="ghost"
               size="icon-compact"
               aria-label="Collapse all"
-              title="Collapse all"
               onClick={() => {
                 setCollapseAllNonce((nonce) => nonce + 1);
               }}
@@ -254,7 +251,6 @@ export function SidebarRailContent({
             variant="ghost"
             size="icon-compact"
             aria-label={showTree ? "Show recent notes" : "Show file tree"}
-            title={showTree ? "Show recent notes" : "Show file tree"}
             aria-pressed={showTree}
             onClick={() => {
               chooseView(showTree ? "recents" : "tree");
