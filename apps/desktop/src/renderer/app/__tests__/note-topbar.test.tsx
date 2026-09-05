@@ -46,6 +46,12 @@ function copiedAfterClick(): string | undefined {
 }
 
 const inert = initialUpdateState("0.0.0", "a test stub");
+const inertSpellcheck = {
+  enabled: true,
+  languages: [],
+  available: [],
+  languagesConfigurable: false,
+};
 
 describe("copy link", () => {
   it("names the loopback server, not the shell's own scheme", () => {
@@ -57,6 +63,10 @@ describe("copy link", () => {
         download: () => Promise.resolve(inert),
         install: () => Promise.resolve(inert),
         onState: () => () => {},
+      },
+      spellcheck: {
+        getState: () => Promise.resolve(inertSpellcheck),
+        apply: () => Promise.resolve(inertSpellcheck),
       },
     };
     expect(copiedAfterClick()).toBe("http://127.0.0.1:26723/?note=Plans%2FWeekly+Plan.md");

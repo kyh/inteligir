@@ -1,5 +1,6 @@
 import { SIDEBAR_MAX_WIDTH, SIDEBAR_MIN_WIDTH } from "@repo/ui/components/sidebar";
 import { parseTheme, type Theme } from "@repo/ui/lib/theme";
+import { spellcheckChoiceSchema, type SpellcheckChoice } from "../../spellcheck-state";
 import { APPEARANCE_DEFAULTS, appearanceSchema, type Appearance } from "./appearance";
 
 const KEYS = {
@@ -11,6 +12,7 @@ const KEYS = {
   relatedOpen: "inteligir.related-open",
   sidebarView: "inteligir.sidebar-view",
   sidebarFolder: "inteligir.sidebar-folder",
+  spellcheck: "inteligir.spellcheck",
 };
 
 function read(key: string): string | null {
@@ -100,6 +102,23 @@ export function readTheme(): Theme {
 
 export function writeTheme(theme: Theme): void {
   write(KEYS.theme, theme);
+}
+
+// null: never chosen, so the session keeps whatever it has
+export function readSpellcheck(): SpellcheckChoice | null {
+  const raw = read(KEYS.spellcheck);
+  if (raw === null) {
+    return null;
+  }
+  try {
+    return spellcheckChoiceSchema.parse(JSON.parse(raw));
+  } catch {
+    return null;
+  }
+}
+
+export function writeSpellcheck(choice: SpellcheckChoice): void {
+  write(KEYS.spellcheck, JSON.stringify(choice));
 }
 
 export function readAppearance(): Appearance {

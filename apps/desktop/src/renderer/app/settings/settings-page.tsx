@@ -22,6 +22,7 @@ import { AgentsSection } from "./agents-section";
 import { ConnectorsSection } from "./connectors-section";
 import { FoldersSection } from "./folders-section";
 import { ChoiceRow, Row, SectionHeading } from "./settings-chrome";
+import { SpellcheckRows } from "./spellcheck-rows";
 import { SyncSection } from "./sync-section";
 import { UpdatesRow } from "./updates-row";
 import { VoiceSection } from "./voice-section";
@@ -41,7 +42,7 @@ const NAV = [
   { id: "folders", label: "Connected folders" },
   { id: "voice", label: "Voice" },
   { id: "devices", label: "Devices" },
-  { id: "appearance", label: "Appearance" },
+  { id: "editor", label: "Editor" },
   { id: "about", label: "About" },
 ] as const;
 
@@ -174,8 +175,8 @@ export function SettingsPage({ onBack }: { onBack: () => void }) {
             <SyncSection />
           </div>
           <Separator />
-          <section id="appearance" className="scroll-mt-10 space-y-2">
-            <SectionHeading>Appearance</SectionHeading>
+          <section id="editor" className="scroll-mt-10 space-y-2">
+            <SectionHeading>Editor</SectionHeading>
             <dl className="space-y-1.5">
               <Row label="Theme">
                 <ChoiceRow label="Theme" options={THEMES} value={theme} onChange={setTheme} />
@@ -212,6 +213,7 @@ export function SettingsPage({ onBack }: { onBack: () => void }) {
                   onChange={(measure) => setAppearance({ ...appearance, measure })}
                 />
               </Row>
+              <SpellcheckRows />
             </dl>
           </section>
           <Separator />

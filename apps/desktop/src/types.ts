@@ -6,6 +6,7 @@
 // token.
 
 import { z } from "zod";
+import type { SpellcheckChoice, SpellcheckState } from "./spellcheck-state";
 import type { UpdateState } from "./update-state";
 
 export const IPC_CHANNELS = {
@@ -15,6 +16,8 @@ export const IPC_CHANNELS = {
   UPDATE_CHECK: "desktop:update-check",
   UPDATE_DOWNLOAD: "desktop:update-download",
   UPDATE_INSTALL: "desktop:update-install",
+  SPELLCHECK_GET_STATE: "desktop:spellcheck-get-state",
+  SPELLCHECK_APPLY: "desktop:spellcheck-apply",
 } as const;
 
 export const socketOriginSchema = z.string().url();
@@ -28,9 +31,16 @@ export interface DesktopUpdatesBridge {
   onState(listener: (state: UpdateState) => void): () => void;
 }
 
+// the spell checker is the window session's, so only main can switch it; the page keeps the choice
+export interface DesktopSpellcheckBridge {
+  getState(): Promise<SpellcheckState>;
+  apply(choice: SpellcheckChoice): Promise<SpellcheckState>;
+}
+
 export interface DesktopBridge {
   socketOrigin: string;
   updates: DesktopUpdatesBridge;
+  spellcheck: DesktopSpellcheckBridge;
 }
 
 export function toErrorMessage(cause: unknown): string {

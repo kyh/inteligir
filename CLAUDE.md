@@ -793,6 +793,17 @@ rename`.
   the note's matches, because a markdown column is not a Slate offset. ⌘⇧F is
   the one shifted row in `global-shortcuts.ts`; a row claims shift explicitly
   so ⌘⇧K stays the editor's.
+- **SPELL CHECK IS THE SESSION'S SWITCH, AND THE PAGE KEEPS THE CHOICE.** Only
+  main can flip Chromium's checker, so Settings › Editor asks through the bridge
+  (`desktop:spellcheck-*`, every frame parsed on both sides) and stores the
+  choice in the page's own prefs, re-applied before the first paint; no
+  main-side store, because the choice is a page preference like the theme. The
+  language list is offered only where Electron honours it: on macOS the OS
+  checker detects the language itself and the setter is a no-op, so the row
+  says so instead of pretending. Outside the shell there is no bridge and no
+  row. `apps/desktop/src/main/spellcheck.ts` (the policy over a port),
+  `apps/desktop/src/spellcheck-state.ts` (the one state),
+  `apps/desktop/src/renderer/app/desktop-spellcheck.ts`.
 
 **Before raising a "new" finding, read
 [#542](https://github.com/kyh/inteligir/issues/542)**: the decision record

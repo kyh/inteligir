@@ -25,6 +25,7 @@ import {
 } from "./origin-pin";
 import { APP_ORIGIN, registerAppProtocol, registerAppScheme } from "./protocol";
 import { createServerProcess, type ServerProcess } from "./server-process";
+import { createSpellcheck, senderIsWindow } from "./spellcheck";
 import { createUpdates, type UpdaterPort, type Updates } from "./updates";
 import {
   describeServerVerdict,
@@ -38,6 +39,7 @@ import {
   type ServerTarget,
 } from "./server-instance";
 import { authorizationHeader } from "inteligir/server/server-file";
+import { spellcheckChoiceSchema } from "../spellcheck-state";
 import { IPC_CHANNELS, toErrorMessage } from "../types";
 
 const APP_DISPLAY_NAME = app.isPackaged ? "Inteligir" : "Inteligir (Dev)";
@@ -142,10 +144,34 @@ function openExternalFromPage(url: string): void {
   void shell.openExternal(url);
 }
 
+// the page keeps the choice and re-applies it on launch; Chromium keeps the session's own copy between launches
+function configureSpellcheck(windowSession: Electron.Session): void {
+  const created = createSpellcheck({
+    platform: process.platform,
+    port: {
+      availableLanguages: () => windowSession.availableSpellCheckerLanguages,
+      isEnabled: () => windowSession.isSpellCheckerEnabled(),
+      languages: () => windowSession.getSpellCheckerLanguages(),
+      setEnabled: (enabled) => windowSession.setSpellCheckerEnabled(enabled),
+      setLanguages: (languages) => windowSession.setSpellCheckerLanguages([...languages]),
+    },
+  });
+  ipcMain.handle(IPC_CHANNELS.SPELLCHECK_GET_STATE, (event) => {
+    if (!fromMainWindow(event)) throw new Error("refused");
+    return created.state();
+  });
+  // the frame is parsed here, at the boundary: the page's choice reaches the session typed or not at all
+  ipcMain.handle(IPC_CHANNELS.SPELLCHECK_APPLY, (event, frame) => {
+    if (!fromMainWindow(event)) throw new Error("refused");
+    return created.apply(spellcheckChoiceSchema.parse(frame));
+  });
+}
+
 // once per launch, not per window: `protocol.handle` throws if the scheme is handled twice on one session.
 function prepareWindowSession(target: ServerTarget, server: LiveServer): void {
   const windowSession = lockDownSession(sessionPartition(target.dataDir));
   attachSocketCredential(windowSession, server);
+  configureSpellcheck(windowSession);
   registerAppProtocol({
     session: windowSession,
     serverOrigin: server.origin,
@@ -245,9 +271,8 @@ function updateFeedDisabledReason(): string | null {
   return null;
 }
 
-// the same window that took the bridge; a stranger's webContents has no business here
 function fromMainWindow(event: Electron.IpcMainInvokeEvent): boolean {
-  return mainWindow !== null && event.sender === mainWindow.webContents;
+  return senderIsWindow(event.sender, mainWindow);
 }
 
 async function askToRestart(version: string): Promise<void> {
