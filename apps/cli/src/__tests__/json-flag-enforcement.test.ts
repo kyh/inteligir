@@ -24,6 +24,10 @@ const EXCLUDED_COMMANDS = new Map<string, string>([
     "serve",
     "it IS the server rather than a caller of one — it answers no document, it never returns while it is working, and the fixture it would be run against is the very thing it replaces",
   ],
+  [
+    "vault open",
+    "it writes the selector `serve` reads and dials no server: this table drives every leaf against the fixture over a real home, and this one would rewrite the developer's own config.json; vault-open.test.ts drives it over a scratch home instead, refusals included",
+  ],
 ]);
 
 // re-applied between leaves: they mutate it (rename moves the file delete then wants).

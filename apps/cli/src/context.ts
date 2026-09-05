@@ -10,6 +10,9 @@ const THREAD_ID_ENV_VAR = "INTELIGIR_THREAD_ID";
 
 export interface CliDeps {
   env: NodeJS.ProcessEnv;
+  // the home the config derives from; a test points it at a scratch dir so a leaf that writes
+  // config.json never reaches the developer's own
+  homeDir?: string | undefined;
   resolveServer(): ResolvedServer;
 }
 

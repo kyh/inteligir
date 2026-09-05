@@ -18,12 +18,14 @@ export interface RunArgs {
   argv: string[];
   baseUrl: string;
   env?: Record<string, string>;
+  homeDir?: string;
   stdin?: Uint8Array;
 }
 
 export async function runCliForTest(args: RunArgs): Promise<CliRunResult> {
   const deps: CliDeps = {
     env: { ...args.env },
+    homeDir: args.homeDir,
     resolveServer: () => ({
       baseUrl: args.baseUrl,
       token: FIXTURE_SERVER_TOKEN,
