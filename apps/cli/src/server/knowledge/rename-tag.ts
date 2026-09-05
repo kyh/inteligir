@@ -4,12 +4,9 @@
 
 import { computeTagRenameEdits } from "@repo/notes/knowledge/rename-tags";
 import type { KnowledgeRenameTagResponse } from "@repo/api/local/knowledge/knowledge-schema";
-import type { VaultRenameSkipReason } from "@repo/api/local/vault/vault-schema";
-import { mapWithConcurrency } from "../concurrency";
+import { snapshotDocs } from "./snapshot-docs";
 import type { VaultService } from "../vault/vault-service";
 import type { KnowledgeRuntime } from "./knowledge-runtime";
-
-const SNAPSHOT_CONCURRENCY = 8;
 
 export interface RenameTagArgs {
   service: Pick<VaultService, "read" | "writeIfUnchanged">;
@@ -23,23 +20,7 @@ export async function renameTagAcrossVault(
 ): Promise<KnowledgeRenameTagResponse> {
   const { service, knowledge, from, to } = args;
   const candidates = await knowledge.tagRenameCandidates(from);
-  const snapshots = await mapWithConcurrency(candidates, SNAPSHOT_CONCURRENCY, async (candidate) =>
-    service
-      .read(candidate)
-      .then((file) => file.content)
-      .catch(() => null),
-  );
-  const docs = new Map<string, string>();
-  const skipped: Array<{ path: string; reason: VaultRenameSkipReason }> = [];
-  for (const [index, snapshot] of snapshots.entries()) {
-    const candidate = candidates[index];
-    if (candidate === undefined) continue;
-    if (snapshot === null) {
-      skipped.push({ path: candidate, reason: "unreadable" });
-      continue;
-    }
-    docs.set(candidate, snapshot);
-  }
+  const { docs, skipped } = await snapshotDocs(service, candidates);
 
   const rewritten: string[] = [];
   for (const [path, content] of computeTagRenameEdits(docs, from, to)) {

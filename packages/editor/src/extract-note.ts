@@ -7,9 +7,9 @@ import { serializeMd } from "@platejs/markdown";
 import { KEYS, NodeApi, PathApi, type Path, type SlateEditor, type TElement } from "platejs";
 
 import { toast } from "@repo/ui/components/sonner";
-import { DEFAULT_DOC_EXTENSION, docStem } from "@repo/notes/knowledge/doc-file";
+import { docStem, freeDocPath } from "@repo/notes/knowledge/doc-file";
 import { checkNoteName } from "@repo/notes/knowledge/note-name";
-import { dirnamePath, joinPath } from "@repo/notes/knowledge/vault-path";
+import { dirnamePath } from "@repo/notes/knowledge/vault-path";
 
 import { getEditorHostIo } from "@repo/editor/host-io";
 import { liveEditorPath } from "@repo/editor/live-editor";
@@ -27,16 +27,6 @@ export function extractionStem(blocks: readonly TElement[]): string {
   const candidate = line.slice(0, NAME_MAX_CHARS).trim().replace(/\.+$/u, "").trim();
   const verdict = checkNoteName(candidate);
   return verdict.ok ? verdict.name : FALLBACK_STEM;
-}
-
-// the rail's Untitled rule: lowercased, because the disk may be case-insensitive
-export function extractionPath(dir: string, stem: string, existingPaths: Iterable<string>): string {
-  const taken = new Set([...existingPaths].map((path) => path.toLowerCase()));
-  for (let n = 1; ; n += 1) {
-    const name = `${n === 1 ? stem : `${stem} ${String(n)}`}${DEFAULT_DOC_EXTENSION}`;
-    const path = joinPath(dir, name);
-    if (!taken.has(path.toLowerCase())) return path;
-  }
 }
 
 // the top-level blocks the selection touches: a partly selected list leaves as a whole
@@ -85,7 +75,7 @@ export async function extractBlocksToNote(
   const dir = notePath === null ? "" : dirnamePath(notePath);
   const stem = extractionStem(blocksAt(editor, sorted));
   const existing = (await host.listWikiTargets()).map((target) => target.path);
-  const created = await host.actions.createFileAt(extractionPath(dir, stem, existing), markdown);
+  const created = await host.actions.createFileAt(freeDocPath(dir, stem, existing), markdown);
   // the session already said why
   if (created === null) return null;
   editor.tf.withoutNormalizing(() => {

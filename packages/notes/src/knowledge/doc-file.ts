@@ -1,5 +1,5 @@
 import { isCommentsSidecarPath } from "../comments/sidecar-schema";
-import { basenamePath, extnamePath } from "./vault-path";
+import { basenamePath, extnamePath, joinPath } from "./vault-path";
 
 const DOC_EXTENSIONS = new Set([".md", ".markdown", ".mdx", ".txt"]);
 
@@ -23,4 +23,15 @@ export function docStem(path: string): string {
 // listing stays complete because the CLI and the agent read it.
 export function isVaultMetadataPath(path: string): boolean {
   return isCommentsSidecarPath(path) || path.split("/").some((segment) => segment.startsWith("."));
+}
+
+// The first of `stem`, `stem 2`, `stem 3`… not taken under `dir`. Lowercased on both sides
+// because the disk may be case-insensitive; the server's `ifAbsent` stays the real guard.
+export function freeDocPath(dir: string, stem: string, takenPaths: Iterable<string>): string {
+  const taken = new Set([...takenPaths].map((path) => path.toLowerCase()));
+  for (let n = 1; ; n += 1) {
+    const name = `${n === 1 ? stem : `${stem} ${String(n)}`}${DEFAULT_DOC_EXTENSION}`;
+    const path = joinPath(dir, name);
+    if (!taken.has(path.toLowerCase())) return path;
+  }
 }

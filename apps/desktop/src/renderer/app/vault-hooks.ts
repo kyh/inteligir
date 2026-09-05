@@ -4,7 +4,7 @@
 import { useCallback } from "react";
 import { useIsMutating, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "@repo/ui/components/sonner";
-import { DEFAULT_DOC_EXTENSION } from "@repo/notes/knowledge/doc-file";
+import { freeDocPath } from "@repo/notes/knowledge/doc-file";
 import type { DataDirScope } from "@repo/api/local/system/system-schema";
 import type { VaultStatusResponse, VaultTreeResponse } from "@repo/api/local/vault/vault-schema";
 import { orpc, refusalMessage } from "./api";
@@ -234,12 +234,5 @@ export function filePathsLowercased(tree: VaultTreeResponse | undefined): Set<st
 }
 
 export function untitledNotePath(parentDir: string, existing: Set<string>): string {
-  for (let n = 1; ; n += 1) {
-    const stem = n === 1 ? "Untitled" : `Untitled ${n}`;
-    const name = `${stem}${DEFAULT_DOC_EXTENSION}`;
-    const path = parentDir === "" ? name : `${parentDir}/${name}`;
-    if (!existing.has(path.toLowerCase())) {
-      return path;
-    }
-  }
+  return freeDocPath(parentDir, "Untitled", existing);
 }

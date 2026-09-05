@@ -1,3 +1,4 @@
+import { freeDocPath } from "@repo/notes/knowledge/doc-file";
 import { describe, expect, it } from "vitest";
 import { createPlateEditor } from "platejs/react";
 import type { TElement, Value } from "platejs";
@@ -6,7 +7,6 @@ import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
 import {
   extractBlocksMarkdown,
   extractBlocksToNote,
-  extractionPath,
   extractionStem,
   selectedTopLevelPaths,
 } from "@repo/editor/extract-note";
@@ -39,8 +39,8 @@ describe("what leaves", () => {
   });
 
   it("lands beside the note and steps past a name the vault holds, whatever its case", () => {
-    expect(extractionPath("notes", "Plan", ["notes/plan.md", "Plan.md"])).toBe("notes/Plan 2.md");
-    expect(extractionPath("", "Plan", ["notes/Plan.md"])).toBe("Plan.md");
+    expect(freeDocPath("notes", "Plan", ["notes/plan.md", "Plan.md"])).toBe("notes/Plan 2.md");
+    expect(freeDocPath("", "Plan", ["notes/Plan.md"])).toBe("Plan.md");
   });
 });
 

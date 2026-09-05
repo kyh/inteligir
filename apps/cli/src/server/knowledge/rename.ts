@@ -6,16 +6,11 @@
 import { docStem, isDocPath } from "@repo/notes/knowledge/doc-file";
 import { computeRenameEdits } from "@repo/notes/knowledge/rename-links";
 import { addFrontmatterAlias } from "@repo/notes/markdown/frontmatter";
-import type {
-  VaultRenameResponse,
-  VaultRenameSkipReason,
-} from "@repo/api/local/vault/vault-schema";
-import { mapWithConcurrency } from "../concurrency";
+import type { VaultRenameResponse } from "@repo/api/local/vault/vault-schema";
+import { snapshotDocs } from "./snapshot-docs";
 import { normalizeVaultPath } from "@repo/notes/knowledge/vault-path";
 import type { VaultService } from "../vault/vault-service";
 import type { KnowledgeRuntime } from "./knowledge-runtime";
-
-const SNAPSHOT_CONCURRENCY = 8;
 
 export interface RenameNoteArgs {
   service: VaultService;
@@ -46,23 +41,7 @@ export async function renameNoteWithLinkRewrite(
   const fromPath = source.path;
 
   const candidates = (await knowledge.renameCandidates(fromPath, toPath)).filter(isDocPath);
-  const snapshots = await mapWithConcurrency(candidates, SNAPSHOT_CONCURRENCY, async (candidate) =>
-    service
-      .read(candidate)
-      .then((file) => file.content)
-      .catch(() => null),
-  );
-  const docs = new Map<string, string>();
-  const skipped: Array<{ path: string; reason: VaultRenameSkipReason }> = [];
-  for (const [index, snapshot] of snapshots.entries()) {
-    const candidate = candidates[index];
-    if (candidate === undefined) continue;
-    if (snapshot === null) {
-      skipped.push({ path: candidate, reason: "unreadable" });
-      continue;
-    }
-    docs.set(candidate, snapshot);
-  }
+  const { docs, skipped } = await snapshotDocs(service, candidates);
   const allFiles = tree.entries.filter((entry) => entry.kind === "file").map((entry) => entry.path);
 
   const renamed = await service.rename(fromPath, toPath);
