@@ -84,7 +84,12 @@ the agent runs against its own edit.
 
 ## Testing
 
-No suite of its own — `package.json` has no scripts. The pins are downstream:
+No suite of its own — `package.json` has no scripts. The set itself is pinned
+by `tools/repo-guards/src/agent-skills.test.ts`: every directory carries a
+`SKILL.md` whose frontmatter names it, the hub's index names every focused
+skill and no phantom, and the resolver's probe file exists, so renaming
+`inteligir-notes` fails CI rather than silently dropping the pointer. The
+rest of the pins are downstream:
 `apps/cli/src/server/agents/__tests__/agent-shell-env.test.ts` and
 `agent-instructions.test.ts` (the env var and the pointer appear together, and
 only when a dir resolved), `acp-manager.test.ts` (the pointer leads the first
