@@ -40,7 +40,7 @@ function makeActions(): PaletteActions {
     pinNote: null,
     unpinNote: null,
     openMatch: vi.fn(),
-    replaceAll: vi.fn(),
+    replaceAll: vi.fn(() => Promise.resolve()),
     listHeadings: null,
     goToHeading: vi.fn(),
     openProblemLink: vi.fn(),
@@ -427,11 +427,45 @@ describe("the search page", () => {
     fireEvent.click(screen.getByLabelText("Match case"));
     fireEvent.change(screen.getByLabelText("Replace with"), { target: { value: "huge" } });
     fireEvent.click(screen.getByText("Replace all"));
-    expect(actions.replaceAll).toHaveBeenCalledWith({
-      needle: "big",
-      replacement: "huge",
-      options: { caseSensitive: true, wholeWord: false },
-      paths: ["notes/ideas.md"],
+    expect(actions.replaceAll).toHaveBeenCalledWith(
+      {
+        needle: "big",
+        replacement: "huge",
+        options: { caseSensitive: true, wholeWord: false },
+        paths: ["notes/ideas.md"],
+      },
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
+  });
+
+  it("shows the run's count while it lasts, and Cancel aborts the signal it handed out", async () => {
+    let settle: (() => void) | null = null;
+    let port: Parameters<PaletteActions["replaceAll"]>[1] | null = null;
+    const replaceAll = vi.fn((_request, handed: Parameters<PaletteActions["replaceAll"]>[1]) => {
+      port = handed;
+      return new Promise<void>((resolve) => {
+        settle = resolve;
+      });
+    });
+    renderPalette({
+      initialPage: "search",
+      matchSource: twoMatches(2),
+      actions: { ...makeActions(), replaceAll },
+    });
+    fireEvent.change(vaultSearchBox(), { target: { value: "big" } });
+    await screen.findByText("again");
+    fireEvent.click(screen.getByText("Replace all"));
+    expect(screen.getByText("Replacing… 0 of 1 notes")).toBeDefined();
+    if (port === null) throw new Error("the palette handed out no port");
+    const handed: Parameters<PaletteActions["replaceAll"]>[1] = port;
+    fireEvent.click(screen.getByText("Cancel"));
+    expect(handed.signal?.aborted).toBe(true);
+    expect(screen.getByText("Stopping…")).toBeDefined();
+    if (settle === null) throw new Error("the run never started");
+    const finish: () => void = settle;
+    finish();
+    await waitFor(() => {
+      expect(screen.queryByText(/Replacing…/)).toBeNull();
     });
   });
 
