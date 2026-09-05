@@ -869,6 +869,18 @@ rename`.
   either way and files by name or newest-first (`prefs.ts`, persisted); the
   filter withholds rows that neither match nor hold a match and opens every
   kept folder, without touching the fold state it restores when cleared.
+- **A NOTE'S FACTS ARE READ WHERE THEY ARE CHEAP, and the count rides the
+  serializer.** The Metadata tab's "About" block is folded by default because
+  unfolding it is what reads the git log for the created date (the oldest
+  revision, the last row of the last page of `vault.history`, re-read only
+  while it is still null). Words, characters and reading time are counted by
+  `@repo/editor/note-stats` over the editor's lowest blocks, beside the TOC's
+  walk so both agree on the document, and published by the serializer's
+  debounce, never per keystroke; the panel reads a path-keyed store like the
+  live editor's. The top bar's breadcrumb scopes the rail to a folder, so the
+  folder is the workspace's state and a prop to both, not a request store: a
+  store is for a surface with no route to the owner, and both are one hop away.
+  `apps/desktop/src/renderer/app/actions/note-facts.tsx`.
 
 **Before raising a "new" finding, read
 [#542](https://github.com/kyh/inteligir/issues/542)**: the decision record

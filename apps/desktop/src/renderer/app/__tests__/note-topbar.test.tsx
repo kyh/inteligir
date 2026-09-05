@@ -34,6 +34,7 @@ function copiedAfterClick(): string | undefined {
         onBack={vi.fn()}
         onForward={vi.fn()}
         onFindInNote={vi.fn()}
+        onOpenFolder={vi.fn()}
         insetTitleBar={false}
         commentCount={0}
         onOpenComments={vi.fn()}
@@ -94,6 +95,7 @@ describe("the note's name in the bar", () => {
           onBack={vi.fn()}
           onForward={vi.fn()}
           onFindInNote={vi.fn()}
+          onOpenFolder={vi.fn()}
           insetTitleBar={false}
           commentCount={0}
           onOpenComments={vi.fn()}
@@ -102,5 +104,36 @@ describe("the note's name in the bar", () => {
       </SidebarProvider>,
     );
     expect(screen.getByText("Notes")).toBeDefined();
+  });
+});
+
+describe("the folder breadcrumb", () => {
+  it("names each folder on the way and scopes the rail to the one clicked", () => {
+    const onOpenFolder = vi.fn();
+    render(
+      <SidebarProvider>
+        <NoteTopbar
+          path="a/b/c.md"
+          railOpen
+          onToggleRail={vi.fn()}
+          canBack={false}
+          canForward={false}
+          onBack={vi.fn()}
+          onForward={vi.fn()}
+          onFindInNote={vi.fn()}
+          onOpenFolder={onOpenFolder}
+          insetTitleBar={false}
+          commentCount={0}
+          onOpenComments={vi.fn()}
+          onExportPdf={vi.fn()}
+        />
+      </SidebarProvider>,
+    );
+    const crumbs = screen.getByRole("navigation", { name: "Note location" });
+    expect(crumbs.textContent).toBe("a›b›c");
+    fireEvent.click(screen.getByRole("button", { name: "a" }));
+    expect(onOpenFolder).toHaveBeenCalledWith("a");
+    fireEvent.click(screen.getByRole("button", { name: "b" }));
+    expect(onOpenFolder).toHaveBeenCalledWith("a/b");
   });
 });

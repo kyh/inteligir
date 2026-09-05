@@ -1,4 +1,5 @@
 import { docStem } from "@repo/notes/knowledge/doc-file";
+import { dirnamePath } from "@repo/notes/knowledge/vault-path";
 import { Button } from "@repo/ui/components/button";
 import {
   DropdownMenu,
@@ -22,6 +23,7 @@ import {
   Share2Icon,
   TextSearchIcon,
 } from "lucide-react";
+import { Fragment } from "react";
 
 import { shareWithAgentText } from "./actions/share-with-agent";
 import { socketOrigin } from "./socket-origin";
@@ -38,6 +40,8 @@ export interface NoteTopbarProps {
   onBack: () => void;
   onForward: () => void;
   onFindInNote: () => void;
+  // a breadcrumb segment scopes the rail to that folder
+  onOpenFolder: (folder: string) => void;
   commentCount: number;
   onOpenComments: () => void;
   onExportPdf: () => void;
@@ -69,10 +73,17 @@ export function NoteTopbar({
   onBack,
   onForward,
   onFindInNote,
+  onOpenFolder,
   commentCount,
   onOpenComments,
   onExportPdf,
 }: NoteTopbarProps) {
+  const segments =
+    path === null
+      ? []
+      : dirnamePath(path)
+          .split("/")
+          .filter((segment) => segment !== "");
   // the server's origin, never the page's: an `inteligir://app` link opens nowhere, the shell included.
   const copyLink = () => {
     if (path === null) return;
@@ -125,9 +136,31 @@ export function NoteTopbar({
       >
         <ArrowRightIcon />
       </Button>
-      <span className="ml-2 min-w-0 truncate text-sm text-muted-foreground">
-        {path === null ? "" : docStem(path)}
-      </span>
+      <nav
+        aria-label="Note location"
+        className="ml-2 flex min-w-0 items-center text-sm text-muted-foreground"
+      >
+        {segments.map((segment, index) => {
+          const folder = segments.slice(0, index + 1).join("/");
+          return (
+            <Fragment key={folder}>
+              <button
+                type="button"
+                className="min-w-0 shrink truncate rounded-sm px-0.5 hover:text-foreground"
+                onClick={() => {
+                  onOpenFolder(folder);
+                }}
+              >
+                {segment}
+              </button>
+              <span aria-hidden="true" className="shrink-0 px-0.5 text-muted-foreground/60">
+                ›
+              </span>
+            </Fragment>
+          );
+        })}
+        <span className="min-w-0 truncate">{path === null ? "" : docStem(path)}</span>
+      </nav>
       <div className="ml-auto flex shrink-0 items-center gap-0.5">
         <Button
           variant="ghost"

@@ -56,7 +56,14 @@ import {
   useVaultStatus,
   useVaultTree,
 } from "./vault-hooks";
-import { readSidebarWidth, writeSidebarWidth, readPanelOpen, writePanelOpen } from "./prefs";
+import {
+  readPanelOpen,
+  readSidebarFolder,
+  readSidebarWidth,
+  writePanelOpen,
+  writeSidebarFolder,
+  writeSidebarWidth,
+} from "./prefs";
 import { hasInsetTitleBar } from "./title-bar";
 import { useWorkspace } from "./workspace-context";
 
@@ -188,6 +195,12 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
 
   const [railOpen, setRailOpen] = useState(true);
   const [initialSidebarWidth] = useState(() => `${String(readSidebarWidth())}px`);
+  // owned here, not in the rail: the top bar's breadcrumb sets it too, and both are one prop away
+  const [sidebarFolder, setSidebarFolder] = useState<string>(readSidebarFolder);
+  const chooseFolder = useCallback((folder: string): void => {
+    writeSidebarFolder(folder);
+    setSidebarFolder(folder);
+  }, []);
 
   const createNote = useCallback(async (path: string, content = ""): Promise<void> => {
     await actionsRef.current?.createFile(path, content);
@@ -487,6 +500,8 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
             }}
             tagRequest={tagRequest}
             onTagRequestHandled={consumeTagRequest}
+            folder={sidebarFolder}
+            onFolderChange={chooseFolder}
           />
         </Sidebar>
         <SidebarInset className="relative bg-surface">
@@ -520,6 +535,11 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
                     goTo(forward);
                   }}
                   onFindInNote={findInNote}
+                  onOpenFolder={(folder) => {
+                    chooseFolder(folder);
+                    setZen(false);
+                    setRailOpen(true);
+                  }}
                   commentCount={openCommentCount}
                   onOpenComments={() => {
                     setPanelOpenPersisted(true);

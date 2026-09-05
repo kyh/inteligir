@@ -95,6 +95,7 @@
     "./nodes/toggle-node": "./src/nodes/toggle-node.tsx",
     "./nodes/youtube-node": "./src/nodes/youtube-node.tsx",
     "./note-preview": "./src/note-preview.ts",
+    "./note-stats": "./src/note-stats.ts",
     "./note-title-focus": "./src/note-title-focus.ts",
     "./note/markdown-gate": "./src/note/markdown-gate.ts",
     "./note/note-runtime": "./src/note/note-runtime.ts",

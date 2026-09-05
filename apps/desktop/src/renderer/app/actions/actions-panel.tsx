@@ -31,6 +31,7 @@ import { ApprovalCard } from "./approval-card";
 import { THREAD_ACTIVITY_LABELS, threadActivity, type ThreadActivity } from "../thread-activity";
 import { sendToThread } from "./send-to-thread";
 import { useThreadDetail, useThreads, useThreadTimeline } from "./thread-hooks";
+import { NoteFacts } from "./note-facts";
 import { RelatedInline } from "./related-section";
 import { CommentsTab } from "./comments-tab";
 import { HistoryTab } from "./history-tab";
@@ -129,6 +130,7 @@ function NoteMetadataTab({
         onOpenChange={onPropertiesOpenChange}
       />
       <RelatedInline docPath={docPath} onOpenDoc={onOpenDoc} />
+      <NoteFacts docPath={docPath} />
       <div className="px-3 py-2">
         <p className="pb-1 text-[11px] font-medium text-muted-foreground uppercase">Note</p>
         <div className="-ml-2 flex flex-col items-start">
