@@ -4,8 +4,11 @@ import { parseSearchQuery } from "@repo/notes/knowledge/vault-search";
 import {
   KNOWLEDGE_BACKLINKS_MAX,
   KNOWLEDGE_TAGS_MAX,
+  type KnowledgeRenameTagResponse,
 } from "@repo/api/local/knowledge/knowledge-schema";
 import { base } from "../orpc";
+
+export type RenameTag = (from: string, to: string) => Promise<KnowledgeRenameTagResponse>;
 
 const search = base.knowledge.search.handler(async ({ context, input }) => {
   const { query: text, tag } = parseSearchQuery(input.q);
@@ -40,10 +43,15 @@ const tags = base.knowledge.tags.handler(async ({ context }) => {
   return { tags: found.slice(0, KNOWLEDGE_TAGS_MAX), total: found.length };
 });
 
+const renameTag = base.knowledge.renameTag.handler(({ context, input }) =>
+  context.renameTag(input.from, input.to),
+);
+
 export const knowledgeRouter = {
   search,
   wikiTargets,
   backlinks,
   related,
   tags,
+  renameTag,
 };

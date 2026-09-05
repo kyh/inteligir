@@ -12,6 +12,7 @@ import type { ConnectorsService } from "./connectors/connectors-service";
 import type { ConnectorOauthFlow } from "./connectors/oauth-flow";
 import type { OpenExternalUrl } from "./cloud/browser-opener";
 import type { FoldersService } from "./folders/folders-service";
+import type { RenameTag } from "./knowledge/knowledge-router";
 import type { KnowledgeRuntime } from "./knowledge/knowledge-runtime";
 import type { ThreadService } from "./threads/service";
 import type { VaultRuntime } from "./vault/vault-runtime";
@@ -41,6 +42,7 @@ export interface AppContext {
   // reached, since listen may have probed past the configured one.
   requestHost: string | undefined;
   renameNote: RenameNote;
+  renameTag: RenameTag;
   system: SystemFacts;
   threads: ThreadService;
   vault: VaultRuntime;

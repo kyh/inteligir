@@ -24,6 +24,7 @@
     "./knowledge/related-notes": "./src/knowledge/related-notes.ts",
     "./knowledge/rename-candidates": "./src/knowledge/rename-candidates.ts",
     "./knowledge/rename-links": "./src/knowledge/rename-links.ts",
+    "./knowledge/rename-tags": "./src/knowledge/rename-tags.ts",
     "./knowledge/search-query": "./src/knowledge/search-query.ts",
     "./knowledge/sql-knowledge-store": "./src/knowledge/sql-knowledge-store.ts",
     "./knowledge/tag-index": "./src/knowledge/tag-index.ts",

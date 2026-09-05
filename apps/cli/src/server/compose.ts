@@ -26,6 +26,7 @@ import { createFoldersService, type FoldersService } from "./folders/folders-ser
 import { FoldersStore } from "./folders/folders-store";
 import { createKnowledgeRuntime, type KnowledgeRuntime } from "./knowledge/knowledge-runtime";
 import { renameNoteWithLinkRewrite } from "./knowledge/rename";
+import { renameTagAcrossVault } from "./knowledge/rename-tag";
 import type { AppServices } from "./orpc";
 import { teardownStep, type ShutdownStep, type TeardownStepName } from "./shutdown";
 import { ThreadService } from "./threads/service";
@@ -217,6 +218,8 @@ export async function composeRuntime(args: ComposeRuntimeArgs): Promise<Composed
         from,
         to,
       }),
+    renameTag: (from: string, to: string) =>
+      renameTagAcrossVault({ service: vault.service, knowledge, from, to }),
     system: {
       version: args.version,
       dataDir: config.dataDir,

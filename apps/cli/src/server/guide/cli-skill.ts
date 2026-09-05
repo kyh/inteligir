@@ -80,6 +80,9 @@ Paths are vault-relative POSIX paths (\`notes/idea.md\`). Prefer wiki links
   it: shared link targets, shared tags, similar text. Each row is followed by
   the reasons it is there. \`--limit <n>\` caps results (1–50).
 - \`inteligir tags\` — every tag with its usage count, most used first.
+- \`inteligir tag rename <from> <to>\` — rename a tag (spelled without the
+  \`#\`) in every note, nested tags under it included; a note that changed
+  mid-rename is reported as skipped, never overwritten.
 
 ## Actions — the agent
 

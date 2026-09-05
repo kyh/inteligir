@@ -2,8 +2,9 @@
 // unseen, and only the strict parse catches it. a capped response carries `total`, and
 // `array.length < total` is the truncation test; no second flag can disagree with the arrays.
 
+import { isTagName } from "@repo/notes/knowledge/link-extract";
 import { z } from "zod";
-import { vaultPathSchema } from "../vault/vault-schema";
+import { vaultPathSchema, vaultRenameSkipReasonSchema } from "../vault/vault-schema";
 
 export const KNOWLEDGE_SEARCH_MAX_LIMIT = 100;
 export const KNOWLEDGE_RELATED_MAX_LIMIT = 50;
@@ -123,3 +124,34 @@ export const knowledgeTagsResponseSchema = z
   })
   .strict();
 export type KnowledgeTagsResponse = z.infer<typeof knowledgeTagsResponseSchema>;
+
+// the inline grammar's own name rule, so a rename can only write a tag the scan would read back
+export const tagNameSchema = z.string().refine(isTagName, {
+  message: "a tag is letter-first: letters, digits, _ and -, with / between levels",
+});
+
+export const knowledgeRenameTagRequestSchema = z
+  .object({
+    from: tagNameSchema,
+    to: tagNameSchema,
+  })
+  .strict();
+export type KnowledgeRenameTagRequest = z.infer<typeof knowledgeRenameTagRequestSchema>;
+
+// the note rename's shape: a skip never fails the rename, and a changed doc keeps its bytes
+export const knowledgeRenameTagResponseSchema = z
+  .object({
+    from: z.string().min(1),
+    to: z.string().min(1),
+    rewritten: z.array(z.string().min(1)),
+    skipped: z.array(
+      z
+        .object({
+          path: z.string().min(1),
+          reason: vaultRenameSkipReasonSchema,
+        })
+        .strict(),
+    ),
+  })
+  .strict();
+export type KnowledgeRenameTagResponse = z.infer<typeof knowledgeRenameTagResponseSchema>;
