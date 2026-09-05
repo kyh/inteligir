@@ -9,6 +9,7 @@ import { GLOBAL_SHORTCUTS, globalShortcutHotkey, spellHotkey } from "../../globa
 import { CommandPalette, type PaletteActions } from "../command-palette";
 import type { MatchSource } from "../match-source";
 import { searchNotesByFilename, type NoteSearchSource } from "../note-search";
+import type { ProblemSource } from "../problem-source";
 
 const ENTRIES: VaultEntry[] = [
   { kind: "dir", path: "notes" },
@@ -40,6 +41,7 @@ function makeActions(): PaletteActions {
     unpinNote: null,
     openMatch: vi.fn(),
     replaceAll: vi.fn(),
+    openProblemLink: vi.fn(),
   };
 }
 
@@ -62,6 +64,15 @@ describe("pinning from the palette", () => {
 
 const noMatches: MatchSource = () => Promise.resolve({ matches: [], total: 0 });
 
+const EMPTY_FAMILY = { rows: [], total: 0 };
+const noProblems: ProblemSource = () =>
+  Promise.resolve({
+    unresolvedLinks: EMPTY_FAMILY,
+    missingEmbeds: EMPTY_FAMILY,
+    orphans: EMPTY_FAMILY,
+    duplicateStems: EMPTY_FAMILY,
+  });
+
 function renderPalette(overrides: Partial<React.ComponentProps<typeof CommandPalette>> = {}) {
   const actions = makeActions();
   const onOpenChange = vi.fn();
@@ -73,6 +84,7 @@ function renderPalette(overrides: Partial<React.ComponentProps<typeof CommandPal
       threads={[]}
       searchSource={filenameSource}
       matchSource={noMatches}
+      problemSource={noProblems}
       canSync={false}
       actions={actions}
       modifier="meta"
@@ -386,6 +398,64 @@ describe("the search page", () => {
     expect(screen.getByText(/2 of 5 matches shown/)).toBeDefined();
     fireEvent.click(screen.getByText("Replace all"));
     expect(actions.replaceAll).not.toHaveBeenCalled();
+  });
+});
+
+const someProblems: ProblemSource = () =>
+  Promise.resolve({
+    unresolvedLinks: {
+      rows: [
+        {
+          sourcePath: "Welcome.md",
+          sourceTitle: "Welcome",
+          target: "Nowhere",
+          line: 3,
+          snippet: "See [[Nowhere]].",
+          kind: "wiki",
+          embed: false,
+        },
+      ],
+      total: 3,
+    },
+    missingEmbeds: EMPTY_FAMILY,
+    orphans: { rows: [{ path: "Lonely.md", title: "Lonely" }], total: 1 },
+    duplicateStems: {
+      rows: [{ stem: "Guide", paths: ["Guide.md", "a/Guide.md"] }],
+      total: 1,
+    },
+  });
+
+describe("the problems page", () => {
+  it("lists each family with its count, and a link row lands on that link", async () => {
+    const { actions, onOpenChange } = renderPalette({ problemSource: someProblems });
+    fireEvent.click(screen.getByText("Problems"));
+    expect(await screen.findByText("Unresolved links · 3")).toBeDefined();
+    expect(screen.getByText("Orphans · 1")).toBeDefined();
+    expect(screen.getByText("Duplicate stems · 1")).toBeDefined();
+    expect(screen.queryByText(/Missing embeds/)).toBeNull();
+    expect(screen.getByText(/2 more not shown/)).toBeDefined();
+    fireEvent.click(screen.getByText("[[Nowhere]] in Welcome"));
+    expect(actions.openProblemLink).toHaveBeenCalledWith("Welcome.md", "Nowhere");
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("opens an orphan or a duplicate as a note, and filters rows by the query", async () => {
+    const { actions } = renderPalette({ problemSource: someProblems });
+    fireEvent.click(screen.getByText("Problems"));
+    await screen.findByText("Lonely");
+    fireEvent.change(screen.getByPlaceholderText("Filter problems…"), {
+      target: { value: "a/guide" },
+    });
+    expect(screen.queryByText("Lonely")).toBeNull();
+    fireEvent.click(screen.getByText("a/Guide.md"));
+    expect(actions.openNote).toHaveBeenCalledWith("a/Guide.md");
+    expect(actions.openProblemLink).not.toHaveBeenCalled();
+  });
+
+  it("says when the vault is clean", async () => {
+    renderPalette();
+    fireEvent.click(screen.getByText("Problems"));
+    expect(await screen.findByText(/No problems:/)).toBeDefined();
   });
 });
 

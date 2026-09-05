@@ -7,6 +7,8 @@ import { isDocPath } from "../knowledge/doc-file";
 
 export const TEMPLATES_FOLDER = "templates";
 export const DAILY_TEMPLATE_PATH = `${TEMPLATES_FOLDER}/Daily.md`;
+// where the day's note is written: a vault convention like the templates folder, not a setting
+export const DAILY_NOTES_FOLDER = "notes/daily";
 
 export function isTemplatePath(path: string): boolean {
   return path.startsWith(`${TEMPLATES_FOLDER}/`) && isDocPath(path);

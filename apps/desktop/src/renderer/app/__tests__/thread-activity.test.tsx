@@ -49,6 +49,14 @@ describe("the palette renders that answer and no other", () => {
         threads={[subject]}
         searchSource={() => Promise.resolve([])}
         matchSource={() => Promise.resolve({ matches: [], total: 0 })}
+        problemSource={() =>
+          Promise.resolve({
+            unresolvedLinks: { rows: [], total: 0 },
+            missingEmbeds: { rows: [], total: 0 },
+            orphans: { rows: [], total: 0 },
+            duplicateStems: { rows: [], total: 0 },
+          })
+        }
         canSync={false}
         actions={{
           openNote: vi.fn(),
@@ -67,6 +75,7 @@ describe("the palette renders that answer and no other", () => {
           unpinNote: null,
           openMatch: vi.fn(),
           replaceAll: vi.fn(),
+          openProblemLink: vi.fn(),
         }}
       />,
     );

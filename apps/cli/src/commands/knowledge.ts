@@ -1,9 +1,12 @@
 import {
   KNOWLEDGE_MATCHES_MAX_LIMIT,
+  KNOWLEDGE_PROBLEMS_MAX_LIMIT,
   KNOWLEDGE_RELATED_MAX_LIMIT,
   KNOWLEDGE_SEARCH_MAX_LIMIT,
   KNOWLEDGE_UNLINKED_MAX_LIMIT,
   type KnowledgeMatchesRequest,
+  type KnowledgeProblemsRequest,
+  type KnowledgeProblemsResponse,
   type KnowledgeRelatedRequest,
   type KnowledgeSearchRequest,
   type KnowledgeUnlinkedMentionsRequest,
@@ -158,6 +161,80 @@ export function unlinkedCommand(deps: CliDeps) {
           ? [`(${body.total - body.mentions.length} more notes not shown)`]
           : []),
       ]);
+    },
+  });
+}
+
+function problemFamilyLines<Row>(
+  heading: string,
+  family: { rows: readonly Row[]; total: number },
+  line: (row: Row) => string,
+): string[] {
+  if (family.total === 0) return [];
+  return [
+    `${heading} (${family.total})`,
+    ...family.rows.map((row) => `  ${line(row)}`),
+    ...(family.rows.length < family.total
+      ? [`  (${family.total - family.rows.length} more not shown)`]
+      : []),
+  ];
+}
+
+function problemLines(body: KnowledgeProblemsResponse): string[] {
+  return [
+    ...problemFamilyLines(
+      "Unresolved links",
+      body.unresolvedLinks,
+      (row) => `[[${row.target}]]  ${row.sourcePath}:${row.line}`,
+    ),
+    ...problemFamilyLines(
+      "Missing embeds",
+      body.missingEmbeds,
+      (row) => `${row.target}  ${row.sourcePath}:${row.line}`,
+    ),
+    ...problemFamilyLines("Orphans", body.orphans, (row) => `${row.path}  ${row.title}`),
+    ...problemFamilyLines(
+      "Duplicate stems",
+      body.duplicateStems,
+      (row) => `${row.stem}  ${row.paths.join(", ")}`,
+    ),
+  ];
+}
+
+export function problemsCommand(deps: CliDeps) {
+  return defineCommand({
+    meta: {
+      name: "problems",
+      description: "Dangling links, missing embeds, orphan notes and duplicate stems",
+    },
+    args: {
+      limit: { type: "string", description: "Maximum rows per family" },
+      "include-conventions": {
+        type: "boolean",
+        description: "Count daily notes and templates as orphans too",
+      },
+      ...jsonArg,
+    },
+    run: async ({ args }) => {
+      const limit = parseLimit(args.limit, KNOWLEDGE_PROBLEMS_MAX_LIMIT);
+      const api = apiFor(deps);
+      const request: KnowledgeProblemsRequest = {};
+      if (limit !== undefined) {
+        request.limit = limit;
+      }
+      if (args["include-conventions"] === true) {
+        request.includeConventionFolders = true;
+      }
+      const body = await api.knowledge.problems(request);
+      if (outputJson(args, body)) {
+        return;
+      }
+      const lines = problemLines(body);
+      if (lines.length === 0) {
+        out.info("No problems.");
+        return;
+      }
+      writeLines(lines);
     },
   });
 }

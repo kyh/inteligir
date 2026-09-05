@@ -31,6 +31,11 @@ import {
   mentionNames,
   type UnlinkedMentions,
 } from "@repo/notes/knowledge/unlinked-mentions";
+import {
+  collectVaultProblems,
+  type VaultProblems,
+  type VaultProblemsOptions,
+} from "@repo/notes/knowledge/vault-problems";
 import { normalizePath } from "@repo/notes/knowledge/vault-path";
 import { searchVaultNotes } from "@repo/notes/knowledge/vault-search";
 import { contentHashBytesHex, type VaultEntry } from "@repo/api/local/vault/vault-schema";
@@ -78,6 +83,8 @@ export interface KnowledgeRuntime {
   wikiTargets(): Promise<WikiTarget[]>;
   // notes naming this one in prose without a link, one row per note on its first mention
   unlinkedMentions(path: string, limit: number): Promise<UnlinkedMentions>;
+  // what the resolver cannot answer, from the index alone
+  problems(options: VaultProblemsOptions): Promise<VaultProblems>;
   relatedNotes(path: string, limit: number): Promise<RelatedNoteEntry[]>;
   tags(): Promise<TagCount[]>;
   renameCandidates(from: string, to: string): Promise<string[]>;
@@ -419,6 +426,10 @@ export function createKnowledgeRuntime(args: KnowledgeRuntimeArgs): KnowledgeRun
         const docs = store.docTexts(only === undefined ? null : bodyPrefilter(only));
         return findUnlinkedMentions(docs, { names, exclude, limit });
       });
+    },
+
+    async problems(options) {
+      return readThroughIndex("problems", () => collectVaultProblems(graph, options));
     },
 
     async wikiTargets() {

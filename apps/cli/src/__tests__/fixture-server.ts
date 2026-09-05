@@ -8,15 +8,17 @@ import type { ConnectorsResponse } from "@repo/api/local/connectors/connectors-s
 import type { ConnectedFoldersResponse } from "@repo/api/local/folders/folders-schema";
 import {
   KNOWLEDGE_MATCHES_DEFAULT_LIMIT,
+  KNOWLEDGE_PROBLEMS_DEFAULT_LIMIT,
   KNOWLEDGE_UNLINKED_DEFAULT_LIMIT,
   type BacklinkEntryWire,
   type RelatedNoteWire,
   type SearchResultWire,
   type TagCountWire,
 } from "@repo/api/local/knowledge/knowledge-schema";
-import { docStem } from "@repo/notes/knowledge/doc-file";
+import { docStem, isDocPath } from "@repo/notes/knowledge/doc-file";
 import { collectVaultMatches } from "@repo/notes/knowledge/text-matches";
 import { findUnlinkedMentions, mentionNames } from "@repo/notes/knowledge/unlinked-mentions";
+import { KnowledgeIndex } from "@repo/notes/knowledge/knowledge-index";
 import { RPC_PREFIX } from "@repo/api/local/routes";
 import type { AgentStatus, SystemStatusResponse } from "@repo/api/local/system/system-schema";
 import type { ThreadTimeline } from "@repo/api/local/thread-timeline";
@@ -344,6 +346,18 @@ const knowledgeRouter = {
       },
     ),
   })),
+  // the real collector over an in-memory index of the fixture vault, so a leaf sees real rows
+  problems: base.knowledge.problems.handler(({ context, input }) => {
+    const index = new KnowledgeIndex();
+    for (const [path, body] of context.vault) {
+      if (isDocPath(path)) index.setDoc(path, body);
+      else index.setOther(path);
+    }
+    return index.problems({
+      limit: input.limit ?? KNOWLEDGE_PROBLEMS_DEFAULT_LIMIT,
+      includeConventionFolders: input.includeConventionFolders ?? false,
+    });
+  }),
   related: base.knowledge.related.handler(({ context, input }) => ({
     path: input.path,
     related: context.related.slice(0, input.limit),

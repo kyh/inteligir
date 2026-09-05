@@ -4,6 +4,7 @@ import { parseSearchQuery } from "@repo/notes/knowledge/vault-search";
 import {
   KNOWLEDGE_BACKLINKS_MAX,
   KNOWLEDGE_MATCHES_DEFAULT_LIMIT,
+  KNOWLEDGE_PROBLEMS_DEFAULT_LIMIT,
   KNOWLEDGE_TAGS_MAX,
   KNOWLEDGE_UNLINKED_DEFAULT_LIMIT,
   type KnowledgeRenameTagResponse,
@@ -51,6 +52,13 @@ const unlinkedMentions = base.knowledge.unlinkedMentions.handler(async ({ contex
   )),
 }));
 
+const problems = base.knowledge.problems.handler(({ context, input }) =>
+  context.knowledge.problems({
+    limit: input.limit ?? KNOWLEDGE_PROBLEMS_DEFAULT_LIMIT,
+    includeConventionFolders: input.includeConventionFolders ?? false,
+  }),
+);
+
 const related = base.knowledge.related.handler(async ({ context, input }) => ({
   path: input.path,
   related: await context.knowledge.relatedNotes(input.path, input.limit ?? RELATED_DEFAULT_LIMIT),
@@ -72,6 +80,7 @@ export const knowledgeRouter = {
   backlinks,
   related,
   unlinkedMentions,
+  problems,
   tags,
   renameTag,
 };

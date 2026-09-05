@@ -65,6 +65,7 @@
     "./lib/debounce": "./src/lib/debounce.ts",
     "./lib/use-dark-class": "./src/lib/use-dark-class.ts",
     "./lib/wire": "./src/lib/wire.ts",
+    "./link-locate": "./src/link-locate.ts",
     "./live-editor": "./src/live-editor.ts",
     "./markdown-editor": "./src/markdown-editor.tsx",
     "./markdown/markdown-doc": "./src/markdown/markdown-doc.ts",

@@ -18,6 +18,7 @@
     "./knowledge/knowledge-index": "./src/knowledge/knowledge-index.ts",
     "./knowledge/link-extract": "./src/knowledge/link-extract.ts",
     "./knowledge/link-graph-index": "./src/knowledge/link-graph-index.ts",
+    "./knowledge/vault-problems": "./src/knowledge/vault-problems.ts",
     "./knowledge/link-resolve": "./src/knowledge/link-resolve.ts",
     "./knowledge/note-name": "./src/knowledge/note-name.ts",
     "./knowledge/projection": "./src/knowledge/projection.ts",

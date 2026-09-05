@@ -14,7 +14,9 @@ import {
 import { cn } from "@repo/ui/lib/utils";
 import {
   KNOWLEDGE_MATCHES_DEFAULT_LIMIT,
+  KNOWLEDGE_PROBLEMS_DEFAULT_LIMIT,
   type KnowledgeMatchesResponse,
+  type KnowledgeProblemsResponse,
   type VaultMatchWire,
 } from "@repo/api/local/knowledge/knowledge-schema";
 import type { Thread } from "@repo/api/local/threads/threads-schema";
@@ -41,6 +43,7 @@ import {
   SettingsIcon,
   PrinterIcon,
   TextSearchIcon,
+  TriangleAlertIcon,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import {
@@ -56,6 +59,7 @@ import { planMove } from "../sidebar/tree-ops";
 import { threadActivity, THREAD_ACTIVITY_LABELS } from "../thread-activity";
 import type { MatchSource } from "./match-source";
 import type { NoteSearchHit, NoteSearchSource } from "./note-search";
+import type { ProblemSource } from "./problem-source";
 import type { VaultReplaceRequest } from "./vault-replace";
 
 export interface PaletteActions {
@@ -76,6 +80,8 @@ export interface PaletteActions {
   unpinNote: (() => void) | null;
   openMatch: (match: VaultMatchWire, query: string) => void;
   replaceAll: (request: VaultReplaceRequest) => void;
+  // opens the source note and lands on the link written against `target`
+  openProblemLink: (sourcePath: string, target: string) => void;
 }
 
 // the pages a shortcut opens onto; "notes" is the root with its commands folded away (⌘O)
@@ -92,6 +98,7 @@ export interface CommandPaletteProps {
   threads: readonly Thread[];
   searchSource: NoteSearchSource;
   matchSource: MatchSource;
+  problemSource: ProblemSource;
   canSync: boolean;
   actions: PaletteActions;
   // the subject of the root "Move note to folder…" row; absent with no note open
@@ -107,12 +114,97 @@ type Page =
   | "insert-template"
   | "threads"
   | "move-to-folder"
-  | "shortcuts";
+  | "shortcuts"
+  | "problems";
 
 interface ShortcutRow {
   id: string;
   label: string;
   chord: string;
+}
+
+// a row opens `path`; with a `target` it lands on that link inside it
+interface ProblemRow {
+  id: string;
+  label: string;
+  detail: string;
+  path: string;
+  target?: string;
+}
+
+interface ProblemFamilyRows {
+  id: string;
+  heading: string;
+  total: number;
+  rows: ProblemRow[];
+}
+
+function problemFamilies(problems: KnowledgeProblemsResponse, query: string): ProblemFamilyRows[] {
+  const families: ProblemFamilyRows[] = [
+    {
+      id: "unresolved",
+      heading: "Unresolved links",
+      total: problems.unresolvedLinks.total,
+      rows: problems.unresolvedLinks.rows.map((row) => ({
+        id: `unresolved ${row.sourcePath} ${row.target}`,
+        label: `[[${row.target}]] in ${row.sourceTitle === "" ? row.sourcePath : row.sourceTitle}`,
+        detail: `${row.sourcePath}:${String(row.line)}`,
+        path: row.sourcePath,
+        target: row.target,
+      })),
+    },
+    {
+      id: "embeds",
+      heading: "Missing embeds",
+      total: problems.missingEmbeds.total,
+      rows: problems.missingEmbeds.rows.map((row) => ({
+        id: `embed ${row.sourcePath} ${row.target}`,
+        label: `${row.target} in ${row.sourceTitle === "" ? row.sourcePath : row.sourceTitle}`,
+        detail: `${row.sourcePath}:${String(row.line)}`,
+        path: row.sourcePath,
+        target: row.target,
+      })),
+    },
+    {
+      id: "orphans",
+      heading: "Orphans",
+      total: problems.orphans.total,
+      rows: problems.orphans.rows.map((row) => ({
+        id: `orphan ${row.path}`,
+        label: row.title === "" ? row.path : row.title,
+        detail: row.path,
+        path: row.path,
+      })),
+    },
+    {
+      id: "duplicates",
+      heading: "Duplicate stems",
+      total: problems.duplicateStems.total,
+      rows: problems.duplicateStems.rows.flatMap((row) =>
+        row.paths.map((path) => ({
+          id: `duplicate ${path}`,
+          label: row.stem,
+          detail: path,
+          path,
+        })),
+      ),
+    },
+  ];
+  for (const family of families) {
+    family.rows = family.rows.filter(
+      (row) => matchesQuery(row.label, query) || matchesQuery(row.detail, query),
+    );
+  }
+  return families.filter((family) => family.rows.length > 0);
+}
+
+function problemsHidden(problems: KnowledgeProblemsResponse): number {
+  return [
+    problems.unresolvedLinks,
+    problems.missingEmbeds,
+    problems.orphans,
+    problems.duplicateStems,
+  ].reduce((hidden, family) => hidden + (family.total - family.rows.length), 0);
 }
 
 // derived from the two tables the listeners read, never a list of its own
@@ -279,6 +371,7 @@ export function CommandPalette({
   threads,
   searchSource,
   matchSource,
+  problemSource,
   canSync,
   actions,
   openNotePath = null,
@@ -293,6 +386,8 @@ export function CommandPalette({
   const [replacement, setReplacement] = useState("");
   const [matchResult, setMatchResult] = useState<KnowledgeMatchesResponse | null>(null);
   const [matchesFailed, setMatchesFailed] = useState(false);
+  const [problems, setProblems] = useState<KnowledgeProblemsResponse | null>(null);
+  const [problemsFailed, setProblemsFailed] = useState(false);
 
   // Adjusted during render rather than in an effect, so the box is never
   // painted holding the previous opening's text.
@@ -315,8 +410,38 @@ export function CommandPalette({
       setPage(moveRequest === null ? initialPage : "move-to-folder");
       setMatchResult(null);
       setMatchesFailed(false);
+      setProblems(null);
+      setProblemsFailed(false);
     }
   }
+
+  // read once per visit to the page, not per keystroke: the query filters the rows it holds
+  useEffect(() => {
+    if (!open || page !== "problems") {
+      return undefined;
+    }
+    const controller = new AbortController();
+    void (async () => {
+      try {
+        const result = await problemSource(
+          { limit: KNOWLEDGE_PROBLEMS_DEFAULT_LIMIT },
+          controller.signal,
+        );
+        if (!controller.signal.aborted) {
+          setProblems(result);
+          setProblemsFailed(false);
+        }
+      } catch {
+        if (!controller.signal.aborted) {
+          setProblems(null);
+          setProblemsFailed(true);
+        }
+      }
+    })();
+    return () => {
+      controller.abort();
+    };
+  }, [open, page, problemSource]);
 
   useEffect(() => {
     if (!open || (page !== "root" && page !== "notes")) {
@@ -525,6 +650,16 @@ export function CommandPalette({
       run: () => actions.openDeletedNotes(),
     },
     {
+      id: "problems",
+      label: "Problems",
+      icon: <TriangleAlertIcon />,
+      keepOpen: true,
+      run: () => {
+        setQuery("");
+        setPage("problems");
+      },
+    },
+    {
       id: "keyboard-shortcuts",
       label: "Keyboard shortcuts",
       icon: <KeyboardIcon />,
@@ -542,6 +677,61 @@ export function CommandPalette({
       run: () => actions.openSettings(),
     },
   ];
+
+  if (page === "problems") {
+    const families = problems === null ? [] : problemFamilies(problems, query);
+    const hidden = problems === null ? 0 : problemsHidden(problems);
+    return (
+      <CommandDialog
+        open={open}
+        onOpenChange={onOpenChange}
+        title="Problems"
+        description="What the vault's links cannot resolve"
+        shouldFilter={false}
+        className="sm:max-w-2xl"
+      >
+        <CommandInput placeholder="Filter problems…" value={query} onValueChange={setQuery} />
+        <CommandList className="max-h-96">
+          <CommandEmpty>
+            {problemsFailed
+              ? "Could not read the index just now."
+              : problems === null
+                ? "…"
+                : query === ""
+                  ? "No problems: every link resolves, every note is linked, every stem is unique."
+                  : "No problem matches."}
+          </CommandEmpty>
+          {families.map((family) => (
+            <CommandGroup key={family.id} heading={`${family.heading} · ${family.total}`}>
+              {family.rows.map((row) => (
+                <CommandItem
+                  key={row.id}
+                  value={row.id}
+                  onSelect={() =>
+                    run(() =>
+                      row.target === undefined
+                        ? actions.openNote(row.path)
+                        : actions.openProblemLink(row.path, row.target),
+                    )
+                  }
+                >
+                  <span className="min-w-0 flex-1 truncate">{row.label}</span>
+                  <span className="ml-auto shrink-0 pl-3 text-xs text-muted-foreground tabular-nums">
+                    {row.detail}
+                  </span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          ))}
+          {hidden > 0 ? (
+            <p className="px-3 py-2 text-xs text-muted-foreground">
+              {hidden} more not shown; `inteligir problems --limit` lists them all.
+            </p>
+          ) : null}
+        </CommandList>
+      </CommandDialog>
+    );
+  }
 
   if (page === "shortcuts") {
     const groups = shortcutGroups(modifier)

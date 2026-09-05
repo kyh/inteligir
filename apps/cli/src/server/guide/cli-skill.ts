@@ -87,6 +87,11 @@ Paths are vault-relative POSIX paths (\`notes/idea.md\`). Prefer wiki links
   \`path:line:column\` with the sentence; code, links, urls and frontmatter do
   not count. Wrap that text as \`[[Title]]\` to make it a link. \`--limit <n>\`
   caps rows (1–200).
+- \`inteligir problems\` — what the graph cannot resolve: wiki links to notes
+  that do not exist (with the source and line), embeds of missing files, notes
+  nothing links to, and stems spelled at more than one path. Daily notes and
+  templates are orphans by design and are left out unless
+  \`--include-conventions\` is given. \`--limit <n>\` caps each family (1–200).
 - \`inteligir related <path>\` — notes connected to a note WITHOUT linking to
   it: shared link targets, shared tags, similar text. Each row is followed by
   the reasons it is there. \`--limit <n>\` caps results (1–50).

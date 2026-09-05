@@ -14,6 +14,8 @@ export const KNOWLEDGE_MATCHES_MAX_LIMIT = 500;
 export const KNOWLEDGE_MATCHES_DEFAULT_LIMIT = 200;
 export const KNOWLEDGE_UNLINKED_MAX_LIMIT = 200;
 export const KNOWLEDGE_UNLINKED_DEFAULT_LIMIT = 50;
+export const KNOWLEDGE_PROBLEMS_MAX_LIMIT = 200;
+export const KNOWLEDGE_PROBLEMS_DEFAULT_LIMIT = 50;
 
 // q is the raw box text, parsed engine-side so a typed tag: term and a composed one resolve alike
 export const knowledgeSearchRequestSchema = z
@@ -124,6 +126,57 @@ export type KnowledgeUnlinkedMentionsResponse = z.infer<
 
 export const linkKindSchema = z.enum(["wiki", "md", "image"]);
 export type LinkKindWire = z.infer<typeof linkKindSchema>;
+
+// what the graph cannot resolve: four families, each capped on its own with its own total.
+// the limit applies per family; dailies and templates count as orphans only when asked
+export const knowledgeProblemsRequestSchema = z
+  .object({
+    limit: z.number().int().min(1).max(KNOWLEDGE_PROBLEMS_MAX_LIMIT).optional(),
+    includeConventionFolders: z.boolean().optional(),
+  })
+  .strict();
+export type KnowledgeProblemsRequest = z.infer<typeof knowledgeProblemsRequestSchema>;
+
+// once per source and target, on the first line it appears
+export const unresolvedLinkRowSchema = z
+  .object({
+    sourcePath: z.string().min(1),
+    sourceTitle: z.string(),
+    target: z.string().min(1),
+    line: z.number().int().min(1),
+    snippet: z.string(),
+    kind: linkKindSchema,
+    embed: z.boolean(),
+  })
+  .strict();
+export type UnresolvedLinkRowWire = z.infer<typeof unresolvedLinkRowSchema>;
+
+export const orphanRowSchema = z.object({ path: z.string().min(1), title: z.string() }).strict();
+export type OrphanRowWire = z.infer<typeof orphanRowSchema>;
+
+export const duplicateStemRowSchema = z
+  .object({ stem: z.string().min(1), paths: z.array(z.string().min(1)).min(2) })
+  .strict();
+export type DuplicateStemRowWire = z.infer<typeof duplicateStemRowSchema>;
+
+function problemFamilySchema<Row extends z.ZodType>(row: Row) {
+  return z
+    .object({
+      rows: z.array(row).max(KNOWLEDGE_PROBLEMS_MAX_LIMIT),
+      total: z.number().int().min(0),
+    })
+    .strict();
+}
+
+export const knowledgeProblemsResponseSchema = z
+  .object({
+    unresolvedLinks: problemFamilySchema(unresolvedLinkRowSchema),
+    missingEmbeds: problemFamilySchema(unresolvedLinkRowSchema),
+    orphans: problemFamilySchema(orphanRowSchema),
+    duplicateStems: problemFamilySchema(duplicateStemRowSchema),
+  })
+  .strict();
+export type KnowledgeProblemsResponse = z.infer<typeof knowledgeProblemsResponseSchema>;
 
 export const backlinkEntrySchema = z
   .object({
