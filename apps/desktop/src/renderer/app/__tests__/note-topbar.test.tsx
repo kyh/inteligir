@@ -46,6 +46,12 @@ function copiedAfterClick(): string | undefined {
 }
 
 const inert = initialUpdateState("0.0.0", "a test stub");
+const inertVaults = {
+  current: { path: "/home/me/Inteligir", name: "Inteligir" },
+  recent: [],
+  blocked: null,
+};
+
 const inertSpellcheck = {
   enabled: true,
   languages: [],
@@ -67,6 +73,12 @@ describe("copy link", () => {
       spellcheck: {
         getState: () => Promise.resolve(inertSpellcheck),
         apply: () => Promise.resolve(inertSpellcheck),
+      },
+      vaults: {
+        getState: () => Promise.resolve(inertVaults),
+        pick: () => Promise.resolve(inertVaults),
+        open: () => Promise.resolve(inertVaults),
+        forget: () => Promise.resolve(inertVaults),
       },
     };
     expect(copiedAfterClick()).toBe("http://127.0.0.1:26723/?note=Plans%2FWeekly+Plan.md");

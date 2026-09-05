@@ -1,5 +1,6 @@
 // Vendored from bb (github.com/get-bb/bb), MIT. © bb contributors.
 
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { isAbsolute, join, resolve } from "node:path";
@@ -12,6 +13,7 @@ import {
 import { resolveDevDefaultPort, resolveDevInstanceId } from "./dev-instance";
 import { errnoCode } from "./errno";
 import { assertModelDirOutsideVault, assertVaultAndDataDirDisjoint } from "./path-containment";
+import { stagedWriteFileSync } from "./staged-write";
 
 type RuntimeMode = "dev" | "prod";
 
@@ -26,6 +28,16 @@ const SQLITE_DATABASE_FILE_NAME = "inteligir.db";
 const MODELS_DIR_NAME = "models";
 export const CONFIG_FILE_NAME = "config.json";
 export const PROD_SERVER_PORT = 4664;
+export const VAULTS_DIR_NAME = "vaults";
+const VAULT_DATA_DIR_HASH_LENGTH = 16;
+
+// The default vault keeps the root, as every install before a second vault did; any other
+// vault gets a dir of its own beneath it, so two vaults never share an index, a db or a
+// server.json. Keyed by the resolved path, not a realpath: the vault may not exist yet.
+export function vaultDataDir(rootDataDir: string, vaultDir: string): string {
+  const digest = createHash("sha256").update(resolve(vaultDir)).digest("hex");
+  return join(rootDataDir, VAULTS_DIR_NAME, digest.slice(0, VAULT_DATA_DIR_HASH_LENGTH));
+}
 
 interface EnvVarDefinition<TValue> {
   description: string;
@@ -233,7 +245,10 @@ const managedConfigSchema = z.object({
   cloudUrl: z.string().min(1).optional(),
 });
 
-function readManagedConfig(dataDir: string): z.infer<typeof managedConfigSchema> {
+// the file as its bytes name it, unknown keys included: a rewrite must carry a newer build's keys through
+const managedConfigFileSchema = managedConfigSchema.loose();
+
+function readManagedConfigFile(dataDir: string): z.infer<typeof managedConfigFileSchema> {
   let raw: string;
   try {
     raw = readFileSync(join(dataDir, CONFIG_FILE_NAME), "utf8");
@@ -249,17 +264,36 @@ function readManagedConfig(dataDir: string): z.infer<typeof managedConfigSchema>
   } catch {
     throw new Error(`${CONFIG_FILE_NAME} is not valid JSON`);
   }
-  return managedConfigSchema.parse(parsed);
+  return managedConfigFileSchema.parse(parsed);
 }
+
+function readManagedConfig(dataDir: string): z.infer<typeof managedConfigSchema> {
+  return managedConfigSchema.parse(readManagedConfigFile(dataDir));
+}
+
+// The root's config.json is the vault selector: it is what `inteligir serve` reads with no
+// shell around, so a switch made in the shell is the CLI's next boot too.
+export function writeManagedVaultDir(rootDataDir: string, vaultDir: string): void {
+  const current = readManagedConfigFile(rootDataDir);
+  stagedWriteFileSync(
+    join(rootDataDir, CONFIG_FILE_NAME),
+    `${JSON.stringify({ ...current, vaultDir }, null, 2)}\n`,
+  );
+}
+
+export type VaultDirSource = "env" | "managed-config" | "default";
 
 export interface AppConfig {
   databasePath: string;
   dataDir: string;
   dataDirSource: "env" | "default";
+  // where config.json lives and where the default vault's data is; `dataDir` sits beneath it for any other vault
+  rootDataDir: string;
   mode: RuntimeMode;
   port: number;
   portSource: "env" | "managed-config" | "default";
   vaultDir: string;
+  vaultDirSource: VaultDirSource;
   // null is not local-only: a signed-in install still derives the hosted remote per pass.
   vaultRemote: string | null;
   // absent = runtime default, null = disabled, number = ms.
@@ -284,13 +318,13 @@ export function resolveAppConfig(args: ResolveAppConfigArgs): AppConfig {
 
   const devInstanceDir = join(homeDir, DEV_DATA_ROOT_DIR, resolveDevInstanceId(args.checkoutPath));
   const envDataDir = readEnvVar(ENV_VARS.dataDir, args.env, homeDir);
-  const dataDir =
+  const rootDataDir =
     envDataDir ??
     (mode === "prod"
       ? join(homeDir, PROD_DATA_DIR_NAME)
       : join(devInstanceDir, DEV_INSTANCE_DATA_DIR_NAME));
 
-  const managed = readManagedConfig(dataDir);
+  const managed = readManagedConfig(rootDataDir);
 
   const envPort = readEnvVar(ENV_VARS.port, args.env, homeDir);
   const port =
@@ -299,14 +333,28 @@ export function resolveAppConfig(args: ResolveAppConfigArgs): AppConfig {
     (mode === "prod" ? PROD_SERVER_PORT : resolveDevDefaultPort(args.checkoutPath));
 
   const envVaultDir = readEnvVar(ENV_VARS.vaultDir, args.env, homeDir);
-  const vaultDir =
-    envVaultDir ??
-    (managed.vaultDir === undefined
+  const managedVaultDir =
+    managed.vaultDir === undefined
       ? undefined
-      : parseDataDirValue("config.json vaultDir", managed.vaultDir, homeDir)) ??
-    (mode === "prod"
+      : parseDataDirValue("config.json vaultDir", managed.vaultDir, homeDir);
+  const defaultVaultDir =
+    mode === "prod"
       ? join(homeDir, PROD_VAULT_DIR_NAME)
-      : join(devInstanceDir, DEV_INSTANCE_VAULT_DIR_NAME));
+      : join(devInstanceDir, DEV_INSTANCE_VAULT_DIR_NAME);
+  const vaultDir = envVaultDir ?? managedVaultDir ?? defaultVaultDir;
+  const vaultDirSource: VaultDirSource =
+    envVaultDir !== undefined
+      ? "env"
+      : managedVaultDir !== undefined
+        ? "managed-config"
+        : "default";
+  // an explicit data dir is taken as given: a harness or an operator pinned it and expects exactly it
+  const dataDir =
+    envDataDir !== undefined || resolve(vaultDir) === resolve(defaultVaultDir)
+      ? rootDataDir
+      : vaultDataDir(rootDataDir, vaultDir);
+  // the root too: a vault under it would sit beside config.json and every other vault's db
+  assertVaultAndDataDirDisjoint(resolve(vaultDir), resolve(rootDataDir));
   assertVaultAndDataDirDisjoint(resolve(vaultDir), resolve(dataDir));
 
   const envVaultRemote = readEnvVar(ENV_VARS.vaultRemote, args.env, homeDir);
@@ -335,11 +383,13 @@ export function resolveAppConfig(args: ResolveAppConfigArgs): AppConfig {
     databasePath: join(dataDir, SQLITE_DATABASE_FILE_NAME),
     dataDir,
     dataDirSource: envDataDir === undefined ? "default" : "env",
+    rootDataDir,
     mode,
     port,
     portSource:
       envPort !== undefined ? "env" : managed.port !== undefined ? "managed-config" : "default",
     vaultDir,
+    vaultDirSource,
     vaultRemote,
     modelDir,
     voice,

@@ -8,6 +8,7 @@
 import { z } from "zod";
 import type { SpellcheckChoice, SpellcheckState } from "./spellcheck-state";
 import type { UpdateState } from "./update-state";
+import type { VaultsState } from "./vaults-state";
 
 export const IPC_CHANNELS = {
   SOCKET_ORIGIN: "desktop:socket-origin",
@@ -18,6 +19,10 @@ export const IPC_CHANNELS = {
   UPDATE_INSTALL: "desktop:update-install",
   SPELLCHECK_GET_STATE: "desktop:spellcheck-get-state",
   SPELLCHECK_APPLY: "desktop:spellcheck-apply",
+  VAULTS_GET_STATE: "desktop:vaults-get-state",
+  VAULTS_PICK: "desktop:vaults-pick",
+  VAULTS_OPEN: "desktop:vaults-open",
+  VAULTS_FORGET: "desktop:vaults-forget",
 } as const;
 
 export const socketOriginSchema = z.string().url();
@@ -37,10 +42,20 @@ export interface DesktopSpellcheckBridge {
   apply(choice: SpellcheckChoice): Promise<SpellcheckState>;
 }
 
+// the vault is the server's, so a switch restarts the child and replaces this window: `pick`
+// and `open` answer the state only when nothing changed (a cancelled picker, a refusal thrown)
+export interface DesktopVaultsBridge {
+  getState(): Promise<VaultsState>;
+  pick(): Promise<VaultsState>;
+  open(path: string): Promise<VaultsState>;
+  forget(path: string): Promise<VaultsState>;
+}
+
 export interface DesktopBridge {
   socketOrigin: string;
   updates: DesktopUpdatesBridge;
   spellcheck: DesktopSpellcheckBridge;
+  vaults: DesktopVaultsBridge;
 }
 
 export function toErrorMessage(cause: unknown): string {
