@@ -388,7 +388,7 @@ carries the mechanism. The dangling-reference guard keeps the pointers honest.
 
 - **THE DEFAULT HARNESS IS A STORED CHOICE, read per thread start.**
   `<dataDir>/agent-prefs.json`, edited from Settings › Agents and `inteligir
-  agents default`; unset falls back
+agents default`; unset falls back
   to claude when it is on PATH. Not config.json, which is read once at boot and
   never written by the app. A thread keeps the harness it started on
   (`threads.providerId`); the choice reaches the next one. The store is
