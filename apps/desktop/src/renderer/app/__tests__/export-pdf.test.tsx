@@ -1,9 +1,13 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { CommandPalette } from "../palette/command-palette";
+import {
+  defaultRequest,
+  renderWithQueries,
+  stubKnowledgeFetch,
+} from "../palette/__tests__/palette-harness";
 import { exportNoteAsPdf } from "../note/export-pdf";
 
 afterEach(() => {
@@ -74,8 +78,7 @@ describe("the palette's Export as PDF row", () => {
     openDeletedNotes: vi.fn(),
     findInNote: null,
     moveNote: vi.fn(),
-    pinNote: null,
-    unpinNote: null,
+    pin: null,
     insertTemplate: null,
     openMatch: vi.fn(),
     replaceAll: vi.fn(),
@@ -83,29 +86,19 @@ describe("the palette's Export as PDF row", () => {
     goToHeading: vi.fn(),
     openProblemLink: vi.fn(),
   };
-  const emptyFamily = { rows: [], total: 0 };
 
   function mount(exportPdf: (() => void) | null) {
-    return render(
-      <CommandPalette
-        open
-        onOpenChange={vi.fn()}
-        entries={[]}
-        threads={[]}
-        searchSource={() => Promise.resolve([])}
-        matchSource={() => Promise.resolve({ matches: [], total: 0 })}
-        problemSource={() =>
-          Promise.resolve({
-            unresolvedLinks: emptyFamily,
-            missingEmbeds: emptyFamily,
-            orphans: emptyFamily,
-            duplicateStems: emptyFamily,
-          })
-        }
-        canSync={false}
-        actions={{ ...actions, exportPdf }}
-      />,
-    );
+    stubKnowledgeFetch({});
+    return renderWithQueries({
+      open: true,
+      request: defaultRequest,
+      onOpenChange: vi.fn(),
+      entries: [],
+      threads: [],
+      searchSource: () => Promise.resolve([]),
+      canSync: false,
+      actions: { ...actions, exportPdf },
+    });
   }
 
   it("exists only while a note is open, and runs the export", () => {

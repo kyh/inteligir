@@ -37,9 +37,11 @@ import { dailyNoteFromTemplate, dailyNotePath, dailyNoteTemplate } from "./note/
 import { readNoteViewContext } from "./note/note-view-context";
 import { setNotePinned } from "./note/pin-note";
 import { VaultProvider } from "./note/vault-provider";
-import { CommandPalette, type PalettePage } from "./palette/command-palette";
-import { createMatchSource } from "./palette/match-source";
-import { createProblemSource } from "./palette/problem-source";
+import {
+  CommandPalette,
+  type PaletteEntryPage,
+  type PaletteRequest,
+} from "./palette/command-palette";
 import { createSearchSource, sortedNotePaths } from "./palette/search-source";
 import {
   replaceInVault,
@@ -92,11 +94,22 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
   const treeQuery = useVaultTree();
   const statusQuery = useVaultStatus();
 
-  const [paletteOpen, setPaletteOpen] = useState(false);
-  const [paletteQuery, setPaletteQuery] = useState("");
-  // the entry a tree "Move to…" opened the palette for; cleared with the palette
-  const [paletteMove, setPaletteMove] = useState<string | null>(null);
-  const [palettePage, setPalettePage] = useState<PalettePage>("root");
+  // Each open is a fresh request, keyed by its nonce so the palette mounts clean. A close keeps
+  // the last request mounted with `open` off, because unmounting the dialog cuts its exit tween;
+  // the next open replaces it.
+  const [palette, setPalette] = useState<{ request: PaletteRequest; open: boolean } | null>(null);
+  const openPalette = useCallback(
+    (page: PaletteEntryPage, extra: { subject?: string } = {}): void => {
+      setPalette((current) => ({
+        request: { page, ...extra, nonce: (current?.request.nonce ?? 0) + 1 },
+        open: true,
+      }));
+    },
+    [],
+  );
+  const closePalette = useCallback((): void => {
+    setPalette((current) => (current === null ? null : { ...current, open: false }));
+  }, []);
   const [deletedNotesOpen, setDeletedNotesOpen] = useState(false);
   const [shortcutModifier] = useState(platformShortcutModifier);
   const [insetTitleBar] = useState(hasInsetTitleBar);
@@ -383,27 +396,20 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
         setComposerOpen((current) => !current);
         break;
       case "open-palette":
-        setPaletteQuery("");
-        setPalettePage("root");
-        setPaletteOpen((current) => !current);
+        if (palette?.open === true) closePalette();
+        else openPalette("root");
         break;
       case "find-in-note":
         findInNote();
         break;
       case "open-search":
-        setPaletteQuery("");
-        setPalettePage("search");
-        setPaletteOpen(true);
+        openPalette("search");
         break;
       case "open-quick-switcher":
-        setPaletteQuery("");
-        setPalettePage("notes");
-        setPaletteOpen(true);
+        openPalette("notes");
         break;
       case "open-headings":
-        setPaletteQuery("");
-        setPalettePage("headings");
-        setPaletteOpen(true);
+        openPalette("headings");
         break;
       case "open-settings":
         onOpenSettings();
@@ -425,8 +431,6 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
     () => createSearchSource(api, sortedFilePaths),
     [api, sortedFilePaths],
   );
-  const matchSource = useMemo(() => createMatchSource(api), [api]);
-  const problemSource = useMemo(() => createProblemSource(api), [api]);
 
   const paletteActions = useMemo(
     () => ({
@@ -447,8 +451,10 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
               exportNoteAsPdf(docStem(openPath));
             },
       moveNote: treeOps.moveEntry,
-      pinNote: openPath === null || openPinned ? null : () => setPinned(openPath, true),
-      unpinNote: openPath !== null && openPinned ? () => setPinned(openPath, false) : null,
+      pin:
+        openPath === null
+          ? null
+          : { pinned: openPinned, toggle: () => setPinned(openPath, !openPinned) },
       openMatch,
       replaceAll,
       listHeadings:
@@ -534,14 +540,10 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
               setDeletedNotesOpen(true);
             }}
             onOpenSearch={() => {
-              setPaletteQuery("");
-              setPalettePage("root");
-              setPaletteOpen(true);
+              openPalette("root");
             }}
             onMoveRequest={(path) => {
-              setPaletteQuery("");
-              setPaletteMove(path);
-              setPaletteOpen(true);
+              openPalette("move-to-folder", { subject: path });
             }}
             view={sidebarView}
             onViewChange={chooseView}
@@ -627,25 +629,23 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
             </Sidebar>
           </SidebarProvider>
         </SidebarInset>
-        <CommandPalette
-          open={paletteOpen}
-          initialQuery={paletteQuery}
-          openNotePath={openPath}
-          moveRequest={paletteMove}
-          initialPage={palettePage}
-          modifier={shortcutModifier}
-          onOpenChange={(open) => {
-            setPaletteOpen(open);
-            if (!open) setPaletteMove(null);
-          }}
-          entries={treeEntries}
-          threads={threads}
-          searchSource={searchSource}
-          matchSource={matchSource}
-          problemSource={problemSource}
-          canSync={canSync}
-          actions={paletteActions}
-        />
+        {palette === null ? null : (
+          <CommandPalette
+            key={palette.request.nonce}
+            open={palette.open}
+            request={palette.request}
+            openNotePath={openPath}
+            modifier={shortcutModifier}
+            onOpenChange={(open) => {
+              if (!open) closePalette();
+            }}
+            entries={treeEntries}
+            threads={threads}
+            searchSource={searchSource}
+            canSync={canSync}
+            actions={paletteActions}
+          />
+        )}
         <DeletedNotesDialog
           open={deletedNotesOpen}
           onOpenChange={setDeletedNotesOpen}
