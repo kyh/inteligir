@@ -8,6 +8,7 @@ import {
   vaultDataDir,
   writeManagedVaultDir,
 } from "../config";
+import { pathContains } from "../path-containment";
 import { makeTempDir } from "./temp-dir";
 
 const PROD = { NODE_ENV: "production" };
@@ -31,7 +32,7 @@ describe("a second vault's data dir", () => {
     expect(config.vaultDirSource).toBe("managed-config");
     expect(config.rootDataDir).toBe(root);
     expect(config.dataDir).toBe(vaultDataDir(root, vaultDir));
-    expect(config.dataDir.startsWith(join(root, VAULTS_DIR_NAME))).toBe(true);
+    expect(pathContains(join(root, VAULTS_DIR_NAME), config.dataDir)).toBe(true);
     expect(config.databasePath).toBe(join(config.dataDir, "inteligir.db"));
   });
 
