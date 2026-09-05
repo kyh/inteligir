@@ -19,6 +19,7 @@ function makeOps(): TreeOps {
     createFolder: vi.fn(),
     renameEntry: vi.fn(),
     moveEntry: vi.fn(),
+    setPinned: vi.fn(),
     removeEntry: vi.fn(),
   };
 }
@@ -393,5 +394,25 @@ describe("collapse all", () => {
     rerender(<FileTree {...props} collapseAllNonce={1} />);
     expect(screen.queryByText("2026-08-16.md")).toBeNull();
     expect(screen.queryByText("daily")).toBeNull();
+  });
+});
+
+describe("the row menu's pin verb", () => {
+  it("pins an unpinned note and unpins a pinned one, through ops.setPinned", async () => {
+    const { ops } = renderTree({ pinnedPaths: new Set(["Welcome.md"]) });
+    fireEvent.contextMenu(row("Welcome.md"));
+    fireEvent.click(await screen.findByText("Unpin"));
+    expect(ops.setPinned).toHaveBeenCalledWith("Welcome.md", false);
+    fireEvent.click(row("notes"));
+    fireEvent.contextMenu(row("notes/ideas.md"));
+    fireEvent.click(await screen.findByText("Pin"));
+    expect(ops.setPinned).toHaveBeenCalledWith("notes/ideas.md", true);
+  });
+
+  it("offers no pin on a folder", async () => {
+    renderTree();
+    fireEvent.contextMenu(row("notes"));
+    expect(await screen.findByText("Rename")).toBeDefined();
+    expect(screen.queryByText("Pin")).toBeNull();
   });
 });

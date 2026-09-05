@@ -44,6 +44,7 @@ import {
   syncStateDotClass,
   syncStateLabel,
   useNotesWithTag,
+  usePinnedPaths,
   useTags,
   useVaultStatus,
   useVaultTree,
@@ -173,6 +174,7 @@ export function SidebarRailContent({
   onTagRequestHandled,
 }: SidebarRailContentProps) {
   const treeQuery = useVaultTree();
+  const pinnedPaths = usePinnedPaths();
   const [view, setView] = useState<SidebarView>(readSidebarView);
   const [folder, setFolder] = useState<string>(readSidebarFolder);
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
@@ -345,6 +347,7 @@ export function SidebarRailContent({
             onCreateDirChange={setTreeCreateDir}
             collapseAllNonce={collapseAllNonce}
             onMoveRequest={onMoveRequest}
+            pinnedPaths={pinnedPaths}
           />
         ) : showTags && selectedTag === null ? (
           <TagsView
@@ -373,10 +376,17 @@ export function SidebarRailContent({
               emptyText={
                 taggedQuery.data === undefined ? "…" : `No notes tagged #${selectedTag} here.`
               }
+              onSetPinned={ops.setPinned}
             />
           </>
         ) : (
-          <NotesList entries={scoped} scope={scope} openPath={openPath} onOpenFile={onOpenFile} />
+          <NotesList
+            entries={scoped}
+            scope={scope}
+            openPath={openPath}
+            onOpenFile={onOpenFile}
+            onSetPinned={ops.setPinned}
+          />
         )}
       </SidebarContent>
       <RenameTagDialog

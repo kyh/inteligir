@@ -32,6 +32,7 @@ import { exportNoteAsPdf } from "./note/export-pdf";
 import type { VaultActions } from "@repo/editor/host-io";
 import { dailyNoteFromTemplate, dailyNotePath, dailyNoteTemplate } from "./note/daily";
 import { readNoteViewContext } from "./note/note-view-context";
+import { setNotePinned } from "./note/pin-note";
 import { VaultProvider } from "./note/vault-provider";
 import { CommandPalette, type PalettePage } from "./palette/command-palette";
 import { createMatchSource } from "./palette/match-source";
@@ -51,6 +52,7 @@ import {
   filePathsLowercased,
   useSyncNow,
   untitledNotePath,
+  usePinnedPaths,
   useVaultStatus,
   useVaultTree,
 } from "./vault-hooks";
@@ -283,12 +285,25 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
 
   const { syncNow, inFlight: syncInFlight } = useSyncNow();
 
+  const setPinned = useCallback(
+    (path: string, pinned: boolean): void => {
+      void setNotePinned(api, path, pinned).then((outcome) => {
+        if (outcome.kind === "refused") toast.error(outcome.message);
+        return undefined;
+      });
+    },
+    [api],
+  );
+  const pinnedPaths = usePinnedPaths();
+  const openPinned = openPath !== null && pinnedPaths.has(openPath);
+
   const treeOps = useTreeOps({
     api,
     actions: actionsRef,
     createNote,
     openNote,
     setOpenNote,
+    setPinned,
   });
 
   const navigate = useNavigate();
@@ -389,6 +404,8 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
               exportNoteAsPdf(docStem(openPath));
             },
       moveNote: treeOps.moveEntry,
+      pinNote: openPath === null || openPinned ? null : () => setPinned(openPath, true),
+      unpinNote: openPath !== null && openPinned ? () => setPinned(openPath, false) : null,
       openMatch,
       replaceAll,
     }),
@@ -403,6 +420,8 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
       findInNote,
       insertTemplateIntoNote,
       openPath,
+      openPinned,
+      setPinned,
       treeOps,
       openMatch,
       replaceAll,
@@ -411,13 +430,17 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
 
   const noteMetadata = useMemo(
     () => ({
+      setPinned: (pinned: boolean) => {
+        const { openPath: path } = noteStore.state();
+        if (path !== null) setPinned(path, pinned);
+      },
       deleteNote: () => {
         const { openPath: path } = noteStore.state();
         if (path !== null) treeOps.removeEntry(path, "file");
       },
       openDeletedNotes: () => setDeletedNotesOpen(true),
     }),
-    [noteStore, treeOps],
+    [noteStore, treeOps, setPinned],
   );
 
   const threads = threadsQuery.data?.threads ?? EMPTY_THREADS;

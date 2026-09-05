@@ -74,6 +74,8 @@ describe("the palette's Export as PDF row", () => {
     openDeletedNotes: vi.fn(),
     findInNote: null,
     moveNote: vi.fn(),
+    pinNote: null,
+    unpinNote: null,
     insertTemplate: null,
     openMatch: vi.fn(),
     replaceAll: vi.fn(),

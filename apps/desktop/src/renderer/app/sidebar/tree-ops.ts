@@ -52,6 +52,7 @@ interface TreeOpsDeps {
   createNote: (path: string, content?: string) => Promise<void>;
   openNote: string | null;
   setOpenNote: (path: string | null) => void;
+  setPinned: (path: string, pinned: boolean) => void;
 }
 
 export function useTreeOps({
@@ -60,6 +61,7 @@ export function useTreeOps({
   createNote,
   openNote,
   setOpenNote,
+  setPinned,
 }: TreeOpsDeps): TreeOps {
   return useMemo<TreeOps>(() => {
     const renameEntry: TreeOps["renameEntry"] = (fromPath, toPath) => {
@@ -85,6 +87,7 @@ export function useTreeOps({
         })();
       },
       renameEntry,
+      setPinned,
       moveEntry: (fromPath, toDir) => {
         const plan = planMove(fromPath, toDir);
         if (plan.ok) {
@@ -112,5 +115,5 @@ export function useTreeOps({
         })();
       },
     };
-  }, [api, actions, createNote, openNote, setOpenNote]);
+  }, [api, actions, createNote, openNote, setOpenNote, setPinned]);
 }

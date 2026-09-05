@@ -36,10 +36,29 @@ function makeActions(): PaletteActions {
     insertTemplate: null,
     exportPdf: null,
     moveNote: vi.fn(),
+    pinNote: null,
+    unpinNote: null,
     openMatch: vi.fn(),
     replaceAll: vi.fn(),
   };
 }
+
+describe("pinning from the palette", () => {
+  it("offers the one verb the open note needs, and runs it", () => {
+    const pinNote = vi.fn();
+    const { onOpenChange } = renderPalette({ actions: { ...makeActions(), pinNote } });
+    expect(screen.queryByText("Unpin note")).toBeNull();
+    fireEvent.click(screen.getByText("Pin note"));
+    expect(pinNote).toHaveBeenCalledTimes(1);
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("offers neither with no note open", () => {
+    renderPalette();
+    expect(screen.queryByText("Pin note")).toBeNull();
+    expect(screen.queryByText("Unpin note")).toBeNull();
+  });
+});
 
 const noMatches: MatchSource = () => Promise.resolve({ matches: [], total: 0 });
 

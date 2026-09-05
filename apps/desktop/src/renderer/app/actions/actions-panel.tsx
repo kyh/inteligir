@@ -19,6 +19,8 @@ import {
   ArchiveRestoreIcon,
   ArrowLeftIcon,
   ChevronRightIcon,
+  PinIcon,
+  PinOffIcon,
   Trash2Icon,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -33,6 +35,7 @@ import { RelatedInline } from "./related-section";
 import { CommentsTab } from "./comments-tab";
 import { HistoryTab } from "./history-tab";
 import { TimelineRowView } from "./timeline-rows";
+import { usePinnedPaths } from "../vault-hooks";
 import { useWorkspace } from "../workspace-context";
 
 export type PanelTab = "actions" | "comments" | "history" | "metadata";
@@ -45,8 +48,9 @@ const PANEL_TAB_LABELS = {
   metadata: "Metadata",
 } satisfies Record<PanelTab, string>;
 
-// the note's own buttons: deleting it, and the list a deleted note comes back from
+// the note's own buttons: pinning it, deleting it, and the list a deleted note comes back from
 interface NoteMetadataActions {
+  setPinned: (pinned: boolean) => void;
   deleteNote: () => void;
   openDeletedNotes: () => void;
 }
@@ -112,6 +116,8 @@ function NoteMetadataTab({
   onOpenDoc: (path: string) => void;
   actions: NoteMetadataActions;
 }) {
+  const pinnedPaths = usePinnedPaths();
+  const pinned = docPath !== null && pinnedPaths.has(docPath);
   if (docPath === null) {
     return <p className="p-3 text-sm text-muted-foreground">Open a note to see its metadata.</p>;
   }
@@ -126,6 +132,16 @@ function NoteMetadataTab({
       <div className="px-3 py-2">
         <p className="pb-1 text-[11px] font-medium text-muted-foreground uppercase">Note</p>
         <div className="-ml-2 flex flex-col items-start">
+          <Button
+            variant="ghost"
+            size="compact"
+            leadingIcon={pinned ? PinOffIcon : PinIcon}
+            onClick={() => {
+              actions.setPinned(!pinned);
+            }}
+          >
+            {pinned ? "Unpin note" : "Pin note"}
+          </Button>
           <Button
             variant="ghost"
             size="compact"

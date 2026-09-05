@@ -7,7 +7,7 @@ import type { Nodes } from "mdast";
 
 import { parseCalloutPayload } from "../markdown/callout-payload";
 import { isCalloutLang } from "../markdown/fence-langs";
-import { parseProperties, type ParsedProperties } from "../markdown/frontmatter";
+import { parseProperties, PINNED_KEY, type ParsedProperties } from "../markdown/frontmatter";
 import { parseWikiBodyRange } from "../markdown/remark-wiki-link";
 import { parseScan } from "../markdown/scan-parse";
 import { insideVerbatim, verbatimSpans, type VerbatimSpan } from "../markdown/verbatim-spans";
@@ -302,7 +302,7 @@ function frontmatterTasksDisabled(parsed: ParsedProperties | null): boolean {
 
 function frontmatterPinned(parsed: ParsedProperties | null): boolean {
   if (parsed === null || parsed.kind !== "valid") return false;
-  const prop = parsed.properties.find((p) => p.key === "pinned");
+  const prop = parsed.properties.find((p) => p.key === PINNED_KEY);
   return prop !== undefined && prop.type === "checkbox" && prop.value;
 }
 

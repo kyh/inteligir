@@ -17,6 +17,13 @@ export function useWikiTargets() {
   return useQuery(orpc.knowledge.wikiTargets.queryOptions());
 }
 
+// the index's answer, not the open buffer's: every surface that shows a pin agrees on one source
+export function usePinnedPaths(): ReadonlySet<string> {
+  const query = useWikiTargets();
+  const targets = query.data?.targets ?? [];
+  return new Set(targets.filter((target) => target.pinned === true).map((target) => target.path));
+}
+
 export function useTags(enabled: boolean) {
   return useQuery({ ...orpc.knowledge.tags.queryOptions(), enabled });
 }

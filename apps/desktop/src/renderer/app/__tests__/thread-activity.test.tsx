@@ -63,6 +63,8 @@ describe("the palette renders that answer and no other", () => {
           insertTemplate: null,
           exportPdf: null,
           moveNote: vi.fn(),
+          pinNote: null,
+          unpinNote: null,
           openMatch: vi.fn(),
           replaceAll: vi.fn(),
         }}
