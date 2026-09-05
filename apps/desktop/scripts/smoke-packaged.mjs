@@ -2,7 +2,7 @@
 // (BrowserWindow needs a display). outside CI: it needs a macOS runner.
 
 import { spawn } from "node:child_process";
-import { accessSync, constants, existsSync, readFileSync } from "node:fs";
+import { accessSync, constants, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -18,6 +18,7 @@ const runtimeRoot = join(unpacked, "node_modules", CLI_BIN_NAME);
 const serverEntry = join(runtimeRoot, "dist", "index.js");
 const BOOT_TIMEOUT_MS = 60_000;
 const EXIT_TIMEOUT_MS = 20_000;
+const WATCHER_TIMEOUT_MS = 20_000;
 
 /**
  * @param {string} message
@@ -97,6 +98,7 @@ const scratch = await mkdtemp(join(tmpdir(), "inteligir-desktop-smoke-"));
 const port = 4_900 + Math.floor(Math.random() * 90);
 const baseUrl = `http://127.0.0.1:${port}`;
 const dataDir = join(scratch, "data");
+const vaultDir = join(scratch, "vault");
 
 function authHeaders() {
   const row = JSON.parse(readFileSync(join(dataDir, "server.json"), "utf8"));
@@ -104,11 +106,11 @@ function authHeaders() {
 }
 
 // hand-rolled: no bundler and no workspace link here
-async function rpc(procedure) {
+async function rpc(procedure, input) {
   const response = await fetch(`${baseUrl}/rpc/${procedure}`, {
     method: "POST",
     headers: { ...authHeaders(), "content-type": "application/json" },
-    body: "{}",
+    body: input === undefined ? "{}" : JSON.stringify({ json: input }),
   });
   if (!response.ok) {
     fail(`${procedure} answered ${response.status}`);
@@ -129,7 +131,7 @@ try {
       ELECTRON_RUN_AS_NODE: "1",
       NODE_ENV: "production",
       INTELIGIR_DATA_DIR: dataDir,
-      INTELIGIR_VAULT_DIR: join(scratch, "vault"),
+      INTELIGIR_VAULT_DIR: vaultDir,
       INTELIGIR_PORT: String(port),
       INTELIGIR_AGENT: "off",
       INTELIGIR_SYNC_INTERVAL_MS: "0",
@@ -152,6 +154,30 @@ try {
   // exercises better-sqlite3, @parcel/watcher and git init, the first to fail on an ABI mismatch
   const tree = await rpc("vault/tree");
   process.stdout.write(`smoke: vault tree -> ${tree.entries.length} entries under ${tree.root}\n`);
+
+  // the watcher is a forked child its proxy respawns forever, so a child that cannot load its
+  // platform binding never reaches the server's status; an external write reaching the index
+  // is the only proof it lives. Written again on each round: the first can land before the
+  // child's first subscribe.
+  const watchToken = `smokewatch${Date.now()}`;
+  const watchedNote = join(vaultDir, "Smoke Watch.md");
+  const watcherDeadline = Date.now() + WATCHER_TIMEOUT_MS;
+  let watcherSaw = false;
+  for (let round = 0; !watcherSaw && Date.now() < watcherDeadline; round += 1) {
+    writeFileSync(watchedNote, `# Smoke Watch\n\n${watchToken} round ${round}\n`);
+    for (let poll = 0; poll < 10 && !watcherSaw; poll += 1) {
+      await delay(500);
+      const found = await rpc("knowledge/search", { q: watchToken });
+      watcherSaw = found.results.length > 0;
+    }
+  }
+  if (!watcherSaw) {
+    fail(
+      `the vault watcher never reported an external write to ${watchedNote} within ${WATCHER_TIMEOUT_MS}ms — ` +
+        "the forked child is not watching (is @parcel/watcher's platform package in the tree?)",
+    );
+  }
+  process.stdout.write("smoke: the watcher reported an external write\n");
 
   // proves a worker thread can dlopen the addon from app.asar.unpacked. `ready` is
   // allowed (shared model dir); `unavailable` is refused (this .app ships the prebuild)

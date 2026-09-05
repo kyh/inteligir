@@ -23,7 +23,7 @@
     "@tanstack/react-start": "catalog:",
     "better-auth": "catalog:",
     "drizzle-orm": "catalog:",
-    "durable-git": "^0.0.8",
+    "durable-git": "0.0.8",
     "lucide-react": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",

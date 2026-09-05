@@ -2,7 +2,7 @@
 
 import { spawn } from "node:child_process";
 import { mkdtemp, readdir, rm } from "node:fs/promises";
-import { accessSync, constants, existsSync, readFileSync } from "node:fs";
+import { accessSync, constants, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -13,6 +13,7 @@ const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const repoRoot = resolve(packageRoot, "..", "..");
 const BOOT_TIMEOUT_MS = 60_000;
 const EXIT_TIMEOUT_MS = 20_000;
+const WATCHER_TIMEOUT_MS = 20_000;
 
 /**
  * @param {string} message
@@ -137,11 +138,11 @@ try {
   });
 
   // hand-rolled: no bundler and no workspace link against a packed tarball
-  const rpc = async (procedure) => {
+  const rpc = async (procedure, input) => {
     const response = await fetch(`${baseUrl}/rpc/${procedure}`, {
       method: "POST",
       headers: { ...authHeaders(), "content-type": "application/json" },
-      body: "{}",
+      body: input === undefined ? "{}" : JSON.stringify({ json: input }),
     });
     if (!response.ok) {
       fail(`${procedure} answered ${response.status}`);
@@ -175,6 +176,30 @@ try {
 
   const vaultList = await rpc("vault/tree");
   process.stdout.write(`smoke: vault tree -> ${vaultList.entries.length} entries\n`);
+
+  // the watcher is a forked child its proxy respawns forever, so a child that cannot load its
+  // platform binding never reaches the server's status; an external write reaching the index
+  // is the only proof it lives. Written again on each round: the first can land before the
+  // child's first subscribe.
+  const watchToken = `smokewatch${Date.now()}`;
+  const watchedNote = join(vaultDir, "Smoke Watch.md");
+  const watcherDeadline = Date.now() + WATCHER_TIMEOUT_MS;
+  let watcherSaw = false;
+  for (let round = 0; !watcherSaw && Date.now() < watcherDeadline; round += 1) {
+    writeFileSync(watchedNote, `# Smoke Watch\n\n${watchToken} round ${round}\n`);
+    for (let poll = 0; poll < 10 && !watcherSaw; poll += 1) {
+      await delay(500);
+      const found = await rpc("knowledge/search", { q: watchToken });
+      watcherSaw = found.results.length > 0;
+    }
+  }
+  if (!watcherSaw) {
+    fail(
+      `the vault watcher never reported an external write to ${watchedNote} within ${WATCHER_TIMEOUT_MS}ms — ` +
+        "the forked child is not watching (is @parcel/watcher's platform package in the tree?)",
+    );
+  }
+  process.stdout.write("smoke: the watcher reported an external write\n");
 
   // exercises the bundled client half the hand-rolled fetch above bypasses
   const { stdout: statusJson } = await run(bin, ["status", "--json"], {
