@@ -5,7 +5,9 @@ import type { VaultEntry } from "@repo/api/local/vault/vault-schema";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { EDITOR_SHORTCUTS } from "@repo/editor/editor-shortcuts";
 import { FIND_BAR_SHORTCUTS } from "@repo/editor/find-bar";
-import { GLOBAL_SHORTCUTS, globalShortcutHotkey, spellHotkey } from "../../global-shortcuts";
+import { spellHotkey } from "@repo/editor/hotkey-spelling";
+import { MARK_SHORTCUTS } from "@repo/editor/mark-shortcuts";
+import { GLOBAL_SHORTCUTS, globalShortcutHotkey } from "../../global-shortcuts";
 import { CommandPalette, type PaletteActions } from "../command-palette";
 import type { MatchSource } from "../match-source";
 import { searchNotesByFilename, type NoteSearchSource } from "../note-search";
@@ -512,7 +514,7 @@ describe("the keyboard shortcuts page", () => {
       expect(screen.getByText(row.label)).toBeDefined();
       expect(screen.getByText(spellHotkey(globalShortcutHotkey(row), "meta"))).toBeDefined();
     }
-    for (const row of [...EDITOR_SHORTCUTS, ...FIND_BAR_SHORTCUTS]) {
+    for (const row of [...MARK_SHORTCUTS, ...EDITOR_SHORTCUTS, ...FIND_BAR_SHORTCUTS]) {
       expect(screen.getByText(row.label)).toBeDefined();
       expect(screen.getByText(spellHotkey(row.hotkey, "meta"))).toBeDefined();
     }

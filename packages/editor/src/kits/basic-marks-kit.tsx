@@ -21,7 +21,10 @@ import {
   UnderlinePlugin,
 } from "@platejs/basic-nodes/react";
 
+import { KEYS } from "platejs";
+
 import { semanticLeaf } from "@repo/editor/kits/kit-utils";
+import { markPluginShortcuts } from "@repo/editor/mark-shortcuts";
 
 export const BasicMarksBaseKit = [
   BaseBoldPlugin,
@@ -31,14 +34,19 @@ export const BasicMarksBaseKit = [
   BaseCodePlugin,
 ];
 
+// chords come from MARK_SHORTCUTS, never Plate's own defaults, so the page that lists them is true
 export const BasicMarksKit = [
   BoldPlugin.configure({
     inputRules: [BoldRules.markdown(), MarkComboRules.markdown({ variant: "boldItalic" })],
+    shortcuts: markPluginShortcuts(KEYS.bold),
   }).withComponent(semanticLeaf("strong")),
   ItalicPlugin.configure({
     inputRules: [ItalicRules.markdown(), ItalicRules.markdown({ variant: "_" })],
+    shortcuts: markPluginShortcuts(KEYS.italic),
   }).withComponent(semanticLeaf("em")),
-  UnderlinePlugin.withComponent(semanticLeaf("u")),
+  UnderlinePlugin.configure({ shortcuts: markPluginShortcuts(KEYS.underline) }).withComponent(
+    semanticLeaf("u"),
+  ),
   StrikethroughPlugin.configure({
     inputRules: [StrikethroughRules.markdown()],
   }).withComponent(semanticLeaf("s")),
