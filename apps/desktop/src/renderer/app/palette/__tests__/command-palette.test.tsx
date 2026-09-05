@@ -1,17 +1,26 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import type { VaultEntry } from "@repo/api/local/vault/vault-schema";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EDITOR_SHORTCUTS } from "@repo/editor/editor-shortcuts";
 import { FIND_BAR_SHORTCUTS } from "@repo/editor/find-bar";
 import { spellHotkey } from "@repo/editor/hotkey-spelling";
 import { MARK_SHORTCUTS } from "@repo/editor/mark-shortcuts";
 import { GLOBAL_SHORTCUTS, globalShortcutHotkey } from "../../global-shortcuts";
-import { CommandPalette, type PaletteActions } from "../command-palette";
-import type { MatchSource } from "../match-source";
+import type {
+  KnowledgeMatchesRequest,
+  KnowledgeMatchesResponse,
+  KnowledgeProblemsResponse,
+} from "@repo/api/local/knowledge/knowledge-schema";
+import type { CommandPalette, PaletteActions } from "../command-palette";
 import { searchNotesByFilename, type NoteSearchSource } from "../note-search";
-import type { ProblemSource } from "../problem-source";
+import {
+  defaultRequest,
+  renderWithQueries,
+  stubKnowledgeFetch,
+  type KnowledgeFakes,
+} from "./palette-harness";
 
 const ENTRIES: VaultEntry[] = [
   { kind: "dir", path: "notes" },
@@ -39,8 +48,7 @@ function makeActions(): PaletteActions {
     insertTemplate: null,
     exportPdf: null,
     moveNote: vi.fn(),
-    pinNote: null,
-    unpinNote: null,
+    pin: null,
     openMatch: vi.fn(),
     replaceAll: vi.fn(() => Promise.resolve()),
     listHeadings: null,
@@ -72,7 +80,7 @@ describe("the headings page", () => {
 
   it("opens straight on the page a shortcut names, and filters by title", () => {
     renderPalette({
-      initialPage: "headings",
+      request: { page: "headings", nonce: 1 },
       actions: { ...makeActions(), listHeadings: () => OUTLINE },
     });
     fireEvent.change(screen.getByPlaceholderText("Go to heading…"), {
@@ -83,7 +91,7 @@ describe("the headings page", () => {
   });
 
   it("says so with no note open, and hides the root command", () => {
-    renderPalette({ initialPage: "headings" });
+    renderPalette({ request: { page: "headings", nonce: 1 } });
     expect(screen.getByText("Open a note to jump to its headings.")).toBeDefined();
     cleanup();
     renderPalette();
@@ -93,12 +101,18 @@ describe("the headings page", () => {
 
 describe("pinning from the palette", () => {
   it("offers the one verb the open note needs, and runs it", () => {
-    const pinNote = vi.fn();
-    const { onOpenChange } = renderPalette({ actions: { ...makeActions(), pinNote } });
+    const toggle = vi.fn();
+    const { onOpenChange } = renderPalette({
+      actions: { ...makeActions(), pin: { pinned: false, toggle } },
+    });
     expect(screen.queryByText("Unpin note")).toBeNull();
     fireEvent.click(screen.getByText("Pin note"));
-    expect(pinNote).toHaveBeenCalledTimes(1);
+    expect(toggle).toHaveBeenCalledTimes(1);
     expect(onOpenChange).toHaveBeenCalledWith(false);
+    cleanup();
+    renderPalette({ actions: { ...makeActions(), pin: { pinned: true, toggle } } });
+    expect(screen.queryByText("Pin note")).toBeNull();
+    expect(screen.getByText("Unpin note")).toBeDefined();
   });
 
   it("offers neither with no note open", () => {
@@ -108,35 +122,28 @@ describe("pinning from the palette", () => {
   });
 });
 
-const noMatches: MatchSource = () => Promise.resolve({ matches: [], total: 0 });
-
 const EMPTY_FAMILY = { rows: [], total: 0 };
-const noProblems: ProblemSource = () =>
-  Promise.resolve({
-    unresolvedLinks: EMPTY_FAMILY,
-    missingEmbeds: EMPTY_FAMILY,
-    orphans: EMPTY_FAMILY,
-    duplicateStems: EMPTY_FAMILY,
-  });
 
-function renderPalette(overrides: Partial<React.ComponentProps<typeof CommandPalette>> = {}) {
+type RenderOverrides = Partial<React.ComponentProps<typeof CommandPalette>> & {
+  fakes?: KnowledgeFakes;
+};
+
+function renderPalette({ fakes, ...overrides }: RenderOverrides = {}) {
+  stubKnowledgeFetch(fakes ?? {});
   const actions = makeActions();
   const onOpenChange = vi.fn();
-  render(
-    <CommandPalette
-      open
-      onOpenChange={onOpenChange}
-      entries={ENTRIES}
-      threads={[]}
-      searchSource={filenameSource}
-      matchSource={noMatches}
-      problemSource={noProblems}
-      canSync={false}
-      actions={actions}
-      modifier="meta"
-      {...overrides}
-    />,
-  );
+  renderWithQueries({
+    open: true,
+    request: defaultRequest,
+    onOpenChange,
+    entries: ENTRIES,
+    threads: [],
+    searchSource: filenameSource,
+    canSync: false,
+    actions,
+    modifier: "meta",
+    ...overrides,
+  });
   return { actions, onOpenChange };
 }
 
@@ -151,7 +158,14 @@ const failingSource: NoteSearchSource = () => Promise.reject(new Error("index do
 
 const noop = (): void => {};
 
-afterEach(cleanup);
+beforeEach(() => {
+  stubKnowledgeFetch({});
+});
+
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
 
 describe("note search", () => {
   it("lists notes from the source and opens the picked one", async () => {
@@ -215,7 +229,10 @@ describe("note search", () => {
     await slowReached;
     fireEvent.change(searchBox(), { target: { value: "new" } });
     expect(await screen.findByText("fresh.md")).toBeDefined();
-    expect(slowSignal?.aborted).toBe(true);
+    // the cache drops the superseded read once its observer moved to the new key
+    await waitFor(() => {
+      expect(slowSignal?.aborted).toBe(true);
+    });
     releaseSlow([{ path: "stale.md" }]);
     await waitFor(() => {
       expect(screen.queryByText("stale.md")).toBeNull();
@@ -342,7 +359,9 @@ describe("the move-to-folder page", () => {
   });
 
   it("opens straight on the page for a requested entry, and hides its own subtree", () => {
-    const { actions } = renderPalette({ moveRequest: "notes" });
+    const { actions } = renderPalette({
+      request: { page: "move-to-folder", subject: "notes", nonce: 1 },
+    });
     expect(screen.getByPlaceholderText("Move to which folder?")).toBeDefined();
     expect(screen.queryByText(/^notes$/)).toBeNull();
     expect(screen.queryByText("notes/daily")).toBeNull();
@@ -357,36 +376,35 @@ describe("the move-to-folder page", () => {
   });
 });
 
-const twoMatches = (total: number): MatchSource => {
-  return (request) =>
-    Promise.resolve({
-      matches: [
-        {
-          path: "notes/ideas.md",
-          title: "Big Ideas",
-          ordinal: 0,
-          line: 3,
-          column: 4,
-          length: request.q.length,
-          before: "the ",
-          text: request.q,
-          after: " idea",
-        },
-        {
-          path: "notes/ideas.md",
-          title: "Big Ideas",
-          ordinal: 1,
-          line: 9,
-          column: 0,
-          length: request.q.length,
-          before: "",
-          text: request.q,
-          after: " again",
-        },
-      ],
-      total,
-    });
-};
+const twoMatches =
+  (total: number) =>
+  (request: KnowledgeMatchesRequest): KnowledgeMatchesResponse => ({
+    matches: [
+      {
+        path: "notes/ideas.md",
+        title: "Big Ideas",
+        ordinal: 0,
+        line: 3,
+        column: 4,
+        length: request.q.length,
+        before: "the ",
+        text: request.q,
+        after: " idea",
+      },
+      {
+        path: "notes/ideas.md",
+        title: "Big Ideas",
+        ordinal: 1,
+        line: 9,
+        column: 0,
+        length: request.q.length,
+        before: "",
+        text: request.q,
+        after: " again",
+      },
+    ],
+    total,
+  });
 
 function vaultSearchBox(): HTMLElement {
   return screen.getByPlaceholderText("Search across the vault…");
@@ -398,14 +416,14 @@ describe("the search page", () => {
     fireEvent.click(screen.getByText("Search across the vault…"));
     expect(vaultSearchBox()).toBeDefined();
     cleanup();
-    renderPalette({ initialPage: "search" });
+    renderPalette({ request: { page: "search", nonce: 1 } });
     expect(vaultSearchBox()).toBeDefined();
   });
 
   it("lists match rows under their note, and a pick lands on that match", async () => {
     const { actions, onOpenChange } = renderPalette({
-      initialPage: "search",
-      matchSource: twoMatches(2),
+      request: { page: "search", nonce: 1 },
+      fakes: { matches: twoMatches(2) },
     });
     fireEvent.change(vaultSearchBox(), { target: { value: "big" } });
     expect(await screen.findByText("again")).toBeDefined();
@@ -423,7 +441,10 @@ describe("the search page", () => {
   });
 
   it("replaces across the listed notes with the toggles it shows", async () => {
-    const { actions } = renderPalette({ initialPage: "search", matchSource: twoMatches(2) });
+    const { actions } = renderPalette({
+      request: { page: "search", nonce: 1 },
+      fakes: { matches: twoMatches(2) },
+    });
     fireEvent.change(vaultSearchBox(), { target: { value: "big" } });
     await screen.findByText("again");
     fireEvent.click(screen.getByLabelText("Match case"));
@@ -450,8 +471,8 @@ describe("the search page", () => {
       });
     });
     renderPalette({
-      initialPage: "search",
-      matchSource: twoMatches(2),
+      request: { page: "search", nonce: 1 },
+      fakes: { matches: twoMatches(2) },
       actions: { ...makeActions(), replaceAll },
     });
     fireEvent.change(vaultSearchBox(), { target: { value: "big" } });
@@ -472,7 +493,10 @@ describe("the search page", () => {
   });
 
   it("refuses to replace while the listing is cut, and says so", async () => {
-    const { actions } = renderPalette({ initialPage: "search", matchSource: twoMatches(5) });
+    const { actions } = renderPalette({
+      request: { page: "search", nonce: 1 },
+      fakes: { matches: twoMatches(5) },
+    });
     fireEvent.change(vaultSearchBox(), { target: { value: "big" } });
     await screen.findByText("again");
     expect(screen.getByText(/2 of 5 matches shown/)).toBeDefined();
@@ -481,33 +505,32 @@ describe("the search page", () => {
   });
 });
 
-const someProblems: ProblemSource = () =>
-  Promise.resolve({
-    unresolvedLinks: {
-      rows: [
-        {
-          sourcePath: "Welcome.md",
-          sourceTitle: "Welcome",
-          target: "Nowhere",
-          line: 3,
-          snippet: "See [[Nowhere]].",
-          kind: "wiki",
-          embed: false,
-        },
-      ],
-      total: 3,
-    },
-    missingEmbeds: EMPTY_FAMILY,
-    orphans: { rows: [{ path: "Lonely.md", title: "Lonely" }], total: 1 },
-    duplicateStems: {
-      rows: [{ stem: "Guide", paths: ["Guide.md", "a/Guide.md"] }],
-      total: 1,
-    },
-  });
+const someProblems = (): KnowledgeProblemsResponse => ({
+  unresolvedLinks: {
+    rows: [
+      {
+        sourcePath: "Welcome.md",
+        sourceTitle: "Welcome",
+        target: "Nowhere",
+        line: 3,
+        snippet: "See [[Nowhere]].",
+        kind: "wiki",
+        embed: false,
+      },
+    ],
+    total: 3,
+  },
+  missingEmbeds: EMPTY_FAMILY,
+  orphans: { rows: [{ path: "Lonely.md", title: "Lonely" }], total: 1 },
+  duplicateStems: {
+    rows: [{ stem: "Guide", paths: ["Guide.md", "a/Guide.md"] }],
+    total: 1,
+  },
+});
 
 describe("the problems page", () => {
   it("lists each family with its count, and a link row lands on that link", async () => {
-    const { actions, onOpenChange } = renderPalette({ problemSource: someProblems });
+    const { actions, onOpenChange } = renderPalette({ fakes: { problems: someProblems } });
     fireEvent.click(screen.getByText("Problems"));
     expect(await screen.findByText("Unresolved links · 3")).toBeDefined();
     expect(screen.getByText("Orphans · 1")).toBeDefined();
@@ -520,7 +543,7 @@ describe("the problems page", () => {
   });
 
   it("opens an orphan or a duplicate as a note, and filters rows by the query", async () => {
-    const { actions } = renderPalette({ problemSource: someProblems });
+    const { actions } = renderPalette({ fakes: { problems: someProblems } });
     fireEvent.click(screen.getByText("Problems"));
     await screen.findByText("Lonely");
     fireEvent.change(screen.getByPlaceholderText("Filter problems…"), {
@@ -579,7 +602,7 @@ describe("a command's binding", () => {
 
 describe("the quick switcher (⌘O)", () => {
   it("is the root with its commands folded away", async () => {
-    const { actions } = renderPalette({ initialPage: "notes" });
+    const { actions } = renderPalette({ request: { page: "notes", nonce: 1 } });
     const box = screen.getByPlaceholderText("Open a note…");
     expect(screen.queryByText("Settings")).toBeNull();
     expect(screen.queryByText("Keyboard shortcuts")).toBeNull();

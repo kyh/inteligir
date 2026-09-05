@@ -60,6 +60,7 @@ import {
   useTags,
   useVaultStatus,
   useVaultTree,
+  vaultFolders,
 } from "../vault-hooks";
 import { FileTree, type TreeLoadState, type TreeOps } from "./file-tree";
 import { NotesList } from "./notes-list";
@@ -254,13 +255,7 @@ export function SidebarRailContent({
   const modifier = platformShortcutModifier();
 
   const entries = treeQuery.data?.entries ?? EMPTY_ENTRIES;
-  const folders = useMemo(
-    () =>
-      entries
-        .filter((entry) => entry.kind === "dir" && !isVaultMetadataPath(entry.path))
-        .map((entry) => entry.path),
-    [entries],
-  );
+  const folders = useMemo(() => vaultFolders(entries), [entries]);
   // a remembered folder the vault no longer holds shows the root, once the listing has answered
   const scope = treeQuery.data !== undefined && !folders.includes(folder) ? "" : folder;
   const scoped = useMemo(() => entriesUnder(entries, scope), [entries, scope]);

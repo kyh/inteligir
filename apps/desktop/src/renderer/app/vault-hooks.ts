@@ -4,9 +4,13 @@
 import { useCallback } from "react";
 import { useIsMutating, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "@repo/ui/components/sonner";
-import { freeDocPath } from "@repo/notes/knowledge/doc-file";
+import { freeDocPath, isVaultMetadataPath } from "@repo/notes/knowledge/doc-file";
 import type { DataDirScope } from "@repo/api/local/system/system-schema";
-import type { VaultStatusResponse, VaultTreeResponse } from "@repo/api/local/vault/vault-schema";
+import type {
+  VaultEntry,
+  VaultStatusResponse,
+  VaultTreeResponse,
+} from "@repo/api/local/vault/vault-schema";
 import { orpc, refusalMessage } from "./api";
 
 export function useVaultTree() {
@@ -220,6 +224,13 @@ export async function renameVaultEntry(
       message: refusalMessage(error, `Could not rename ${from}.`),
     };
   }
+}
+
+// the folders a user may pick: what the rail lists, so a dot-dir is hidden here too
+export function vaultFolders(entries: readonly VaultEntry[]): string[] {
+  return entries
+    .filter((entry) => entry.kind === "dir" && !isVaultMetadataPath(entry.path))
+    .map((entry) => entry.path);
 }
 
 // Lowercased: the disk may be case-insensitive, so name generation must be too.

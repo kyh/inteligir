@@ -4,9 +4,13 @@ import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { threadStatusValues } from "@repo/domain/thread-status";
 import type { Thread } from "@repo/api/local/threads/threads-schema";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { CommandPalette } from "../palette/command-palette";
+import {
+  defaultRequest,
+  renderWithQueries,
+  stubKnowledgeFetch,
+} from "../palette/__tests__/palette-harness";
 import { THREAD_ACTIVITY_LABELS, threadActivity } from "../thread-activity";
 
 afterEach(cleanup);
@@ -41,46 +45,36 @@ describe("threadActivity", () => {
 describe("the palette renders that answer and no other", () => {
   it.each(threadStatusValues)("says what the derivation says for %s", (status) => {
     const subject = thread({ id: `thr_${status}`, status, title: "A thread" });
-    render(
-      <CommandPalette
-        open
-        onOpenChange={vi.fn()}
-        entries={[]}
-        threads={[subject]}
-        searchSource={() => Promise.resolve([])}
-        matchSource={() => Promise.resolve({ matches: [], total: 0 })}
-        problemSource={() =>
-          Promise.resolve({
-            unresolvedLinks: { rows: [], total: 0 },
-            missingEmbeds: { rows: [], total: 0 },
-            orphans: { rows: [], total: 0 },
-            duplicateStems: { rows: [], total: 0 },
-          })
-        }
-        canSync={false}
-        actions={{
-          openNote: vi.fn(),
-          newNote: vi.fn(),
-          newNoteFromTemplate: vi.fn(),
-          openDailyNote: vi.fn(),
-          openThread: vi.fn(),
-          syncNow: vi.fn(),
-          openSettings: vi.fn(),
-          openDeletedNotes: vi.fn(),
-          findInNote: null,
-          insertTemplate: null,
-          exportPdf: null,
-          moveNote: vi.fn(),
-          pinNote: null,
-          unpinNote: null,
-          openMatch: vi.fn(),
-          replaceAll: vi.fn(),
-          listHeadings: null,
-          goToHeading: vi.fn(),
-          openProblemLink: vi.fn(),
-        }}
-      />,
-    );
+    stubKnowledgeFetch({});
+    renderWithQueries({
+      open: true,
+      request: defaultRequest,
+      onOpenChange: vi.fn(),
+      entries: [],
+      threads: [subject],
+      searchSource: () => Promise.resolve([]),
+      canSync: false,
+      actions: {
+        openNote: vi.fn(),
+        newNote: vi.fn(),
+        newNoteFromTemplate: vi.fn(),
+        openDailyNote: vi.fn(),
+        openThread: vi.fn(),
+        syncNow: vi.fn(),
+        openSettings: vi.fn(),
+        openDeletedNotes: vi.fn(),
+        findInNote: null,
+        insertTemplate: null,
+        exportPdf: null,
+        moveNote: vi.fn(),
+        pin: null,
+        openMatch: vi.fn(),
+        replaceAll: vi.fn(),
+        listHeadings: null,
+        goToHeading: vi.fn(),
+        openProblemLink: vi.fn(),
+      },
+    });
     fireEvent.click(screen.getByText("Actions"));
     expect(screen.getByText(THREAD_ACTIVITY_LABELS[threadActivity(subject)])).toBeDefined();
   });
