@@ -1,7 +1,7 @@
 import type { HarnessProbe } from "@repo/api/local/agents/agents-schema";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { orpc } from "../api";
-import { SectionHeading } from "./settings-chrome";
+import { ChoiceRow, failed, Row, SectionHeading } from "./settings-chrome";
 
 function credentialSentence(probe: HarnessProbe): string {
   switch (probe.credentials) {
@@ -42,11 +42,24 @@ function HarnessRow({ probe }: { probe: HarnessProbe }) {
 }
 
 export function AgentsSection() {
+  const queryClient = useQueryClient();
   const statusQuery = useQuery({
     ...orpc.agents.status.queryOptions(),
     // Login state changes outside this app; opening the page re-probes.
     staleTime: 0,
   });
+  const setDefault = useMutation(
+    orpc.agents.setDefault.mutationOptions({
+      onSuccess: (status) => {
+        queryClient.setQueryData(orpc.agents.status.queryKey(), status);
+      },
+      onError: (cause) => {
+        failed(cause, "Could not set the default agent.");
+      },
+    }),
+  );
+  const status = statusQuery.data;
+  const harnesses = status?.harnesses ?? [];
 
   return (
     <section>
@@ -56,10 +69,27 @@ export function AgentsSection() {
         CLIs and their sign-ins are yours.
       </p>
       <div className="mt-2 divide-y divide-line">
-        {(statusQuery.data?.harnesses ?? []).map((probe) => (
+        {harnesses.map((probe) => (
           <HarnessRow key={probe.id} probe={probe} />
         ))}
       </div>
+      {status === undefined ? null : (
+        <dl className="mt-3 space-y-1.5">
+          <Row label="Default agent">
+            <ChoiceRow
+              label="Default agent"
+              options={harnesses.map((probe) => ({ value: probe.id, label: probe.displayName }))}
+              value={status.defaultId}
+              onChange={(id) => {
+                setDefault.mutate({ id });
+              }}
+            />
+            <span className="mt-1 block text-xs text-muted-foreground">
+              New actions start on this agent. An action keeps the agent it started on.
+            </span>
+          </Row>
+        </dl>
+      )}
     </section>
   );
 }

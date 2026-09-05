@@ -146,7 +146,11 @@ function commentsBody(state: FixtureState, path: string) {
 const base = implement(localContract).$context<FixtureState>();
 
 const agentsRouter = {
-  status: base.agents.status.handler(() => ({ harnesses: [] })),
+  status: base.agents.status.handler(() => ({ harnesses: [], defaultId: "claude" })),
+  setDefault: base.agents.setDefault.handler(({ input }) => ({
+    harnesses: [],
+    defaultId: input.id,
+  })),
 };
 
 const cloudRouter = {

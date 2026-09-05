@@ -75,7 +75,7 @@ function makeHarness(): Harness {
     model: null,
     sessionFacts: () => fakeSessionFacts(),
     hostEnv: {},
-    defaultProviderId: "claude",
+    defaultProviderId: () => "claude",
     mcpServers: () => [],
     createRuntime: (options) => {
       captured = options;

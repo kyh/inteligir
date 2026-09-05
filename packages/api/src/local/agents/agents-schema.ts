@@ -13,6 +13,13 @@ export const harnessProbeSchema = z
 export type HarnessProbe = z.infer<typeof harnessProbeSchema>;
 
 export const agentsStatusResponseSchema = z
-  .object({ harnesses: z.array(harnessProbeSchema) })
+  .object({
+    harnesses: z.array(harnessProbeSchema),
+    // the harness a new thread starts on: the stored choice, else the one on PATH
+    defaultId: z.string().min(1),
+  })
   .strict();
 export type AgentsStatusResponse = z.infer<typeof agentsStatusResponseSchema>;
+
+export const agentsSetDefaultRequestSchema = z.object({ id: z.string().min(1) }).strict();
+export type AgentsSetDefaultRequest = z.infer<typeof agentsSetDefaultRequestSchema>;

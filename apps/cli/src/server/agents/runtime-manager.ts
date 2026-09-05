@@ -68,7 +68,8 @@ export interface AcpRuntimeManagerDeps {
   // and a value read once would tell every later session the set the first one saw.
   sessionFacts: () => AgentSessionFacts;
   hostEnv: NodeJS.ProcessEnv;
-  defaultProviderId: HarnessId;
+  // a getter: the stored default can change between two thread starts
+  defaultProviderId: () => HarnessId;
   spawnAdapter?: AcpAgentRuntimeOptions["spawnAdapter"];
   mcpServers: () => AcpMcpServerConfig[] | Promise<AcpMcpServerConfig[]>;
   createRuntime?: typeof createAcpAgentRuntime;
@@ -287,7 +288,7 @@ class AcpTurnDriver implements TurnDriver {
     const instructions = toInstructions(this.deps.sessionFacts(), this.deps.vaultDir);
     const row = getThread(this.deps.db, threadId);
     const persisted = row?.providerThreadId ?? null;
-    const providerId = row?.providerId ?? this.deps.defaultProviderId;
+    const providerId = row?.providerId ?? this.deps.defaultProviderId();
     if (persisted !== null) {
       try {
         const resumed = await runtime.resumeThread({

@@ -7,6 +7,7 @@ import type { AgentStatus } from "@repo/api/local/system/system-schema";
 import type { CreateTurnDriver } from "../threads/turn-driver";
 import { createUnavailableTurnDriver } from "../threads/turn-driver";
 import type { AcpMcpServerConfig } from "@repo/agent-runtime/acp/acp-runtime";
+import type { HarnessId } from "@repo/agent-runtime/acp/harness-registry";
 import type { AppConfig } from "../config";
 import type { VaultRuntime } from "../vault/vault-runtime";
 import { createBoundedAgentLog } from "./agent-log";
@@ -23,6 +24,8 @@ export interface ResolveAgentDriverArgs {
   vault: VaultRuntime;
   // a getter, read per session open, so a Settings edit reaches the next session without a reboot.
   sessionFacts: () => AgentSessionFacts;
+  // the stored choice, read per thread start for the same reason; null falls back to what PATH holds
+  preferredProviderId?: () => HarnessId | null;
   env?: NodeJS.ProcessEnv;
 }
 
@@ -33,6 +36,15 @@ export interface ResolvedAgentDriver {
 }
 
 const noDispose = async (): Promise<void> => {};
+
+// default harness is claude while codex-acp 0.16.0 is broken upstream (its bundled core cannot parse the
+// current models response); flip the fallback back when the adapter heals.
+export function defaultHarnessId(preferred: HarnessId | null, env: NodeJS.ProcessEnv): HarnessId {
+  if (preferred !== null) return preferred;
+  return binaryOnPath("claude", env) === null && binaryOnPath("codex", env) !== null
+    ? "codex"
+    : "claude";
+}
 
 export function resolveAgentDriver(args: ResolveAgentDriverArgs): ResolvedAgentDriver {
   const mode = args.config.agent;
@@ -58,8 +70,6 @@ export function resolveAgentDriver(args: ResolveAgentDriverArgs): ResolvedAgentD
     };
   }
 
-  // default harness is claude while codex-acp 0.16.0 is broken upstream (its bundled core cannot parse the
-  // current models response); flip the default back when the adapter heals.
   const env = args.env ?? process.env;
   const claudeBinary = binaryOnPath("claude", env);
   const codexBinary = binaryOnPath("codex", env);
@@ -82,7 +92,7 @@ export function resolveAgentDriver(args: ResolveAgentDriverArgs): ResolvedAgentD
     mcpServers: args.mcpServers,
     sessionFacts: args.sessionFacts,
     hostEnv: env,
-    defaultProviderId: claudeBinary === null ? "codex" : "claude",
+    defaultProviderId: () => defaultHarnessId(args.preferredProviderId?.() ?? null, env),
     onDebug,
   };
   const manager = createAcpRuntimeManager(acp);

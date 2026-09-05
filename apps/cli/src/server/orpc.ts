@@ -5,6 +5,7 @@
 import { localContract } from "@repo/api/local";
 import type { AgentStatus } from "@repo/api/local/system/system-schema";
 import { implement, ORPCError } from "@orpc/server";
+import type { AgentsService } from "./agents/agents-service";
 import type { CommentsService } from "./comments/comments-service";
 import type { CloudRuntime } from "./cloud/sync-runtime";
 import type { ConnectorsService } from "./connectors/connectors-service";
@@ -27,6 +28,7 @@ interface SystemFacts {
 }
 
 export interface AppContext {
+  agents: AgentsService;
   cloud: CloudRuntime;
   comments: CommentsService;
   connectors: ConnectorsService;

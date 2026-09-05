@@ -81,7 +81,7 @@ async function bootWithManager(
             connectedDirs: [...(options.connectedDirs ?? [])],
           }),
         hostEnv: {},
-        defaultProviderId: "codex",
+        defaultProviderId: () => "codex",
         spawnAdapter: fakeSpawn(mode, options),
         reapIntervalMs: null,
       };

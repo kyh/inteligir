@@ -39,7 +39,7 @@ describe("ACP runtime shell env wiring", () => {
           sessionFacts: () =>
             fakeSessionFacts({ dataDir: "/instances/one/data", cliBinDir: "/repo/apps/cli/bin" }),
           hostEnv: { PATH: "/usr/bin" },
-          defaultProviderId: "claude",
+          defaultProviderId: () => "claude",
           createRuntime: recordingCreateRuntime(recorded),
           reapIntervalMs: null,
         });

@@ -8,6 +8,8 @@ import { runMigrations } from "@repo/db/migrate";
 import { rebindThreadOrigins } from "@repo/db/threads";
 import { resolveMigrationsFolder } from "../paths";
 import type { ResolvedAgentDriver } from "./agents/agent-driver";
+import { AgentPrefsStore } from "./agents/agent-prefs-store";
+import { createAgentsService } from "./agents/agents-service";
 import { createCommentsService } from "./comments/comments-service";
 import { systemOpenExternalUrl, type OpenExternalUrl } from "./cloud/browser-opener";
 import {
@@ -53,6 +55,7 @@ interface ComposeDriverDeps {
   connectors: ConnectorsService;
   connectorsOauth: ConnectorOauthFlow;
   folders: FoldersService;
+  agentPrefs: AgentPrefsStore;
 }
 
 export interface ComposePorts {
@@ -141,6 +144,8 @@ export async function composeRuntime(args: ComposeRuntimeArgs): Promise<Composed
     vaultDir: config.vaultDir,
     dataDir: config.dataDir,
   });
+  const agentPrefs = new AgentPrefsStore(config.dataDir);
+  const agents = createAgentsService({ store: agentPrefs, env: process.env });
 
   const agentDriver = args.driver({
     config,
@@ -150,6 +155,7 @@ export async function composeRuntime(args: ComposeRuntimeArgs): Promise<Composed
     connectors,
     connectorsOauth,
     folders,
+    agentPrefs,
   });
   register("agent", () => {
     // the oauth flow serves agent sessions, so it stops with them.
@@ -194,6 +200,7 @@ export async function composeRuntime(args: ComposeRuntimeArgs): Promise<Composed
   cloud.start();
 
   const context: AppServices = {
+    agents,
     cloud,
     comments: createCommentsService(vault.service, () => Math.floor(Date.now() / 1000)),
     connectors,

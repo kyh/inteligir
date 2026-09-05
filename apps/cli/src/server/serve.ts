@@ -123,7 +123,16 @@ async function boot(
     teardown,
     // injected: it cannot be imported from the composed graph (cloud/cloud-socket.ts).
     cloudTransport: { openSocket: openCloudSocket },
-    driver: ({ config: driverConfig, db, bus, vault, connectors, connectorsOauth, folders }) => {
+    driver: ({
+      config: driverConfig,
+      db,
+      bus,
+      vault,
+      connectors,
+      connectorsOauth,
+      folders,
+      agentPrefs,
+    }) => {
       const cliBinDir = resolveCliBinDir();
       const skillsDir = resolveSkillsDir();
       return resolveAgentDriver({
@@ -138,6 +147,7 @@ async function boot(
           skillsDir,
           connectedDirs: folders.list(),
         }),
+        preferredProviderId: () => agentPrefs.read().defaultHarness ?? null,
       });
     },
   });
