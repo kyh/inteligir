@@ -1,5 +1,5 @@
 import { useEffect, useRef, useSyncExternalStore } from "react";
-import { SearchIcon, XIcon } from "lucide-react";
+import { ChevronRightIcon, ReplaceIcon, SearchIcon, XIcon } from "lucide-react";
 import {
   isHotkey,
   NodeApi,
@@ -8,6 +8,7 @@ import {
   type DecoratedRange,
   type Path,
   type SlateEditor,
+  type TRange,
 } from "platejs";
 import { PlateLeaf, createPlatePlugin, useEditorRef, type PlateLeafProps } from "platejs/react";
 
@@ -19,9 +20,11 @@ type FindBarState = {
   open: boolean;
   query: string;
   active: MatchLocation | null;
+  replace: string;
+  replaceOpen: boolean;
 };
 
-let state: FindBarState = { active: null, open: false, query: "" };
+let state: FindBarState = { active: null, open: false, query: "", replace: "", replaceOpen: false };
 const listeners = new Set<() => void>();
 
 // A module store because decorate runs outside React; decorations read it rather
@@ -60,9 +63,13 @@ export function collectFindMatches(editor: SlateEditor, query: string): MatchLoc
   return matches;
 }
 
-export function openFindBar(editor: SlateEditor): void {
+export function openFindBar(editor: SlateEditor, options?: { replace?: boolean }): void {
   const matches = collectFindMatches(editor, state.query);
-  setState(editor, { active: matches[0] ?? null, open: true });
+  setState(editor, {
+    active: matches[0] ?? null,
+    open: true,
+    replaceOpen: options?.replace ?? state.replaceOpen,
+  });
 }
 
 function closeFindBar(editor: SlateEditor): void {
@@ -74,12 +81,22 @@ function sameLocation(a: MatchLocation, b: MatchLocation): boolean {
   return a.offset === b.offset && PathApi.equals(a.path, b.path);
 }
 
+function activeIndexIn(matches: readonly MatchLocation[]): number {
+  return state.active === null
+    ? -1
+    : matches.findIndex((match) => state.active !== null && sameLocation(match, state.active));
+}
+
+function matchRange(match: MatchLocation, length: number): TRange {
+  return {
+    anchor: { offset: match.offset, path: match.path },
+    focus: { offset: match.offset + length, path: match.path },
+  };
+}
+
 function scrollToMatch(editor: SlateEditor, match: MatchLocation, length: number): void {
   try {
-    const domRange = editor.api.toDOMRange({
-      anchor: { offset: match.offset, path: match.path },
-      focus: { offset: match.offset + length, path: match.path },
-    });
+    const domRange = editor.api.toDOMRange(matchRange(match, length));
     const container = domRange?.startContainer;
     const target = container instanceof Element ? container : (container?.parentElement ?? null);
     target?.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -94,10 +111,7 @@ export function cycleFindMatch(editor: SlateEditor, direction: 1 | -1): void {
     setState(editor, { active: null });
     return;
   }
-  const current =
-    state.active === null
-      ? -1
-      : matches.findIndex((match) => state.active !== null && sameLocation(match, state.active));
+  const current = activeIndexIn(matches);
   const next =
     current === -1
       ? direction === 1
@@ -113,6 +127,43 @@ export function cycleFindMatch(editor: SlateEditor, direction: 1 | -1): void {
 export function setFindQuery(editor: SlateEditor, query: string): void {
   const matches = collectFindMatches(editor, query);
   setState(editor, { active: matches[0] ?? null, query });
+}
+
+// lands on the nth match in document order; a doc with fewer lands on its last
+export function jumpToFindMatch(editor: SlateEditor, query: string, ordinal: number): void {
+  const matches = collectFindMatches(editor, query);
+  const active = matches[Math.min(ordinal, matches.length - 1)] ?? null;
+  setState(editor, { active, open: true, query });
+  if (active !== null) scrollToMatch(editor, active, query.length);
+}
+
+export function setReplaceText(editor: SlateEditor, replace: string): void {
+  setState(editor, { replace });
+}
+
+// the active match, then the one that takes its index, so Enter walks the doc
+export function replaceActiveMatch(editor: SlateEditor): void {
+  const matches = collectFindMatches(editor, state.query);
+  const index = Math.max(0, activeIndexIn(matches));
+  const target = matches[index];
+  if (target === undefined) return;
+  editor.tf.insertText(state.replace, { at: matchRange(target, state.query.length) });
+  const remaining = collectFindMatches(editor, state.query);
+  const active = remaining[Math.min(index, remaining.length - 1)] ?? null;
+  setState(editor, { active });
+  if (active !== null) scrollToMatch(editor, active, state.query.length);
+}
+
+// last to first, so no rewrite moves an offset still to be rewritten
+export function replaceAllMatches(editor: SlateEditor): number {
+  const matches = collectFindMatches(editor, state.query);
+  editor.tf.withoutNormalizing(() => {
+    for (const match of matches.toReversed()) {
+      editor.tf.insertText(state.replace, { at: matchRange(match, state.query.length) });
+    }
+  });
+  setState(editor, { active: null });
+  return matches.length;
 }
 
 function FindMatchLeaf(props: PlateLeafProps) {
@@ -132,6 +183,9 @@ function FindMatchLeaf(props: PlateLeafProps) {
   );
 }
 
+const BAR_BUTTON_CLASS =
+  "shrink-0 rounded-sm p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-40 [&_svg]:size-3.5";
+
 function FindBar() {
   const editor = useEditorRef();
   const snap = useSyncExternalStore(subscribe, getFindBarState);
@@ -144,48 +198,117 @@ function FindBar() {
   if (!snap.open) return null;
 
   const matches = collectFindMatches(editor, snap.query);
-  const activeIndex =
-    snap.active === null
-      ? -1
-      : matches.findIndex((match) => snap.active !== null && sameLocation(match, snap.active));
+  const activeIndex = activeIndexIn(matches);
+  const canReplace = matches.length > 0;
 
+  const onEscape = (event: React.KeyboardEvent): boolean => {
+    if (event.key !== "Escape") return false;
+    event.preventDefault();
+    closeFindBar(editor);
+    return true;
+  };
+
+  // absolute, not fixed: inside the note column, never over the panel beside it
   return (
-    <div className="fixed top-16 right-6 z-40 flex items-center gap-1.5 rounded-md border border-border bg-popover px-2 py-1 shadow-md print:hidden">
-      <SearchIcon className="size-3.5 shrink-0 text-muted-foreground" />
-      <input
-        ref={inputRef}
-        aria-label="Find in note"
-        placeholder="Find in note"
-        value={snap.query}
-        onChange={(event) => {
-          setFindQuery(editor, event.target.value);
-        }}
-        onKeyDown={(event) => {
-          if (event.key === "Escape") {
-            event.preventDefault();
+    <div className="absolute top-16 right-6 z-40 flex flex-col gap-1 rounded-md border border-border bg-popover px-2 py-1 shadow-md print:hidden">
+      <div className="flex items-center gap-1.5">
+        <button
+          type="button"
+          aria-label="Toggle replace"
+          aria-expanded={snap.replaceOpen}
+          onClick={() => {
+            setState(editor, { replaceOpen: !snap.replaceOpen });
+          }}
+          className={BAR_BUTTON_CLASS}
+        >
+          <ChevronRightIcon
+            className={cn("transition-transform", snap.replaceOpen && "rotate-90")}
+          />
+        </button>
+        <SearchIcon className="size-3.5 shrink-0 text-muted-foreground" />
+        <input
+          ref={inputRef}
+          aria-label="Find in note"
+          placeholder="Find in note"
+          value={snap.query}
+          onChange={(event) => {
+            setFindQuery(editor, event.target.value);
+          }}
+          onKeyDown={(event) => {
+            if (onEscape(event)) return;
+            if (
+              event.key === "Enter" ||
+              isHotkey("mod+g", event) ||
+              isHotkey("mod+shift+g", event)
+            ) {
+              event.preventDefault();
+              cycleFindMatch(editor, event.shiftKey ? -1 : 1);
+            }
+          }}
+          className="w-40 bg-transparent text-sm outline-none placeholder:text-muted-foreground/60"
+        />
+        <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+          {matches.length === 0 ? "0/0" : `${activeIndex + 1}/${matches.length}`}
+        </span>
+        <button
+          type="button"
+          aria-label="Close find bar"
+          onClick={() => {
             closeFindBar(editor);
-            return;
-          }
-          if (event.key === "Enter" || isHotkey("mod+g", event) || isHotkey("mod+shift+g", event)) {
-            event.preventDefault();
-            cycleFindMatch(editor, event.shiftKey ? -1 : 1);
-          }
-        }}
-        className="w-40 bg-transparent text-sm outline-none placeholder:text-muted-foreground/60"
-      />
-      <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
-        {matches.length === 0 ? "0/0" : `${activeIndex + 1}/${matches.length}`}
-      </span>
-      <button
-        type="button"
-        aria-label="Close find bar"
-        onClick={() => {
-          closeFindBar(editor);
-        }}
-        className="shrink-0 rounded-sm p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground [&_svg]:size-3.5"
-      >
-        <XIcon />
-      </button>
+          }}
+          className={BAR_BUTTON_CLASS}
+        >
+          <XIcon />
+        </button>
+      </div>
+      {snap.replaceOpen ? (
+        <div className="flex items-center gap-1.5 pl-6">
+          <ReplaceIcon className="size-3.5 shrink-0 text-muted-foreground" />
+          <input
+            aria-label="Replace with"
+            placeholder="Replace with"
+            value={snap.replace}
+            onChange={(event) => {
+              setReplaceText(editor, event.target.value);
+            }}
+            onKeyDown={(event) => {
+              if (onEscape(event)) return;
+              if (event.key !== "Enter") return;
+              event.preventDefault();
+              if (isHotkey("mod+enter", event)) {
+                replaceAllMatches(editor);
+              } else {
+                replaceActiveMatch(editor);
+              }
+            }}
+            className="w-40 bg-transparent text-sm outline-none placeholder:text-muted-foreground/60"
+          />
+          <button
+            type="button"
+            aria-label="Replace"
+            title="Replace (Enter)"
+            disabled={!canReplace}
+            onClick={() => {
+              replaceActiveMatch(editor);
+            }}
+            className={cn(BAR_BUTTON_CLASS, "px-1 text-xs")}
+          >
+            Replace
+          </button>
+          <button
+            type="button"
+            aria-label="Replace all"
+            title="Replace all (⌘Enter)"
+            disabled={!canReplace}
+            onClick={() => {
+              replaceAllMatches(editor);
+            }}
+            className={cn(BAR_BUTTON_CLASS, "px-1 text-xs")}
+          >
+            All
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -227,6 +350,12 @@ export const FindBarKit = [
   }).extend(() => ({
     handlers: {
       onKeyDown: ({ editor, event }) => {
+        // ⌥⌘F is VS Code's replace; ⌘F is the shell's, so the bar opens from the window listener
+        if (isHotkey("mod+alt+f", event)) {
+          event.preventDefault();
+          openFindBar(editor, { replace: true });
+          return;
+        }
         if (!isHotkey("mod+g", event) && !isHotkey("mod+shift+g", event)) return;
         event.preventDefault();
         if (!state.open) {
