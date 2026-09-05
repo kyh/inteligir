@@ -57,6 +57,7 @@ describe("the palette renders that answer and no other", () => {
           syncNow: vi.fn(),
           openSettings: vi.fn(),
           openDeletedNotes: vi.fn(),
+          findInNote: null,
           exportPdf: null,
         }}
       />,

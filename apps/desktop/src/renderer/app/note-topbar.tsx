@@ -8,6 +8,7 @@ import {
 } from "@repo/ui/components/dropdown-menu";
 import { toast } from "@repo/ui/components/sonner";
 import { useSidebar } from "@repo/ui/components/sidebar";
+import { cn } from "@repo/ui/lib/utils";
 import {
   ArrowLeftIcon,
   ArrowRightIcon,
@@ -17,8 +18,8 @@ import {
   MoreVerticalIcon,
   PanelLeftIcon,
   PanelRightIcon,
-  SearchIcon,
   Share2Icon,
+  TextSearchIcon,
 } from "lucide-react";
 
 import { shareWithAgentText } from "./actions/share-with-agent";
@@ -29,11 +30,13 @@ export interface NoteTopbarProps {
   // passed in: this bar renders inside the right panel's provider, so `useSidebar()` here is the right one.
   railOpen: boolean;
   onToggleRail: () => void;
+  // with the rail closed this bar is the window's top-left corner, where the traffic lights sit
+  insetTitleBar: boolean;
   canBack: boolean;
   canForward: boolean;
   onBack: () => void;
   onForward: () => void;
-  onOpenSearch: () => void;
+  onFindInNote: () => void;
   commentCount: number;
   onOpenComments: () => void;
   onExportPdf: () => void;
@@ -59,11 +62,12 @@ export function NoteTopbar({
   path,
   railOpen,
   onToggleRail,
+  insetTitleBar,
   canBack,
   canForward,
   onBack,
   onForward,
-  onOpenSearch,
+  onFindInNote,
   commentCount,
   onOpenComments,
   onExportPdf,
@@ -87,7 +91,12 @@ export function NoteTopbar({
   };
 
   return (
-    <header className="flex h-[var(--app-header-h)] shrink-0 items-center gap-0.5 border-b border-line px-1.5 print:hidden">
+    <header
+      className={cn(
+        "flex h-[var(--app-header-h)] shrink-0 items-center gap-0.5 border-b border-line px-1.5 print:hidden",
+        insetTitleBar && !railOpen && "pl-[4.5rem]",
+      )}
+    >
       <Button
         variant="ghost"
         size="icon-compact"
@@ -119,8 +128,14 @@ export function NoteTopbar({
         {path === null ? "" : docStem(path)}
       </span>
       <div className="ml-auto flex shrink-0 items-center gap-0.5">
-        <Button variant="ghost" size="icon-compact" aria-label="Search" onClick={onOpenSearch}>
-          <SearchIcon />
+        <Button
+          variant="ghost"
+          size="icon-compact"
+          aria-label="Find in note"
+          disabled={path === null}
+          onClick={onFindInNote}
+        >
+          <TextSearchIcon />
         </Button>
         <Button
           variant="ghost"

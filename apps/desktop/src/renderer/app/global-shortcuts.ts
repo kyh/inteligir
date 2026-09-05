@@ -5,6 +5,7 @@ import { useEffect, useLayoutEffect, useRef } from "react";
 export type GlobalShortcutAction =
   | "open-action-composer"
   | "open-palette"
+  | "find-in-note"
   | "open-daily-note"
   | "toggle-zen";
 
@@ -17,6 +18,7 @@ export interface GlobalShortcut {
 export const GLOBAL_SHORTCUTS: readonly GlobalShortcut[] = [
   { key: "k", action: "open-action-composer", label: "the action composer" },
   { key: "p", action: "open-palette", label: "the command palette" },
+  { key: "f", action: "find-in-note", label: "find in the note" },
   { key: "d", action: "open-daily-note", label: "the daily note" },
   { key: "\\", action: "toggle-zen", label: "zen mode" },
 ];

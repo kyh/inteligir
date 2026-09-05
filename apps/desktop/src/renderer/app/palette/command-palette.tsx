@@ -22,6 +22,7 @@ import {
   RefreshCwIcon,
   SettingsIcon,
   PrinterIcon,
+  TextSearchIcon,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { threadActivity, THREAD_ACTIVITY_LABELS } from "../thread-activity";
@@ -35,6 +36,7 @@ export interface PaletteActions {
   syncNow: () => void;
   openSettings: () => void;
   openDeletedNotes: () => void;
+  findInNote: (() => void) | null;
   exportPdf: (() => void) | null;
 }
 
@@ -156,6 +158,17 @@ export function CommandPalette({
       icon: <CalendarIcon />,
       run: () => actions.openDailyNote(),
     },
+    ...(actions.findInNote !== null
+      ? [
+          {
+            id: "find-in-note",
+            label: "Find in note",
+            shortcut: "⌘F",
+            icon: <TextSearchIcon />,
+            run: () => actions.findInNote?.(),
+          },
+        ]
+      : []),
     ...(actions.exportPdf !== null
       ? [
           {

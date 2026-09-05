@@ -14,7 +14,13 @@ import { Button } from "@repo/ui/components/button";
 import { Textarea } from "@repo/ui/components/textarea";
 import { toast } from "@repo/ui/components/sonner";
 import { cn } from "@repo/ui/lib/utils";
-import { ArchiveIcon, ArrowLeftIcon, ChevronRightIcon } from "lucide-react";
+import {
+  ArchiveIcon,
+  ArchiveRestoreIcon,
+  ArrowLeftIcon,
+  ChevronRightIcon,
+  Trash2Icon,
+} from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -29,14 +35,21 @@ import { HistoryTab } from "./history-tab";
 import { TimelineRowView } from "./timeline-rows";
 import { useWorkspace } from "../workspace-context";
 
-export type PanelTab = "actions" | "comments" | "history";
+export type PanelTab = "actions" | "comments" | "history" | "settings";
 
-const PANEL_TABS: readonly PanelTab[] = ["actions", "comments", "history"];
+const PANEL_TABS: readonly PanelTab[] = ["actions", "comments", "history", "settings"];
 const PANEL_TAB_LABELS = {
   actions: "Actions",
   comments: "Comments",
   history: "History",
+  settings: "Settings",
 } satisfies Record<PanelTab, string>;
+
+// the note's own buttons: deleting it, and the list a deleted note comes back from
+interface NoteSettingsActions {
+  deleteNote: () => void;
+  openDeletedNotes: () => void;
+}
 
 export interface ActionsPanelProps {
   docPath: string | null;
@@ -47,6 +60,7 @@ export interface ActionsPanelProps {
   selectedThreadId: string | null;
   onSelectThread: (threadId: string | null) => void;
   onOpenDoc: (path: string) => void;
+  noteSettings: NoteSettingsActions;
 }
 
 function InlineProperties({
@@ -73,7 +87,7 @@ function InlineProperties({
         Properties
       </button>
       {open ? (
-        <div className="max-h-56 overflow-y-auto px-3 pb-2">
+        <div className="px-3 pb-2">
           {editor !== null ? (
             <PropertiesPanel editor={editor} />
           ) : (
@@ -81,6 +95,56 @@ function InlineProperties({
           )}
         </div>
       ) : null}
+    </div>
+  );
+}
+
+function NoteSettingsTab({
+  docPath,
+  propertiesOpen,
+  onPropertiesOpenChange,
+  onOpenDoc,
+  actions,
+}: {
+  docPath: string | null;
+  propertiesOpen: boolean;
+  onPropertiesOpenChange: (open: boolean) => void;
+  onOpenDoc: (path: string) => void;
+  actions: NoteSettingsActions;
+}) {
+  if (docPath === null) {
+    return <p className="p-3 text-sm text-muted-foreground">Open a note to see its settings.</p>;
+  }
+  return (
+    <div className="min-h-0 flex-1 overflow-y-auto">
+      <InlineProperties
+        docPath={docPath}
+        open={propertiesOpen}
+        onOpenChange={onPropertiesOpenChange}
+      />
+      <RelatedInline docPath={docPath} onOpenDoc={onOpenDoc} />
+      <div className="px-3 py-2">
+        <p className="pb-1 text-[11px] font-medium text-muted-foreground uppercase">Note</p>
+        <div className="-ml-2 flex flex-col items-start">
+          <Button
+            variant="ghost"
+            size="compact"
+            leadingIcon={Trash2Icon}
+            className="text-destructive hover:text-destructive"
+            onClick={actions.deleteNote}
+          >
+            Delete note
+          </Button>
+          <Button
+            variant="ghost"
+            size="compact"
+            leadingIcon={ArchiveRestoreIcon}
+            onClick={actions.openDeletedNotes}
+          >
+            Deleted notes…
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -260,6 +324,7 @@ export function ActionsPanel({
   selectedThreadId,
   onSelectThread,
   onOpenDoc,
+  noteSettings,
 }: ActionsPanelProps) {
   const [propertiesOpen, setPropertiesOpen] = useState(true);
   const threadsQuery = useThreads();
@@ -286,19 +351,18 @@ export function ActionsPanel({
         </TabsSubtle>
       </div>
 
-      {docPath !== null ? (
-        <InlineProperties
-          docPath={docPath}
-          open={propertiesOpen}
-          onOpenChange={setPropertiesOpen}
-        />
-      ) : null}
-      {docPath !== null ? <RelatedInline docPath={docPath} onOpenDoc={onOpenDoc} /> : null}
-
       {tab === "comments" ? (
         <CommentsTab docPath={docPath} focusIds={commentFocus?.ids ?? []} />
       ) : tab === "history" ? (
         <HistoryTab key={docPath} docPath={docPath} />
+      ) : tab === "settings" ? (
+        <NoteSettingsTab
+          docPath={docPath}
+          propertiesOpen={propertiesOpen}
+          onPropertiesOpenChange={setPropertiesOpen}
+          onOpenDoc={onOpenDoc}
+          actions={noteSettings}
+        />
       ) : selectedThreadId !== null ? (
         <ActionDetail
           threadId={selectedThreadId}

@@ -17,6 +17,8 @@ import { platformShortcutModifier, useGlobalShortcuts } from "./global-shortcuts
 import { setAgentRequestActions } from "@repo/editor/agent-request";
 import { consumeSearchRequest, useSearchRequest } from "@repo/editor/search-request";
 import { EditorColumn } from "@repo/editor/editor-column";
+import { openFindBar } from "@repo/editor/find-bar";
+import { getLiveEditor } from "@repo/editor/live-editor";
 import { flushOpenNote } from "@repo/editor/note/open-note-flush";
 import { openDocPath } from "@repo/editor/note/open-doc";
 import { backTarget, createOpenNoteStore, forwardTarget } from "@repo/editor/note/open-note-store";
@@ -41,6 +43,7 @@ import {
   useVaultTree,
 } from "./vault-hooks";
 import { readSidebarWidth, writeSidebarWidth, readPanelOpen, writePanelOpen } from "./prefs";
+import { hasInsetTitleBar } from "./title-bar";
 import { useWorkspace } from "./workspace-context";
 
 export interface WorkspaceProps {
@@ -61,6 +64,7 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
   const [paletteQuery, setPaletteQuery] = useState("");
   const [deletedNotesOpen, setDeletedNotesOpen] = useState(false);
   const [shortcutModifier] = useState(platformShortcutModifier);
+  const [insetTitleBar] = useState(hasInsetTitleBar);
 
   // The action surface's state lives beside the note, never above it, so no
   // agent interaction can remount the editor.
@@ -177,6 +181,13 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
     [treeQuery.data, createNote],
   );
 
+  // the live editor is keyed by path, so a note mid-switch answers no editor and the bar stays shut
+  const findInNote = useCallback((): void => {
+    const { openPath: path } = noteStore.state();
+    const editor = path === null ? null : getLiveEditor(path);
+    if (editor !== null) openFindBar(editor);
+  }, [noteStore]);
+
   const openDailyNote = useCallback((): void => {
     const now = new Date();
     // Create-exclusive rather than checking the tree first, which can be stale.
@@ -238,6 +249,9 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
         setPaletteQuery("");
         setPaletteOpen((current) => !current);
         break;
+      case "find-in-note":
+        findInNote();
+        break;
       case "open-daily-note":
         openDailyNote();
         break;
@@ -265,6 +279,7 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
       syncNow,
       openSettings: onOpenSettings,
       openDeletedNotes: () => setDeletedNotesOpen(true),
+      findInNote: openPath === null ? null : findInNote,
       exportPdf:
         openPath === null
           ? null
@@ -272,7 +287,27 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
               exportNoteAsPdf(docStem(openPath));
             },
     }),
-    [setOpenNote, newUntitledNote, openDailyNote, openThread, syncNow, onOpenSettings, openPath],
+    [
+      setOpenNote,
+      newUntitledNote,
+      openDailyNote,
+      openThread,
+      syncNow,
+      onOpenSettings,
+      findInNote,
+      openPath,
+    ],
+  );
+
+  const noteSettings = useMemo(
+    () => ({
+      deleteNote: () => {
+        const { openPath: path } = noteStore.state();
+        if (path !== null) treeOps.removeEntry(path, "file");
+      },
+      openDeletedNotes: () => setDeletedNotesOpen(true),
+    }),
+    [noteStore, treeOps],
   );
 
   const threads = threadsQuery.data?.threads ?? EMPTY_THREADS;
@@ -334,6 +369,7 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
                     setZen(false);
                     setRailOpen((open) => !open);
                   }}
+                  insetTitleBar={insetTitleBar}
                   canBack={back !== null}
                   canForward={forward !== null}
                   onBack={() => {
@@ -342,10 +378,7 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
                   onForward={() => {
                     goTo(forward);
                   }}
-                  onOpenSearch={() => {
-                    setPaletteQuery("");
-                    setPaletteOpen(true);
-                  }}
+                  onFindInNote={findInNote}
                   commentCount={openCommentCount}
                   onOpenComments={() => {
                     setPanelOpenPersisted(true);
@@ -381,6 +414,7 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
                 selectedThreadId={panelThreadId}
                 onSelectThread={setPanelThreadId}
                 onOpenDoc={setOpenNote}
+                noteSettings={noteSettings}
               />
             </Sidebar>
           </SidebarProvider>
