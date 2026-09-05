@@ -365,7 +365,6 @@ export default function Transclusion({ body }: { body: string }) {
         <button
           type="button"
           onClick={onOpen}
-          title={target}
           className="cursor-pointer truncate text-xs font-medium text-muted-foreground transition-colors hover:text-primary"
         >
           {title}

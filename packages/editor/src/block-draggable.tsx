@@ -125,6 +125,8 @@ function Draggable(props: PlateElementProps) {
     editor.getApi(BlockMenuPlugin).blockMenu.show(id, { x: rect.left, y: rect.bottom + 4 });
   };
 
+  // The two handles keep a native title, the one exception to the product tooltip: one
+  // Tooltip root per block in a long note is a cost nobody measured.
   // CSS.Translate, not CSS.Transform: the sortable transform carries a scale when
   // the drag-over block differs in size, which stretches the dragged block. The
   // gutter's font-size follows the heading so its em-sized box centers on the first line.

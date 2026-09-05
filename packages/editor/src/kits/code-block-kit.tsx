@@ -52,7 +52,6 @@ function MermaidCodeBlock(props: PlateElementProps) {
           type="button"
           onMouseDown={(e) => e.preventDefault()}
           onClick={() => (mode === "preview" ? setMode("source") : showPreview())}
-          title={mode === "preview" ? "Edit source" : "Show diagram"}
           className="flex items-center gap-1 rounded-md border border-border bg-background px-1.5 py-0.5 text-xs text-muted-foreground opacity-0 transition-opacity group-hover/mermaid:opacity-100 hover:bg-accent hover:text-foreground"
         >
           {mode === "preview" ? <CodeIcon className="size-3" /> : <EyeIcon className="size-3" />}

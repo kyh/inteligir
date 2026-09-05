@@ -3,6 +3,7 @@
 
 import { useState } from "react";
 
+import { Tooltip } from "@repo/ui/components/tooltip";
 import { cn } from "@repo/ui/lib/utils";
 
 import type { ChartPayload } from "./chart-node";
@@ -248,17 +249,19 @@ export function ChartGridEditor({
                 </td>
               ))}
               <td className="w-6 text-center">
-                <button
-                  type="button"
-                  aria-label={`Remove row ${String(row + 1)}`}
-                  className="text-xs text-muted-foreground opacity-0 group-hover/chartrow:opacity-100 hover:text-destructive"
-                  onClick={() => {
-                    const next = chartWithRowRemoved(chart, row);
-                    if (next !== null) onCommit(next);
-                  }}
-                >
-                  ×
-                </button>
+                <Tooltip content={`Remove row ${String(row + 1)}`}>
+                  <button
+                    type="button"
+                    aria-label={`Remove row ${String(row + 1)}`}
+                    className="text-xs text-muted-foreground opacity-0 group-hover/chartrow:opacity-100 hover:text-destructive"
+                    onClick={() => {
+                      const next = chartWithRowRemoved(chart, row);
+                      if (next !== null) onCommit(next);
+                    }}
+                  >
+                    ×
+                  </button>
+                </Tooltip>
               </td>
             </tr>
           ))}
