@@ -13,8 +13,6 @@ const harnessIdSchema = z.string().transform((value, ctx) => {
 
 const agentPrefsSchema = z.object({ defaultHarness: harnessIdSchema.optional() }).strict();
 
-export type AgentPrefs = z.infer<typeof agentPrefsSchema>;
-
 // read per thread start, so a Settings change reaches the next action without a reboot
 export class AgentPrefsStore extends JsonFileStore<typeof agentPrefsSchema> {
   constructor(dataDir: string) {

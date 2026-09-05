@@ -1,4 +1,5 @@
 import { existsSync, realpathSync } from "node:fs";
+import { z } from "zod";
 import { dirname, join } from "node:path";
 import { autoUpdater } from "electron-updater";
 import {
@@ -213,21 +214,27 @@ function configurePathActionsIpc(): void {
       path: request.path,
       realpath: realpathSync,
     });
-  ipcMain.handle(IPC_CHANNELS.REVEAL_PATH, (event, frame): PathActionResult => {
-    if (!fromMainWindow(event)) throw new Error("refused");
-    const verdict = resolve(pathActionRequestSchema.parse(frame));
-    if (!verdict.ok) return verdict;
-    shell.showItemInFolder(verdict.absPath);
-    return { ok: true };
-  });
-  ipcMain.handle(IPC_CHANNELS.OPEN_PATH, async (event, frame): Promise<PathActionResult> => {
-    if (!fromMainWindow(event)) throw new Error("refused");
-    const verdict = resolve(pathActionRequestSchema.parse(frame));
-    if (!verdict.ok) return verdict;
-    // answers "" when the OS took the file, else its own words for why not
-    const refusal = await shell.openPath(verdict.absPath);
-    return refusal === "" ? { ok: true } : { ok: false, reason: refusal };
-  });
+  handleFromMainWindow(
+    IPC_CHANNELS.REVEAL_PATH,
+    pathActionRequestSchema,
+    (frame): PathActionResult => {
+      const verdict = resolve(frame);
+      if (!verdict.ok) return verdict;
+      shell.showItemInFolder(verdict.absPath);
+      return { ok: true };
+    },
+  );
+  handleFromMainWindow(
+    IPC_CHANNELS.OPEN_PATH,
+    pathActionRequestSchema,
+    async (frame): Promise<PathActionResult> => {
+      const verdict = resolve(frame);
+      if (!verdict.ok) return verdict;
+      // answers "" when the OS took the file, else its own words for why not
+      const refusal = await shell.openPath(verdict.absPath);
+      return refusal === "" ? { ok: true } : { ok: false, reason: refusal };
+    },
+  );
 }
 
 // once per vault, not per window: the partition is the data dir's, so a switch is a new session
@@ -338,6 +345,22 @@ function updateFeedDisabledReason(): string | null {
 function fromMainWindow(event: Electron.IpcMainInvokeEvent): boolean {
   return senderIsWindow(event.sender, mainWindow);
 }
+
+// every page-facing channel refuses a stranger's webContents before it reads a frame, and
+// the frame is parsed here, at the boundary, so a handler only ever sees a value it knows
+function handleFromMainWindow<TFrame, TAnswer>(
+  channel: string,
+  frameSchema: z.ZodType<TFrame>,
+  handler: (frame: TFrame) => TAnswer | Promise<TAnswer>,
+): void {
+  ipcMain.handle(channel, (event, frame) => {
+    if (!fromMainWindow(event)) throw new Error("refused");
+    return handler(frameSchema.parse(frame));
+  });
+}
+
+// a channel carrying no frame
+const noFrame = z.undefined();
 
 async function askToRestart(version: string): Promise<void> {
   const { response } = await dialog.showMessageBox({
@@ -463,20 +486,16 @@ function configureUpdates(): Updates {
     },
     log: logUpdater,
   });
-  ipcMain.handle(IPC_CHANNELS.UPDATE_GET_STATE, (event) => {
-    if (!fromMainWindow(event)) throw new Error("refused");
+  handleFromMainWindow(IPC_CHANNELS.UPDATE_GET_STATE, noFrame, () => {
     return created.state();
   });
-  ipcMain.handle(IPC_CHANNELS.UPDATE_CHECK, (event) => {
-    if (!fromMainWindow(event)) throw new Error("refused");
+  handleFromMainWindow(IPC_CHANNELS.UPDATE_CHECK, noFrame, () => {
     return created.check("settings");
   });
-  ipcMain.handle(IPC_CHANNELS.UPDATE_DOWNLOAD, (event) => {
-    if (!fromMainWindow(event)) throw new Error("refused");
+  handleFromMainWindow(IPC_CHANNELS.UPDATE_DOWNLOAD, noFrame, () => {
     return created.download();
   });
-  ipcMain.handle(IPC_CHANNELS.UPDATE_INSTALL, async (event) => {
-    if (!fromMainWindow(event)) throw new Error("refused");
+  handleFromMainWindow(IPC_CHANNELS.UPDATE_INSTALL, noFrame, async () => {
     await installUpdate();
     return created.state();
   });
@@ -493,14 +512,12 @@ function requireSpellcheck(): Spellcheck {
 // registered once per launch: a second `handle` on a channel throws, so every handler reads
 // the vault of the moment rather than closing over the first one
 function configureSpellcheckIpc(): void {
-  ipcMain.handle(IPC_CHANNELS.SPELLCHECK_GET_STATE, (event) => {
-    if (!fromMainWindow(event)) throw new Error("refused");
+  handleFromMainWindow(IPC_CHANNELS.SPELLCHECK_GET_STATE, noFrame, () => {
     return requireSpellcheck().state();
   });
   // the frame is parsed here, at the boundary: the page's choice reaches the session typed or not at all
-  ipcMain.handle(IPC_CHANNELS.SPELLCHECK_APPLY, (event, frame) => {
-    if (!fromMainWindow(event)) throw new Error("refused");
-    return requireSpellcheck().apply(spellcheckChoiceSchema.parse(frame));
+  handleFromMainWindow(IPC_CHANNELS.SPELLCHECK_APPLY, spellcheckChoiceSchema, (frame) => {
+    return requireSpellcheck().apply(frame);
   });
 }
 
@@ -632,12 +649,10 @@ async function pickAndSwitchFromMenu(): Promise<void> {
 }
 
 function configureVaultsIpc(): void {
-  ipcMain.handle(IPC_CHANNELS.VAULTS_GET_STATE, (event) => {
-    if (!fromMainWindow(event)) throw new Error("refused");
+  handleFromMainWindow(IPC_CHANNELS.VAULTS_GET_STATE, noFrame, () => {
     return vaultsState();
   });
-  ipcMain.handle(IPC_CHANNELS.VAULTS_PICK, async (event) => {
-    if (!fromMainWindow(event)) throw new Error("refused");
+  handleFromMainWindow(IPC_CHANNELS.VAULTS_PICK, noFrame, async () => {
     const picked = await pickVaultDir();
     if (picked !== null) {
       await switchVault(picked);
@@ -645,18 +660,15 @@ function configureVaultsIpc(): void {
     return vaultsState();
   });
   // only a path this process handed out comes back: the list is the page's whole vocabulary
-  ipcMain.handle(IPC_CHANNELS.VAULTS_OPEN, async (event, frame) => {
-    if (!fromMainWindow(event)) throw new Error("refused");
-    const path = vaultPathSchema.parse(frame);
+  handleFromMainWindow(IPC_CHANNELS.VAULTS_OPEN, vaultPathSchema, async (path) => {
     if (!recentVaults.includes(path)) {
       throw new Error("That vault is not one the app remembers.");
     }
     await switchVault(path);
     return vaultsState();
   });
-  ipcMain.handle(IPC_CHANNELS.VAULTS_FORGET, (event, frame) => {
-    if (!fromMainWindow(event)) throw new Error("refused");
-    setRecentVaults(forgetVault(recentVaults, vaultPathSchema.parse(frame)));
+  handleFromMainWindow(IPC_CHANNELS.VAULTS_FORGET, vaultPathSchema, (frame) => {
+    setRecentVaults(forgetVault(recentVaults, frame));
     return vaultsState();
   });
 }

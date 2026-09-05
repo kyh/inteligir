@@ -30,6 +30,9 @@ export const IPC_CHANNELS = {
 
 export const socketOriginSchema = z.string().url();
 
+// what a page may send across a channel: plain JSON, structured-clone-safe
+export type IpcFrame = string | number | boolean | null | IpcFrame[] | { [key: string]: IpcFrame };
+
 // the preload parses every frame against update-state.ts before it reaches the page
 export interface DesktopUpdatesBridge {
   getState(): Promise<UpdateState>;
