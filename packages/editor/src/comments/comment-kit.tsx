@@ -15,6 +15,7 @@ import { stringProp } from "@repo/editor/node-props";
 import { useOpenNotePath } from "@repo/editor/note/open-note-context";
 import { cn } from "@repo/ui/lib/utils";
 import { Button } from "@repo/ui/components/button";
+import { Popover, PopoverContent } from "@repo/ui/components/popover";
 import { Textarea } from "@repo/ui/components/textarea";
 import { mintCommentId } from "@repo/notes/comments/sidecar-schema";
 
@@ -72,8 +73,15 @@ function beginCreate(editor: SlateEditor): boolean {
     path,
     rect:
       rect === null
-        ? { bottom: 120, left: 120, top: 100 }
-        : { bottom: rect.bottom, left: rect.left, top: rect.top },
+        ? { bottom: 120, left: 120, top: 100, right: 120, width: 0, height: 20 }
+        : {
+            bottom: rect.bottom,
+            left: rect.left,
+            top: rect.top,
+            right: rect.right,
+            width: rect.width,
+            height: rect.height,
+          },
   });
   return true;
 }
@@ -124,43 +132,44 @@ function CommentCreateHost() {
     })();
   };
 
+  // a virtual anchor: the selection's box is what the markers were minted around, and the
+  // selection itself is gone once the field takes focus
+  const anchor = { getBoundingClientRect: () => DOMRect.fromRect(pending.rect) };
   return (
-    <div
-      className="fixed z-50 w-72 rounded-lg border border-border bg-popover p-2 shadow-md"
-      style={{ left: pending.rect.left, top: pending.rect.bottom + 8 }}
-      onKeyDown={(event) => {
-        if (event.key === "Escape") {
-          event.preventDefault();
-          cancel();
-        }
+    <Popover
+      open
+      onOpenChange={(open) => {
+        if (!open) cancel();
       }}
     >
-      <Textarea
-        ref={fieldRef}
-        aria-label="Comment"
-        placeholder="Comment…"
-        value={text}
-        rows={2}
-        className="mb-2 resize-none"
-        onChange={(event) => {
-          setText(event.target.value);
-        }}
-        onKeyDown={(event) => {
-          if (event.key === "Enter" && !event.shiftKey) {
-            event.preventDefault();
-            save();
-          }
-        }}
-      />
-      <div className="flex justify-end gap-1.5">
-        <Button size="compact" variant="ghost" onClick={cancel}>
-          Cancel
-        </Button>
-        <Button size="compact" disabled={saving || text.trim() === ""} onClick={save}>
-          Save
-        </Button>
-      </div>
-    </div>
+      <PopoverContent anchor={anchor} side="bottom" align="start" className="gap-2 p-2">
+        <Textarea
+          ref={fieldRef}
+          aria-label="Comment"
+          placeholder="Comment…"
+          value={text}
+          rows={2}
+          className="mb-2 resize-none"
+          onChange={(event) => {
+            setText(event.target.value);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && !event.shiftKey) {
+              event.preventDefault();
+              save();
+            }
+          }}
+        />
+        <div className="flex justify-end gap-1.5">
+          <Button size="compact" variant="ghost" onClick={cancel}>
+            Cancel
+          </Button>
+          <Button size="compact" disabled={saving || text.trim() === ""} onClick={save}>
+            Save
+          </Button>
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }
 

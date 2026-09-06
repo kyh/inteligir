@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   KEYS,
   createSlatePlugin,
@@ -32,12 +32,14 @@ export const InlineConstructsBaseKit = [formulaPillBasePlugin, commentMarkerBase
 
 function FormulaPillElement(props: PlateElementProps) {
   const [editing, setEditing] = useState(false);
+  const pillRef = useRef<HTMLSpanElement | null>(null);
   const source = stringProp(props.element, "source") ?? "";
   const display = stringProp(props.element, "display") ?? "";
   const meta = parseFormulaMeta(stringProp(props.element, "meta"));
   return (
     <PlateElement {...props} as="span" className="relative inline-block">
       <span
+        ref={pillRef}
         contentEditable={false}
         role="button"
         tabIndex={-1}
@@ -55,6 +57,7 @@ function FormulaPillElement(props: PlateElementProps) {
       {editing ? (
         <FormulaEditPopover
           element={props.element}
+          anchor={pillRef}
           onClose={() => {
             setEditing(false);
           }}

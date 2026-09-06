@@ -62,19 +62,31 @@ describe("the comment surface", () => {
   });
 
   it("draws the create popover for the note that minted the markers", () => {
-    setPendingCreate({ id: "abc", path: OPEN_PATH, rect: { bottom: 20, left: 10, top: 10 } });
+    setPendingCreate({
+      id: "abc",
+      path: OPEN_PATH,
+      rect: { bottom: 20, left: 10, top: 10, right: 10, width: 0, height: 0 },
+    });
 
     expect(renderOpenNote().getAllByLabelText("Comment")).toHaveLength(1);
   });
 
   it("draws no popover for a create minted in a note that is no longer open", () => {
-    setPendingCreate({ id: "abc", path: OTHER_PATH, rect: { bottom: 20, left: 10, top: 10 } });
+    setPendingCreate({
+      id: "abc",
+      path: OTHER_PATH,
+      rect: { bottom: 20, left: 10, top: 10, right: 10, width: 0, height: 0 },
+    });
 
     expect(renderOpenNote().queryByLabelText("Comment")).toBeNull();
   });
 
   it("cancels the markers out of the document that holds them", () => {
-    setPendingCreate({ id: "abc", path: OPEN_PATH, rect: { bottom: 20, left: 10, top: 10 } });
+    setPendingCreate({
+      id: "abc",
+      path: OPEN_PATH,
+      rect: { bottom: 20, left: 10, top: 10, right: 10, width: 0, height: 0 },
+    });
 
     const view = renderOpenNote();
     fireEvent.click(view.getByRole("button", { name: "Cancel" }));

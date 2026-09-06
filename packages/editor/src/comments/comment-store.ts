@@ -13,7 +13,8 @@ export type CommentActions = {
 export type PendingCreate = {
   id: string;
   path: string;
-  rect: { top: number; left: number; bottom: number };
+  // the selection's box when the markers were minted: a virtual anchor for the create popup
+  rect: { top: number; left: number; bottom: number; right: number; width: number; height: number };
 };
 
 export type CommentMeta = {

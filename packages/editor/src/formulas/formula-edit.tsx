@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { NodeApi, type NodeEntry, type SlateEditor, type TElement } from "platejs";
 import { useEditorRef } from "platejs/react";
 
+import { Popover, PopoverContent } from "@repo/ui/components/popover";
+
 import { parseFormulaMeta } from "@repo/notes/formulas/formula-meta";
 import {
   entryTextOf,
@@ -53,9 +55,11 @@ export function convertFormulaToText(editor: SlateEditor, element: TElement): vo
 
 export function FormulaEditPopover({
   element,
+  anchor,
   onClose,
 }: {
   element: TElement;
+  anchor: React.RefObject<HTMLElement | null>;
   onClose: () => void;
 }) {
   const editor = useEditorRef();
@@ -76,30 +80,39 @@ export function FormulaEditPopover({
   };
 
   return (
-    <span
-      contentEditable={false}
-      className="absolute top-full left-0 z-40 mt-1 flex items-center gap-1 rounded-md border border-border bg-popover p-1 shadow-md"
+    <Popover
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
     >
-      <input
-        ref={inputRef}
-        aria-label="Edit formula"
-        className="w-48 rounded-sm bg-transparent px-1.5 py-0.5 font-mono text-xs outline-none"
-        value={entry}
-        onChange={(event) => {
-          setEntry(event.target.value);
-        }}
-        onKeyDown={(event) => {
-          if (event.key === "Enter") {
-            event.preventDefault();
-            save();
-          }
-          if (event.key === "Escape") {
-            event.preventDefault();
-            onClose();
-          }
-        }}
-        onBlur={onClose}
-      />
-    </span>
+      <PopoverContent
+        anchor={anchor}
+        side="bottom"
+        align="start"
+        className="w-auto flex-row items-center gap-1 p-1"
+      >
+        <input
+          ref={inputRef}
+          aria-label="Edit formula"
+          className="w-48 rounded-sm bg-transparent px-1.5 py-0.5 font-mono text-xs outline-none"
+          value={entry}
+          onChange={(event) => {
+            setEntry(event.target.value);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              save();
+            }
+            if (event.key === "Escape") {
+              event.preventDefault();
+              onClose();
+            }
+          }}
+          onBlur={onClose}
+        />
+      </PopoverContent>
+    </Popover>
   );
 }
