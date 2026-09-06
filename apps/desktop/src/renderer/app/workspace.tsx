@@ -66,13 +66,14 @@ import {
 import {
   readPanelOpen,
   readSidebarFolder,
-  readSidebarView,
+  readRailSections,
   readSidebarWidth,
   writePanelOpen,
   writeSidebarFolder,
-  writeSidebarView,
+  writeRailSections,
   writeSidebarWidth,
-  type SidebarView,
+  type RailSection,
+  type RailSections,
 } from "./prefs";
 import { hasInsetTitleBar } from "./title-bar";
 import { useWorkspace } from "./workspace-context";
@@ -224,10 +225,14 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
   }, []);
   // the rail's view and its tag, owned here for the same reason: a `#tag` chip deep in the note
   // sets both, and it reaches the shell through the editor's action registry
-  const [sidebarView, setSidebarView] = useState<SidebarView>(readSidebarView);
-  const chooseView = useCallback((view: SidebarView): void => {
-    writeSidebarView(view);
-    setSidebarView(view);
+  const [railSections, setRailSections] = useState<RailSections>(readRailSections);
+  const setSectionOpen = useCallback((section: RailSection, open: boolean): void => {
+    setRailSections((current) => {
+      if (current[section] === open) return current;
+      const next = { ...current, [section]: open };
+      writeRailSections(next);
+      return next;
+    });
   }, []);
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
 
@@ -380,14 +385,14 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
       showTag: (tag) => {
         setZen(false);
         setRailOpen(true);
-        chooseView("tags");
+        setSectionOpen("tags", true);
         setSelectedTag(tag);
       },
     });
     return () => {
       setAgentRequestActions(null);
     };
-  }, [chooseView]);
+  }, [setSectionOpen]);
 
   useGlobalShortcuts(shortcutModifier, (action) => {
     switch (action) {
@@ -542,8 +547,8 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
             onMoveRequest={(path) => {
               openPalette("move-to-folder", { subject: path });
             }}
-            view={sidebarView}
-            onViewChange={chooseView}
+            sections={railSections}
+            onSectionOpenChange={setSectionOpen}
             selectedTag={selectedTag}
             onSelectTag={setSelectedTag}
             folder={sidebarFolder}

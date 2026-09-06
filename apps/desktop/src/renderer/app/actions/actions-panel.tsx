@@ -25,7 +25,7 @@ import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { orpc } from "../api";
-import { PanelSection } from "./panel-section";
+import { FoldSection } from "../fold-section";
 import { ApprovalCard } from "./approval-card";
 import { THREAD_ACTIVITY_LABELS, threadActivity, type ThreadActivity } from "../thread-activity";
 import { sendToThread } from "./send-to-thread";
@@ -78,7 +78,7 @@ function InlineProperties({
 }) {
   const editor = open ? getLiveEditor(docPath) : null;
   return (
-    <PanelSection label="Properties" open={open} onOpenChange={onOpenChange}>
+    <FoldSection label="Properties" open={open} onOpenChange={onOpenChange}>
       <div className="px-3 pb-2">
         {editor !== null ? (
           <PropertiesPanel editor={editor} />
@@ -86,7 +86,7 @@ function InlineProperties({
           <p className="pb-1 text-xs text-muted-foreground">Open the note to edit properties.</p>
         )}
       </div>
-    </PanelSection>
+    </FoldSection>
   );
 }
 

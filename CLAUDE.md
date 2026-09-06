@@ -973,12 +973,19 @@ create`, never by electron-builder. `autoDownload` and `autoInstallOnAppQuit`
   leaves another route's `confirm()` parked on a dialog that never opens.
 
 - **THE RAIL IS THE WORKSPACE; THE TOP BAR IS THE OPEN NOTE.** The rail's
-  header is two rows: the vault button alone (recent vaults, Open another
-  vault…), because a vault's name is the one label that must never truncate,
-  then the Recent | Files | Tags switch beside New note and New folder; sync,
-  deleted notes and Settings follow. The rail carries no search box: ⌘P and
-  ⌘⇧F are the search surfaces and the palette carries its own field, so a
-  third input above the tree's filter was one more thing to read. Find in note, copy link, comments,
+  header is one row, the vault button alone (recent vaults, Open another
+  vault…), because a vault's name is the one label that must never truncate.
+  Under it, RECENT, FILES and TAGS are stacked collapsible sections
+  (`app/fold-section.tsx`, the same fold header the panel's Metadata tab
+  draws), not a tab switch: FILES carries its actions in its header on hover
+  (New note, New folder, the filter toggle, sort, Collapse all), RECENT is
+  capped to a handful of rows because the palette lists every note, and TAGS
+  starts folded. The open set is the workspace's (`railSections` in
+  `app/prefs.ts`), because a `#tag` chip opens TAGS and a create opens FILES.
+  The filter row shows on its toggle or while it has text, and Escape clears
+  and hides it. The rail carries no search box: ⌘P and ⌘⇧F are the search
+  surfaces and the palette carries its own field, so a third input above the
+  tree's filter was one more thing to read. Find in note, copy link, comments,
   export and the panel toggle live above the note. The folder scope is set by the top bar's breadcrumb
   and cleared from the scope row above the list, never picked in the header:
   the header switches the vault, the breadcrumb narrows within it. Two lists, one rule: the
@@ -988,8 +995,8 @@ create`, never by electron-builder. `autoDownload` and `autoInstallOnAppQuit`
   create lands where an IDE's would, in the tree's selected folder, else at the
   scope, both derived from it rather than requested through a nonce or a
   callback; the header's pending create is a plain prop the tree reports done.
-  The view and the selected tag are the workspace's, because a `#tag` chip sets
-  both. One `useVaultSwitch` and one `RecentVaultLabel`
+  The selected tag is the workspace's like the open set, because a `#tag`
+  chip sets both. One `useVaultSwitch` and one `RecentVaultLabel`
   (`app/desktop-vaults.tsx`) serve the rail's vault button and Settings alike.
   The rail hides what the user did not write
   (`@repo/notes/knowledge/doc-file`'s `isVaultMetadataPath`: comment sidecars,

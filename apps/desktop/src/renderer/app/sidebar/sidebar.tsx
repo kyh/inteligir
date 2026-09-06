@@ -7,13 +7,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@repo/ui/components/dropdown-menu";
-import {
-  SidebarContent,
-  SidebarFooter,
-  SidebarHeader,
-  SidebarInput,
-} from "@repo/ui/components/sidebar";
-import { TabsSubtle, TabsSubtleItem } from "@repo/ui/components/tabs-subtle";
+import { SidebarFooter, SidebarHeader, SidebarInput } from "@repo/ui/components/sidebar";
 import { cn } from "@repo/ui/lib/utils";
 import { isVaultMetadataPath } from "@repo/notes/knowledge/doc-file";
 import type { VaultEntry } from "@repo/api/local/vault/vault-schema";
@@ -28,6 +22,7 @@ import {
   FolderIcon,
   FolderOpenIcon,
   FolderPlusIcon,
+  ListFilterIcon,
   SettingsIcon,
   VaultIcon,
 } from "lucide-react";
@@ -40,7 +35,14 @@ import {
   useDesktopVaults,
   useVaultSwitch,
 } from "../desktop-vaults";
-import { readTreeSort, writeTreeSort, type SidebarView, type TreeSort } from "../prefs";
+import { FoldSection } from "../fold-section";
+import {
+  readTreeSort,
+  writeTreeSort,
+  type RailSection,
+  type RailSections,
+  type TreeSort,
+} from "../prefs";
 import { hasInsetTitleBar } from "../title-bar";
 import {
   canSyncNow,
@@ -102,13 +104,8 @@ function SyncStatusRow({ onSyncNow }: { onSyncNow: () => void }) {
 const VAULT_TRIGGER_CLASS =
   "flex h-chrome-row max-w-full min-w-0 items-center gap-1 rounded-md px-1.5 text-sm font-medium outline-none";
 
-// the switch's order; the pref stores the name, never the index
-const SIDEBAR_VIEWS: readonly SidebarView[] = ["recents", "tree", "tags"];
-const SIDEBAR_VIEW_LABELS = {
-  recents: "Recent",
-  tree: "Files",
-  tags: "Tags",
-} satisfies Record<SidebarView, string>;
+// the rows the Recent section shows; the palette lists every note
+const RECENT_LIMIT = 8;
 
 // The vault is the server's: switching it restarts the child and replaces this window, and the
 // folder is picked in main, so this is a menu over what main remembers. A browser tab has no
@@ -189,9 +186,10 @@ export interface SidebarRailContentProps {
   onOpenSettings: () => void;
   onOpenDeletedNotes: () => void;
   onMoveRequest: (path: string) => void;
-  // the view and the tag are the workspace's: a `#tag` chip in the note sets both
-  view: SidebarView;
-  onViewChange: (view: SidebarView) => void;
+  // which sections are unfolded, and the tag: the workspace's, since a `#tag` chip in the note
+  // opens Tags and selects, and a create opens Files
+  sections: RailSections;
+  onSectionOpenChange: (section: RailSection, open: boolean) => void;
   selectedTag: string | null;
   onSelectTag: (tag: string | null) => void;
   // the listing's folder ("" is the vault): owned by the workspace, since the top bar's
@@ -208,8 +206,8 @@ export function SidebarRailContent({
   onOpenSettings,
   onOpenDeletedNotes,
   onMoveRequest,
-  view,
-  onViewChange,
+  sections,
+  onSectionOpenChange,
   selectedTag,
   onSelectTag,
   folder,
@@ -222,6 +220,7 @@ export function SidebarRailContent({
   const [treeSort, setTreeSort] = useState<TreeSort>(readTreeSort);
   // not persisted: a filter is a question about now
   const [treeFilter, setTreeFilter] = useState("");
+  const [filterOpen, setFilterOpen] = useState(false);
   const [insetTitleBar] = useState(hasInsetTitleBar);
 
   const entries = treeQuery.data?.entries ?? EMPTY_ENTRIES;
@@ -230,102 +229,91 @@ export function SidebarRailContent({
   const scope = treeQuery.data !== undefined && !folders.has(folder) ? "" : folder;
   const scoped = useMemo(() => entriesUnder(entries, scope), [entries, scope]);
 
-  const showTree = view === "tree";
-  // A create lands where an IDE's would: in the tree's selected folder. The recents view
-  // selects nothing, so it lands at the scope.
+  // A create lands where an IDE's would: in the tree's selected folder, else at the scope.
   const startCreate = (kind: "file" | "dir"): void => {
-    onViewChange("tree");
-    const parentDir = showTree
-      ? createDirFor(scope, tree.activePath, (path) => folders.has(path))
-      : scope;
-    setPendingCreate({ kind, parentDir });
+    onSectionOpenChange("files", true);
+    setPendingCreate({
+      kind,
+      parentDir: createDirFor(scope, tree.activePath, (path) => folders.has(path)),
+    });
+  };
+  const closeFilter = (): void => {
+    setTreeFilter("");
+    setFilterOpen(false);
   };
 
+  const filesActions = (
+    <>
+      <Button
+        variant="ghost"
+        size="icon-compact"
+        aria-label="New note"
+        onClick={() => {
+          startCreate("file");
+        }}
+      >
+        <FilePlusIcon />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon-compact"
+        aria-label="New folder"
+        onClick={() => {
+          startCreate("dir");
+        }}
+      >
+        <FolderPlusIcon />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon-compact"
+        aria-label={filterOpen ? "Hide filter" : "Show filter"}
+        aria-pressed={filterOpen}
+        onClick={() => {
+          if (filterOpen) {
+            closeFilter();
+          } else {
+            onSectionOpenChange("files", true);
+            setFilterOpen(true);
+          }
+        }}
+      >
+        <ListFilterIcon />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon-compact"
+        aria-label={treeSort === "name" ? "Sort by modified" : "Sort by name"}
+        onClick={() => {
+          const next: TreeSort = treeSort === "name" ? "modified" : "name";
+          writeTreeSort(next);
+          setTreeSort(next);
+        }}
+      >
+        {treeSort === "name" ? <ArrowDownAZIcon /> : <ClockArrowDownIcon />}
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon-compact"
+        aria-label="Collapse all"
+        onClick={tree.collapseAll}
+      >
+        <ChevronsDownUpIcon />
+      </Button>
+    </>
+  );
+
+  // The sections' host is a plain column, not SidebarContent: its ScrollArea gives the column no
+  // height, and each section scrolls on its own.
   return (
     <>
-      <SidebarHeader className="gap-2">
+      <SidebarHeader>
         {insetTitleBar ? (
           <div aria-hidden="true" className="h-5 shrink-0 [-webkit-app-region:drag]" />
         ) : null}
         <VaultButton vaultName={treeQuery.data?.name ?? "Vault"} />
-        <div className="flex items-center justify-between gap-1">
-          <TabsSubtle
-            aria-label="Sidebar view"
-            size="compact"
-            selectedIndex={SIDEBAR_VIEWS.indexOf(view)}
-            onSelect={(index) => {
-              const next = SIDEBAR_VIEWS[index];
-              if (next !== undefined) onViewChange(next);
-            }}
-          >
-            {SIDEBAR_VIEWS.map((name, index) => (
-              <TabsSubtleItem key={name} index={index} label={SIDEBAR_VIEW_LABELS[name]} />
-            ))}
-          </TabsSubtle>
-          <div className="flex shrink-0 items-center gap-0.5">
-            <Button
-              variant="ghost"
-              size="icon-compact"
-              aria-label="New note"
-              onClick={() => {
-                startCreate("file");
-              }}
-            >
-              <FilePlusIcon />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon-compact"
-              aria-label="New folder"
-              onClick={() => {
-                startCreate("dir");
-              }}
-            >
-              <FolderPlusIcon />
-            </Button>
-          </div>
-        </div>
-        {showTree ? (
-          <div className="flex items-center gap-0.5">
-            <SidebarInput
-              value={treeFilter}
-              placeholder="Filter files…"
-              aria-label="Filter files"
-              onChange={(event) => {
-                setTreeFilter(event.currentTarget.value);
-              }}
-              onKeyDown={(event) => {
-                if (event.key === "Escape") {
-                  event.preventDefault();
-                  setTreeFilter("");
-                  event.currentTarget.blur();
-                }
-              }}
-            />
-            <Button
-              variant="ghost"
-              size="icon-compact"
-              aria-label={treeSort === "name" ? "Sort by modified" : "Sort by name"}
-              onClick={() => {
-                const next: TreeSort = treeSort === "name" ? "modified" : "name";
-                writeTreeSort(next);
-                setTreeSort(next);
-              }}
-            >
-              {treeSort === "name" ? <ArrowDownAZIcon /> : <ClockArrowDownIcon />}
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon-compact"
-              aria-label="Collapse all"
-              onClick={tree.collapseAll}
-            >
-              <ChevronsDownUpIcon />
-            </Button>
-          </div>
-        ) : null}
       </SidebarHeader>
-      <SidebarContent>
+      <div className="flex min-h-0 w-full flex-1 flex-col">
         {scope === "" ? null : (
           <FolderScopeHeader
             folder={scope}
@@ -334,44 +322,91 @@ export function SidebarRailContent({
             }}
           />
         )}
-        {showTree ? (
-          <FileTree
-            entries={scoped}
-            loadState={treeLoadState(treeQuery)}
-            onRetry={() => void treeQuery.refetch()}
-            openPath={openPath}
-            onOpenFile={onOpenFile}
-            ops={ops}
-            state={tree}
-            pendingCreate={pendingCreate}
-            onPendingCreateDone={() => setPendingCreate(null)}
-            rootDir={scope}
-            onMoveRequest={onMoveRequest}
-            pinnedPaths={pinnedPaths}
-            sort={treeSort}
-            filter={treeFilter}
-            vaultRoot={treeQuery.data?.root ?? null}
-          />
-        ) : view === "tags" ? (
-          <TagsPane
-            entries={scoped}
-            scope={scope}
-            openPath={openPath}
-            onOpenFile={onOpenFile}
-            onSetPinned={ops.setPinned}
-            selectedTag={selectedTag}
-            onSelectTag={onSelectTag}
-          />
-        ) : (
+        <FoldSection
+          label="Recent"
+          open={sections.recent}
+          onOpenChange={(open) => {
+            onSectionOpenChange("recent", open);
+          }}
+        >
           <NotesList
             entries={scoped}
             scope={scope}
             openPath={openPath}
             onOpenFile={onOpenFile}
             onSetPinned={ops.setPinned}
+            limit={RECENT_LIMIT}
           />
-        )}
-      </SidebarContent>
+        </FoldSection>
+        <FoldSection
+          label="Files"
+          fill
+          actions={filesActions}
+          open={sections.files}
+          onOpenChange={(open) => {
+            onSectionOpenChange("files", open);
+          }}
+        >
+          {filterOpen ? (
+            <div className="shrink-0 px-1 pb-1">
+              <SidebarInput
+                autoFocus
+                value={treeFilter}
+                placeholder="Filter files…"
+                aria-label="Filter files"
+                onChange={(event) => {
+                  setTreeFilter(event.currentTarget.value);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "Escape") {
+                    event.preventDefault();
+                    closeFilter();
+                  }
+                }}
+              />
+            </div>
+          ) : null}
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <FileTree
+              entries={scoped}
+              loadState={treeLoadState(treeQuery)}
+              onRetry={() => void treeQuery.refetch()}
+              openPath={openPath}
+              onOpenFile={onOpenFile}
+              ops={ops}
+              state={tree}
+              pendingCreate={pendingCreate}
+              onPendingCreateDone={() => setPendingCreate(null)}
+              rootDir={scope}
+              onMoveRequest={onMoveRequest}
+              pinnedPaths={pinnedPaths}
+              sort={treeSort}
+              filter={treeFilter}
+              vaultRoot={treeQuery.data?.root ?? null}
+            />
+          </div>
+        </FoldSection>
+        <FoldSection
+          label="Tags"
+          fill
+          open={sections.tags}
+          onOpenChange={(open) => {
+            onSectionOpenChange("tags", open);
+          }}
+        >
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <TagsPane
+              entries={scoped}
+              scope={scope}
+              openPath={openPath}
+              onOpenFile={onOpenFile}
+              onSetPinned={ops.setPinned}
+              selectedTag={selectedTag}
+              onSelectTag={onSelectTag}
+            />
+          </div>
+        </FoldSection>
+      </div>
       <SidebarFooter className="flex-row items-center justify-between">
         <SyncStatusRow onSyncNow={onSyncNow} />
         <div className="flex items-center">

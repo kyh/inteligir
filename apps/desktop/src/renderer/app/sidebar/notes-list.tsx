@@ -6,13 +6,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
 } from "@repo/ui/components/dropdown-menu";
-import {
-  SidebarGroup,
-  SidebarGroupLabel,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-} from "@repo/ui/components/sidebar";
+import { cn } from "@repo/ui/lib/utils";
 import { useState } from "react";
 import { relativeTimeLabel, useNow } from "../relative-time";
 import { usePinnedPaths } from "../vault-hooks";
@@ -34,6 +28,8 @@ export interface NotesListProps {
   emptyText?: string;
   // absent, a row has no menu
   onSetPinned?: (path: string, pinned: boolean) => void;
+  // the unpinned rows shown, newest first; absent, every one
+  limit?: number;
 }
 
 // One list by recency: folders are the tree view's business.
@@ -44,6 +40,7 @@ export function NotesList({
   onOpenFile,
   emptyText = "No notes yet.",
   onSetPinned,
+  limit,
 }: NotesListProps) {
   const pinnedPaths = usePinnedPaths();
   const now = useNow();
@@ -57,51 +54,55 @@ export function NotesList({
   }
 
   const pinned = notes.filter((note) => pinnedPaths.has(note.path));
-  const rest = notes.filter((note) => !pinnedPaths.has(note.path));
+  const unpinned = notes.filter((note) => !pinnedPaths.has(note.path));
+  const rest = limit === undefined ? unpinned : unpinned.slice(0, limit);
 
+  // the tree's row, so the two sections read as one list: full-bleed, square, one height
   const row = (note: FileEntry) => {
     const hint = folderHint(note.path, scope);
+    const isOpen = note.path === openPath;
     return (
-      <SidebarMenuItem key={note.path}>
-        <SidebarMenuButton
-          isActive={note.path === openPath}
-          title={note.path}
-          onClick={() => {
-            onOpenFile(note.path);
-          }}
-          onContextMenu={(event) => {
-            if (onSetPinned === undefined) return;
-            event.preventDefault();
-            setMenu({ path: note.path, anchor: event.currentTarget });
-          }}
-        >
-          <span className="truncate">{docStem(note.path)}</span>
-          {hint === "" ? null : (
-            <span className="min-w-0 truncate text-[11px] text-muted-foreground">{hint}</span>
-          )}
-          {note.modifiedMs === undefined ? null : (
-            <span className="ml-auto shrink-0 text-[11px] text-muted-foreground">
-              {relativeTimeLabel(note.modifiedMs, now)}
-            </span>
-          )}
-        </SidebarMenuButton>
-      </SidebarMenuItem>
+      <button
+        key={note.path}
+        type="button"
+        title={note.path}
+        aria-current={isOpen ? "page" : undefined}
+        className={cn(
+          "flex h-chrome-row w-full items-center gap-2 px-3 text-sm outline-none select-none",
+          "hover:bg-muted/60 focus-visible:bg-muted",
+          isOpen ? "bg-muted text-foreground" : "text-foreground/80",
+        )}
+        onClick={() => {
+          onOpenFile(note.path);
+        }}
+        onContextMenu={(event) => {
+          if (onSetPinned === undefined) return;
+          event.preventDefault();
+          setMenu({ path: note.path, anchor: event.currentTarget });
+        }}
+      >
+        <span className="min-w-0 truncate">{docStem(note.path)}</span>
+        {hint === "" ? null : (
+          <span className="min-w-0 truncate text-[11px] text-muted-foreground">{hint}</span>
+        )}
+        {note.modifiedMs === undefined ? null : (
+          <span className="ml-auto shrink-0 text-[11px] text-muted-foreground">
+            {relativeTimeLabel(note.modifiedMs, now)}
+          </span>
+        )}
+      </button>
     );
   };
 
   return (
-    <>
+    <div className="flex flex-col py-1">
       {pinned.length > 0 ? (
-        <SidebarGroup collapsible>
-          <SidebarGroupLabel>Pinned</SidebarGroupLabel>
-          <SidebarMenu>{pinned.map(row)}</SidebarMenu>
-        </SidebarGroup>
+        <p className="px-3 pt-1 pb-0.5 text-[11px] font-medium text-muted-foreground uppercase">
+          Pinned
+        </p>
       ) : null}
-      {rest.length > 0 ? (
-        <SidebarGroup>
-          <SidebarMenu>{rest.map(row)}</SidebarMenu>
-        </SidebarGroup>
-      ) : null}
+      {pinned.map(row)}
+      {rest.map(row)}
       <DropdownMenu
         open={menu !== null}
         onOpenChange={(open) => {
@@ -122,6 +123,6 @@ export function NotesList({
           </DropdownMenuContent>
         ) : null}
       </DropdownMenu>
-    </>
+    </div>
   );
 }

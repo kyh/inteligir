@@ -1,4 +1,5 @@
 import { SIDEBAR_MAX_WIDTH, SIDEBAR_MIN_WIDTH } from "@repo/ui/components/sidebar";
+import { z } from "zod";
 import { parseTheme, type Theme } from "@repo/ui/lib/theme";
 import { spellcheckChoiceSchema, type SpellcheckChoice } from "../../spellcheck-state";
 import { APPEARANCE_DEFAULTS, appearanceSchema, type Appearance } from "./appearance";
@@ -10,7 +11,7 @@ const KEYS = {
   theme: "inteligir.theme",
   appearance: "inteligir.appearance",
   relatedOpen: "inteligir.related-open",
-  sidebarView: "inteligir.sidebar-view",
+  railSections: "inteligir.rail-sections",
   sidebarFolder: "inteligir.sidebar-folder",
   treeSort: "inteligir.tree-sort",
   spellcheck: "inteligir.spellcheck",
@@ -77,15 +78,26 @@ export function writeRelatedOpen(open: boolean): void {
   write(KEYS.relatedOpen, open ? "true" : "false");
 }
 
-export type SidebarView = "recents" | "tree" | "tags";
+export type RailSection = "recent" | "files" | "tags";
+const railSectionsSchema = z.object({ recent: z.boolean(), files: z.boolean(), tags: z.boolean() });
+export type RailSections = z.infer<typeof railSectionsSchema>;
+const RAIL_SECTIONS_DEFAULT: RailSections = { recent: true, files: true, tags: false };
 
-export function readSidebarView(): SidebarView {
-  const raw = read(KEYS.sidebarView);
-  return raw === "tree" || raw === "tags" ? raw : "recents";
+// which of the rail's stacked sections are unfolded
+export function readRailSections(): RailSections {
+  const raw = read(KEYS.railSections);
+  if (raw === null) {
+    return RAIL_SECTIONS_DEFAULT;
+  }
+  try {
+    return railSectionsSchema.parse(JSON.parse(raw));
+  } catch {
+    return RAIL_SECTIONS_DEFAULT;
+  }
 }
 
-export function writeSidebarView(view: SidebarView): void {
-  write(KEYS.sidebarView, view);
+export function writeRailSections(sections: RailSections): void {
+  write(KEYS.railSections, JSON.stringify(sections));
 }
 
 // "" is the vault root. A remembered folder the vault no longer holds is the rail's to fall back from.

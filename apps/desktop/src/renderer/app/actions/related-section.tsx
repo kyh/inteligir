@@ -11,7 +11,7 @@ import { useState } from "react";
 
 import { orpc } from "../api";
 import { readRelatedOpen, writeRelatedOpen } from "../prefs";
-import { PanelSection } from "./panel-section";
+import { FoldSection } from "../fold-section";
 import { useWorkspace } from "../workspace-context";
 import { linkMentionInNote, linkMentionMessage } from "./link-mention";
 
@@ -157,7 +157,7 @@ export function RelatedInline({
     unlinked.length === 0;
 
   return (
-    <PanelSection
+    <FoldSection
       label="Related"
       {...(backlinkTotal > 0
         ? { summary: linkedMentionsSummary(backlinks.length, backlinkTotal) }
@@ -174,7 +174,7 @@ export function RelatedInline({
         suggestionsFailed={relatedQuery.isError || unlinkedQuery.isError}
         onOpenDoc={onOpenDoc}
       />
-    </PanelSection>
+    </FoldSection>
   );
 }
 

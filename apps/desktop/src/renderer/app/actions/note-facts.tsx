@@ -9,7 +9,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { orpc } from "../api";
-import { PanelSection } from "./panel-section";
+import { FoldSection } from "../fold-section";
 import { relativeTimeLabel, useNow } from "../relative-time";
 import { useVaultTree } from "../vault-hooks";
 import { useWorkspace } from "../workspace-context";
@@ -121,8 +121,8 @@ function NoteFactRows({ docPath }: { docPath: string }) {
 export function NoteFacts({ docPath }: { docPath: string }) {
   const [open, setOpen] = useState(false);
   return (
-    <PanelSection label="About" open={open} onOpenChange={setOpen}>
+    <FoldSection label="About" open={open} onOpenChange={setOpen}>
       <NoteFactRows docPath={docPath} />
-    </PanelSection>
+    </FoldSection>
   );
 }
