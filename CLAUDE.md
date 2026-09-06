@@ -285,11 +285,21 @@ to the END of its group.
   on both braces. Comment thread bodies live in a `<note>.comments.json`
   sidecar.
 
-- **THE WIKI-LINK PREVIEW IS A HOVER CARD, NOT A TOOLTIP.** Base UI's
-  PreviewCard (`@repo/ui/components/hover-card`): the pointer can move into it,
-  the text selects, the title opens the note. Base UI's Popover has no hover
-  mode; a hand-positioned `pointer-events-none` div is what it replaced
-  (`packages/editor/src/wiki-chip.tsx`).
+- **EVERY FLOATING SURFACE IS A BASE UI PRIMITIVE THROUGH `@repo/ui`, never a
+  hand-positioned div.** A popup is `Popover`, `DropdownMenu`, `Tooltip`,
+  `HoverCard` or `Dialog` from `@repo/ui/components`, which own dismissal,
+  flipping, layering and focus; a `fixed`/`absolute` element at a measured
+  `left/top` owns none of them and drifts on scroll. A surface anchored to a
+  selection rather than an element hands the Positioner a virtual anchor
+  (`getBoundingClientRect` over the stored rect: `comments/comment-kit.tsx`,
+  `block-menu.tsx`). Base UI is reached only through `@repo/ui` (the one
+  exception is `inline-combobox.tsx`); a missing primitive is added there
+  first, with a gallery demo. In-flow chrome is not a popup and stays
+  positioned: the find bar and the TOC rail (anchored to the note column on
+  purpose), the code-block language badge, the callout marker, the toggle
+  chevron, the table handle. The wiki-link preview is the HoverCard (Base UI's
+  PreviewCard): the pointer can move into it, the text selects, the title
+  opens the note; Popover has no hover mode (`packages/editor/src/wiki-chip.tsx`).
 
 - **THE EDITOR COLUMN SHOWS ONE NOTE.** No second pane and no pane vocabulary:
   one `OpenNoteStore`, and every surface reads the open note. Registries keyed
