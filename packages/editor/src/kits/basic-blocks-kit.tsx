@@ -35,7 +35,7 @@ import {
   type PlateLeafProps,
 } from "platejs/react";
 
-import { cn } from "@repo/ui/lib/utils";
+import { cn } from "cn";
 
 import { BlockquoteElement, alertMarkerPrefix } from "@repo/editor/nodes/blockquote-node";
 import { HrElement } from "@repo/editor/nodes/hr-node";

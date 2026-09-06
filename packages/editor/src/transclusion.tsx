@@ -21,7 +21,7 @@ import {
 } from "platejs";
 import { PlateStatic, SlateElement, type SlateElementProps } from "platejs/static";
 
-import { cn } from "@repo/ui/lib/utils";
+import { cn } from "cn";
 
 import { getEditorHostIo } from "@repo/editor/host-io";
 import { vaultChangeTouches } from "@repo/editor/host-io";

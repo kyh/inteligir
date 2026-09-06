@@ -29,7 +29,7 @@ import {
   type PlateEditor,
 } from "platejs/react";
 
-import { cn } from "@repo/ui/lib/utils";
+import { cn } from "cn";
 
 import { useAgentRequestActions } from "@repo/editor/agent-request";
 import { EDITOR_SHORTCUTS } from "@repo/editor/editor-shortcuts";

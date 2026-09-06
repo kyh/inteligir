@@ -2,7 +2,7 @@ import { useNoteStats } from "@repo/editor/note-stats";
 import { Button } from "@repo/ui/components/button";
 import { Spinner } from "@repo/ui/components/spinner";
 import { plural } from "@repo/ui/lib/plural";
-import { cn } from "@repo/ui/lib/utils";
+import { cn } from "cn";
 import { ArchiveRestoreIcon, SettingsIcon } from "lucide-react";
 import { readingTimeLabel } from "./actions/note-facts";
 import { useThreads } from "./actions/thread-hooks";

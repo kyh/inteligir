@@ -5,7 +5,7 @@ import { Checkbox as CheckboxPrimitive } from "@base-ui/react/checkbox";
 import { AnimatePresence, motion } from "framer-motion";
 
 import { useSize, type SizeVariant } from "@repo/ui/lib/size-context";
-import { cn } from "@repo/ui/lib/utils";
+import { cn } from "cn";
 
 function CheckMark({ compact }: { compact: boolean }) {
   return (

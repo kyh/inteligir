@@ -12,7 +12,7 @@ import {
 import { ElementApi, KEYS, NodeApi, TextApi, type SlateEditor, type TElement } from "platejs";
 import { PlateElement, useSelected, type PlateElementProps } from "platejs/react";
 
-import { cn } from "@repo/ui/lib/utils";
+import { cn } from "cn";
 
 import { CALLOUT_ALERT, CALLOUT_EDITING } from "@repo/editor/style-hooks";
 

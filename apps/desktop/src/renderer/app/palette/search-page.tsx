@@ -1,7 +1,7 @@
 import { Button } from "@repo/ui/components/button";
 import { CommandEmpty, CommandGroup, CommandItem } from "@repo/ui/components/command";
 import { Tooltip } from "@repo/ui/components/tooltip";
-import { cn } from "@repo/ui/lib/utils";
+import { cn } from "cn";
 import {
   KNOWLEDGE_MATCHES_DEFAULT_LIMIT,
   type VaultMatchWire,

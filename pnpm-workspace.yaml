@@ -16,6 +16,7 @@ catalog:
   "@zed-industries/codex-acp": 0.16.0
   # exact: prebuilt N-API addon with no build script, which `npx inteligir` depends on.
   # tar + unbzip2-stream because Node has no bzip2 and Windows tar.exe cannot -j
+  cn: ^0.2.5
   "sherpa-onnx-node": 1.13.6
   tar: ^7.5.22
   unbzip2-stream: ^1.4.3

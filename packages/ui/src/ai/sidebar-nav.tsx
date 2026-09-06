@@ -4,7 +4,7 @@
 import { forwardRef } from "react";
 import type { HTMLAttributes, ReactNode } from "react";
 
-import { cn } from "@repo/ui/lib/utils";
+import { cn } from "cn";
 import { GlideList } from "@repo/ui/ai/glide-list";
 
 export interface SidebarRailProps extends HTMLAttributes<HTMLDivElement> {

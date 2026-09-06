@@ -1,4 +1,4 @@
-import { cn } from "@repo/ui/lib/utils";
+import { cn } from "cn";
 import { ChevronRightIcon } from "lucide-react";
 
 // One fold header for the rail's sections and the panel's Metadata tab: the chevron, the

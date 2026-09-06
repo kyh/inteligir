@@ -13,7 +13,7 @@ import {
 import type { HTMLAttributes, ReactNode } from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 
-import { cn } from "@repo/ui/lib/utils";
+import { cn } from "cn";
 
 interface CodeBlockContextValue {
   code: string;

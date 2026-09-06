@@ -6,7 +6,7 @@ import { getTableGridAbove } from "@platejs/table";
 import { RangeApi, type UnknownObject } from "platejs";
 import { useEditorRef } from "platejs/react";
 
-import { cn } from "@repo/ui/lib/utils";
+import { cn } from "cn";
 
 function Cursor({
   id,

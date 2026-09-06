@@ -13,7 +13,7 @@ import {
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { motion } from "framer-motion";
 import { motionProps, motionStyle, type MotionConflictHandler } from "@repo/ui/lib/motion-style";
-import { cn } from "@repo/ui/lib/utils";
+import { cn } from "cn";
 import { spring, exitFallbackMs } from "@repo/ui/lib/springs";
 import { useSurface, SurfaceProvider } from "@repo/ui/lib/surface-context";
 import { surfaceClasses } from "@repo/ui/lib/surface-classes";

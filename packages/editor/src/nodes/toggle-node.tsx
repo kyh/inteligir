@@ -7,7 +7,7 @@ import { PlateElement, useElement, type PlateElementProps } from "platejs/react"
 import { useToggleButton, useToggleButtonState } from "@platejs/toggle/react";
 
 import { Tooltip } from "@repo/ui/components/tooltip";
-import { cn } from "@repo/ui/lib/utils";
+import { cn } from "cn";
 
 import { stringProp } from "@repo/editor/node-props";
 import { TOGGLE_COLLAPSED_ATTR } from "@repo/editor/style-hooks";

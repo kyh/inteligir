@@ -6,7 +6,7 @@ import { cva, type VariantProps } from "class-variance-authority";
 
 import { useRadius } from "@repo/ui/lib/radius-context";
 import { useSizeVariant } from "@repo/ui/lib/size-context";
-import { cn } from "@repo/ui/lib/utils";
+import { cn } from "cn";
 
 const badgeColors = {
   gray: "#a3a3a3",

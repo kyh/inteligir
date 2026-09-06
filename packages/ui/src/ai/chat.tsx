@@ -4,7 +4,7 @@
 import { forwardRef } from "react";
 import type { HTMLAttributes, InputHTMLAttributes, KeyboardEvent, ReactNode } from "react";
 
-import { cn } from "@repo/ui/lib/utils";
+import { cn } from "cn";
 
 const ChatPanel = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (

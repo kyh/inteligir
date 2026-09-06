@@ -6,7 +6,7 @@ import type { HTMLAttributes, ReactNode } from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 
 import { Collapse } from "@repo/ui/lib/collapse";
-import { cn } from "@repo/ui/lib/utils";
+import { cn } from "cn";
 
 interface TableContextValue {
   columns: string;

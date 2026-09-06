@@ -4,7 +4,7 @@ import { lazy, Suspense } from "react";
 import { parseVideoUrl } from "@platejs/media";
 import { PlateElement, useFocused, useSelected, type PlateElementProps } from "platejs/react";
 
-import { cn } from "@repo/ui/lib/utils";
+import { cn } from "cn";
 
 import { stringProp } from "@repo/editor/node-props";
 import { MediaToolbar } from "@repo/editor/nodes/media-toolbar";

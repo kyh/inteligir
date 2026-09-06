@@ -2,7 +2,7 @@
 
 import { Button } from "@repo/ui/components/button";
 import { useTheme, type Theme } from "@repo/ui/lib/theme";
-import { cn } from "@repo/ui/lib/utils";
+import { cn } from "cn";
 import { ArrowLeftIcon } from "lucide-react";
 
 import { ActionsSection } from "./actions-section";

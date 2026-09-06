@@ -6,7 +6,7 @@ import type { HTMLAttributes, ReactNode } from "react";
 import { cva } from "class-variance-authority";
 
 import { Collapse } from "@repo/ui/lib/collapse";
-import { cn } from "@repo/ui/lib/utils";
+import { cn } from "cn";
 
 const meterBarVariants = cva("w-1 rounded-full transition-colors duration-300", {
   variants: {

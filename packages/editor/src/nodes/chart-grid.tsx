@@ -4,7 +4,7 @@
 import { useState } from "react";
 
 import { Tooltip } from "@repo/ui/components/tooltip";
-import { cn } from "@repo/ui/lib/utils";
+import { cn } from "cn";
 
 import type { ChartPayload } from "./chart-node";
 

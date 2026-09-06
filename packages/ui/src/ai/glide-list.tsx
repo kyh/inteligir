@@ -5,7 +5,7 @@
 import { useCallback, useRef, useState } from "react";
 import type { CSSProperties, FocusEvent, HTMLAttributes, PointerEvent } from "react";
 
-import { cn } from "@repo/ui/lib/utils";
+import { cn } from "cn";
 
 interface GlideListProps extends HTMLAttributes<HTMLDivElement> {
   highlightClassName?: string;

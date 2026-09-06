@@ -8,7 +8,7 @@ import {
   DropdownMenuTrigger,
 } from "@repo/ui/components/dropdown-menu";
 import { SidebarHeader, SidebarInput } from "@repo/ui/components/sidebar";
-import { cn } from "@repo/ui/lib/utils";
+import { cn } from "cn";
 import { isVaultMetadataPath } from "@repo/notes/knowledge/doc-file";
 import type { VaultEntry } from "@repo/api/local/vault/vault-schema";
 import {

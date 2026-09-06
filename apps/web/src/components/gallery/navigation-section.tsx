@@ -7,7 +7,7 @@ import {
   SidebarInset,
   SidebarProvider,
 } from "@repo/ui/components/sidebar";
-import { cn } from "@repo/ui/lib/utils";
+import { cn } from "cn";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@repo/ui/components/tabs";
 
 import { Demo, GallerySection } from "./gallery-chrome";

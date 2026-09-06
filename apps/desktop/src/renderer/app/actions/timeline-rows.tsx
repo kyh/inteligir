@@ -9,7 +9,7 @@ import { LoadingState } from "@repo/ui/ai/loading-state";
 import { StreamingText } from "@repo/ui/ai/streaming-text";
 import { Thinking, ThinkingReasoning, ThinkingStep } from "@repo/ui/ai/thinking";
 import { ToolChip, ToolChipDetail, ToolChipList } from "@repo/ui/ai/tool-chips";
-import { cn } from "@repo/ui/lib/utils";
+import { cn } from "cn";
 import { memo, type ReactNode } from "react";
 
 const COMMAND_OUTPUT_LINES = 40;

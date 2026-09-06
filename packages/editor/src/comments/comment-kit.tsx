@@ -13,7 +13,7 @@ import { PlateLeaf, createPlatePlugin, useEditorRef, type PlateLeafProps } from 
 import { liveEditorPath } from "@repo/editor/live-editor";
 import { stringProp } from "@repo/editor/node-props";
 import { useOpenNotePath } from "@repo/editor/note/open-note-context";
-import { cn } from "@repo/ui/lib/utils";
+import { cn } from "cn";
 import { Button } from "@repo/ui/components/button";
 import { Popover, PopoverContent } from "@repo/ui/components/popover";
 import { Textarea } from "@repo/ui/components/textarea";

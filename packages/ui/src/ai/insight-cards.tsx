@@ -5,7 +5,7 @@ import { forwardRef, useCallback, useMemo, useState } from "react";
 import type { HTMLAttributes, PointerEvent, ReactNode } from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 
-import { cn } from "@repo/ui/lib/utils";
+import { cn } from "cn";
 
 const InsightCardGrid = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (

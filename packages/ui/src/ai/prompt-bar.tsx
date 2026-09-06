@@ -11,7 +11,7 @@ import type {
 } from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 
-import { cn } from "@repo/ui/lib/utils";
+import { cn } from "cn";
 import { GlideList } from "@repo/ui/ai/glide-list";
 
 const promptBarVariants = cva(

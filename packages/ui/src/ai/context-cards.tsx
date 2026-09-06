@@ -3,7 +3,7 @@
 
 import { forwardRef, type HTMLAttributes, type ReactNode } from "react";
 
-import { cn } from "@repo/ui/lib/utils";
+import { cn } from "cn";
 
 const LINES_ICON = (
   <svg

@@ -9,7 +9,7 @@ import {
 } from "@repo/ui/components/dropdown-menu";
 import { toast } from "@repo/ui/components/sonner";
 import { useSidebar } from "@repo/ui/components/sidebar";
-import { cn } from "@repo/ui/lib/utils";
+import { cn } from "cn";
 import {
   ArrowLeftIcon,
   ArrowRightIcon,
