@@ -666,16 +666,4 @@ const SidebarHeader = forwardRef<HTMLDivElement, SidebarSectionProps>(
 );
 SidebarHeader.displayName = "SidebarHeader";
 
-const SidebarFooter = forwardRef<HTMLDivElement, SidebarSectionProps>(
-  ({ className, ...props }, ref) => (
-    <div
-      ref={ref}
-      data-sidebar="footer"
-      className={cn("mt-auto flex shrink-0 flex-col gap-2 p-2", className)}
-      {...props}
-    />
-  ),
-);
-SidebarFooter.displayName = "SidebarFooter";
-
-export { SidebarProvider, SidebarShell, SidebarInset, SidebarInput, SidebarHeader, SidebarFooter };
+export { SidebarProvider, SidebarShell, SidebarInset, SidebarInput, SidebarHeader };

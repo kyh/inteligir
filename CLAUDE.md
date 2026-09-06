@@ -249,7 +249,7 @@ to the END of its group.
 - [Dictation](#dictation) — 6
 - [Cloud, sync and accounts](#cloud-sync-and-accounts) — 17
 - [Server process and the desktop shell](#server-process-and-the-desktop-shell) — 10
-- [Desktop workspace surfaces](#desktop-workspace-surfaces) — 3
+- [Desktop workspace surfaces](#desktop-workspace-surfaces) — 5
 - [Repo guards, vendoring and tooling](#repo-guards-vendoring-and-tooling) — 7
 
 ### Editor and dialect
@@ -1024,6 +1024,15 @@ create`, never by electron-builder. `autoDownload` and `autoInstallOnAppQuit`
   the flat underline row; the pill switch went with its last consumer. Its width persists through the same Fluid resize handle the
   rail uses (`panelWidth` beside `sidebarWidth` in `app/prefs.ts`), because a
   second resize mechanism would be a second answer to one drag.
+
+- **AMBIENT STATE LIVES IN THE STATUS BAR, across the window's bottom.** The
+  strip under the rail and the note together (`app/status-bar.tsx`, its height
+  `--app-status-h` beside `--app-header-h`) carries the sync state on the left,
+  and the open note's word count, a spinner while any thread is running,
+  Deleted notes and Settings on the right; the rail ends at its last section and
+  zen hides the bar with the rest. The count is the serializer's published one,
+  never a recount, and the rail's and the panel's shells take `h-full` from the
+  workspace because Fluid's shell is viewport-height by class.
 
 ### Repo guards, vendoring and tooling
 

@@ -7,12 +7,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@repo/ui/components/dropdown-menu";
-import { SidebarFooter, SidebarHeader, SidebarInput } from "@repo/ui/components/sidebar";
+import { SidebarHeader, SidebarInput } from "@repo/ui/components/sidebar";
 import { cn } from "@repo/ui/lib/utils";
 import { isVaultMetadataPath } from "@repo/notes/knowledge/doc-file";
 import type { VaultEntry } from "@repo/api/local/vault/vault-schema";
 import {
-  ArchiveRestoreIcon,
   ArrowDownAZIcon,
   ArrowLeftIcon,
   ChevronDownIcon,
@@ -23,7 +22,6 @@ import {
   FolderOpenIcon,
   FolderPlusIcon,
   ListFilterIcon,
-  SettingsIcon,
   VaultIcon,
 } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -44,16 +42,7 @@ import {
   type TreeSort,
 } from "../prefs";
 import { hasInsetTitleBar } from "../title-bar";
-import {
-  canSyncNow,
-  syncBlockedReason,
-  syncStateDotClass,
-  syncStateLabel,
-  usePinnedPaths,
-  useVaultStatus,
-  useVaultTree,
-  vaultFolders,
-} from "../vault-hooks";
+import { usePinnedPaths, useVaultTree, vaultFolders } from "../vault-hooks";
 import { FileTree, type PendingCreate, type TreeLoadState, type TreeOps } from "./file-tree";
 import { NotesList } from "./notes-list";
 import { TagsPane } from "./tags-pane";
@@ -74,31 +63,6 @@ function treeLoadState(query: ReturnType<typeof useVaultTree>): TreeLoadState {
     return "failed";
   }
   return query.data === undefined ? "loading" : "loaded";
-}
-
-function SyncStatusRow({ onSyncNow }: { onSyncNow: () => void }) {
-  const statusQuery = useVaultStatus();
-  const status = statusQuery.data;
-  if (status === undefined) {
-    return <div className="h-6" />;
-  }
-  const canSync = canSyncNow(status);
-  const title = status.lastError ?? syncBlockedReason(status) ?? "Sync now";
-  return (
-    <button
-      type="button"
-      disabled={!canSync}
-      title={title}
-      onClick={onSyncNow}
-      className={cn(
-        "flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs text-muted-foreground",
-        canSync && "hover:text-foreground",
-      )}
-    >
-      <span className={cn("size-1.5 rounded-full", syncStateDotClass(status))} />
-      {syncStateLabel(status)}
-    </button>
-  );
 }
 
 const VAULT_TRIGGER_CLASS =
@@ -182,9 +146,6 @@ export interface SidebarRailContentProps {
   openPath: string | null;
   onOpenFile: (path: string) => void;
   ops: TreeOps;
-  onSyncNow: () => void;
-  onOpenSettings: () => void;
-  onOpenDeletedNotes: () => void;
   onMoveRequest: (path: string) => void;
   // which sections are unfolded, and the tag: the workspace's, since a `#tag` chip in the note
   // opens Tags and selects, and a create opens Files
@@ -202,9 +163,6 @@ export function SidebarRailContent({
   openPath,
   onOpenFile,
   ops,
-  onSyncNow,
-  onOpenSettings,
-  onOpenDeletedNotes,
   onMoveRequest,
   sections,
   onSectionOpenChange,
@@ -407,27 +365,6 @@ export function SidebarRailContent({
           </div>
         </FoldSection>
       </div>
-      <SidebarFooter className="flex-row items-center justify-between">
-        <SyncStatusRow onSyncNow={onSyncNow} />
-        <div className="flex items-center">
-          <Button
-            variant="ghost"
-            size="icon-compact"
-            aria-label="Deleted notes"
-            onClick={onOpenDeletedNotes}
-          >
-            <ArchiveRestoreIcon className="size-4 text-muted-foreground" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon-compact"
-            aria-label="Settings"
-            onClick={onOpenSettings}
-          >
-            <SettingsIcon className="size-4 text-muted-foreground" />
-          </Button>
-        </div>
-      </SidebarFooter>
     </>
   );
 }
