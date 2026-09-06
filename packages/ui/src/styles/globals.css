@@ -40,6 +40,10 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
+  /* The chrome row: one height for every list row in the shell. A token utility does not
+     merge against a literal through cn (`h-8 h-chrome-row` keeps both), so a surface spells
+     it in place of the literal and never passes it as an override. */
+  --spacing-chrome-row: 1.5rem;
   --font-heading: var(--font-sans);
   --font-sans: var(--font-body);
   --font-mono: var(--font-code);

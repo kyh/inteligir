@@ -43,6 +43,10 @@ stale `dist/` would be a window on last week's server. The forked child boots
 the server: config → SQLite open + migrate → Hono (the oRPC handler at /rpc,
 the /ws invalidation bus). No login.
 
+The Electron binary is not in the npm package: `predev` runs electron's own
+`install-electron --no`, which downloads it once and exits early after that, so
+a version bump cannot leave electron-vite refusing with "Electron uninstall".
+
 Iterating on the SERVER is `pnpm cli serve` in its own terminal: that runs the
 TypeScript source under tsx, and a shell started afterwards ADOPTS it instead
 of forking a second one.

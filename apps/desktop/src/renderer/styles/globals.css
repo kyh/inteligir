@@ -18,7 +18,9 @@
      stacking contexts, so no grid can span them; their bottom borders read as
      one rule only while both use this. The left rail is a floating card and
      is not on it. */
-  --app-header-h: 2.5rem;
+  --app-header-h: 2.25rem;
+  /* the status bar's height, read by the strip and by the layout that makes room for it */
+  --app-status-h: 1.375rem;
 
   /* The page title, the editor and the composer sit in different stacking
      contexts; :root is the only ancestor all three share. */

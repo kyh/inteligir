@@ -249,7 +249,7 @@ to the END of its group.
 - [Dictation](#dictation) — 6
 - [Cloud, sync and accounts](#cloud-sync-and-accounts) — 17
 - [Server process and the desktop shell](#server-process-and-the-desktop-shell) — 10
-- [Desktop workspace surfaces](#desktop-workspace-surfaces) — 3
+- [Desktop workspace surfaces](#desktop-workspace-surfaces) — 5
 - [Repo guards, vendoring and tooling](#repo-guards-vendoring-and-tooling) — 7
 
 ### Editor and dialect
@@ -973,13 +973,20 @@ create`, never by electron-builder. `autoDownload` and `autoInstallOnAppQuit`
   leaves another route's `confirm()` parked on a dialog that never opens.
 
 - **THE RAIL IS THE WORKSPACE; THE TOP BAR IS THE OPEN NOTE.** The rail's
-  header is two rows: the vault button alone (recent vaults, Open another
-  vault…), because a vault's name is the one label that must never truncate,
-  then the Recent | Files | Tags switch beside New note and New folder; sync,
-  deleted notes and Settings follow. The rail carries no search box: ⌘P and
-  ⌘⇧F are the search surfaces and the palette carries its own field, so a
-  third input above the tree's filter was one more thing to read. Find in note, copy link, comments,
-  export and the panel toggle live above the note. The folder scope is set by the top bar's breadcrumb
+  header is one row, the vault button alone (recent vaults, Open another
+  vault…), because a vault's name is the one label that must never truncate.
+  Under it, RECENT, FILES and TAGS are stacked collapsible sections
+  (`app/fold-section.tsx`, the same fold header the panel's Metadata tab
+  draws), not a tab switch: FILES carries its actions in its header on hover
+  (New note, New folder, the filter toggle, sort, Collapse all), RECENT is
+  capped to a handful of rows because the palette lists every note, and TAGS
+  starts folded. The open set is the workspace's (`railSections` in
+  `app/prefs.ts`), because a `#tag` chip opens TAGS and a create opens FILES.
+  The filter row shows on its toggle or while it has text, and Escape clears
+  and hides it. The rail carries no search box: ⌘P and ⌘⇧F are the search
+  surfaces and the palette carries its own field, so a third input above the
+  tree's filter was one more thing to read. Find in note, comments and the panel
+  toggle live above the note; copy link, export and share sit under its ⋯ menu. The folder scope is set by the top bar's breadcrumb
   and cleared from the scope row above the list, never picked in the header:
   the header switches the vault, the breadcrumb narrows within it. Two lists, one rule: the
   recents view is one list by recency with a folder hint, and folders exist only
@@ -988,8 +995,8 @@ create`, never by electron-builder. `autoDownload` and `autoInstallOnAppQuit`
   create lands where an IDE's would, in the tree's selected folder, else at the
   scope, both derived from it rather than requested through a nonce or a
   callback; the header's pending create is a plain prop the tree reports done.
-  The view and the selected tag are the workspace's, because a `#tag` chip sets
-  both. One `useVaultSwitch` and one `RecentVaultLabel`
+  The selected tag is the workspace's like the open set, because a `#tag`
+  chip sets both. One `useVaultSwitch` and one `RecentVaultLabel`
   (`app/desktop-vaults.tsx`) serve the rail's vault button and Settings alike.
   The rail hides what the user did not write
   (`@repo/notes/knowledge/doc-file`'s `isVaultMetadataPath`: comment sidecars,
@@ -1010,6 +1017,22 @@ create`, never by electron-builder. `autoDownload` and `autoInstallOnAppQuit`
   folder is the workspace's state and a prop to both, not a request store: a
   store is for a surface with no route to the owner, and both are one hop away.
   `apps/desktop/src/renderer/app/actions/note-facts.tsx`.
+
+- **THE PANEL STARTS CLOSED, IS FLAT-TABBED, AND IS DRAGGED LIKE THE RAIL.**
+  `panelOpen` defaults off; a comment focus, the top bar's Comments or its
+  toggle opens it. Its tabs are Base UI Tabs through `@repo/ui/components/tabs`,
+  the flat underline row; the pill switch went with its last consumer. Its width persists through the same Fluid resize handle the
+  rail uses (`panelWidth` beside `sidebarWidth` in `app/prefs.ts`), because a
+  second resize mechanism would be a second answer to one drag.
+
+- **AMBIENT STATE LIVES IN THE STATUS BAR, across the window's bottom.** The
+  strip under the rail and the note together (`app/status-bar.tsx`, its height
+  `--app-status-h` beside `--app-header-h`) carries the sync state on the left,
+  and the open note's word count, a spinner while any thread is running,
+  Deleted notes and Settings on the right; the rail ends at its last section and
+  zen hides the bar with the rest. The count is the serializer's published one,
+  never a recount, and the rail's and the panel's shells take `h-full` from the
+  workspace because Fluid's shell is viewport-height by class.
 
 ### Repo guards, vendoring and tooling
 

@@ -2,45 +2,45 @@
 
 import {
   Sidebar,
-  SidebarContent,
-  SidebarGroup,
-  SidebarGroupLabel,
   SidebarHeader,
   SidebarInput,
   SidebarInset,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
   SidebarProvider,
 } from "@repo/ui/components/sidebar";
-import { TabsSubtle, TabsSubtleItem } from "@repo/ui/components/tabs-subtle";
-import { FileTextIcon, MessageSquareTextIcon } from "lucide-react";
-import { useState } from "react";
+import { cn } from "cn";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@repo/ui/components/tabs";
 
 import { Demo, GallerySection } from "./gallery-chrome";
 
 const SIDEBAR_NOTES = ["Release checklist", "Weekly review", "Kitchen Sink"];
 
 export function NavigationSection() {
-  const [tab, setTab] = useState(0);
-
   return (
     <GallerySection id="navigation" title="Navigation">
       <Demo
-        name="TabsSubtle · TabsSubtleItem"
-        purpose="Switches which panel a fixed region shows. The selection is view state, never a route."
+        name="Tabs · TabsList · TabsTrigger · TabsContent"
+        purpose="A panel's tabs: a flat row of labels under one sliding underline, Base UI's Tabs. The pill switch above is for a fixed region's views."
         stack
       >
         <div className="w-full max-w-sm rounded-lg border border-line">
-          <TabsSubtle selectedIndex={tab} onSelect={setTab}>
-            <TabsSubtleItem index={0} icon={FileTextIcon} label="Actions" />
-            <TabsSubtleItem index={1} icon={MessageSquareTextIcon} label="Comments" />
-          </TabsSubtle>
-          {tab === 0 ? (
-            <p className="p-3 text-sm text-muted-foreground">Two actions on this note.</p>
-          ) : (
-            <p className="p-3 text-sm text-muted-foreground">One unresolved comment.</p>
-          )}
+          <Tabs defaultValue="actions">
+            <div className="flex h-9 items-center border-b border-line px-1.5">
+              <TabsList aria-label="Panel tabs">
+                <TabsTrigger value="actions">Actions</TabsTrigger>
+                <TabsTrigger value="comments">Comments</TabsTrigger>
+                <TabsTrigger value="history">History</TabsTrigger>
+              </TabsList>
+            </div>
+            <TabsContent value="actions">
+              <p className="p-3 text-sm text-muted-foreground">Two actions on this note.</p>
+            </TabsContent>
+            <TabsContent value="comments">
+              <p className="p-3 text-sm text-muted-foreground">One unresolved comment.</p>
+            </TabsContent>
+            <TabsContent value="history">
+              <p className="p-3 text-sm text-muted-foreground">Four revisions.</p>
+            </TabsContent>
+          </Tabs>
         </div>
       </Demo>
 
@@ -56,18 +56,23 @@ export function NavigationSection() {
               <SidebarHeader>
                 <SidebarInput placeholder="Search…" readOnly />
               </SidebarHeader>
-              <SidebarContent>
-                <SidebarGroup>
-                  <SidebarGroupLabel>Notes</SidebarGroupLabel>
-                  <SidebarMenu>
-                    {SIDEBAR_NOTES.map((note, index) => (
-                      <SidebarMenuItem key={note}>
-                        <SidebarMenuButton isActive={index === 0}>{note}</SidebarMenuButton>
-                      </SidebarMenuItem>
-                    ))}
-                  </SidebarMenu>
-                </SidebarGroup>
-              </SidebarContent>
+              <div className="flex min-h-0 flex-1 flex-col py-1">
+                <p className="px-3 pt-1 pb-0.5 text-[11px] font-medium text-muted-foreground uppercase">
+                  Notes
+                </p>
+                {SIDEBAR_NOTES.map((note, index) => (
+                  <button
+                    key={note}
+                    type="button"
+                    className={cn(
+                      "flex h-chrome-row w-full items-center px-3 text-sm hover:bg-muted/60",
+                      index === 0 ? "bg-muted text-foreground" : "text-foreground/80",
+                    )}
+                  >
+                    {note}
+                  </button>
+                ))}
+              </div>
             </Sidebar>
             <SidebarInset className="bg-surface">
               <div className="flex items-center gap-2 border-b border-line p-2">

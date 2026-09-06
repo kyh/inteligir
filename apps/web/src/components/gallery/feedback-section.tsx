@@ -1,23 +1,11 @@
 // Feedback: what the app says back — progress, separation, and notices.
 
 import { Button } from "@repo/ui/components/button";
-import { ScrollArea } from "@repo/ui/components/scroll-area";
 import { Separator } from "@repo/ui/components/separator";
 import { toast } from "@repo/ui/components/sonner";
 import { Spinner } from "@repo/ui/components/spinner";
 
 import { Demo, DemoCase, GallerySection } from "./gallery-chrome";
-
-const SCROLL_ROWS = [
-  "Release checklist",
-  "Weekly review",
-  "Kitchen Sink",
-  "Getting Started",
-  "Use Cases",
-  "Vault conventions",
-  "Agent notes",
-  "Reading list",
-];
 
 export function FeedbackSection() {
   return (
@@ -44,22 +32,6 @@ export function FeedbackSection() {
           <Separator orientation="vertical" />
           <span className="text-sm">Synced</span>
         </div>
-      </Demo>
-
-      <Demo
-        name="ScrollArea"
-        purpose="A bounded region with the app's own scrollbar instead of the platform's."
-        stack
-      >
-        <ScrollArea className="h-40 w-64 rounded-lg border border-line">
-          <ul className="p-2 text-sm">
-            {SCROLL_ROWS.map((row) => (
-              <li key={row} className="rounded-md px-2 py-1.5 hover:bg-hover">
-                {row}
-              </li>
-            ))}
-          </ul>
-        </ScrollArea>
       </Demo>
 
       <Demo

@@ -16,6 +16,7 @@ import { ActionComposer } from "./actions/action-composer";
 import { ActionsPanel, type PanelTab } from "./actions/actions-panel";
 import { useNoteComments, useNoteCommentMeta } from "./actions/comment-hooks";
 import { NoteTopbar } from "./note-topbar";
+import { StatusBar } from "./status-bar";
 import { useThreads } from "./actions/thread-hooks";
 import { platformShortcutModifier } from "@repo/editor/hotkey-spelling";
 import { useGlobalShortcuts } from "./global-shortcuts";
@@ -66,13 +67,16 @@ import {
 import {
   readPanelOpen,
   readSidebarFolder,
-  readSidebarView,
+  readRailSections,
+  readPanelWidth,
   readSidebarWidth,
   writePanelOpen,
   writeSidebarFolder,
-  writeSidebarView,
+  writeRailSections,
+  writePanelWidth,
   writeSidebarWidth,
-  type SidebarView,
+  type RailSection,
+  type RailSections,
 } from "./prefs";
 import { hasInsetTitleBar } from "./title-bar";
 import { useWorkspace } from "./workspace-context";
@@ -216,6 +220,7 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
 
   const [railOpen, setRailOpen] = useState(true);
   const [initialSidebarWidth] = useState(() => `${String(readSidebarWidth())}px`);
+  const [initialPanelWidth] = useState(() => `${String(readPanelWidth())}px`);
   // owned here, not in the rail: the top bar's breadcrumb sets it too, and both are one prop away
   const [sidebarFolder, setSidebarFolder] = useState<string>(readSidebarFolder);
   const chooseFolder = useCallback((folder: string): void => {
@@ -224,10 +229,14 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
   }, []);
   // the rail's view and its tag, owned here for the same reason: a `#tag` chip deep in the note
   // sets both, and it reaches the shell through the editor's action registry
-  const [sidebarView, setSidebarView] = useState<SidebarView>(readSidebarView);
-  const chooseView = useCallback((view: SidebarView): void => {
-    writeSidebarView(view);
-    setSidebarView(view);
+  const [railSections, setRailSections] = useState<RailSections>(readRailSections);
+  const setSectionOpen = useCallback((section: RailSection, open: boolean): void => {
+    setRailSections((current) => {
+      if (current[section] === open) return current;
+      const next = { ...current, [section]: open };
+      writeRailSections(next);
+      return next;
+    });
   }, []);
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
 
@@ -380,14 +389,14 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
       showTag: (tag) => {
         setZen(false);
         setRailOpen(true);
-        chooseView("tags");
+        setSectionOpen("tags", true);
         setSelectedTag(tag);
       },
     });
     return () => {
       setAgentRequestActions(null);
     };
-  }, [chooseView]);
+  }, [setSectionOpen]);
 
   useGlobalShortcuts(shortcutModifier, (action) => {
     switch (action) {
@@ -516,150 +525,159 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
       actionsRef={actionsRef}
       store={noteStore}
     >
-      <SidebarProvider
-        className="h-dvh overflow-hidden bg-surface text-ink print:h-auto print:overflow-visible"
-        open={railOpen && !zen}
-        onOpenChange={(nextOpen) => {
-          if (nextOpen) {
-            setZen(false);
-          }
-          setRailOpen(nextOpen);
-        }}
-        peek="click"
-        width={initialSidebarWidth}
-      >
-        <SidebarWidthPersistence />
-        <Sidebar variant="floating" className="print:hidden">
-          <SidebarRailContent
-            openPath={openNote}
-            onOpenFile={setOpenNote}
-            ops={treeOps}
+      <div className="flex h-dvh flex-col bg-surface text-ink print:h-auto">
+        <SidebarProvider
+          className="min-h-0 flex-1 overflow-hidden print:h-auto print:overflow-visible"
+          open={railOpen && !zen}
+          onOpenChange={(nextOpen) => {
+            if (nextOpen) {
+              setZen(false);
+            }
+            setRailOpen(nextOpen);
+          }}
+          peek="click"
+          width={initialSidebarWidth}
+        >
+          <SidebarWidthPersistence write={writeSidebarWidth} />
+          <Sidebar variant="floating" className="h-full print:hidden">
+            <SidebarRailContent
+              openPath={openNote}
+              onOpenFile={setOpenNote}
+              ops={treeOps}
+              onMoveRequest={(path) => {
+                openPalette("move-to-folder", { subject: path });
+              }}
+              sections={railSections}
+              onSectionOpenChange={setSectionOpen}
+              selectedTag={selectedTag}
+              onSelectTag={setSelectedTag}
+              folder={sidebarFolder}
+              onFolderChange={chooseFolder}
+            />
+          </Sidebar>
+          <SidebarInset className="relative bg-surface">
+            <SidebarProvider
+              className="min-h-0 h-full flex-1"
+              open={panelOpen && !zen}
+              onOpenChange={(nextOpen) => {
+                if (nextOpen) {
+                  setZen(false);
+                }
+                setPanelOpenPersisted(nextOpen);
+              }}
+              width={initialPanelWidth}
+            >
+              <SidebarWidthPersistence write={writePanelWidth} />
+              <SidebarInset className="relative bg-surface">
+                {zen ? null : (
+                  <NoteTopbar
+                    path={openPath}
+                    railOpen={railOpen && !zen}
+                    onToggleRail={() => {
+                      setZen(false);
+                      setRailOpen((open) => !open);
+                    }}
+                    insetTitleBar={insetTitleBar}
+                    canBack={back !== null}
+                    canForward={forward !== null}
+                    onBack={() => {
+                      goTo(back);
+                    }}
+                    onForward={() => {
+                      goTo(forward);
+                    }}
+                    onFindInNote={findInNote}
+                    onOpenFolder={(folder) => {
+                      chooseFolder(folder);
+                      setZen(false);
+                      setRailOpen(true);
+                    }}
+                    commentCount={openCommentCount}
+                    onOpenComments={() => {
+                      setPanelOpenPersisted(true);
+                      setPanelTab("comments");
+                    }}
+                    onExportPdf={() => {
+                      const { openPath: path } = noteStore.state();
+                      if (path !== null) exportNoteAsPdf(docStem(path));
+                    }}
+                  />
+                )}
+                <div
+                  data-editor-scroller=""
+                  className="min-h-0 flex-1 overflow-y-auto print:overflow-visible"
+                >
+                  <EditorColumn />
+                </div>
+                <ActionComposer
+                  open={composerOpen}
+                  onOpenChange={setComposerOpen}
+                  seed={composerSeed}
+                  docPath={openPath}
+                  readViewContext={readViewContext}
+                  onLaunched={openThread}
+                />
+              </SidebarInset>
+              <Sidebar side="right" className="h-full print:hidden">
+                <ActionsPanel
+                  docPath={openPath}
+                  tab={panelTab}
+                  onTabChange={setPanelTab}
+                  commentFocus={commentFocus}
+                  selectedThreadId={panelThreadId}
+                  onSelectThread={setPanelThreadId}
+                  onOpenDoc={setOpenNote}
+                  noteMetadata={noteMetadata}
+                />
+              </Sidebar>
+            </SidebarProvider>
+          </SidebarInset>
+          {palette === null ? null : (
+            <CommandPalette
+              key={palette.request.nonce}
+              open={palette.open}
+              request={palette.request}
+              openNotePath={openPath}
+              modifier={shortcutModifier}
+              onOpenChange={(open) => {
+                if (!open) closePalette();
+              }}
+              entries={treeEntries}
+              threads={threads}
+              searchSource={searchSource}
+              canSync={canSync}
+              actions={paletteActions}
+            />
+          )}
+          <DeletedNotesDialog
+            open={deletedNotesOpen}
+            onOpenChange={setDeletedNotesOpen}
+            onOpenNote={setOpenNote}
+          />
+        </SidebarProvider>
+        {zen ? null : (
+          <StatusBar
+            path={openPath}
             onSyncNow={syncNow}
-            onOpenSettings={onOpenSettings}
             onOpenDeletedNotes={() => {
               setDeletedNotesOpen(true);
             }}
-            onMoveRequest={(path) => {
-              openPalette("move-to-folder", { subject: path });
-            }}
-            view={sidebarView}
-            onViewChange={chooseView}
-            selectedTag={selectedTag}
-            onSelectTag={setSelectedTag}
-            folder={sidebarFolder}
-            onFolderChange={chooseFolder}
-          />
-        </Sidebar>
-        <SidebarInset className="relative bg-surface">
-          <SidebarProvider
-            className="min-h-0 h-full flex-1"
-            open={panelOpen && !zen}
-            onOpenChange={(nextOpen) => {
-              if (nextOpen) {
-                setZen(false);
-              }
-              setPanelOpenPersisted(nextOpen);
-            }}
-            width="20rem"
-          >
-            <SidebarInset className="relative bg-surface">
-              {zen ? null : (
-                <NoteTopbar
-                  path={openPath}
-                  railOpen={railOpen && !zen}
-                  onToggleRail={() => {
-                    setZen(false);
-                    setRailOpen((open) => !open);
-                  }}
-                  insetTitleBar={insetTitleBar}
-                  canBack={back !== null}
-                  canForward={forward !== null}
-                  onBack={() => {
-                    goTo(back);
-                  }}
-                  onForward={() => {
-                    goTo(forward);
-                  }}
-                  onFindInNote={findInNote}
-                  onOpenFolder={(folder) => {
-                    chooseFolder(folder);
-                    setZen(false);
-                    setRailOpen(true);
-                  }}
-                  commentCount={openCommentCount}
-                  onOpenComments={() => {
-                    setPanelOpenPersisted(true);
-                    setPanelTab("comments");
-                  }}
-                  onExportPdf={() => {
-                    const { openPath: path } = noteStore.state();
-                    if (path !== null) exportNoteAsPdf(docStem(path));
-                  }}
-                />
-              )}
-              <div
-                data-editor-scroller=""
-                className="min-h-0 flex-1 overflow-y-auto print:overflow-visible"
-              >
-                <EditorColumn />
-              </div>
-              <ActionComposer
-                open={composerOpen}
-                onOpenChange={setComposerOpen}
-                seed={composerSeed}
-                docPath={openPath}
-                readViewContext={readViewContext}
-                onLaunched={openThread}
-              />
-            </SidebarInset>
-            <Sidebar side="right" className="print:hidden">
-              <ActionsPanel
-                docPath={openPath}
-                tab={panelTab}
-                onTabChange={setPanelTab}
-                commentFocus={commentFocus}
-                selectedThreadId={panelThreadId}
-                onSelectThread={setPanelThreadId}
-                onOpenDoc={setOpenNote}
-                noteMetadata={noteMetadata}
-              />
-            </Sidebar>
-          </SidebarProvider>
-        </SidebarInset>
-        {palette === null ? null : (
-          <CommandPalette
-            key={palette.request.nonce}
-            open={palette.open}
-            request={palette.request}
-            openNotePath={openPath}
-            modifier={shortcutModifier}
-            onOpenChange={(open) => {
-              if (!open) closePalette();
-            }}
-            entries={treeEntries}
-            threads={threads}
-            searchSource={searchSource}
-            canSync={canSync}
-            actions={paletteActions}
+            onOpenSettings={onOpenSettings}
           />
         )}
-        <DeletedNotesDialog
-          open={deletedNotesOpen}
-          onOpenChange={setDeletedNotesOpen}
-          onOpenNote={setOpenNote}
-        />
-      </SidebarProvider>
+      </div>
     </VaultProvider>
   );
 }
 
-function SidebarWidthPersistence() {
+// inside a provider: the rail's and the panel's each carry one, writing their own pref
+function SidebarWidthPersistence({ write }: { write: (px: number) => void }) {
   const { width } = useSidebar();
   useEffect(() => {
     const px = Number.parseInt(width, 10);
     if (Number.isFinite(px)) {
-      writeSidebarWidth(px);
+      write(px);
     }
-  }, [width]);
+  }, [width, write]);
   return null;
 }

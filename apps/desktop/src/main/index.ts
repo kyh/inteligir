@@ -266,7 +266,7 @@ function createWindow(target: ServerTarget): BrowserWindow {
     autoHideMenuBar: true,
     title: APP_DISPLAY_NAME,
     titleBarStyle: "hiddenInset",
-    trafficLightPosition: { x: 16, y: 16 },
+    trafficLightPosition: { x: 16, y: 12 },
     webPreferences: appWindowWebPreferences(appPreloadScript(), partition),
   });
 

@@ -13,7 +13,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-function copiedAfterClick(): string | undefined {
+async function copiedAfterClick(): Promise<string | undefined> {
   const copied: string[] = [];
   vi.stubGlobal("navigator", {
     clipboard: {
@@ -42,7 +42,8 @@ function copiedAfterClick(): string | undefined {
       />
     </SidebarProvider>,
   );
-  fireEvent.click(screen.getByLabelText("Copy link"));
+  fireEvent.click(screen.getByLabelText("More"));
+  fireEvent.click(await screen.findByRole("menuitem", { name: "Copy link" }));
   return copied[0];
 }
 
@@ -61,7 +62,7 @@ const inertSpellcheck = {
 };
 
 describe("copy link", () => {
-  it("names the loopback server, not the shell's own scheme", () => {
+  it("names the loopback server, not the shell's own scheme", async () => {
     window.desktopBridge = {
       socketOrigin: "http://127.0.0.1:26723",
       updates: {
@@ -86,11 +87,11 @@ describe("copy link", () => {
         forget: () => Promise.resolve(inertVaults),
       },
     };
-    expect(copiedAfterClick()).toBe("http://127.0.0.1:26723/?note=Plans%2FWeekly+Plan.md");
+    expect(await copiedAfterClick()).toBe("http://127.0.0.1:26723/?note=Plans%2FWeekly+Plan.md");
   });
 
-  it("falls back to the page's origin in a plain browser tab", () => {
-    expect(copiedAfterClick()).toBe(`${window.location.origin}/?note=Plans%2FWeekly+Plan.md`);
+  it("falls back to the page's origin in a plain browser tab", async () => {
+    expect(await copiedAfterClick()).toBe(`${window.location.origin}/?note=Plans%2FWeekly+Plan.md`);
   });
 });
 

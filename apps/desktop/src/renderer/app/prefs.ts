@@ -1,16 +1,18 @@
 import { SIDEBAR_MAX_WIDTH, SIDEBAR_MIN_WIDTH } from "@repo/ui/components/sidebar";
+import { z } from "zod";
 import { parseTheme, type Theme } from "@repo/ui/lib/theme";
 import { spellcheckChoiceSchema, type SpellcheckChoice } from "../../spellcheck-state";
 import { APPEARANCE_DEFAULTS, appearanceSchema, type Appearance } from "./appearance";
 
 const KEYS = {
   sidebarWidth: "inteligir.sidebar-width",
+  panelWidth: "inteligir.panel-width",
   lastOpenNote: "inteligir.last-open-note",
   panelOpen: "inteligir.panel-open",
   theme: "inteligir.theme",
   appearance: "inteligir.appearance",
   relatedOpen: "inteligir.related-open",
-  sidebarView: "inteligir.sidebar-view",
+  railSections: "inteligir.rail-sections",
   sidebarFolder: "inteligir.sidebar-folder",
   treeSort: "inteligir.tree-sort",
   spellcheck: "inteligir.spellcheck",
@@ -37,20 +39,34 @@ function write(key: string, value: string | null): void {
 }
 
 const SIDEBAR_WIDTH_DEFAULT = 260;
+const PANEL_WIDTH_DEFAULT = 320;
 
 // Clamped with the rail's own bounds, or a stored width the rail cannot
 // produce comes back on reload.
-export function readSidebarWidth(): number {
-  const raw = read(KEYS.sidebarWidth);
+function readWidth(key: string, fallback: number): number {
+  const raw = read(key);
   const parsed = raw === null ? Number.NaN : Number(raw);
   if (!Number.isFinite(parsed)) {
-    return SIDEBAR_WIDTH_DEFAULT;
+    return fallback;
   }
   return Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, Math.round(parsed)));
 }
 
+export function readSidebarWidth(): number {
+  return readWidth(KEYS.sidebarWidth, SIDEBAR_WIDTH_DEFAULT);
+}
+
 export function writeSidebarWidth(px: number): void {
   write(KEYS.sidebarWidth, String(Math.round(px)));
+}
+
+// the right panel is the same primitive as the rail, dragged by the same handle
+export function readPanelWidth(): number {
+  return readWidth(KEYS.panelWidth, PANEL_WIDTH_DEFAULT);
+}
+
+export function writePanelWidth(px: number): void {
+  write(KEYS.panelWidth, String(Math.round(px)));
 }
 
 export function readLastOpenNote(): string | null {
@@ -61,8 +77,9 @@ export function writeLastOpenNote(path: string | null): void {
   write(KEYS.lastOpenNote, path);
 }
 
+// closed until asked for: a comment focus or the top bar's Comments opens it
 export function readPanelOpen(): boolean {
-  return read(KEYS.panelOpen) !== "false";
+  return read(KEYS.panelOpen) === "true";
 }
 
 export function writePanelOpen(open: boolean): void {
@@ -77,15 +94,26 @@ export function writeRelatedOpen(open: boolean): void {
   write(KEYS.relatedOpen, open ? "true" : "false");
 }
 
-export type SidebarView = "recents" | "tree" | "tags";
+export type RailSection = "recent" | "files" | "tags";
+const railSectionsSchema = z.object({ recent: z.boolean(), files: z.boolean(), tags: z.boolean() });
+export type RailSections = z.infer<typeof railSectionsSchema>;
+const RAIL_SECTIONS_DEFAULT: RailSections = { recent: true, files: true, tags: false };
 
-export function readSidebarView(): SidebarView {
-  const raw = read(KEYS.sidebarView);
-  return raw === "tree" || raw === "tags" ? raw : "recents";
+// which of the rail's stacked sections are unfolded
+export function readRailSections(): RailSections {
+  const raw = read(KEYS.railSections);
+  if (raw === null) {
+    return RAIL_SECTIONS_DEFAULT;
+  }
+  try {
+    return railSectionsSchema.parse(JSON.parse(raw));
+  } catch {
+    return RAIL_SECTIONS_DEFAULT;
+  }
 }
 
-export function writeSidebarView(view: SidebarView): void {
-  write(KEYS.sidebarView, view);
+export function writeRailSections(sections: RailSections): void {
+  write(KEYS.railSections, JSON.stringify(sections));
 }
 
 // "" is the vault root. A remembered folder the vault no longer holds is the rail's to fall back from.

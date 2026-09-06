@@ -8,6 +8,7 @@
   "main": "./.output/app/main/index.js",
   "scripts": {
     "build": "electron-vite build",
+    "predev": "install-electron --no",
     "dev": "electron-vite dev",
     "package": "node scripts/package.mjs",
     "smoke": "node scripts/smoke-packaged.mjs",

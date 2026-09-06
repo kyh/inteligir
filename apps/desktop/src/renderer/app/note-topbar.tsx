@@ -173,15 +173,6 @@ export function NoteTopbar({
         <Button
           variant="ghost"
           size="icon-compact"
-          aria-label="Copy link"
-          disabled={path === null}
-          onClick={copyLink}
-        >
-          <LinkIcon />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon-compact"
           aria-label={`Comments${commentCount > 0 ? ` (${String(commentCount)} open)` : ""}`}
           disabled={path === null}
           onClick={onOpenComments}
@@ -200,6 +191,10 @@ export function NoteTopbar({
             }
           />
           <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={copyLink}>
+              <LinkIcon />
+              Copy link
+            </DropdownMenuItem>
             <DropdownMenuItem onClick={onExportPdf}>
               <FileDownIcon />
               Export as PDF

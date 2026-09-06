@@ -17,7 +17,6 @@ import { cn } from "cn";
 import { spring, exitFallbackMs } from "@repo/ui/lib/springs";
 import { useSurface, SurfaceProvider } from "@repo/ui/lib/surface-context";
 import { surfaceClasses } from "@repo/ui/lib/surface-classes";
-import { ScrollArea } from "@repo/ui/components/scroll-area";
 import { composeRefs } from "@repo/ui/lib/compose-refs";
 import {
   useSidebar,
@@ -215,38 +214,7 @@ const Sidebar = forwardRef<HTMLDivElement, SidebarProps>(
 );
 Sidebar.displayName = "Sidebar";
 
-type SidebarContentProps = HTMLAttributes<HTMLDivElement>;
-
-const SidebarContent = forwardRef<HTMLDivElement, SidebarContentProps>(
-  ({ className, children, ...props }, ref) => {
-    const { isMobile } = useSidebar();
-
-    // inside the mobile sheet a nested ScrollArea would double-scroll
-    if (isMobile) {
-      return (
-        <div
-          ref={ref}
-          data-sidebar="content"
-          className={cn("flex min-h-0 w-full flex-1 flex-col overflow-y-auto", className)}
-          {...props}
-        >
-          {children}
-        </div>
-      );
-    }
-
-    return (
-      <ScrollArea className={cn("min-h-0 w-full flex-1", className)}>
-        <div ref={ref} data-sidebar="content" className="flex w-full min-w-0 flex-col" {...props}>
-          {children}
-        </div>
-      </ScrollArea>
-    );
-  },
-);
-SidebarContent.displayName = "SidebarContent";
-
-export { Sidebar, SidebarContent };
+export { Sidebar };
 
 export {
   SidebarProvider,
@@ -254,10 +222,6 @@ export {
   SidebarInset,
   SidebarInput,
   SidebarHeader,
-  SidebarFooter,
-  SidebarGroup,
-  SidebarGroupLabel,
   SIDEBAR_MIN_WIDTH,
   SIDEBAR_MAX_WIDTH,
 } from "@repo/ui/components/sidebar-core";
-export { SidebarMenu, SidebarMenuItem, SidebarMenuButton } from "@repo/ui/components/sidebar-menu";

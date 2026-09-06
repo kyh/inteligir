@@ -537,7 +537,7 @@ export function FileTree({
             tabIndex={node.path === tabStopPath ? 0 : -1}
             draggable
             className={cn(
-              "group flex w-full cursor-default items-center gap-1 py-1 pr-1 text-sm outline-none select-none",
+              "group flex w-full cursor-default items-center gap-1 h-chrome-row pr-1 text-sm outline-none select-none",
               "hover:bg-muted/60 focus-visible:bg-muted",
               isOpen ? "bg-muted text-foreground" : "text-foreground/80",
               isDropTarget && "bg-primary/10 text-foreground",

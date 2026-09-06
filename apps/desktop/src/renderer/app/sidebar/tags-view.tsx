@@ -104,7 +104,7 @@ export function TagsView({
           <div
             key={node.tag}
             role="listitem"
-            className="group flex w-full items-center gap-1 py-1 pr-1 text-sm hover:bg-muted/60"
+            className="group flex w-full items-center gap-1 h-chrome-row pr-1 text-sm hover:bg-muted/60"
             style={{ paddingLeft: depth * 12 + 4 }}
           >
             {node.children.length > 0 ? (
