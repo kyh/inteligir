@@ -4,7 +4,7 @@ packages:
   - tools/*
 
 catalog:
-  "@base-ui/react": ^1.7.0
+  "@base-ui/react": ^1.8.0
   # exact: the v2 beta breaks between patches; the four must resolve to one build
   "@orpc/client": 2.0.0-beta.31
   "@orpc/contract": 2.0.0-beta.31
@@ -21,9 +21,9 @@ catalog:
   unbzip2-stream: ^1.4.3
   # optional peer @vitejs/plugin-react loads for `compiler: true`
   oxc-transform-react: ^0.147.0
-  "@cloudflare/vite-plugin": ^1.54.2
+  "@cloudflare/vite-plugin": ^1.54.4
   "@cloudflare/vitest-pool-workers": ^0.22.0
-  "@expo/metro-runtime": ~57.0.7
+  "@expo/metro-runtime": ~57.0.15
   # node-server held on 1.x: @hono/node-ws has no 2.x-compatible release; lift both together
   "@hono/node-server": ~1.19.17
   "@hono/node-ws": ^1.3.1
@@ -40,7 +40,7 @@ catalog:
   # tracks engines.node; newer types let a 25+-only API typecheck and throw at runtime
   "@types/node": ^24.13.3
   "@types/react": 19.2.17
-  "@types/react-dom": ^19.2.5
+  "@types/react-dom": ^19.2.7
   "@vitejs/plugin-react": ^6.1.1
   better-auth: ^1.7.2
   better-sqlite3: ^13.0.3
@@ -49,38 +49,38 @@ catalog:
   drizzle-kit: ^0.31.10
   drizzle-orm: ^0.45.2
   esbuild: ^0.28.2
-  expo: ~57.0.8
-  expo-constants: ~57.0.7
-  expo-crypto: ~57.0.1
-  expo-file-system: ~57.0.1
-  expo-router: ~57.0.8
-  expo-secure-store: ~57.0.1
-  expo-splash-screen: ~57.0.5
+  expo: ~57.0.20
+  expo-constants: ~57.0.17
+  expo-crypto: ~57.0.2
+  expo-file-system: ~57.0.6
+  expo-router: ~57.0.19
+  expo-secure-store: ~57.0.3
+  expo-splash-screen: ~57.0.8
   expo-status-bar: ~57.0.1
-  expo-system-ui: ~57.0.1
-  hono: ^4.13.5
+  expo-system-ui: ~57.0.3
+  hono: ^4.13.7
   jsdom: ^30.0.1
-  lucide-react: ^1.35.0
+  lucide-react: ^1.41.0
   nanoid: ^6.0.1
   react: ^19.2.8
   react-dom: ^19.2.8
-  react-native: ~0.86.0
+  react-native: ~0.86.3
   react-native-safe-area-context: ~5.7.0
   react-native-screens: ~4.26.2
   remark-frontmatter: ^5.0.0
   remark-gfm: ^4.0.1
   remark-parse: ^11.0.0
   tailwindcss: ^4.3.3
-  tsx: ^4.23.12
+  tsx: ^4.23.13
   typescript: ^7.0.2
   unified: ^11.0.5
   # exact: 8.2.x's rolldown tree-shakes better-auth's HOST_COOKIE_PREFIX and the Worker
   # dies at module scope with a bare 500
   vite: 8.1.5
   vitest: ^4.1.11
-  wrangler: ^4.127.1
+  wrangler: ^4.129.0
   yaml: ^2.9.0
-  zod: ^4.5.2
+  zod: ^4.5.4
   zustand: ^5.0.15
 
 catalogs:
@@ -108,3 +108,5 @@ overrides:
   "@types/react": "catalog:"
   # the catalog alone does not bind importers that don't spell `catalog:` (vitest's vite)
   vite: "catalog:"
+  # claude-code-acp pins 10.2.1 exact, inside two high ReDoS advisories; the tree already resolves 10.2.6
+  "minimatch@10": ^10.2.6
