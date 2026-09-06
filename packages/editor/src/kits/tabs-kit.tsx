@@ -13,7 +13,7 @@ import {
 import { PlusIcon, XIcon } from "lucide-react";
 
 import { Tooltip } from "@repo/ui/components/tooltip";
-import { cn } from "@repo/ui/lib/utils";
+import { cn } from "cn";
 
 import { stringProp } from "@repo/editor/node-props";
 

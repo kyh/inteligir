@@ -20,7 +20,7 @@ import { motion, AnimatePresence, type HTMLMotionProps } from "framer-motion";
 import { ChevronDownIcon } from "lucide-react";
 import { composeRefs } from "@repo/ui/lib/compose-refs";
 import { cssVars } from "@repo/ui/lib/css-vars";
-import { cn } from "@repo/ui/lib/utils";
+import { cn } from "cn";
 import { spring } from "@repo/ui/lib/springs";
 import { fontWeights } from "@repo/ui/lib/font-weight";
 import { useRadius } from "@repo/ui/lib/radius-context";

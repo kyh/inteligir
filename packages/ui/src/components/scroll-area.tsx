@@ -5,7 +5,7 @@
 
 import { forwardRef, type ComponentPropsWithoutRef, type ComponentRef } from "react";
 import { ScrollArea as ScrollAreaPrimitive } from "@base-ui/react/scroll-area";
-import { cn } from "@repo/ui/lib/utils";
+import { cn } from "cn";
 import { useRadius } from "@repo/ui/lib/radius-context";
 import { useTouchPrimary } from "@repo/ui/hooks/use-touch-primary";
 

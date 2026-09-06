@@ -6,7 +6,7 @@ import { useTodoListElement, useTodoListElementState } from "@platejs/list/react
 import { type PlateElementProps, type RenderNodeWrapper, useReadOnly } from "platejs/react";
 
 import { Checkbox } from "@repo/ui/components/checkbox";
-import { cn } from "@repo/ui/lib/utils";
+import { cn } from "cn";
 
 import { numberProp, stringProp } from "@repo/editor/node-props";
 

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { CheckIcon, ExternalLinkIcon, PencilIcon, Trash2Icon } from "lucide-react";
 import { useEditorRef, useElement, useReadOnly, useSelected } from "platejs/react";
 
-import { cn } from "@repo/ui/lib/utils";
+import { cn } from "cn";
 import { Button } from "@repo/ui/components/button";
 
 import { stringProp } from "@repo/editor/node-props";

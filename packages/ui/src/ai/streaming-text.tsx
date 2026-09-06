@@ -3,7 +3,7 @@
 
 import { forwardRef, useEffect, useState, type HTMLAttributes } from "react";
 
-import { cn } from "@repo/ui/lib/utils";
+import { cn } from "cn";
 
 const WORD_MS = 55;
 

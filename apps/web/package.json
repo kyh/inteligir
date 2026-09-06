@@ -22,6 +22,7 @@
     "@tanstack/react-router": "catalog:",
     "@tanstack/react-start": "catalog:",
     "better-auth": "catalog:",
+    "cn": "catalog:",
     "drizzle-orm": "catalog:",
     "durable-git": "0.0.8",
     "lucide-react": "catalog:",

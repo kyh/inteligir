@@ -14,7 +14,7 @@ import { formatIsoDate } from "@repo/notes/iso-date";
 
 import { stringProp } from "@repo/editor/node-props";
 
-import { cn } from "@repo/ui/lib/utils";
+import { cn } from "cn";
 
 import { Popover, PopoverContent, PopoverTrigger } from "@repo/ui/components/popover";
 

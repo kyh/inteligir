@@ -12,7 +12,7 @@ import { BaseCodeBlockPlugin, BaseCodeLinePlugin, CodeBlockRules } from "@platej
 import { CodeBlockPlugin, CodeLinePlugin, CodeSyntaxPlugin } from "@platejs/code-block/react";
 import { common, createLowlight } from "lowlight";
 
-import { cn } from "@repo/ui/lib/utils";
+import { cn } from "cn";
 
 import { turnIntoOption, turnIntoSelection } from "@repo/editor/block-transforms";
 import { stringProp } from "@repo/editor/node-props";

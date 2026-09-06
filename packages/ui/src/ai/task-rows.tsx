@@ -15,7 +15,7 @@ import {
 import { cva, type VariantProps } from "class-variance-authority";
 
 import { Collapse } from "@repo/ui/lib/collapse";
-import { cn } from "@repo/ui/lib/utils";
+import { cn } from "cn";
 
 export type TaskStatus = "pending" | "running" | "done" | "failed";
 

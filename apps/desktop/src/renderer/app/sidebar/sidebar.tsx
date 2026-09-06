@@ -14,7 +14,7 @@ import {
   SidebarInput,
 } from "@repo/ui/components/sidebar";
 import { TabsSubtle, TabsSubtleItem } from "@repo/ui/components/tabs-subtle";
-import { cn } from "@repo/ui/lib/utils";
+import { cn } from "cn";
 import { isVaultMetadataPath } from "@repo/notes/knowledge/doc-file";
 import type { VaultEntry } from "@repo/api/local/vault/vault-schema";
 import {

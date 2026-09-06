@@ -8,7 +8,7 @@
 import type { HTMLAttributes } from "react";
 import { PlateContainer, PlateContent, type PlateContentProps } from "platejs/react";
 
-import { cn } from "@repo/ui/lib/utils";
+import { cn } from "cn";
 
 // select-text opts out of the shell's global user-select: none; ignore-click-outside/toolbar keeps editor clicks from closing the floating toolbar
 const CONTAINER_CLASS =

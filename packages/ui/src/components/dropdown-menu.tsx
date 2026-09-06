@@ -18,7 +18,7 @@ import {
 import { motion } from "framer-motion";
 import { Menu } from "@base-ui/react/menu";
 
-import { cn } from "@repo/ui/lib/utils";
+import { cn } from "cn";
 import { spring, exitFallbackMs } from "@repo/ui/lib/springs";
 import { composeRefs } from "@repo/ui/lib/compose-refs";
 import { ProximityOverlays } from "@repo/ui/hooks/proximity-overlays";

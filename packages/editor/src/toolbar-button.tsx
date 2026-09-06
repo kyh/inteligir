@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 
 import { Tooltip } from "@repo/ui/components/tooltip";
-import { cn } from "@repo/ui/lib/utils";
+import { cn } from "cn";
 
 export function BarButton({
   onClick,

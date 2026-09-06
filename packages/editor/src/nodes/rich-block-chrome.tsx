@@ -2,7 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 
-import { cn } from "@repo/ui/lib/utils";
+import { cn } from "cn";
 
 export function RichBlockCard({
   actions,

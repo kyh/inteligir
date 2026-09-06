@@ -11,7 +11,7 @@ import {
 import { Input } from "@repo/ui/components/input";
 import { toast } from "@repo/ui/components/sonner";
 import { plural } from "@repo/ui/lib/plural";
-import { cn } from "@repo/ui/lib/utils";
+import { cn } from "cn";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeftIcon, ChevronRightIcon, PencilIcon } from "lucide-react";
 import { useState } from "react";

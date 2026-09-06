@@ -9,7 +9,7 @@ import { useHTMLInputCursorState } from "@platejs/combobox/react";
 import { Hotkeys, isHotkey, type TElement } from "platejs";
 import { useComposedRef, useEditorRef, useSelected } from "platejs/react";
 
-import { cn } from "@repo/ui/lib/utils";
+import { cn } from "cn";
 
 import {
   absorbRacedComboboxText,

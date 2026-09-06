@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { ElementApi, KEYS, NodeApi, type Path, type SlateEditor, type TElement } from "platejs";
 import { useEditorRef, useEditorSelector } from "platejs/react";
 
-import { cn } from "@repo/ui/lib/utils";
+import { cn } from "cn";
 
 export type HeadingItem = { id: string; path: Path; depth: number; title: string };
 

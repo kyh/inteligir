@@ -1,7 +1,7 @@
 // Vendored from Fluid Functionalism (github.com/mickadesign/fluid-functionalism), MIT.
 import type { ComponentProps } from "react";
 
-import { cn } from "@repo/ui/lib/utils";
+import { cn } from "cn";
 import { surfaceClasses } from "@repo/ui/lib/surface-classes";
 import { SurfaceProvider, useSurface } from "@repo/ui/lib/surface-context";
 

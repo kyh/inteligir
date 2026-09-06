@@ -2,7 +2,7 @@ import type { WikiTargetWire } from "@repo/api/local/knowledge/knowledge-schema"
 import { Badge } from "@repo/ui/components/badge";
 import { Button } from "@repo/ui/components/button";
 import { InputMessage } from "@repo/ui/components/input-message";
-import { cn } from "@repo/ui/lib/utils";
+import { cn } from "cn";
 import { toast } from "@repo/ui/components/sonner";
 import { FileTextIcon, XIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
