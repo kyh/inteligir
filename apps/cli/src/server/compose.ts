@@ -10,6 +10,7 @@ import { resolveMigrationsFolder } from "../paths";
 import type { ResolvedAgentDriver } from "./agents/agent-driver";
 import { AgentPrefsStore } from "./agents/agent-prefs-store";
 import { createAgentsService } from "./agents/agents-service";
+import { migrateLegacyCommentSidecars } from "./comments/comments-migration";
 import { createCommentsService } from "./comments/comments-service";
 import { systemOpenExternalUrl, type OpenExternalUrl } from "./cloud/browser-opener";
 import {
@@ -199,13 +200,20 @@ export async function composeRuntime(args: ComposeRuntimeArgs): Promise<Composed
   register("voice", () => voice.dispose());
   const voiceStreamHub = new VoiceStreamHub(voice);
 
+  const comments = createCommentsService(vault.service, () => Math.floor(Date.now() / 1000));
+  await migrateLegacyCommentSidecars({
+    vault: vault.service,
+    comments,
+    warn: (message) => console.warn(`[comments] ${message}`),
+  });
+
   // last, once every service it announces through exists; the bus has no clients before a socket is injected.
   cloud.start();
 
   const context: AppServices = {
     agents,
     cloud,
-    comments: createCommentsService(vault.service, () => Math.floor(Date.now() / 1000)),
+    comments,
     connectors,
     connectorsOauth,
     folders,

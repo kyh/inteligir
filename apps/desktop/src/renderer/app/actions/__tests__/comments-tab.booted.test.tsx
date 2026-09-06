@@ -26,6 +26,7 @@ describe("the comments tab under a refused read", () => {
   it("renders the refusal, never an eternal Loading…", async () => {
     const booted = await bootTestApp();
     routeRendererFetch(booted);
+    writeFileSync(join(booted.vaultDir, "note.md"), "note\n", "utf8");
     writeFileSync(join(booted.vaultDir, "note.md.comments.json"), "{not json", "utf8");
 
     mountTab("note.md");

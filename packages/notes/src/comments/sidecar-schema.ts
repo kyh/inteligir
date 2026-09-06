@@ -1,13 +1,35 @@
 import { z } from "zod";
 
-const SIDECAR_SUFFIX = ".comments.json";
+// One dot-folder for what the app owns inside the vault, keyed by the note's frontmatter id so a
+// rename or move outside the app strands nothing. The cloud was rejected for it: the anchors live
+// in the note's bytes and travel through git, so bodies in a second sync system drift from them.
+export const COMMENTS_STORE_DIR = ".inteligir/comments";
 
-export function commentsSidecarPath(notePath: string): string {
-  return `${notePath}${SIDECAR_SUFFIX}`;
+// the key must also be a file name; a uuid is, and so is any plain name
+const NOTE_ID_KEY_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
+
+export function isNoteIdKey(id: string): boolean {
+  return NOTE_ID_KEY_RE.test(id);
 }
 
-export function isCommentsSidecarPath(path: string): boolean {
-  return path.endsWith(SIDECAR_SUFFIX);
+export function commentsStorePath(noteId: string): string {
+  return `${COMMENTS_STORE_DIR}/${noteId}.json`;
+}
+
+// The beside-the-note spelling older vaults and older agents still write: recognised so it can be
+// folded into the store, never written.
+const LEGACY_SIDECAR_SUFFIX = ".comments.json";
+
+export function legacyCommentsSidecarPath(notePath: string): string {
+  return `${notePath}${LEGACY_SIDECAR_SUFFIX}`;
+}
+
+export function isLegacyCommentsSidecarPath(path: string): boolean {
+  return path.endsWith(LEGACY_SIDECAR_SUFFIX);
+}
+
+export function legacySidecarNotePath(sidecarPath: string): string {
+  return sidecarPath.slice(0, -LEGACY_SIDECAR_SUFFIX.length);
 }
 
 export const COMMENT_SOURCES = ["user", "agent", "external"] as const;

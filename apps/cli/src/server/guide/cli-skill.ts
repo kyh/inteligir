@@ -134,14 +134,15 @@ inteligir action wait "$id" && inteligir action show "$id"
 
 ## Comments — the review channel
 
-Anchored comments live in a \`<note>.comments.json\` sidecar beside the note;
-the \`%%i:id:start%%…%%i:id:end%%\` body markers wrap the ranges they are
+Anchored comments live in \`.inteligir/comments/<note-id>.json\`, keyed by
+the note's frontmatter \`id\` (minted on the first comment); the
+\`%%i:id:start%%…%%i:id:end%%\` body markers wrap the ranges they are
 about (the inteligir-comments skill states the grammar — follow it when
 editing files directly).
 
 - \`inteligir comment list <path>\` — a note's comment threads, replies and
   resolution state.
-- \`inteligir comment add <path> <text>\` — start a thread in the sidecar. It
+- \`inteligir comment add <path> <text>\` — start a thread in the store. It
   is UNANCHORED until markers wrap a range in the note body.
 - \`inteligir comment reply <path> <parent-id> <text>\` — reply in a thread.
 - \`inteligir comment resolve <path> <id>\` — resolve a thread

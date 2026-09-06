@@ -17,9 +17,9 @@ Read [[Use Cases|f2745aa0-f394-4469-963d-438f2dd9fd5a]] when you want workflows 
 ```plaintext
 vault/
   Getting Started.md
-  Getting Started.md.comments.json   # only when a note has comments
   Projects/Roadmap.md                # folders nest freely
   assets/diagram.png
+  .inteligir/comments/<note-id>.json # a note's comments, keyed by its frontmatter id
 ```
 
 The filename is the title. There is no database, no proprietary container, and no lock-in: edit a note here, in vim, or from a script, and every tool sees the same bytes. The vault is a git repository, so your history is real history.

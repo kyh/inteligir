@@ -35,7 +35,7 @@ skills/
   inteligir-formulas/SKILL.md     # {{source|display|meta}} pills and named
                                   # variables: grammar, identity, references
   inteligir-comments/SKILL.md     # %%i:id:start/end%% markers, the
-                                  # <note>.comments.json sidecar, attribution
+                                  # .inteligir/comments store, attribution
   inteligir-canvas/SKILL.md       # inteligir-canvas fences: when a sketch is the
                                   # answer, and the exact grid payload
   inteligir-html/SKILL.md         # inteligir-html fences: the shell, the sandbox

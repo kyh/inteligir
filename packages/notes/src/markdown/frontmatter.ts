@@ -127,6 +127,38 @@ function withoutTopLevelKey(lines: readonly string[], key: string): string[] {
   return kept;
 }
 
+// the note's identity: frontmatter `id`, the value `[[Title|uuid]]` resolves and the comment
+// store is keyed by. Text only: a number or a list is not a name.
+export function noteIdOf(parsed: ParsedProperties | null): string | null {
+  if (parsed === null || parsed.kind !== "valid") return null;
+  const prop = parsed.properties.find((p) => p.key === "id");
+  if (prop === undefined || prop.type !== "text") return null;
+  const id = prop.value.trim();
+  return id === "" ? null : id;
+}
+
+export function frontmatterId(content: string): string | null {
+  return noteIdOf(parseProperties(frontmatterYaml(content) ?? ""));
+}
+
+// uuid-shaped, the form the resolver's id tier already answers
+export function mintNoteId(): string {
+  return globalThis.crypto.randomUUID();
+}
+
+// A line cut like the pin's: `id:` goes first, an empty `id:` is replaced, a note that has one
+// keeps it. null: the frontmatter is not valid YAML, and nothing here may rewrite bytes it
+// cannot read.
+export function withFrontmatterId(content: string, id: string): string | null {
+  const yaml = frontmatterYaml(content);
+  const parsed = parseProperties(yaml ?? "");
+  if (parsed.kind === "invalid") return null;
+  if (noteIdOf(parsed) !== null) return content;
+  const lines = yaml === null || yaml === "" ? [] : yaml.split("\n");
+  const next = [`id: ${id}`, ...withoutTopLevelKey(lines, "id")];
+  return `---\n${next.join("\n")}\n---\n${splitFrontmatter(content).body}`;
+}
+
 // a note minted from a template must not inherit the template's identity: two notes with one
 // `id:` make the `[[Title|uuid]]` tier ambiguous.
 export function removeFrontmatterId(content: string): string {

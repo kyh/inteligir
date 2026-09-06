@@ -59,7 +59,7 @@ export function commentCommand(deps: CliDeps) {
         meta: {
           name: "add",
           description:
-            "Start a comment thread in the sidecar (unanchored until markers wrap a range)",
+            "Start a comment thread in the note's store (unanchored until markers wrap a range)",
         },
         args: {
           path: { type: "positional", required: true, description: "Vault-relative note path" },
@@ -137,7 +137,7 @@ export function commentCommand(deps: CliDeps) {
       remove: defineCommand({
         meta: {
           name: "remove",
-          description: "Delete a comment thread's sidecar entries (markers stay yours to strip)",
+          description: "Delete a comment thread's store entries (markers stay yours to strip)",
         },
         args: {
           path: { type: "positional", required: true, description: "Vault-relative note path" },

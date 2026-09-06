@@ -1,4 +1,4 @@
-// the sidecar is an ordinary vault file, so containment, notify, auto-commit and sync ride the write.
+// the store is an ordinary vault file, so containment, notify, auto-commit and sync ride the write.
 // every mutation is a cas against the bytes it was folded from: the panel and the agent's cli are two
 // writers of one file, and a plain write lets the second erase the first's entry. one retry is safe
 // because every comment edit is additive over ids.
@@ -13,12 +13,15 @@ import {
 } from "@repo/notes/comments/comment-threads";
 import { markerRootIds } from "@repo/notes/comments/marker-ids";
 import {
-  commentsSidecarPath,
+  commentsStorePath,
+  isNoteIdKey,
+  legacyCommentsSidecarPath,
   parseSidecar,
   serializeSidecar,
   type CommentSidecar,
   type CommentSource,
 } from "@repo/notes/comments/sidecar-schema";
+import { frontmatterId, mintNoteId, withFrontmatterId } from "@repo/notes/markdown/frontmatter";
 import type {
   CommentEntryWire,
   CommentsAddRequest,
@@ -32,7 +35,7 @@ import { COMMENTS_THREADS_MAX } from "@repo/api/local/comments/comments-schema";
 
 import { VaultServiceError, type VaultService } from "../vault/vault-service";
 
-// unix seconds, the sidecar's unit.
+// unix seconds, the store's unit.
 export type CommentsClock = () => number;
 
 export interface CommentsService {
@@ -41,6 +44,8 @@ export interface CommentsService {
   reply(args: CommentsReplyRequest): Promise<CommentsResponse>;
   resolve(args: CommentsResolveRequest): Promise<CommentsResponse>;
   remove(args: CommentsRemoveRequest): Promise<CommentsRemoveResponse>;
+  // the beside-the-note sidecar older vaults and agents wrote, folded into the store and removed
+  migrateLegacy(path: string): Promise<"migrated" | "none">;
 }
 
 // not folded to `{}`: an empty fold lets the next write erase every thread an external writer left.
@@ -81,42 +86,73 @@ function toResponse(path: string, folded: SidecarThreads): CommentsResponse {
   };
 }
 
-type SidecarBase = { sidecar: CommentSidecar; raw: string | null };
+type StoreBase = { sidecar: CommentSidecar; raw: string | null };
 
 type EditApplied = { ok: true; sidecar: CommentSidecar };
 type EditRefused = { ok: false; error: string };
 
+// the note's bytes and the id they carry; `id` is null for a note that has none yet
+type NoteRead = { content: string; id: string | null };
+
 const DEFAULT_SOURCE: CommentSource = "user";
 
+// the key names a file, so an id that cannot is refused rather than escaping the store's folder
+function keyOf(notePath: string, id: string): string {
+  if (!isNoteIdKey(id)) {
+    throw new CommentRefusedError(`${notePath}: its id ${JSON.stringify(id)} cannot name a file`);
+  }
+  return id;
+}
+
 export function createCommentsService(vault: VaultService, now: CommentsClock): CommentsService {
-  async function readSidecar(notePath: string): Promise<SidecarBase> {
+  async function readNote(notePath: string): Promise<NoteRead> {
+    const { content } = await vault.read(notePath);
+    return { content, id: frontmatterId(content) };
+  }
+
+  // A note keeps the id it has. One without is minted one through a guarded write, re-read once
+  // if the note moved under it, because the user may be typing in it.
+  async function ensureNoteId(notePath: string, note: NoteRead): Promise<string> {
+    let current = note;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      if (current.id !== null) return keyOf(notePath, current.id);
+      const id = mintNoteId();
+      const next = withFrontmatterId(current.content, id);
+      if (next === null) {
+        throw new CommentRefusedError(
+          `${notePath}: the frontmatter is not valid YAML, so no id can be written into it`,
+        );
+      }
+      const result = await vault.writeIfUnchanged(notePath, current.content, next);
+      if (result.applied) return id;
+      current = await readNote(notePath);
+    }
+    throw new SidecarConflictError(
+      `${notePath} changed under the id write twice; nothing was written`,
+    );
+  }
+
+  async function readStore(noteId: string): Promise<StoreBase> {
+    const path = commentsStorePath(noteId);
     let raw: string;
     try {
-      raw = (await vault.read(commentsSidecarPath(notePath))).content;
+      raw = (await vault.read(path)).content;
     } catch (error) {
-      if (error instanceof VaultServiceError && error.code === "not_found") {
+      if (error instanceof VaultServiceError && error.code === "not_found")
         return { sidecar: {}, raw: null };
-      }
       throw error;
     }
     const parsed = parseSidecar(raw);
-    if (!parsed.ok) {
-      throw new SidecarInvalidError(`${commentsSidecarPath(notePath)}: ${parsed.error}`);
-    }
+    if (!parsed.ok) throw new SidecarInvalidError(`${path}: ${parsed.error}`);
     return { sidecar: parsed.sidecar, raw };
   }
 
-  async function readNoteMarkers(notePath: string): Promise<Set<string> | null> {
-    const { content } = await vault.read(notePath);
-    return markerRootIds(content);
-  }
-
-  async function swapSidecar(
-    notePath: string,
-    base: SidecarBase,
+  async function swapStore(
+    noteId: string,
+    base: StoreBase,
     next: CommentSidecar,
   ): Promise<boolean> {
-    const path = commentsSidecarPath(notePath);
+    const path = commentsStorePath(noteId);
     const content = serializeSidecar(next);
     const result =
       base.raw === null
@@ -127,56 +163,110 @@ export function createCommentsService(vault: VaultService, now: CommentsClock): 
 
   // the edit re-runs against the retry's read, so an id the other writer took is refused, not re-applied.
   async function commit<Applied extends EditApplied>(
-    notePath: string,
+    noteId: string,
     edit: (sidecar: CommentSidecar) => Applied | EditRefused,
   ): Promise<Applied> {
     for (let attempt = 0; attempt < 2; attempt += 1) {
-      const base = await readSidecar(notePath);
+      const base = await readStore(noteId);
       const edited = edit(base.sidecar);
       if (!edited.ok) throw new CommentRefusedError(edited.error);
-      if (await swapSidecar(notePath, base, edited.sidecar)) return edited;
+      if (await swapStore(noteId, base, edited.sidecar)) return edited;
     }
     throw new SidecarConflictError(
-      `${commentsSidecarPath(notePath)} changed under the edit twice; nothing was written`,
+      `${commentsStorePath(noteId)} changed under the edit twice; nothing was written`,
     );
   }
 
-  async function answer(notePath: string, sidecar: CommentSidecar): Promise<CommentsResponse> {
-    const markers = await readNoteMarkers(notePath).catch(() => null);
-    return toResponse(notePath, foldThreads(sidecar, markers));
+  // Entries merge by id with the store's own winning; the legacy file goes only if it is still
+  // the bytes that were folded; an unparseable one is reported by its own name and left, since
+  // destroying it would destroy the threads it holds.
+  async function foldLegacy(notePath: string, note: NoteRead): Promise<NoteRead> {
+    const legacyPath = legacyCommentsSidecarPath(notePath);
+    let raw: string;
+    try {
+      raw = (await vault.read(legacyPath)).content;
+    } catch (error) {
+      if (error instanceof VaultServiceError && error.code === "not_found") return note;
+      throw error;
+    }
+    const parsed = parseSidecar(raw);
+    if (!parsed.ok) throw new SidecarInvalidError(`${legacyPath}: ${parsed.error}`);
+    let folded = note;
+    if (Object.keys(parsed.sidecar).length > 0) {
+      const id = await ensureNoteId(notePath, note);
+      folded = { content: note.content, id };
+      await commit(id, (store) => ({ ok: true, sidecar: { ...parsed.sidecar, ...store } }));
+    }
+    await vault.removeIfUnchanged(legacyPath, raw);
+    return folded;
+  }
+
+  async function open(notePath: string): Promise<NoteRead> {
+    return foldLegacy(notePath, await readNote(notePath));
+  }
+
+  function answer(notePath: string, note: NoteRead, sidecar: CommentSidecar): CommentsResponse {
+    return toResponse(notePath, foldThreads(sidecar, markerRootIds(note.content)));
+  }
+
+  // reply, resolve and remove act on a thread that exists, so a note with no id has none of them
+  async function keyOfOpen(notePath: string): Promise<{ note: NoteRead; key: string }> {
+    const note = await open(notePath);
+    if (note.id === null) throw new CommentRefusedError(`${notePath} has no comments`);
+    return { note, key: keyOf(notePath, note.id) };
   }
 
   return {
     async list(path) {
-      return answer(path, (await readSidecar(path)).sidecar);
+      let note: NoteRead;
+      try {
+        note = await open(path);
+      } catch (error) {
+        if (error instanceof VaultServiceError && error.code === "not_found")
+          return toResponse(path, foldThreads({}, null));
+        throw error;
+      }
+      if (note.id === null) return answer(path, note, {});
+      return answer(path, note, (await readStore(keyOf(path, note.id))).sidecar);
     },
 
     async add({ path, id, text, source = DEFAULT_SOURCE }) {
-      const markers = await readNoteMarkers(path);
-      const added = await commit(path, (sidecar) =>
+      const note = await open(path);
+      const key = await ensureNoteId(path, note);
+      const added = await commit(key, (sidecar) =>
         addRoot(sidecar, { id, text, source, at: now() }),
       );
-      return toResponse(path, foldThreads(added.sidecar, markers));
+      return answer(path, note, added.sidecar);
     },
 
     async reply({ path, id, parentId, text, source = DEFAULT_SOURCE }) {
-      const added = await commit(path, (sidecar) =>
+      const { note, key } = await keyOfOpen(path);
+      const added = await commit(key, (sidecar) =>
         addReply(sidecar, { id, parentId, text, source, at: now() }),
       );
-      return answer(path, added.sidecar);
+      return answer(path, note, added.sidecar);
     },
 
     async resolve({ path, id, resolved, source = DEFAULT_SOURCE }) {
-      const next = await commit(path, (sidecar) =>
+      const { note, key } = await keyOfOpen(path);
+      const next = await commit(key, (sidecar) =>
         resolveThread(sidecar, { rootId: id, resolved, by: source, at: now() }),
       );
-      return answer(path, next.sidecar);
+      return answer(path, note, next.sidecar);
     },
 
     async remove({ path, id }) {
-      const deleted = await commit(path, (sidecar) => deleteThread(sidecar, id));
-      const response = await answer(path, deleted.sidecar);
-      return { ...response, removedIds: deleted.removedIds };
+      const { note, key } = await keyOfOpen(path);
+      const deleted = await commit(key, (sidecar) => deleteThread(sidecar, id));
+      return { ...answer(path, note, deleted.sidecar), removedIds: deleted.removedIds };
+    },
+
+    async migrateLegacy(path) {
+      const note = await readNote(path);
+      const legacyPath = legacyCommentsSidecarPath(path);
+      if ((await vault.statEntry(legacyPath)) !== "file") return "none";
+      await foldLegacy(path, note);
+      return "migrated";
     },
   };
 }

@@ -7,7 +7,12 @@ import type { Nodes } from "mdast";
 
 import { parseCalloutPayload } from "../markdown/callout-payload";
 import { isCalloutLang } from "../markdown/fence-langs";
-import { parseProperties, PINNED_KEY, type ParsedProperties } from "../markdown/frontmatter";
+import {
+  noteIdOf,
+  parseProperties,
+  PINNED_KEY,
+  type ParsedProperties,
+} from "../markdown/frontmatter";
 import { parseWikiBodyRange } from "../markdown/remark-wiki-link";
 import { parseScan } from "../markdown/scan-parse";
 import { insideVerbatim, verbatimSpans, type VerbatimSpan } from "../markdown/verbatim-spans";
@@ -51,7 +56,7 @@ export function scanDoc(source: string): DocScan {
     aliases: frontmatterAliases(frontmatter),
     tasks: frontmatterTasksDisabled(frontmatter) ? [] : tasksInTree(tree, source),
     pinned: frontmatterPinned(frontmatter),
-    noteId: frontmatterNoteId(frontmatter),
+    noteId: noteIdOf(frontmatter),
   };
   walk(tree, (node) => {
     switch (node.type) {
@@ -304,14 +309,6 @@ function frontmatterPinned(parsed: ParsedProperties | null): boolean {
   if (parsed === null || parsed.kind !== "valid") return false;
   const prop = parsed.properties.find((p) => p.key === PINNED_KEY);
   return prop !== undefined && prop.type === "checkbox" && prop.value;
-}
-
-function frontmatterNoteId(parsed: ParsedProperties | null): string | null {
-  if (parsed === null || parsed.kind !== "valid") return null;
-  const prop = parsed.properties.find((p) => p.key === "id");
-  if (prop === undefined || prop.type !== "text") return null;
-  const id = prop.value.trim();
-  return id === "" ? null : id;
 }
 
 type NodePosition = { span: Span; line: number };

@@ -245,7 +245,7 @@ to the END of its group.
 - [Editor and dialect](#editor-and-dialect) — 12
 - [Vault: writes, git and containment](#vault-writes-git-and-containment) — 13
 - [Knowledge: index, search and links](#knowledge-index-search-and-links) — 12
-- [Agents and threads](#agents-and-threads) — 10
+- [Agents and threads](#agents-and-threads) — 11
 - [Dictation](#dictation) — 6
 - [Cloud, sync and accounts](#cloud-sync-and-accounts) — 17
 - [Server process and the desktop shell](#server-process-and-the-desktop-shell) — 10
@@ -282,8 +282,8 @@ to the END of its group.
   scan both read it. The file layout stays plain nested `.md`: no bundles, no
   meta.json; frontmatter is the only property store and a note's UUID is
   frontmatter `id:`. `{{` is reserved from MDX expressions by a tokenizer guard
-  on both braces. Comment thread bodies live in a `<note>.comments.json`
-  sidecar.
+  on both braces. Comment thread bodies live in
+  `.inteligir/comments/<note-id>.json`, keyed by the note's frontmatter `id`.
 
 - **EVERY FLOATING SURFACE IS A BASE UI PRIMITIVE THROUGH `@repo/ui`, never a
   hand-positioned div.** A popup is `Popover`, `DropdownMenu`, `Tooltip`,
@@ -662,13 +662,27 @@ rename`.
   `apps/desktop/src/renderer/app/actions/actions-panel.tsx` and
   `action-composer.tsx`.
 
-- **COMMENTS CARRY THE AUTHOR'S `source`, AND THE SIDECAR WRITE IS A CAS.** The
+- **COMMENTS CARRY THE AUTHOR'S `source`, AND THE STORE WRITE IS A CAS.** The
   server signs `user` when a caller says nothing; the CLI signs `agent` under
-  `INTELIGIR_THREAD_ID`. The sidecar write retries once on a base mismatch, then
+  `INTELIGIR_THREAD_ID`. The store write retries once on a base mismatch, then
   answers `CONFLICT`. The comment-id grammar has one spelling in
   `@repo/notes/comments/sidecar-schema`.
   `apps/cli/src/server/comments/comments-service.ts` and
   `apps/cli/src/commands/comment.ts`.
+
+- **THE COMMENT STORE IS ONE DOT-FOLDER KEYED BY THE NOTE'S ID, and the cloud
+  was rejected for it.** `.inteligir/comments/<note-id>.json`, `<note-id>` the
+  note's frontmatter `id`, so a rename or move anywhere (Finder, a pull, an
+  agent's `mv`) strands nothing and one commit carries a note's anchors and its
+  bodies together. Bodies in a cloud table would drift from the anchors in the
+  note's bytes and would need an account, and accountless installs make zero
+  cloud requests. A comment on a note without an id mints one
+  (`withFrontmatterId`, a line cut like the pin's) through a guarded note
+  write; a read mints nothing. The beside-the-note `<note>.comments.json` older
+  vaults and agents wrote is folded into the store on first touch and over the
+  whole tree at boot (`comments-migration.ts`); an unparseable one is reported
+  by its own name and left. A deleted note's store file stays, so a restore
+  brings its comments back.
 
 - **A VIEW CONTEXT RIDES THE MESSAGE, and it is a statement about the past.**
   What the user was looking at travels on the send (`@repo/domain/view-context`),

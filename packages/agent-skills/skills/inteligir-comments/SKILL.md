@@ -1,6 +1,6 @@
 ---
 name: inteligir-comments
-description: Anchored comments in inteligir notes — body markers, the per-note sidecar, replies, resolution, and attribution.
+description: Anchored comments in inteligir notes — body markers, the note's comment store, replies, resolution, and attribution.
 ---
 
 # inteligir Comments
@@ -10,7 +10,7 @@ Ordinary wording and structure problems are not comments — fix those in the
 text and move on.
 
 A comment thread is two halves that must agree: **markers in the note's body**
-and **an entry in the sidecar**. One without the other is a broken thread.
+and **an entry in the store**. One without the other is a broken thread.
 
 ## Body Markers
 
@@ -21,10 +21,10 @@ The %%i:c1:start%%rollback path%%i:c1:end%% is unproven.
 ```
 
 - Ids may hold letters, digits, `_`, and `-`. Pick one that appears nowhere else
-  in the note or its sidecar.
+  in the note or its store.
 - Both edges are required and must carry the same ids.
 - Several threads can share one range: `%%i:a,b:start%%text%%i:a,b:end%%`.
-- Only root ids appear in the body. Replies live in the sidecar alone.
+- Only root ids appear in the body. Replies live in the store alone.
 
 Put markers **around** a whole inline pill or link, never inside one. To comment
 on a block — an image, chart, canvas, HTML block, or fence — put each marker on
@@ -32,10 +32,14 @@ its own line above and below the block.
 
 Markers inside a code fence are inert, like everything else in code.
 
-## The Sidecar
+## The Store
 
-`<note>.md.comments.json` sits beside the note — `Roadmap.md` pairs with
-`Roadmap.md.comments.json`. It is a JSON object keyed by comment id.
+A note's comments live in `.inteligir/comments/<note-id>.json`, where
+`<note-id>` is the note's frontmatter `id` (`inteligir comment add` mints one
+into a note that has none). It is a JSON object keyed by comment id. A
+`<note>.md.comments.json` beside a note is the older spelling: the server folds
+it into the store the first time the note's comments are read, so never write
+one.
 
 | Field        | Required    | Contract                                            |
 | ------------ | ----------- | --------------------------------------------------- |
@@ -93,7 +97,7 @@ guessing.
 
 ## Before You Finish
 
-- Every marked root has exactly one sidecar entry, and every root entry has
+- Every marked root has exactly one store entry, and every root entry has
   markers.
 - Reply chains reach a marked root with no cycles.
 - `source` matches who actually wrote it.

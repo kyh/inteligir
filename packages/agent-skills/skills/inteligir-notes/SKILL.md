@@ -28,9 +28,9 @@ that need one — they are listed at the bottom.
 ```plaintext
 vault/
   Some Note.md
-  Some Note.md.comments.json     # only when the note has comments
   Projects/Roadmap.md            # folders nest freely
   assets/diagram.png             # images and media
+  .inteligir/comments/<id>.json  # a note's comments, keyed by its frontmatter id
 ```
 
 The title is the filename, not a frontmatter field and not the H1. Renaming a
