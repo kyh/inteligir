@@ -14,7 +14,7 @@ import { ChevronDownIcon } from "lucide-react";
 import { z } from "zod";
 
 import { Tooltip } from "@repo/ui/components/tooltip";
-import { cn } from "@repo/ui/lib/utils";
+import { cn } from "cn";
 
 import { useOpenNotePath } from "@repo/editor/note/open-note-context";
 

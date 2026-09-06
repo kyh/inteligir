@@ -9,7 +9,7 @@ import {
   CommandItem,
   CommandList,
 } from "@repo/ui/components/command";
-import { cn } from "@repo/ui/lib/utils";
+import { cn } from "cn";
 import { docStem } from "@repo/notes/knowledge/doc-file";
 import { TEMPLATES_FOLDER } from "@repo/notes/templates/placeholders";
 import { FolderIcon, LayoutTemplateIcon } from "lucide-react";

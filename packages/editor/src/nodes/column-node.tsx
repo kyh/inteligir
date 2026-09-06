@@ -13,7 +13,7 @@ import {
   type PlateElementProps,
 } from "platejs/react";
 
-import { cn } from "@repo/ui/lib/utils";
+import { cn } from "cn";
 
 import { stringProp } from "@repo/editor/node-props";
 

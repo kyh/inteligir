@@ -2,7 +2,7 @@ import { z } from "zod";
 import { type PlateElementProps, PlateElement } from "platejs/react";
 import { useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 
-import { cn } from "@repo/ui/lib/utils";
+import { cn } from "cn";
 
 import { stringProp } from "@repo/editor/node-props";
 

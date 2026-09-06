@@ -16,7 +16,7 @@ import { animate, motion, useMotionValue } from "framer-motion";
 import { useSize, type SizeVariant } from "@repo/ui/lib/size-context";
 import { motionProps, motionStyle } from "@repo/ui/lib/motion-style";
 import { spring } from "@repo/ui/lib/springs";
-import { cn } from "@repo/ui/lib/utils";
+import { cn } from "cn";
 
 interface SwitchProps extends HTMLAttributes<HTMLDivElement> {
   checked: boolean;

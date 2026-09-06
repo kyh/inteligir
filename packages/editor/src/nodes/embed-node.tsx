@@ -6,7 +6,7 @@ import { parseTwitterUrl } from "@platejs/media";
 import { PlateElement, useFocused, useSelected, type PlateElementProps } from "platejs/react";
 
 import { isHttpUrl } from "@repo/editor/lib/wire";
-import { cn } from "@repo/ui/lib/utils";
+import { cn } from "cn";
 
 import { useDarkClass } from "@repo/editor/lib/use-dark-class";
 import { stringProp } from "@repo/editor/node-props";

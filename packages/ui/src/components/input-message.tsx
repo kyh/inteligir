@@ -13,7 +13,7 @@ import {
   type Ref,
   type TextareaHTMLAttributes,
 } from "react";
-import { cn } from "@repo/ui/lib/utils";
+import { cn } from "cn";
 import { fontWeights } from "@repo/ui/lib/font-weight";
 import { useRadius } from "@repo/ui/lib/radius-context";
 import { SizeProvider, useSize, type SizeVariant } from "@repo/ui/lib/size-context";

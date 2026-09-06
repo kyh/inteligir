@@ -6,7 +6,7 @@ import { NodeApi, type TElement } from "platejs";
 import { PlateElement, useSelected, type PlateElementProps } from "platejs/react";
 import { ImageOff } from "lucide-react";
 
-import { cn } from "@repo/ui/lib/utils";
+import { cn } from "cn";
 
 import { getEditorHostIo } from "@repo/editor/host-io";
 import { stringProp } from "@repo/editor/node-props";

@@ -6,7 +6,7 @@ import { cva, type VariantProps } from "class-variance-authority";
 
 import { Collapse } from "@repo/ui/lib/collapse";
 import { composeRefs } from "@repo/ui/lib/compose-refs";
-import { cn } from "@repo/ui/lib/utils";
+import { cn } from "cn";
 
 interface ThinkingProps extends Omit<HTMLAttributes<HTMLDivElement>, "title"> {
   label?: string;

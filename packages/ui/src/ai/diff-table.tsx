@@ -5,7 +5,7 @@ import { createContext, forwardRef, useContext, useMemo } from "react";
 import type { HTMLAttributes, ReactNode, TdHTMLAttributes, ThHTMLAttributes } from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 
-import { cn } from "@repo/ui/lib/utils";
+import { cn } from "cn";
 
 export type DiffChange = "removed" | "added" | "unchanged";
 

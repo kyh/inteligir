@@ -4,7 +4,7 @@
 import { forwardRef } from "react";
 import type { HTMLAttributes, ReactNode } from "react";
 
-import { cn } from "@repo/ui/lib/utils";
+import { cn } from "cn";
 
 const SelectionActions = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (

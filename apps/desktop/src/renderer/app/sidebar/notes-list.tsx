@@ -6,7 +6,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
 } from "@repo/ui/components/dropdown-menu";
-import { cn } from "@repo/ui/lib/utils";
+import { cn } from "cn";
 import { useState } from "react";
 import { relativeTimeLabel, useNow } from "../relative-time";
 import { usePinnedPaths } from "../vault-hooks";

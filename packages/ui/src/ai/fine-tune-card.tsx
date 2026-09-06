@@ -4,7 +4,7 @@
 import { forwardRef, useRef } from "react";
 import type { HTMLAttributes, KeyboardEvent, PointerEvent, ReactNode } from "react";
 
-import { cn } from "@repo/ui/lib/utils";
+import { cn } from "cn";
 import { GlideList } from "@repo/ui/ai/glide-list";
 
 const FineTuneCard = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(

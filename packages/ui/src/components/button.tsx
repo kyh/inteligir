@@ -9,7 +9,7 @@ import { Tooltip } from "@repo/ui/components/tooltip";
 import type { IconComponent } from "@repo/ui/lib/icon";
 import { useRadius } from "@repo/ui/lib/radius-context";
 import { useSizeVariant } from "@repo/ui/lib/size-context";
-import { cn } from "@repo/ui/lib/utils";
+import { cn } from "cn";
 
 const buttonStructure = cva(
   [

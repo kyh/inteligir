@@ -13,7 +13,7 @@ import {
 import { PlateLeaf, createPlatePlugin, useEditorRef, type PlateLeafProps } from "platejs/react";
 
 import { Tooltip } from "@repo/ui/components/tooltip";
-import { cn } from "@repo/ui/lib/utils";
+import { cn } from "cn";
 
 import { editorShortcutFor, type EditorShortcut } from "@repo/editor/editor-shortcuts";
 

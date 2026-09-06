@@ -11,7 +11,7 @@ import { useOpenNote } from "@repo/editor/note/open-note-context";
 import { flushOpenNote } from "@repo/editor/note/open-note-flush";
 import { Button } from "@repo/ui/components/button";
 import { toast } from "@repo/ui/components/sonner";
-import { cn } from "@repo/ui/lib/utils";
+import { cn } from "cn";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeftIcon } from "lucide-react";
 import { useMemo, useState } from "react";

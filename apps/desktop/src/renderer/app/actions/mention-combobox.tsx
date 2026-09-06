@@ -1,5 +1,5 @@
 import type { WikiTargetWire } from "@repo/api/local/knowledge/knowledge-schema";
-import { cn } from "@repo/ui/lib/utils";
+import { cn } from "cn";
 import { FileTextIcon } from "lucide-react";
 
 export const MENTION_MAX_ROWS = 8;

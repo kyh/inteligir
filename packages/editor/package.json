@@ -152,6 +152,7 @@
     "@platejs/toggle": "^53.0.0",
     "@repo/notes": "workspace:*",
     "@repo/ui": "workspace:*",
+    "cn": "catalog:",
     "katex": "^0.18.5",
     "lowlight": "^3.3.0",
     "lucide-react": "catalog:",
