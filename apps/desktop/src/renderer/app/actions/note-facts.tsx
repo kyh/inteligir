@@ -4,12 +4,12 @@ import {
   type VaultHistoryResponse,
 } from "@repo/api/local/vault/vault-schema";
 import { readingMinutes, useNoteStats } from "@repo/editor/note-stats";
-import { cn } from "@repo/ui/lib/utils";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronRightIcon } from "lucide-react";
+
 import { useState } from "react";
 
 import { orpc } from "../api";
+import { PanelSection } from "./panel-section";
 import { relativeTimeLabel, useNow } from "../relative-time";
 import { useVaultTree } from "../vault-hooks";
 import { useWorkspace } from "../workspace-context";
@@ -121,19 +121,8 @@ function NoteFactRows({ docPath }: { docPath: string }) {
 export function NoteFacts({ docPath }: { docPath: string }) {
   const [open, setOpen] = useState(false);
   return (
-    <div className="shrink-0 border-b border-line">
-      <button
-        type="button"
-        aria-expanded={open}
-        className="flex w-full items-center gap-1 px-3 py-1.5 text-[11px] font-medium text-muted-foreground uppercase hover:text-foreground"
-        onClick={() => {
-          setOpen(!open);
-        }}
-      >
-        <ChevronRightIcon className={cn("size-3 transition-transform", open && "rotate-90")} />
-        About
-      </button>
-      {open ? <NoteFactRows docPath={docPath} /> : null}
-    </div>
+    <PanelSection label="About" open={open} onOpenChange={setOpen}>
+      <NoteFactRows docPath={docPath} />
+    </PanelSection>
   );
 }
