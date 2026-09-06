@@ -5,6 +5,7 @@ import {
   VAULT_HISTORY_DEFAULT_LIMIT,
   type VaultRenameResponse,
 } from "@repo/api/local/vault/vault-schema";
+import { removeEntryWithComments } from "../comments/remove-with-comments";
 import { base, refusals } from "../orpc";
 import { vaultWireError } from "./vault-refusals";
 import type { GuardedWriteGuard } from "./vault-service";
@@ -84,7 +85,7 @@ const deleted = base.vault.deleted.handler(async ({ context }) => ({
 
 const remove = base.vault.remove.handler(({ context, input }) =>
   refusing(async () => {
-    await context.vault.service.remove(input.path);
+    await removeEntryWithComments(context.vault.service, input.path);
     return { ok: true } as const;
   }),
 );

@@ -7,6 +7,7 @@ import {
   DialogTitle,
 } from "@repo/ui/components/dialog";
 import { docStem } from "@repo/notes/knowledge/doc-file";
+import { restoreCommentStore } from "@repo/api/local/vault/restore-comment-store";
 import type { VaultDeletedEntry } from "@repo/api/local/vault/vault-schema";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "@repo/ui/components/sonner";
@@ -31,7 +32,9 @@ export function DeletedNotesDialog({ open, onOpenChange, onOpenNote }: DeletedNo
   const restore = useMutation({
     mutationFn: async (entry: VaultDeletedEntry) => {
       const { content } = await api.vault.revision({ path: entry.path, sha: entry.sha });
-      return api.vault.write({ path: entry.path, content, ifAbsent: true });
+      const restored = await api.vault.write({ path: entry.path, content, ifAbsent: true });
+      await restoreCommentStore(api, content, entry.sha);
+      return restored;
     },
     onError: (error, entry) => {
       toast.error(refusalMessage(error, `Could not restore ${entry.path}.`));

@@ -682,8 +682,11 @@ rename`.
   write; a read mints nothing. The beside-the-note `<note>.comments.json` older
   vaults and agents wrote is folded into the store on first touch and over the
   whole tree at boot (`comments-migration.ts`); an unparseable one is reported
-  by its own name and left. A deleted note's store file stays, so a restore
-  brings its comments back.
+  by its own name and left. A deleted note's store goes with it
+  (`remove-with-comments.ts`, a folder's with every note under it), and the
+  deleted-notes restore brings both back from the same revision through
+  `@repo/api/local/vault/restore-comment-store`, the one composition the
+  dialog and `vault restore` both run after the note's own ifAbsent write.
 
 - **A VIEW CONTEXT RIDES THE MESSAGE, and it is a statement about the past.**
   What the user was looking at travels on the send (`@repo/domain/view-context`),

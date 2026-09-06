@@ -14,6 +14,7 @@ import {
   formatAttachmentLocation,
   parseAttachmentLocation,
 } from "@repo/api/local/vault/attachment-location";
+import { restoreCommentStore } from "@repo/api/local/vault/restore-comment-store";
 import { parseBoundedInteger } from "../args";
 import { defineCommand } from "citty";
 import { invalidUsage } from "../cli-error";
@@ -264,10 +265,16 @@ export function vaultCommand(deps: CliDeps) {
             throw current.error;
           }
           const body = await api.vault.write(request);
-          if (outputJson(args, body)) {
+          const comments =
+            "ifAbsent" in request
+              ? await restoreCommentStore(api, revision.content, args.sha)
+              : "none";
+          if (outputJson(args, { ...body, comments })) {
             return;
           }
-          out.success(`Restored ${body.path} to ${args.sha}`);
+          out.success(
+            `Restored ${body.path} to ${args.sha}${comments === "restored" ? ", with its comments" : ""}`,
+          );
         },
       }),
 

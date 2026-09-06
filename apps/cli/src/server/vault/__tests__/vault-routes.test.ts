@@ -307,3 +307,48 @@ describe("the vault routes", () => {
     expect(sawVaultChange).toBe(true);
   });
 });
+
+describe("a note's comment store goes with the note", () => {
+  const NOTE_ID = "0f6a3b1e-5c2d-4e8f-9a7b-1c3d5e7f9a0b";
+  const STORE = `.inteligir/comments/${NOTE_ID}.json`;
+  const NOTE = `---\nid: ${NOTE_ID}\n---\n%%i:c1:start%%x%%i:c1:end%%\n`;
+
+  it("is removed with the note, and the deleted-notes restore brings both back", async () => {
+    const { client, vault } = await bootTestApp();
+    await client.vault.write({ path: "notes/keep.md", content: NOTE });
+    await client.comments.add({ path: "notes/keep.md", id: "c1", text: "kept" });
+    await vault.git.commitNow();
+
+    await client.vault.remove({ path: "notes/keep.md" });
+    const [gone] = await safe(client.vault.read({ path: STORE }));
+    expect(isDefinedError(gone) && gone.code).toBe("NOT_FOUND");
+    await vault.git.commitNow();
+
+    const entry = (await client.vault.deleted()).entries.find(
+      (row) => row.path === "notes/keep.md",
+    );
+    expect(entry).toBeDefined();
+    const sha = entry?.sha ?? "";
+    const note = await client.vault.revision({ path: "notes/keep.md", sha });
+    await client.vault.write({ path: "notes/keep.md", content: note.content, ifAbsent: true });
+    const store = await client.vault.revision({ path: STORE, sha });
+    await client.vault.write({ path: STORE, content: store.content, ifAbsent: true });
+
+    const listed = await client.comments.list({ path: "notes/keep.md" });
+    expect(listed.threads.map((thread) => thread.rootId)).toEqual(["c1"]);
+  });
+
+  it("goes for every note under a removed folder, and a note without an id has none to remove", async () => {
+    const { client } = await bootTestApp();
+    await client.vault.write({ path: "box/a.md", content: NOTE });
+    await client.comments.add({ path: "box/a.md", id: "c1", text: "a" });
+    await client.vault.write({ path: "box/plain.md", content: "no id\n" });
+
+    await client.vault.remove({ path: "box" });
+
+    const [gone] = await safe(client.vault.read({ path: STORE }));
+    expect(isDefinedError(gone) && gone.code).toBe("NOT_FOUND");
+    const tree = await client.vault.tree();
+    expect(tree.entries.some((row) => row.path.startsWith("box"))).toBe(false);
+  });
+});

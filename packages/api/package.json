@@ -35,6 +35,7 @@
     "./local/threads/threads-schema": "./src/local/threads/threads-schema.ts",
     "./local/vault/attachment-location": "./src/local/vault/attachment-location.ts",
     "./local/vault/vault-schema": "./src/local/vault/vault-schema.ts",
+    "./local/vault/restore-comment-store": "./src/local/vault/restore-comment-store.ts",
     "./local/voice/voice-schema": "./src/local/voice/voice-schema.ts"
   },
   "scripts": {
