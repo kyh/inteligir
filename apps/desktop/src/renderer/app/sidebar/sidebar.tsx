@@ -40,8 +40,6 @@ import {
   useDesktopVaults,
   useVaultSwitch,
 } from "../desktop-vaults";
-import { platformShortcutModifier } from "@repo/editor/hotkey-spelling";
-import { bindingFor } from "../global-shortcuts";
 import { readTreeSort, writeTreeSort, type SidebarView, type TreeSort } from "../prefs";
 import { hasInsetTitleBar } from "../title-bar";
 import {
@@ -102,7 +100,7 @@ function SyncStatusRow({ onSyncNow }: { onSyncNow: () => void }) {
 }
 
 const VAULT_TRIGGER_CLASS =
-  "flex h-7 w-full min-w-0 items-center gap-1 rounded-md px-1.5 text-sm font-medium outline-none";
+  "flex h-7 max-w-full min-w-0 items-center gap-1 rounded-md px-1.5 text-sm font-medium outline-none";
 
 // the switch's order; the pref stores the name, never the index
 const SIDEBAR_VIEWS: readonly SidebarView[] = ["recents", "tree", "tags"];
@@ -118,8 +116,9 @@ const SIDEBAR_VIEW_LABELS = {
 function VaultButton({ vaultName }: { vaultName: string }) {
   const vaults = useDesktopVaults();
   const { busy, run } = useVaultSwitch(toast.error);
-  // no icon: the row is the name's, and a long vault name is the whole point of the row
-  const label = <span className="min-w-0 flex-1 truncate">{vaultName}</span>;
+  // no icon: the row is the name's, and a long vault name is the whole point of the row; the
+  // chevron sits beside the name, not at the rail's edge, so it reads as one control
+  const label = <span className="min-w-0 truncate">{vaultName}</span>;
   if (vaults.kind !== "state") {
     return <span className={VAULT_TRIGGER_CLASS}>{label}</span>;
   }
@@ -189,7 +188,6 @@ export interface SidebarRailContentProps {
   onSyncNow: () => void;
   onOpenSettings: () => void;
   onOpenDeletedNotes: () => void;
-  onOpenSearch: () => void;
   onMoveRequest: (path: string) => void;
   // the view and the tag are the workspace's: a `#tag` chip in the note sets both
   view: SidebarView;
@@ -209,7 +207,6 @@ export function SidebarRailContent({
   onSyncNow,
   onOpenSettings,
   onOpenDeletedNotes,
-  onOpenSearch,
   onMoveRequest,
   view,
   onViewChange,
@@ -226,7 +223,6 @@ export function SidebarRailContent({
   // not persisted: a filter is a question about now
   const [treeFilter, setTreeFilter] = useState("");
   const [insetTitleBar] = useState(hasInsetTitleBar);
-  const modifier = platformShortcutModifier();
 
   const entries = treeQuery.data?.entries ?? EMPTY_ENTRIES;
   const folders = useMemo(() => new Set(vaultFolders(entries)), [entries]);
@@ -245,9 +241,6 @@ export function SidebarRailContent({
     setPendingCreate({ kind, parentDir });
   };
 
-  // The search input opens the palette on pointerup, never on click or
-  // pointerdown: a dialog mounted mid-gesture reads the release as an outside
-  // press and dismisses itself. preventDefault keeps focus off the field.
   return (
     <>
       <SidebarHeader className="gap-2">
@@ -291,24 +284,6 @@ export function SidebarRailContent({
               <FolderPlusIcon />
             </Button>
           </div>
-        </div>
-        <div className="relative">
-          <SidebarInput
-            readOnly
-            placeholder="Search…"
-            aria-label="Search notes"
-            onFocus={(event) => {
-              event.currentTarget.blur();
-              onOpenSearch();
-            }}
-            onPointerDown={(event) => {
-              event.preventDefault();
-            }}
-            onPointerUp={onOpenSearch}
-          />
-          <kbd className="pointer-events-none absolute top-1/2 right-2 -translate-y-1/2 text-[10px] text-muted-foreground">
-            {bindingFor("open-palette", modifier)}
-          </kbd>
         </div>
         {showTree ? (
           <div className="flex items-center gap-0.5">

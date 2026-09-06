@@ -965,8 +965,10 @@ create`, never by electron-builder. `autoDownload` and `autoInstallOnAppQuit`
 - **THE RAIL IS THE WORKSPACE; THE TOP BAR IS THE OPEN NOTE.** The rail's
   header is two rows: the vault button alone (recent vaults, Open another
   vault…), because a vault's name is the one label that must never truncate,
-  then the Recent | Files | Tags switch beside New note and New folder; search,
-  sync, deleted notes and Settings follow. Find in note, copy link, comments,
+  then the Recent | Files | Tags switch beside New note and New folder; sync,
+  deleted notes and Settings follow. The rail carries no search box: ⌘P and
+  ⌘⇧F are the search surfaces and the palette carries its own field, so a
+  third input above the tree's filter was one more thing to read. Find in note, copy link, comments,
   export and the panel toggle live above the note. The folder scope is set by the top bar's breadcrumb
   and cleared from the scope row above the list, never picked in the header:
   the header switches the vault, the breadcrumb narrows within it. Two lists, one rule: the

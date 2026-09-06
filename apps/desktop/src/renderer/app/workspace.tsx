@@ -539,9 +539,6 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
             onOpenDeletedNotes={() => {
               setDeletedNotesOpen(true);
             }}
-            onOpenSearch={() => {
-              openPalette("root");
-            }}
             onMoveRequest={(path) => {
               openPalette("move-to-folder", { subject: path });
             }}
