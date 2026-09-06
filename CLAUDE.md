@@ -103,7 +103,8 @@ apps/
   mobile/        @repo/mobile — the Expo RN client (#576): read-only threads,
                  produced captures and (#618) a read-only notes surface over
                  the hosted vault's /cloud read rows, rendered through
-                 @repo/notes' own parse; reaches @repo/api/cloud, @repo/domain
+                 @repo/notes' own parse, with each note's comment store
+                 folded beside it (#683); reaches @repo/api/cloud, @repo/domain
                  and @repo/notes only.
 packages/
   domain/        @repo/domain — zod-only leaf vocabulary (view context,

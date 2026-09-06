@@ -16,6 +16,7 @@ import { createExpoNoteCache } from "../notes/expo-note-cache";
 import {
   createNotesStore,
   type CredentialHandover,
+  type CommentsRead,
   type NoteRead,
   type NotesStore,
   type NotesTreeState,
@@ -120,6 +121,10 @@ export async function refreshNotes(): Promise<void> {
 
 export function readNote(path: string): Promise<NoteRead> {
   return getRuntime().notes.readNote(path);
+}
+
+export function readNoteComments(path: string): Promise<CommentsRead> {
+  return getRuntime().notes.readComments(path);
 }
 
 export function resolveWikiPath(target: string): string | null {

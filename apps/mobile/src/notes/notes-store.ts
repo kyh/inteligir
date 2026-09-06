@@ -1,4 +1,8 @@
+import { foldThreads, type CommentThread } from "@repo/notes/comments/comment-threads";
+import { markerRootIds } from "@repo/notes/comments/marker-ids";
+import { commentsStorePath, isNoteIdKey, parseSidecar } from "@repo/notes/comments/sidecar-schema";
 import { buildResolver, type TargetResolver } from "@repo/notes/knowledge/link-resolve";
+import { frontmatterId } from "@repo/notes/markdown/frontmatter";
 import type { VaultTreeResponse } from "@repo/api/cloud/vault/vault-schema";
 import type { DeviceCredential } from "@repo/api/cloud/device/device-schema";
 import {
@@ -23,6 +27,14 @@ export type NotesTreeState =
 
 export type NoteRead = ({ ok: true } & CachedNote) | { ok: false; message: string };
 
+// a note without an id, or with no store yet, has no comments; only an unreadable store is a failure
+export type CommentsRead =
+  | { ok: true; threads: readonly CommentThread[] }
+  | { ok: false; message: string };
+
+// a file read pinned to the tree's commit; `notFound` is the one refusal a reader may treat as absence
+type FileRead = ({ ok: true } & CachedNote) | { ok: false; notFound: boolean; message: string };
+
 export interface CredentialHandover {
   credential: DeviceCredential;
   // restored: the boot read of a credential whose cached rows are on disk. signed-in: nothing on
@@ -35,6 +47,8 @@ export interface NotesStore {
   refresh(): Promise<void>;
   tree: ReadableStore<NotesTreeState>;
   readNote(path: string): Promise<NoteRead>;
+  // the store beside the note in the same tree, folded against the note's own markers
+  readComments(path: string): Promise<CommentsRead>;
   resolveWiki(target: string): string | null;
   // null until a tree is ready: the route refuses an unpinned asset url. the bytes then sit in the
   // platform image caches (NSURLCache, Fresco), which core RN Image cannot purge on sign-out.
@@ -65,6 +79,44 @@ export function createNotesStore(args: CreateNotesStoreArgs): NotesStore {
   const noteCache = args.cache ?? createMemoryNoteCache(NOTE_CACHE_MAX);
   const tree = createExternalStore<NotesTreeState>({ state: "idle" });
   const assetSources = new Map<string, VaultAssetSource>();
+
+  // only a read pinned to the tree's commit touches the cache: head moves.
+  async function readFile(path: string): Promise<FileRead> {
+    if (client === null) return { ok: false, notFound: false, message: "Not signed in." };
+    // captured: a sign-out nulls the closure's client mid-await.
+    const activeClient = client;
+    const startedAt = generation;
+    const current = tree.get();
+    const commit = current.state === "ready" ? current.commit : undefined;
+
+    if (commit !== undefined) {
+      const cached = await noteCache.get(commit, path).catch(() => null);
+      if (generation !== startedAt) {
+        return { ok: false, notFound: false, message: "Not signed in." };
+      }
+      if (cached !== null) {
+        return { ok: true, ...cached };
+      }
+    }
+
+    const query: Parameters<Client["vaultFile"]>[0] = { path };
+    if (commit !== undefined) query.ref = commit;
+    const result = await activeClient.vaultFile(query);
+    if (generation !== startedAt) {
+      return { ok: false, notFound: false, message: "Not signed in." };
+    }
+    if (!result.ok) {
+      return {
+        ok: false,
+        notFound: result.failure.kind === "refused" && result.failure.code === "not-found",
+        message: describeCloudFailure(result.failure),
+      };
+    }
+    if (commit !== undefined) {
+      bestEffort(noteCache.set({ commit, path, content: result.value.content }));
+    }
+    return { ok: true, path, commit: result.value.commit, content: result.value.content };
+  }
 
   return {
     setCredential(next) {
@@ -141,39 +193,27 @@ export function createNotesStore(args: CreateNotesStoreArgs): NotesStore {
     tree,
 
     async readNote(path) {
-      if (client === null) return { ok: false, message: "Not signed in." };
-      // captured: a sign-out nulls the closure's client mid-await.
-      const activeClient = client;
-      const startedAt = generation;
-      const current = tree.get();
-      const commit = current.state === "ready" ? current.commit : undefined;
+      const read = await readFile(path);
+      return read.ok
+        ? { ok: true, path: read.path, commit: read.commit, content: read.content }
+        : { ok: false, message: read.message };
+    },
 
-      // only a read pinned to the tree's commit touches the cache: head moves.
-      if (commit !== undefined) {
-        const cached = await noteCache.get(commit, path).catch(() => null);
-        if (generation !== startedAt) return { ok: false, message: "Not signed in." };
-        if (cached !== null) {
-          return { ok: true, ...cached };
-        }
+    async readComments(path) {
+      const note = await readFile(path);
+      if (!note.ok) return { ok: false, message: note.message };
+      const id = frontmatterId(note.content);
+      if (id === null || !isNoteIdKey(id)) return { ok: true, threads: [] };
+      const store = await readFile(commentsStorePath(id));
+      if (!store.ok) {
+        return store.notFound ? { ok: true, threads: [] } : { ok: false, message: store.message };
       }
-
-      const query: Parameters<Client["vaultFile"]>[0] = { path };
-      if (commit !== undefined) query.ref = commit;
-      const result = await activeClient.vaultFile(query);
-      if (generation !== startedAt) {
-        return { ok: false, message: "Not signed in." };
-      }
-      if (!result.ok) {
-        return { ok: false, message: describeCloudFailure(result.failure) };
-      }
-      if (commit !== undefined) {
-        bestEffort(noteCache.set({ commit, path, content: result.value.content }));
-      }
+      const parsed = parseSidecar(store.content);
+      if (!parsed.ok)
+        return { ok: false, message: `The comments could not be read: ${parsed.error}` };
       return {
         ok: true,
-        path,
-        commit: result.value.commit,
-        content: result.value.content,
+        threads: foldThreads(parsed.sidecar, markerRootIds(note.content)).threads,
       };
     },
 

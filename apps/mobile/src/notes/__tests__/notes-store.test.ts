@@ -20,11 +20,12 @@ interface FakeCloud {
   fetch: (input: string, init?: RequestInit) => Promise<Response>;
 }
 
-function fakeCloud(): FakeCloud {
+function fakeCloud(extra: Record<string, string> = {}): FakeCloud {
   const files = new Map([
     ["a.md", "# a\n"],
     ["notes/b.md", "# b\n"],
     ["notes/deep/c.md", "# c\n"],
+    ...Object.entries(extra),
   ]);
   const paths = [...files.keys()].toSorted();
   const requests: string[] = [];
@@ -330,5 +331,52 @@ describe("the notes store over a durable cache", () => {
       commit: COMMIT,
       content: "# b\n",
     });
+  });
+});
+
+describe("a note's comments on the phone", () => {
+  const NOTE_ID = "0f6a3b1e-5c2d-4e8f-9a7b-1c3d5e7f9a0b";
+  const NOTE = `---\nid: ${NOTE_ID}\n---\nThe %%i:c1:start%%plan%%i:c1:end%% holds.\n`;
+  const STORE = JSON.stringify({
+    c1: { text: "Does it?", createdAt: 1, updatedAt: 1, source: "user" },
+    "c1-r1": { text: "It does.", createdAt: 2, updatedAt: 2, source: "agent", parentId: "c1" },
+  });
+
+  async function signedInStore(extra: Record<string, string>) {
+    const cloud = fakeCloud(extra);
+    const store = createNotesStore({ cloudUrl: "https://cloud.test", fetch: cloud.fetch });
+    store.setCredential(restored(CREDENTIAL));
+    await store.refresh();
+    return { cloud, store };
+  }
+
+  it("folds the store at the note's id against the note's own markers", async () => {
+    const { store } = await signedInStore({
+      "notes/d.md": NOTE,
+      [`.inteligir/comments/${NOTE_ID}.json`]: STORE,
+    });
+    const read = await store.readComments("notes/d.md");
+    expect(read.ok).toBe(true);
+    if (!read.ok) return;
+    expect(read.threads.map((thread) => thread.rootId)).toEqual(["c1"]);
+    expect(read.threads[0]?.anchored).toBe(true);
+    expect(read.threads[0]?.replies.map((reply) => reply.entry.text)).toEqual(["It does."]);
+  });
+
+  it("answers no comments for a note without an id, and for one whose store is absent", async () => {
+    const { store, cloud } = await signedInStore({ "notes/d.md": NOTE });
+    expect(await store.readComments("a.md")).toEqual({ ok: true, threads: [] });
+    expect(await store.readComments("notes/d.md")).toEqual({ ok: true, threads: [] });
+    const storeRequests = cloud.requests.filter((line) => line.includes(".inteligir"));
+    expect(storeRequests).toHaveLength(1);
+  });
+
+  it("reports an unreadable store rather than showing nothing", async () => {
+    const { store } = await signedInStore({
+      "notes/d.md": NOTE,
+      [`.inteligir/comments/${NOTE_ID}.json`]: "{broken",
+    });
+    const read = await store.readComments("notes/d.md");
+    expect(read.ok).toBe(false);
   });
 });
