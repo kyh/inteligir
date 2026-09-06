@@ -23,10 +23,6 @@ const NOT_DEMOED = new Map<string, string>([
     "components/sidebar-core",
     "Internal to sidebar.tsx — its parts are demoed through the Sidebar composition.",
   ],
-  [
-    "components/sidebar-menu",
-    "Internal to sidebar.tsx — its parts are demoed through the Sidebar composition.",
-  ],
 ]);
 
 const COMPONENT_FILE = /\.tsx$/;

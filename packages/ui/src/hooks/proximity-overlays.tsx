@@ -81,7 +81,7 @@ interface ProximityFocusRingProps {
   radius?: RadiusClasses;
 }
 
-export function ProximityFocusRing({ rect, radius }: ProximityFocusRingProps) {
+function ProximityFocusRing({ rect, radius }: ProximityFocusRingProps) {
   const ambientRadius = useRadius();
   const resolved = radius ?? ambientRadius;
   return (

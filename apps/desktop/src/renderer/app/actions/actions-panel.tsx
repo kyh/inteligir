@@ -7,7 +7,7 @@ import {
   TaskStatusLabel,
   type TaskStatus,
 } from "@repo/ui/ai/task-rows";
-import { TabsSubtle, TabsSubtleItem } from "@repo/ui/components/tabs-subtle";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@repo/ui/components/tabs";
 import { PropertiesPanel } from "@repo/editor/properties/properties-panel";
 import type { Thread } from "@repo/api/local/threads/threads-schema";
 import { Button } from "@repo/ui/components/button";
@@ -338,28 +338,30 @@ export function ActionsPanel({
   const otherActions = threads.filter((t) => docPath === null || t.originDocPath !== docPath);
 
   return (
-    <div className="flex h-full flex-col">
+    <Tabs
+      value={tab}
+      onValueChange={(value) => {
+        const next = PANEL_TABS.find((name) => name === value);
+        if (next !== undefined) onTabChange(next);
+      }}
+      className="h-full"
+    >
       <div className="flex h-[var(--app-header-h)] shrink-0 items-center border-b border-line px-1.5">
-        <TabsSubtle
-          aria-label="Panel tabs"
-          size="compact"
-          selectedIndex={PANEL_TABS.indexOf(tab)}
-          onSelect={(index) => {
-            const next = PANEL_TABS[index];
-            if (next !== undefined) onTabChange(next);
-          }}
-        >
-          {PANEL_TABS.map((name, index) => (
-            <TabsSubtleItem key={name} index={index} label={PANEL_TAB_LABELS[name]} />
+        <TabsList aria-label="Panel tabs">
+          {PANEL_TABS.map((name) => (
+            <TabsTrigger key={name} value={name}>
+              {PANEL_TAB_LABELS[name]}
+            </TabsTrigger>
           ))}
-        </TabsSubtle>
+        </TabsList>
       </div>
-
-      {tab === "comments" ? (
+      <TabsContent value="comments">
         <CommentsTab docPath={docPath} focusIds={commentFocus?.ids ?? []} />
-      ) : tab === "history" ? (
+      </TabsContent>
+      <TabsContent value="history">
         <HistoryTab key={docPath} docPath={docPath} />
-      ) : tab === "metadata" ? (
+      </TabsContent>
+      <TabsContent value="metadata">
         <NoteMetadataTab
           docPath={docPath}
           propertiesOpen={propertiesOpen}
@@ -367,47 +369,50 @@ export function ActionsPanel({
           onOpenDoc={onOpenDoc}
           actions={noteMetadata}
         />
-      ) : selectedThreadId !== null ? (
-        <ActionDetail
-          threadId={selectedThreadId}
-          onBack={() => {
-            onSelectThread(null);
-          }}
-          onOpenDoc={onOpenDoc}
-        />
-      ) : (
-        <div className="min-h-0 flex-1 overflow-y-auto p-1.5">
-          {noteActions.length > 0 ? (
-            <>
-              <p className="px-2 pt-1 pb-0.5 text-[11px] font-medium text-muted-foreground uppercase">
-                This note
+      </TabsContent>
+      <TabsContent value="actions">
+        {selectedThreadId !== null ? (
+          <ActionDetail
+            threadId={selectedThreadId}
+            onBack={() => {
+              onSelectThread(null);
+            }}
+            onOpenDoc={onOpenDoc}
+          />
+        ) : (
+          <div className="min-h-0 flex-1 overflow-y-auto p-1.5">
+            {noteActions.length > 0 ? (
+              <>
+                <p className="px-2 pt-1 pb-0.5 text-[11px] font-medium text-muted-foreground uppercase">
+                  This note
+                </p>
+                <TaskList variant="list">
+                  {noteActions.map((thread) => (
+                    <ActionRow key={thread.id} thread={thread} onSelect={onSelectThread} />
+                  ))}
+                </TaskList>
+              </>
+            ) : null}
+            {otherActions.length > 0 ? (
+              <>
+                <p className="px-2 pt-2 pb-0.5 text-[11px] font-medium text-muted-foreground uppercase">
+                  Recent
+                </p>
+                <TaskList variant="list">
+                  {otherActions.map((thread) => (
+                    <ActionRow key={thread.id} thread={thread} onSelect={onSelectThread} />
+                  ))}
+                </TaskList>
+              </>
+            ) : null}
+            {threads.length === 0 ? (
+              <p className="p-3 text-sm text-muted-foreground">
+                No actions yet. Press ⌘K to ask the agent.
               </p>
-              <TaskList variant="list">
-                {noteActions.map((thread) => (
-                  <ActionRow key={thread.id} thread={thread} onSelect={onSelectThread} />
-                ))}
-              </TaskList>
-            </>
-          ) : null}
-          {otherActions.length > 0 ? (
-            <>
-              <p className="px-2 pt-2 pb-0.5 text-[11px] font-medium text-muted-foreground uppercase">
-                Recent
-              </p>
-              <TaskList variant="list">
-                {otherActions.map((thread) => (
-                  <ActionRow key={thread.id} thread={thread} onSelect={onSelectThread} />
-                ))}
-              </TaskList>
-            </>
-          ) : null}
-          {threads.length === 0 ? (
-            <p className="p-3 text-sm text-muted-foreground">
-              No actions yet. Press ⌘K to ask the agent.
-            </p>
-          ) : null}
-        </div>
-      )}
-    </div>
+            ) : null}
+          </div>
+        )}
+      </TabsContent>
+    </Tabs>
   );
 }

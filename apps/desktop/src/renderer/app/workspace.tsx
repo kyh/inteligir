@@ -67,10 +67,12 @@ import {
   readPanelOpen,
   readSidebarFolder,
   readRailSections,
+  readPanelWidth,
   readSidebarWidth,
   writePanelOpen,
   writeSidebarFolder,
   writeRailSections,
+  writePanelWidth,
   writeSidebarWidth,
   type RailSection,
   type RailSections,
@@ -217,6 +219,7 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
 
   const [railOpen, setRailOpen] = useState(true);
   const [initialSidebarWidth] = useState(() => `${String(readSidebarWidth())}px`);
+  const [initialPanelWidth] = useState(() => `${String(readPanelWidth())}px`);
   // owned here, not in the rail: the top bar's breadcrumb sets it too, and both are one prop away
   const [sidebarFolder, setSidebarFolder] = useState<string>(readSidebarFolder);
   const chooseFolder = useCallback((folder: string): void => {
@@ -533,7 +536,7 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
         peek="click"
         width={initialSidebarWidth}
       >
-        <SidebarWidthPersistence />
+        <SidebarWidthPersistence write={writeSidebarWidth} />
         <Sidebar variant="floating" className="print:hidden">
           <SidebarRailContent
             openPath={openNote}
@@ -565,8 +568,9 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
               }
               setPanelOpenPersisted(nextOpen);
             }}
-            width="20rem"
+            width={initialPanelWidth}
           >
+            <SidebarWidthPersistence write={writePanelWidth} />
             <SidebarInset className="relative bg-surface">
               {zen ? null : (
                 <NoteTopbar
@@ -658,13 +662,14 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
   );
 }
 
-function SidebarWidthPersistence() {
+// inside a provider: the rail's and the panel's each carry one, writing their own pref
+function SidebarWidthPersistence({ write }: { write: (px: number) => void }) {
   const { width } = useSidebar();
   useEffect(() => {
     const px = Number.parseInt(width, 10);
     if (Number.isFinite(px)) {
-      writeSidebarWidth(px);
+      write(px);
     }
-  }, [width]);
+  }, [width, write]);
   return null;
 }

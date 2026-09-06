@@ -6,6 +6,7 @@ import { APPEARANCE_DEFAULTS, appearanceSchema, type Appearance } from "./appear
 
 const KEYS = {
   sidebarWidth: "inteligir.sidebar-width",
+  panelWidth: "inteligir.panel-width",
   lastOpenNote: "inteligir.last-open-note",
   panelOpen: "inteligir.panel-open",
   theme: "inteligir.theme",
@@ -38,20 +39,34 @@ function write(key: string, value: string | null): void {
 }
 
 const SIDEBAR_WIDTH_DEFAULT = 260;
+const PANEL_WIDTH_DEFAULT = 320;
 
 // Clamped with the rail's own bounds, or a stored width the rail cannot
 // produce comes back on reload.
-export function readSidebarWidth(): number {
-  const raw = read(KEYS.sidebarWidth);
+function readWidth(key: string, fallback: number): number {
+  const raw = read(key);
   const parsed = raw === null ? Number.NaN : Number(raw);
   if (!Number.isFinite(parsed)) {
-    return SIDEBAR_WIDTH_DEFAULT;
+    return fallback;
   }
   return Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, Math.round(parsed)));
 }
 
+export function readSidebarWidth(): number {
+  return readWidth(KEYS.sidebarWidth, SIDEBAR_WIDTH_DEFAULT);
+}
+
 export function writeSidebarWidth(px: number): void {
   write(KEYS.sidebarWidth, String(Math.round(px)));
+}
+
+// the right panel is the same primitive as the rail, dragged by the same handle
+export function readPanelWidth(): number {
+  return readWidth(KEYS.panelWidth, PANEL_WIDTH_DEFAULT);
+}
+
+export function writePanelWidth(px: number): void {
+  write(KEYS.panelWidth, String(Math.round(px)));
 }
 
 export function readLastOpenNote(): string | null {
@@ -62,8 +77,9 @@ export function writeLastOpenNote(path: string | null): void {
   write(KEYS.lastOpenNote, path);
 }
 
+// closed until asked for: a comment focus or the top bar's Comments opens it
 export function readPanelOpen(): boolean {
-  return read(KEYS.panelOpen) !== "false";
+  return read(KEYS.panelOpen) === "true";
 }
 
 export function writePanelOpen(open: boolean): void {

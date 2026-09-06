@@ -9,26 +9,21 @@ import {
   useCallback,
   useMemo,
   useRef,
-  useId,
   forwardRef,
-  isValidElement,
-  Children,
   type ReactNode,
   type HTMLAttributes,
 } from "react";
 import { motion, AnimatePresence, type HTMLMotionProps } from "framer-motion";
-import { ChevronDownIcon } from "lucide-react";
 import { composeRefs } from "@repo/ui/lib/compose-refs";
 import { cssVars } from "@repo/ui/lib/css-vars";
 import { cn } from "@repo/ui/lib/utils";
 import { spring } from "@repo/ui/lib/springs";
 import { fontWeights } from "@repo/ui/lib/font-weight";
 import { useRadius } from "@repo/ui/lib/radius-context";
-import { useSize, useSizeVariant } from "@repo/ui/lib/size-context";
+import { useSize } from "@repo/ui/lib/size-context";
 import { useSurface, SurfaceProvider } from "@repo/ui/lib/surface-context";
 import { surfaceClasses } from "@repo/ui/lib/surface-classes";
 import { Tooltip } from "@repo/ui/components/tooltip";
-import { useIsoLayoutEffect } from "@repo/ui/lib/use-iso-layout-effect";
 
 const SIDEBAR_WIDTH = "16rem";
 const SIDEBAR_WIDTH_MOBILE = "18rem";
@@ -89,28 +84,6 @@ function useIsMobile(breakpoint: number): boolean {
     return () => mql.removeEventListener("change", onChange);
   }, [breakpoint]);
   return !!isMobile;
-}
-
-type TextChild = string | number;
-
-function isTextChild(node: ReactNode): node is TextChild {
-  // oxlint-disable-next-line anti-slop/no-runtime-typeof -- ReactNode is React's own union and carries no discriminant, so `typeof` is the only way to tell a text child from an element; this predicate is the single place that asks.
-  return typeof node === "string" || typeof node === "number";
-}
-
-interface LeadingText {
-  text: string;
-  rest: ReactNode[];
-}
-
-export function splitLeadingText(content: ReactNode): LeadingText {
-  const nodes = Children.toArray(content);
-  const leading: TextChild[] = [];
-  for (const node of nodes) {
-    if (!isTextChild(node)) break;
-    leading.push(node);
-  }
-  return { text: leading.join(""), rest: nodes.slice(leading.length) };
 }
 
 interface SidebarProviderProps extends HTMLAttributes<HTMLDivElement> {
@@ -705,209 +678,4 @@ const SidebarFooter = forwardRef<HTMLDivElement, SidebarSectionProps>(
 );
 SidebarFooter.displayName = "SidebarFooter";
 
-interface SidebarGroupContextValue {
-  open: boolean;
-  toggle: () => void;
-  contentId: string;
-}
-
-const SidebarGroupContext = createContext<SidebarGroupContextValue | null>(null);
-
-interface SidebarGroupProps extends SidebarSectionProps {
-  collapsible?: boolean;
-  open?: boolean;
-  defaultOpen?: boolean;
-  onOpenChange?: (open: boolean) => void;
-}
-
-const SidebarGroup = forwardRef<HTMLDivElement, SidebarGroupProps>(
-  (
-    {
-      className,
-      collapsible = false,
-      open: openProp,
-      defaultOpen = true,
-      onOpenChange,
-      children,
-      ...props
-    },
-    ref,
-  ) => {
-    const [uncontrolledOpen, setUncontrolledOpen] = useState(defaultOpen);
-    const open = openProp ?? uncontrolledOpen;
-    const contentId = useId();
-    const toggle = useCallback(() => {
-      const next = !(openProp ?? uncontrolledOpen);
-      setUncontrolledOpen(next);
-      onOpenChange?.(next);
-    }, [openProp, uncontrolledOpen, onOpenChange]);
-    // never animate to "auto": framer measures it wrong under a scaled ancestor
-    const contentRef = useRef<HTMLDivElement>(null);
-    const [contentHeight, setContentHeight] = useState<number | null>(null);
-    useIsoLayoutEffect(() => {
-      if (!collapsible) return;
-      const el = contentRef.current;
-      if (!el) return;
-      const measure = () => setContentHeight(el.offsetHeight);
-      measure();
-      const ro = new ResizeObserver(measure);
-      ro.observe(el);
-      return () => ro.disconnect();
-    }, [collapsible]);
-    const measured = contentHeight !== null;
-    // clipping lifts once an open group settles: a permanently clipped box shaves the focus ring
-    // off the first and last rows
-    const [settled, setSettled] = useState(open);
-    if (settled && !open) setSettled(false);
-
-    const [prevOpen, setPrevOpen] = useState(open);
-    const [toggling, setToggling] = useState(false);
-    if (prevOpen !== open) {
-      setPrevOpen(open);
-      setToggling(true);
-    }
-
-    let inner: ReactNode = children;
-    if (collapsible) {
-      const kids = Children.toArray(children);
-      const labelIdx = kids.findIndex((k) => isValidElement(k) && k.type === SidebarGroupLabel);
-      if (labelIdx !== -1) {
-        const rest = kids.slice(labelIdx + 1);
-        inner = (
-          <>
-            {kids.slice(0, labelIdx + 1)}
-            <motion.div
-              id={contentId}
-              inert={open ? undefined : true}
-              className={cn(
-                open && settled ? "overflow-visible" : "overflow-hidden",
-                !measured && !open && "h-0",
-              )}
-              initial={false}
-              animate={
-                measured
-                  ? { height: open ? contentHeight : 0, opacity: open ? 1 : 0 }
-                  : { opacity: open ? 1 : 0 }
-              }
-              // not `open ? spring.moderate : …`: the toggling arm stops a re-measure under a settled
-              // group from springing, which slides everything below the group late
-              transition={
-                toggling ? (open ? spring.moderate : spring.moderate.exit) : { duration: 0 }
-              }
-              onAnimationComplete={() => {
-                setToggling(false);
-                if (open) setSettled(true);
-              }}
-            >
-              <div ref={contentRef} className="flex w-full min-w-0 flex-col">
-                {rest}
-              </div>
-            </motion.div>
-          </>
-        );
-      }
-    }
-
-    const ctx = useMemo(() => ({ open, toggle, contentId }), [open, toggle, contentId]);
-
-    return (
-      <div
-        ref={ref}
-        data-sidebar="group"
-        data-state={collapsible ? (open ? "open" : "closed") : undefined}
-        className={cn("relative flex w-full min-w-0 flex-col p-2", className)}
-        {...props}
-      >
-        <SidebarGroupContext.Provider value={collapsible ? ctx : null}>
-          {inner}
-        </SidebarGroupContext.Provider>
-      </div>
-    );
-  },
-);
-SidebarGroup.displayName = "SidebarGroup";
-
-// HTMLElement, not HTMLDivElement: inside a collapsible group the label renders a <button>
-type SidebarGroupLabelProps = HTMLAttributes<HTMLElement>;
-
-const SidebarGroupLabel = forwardRef<HTMLElement, SidebarGroupLabelProps>(
-  ({ className, children, ...props }, ref) => {
-    const sizeVariant = useSizeVariant();
-    const sizeClasses = useSize();
-    const group = useContext(SidebarGroupContext);
-    const radius = useRadius();
-
-    const { text, rest } = splitLeadingText(children);
-    const labelContent = text ? (
-      <>
-        <span className="min-w-0 truncate">{text}</span>
-        {rest}
-      </>
-    ) : (
-      children
-    );
-
-    if (group) {
-      return (
-        <button
-          ref={composeRefs(ref)}
-          type="button"
-          data-sidebar="group-label"
-          aria-expanded={group.open}
-          aria-controls={group.contentId}
-          onClick={group.toggle}
-          className={cn(
-            "group/group-label flex h-8 w-full shrink-0 cursor-pointer select-none items-center gap-2 px-2 text-left text-muted-foreground/70 outline-none",
-            "transition-colors duration-80 hover:text-muted-foreground",
-            "focus-visible:ring-1 focus-visible:ring-[color:var(--focus-ring,#6B97FF)]",
-            radius.item,
-            sizeVariant === "compact" ? "text-[11px]" : "text-[12px]",
-            className,
-          )}
-          {...props}
-        >
-          {labelContent}
-          <span className="ml-auto flex size-6 shrink-0 items-center justify-center">
-            <ChevronDownIcon
-              size={sizeClasses.icon}
-              strokeWidth={1.5}
-              className={cn(
-                "shrink-0 transition-[opacity,transform] duration-80",
-                group.open
-                  ? "opacity-0 group-hover/group-label:opacity-100 group-focus-visible/group-label:opacity-100"
-                  : "-rotate-90 opacity-100",
-              )}
-            />
-          </span>
-        </button>
-      );
-    }
-
-    return (
-      <div
-        ref={composeRefs(ref)}
-        data-sidebar="group-label"
-        className={cn(
-          "flex h-8 shrink-0 items-center gap-2 px-2 text-muted-foreground/70 outline-none",
-          sizeVariant === "compact" ? "text-[11px]" : "text-[12px]",
-          className,
-        )}
-        {...props}
-      >
-        {labelContent}
-      </div>
-    );
-  },
-);
-SidebarGroupLabel.displayName = "SidebarGroupLabel";
-
-export {
-  SidebarProvider,
-  SidebarShell,
-  SidebarInset,
-  SidebarInput,
-  SidebarHeader,
-  SidebarFooter,
-  SidebarGroup,
-  SidebarGroupLabel,
-};
+export { SidebarProvider, SidebarShell, SidebarInset, SidebarInput, SidebarHeader, SidebarFooter };

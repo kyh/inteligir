@@ -985,8 +985,8 @@ create`, never by electron-builder. `autoDownload` and `autoInstallOnAppQuit`
   The filter row shows on its toggle or while it has text, and Escape clears
   and hides it. The rail carries no search box: ⌘P and ⌘⇧F are the search
   surfaces and the palette carries its own field, so a third input above the
-  tree's filter was one more thing to read. Find in note, copy link, comments,
-  export and the panel toggle live above the note. The folder scope is set by the top bar's breadcrumb
+  tree's filter was one more thing to read. Find in note, comments and the panel
+  toggle live above the note; copy link, export and share sit under its ⋯ menu. The folder scope is set by the top bar's breadcrumb
   and cleared from the scope row above the list, never picked in the header:
   the header switches the vault, the breadcrumb narrows within it. Two lists, one rule: the
   recents view is one list by recency with a folder hint, and folders exist only
@@ -1017,6 +1017,13 @@ create`, never by electron-builder. `autoDownload` and `autoInstallOnAppQuit`
   folder is the workspace's state and a prop to both, not a request store: a
   store is for a surface with no route to the owner, and both are one hop away.
   `apps/desktop/src/renderer/app/actions/note-facts.tsx`.
+
+- **THE PANEL STARTS CLOSED, IS FLAT-TABBED, AND IS DRAGGED LIKE THE RAIL.**
+  `panelOpen` defaults off; a comment focus, the top bar's Comments or its
+  toggle opens it. Its tabs are Base UI Tabs through `@repo/ui/components/tabs`,
+  the flat underline row; the pill switch went with its last consumer. Its width persists through the same Fluid resize handle the
+  rail uses (`panelWidth` beside `sidebarWidth` in `app/prefs.ts`), because a
+  second resize mechanism would be a second answer to one drag.
 
 ### Repo guards, vendoring and tooling
 
