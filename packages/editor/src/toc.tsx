@@ -94,6 +94,10 @@ function sameHeadings(a: readonly HeadingItem[], b: readonly HeadingItem[]): boo
   });
 }
 
+// under this the rail is a floating dash beside a note that needs no map; ⌘⇧O still reaches
+// every heading
+const TOC_MIN_HEADINGS = 3;
+
 export function TableOfContents() {
   const editor = useEditorRef();
   const headings = useEditorSelector(() => collectHeadings(editor), [], {
@@ -121,7 +125,7 @@ export function TableOfContents() {
     return () => scroller.removeEventListener("scroll", onScroll);
   }, [headings, editor]);
 
-  if (headings.length === 0) return null;
+  if (headings.length < TOC_MIN_HEADINGS) return null;
 
   const scrollTo = (index: number) => {
     const heading = headings[index];
