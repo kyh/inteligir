@@ -100,7 +100,7 @@ function SyncStatusRow({ onSyncNow }: { onSyncNow: () => void }) {
 }
 
 const VAULT_TRIGGER_CLASS =
-  "flex h-7 max-w-full min-w-0 items-center gap-1 rounded-md px-1.5 text-sm font-medium outline-none";
+  "flex h-chrome-row max-w-full min-w-0 items-center gap-1 rounded-md px-1.5 text-sm font-medium outline-none";
 
 // the switch's order; the pref stores the name, never the index
 const SIDEBAR_VIEWS: readonly SidebarView[] = ["recents", "tree", "tags"];
