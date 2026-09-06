@@ -9,7 +9,6 @@ import {
 } from "@repo/ui/components/dropdown-menu";
 import { toast } from "@repo/ui/components/sonner";
 import { useSidebar } from "@repo/ui/components/sidebar";
-import { Tooltip } from "@repo/ui/components/tooltip";
 import { cn } from "@repo/ui/lib/utils";
 import {
   ArrowLeftIcon,
@@ -180,28 +179,26 @@ export function NoteTopbar({
         >
           <LinkIcon />
         </Button>
-        <Tooltip content="Comments">
-          <button
-            type="button"
-            aria-label={`Comments${commentCount > 0 ? ` (${String(commentCount)} open)` : ""}`}
-            disabled={path === null}
-            onClick={onOpenComments}
-            className="inline-flex h-6 items-center gap-1 rounded-md px-1.5 text-muted-foreground outline-none hover:bg-hover hover:text-foreground disabled:pointer-events-none disabled:opacity-50 [&_svg]:size-4"
-          >
-            <MessageSquareTextIcon />
-            {commentCount > 0 ? <span className="text-xs tabular-nums">{commentCount}</span> : null}
-          </button>
-        </Tooltip>
+        <Button
+          variant="ghost"
+          size="icon-compact"
+          aria-label={`Comments${commentCount > 0 ? ` (${String(commentCount)} open)` : ""}`}
+          disabled={path === null}
+          onClick={onOpenComments}
+          className={cn(commentCount > 0 && "w-auto gap-1 px-1.5")}
+        >
+          <MessageSquareTextIcon />
+          {commentCount > 0 ? <span className="text-xs tabular-nums">{commentCount}</span> : null}
+        </Button>
         <DropdownMenu>
-          <Tooltip content="More">
-            <DropdownMenuTrigger
-              aria-label="More"
-              disabled={path === null}
-              className="inline-flex size-6 items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-hover hover:text-foreground disabled:pointer-events-none disabled:opacity-50 [&_svg]:size-4"
-            >
-              <MoreVerticalIcon />
-            </DropdownMenuTrigger>
-          </Tooltip>
+          <DropdownMenuTrigger
+            disabled={path === null}
+            render={
+              <Button variant="ghost" size="icon-compact" aria-label="More">
+                <MoreVerticalIcon />
+              </Button>
+            }
+          />
           <DropdownMenuContent align="end">
             <DropdownMenuItem onClick={onExportPdf}>
               <FileDownIcon />

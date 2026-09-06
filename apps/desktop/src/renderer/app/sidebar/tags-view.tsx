@@ -108,10 +108,11 @@ export function TagsView({
             style={{ paddingLeft: depth * 12 + 4 }}
           >
             {node.children.length > 0 ? (
-              <button
-                type="button"
+              <Button
+                variant="ghost"
+                size="icon-compact"
+                className="size-5"
                 aria-label={isExpanded ? `Collapse ${node.tag}` : `Expand ${node.tag}`}
-                className="rounded p-0.5 text-muted-foreground hover:bg-muted-foreground/10"
                 onClick={() => {
                   toggle(node.tag);
                 }}
@@ -119,7 +120,7 @@ export function TagsView({
                 <ChevronRightIcon
                   className={cn("size-3.5 transition-transform", isExpanded && "rotate-90")}
                 />
-              </button>
+              </Button>
             ) : (
               <span className="w-[18px] shrink-0" />
             )}
@@ -136,16 +137,17 @@ export function TagsView({
             <span className="shrink-0 text-[11px] text-muted-foreground tabular-nums">
               {node.total}
             </span>
-            <button
-              type="button"
+            <Button
+              variant="ghost"
+              size="icon-compact"
+              className="size-5 opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
               aria-label={`Rename ${node.tag}`}
-              className="rounded p-0.5 text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-muted-foreground/10 focus-visible:opacity-100"
               onClick={() => {
                 onRename(node.tag);
               }}
             >
               <PencilIcon className="size-3.5" />
-            </button>
+            </Button>
           </div>
         );
       })}

@@ -241,15 +241,16 @@ export function CommentsTab({
         />
       ))}
       {resolved.length > 0 ? (
-        <button
-          type="button"
-          className="mb-1 px-1 text-xs text-muted-foreground hover:text-foreground"
+        <Button
+          variant="ghost"
+          size="compact"
+          className="mb-1 self-start"
           onClick={() => {
             setShowResolved((current) => !current);
           }}
         >
           {showResolved ? "Hide" : "Show"} resolved ({resolved.length})
-        </button>
+        </Button>
       ) : null}
       {showResolved
         ? resolved.map((thread) => (

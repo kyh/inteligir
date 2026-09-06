@@ -1,7 +1,7 @@
 import type { WikiTargetWire } from "@repo/api/local/knowledge/knowledge-schema";
 import { Badge } from "@repo/ui/components/badge";
+import { Button } from "@repo/ui/components/button";
 import { InputMessage } from "@repo/ui/components/input-message";
-import { Tooltip } from "@repo/ui/components/tooltip";
 import { cn } from "@repo/ui/lib/utils";
 import { toast } from "@repo/ui/components/sonner";
 import { FileTextIcon, XIcon } from "lucide-react";
@@ -209,18 +209,17 @@ export function ActionComposer({
                         <FileTextIcon className="size-3" />
                         {docPath}
                         {attached ? (
-                          <Tooltip content="Detach note">
-                            <button
-                              type="button"
-                              aria-label="Detach note"
-                              className="text-muted-foreground hover:text-foreground"
-                              onClick={() => {
-                                setAttached(false);
-                              }}
-                            >
-                              <XIcon className="size-3" />
-                            </button>
-                          </Tooltip>
+                          <Button
+                            variant="ghost"
+                            size="icon-compact"
+                            className="size-4"
+                            aria-label="Detach note"
+                            onClick={() => {
+                              setAttached(false);
+                            }}
+                          >
+                            <XIcon className="size-3" />
+                          </Button>
                         ) : (
                           <button
                             type="button"
@@ -238,18 +237,17 @@ export function ActionComposer({
                       <Badge key={path} variant="outline" className="gap-1 bg-surface-raised">
                         <FileTextIcon className="size-3" />
                         {path}
-                        <Tooltip content="Remove">
-                          <button
-                            type="button"
-                            aria-label={`Remove ${path}`}
-                            className="text-muted-foreground hover:text-foreground"
-                            onClick={() => {
-                              setMentions((prior) => prior.filter((kept) => kept !== path));
-                            }}
-                          >
-                            <XIcon className="size-3" />
-                          </button>
-                        </Tooltip>
+                        <Button
+                          variant="ghost"
+                          size="icon-compact"
+                          className="size-4"
+                          aria-label={`Remove ${path}`}
+                          onClick={() => {
+                            setMentions((prior) => prior.filter((kept) => kept !== path));
+                          }}
+                        >
+                          <XIcon className="size-3" />
+                        </Button>
                       </Badge>
                     ))}
                   </>
