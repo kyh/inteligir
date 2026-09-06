@@ -13,12 +13,10 @@ import type { Thread } from "@repo/api/local/threads/threads-schema";
 import { Button } from "@repo/ui/components/button";
 import { Textarea } from "@repo/ui/components/textarea";
 import { toast } from "@repo/ui/components/sonner";
-import { cn } from "@repo/ui/lib/utils";
 import {
   ArchiveIcon,
   ArchiveRestoreIcon,
   ArrowLeftIcon,
-  ChevronRightIcon,
   PinIcon,
   PinOffIcon,
   Trash2Icon,
@@ -27,6 +25,7 @@ import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { orpc } from "../api";
+import { PanelSection } from "./panel-section";
 import { ApprovalCard } from "./approval-card";
 import { THREAD_ACTIVITY_LABELS, threadActivity, type ThreadActivity } from "../thread-activity";
 import { sendToThread } from "./send-to-thread";
@@ -79,28 +78,15 @@ function InlineProperties({
 }) {
   const editor = open ? getLiveEditor(docPath) : null;
   return (
-    <div className="shrink-0 border-b border-line">
-      <button
-        type="button"
-        aria-expanded={open}
-        className="flex w-full items-center gap-1 px-3 py-1.5 text-[11px] font-medium text-muted-foreground uppercase hover:text-foreground"
-        onClick={() => {
-          onOpenChange(!open);
-        }}
-      >
-        <ChevronRightIcon className={cn("size-3 transition-transform", open && "rotate-90")} />
-        Properties
-      </button>
-      {open ? (
-        <div className="px-3 pb-2">
-          {editor !== null ? (
-            <PropertiesPanel editor={editor} />
-          ) : (
-            <p className="pb-1 text-xs text-muted-foreground">Open the note to edit properties.</p>
-          )}
-        </div>
-      ) : null}
-    </div>
+    <PanelSection label="Properties" open={open} onOpenChange={onOpenChange}>
+      <div className="px-3 pb-2">
+        {editor !== null ? (
+          <PropertiesPanel editor={editor} />
+        ) : (
+          <p className="pb-1 text-xs text-muted-foreground">Open the note to edit properties.</p>
+        )}
+      </div>
+    </PanelSection>
   );
 }
 

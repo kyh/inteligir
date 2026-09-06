@@ -7,12 +7,11 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@repo/ui/components/button";
 import { toast } from "@repo/ui/components/sonner";
 import { plural } from "@repo/ui/lib/plural";
-import { cn } from "@repo/ui/lib/utils";
-import { ChevronRightIcon } from "lucide-react";
 import { useState } from "react";
 
 import { orpc } from "../api";
 import { readRelatedOpen, writeRelatedOpen } from "../prefs";
+import { PanelSection } from "./panel-section";
 import { useWorkspace } from "../workspace-context";
 import { linkMentionInNote, linkMentionMessage } from "./link-mention";
 
@@ -158,34 +157,24 @@ export function RelatedInline({
     unlinked.length === 0;
 
   return (
-    <div className="shrink-0 border-b border-line">
-      <button
-        type="button"
-        aria-expanded={open}
-        className="flex w-full items-center gap-1 px-3 py-1.5 text-[11px] font-medium text-muted-foreground uppercase hover:text-foreground"
-        onClick={() => {
-          const next = !open;
-          writeRelatedOpen(next);
-          setOpen(next);
-        }}
-      >
-        <ChevronRightIcon className={cn("size-3 transition-transform", open && "rotate-90")} />
-        Related
-        {backlinkTotal > 0 ? (
-          <span className="font-normal tabular-nums normal-case">
-            {linkedMentionsSummary(backlinks.length, backlinkTotal)}
-          </span>
-        ) : null}
-      </button>
-      {open ? (
-        <RelatedRows
-          rows={rows}
-          settledEmpty={settledEmpty}
-          suggestionsFailed={relatedQuery.isError || unlinkedQuery.isError}
-          onOpenDoc={onOpenDoc}
-        />
-      ) : null}
-    </div>
+    <PanelSection
+      label="Related"
+      {...(backlinkTotal > 0
+        ? { summary: linkedMentionsSummary(backlinks.length, backlinkTotal) }
+        : {})}
+      open={open}
+      onOpenChange={(next) => {
+        writeRelatedOpen(next);
+        setOpen(next);
+      }}
+    >
+      <RelatedRows
+        rows={rows}
+        settledEmpty={settledEmpty}
+        suggestionsFailed={relatedQuery.isError || unlinkedQuery.isError}
+        onOpenDoc={onOpenDoc}
+      />
+    </PanelSection>
   );
 }
 
