@@ -228,8 +228,8 @@ more" an honest claim: every step on top of `verify` is a row in
 `DECLARED_CI_EXTRAS` with its reason.
 
 **There is no seeded login, and sign-up is invite-only.** `AGENTS.md` has the
-recipe. Never run `db:push` or `db:studio`: both hit production D1; the local
-command is `db:push:local`.
+recipe. Never run `db:push:remote` or `db:studio:remote`: both hit production
+D1. The bare `db:push` and `db:studio` are the local ones.
 
 `apps/web/README.md` is the product Worker's own guide — routes, auth, the
 local loop and the owner-only deploy. `AGENTS.md` is the runnable quickstart;

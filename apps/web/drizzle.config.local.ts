@@ -2,7 +2,7 @@ import { existsSync, readdirSync } from "node:fs";
 import path from "node:path";
 import type { Config } from "drizzle-kit";
 
-// Points drizzle-kit at the miniflare D1 file under .wrangler/state (`pnpm db:push:local`).
+// Points drizzle-kit at the miniflare D1 file under .wrangler/state (`pnpm db:push`).
 // Match the 64-hex content-hash name: the directory also holds miniflare's own
 // metadata.sqlite, and `*.sqlite` picked that first, pushing the schema into the wrong db.
 const D1_FILE = /^[0-9a-f]{64}\.sqlite$/u;
