@@ -14,7 +14,7 @@ import {
   useVaultStatus,
 } from "./vault-hooks";
 
-function SyncStatus({ onSyncNow }: { onSyncNow: () => void }) {
+const SyncStatus = ({ onSyncNow }: { onSyncNow: () => void }) => {
   const statusQuery = useVaultStatus();
   const status = statusQuery.data;
   if (status === undefined) {
@@ -33,12 +33,12 @@ function SyncStatus({ onSyncNow }: { onSyncNow: () => void }) {
       {syncStateLabel(status)}
     </button>
   );
-}
+};
 
 // The strip across the window's bottom: ambient state that belongs to no one surface. Sync
 // on the left; the open note's count, the agent's state, deleted notes and Settings on the
 // right. The count is what the serializer published, never a recount.
-export function StatusBar({
+export const StatusBar = ({
   path,
   onSyncNow,
   onOpenDeletedNotes,
@@ -48,7 +48,7 @@ export function StatusBar({
   onSyncNow: () => void;
   onOpenDeletedNotes: () => void;
   onOpenSettings: () => void;
-}) {
+}) => {
   const stats = useNoteStats(path);
   const threadsQuery = useThreads();
   const agentWorking = (threadsQuery.data?.threads ?? []).some(
@@ -91,4 +91,4 @@ export function StatusBar({
       </div>
     </footer>
   );
-}
+};

@@ -45,7 +45,7 @@ export class ProviderEventCoalescer {
 
   flushAll(): void {
     // snapshot first: flush() deletes the entry it drains.
-    const threadIds = Array.from(this.pendingByThreadId.keys());
+    const threadIds = [...this.pendingByThreadId.keys()];
     for (const threadId of threadIds) {
       this.flush(threadId);
     }

@@ -19,8 +19,8 @@ export const SYNC_WS_KEEPALIVE_PONG = "pong";
 export const syncPingSchema = z.discriminatedUnion("type", [
   z
     .object({
-      type: z.literal("sync"),
       seq: z.number().int().nonnegative(),
+      type: z.literal("sync"),
     })
     .strict(),
   z
@@ -30,8 +30,8 @@ export const syncPingSchema = z.discriminatedUnion("type", [
     .strict(),
   z
     .object({
-      type: z.literal("dispatch"),
       threadId: z.string().min(1),
+      type: z.literal("dispatch"),
     })
     .strict(),
   z

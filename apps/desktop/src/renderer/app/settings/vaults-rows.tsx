@@ -12,9 +12,11 @@ import { toast } from "@repo/ui/components/sonner";
 import { Row } from "./settings-chrome";
 
 // rendered only under the shell: a browser tab did not start the server it talks to
-export function VaultsRow() {
+export const VaultsRow = () => {
   const vaults = useDesktopVaults();
-  const { busy, run } = useVaultSwitch(toast.error);
+  const { busy, run } = useVaultSwitch((message) => {
+    toast.error(message);
+  });
   if (vaults.kind !== "state") {
     return null;
   }
@@ -46,7 +48,9 @@ export function VaultsRow() {
                   disabled={busy !== null || !switchable}
                   className="min-w-0 flex-1 rounded-md px-1.5 py-1 text-left hover:bg-hover disabled:pointer-events-none disabled:opacity-50"
                   onClick={() => {
-                    run("opening", () => openRecentVault(vault.path));
+                    run("opening", async () => {
+                      await openRecentVault(vault.path);
+                    });
                   }}
                 >
                   <RecentVaultLabel vault={vault} />
@@ -57,7 +61,9 @@ export function VaultsRow() {
                   aria-label={`Forget ${vault.name}`}
                   disabled={busy !== null}
                   onClick={() => {
-                    run("forgetting", () => forgetRecentVault(vault.path));
+                    run("forgetting", async () => {
+                      await forgetRecentVault(vault.path);
+                    });
                   }}
                 >
                   <XIcon />
@@ -69,4 +75,4 @@ export function VaultsRow() {
       </div>
     </Row>
   );
-}
+};

@@ -28,7 +28,7 @@ export interface TagsPaneProps {
 // One page that grows: the list is re-read whole rather than stitched, since the drawn list is
 // scope-filtered and recency-sorted afterwards. Keyed on the tag by the pane, so a new tag
 // starts at the first page without a reset in userland.
-function TaggedNotes({
+const TaggedNotes = ({
   tag,
   entries,
   scope,
@@ -46,10 +46,10 @@ function TaggedNotes({
   onSetPinned: (path: string, pinned: boolean) => void;
   onClear: () => void;
   onRename: () => void;
-}) {
+}) => {
   const [limit, setLimit] = useState(KNOWLEDGE_TAG_NOTES_DEFAULT_LIMIT);
   const taggedQuery = useNotesWithTag(tag, limit);
-  const taggedPaths = useMemo(() => new Set(taggedQuery.data?.paths ?? []), [taggedQuery.data]);
+  const taggedPaths = useMemo(() => new Set(taggedQuery.data?.paths), [taggedQuery.data]);
   const taggedEntries = useMemo(
     () => entries.filter((entry) => entry.kind === "file" && taggedPaths.has(entry.path)),
     [entries, taggedPaths],
@@ -96,9 +96,9 @@ function TaggedNotes({
       ) : null}
     </>
   );
-}
+};
 
-export function TagsPane({
+export const TagsPane = ({
   entries,
   scope,
   openPath,
@@ -106,7 +106,7 @@ export function TagsPane({
   onSetPinned,
   selectedTag,
   onSelectTag,
-}: TagsPaneProps) {
+}: TagsPaneProps) => {
   const [renamingTag, setRenamingTag] = useState<string | null>(null);
   const tagsQuery = useTags(selectedTag === null);
   return (
@@ -138,12 +138,16 @@ export function TagsPane({
       <RenameTagDialog
         tag={renamingTag}
         onOpenChange={(open) => {
-          if (!open) setRenamingTag(null);
+          if (!open) {
+            setRenamingTag(null);
+          }
         }}
         onRenamed={(from, to) => {
-          if (selectedTag !== null) onSelectTag(renamedTag(selectedTag, from, to) ?? selectedTag);
+          if (selectedTag !== null) {
+            onSelectTag(renamedTag(selectedTag, from, to) ?? selectedTag);
+          }
         }}
       />
     </>
   );
-}
+};

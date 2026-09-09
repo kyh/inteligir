@@ -2,14 +2,13 @@ import { Button } from "@repo/ui/components/button";
 import { CommandEmpty, CommandGroup, CommandItem } from "@repo/ui/components/command";
 import { Tooltip } from "@repo/ui/components/tooltip";
 import { cn } from "cn";
-import {
-  KNOWLEDGE_MATCHES_DEFAULT_LIMIT,
-  type VaultMatchWire,
-} from "@repo/api/local/knowledge/knowledge-schema";
+import { KNOWLEDGE_MATCHES_DEFAULT_LIMIT } from "@repo/api/local/knowledge/knowledge-schema";
+import type { VaultMatchWire } from "@repo/api/local/knowledge/knowledge-schema";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { orpc } from "../api";
-import { PalettePage, SEARCH_DEBOUNCE_MS, useDebounced, type PageShell } from "./palette-page";
+import { PalettePage, SEARCH_DEBOUNCE_MS, useDebounced } from "./palette-page";
+import type { PageShell } from "./palette-page";
 import type { ReplaceProgressPort, VaultReplaceRequest } from "./vault-replace";
 
 interface MatchGroup {
@@ -19,22 +18,22 @@ interface MatchGroup {
 }
 
 // one group per note, in the order the rows arrived (path order)
-function groupMatches(matches: readonly VaultMatchWire[]): MatchGroup[] {
+const groupMatches = (matches: readonly VaultMatchWire[]): MatchGroup[] => {
   const groups: MatchGroup[] = [];
   const byPath = new Map<string, MatchGroup>();
   for (const match of matches) {
     let group = byPath.get(match.path);
     if (group === undefined) {
-      group = { path: match.path, title: match.title, rows: [] };
+      group = { path: match.path, rows: [], title: match.title };
       byPath.set(match.path, group);
       groups.push(group);
     }
     group.rows.push(match);
   }
   return groups;
-}
+};
 
-function SearchToggle({
+const SearchToggle = ({
   pressed,
   label,
   onToggle,
@@ -44,24 +43,22 @@ function SearchToggle({
   label: string;
   onToggle: () => void;
   children: React.ReactNode;
-}) {
-  return (
-    <Tooltip content={label}>
-      <button
-        type="button"
-        aria-pressed={pressed}
-        aria-label={label}
-        onClick={onToggle}
-        className={cn(
-          "h-7 shrink-0 rounded-md px-1.5 text-xs font-medium text-muted-foreground hover:bg-hover hover:text-foreground",
-          pressed && "bg-muted text-foreground",
-        )}
-      >
-        {children}
-      </button>
-    </Tooltip>
-  );
-}
+}) => (
+  <Tooltip content={label}>
+    <button
+      type="button"
+      aria-pressed={pressed}
+      aria-label={label}
+      onClick={onToggle}
+      className={cn(
+        "h-7 shrink-0 rounded-md px-1.5 text-xs font-medium text-muted-foreground hover:bg-hover hover:text-foreground",
+        pressed && "bg-muted text-foreground",
+      )}
+    >
+      {children}
+    </button>
+  </Tooltip>
+);
 
 // the run in flight: its counts, and the controller the Cancel button aborts
 interface ReplaceRun {
@@ -77,7 +74,7 @@ export interface SearchPageProps extends PageShell {
   onReplaceAll: (request: VaultReplaceRequest, port: ReplaceProgressPort) => Promise<void>;
 }
 
-export function SearchPage({ onOpenMatch, onReplaceAll, ...shell }: SearchPageProps) {
+export const SearchPage = ({ onOpenMatch, onReplaceAll, ...shell }: SearchPageProps) => {
   const queryClient = useQueryClient();
   const [caseSensitive, setCaseSensitive] = useState(false);
   const [wholeWord, setWholeWord] = useState(false);
@@ -88,10 +85,10 @@ export function SearchPage({ onOpenMatch, onReplaceAll, ...shell }: SearchPagePr
   const vaultMatches = useQuery({
     ...orpc.knowledge.matches.queryOptions({
       input: {
-        q: settledQuery,
         caseSensitive,
-        wholeWord,
         limit: KNOWLEDGE_MATCHES_DEFAULT_LIMIT,
+        q: settledQuery,
+        wholeWord,
       },
     }),
     enabled: shell.open && settledQuery !== "",
@@ -101,17 +98,21 @@ export function SearchPage({ onOpenMatch, onReplaceAll, ...shell }: SearchPagePr
 
   const startReplace = (request: VaultReplaceRequest): void => {
     const controller = new AbortController();
-    setReplaceRun({ done: 0, total: request.paths.length, cancelled: false, controller });
+    setReplaceRun({ cancelled: false, controller, done: 0, total: request.paths.length });
+    // The cleanup must run whether the run finished, was cancelled or was declined, and React
+    // Compiler cannot lower the `try`/`finally` that would say the same thing with `await`.
+    /* oxlint-disable promise/prefer-await-to-then -- see above */
     void onReplaceAll(request, {
-      signal: controller.signal,
       onProgress: (done, total) => {
         setReplaceRun((current) => (current === null ? null : { ...current, done, total }));
       },
+      signal: controller.signal,
     }).finally(() => {
       setReplaceRun(null);
       // the listing re-reads what the rewrite left, so the replaced needle shows as gone
       void queryClient.invalidateQueries({ queryKey: orpc.knowledge.matches.key() });
     });
+    /* oxlint-enable promise/prefer-await-to-then */
   };
 
   const result = settledQuery === "" ? undefined : vaultMatches.data;
@@ -121,6 +122,16 @@ export function SearchPage({ onOpenMatch, onReplaceAll, ...shell }: SearchPagePr
   const truncated = matches.length < total;
   const paths = [...new Set(matches.map((match) => match.path))];
   const canReplace = matches.length > 0 && !truncated && replaceRun === null;
+
+  const emptySentence = (): string => {
+    if (shell.query === "") {
+      return "Type to search every note.";
+    }
+    if (vaultMatches.isError) {
+      return "Could not search just now.";
+    }
+    return result === undefined ? "…" : "No matches.";
+  };
 
   return (
     <PalettePage
@@ -166,9 +177,9 @@ export function SearchPage({ onOpenMatch, onReplaceAll, ...shell }: SearchPagePr
               onClick={() => {
                 startReplace({
                   needle: shell.query,
-                  replacement,
                   options: { caseSensitive, wholeWord },
                   paths,
+                  replacement,
                 });
               }}
             >
@@ -198,15 +209,7 @@ export function SearchPage({ onOpenMatch, onReplaceAll, ...shell }: SearchPagePr
         </>
       }
     >
-      <CommandEmpty>
-        {shell.query === ""
-          ? "Type to search every note."
-          : vaultMatches.isError
-            ? "Could not search just now."
-            : result === undefined
-              ? "…"
-              : "No matches."}
-      </CommandEmpty>
+      <CommandEmpty>{emptySentence()}</CommandEmpty>
       {groupMatches(matches).map((group) => (
         <CommandGroup
           key={group.path}
@@ -216,7 +219,9 @@ export function SearchPage({ onOpenMatch, onReplaceAll, ...shell }: SearchPagePr
             <CommandItem
               key={row.ordinal}
               value={`${row.path}#${String(row.ordinal)}`}
-              onSelect={() => onOpenMatch(row, shell.query)}
+              onSelect={() => {
+                onOpenMatch(row, shell.query);
+              }}
             >
               <span className="min-w-0 flex-1 truncate">
                 <span className="text-muted-foreground">{row.before}</span>
@@ -239,4 +244,4 @@ export function SearchPage({ onOpenMatch, onReplaceAll, ...shell }: SearchPagePr
       ) : null}
     </PalettePage>
   );
-}
+};

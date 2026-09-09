@@ -12,12 +12,11 @@ const HTML_ESCAPES = new Map([
   ["'", "&#39;"],
 ]);
 
-function escapeHtml(value: string): string {
-  return value.replaceAll(/[&<>"']/gu, (character) => HTML_ESCAPES.get(character) ?? character);
-}
+const escapeHtml = (value: string): string =>
+  value.replaceAll(/[&<>"']/gu, (character) => HTML_ESCAPES.get(character) ?? character);
 
-export function renderInertCallbackPage(page: InertCallbackPage): string {
-  return `<!doctype html>
+export const renderInertCallbackPage = (page: InertCallbackPage): string =>
+  `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -35,14 +34,13 @@ export function renderInertCallbackPage(page: InertCallbackPage): string {
 <body><main><h1>${escapeHtml(page.title)}</h1><p>${escapeHtml(page.detail)}</p></main></body>
 </html>
 `;
-}
 
 // the callback url carries a live code; no-referrer keeps it off any link added later.
 export const INERT_CALLBACK_HEADERS = {
-  "content-type": "text/html; charset=utf-8",
   "cache-control": "no-store",
   "content-security-policy":
     "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'",
+  "content-type": "text/html; charset=utf-8",
   "referrer-policy": "no-referrer",
   "x-content-type-options": "nosniff",
 } satisfies Record<string, string>;

@@ -1,45 +1,41 @@
 import { existsSync } from "node:fs";
 import { appendFile, mkdir, readFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import path from "node:path";
 import { VAULT_TMP_PREFIX } from "@repo/notes/knowledge/vault-path";
 import type { VaultRemoteSpec } from "../cloud/vault-remote";
-import {
-  identityEnv,
-  isMissingRemoteRepo,
-  NETWORK_GIT_TIMEOUT_MS,
-  runGit,
-  type RunGit,
-} from "./git-run";
+import { identityEnv, isMissingRemoteRepo, NETWORK_GIT_TIMEOUT_MS, runGit } from "./git-run";
+import type { RunGit } from "./git-run";
 
 export const ACCOUNT_MARKER_KEY = "inteligir.account";
 
-async function ensureLocalExclude(root: string): Promise<void> {
+const ensureLocalExclude = async (root: string): Promise<void> => {
   // info/exclude, not .gitignore: the vault's files belong to the user.
-  const excludePath = join(root, ".git", "info", "exclude");
+  const excludePath = path.join(root, ".git", "info", "exclude");
   const pattern = `${VAULT_TMP_PREFIX}*`;
-  const existing = await readFile(excludePath, "utf8").catch(() => "");
+  const existing = await readFile(excludePath, "utf-8").catch(() => "");
   if (existing.split("\n").includes(pattern)) {
     return;
   }
-  await appendFile(excludePath, `${pattern}\n`, "utf8");
-}
+  await appendFile(excludePath, `${pattern}\n`, "utf-8");
+};
 
-async function hasHeadCommit(
+const hasHeadCommit = async (
   run: RunGit,
   root: string,
   env?: Record<string, string>,
-): Promise<boolean> {
+): Promise<boolean> => {
   try {
     await run(root, ["rev-parse", "--verify", "-q", "HEAD"], env ? { env } : {});
     return true;
   } catch {
     return false;
   }
-}
+};
 
 export interface EnsureVaultRepoArgs {
   root: string;
-  seed?: (root: string) => Promise<void>;
+  // a seed that writes synchronously is a seed; the bootstrap awaits either.
+  seed?: (root: string) => void | Promise<void>;
   remote?: VaultRemoteSpec | null;
   env?: Record<string, string>;
   // the full runGit, not RunGitCommand: the clone runs in the parent directory.
@@ -50,28 +46,28 @@ export interface EnsureVaultRepoArgs {
 // (offline, refused credential) boots empty instead: seeding beside a populated remote plants
 // a history the first sync must rebase through, and failing the boot would take down the
 // server the user signs in through again. git removes its own partial clone dir on failure.
-async function tryCloneVault(
+const tryCloneVault = async (
   run: RunGit,
   args: EnsureVaultRepoArgs,
   remote: VaultRemoteSpec,
-): Promise<"cloned" | "missing" | "failed"> {
-  await mkdir(dirname(args.root), { recursive: true });
+): Promise<"cloned" | "missing" | "failed"> => {
+  await mkdir(path.dirname(args.root), { recursive: true });
   try {
-    await run(dirname(args.root), ["clone", "--", remote.url, args.root], {
-      timeoutMs: NETWORK_GIT_TIMEOUT_MS,
+    await run(path.dirname(args.root), ["clone", "--", remote.url, args.root], {
       env: { ...args.env, ...remote.env },
+      timeoutMs: NETWORK_GIT_TIMEOUT_MS,
     });
     return "cloned";
   } catch (error) {
     return isMissingRemoteRepo(error) ? "missing" : "failed";
   }
-}
+};
 
 // an existing vault beside a populated remote is not merged here: the first sync pass
 // surfaces unrelated histories as its conflict state.
-export async function ensureVaultRepo(
+export const ensureVaultRepo = async (
   args: EnsureVaultRepoArgs,
-): Promise<{ created: boolean; cloned: boolean }> {
+): Promise<{ created: boolean; cloned: boolean }> => {
   const run = args.run ?? runGit;
   const created = !existsSync(args.root);
   const remote = args.remote ?? null;
@@ -80,7 +76,7 @@ export async function ensureVaultRepo(
   const cloned = outcome === "cloned";
   await mkdir(args.root, { recursive: true });
   const runOptions = args.env ? { env: args.env } : {};
-  if (!existsSync(join(args.root, ".git"))) {
+  if (!existsSync(path.join(args.root, ".git"))) {
     await run(args.root, ["init", "-b", "main"], runOptions);
   }
   await ensureLocalExclude(args.root);
@@ -103,5 +99,5 @@ export async function ensureVaultRepo(
       { env: { ...args.env, ...identityEnv() } },
     );
   }
-  return { created, cloned };
-}
+  return { cloned, created };
+};

@@ -4,17 +4,19 @@
 
 import { accessSync, constants, statSync } from "node:fs";
 import { createRequire } from "node:module";
-import { delimiter, dirname, join } from "node:path";
+import nodePath from "node:path";
 import { packageFile } from "../../paths";
 
 const CLI_BIN_NAME = "inteligir";
 
-export function resolveSkillsDir(): string | null {
+export const resolveSkillsDir = (): string | null => {
   try {
     const require = createRequire(import.meta.url);
     const entry = require.resolve("@repo/agent-skills/skills/inteligir-notes/SKILL.md");
-    const skills = dirname(dirname(entry));
-    if (statSync(skills).isDirectory()) return skills;
+    const skills = nodePath.dirname(nodePath.dirname(entry));
+    if (statSync(skills).isDirectory()) {
+      return skills;
+    }
   } catch {
     // a published install resolves no workspace package and reads the staged copy instead.
   }
@@ -24,9 +26,9 @@ export function resolveSkillsDir(): string | null {
   } catch {
     return null;
   }
-}
+};
 
-function isExecutableFile(path: string): boolean {
+const isExecutableFile = (path: string): boolean => {
   try {
     if (!statSync(path).isFile()) {
       return false;
@@ -36,12 +38,11 @@ function isExecutableFile(path: string): boolean {
   } catch {
     return false;
   }
-}
+};
 
 // checked for the execute bit, not assumed: npm strips it from a packed file not named in `bin`.
-export function resolveCliBinDir(binDir: string = packageFile("bin")): string | null {
-  return isExecutableFile(join(binDir, CLI_BIN_NAME)) ? binDir : null;
-}
+export const resolveCliBinDir = (binDir: string = packageFile("bin")): string | null =>
+  isExecutableFile(nodePath.join(binDir, CLI_BIN_NAME)) ? binDir : null;
 
 // read per session open: connected folders are Settings-mutable, and a value captured at runtime build would freeze them.
 export interface AgentSessionFacts {
@@ -58,20 +59,20 @@ export interface AgentShellEnv {
   PATH?: string;
 }
 
-export function toShellEnv(facts: AgentSessionFacts, hostEnv: NodeJS.ProcessEnv): AgentShellEnv {
+export const toShellEnv = (facts: AgentSessionFacts, hostEnv: NodeJS.ProcessEnv): AgentShellEnv => {
   const env: AgentShellEnv = { INTELIGIR_DATA_DIR: facts.dataDir };
   if (facts.skillsDir !== null) {
     env.INTELIGIR_SKILLS_DIR = facts.skillsDir;
   }
   if (facts.connectedDirs.length > 0) {
-    env.INTELIGIR_CONNECTED_DIRS = facts.connectedDirs.join(delimiter);
+    env.INTELIGIR_CONNECTED_DIRS = facts.connectedDirs.join(nodePath.delimiter);
   }
   if (facts.cliBinDir !== null) {
     const inheritedPath = hostEnv.PATH ?? "";
     env.PATH =
       inheritedPath.length === 0
         ? facts.cliBinDir
-        : `${facts.cliBinDir}${delimiter}${inheritedPath}`;
+        : `${facts.cliBinDir}${nodePath.delimiter}${inheritedPath}`;
   }
   return env;
-}
+};

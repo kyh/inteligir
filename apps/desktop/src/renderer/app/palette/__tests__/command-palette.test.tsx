@@ -14,13 +14,15 @@ import type {
   KnowledgeProblemsResponse,
 } from "@repo/api/local/knowledge/knowledge-schema";
 import type { CommandPalette, PaletteActions } from "../command-palette";
-import { searchNotesByFilename, type NoteSearchSource } from "../note-search";
+import { searchNotesByFilename } from "../note-search";
+import type { NoteSearchSource } from "../note-search";
 import {
   defaultRequest,
+  makeActions,
   renderWithQueries,
   stubKnowledgeFetch,
-  type KnowledgeFakes,
 } from "./palette-harness";
+import type { KnowledgeFakes } from "./palette-harness";
 
 const ENTRIES: VaultEntry[] = [
   { kind: "dir", path: "notes" },
@@ -31,43 +33,45 @@ const ENTRIES: VaultEntry[] = [
 
 const FILE_PATHS = ENTRIES.filter((entry) => entry.kind === "file").map((entry) => entry.path);
 
-const filenameSource: NoteSearchSource = (query) =>
-  Promise.resolve(searchNotesByFilename(query, FILE_PATHS));
+// oxlint-disable-next-line require-await -- the search source is an async port; this fake answers from memory
+const filenameSource: NoteSearchSource = async (query) => searchNotesByFilename(query, FILE_PATHS);
 
-function makeActions(): PaletteActions {
-  return {
-    openNote: vi.fn(),
-    newNote: vi.fn(),
-    newNoteFromTemplate: vi.fn(),
-    openDailyNote: vi.fn(),
-    openThread: vi.fn(),
-    syncNow: vi.fn(),
-    openSettings: vi.fn(),
-    openDeletedNotes: vi.fn(),
-    findInNote: null,
-    insertTemplate: null,
-    exportPdf: null,
-    moveNote: vi.fn(),
-    pin: null,
-    openMatch: vi.fn(),
-    replaceAll: vi.fn(() => Promise.resolve()),
-    listHeadings: null,
-    goToHeading: vi.fn(),
-    openProblemLink: vi.fn(),
-  };
-}
+type PaletteProps = React.ComponentProps<typeof CommandPalette>;
+
+type RenderOverrides = Partial<PaletteProps> & {
+  fakes?: KnowledgeFakes;
+};
+
+const renderPalette = ({ fakes, ...overrides }: RenderOverrides = {}) => {
+  stubKnowledgeFetch(fakes ?? {});
+  const actions = makeActions();
+  const onOpenChange = vi.fn<PaletteProps["onOpenChange"]>();
+  renderWithQueries({
+    actions,
+    canSync: false,
+    entries: ENTRIES,
+    modifier: "meta",
+    onOpenChange,
+    open: true,
+    request: defaultRequest,
+    searchSource: filenameSource,
+    threads: [],
+    ...overrides,
+  });
+  return { actions, onOpenChange };
+};
 
 const OUTLINE = [
-  { id: "0", path: [0], depth: 1, title: "Plan" },
-  { id: "2", path: [2], depth: 2, title: "Week one" },
-  { id: "5", path: [5], depth: 3, title: "Monday" },
+  { depth: 1, id: "0", path: [0], title: "Plan" },
+  { depth: 2, id: "2", path: [2], title: "Week one" },
+  { depth: 3, id: "5", path: [5], title: "Monday" },
 ];
 
 describe("the headings page", () => {
   it("is offered while a note is open, and lists the outline with its levels", () => {
-    const goToHeading = vi.fn();
+    const goToHeading = vi.fn<PaletteActions["goToHeading"]>();
     const { onOpenChange } = renderPalette({
-      actions: { ...makeActions(), listHeadings: () => OUTLINE, goToHeading },
+      actions: { ...makeActions(), goToHeading, listHeadings: () => OUTLINE },
     });
     fireEvent.click(screen.getByText("Go to heading…"));
     expect(screen.getByPlaceholderText("Go to heading…")).toBeDefined();
@@ -80,8 +84,8 @@ describe("the headings page", () => {
 
   it("opens straight on the page a shortcut names, and filters by title", () => {
     renderPalette({
-      request: { page: "headings", nonce: 1 },
       actions: { ...makeActions(), listHeadings: () => OUTLINE },
+      request: { nonce: 1, page: "headings" },
     });
     fireEvent.change(screen.getByPlaceholderText("Go to heading…"), {
       target: { value: "week" },
@@ -91,7 +95,7 @@ describe("the headings page", () => {
   });
 
   it("says so with no note open, and hides the root command", () => {
-    renderPalette({ request: { page: "headings", nonce: 1 } });
+    renderPalette({ request: { nonce: 1, page: "headings" } });
     expect(screen.getByText("Open a note to jump to its headings.")).toBeDefined();
     cleanup();
     renderPalette();
@@ -101,7 +105,7 @@ describe("the headings page", () => {
 
 describe("pinning from the palette", () => {
   it("offers the one verb the open note needs, and runs it", () => {
-    const toggle = vi.fn();
+    const toggle = vi.fn<() => void>();
     const { onOpenChange } = renderPalette({
       actions: { ...makeActions(), pin: { pinned: false, toggle } },
     });
@@ -124,39 +128,34 @@ describe("pinning from the palette", () => {
 
 const EMPTY_FAMILY = { rows: [], total: 0 };
 
-type RenderOverrides = Partial<React.ComponentProps<typeof CommandPalette>> & {
-  fakes?: KnowledgeFakes;
+const searchBox = (): HTMLElement => screen.getByPlaceholderText("Search notes or commands…");
+
+/* oxlint-disable require-await -- the search source is an async port; these fakes answer from memory */
+const titledSource: NoteSearchSource = async () => [
+  { path: "notes/ideas.md", snippet: "…the big idea is…", title: "Big Ideas" },
+];
+
+const failingSource: NoteSearchSource = async () => {
+  throw new Error("index down");
 };
+/* oxlint-enable require-await */
 
-function renderPalette({ fakes, ...overrides }: RenderOverrides = {}) {
-  stubKnowledgeFetch(fakes ?? {});
-  const actions = makeActions();
-  const onOpenChange = vi.fn();
-  renderWithQueries({
-    open: true,
-    request: defaultRequest,
-    onOpenChange,
-    entries: ENTRIES,
-    threads: [],
-    searchSource: filenameSource,
-    canSync: false,
-    actions,
-    modifier: "meta",
-    ...overrides,
+interface Deferred<T> {
+  promise: Promise<T>;
+  resolve: (value: T) => void;
+}
+
+const deferred = <T,>(): Deferred<T> => {
+  let settle: ((value: T) => void) | undefined;
+  // oxlint-disable-next-line promise/avoid-new -- a promise settled from outside its executor has no async/await form
+  const promise = new Promise<T>((resolve) => {
+    settle = resolve;
   });
-  return { actions, onOpenChange };
-}
-
-function searchBox(): HTMLElement {
-  return screen.getByPlaceholderText("Search notes or commands…");
-}
-
-const titledSource: NoteSearchSource = () =>
-  Promise.resolve([{ path: "notes/ideas.md", title: "Big Ideas", snippet: "…the big idea is…" }]);
-
-const failingSource: NoteSearchSource = () => Promise.reject(new Error("index down"));
-
-const noop = (): void => {};
+  if (settle === undefined) {
+    throw new Error("the promise executor did not run");
+  }
+  return { promise, resolve: settle };
+};
 
 beforeEach(() => {
   stubKnowledgeFetch({});
@@ -193,9 +192,10 @@ describe("note search", () => {
 
   it("debounces: a query superseded within the window never reaches the source", async () => {
     const asked: string[] = [];
-    const source: NoteSearchSource = (query) => {
+    // oxlint-disable-next-line require-await -- the search source is an async port; this fake answers from memory
+    const source: NoteSearchSource = async (query) => {
       asked.push(query);
-      return Promise.resolve([{ path: `${query}.md` }]);
+      return [{ path: `${query}.md` }];
     };
     renderPalette({ searchSource: source });
     fireEvent.change(searchBox(), { target: { value: "old" } });
@@ -205,35 +205,29 @@ describe("note search", () => {
   });
 
   it("aborts an in-flight query and drops its answer when a newer one arrives", async () => {
-    let releaseSlow: (hits: { path: string }[]) => void = noop;
     let slowSignal: AbortSignal | undefined;
-    let slowAsked: () => void = noop;
-    const slowReached = new Promise<void>((resolve) => {
-      slowAsked = resolve;
-    });
-    const slow = new Promise<{ path: string }[]>((resolve) => {
-      releaseSlow = resolve;
-    });
-    const source: NoteSearchSource = (query, signal) => {
+    const slowReached = deferred<null>();
+    const slow = deferred<{ path: string }[]>();
+    const source: NoteSearchSource = async (query, signal) => {
       if (query === "old") {
         slowSignal = signal;
-        slowAsked();
-        return slow;
+        slowReached.resolve(null);
+        return await slow.promise;
       }
-      return Promise.resolve([{ path: "fresh.md" }]);
+      return [{ path: "fresh.md" }];
     };
     renderPalette({ searchSource: source });
     fireEvent.change(searchBox(), { target: { value: "old" } });
     // Only once the slow request is in flight does the newer query exercise
     // the abort rather than the debounce.
-    await slowReached;
+    await slowReached.promise;
     fireEvent.change(searchBox(), { target: { value: "new" } });
     expect(await screen.findByText("fresh.md")).toBeDefined();
     // the cache drops the superseded read once its observer moved to the new key
     await waitFor(() => {
       expect(slowSignal?.aborted).toBe(true);
     });
-    releaseSlow([{ path: "stale.md" }]);
+    slow.resolve([{ path: "stale.md" }]);
     await waitFor(() => {
       expect(screen.queryByText("stale.md")).toBeNull();
     });
@@ -300,10 +294,10 @@ describe("the template pages", () => {
     renderPalette({ entries: [...ENTRIES, TEMPLATE] });
     expect(screen.queryByText("Insert template…")).toBeNull();
     cleanup();
-    const insertTemplate = vi.fn();
+    const insertTemplate = vi.fn<NonNullable<PaletteActions["insertTemplate"]>>();
     const { actions } = renderPalette({
-      entries: [...ENTRIES, TEMPLATE],
       actions: { ...makeActions(), insertTemplate },
+      entries: [...ENTRIES, TEMPLATE],
     });
     fireEvent.click(screen.getByText("Insert template…"));
     fireEvent.click(screen.getByText("Meeting"));
@@ -314,7 +308,7 @@ describe("the template pages", () => {
   it("says where templates come from when the folder is empty", () => {
     renderPalette();
     fireEvent.click(screen.getByText("New note from template…"));
-    expect(screen.getByText(/No templates yet/)).toBeDefined();
+    expect(screen.getByText(/No templates yet/u)).toBeDefined();
   });
 });
 
@@ -336,7 +330,7 @@ describe("the new-note-in-folder page", () => {
       target: { value: "daily" },
     });
     expect(screen.getByText("notes/daily")).toBeDefined();
-    expect(screen.queryByText(/^notes$/)).toBeNull();
+    expect(screen.queryByText(/^notes$/u)).toBeNull();
     expect(screen.getByText("Vault root")).toBeDefined();
   });
 });
@@ -355,15 +349,15 @@ describe("the move-to-folder page", () => {
     renderPalette({ openNotePath: "Welcome.md" });
     fireEvent.click(screen.getByText("Move note to folder…"));
     expect(screen.queryByText("Vault root")).toBeNull();
-    expect(screen.getByText(/^notes$/)).toBeDefined();
+    expect(screen.getByText(/^notes$/u)).toBeDefined();
   });
 
   it("opens straight on the page for a requested entry, and hides its own subtree", () => {
     const { actions } = renderPalette({
-      request: { page: "move-to-folder", subject: "notes", nonce: 1 },
+      request: { nonce: 1, page: "move-to-folder", subject: "notes" },
     });
     expect(screen.getByPlaceholderText("Move to which folder?")).toBeDefined();
-    expect(screen.queryByText(/^notes$/)).toBeNull();
+    expect(screen.queryByText(/^notes$/u)).toBeNull();
     expect(screen.queryByText("notes/daily")).toBeNull();
     expect(screen.queryByText("Vault root")).toBeNull();
     expect(screen.getByText("No folder it can move to.")).toBeDefined();
@@ -381,34 +375,32 @@ const twoMatches =
   (request: KnowledgeMatchesRequest): KnowledgeMatchesResponse => ({
     matches: [
       {
-        path: "notes/ideas.md",
-        title: "Big Ideas",
-        ordinal: 0,
-        line: 3,
+        after: " idea",
+        before: "the ",
         column: 4,
         length: request.q.length,
-        before: "the ",
+        line: 3,
+        ordinal: 0,
+        path: "notes/ideas.md",
         text: request.q,
-        after: " idea",
+        title: "Big Ideas",
       },
       {
-        path: "notes/ideas.md",
-        title: "Big Ideas",
-        ordinal: 1,
-        line: 9,
+        after: " again",
+        before: "",
         column: 0,
         length: request.q.length,
-        before: "",
+        line: 9,
+        ordinal: 1,
+        path: "notes/ideas.md",
         text: request.q,
-        after: " again",
+        title: "Big Ideas",
       },
     ],
     total,
   });
 
-function vaultSearchBox(): HTMLElement {
-  return screen.getByPlaceholderText("Search across the vault…");
-}
+const vaultSearchBox = (): HTMLElement => screen.getByPlaceholderText("Search across the vault…");
 
 describe("the search page", () => {
   it("is reached from the root's command and from the page a shortcut names", () => {
@@ -416,25 +408,27 @@ describe("the search page", () => {
     fireEvent.click(screen.getByText("Search across the vault…"));
     expect(vaultSearchBox()).toBeDefined();
     cleanup();
-    renderPalette({ request: { page: "search", nonce: 1 } });
+    renderPalette({ request: { nonce: 1, page: "search" } });
     expect(vaultSearchBox()).toBeDefined();
   });
 
   it("lists match rows under their note, and a pick lands on that match", async () => {
     const { actions, onOpenChange } = renderPalette({
-      request: { page: "search", nonce: 1 },
       fakes: { matches: twoMatches(2) },
+      request: { nonce: 1, page: "search" },
     });
     fireEvent.change(vaultSearchBox(), { target: { value: "big" } });
     expect(await screen.findByText("again")).toBeDefined();
     expect(screen.getByText("Big Ideas · notes/ideas.md")).toBeDefined();
     const rows = screen.getAllByText("big");
     expect(rows).toHaveLength(2);
-    const second = rows[1];
-    if (second === undefined) throw new Error("the second match row is missing");
+    const [, second] = rows;
+    if (second === undefined) {
+      throw new Error("the second match row is missing");
+    }
     fireEvent.click(second);
     expect(actions.openMatch).toHaveBeenCalledWith(
-      expect.objectContaining({ path: "notes/ideas.md", ordinal: 1, line: 9 }),
+      expect.objectContaining({ line: 9, ordinal: 1, path: "notes/ideas.md" }),
       "big",
     );
     expect(onOpenChange).toHaveBeenCalledWith(false);
@@ -442,89 +436,86 @@ describe("the search page", () => {
 
   it("replaces across the listed notes with the toggles it shows", async () => {
     const { actions } = renderPalette({
-      request: { page: "search", nonce: 1 },
       fakes: { matches: twoMatches(2) },
+      request: { nonce: 1, page: "search" },
     });
     fireEvent.change(vaultSearchBox(), { target: { value: "big" } });
     await screen.findByText("again");
     fireEvent.click(screen.getByLabelText("Match case"));
     fireEvent.change(screen.getByLabelText("Replace with"), { target: { value: "huge" } });
     fireEvent.click(screen.getByText("Replace all"));
-    expect(actions.replaceAll).toHaveBeenCalledWith(
-      {
-        needle: "big",
-        replacement: "huge",
-        options: { caseSensitive: true, wholeWord: false },
-        paths: ["notes/ideas.md"],
-      },
-      expect.objectContaining({ signal: expect.any(AbortSignal) }),
-    );
+    const [call] = actions.replaceAll.mock.calls;
+    expect(call?.[0]).toEqual({
+      needle: "big",
+      options: { caseSensitive: true, wholeWord: false },
+      paths: ["notes/ideas.md"],
+      replacement: "huge",
+    });
+    expect(call?.[1].signal).toBeInstanceOf(AbortSignal);
   });
 
   it("shows the run's count while it lasts, and Cancel aborts the signal it handed out", async () => {
-    let settle: (() => void) | null = null;
+    const run = deferred<null>();
     let port: Parameters<PaletteActions["replaceAll"]>[1] | null = null;
-    const replaceAll = vi.fn((_request, handed: Parameters<PaletteActions["replaceAll"]>[1]) => {
+    const replaceAll = vi.fn<PaletteActions["replaceAll"]>(async (_request, handed) => {
       port = handed;
-      return new Promise<void>((resolve) => {
-        settle = resolve;
-      });
+      await run.promise;
     });
     renderPalette({
-      request: { page: "search", nonce: 1 },
-      fakes: { matches: twoMatches(2) },
       actions: { ...makeActions(), replaceAll },
+      fakes: { matches: twoMatches(2) },
+      request: { nonce: 1, page: "search" },
     });
     fireEvent.change(vaultSearchBox(), { target: { value: "big" } });
     await screen.findByText("again");
     fireEvent.click(screen.getByText("Replace all"));
     expect(screen.getByText("Replacing… 0 of 1 notes")).toBeDefined();
-    if (port === null) throw new Error("the palette handed out no port");
+    if (port === null) {
+      throw new Error("the palette handed out no port");
+    }
     const handed: Parameters<PaletteActions["replaceAll"]>[1] = port;
     fireEvent.click(screen.getByText("Cancel"));
     expect(handed.signal?.aborted).toBe(true);
     expect(screen.getByText("Stopping…")).toBeDefined();
-    if (settle === null) throw new Error("the run never started");
-    const finish: () => void = settle;
-    finish();
+    run.resolve(null);
     await waitFor(() => {
-      expect(screen.queryByText(/Replacing…/)).toBeNull();
+      expect(screen.queryByText(/Replacing…/u)).toBeNull();
     });
   });
 
   it("refuses to replace while the listing is cut, and says so", async () => {
     const { actions } = renderPalette({
-      request: { page: "search", nonce: 1 },
       fakes: { matches: twoMatches(5) },
+      request: { nonce: 1, page: "search" },
     });
     fireEvent.change(vaultSearchBox(), { target: { value: "big" } });
     await screen.findByText("again");
-    expect(screen.getByText(/2 of 5 matches shown/)).toBeDefined();
+    expect(screen.getByText(/2 of 5 matches shown/u)).toBeDefined();
     fireEvent.click(screen.getByText("Replace all"));
     expect(actions.replaceAll).not.toHaveBeenCalled();
   });
 });
 
 const someProblems = (): KnowledgeProblemsResponse => ({
-  unresolvedLinks: {
-    rows: [
-      {
-        sourcePath: "Welcome.md",
-        sourceTitle: "Welcome",
-        target: "Nowhere",
-        line: 3,
-        snippet: "See [[Nowhere]].",
-        kind: "wiki",
-        embed: false,
-      },
-    ],
-    total: 3,
+  duplicateStems: {
+    rows: [{ paths: ["Guide.md", "a/Guide.md"], stem: "Guide" }],
+    total: 1,
   },
   missingEmbeds: EMPTY_FAMILY,
   orphans: { rows: [{ path: "Lonely.md", title: "Lonely" }], total: 1 },
-  duplicateStems: {
-    rows: [{ stem: "Guide", paths: ["Guide.md", "a/Guide.md"] }],
-    total: 1,
+  unresolvedLinks: {
+    rows: [
+      {
+        embed: false,
+        kind: "wiki",
+        line: 3,
+        snippet: "See [[Nowhere]].",
+        sourcePath: "Welcome.md",
+        sourceTitle: "Welcome",
+        target: "Nowhere",
+      },
+    ],
+    total: 3,
   },
 });
 
@@ -535,8 +526,8 @@ describe("the problems page", () => {
     expect(await screen.findByText("Unresolved links · 3")).toBeDefined();
     expect(screen.getByText("Orphans · 1")).toBeDefined();
     expect(screen.getByText("Duplicate stems · 1")).toBeDefined();
-    expect(screen.queryByText(/Missing embeds/)).toBeNull();
-    expect(screen.getByText(/2 more not shown/)).toBeDefined();
+    expect(screen.queryByText(/Missing embeds/u)).toBeNull();
+    expect(screen.getByText(/2 more not shown/u)).toBeDefined();
     fireEvent.click(screen.getByText("[[Nowhere]] in Welcome"));
     expect(actions.openProblemLink).toHaveBeenCalledWith("Welcome.md", "Nowhere");
     expect(onOpenChange).toHaveBeenCalledWith(false);
@@ -558,7 +549,7 @@ describe("the problems page", () => {
   it("says when the vault is clean", async () => {
     renderPalette();
     fireEvent.click(screen.getByText("Problems"));
-    expect(await screen.findByText(/No problems:/)).toBeDefined();
+    expect(await screen.findByText(/No problems:/u)).toBeDefined();
   });
 });
 
@@ -602,7 +593,7 @@ describe("a command's binding", () => {
 
 describe("the quick switcher (⌘O)", () => {
   it("is the root with its commands folded away", async () => {
-    const { actions } = renderPalette({ request: { page: "notes", nonce: 1 } });
+    const { actions } = renderPalette({ request: { nonce: 1, page: "notes" } });
     const box = screen.getByPlaceholderText("Open a note…");
     expect(screen.queryByText("Settings")).toBeNull();
     expect(screen.queryByText("Keyboard shortcuts")).toBeNull();

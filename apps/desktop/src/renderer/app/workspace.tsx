@@ -13,7 +13,8 @@ import { useStore } from "zustand";
 import { orpc } from "./api";
 import { setCommentActions } from "@repo/editor/comments/comment-store";
 import { ActionComposer } from "./actions/action-composer";
-import { ActionsPanel, type PanelTab } from "./actions/actions-panel";
+import { ActionsPanel } from "./actions/actions-panel";
+import type { PanelTab } from "./actions/actions-panel";
 import { useNoteComments, useNoteCommentMeta } from "./actions/comment-hooks";
 import { NoteTopbar } from "./note-topbar";
 import { StatusBar } from "./status-bar";
@@ -26,7 +27,8 @@ import { jumpToFindMatch, openFindBar } from "@repo/editor/find-bar";
 import { insertTemplate } from "@repo/editor/insert-template";
 import { scrollToLinkTarget } from "@repo/editor/link-locate";
 import { getLiveEditor, whenLiveEditor } from "@repo/editor/live-editor";
-import { collectHeadings, goToHeading, type HeadingItem } from "@repo/editor/toc";
+import { collectHeadings, goToHeading } from "@repo/editor/toc";
+import type { HeadingItem } from "@repo/editor/toc";
 import { removeFrontmatterId } from "@repo/notes/markdown/frontmatter";
 import { DAILY_TEMPLATE_PATH, expandTemplate } from "@repo/notes/templates/placeholders";
 import { flushOpenNote } from "@repo/editor/note/open-note-flush";
@@ -37,19 +39,13 @@ import type { VaultActions } from "@repo/editor/host-io";
 import { dailyNoteFromTemplate, dailyNotePath, dailyNoteTemplate } from "./note/daily";
 import { readNoteViewContext } from "./note/note-view-context";
 import { setNotePinned } from "./note/pin-note";
+import type { PinNoteApi } from "./note/pin-note";
 import { VaultProvider } from "./note/vault-provider";
-import {
-  CommandPalette,
-  type PaletteEntryPage,
-  type PaletteRequest,
-} from "./palette/command-palette";
+import { CommandPalette } from "./palette/command-palette";
+import type { PaletteEntryPage, PaletteRequest } from "./palette/command-palette";
 import { createSearchSource, sortedNotePaths } from "./palette/search-source";
-import {
-  replaceInVault,
-  summarizeReplace,
-  type ReplaceProgressPort,
-  type VaultReplaceRequest,
-} from "./palette/vault-replace";
+import { replaceInVault, summarizeReplace } from "./palette/vault-replace";
+import type { ReplaceProgressPort, VaultReplaceRequest } from "./palette/vault-replace";
 import { DeletedNotesDialog } from "./sidebar/deleted-notes-dialog";
 import { Sidebar, SidebarInset, SidebarProvider, useSidebar } from "@repo/ui/components/sidebar";
 import { SidebarRailContent } from "./sidebar/sidebar";
@@ -75,9 +71,8 @@ import {
   writeRailSections,
   writePanelWidth,
   writeSidebarWidth,
-  type RailSection,
-  type RailSections,
 } from "./prefs";
+import type { RailSection, RailSections } from "./prefs";
 import { hasInsetTitleBar } from "./title-bar";
 import { useWorkspace } from "./workspace-context";
 
@@ -92,7 +87,41 @@ const EMPTY_THREADS: readonly Thread[] = [];
 // a note that never mounts (a refused open) must not leave a jump waiting forever
 const LIVE_EDITOR_WAIT_MS = 5000;
 
-export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
+const jumpWhenLive = async (path: string, query: string, ordinal: number): Promise<void> => {
+  const editor = await whenLiveEditor(path, LIVE_EDITOR_WAIT_MS);
+  if (editor !== null) {
+    jumpToFindMatch(editor, query, ordinal);
+  }
+};
+
+const showLinkWhenLive = async (sourcePath: string, target: string): Promise<void> => {
+  const editor = await whenLiveEditor(sourcePath, LIVE_EDITOR_WAIT_MS);
+  if (editor !== null && !scrollToLinkTarget(editor, target)) {
+    jumpToFindMatch(editor, target, 0);
+  }
+};
+
+const pinAndReport = async (api: PinNoteApi, path: string, pinned: boolean): Promise<void> => {
+  const outcome = await setNotePinned(api, path, pinned);
+  if (outcome.kind === "refused") {
+    toast.error(outcome.message);
+  }
+};
+
+// inside a provider: the rail's and the panel's each carry one, writing their own pref
+const SidebarWidthPersistence = ({ write }: { write: (px: number) => void }) => {
+  const { width } = useSidebar();
+  useEffect(() => {
+    // oxlint-disable-next-line unicorn/prefer-number-coercion -- the width carries its CSS unit; Number("256px") is NaN
+    const px = Number.parseInt(width, 10);
+    if (Number.isFinite(px)) {
+      write(px);
+    }
+  }, [width, write]);
+  return null;
+};
+
+export const Workspace = ({ openNote, onOpenNote }: WorkspaceProps) => {
   const { api } = useWorkspace();
   const queryClient = useQueryClient();
   const treeQuery = useVaultTree();
@@ -105,8 +134,8 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
   const openPalette = useCallback(
     (page: PaletteEntryPage, extra: { subject?: string } = {}): void => {
       setPalette((current) => ({
-        request: { page, ...extra, nonce: (current?.request.nonce ?? 0) + 1 },
         open: true,
+        request: { page, ...extra, nonce: (current?.request.nonce ?? 0) + 1 },
       }));
     },
     [],
@@ -115,7 +144,9 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
     setPalette((current) => (current === null ? null : { ...current, open: false }));
   }, []);
   const [deletedNotesOpen, setDeletedNotesOpen] = useState(false);
+  // oxlint-disable-next-line react/hook-use-state -- a per-mount constant: React's lazy initializer, no setter exists
   const [shortcutModifier] = useState(platformShortcutModifier);
+  // oxlint-disable-next-line react/hook-use-state -- a per-mount constant: React's lazy initializer, no setter exists
   const [insetTitleBar] = useState(hasInsetTitleBar);
 
   // The action surface's state lives beside the note, never above it, so no
@@ -185,11 +216,11 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
   }, [api, queryClient, noteStore]);
 
   const readViewContext = useCallback<ViewContextSource>(async (): Promise<ViewContext | null> => {
-    const path = noteStore.state().editor.path;
+    const { path } = noteStore.state().editor;
     if (path === null) {
       return null;
     }
-    return readNoteViewContext(path, {
+    return await readNoteViewContext(path, {
       flush: async () => {
         await flushOpenNote();
       },
@@ -214,12 +245,16 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
 
   // Ordinary opens: the store's stacks recognize a back/forward move by value.
   const goTo = useCallback((target: string | null): void => {
-    if (target === null) return;
+    if (target === null) {
+      return;
+    }
     actionsRef.current?.openFile(target);
   }, []);
 
   const [railOpen, setRailOpen] = useState(true);
+  // oxlint-disable-next-line react/hook-use-state -- a per-mount constant: React's lazy initializer, no setter exists
   const [initialSidebarWidth] = useState(() => `${String(readSidebarWidth())}px`);
+  // oxlint-disable-next-line react/hook-use-state -- a per-mount constant: React's lazy initializer, no setter exists
   const [initialPanelWidth] = useState(() => `${String(readPanelWidth())}px`);
   // owned here, not in the rail: the top bar's breadcrumb sets it too, and both are one prop away
   const [sidebarFolder, setSidebarFolder] = useState<string>(readSidebarFolder);
@@ -232,7 +267,9 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
   const [railSections, setRailSections] = useState<RailSections>(readRailSections);
   const setSectionOpen = useCallback((section: RailSection, open: boolean): void => {
     setRailSections((current) => {
-      if (current[section] === open) return current;
+      if (current[section] === open) {
+        return current;
+      }
       const next = { ...current, [section]: open };
       writeRailSections(next);
       return next;
@@ -256,17 +293,16 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
   const findInNote = useCallback((): void => {
     const { openPath: path } = noteStore.state();
     const editor = path === null ? null : getLiveEditor(path);
-    if (editor !== null) openFindBar(editor);
+    if (editor !== null) {
+      openFindBar(editor);
+    }
   }, [noteStore]);
 
   // the note opens first; the find bar takes the match once its editor is live
   const openMatch = useCallback(
     (match: VaultMatchWire, query: string): void => {
       setOpenNote(match.path);
-      void whenLiveEditor(match.path, LIVE_EDITOR_WAIT_MS).then((editor) => {
-        if (editor !== null) jumpToFindMatch(editor, query, match.ordinal);
-        return undefined;
-      });
+      void jumpWhenLive(match.path, query, match.ordinal);
     },
     [setOpenNote],
   );
@@ -275,12 +311,7 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
   const openProblemLink = useCallback(
     (sourcePath: string, target: string): void => {
       setOpenNote(sourcePath);
-      void whenLiveEditor(sourcePath, LIVE_EDITOR_WAIT_MS).then((editor) => {
-        if (editor !== null && !scrollToLinkTarget(editor, target)) {
-          jumpToFindMatch(editor, target, 0);
-        }
-        return undefined;
-      });
+      void showLinkWhenLive(sourcePath, target);
     },
     [setOpenNote],
   );
@@ -290,11 +321,13 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
     async (request: VaultReplaceRequest, port: ReplaceProgressPort): Promise<void> => {
       const noteCount = request.paths.length;
       const confirmed = await confirm({
-        title: `Replace in ${plural(noteCount, "note")}?`,
         body: `Every match of "${request.needle}" becomes "${request.replacement}". A note stays recoverable from its History.`,
         confirmLabel: "Replace all",
+        title: `Replace in ${plural(noteCount, "note")}?`,
       });
-      if (!confirmed) return;
+      if (!confirmed) {
+        return;
+      }
       // the open note's buffer lands first, so its file is not the one that "changed since read"
       await flushOpenNote();
       const outcomes = await replaceInVault(api, request, port);
@@ -343,7 +376,9 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
     (templatePath: string): void => {
       const { openPath: path } = noteStore.state();
       const editor = path === null ? null : getLiveEditor(path);
-      if (editor !== null) void insertTemplate(editor, templatePath);
+      if (editor !== null) {
+        void insertTemplate(editor, templatePath);
+      }
     },
     [noteStore],
   );
@@ -352,10 +387,7 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
 
   const setPinned = useCallback(
     (path: string, pinned: boolean): void => {
-      void setNotePinned(api, path, pinned).then((outcome) => {
-        if (outcome.kind === "refused") toast.error(outcome.message);
-        return undefined;
-      });
+      void pinAndReport(api, path, pinned);
     },
     [api],
   );
@@ -363,8 +395,8 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
   const openPinned = openPath !== null && pinnedPaths.has(openPath);
 
   const treeOps = useTreeOps({
-    api,
     actions: actionsRef,
+    api,
     createNote,
     openNote,
     setOpenNote,
@@ -400,35 +432,51 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
 
   useGlobalShortcuts(shortcutModifier, (action) => {
     switch (action) {
-      case "open-action-composer":
+      case "open-action-composer": {
         setComposerSeed(null);
         setComposerOpen((current) => !current);
         break;
-      case "open-palette":
-        if (palette?.open === true) closePalette();
-        else openPalette("root");
+      }
+      case "open-palette": {
+        if (palette?.open === true) {
+          closePalette();
+        } else {
+          openPalette("root");
+        }
         break;
-      case "find-in-note":
+      }
+      case "find-in-note": {
         findInNote();
         break;
-      case "open-search":
+      }
+      case "open-search": {
         openPalette("search");
         break;
-      case "open-quick-switcher":
+      }
+      case "open-quick-switcher": {
         openPalette("notes");
         break;
-      case "open-headings":
+      }
+      case "open-headings": {
         openPalette("headings");
         break;
-      case "open-settings":
+      }
+      case "open-settings": {
         onOpenSettings();
         break;
-      case "open-daily-note":
+      }
+      case "open-daily-note": {
         openDailyNote();
         break;
-      case "toggle-zen":
+      }
+      case "toggle-zen": {
         setZen((current) => !current);
         break;
+      }
+      default: {
+        const exhaustive: never = action;
+        return exhaustive;
+      }
     }
   });
 
@@ -443,29 +491,21 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
 
   const paletteActions = useMemo(
     () => ({
-      openNote: setOpenNote,
-      newNote: newUntitledNote,
-      newNoteFromTemplate,
-      openDailyNote,
-      openThread,
-      syncNow,
-      openSettings: onOpenSettings,
-      openDeletedNotes: () => setDeletedNotesOpen(true),
-      findInNote: openPath === null ? null : findInNote,
-      insertTemplate: openPath === null ? null : insertTemplateIntoNote,
       exportPdf:
         openPath === null
           ? null
           : () => {
               exportNoteAsPdf(docStem(openPath));
             },
-      moveNote: treeOps.moveEntry,
-      pin:
-        openPath === null
-          ? null
-          : { pinned: openPinned, toggle: () => setPinned(openPath, !openPinned) },
-      openMatch,
-      replaceAll,
+      findInNote: openPath === null ? null : findInNote,
+      goToHeading: (heading: HeadingItem) => {
+        const { openPath: path } = noteStore.state();
+        const editor = path === null ? null : getLiveEditor(path);
+        if (editor !== null) {
+          goToHeading(editor, heading);
+        }
+      },
+      insertTemplate: openPath === null ? null : insertTemplateIntoNote,
       listHeadings:
         openPath === null
           ? null
@@ -473,12 +513,29 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
               const editor = getLiveEditor(openPath);
               return editor === null ? [] : collectHeadings(editor);
             },
-      goToHeading: (heading: HeadingItem) => {
-        const { openPath: path } = noteStore.state();
-        const editor = path === null ? null : getLiveEditor(path);
-        if (editor !== null) goToHeading(editor, heading);
+      moveNote: treeOps.moveEntry,
+      newNote: newUntitledNote,
+      newNoteFromTemplate,
+      openDailyNote,
+      openDeletedNotes: () => {
+        setDeletedNotesOpen(true);
       },
+      openMatch,
+      openNote: setOpenNote,
       openProblemLink,
+      openSettings: onOpenSettings,
+      openThread,
+      pin:
+        openPath === null
+          ? null
+          : {
+              pinned: openPinned,
+              toggle: () => {
+                setPinned(openPath, !openPinned);
+              },
+            },
+      replaceAll,
+      syncNow,
     }),
     [
       setOpenNote,
@@ -503,15 +560,21 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
 
   const noteMetadata = useMemo(
     () => ({
-      setPinned: (pinned: boolean) => {
-        const { openPath: path } = noteStore.state();
-        if (path !== null) setPinned(path, pinned);
-      },
       deleteNote: () => {
         const { openPath: path } = noteStore.state();
-        if (path !== null) treeOps.removeEntry(path, "file");
+        if (path !== null) {
+          treeOps.removeEntry(path, "file");
+        }
       },
-      openDeletedNotes: () => setDeletedNotesOpen(true),
+      openDeletedNotes: () => {
+        setDeletedNotesOpen(true);
+      },
+      setPinned: (pinned: boolean) => {
+        const { openPath: path } = noteStore.state();
+        if (path !== null) {
+          setPinned(path, pinned);
+        }
+      },
     }),
     [noteStore, treeOps, setPinned],
   );
@@ -599,7 +662,9 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
                     }}
                     onExportPdf={() => {
                       const { openPath: path } = noteStore.state();
-                      if (path !== null) exportNoteAsPdf(docStem(path));
+                      if (path !== null) {
+                        exportNoteAsPdf(docStem(path));
+                      }
                     }}
                   />
                 )}
@@ -640,7 +705,9 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
               openNotePath={openPath}
               modifier={shortcutModifier}
               onOpenChange={(open) => {
-                if (!open) closePalette();
+                if (!open) {
+                  closePalette();
+                }
               }}
               entries={treeEntries}
               threads={threads}
@@ -668,16 +735,4 @@ export function Workspace({ openNote, onOpenNote }: WorkspaceProps) {
       </div>
     </VaultProvider>
   );
-}
-
-// inside a provider: the rail's and the panel's each carry one, writing their own pref
-function SidebarWidthPersistence({ write }: { write: (px: number) => void }) {
-  const { width } = useSidebar();
-  useEffect(() => {
-    const px = Number.parseInt(width, 10);
-    if (Number.isFinite(px)) {
-      write(px);
-    }
-  }, [width, write]);
-  return null;
-}
+};

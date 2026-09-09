@@ -20,19 +20,14 @@ export type HealthResponse = z.infer<typeof healthResponseSchema>;
 
 export const vaultAssetQuerySchema = z.object({ path: z.string().min(1) }).strict();
 
-export function vaultAssetUrl(origin: string, path: string): string {
-  return `${origin}${VAULT_ASSET_PATH}?path=${encodeURIComponent(path)}`;
-}
+export const vaultAssetUrl = (origin: string, path: string): string =>
+  `${origin}${VAULT_ASSET_PATH}?path=${encodeURIComponent(path)}`;
 
 // the server names this value in connect-src and every client dials it; computed two ways, the browser refuses the socket
-export function websocketOrigin(httpOrigin: string): string {
-  return httpOrigin.replace(/^http/u, "ws");
-}
+export const websocketOrigin = (httpOrigin: string): string => httpOrigin.replace(/^http/u, "ws");
 
-export function workspaceSocketUrl(httpOrigin: string): string {
-  return `${websocketOrigin(httpOrigin)}${WS_PATH}`;
-}
+export const workspaceSocketUrl = (httpOrigin: string): string =>
+  `${websocketOrigin(httpOrigin)}${WS_PATH}`;
 
-export function voiceStreamUrl(httpOrigin: string): string {
-  return `${websocketOrigin(httpOrigin)}${VOICE_STREAM_PATH}`;
-}
+export const voiceStreamUrl = (httpOrigin: string): string =>
+  `${websocketOrigin(httpOrigin)}${VOICE_STREAM_PATH}`;

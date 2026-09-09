@@ -15,7 +15,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-function mountTab(docPath: string): void {
+const mountTab = (docPath: string): void => {
   render(
     <QueryClientProvider client={createWorkspaceQueryClient()}>
       <OpenNoteStoreProvider store={createOpenNoteStore()}>
@@ -23,7 +23,7 @@ function mountTab(docPath: string): void {
       </OpenNoteStoreProvider>
     </QueryClientProvider>,
   );
-}
+};
 
 describe("the history tab under a refused read", () => {
   it("renders the refusal, never a false empty history", async () => {
@@ -40,7 +40,7 @@ describe("the history tab under a refused read", () => {
   it("keeps the honest empty state for a note with no commits yet", async () => {
     const booted = await bootTestApp();
     routeRendererFetch(booted);
-    await booted.client.vault.write({ path: "fresh.md", content: "# Fresh\n" });
+    await booted.client.vault.write({ content: "# Fresh\n", path: "fresh.md" });
 
     mountTab("fresh.md");
     await waitFor(() => {

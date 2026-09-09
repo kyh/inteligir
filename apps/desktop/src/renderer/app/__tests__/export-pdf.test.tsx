@@ -5,6 +5,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   defaultRequest,
+  emptySearchSource,
+  makeActions,
   renderWithQueries,
   stubKnowledgeFetch,
 } from "../palette/__tests__/palette-harness";
@@ -47,7 +49,9 @@ describe("exportNoteAsPdf", () => {
       }),
     );
 
-    expect(() => exportNoteAsPdf("Weekly Plan")).toThrow("no printer");
+    expect(() => {
+      exportNoteAsPdf("Weekly Plan");
+    }).toThrow("no printer");
     expect(document.title).toBe("inteligir");
     expect(document.documentElement.classList.contains("dark")).toBe(true);
   });
@@ -66,43 +70,23 @@ describe("exportNoteAsPdf", () => {
   });
 });
 
+const mount = (exportPdf: (() => void) | null) => {
+  stubKnowledgeFetch({});
+  return renderWithQueries({
+    actions: { ...makeActions(), exportPdf },
+    canSync: false,
+    entries: [],
+    onOpenChange: vi.fn<() => void>(),
+    open: true,
+    request: defaultRequest,
+    searchSource: emptySearchSource,
+    threads: [],
+  });
+};
+
 describe("the palette's Export as PDF row", () => {
-  const actions = {
-    openNote: vi.fn(),
-    newNote: vi.fn(),
-    newNoteFromTemplate: vi.fn(),
-    openDailyNote: vi.fn(),
-    openThread: vi.fn(),
-    syncNow: vi.fn(),
-    openSettings: vi.fn(),
-    openDeletedNotes: vi.fn(),
-    findInNote: null,
-    moveNote: vi.fn(),
-    pin: null,
-    insertTemplate: null,
-    openMatch: vi.fn(),
-    replaceAll: vi.fn(),
-    listHeadings: null,
-    goToHeading: vi.fn(),
-    openProblemLink: vi.fn(),
-  };
-
-  function mount(exportPdf: (() => void) | null) {
-    stubKnowledgeFetch({});
-    return renderWithQueries({
-      open: true,
-      request: defaultRequest,
-      onOpenChange: vi.fn(),
-      entries: [],
-      threads: [],
-      searchSource: () => Promise.resolve([]),
-      canSync: false,
-      actions: { ...actions, exportPdf },
-    });
-  }
-
   it("exists only while a note is open, and runs the export", () => {
-    const exportPdf = vi.fn();
+    const exportPdf = vi.fn<() => void>();
     mount(exportPdf);
     screen.getByText("Export as PDF").click();
     expect(exportPdf).toHaveBeenCalledOnce();

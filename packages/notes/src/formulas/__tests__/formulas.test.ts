@@ -8,12 +8,14 @@ import { resolveExpression } from "../resolve-graph";
 
 const noRefs = (): null => null;
 
-function evaluate(source: string): number | null {
+const evaluate = (source: string): number | null => {
   const tree = parseExpression(source);
-  if (tree === null) return null;
+  if (tree === null) {
+    return null;
+  }
   const outcome = evaluateExpression(tree, noRefs);
   return outcome.ok ? outcome.value : null;
-}
+};
 
 describe("the executable grammar (the skill's own examples)", () => {
   it("computes the spec's arithmetic", () => {
@@ -54,7 +56,8 @@ describe("the executable grammar (the skill's own examples)", () => {
     expect(parseExpression("9am-930am")).toBeNull();
     expect(parseExpression("sum(1,2)")).toBeNull();
     expect(parseExpression("2^3")).toBeNull();
-    expect(parseExpression("1,23")).toBeNull(); // malformed thousands group
+    // malformed thousands group
+    expect(parseExpression("1,23")).toBeNull();
     expect(parseExpression("")).toBeNull();
     expect(parseExpression("time")).toBeNull();
   });
@@ -62,7 +65,9 @@ describe("the executable grammar (the skill's own examples)", () => {
   it("answers not-finite for a division by zero instead of a display", () => {
     const tree = parseExpression("1/0");
     expect(tree).not.toBeNull();
-    if (tree === null) return;
+    if (tree === null) {
+      return;
+    }
     expect(evaluateExpression(tree, noRefs)).toEqual({ ok: false, reason: "not-finite" });
   });
 });
@@ -92,7 +97,7 @@ describe("metadata", () => {
   });
 
   it("serializes nothing for an anonymous pill", () => {
-    expect(serializeFormulaMeta(parseFormulaMeta(undefined))).toBeUndefined();
+    expect(serializeFormulaMeta(parseFormulaMeta())).toBeUndefined();
   });
 });
 
@@ -133,9 +138,11 @@ describe("the graph (the skill's own type-scale example)", () => {
 
   it("resolves a bound reference through the same note", () => {
     const formulas = collectFormulas(`${doc}\n`);
-    const bound = formulas[1];
+    const [, bound] = formulas;
     expect(bound?.expression).not.toBeNull();
-    if (bound?.expression == null) return;
+    if (bound === undefined || bound.expression === null) {
+      return;
+    }
     const outcome = resolveExpression(
       bound.expression,
       { notes: new Map([[NOTE, formulas]]) },
@@ -151,8 +158,10 @@ describe("the graph (the skill's own type-scale example)", () => {
         "\n",
       ),
     );
-    const first = cyclic[0];
-    if (first?.expression == null) throw new Error("expected an executable pill");
+    const [first] = cyclic;
+    if (first === undefined || first.expression === null) {
+      throw new Error("expected an executable pill");
+    }
     const outcome = resolveExpression(
       first.expression,
       { notes: new Map([[NOTE, cyclic]]) },
@@ -164,8 +173,10 @@ describe("the graph (the skill's own type-scale example)", () => {
 
   it("answers missing-ref for an absent note or id", () => {
     const formulas = collectFormulas(`{{@(x#other-note#nope)+1|0|id=ida}}\n`);
-    const first = formulas[0];
-    if (first?.expression == null) throw new Error("expected an executable pill");
+    const [first] = formulas;
+    if (first === undefined || first.expression === null) {
+      throw new Error("expected an executable pill");
+    }
     const outcome = resolveExpression(first.expression, { notes: new Map() }, NOTE, formulas);
     expect(outcome).toEqual({ ok: false, reason: "missing-ref" });
   });
@@ -173,8 +184,10 @@ describe("the graph (the skill's own type-scale example)", () => {
   it("resolves across notes", () => {
     const other = collectFormulas("{{100|100|id=base;name=base}}\n");
     const local = collectFormulas(`{{@(base#other#base)*2|200|id=d}}\n`);
-    const first = local[0];
-    if (first?.expression == null) throw new Error("expected an executable pill");
+    const [first] = local;
+    if (first === undefined || first.expression === null) {
+      throw new Error("expected an executable pill");
+    }
     const outcome = resolveExpression(
       first.expression,
       { notes: new Map([["other", other]]) },

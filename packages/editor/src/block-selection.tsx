@@ -4,11 +4,13 @@ import { useBlockSelected } from "@platejs/selection/react";
 
 import { cn } from "cn";
 
-export function BlockSelection({ pluginKey }: { pluginKey: string }) {
-  const isBlockSelected = useBlockSelected();
+export const BlockSelection = ({ pluginKey }: { pluginKey: string }) => {
+  const isBlockSelected = Boolean(useBlockSelected());
 
   // tables carry their own cell-selection UI
-  if (!isBlockSelected || pluginKey === "tr" || pluginKey === "table") return null;
+  if (!isBlockSelected || pluginKey === "tr" || pluginKey === "table") {
+    return null;
+  }
 
   // span, not div: a div inside <p> is invalid nesting
   return (
@@ -20,4 +22,4 @@ export function BlockSelection({ pluginKey }: { pluginKey: string }) {
       data-slot="block-selection"
     />
   );
-}
+};

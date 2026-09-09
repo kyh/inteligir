@@ -4,7 +4,8 @@
 
 import { localContract } from "@repo/api/local";
 import type { AgentStatus, DataDirScope } from "@repo/api/local/system/system-schema";
-import { implement, ORPCError } from "@orpc/server";
+import type { ORPCError } from "@orpc/server";
+import { implement } from "@orpc/server";
 import type { AgentsService } from "./agents/agents-service";
 import type { CommentsService } from "./comments/comments-service";
 import type { CloudRuntime } from "./cloud/sync-runtime";
@@ -57,12 +58,12 @@ export type AppServices = Omit<AppContext, "requestHost">;
 export const base = implement(localContract).$context<AppContext>();
 
 // an unnamed refusal is rethrown as it came — a 500, rather than a class the contract row does not declare.
-export function refusals(translate: (cause: unknown) => ORPCError<string, unknown> | null) {
-  return async <T>(work: () => T | Promise<T>): Promise<T> => {
+export const refusals =
+  (translate: (cause: unknown) => ORPCError<string, unknown> | null) =>
+  async <T>(work: () => T | Promise<T>): Promise<T> => {
     try {
       return await work();
-    } catch (cause) {
-      throw translate(cause) ?? cause;
+    } catch (error) {
+      throw translate(error) ?? error;
     }
   };
-}

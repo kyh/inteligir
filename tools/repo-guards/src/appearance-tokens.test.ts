@@ -22,44 +22,47 @@ interface TokenRead {
 }
 
 // the fallback is taken by balancing parens: a fallback is itself usually a var().
-function readsIn(file: string, text: string): TokenRead[] {
+const readsIn = (file: string, text: string): TokenRead[] => {
   const found: TokenRead[] = [];
-  for (const match of text.matchAll(/var\(\s*(--editor-[a-z-]+)/gu)) {
-    const token = match[1] ?? "";
+  for (const match of text.matchAll(/var\(\s*(?<token>--editor-[a-z-]+)/gu)) {
+    const token = match.groups?.token ?? "";
     let depth = 1;
     let index = (match.index ?? 0) + match[0].length;
     let comma = -1;
     while (index < text.length && depth > 0) {
       const char = text[index];
-      if (char === "(") depth += 1;
-      else if (char === ")") depth -= 1;
-      else if (char === "," && depth === 1 && comma === -1) comma = index;
+      if (char === "(") {
+        depth += 1;
+      } else if (char === ")") {
+        depth -= 1;
+      } else if (char === "," && depth === 1 && comma === -1) {
+        comma = index;
+      }
       index += 1;
     }
     found.push({
+      fallback: comma === -1 ? null : text.slice(comma + 1, index - 1).trim(),
       file,
       token,
-      fallback: comma === -1 ? null : text.slice(comma + 1, index - 1).trim(),
     });
   }
   return found;
-}
+};
 
 const written = new Set(
-  [...sourceOf(SETTER).matchAll(/setToken\([^,]+,\s*"(--editor-[a-z-]+)"/gu)].map(
-    (match) => match[1] ?? "",
+  [...sourceOf(SETTER).matchAll(/setToken\([^,]+,\s*"(?<token>--editor-[a-z-]+)"/gu)].map(
+    (match) => match.groups?.token ?? "",
   ),
 );
 
 const declared = new Map(
-  [...sourceOf(DEFAULTS).matchAll(/(--editor-[a-z-]+)\s*:\s*([^;]+);/gu)].map((match) => [
-    match[1] ?? "",
-    (match[2] ?? "").trim(),
-  ]),
+  [...sourceOf(DEFAULTS).matchAll(/(?<token>--editor-[a-z-]+)\s*:\s*(?<value>[^;]+);/gu)].map(
+    (match) => [match.groups?.token ?? "", (match.groups?.value ?? "").trim()],
+  ),
 );
 
 const reads = workspaces()
-  .flatMap((workspace) => workspaceSourceFiles(workspace).concat(styleFiles(workspace)))
+  .flatMap((workspace) => [...workspaceSourceFiles(workspace), ...styleFiles(workspace)])
   .filter((file) => file !== SELF)
   .flatMap((file) => readsIn(file, sourceOf(file)));
 const readTokens = new Set(reads.map((entry) => entry.token));

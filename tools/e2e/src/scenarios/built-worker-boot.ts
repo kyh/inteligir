@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { join } from "node:path";
+import path from "node:path";
 import { expect, expectEq } from "../harness/assert";
 import { exec, hermeticProcessEnv } from "../harness/exec";
 import type { Scenario } from "../harness/scenario";
@@ -8,8 +8,8 @@ import type { Scenario } from "../harness/scenario";
 const BUILD_TIMEOUT_MS = 300_000;
 
 export const builtWorkerBoot: Scenario = {
-  name: "built-worker-boot",
   description: "the vite-built Worker bundle boots under wrangler dev and answers its routes",
+  name: "built-worker-boot",
   async run(context) {
     // built through turbo, not looked for on disk: a present artifact may be stale and boot last
     // week's Worker.
@@ -18,7 +18,14 @@ export const builtWorkerBoot: Scenario = {
       env: hermeticProcessEnv(),
       timeoutMs: BUILD_TIMEOUT_MS,
     });
-    const builtConfig = join(context.repoRoot, "apps", "web", "dist", "server", "wrangler.json");
+    const builtConfig = path.join(
+      context.repoRoot,
+      "apps",
+      "web",
+      "dist",
+      "server",
+      "wrangler.json",
+    );
     expect(existsSync(builtConfig), `the web build emitted no ${builtConfig}`);
 
     const worker = await context.cloudWorker({ builtConfig });

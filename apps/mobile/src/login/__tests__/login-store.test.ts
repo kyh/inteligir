@@ -1,40 +1,42 @@
+// oxlint-disable eslint/require-await -- the CloudFetch and credential-store stand-ins here answer
+// synchronously; `async` is the port's contract, and dropping it trips promise-function-async
 import type { CloudFetch } from "@repo/api/cloud/client";
 import type { DeviceCredential } from "@repo/api/cloud/device/device-schema";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import { createLoginStore } from "../login-store";
 
-const LOGGED_IN = { deviceId: "dev_x", credential: `igd_${"c".repeat(64)}` };
+const LOGGED_IN = { credential: `igd_${"c".repeat(64)}`, deviceId: "dev_x" };
 const REQUEST = {
+  deviceName: "Phone",
   email: "owner@example.test",
   password: "correct horse battery",
-  deviceName: "Phone",
 };
 
-function loginOk(calls: string[] = []): CloudFetch {
-  return (_input, init) => {
+const loginOk =
+  (calls: string[] = []): CloudFetch =>
+  async (_input, init) => {
     calls.push(z.string().parse(init?.body));
-    return Promise.resolve(Response.json(LOGGED_IN));
+    return Response.json(LOGGED_IN);
   };
-}
 
-const loginRefused: CloudFetch = () =>
-  Promise.resolve(
-    Response.json(
-      { error: { code: "invalid-credentials", message: "Wrong email or password." } },
-      { status: 401 },
-    ),
+const loginRefused: CloudFetch = async () =>
+  Response.json(
+    { error: { code: "invalid-credentials", message: "Wrong email or password." } },
+    { status: 401 },
   );
 
-function noop(): void {}
+const noop = (): void => {};
 
 // released from outside, so a test can look at the state while the login is in flight
-function heldLogin() {
+const heldLogin = () => {
   let markReached: () => void = noop;
   let release: () => void = noop;
+  // oxlint-disable-next-line promise/avoid-new -- a deferred: the test releases the login by hand
   const reached = new Promise<void>((resolve) => {
     markReached = resolve;
   });
+  // oxlint-disable-next-line promise/avoid-new -- a deferred: the test releases the login by hand
   const released = new Promise<void>((resolve) => {
     release = resolve;
   });
@@ -43,27 +45,32 @@ function heldLogin() {
     await released;
     return Response.json(LOGGED_IN);
   };
-  return { fetch, reached, release: () => release() };
-}
+  return {
+    fetch,
+    reached,
+    release: () => {
+      release();
+    },
+  };
+};
 
-function harness(args: {
+const harness = (args: {
   fetch: CloudFetch;
   write?: (credential: DeviceCredential) => Promise<void>;
-}) {
+}) => {
   const written: DeviceCredential[] = [];
   const store = createLoginStore({
     client: { baseUrl: "https://cloud.test", fetch: args.fetch },
     store: {
       write:
         args.write ??
-        ((credential) => {
+        (async (credential) => {
           written.push(credential);
-          return Promise.resolve();
         }),
     },
   });
   return { store, written };
-}
+};
 
 describe("the login store", () => {
   it("is signing in while the cloud answers, and idle once the credential is this phone's", async () => {
@@ -100,7 +107,9 @@ describe("the login store", () => {
   it("lands a thrown keychain as a failure, not a spinner that never ends", async () => {
     const { store } = harness({
       fetch: loginOk(),
-      write: () => Promise.reject(new Error("keychain unavailable")),
+      write: async () => {
+        throw new Error("keychain unavailable");
+      },
     });
     await store.login(REQUEST);
     expect(store.get()).toStrictEqual({ kind: "failed", message: "keychain unavailable" });
@@ -110,9 +119,9 @@ describe("the login store", () => {
     let calls = 0;
     const wire = heldLogin();
     const { store } = harness({
-      fetch: (input, init) => {
+      fetch: async (input, init) => {
         calls += 1;
-        return wire.fetch(input, init);
+        return await wire.fetch(input, init);
       },
     });
     const first = store.login(REQUEST);

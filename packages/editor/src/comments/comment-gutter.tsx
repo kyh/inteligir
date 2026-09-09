@@ -1,10 +1,6 @@
 import { ElementApi } from "platejs";
-import {
-  createPlatePlugin,
-  useEditorRef,
-  type PlateElementProps,
-  type RenderNodeWrapper,
-} from "platejs/react";
+import { createPlatePlugin, useEditorRef } from "platejs/react";
+import type { PlateElementProps, RenderNodeWrapper } from "platejs/react";
 
 import { useOpenNotePath } from "@repo/editor/note/open-note-context";
 import { Tooltip } from "@repo/ui/components/tooltip";
@@ -13,19 +9,24 @@ import { cn } from "cn";
 import { holdsCommentMarkers, scanBlockComments } from "./comment-ranges";
 import { useCommentMeta, useCommentSurface } from "./comment-store";
 
-function CommentGutterBlock(props: PlateElementProps) {
+const CommentGutterBlock = (props: PlateElementProps) => {
   const editor = useEditorRef();
   const actions = useCommentSurface((state) => state.actions);
   const notePath = useOpenNotePath();
   const { resolvedIds } = useCommentMeta(notePath);
-  const path = props.path;
+  const { path } = props;
   const scan =
     path === undefined
       ? { ranges: [], unpairedIds: [] }
       : scanBlockComments(editor, [props.element, path]);
   const ids = [...new Set([...scan.ranges.flatMap((range) => range.ids), ...scan.unpairedIds])];
 
-  if (ids.length === 0) return <>{props.children}</>;
+  if (ids.length === 0) {
+    // Plate types PlateElementProps["children"] as `any`, so the fragment is what pins the
+    // return to ReactNode; returning the children bare is an unsafe return.
+    // oxlint-disable-next-line react/jsx-no-useless-fragment -- see above
+    return <>{props.children}</>;
+  }
 
   const allResolved = ids.every((id) => resolvedIds.has(id));
   return (
@@ -54,12 +55,18 @@ function CommentGutterBlock(props: PlateElementProps) {
       {props.children}
     </div>
   );
-}
+};
 
 const CommentGutterWrapper: RenderNodeWrapper = ({ element, path }) => {
-  if (path.length !== 1) return undefined;
-  if (!ElementApi.isElement(element) || !holdsCommentMarkers(element)) return undefined;
-  return (props) => <CommentGutterBlock {...props} />;
+  if (path.length !== 1) {
+    return;
+  }
+  if (!ElementApi.isElement(element) || !holdsCommentMarkers(element)) {
+    return;
+  }
+  return function CommentGutterAbove(props) {
+    return <CommentGutterBlock {...props} />;
+  };
 };
 
 export const CommentGutterKit = [

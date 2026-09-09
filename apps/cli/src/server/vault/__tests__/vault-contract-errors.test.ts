@@ -15,10 +15,13 @@ const ROUTER_ANCHOR = "\nexport const vaultRouter";
 // the call shape, not the token: a comment mentioning `refusing(` must not hand its block the table.
 const REFUSING_CALL = /\brefusing\(\s*(?:async\s*)?\(/u;
 
-function handlerBlocks(source: string): Map<string, string> {
-  const starts = [...source.matchAll(/^const \w+ = base\.vault\.(\w+)\.handler\(/gmu)].flatMap(
-    (match) => (match[1] === undefined ? [] : [{ row: match[1], at: match.index }]),
-  );
+const handlerBlocks = (source: string): Map<string, string> => {
+  const starts = [
+    ...source.matchAll(/^const \w+ = base\.vault\.(?<row>\w+)\.handler\(/gmu),
+  ].flatMap((match) => {
+    const row = match.groups?.row;
+    return row === undefined ? [] : [{ at: match.index, row }];
+  });
   const routerAt = source.indexOf(ROUTER_ANCHOR);
   if (routerAt === -1) {
     throw new Error(
@@ -27,25 +30,30 @@ function handlerBlocks(source: string): Map<string, string> {
     );
   }
   const blocks = new Map<string, string>();
-  starts.forEach(({ row, at }, index) => {
+  for (const [index, { row, at }] of starts.entries()) {
     blocks.set(row, source.slice(at, starts[index + 1]?.at ?? routerAt));
-  });
+  }
   return blocks;
-}
+};
 
-function producibleCodes(block: string): Set<string> {
+const producibleCodes = (block: string): Set<string> => {
   const codes = new Set<string>();
-  for (const match of block.matchAll(/\berrors\.([A-Z_]+)\(/gu)) {
-    if (match[1] !== undefined) codes.add(match[1]);
+  for (const match of block.matchAll(/\berrors\.(?<code>[A-Z_]+)\(/gu)) {
+    const code = match.groups?.code;
+    if (code !== undefined) {
+      codes.add(code);
+    }
   }
   if (REFUSING_CALL.test(block)) {
-    for (const wireClass of Object.values(VAULT_REFUSALS)) codes.add(wireClass);
+    for (const wireClass of Object.values(VAULT_REFUSALS)) {
+      codes.add(wireClass);
+    }
   }
   return codes;
-}
+};
 
 describe("the vault contract's declared errors", () => {
-  const blocks = handlerBlocks(readFileSync(ROUTER_FILE, "utf8"));
+  const blocks = handlerBlocks(readFileSync(ROUTER_FILE, "utf-8"));
   const rows = Object.entries(localContract.vault);
 
   it("finds a handler block for every row, or the parse below proves nothing", () => {
@@ -64,11 +72,11 @@ describe("the vault contract's declared errors", () => {
     expect(
       unreachable,
       `${CONTRACT_FILE}: row "${row}" declares ${unreachable.join(", ")} but vault-router.ts's ` +
-        `handler has no \`errors.<CODE>(\` for it and ` +
-        (REFUSING_CALL.test(block)
-          ? `\`refusing\` answers only ${Object.values(VAULT_REFUSALS).join(", ")}`
-          : "runs outside `refusing`") +
-        " — a declared class is a promise a client narrows on; drop it or add a producer",
+        `handler has no \`errors.<CODE>(\` for it and ${
+          REFUSING_CALL.test(block)
+            ? `\`refusing\` answers only ${Object.values(VAULT_REFUSALS).join(", ")}`
+            : "runs outside `refusing`"
+        } — a declared class is a promise a client narrows on; drop it or add a producer`,
     ).toEqual([]);
   });
 });

@@ -10,10 +10,12 @@ export interface AgentRequestActions {
   showTag: (tag: string) => void;
 }
 
-type AgentRequestState = { actions: AgentRequestActions | null };
+interface AgentRequestState {
+  actions: AgentRequestActions | null;
+}
 
 export const useAgentRequestActions = create<AgentRequestState>()(() => ({ actions: null }));
 
-export function setAgentRequestActions(actions: AgentRequestActions | null): void {
+export const setAgentRequestActions = (actions: AgentRequestActions | null): void => {
   useAgentRequestActions.setState({ actions });
-}
+};

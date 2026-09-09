@@ -1,6 +1,7 @@
 // a key both this table and `packages/editor/src/editor-shortcuts.ts` claim runs both.
 
-import { spellHotkey, type ShortcutModifier } from "@repo/editor/hotkey-spelling";
+import { spellHotkey } from "@repo/editor/hotkey-spelling";
+import type { ShortcutModifier } from "@repo/editor/hotkey-spelling";
 import { useEffect, useLayoutEffect, useRef } from "react";
 
 export type GlobalShortcutAction =
@@ -23,35 +24,34 @@ export interface GlobalShortcut {
 }
 
 export const GLOBAL_SHORTCUTS: readonly GlobalShortcut[] = [
-  { key: "k", action: "open-action-composer", label: "Ask the agent" },
-  { key: "p", action: "open-palette", label: "Command palette" },
-  { key: "o", action: "open-quick-switcher", label: "Open a note" },
-  { key: "o", shift: true, action: "open-headings", label: "Go to heading" },
-  { key: "f", action: "find-in-note", label: "Find in note" },
-  { key: "f", shift: true, action: "open-search", label: "Search across the vault" },
-  { key: "d", action: "open-daily-note", label: "Daily note" },
-  { key: "\\", action: "toggle-zen", label: "Zen mode" },
-  { key: ",", action: "open-settings", label: "Settings" },
+  { action: "open-action-composer", key: "k", label: "Ask the agent" },
+  { action: "open-palette", key: "p", label: "Command palette" },
+  { action: "open-quick-switcher", key: "o", label: "Open a note" },
+  { action: "open-headings", key: "o", label: "Go to heading", shift: true },
+  { action: "find-in-note", key: "f", label: "Find in note" },
+  { action: "open-search", key: "f", label: "Search across the vault", shift: true },
+  { action: "open-daily-note", key: "d", label: "Daily note" },
+  { action: "toggle-zen", key: "\\", label: "Zen mode" },
+  { action: "open-settings", key: ",", label: "Settings" },
 ];
 
 // is-hotkey's spelling, so a global row and an editor row compare as one chord
-export function globalShortcutHotkey(shortcut: GlobalShortcut): string {
-  return `mod+${shortcut.shift === true ? "shift+" : ""}${shortcut.key}`;
-}
+export const globalShortcutHotkey = (shortcut: GlobalShortcut): string =>
+  `mod+${shortcut.shift === true ? "shift+" : ""}${shortcut.key}`;
 
-export function bindingFor(
+export const bindingFor = (
   action: GlobalShortcutAction,
   modifier: ShortcutModifier,
-): string | null {
+): string | null => {
   const row = GLOBAL_SHORTCUTS.find((shortcut) => shortcut.action === action);
   return row === undefined ? null : spellHotkey(globalShortcutHotkey(row), modifier);
-}
+};
 
 // alt disqualifies outright; shift only matches the row that claims it.
-export function globalShortcutFor(
+export const globalShortcutFor = (
   event: KeyboardEvent,
   modifier: ShortcutModifier,
-): GlobalShortcut | null {
+): GlobalShortcut | null => {
   const claimed = modifier === "meta" ? event.metaKey : event.ctrlKey;
   const foreign = modifier === "meta" ? event.ctrlKey : event.metaKey;
   if (!claimed || foreign || event.altKey) {
@@ -63,12 +63,12 @@ export function globalShortcutFor(
       (shortcut) => shortcut.key === key && (shortcut.shift === true) === event.shiftKey,
     ) ?? null
   );
-}
+};
 
-export function useGlobalShortcuts(
+export const useGlobalShortcuts = (
   modifier: ShortcutModifier,
   onShortcut: (action: GlobalShortcutAction) => void,
-): void {
+): void => {
   const latest = useRef(onShortcut);
   useLayoutEffect(() => {
     latest.current = onShortcut;
@@ -83,6 +83,8 @@ export function useGlobalShortcuts(
       latest.current(shortcut.action);
     };
     window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+    };
   }, [modifier]);
-}
+};

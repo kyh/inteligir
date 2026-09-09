@@ -1,24 +1,25 @@
 import type { DeleteVaultEntryResult } from "@repo/editor/host-io";
 
-import { VaultEditorController, type VaultIO } from "@repo/editor/vault-editor";
+import { VaultEditorController } from "@repo/editor/vault-editor";
+import type { VaultIO } from "@repo/editor/vault-editor";
 import { createDebouncer } from "@repo/editor/lib/debounce";
 
 const AUTOSAVE_DEBOUNCE_MS = 600;
 
-export type NoteRuntimeCallbacks = {
-  onVanished(path: string): void;
-};
+export interface NoteRuntimeCallbacks {
+  onVanished: (path: string) => void;
+}
 
 export type NoteRuntime = ReturnType<typeof createNoteRuntime>;
 
 // the caller disposes the previous runtime first; this one never checks.
-export function createNoteRuntime(
+export const createNoteRuntime = (
   path: string,
   root: string,
   io: VaultIO,
   cb: NoteRuntimeCallbacks,
   initial?: string,
-) {
+) => {
   const controller = new VaultEditorController(io);
   controller.setRoot(root);
 
@@ -34,30 +35,36 @@ export function createNoteRuntime(
 
   const unsubscribe = controller.subscribe(() => {
     const st = controller.getState();
-    if (st.path === path) opened = true;
-    else if (opened && st.path === null) cb.onVanished(path);
+    if (st.path === path) {
+      opened = true;
+    } else if (opened && st.path === null) {
+      cb.onVanished(path);
+    }
   });
 
-  void controller.open(path, initial).then(() => {
+  const openNote = async (): Promise<void> => {
+    await controller.open(path, initial);
     // unreadable on first load: it never held content, so it closes silently.
-    if (!disposed && controller.getState().path !== path) cb.onVanished(path);
-    return undefined;
-  });
+    if (!disposed && controller.getState().path !== path) {
+      cb.onVanished(path);
+    }
+  };
+  void openNote();
 
   return {
-    // not the controller's path, which is null until the first load.
-    path,
     controller,
+    dispose(): void {
+      disposed = true;
+      autosave.cancel();
+      unsubscribe();
+    },
     edit(next: string): void {
       // teardown settles and re-seed echoes emit unchanged content; don't dirty the buffer for them.
-      if (controller.getState().content === next) return;
+      if (controller.getState().content === next) {
+        return;
+      }
       controller.edit(next);
       autosave.schedule();
-    },
-    // runs at the top of flush() and remove(); the rich editor drains its serialize debounce
-    // here so a pending keystroke persists. last registration wins.
-    registerPreFlush(fn: (() => void) | null): void {
-      preFlush = fn;
     },
     async flush(): Promise<boolean> {
       preFlush?.();
@@ -65,16 +72,18 @@ export function createNoteRuntime(
       await controller.flush();
       return !controller.getState().dirty;
     },
-    dispose(): void {
-      disposed = true;
-      autosave.cancel();
-      unsubscribe();
+    // not the controller's path, which is null until the first load.
+    path,
+    // runs at the top of flush() and remove(); the rich editor drains its serialize debounce
+    // here so a pending keystroke persists. last registration wins.
+    registerPreFlush(fn: (() => void) | null): void {
+      preFlush = fn;
     },
     // a held delete leaves the note open because the file is still there; null is a delete that threw.
-    remove(): Promise<DeleteVaultEntryResult | null> {
+    async remove(): Promise<DeleteVaultEntryResult | null> {
       preFlush?.();
       autosave.cancel();
-      return controller.remove();
+      return await controller.remove();
     },
   };
-}
+};

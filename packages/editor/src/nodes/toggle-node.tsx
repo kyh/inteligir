@@ -3,7 +3,8 @@
 // element all its Slate children as one React child, and hidden blocks must stay mounted for Slate.
 
 import { ChevronRightIcon } from "lucide-react";
-import { PlateElement, useElement, type PlateElementProps } from "platejs/react";
+import { PlateElement, useElement } from "platejs/react";
+import type { PlateElementProps } from "platejs/react";
 import { useToggleButton, useToggleButtonState } from "@platejs/toggle/react";
 
 import { Tooltip } from "@repo/ui/components/tooltip";
@@ -12,7 +13,7 @@ import { cn } from "cn";
 import { stringProp } from "@repo/editor/node-props";
 import { TOGGLE_COLLAPSED_ATTR } from "@repo/editor/style-hooks";
 
-export function ToggleElement(props: PlateElementProps) {
+export const ToggleElement = (props: PlateElementProps) => {
   const element = useElement();
   const { editor } = props;
   // under NODE_ENV=test NodeIdPlugin is off, so ids are absent and the chevron is inert.
@@ -20,12 +21,16 @@ export function ToggleElement(props: PlateElementProps) {
   const state = useToggleButtonState(id);
   const { buttonProps, open } = useToggleButton(state);
 
-  const onChevronClick = (e: React.MouseEvent) => {
+  const handleMouseDown = buttonProps.onMouseDown;
+
+  const handleChevronClick = (e: React.MouseEvent) => {
     // collapsing with the selection in the body strands the DOM selection in a hidden subtree.
     if (open && editor.selection && editor.api.some({ match: (n) => n === element })) {
       const path = editor.api.findPath(element);
       const point = path ? editor.api.end([...path, 0]) : undefined;
-      if (point) editor.tf.select(point);
+      if (point) {
+        editor.tf.select(point);
+      }
     }
     buttonProps.onClick(e);
   };
@@ -46,8 +51,8 @@ export function ToggleElement(props: PlateElementProps) {
           aria-label={open ? "Collapse toggle" : "Expand toggle"}
           className="absolute top-1 left-0 flex cursor-pointer items-center justify-center rounded-sm p-px transition-colors select-none hover:bg-hover"
           contentEditable={false}
-          onMouseDown={buttonProps.onMouseDown}
-          onClick={onChevronClick}
+          onMouseDown={handleMouseDown}
+          onClick={handleChevronClick}
         >
           <ChevronRightIcon
             className={cn(
@@ -60,4 +65,4 @@ export function ToggleElement(props: PlateElementProps) {
       {props.children}
     </PlateElement>
   );
-}
+};

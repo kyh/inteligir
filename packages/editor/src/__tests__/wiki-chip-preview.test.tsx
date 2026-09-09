@@ -21,10 +21,10 @@ describe("the wiki chip's hover preview", () => {
     fireEvent.pointerEnter(chip, { pointerType: "mouse" });
     fireEvent.mouseEnter(chip);
     fireEvent.mouseMove(chip);
-    expect(screen.queryByText(/Not created yet/)).toBeNull();
+    expect(screen.queryByText(/Not created yet/u)).toBeNull();
     act(() => {
       vi.advanceTimersByTime(400);
     });
-    expect(screen.getByText(/Not created yet/)).toBeDefined();
+    expect(screen.getByText(/Not created yet/u)).toBeDefined();
   });
 });

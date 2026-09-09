@@ -7,16 +7,19 @@ import { generateDoc } from "./markdown-doc-generator";
 // the budget. Replay one with
 // `ROUNDTRIP_SEED=<n> pnpm --filter @repo/editor test markdown-roundtrip-property`.
 // Each seed pays a full parse+serialize (~150ms), so N is the knob, never the doc-size range.
-const BASE_SEED = 20260708; // changing it reshuffles every doc
+// changing it reshuffles every doc
+const BASE_SEED = 20_260_708;
 const N = 72;
 
-function seeds(): number[] {
+const seeds = (): number[] => {
   const override = process.env.ROUNDTRIP_SEED;
-  if (override !== undefined && override !== "") return [Number(override)];
+  if (override !== undefined && override !== "") {
+    return [Number(override)];
+  }
   return Array.from({ length: N }, (_, i) => BASE_SEED + i);
-}
+};
 
-function checkSeed(seed: number): string | null {
+const checkSeed = (seed: number): string | null => {
   const doc = generateDoc(seed);
   let canonical: string;
   try {
@@ -43,7 +46,7 @@ function checkSeed(seed: number): string | null {
     );
   }
   return null;
-}
+};
 
 describe("seeded property-based round-trip fuzzing", () => {
   it(
@@ -53,7 +56,9 @@ describe("seeded property-based round-trip fuzzing", () => {
       const failures: string[] = [];
       for (const seed of seeds()) {
         const failure = checkSeed(seed);
-        if (failure) failures.push(failure);
+        if (failure !== null) {
+          failures.push(failure);
+        }
       }
       expect(failures).toEqual([]);
     },

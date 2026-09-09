@@ -1,46 +1,39 @@
 // the status is read from disk, never cached: the model dir is shared across every checkout on
 // this machine, so a second instance can install or delete under this one. the scripted service
-// is a second implementation, not a pretend flag on the real one: a flag puts the branch inside
-// the code the scenario tests.
+// (scripted-voice-service.ts) is a second implementation, not a pretend flag on this one: a flag
+// puts the branch inside the code the scenario tests.
 
-import {
-  VOICE_BYTES_PER_SAMPLE,
-  VOICE_SAMPLE_RATE,
-  type VoiceModel,
-  type VoiceStatusResponse,
-} from "@repo/api/local/voice/voice-schema";
-import { VOICE_MODEL, type VoiceModelSpec } from "./model-catalog";
+import { VOICE_BYTES_PER_SAMPLE, VOICE_SAMPLE_RATE } from "@repo/api/local/voice/voice-schema";
+import type { VoiceModel, VoiceStatusResponse } from "@repo/api/local/voice/voice-schema";
+import { VOICE_MODEL } from "./model-catalog";
+import type { VoiceModelSpec } from "./model-catalog";
 import {
   downloadModel,
   isModelInstalled,
   resolveModelFiles,
   ModelDownloadError,
   removeModel,
-  type DownloadModelArgs,
 } from "./model-store";
-import {
-  ScriptedStreamSession,
-  WorkerStreamSession,
-  type StreamHandlers,
-  type StreamSession,
-} from "./stream-session";
+import type { DownloadModelArgs } from "./model-store";
+import { WorkerStreamSession } from "./stream-session";
+import type { StreamHandlers, StreamSession } from "./stream-session";
+import { VoiceBusyError, VoiceUnavailableError } from "./voice-errors";
 import { runVoiceWorker, spawnVoiceStreamWorker } from "./voice-worker-host";
 
-export class VoiceUnavailableError extends Error {}
-export class VoiceBusyError extends Error {}
-
 export interface VoiceService {
-  status(): Promise<VoiceStatusResponse>;
-  install(): Promise<VoiceStatusResponse>;
-  remove(): Promise<VoiceStatusResponse>;
-  createStreamSession(handlers: StreamHandlers): StreamSession;
-  dispose(): Promise<void>;
+  status: () => Promise<VoiceStatusResponse>;
+  install: () => Promise<VoiceStatusResponse>;
+  remove: () => Promise<VoiceStatusResponse>;
+  createStreamSession: (handlers: StreamHandlers) => StreamSession;
+  dispose: () => Promise<void>;
 }
 
 // the digest and the url reach no client.
-function wireModel(spec: VoiceModelSpec): VoiceModel {
-  return { id: spec.id, label: spec.label, sizeBytes: spec.sizeBytes };
-}
+const wireModel = (spec: VoiceModelSpec): VoiceModel => ({
+  id: spec.id,
+  label: spec.label,
+  sizeBytes: spec.sizeBytes,
+});
 
 interface DownloadInFlight {
   controller: AbortController;
@@ -90,22 +83,22 @@ export class ParakeetVoiceService implements VoiceService {
   async status(): Promise<VoiceStatusResponse> {
     const problem = await this.#probe();
     if (problem !== null) {
-      return { state: "unavailable", detail: problem };
+      return { detail: problem, state: "unavailable" };
     }
     const download = this.#download;
     if (download !== null) {
       return {
-        state: "downloading",
         model: wireModel(VOICE_MODEL),
         receivedBytes: download.receivedBytes,
+        state: "downloading",
       };
     }
     if (await isModelInstalled(this.#modelDir, VOICE_MODEL)) {
       return this.#preparing
-        ? { state: "preparing", model: wireModel(VOICE_MODEL) }
-        : { state: "ready", model: wireModel(VOICE_MODEL) };
+        ? { model: wireModel(VOICE_MODEL), state: "preparing" }
+        : { model: wireModel(VOICE_MODEL), state: "ready" };
     }
-    return { state: "no-model", model: wireModel(VOICE_MODEL), lastError: this.#lastError };
+    return { lastError: this.#lastError, model: wireModel(VOICE_MODEL), state: "no-model" };
   }
 
   async install(): Promise<VoiceStatusResponse> {
@@ -136,13 +129,15 @@ export class ParakeetVoiceService implements VoiceService {
       try {
         const download: DownloadModelArgs = {
           modelDir: this.#modelDir,
-          spec: VOICE_MODEL,
-          signal: inFlight.controller.signal,
           onProgress: (receivedBytes) => {
             inFlight.receivedBytes = receivedBytes;
           },
+          signal: inFlight.controller.signal,
+          spec: VOICE_MODEL,
         };
-        if (this.#fetchImpl !== undefined) download.fetchImpl = this.#fetchImpl;
+        if (this.#fetchImpl !== undefined) {
+          download.fetchImpl = this.#fetchImpl;
+        }
         await downloadModel(download);
         // only if this download is still current: a remove racing it already cleared it.
         if (this.#download === inFlight) {
@@ -159,7 +154,7 @@ export class ParakeetVoiceService implements VoiceService {
         }
       }
     })();
-    return this.status();
+    return await this.status();
   }
 
   // a second of silence, so the graph load and any open failure land at the install the user
@@ -198,12 +193,16 @@ export class ParakeetVoiceService implements VoiceService {
     this.#download = null;
     this.#lastError = null;
     await removeModel(this.#modelDir, VOICE_MODEL);
-    return this.status();
+    return await this.status();
   }
 
   createStreamSession(handlers: StreamHandlers): StreamSession {
     return new WorkerStreamSession({
       handlers,
+      onModelUnusable: async () => {
+        await this.#recordWorkerFailure(MODEL_REMOVED_MESSAGE, true);
+        return MODEL_REMOVED_MESSAGE;
+      },
       prepare: async () => {
         const problem = await this.#probe();
         if (problem !== null) {
@@ -218,16 +217,13 @@ export class ParakeetVoiceService implements VoiceService {
             reason: `Dictation needs the ${VOICE_MODEL.label} model. Turn on voice input in Settings to download it.`,
           };
         }
-        return { ok: true, model: resolveModelFiles(this.#modelDir, VOICE_MODEL) };
+        return { model: resolveModelFiles(this.#modelDir, VOICE_MODEL), ok: true };
       },
       spawn: (model, callbacks) => this.#spawnStreamWorker(model, callbacks),
-      onModelUnusable: async () => {
-        await this.#recordWorkerFailure(MODEL_REMOVED_MESSAGE, true);
-        return MODEL_REMOVED_MESSAGE;
-      },
     });
   }
 
+  // oxlint-disable-next-line require-await -- the contract is a promise; the abort is synchronous.
   async dispose(): Promise<void> {
     if (this.#disposed) {
       return;
@@ -236,34 +232,5 @@ export class ParakeetVoiceService implements VoiceService {
     // a download left running past shutdown lands a partial file after the process said it stopped.
     this.#download?.controller.abort();
     this.#download = null;
-  }
-}
-
-// the wire shape directly: there is no archive to pin, so a catalog spec would be fabricated.
-const SCRIPTED_VOICE_MODEL: VoiceModel = {
-  id: "scripted",
-  label: "Scripted (test runtime)",
-  sizeBytes: 1,
-};
-
-export class ScriptedVoiceService implements VoiceService {
-  async status(): Promise<VoiceStatusResponse> {
-    return { state: "ready", model: SCRIPTED_VOICE_MODEL };
-  }
-
-  async install(): Promise<VoiceStatusResponse> {
-    return this.status();
-  }
-
-  async remove(): Promise<VoiceStatusResponse> {
-    return this.status();
-  }
-
-  createStreamSession(handlers: StreamHandlers): StreamSession {
-    return new ScriptedStreamSession(handlers);
-  }
-
-  async dispose(): Promise<void> {
-    // Nothing to stop.
   }
 }

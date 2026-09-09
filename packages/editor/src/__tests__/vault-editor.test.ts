@@ -3,7 +3,12 @@ import { describe, expect, it } from "vitest";
 import { VaultEditorController } from "@repo/editor/vault-editor";
 import { FakeVault } from "./fake-vault";
 
-const tick = () => new Promise((r) => setTimeout(r, 0));
+const tick = async (): Promise<void> => {
+  // oxlint-disable-next-line promise/avoid-new -- setTimeout has no promise-native form here
+  await new Promise<void>((resolve) => {
+    setTimeout(resolve, 0);
+  });
+};
 
 describe("VaultEditorController", () => {
   it("opens a file and tracks edits/saves", async () => {
@@ -11,7 +16,7 @@ describe("VaultEditorController", () => {
     io.files.set("a.md", "hello");
     const c = new VaultEditorController(io);
     await c.open("a.md");
-    expect(c.getState()).toMatchObject({ path: "a.md", content: "hello", dirty: false });
+    expect(c.getState()).toMatchObject({ content: "hello", dirty: false, path: "a.md" });
 
     c.edit("hello world");
     expect(c.getState()).toMatchObject({ content: "hello world", dirty: true });
@@ -64,7 +69,8 @@ describe("VaultEditorController", () => {
     await c.open("a.md");
     c.edit("typed");
     io.files.set("a.md", "external");
-    c.externalChange(""); // same (empty) root → not a switch
+    // same (empty) root → not a switch
+    c.externalChange("");
     await tick();
     expect(c.getState().content).toBe("typed");
     expect(c.getState().dirty).toBe(true);
@@ -89,7 +95,7 @@ describe("VaultEditorController", () => {
     c.setRoot("/vault-1");
     await c.open("a.md");
     c.externalChange("/vault-2");
-    expect(c.getState()).toMatchObject({ root: "/vault-2", path: null, content: "" });
+    expect(c.getState()).toMatchObject({ content: "", path: null, root: "/vault-2" });
   });
 
   it("does not treat the first event (empty root) as a switch", async () => {
@@ -101,10 +107,10 @@ describe("VaultEditorController", () => {
     c.externalChange("/vault");
     await tick();
     expect(c.getState()).toMatchObject({
-      root: "/vault",
-      path: "a.md",
       content: "unsaved",
       dirty: true,
+      path: "a.md",
+      root: "/vault",
     });
   });
 
@@ -128,25 +134,25 @@ describe("VaultEditorController", () => {
     const io = new FakeVault();
     io.files.set("a.md", "A");
     io.removeOutcome = {
+      held: { deletions: 40, limit: 25, liveCount: 100, sample: ["a.md"], windowMs: 600_000 },
       outcome: "held",
-      held: { deletions: 40, liveCount: 100, limit: 25, windowMs: 600_000, sample: ["a.md"] },
     };
     const c = new VaultEditorController(io);
     await c.open("a.md");
     const outcome = await c.remove();
     expect(outcome).toMatchObject({ outcome: "held" });
-    expect(c.getState()).toMatchObject({ path: "a.md", content: "A" });
+    expect(c.getState()).toMatchObject({ content: "A", path: "a.md" });
     expect(io.files.has("a.md")).toBe(true);
   });
 
   it("keeps the note open when the delete itself fails", async () => {
     const io = new FakeVault();
     io.files.set("a.md", "A");
-    io.remove = () => Promise.reject(new Error("offline"));
+    io.remove = async () => await Promise.reject(new Error("offline"));
     const c = new VaultEditorController(io);
     await c.open("a.md");
     expect(await c.remove()).toBe(null);
-    expect(c.getState()).toMatchObject({ path: "a.md", content: "A" });
+    expect(c.getState()).toMatchObject({ content: "A", path: "a.md" });
   });
 
   it("does not switch files when the pending save fails", async () => {
@@ -156,10 +162,12 @@ describe("VaultEditorController", () => {
     const c = new VaultEditorController(io);
     await c.open("a.md");
     c.edit("v1");
-    io.write = () => Promise.reject(new Error("disk full"));
+    io.write = async () => {
+      await Promise.reject(new Error("disk full"));
+    };
     const opened = await c.open("b.md");
     expect(opened).toBe(false);
-    expect(c.getState()).toMatchObject({ path: "a.md", content: "v1", dirty: true });
+    expect(c.getState()).toMatchObject({ content: "v1", dirty: true, path: "a.md" });
   });
 
   it("a failed open clears instead of reviving a deleted path", async () => {

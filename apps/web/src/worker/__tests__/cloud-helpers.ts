@@ -1,9 +1,12 @@
-import {
-  deviceLoginResponseSchema,
-  type DeviceLoginRequest,
-} from "@repo/api/cloud/device/device-schema";
-import { syncPingSchema, type SyncPing } from "@repo/api/cloud/sync/sync-ws";
-import { env, SELF } from "cloudflare:test";
+// oxlint-disable typescript/no-deprecated -- SELF is the only fetcher that runs in the tests'
+// own isolate; the cloudflare:workers loopback binding stands a second worker up, and its
+// first fetch costs seconds enough to time a test out.
+import { deviceLoginResponseSchema } from "@repo/api/cloud/device/device-schema";
+import type { DeviceLoginRequest } from "@repo/api/cloud/device/device-schema";
+import { syncPingSchema } from "@repo/api/cloud/sync/sync-ws";
+import type { SyncPing } from "@repo/api/cloud/sync/sync-ws";
+import { SELF } from "cloudflare:test";
+import { env } from "cloudflare:workers";
 import { expect, vi } from "vitest";
 import { z } from "zod";
 import { createDb } from "../db/client";
@@ -14,89 +17,99 @@ export const PASSWORD = "test-password-1234";
 
 let inviteCounter = 0;
 
-export async function signUpUser(email: string): Promise<{ bearer: string; password: string }> {
-  const code = `CLOUD-TEST-${++inviteCounter}`;
+export const signUpUser = async (email: string): Promise<{ bearer: string; password: string }> => {
+  const code = `CLOUD-TEST-${(inviteCounter += 1)}`;
   await createDb(env.DB).insert(inviteCode).values({ code });
   const response = await SELF.fetch(`${ORIGIN}/v1/auth/sign-up`, {
-    method: "POST",
+    body: JSON.stringify({ email, inviteCode: code, name: "Cloud Tester", password: PASSWORD }),
     headers: { "content-type": "application/json", origin: ORIGIN },
-    body: JSON.stringify({ name: "Cloud Tester", email, password: PASSWORD, inviteCode: code }),
+    method: "POST",
   });
   expect(response.status).toBe(200);
   const bearer = response.headers.get("set-auth-token");
   expect(bearer).not.toBeNull();
   return { bearer: bearer ?? "", password: PASSWORD };
-}
+};
 
-export function sessionHeaders(bearer: string) {
-  return { authorization: `Bearer ${bearer}`, origin: ORIGIN };
-}
-
-const sessionUserSchema = z.looseObject({
-  user: z.looseObject({ id: z.string(), email: z.string() }),
+export const sessionHeaders = (bearer: string) => ({
+  authorization: `Bearer ${bearer}`,
+  origin: ORIGIN,
 });
 
-async function sessionUser(bearer: string): Promise<{ id: string; email: string }> {
+// binary frames carry no ping, so anything but text is skipped
+const textFrameSchema = z.string();
+
+const sessionUserSchema = z.looseObject({
+  user: z.looseObject({ email: z.string(), id: z.string() }),
+});
+
+const sessionUser = async (bearer: string): Promise<{ id: string; email: string }> => {
   const response = await SELF.fetch(`${ORIGIN}/api/auth/get-session`, {
     headers: sessionHeaders(bearer),
   });
   const body = sessionUserSchema.safeParse(await response.json());
-  if (!body.success) throw new Error("no session for that bearer");
+  if (!body.success) {
+    throw new Error("no session for that bearer");
+  }
   return body.data.user;
-}
+};
 
 // ask before a test deletes the account; afterwards the session no longer answers
-export async function userIdOf(bearer: string): Promise<string> {
-  return (await sessionUser(bearer)).id;
-}
+export const userIdOf = async (bearer: string): Promise<string> => {
+  const user = await sessionUser(bearer);
+  return user.id;
+};
 
-export function postLogin(body: DeviceLoginRequest): Promise<Response> {
-  return SELF.fetch(`${ORIGIN}/v1/device/login`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
+export const postLogin = async (body: DeviceLoginRequest): Promise<Response> =>
+  await SELF.fetch(`${ORIGIN}/v1/device/login`, {
     body: JSON.stringify(body),
+    headers: { "content-type": "application/json" },
+    method: "POST",
   });
-}
 
 // the bearer only names the account: the device credential comes from the account's own password
-export async function loginDevice(
+export const loginDevice = async (
   bearer: string,
   deviceName: string,
-): Promise<{ deviceId: string; credential: string }> {
+): Promise<{ deviceId: string; credential: string }> => {
   const { email } = await sessionUser(bearer);
-  const response = await postLogin({ email, password: PASSWORD, deviceName });
+  const response = await postLogin({ deviceName, email, password: PASSWORD });
   expect(response.status).toBe(200);
   return deviceLoginResponseSchema.parse(await response.json());
-}
+};
 
-export function deviceHeaders(credential: string) {
-  return { authorization: `Bearer ${credential}` };
-}
+export const deviceHeaders = (credential: string) => ({ authorization: `Bearer ${credential}` });
 
-export async function openSocket(
+export const openSocket = async (
   credential: string,
   platform: string,
-): Promise<{ frames: SyncPing[]; socket: WebSocket }> {
+): Promise<{ frames: SyncPing[]; socket: WebSocket }> => {
   const response = await SELF.fetch(`${ORIGIN}/v1/sync/ws?platform=${platform}`, {
     headers: { ...deviceHeaders(credential), upgrade: "websocket" },
   });
   expect(response.status).toBe(101);
   const socket = response.webSocket;
-  if (socket === null) throw new Error("no websocket on the 101");
+  if (socket === null) {
+    throw new Error("no websocket on the 101");
+  }
   socket.accept();
   const frames: SyncPing[] = [];
   socket.addEventListener("message", (message) => {
-    const { data } = message;
-    if (data instanceof ArrayBuffer) return;
-    frames.push(syncPingSchema.parse(JSON.parse(data)));
+    const text = textFrameSchema.safeParse(message.data);
+    if (!text.success) {
+      return;
+    }
+    frames.push(syncPingSchema.parse(JSON.parse(text.data)));
   });
   return { frames, socket };
-}
+};
 
 // pings cross the in-process socket pair a macrotask after the push, so frames must be awaited
-export async function awaitFrames(
+export const awaitFrames = async (
   socket: { frames: SyncPing[] },
   expected: readonly SyncPing[],
-): Promise<void> {
-  await vi.waitFor(() => expect(socket.frames).toEqual(expected));
-}
+): Promise<void> => {
+  await vi.waitFor(() => {
+    expect(socket.frames).toEqual(expected);
+  });
+};

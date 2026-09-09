@@ -2,14 +2,10 @@
 // index is React state, never a node prop, because switching is not an edit.
 
 import { createContext, useContext, useMemo, useState } from "react";
-import { createSlatePlugin, ElementApi, type SlateEditor, type TElement } from "platejs";
-import {
-  PlateElement,
-  useEditorRef,
-  useElement,
-  usePath,
-  type PlateElementProps,
-} from "platejs/react";
+import { createSlatePlugin, ElementApi } from "platejs";
+import type { SlateEditor, TElement } from "platejs";
+import { PlateElement, useEditorRef, useElement, usePath } from "platejs/react";
+import type { PlateElementProps } from "platejs/react";
 import { PlusIcon, XIcon } from "lucide-react";
 
 import { Tooltip } from "@repo/ui/components/tooltip";
@@ -19,14 +15,15 @@ import { stringProp } from "@repo/editor/node-props";
 
 const ActiveTabContext = createContext(0);
 
-function panelsOf(element: TElement): { label: string; index: number }[] {
-  return element.children.flatMap((child, index) => {
-    if (!ElementApi.isElement(child) || child.type !== "tab_panel") return [];
+const panelsOf = (element: TElement): { label: string; index: number }[] =>
+  element.children.flatMap((child, index) => {
+    if (!ElementApi.isElement(child) || child.type !== "tab_panel") {
+      return [];
+    }
     return [{ index, label: stringProp(child, "label") ?? "Tab" }];
   });
-}
 
-function TabGroupElement(props: PlateElementProps) {
+const TabGroupElement = (props: PlateElementProps) => {
   const editor = useEditorRef();
   const element = useElement();
   const path = usePath();
@@ -35,7 +32,9 @@ function TabGroupElement(props: PlateElementProps) {
   const shown = Math.min(active, Math.max(panels.length - 1, 0));
 
   const addPanel = (): void => {
-    if (path === undefined) return;
+    if (path === undefined) {
+      return;
+    }
     editor.tf.insertNodes(
       {
         children: [{ children: [{ text: "" }], type: "p" }],
@@ -48,7 +47,9 @@ function TabGroupElement(props: PlateElementProps) {
   };
 
   const removePanel = (index: number): void => {
-    if (path === undefined || panels.length <= 1) return;
+    if (path === undefined || panels.length <= 1) {
+      return;
+    }
     editor.tf.removeNodes({ at: [...path, index] });
     setActive((current) =>
       Math.max(0, current > index ? current - 1 : Math.min(current, panels.length - 2)),
@@ -120,9 +121,9 @@ function TabGroupElement(props: PlateElementProps) {
       <ActiveTabContext.Provider value={shown}>{props.children}</ActiveTabContext.Provider>
     </PlateElement>
   );
-}
+};
 
-function TabPanelElement(props: PlateElementProps) {
+const TabPanelElement = (props: PlateElementProps) => {
   const active = useContext(ActiveTabContext);
   const path = usePath();
   const index = path === undefined ? 0 : (path.at(-1) ?? 0);
@@ -142,7 +143,7 @@ function TabPanelElement(props: PlateElementProps) {
       {props.children}
     </PlateElement>
   );
-}
+};
 
 const tabGroupBasePlugin = createSlatePlugin({
   key: "tab_group",
@@ -161,7 +162,7 @@ export const TabsKit = [
   tabPanelBasePlugin.withComponent(TabPanelElement),
 ];
 
-export function insertTabGroup(editor: SlateEditor): void {
+export const insertTabGroup = (editor: SlateEditor): void => {
   editor.tf.insertNodes({
     children: [
       {
@@ -177,4 +178,4 @@ export function insertTabGroup(editor: SlateEditor): void {
     ],
     type: "tab_group",
   });
-}
+};

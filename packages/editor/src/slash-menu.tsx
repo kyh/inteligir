@@ -37,7 +37,8 @@ import { useEffect, useState } from "react";
 import type { WikiTarget } from "@repo/notes/knowledge/link-graph-index";
 import { isTemplatePath } from "@repo/notes/templates/placeholders";
 
-import { turnIntoOption, turnIntoSelection, type TurnIntoId } from "@repo/editor/block-transforms";
+import { turnIntoOption, turnIntoSelection } from "@repo/editor/block-transforms";
+import type { TurnIntoId } from "@repo/editor/block-transforms";
 import { getEditorHostIo } from "@repo/editor/host-io";
 import { insertTemplate } from "@repo/editor/insert-template";
 import {
@@ -63,127 +64,152 @@ import { insertDate, insertMonthDate } from "@repo/editor/kits/date-kit";
 import { insertEquation, insertInlineEquation } from "@repo/editor/kits/math-kit";
 import { insertToggle } from "@repo/editor/kits/toggle-kit";
 
-function turnInto(editor: PlateEditor, id: TurnIntoId): void {
+const turnInto = (editor: PlateEditor, id: TurnIntoId): void => {
   turnIntoSelection(editor, turnIntoOption(id));
-}
+};
 
-type SlashItem = {
+interface SlashItem {
   icon: React.ReactNode;
   label: string;
   value: string;
   description: string;
   keywords?: string[];
   onSelect: (editor: PlateEditor) => void;
-};
+}
 
 const GROUPS: { group: string; items: SlashItem[] }[] = [
   {
     group: "Basic blocks",
     items: [
       {
-        icon: <PilcrowIcon />,
-        label: "Text",
-        value: "p",
         description: "Plain paragraph.",
+        icon: <PilcrowIcon />,
         keywords: ["paragraph", "text"],
-        onSelect: (editor) => turnInto(editor, "text"),
+        label: "Text",
+        onSelect: (editor) => {
+          turnInto(editor, "text");
+        },
+        value: "p",
       },
       {
-        icon: <Heading1Icon />,
-        label: "Heading 1",
-        value: "h1",
         description: "Large section heading.",
+        icon: <Heading1Icon />,
         keywords: ["title", "h1", "#"],
-        onSelect: (editor) => turnInto(editor, "heading-1"),
+        label: "Heading 1",
+        onSelect: (editor) => {
+          turnInto(editor, "heading-1");
+        },
+        value: "h1",
       },
       {
-        icon: <Heading2Icon />,
-        label: "Heading 2",
-        value: "h2",
         description: "Medium section heading.",
+        icon: <Heading2Icon />,
         keywords: ["subtitle", "h2", "##"],
-        onSelect: (editor) => turnInto(editor, "heading-2"),
+        label: "Heading 2",
+        onSelect: (editor) => {
+          turnInto(editor, "heading-2");
+        },
+        value: "h2",
       },
       {
-        icon: <Heading3Icon />,
-        label: "Heading 3",
-        value: "h3",
         description: "Small section heading.",
+        icon: <Heading3Icon />,
         keywords: ["subtitle", "h3", "###"],
-        onSelect: (editor) => turnInto(editor, "heading-3"),
+        label: "Heading 3",
+        onSelect: (editor) => {
+          turnInto(editor, "heading-3");
+        },
+        value: "h3",
       },
       {
-        icon: <ListIcon />,
-        label: "Bulleted list",
-        value: "ul",
         description: "Create a bulleted list.",
+        icon: <ListIcon />,
         keywords: ["unordered", "ul", "-"],
-        onSelect: (editor) => turnInto(editor, "bulleted-list"),
+        label: "Bulleted list",
+        onSelect: (editor) => {
+          turnInto(editor, "bulleted-list");
+        },
+        value: "ul",
       },
       {
-        icon: <ListOrderedIcon />,
-        label: "Numbered list",
-        value: "ol",
         description: "Create a numbered list.",
+        icon: <ListOrderedIcon />,
         keywords: ["ordered", "ol", "1."],
-        onSelect: (editor) => turnInto(editor, "numbered-list"),
+        label: "Numbered list",
+        onSelect: (editor) => {
+          turnInto(editor, "numbered-list");
+        },
+        value: "ol",
       },
       {
-        icon: <SquareCheckIcon />,
-        label: "To-do list",
-        value: "todo",
         description: "Track tasks with checkboxes.",
+        icon: <SquareCheckIcon />,
         keywords: ["checklist", "task", "checkbox", "[]"],
-        onSelect: (editor) => turnInto(editor, "todo-list"),
+        label: "To-do list",
+        onSelect: (editor) => {
+          turnInto(editor, "todo-list");
+        },
+        value: "todo",
       },
       {
-        icon: <ChevronRightIcon />,
-        label: "Toggle",
-        value: "toggle",
         description: "Collapsible block.",
+        icon: <ChevronRightIcon />,
         keywords: ["toggle", "collapsible", "details", "expandable", "+"],
-        onSelect: (editor) => insertToggle(editor),
+        label: "Toggle",
+        onSelect: (editor) => {
+          insertToggle(editor);
+        },
+        value: "toggle",
       },
       {
-        icon: <QuoteIcon />,
-        label: "Blockquote",
-        value: "blockquote",
         description: "Capture a quote.",
+        icon: <QuoteIcon />,
         keywords: ["citation", "quote", ">"],
-        onSelect: (editor) => turnInto(editor, "quote"),
+        label: "Blockquote",
+        onSelect: (editor) => {
+          turnInto(editor, "quote");
+        },
+        value: "blockquote",
       },
       {
-        icon: <InfoIcon />,
-        label: "Callout",
-        value: "callout",
         description: "Highlighted note (info, warning, priority).",
+        icon: <InfoIcon />,
         keywords: ["callout", "alert", "note", "warning", "tip", "admonition"],
-        onSelect: (editor) => turnInto(editor, "callout"),
+        label: "Callout",
+        onSelect: (editor) => {
+          turnInto(editor, "callout");
+        },
+        value: "callout",
       },
       {
-        icon: <Code2Icon />,
-        label: "Code block",
-        value: "code",
         description: "Capture a code snippet.",
+        icon: <Code2Icon />,
         keywords: ["```", "fenced"],
-        onSelect: (editor) => turnInto(editor, "code-block"),
+        label: "Code block",
+        onSelect: (editor) => {
+          turnInto(editor, "code-block");
+        },
+        value: "code",
       },
       {
-        icon: <Table2Icon />,
-        label: "Table",
-        value: "table",
         description: "Add a table with a header row.",
+        icon: <Table2Icon />,
         keywords: ["grid", "rows", "columns"],
-        onSelect: (editor) =>
-          insertTable(editor, { colCount: 3, rowCount: 3, header: true }, { select: true }),
+        label: "Table",
+        onSelect: (editor) => {
+          insertTable(editor, { colCount: 3, header: true, rowCount: 3 }, { select: true });
+        },
+        value: "table",
       },
       {
-        icon: <RadicalIcon />,
-        label: "Equation",
-        value: "equation",
         description: "Display math block (KaTeX).",
+        icon: <RadicalIcon />,
         keywords: ["math", "katex", "tex", "latex", "$$"],
-        onSelect: (editor) => insertEquation(editor),
+        label: "Equation",
+        onSelect: (editor) => {
+          insertEquation(editor);
+        },
+        value: "equation",
       },
     ],
   },
@@ -191,68 +217,74 @@ const GROUPS: { group: string; items: SlashItem[] }[] = [
     group: "Advanced",
     items: [
       {
-        icon: <PanelsTopLeftIcon />,
-        label: "Tabs",
-        value: "tabs",
         description: "Peer views inspected one at a time.",
+        icon: <PanelsTopLeftIcon />,
         keywords: ["tabs", "tab", "panels", "switch"],
+        label: "Tabs",
         onSelect: (editor) => {
           insertTabGroup(editor);
         },
+        value: "tabs",
       },
       {
-        icon: <BarChart3Icon />,
-        label: "Chart",
-        value: "chart",
         description: "Bar, line, area or stacked-bar over labeled values.",
+        icon: <BarChart3Icon />,
         keywords: ["chart", "graph", "bar", "line", "area", "plot", "data"],
+        label: "Chart",
         onSelect: (editor) => {
           insertChartBlock(editor);
         },
+        value: "chart",
       },
       {
-        icon: <PencilRulerIcon />,
-        label: "Canvas",
-        value: "canvas",
         description: "A rough spatial sketch with labels.",
+        icon: <PencilRulerIcon />,
         keywords: ["canvas", "sketch", "draw", "wireframe", "spatial"],
+        label: "Canvas",
         onSelect: (editor) => {
           insertCanvasBlock(editor);
         },
+        value: "canvas",
       },
       {
-        icon: <AppWindowIcon />,
-        label: "HTML",
-        value: "html",
         description: "A sandboxed interactive HTML artifact.",
+        icon: <AppWindowIcon />,
         keywords: ["html", "prototype", "interactive", "embed", "artifact"],
+        label: "HTML",
         onSelect: (editor) => {
           insertHtmlBlock(editor);
         },
+        value: "html",
       },
       {
-        icon: <Columns2Icon />,
-        label: "2 columns",
-        value: "columns-2",
         description: "Two side-by-side columns.",
+        icon: <Columns2Icon />,
         keywords: ["columns", "layout", "side", "split"],
-        onSelect: (editor) => insertColumnGroup(editor, 2),
+        label: "2 columns",
+        onSelect: (editor) => {
+          insertColumnGroup(editor, 2);
+        },
+        value: "columns-2",
       },
       {
-        icon: <Columns3Icon />,
-        label: "3 columns",
-        value: "columns-3",
         description: "Three side-by-side columns.",
+        icon: <Columns3Icon />,
         keywords: ["columns", "layout", "grid"],
-        onSelect: (editor) => insertColumnGroup(editor, 3),
+        label: "3 columns",
+        onSelect: (editor) => {
+          insertColumnGroup(editor, 3);
+        },
+        value: "columns-3",
       },
       {
-        icon: <WorkflowIcon />,
-        label: "Mermaid diagram",
-        value: "mermaid",
         description: "Diagram-as-code with live preview.",
+        icon: <WorkflowIcon />,
         keywords: ["diagram", "chart", "flowchart", "graph", "mermaid"],
-        onSelect: (editor) => insertMermaid(editor),
+        label: "Mermaid diagram",
+        onSelect: (editor) => {
+          insertMermaid(editor);
+        },
+        value: "mermaid",
       },
     ],
   },
@@ -260,36 +292,44 @@ const GROUPS: { group: string; items: SlashItem[] }[] = [
     group: "Inline",
     items: [
       {
-        icon: <CalendarIcon />,
-        label: "Date",
-        value: "date",
         description: "Inline date chip (today).",
+        icon: <CalendarIcon />,
         keywords: ["date", "today", "calendar", "@"],
-        onSelect: (editor) => insertDate(editor),
+        label: "Date",
+        onSelect: (editor) => {
+          insertDate(editor);
+        },
+        value: "date",
       },
       {
-        icon: <CalendarIcon />,
-        label: "Day",
-        value: "day",
         description: "Today as a date chip.",
-        keywords: ["day", "today", "date"],
-        onSelect: (editor) => insertDate(editor),
-      },
-      {
         icon: <CalendarIcon />,
-        label: "Month",
-        value: "month",
-        description: "This month as a date chip (its first day).",
-        keywords: ["month", "date"],
-        onSelect: (editor) => insertMonthDate(editor),
+        keywords: ["day", "today", "date"],
+        label: "Day",
+        onSelect: (editor) => {
+          insertDate(editor);
+        },
+        value: "day",
       },
       {
-        icon: <SigmaIcon />,
-        label: "Inline equation",
-        value: "inline-equation",
+        description: "This month as a date chip (its first day).",
+        icon: <CalendarIcon />,
+        keywords: ["month", "date"],
+        label: "Month",
+        onSelect: (editor) => {
+          insertMonthDate(editor);
+        },
+        value: "month",
+      },
+      {
         description: "Math within a sentence.",
+        icon: <SigmaIcon />,
         keywords: ["math", "inline", "formula", "tex"],
-        onSelect: (editor) => insertInlineEquation(editor),
+        label: "Inline equation",
+        onSelect: (editor) => {
+          insertInlineEquation(editor);
+        },
+        value: "inline-equation",
       },
     ],
   },
@@ -297,12 +337,14 @@ const GROUPS: { group: string; items: SlashItem[] }[] = [
     group: "Media",
     items: [
       {
-        icon: <FilmIcon />,
-        label: "Embed",
-        value: "embed",
         description: "YouTube, tweet, PDF, or iframe by URL.",
+        icon: <FilmIcon />,
         keywords: ["youtube", "tweet", "twitter", "pdf", "iframe", "embed", "video"],
-        onSelect: () => openEmbedUrlDialog(),
+        label: "Embed",
+        onSelect: () => {
+          openEmbedUrlDialog();
+        },
+        value: "embed",
       },
     ],
   },
@@ -310,12 +352,14 @@ const GROUPS: { group: string; items: SlashItem[] }[] = [
     group: "Insert",
     items: [
       {
-        icon: <MinusIcon />,
-        label: "Divider",
-        value: "hr",
         description: "Visually divide blocks.",
+        icon: <MinusIcon />,
         keywords: ["horizontal", "rule", "---"],
-        onSelect: (editor) => insertHorizontalRule(editor),
+        label: "Divider",
+        onSelect: (editor) => {
+          insertHorizontalRule(editor);
+        },
+        value: "hr",
       },
     ],
   },
@@ -325,43 +369,44 @@ const TEMPLATES_GROUP = "Templates";
 
 // a template is a row only while it exists: the list is read when the menu opens rather than
 // pinned in GROUPS, and the group is absent when the folder is.
-function templateItems(targets: readonly WikiTarget[]): SlashItem[] {
-  return targets
+const templateItems = (targets: readonly WikiTarget[]): SlashItem[] =>
+  targets
     .filter((target) => isTemplatePath(target.path))
     .map((target) => ({
-      icon: <FileTextIcon />,
-      label: target.title,
-      value: `template:${target.path}`,
       description: target.path,
+      icon: <FileTextIcon />,
       keywords: ["template"],
+      label: target.title,
       onSelect: (editor) => {
         void insertTemplate(editor, target.path);
       },
+      value: `template:${target.path}`,
     }));
-}
 
-function useTemplateItems(): SlashItem[] {
+const useTemplateItems = (): SlashItem[] => {
   const [items, setItems] = useState<SlashItem[]>([]);
   useEffect(() => {
     let live = true;
-    getEditorHostIo()
-      .listWikiTargets()
-      .then((targets) => {
-        if (live) setItems(templateItems(targets));
-        return undefined;
-      })
-      .catch(() => {
+    const load = async (): Promise<void> => {
+      try {
+        const targets = await getEditorHostIo().listWikiTargets();
+        if (live) {
+          setItems(templateItems(targets));
+        }
+      } catch {
         // an unanswered listing is no group, not an error to show
-      });
+      }
+    };
+    void load();
     return () => {
       live = false;
     };
   }, []);
   return items;
-}
+};
 
-function SlashInputElement(props: PlateElementProps) {
-  const { children, editor, element } = props;
+const SlashInputElement = (props: PlateElementProps) => {
+  const { editor, element } = props;
   const templates = useTemplateItems();
   const groups =
     templates.length === 0 ? GROUPS : [...GROUPS, { group: TEMPLATES_GROUP, items: templates }];
@@ -381,7 +426,9 @@ function SlashInputElement(props: PlateElementProps) {
                   value={item.value}
                   label={item.label}
                   keywords={item.keywords}
-                  onClick={() => item.onSelect(editor)}
+                  onClick={() => {
+                    item.onSelect(editor);
+                  }}
                 >
                   <div className="flex size-9 items-center justify-center rounded-md border border-foreground/15 bg-background [&_svg]:size-5 [&_svg]:text-muted-foreground">
                     {item.icon}
@@ -398,10 +445,10 @@ function SlashInputElement(props: PlateElementProps) {
           ))}
         </InlineComboboxContent>
       </InlineCombobox>
-      {children}
+      {props.children}
     </PlateElement>
   );
-}
+};
 
 export const SlashKit = [
   SlashPlugin.configure({

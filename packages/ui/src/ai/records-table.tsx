@@ -1,17 +1,10 @@
 "use client";
 // Vendored from Beautiful UI (beautifului.dev), MIT.
 
-import {
-  createContext,
-  forwardRef,
-  useCallback,
-  useContext,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
-import type { HTMLAttributes, PointerEvent, ReactNode } from "react";
-import { cva, type VariantProps } from "class-variance-authority";
+import { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
+import type { HTMLAttributes, PointerEvent, ReactNode, RefAttributes } from "react";
+import { cva } from "class-variance-authority";
+import type { VariantProps } from "class-variance-authority";
 
 import { cn } from "cn";
 
@@ -21,8 +14,10 @@ interface RecordsTableContextValue {
 }
 
 const RecordsTableContext = createContext<RecordsTableContextValue>({
+  setWidth: () => {
+    // a cell rendered outside a RecordsTable has no column widths to publish
+  },
   widths: {},
-  setWidth: () => undefined,
 });
 
 const MIN_COLUMN_WIDTH = 90;
@@ -32,46 +27,56 @@ export interface RecordsTableProps extends HTMLAttributes<HTMLDivElement> {
   label?: string;
 }
 
-const RecordsTable = forwardRef<HTMLDivElement, RecordsTableProps>(
-  ({ className, children, defaultWidths, label = "Records", ...props }, ref) => {
-    const [widths, setWidths] = useState<Record<string, number>>(defaultWidths ?? {});
-    const setWidth = useCallback((column: string, width: number) => {
-      setWidths((current) => ({ ...current, [column]: Math.max(MIN_COLUMN_WIDTH, width) }));
-    }, []);
-    const tableContext = useMemo(() => ({ widths, setWidth }), [widths, setWidth]);
+const RecordsTable = ({
+  className,
+  children,
+  defaultWidths,
+  label = "Records",
+  ref,
+  ...props
+}: RecordsTableProps & RefAttributes<HTMLDivElement>) => {
+  const [widths, setWidths] = useState<Record<string, number>>(defaultWidths ?? {});
+  const setWidth = useCallback((column: string, width: number) => {
+    setWidths((current) => ({ ...current, [column]: Math.max(MIN_COLUMN_WIDTH, width) }));
+  }, []);
+  const tableContext = useMemo(() => ({ setWidth, widths }), [widths, setWidth]);
 
-    return (
-      <RecordsTableContext.Provider value={tableContext}>
-        <div
-          ref={ref}
-          role="region"
-          aria-label={label}
-          tabIndex={0}
-          data-slot="records-table"
-          className={cn(
-            "w-full overflow-x-auto rounded-xl bg-surface-raised shadow-surface-2",
-            className,
-          )}
-          {...props}
-        >
-          <div className="min-w-max">{children}</div>
-        </div>
-      </RecordsTableContext.Provider>
-    );
-  },
-);
+  return (
+    <RecordsTableContext.Provider value={tableContext}>
+      <div
+        ref={ref}
+        // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- a flex grid of divs: <section> and the table tags would drop the layout and the typed refs
+        role="region"
+        aria-label={label}
+        // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- the region scrolls horizontally, so it has to be keyboard-focusable
+        tabIndex={0}
+        data-slot="records-table"
+        className={cn(
+          "w-full overflow-x-auto rounded-xl bg-surface-raised shadow-surface-2",
+          className,
+        )}
+        {...props}
+      >
+        <div className="min-w-max">{children}</div>
+      </div>
+    </RecordsTableContext.Provider>
+  );
+};
 RecordsTable.displayName = "RecordsTable";
 
-const RecordsTableHeader = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
-  ({ className, ...props }, ref) => (
-    <div
-      ref={ref}
-      role="row"
-      data-slot="records-table-header"
-      className={cn("flex items-stretch border-b border-line", className)}
-      {...props}
-    />
-  ),
+const RecordsTableHeader = ({
+  className,
+  ref,
+  ...props
+}: HTMLAttributes<HTMLDivElement> & RefAttributes<HTMLDivElement>) => (
+  <div
+    ref={ref}
+    // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- a flex grid of divs: <tr> would drop the layout and the typed ref
+    role="row"
+    data-slot="records-table-header"
+    className={cn("flex items-stretch border-b border-line", className)}
+    {...props}
+  />
 );
 RecordsTableHeader.displayName = "RecordsTableHeader";
 
@@ -82,88 +87,107 @@ export interface RecordsColumnHeaderProps extends HTMLAttributes<HTMLDivElement>
   resizable?: boolean;
 }
 
-const RecordsColumnHeader = forwardRef<HTMLDivElement, RecordsColumnHeaderProps>(
-  ({ className, children, column, icon, tool, resizable = true, style, ...props }, ref) => {
-    const { widths, setWidth } = useContext(RecordsTableContext);
-    const [resizing, setResizing] = useState(false);
-    const drag = useRef<{ x: number; width: number } | null>(null);
-    const width = widths[column];
+const RecordsColumnHeader = ({
+  className,
+  children,
+  column,
+  icon,
+  tool,
+  resizable = true,
+  style,
+  ref,
+  ...props
+}: RecordsColumnHeaderProps & RefAttributes<HTMLDivElement>) => {
+  const { widths, setWidth } = useContext(RecordsTableContext);
+  const [resizing, setResizing] = useState(false);
+  const drag = useRef<{ x: number; width: number } | null>(null);
+  const width = widths[column];
 
-    const onPointerDown = (event: PointerEvent<HTMLSpanElement>) => {
-      if (event.target instanceof HTMLElement) event.target.setPointerCapture(event.pointerId);
-      drag.current = { x: event.clientX, width: width ?? MIN_COLUMN_WIDTH };
-      setResizing(true);
-    };
-    const onPointerMove = (event: PointerEvent<HTMLSpanElement>) => {
-      const start = drag.current;
-      if (start === null) return;
-      setWidth(column, start.width + (event.clientX - start.x));
-    };
-    const stop = () => {
-      drag.current = null;
-      setResizing(false);
-    };
+  const onPointerDown = (event: PointerEvent<HTMLSpanElement>) => {
+    if (event.target instanceof HTMLElement) {
+      event.target.setPointerCapture(event.pointerId);
+    }
+    drag.current = { width: width ?? MIN_COLUMN_WIDTH, x: event.clientX };
+    setResizing(true);
+  };
+  const onPointerMove = (event: PointerEvent<HTMLSpanElement>) => {
+    const start = drag.current;
+    if (start === null) {
+      return;
+    }
+    setWidth(column, start.width + (event.clientX - start.x));
+  };
+  const stop = () => {
+    drag.current = null;
+    setResizing(false);
+  };
 
-    return (
-      <div
-        ref={ref}
-        role="columnheader"
-        data-slot="records-column-header"
-        className={cn("relative flex shrink-0 flex-col justify-center px-3 py-2", className)}
-        style={{ width, ...style }}
-        {...props}
-      >
-        <span className="flex items-center gap-1.5 text-[12px] font-medium text-ink [&_svg]:size-3.5 [&_svg]:text-ink-3">
-          {icon}
-          <span className="truncate">{children}</span>
-        </span>
-        {tool === undefined ? null : (
-          <span className="mt-0.5 truncate text-[11px] text-ink-3">{tool}</span>
-        )}
-        {resizable ? (
-          <span
-            role="separator"
-            aria-orientation="vertical"
-            aria-label={`Resize ${column} column`}
-            data-slot="records-resize-handle"
-            onPointerDown={onPointerDown}
-            onPointerMove={onPointerMove}
-            onPointerUp={stop}
-            onPointerCancel={stop}
-            className={cn(
-              "absolute inset-y-0 right-0 w-1 cursor-col-resize touch-none",
-              "after:absolute after:inset-y-0 after:right-0 after:w-px after:bg-line",
-              "hover:after:bg-line-strong",
-              resizing && "after:bg-line-strong",
-            )}
-          />
-        ) : null}
-      </div>
-    );
-  },
-);
+  return (
+    <div
+      ref={ref}
+      // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- a flex grid of divs: <th> would drop the layout and the typed ref
+      role="columnheader"
+      data-slot="records-column-header"
+      className={cn("relative flex shrink-0 flex-col justify-center px-3 py-2", className)}
+      style={{ width, ...style }}
+      {...props}
+    >
+      <span className="flex items-center gap-1.5 text-[12px] font-medium text-ink [&_svg]:size-3.5 [&_svg]:text-ink-3">
+        {icon}
+        <span className="truncate">{children}</span>
+      </span>
+      {tool === undefined ? null : (
+        <span className="mt-0.5 truncate text-[11px] text-ink-3">{tool}</span>
+      )}
+      {resizable ? (
+        <span
+          // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- the resize handle is a drag target, not an <hr>
+          role="separator"
+          aria-orientation="vertical"
+          aria-label={`Resize ${column} column`}
+          data-slot="records-resize-handle"
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={stop}
+          onPointerCancel={stop}
+          className={cn(
+            "absolute inset-y-0 right-0 w-1 cursor-col-resize touch-none",
+            "after:absolute after:inset-y-0 after:right-0 after:w-px after:bg-line",
+            "hover:after:bg-line-strong",
+            resizing && "after:bg-line-strong",
+          )}
+        />
+      ) : null}
+    </div>
+  );
+};
 RecordsColumnHeader.displayName = "RecordsColumnHeader";
 
-const RecordsTableBody = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
-  ({ className, ...props }, ref) => (
-    <div ref={ref} data-slot="records-table-body" className={className} {...props} />
-  ),
+const RecordsTableBody = ({
+  className,
+  ref,
+  ...props
+}: HTMLAttributes<HTMLDivElement> & RefAttributes<HTMLDivElement>) => (
+  <div ref={ref} data-slot="records-table-body" className={className} {...props} />
 );
 RecordsTableBody.displayName = "RecordsTableBody";
 
-const RecordsRow = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
-  ({ className, ...props }, ref) => (
-    <div
-      ref={ref}
-      role="row"
-      data-slot="records-row"
-      className={cn(
-        "flex items-stretch border-b border-line transition-colors duration-100 last:border-0 hover:bg-hover",
-        className,
-      )}
-      {...props}
-    />
-  ),
+const RecordsRow = ({
+  className,
+  ref,
+  ...props
+}: HTMLAttributes<HTMLDivElement> & RefAttributes<HTMLDivElement>) => (
+  <div
+    ref={ref}
+    // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- a flex grid of divs: <tr> would drop the layout and the typed ref
+    role="row"
+    data-slot="records-row"
+    className={cn(
+      "flex items-stretch border-b border-line transition-colors duration-100 last:border-0 hover:bg-hover",
+      className,
+    )}
+    {...props}
+  />
 );
 RecordsRow.displayName = "RecordsRow";
 
@@ -172,92 +196,105 @@ export interface RecordsCellProps extends HTMLAttributes<HTMLDivElement> {
   pending?: boolean;
 }
 
-const RecordsCell = forwardRef<HTMLDivElement, RecordsCellProps>(
-  ({ className, children, column, pending = false, style, ...props }, ref) => {
-    const { widths } = useContext(RecordsTableContext);
-    return (
-      <div
-        ref={ref}
-        role="cell"
-        data-slot="records-cell"
-        className={cn(
-          "flex shrink-0 items-center gap-1 px-3 py-2 text-[12.5px] text-ink-2",
-          className,
-        )}
-        style={{ width: widths[column], ...style }}
-        {...props}
-      >
-        {pending ? (
-          <span
-            aria-label="Filling"
-            className="h-3 w-16 animate-pulse rounded-full bg-line motion-reduce:animate-none"
-          />
-        ) : (
-          children
-        )}
-      </div>
-    );
-  },
-);
+const RecordsCell = ({
+  className,
+  children,
+  column,
+  pending = false,
+  style,
+  ref,
+  ...props
+}: RecordsCellProps & RefAttributes<HTMLDivElement>) => {
+  const { widths } = useContext(RecordsTableContext);
+  return (
+    <div
+      ref={ref}
+      // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- a flex grid of divs: <td> would drop the layout and the typed ref
+      role="cell"
+      data-slot="records-cell"
+      className={cn(
+        "flex shrink-0 items-center gap-1 px-3 py-2 text-[12.5px] text-ink-2",
+        className,
+      )}
+      style={{ width: widths[column], ...style }}
+      {...props}
+    >
+      {pending ? (
+        <span
+          aria-label="Filling"
+          className="h-3 w-16 animate-pulse rounded-full bg-line motion-reduce:animate-none"
+        />
+      ) : (
+        children
+      )}
+    </div>
+  );
+};
 RecordsCell.displayName = "RecordsCell";
 
 const recordTagVariants = cva(
   "inline-flex h-5 max-w-full items-center rounded-md px-1.5 text-[11.5px] font-medium",
   {
+    defaultVariants: { tone: "neutral" },
     variants: {
       tone: {
         neutral: "bg-surface-inset text-ink-2",
         strong: "bg-line text-ink",
       },
     },
-    defaultVariants: { tone: "neutral" },
   },
 );
 
 export interface RecordTagProps
   extends HTMLAttributes<HTMLSpanElement>, VariantProps<typeof recordTagVariants> {}
 
-const RecordTag = forwardRef<HTMLSpanElement, RecordTagProps>(
-  ({ className, tone, ...props }, ref) => (
-    <span
-      ref={ref}
-      data-slot="record-tag"
-      className={cn(recordTagVariants({ tone }), "truncate", className)}
-      {...props}
-    />
-  ),
+const RecordTag = ({
+  className,
+  tone,
+  ref,
+  ...props
+}: RecordTagProps & RefAttributes<HTMLSpanElement>) => (
+  <span
+    ref={ref}
+    data-slot="record-tag"
+    className={cn(recordTagVariants({ tone }), "truncate", className)}
+    {...props}
+  />
 );
 RecordTag.displayName = "RecordTag";
 
-const RecordsAddColumn = forwardRef<HTMLButtonElement, HTMLAttributes<HTMLButtonElement>>(
-  ({ className, children, ...props }, ref) => (
-    <button
-      ref={ref}
-      type="button"
-      data-slot="records-add-column"
-      className={cn(
-        "flex w-11 shrink-0 items-center justify-center text-ink-3",
-        "transition-colors duration-100 hover:bg-hover hover:text-ink",
-        className,
-      )}
-      {...props}
-    >
-      {children ?? (
-        <svg
-          aria-hidden
-          width="14"
-          height="14"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-        >
-          <path d="M12 5v14M5 12h14" />
-        </svg>
-      )}
-    </button>
-  ),
+const RecordsAddColumn = ({
+  className,
+  children,
+  ref,
+  ...props
+}: HTMLAttributes<HTMLButtonElement> & RefAttributes<HTMLButtonElement>) => (
+  <button
+    ref={ref}
+    type="button"
+    data-slot="records-add-column"
+    className={cn(
+      "flex w-11 shrink-0 items-center justify-center text-ink-3",
+      "transition-colors duration-100 hover:bg-hover hover:text-ink",
+      className,
+    )}
+    {...props}
+  >
+    {children ?? (
+      <svg
+        aria-hidden
+        width="14"
+        height="14"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      >
+        <path d="M12 5v14M5 12h14" />
+      </svg>
+    )}
+  </button>
 );
 RecordsAddColumn.displayName = "RecordsAddColumn";
 

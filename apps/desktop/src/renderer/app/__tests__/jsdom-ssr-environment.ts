@@ -7,8 +7,8 @@ import { builtinEnvironments } from "vitest/runtime";
 
 const jsdomSsr: Environment = {
   name: "jsdom-ssr",
-  viteEnvironment: "ssr",
   setup: (global, options) => builtinEnvironments.jsdom.setup(global, options),
+  viteEnvironment: "ssr",
 };
 
 export default jsdomSsr;

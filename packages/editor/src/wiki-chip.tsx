@@ -1,7 +1,8 @@
 // loaded via React.lazy from wiki-link-kit: this module reaches the editor host seam, so an
 // eager import from a kit file base-kit composes would close an import cycle.
 
-import { useRef, useState, type MouseEvent } from "react";
+import { useRef, useState } from "react";
+import type { MouseEvent } from "react";
 import { FilePlusIcon } from "lucide-react";
 
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@repo/ui/components/hover-card";
@@ -17,24 +18,30 @@ import { isUuidWikiAlias, parseWikiBody } from "@repo/notes/markdown/remark-wiki
 const HOVER_PREVIEW_DELAY_MS = 350;
 
 // the resolved-link uuid alias is identity plumbing, not display text.
-export function wikiChipLabel(body: string): string {
-  const parsed = parseWikiBody(body);
-  if (parsed.alias && !isUuidWikiAlias(parsed.alias)) return parsed.alias;
-  return parsed.anchor ? `${parsed.target}#${parsed.anchor}` : parsed.target;
-}
+export const wikiChipLabel = (body: string): string => {
+  const { alias, anchor, target } = parseWikiBody(body);
+  if (alias !== undefined && alias !== "" && !isUuidWikiAlias(alias)) {
+    return alias;
+  }
+  return anchor !== undefined && anchor !== "" ? `${target}#${anchor}` : target;
+};
 
 export const RESOLVED_CHIP_CLASS =
   "cursor-pointer rounded-sm bg-primary/10 px-1 text-primary transition-colors hover:bg-primary/20";
 export const UNRESOLVED_CHIP_CLASS =
   "cursor-pointer rounded-sm px-1 text-muted-foreground underline decoration-dashed decoration-muted-foreground/60 underline-offset-2 transition-colors hover:bg-muted";
 
-function PreviewBody({ text }: { text: string | null }) {
-  if (text === null) return <span className="text-muted-foreground">…</span>;
-  if (text === "") return <span className="text-muted-foreground">Empty note</span>;
-  return <>{text}</>;
-}
+const PreviewBody = ({ text }: { text: string | null }) => {
+  if (text === null) {
+    return <span className="text-muted-foreground">…</span>;
+  }
+  if (text === "") {
+    return <span className="text-muted-foreground">Empty note</span>;
+  }
+  return text;
+};
 
-export default function WikiChip({ body }: { body: string }) {
+const WikiChip = ({ body }: { body: string }) => {
   const { resolveWikiTarget } = useWikiResolver();
   const { openFile, createFile } = useVaultActions();
   const [createOpen, setCreateOpen] = useState(false);
@@ -49,6 +56,19 @@ export default function WikiChip({ body }: { body: string }) {
   // a pure-anchor link (`[[#sec]]`) points at the open note: nothing to resolve or create.
   const resolved = parsed.target === "" ? null : resolveWikiTarget(parsed.target);
 
+  const readPreview = async (path: string): Promise<void> => {
+    try {
+      const content = await getEditorHostIo().readVaultFile({ path });
+      if (previewFor.current === path) {
+        setPreviewText(notePreviewHead(content));
+      }
+    } catch {
+      if (previewFor.current === path) {
+        setPreviewOpen(false);
+      }
+    }
+  };
+
   // read on every open, never cached across hovers, so an agent edit between them is never shown stale.
   const onPreviewOpenChange = (open: boolean): void => {
     setPreviewOpen(open);
@@ -57,17 +77,11 @@ export default function WikiChip({ body }: { body: string }) {
       setPreviewText(null);
       return;
     }
-    if (resolved === null) return;
+    if (resolved === null) {
+      return;
+    }
     previewFor.current = resolved;
-    getEditorHostIo()
-      .readVaultFile({ path: resolved })
-      .then((content) => {
-        if (previewFor.current === resolved) setPreviewText(notePreviewHead(content));
-        return undefined;
-      })
-      .catch(() => {
-        if (previewFor.current === resolved) setPreviewOpen(false);
-      });
+    void readPreview(resolved);
   };
 
   const closePreview = (): void => {
@@ -77,7 +91,9 @@ export default function WikiChip({ body }: { body: string }) {
   const onClick = (e: MouseEvent) => {
     e.preventDefault();
     closePreview();
-    if (parsed.target === "") return;
+    if (parsed.target === "") {
+      return;
+    }
     if (resolved !== null) {
       openFile(resolved);
       return;
@@ -92,13 +108,15 @@ export default function WikiChip({ body }: { body: string }) {
       type="button"
       contentEditable={false}
       onClick={onClick}
-      className={cn(resolved !== null ? RESOLVED_CHIP_CLASS : UNRESOLVED_CHIP_CLASS)}
+      className={cn(resolved === null ? UNRESOLVED_CHIP_CLASS : RESOLVED_CHIP_CLASS)}
     >
       {label}
     </button>
   );
 
-  if (parsed.target === "") return chip;
+  if (parsed.target === "") {
+    return chip;
+  }
 
   return (
     <>
@@ -149,4 +167,6 @@ export default function WikiChip({ body }: { body: string }) {
       )}
     </>
   );
-}
+};
+
+export default WikiChip;

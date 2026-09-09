@@ -5,27 +5,25 @@ import { describe, expect, it, vi } from "vitest";
 import { makeTempDir } from "../../__tests__/temp-dir";
 import { VOICE_MODEL } from "../model-catalog";
 import { modelDirFor, resolveModelFiles } from "../model-store";
-import {
-  ParakeetVoiceService,
-  ScriptedVoiceService,
-  VoiceBusyError,
-  VoiceUnavailableError,
-} from "../voice-service";
+import { createScriptedVoiceService } from "../scripted-voice-service";
+import { VoiceBusyError, VoiceUnavailableError } from "../voice-errors";
+import { ParakeetVoiceService } from "../voice-service";
 import type { VoiceStreamWorkerCallbacks, VoiceStreamWorkerHandle } from "../voice-worker-host";
 import type { VoiceModelFiles, VoiceWorkerResponse } from "../worker-protocol";
 
+// oxlint-disable-next-line require-await -- the worker port is async; this fake answers from memory
 const workerOk = async (): Promise<VoiceWorkerResponse> => ({ kind: "probed" });
 
 // non-empty, or isModelInstalled refuses it.
-async function installFakeModel(modelDir: string): Promise<void> {
+const installFakeModel = async (modelDir: string): Promise<void> => {
   await mkdir(modelDirFor(modelDir, VOICE_MODEL), { recursive: true });
-  const files = resolveModelFiles(modelDir, VOICE_MODEL);
-  for (const path of Object.values(files)) {
-    await writeFile(path, "x");
+  const { decoder, encoder, joiner, tokens } = resolveModelFiles(modelDir, VOICE_MODEL);
+  for (const file of [decoder, encoder, joiner, tokens]) {
+    await writeFile(file, "x");
   }
-}
+};
 
-function captureSpawn() {
+const captureSpawn = () => {
   let count = 0;
   let disposeCount = 0;
   let last: { model: VoiceModelFiles; callbacks: VoiceStreamWorkerCallbacks } | null = null;
@@ -34,22 +32,23 @@ function captureSpawn() {
     callbacks: VoiceStreamWorkerCallbacks,
   ): VoiceStreamWorkerHandle => {
     count += 1;
-    last = { model, callbacks };
+    last = { callbacks, model };
     return {
-      pushPcm: () => undefined,
-      finalize: () => undefined,
-      dispose: async () => {
+      dispose: () => {
         disposeCount += 1;
       },
+      finalize: () => {},
+      pushPcm: () => {},
     };
   };
-  return { spawn, spawnCount: () => count, latest: () => last, disposed: () => disposeCount };
-}
+  return { disposed: () => disposeCount, latest: () => last, spawn, spawnCount: () => count };
+};
 
 describe("ParakeetVoiceService", () => {
   it("reports a runtime that will not load as unavailable, and refuses install", async () => {
     const service = new ParakeetVoiceService({
       modelDir: makeTempDir("inteligir-voice-"),
+      // oxlint-disable-next-line require-await -- the worker port is async; this fake answers from memory
       runWorker: async () => ({
         kind: "failed",
         message: "dlopen: image not found",
@@ -57,10 +56,11 @@ describe("ParakeetVoiceService", () => {
       }),
     });
     const status = await service.status();
-    expect(status).toEqual({
-      state: "unavailable",
-      detail: expect.stringContaining("dlopen: image not found"),
-    });
+    expect(status.state).toBe("unavailable");
+    if (status.state !== "unavailable") {
+      throw new Error("unreachable");
+    }
+    expect(status.detail).toContain("dlopen: image not found");
     await expect(service.install()).rejects.toBeInstanceOf(VoiceUnavailableError);
   });
 
@@ -68,6 +68,7 @@ describe("ParakeetVoiceService", () => {
     let probes = 0;
     const service = new ParakeetVoiceService({
       modelDir: makeTempDir("inteligir-voice-"),
+      // oxlint-disable-next-line require-await -- the worker port is async; this fake answers from memory
       runWorker: async () => {
         probes += 1;
         return { kind: "probed" };
@@ -85,9 +86,9 @@ describe("ParakeetVoiceService", () => {
       runWorker: workerOk,
     });
     expect(await service.status()).toEqual({
-      state: "no-model",
-      model: { id: VOICE_MODEL.id, label: VOICE_MODEL.label, sizeBytes: VOICE_MODEL.sizeBytes },
       lastError: null,
+      model: { id: VOICE_MODEL.id, label: VOICE_MODEL.label, sizeBytes: VOICE_MODEL.sizeBytes },
+      state: "no-model",
     });
   });
 
@@ -96,8 +97,10 @@ describe("ParakeetVoiceService", () => {
     const service = new ParakeetVoiceService({ modelDir, runWorker: workerOk });
     // placed, not downloaded: the pinned digest is the real model's, so no fetch fake passes it.
     await installFakeModel(modelDir);
-    expect((await service.status()).state).toBe("ready");
-    expect((await service.remove()).state).toBe("no-model");
+    const installed = await service.status();
+    expect(installed.state).toBe("ready");
+    const removed = await service.remove();
+    expect(removed.state).toBe("no-model");
   });
 
   it("refuses a second install while one is installed", async () => {
@@ -112,12 +115,13 @@ describe("ParakeetVoiceService", () => {
     // reading the slot and claiming it.
     let downloads = 0;
     const service = new ParakeetVoiceService({
-      modelDir: makeTempDir("inteligir-voice-"),
-      runWorker: workerOk,
+      // oxlint-disable-next-line require-await -- `fetch` is an async port; this fake answers from memory
       fetchImpl: async () => {
         downloads += 1;
         return new Response("nope", { status: 500 });
       },
+      modelDir: makeTempDir("inteligir-voice-"),
+      runWorker: workerOk,
     });
     const [first, second] = await Promise.allSettled([service.install(), service.install()]);
     expect(first?.status).toBe("fulfilled");
@@ -130,11 +134,13 @@ describe("ParakeetVoiceService", () => {
 
   it("reports a failed download as the reason it has no model", async () => {
     const service = new ParakeetVoiceService({
+      // oxlint-disable-next-line require-await -- `fetch` is an async port; this fake answers from memory
+      fetchImpl: async () => new Response("nope", { status: 500 }),
       modelDir: makeTempDir("inteligir-voice-"),
       runWorker: workerOk,
-      fetchImpl: async () => new Response("nope", { status: 500 }),
     });
-    expect((await service.install()).state).toBe("downloading");
+    const started = await service.install();
+    expect(started.state).toBe("downloading");
     for (let attempt = 0; attempt < 50; attempt += 1) {
       await delay(5);
       const status = await service.status();
@@ -155,11 +161,15 @@ describe("ParakeetVoiceService", () => {
     });
     const errors: string[] = [];
     service.createStreamSession({
-      onPartial: () => undefined,
-      onFinal: () => undefined,
-      onError: (message) => errors.push(message),
+      onError: (message) => {
+        errors.push(message);
+      },
+      onFinal: () => {},
+      onPartial: () => {},
     });
-    await vi.waitFor(() => expect(errors).not.toHaveLength(0));
+    await vi.waitFor(() => {
+      expect(errors).not.toHaveLength(0);
+    });
     expect(spawn.spawnCount()).toBe(0);
     expect(errors[0]).toMatch(/Settings/u);
   });
@@ -175,11 +185,15 @@ describe("ParakeetVoiceService", () => {
     });
     const finals: string[] = [];
     const session = service.createStreamSession({
-      onPartial: () => undefined,
-      onFinal: (text) => finals.push(text),
-      onError: () => undefined,
+      onError: () => {},
+      onFinal: (text) => {
+        finals.push(text);
+      },
+      onPartial: () => {},
     });
-    await vi.waitFor(() => expect(spawn.spawnCount()).toBe(1));
+    await vi.waitFor(() => {
+      expect(spawn.spawnCount()).toBe(1);
+    });
     expect(spawn.latest()?.model.encoder).toContain(VOICE_MODEL.files.encoder);
     spawn.latest()?.callbacks.onFinal("streamed text");
     expect(finals).toEqual(["streamed text"]);
@@ -197,15 +211,22 @@ describe("ParakeetVoiceService", () => {
     });
     const errors: string[] = [];
     service.createStreamSession({
-      onPartial: () => undefined,
-      onFinal: () => undefined,
-      onError: (message) => errors.push(message),
+      onError: (message) => {
+        errors.push(message);
+      },
+      onFinal: () => {},
+      onPartial: () => {},
     });
-    await vi.waitFor(() => expect(spawn.latest()).not.toBeNull());
+    await vi.waitFor(() => {
+      expect(spawn.latest()).not.toBeNull();
+    });
     spawn.latest()?.callbacks.onError("the runtime choked on this clip", false);
-    await vi.waitFor(() => expect(errors).toEqual(["the runtime choked on this clip"]));
+    await vi.waitFor(() => {
+      expect(errors).toEqual(["the runtime choked on this clip"]);
+    });
     expect(existsSync(resolveModelFiles(modelDir, VOICE_MODEL).encoder)).toBe(true);
-    expect((await service.status()).state).toBe("ready");
+    const kept = await service.status();
+    expect(kept.state).toBe("ready");
   });
 
   it("nukes a model a streaming worker will not LOAD and drops to no-model with the reason", async () => {
@@ -219,13 +240,19 @@ describe("ParakeetVoiceService", () => {
     });
     const errors: string[] = [];
     service.createStreamSession({
-      onPartial: () => undefined,
-      onFinal: () => undefined,
-      onError: (message) => errors.push(message),
+      onError: (message) => {
+        errors.push(message);
+      },
+      onFinal: () => {},
+      onPartial: () => {},
     });
-    await vi.waitFor(() => expect(spawn.latest()).not.toBeNull());
+    await vi.waitFor(() => {
+      expect(spawn.latest()).not.toBeNull();
+    });
     spawn.latest()?.callbacks.onError("could not open the model", true);
-    await vi.waitFor(() => expect(errors).not.toHaveLength(0));
+    await vi.waitFor(() => {
+      expect(errors).not.toHaveLength(0);
+    });
     expect(existsSync(modelDirFor(modelDir, VOICE_MODEL))).toBe(false);
     expect(errors[0]).toMatch(/removed/u);
     const after = await service.status();
@@ -236,20 +263,25 @@ describe("ParakeetVoiceService", () => {
   });
 });
 
-describe("ScriptedVoiceService", () => {
+describe("createScriptedVoiceService", () => {
   it("is ready with no model on disk", async () => {
-    const service = new ScriptedVoiceService();
-    expect((await service.status()).state).toBe("ready");
+    const service = createScriptedVoiceService();
+    const status = await service.status();
+    expect(status.state).toBe("ready");
   });
 
   it("streams scripted partials and a final over a session", () => {
-    const service = new ScriptedVoiceService();
+    const service = createScriptedVoiceService();
     const partials: string[] = [];
     const finals: string[] = [];
     const session = service.createStreamSession({
-      onPartial: (text) => partials.push(text),
-      onFinal: (text) => finals.push(text),
-      onError: () => undefined,
+      onError: () => {},
+      onFinal: (text) => {
+        finals.push(text);
+      },
+      onPartial: (text) => {
+        partials.push(text);
+      },
     });
     session.pushPcm(new ArrayBuffer(20));
     session.finalize();

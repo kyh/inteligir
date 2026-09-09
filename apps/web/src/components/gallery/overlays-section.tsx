@@ -34,16 +34,39 @@ import { useState } from "react";
 
 import { Demo, GallerySection } from "./gallery-chrome";
 
-export function OverlaysSection() {
+const confirmedNote = (confirmed: boolean | null): string | undefined => {
+  if (confirmed === null) {
+    return undefined;
+  }
+  return confirmed ? "You confirmed." : "You cancelled.";
+};
+
+export const OverlaysSection = () => {
   const [confirmed, setConfirmed] = useState<boolean | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [alertOpen, setAlertOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
 
+  const ask = async () => {
+    setConfirmed(
+      await confirm({
+        body: "The buffer has edits that are not on disk yet.",
+        confirmLabel: "Discard",
+        destructive: true,
+        title: "Discard unsaved changes?",
+      }),
+    );
+  };
+
   return (
     <GallerySection id="overlays" title="Overlays">
       <Demo name="Dialog" purpose="A focused task the reader opts into and can leave.">
-        <Button variant="secondary" onClick={() => setDialogOpen(true)}>
+        <Button
+          variant="secondary"
+          onClick={() => {
+            setDialogOpen(true);
+          }}
+        >
           Open dialog
         </Button>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -55,10 +78,21 @@ export function OverlaysSection() {
               </DialogDescription>
             </DialogHeader>
             <div className="mt-6 flex justify-end gap-2">
-              <Button variant="tertiary" onClick={() => setDialogOpen(false)}>
+              <Button
+                variant="tertiary"
+                onClick={() => {
+                  setDialogOpen(false);
+                }}
+              >
                 Cancel
               </Button>
-              <Button onClick={() => setDialogOpen(false)}>Rename</Button>
+              <Button
+                onClick={() => {
+                  setDialogOpen(false);
+                }}
+              >
+                Rename
+              </Button>
             </div>
           </DialogContent>
         </Dialog>
@@ -68,7 +102,12 @@ export function OverlaysSection() {
         name="AlertDialog"
         purpose="A dialog the reader cannot dismiss by accident, for a choice that costs something."
       >
-        <Button variant="destructive" onClick={() => setAlertOpen(true)}>
+        <Button
+          variant="destructive"
+          onClick={() => {
+            setAlertOpen(true);
+          }}
+        >
           Delete forever
         </Button>
         <AlertDialog open={alertOpen} onOpenChange={setAlertOpen}>
@@ -80,10 +119,20 @@ export function OverlaysSection() {
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <Button variant="secondary" onClick={() => setAlertOpen(false)}>
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setAlertOpen(false);
+                }}
+              >
                 Keep it
               </Button>
-              <Button variant="destructive" onClick={() => setAlertOpen(false)}>
+              <Button
+                variant="destructive"
+                onClick={() => {
+                  setAlertOpen(false);
+                }}
+              >
                 Delete
               </Button>
             </AlertDialogFooter>
@@ -94,17 +143,12 @@ export function OverlaysSection() {
       <Demo
         name="confirm()"
         purpose="The imperative form of the same question, for code paths with no JSX to hang a trigger on."
-        note={confirmed === null ? undefined : confirmed ? "You confirmed." : "You cancelled."}
+        note={confirmedNote(confirmed)}
       >
         <Button
           variant="secondary"
           onClick={() => {
-            void confirm({
-              title: "Discard unsaved changes?",
-              body: "The buffer has edits that are not on disk yet.",
-              confirmLabel: "Discard",
-              destructive: true,
-            }).then(setConfirmed);
+            void ask();
           }}
         >
           Ask with confirm()
@@ -163,7 +207,12 @@ export function OverlaysSection() {
         name="CommandDialog"
         purpose="Filterable rows over a query — the palette, exactly as the product opens it."
       >
-        <Button variant="secondary" onClick={() => setPaletteOpen(true)}>
+        <Button
+          variant="secondary"
+          onClick={() => {
+            setPaletteOpen(true);
+          }}
+        >
           Open palette
         </Button>
         <CommandDialog open={paletteOpen} onOpenChange={setPaletteOpen}>
@@ -189,4 +238,4 @@ export function OverlaysSection() {
       </Demo>
     </GallerySection>
   );
-}
+};

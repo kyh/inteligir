@@ -2,19 +2,23 @@ import { createStore } from "zustand/vanilla";
 
 import type { WikiTarget } from "@repo/notes/knowledge/link-graph-index";
 
-import { setEditorHostIo, type VaultActions, type WikiResolver } from "@repo/editor/host-io";
+import { setEditorHostIo } from "@repo/editor/host-io";
+import type { VaultActions, WikiResolver } from "@repo/editor/host-io";
 
-export type HostCall = { readonly action: keyof VaultActions; readonly args: readonly unknown[] };
+export interface HostCall {
+  readonly action: keyof VaultActions;
+  readonly args: readonly unknown[];
+}
 
-export type FakeEditorHostOptions = {
+export interface FakeEditorHostOptions {
   readonly resolveWikiTarget?: (target: string) => string | null;
   readonly wikiTargets?: readonly WikiTarget[];
   // a create the session refuses answers null, as the real one does after it has said why
   readonly refuseCreates?: boolean;
-};
+}
 
 // Installs the singleton the hooks read; the io half answers as an empty, read-only vault.
-export function installFakeEditorHost(options: FakeEditorHostOptions = {}) {
+export const installFakeEditorHost = (options: FakeEditorHostOptions = {}) => {
   const calls: HostCall[] = [];
   const record =
     <T>(action: keyof VaultActions, answer: T) =>
@@ -22,20 +26,25 @@ export function installFakeEditorHost(options: FakeEditorHostOptions = {}) {
       calls.push({ action, args });
       return answer;
     };
+  const recordVoid =
+    (action: keyof VaultActions) =>
+    (...args: readonly unknown[]): void => {
+      calls.push({ action, args });
+    };
 
   const actions: VaultActions = {
-    openFile: record("openFile", undefined),
-    editNote: record("editNote", undefined),
-    registerNoteSerializeFlush: record("registerNoteSerializeFlush", undefined),
     createFile: record("createFile", Promise.resolve()),
-    createFileAt: (path, seedContent) => {
+    createFileAt: async (path, seedContent) => {
       calls.push({ action: "createFileAt", args: [path, seedContent] });
-      return Promise.resolve(options.refuseCreates === true ? null : path);
+      return await Promise.resolve(options.refuseCreates === true ? null : path);
     },
-    renameEntry: record("renameEntry", Promise.resolve(true)),
     deleteEntry: record("deleteEntry", Promise.resolve()),
+    editNote: recordVoid("editNote"),
     flush: record("flush", Promise.resolve(true)),
-    refreshVault: record("refreshVault", undefined),
+    openFile: recordVoid("openFile"),
+    refreshVault: recordVoid("refreshVault"),
+    registerNoteSerializeFlush: recordVoid("registerNoteSerializeFlush"),
+    renameEntry: record("renameEntry", Promise.resolve(true)),
   };
 
   const wikiResolver = createStore<WikiResolver>()(() => ({
@@ -44,17 +53,17 @@ export function installFakeEditorHost(options: FakeEditorHostOptions = {}) {
 
   setEditorHostIo({
     actions,
-    wikiResolver,
-    readVaultFile: ({ path }) => Promise.reject(new Error(`ENOENT ${path}`)),
-    readVaultAsset: () => Promise.resolve({ ok: false, error: "no assets" }),
-    writeVaultAsset: () => Promise.reject(new Error("read-only")),
-    listWikiTargets: () => Promise.resolve([...(options.wikiTargets ?? [])]),
-    getBacklinks: () => Promise.resolve([]),
-    readNoteFormulas: () => Promise.resolve(null),
-    getForwardLinks: () => Promise.resolve([]),
-    onVaultChanged: () => () => {},
+    getBacklinks: async () => await Promise.resolve([]),
+    getForwardLinks: async () => await Promise.resolve([]),
+    listWikiTargets: async () => await Promise.resolve([...(options.wikiTargets ?? [])]),
     onKnowledgeUpdated: () => () => {},
+    onVaultChanged: () => () => {},
+    readNoteFormulas: async () => await Promise.resolve(null),
+    readVaultAsset: async () => await Promise.resolve({ error: "no assets", ok: false }),
+    readVaultFile: async ({ path }) => await Promise.reject(new Error(`ENOENT ${path}`)),
+    wikiResolver,
+    writeVaultAsset: async () => await Promise.reject(new Error("read-only")),
   });
 
   return { calls };
-}
+};

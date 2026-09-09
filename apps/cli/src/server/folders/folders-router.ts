@@ -13,12 +13,18 @@ const add = base.folders.add.handler(({ context, input, errors }) => {
   } catch (error) {
     if (error instanceof FolderRefusedError) {
       switch (error.kind) {
-        case "invalid-path":
+        case "invalid-path": {
           throw errors.INVALID_PATH({ message: error.message });
-        case "already-exists":
+        }
+        case "already-exists": {
           throw errors.ALREADY_EXISTS({ message: error.message });
-        case "not-found":
+        }
+        case "not-found": {
           break;
+        }
+        default: {
+          break;
+        }
       }
     }
     throw error;
@@ -37,7 +43,7 @@ const remove = base.folders.remove.handler(({ context, input, errors }) => {
 });
 
 export const foldersRouter = {
-  list,
   add,
+  list,
   remove,
 };

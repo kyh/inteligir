@@ -19,49 +19,45 @@ export interface Theme {
 
 const light: Theme = {
   background: "#fafafa",
-  foreground: "#171717",
+  border: "#e5e5e5",
   card: "#ffffff",
   cardForeground: "#171717",
-  primary: "#171717",
-  primaryForeground: "#fafafa",
+  destructive: "#ef4444",
+  foreground: "#171717",
+  input: "#e5e5e5",
   muted: "#f4f4f5",
   mutedForeground: "#737373",
-  border: "#e5e5e5",
-  input: "#e5e5e5",
-  destructive: "#ef4444",
+  primary: "#171717",
+  primaryForeground: "#fafafa",
 };
 
 const dark: Theme = {
   background: "#171717",
-  foreground: "#f5f5f5",
+  border: "#404040",
   card: "#252525",
   cardForeground: "#f5f5f5",
-  primary: "#e5e5e5",
-  primaryForeground: "#171717",
+  destructive: "#f87171",
+  foreground: "#f5f5f5",
+  input: "#404040",
   muted: "#1e1e1e",
   mutedForeground: "#a3a3a3",
-  border: "#404040",
-  input: "#404040",
-  destructive: "#f87171",
+  primary: "#e5e5e5",
+  primaryForeground: "#171717",
 };
 
-export function themeFor(isDark: boolean): Theme {
-  return isDark ? dark : light;
-}
+export const themeFor = (isDark: boolean): Theme => (isDark ? dark : light);
 
-export function useTheme(): Theme {
-  return themeFor(useColorScheme() === "dark");
-}
+export const useTheme = (): Theme => themeFor(useColorScheme() === "dark");
 
 export const SPACE = {
-  xs: 4,
-  sm: 8,
-  md: 12,
   lg: 16,
+  md: 12,
+  sm: 8,
+  xs: 4,
   xxl: 24,
 } as const;
 
 export const RADIUS = { md: 8 } as const;
 
 // Android ships no Menlo, and an unresolvable family falls back to the proportional sans.
-export const MONO_FONT = Platform.select({ ios: "Menlo", default: "monospace" });
+export const MONO_FONT = Platform.select({ default: "monospace", ios: "Menlo" });

@@ -7,90 +7,133 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { isTestFile, REPO_ROOT, sourceOf, workspaces, workspaceSourceFiles } from "./repo";
 
-const HOOK_DEFINITION = /\b(?:function\s+|(?:const|let|var)\s+)(use[A-Z]\w*)\b/g;
-const REACT_IMPORT = /from\s+["']react["']/;
+const HOOK_DEFINITION = /\b(?:function\s+|(?:const|let|var)\s+)(?<name>use[A-Z]\w*)\b/gu;
+const REACT_IMPORT = /from\s+["']react["']/u;
 
 interface NestedHook {
   name: string;
   line: number;
 }
 
-function nestedHookDefinitions(source: string): NestedHook[] {
+type Mode = "code" | "line-comment" | "block-comment" | "single" | "double" | "template";
+
+interface Scan {
+  index: number;
+  mode: Mode;
+  depth: number;
+  // entering `${` pushes the depth to return to, so the `}` that closes it resumes template text.
+  templateReturn: number[];
+}
+
+const stepQuoted = (scan: Scan, ch: string | undefined): void => {
+  if (ch === "\\") {
+    scan.index += 1;
+  } else if ((scan.mode === "single" && ch === "'") || (scan.mode === "double" && ch === '"')) {
+    scan.mode = "code";
+  }
+};
+
+const stepTemplate = (scan: Scan, ch: string | undefined, next: string | undefined): void => {
+  if (ch === "\\") {
+    scan.index += 1;
+  } else if (ch === "`") {
+    scan.mode = "code";
+  } else if (ch === "$" && next === "{") {
+    scan.templateReturn.push(scan.depth);
+    scan.depth += 1;
+    scan.mode = "code";
+    scan.index += 1;
+  }
+};
+
+const stepCode = (scan: Scan, ch: string | undefined, next: string | undefined): void => {
+  if (ch === "/" && next === "/") {
+    scan.mode = "line-comment";
+  } else if (ch === "/" && next === "*") {
+    scan.mode = "block-comment";
+  } else if (ch === "'") {
+    scan.mode = "single";
+  } else if (ch === '"') {
+    scan.mode = "double";
+  } else if (ch === "`") {
+    scan.mode = "template";
+  } else if (ch === "{") {
+    scan.depth += 1;
+  } else if (ch === "}") {
+    scan.depth -= 1;
+    const resume = scan.templateReturn.at(-1);
+    if (resume !== undefined && scan.depth === resume) {
+      scan.templateReturn.pop();
+      scan.mode = "template";
+    }
+  }
+};
+
+const nestedHookDefinitions = (source: string): NestedHook[] => {
   const found: NestedHook[] = [];
   const definitions = new Map<number, string>();
   for (const match of source.matchAll(HOOK_DEFINITION)) {
-    const name = match[1];
-    if (name !== undefined) definitions.set(match.index, name);
+    const name = match.groups?.name;
+    if (name !== undefined) {
+      definitions.set(match.index, name);
+    }
   }
-  if (definitions.size === 0) return found;
+  if (definitions.size === 0) {
+    return found;
+  }
 
-  let depth = 0;
   let line = 1;
-  // entering `${` pushes the depth to return to, so the `}` that closes it resumes template text.
-  const templateReturn: number[] = [];
-  type Mode = "code" | "line-comment" | "block-comment" | "single" | "double" | "template";
-  let mode: Mode = "code";
+  const scan: Scan = { depth: 0, index: 0, mode: "code", templateReturn: [] };
 
-  for (let i = 0; i < source.length; i += 1) {
-    const ch = source[i];
-    const next = source[i + 1];
-    if (ch === "\n") line += 1;
-    switch (mode) {
-      case "line-comment":
-        if (ch === "\n") mode = "code";
-        break;
-      case "block-comment":
-        if (ch === "*" && next === "/") {
-          mode = "code";
-          i += 1;
-        }
-        break;
-      case "single":
-      case "double":
-        if (ch === "\\") i += 1;
-        else if ((mode === "single" && ch === "'") || (mode === "double" && ch === '"'))
-          mode = "code";
-        break;
-      case "template":
-        if (ch === "\\") i += 1;
-        else if (ch === "`") mode = "code";
-        else if (ch === "$" && next === "{") {
-          templateReturn.push(depth);
-          depth += 1;
-          mode = "code";
-          i += 1;
-        }
-        break;
-      case "code": {
-        const definition = definitions.get(i);
-        if (definition !== undefined && depth > 0) found.push({ name: definition, line });
-        if (ch === "/" && next === "/") mode = "line-comment";
-        else if (ch === "/" && next === "*") mode = "block-comment";
-        else if (ch === "'") mode = "single";
-        else if (ch === '"') mode = "double";
-        else if (ch === "`") mode = "template";
-        else if (ch === "{") depth += 1;
-        else if (ch === "}") {
-          depth -= 1;
-          const resume = templateReturn.at(-1);
-          if (resume !== undefined && depth === resume) {
-            templateReturn.pop();
-            mode = "template";
-          }
+  while (scan.index < source.length) {
+    const ch = source[scan.index];
+    const next = source[scan.index + 1];
+    if (ch === "\n") {
+      line += 1;
+    }
+    switch (scan.mode) {
+      case "line-comment": {
+        if (ch === "\n") {
+          scan.mode = "code";
         }
         break;
       }
+      case "block-comment": {
+        if (ch === "*" && next === "/") {
+          scan.mode = "code";
+          scan.index += 1;
+        }
+        break;
+      }
+      case "single":
+      case "double": {
+        stepQuoted(scan, ch);
+        break;
+      }
+      case "template": {
+        stepTemplate(scan, ch, next);
+        break;
+      }
+      case "code": {
+        const definition = definitions.get(scan.index);
+        if (definition !== undefined && scan.depth > 0) {
+          found.push({ line, name: definition });
+        }
+        stepCode(scan, ch, next);
+        break;
+      }
+      // no default
     }
+    scan.index += 1;
   }
   return found;
-}
+};
 
-function compiledSourceFiles(): string[] {
-  return workspaces()
+const compiledSourceFiles = (): string[] =>
+  workspaces()
     .flatMap((workspace) => workspaceSourceFiles(workspace))
-    .filter((file) => !isTestFile(file) && /\.tsx?$/.test(file))
+    .filter((file) => !isTestFile(file) && /\.tsx?$/u.test(file))
     .filter((file) => REACT_IMPORT.test(sourceOf(file)));
-}
 
 describe("hooks in compiled sources are defined at module scope", () => {
   it("the scanner catches a hook nested in a function and ignores braces in strings and comments", () => {
@@ -110,7 +153,7 @@ describe("hooks in compiled sources are defined at module scope", () => {
 
   it("no react-importing source file defines a hook inside another function", () => {
     const offenders = compiledSourceFiles().flatMap((file) =>
-      nestedHookDefinitions(fs.readFileSync(path.join(REPO_ROOT, file), "utf8")).map(
+      nestedHookDefinitions(fs.readFileSync(path.join(REPO_ROOT, file), "utf-8")).map(
         (hook) => `  ${file}:${hook.line} — ${hook.name}`,
       ),
     );

@@ -17,9 +17,8 @@ export interface VaultRemoteSpec {
 
 export type VaultRemoteProvider = () => VaultRemoteSpec | null;
 
-export function hostedVaultRemoteUrl(cloudUrl: string): string {
-  return endpointUrl(cloudUrl, VAULT_GIT_PATH);
-}
+export const hostedVaultRemoteUrl = (cloudUrl: string): string =>
+  endpointUrl(cloudUrl, VAULT_GIT_PATH);
 
 export interface CreateVaultRemoteProviderArgs {
   explicitRemote: string | null;
@@ -27,12 +26,12 @@ export interface CreateVaultRemoteProviderArgs {
   dataDir: string;
 }
 
-export function createVaultRemoteProvider(
+export const createVaultRemoteProvider = (
   args: CreateVaultRemoteProviderArgs,
-): VaultRemoteProvider {
-  return () => {
+): VaultRemoteProvider => {
+  const provider = (): VaultRemoteSpec | null => {
     if (args.explicitRemote !== null) {
-      return { url: args.explicitRemote, source: "explicit" };
+      return { source: "explicit", url: args.explicitRemote };
     }
     const credential = readDeviceCredential(args.dataDir);
     if (credential === null) {
@@ -40,15 +39,18 @@ export function createVaultRemoteProvider(
     }
     const url = hostedVaultRemoteUrl(args.cloudUrl);
     const spec: VaultRemoteSpec = {
-      url,
-      source: "account",
       env: {
         GIT_CONFIG_COUNT: "1",
         GIT_CONFIG_KEY_0: `http.${url}.extraHeader`,
         GIT_CONFIG_VALUE_0: `Authorization: Bearer ${credential.credential}`,
       },
+      source: "account",
+      url,
     };
-    if (credential.userId !== undefined) spec.account = credential.userId;
+    if (credential.userId !== undefined) {
+      spec.account = credential.userId;
+    }
     return spec;
   };
-}
+  return provider;
+};

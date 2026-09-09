@@ -1,11 +1,10 @@
 // Vendored from bb (github.com/get-bb/bb), MIT. © bb contributors —
 // apps/cli/src/__tests__/json-flag-enforcement.test.ts, adapted and widened.
 
-import { z } from "zod";
-
-const cliErrorEnvelopeSchema = z.object({ error: z.string().min(1), message: z.string() });
 import { describe, expect, it, onTestFinished } from "vitest";
-import { argsOf, collectLeafCommands, type LeafCommand } from "../command-tree";
+import { z } from "zod";
+import { argsOf, collectLeafCommands } from "../command-tree";
+import type { LeafCommand } from "../command-tree";
 import { LEAF_INVOCATIONS, testProgram } from "./command-tree";
 import {
   FIXTURE_REVISION_SHA,
@@ -14,10 +13,11 @@ import {
   makeThread,
   serveFixture,
   EMPTY_TIMELINE,
-  type FixtureServer,
-  type FixtureState,
 } from "./fixture-server";
+import type { FixtureServer, FixtureState } from "./fixture-server";
 import { runCliForTest } from "./run-cli";
+
+const cliErrorEnvelopeSchema = z.object({ error: z.string().min(1), message: z.string() });
 
 const EXCLUDED_COMMANDS = new Map<string, string>([
   [
@@ -31,26 +31,26 @@ const EXCLUDED_COMMANDS = new Map<string, string>([
 ]);
 
 // re-applied between leaves: they mutate it (rename moves the file delete then wants).
-function seedFixture(state: FixtureState): void {
+const seedFixture = (state: FixtureState): void => {
   state.vault.clear();
   state.vault.set("notes/hello.md", "# Hello\n");
   state.revisions.set("notes/hello.md", [
-    { revision: makeRevision({ sha: FIXTURE_REVISION_SHA }), content: "# Hello\n" },
+    { content: "# Hello\n", revision: makeRevision({ sha: FIXTURE_REVISION_SHA }) },
   ]);
-  state.searchResults = [{ path: "notes/hello.md", title: "hello", snippet: "hi", score: 1 }];
-  state.tags = [{ tag: "project", count: 2 }];
+  state.searchResults = [{ path: "notes/hello.md", score: 1, snippet: "hi", title: "hello" }];
+  state.tags = [{ count: 2, tag: "project" }];
   state.backlinks = [
-    { sourcePath: "Welcome.md", line: 1, snippet: "[[hello]]", kind: "wiki", embed: false },
+    { embed: false, kind: "wiki", line: 1, snippet: "[[hello]]", sourcePath: "Welcome.md" },
   ];
   state.related = [
-    { path: "notes/nearby.md", title: "Nearby", score: 3, reasons: ["shares #project"] },
+    { path: "notes/nearby.md", reasons: ["shares #project"], score: 3, title: "Nearby" },
   ];
   state.connectors = {
     servers: [
       {
-        name: "context7",
         enabled: true,
-        transport: { kind: "http", url: "https://mcp.context7.com/mcp", hasAuth: true },
+        name: "context7",
+        transport: { hasAuth: true, kind: "http", url: "https://mcp.context7.com/mcp" },
       },
     ],
   };
@@ -65,47 +65,48 @@ function seedFixture(state: FixtureState): void {
     },
   ]);
   state.threads.push({
-    thread: makeThread({ id: "thr_1", status: "idle" }),
     pendingInteractions: [
       {
+        createdAt: 1_700_000_000_000,
         id: "int_1",
+        payload: null,
+        requestKey: "req_1",
+        resolution: null,
+        resolvedAt: null,
+        status: "pending",
         threadId: "thr_1",
         turnId: "turn_1",
-        requestKey: "req_1",
-        status: "pending",
-        payload: null,
-        resolution: null,
-        createdAt: 1_700_000_000_000,
-        resolvedAt: null,
       },
     ],
+    thread: makeThread({ id: "thr_1", status: "idle" }),
     timeline: EMPTY_TIMELINE,
   });
-}
+};
 
-function driveableState(): FixtureState {
+const driveableState = (): FixtureState => {
   const state = makeFixtureState();
   seedFixture(state);
   return state;
-}
+};
 
-async function boot(state: FixtureState): Promise<FixtureServer> {
+const boot = async (state: FixtureState): Promise<FixtureServer> => {
   const server = await serveFixture(state);
-  onTestFinished(() => server.close());
+  onTestFinished(async () => {
+    await server.close();
+  });
   return server;
-}
+};
 
-function leaves(): LeafCommand[] {
-  return collectLeafCommands(testProgram()).filter((leaf) => !EXCLUDED_COMMANDS.has(leaf.path));
-}
+const leaves = (): LeafCommand[] =>
+  collectLeafCommands(testProgram()).filter((leaf) => !EXCLUDED_COMMANDS.has(leaf.path));
 
-function invocationFor(path: string): readonly string[] {
+const invocationFor = (path: string): readonly string[] => {
   const argv = LEAF_INVOCATIONS.get(path);
   if (argv === undefined) {
     throw new Error(`no invocation registered for leaf "${path}" (add one to LEAF_INVOCATIONS)`);
   }
   return argv;
-}
+};
 
 describe("CLI --json flag enforcement", () => {
   it("every leaf command declares --json", () => {

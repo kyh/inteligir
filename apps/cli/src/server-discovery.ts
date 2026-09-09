@@ -2,7 +2,8 @@
 // checkout's server and write into its vault. no "point the CLI at a URL" hatch for the same reason: the token
 // would still come from a data dir, and the two halves could disagree.
 
-import { resolveAppConfig, type ResolveAppConfigArgs } from "./server/config";
+import { resolveAppConfig } from "./server/config";
+import type { ResolveAppConfigArgs } from "./server/config";
 import { readServerFile } from "./server/server-file";
 import { CliExitError, EXIT_UNREACHABLE } from "./cli-error";
 
@@ -22,7 +23,7 @@ export interface ResolveServerArgs {
   homeDir?: string;
 }
 
-export function resolveDataDir(args: ResolveServerArgs): string {
+export const resolveDataDir = (args: ResolveServerArgs): string => {
   const configArgs: ResolveAppConfigArgs = {
     checkoutPath: args.checkoutPath,
     env: args.env,
@@ -31,9 +32,9 @@ export function resolveDataDir(args: ResolveServerArgs): string {
     configArgs.homeDir = args.homeDir;
   }
   return resolveAppConfig(configArgs).dataDir;
-}
+};
 
-export function resolveServer(args: ResolveServerArgs): ResolvedServer {
+export const resolveServer = (args: ResolveServerArgs): ResolvedServer => {
   const dataDir = resolveDataDir(args);
   const server = readServerFile(dataDir);
   if (server === null) {
@@ -45,8 +46,8 @@ export function resolveServer(args: ResolveServerArgs): ResolvedServer {
   }
   return {
     baseUrl: `http://127.0.0.1:${String(server.port)}`,
-    token: server.token,
     dataDir,
+    token: server.token,
     vaultDir: server.vaultDir,
   };
-}
+};

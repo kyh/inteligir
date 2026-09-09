@@ -1,13 +1,8 @@
 import { useRef, useState } from "react";
 import { unwrapLink } from "@platejs/link";
 import { ExternalLinkIcon, PencilIcon, Unlink2Icon } from "lucide-react";
-import {
-  PlateElement,
-  useEditorRef,
-  useElement,
-  useReadOnly,
-  type PlateElementProps,
-} from "platejs/react";
+import { PlateElement, useEditorRef, useElement, useReadOnly } from "platejs/react";
+import type { PlateElementProps } from "platejs/react";
 
 import { cn } from "cn";
 import { Button } from "@repo/ui/components/button";
@@ -15,7 +10,7 @@ import { Popover, PopoverContent } from "@repo/ui/components/popover";
 
 import { stringProp } from "@repo/editor/node-props";
 
-function PopoverButton({
+const PopoverButton = ({
   onClick,
   title,
   children,
@@ -23,21 +18,19 @@ function PopoverButton({
   onClick: () => void;
   title: string;
   children: React.ReactNode;
-}) {
-  return (
-    <Button
-      variant="ghost"
-      size="icon-compact"
-      title={title}
-      onClick={onClick}
-      className="rounded-md text-foreground/80"
-    >
-      {children}
-    </Button>
-  );
-}
+}) => (
+  <Button
+    variant="ghost"
+    size="icon-compact"
+    title={title}
+    onClick={onClick}
+    className="rounded-md text-foreground/80"
+  >
+    {children}
+  </Button>
+);
 
-export function LinkElement(props: PlateElementProps) {
+export const LinkElement = (props: PlateElementProps) => {
   const editor = useEditorRef();
   const element = useElement();
   const readOnly = useReadOnly();
@@ -56,14 +49,18 @@ export function LinkElement(props: PlateElementProps) {
   const applyDraft = () => {
     const next = draft.trim();
     const at = editor.api.findPath(element);
-    if (next && at) editor.tf.setNodes({ url: next }, { at });
+    if (next && at) {
+      editor.tf.setNodes({ url: next }, { at });
+    }
     close();
     editor.tf.focus();
   };
 
   const removeLink = () => {
     const at = editor.api.findPath(element);
-    if (at) unwrapLink(editor, { at });
+    if (at) {
+      unwrapLink(editor, { at });
+    }
     close();
     editor.tf.focus();
   };
@@ -80,7 +77,9 @@ export function LinkElement(props: PlateElementProps) {
         href: url,
         onClick: (event: React.MouseEvent) => {
           event.preventDefault();
-          if (!readOnly) setOpen(true);
+          if (!readOnly) {
+            setOpen(true);
+          }
         },
       }}
     >
@@ -89,7 +88,9 @@ export function LinkElement(props: PlateElementProps) {
         open={open}
         onOpenChange={(next) => {
           setOpen(next);
-          if (!next) setEditing(false);
+          if (!next) {
+            setEditing(false);
+          }
         }}
       >
         <PopoverContent anchor={anchorRef} side="bottom" align="start" className="p-1">
@@ -98,13 +99,17 @@ export function LinkElement(props: PlateElementProps) {
               <input
                 autoFocus
                 value={draft}
-                onChange={(e) => setDraft(e.target.value)}
+                onChange={(e) => {
+                  setDraft(e.target.value);
+                }}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
                     e.preventDefault();
                     applyDraft();
                   }
-                  if (e.key === "Escape") setEditing(false);
+                  if (e.key === "Escape") {
+                    setEditing(false);
+                  }
                 }}
                 placeholder="https://…"
                 className="h-7 w-56 bg-transparent px-1.5 text-xs outline-none placeholder:text-muted-foreground"
@@ -125,7 +130,12 @@ export function LinkElement(props: PlateElementProps) {
               >
                 {url}
               </span>
-              <PopoverButton title="Open link" onClick={() => window.open(url, "_blank")}>
+              <PopoverButton
+                title="Open link"
+                onClick={() => {
+                  window.open(url, "_blank");
+                }}
+              >
                 <ExternalLinkIcon />
               </PopoverButton>
               <PopoverButton
@@ -146,4 +156,4 @@ export function LinkElement(props: PlateElementProps) {
       </Popover>
     </PlateElement>
   );
-}
+};

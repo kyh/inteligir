@@ -14,11 +14,13 @@ import { usePinnedPaths } from "../vault-hooks";
 type FileEntry = Extract<VaultTreeResponse["entries"][number], { kind: "file" }>;
 
 // the folder a note sits in, spelled from the listing's scope; empty at the scope itself
-export function folderHint(path: string, scope: string): string {
+export const folderHint = (path: string, scope: string): string => {
   const dir = dirnamePath(path);
-  if (scope === "") return dir;
+  if (scope === "") {
+    return dir;
+  }
   return dir === scope ? "" : dir.slice(scope.length + 1);
-}
+};
 
 export interface NotesListProps {
   entries: VaultTreeResponse["entries"];
@@ -33,7 +35,7 @@ export interface NotesListProps {
 }
 
 // One list by recency: folders are the tree view's business.
-export function NotesList({
+export const NotesList = ({
   entries,
   scope,
   openPath,
@@ -41,7 +43,7 @@ export function NotesList({
   emptyText = "No notes yet.",
   onSetPinned,
   limit,
-}: NotesListProps) {
+}: NotesListProps) => {
   const pinnedPaths = usePinnedPaths();
   const now = useNow();
   const [menu, setMenu] = useState<{ path: string; anchor: HTMLElement } | null>(null);
@@ -76,9 +78,11 @@ export function NotesList({
           onOpenFile(note.path);
         }}
         onContextMenu={(event) => {
-          if (onSetPinned === undefined) return;
+          if (onSetPinned === undefined) {
+            return;
+          }
           event.preventDefault();
-          setMenu({ path: note.path, anchor: event.currentTarget });
+          setMenu({ anchor: event.currentTarget, path: note.path });
         }}
       >
         <span className="min-w-0 truncate">{docStem(note.path)}</span>
@@ -106,10 +110,12 @@ export function NotesList({
       <DropdownMenu
         open={menu !== null}
         onOpenChange={(open) => {
-          if (!open) setMenu(null);
+          if (!open) {
+            setMenu(null);
+          }
         }}
       >
-        {menu !== null ? (
+        {menu === null ? null : (
           <DropdownMenuContent anchor={menu.anchor} align="start" side="bottom">
             <DropdownMenuItem
               onClick={() => {
@@ -121,8 +127,8 @@ export function NotesList({
               {pinnedPaths.has(menu.path) ? "Unpin" : "Pin"}
             </DropdownMenuItem>
           </DropdownMenuContent>
-        ) : null}
+        )}
       </DropdownMenu>
     </div>
   );
-}
+};

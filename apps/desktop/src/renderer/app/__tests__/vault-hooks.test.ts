@@ -1,32 +1,29 @@
 import { readFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import path from "node:path";
 import { ORPCError } from "@orpc/client";
 import { DEFAULT_DOC_EXTENSION } from "@repo/notes/knowledge/doc-file";
-import {
-  vaultStatusResponseSchema,
-  type VaultStatusResponse,
-  type VaultTreeResponse,
-} from "@repo/api/local/vault/vault-schema";
+import { vaultStatusResponseSchema } from "@repo/api/local/vault/vault-schema";
+import type { VaultStatusResponse, VaultTreeResponse } from "@repo/api/local/vault/vault-schema";
 import { describe, expect, it } from "vitest";
 import {
   filePathsLowercased,
   renameVaultEntry,
   syncStateLabel,
   untitledNotePath,
-  type RenameVaultApi,
 } from "../vault-hooks";
+import type { RenameVaultApi } from "../vault-hooks";
 import { rendererSources } from "./renderer-sources";
 
-const REPO_ROOT = resolve(import.meta.dirname, "../../../../../..");
+const REPO_ROOT = path.resolve(import.meta.dirname, "../../../../../..");
 
 const tree = (...paths: string[]): VaultTreeResponse => ({
-  root: "/home/kyh/vault",
-  name: "vault",
-  entries: paths.map((path) =>
-    path.endsWith("/")
-      ? { kind: "dir" as const, path: path.slice(0, -1) }
-      : { kind: "file" as const, path },
+  entries: paths.map((entry) =>
+    entry.endsWith("/")
+      ? { kind: "dir" as const, path: entry.slice(0, -1) }
+      : { kind: "file" as const, path: entry },
   ),
+  name: "vault",
+  root: "/home/kyh/vault",
 });
 
 const EXTENSION = DEFAULT_DOC_EXTENSION.slice(1);
@@ -36,7 +33,7 @@ const PRIVATE_DOC_RULES: readonly RegExp[] = [
 ];
 
 describe("what the client calls a doc, and what it calls it by", () => {
-  const files = rendererSources(join(REPO_ROOT, "apps/desktop/src/renderer"));
+  const files = rendererSources(path.join(REPO_ROOT, "apps/desktop/src/renderer"));
 
   it("finds the renderer at all", () => {
     expect(files.length).toBeGreaterThan(20);
@@ -46,7 +43,7 @@ describe("what the client calls a doc, and what it calls it by", () => {
     "no module spells its own %s",
     (_source, rule) => {
       const offenders = files
-        .filter((file) => rule.test(readFileSync(file, "utf8")))
+        .filter((file) => rule.test(readFileSync(file, "utf-8")))
         .map((file) => file.slice(REPO_ROOT.length + 1));
       expect(
         offenders,
@@ -56,37 +53,38 @@ describe("what the client calls a doc, and what it calls it by", () => {
   );
 });
 
-function renameApi(answer: () => Promise<{ path: string; rewritten: string[] }>): RenameVaultApi {
-  return { vault: { rename: answer } };
-}
+const renameApi = (answer: () => { path: string; rewritten: string[] }): RenameVaultApi => ({
+  // oxlint-disable-next-line require-await -- `vault.rename` is an async port; this fake answers from memory
+  vault: { rename: async () => answer() },
+});
 
 describe("renaming a vault entry", () => {
   it("carries the server's refusal, verbatim", async () => {
-    const api = renameApi(() =>
-      Promise.reject(
-        new ORPCError("CONFLICT", { message: "Target already exists: notes/plans.md" }),
-      ),
-    );
+    const api = renameApi(() => {
+      throw new ORPCError("CONFLICT", { message: "Target already exists: notes/plans.md" });
+    });
     const outcome = await renameVaultEntry(api, "notes/ideas.md", "notes/plans.md");
     expect(outcome).toEqual({
-      ok: false,
       message: "Target already exists: notes/plans.md",
+      ok: false,
     });
   });
 
   it("falls back only when the failure carries no sentence of its own", async () => {
-    const api = renameApi(() => Promise.reject(new Error("")));
+    const api = renameApi(() => {
+      throw new ORPCError("INTERNAL_SERVER_ERROR", { message: "" });
+    });
     const outcome = await renameVaultEntry(api, "notes/ideas.md", "notes/plans.md");
-    expect(outcome).toEqual({ ok: false, message: "Could not rename notes/ideas.md." });
+    expect(outcome).toEqual({ message: "Could not rename notes/ideas.md.", ok: false });
   });
 
   it("reports a rename that landed", async () => {
-    const api = renameApi(() => Promise.resolve({ path: "b.md", rewritten: [] }));
+    const api = renameApi(() => ({ path: "b.md", rewritten: [] }));
     await expect(renameVaultEntry(api, "a.md", "b.md")).resolves.toEqual({ ok: true });
   });
 });
 
-const SYNC_FIELDS = { lastSyncAt: null, lastError: null };
+const SYNC_FIELDS = { lastError: null, lastSyncAt: null };
 const REMOTE = {
   remote: "git@example.com:vault.git",
   remoteSource: "explicit" as const,
@@ -103,8 +101,8 @@ const EVERY_STATUS: readonly VaultStatusResponse[] = [
   { state: "unauthorized", ...REMOTE },
   { state: "account-mismatch", ...REMOTE },
   {
-    state: "conflict",
     conflict: { files: ["a.md", "b.md"], ours: { commits: 1 }, theirs: { commits: 1 } },
+    state: "conflict",
     ...REMOTE,
   },
   { state: "broken", ...REMOTE },
@@ -123,7 +121,10 @@ describe("naming a sync state", () => {
   it.each(["app/sidebar/sidebar.tsx", "app/settings/settings-page.tsx"])(
     "%s writes none of the sentences itself",
     (relative) => {
-      const source = readFileSync(join(REPO_ROOT, "apps/desktop/src/renderer", relative), "utf8");
+      const source = readFileSync(
+        path.join(REPO_ROOT, "apps/desktop/src/renderer", relative),
+        "utf-8",
+      );
       for (const status of EVERY_STATUS) {
         // the conflict label carries an interpolated count; match the part before it.
         const sentence = syncStateLabel(status).split(" (")[0] ?? "";
@@ -134,8 +135,8 @@ describe("naming a sync state", () => {
 
   it("keeps that sweep honest — the sentences are in vault-hooks", () => {
     const source = readFileSync(
-      join(REPO_ROOT, "apps/desktop/src/renderer/app/vault-hooks.ts"),
-      "utf8",
+      path.join(REPO_ROOT, "apps/desktop/src/renderer/app/vault-hooks.ts"),
+      "utf-8",
     );
     for (const status of EVERY_STATUS) {
       expect(source).toContain(syncStateLabel(status).split(" (")[0] ?? "");

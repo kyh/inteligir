@@ -8,18 +8,16 @@ export interface DiffHunk {
 
 // lf alone, not source-lines' eol-aware `splitLines`: the merge joins segments back into the
 // file's bytes, so a `\r` must stay inside a line's content rather than become a terminator.
-export function splitLinesLf(text: string): string[] {
-  return text.split("\n");
-}
+export const splitLinesLf = (text: string): string[] => text.split("\n");
 
-function backtrackMatches(
+const backtrackMatches = (
   trace: readonly (readonly number[])[],
   foundD: number,
   offset: number,
   n: number,
   m: number,
-): Array<[number, number]> {
-  const matches: Array<[number, number]> = [];
+): [number, number][] => {
+  const matches: [number, number][] = [];
   let x = n;
   let y = m;
   for (let d = foundD; d > 0; d -= 1) {
@@ -51,9 +49,42 @@ function backtrackMatches(
   }
   matches.reverse();
   return matches;
+};
+
+interface ForwardWalk {
+  foundD: number;
+  offset: number;
+  trace: number[][];
 }
 
-export function diffLines(base: readonly string[], side: readonly string[]): DiffHunk[] {
+const forwardWalk = (a: readonly string[], b: readonly string[]): ForwardWalk => {
+  const n = a.length;
+  const m = b.length;
+  const max = n + m;
+  const offset = max;
+  const frontier: number[] = Array.from({ length: 2 * max + 1 }, () => 0);
+  const trace: number[][] = [];
+  for (let d = 0; d <= max; d += 1) {
+    trace.push([...frontier]);
+    for (let k = -d; k <= d; k += 2) {
+      const takeDown =
+        k === -d || (k !== d && (frontier[offset + k - 1] ?? 0) < (frontier[offset + k + 1] ?? 0));
+      let x = takeDown ? (frontier[offset + k + 1] ?? 0) : (frontier[offset + k - 1] ?? 0) + 1;
+      let y = x - k;
+      while (x < n && y < m && a[x] === b[y]) {
+        x += 1;
+        y += 1;
+      }
+      frontier[offset + k] = x;
+      if (x >= n && y >= m) {
+        return { foundD: d, offset, trace };
+      }
+    }
+  }
+  throw new Error("diff walk did not terminate");
+};
+
+export const diffLines = (base: readonly string[], side: readonly string[]): DiffHunk[] => {
   let prefix = 0;
   const maxPrefix = Math.min(base.length, side.length);
   while (prefix < maxPrefix && base[prefix] === side[prefix]) {
@@ -73,36 +104,10 @@ export function diffLines(base: readonly string[], side: readonly string[]): Dif
     return [];
   }
   if (n === 0 || m === 0) {
-    return [{ baseStart: prefix, baseEnd: prefix + n, sideStart: prefix, sideEnd: prefix + m }];
+    return [{ baseEnd: prefix + n, baseStart: prefix, sideEnd: prefix + m, sideStart: prefix }];
   }
 
-  const max = n + m;
-  const offset = max;
-  const frontier: number[] = Array.from({ length: 2 * max + 1 }, () => 0);
-  const trace: number[][] = [];
-  let foundD = -1;
-  outer: for (let d = 0; d <= max; d += 1) {
-    trace.push([...frontier]);
-    for (let k = -d; k <= d; k += 2) {
-      const takeDown =
-        k === -d || (k !== d && (frontier[offset + k - 1] ?? 0) < (frontier[offset + k + 1] ?? 0));
-      let x = takeDown ? (frontier[offset + k + 1] ?? 0) : (frontier[offset + k - 1] ?? 0) + 1;
-      let y = x - k;
-      while (x < n && y < m && a[x] === b[y]) {
-        x += 1;
-        y += 1;
-      }
-      frontier[offset + k] = x;
-      if (x >= n && y >= m) {
-        foundD = d;
-        break outer;
-      }
-    }
-  }
-  if (foundD < 0) {
-    throw new Error("diff walk did not terminate");
-  }
-
+  const { foundD, offset, trace } = forwardWalk(a, b);
   const matches = backtrackMatches(trace, foundD, offset, n, m);
 
   const hunks: DiffHunk[] = [];
@@ -111,10 +116,10 @@ export function diffLines(base: readonly string[], side: readonly string[]): Dif
   const pushGap = (nextA: number, nextB: number): void => {
     if (nextA > lastA || nextB > lastB) {
       hunks.push({
-        baseStart: prefix + lastA,
         baseEnd: prefix + nextA,
-        sideStart: prefix + lastB,
+        baseStart: prefix + lastA,
         sideEnd: prefix + nextB,
+        sideStart: prefix + lastB,
       });
     }
   };
@@ -125,4 +130,4 @@ export function diffLines(base: readonly string[], side: readonly string[]): Dif
   }
   pushGap(n, m);
   return hunks;
-}
+};

@@ -1,33 +1,36 @@
 import type { UnlinkedMentionWire } from "@repo/api/local/knowledge/knowledge-schema";
-import { contentHashHex, type VaultWriteRequest } from "@repo/api/local/vault/vault-schema";
+import { contentHashHex } from "@repo/api/local/vault/vault-schema";
+import type { VaultWriteRequest } from "@repo/api/local/vault/vault-schema";
 import { describe, expect, it, vi } from "vitest";
-import { linkMentionInNote, linkMentionMessage, type LinkMentionApi } from "../link-mention";
+import { linkMentionInNote, linkMentionMessage } from "../link-mention";
+import type { LinkMentionApi } from "../link-mention";
 
 const mention: UnlinkedMentionWire = {
-  path: "a.md",
-  title: "a",
-  line: 1,
-  column: 15,
-  length: 7,
-  before: "We revisit the ",
-  text: "roadmap",
   after: " on Monday.",
+  before: "We revisit the ",
+  column: 15,
   count: 1,
+  length: 7,
+  line: 1,
+  path: "a.md",
+  text: "roadmap",
+  title: "a",
 };
 
-function apiOver(content: string): LinkMentionApi & { writes: VaultWriteRequest[] } {
+const apiOver = (content: string): LinkMentionApi & { writes: VaultWriteRequest[] } => {
   const writes: VaultWriteRequest[] = [];
   return {
-    writes,
     vault: {
-      read: vi.fn(() => Promise.resolve({ path: "a.md", content })),
-      write: vi.fn((input: VaultWriteRequest) => {
+      read: vi.fn<LinkMentionApi["vault"]["read"]>().mockResolvedValue({ content, path: "a.md" }),
+      // oxlint-disable-next-line require-await -- the vault is an async port; this fake answers from memory
+      write: vi.fn(async (input: VaultWriteRequest) => {
         writes.push(input);
-        return Promise.resolve({ path: "a.md", hash: "x" });
+        return { hash: "x", path: "a.md" };
       }),
     },
+    writes,
   };
-}
+};
 
 describe("linking an unlinked mention", () => {
   it("writes the wrapped bytes with the hash of what it read", async () => {
@@ -39,9 +42,9 @@ describe("linking an unlinked mention", () => {
     });
     expect(api.writes).toEqual([
       {
-        path: "a.md",
         content: "We revisit the [[Roadmap|roadmap]] on Monday.\n",
         expectedHash: await contentHashHex(content),
+        path: "a.md",
       },
     ]);
   });
@@ -54,7 +57,7 @@ describe("linking an unlinked mention", () => {
 
   it("reports a refused read by name", async () => {
     const api = apiOver("");
-    api.vault.read = vi.fn(() => Promise.reject(new Error("gone")));
+    api.vault.read = vi.fn<LinkMentionApi["vault"]["read"]>().mockRejectedValue(new Error("gone"));
     const outcome = await linkMentionInNote(api, mention, "Roadmap");
     expect(outcome.kind).toBe("failed");
     expect(linkMentionMessage(outcome, "a.md")).toMatch(/^Could not link from a\.md/u);

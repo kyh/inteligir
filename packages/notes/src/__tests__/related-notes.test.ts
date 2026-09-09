@@ -4,30 +4,32 @@ import { KnowledgeIndex } from "../knowledge/knowledge-index";
 import type { RelatedNoteEntry } from "../knowledge/related-notes";
 
 const CORPUS = {
-  "notes/subject.md": "# Subject\n\nSee [[hub]].\n\n#alpha #beta\n",
-  "notes/hub.md": "# Hub\n\nPlain body.\n",
-  "notes/coupled.md": "# Coupled\n\nAlso about [[hub]].\n",
   "notes/citer.md": "# Citer\n\nBoth [[subject]] and [[cocited]].\n",
   "notes/cocited.md": "# Cocited\n\nPlain body.\n",
-  "notes/tagmates.md": "# Tagmates\n\n#alpha #beta\n",
+  "notes/coupled.md": "# Coupled\n\nAlso about [[hub]].\n",
+  "notes/hub.md": "# Hub\n\nPlain body.\n",
+  "notes/subject.md": "# Subject\n\nSee [[hub]].\n\n#alpha #beta\n",
   "notes/tagmate-single.md": "# Single\n\n#alpha\n",
+  "notes/tagmates.md": "# Tagmates\n\n#alpha #beta\n",
   "notes/unrelated.md": "# Unrelated\n\nNothing in common here.\n",
 };
 
-function seed(): KnowledgeIndex {
+const seed = (): KnowledgeIndex => {
   const index = new KnowledgeIndex();
   for (const [path, content] of Object.entries(CORPUS)) {
     index.setDoc(path, content);
   }
   return index;
-}
+};
 
-function entryFor(entries: RelatedNoteEntry[], path: string): RelatedNoteEntry {
+const entryFor = (entries: RelatedNoteEntry[], path: string): RelatedNoteEntry => {
   const entry = entries.find((candidate) => candidate.path === path);
   expect(entry, `expected ${path} among ${entries.map((e) => e.path).join(", ")}`).toBeDefined();
-  if (!entry) throw new Error("unreachable");
+  if (!entry) {
+    throw new Error("unreachable");
+  }
   return entry;
-}
+};
 
 describe("relatedNotes (KnowledgeIndex composition)", () => {
   it("surfaces shared-target, co-cited and shared-tag notes — never the unrelated one", () => {

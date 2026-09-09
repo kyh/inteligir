@@ -26,24 +26,23 @@ if (port === null) {
 }
 
 // optional-chained: ts does not carry the null guard above into the closures.
-function post(reply: VoiceWorkerResponse | VoiceStreamEvent): void {
+const post = (reply: VoiceWorkerResponse | VoiceStreamEvent): void => {
   port?.postMessage(reply);
-}
+};
 
-function message(cause: unknown): string {
-  return cause instanceof Error ? cause.message : String(cause);
-}
+const message = (cause: unknown): string =>
+  cause instanceof Error ? cause.message : String(cause);
 
 interface SherpaStream {
-  acceptWaveform(input: { sampleRate: number; samples: Float32Array }): void;
-  inputFinished(): void;
+  acceptWaveform: (input: { sampleRate: number; samples: Float32Array }) => void;
+  inputFinished: () => void;
 }
 
 interface SherpaRecognizer {
-  createStream(): SherpaStream;
-  isReady(stream: SherpaStream): boolean;
-  decode(stream: SherpaStream): void;
-  getResult(stream: SherpaStream): { text: string };
+  createStream: () => SherpaStream;
+  isReady: (stream: SherpaStream) => boolean;
+  decode: (stream: SherpaStream) => void;
+  getResult: (stream: SherpaStream) => { text: string };
 }
 
 interface SherpaRecognizerConfig {
@@ -60,9 +59,7 @@ interface SherpaRecognizerConfig {
   enableEndpoint: boolean;
 }
 
-interface OnlineRecognizerCtor {
-  new (config: SherpaRecognizerConfig): SherpaRecognizer;
-}
+type OnlineRecognizerCtor = new (config: SherpaRecognizerConfig) => SherpaRecognizer;
 
 interface SherpaModule {
   OnlineRecognizer: OnlineRecognizerCtor;
@@ -76,7 +73,7 @@ const sherpaModuleSchema = z.custom<SherpaModule>(
       .safeParse(value).success,
 );
 
-async function importSherpa(): Promise<SherpaModule | null> {
+const importSherpa = async (): Promise<SherpaModule | null> => {
   const mod: unknown = await import("sherpa-onnx-node");
   const direct = sherpaModuleSchema.safeParse(mod);
   if (direct.success) {
@@ -84,48 +81,66 @@ async function importSherpa(): Promise<SherpaModule | null> {
   }
   const nested = z.looseObject({ default: sherpaModuleSchema }).safeParse(mod);
   return nested.success ? nested.data.default : null;
-}
+};
 
-async function loadRecognizer(model: VoiceModelFiles): Promise<SherpaRecognizer> {
+const modelFilesSchema = z.object({
+  decoder: z.string(),
+  encoder: z.string(),
+  joiner: z.string(),
+  tokens: z.string(),
+});
+
+// workerData crosses the thread boundary untyped; the host annotates its literal, this parses it.
+const workerDataSchema: z.ZodType<VoiceWorkerData> = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("probe") }),
+  z.object({
+    kind: z.literal("transcribe"),
+    model: modelFilesSchema,
+    pcm: z.instanceof(ArrayBuffer),
+  }),
+  z.object({ kind: z.literal("stream"), model: modelFilesSchema }),
+]);
+
+const loadRecognizer = async (model: VoiceModelFiles): Promise<SherpaRecognizer> => {
   const sherpa = await importSherpa();
   if (sherpa === null) {
     throw new Error("sherpa-onnx-node did not export OnlineRecognizer");
   }
   const config: SherpaRecognizerConfig = {
-    featConfig: { sampleRate: VOICE_SAMPLE_RATE, featureDim: 80 },
-    modelConfig: {
-      transducer: { encoder: model.encoder, decoder: model.decoder, joiner: model.joiner },
-      tokens: model.tokens,
-      numThreads: 2,
-      provider: "cpu",
-      modelType: "nemo_transducer",
-      debug: false,
-    },
     decodingMethod: "greedy_search",
     // endpointing off: dictation is push-to-talk, so the hold is one utterance. on, a pause
     // would split the transcript and reset the stream mid-hold, dropping earlier words.
     enableEndpoint: false,
+    featConfig: { featureDim: 80, sampleRate: VOICE_SAMPLE_RATE },
+    modelConfig: {
+      debug: false,
+      modelType: "nemo_transducer",
+      numThreads: 2,
+      provider: "cpu",
+      tokens: model.tokens,
+      transducer: { decoder: model.decoder, encoder: model.encoder, joiner: model.joiner },
+    },
   };
   return new sherpa.OnlineRecognizer(config);
-}
+};
 
-function int16ToFloat32(pcm: ArrayBuffer): Float32Array {
+const int16ToFloat32 = (pcm: ArrayBuffer): Float32Array => {
   const ints = new Int16Array(pcm);
   const floats = new Float32Array(ints.length);
   for (let index = 0; index < ints.length; index += 1) {
-    floats[index] = (ints[index] ?? 0) / 0x8000;
+    floats[index] = (ints[index] ?? 0) / 0x80_00;
   }
   return floats;
-}
+};
 
-function decodeInto(recognizer: SherpaRecognizer, stream: SherpaStream): string {
+const decodeInto = (recognizer: SherpaRecognizer, stream: SherpaStream): string => {
   while (recognizer.isReady(stream)) {
     recognizer.decode(stream);
   }
   return recognizer.getResult(stream).text.trim();
-}
+};
 
-async function runOneShot(request: VoiceWorkerRequest): Promise<VoiceWorkerResponse> {
+const runOneShot = async (request: VoiceWorkerRequest): Promise<VoiceWorkerResponse> => {
   if (request.kind === "probe") {
     if ((await importSherpa()) === null) {
       return { kind: "failed", message: "sherpa-onnx-node did not load", modelUnusable: false };
@@ -149,12 +164,14 @@ async function runOneShot(request: VoiceWorkerRequest): Promise<VoiceWorkerRespo
     // the model loaded; this is about the audio.
     return { kind: "failed", message: message(error), modelUnusable: false };
   }
-}
+};
 
 // the native calls are synchronous and the handler never awaits after the load, so commands
 // cannot overlap.
-async function runStream(model: VoiceModelFiles): Promise<void> {
-  const emit = (event: VoiceStreamEvent): void => post(event);
+const runStream = async (model: VoiceModelFiles): Promise<void> => {
+  const emit = (event: VoiceStreamEvent): void => {
+    post(event);
+  };
   let recognizer: SherpaRecognizer;
   let stream: SherpaStream;
   try {
@@ -193,18 +210,24 @@ async function runStream(model: VoiceModelFiles): Promise<void> {
       emit({ kind: "failed", message: message(error), modelUnusable: false });
     }
   });
-}
+};
 
-const data: VoiceWorkerData = workerData;
+const answerOneShot = async (request: VoiceWorkerRequest): Promise<void> => {
+  let response: VoiceWorkerResponse;
+  try {
+    response = await runOneShot(request);
+  } catch (error) {
+    // only the dynamic import itself throwing lands here: a broken js wrapper is as unusable
+    // as a binding that will not load.
+    post({ kind: "failed", message: message(error), modelUnusable: true });
+    return;
+  }
+  post(response);
+};
+
+const data = workerDataSchema.parse(workerData);
 if (data.kind === "stream") {
   void runStream(data.model);
 } else {
-  runOneShot(data).then(
-    (response) => post(response),
-    (cause: unknown) => {
-      // only the dynamic import itself throwing lands here: a broken js wrapper is as unusable
-      // as a binding that will not load.
-      post({ kind: "failed", message: message(cause), modelUnusable: true });
-    },
-  );
+  void answerOneShot(data);
 }

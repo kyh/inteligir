@@ -1,4 +1,4 @@
-import { env } from "cloudflare:test";
+import { env } from "cloudflare:workers";
 import { beforeAll } from "vitest";
 
 // splitting the DDL on `;` holds only while no string literal in the schema contains one

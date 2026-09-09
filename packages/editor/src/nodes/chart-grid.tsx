@@ -15,7 +15,7 @@ export interface ChartGridView {
 }
 
 // misaligned multi-series payloads stay raw-only rather than being quietly realigned.
-export function chartGridView(chart: ChartPayload): ChartGridView | null {
+export const chartGridView = (chart: ChartPayload): ChartGridView | null => {
   if ("data" in chart) {
     return {
       labels: chart.data.map((point) => point.label),
@@ -25,27 +25,29 @@ export function chartGridView(chart: ChartPayload): ChartGridView | null {
   }
   const labels = chart.series[0]?.data.map((point) => point.label) ?? [];
   for (const row of chart.series) {
-    if (row.data.length !== labels.length) return null;
-    if (row.data.some((point, i) => point.label !== labels[i])) return null;
+    if (row.data.length !== labels.length) {
+      return null;
+    }
+    if (row.data.some((point, i) => point.label !== labels[i])) {
+      return null;
+    }
   }
   return {
     labels,
     seriesNames: chart.series.map((row) => row.name),
     values: chart.series.map((row) => row.data.map((point) => point.value)),
   };
-}
+};
 
-export function emitChartPayload(chart: ChartPayload): string {
-  return JSON.stringify(chart, null, 2);
-}
+export const emitChartPayload = (chart: ChartPayload): string => JSON.stringify(chart, null, 2);
 
-function mapPoints(
+const mapPoints = (
   chart: ChartPayload,
   map: (
     points: { color?: string | undefined; label: string; value: number }[],
     column: number,
   ) => { color?: string | undefined; label: string; value: number }[],
-): ChartPayload {
+): ChartPayload => {
   if ("data" in chart) {
     return { ...chart, data: map(chart.data, 0) };
   }
@@ -53,53 +55,55 @@ function mapPoints(
     ...chart,
     series: chart.series.map((row, column) => ({ ...row, data: map(row.data, column) })),
   };
-}
+};
 
-export function chartWithCellValue(
+export const chartWithCellValue = (
   chart: ChartPayload,
   column: number,
   row: number,
   value: number,
-): ChartPayload {
-  return mapPoints(chart, (points, pointsColumn) =>
+): ChartPayload =>
+  mapPoints(chart, (points, pointsColumn) =>
     pointsColumn === column
       ? points.map((point, i) => (i === row ? { ...point, value } : point))
       : points,
   );
-}
 
-export function chartWithRowLabel(chart: ChartPayload, row: number, label: string): ChartPayload {
-  return mapPoints(chart, (points) =>
-    points.map((point, i) => (i === row ? { ...point, label } : point)),
-  );
-}
+export const chartWithRowLabel = (chart: ChartPayload, row: number, label: string): ChartPayload =>
+  mapPoints(chart, (points) => points.map((point, i) => (i === row ? { ...point, label } : point)));
 
-export function chartWithSeriesName(
+export const chartWithSeriesName = (
   chart: ChartPayload,
   column: number,
   name: string,
-): ChartPayload {
-  if ("data" in chart) return chart;
+): ChartPayload => {
+  if ("data" in chart) {
+    return chart;
+  }
   return {
     ...chart,
     series: chart.series.map((row, i) => (i === column ? { ...row, name } : row)),
   };
-}
+};
 
-export function chartWithRowAdded(chart: ChartPayload): ChartPayload {
+export const chartWithRowAdded = (chart: ChartPayload): ChartPayload => {
   const count = "data" in chart ? chart.data.length : (chart.series[0]?.data.length ?? 0);
   const label = `Label ${String(count + 1)}`;
   return mapPoints(chart, (points) => [...points, { label, value: 0 }]);
-}
+};
 
-export function chartWithRowRemoved(chart: ChartPayload, row: number): ChartPayload | null {
+export const chartWithRowRemoved = (chart: ChartPayload, row: number): ChartPayload | null => {
   const count = "data" in chart ? chart.data.length : (chart.series[0]?.data.length ?? 0);
-  if (count <= 1) return null;
+  if (count <= 1) {
+    return null;
+  }
   return mapPoints(chart, (points) => points.filter((_, i) => i !== row));
-}
+};
 
-export function chartWithSeriesAdded(chart: ChartPayload): ChartPayload | null {
-  if ("data" in chart) return null;
+export const chartWithSeriesAdded = (chart: ChartPayload): ChartPayload | null => {
+  if ("data" in chart) {
+    return null;
+  }
   const labels = chart.series[0]?.data.map((point) => point.label) ?? [];
   return {
     ...chart,
@@ -111,15 +115,22 @@ export function chartWithSeriesAdded(chart: ChartPayload): ChartPayload | null {
       },
     ],
   };
-}
+};
 
-export function chartWithSeriesRemoved(chart: ChartPayload, column: number): ChartPayload | null {
-  if ("data" in chart) return null;
-  if (chart.series.length <= 1) return null;
+export const chartWithSeriesRemoved = (
+  chart: ChartPayload,
+  column: number,
+): ChartPayload | null => {
+  if ("data" in chart) {
+    return null;
+  }
+  if (chart.series.length <= 1) {
+    return null;
+  }
   return { ...chart, series: chart.series.filter((_, i) => i !== column) };
-}
+};
 
-function CellInput({
+const CellInput = ({
   align,
   ariaLabel,
   onCommit,
@@ -129,7 +140,7 @@ function CellInput({
   ariaLabel: string;
   onCommit: (text: string) => boolean;
   text: string;
-}) {
+}) => {
   const [draft, setDraft] = useState<string | null>(null);
   const commit = (element: HTMLInputElement): void => {
     if (draft !== null && draft !== text && !onCommit(draft)) {
@@ -161,9 +172,9 @@ function CellInput({
       }}
     />
   );
-}
+};
 
-export function ChartGridEditor({
+export const ChartGridEditor = ({
   chart,
   onCommit,
   onRawEdit,
@@ -171,7 +182,7 @@ export function ChartGridEditor({
   chart: ChartPayload;
   onCommit: (next: ChartPayload) => void;
   onRawEdit: () => void;
-}) {
+}) => {
   const view = chartGridView(chart);
   if (view === null) {
     return (
@@ -208,7 +219,9 @@ export function ChartGridEditor({
                     ariaLabel={`Series ${String(column + 1)} name`}
                     text={view.seriesNames[column] ?? ""}
                     onCommit={(text) => {
-                      if (text.trim() === "") return false;
+                      if (text.trim() === "") {
+                        return false;
+                      }
                       onCommit(chartWithSeriesName(chart, column, text));
                       return true;
                     }}
@@ -216,7 +229,7 @@ export function ChartGridEditor({
                 )}
               </th>
             ))}
-            <th className="w-6 border-b border-border/60" />
+            <th aria-label="Remove row" className="w-6 border-b border-border/60" />
           </tr>
         </thead>
         <tbody>
@@ -241,7 +254,9 @@ export function ChartGridEditor({
                     text={String(view.values[column]?.[row] ?? 0)}
                     onCommit={(text) => {
                       const value = Number(text.trim());
-                      if (text.trim() === "" || Number.isNaN(value)) return false;
+                      if (text.trim() === "" || Number.isNaN(value)) {
+                        return false;
+                      }
                       onCommit(chartWithCellValue(chart, column, row, value));
                       return true;
                     }}
@@ -256,7 +271,9 @@ export function ChartGridEditor({
                     className="text-xs text-muted-foreground opacity-0 group-hover/chartrow:opacity-100 hover:text-destructive"
                     onClick={() => {
                       const next = chartWithRowRemoved(chart, row);
-                      if (next !== null) onCommit(next);
+                      if (next !== null) {
+                        onCommit(next);
+                      }
                     }}
                   >
                     ×
@@ -284,7 +301,9 @@ export function ChartGridEditor({
               className="hover:text-foreground"
               onClick={() => {
                 const next = chartWithSeriesAdded(chart);
-                if (next !== null) onCommit(next);
+                if (next !== null) {
+                  onCommit(next);
+                }
               }}
             >
               + Series
@@ -294,7 +313,9 @@ export function ChartGridEditor({
               className="hover:text-foreground"
               onClick={() => {
                 const next = chartWithSeriesRemoved(chart, chart.series.length - 1);
-                if (next !== null) onCommit(next);
+                if (next !== null) {
+                  onCommit(next);
+                }
               }}
             >
               − Series
@@ -308,4 +329,4 @@ export function ChartGridEditor({
       </div>
     </div>
   );
-}
+};

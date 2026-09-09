@@ -1,7 +1,8 @@
 // runs current → revision: removed rows are what the note holds now. the empty final
 // segment of a newline-terminated file is kept, or two files with different bytes read identical.
 
-import { diffLines, splitLinesLf, type DiffHunk } from "@repo/notes/text/line-diff";
+import { diffLines, splitLinesLf } from "@repo/notes/text/line-diff";
+import type { DiffHunk } from "@repo/notes/text/line-diff";
 
 export type DiffRow = { id: string } & (
   | { kind: "context"; text: string }
@@ -14,11 +15,11 @@ export type DiffRow = { id: string } & (
 const CONTEXT_LINES = 2;
 
 // the Myers walk clones its frontier per round; two long notes sharing nothing runs to hundreds of megabytes.
-const DIFF_LINE_BUDGET = 4_000;
+const DIFF_LINE_BUDGET = 4000;
 
 const MAX_DIFF_ROWS = 400;
 
-export function diffRows(current: string, revision: string): DiffRow[] {
+export const diffRows = (current: string, revision: string): DiffRow[] => {
   if (current === revision) {
     return [];
   }
@@ -26,7 +27,7 @@ export function diffRows(current: string, revision: string): DiffRow[] {
   const revisionLines = splitLinesLf(revision);
   const overBudget = currentLines.length + revisionLines.length > DIFF_LINE_BUDGET;
   const hunks: readonly DiffHunk[] = overBudget
-    ? [{ baseStart: 0, baseEnd: currentLines.length, sideStart: 0, sideEnd: revisionLines.length }]
+    ? [{ baseEnd: currentLines.length, baseStart: 0, sideEnd: revisionLines.length, sideStart: 0 }]
     : diffLines(currentLines, revisionLines);
 
   const rows: DiffRow[] = [];
@@ -67,4 +68,4 @@ export function diffRows(current: string, revision: string): DiffRow[] {
     ];
   }
   return rows;
-}
+};

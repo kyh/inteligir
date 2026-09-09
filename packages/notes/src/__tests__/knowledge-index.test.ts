@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { KnowledgeIndex } from "../knowledge/knowledge-index";
 
-function seeded(): KnowledgeIndex {
+const seeded = (): KnowledgeIndex => {
   const index = new KnowledgeIndex();
   index.setDoc(
     "wiki/hub.md",
@@ -23,17 +23,17 @@ function seeded(): KnowledgeIndex {
   index.setDoc("notes/other.md", "# Other\n\nBack to [[hub]].\n");
   index.setOther("diagram.png");
   return index;
-}
+};
 
 describe("KnowledgeIndex — backlinks", () => {
   it("lists sources with line, snippet, and alias", () => {
     const backlinks = seeded().backlinks("wiki/target note.md");
     expect(backlinks).toHaveLength(2);
     expect(backlinks[0]).toMatchObject({
-      sourcePath: "wiki/hub.md",
-      line: 3,
-      kind: "wiki",
       embed: false,
+      kind: "wiki",
+      line: 3,
+      sourcePath: "wiki/hub.md",
     });
     expect(backlinks[0]?.snippet).toContain("[[target note]]");
     expect(backlinks[1]).toMatchObject({ alias: "the target" });
@@ -42,24 +42,25 @@ describe("KnowledgeIndex — backlinks", () => {
   it("resolves relative md links into backlinks", () => {
     const backlinks = seeded().backlinks("notes/other.md");
     expect(backlinks).toEqual([
-      expect.objectContaining({ sourcePath: "wiki/hub.md", kind: "md", alias: "other" }),
+      expect.objectContaining({ alias: "other", kind: "md", sourcePath: "wiki/hub.md" }),
     ]);
   });
 
   it("returns [] for unlinked docs", () => {
-    expect(seeded().backlinks("wiki/hub.md")).toHaveLength(1); // via [[hub]]
+    // via [[hub]]
+    expect(seeded().backlinks("wiki/hub.md")).toHaveLength(1);
     expect(seeded().backlinks("nowhere.md")).toEqual([]);
   });
 
   it("answers asset backlinks: wiki embeds AND md images", () => {
     const backlinks = seeded().backlinks("diagram.png");
     expect(backlinks).toHaveLength(2);
-    expect(backlinks[0]).toMatchObject({ sourcePath: "wiki/hub.md", kind: "wiki", embed: true });
+    expect(backlinks[0]).toMatchObject({ embed: true, kind: "wiki", sourcePath: "wiki/hub.md" });
     expect(backlinks[1]).toMatchObject({
-      sourcePath: "wiki/hub.md",
-      kind: "image",
-      embed: true,
       alias: "the diagram",
+      embed: true,
+      kind: "image",
+      sourcePath: "wiki/hub.md",
     });
   });
 });
@@ -71,15 +72,15 @@ describe("KnowledgeIndex — forward links", () => {
     expect(byTarget.get("target note")?.targetPath).toBe("wiki/target note.md");
     expect(byTarget.get("missing note")?.targetPath).toBeNull();
     expect(byTarget.get("diagram.png")).toMatchObject({
-      targetPath: "diagram.png",
-      kind: "wiki",
       embed: true,
+      kind: "wiki",
+      targetPath: "diagram.png",
     });
     expect(byTarget.get("../diagram.png")).toMatchObject({
-      targetPath: "diagram.png",
-      kind: "image",
-      embed: true,
       alias: "the diagram",
+      embed: true,
+      kind: "image",
+      targetPath: "diagram.png",
     });
     expect(byTarget.get("../notes/other.md")?.targetPath).toBe("notes/other.md");
   });
@@ -98,7 +99,7 @@ describe("KnowledgeIndex — graph", () => {
     const hubToTarget = graph.edges.find(
       (e) => e.source === "wiki/hub.md" && e.target === "wiki/target note.md",
     );
-    expect(hubToTarget).toMatchObject({ kind: "wiki", count: 2 });
+    expect(hubToTarget).toMatchObject({ count: 2, kind: "wiki" });
     const mdEdge = graph.edges.find(
       (e) => e.source === "wiki/hub.md" && e.target === "notes/other.md",
     );
@@ -123,7 +124,7 @@ describe("KnowledgeIndex — graph", () => {
     const index = new KnowledgeIndex();
     index.setDoc("self.md", "# Self\n\n[[self]] and again [[self]]\n");
     const graph = index.graph();
-    expect(graph.edges).toEqual([{ source: "self.md", target: "self.md", kind: "wiki", count: 2 }]);
+    expect(graph.edges).toEqual([{ count: 2, kind: "wiki", source: "self.md", target: "self.md" }]);
     expect(graph.nodes.find((n) => n.id === "self.md")?.degree).toBe(1);
   });
 
@@ -132,7 +133,7 @@ describe("KnowledgeIndex — graph", () => {
     index.setDoc("a.md", "[[Ghost]]\n");
     index.setDoc("b.md", "[[ghost]]\n");
     const phantoms = index.graph().nodes.filter((n) => n.phantom);
-    expect(phantoms).toEqual([{ id: "phantom:ghost", title: "Ghost", phantom: true, degree: 2 }]);
+    expect(phantoms).toEqual([{ degree: 2, id: "phantom:ghost", phantom: true, title: "Ghost" }]);
   });
 });
 

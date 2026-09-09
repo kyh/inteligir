@@ -15,19 +15,19 @@ export default defineConfig({
         // files stay uncompiled: a fixture hook minted inside a factory is
         // hoisted to module scope with no diagnostic. The booted-dom project
         // cannot share this — the compiler plugin skips the ssr transform.
-        plugins: [viteReact({ compiler: true, exclude: [/\/node_modules\//, /\/__tests__\//] })],
+        plugins: [viteReact({ compiler: true, exclude: [/\/node_modules\//u, /\/__tests__\//u] })],
         test: {
-          name: "desktop",
-          include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
           exclude: [...configDefaults.exclude, BOOTED_DOM_SUITES],
+          include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
+          name: "desktop",
           setupFiles: SETUP_FILES,
         },
       },
       {
         test: {
-          name: "desktop-booted-dom",
           environment: "./src/renderer/app/__tests__/jsdom-ssr-environment.ts",
           include: [BOOTED_DOM_SUITES],
+          name: "desktop-booted-dom",
           setupFiles: SETUP_FILES,
         },
       },

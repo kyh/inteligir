@@ -3,48 +3,39 @@
 // verdict on the credential; `malformed` is a body this build cannot read (an intercepting proxy).
 
 import type { z } from "zod";
-import {
-  ACCOUNT_API_PATHS,
-  accountResponseSchema,
-  type AccountResponse,
-} from "./account/account-schema";
+import { ACCOUNT_API_PATHS, accountResponseSchema } from "./account/account-schema";
+import type { AccountResponse } from "./account/account-schema";
 import {
   ackCapturesResponseSchema,
   CAPTURE_API_PATHS,
   captureResponseSchema,
   claimCapturesResponseSchema,
-  type AckCapturesRequest,
-  type AckCapturesResponse,
-  type CaptureRequest,
-  type CaptureResponse,
-  type ClaimCapturesResponse,
 } from "./captures/captures-schema";
-import { cloudErrorSchema, type CloudErrorCode } from "./cloud-errors";
-import {
-  DEVICE_API_PATHS,
-  deviceLoginResponseSchema,
-  type DeviceLoginRequest,
-  type DeviceLoginResponse,
-} from "./device/device-schema";
-import {
-  pullResponseSchema,
-  pushResponseSchema,
-  SYNC_API_PATHS,
-  type PullQuery,
-  type PullResponse,
-  type PushRequest,
-  type PushResponse,
-} from "./sync/sync-schema";
+import type {
+  AckCapturesRequest,
+  AckCapturesResponse,
+  CaptureRequest,
+  CaptureResponse,
+  ClaimCapturesResponse,
+} from "./captures/captures-schema";
+import { cloudErrorSchema } from "./cloud-errors";
+import type { CloudErrorCode } from "./cloud-errors";
+import { DEVICE_API_PATHS, deviceLoginResponseSchema } from "./device/device-schema";
+import type { DeviceLoginRequest, DeviceLoginResponse } from "./device/device-schema";
+import { pullResponseSchema, pushResponseSchema, SYNC_API_PATHS } from "./sync/sync-schema";
+import type { PullQuery, PullResponse, PushRequest, PushResponse } from "./sync/sync-schema";
 import type { DevicePlatform, SyncPing } from "./sync/sync-ws";
 import {
   VAULT_API_PATHS,
   vaultFileResponseSchema,
   vaultTreeResponseSchema,
-  type VaultAssetQuery,
-  type VaultFileQuery,
-  type VaultFileResponse,
-  type VaultTreeQuery,
-  type VaultTreeResponse,
+} from "./vault/vault-schema";
+import type {
+  VaultAssetQuery,
+  VaultFileQuery,
+  VaultFileResponse,
+  VaultTreeQuery,
+  VaultTreeResponse,
 } from "./vault/vault-schema";
 
 export type CloudFetch = (input: string, init?: RequestInit) => Promise<Response>;
@@ -58,23 +49,30 @@ export type CloudResult<TValue> =
   | { ok: true; value: TValue }
   | { ok: false; failure: CloudFailure };
 
-export function describeCloudFailure(failure: CloudFailure): string {
+export const describeCloudFailure = (failure: CloudFailure): string => {
   switch (failure.kind) {
-    case "refused":
+    case "refused": {
       return failure.message;
-    case "unreachable":
+    }
+    case "unreachable": {
       return `Could not reach the cloud: ${failure.message}`;
-    case "malformed":
+    }
+    case "malformed": {
       return failure.message;
+    }
+    // no default
   }
-}
+};
 
-function unreachable(cause: unknown): CloudFailure {
-  return { kind: "unreachable", message: cause instanceof Error ? cause.message : String(cause) };
-}
+const unreachable = (cause: unknown): CloudFailure => ({
+  kind: "unreachable",
+  message: cause instanceof Error ? cause.message : String(cause),
+});
 
-async function readFailure(response: Response): Promise<CloudFailure> {
-  const body: unknown = await response.json().catch(() => undefined);
+const readFailure = async (response: Response): Promise<CloudFailure> => {
+  const body: unknown = await response.json().catch(() => {
+    /* empty */
+  });
   const parsed = cloudErrorSchema.safeParse(body);
   if (!parsed.success) {
     return {
@@ -83,33 +81,35 @@ async function readFailure(response: Response): Promise<CloudFailure> {
     };
   }
   return {
-    kind: "refused",
     code: parsed.data.error.code,
-    message: parsed.data.error.message,
     deviceSeq: parsed.data.error.deviceSeq ?? null,
+    kind: "refused",
+    message: parsed.data.error.message,
   };
-}
+};
 
-async function readValue<TSchema extends z.ZodType>(
+const readValue = async <TSchema extends z.ZodType>(
   response: Response,
   schema: TSchema,
-): Promise<CloudResult<z.infer<TSchema>>> {
+): Promise<CloudResult<z.infer<TSchema>>> => {
   if (!response.ok) {
-    return { ok: false, failure: await readFailure(response) };
+    return { failure: await readFailure(response), ok: false };
   }
-  const body: unknown = await response.json().catch(() => undefined);
+  const body: unknown = await response.json().catch(() => {
+    /* empty */
+  });
   const parsed = schema.safeParse(body);
   if (!parsed.success) {
     return {
-      ok: false,
       failure: {
         kind: "malformed",
         message: "The cloud answered 200 with a body this build cannot read.",
       },
+      ok: false,
     };
   }
   return { ok: true, value: parsed.data };
-}
+};
 
 // every call runs inside the single-flight pass, so a black-holed request stalls the whole
 // loop and the teardown waiting on it; undici's own default is 300s of headers timeout.
@@ -133,55 +133,56 @@ export interface CloudEndpoint {
   signal?: AbortSignal;
 }
 
-function callSignal(signal: AbortSignal | undefined): AbortSignal {
+const callSignal = (signal: AbortSignal | undefined): AbortSignal => {
   const timeout = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
   return signal === undefined ? timeout : AbortSignal.any([signal, timeout]);
-}
+};
 
-export function endpointUrl(baseUrl: string, path: string): string {
-  return new URL(path, baseUrl).toString();
-}
+export const endpointUrl = (baseUrl: string, path: string): string =>
+  new URL(path, baseUrl).toString();
 
-function queryString(values: Record<string, string | number | undefined>): string {
+const queryString = (values: Record<string, string | number | undefined>): string => {
   const parameters = new URLSearchParams();
   for (const [key, value] of Object.entries(values)) {
-    if (value !== undefined) parameters.set(key, String(value));
+    if (value !== undefined) {
+      parameters.set(key, String(value));
+    }
   }
   const rendered = parameters.toString();
   return rendered === "" ? "" : `?${rendered}`;
-}
+};
 
 // the one call made without a credential: its answer is the credential
-export async function postDeviceLogin(
+export const postDeviceLogin = async (
   endpoint: CloudEndpoint,
   request: DeviceLoginRequest,
-): Promise<CloudResult<DeviceLoginResponse>> {
+): Promise<CloudResult<DeviceLoginResponse>> => {
   const call = endpoint.fetch ?? fetch;
   let response: Response;
   try {
     response = await call(endpointUrl(endpoint.baseUrl, DEVICE_API_PATHS.login), {
-      method: "POST",
-      headers: { "content-type": "application/json" },
       body: JSON.stringify(request),
+      headers: { "content-type": "application/json" },
+      method: "POST",
       signal: callSignal(endpoint.signal),
     });
   } catch (error) {
-    return { ok: false, failure: unreachable(error) };
+    return { failure: unreachable(error), ok: false };
   }
   return await readValue(response, deviceLoginResponseSchema);
-}
+};
 
 export interface CloudClient {
-  push(request: PushRequest): Promise<CloudResult<PushResponse>>;
-  pull(query: PullQuery): Promise<CloudResult<PullResponse>>;
-  createCapture(request: CaptureRequest): Promise<CloudResult<CaptureResponse>>;
-  claimCaptures(limit: number): Promise<CloudResult<ClaimCapturesResponse>>;
-  ackCaptures(request: AckCapturesRequest): Promise<CloudResult<AckCapturesResponse>>;
-  account(): Promise<CloudResult<AccountResponse>>;
-  vaultTree(query: VaultTreeQuery): Promise<CloudResult<VaultTreeResponse>>;
-  vaultFile(query: VaultFileQuery): Promise<CloudResult<VaultFileResponse>>;
+  push: (request: PushRequest) => Promise<CloudResult<PushResponse>>;
+  pull: (query: PullQuery) => Promise<CloudResult<PullResponse>>;
+  createCapture: (request: CaptureRequest) => Promise<CloudResult<CaptureResponse>>;
+  claimCaptures: (limit: number) => Promise<CloudResult<ClaimCapturesResponse>>;
+  ackCaptures: (request: AckCapturesRequest) => Promise<CloudResult<AckCapturesResponse>>;
+  account: () => Promise<CloudResult<AccountResponse>>;
+  vaultTree: (query: VaultTreeQuery) => Promise<CloudResult<VaultTreeResponse>>;
+  vaultFile: (query: VaultFileQuery) => Promise<CloudResult<VaultFileResponse>>;
   // synchronous: the answer is bytes an <img> fetches itself; here so the bearer has one spelling
-  vaultAssetSource(query: VaultAssetQuery): VaultAssetSource;
+  vaultAssetSource: (query: VaultAssetQuery) => VaultAssetSource;
 }
 
 // the credential rides a header, never the URL, where image caches and logs would keep it
@@ -194,71 +195,82 @@ export interface CreateCloudClientArgs extends CloudEndpoint {
   credential: string;
 }
 
-export function createCloudClient(args: CreateCloudClientArgs): CloudClient {
+export const createCloudClient = (args: CreateCloudClientArgs): CloudClient => {
   const call = args.fetch ?? fetch;
   const authorization = `Bearer ${args.credential}`;
 
-  async function send<TSchema extends z.ZodType>(
+  const send = async <TSchema extends z.ZodType>(
     path: string,
     json: JsonBody,
     schema: TSchema,
-  ): Promise<CloudResult<z.infer<TSchema>>> {
+  ): Promise<CloudResult<z.infer<TSchema>>> => {
     const signal = callSignal(args.signal);
     const init: RequestInit =
       json === undefined
-        ? { method: "GET", headers: { authorization }, signal }
+        ? { headers: { authorization }, method: "GET", signal }
         : {
-            method: "POST",
-            headers: { authorization, "content-type": "application/json" },
             body: JSON.stringify(json),
+            headers: { authorization, "content-type": "application/json" },
+            method: "POST",
             signal,
           };
     let response: Response;
     try {
       response = await call(endpointUrl(args.baseUrl, path), init);
     } catch (error) {
-      return { ok: false, failure: unreachable(error) };
+      return { failure: unreachable(error), ok: false };
     }
     return await readValue(response, schema);
-  }
+  };
 
   return {
-    push: (request) => send(SYNC_API_PATHS.push, request, pushResponseSchema),
-    pull: (query) =>
-      send(
+    account: async () => await send(ACCOUNT_API_PATHS.account, undefined, accountResponseSchema),
+    ackCaptures: async (request) =>
+      await send(CAPTURE_API_PATHS.ack, request, ackCapturesResponseSchema),
+    claimCaptures: async (limit) =>
+      await send(CAPTURE_API_PATHS.claim, { limit }, claimCapturesResponseSchema),
+    createCapture: async (request) =>
+      await send(CAPTURE_API_PATHS.capture, request, captureResponseSchema),
+    pull: async (query) =>
+      await send(
         `${SYNC_API_PATHS.pull}${queryString({ afterSeq: query.afterSeq, limit: query.limit })}`,
         undefined,
         pullResponseSchema,
       ),
-    createCapture: (request) => send(CAPTURE_API_PATHS.capture, request, captureResponseSchema),
-    claimCaptures: (limit) => send(CAPTURE_API_PATHS.claim, { limit }, claimCapturesResponseSchema),
-    ackCaptures: (request) => send(CAPTURE_API_PATHS.ack, request, ackCapturesResponseSchema),
-    account: () => send(ACCOUNT_API_PATHS.account, undefined, accountResponseSchema),
-    vaultTree: (query) =>
-      send(`${VAULT_API_PATHS.tree}${queryString(query)}`, undefined, vaultTreeResponseSchema),
-    vaultFile: (query) =>
-      send(`${VAULT_API_PATHS.file}${queryString(query)}`, undefined, vaultFileResponseSchema),
+    push: async (request) => await send(SYNC_API_PATHS.push, request, pushResponseSchema),
     vaultAssetSource: (query) => ({
-      uri: endpointUrl(args.baseUrl, `${VAULT_API_PATHS.asset}${queryString(query)}`),
       headers: { authorization },
+      uri: endpointUrl(args.baseUrl, `${VAULT_API_PATHS.asset}${queryString(query)}`),
     }),
+    vaultFile: async (query) =>
+      await send(
+        `${VAULT_API_PATHS.file}${queryString(query)}`,
+        undefined,
+        vaultFileResponseSchema,
+      ),
+    vaultTree: async (query) =>
+      await send(
+        `${VAULT_API_PATHS.tree}${queryString(query)}`,
+        undefined,
+        vaultTreeResponseSchema,
+      ),
   };
-}
+};
 
 // the socket dial is platform code: a browser-program import of a node dial types
 // WebSocket as the DOM one, which takes no headers, and the bearer rides the upgrade.
 export interface CloudSocket {
-  close(): void;
+  close: () => void;
 }
 
 export interface OpenCloudSocketArgs {
   baseUrl: string;
   credential: string;
   platform: DevicePlatform;
-  onOpen(): void;
-  onPing(ping: SyncPing): void;
+  onOpen: () => void;
+  onPing: (ping: SyncPing) => void;
   // called once even if the socket never opened; 1008 is a revoked device, never reconnect through it
-  onClose(code: number): void;
+  onClose: (code: number) => void;
 }
 
 export type CloudSocketOpener = (args: OpenCloudSocketArgs) => CloudSocket;

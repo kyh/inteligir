@@ -8,7 +8,7 @@ const mocks = vi.hoisted(() => ({
   editor: {
     operations: [{ type: "insert_text" }],
     tf: {
-      setValue: vi.fn((value: Array<{ children: Array<{ text: string }> }>) => {
+      setValue: vi.fn((value: { children: { text: string }[] }[]) => {
         mocks.currentMarkdown = value[0]?.children[0]?.text ?? "";
       }),
     },
@@ -69,22 +69,22 @@ vi.mock("@repo/editor/toc", () => ({
 
 const DELAY_MS = 150;
 
-function props(overrides?: {
+const props = (overrides?: {
   onChange?: (markdown: string) => void;
   onRegisterSerializeFlush?: (flush: () => void) => void;
   onSettled?: (markdown: string) => void;
   value?: string;
-}) {
+}) => {
   const base = {
-    path: "note.md",
-    value: overrides?.value ?? "seed",
     onChange: overrides?.onChange ?? vi.fn(),
     onSettled: overrides?.onSettled ?? vi.fn(),
+    path: "note.md",
+    value: overrides?.value ?? "seed",
   };
   return overrides?.onRegisterSerializeFlush === undefined
     ? base
     : { ...base, onRegisterSerializeFlush: overrides.onRegisterSerializeFlush };
-}
+};
 
 describe("MarkdownEditor lifecycle", () => {
   beforeEach(() => {
@@ -100,7 +100,7 @@ describe("MarkdownEditor lifecycle", () => {
   });
 
   it("drops the normalized seed echo", () => {
-    const onChange = vi.fn();
+    const onChange = vi.fn<(markdown: string) => void>();
     const view = render(<MarkdownEditor {...props({ onChange })} />);
 
     fireEvent.click(view.getByRole("button", { name: "change" }));
@@ -110,8 +110,8 @@ describe("MarkdownEditor lifecycle", () => {
   });
 
   it("routes a pending debounce to the latest committed callback", () => {
-    const first = vi.fn();
-    const second = vi.fn();
+    const first = vi.fn<(markdown: string) => void>();
+    const second = vi.fn<(markdown: string) => void>();
     const view = render(<MarkdownEditor {...props({ onChange: first })} />);
     mocks.currentMarkdown = "edited";
     fireEvent.click(view.getByRole("button", { name: "change" }));
@@ -125,7 +125,7 @@ describe("MarkdownEditor lifecycle", () => {
   });
 
   it("flushes a pending edit before an external reseed", () => {
-    const onChange = vi.fn();
+    const onChange = vi.fn<(markdown: string) => void>();
     const view = render(<MarkdownEditor {...props({ onChange })} />);
     mocks.currentMarkdown = "edited";
     fireEvent.click(view.getByRole("button", { name: "change" }));
@@ -140,7 +140,7 @@ describe("MarkdownEditor lifecycle", () => {
   });
 
   it("registers a synchronous serialize flush", () => {
-    const onChange = vi.fn();
+    const onChange = vi.fn<(markdown: string) => void>();
     let flush: (() => void) | undefined;
     const register = vi.fn((next: () => void) => {
       flush = next;
@@ -152,7 +152,9 @@ describe("MarkdownEditor lifecycle", () => {
     fireEvent.click(view.getByRole("button", { name: "change" }));
 
     expect(register).toHaveBeenCalledOnce();
-    if (flush === undefined) throw new Error("serialize flush was not registered");
+    if (flush === undefined) {
+      throw new Error("serialize flush was not registered");
+    }
     flush();
 
     expect(onChange).toHaveBeenCalledOnce();

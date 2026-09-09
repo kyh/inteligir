@@ -29,7 +29,9 @@ describe("the CLI spelling", () => {
     for (const spelling of ["root", "beside-note", "folder:media/2026"]) {
       const location = parseAttachmentLocation(spelling);
       expect(location).not.toBeNull();
-      if (location !== null) expect(formatAttachmentLocation(location)).toBe(spelling);
+      if (location !== null) {
+        expect(formatAttachmentLocation(location)).toBe(spelling);
+      }
     }
   });
 

@@ -4,7 +4,7 @@ import { flushOpenNote, registerOpenNoteStore } from "@repo/editor/note/open-not
 import { createOpenNoteStore } from "@repo/editor/note/open-note-store";
 
 vi.mock("@repo/ui/components/sonner", () => ({
-  toast: Object.assign(vi.fn(), { error: vi.fn(), warning: vi.fn(), success: vi.fn() }),
+  toast: Object.assign(vi.fn(), { error: vi.fn(), success: vi.fn(), warning: vi.fn() }),
 }));
 
 describe("flushing the open note", () => {

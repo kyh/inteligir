@@ -14,23 +14,22 @@ const RESOLVER = "apps/cli/src/server/agents/agent-shell-env.ts";
 const HUB = "inteligir-notes";
 const HUB_INDEX_HEADING = "## Focused Contracts";
 
-const PROBE_LITERAL = /require\.resolve\("@repo\/agent-skills\/skills\/([^"]+)"\)/;
-const FRONTMATTER_NAME = /^name:\s*(\S+)\s*$/m;
-const FRONTMATTER_DESCRIPTION = /^description:\s*(\S.*)$/m;
-const HUB_ROW = /^- .*`(inteligir-[a-z-]+)`/gm;
+const PROBE_LITERAL = /require\.resolve\("@repo\/agent-skills\/skills\/(?<probe>[^"]+)"\)/u;
+const FRONTMATTER_NAME = /^name:\s*(?<name>\S+)\s*$/mu;
+const FRONTMATTER_DESCRIPTION = /^description:\s*(?<description>\S.*)$/mu;
+const HUB_ROW = /^- .*`(?<skill>inteligir-[a-z-]+)`/gmu;
 
-function skillDirs(): string[] {
-  return fs
+const skillDirs = (): string[] =>
+  fs
     .readdirSync(path.join(REPO_ROOT, SKILLS_DIR), { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
     .map((entry) => entry.name)
     .toSorted();
-}
 
-function skillText(dir: string): string | null {
+const skillText = (dir: string): string | null => {
   const file = path.join(REPO_ROOT, SKILLS_DIR, dir, "SKILL.md");
-  return fs.existsSync(file) ? fs.readFileSync(file, "utf8") : null;
-}
+  return fs.existsSync(file) ? fs.readFileSync(file, "utf-8") : null;
+};
 
 describe("the agent skills", () => {
   it("finds the set at all", () => {
@@ -46,7 +45,7 @@ describe("the agent skills", () => {
         violations.push(`${SKILLS_DIR}/${dir} — no SKILL.md`);
         continue;
       }
-      const name = FRONTMATTER_NAME.exec(text)?.[1];
+      const name = FRONTMATTER_NAME.exec(text)?.groups?.name;
       if (name !== dir) {
         violations.push(`${SKILLS_DIR}/${dir}/SKILL.md — frontmatter name is ${name ?? "missing"}`);
       }
@@ -64,9 +63,11 @@ describe("the agent skills", () => {
   });
 
   it("the resolver's probe file exists, so a rename cannot silently drop the pointer", () => {
-    const probe = PROBE_LITERAL.exec(sourceOf(RESOLVER))?.[1];
+    const probe = PROBE_LITERAL.exec(sourceOf(RESOLVER))?.groups?.probe;
     expect(probe, `${RESOLVER} no longer resolves a skill file with require.resolve`).toBeDefined();
-    if (probe === undefined) return;
+    if (probe === undefined) {
+      return;
+    }
     const file = path.join(SKILLS_DIR, probe);
     expect(
       fs.existsSync(path.join(REPO_ROOT, file)),
@@ -78,12 +79,14 @@ describe("the agent skills", () => {
   it("the hub names every focused skill and nothing that is not one", () => {
     const hub = skillText(HUB);
     expect(hub, `${SKILLS_DIR}/${HUB}/SKILL.md is missing`).not.toBeNull();
-    if (hub === null) return;
+    if (hub === null) {
+      return;
+    }
     const headingAt = hub.indexOf(HUB_INDEX_HEADING);
     expect(headingAt, `${HUB} has no "${HUB_INDEX_HEADING}" section`).toBeGreaterThanOrEqual(0);
     const nextHeading = hub.indexOf("\n## ", headingAt + HUB_INDEX_HEADING.length);
     const section = hub.slice(headingAt, nextHeading === -1 ? undefined : nextHeading);
-    const named = new Set([...section.matchAll(HUB_ROW)].map((match) => match[1] ?? ""));
+    const named = new Set([...section.matchAll(HUB_ROW)].map((match) => match.groups?.skill ?? ""));
     const focused = skillDirs().filter((dir) => dir !== HUB);
 
     const missing = focused.filter((dir) => !named.has(dir));

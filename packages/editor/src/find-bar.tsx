@@ -1,40 +1,37 @@
 import { useEffect, useRef, useSyncExternalStore } from "react";
 import { ChevronRightIcon, ReplaceIcon, SearchIcon, XIcon } from "lucide-react";
-import {
-  isHotkey,
-  NodeApi,
-  PathApi,
-  TextApi,
-  type DecoratedRange,
-  type Path,
-  type SlateEditor,
-  type TRange,
-} from "platejs";
-import { PlateLeaf, createPlatePlugin, useEditorRef, type PlateLeafProps } from "platejs/react";
+import { NodeApi, PathApi, TextApi } from "platejs";
+import type { DecoratedRange, Path, SlateEditor, TRange } from "platejs";
+import { PlateLeaf, createPlatePlugin, useEditorRef } from "platejs/react";
+import type { PlateLeafProps } from "platejs/react";
 
 import { Tooltip } from "@repo/ui/components/tooltip";
 import { cn } from "cn";
 
-import { editorShortcutFor, type EditorShortcut } from "@repo/editor/editor-shortcuts";
+import { editorShortcutFor, matchesHotkey } from "@repo/editor/editor-shortcuts";
+import type { EditorShortcut } from "@repo/editor/editor-shortcuts";
 
 export type FindBarShortcutAction = "find-next" | "find-previous" | "open-replace";
 
 // ⌘F itself is the shell's row: global-shortcuts.ts opens the bar from the window listener
 export const FIND_BAR_SHORTCUTS: readonly EditorShortcut<FindBarShortcutAction>[] = [
-  { hotkey: "mod+g", action: "find-next", label: "Next match" },
-  { hotkey: "mod+shift+g", action: "find-previous", label: "Previous match" },
-  { hotkey: "mod+alt+f", action: "open-replace", label: "Find and replace in the note" },
+  { action: "find-next", hotkey: "mod+g", label: "Next match" },
+  { action: "find-previous", hotkey: "mod+shift+g", label: "Previous match" },
+  { action: "open-replace", hotkey: "mod+alt+f", label: "Find and replace in the note" },
 ];
 
-type MatchLocation = { path: Path; offset: number };
+interface MatchLocation {
+  path: Path;
+  offset: number;
+}
 
-type FindBarState = {
+interface FindBarState {
   open: boolean;
   query: string;
   active: MatchLocation | null;
   replace: string;
   replaceOpen: boolean;
-};
+}
 
 let state: FindBarState = { active: null, open: false, query: "", replace: "", replaceOpen: false };
 const listeners = new Set<() => void>();
@@ -42,7 +39,7 @@ const listeners = new Set<() => void>();
 // A module store because decorate runs outside React; decorations read it rather than the
 // document, so a change to what they read must also redecorate. The replace field is not
 // something they read, so typing into it never re-walks every text leaf.
-function setState(editor: SlateEditor, next: Partial<FindBarState>): void {
+const setState = (editor: SlateEditor, next: Partial<FindBarState>): void => {
   const previous = state;
   state = { ...state, ...next };
   if (
@@ -52,22 +49,24 @@ function setState(editor: SlateEditor, next: Partial<FindBarState>): void {
   ) {
     editor.api.redecorate();
   }
-  for (const listener of listeners) listener();
-}
+  for (const listener of listeners) {
+    listener();
+  }
+};
 
-function subscribe(listener: () => void): () => void {
+const subscribe = (listener: () => void): (() => void) => {
   listeners.add(listener);
   return () => {
     listeners.delete(listener);
   };
-}
+};
 
-export function getFindBarState(): FindBarState {
-  return state;
-}
+export const getFindBarState = (): FindBarState => state;
 
-export function collectFindMatches(editor: SlateEditor, query: string): MatchLocation[] {
-  if (query === "") return [];
+export const collectFindMatches = (editor: SlateEditor, query: string): MatchLocation[] => {
+  if (query === "") {
+    return [];
+  }
   const needle = query.toLowerCase();
   const matches: MatchLocation[] = [];
   for (const [node, path] of editor.api.nodes({ at: [], match: (n) => TextApi.isText(n) })) {
@@ -75,46 +74,44 @@ export function collectFindMatches(editor: SlateEditor, query: string): MatchLoc
     let from = 0;
     for (;;) {
       const index = haystack.indexOf(needle, from);
-      if (index === -1) break;
+      if (index === -1) {
+        break;
+      }
       matches.push({ offset: index, path: [...path] });
       from = index + needle.length;
     }
   }
   return matches;
-}
+};
 
-export function openFindBar(editor: SlateEditor, options?: { replace?: boolean }): void {
+export const openFindBar = (editor: SlateEditor, options?: { replace?: boolean }): void => {
   const matches = collectFindMatches(editor, state.query);
   setState(editor, {
     active: matches[0] ?? null,
     open: true,
     replaceOpen: options?.replace ?? state.replaceOpen,
   });
-}
+};
 
-function closeFindBar(editor: SlateEditor): void {
+const closeFindBar = (editor: SlateEditor): void => {
   setState(editor, { active: null, open: false });
   editor.tf.focus();
-}
+};
 
-function sameLocation(a: MatchLocation, b: MatchLocation): boolean {
-  return a.offset === b.offset && PathApi.equals(a.path, b.path);
-}
+const sameLocation = (a: MatchLocation, b: MatchLocation): boolean =>
+  a.offset === b.offset && PathApi.equals(a.path, b.path);
 
-function activeIndexIn(matches: readonly MatchLocation[]): number {
-  return state.active === null
+const activeIndexIn = (matches: readonly MatchLocation[]): number =>
+  state.active === null
     ? -1
     : matches.findIndex((match) => state.active !== null && sameLocation(match, state.active));
-}
 
-function matchRange(match: MatchLocation, length: number): TRange {
-  return {
-    anchor: { offset: match.offset, path: match.path },
-    focus: { offset: match.offset + length, path: match.path },
-  };
-}
+const matchRange = (match: MatchLocation, length: number): TRange => ({
+  anchor: { offset: match.offset, path: match.path },
+  focus: { offset: match.offset + length, path: match.path },
+});
 
-function scrollToMatch(editor: SlateEditor, match: MatchLocation, length: number): void {
+const scrollToMatch = (editor: SlateEditor, match: MatchLocation, length: number): void => {
   try {
     const domRange = editor.api.toDOMRange(matchRange(match, length));
     const container = domRange?.startContainer;
@@ -123,59 +120,64 @@ function scrollToMatch(editor: SlateEditor, match: MatchLocation, length: number
   } catch {
     // stale location after an edit
   }
-}
+};
 
-export function cycleFindMatch(editor: SlateEditor, direction: 1 | -1): void {
+export const cycleFindMatch = (editor: SlateEditor, direction: 1 | -1): void => {
   const matches = collectFindMatches(editor, state.query);
   if (matches.length === 0) {
     setState(editor, { active: null });
     return;
   }
   const current = activeIndexIn(matches);
+  const fromNothing = direction === 1 ? 0 : matches.length - 1;
   const next =
-    current === -1
-      ? direction === 1
-        ? 0
-        : matches.length - 1
-      : (current + direction + matches.length) % matches.length;
+    current === -1 ? fromNothing : (current + direction + matches.length) % matches.length;
   const active = matches[next];
-  if (active === undefined) return;
+  if (active === undefined) {
+    return;
+  }
   setState(editor, { active });
   scrollToMatch(editor, active, state.query.length);
-}
+};
 
-export function setFindQuery(editor: SlateEditor, query: string): void {
+export const setFindQuery = (editor: SlateEditor, query: string): void => {
   const matches = collectFindMatches(editor, query);
   setState(editor, { active: matches[0] ?? null, query });
-}
+};
 
 // lands on the nth match in document order; a doc with fewer lands on its last
-export function jumpToFindMatch(editor: SlateEditor, query: string, ordinal: number): void {
+export const jumpToFindMatch = (editor: SlateEditor, query: string, ordinal: number): void => {
   const matches = collectFindMatches(editor, query);
   const active = matches[Math.min(ordinal, matches.length - 1)] ?? null;
   setState(editor, { active, open: true, query });
-  if (active !== null) scrollToMatch(editor, active, query.length);
-}
+  if (active !== null) {
+    scrollToMatch(editor, active, query.length);
+  }
+};
 
-export function setReplaceText(editor: SlateEditor, replace: string): void {
+export const setReplaceText = (editor: SlateEditor, replace: string): void => {
   setState(editor, { replace });
-}
+};
 
 // the active match, then the one that takes its index, so Enter walks the doc
-export function replaceActiveMatch(editor: SlateEditor): void {
+export const replaceActiveMatch = (editor: SlateEditor): void => {
   const matches = collectFindMatches(editor, state.query);
   const index = Math.max(0, activeIndexIn(matches));
   const target = matches[index];
-  if (target === undefined) return;
+  if (target === undefined) {
+    return;
+  }
   editor.tf.insertText(state.replace, { at: matchRange(target, state.query.length) });
   const remaining = collectFindMatches(editor, state.query);
   const active = remaining[Math.min(index, remaining.length - 1)] ?? null;
   setState(editor, { active });
-  if (active !== null) scrollToMatch(editor, active, state.query.length);
-}
+  if (active !== null) {
+    scrollToMatch(editor, active, state.query.length);
+  }
+};
 
 // last to first, so no rewrite moves an offset still to be rewritten
-export function replaceAllMatches(editor: SlateEditor): number {
+export const replaceAllMatches = (editor: SlateEditor): number => {
   const matches = collectFindMatches(editor, state.query);
   editor.tf.withoutNormalizing(() => {
     for (const match of matches.toReversed()) {
@@ -184,45 +186,49 @@ export function replaceAllMatches(editor: SlateEditor): number {
   });
   setState(editor, { active: null });
   return matches.length;
-}
+};
 
-function FindMatchLeaf(props: PlateLeafProps) {
-  return (
-    <PlateLeaf
-      {...props}
-      as="span"
-      className={cn(
-        "rounded-[2px]",
-        props.leaf.findActive === true
-          ? "bg-orange-400/60 text-foreground"
-          : "bg-yellow-300/40 dark:bg-yellow-500/25",
-      )}
-    >
-      {props.children}
-    </PlateLeaf>
-  );
-}
+const FindMatchLeaf = (props: PlateLeafProps) => (
+  <PlateLeaf
+    {...props}
+    as="span"
+    className={cn(
+      "rounded-[2px]",
+      props.leaf.findActive === true
+        ? "bg-orange-400/60 text-foreground"
+        : "bg-yellow-300/40 dark:bg-yellow-500/25",
+    )}
+  >
+    {props.children}
+  </PlateLeaf>
+);
 
 const BAR_BUTTON_CLASS =
   "shrink-0 rounded-sm p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-40 [&_svg]:size-3.5";
 
-function FindBar() {
+const FindBar = () => {
   const editor = useEditorRef();
   const snap = useSyncExternalStore(subscribe, getFindBarState);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (snap.open) inputRef.current?.focus();
+    if (snap.open) {
+      inputRef.current?.focus();
+    }
   }, [snap.open]);
 
-  if (!snap.open) return null;
+  if (!snap.open) {
+    return null;
+  }
 
   const matches = collectFindMatches(editor, snap.query);
   const activeIndex = activeIndexIn(matches);
   const canReplace = matches.length > 0;
 
   const onEscape = (event: React.KeyboardEvent): boolean => {
-    if (event.key !== "Escape") return false;
+    if (event.key !== "Escape") {
+      return false;
+    }
     event.preventDefault();
     closeFindBar(editor);
     return true;
@@ -257,7 +263,9 @@ function FindBar() {
             setFindQuery(editor, event.target.value);
           }}
           onKeyDown={(event) => {
-            if (onEscape(event)) return;
+            if (onEscape(event)) {
+              return;
+            }
             const row = editorShortcutFor(FIND_BAR_SHORTCUTS, event);
             if (
               event.key === "Enter" ||
@@ -297,10 +305,14 @@ function FindBar() {
               setReplaceText(editor, event.target.value);
             }}
             onKeyDown={(event) => {
-              if (onEscape(event)) return;
-              if (event.key !== "Enter") return;
+              if (onEscape(event)) {
+                return;
+              }
+              if (event.key !== "Enter") {
+                return;
+              }
               event.preventDefault();
-              if (isHotkey("mod+enter", event)) {
+              if (matchesHotkey("mod+enter", event)) {
                 replaceAllMatches(editor);
               } else {
                 replaceActiveMatch(editor);
@@ -338,23 +350,29 @@ function FindBar() {
       ) : null}
     </div>
   );
-}
+};
 
 export const FindBarKit = [
   createPlatePlugin({
-    key: "findMatch",
-    node: { isLeaf: true },
     decorate: ({ entry: [node, path] }) => {
-      if (!state.open || state.query === "") return undefined;
-      if (!TextApi.isText(node)) return undefined;
+      if (!state.open || state.query === "") {
+        return;
+      }
+      if (!TextApi.isText(node)) {
+        return;
+      }
       const needle = state.query.toLowerCase();
       const haystack = node.text.toLowerCase();
-      if (!haystack.includes(needle)) return undefined;
+      if (!haystack.includes(needle)) {
+        return;
+      }
       const ranges: DecoratedRange[] = [];
       let from = 0;
       for (;;) {
         const index = haystack.indexOf(needle, from);
-        if (index === -1) break;
+        if (index === -1) {
+          break;
+        }
         const active =
           state.active !== null &&
           state.active.offset === index &&
@@ -364,12 +382,16 @@ export const FindBarKit = [
           findMatch: true,
           focus: { offset: index + needle.length, path },
         };
-        if (active) range.findActive = true;
+        if (active) {
+          range.findActive = true;
+        }
         ranges.push(range);
         from = index + needle.length;
       }
       return ranges.length > 0 ? ranges : undefined;
     },
+    key: "findMatch",
+    node: { isLeaf: true },
   }).withComponent(FindMatchLeaf),
   createPlatePlugin({
     key: "findBar",
@@ -378,7 +400,9 @@ export const FindBarKit = [
     handlers: {
       onKeyDown: ({ editor, event }) => {
         const row = editorShortcutFor(FIND_BAR_SHORTCUTS, event);
-        if (row === null) return;
+        if (row === null) {
+          return;
+        }
         event.preventDefault();
         if (row.action === "open-replace") {
           openFindBar(editor, { replace: true });

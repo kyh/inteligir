@@ -7,16 +7,18 @@ import {
   clientMessageSchema,
   realtimeSubscriptionTargetKey,
   subscriptionKeysForMessage,
-  type ChangedMessage,
-  type HelloMessage,
-  type RealtimeSubscriptionTarget,
-  type VaultChangedMessage,
+} from "@repo/api/local/notifications";
+import type {
+  ChangedMessage,
+  HelloMessage,
+  RealtimeSubscriptionTarget,
+  VaultChangedMessage,
 } from "@repo/api/local/notifications";
 
 export interface BusSocket {
-  close(code?: number, reason?: string): void;
+  close: (code?: number, reason?: string) => void;
   readyState: number;
-  send(data: string): void;
+  send: (data: string) => void;
   // the transport under hono's wrapper; only the shutdown path terminates through it.
   readonly raw?: unknown;
 }
@@ -27,7 +29,7 @@ const SOCKET_OPEN_STATE = 1;
 const GOING_AWAY_CLOSE_CODE = 1001;
 
 interface TerminableTransport {
-  terminate(): void;
+  terminate: () => void;
 }
 
 // z.custom passes the original object through, keeping terminate() bound to its socket.
@@ -38,7 +40,7 @@ const terminableTransportSchema = z.custom<TerminableTransport>(
 );
 
 // parsed rather than asserted: the fake sockets tests inject have no raw at all.
-export function terminateTransport(socket: { readonly raw?: unknown }): void {
+export const terminateTransport = (socket: { readonly raw?: unknown }): void => {
   const transport = terminableTransportSchema.safeParse(socket.raw);
   if (!transport.success) {
     return;
@@ -48,13 +50,13 @@ export function terminateTransport(socket: { readonly raw?: unknown }): void {
   } catch {
     // A socket already gone is the outcome we wanted.
   }
-}
+};
 
 const socketPayloadDecoder = new TextDecoder();
 
 export type SocketPayload = string | Blob | ArrayBufferLike | ArrayBufferView;
 
-function decodeSocketPayload(raw: SocketPayload): string {
+const decodeSocketPayload = (raw: SocketPayload): string => {
   const text = z.string().safeParse(raw);
   if (text.success) {
     return text.data;
@@ -66,7 +68,7 @@ function decodeSocketPayload(raw: SocketPayload): string {
     return socketPayloadDecoder.decode(new Uint8Array(raw.buffer, raw.byteOffset, raw.byteLength));
   }
   throw new Error("Unsupported socket payload");
-}
+};
 
 export class WsBus implements DbNotifier {
   private readonly keysBySocket = new Map<BusSocket, Set<string>>();
@@ -132,12 +134,15 @@ export class WsBus implements DbNotifier {
     const parsed = result.data;
 
     switch (parsed.type) {
-      case "subscribe":
+      case "subscribe": {
         this.subscribe(socket, parsed.target);
         break;
-      case "unsubscribe":
+      }
+      case "unsubscribe": {
         this.unsubscribe(socket, parsed.target);
         break;
+      }
+      // no default
     }
   }
 
@@ -168,21 +173,23 @@ export class WsBus implements DbNotifier {
   }
 
   notifyVault(changes: VaultChangeKind[], paths?: readonly string[]): void {
-    const message: VaultChangedMessage = { type: "changed", entity: "vault", changes };
-    if (paths !== undefined) message.paths = paths;
+    const message: VaultChangedMessage = { changes, entity: "vault", type: "changed" };
+    if (paths !== undefined) {
+      message.paths = paths;
+    }
     this.notifyClients(message);
   }
 
   notifyDoc(docId: string, changes: DocChangeKind[]): void {
-    this.notifyClients({ type: "changed", entity: "doc", id: docId, changes });
+    this.notifyClients({ changes, entity: "doc", id: docId, type: "changed" });
   }
 
   notifyThread(threadId: string, changes: ThreadChangeKind[]): void {
     this.notifyClients({
-      type: "changed",
+      changes,
       entity: "thread",
       id: threadId,
-      changes,
+      type: "changed",
     });
   }
 

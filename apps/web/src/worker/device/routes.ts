@@ -3,16 +3,20 @@ import {
   deviceLoginRequestSchema,
   listDevicesResponseSchema,
   revokeDeviceRequestSchema,
-  type ListDevicesResponse,
-  type RevokeDeviceResponse,
+} from "@repo/api/cloud/device/device-schema";
+import type {
+  ListDevicesResponse,
+  RevokeDeviceResponse,
 } from "@repo/api/cloud/device/device-schema";
 import { and, eq, isNull } from "drizzle-orm";
-import { loginDevice, type LoginFailure } from "./login";
+import { loginDevice } from "./login";
+import type { LoginFailure } from "./login";
 import { createAuth } from "../auth/auth";
 import { jsonNoStore, refuse } from "../cloud-http";
 import { createDb } from "../db/client";
 import { device } from "../db/schema";
-import { allowInWindow, callerRateKey, forgetDeviceBudgets, type RateWindow } from "../rate-limit";
+import { allowInWindow, callerRateKey, forgetDeviceBudgets } from "../rate-limit";
+import type { RateWindow } from "../rate-limit";
 import { severDeviceSockets } from "../sync/routes";
 
 // session auth for everything except login, which IS the authentication: the local app holds no session
@@ -21,12 +25,27 @@ import { severDeviceSockets } from "../sync/routes";
 // nothing else about the caller is known yet
 const LOGIN_WINDOW: RateWindow = { max: 10, windowMs: 60_000 };
 
-async function sessionUserId(request: Request, env: Env, origin: string): Promise<string | null> {
+const sessionUserId = async (
+  request: Request,
+  env: Env,
+  origin: string,
+): Promise<string | null> => {
   const session = await createAuth(env, origin).api.getSession({ headers: request.headers });
   return session?.user.id ?? null;
-}
+};
 
-export async function handleDeviceRoutes(request: Request, env: Env, url: URL): Promise<Response> {
+// one message for a wrong password and an unknown address: a caller
+// learns only that this pair will not work
+const LOGIN_FAILURE_MESSAGE: Record<LoginFailure, string> = {
+  "device-limit": "This account has too many active devices — revoke one first.",
+  "invalid-credentials": "Wrong email or password.",
+};
+
+export const handleDeviceRoutes = async (
+  request: Request,
+  env: Env,
+  url: URL,
+): Promise<Response> => {
   const db = createDb(env.DB);
   const route = `${request.method} ${url.pathname}`;
 
@@ -35,16 +54,20 @@ export async function handleDeviceRoutes(request: Request, env: Env, url: URL): 
       return refuse("rate-limited", "Too many attempts — wait a minute.");
     }
     const body = deviceLoginRequestSchema.safeParse(await request.json().catch(() => null));
-    if (!body.success) return refuse("bad-request", "Send { email, password, deviceName }.");
+    if (!body.success) {
+      return refuse("bad-request", "Send { email, password, deviceName }.");
+    }
     const result = await loginDevice(db, env.DB, createAuth(env, url.origin), body.data);
     if (!result.loggedIn) {
-      return refuse(result.failure, loginFailureMessage(result.failure));
+      return refuse(result.failure, LOGIN_FAILURE_MESSAGE[result.failure]);
     }
     return jsonNoStore(result.response);
   }
 
   const userId = await sessionUserId(request, env, url.origin);
-  if (userId === null) return refuse("unauthorized", "Sign in first.");
+  if (userId === null) {
+    return refuse("unauthorized", "Sign in first.");
+  }
 
   if (route === `GET ${DEVICE_API_PATHS.list}`) {
     const rows = await db
@@ -55,10 +78,10 @@ export async function handleDeviceRoutes(request: Request, env: Env, url: URL): 
       .all();
     const body: ListDevicesResponse = {
       devices: rows.map((row) => ({
-        id: row.id,
-        name: row.name,
         createdAt: row.createdAt.getTime(),
+        id: row.id,
         lastSeenAt: row.lastSeenAt?.getTime() ?? null,
+        name: row.name,
         revokedAt: row.revokedAt?.getTime() ?? null,
       })),
     };
@@ -67,7 +90,9 @@ export async function handleDeviceRoutes(request: Request, env: Env, url: URL): 
 
   if (route === `POST ${DEVICE_API_PATHS.revoke}`) {
     const body = revokeDeviceRequestSchema.safeParse(await request.json().catch(() => null));
-    if (!body.success) return refuse("bad-request", "Send { deviceId }.");
+    if (!body.success) {
+      return refuse("bad-request", "Send { deviceId }.");
+    }
     // scoped to the session's own userId; an already-revoked device matches nothing and answers not-found
     const revoked = await db
       .update(device)
@@ -77,7 +102,9 @@ export async function handleDeviceRoutes(request: Request, env: Env, url: URL): 
       )
       .returning()
       .get();
-    if (revoked === undefined) return refuse("not-found", "No such active device.");
+    if (revoked === undefined) {
+      return refuse("not-found", "No such active device.");
+    }
     // nothing else deletes a limiter row
     await forgetDeviceBudgets(db, [body.data.deviceId]);
     // the credential is already dead in D1; this closes the sockets it still holds, which no per-request check reaches
@@ -87,15 +114,4 @@ export async function handleDeviceRoutes(request: Request, env: Env, url: URL): 
   }
 
   return refuse("not-found", "No such route.");
-}
-
-// one message for a wrong password and an unknown address: a caller
-// learns only that this pair will not work
-function loginFailureMessage(failure: LoginFailure): string {
-  switch (failure) {
-    case "invalid-credentials":
-      return "Wrong email or password.";
-    case "device-limit":
-      return "This account has too many active devices — revoke one first.";
-  }
-}
+};

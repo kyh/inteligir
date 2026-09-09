@@ -30,12 +30,15 @@ export const MarkdownKit = [
       parser: {
         deserialize: ({ data, editor }) => {
           const parsed = parseMdast(data);
-          if (!parsed.ok) return undefined;
+          if (!parsed.ok) {
+            return;
+          }
           try {
             return mdastToSlate(parsed.root, getMergedOptionsDeserialize(editor));
           } catch {
             // mdastToSlate overflows the stack on pathological nesting; fall through to plain text.
-            return undefined;
+            // oxlint-disable-next-line no-useless-return -- noImplicitReturns rejects falling off the end when the try arm returns a value
+            return;
           }
         },
       },

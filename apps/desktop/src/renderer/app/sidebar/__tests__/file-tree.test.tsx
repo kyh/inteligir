@@ -3,7 +3,7 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import type { VaultEntry } from "@repo/api/local/vault/vault-schema";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { TreeOps } from "../file-tree";
+import type { FileTreeProps, TreeOps } from "../file-tree";
 import { RailTree } from "./rail-tree";
 
 const ENTRIES: VaultEntry[] = [
@@ -16,36 +16,36 @@ const ENTRIES: VaultEntry[] = [
 
 const NO_PINS: ReadonlySet<string> = new Set();
 
-function makeOps(): TreeOps {
-  return {
-    createNote: vi.fn(),
-    createFolder: vi.fn(),
-    renameEntry: vi.fn(),
-    moveEntry: vi.fn(),
-    setPinned: vi.fn(),
-    removeEntry: vi.fn(),
-  };
-}
+const makeOps = (): TreeOps => ({
+  createFolder: vi.fn<TreeOps["createFolder"]>(),
+  createNote: vi.fn<TreeOps["createNote"]>(),
+  moveEntry: vi.fn<TreeOps["moveEntry"]>(),
+  removeEntry: vi.fn<TreeOps["removeEntry"]>(),
+  renameEntry: vi.fn<TreeOps["renameEntry"]>(),
+  setPinned: vi.fn<TreeOps["setPinned"]>(),
+});
 
 // jsdom has no DataTransfer; the component writes to it and reads nothing back
-function dataTransfer() {
-  return { dataTransfer: { setData: vi.fn(), effectAllowed: "", dropEffect: "" } };
-}
+const dataTransfer = () => ({
+  dataTransfer: { dropEffect: "", effectAllowed: "", setData: vi.fn() },
+});
 
-function dragTo(from: HTMLElement, to: HTMLElement): void {
+const dragTo = (from: HTMLElement, to: HTMLElement): void => {
   fireEvent.dragStart(from, dataTransfer());
   fireEvent.dragOver(to, dataTransfer());
   fireEvent.drop(to, dataTransfer());
-}
+};
 
 interface RenderedTree {
   ops: TreeOps;
   onOpenFile: ReturnType<typeof vi.fn>;
 }
 
-function renderTree(overrides: Partial<React.ComponentProps<typeof RailTree>> = {}): RenderedTree {
+const renderTree = (
+  overrides: Partial<React.ComponentProps<typeof RailTree>> = {},
+): RenderedTree => {
   const ops = makeOps();
-  const onOpenFile = vi.fn();
+  const onOpenFile = vi.fn<FileTreeProps["onOpenFile"]>();
   render(
     <RailTree
       entries={ENTRIES}
@@ -65,20 +65,19 @@ function renderTree(overrides: Partial<React.ComponentProps<typeof RailTree>> = 
       {...overrides}
     />,
   );
-  return { ops, onOpenFile };
-}
+  return { onOpenFile, ops };
+};
 
-function createDir(): string | null {
-  return document.querySelector("[data-create-dir]")?.getAttribute("data-create-dir") ?? null;
-}
+const createDir = (): string | null =>
+  document.querySelector<HTMLElement>("[data-create-dir]")?.dataset.createDir ?? null;
 
-function row(path: string): HTMLElement {
+const row = (path: string): HTMLElement => {
   const element = document.querySelector(`[data-path="${path}"]`);
   if (!(element instanceof HTMLElement)) {
     throw new Error(`no row for ${path}`);
   }
   return element;
-}
+};
 
 afterEach(cleanup);
 
@@ -122,7 +121,7 @@ describe("a tree with no rows says WHY it has none", () => {
   });
 
   it("says a FAILED read failed, and offers the retry", () => {
-    const onRetry = vi.fn();
+    const onRetry = vi.fn<FileTreeProps["onRetry"]>();
     renderTree({ entries: [], loadState: "failed", onRetry });
     expect(screen.queryByText("The vault is empty.")).toBeNull();
     expect(screen.getByText("The vault could not be read.")).toBeDefined();
@@ -228,10 +227,10 @@ describe("inline rename", () => {
 
 describe("inline create", () => {
   it("a pending root create renders the input and commits with .md appended", () => {
-    const onPendingCreateDone = vi.fn();
+    const onPendingCreateDone = vi.fn<FileTreeProps["onPendingCreateDone"]>();
     const { ops } = renderTree({
-      pendingCreate: { kind: "file", parentDir: "" },
       onPendingCreateDone,
+      pendingCreate: { kind: "file", parentDir: "" },
     });
     const input = screen.getByLabelText("Name");
     fireEvent.change(input, { target: { value: "Fresh" } });
@@ -241,8 +240,8 @@ describe("inline create", () => {
   });
 
   it("a cancelled create is reported done too", () => {
-    const onPendingCreateDone = vi.fn();
-    renderTree({ pendingCreate: { kind: "file", parentDir: "" }, onPendingCreateDone });
+    const onPendingCreateDone = vi.fn<FileTreeProps["onPendingCreateDone"]>();
+    renderTree({ onPendingCreateDone, pendingCreate: { kind: "file", parentDir: "" } });
     fireEvent.keyDown(screen.getByLabelText("Name"), { key: "Escape" });
     expect(onPendingCreateDone).toHaveBeenCalled();
   });
@@ -297,8 +296,8 @@ describe("a listing rooted at a folder", () => {
   it("lands a root create inside the folder", () => {
     const { ops } = renderTree({
       entries: scoped,
-      rootDir: "notes",
       pendingCreate: { kind: "file", parentDir: "notes" },
+      rootDir: "notes",
     });
     const input = screen.getByLabelText("Name");
     fireEvent.change(input, { target: { value: "todo" } });
@@ -358,15 +357,15 @@ describe("moving by drag and drop", () => {
   it("a scoped listing's empty area is the scope, not the vault root", () => {
     const { ops } = renderTree({
       entries: ENTRIES.filter((entry) => entry.path.startsWith("notes/")),
-      rootDir: "notes",
       openPath: "notes/daily/2026-08-16.md",
+      rootDir: "notes",
     });
     dragTo(row("notes/daily/2026-08-16.md"), screen.getByRole("tree"));
     expect(ops.moveEntry).toHaveBeenCalledWith("notes/daily/2026-08-16.md", "notes");
   });
 
   it("offers Move to… in the row menu when a picker is wired", async () => {
-    const onMoveRequest = vi.fn();
+    const onMoveRequest = vi.fn<FileTreeProps["onMoveRequest"]>();
     renderTree({ onMoveRequest });
     fireEvent.click(screen.getByLabelText("Actions for Welcome.md"));
     fireEvent.click(await screen.findByText("Move to…"));

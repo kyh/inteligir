@@ -90,10 +90,8 @@ catalogs:
     react: 19.2.3
     typescript: ~6.0.3
 
-# 24h supply-chain cooldown; first-party packages are exempt
+# 24h supply-chain cooldown
 minimumReleaseAge: 1440
-minimumReleaseAgeExclude:
-  - "@kyh/oxlint"
 
 blockExoticSubdeps: true
 

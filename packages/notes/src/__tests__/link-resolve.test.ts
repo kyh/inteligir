@@ -71,8 +71,10 @@ describe("resolveWiki — alias tiers", () => {
         ["sub/plan", "owner.md"],
       ],
     );
-    expect(r.resolveWiki("retro")).toBe("retro.md"); // basename tier wins
-    expect(r.resolveWiki("sub/plan")).toBe("a/sub/plan.md"); // suffix tier wins
+    // basename tier wins
+    expect(r.resolveWiki("retro")).toBe("retro.md");
+    // suffix tier wins
+    expect(r.resolveWiki("sub/plan")).toBe("a/sub/plan.md");
   });
 
   it("case-sensitive alias beats case-insensitive alias", () => {
@@ -85,7 +87,8 @@ describe("resolveWiki — alias tiers", () => {
     );
     expect(r.resolveWiki("Retro")).toBe("a.md");
     expect(r.resolveWiki("retro")).toBe("b.md");
-    expect(r.resolveWiki("RETRO")).toBe("a.md"); // ci tier, pickBest over both owners
+    // ci tier, pickBest over both owners
+    expect(r.resolveWiki("RETRO")).toBe("a.md");
   });
 
   it("aliases may contain a slash (reached from the slashed branch)", () => {
@@ -94,7 +97,7 @@ describe("resolveWiki — alias tiers", () => {
   });
 
   it("collisions break deterministically (pickBest), independent of insertion order", () => {
-    const entries: Array<readonly [string, string]> = [
+    const entries: (readonly [string, string])[] = [
       ["shared", "z/deep/nested.md"],
       ["shared", "b/note.md"],
       ["shared", "a-longer-name.md"],
@@ -102,7 +105,7 @@ describe("resolveWiki — alias tiers", () => {
     ];
     const paths = ["z/deep/nested.md", "b/note.md", "a-longer-name.md", "a.md"];
     // Fewest segments, then shortest, then lexicographic — for every permutation.
-    for (let i = 0; i < entries.length; i++) {
+    for (let i = 0; i < entries.length; i += 1) {
       const rotatedEntries = [...entries.slice(i), ...entries.slice(0, i)];
       const rotatedPaths = [...paths.slice(i), ...paths.slice(0, i)];
       const r = buildResolver(rotatedPaths, rotatedEntries);

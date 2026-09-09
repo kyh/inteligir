@@ -16,7 +16,7 @@ export type DictationState =
 // ~128 ms at 16 kHz; a power of two, as createScriptProcessor requires.
 const FRAME_SAMPLES = 2048;
 
-export function levelFrom(samples: Float32Array): number {
+export const levelFrom = (samples: Float32Array): number => {
   let sum = 0;
   for (const sample of samples) {
     sum += sample * sample;
@@ -24,11 +24,11 @@ export function levelFrom(samples: Float32Array): number {
   const rms = Math.sqrt(sum / samples.length);
   // Speech RMS sits near 0.05–0.2, so the raw value would keep the meter flat.
   return Math.min(1, rms * 6);
-}
+};
 
 // Linear interpolation; aliasing is accepted because a browser honouring the
 // 16 kHz hint never reaches this.
-export function resampleTo16k(samples: Float32Array, sourceRate: number): Float32Array {
+export const resampleTo16k = (samples: Float32Array, sourceRate: number): Float32Array => {
   if (sourceRate === VOICE_SAMPLE_RATE) {
     return samples;
   }
@@ -43,51 +43,55 @@ export function resampleTo16k(samples: Float32Array, sourceRate: number): Float3
     out[index] = (samples[left] ?? 0) * (1 - fraction) + (samples[right] ?? 0) * fraction;
   }
   return out;
-}
+};
 
-export function toPcm16(samples: Float32Array): ArrayBuffer {
+export const toPcm16 = (samples: Float32Array): ArrayBuffer => {
   const buffer = new ArrayBuffer(samples.length * 2);
   const view = new DataView(buffer);
   for (let index = 0; index < samples.length; index += 1) {
     // A sample past ±1 would wrap as an Int16: a click rather than a clip.
     const clamped = Math.max(-1, Math.min(1, samples[index] ?? 0));
-    view.setInt16(index * 2, Math.round(clamped * 0x7fff), true);
+    view.setInt16(index * 2, Math.round(clamped * 0x7f_ff), true);
   }
   return buffer;
-}
+};
 
 // Not the browser's own message: `NotAllowedError` reads "Permission denied",
 // naming neither the permission nor where to change it.
-export function microphoneProblem(cause: unknown): string {
+export const microphoneProblem = (cause: unknown): string => {
   const name = cause instanceof Error ? cause.name : "";
   switch (name) {
     case "NotAllowedError":
-    case "SecurityError":
+    case "SecurityError": {
       return "The microphone is blocked. Allow it for this site, then try again.";
+    }
     case "NotFoundError":
-    case "OverconstrainedError":
+    case "OverconstrainedError": {
       return "No microphone was found on this machine.";
-    case "NotReadableError":
+    }
+    case "NotReadableError": {
       return "The microphone is in use by another application.";
-    default:
+    }
+    default: {
       return "The microphone could not be opened.";
+    }
   }
-}
+};
 
 export interface TranscriptInsertion {
   text: string;
   caret: number;
 }
 
-export function insertTranscript(args: {
+export const insertTranscript = (args: {
   text: string;
   transcript: string;
   selectionStart: number;
   selectionEnd: number;
-}): TranscriptInsertion {
+}): TranscriptInsertion => {
   const transcript = args.transcript.trim();
   if (transcript === "") {
-    return { text: args.text, caret: args.selectionEnd };
+    return { caret: args.selectionEnd, text: args.text };
   }
   const start = Math.max(0, Math.min(args.selectionStart, args.text.length));
   const end = Math.max(start, Math.min(args.selectionEnd, args.text.length));
@@ -96,8 +100,8 @@ export function insertTranscript(args: {
   const lead = before !== "" && !/\s$/u.test(before) ? " " : "";
   const trail = after !== "" && !/^\s/u.test(after) ? " " : "";
   const inserted = `${lead}${transcript}${trail}`;
-  return { text: `${before}${inserted}${after}`, caret: start + inserted.length };
-}
+  return { caret: start + inserted.length, text: `${before}${inserted}${after}` };
+};
 
 export interface ComposerSelection {
   value: string;
@@ -108,16 +112,16 @@ export interface ComposerSelection {
 // Base and caret both come from the live composer: a base captured in a render
 // closure goes stale the moment the user types mid-dictation, and the caret
 // then indexes text the base never had.
-export function spliceIntoComposer(
+export const spliceIntoComposer = (
   composer: ComposerSelection | null,
   fallback: string,
   transcript: string,
-): { text: string; caret: number } {
+): { text: string; caret: number } => {
   const base = composer === null ? fallback : composer.value;
   const start = composer?.selectionStart ?? base.length;
   const end = composer?.selectionEnd ?? base.length;
-  return insertTranscript({ text: base, transcript, selectionStart: start, selectionEnd: end });
-}
+  return insertTranscript({ selectionEnd: end, selectionStart: start, text: base, transcript });
+};
 
 export interface StreamCaptureHandle {
   level: () => number;
@@ -127,15 +131,16 @@ export interface StreamCaptureHandle {
 // Once getUserMedia grants, the microphone is live: a constructor throwing
 // after it must release the stream, or the mic stays hot with no handle to
 // stop it.
-export async function startStreamingCapture(
+export const startStreamingCapture = async (
   onFrame: (pcm: ArrayBuffer) => void,
-): Promise<StreamCaptureHandle> {
+): Promise<StreamCaptureHandle> => {
   const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
   let context: AudioContext | null = null;
   try {
     // 16 kHz so the context's own resampler does the work.
     context = new AudioContext({ sampleRate: VOICE_SAMPLE_RATE });
     const source = context.createMediaStreamSource(stream);
+    // oxlint-disable-next-line typescript/no-deprecated -- the AudioWorklet replacement needs a worklet module bundled and served apart from the page
     const processor = context.createScriptProcessor(FRAME_SAMPLES, 1, 1);
     const analyser = context.createAnalyser();
     analyser.fftSize = 512;
@@ -147,9 +152,9 @@ export async function startStreamingCapture(
     const meterFrame = new Float32Array(analyser.fftSize);
     const sourceRate = context.sampleRate;
 
-    processor.onaudioprocess = (event) => {
-      const input = event.inputBuffer.getChannelData(0);
-      onFrame(toPcm16(resampleTo16k(input, sourceRate)));
+    // oxlint-disable-next-line typescript/no-deprecated -- ScriptProcessorNode's only event; see createScriptProcessor above
+    processor.onaudioprocess = ({ inputBuffer }) => {
+      onFrame(toPcm16(resampleTo16k(inputBuffer.getChannelData(0), sourceRate)));
     };
 
     const closing = context;
@@ -159,6 +164,7 @@ export async function startStreamingCapture(
         return levelFrom(meterFrame);
       },
       stop: () => {
+        // oxlint-disable-next-line typescript/no-deprecated -- see createScriptProcessor above
         processor.onaudioprocess = null;
         processor.disconnect();
         source.disconnect();
@@ -178,4 +184,4 @@ export async function startStreamingCapture(
     }
     throw error;
   }
-}
+};

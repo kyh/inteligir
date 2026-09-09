@@ -1,6 +1,6 @@
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { VaultPrefsStore } from "../vault-prefs-store";
@@ -8,14 +8,16 @@ import { JsonFileStoreError } from "../../json-file-store";
 
 const dirs: string[] = [];
 
-function scratch(): string {
-  const dir = mkdtempSync(join(tmpdir(), "vault-prefs-"));
+const scratch = (): string => {
+  const dir = mkdtempSync(path.join(tmpdir(), "vault-prefs-"));
   dirs.push(dir);
   return dir;
-}
+};
 
 afterEach(() => {
-  for (const dir of dirs.splice(0)) rmSync(dir, { force: true, recursive: true });
+  for (const dir of dirs.splice(0)) {
+    rmSync(dir, { force: true, recursive: true });
+  }
 });
 
 describe("the vault's stored choices", () => {
@@ -29,7 +31,7 @@ describe("the vault's stored choices", () => {
   it("normalize a folder path the way the vault does", () => {
     const dir = scratch();
     writeFileSync(
-      join(dir, "vault-prefs.json"),
+      path.join(dir, "vault-prefs.json"),
       JSON.stringify({ attachments: { kind: "folder", path: "media//2026/" } }),
     );
     expect(new VaultPrefsStore(dir).read()).toEqual({
@@ -39,14 +41,14 @@ describe("the vault's stored choices", () => {
 
   it("refuse malformed bytes rather than reading them as defaults", () => {
     const dir = scratch();
-    writeFileSync(join(dir, "vault-prefs.json"), "{");
+    writeFileSync(path.join(dir, "vault-prefs.json"), "{");
     expect(() => new VaultPrefsStore(dir).read()).toThrow(JsonFileStoreError);
   });
 
   it("refuse a location they do not know", () => {
     const dir = scratch();
     writeFileSync(
-      join(dir, "vault-prefs.json"),
+      path.join(dir, "vault-prefs.json"),
       JSON.stringify({ attachments: { kind: "cloud" } }),
     );
     expect(() => new VaultPrefsStore(dir).read()).toThrow(JsonFileStoreError);

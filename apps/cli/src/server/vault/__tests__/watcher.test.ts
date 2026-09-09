@@ -1,11 +1,12 @@
 import { mkdir, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import path from "node:path";
 import parcelWatcher from "@parcel/watcher";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
-import { createVaultWatcher, type VaultWatcher } from "../watcher";
+import { createVaultWatcher } from "../watcher";
+import type { VaultWatcher } from "../watcher";
 import { makeTempDir } from "../../__tests__/temp-dir";
 
-const PROBE_TIMEOUT_MS = 5_000;
+const PROBE_TIMEOUT_MS = 5000;
 // coarser than the watcher's debounce so a probe lands as one batch.
 const PROBE_INTERVAL_MS = 300;
 
@@ -17,20 +18,26 @@ describe("the vault watcher over the real backend", () => {
     },
     async (ctx) => {
       const root = makeTempDir("inteligir-watch-test-");
-      await mkdir(join(root, ".git"), { recursive: true });
+      await mkdir(path.join(root, ".git"), { recursive: true });
       // before the subscription: inotify watches a new directory only after its create event
       // lands, so a file written right behind the mkdir can be missed.
-      await mkdir(join(root, "notes"), { recursive: true });
+      await mkdir(path.join(root, "notes"), { recursive: true });
 
       const batches: string[][] = [];
       const errors: string[] = [];
       const watcher: VaultWatcher = createVaultWatcher({
-        root,
         backend: parcelWatcher,
-        onChanged: (paths) => batches.push([...paths]),
-        onError: (message) => errors.push(message),
+        onChanged: (paths) => {
+          batches.push([...paths]);
+        },
+        onError: (message) => {
+          errors.push(message);
+        },
+        root,
       });
-      onTestFinished(() => watcher.dispose());
+      onTestFinished(async () => {
+        await watcher.dispose();
+      });
       watcher.start();
 
       // subscription establishment is unobservable, so probe by writing; no event means no
@@ -38,10 +45,10 @@ describe("the vault watcher over the real backend", () => {
       try {
         await vi.waitFor(
           async () => {
-            await writeFile(join(root, "note.md"), `probe ${Date.now()}\n`, "utf8");
+            await writeFile(path.join(root, "note.md"), `probe ${Date.now()}\n`, "utf-8");
             expect(batches).not.toHaveLength(0);
           },
-          { timeout: PROBE_TIMEOUT_MS, interval: PROBE_INTERVAL_MS },
+          { interval: PROBE_INTERVAL_MS, timeout: PROBE_TIMEOUT_MS },
         );
       } catch {
         await watcher.dispose();
@@ -52,12 +59,17 @@ describe("the vault watcher over the real backend", () => {
 
       // a later real write bounds the wait, not a sleep: events arrive in order.
       batches.length = 0;
-      await writeFile(join(root, ".git", "index.lock"), "lock", "utf8");
-      await writeFile(join(root, ".inteligir-tmp-cafe"), "staging", "utf8");
-      await writeFile(join(root, "notes", "deep.md"), "external edit\n", "utf8");
-      await vi.waitFor(() => expect(batches.flat()).toContain("notes/deep.md"), {
-        timeout: PROBE_TIMEOUT_MS,
-      });
+      await writeFile(path.join(root, ".git", "index.lock"), "lock", "utf-8");
+      await writeFile(path.join(root, ".inteligir-tmp-cafe"), "staging", "utf-8");
+      await writeFile(path.join(root, "notes", "deep.md"), "external edit\n", "utf-8");
+      await vi.waitFor(
+        () => {
+          expect(batches.flat()).toContain("notes/deep.md");
+        },
+        {
+          timeout: PROBE_TIMEOUT_MS,
+        },
+      );
       expect(batches.flat()).not.toContain(".git/index.lock");
       expect(batches.flat()).not.toContain(".inteligir-tmp-cafe");
       expect(errors).toEqual([]);

@@ -2,10 +2,12 @@ import {
   CONNECTOR_ARGS_MAX,
   CONNECTOR_NAME_MAX_LENGTH,
   CONNECTOR_NAME_PATTERN,
-  type ConnectorOauthStatus,
   connectorTarget,
-  type ConnectorTransportInput,
-  type ConnectorView,
+} from "@repo/api/local/connectors/connectors-schema";
+import type {
+  ConnectorOauthStatus,
+  ConnectorTransportInput,
+  ConnectorView,
 } from "@repo/api/local/connectors/connectors-schema";
 import { Button } from "@repo/ui/components/button";
 import { confirm } from "@repo/ui/components/confirm-dialog";
@@ -18,23 +20,20 @@ import { orpc } from "../api";
 import { useDataDirScope } from "../vault-hooks";
 import { ChoiceRow, failed, SecondVaultNote, SectionHeading } from "./settings-chrome";
 
-function useConnectors() {
-  return useQuery({ ...orpc.connectors.list.queryOptions(), staleTime: 0 });
-}
+const useConnectors = () => useQuery({ ...orpc.connectors.list.queryOptions(), staleTime: 0 });
 
-export function argumentLines(text: string): string[] {
-  return text
+export const argumentLines = (text: string): string[] =>
+  text
     .split("\n")
     .map((line) => line.trim())
     .filter((line) => line.length > 0);
-}
 
 type TransportKind = ConnectorTransportInput["kind"];
 
 const TRANSPORT_CHOICES: readonly { value: TransportKind; label: string }[] = [
-  { value: "http", label: "URL" },
-  { value: "stdio", label: "Command" },
-  { value: "oauth", label: "OAuth" },
+  { label: "URL", value: "http" },
+  { label: "Command", value: "stdio" },
+  { label: "OAuth", value: "oauth" },
 ];
 
 export interface AddConnectorDraft {
@@ -52,17 +51,17 @@ export interface AddConnectorDraft {
 }
 
 export const EMPTY_DRAFT: AddConnectorDraft = {
-  name: "",
-  kind: "http",
-  command: "",
   argsText: "",
-  url: "",
+  authorizationEndpoint: "",
+  clientId: "",
+  command: "",
   headerName: "",
   headerValue: "",
-  authorizationEndpoint: "",
-  tokenEndpoint: "",
-  clientId: "",
+  kind: "http",
+  name: "",
   scopesText: "",
+  tokenEndpoint: "",
+  url: "",
 };
 
 interface CatalogEntry {
@@ -76,46 +75,46 @@ interface CatalogEntry {
 
 const CATALOG: readonly CatalogEntry[] = [
   {
-    name: "context7",
-    description: "Up-to-date library documentation for coding questions",
-    url: "https://mcp.context7.com/mcp",
     authHeader: "CONTEXT7_API_KEY",
+    description: "Up-to-date library documentation for coding questions",
     docsUrl: "https://context7.com/docs",
+    name: "context7",
+    url: "https://mcp.context7.com/mcp",
   },
   {
-    name: "exa",
-    description: "Web search and crawling",
-    url: "https://mcp.exa.ai/mcp",
     authHeader: "x-api-key",
+    description: "Web search and crawling",
     docsUrl: "https://docs.exa.ai/reference/exa-mcp",
+    name: "exa",
+    url: "https://mcp.exa.ai/mcp",
   },
   {
-    name: "linear",
     description: "Issues and projects (OAuth — paste your app's client id)",
-    url: "https://mcp.linear.app/mcp",
     docsUrl: "https://linear.app/docs/mcp",
+    name: "linear",
     oauth: {
       authorizationEndpoint: "https://linear.app/oauth/authorize",
-      tokenEndpoint: "https://api.linear.app/oauth/token",
       scopes: ["read", "write"],
+      tokenEndpoint: "https://api.linear.app/oauth/token",
     },
+    url: "https://mcp.linear.app/mcp",
   },
   {
-    name: "notion",
     description: "Pages and databases (OAuth — paste your integration's client id)",
-    url: "https://mcp.notion.com/mcp",
     docsUrl: "https://developers.notion.com/docs/mcp",
+    name: "notion",
     oauth: {
       authorizationEndpoint: "https://api.notion.com/v1/oauth/authorize",
-      tokenEndpoint: "https://api.notion.com/v1/oauth/token",
       scopes: [],
+      tokenEndpoint: "https://api.notion.com/v1/oauth/token",
     },
+    url: "https://mcp.notion.com/mcp",
   },
 ];
 
-export function draftToRequest(
+export const draftToRequest = (
   draft: AddConnectorDraft,
-): { ok: true; transport: ConnectorTransportInput } | { ok: false; problem: string } {
+): { ok: true; transport: ConnectorTransportInput } | { ok: false; problem: string } => {
   if (!CONNECTOR_NAME_PATTERN.test(draft.name)) {
     return { ok: false, problem: "A name uses letters, numbers, '-' and '_' only." };
   }
@@ -148,7 +147,7 @@ export function draftToRequest(
     ] as const) {
       let protocol = "";
       try {
-        protocol = new URL(value).protocol;
+        ({ protocol } = new URL(value));
       } catch {
         return { ok: false, problem: `The ${label} does not parse.` };
       }
@@ -168,7 +167,7 @@ export function draftToRequest(
   const url = draft.url.trim();
   let protocol = "";
   try {
-    protocol = new URL(url).protocol;
+    ({ protocol } = new URL(url));
   } catch {
     return { ok: false, problem: "The URL does not parse." };
   }
@@ -185,25 +184,28 @@ export function draftToRequest(
     transport.headers = { [headerName]: headerValue };
   }
   return { ok: true, transport };
-}
+};
 
 const OAUTH_STATUS_LABEL = {
-  "needs-auth": "not connected",
   connected: "connected",
+  "needs-auth": "not connected",
   "needs-reauth": "needs re-auth",
 } satisfies Record<ConnectorOauthStatus, string>;
 
-function ConnectorRow({
+const ConnectorRow = ({
   server,
   onChanged,
 }: {
   server: ConnectorView;
   onChanged: (servers: ConnectorView[]) => void;
-}) {
+}) => {
   const [authorizeUrl, setAuthorizeUrl] = useState<string | null>(null);
 
   const connect = useMutation(
     orpc.connectors.oauthBegin.mutationOptions({
+      onError: (cause) => {
+        failed(cause, `Could not start authorizing ${server.name}.`);
+      },
       onMutate: () => {
         setAuthorizeUrl(null);
       },
@@ -212,41 +214,38 @@ function ConnectorRow({
           setAuthorizeUrl(body.url);
         }
       },
-      onError: (cause) => {
-        failed(cause, `Could not start authorizing ${server.name}.`);
-      },
     }),
   );
 
   const disconnect = useMutation(
     orpc.connectors.oauthDisconnect.mutationOptions({
-      onSuccess: (body) => {
-        onChanged(body.servers);
-      },
       onError: (cause) => {
         failed(cause, `Could not disconnect ${server.name}.`);
+      },
+      onSuccess: (body) => {
+        onChanged(body.servers);
       },
     }),
   );
 
   const toggle = useMutation(
     orpc.connectors.toggle.mutationOptions({
-      onSuccess: (body) => {
-        onChanged(body.servers);
-      },
       onError: (cause) => {
         failed(cause, `Could not toggle ${server.name}.`);
+      },
+      onSuccess: (body) => {
+        onChanged(body.servers);
       },
     }),
   );
 
   const removeServer = useMutation(
     orpc.connectors.remove.mutationOptions({
-      onSuccess: (body) => {
-        onChanged(body.servers);
-      },
       onError: (cause) => {
         failed(cause, `Could not remove ${server.name}.`);
+      },
+      onSuccess: (body) => {
+        onChanged(body.servers);
       },
     }),
   );
@@ -259,10 +258,10 @@ function ConnectorRow({
   const remove = (): void => {
     void (async () => {
       const confirmed = await confirm({
-        title: `Remove ${server.name}?`,
         body: "Agent sessions stop getting this server on their next launch.",
         confirmLabel: "Remove",
         destructive: true,
+        title: `Remove ${server.name}?`,
       });
       if (confirmed) {
         removeServer.mutate({ name: server.name });
@@ -281,17 +280,17 @@ function ConnectorRow({
             {server.transport.kind === "http" && server.transport.hasAuth ? (
               <span className="ml-2 text-xs text-muted-foreground">authenticated</span>
             ) : null}
-            {oauth !== null ? (
+            {oauth === null ? null : (
               <span className="ml-2 text-xs text-muted-foreground">
                 {OAUTH_STATUS_LABEL[oauth.status]}
               </span>
-            ) : null}
+            )}
           </p>
           <p className="truncate text-xs text-muted-foreground">
             {connectorTarget(server.transport)}
           </p>
         </div>
-        {oauth !== null ? (
+        {oauth === null ? null : (
           <Button
             size="compact"
             variant="ghost"
@@ -302,7 +301,7 @@ function ConnectorRow({
           >
             {oauth.status === "needs-auth" ? "Connect" : "Reconnect"}
           </Button>
-        ) : null}
+        )}
         {oauth !== null && oauth.status !== "needs-auth" ? (
           <Button
             size="compact"
@@ -329,7 +328,7 @@ function ConnectorRow({
           Remove
         </Button>
       </div>
-      {authorizeUrl !== null ? (
+      {authorizeUrl === null ? null : (
         <p className="mt-1 text-xs text-muted-foreground">
           Browser did not open —{" "}
           <a
@@ -342,12 +341,12 @@ function ConnectorRow({
           </a>
           .
         </p>
-      ) : null}
+      )}
     </div>
   );
-}
+};
 
-export function ConnectorsSection() {
+export const ConnectorsSection = () => {
   const queryClient = useQueryClient();
   const query = useConnectors();
   const [draft, setDraft] = useState<AddConnectorDraft>(EMPTY_DRAFT);
@@ -362,12 +361,12 @@ export function ConnectorsSection() {
 
   const addServer = useMutation(
     orpc.connectors.add.mutationOptions({
+      onError: (cause, variables) => {
+        failed(cause, `Could not add ${variables.name}.`);
+      },
       onSuccess: (body) => {
         setServers(body.servers);
         setDraft(EMPTY_DRAFT);
-      },
-      onError: (cause, variables) => {
-        failed(cause, `Could not add ${variables.name}.`);
       },
     }),
   );
@@ -403,28 +402,179 @@ export function ConnectorsSection() {
 
   const scope = useDataDirScope();
 
+  const list = () => {
+    if (query.isError) {
+      return <p className="text-sm text-destructive">The connector list could not be read.</p>;
+    }
+    if (servers.length === 0) {
+      return (
+        <div className="space-y-1">
+          <p className="text-sm text-muted-foreground">No connectors configured.</p>
+          <SecondVaultNote scope={scope} />
+        </div>
+      );
+    }
+    return (
+      <div className="divide-y divide-line">
+        {servers.map((server) => (
+          <ConnectorRow key={server.name} server={server} onChanged={setServers} />
+        ))}
+      </div>
+    );
+  };
+
+  const transportFields = () => {
+    if (draft.kind === "http") {
+      return (
+        <>
+          <div className="flex items-center gap-2">
+            <Label htmlFor={`${formId}-url`} className="w-24 shrink-0 text-xs">
+              URL
+            </Label>
+            <Input
+              id={`${formId}-url`}
+              value={draft.url}
+              placeholder="https://mcp.example.com/mcp"
+              onChange={(event) => {
+                setDraft({ ...draft, url: event.target.value });
+              }}
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <Label htmlFor={`${formId}-header`} className="w-24 shrink-0 text-xs">
+              Auth header
+            </Label>
+            <Input
+              id={`${formId}-header`}
+              value={draft.headerName}
+              placeholder="x-api-key"
+              className="w-40"
+              onChange={(event) => {
+                setDraft({ ...draft, headerName: event.target.value });
+              }}
+            />
+            <Input
+              aria-label="Auth header value"
+              type="password"
+              value={draft.headerValue}
+              placeholder="value"
+              onChange={(event) => {
+                setDraft({ ...draft, headerValue: event.target.value });
+              }}
+            />
+          </div>
+        </>
+      );
+    }
+    if (draft.kind === "oauth") {
+      return (
+        <>
+          <div className="flex items-center gap-2">
+            <Label htmlFor={`${formId}-oauth-url`} className="w-24 shrink-0 text-xs">
+              Server URL
+            </Label>
+            <Input
+              id={`${formId}-oauth-url`}
+              value={draft.url}
+              placeholder="https://mcp.example.com/mcp"
+              onChange={(event) => {
+                setDraft({ ...draft, url: event.target.value });
+              }}
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <Label htmlFor={`${formId}-authz`} className="w-24 shrink-0 text-xs">
+              Authorize
+            </Label>
+            <Input
+              id={`${formId}-authz`}
+              value={draft.authorizationEndpoint}
+              placeholder="https://provider.example/oauth/authorize"
+              onChange={(event) => {
+                setDraft({ ...draft, authorizationEndpoint: event.target.value });
+              }}
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <Label htmlFor={`${formId}-token`} className="w-24 shrink-0 text-xs">
+              Token
+            </Label>
+            <Input
+              id={`${formId}-token`}
+              value={draft.tokenEndpoint}
+              placeholder="https://provider.example/oauth/token"
+              onChange={(event) => {
+                setDraft({ ...draft, tokenEndpoint: event.target.value });
+              }}
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <Label htmlFor={`${formId}-client`} className="w-24 shrink-0 text-xs">
+              Client id
+            </Label>
+            <Input
+              id={`${formId}-client`}
+              value={draft.clientId}
+              placeholder="from your OAuth app registration"
+              onChange={(event) => {
+                setDraft({ ...draft, clientId: event.target.value });
+              }}
+            />
+            <Input
+              aria-label="Scopes"
+              value={draft.scopesText}
+              placeholder="scopes (space-separated)"
+              className="w-48"
+              onChange={(event) => {
+                setDraft({ ...draft, scopesText: event.target.value });
+              }}
+            />
+          </div>
+        </>
+      );
+    }
+    return (
+      <>
+        <div className="flex items-center gap-2">
+          <Label htmlFor={`${formId}-command`} className="w-24 shrink-0 text-xs">
+            Command
+          </Label>
+          <Input
+            id={`${formId}-command`}
+            value={draft.command}
+            placeholder="npx"
+            onChange={(event) => {
+              setDraft({ ...draft, command: event.target.value });
+            }}
+          />
+        </div>
+        <div className="flex items-start gap-2">
+          <Label htmlFor={`${formId}-args`} className="w-24 shrink-0 pt-2 text-xs">
+            Arguments
+          </Label>
+          <Textarea
+            id={`${formId}-args`}
+            value={draft.argsText}
+            rows={2}
+            placeholder={"one argument\nper line"}
+            onChange={(event) => {
+              setDraft({ ...draft, argsText: event.target.value });
+            }}
+          />
+        </div>
+      </>
+    );
+  };
+
   return (
     <section>
       <SectionHeading>Connectors</SectionHeading>
       <p className="mb-2 text-xs text-muted-foreground">
         MCP servers every agent session gets — Claude Code and Codex alike. Enabled rows ride each
-        session's launch; changes apply from the next action.
+        session&apos;s launch; changes apply from the next action.
       </p>
 
-      {query.isError ? (
-        <p className="text-sm text-destructive">The connector list could not be read.</p>
-      ) : servers.length === 0 ? (
-        <div className="space-y-1">
-          <p className="text-sm text-muted-foreground">No connectors configured.</p>
-          <SecondVaultNote scope={scope} />
-        </div>
-      ) : (
-        <div className="divide-y divide-line">
-          {servers.map((server) => (
-            <ConnectorRow key={server.name} server={server} onChanged={setServers} />
-          ))}
-        </div>
-      )}
+      {list()}
 
       <SectionHeading>Add a connector</SectionHeading>
       <div className="flex flex-col gap-2">
@@ -449,140 +599,7 @@ export function ConnectorsSection() {
             setDraft({ ...draft, kind });
           }}
         />
-        {draft.kind === "http" ? (
-          <>
-            <div className="flex items-center gap-2">
-              <Label htmlFor={`${formId}-url`} className="w-24 shrink-0 text-xs">
-                URL
-              </Label>
-              <Input
-                id={`${formId}-url`}
-                value={draft.url}
-                placeholder="https://mcp.example.com/mcp"
-                onChange={(event) => {
-                  setDraft({ ...draft, url: event.target.value });
-                }}
-              />
-            </div>
-            <div className="flex items-center gap-2">
-              <Label htmlFor={`${formId}-header`} className="w-24 shrink-0 text-xs">
-                Auth header
-              </Label>
-              <Input
-                id={`${formId}-header`}
-                value={draft.headerName}
-                placeholder="x-api-key"
-                className="w-40"
-                onChange={(event) => {
-                  setDraft({ ...draft, headerName: event.target.value });
-                }}
-              />
-              <Input
-                aria-label="Auth header value"
-                type="password"
-                value={draft.headerValue}
-                placeholder="value"
-                onChange={(event) => {
-                  setDraft({ ...draft, headerValue: event.target.value });
-                }}
-              />
-            </div>
-          </>
-        ) : draft.kind === "oauth" ? (
-          <>
-            <div className="flex items-center gap-2">
-              <Label htmlFor={`${formId}-oauth-url`} className="w-24 shrink-0 text-xs">
-                Server URL
-              </Label>
-              <Input
-                id={`${formId}-oauth-url`}
-                value={draft.url}
-                placeholder="https://mcp.example.com/mcp"
-                onChange={(event) => {
-                  setDraft({ ...draft, url: event.target.value });
-                }}
-              />
-            </div>
-            <div className="flex items-center gap-2">
-              <Label htmlFor={`${formId}-authz`} className="w-24 shrink-0 text-xs">
-                Authorize
-              </Label>
-              <Input
-                id={`${formId}-authz`}
-                value={draft.authorizationEndpoint}
-                placeholder="https://provider.example/oauth/authorize"
-                onChange={(event) => {
-                  setDraft({ ...draft, authorizationEndpoint: event.target.value });
-                }}
-              />
-            </div>
-            <div className="flex items-center gap-2">
-              <Label htmlFor={`${formId}-token`} className="w-24 shrink-0 text-xs">
-                Token
-              </Label>
-              <Input
-                id={`${formId}-token`}
-                value={draft.tokenEndpoint}
-                placeholder="https://provider.example/oauth/token"
-                onChange={(event) => {
-                  setDraft({ ...draft, tokenEndpoint: event.target.value });
-                }}
-              />
-            </div>
-            <div className="flex items-center gap-2">
-              <Label htmlFor={`${formId}-client`} className="w-24 shrink-0 text-xs">
-                Client id
-              </Label>
-              <Input
-                id={`${formId}-client`}
-                value={draft.clientId}
-                placeholder="from your OAuth app registration"
-                onChange={(event) => {
-                  setDraft({ ...draft, clientId: event.target.value });
-                }}
-              />
-              <Input
-                aria-label="Scopes"
-                value={draft.scopesText}
-                placeholder="scopes (space-separated)"
-                className="w-48"
-                onChange={(event) => {
-                  setDraft({ ...draft, scopesText: event.target.value });
-                }}
-              />
-            </div>
-          </>
-        ) : (
-          <>
-            <div className="flex items-center gap-2">
-              <Label htmlFor={`${formId}-command`} className="w-24 shrink-0 text-xs">
-                Command
-              </Label>
-              <Input
-                id={`${formId}-command`}
-                value={draft.command}
-                placeholder="npx"
-                onChange={(event) => {
-                  setDraft({ ...draft, command: event.target.value });
-                }}
-              />
-            </div>
-            <div className="flex items-start gap-2">
-              <Label htmlFor={`${formId}-args`} className="w-24 shrink-0 pt-2 text-xs">
-                Arguments
-              </Label>
-              <Textarea
-                id={`${formId}-args`}
-                value={draft.argsText}
-                rows={2}
-                placeholder={"one argument\nper line"}
-                onChange={(event) => {
-                  setDraft({ ...draft, argsText: event.target.value });
-                }}
-              />
-            </div>
-          </>
-        )}
+        {transportFields()}
         <div className="flex items-center gap-2">
           {draft.name !== "" && !verdict.ok ? (
             <p className="flex-1 text-xs text-muted-foreground">{verdict.problem}</p>
@@ -627,4 +644,4 @@ export function ConnectorsSection() {
       </div>
     </section>
   );
-}
+};

@@ -1,55 +1,57 @@
 import { listStoredThreadEvents } from "@repo/db/events";
 import { NotificationBuffer } from "@repo/domain/notifier";
+import type { ThreadEvent } from "@repo/domain/provider-event";
 import { describe, expect, it } from "vitest";
-import { bootThreadHarness, type BootedTestApp } from "../../__tests__/boot-app";
+import { bootThreadHarness } from "../../__tests__/boot-app";
+import type { BootedTestApp } from "../../__tests__/boot-app";
 import { ThreadService } from "../../threads/service";
 import { unavailableTurnDriver } from "../../threads/turn-driver";
 import { FAKE_ACCOUNT, FakeCloud } from "./fake-cloud";
 
 // pollIntervalMs: null — the test triggers every pass itself.
-async function bootInstall(
+const bootInstall = async (
   cloud: FakeCloud,
   mode: "scripted" | "manual" = "scripted",
-): Promise<BootedTestApp> {
-  return await bootThreadHarness(
+): Promise<BootedTestApp> =>
+  await bootThreadHarness(
     { mode },
     { cloudTransport: { fetch: cloud.fetch, pollIntervalMs: null } },
   );
-}
 
-async function login(install: BootedTestApp, deviceName: string): Promise<void> {
+const login = async (install: BootedTestApp, deviceName: string): Promise<void> => {
   const status = await install.client.cloud.login({ ...FAKE_ACCOUNT, deviceName });
   expect(status.state).toBe("signed-in");
-}
+};
 
-async function syncNow(install: BootedTestApp): Promise<void> {
+const syncNow = async (install: BootedTestApp): Promise<void> => {
   await install.client.cloud.syncNow();
-}
+};
 
-function eventOrder(install: BootedTestApp, threadId: string): string[] {
-  return listStoredThreadEvents(install.db, { threadId }).map((stored) => {
-    const event = stored.event;
-    const said =
-      event.type === "client/turn/requested"
-        ? event.text
-        : event.type === "item/completed" && event.item.type === "agentMessage"
-          ? event.item.text
-          : "";
-    return `${event.type} ${said}`.trim();
-  });
-}
+const saidText = (event: ThreadEvent): string => {
+  if (event.type === "client/turn/requested") {
+    return event.text;
+  }
+  if (event.type === "item/completed" && event.item.type === "agentMessage") {
+    return event.item.text;
+  }
+  return "";
+};
 
-function eventSet(install: BootedTestApp, threadId: string): string[] {
-  return eventOrder(install, threadId).toSorted();
-}
+const eventOrder = (install: BootedTestApp, threadId: string): string[] =>
+  listStoredThreadEvents(install.db, { threadId }).map(({ event }) =>
+    `${event.type} ${saidText(event)}`.trim(),
+  );
 
-function writerBlock(order: readonly string[], text: string): string[] {
+const eventSet = (install: BootedTestApp, threadId: string): string[] =>
+  eventOrder(install, threadId).toSorted();
+
+const writerBlock = (order: readonly string[], text: string): string[] => {
   const start = order.indexOf(`client/turn/requested ${text}`);
   if (start === -1) {
     throw new Error(`no turn for "${text}"`);
   }
   return order.slice(start, start + 7);
-}
+};
 
 describe("two installs against one account", () => {
   it("converge: a thread used on A appears on B, in A's order", async () => {
@@ -62,8 +64,8 @@ describe("two installs against one account", () => {
     const { thread } = await a.client.threads.create({ title: "Shared" });
 
     const sent = await a.client.threads.send({
-      threadId: thread.id,
       text: "hello from A",
+      threadId: thread.id,
     });
     expect(sent.kind).toBe("started");
 
@@ -78,7 +80,9 @@ describe("two installs against one account", () => {
     expect(eventOrder(b, thread.id)).toEqual(order);
 
     const body = await b.client.threads.timeline({ threadId: thread.id });
-    if (body.kind !== "full") throw new Error("expected a full timeline");
+    if (body.kind !== "full") {
+      throw new Error("expected a full timeline");
+    }
     expect(
       body.timeline.rows.some(
         (row) => row.kind === "conversation" && row.role === "user" && row.text === "hello from A",
@@ -95,8 +99,8 @@ describe("two installs against one account", () => {
 
     const { thread } = await a.client.threads.create({ title: "Idempotent" });
     await a.client.threads.send({
-      threadId: thread.id,
       text: "once",
+      threadId: thread.id,
     });
     await syncNow(a);
 
@@ -116,19 +120,19 @@ describe("two installs against one account", () => {
 
     const { thread } = await a.client.threads.create({ title: "Concurrent" });
     await a.client.threads.send({
-      threadId: thread.id,
       text: "seed",
+      threadId: thread.id,
     });
     await syncNow(a);
     await syncNow(b);
 
     await a.client.threads.send({
-      threadId: thread.id,
       text: "from A",
+      threadId: thread.id,
     });
     await b.client.threads.send({
-      threadId: thread.id,
       text: "from B",
+      threadId: thread.id,
     });
     await syncNow(a);
     await syncNow(b);
@@ -153,8 +157,8 @@ describe("two installs against one account", () => {
 
     const { thread } = await a.client.threads.create({ title: "Signed in again" });
     await a.client.threads.send({
-      threadId: thread.id,
       text: "before signing out",
+      threadId: thread.id,
     });
     await syncNow(a);
     await syncNow(b);
@@ -181,8 +185,8 @@ describe("two installs against one account", () => {
 
     const { thread } = await a.client.threads.create({ title: "Long task" });
     await a.client.threads.send({
-      threadId: thread.id,
       text: "run it",
+      threadId: thread.id,
     });
     await syncNow(a);
     await syncNow(b);
@@ -191,9 +195,9 @@ describe("two installs against one account", () => {
     expect(pulled.thread.status).toBe("active");
 
     const rebooted = new ThreadService({
+      createTurnDriver: () => unavailableTurnDriver,
       db: b.db,
       notifier: new NotificationBuffer(),
-      createTurnDriver: () => unavailableTurnDriver,
     });
     rebooted.boot();
     expect(rebooted.list().some((row) => row.id === thread.id)).toBe(true);
@@ -211,15 +215,15 @@ describe("two installs against one account", () => {
 
     const { thread } = await a.client.threads.create({ title: "Two-way" });
     await a.client.threads.send({
-      threadId: thread.id,
       text: "from A",
+      threadId: thread.id,
     });
     await syncNow(a);
     await syncNow(b);
 
     await b.client.threads.send({
-      threadId: thread.id,
       text: "from B",
+      threadId: thread.id,
     });
     await syncNow(b);
     await syncNow(a);

@@ -1,11 +1,12 @@
 import { defineCommand } from "citty";
-import { apiFor, type CliDeps } from "../context";
+import { apiFor } from "../context";
+import type { CliDeps } from "../context";
 import { jsonArg, outputJson, writeOut } from "../output";
 
-export function guideCommand(deps: CliDeps) {
-  return defineCommand({
-    meta: { name: "guide", description: "Print the agent manual served by the app" },
+export const guideCommand = (deps: CliDeps) =>
+  defineCommand({
     args: { ...jsonArg },
+    meta: { description: "Print the agent manual served by the app", name: "guide" },
     run: async ({ args }) => {
       const api = apiFor(deps);
       const body = await api.system.guide();
@@ -16,4 +17,3 @@ export function guideCommand(deps: CliDeps) {
       writeOut(`${body.markdown}\n`);
     },
   });
-}

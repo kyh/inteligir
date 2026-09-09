@@ -16,22 +16,20 @@ import { failed, Row, SecondVaultNote, SectionHeading } from "./settings-chrome"
 
 // Nothing on the ws bus announces a sync pass, so the status polls while the
 // page is mounted.
-const STATUS_POLL_MS = 5_000;
+const STATUS_POLL_MS = 5000;
 
-function useCloudStatus() {
-  return useQuery({
+const useCloudStatus = () =>
+  useQuery({
     ...orpc.cloud.status.queryOptions(),
-    staleTime: 0,
     refetchInterval: STATUS_POLL_MS,
+    staleTime: 0,
   });
-}
 
-function lastSyncedLabel(epochMs: number | null, nowMs: number): string {
-  return epochMs === null ? "never" : relativeTimeLabel(epochMs, nowMs, { seconds: true });
-}
+const lastSyncedLabel = (epochMs: number | null, nowMs: number): string =>
+  epochMs === null ? "never" : relativeTimeLabel(epochMs, nowMs, { seconds: true });
 
 // Must match the seconds tier above, or "40s ago" freezes until the minute tick.
-const LAST_SYNCED_TICK_MS = 1_000;
+const LAST_SYNCED_TICK_MS = 1000;
 
 export interface SignInFormProps {
   cloudUrl: string;
@@ -41,7 +39,7 @@ export interface SignInFormProps {
   refusal: string | null;
 }
 
-export function SignInForm({ cloudUrl, onSignIn, pending, refusal }: SignInFormProps) {
+export const SignInForm = ({ cloudUrl, onSignIn, pending, refusal }: SignInFormProps) => {
   const formId = useId();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -95,40 +93,38 @@ export function SignInForm({ cloudUrl, onSignIn, pending, refusal }: SignInFormP
       </Button>
     </form>
   );
-}
+};
 
 export interface SignedInDetailsProps {
   status: Extract<CloudStatusResponse, { state: "signed-in" }>;
   nowMs: number;
 }
 
-export function SignedInDetails({ status, nowMs }: SignedInDetailsProps) {
-  return (
-    <dl className="space-y-1.5">
-      <Row label="Account">
-        <span className="block truncate font-mono text-xs">
-          {status.accountEmail ?? new URL(status.cloudUrl).host}
-        </span>
+export const SignedInDetails = ({ status, nowMs }: SignedInDetailsProps) => (
+  <dl className="space-y-1.5">
+    <Row label="Account">
+      <span className="block truncate font-mono text-xs">
+        {status.accountEmail ?? new URL(status.cloudUrl).host}
+      </span>
+    </Row>
+    <Row label="Device">
+      <span className="block truncate font-mono text-xs">{status.deviceId}</span>
+    </Row>
+    <Row label="State">
+      <span className="text-xs">
+        {status.connected ? "Following" : "Polling"} · {status.pending} queued · synced{" "}
+        {lastSyncedLabel(status.lastSyncedAt, nowMs)}
+      </span>
+    </Row>
+    {status.lastError === null ? null : (
+      <Row label="Last error">
+        <span className="text-xs text-muted-foreground">{status.lastError}</span>
       </Row>
-      <Row label="Device">
-        <span className="block truncate font-mono text-xs">{status.deviceId}</span>
-      </Row>
-      <Row label="State">
-        <span className="text-xs">
-          {status.connected ? "Following" : "Polling"} · {status.pending} queued · synced{" "}
-          {lastSyncedLabel(status.lastSyncedAt, nowMs)}
-        </span>
-      </Row>
-      {status.lastError === null ? null : (
-        <Row label="Last error">
-          <span className="text-xs text-muted-foreground">{status.lastError}</span>
-        </Row>
-      )}
-    </dl>
-  );
-}
+    )}
+  </dl>
+);
 
-export function SyncSection() {
+export const SyncSection = () => {
   const queryClient = useQueryClient();
   const { data: vaultStatus } = useVaultStatus();
   const statusQuery = useCloudStatus();
@@ -141,29 +137,29 @@ export function SyncSection() {
 
   const signIn = useMutation(
     orpc.cloud.login.mutationOptions({
+      onError: (error) => {
+        setRefusal(refusalMessage(error, "Could not sign in."));
+      },
       onSuccess: (next) => {
         setRefusal(null);
         applyStatus(next);
-      },
-      onError: (error) => {
-        setRefusal(refusalMessage(error, "Could not sign in."));
       },
     }),
   );
   const logout = useMutation(
     orpc.cloud.logout.mutationOptions({
-      onSuccess: applyStatus,
       onError: (error) => {
         failed(error, "Could not sign this device out.");
       },
+      onSuccess: applyStatus,
     }),
   );
   const syncThreads = useMutation(
     orpc.cloud.syncNow.mutationOptions({
-      onSuccess: applyStatus,
       onError: (error) => {
         failed(error, "Could not run a sync.");
       },
+      onSuccess: applyStatus,
     }),
   );
   const pending = signIn.isPending || logout.isPending || syncThreads.isPending;
@@ -178,10 +174,10 @@ export function SyncSection() {
         vaultStatus.state !== "no-remote" &&
         vaultStatus.remoteSource === "account";
       const confirmed = await confirm({
-        title: "Stop syncing this device?",
         body: `This machine forgets its credential and everything queued for the cloud.${vaultViaAccount ? " Your vault stops syncing through your account." : ""} Your notes and threads stay here. The device stays listed on your account until you revoke it there.`,
         confirmLabel: "Sign out",
         destructive: true,
+        title: "Stop syncing this device?",
       });
       if (!confirmed) {
         return;
@@ -194,12 +190,12 @@ export function SyncSection() {
   const status = statusQuery.data;
   const scope = useDataDirScope();
 
-  return (
-    <section className="space-y-2">
-      <SectionHeading>Devices</SectionHeading>
-      {status === undefined ? (
-        <p className="text-sm text-muted-foreground">…</p>
-      ) : status.state === "signed-out" ? (
+  const body = () => {
+    if (status === undefined) {
+      return <p className="text-sm text-muted-foreground">…</p>;
+    }
+    if (status.state === "signed-out") {
+      return (
         <div className="space-y-2">
           <SecondVaultNote scope={scope} />
           <SignInForm
@@ -211,7 +207,10 @@ export function SyncSection() {
             refusal={refusal}
           />
         </div>
-      ) : status.state === "unauthorized" ? (
+      );
+    }
+    if (status.state === "unauthorized") {
+      return (
         <div className="space-y-2">
           <p className="text-xs text-muted-foreground">
             {status.detail} Sync is stopped. Sign this device out, then sign it in again.
@@ -220,26 +219,34 @@ export function SyncSection() {
             Sign out
           </Button>
         </div>
-      ) : (
-        <div className="space-y-2">
-          <SignedInDetails status={status} nowMs={now} />
-          <div className="flex gap-2">
-            <Button
-              size="compact"
-              variant="tertiary"
-              disabled={pending}
-              onClick={() => {
-                syncThreads.mutate();
-              }}
-            >
-              Sync threads now
-            </Button>
-            <Button size="compact" variant="ghost" onClick={signOut} disabled={pending}>
-              Sign out
-            </Button>
-          </div>
+      );
+    }
+    return (
+      <div className="space-y-2">
+        <SignedInDetails status={status} nowMs={now} />
+        <div className="flex gap-2">
+          <Button
+            size="compact"
+            variant="tertiary"
+            disabled={pending}
+            onClick={() => {
+              syncThreads.mutate();
+            }}
+          >
+            Sync threads now
+          </Button>
+          <Button size="compact" variant="ghost" onClick={signOut} disabled={pending}>
+            Sign out
+          </Button>
         </div>
-      )}
+      </div>
+    );
+  };
+
+  return (
+    <section className="space-y-2">
+      <SectionHeading>Devices</SectionHeading>
+      {body()}
     </section>
   );
-}
+};

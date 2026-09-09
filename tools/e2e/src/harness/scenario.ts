@@ -1,8 +1,10 @@
 import { mkdir } from "node:fs/promises";
-import { join } from "node:path";
-import { launchCloudWorker, type CloudWorker, type LaunchCloudWorkerArgs } from "./cloud-worker";
+import path from "node:path";
+import { launchCloudWorker } from "./cloud-worker";
+import type { CloudWorker, LaunchCloudWorkerArgs } from "./cloud-worker";
 import { exec, hermeticProcessEnv } from "./exec";
-import { launchApp, type AppInstance, type LaunchAppArgs } from "./instance";
+import { launchApp } from "./instance";
+import type { AppInstance, LaunchAppArgs } from "./instance";
 import type { TrackedProcess } from "./tracked-child";
 
 interface BootOptions {
@@ -18,15 +20,15 @@ export interface ScenarioContext {
   repoRoot: string;
   scratchDir: string;
   log: (message: string) => void;
-  boot(options: BootOptions): Promise<AppInstance>;
-  bareRemote(name?: string): Promise<string>;
-  cloudWorker(options?: { builtConfig?: string }): Promise<CloudWorker>;
+  boot: (options: BootOptions) => Promise<AppInstance>;
+  bareRemote: (name?: string) => Promise<string>;
+  cloudWorker: (options?: { builtConfig?: string }) => Promise<CloudWorker>;
 }
 
 export interface Scenario {
   name: string;
   description: string;
-  run(context: ScenarioContext): Promise<void>;
+  run: (context: ScenarioContext) => Promise<void>;
 }
 
 export interface CreateScenarioContextArgs {
@@ -36,53 +38,61 @@ export interface CreateScenarioContextArgs {
   instances: TrackedProcess[];
 }
 
-export function createScenarioContext(args: CreateScenarioContextArgs): ScenarioContext {
-  return {
-    repoRoot: args.repoRoot,
-    scratchDir: args.scratchDir,
-    log: args.log,
-    async boot(options) {
-      const instanceDir = join(args.scratchDir, options.name);
-      if (options.seedVault) {
-        const vaultDir = join(instanceDir, "vault");
-        await mkdir(vaultDir, { recursive: true });
-        await options.seedVault(vaultDir);
-      }
-      if (options.seedData) {
-        const dataDir = join(instanceDir, "data");
-        await mkdir(dataDir, { recursive: true });
-        await options.seedData(dataDir);
-      }
-      const launchArgs: LaunchAppArgs = {
-        name: options.name,
-        instanceDir,
-        repoRoot: args.repoRoot,
-        onLog: args.log,
-        register: (instance) => args.instances.push(instance),
-      };
-      // exactOptionalPropertyTypes: an absent option stays absent, never an explicit undefined.
-      if (options.vaultRemote !== undefined) launchArgs.vaultRemote = options.vaultRemote;
-      if (options.extraEnv !== undefined) launchArgs.extraEnv = options.extraEnv;
-      return launchApp(launchArgs);
-    },
-    cloudWorker(options) {
-      const launch: LaunchCloudWorkerArgs = {
-        repoRoot: args.repoRoot,
-        scratchDir: args.scratchDir,
-        onLog: args.log,
-        register: (process) => args.instances.push(process),
-      };
-      if (options?.builtConfig !== undefined) launch.builtConfig = options.builtConfig;
-      return launchCloudWorker(launch);
-    },
-    async bareRemote(name = "remote") {
-      const remoteDir = join(args.scratchDir, `${name}.git`);
-      await mkdir(remoteDir, { recursive: true });
-      await exec("git", ["init", "--bare", "-b", "main", remoteDir], {
-        env: hermeticProcessEnv(),
-      });
-      args.log(`bare remote at ${remoteDir}`);
-      return `file://${remoteDir}`;
-    },
-  };
-}
+export const createScenarioContext = (args: CreateScenarioContextArgs): ScenarioContext => ({
+  async bareRemote(name = "remote") {
+    const remoteDir = path.join(args.scratchDir, `${name}.git`);
+    await mkdir(remoteDir, { recursive: true });
+    await exec("git", ["init", "--bare", "-b", "main", remoteDir], {
+      env: hermeticProcessEnv(),
+    });
+    args.log(`bare remote at ${remoteDir}`);
+    return `file://${remoteDir}`;
+  },
+  async boot(options) {
+    const instanceDir = path.join(args.scratchDir, options.name);
+    if (options.seedVault) {
+      const vaultDir = path.join(instanceDir, "vault");
+      await mkdir(vaultDir, { recursive: true });
+      await options.seedVault(vaultDir);
+    }
+    if (options.seedData) {
+      const dataDir = path.join(instanceDir, "data");
+      await mkdir(dataDir, { recursive: true });
+      await options.seedData(dataDir);
+    }
+    const launchArgs: LaunchAppArgs = {
+      instanceDir,
+      name: options.name,
+      onLog: args.log,
+      register: (instance) => {
+        args.instances.push(instance);
+      },
+      repoRoot: args.repoRoot,
+    };
+    // exactOptionalPropertyTypes: an absent option stays absent, never an explicit undefined.
+    if (options.vaultRemote !== undefined) {
+      launchArgs.vaultRemote = options.vaultRemote;
+    }
+    if (options.extraEnv !== undefined) {
+      launchArgs.extraEnv = options.extraEnv;
+    }
+    return await launchApp(launchArgs);
+  },
+  async cloudWorker(options) {
+    const launch: LaunchCloudWorkerArgs = {
+      onLog: args.log,
+      register: (process) => {
+        args.instances.push(process);
+      },
+      repoRoot: args.repoRoot,
+      scratchDir: args.scratchDir,
+    };
+    if (options?.builtConfig !== undefined) {
+      launch.builtConfig = options.builtConfig;
+    }
+    return await launchCloudWorker(launch);
+  },
+  log: args.log,
+  repoRoot: args.repoRoot,
+  scratchDir: args.scratchDir,
+});

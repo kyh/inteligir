@@ -2,24 +2,17 @@
 // 0 settled idle, 1 settled in error (or not found), 2 timeout.
 
 import { describe, expect, it, onTestFinished } from "vitest";
-import {
-  makeFixtureState,
-  makeThread,
-  serveFixture,
-  EMPTY_TIMELINE,
-  type FixtureServer,
-  type FixtureState,
-  type FixtureThread,
-} from "./fixture-server";
+import { makeFixtureState, makeThread, serveFixture, EMPTY_TIMELINE } from "./fixture-server";
+import type { FixtureServer, FixtureState, FixtureThread } from "./fixture-server";
 import { runCliForTest } from "./run-cli";
 
-async function bootWithThread(
-  statusSequence: FixtureState["threads"][number]["statusSequence"],
-): Promise<FixtureServer> {
+const bootWithThread = async (
+  statusSequence?: FixtureState["threads"][number]["statusSequence"],
+): Promise<FixtureServer> => {
   const state = makeFixtureState();
   const entry: FixtureThread = {
-    thread: makeThread({ id: "thr_wait", status: "starting" }),
     pendingInteractions: [],
+    thread: makeThread({ id: "thr_wait", status: "starting" }),
     timeline: EMPTY_TIMELINE,
   };
   if (statusSequence !== undefined) {
@@ -27,9 +20,11 @@ async function bootWithThread(
   }
   state.threads.push(entry);
   const server = await serveFixture(state);
-  onTestFinished(() => server.close());
+  onTestFinished(async () => {
+    await server.close();
+  });
   return server;
-}
+};
 
 describe("thread wait", () => {
   it("exits 0 once the thread reaches idle", async () => {
@@ -49,7 +44,7 @@ describe("thread wait", () => {
       baseUrl: server.baseUrl,
     });
     expect(result.code).toBe(0);
-    expect(JSON.parse(result.stdout)).toEqual({ threadId: "thr_wait", status: "idle" });
+    expect(JSON.parse(result.stdout)).toEqual({ status: "idle", threadId: "thr_wait" });
   });
 
   it("exits 1 when the thread settles in error", async () => {
@@ -73,7 +68,7 @@ describe("thread wait", () => {
   });
 
   it("exits 1 for a thread that does not exist", async () => {
-    const server = await bootWithThread(undefined);
+    const server = await bootWithThread();
     const result = await runCliForTest({
       argv: ["action", "wait", "thr_missing"],
       baseUrl: server.baseUrl,

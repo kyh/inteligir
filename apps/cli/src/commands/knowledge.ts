@@ -4,32 +4,32 @@ import {
   KNOWLEDGE_RELATED_MAX_LIMIT,
   KNOWLEDGE_SEARCH_MAX_LIMIT,
   KNOWLEDGE_UNLINKED_MAX_LIMIT,
-  type KnowledgeMatchesRequest,
-  type KnowledgeProblemsRequest,
-  type KnowledgeProblemsResponse,
-  type KnowledgeRelatedRequest,
-  type KnowledgeSearchRequest,
-  type KnowledgeUnlinkedMentionsRequest,
+} from "@repo/api/local/knowledge/knowledge-schema";
+import type {
+  KnowledgeMatchesRequest,
+  KnowledgeProblemsRequest,
+  KnowledgeProblemsResponse,
+  KnowledgeRelatedRequest,
+  KnowledgeSearchRequest,
+  KnowledgeUnlinkedMentionsRequest,
 } from "@repo/api/local/knowledge/knowledge-schema";
 import { defineCommand } from "citty";
 import { parseBoundedInteger } from "../args";
-import { apiFor, type CliDeps } from "../context";
+import { apiFor } from "../context";
+import type { CliDeps } from "../context";
 import { jsonArg, out, outputJson, writeLines } from "../output";
 
-function parseLimit(rawValue: string | undefined, max: number): number | undefined {
-  return rawValue === undefined
-    ? undefined
-    : parseBoundedInteger(rawValue, "--limit", { min: 1, max });
-}
+const parseLimit = (rawValue: string | undefined, max: number): number | undefined =>
+  rawValue === undefined ? undefined : parseBoundedInteger(rawValue, "--limit", { max, min: 1 });
 
-export function searchCommand(deps: CliDeps) {
-  return defineCommand({
-    meta: { name: "search", description: "Full-text search; tag:<name> terms narrow by tag" },
+export const searchCommand = (deps: CliDeps) =>
+  defineCommand({
     args: {
-      query: { type: "positional", required: true, description: "The search query" },
-      limit: { type: "string", description: "Maximum results" },
+      limit: { description: "Maximum results", type: "string" },
+      query: { description: "The search query", required: true, type: "positional" },
       ...jsonArg,
     },
+    meta: { description: "Full-text search; tag:<name> terms narrow by tag", name: "search" },
     run: async ({ args }) => {
       const limit = parseLimit(args.limit, KNOWLEDGE_SEARCH_MAX_LIMIT);
       const api = apiFor(deps);
@@ -54,18 +54,17 @@ export function searchCommand(deps: CliDeps) {
       );
     },
   });
-}
 
-export function matchesCommand(deps: CliDeps) {
-  return defineCommand({
-    meta: { name: "matches", description: "Every literal occurrence of a text, with its line" },
+export const matchesCommand = (deps: CliDeps) =>
+  defineCommand({
     args: {
-      text: { type: "positional", required: true, description: "The text to find, one line" },
-      "case-sensitive": { type: "boolean", description: "Match case exactly" },
-      "whole-word": { type: "boolean", description: "Match whole words only" },
-      limit: { type: "string", description: "Maximum matches" },
+      "case-sensitive": { description: "Match case exactly", type: "boolean" },
+      limit: { description: "Maximum matches", type: "string" },
+      text: { description: "The text to find, one line", required: true, type: "positional" },
+      "whole-word": { description: "Match whole words only", type: "boolean" },
       ...jsonArg,
     },
+    meta: { description: "Every literal occurrence of a text, with its line", name: "matches" },
     run: async ({ args }) => {
       const limit = parseLimit(args.limit, KNOWLEDGE_MATCHES_MAX_LIMIT);
       const api = apiFor(deps);
@@ -99,15 +98,14 @@ export function matchesCommand(deps: CliDeps) {
       ]);
     },
   });
-}
 
-export function backlinksCommand(deps: CliDeps) {
-  return defineCommand({
-    meta: { name: "backlinks", description: "Notes linking INTO a note" },
+export const backlinksCommand = (deps: CliDeps) =>
+  defineCommand({
     args: {
-      path: { type: "positional", required: true, description: "The vault-relative path" },
+      path: { description: "The vault-relative path", required: true, type: "positional" },
       ...jsonArg,
     },
+    meta: { description: "Notes linking INTO a note", name: "backlinks" },
     run: async ({ args }) => {
       const api = apiFor(deps);
       const body = await api.knowledge.backlinks({ path: args.path });
@@ -124,16 +122,15 @@ export function backlinksCommand(deps: CliDeps) {
       ]);
     },
   });
-}
 
-export function unlinkedCommand(deps: CliDeps) {
-  return defineCommand({
-    meta: { name: "unlinked", description: "Notes naming a note in prose without linking it" },
+export const unlinkedCommand = (deps: CliDeps) =>
+  defineCommand({
     args: {
-      path: { type: "positional", required: true, description: "The vault-relative path" },
-      limit: { type: "string", description: "Maximum notes" },
+      limit: { description: "Maximum notes", type: "string" },
+      path: { description: "The vault-relative path", required: true, type: "positional" },
       ...jsonArg,
     },
+    meta: { description: "Notes naming a note in prose without linking it", name: "unlinked" },
     run: async ({ args }) => {
       const limit = parseLimit(args.limit, KNOWLEDGE_UNLINKED_MAX_LIMIT);
       const api = apiFor(deps);
@@ -163,14 +160,15 @@ export function unlinkedCommand(deps: CliDeps) {
       ]);
     },
   });
-}
 
-function problemFamilyLines<Row>(
+const problemFamilyLines = <Row>(
   heading: string,
   family: { rows: readonly Row[]; total: number },
   line: (row: Row) => string,
-): string[] {
-  if (family.total === 0) return [];
+): string[] => {
+  if (family.total === 0) {
+    return [];
+  }
   return [
     `${heading} (${family.total})`,
     ...family.rows.map((row) => `  ${line(row)}`),
@@ -178,42 +176,40 @@ function problemFamilyLines<Row>(
       ? [`  (${family.total - family.rows.length} more not shown)`]
       : []),
   ];
-}
+};
 
-function problemLines(body: KnowledgeProblemsResponse): string[] {
-  return [
-    ...problemFamilyLines(
-      "Unresolved links",
-      body.unresolvedLinks,
-      (row) => `[[${row.target}]]  ${row.sourcePath}:${row.line}`,
-    ),
-    ...problemFamilyLines(
-      "Missing embeds",
-      body.missingEmbeds,
-      (row) => `${row.target}  ${row.sourcePath}:${row.line}`,
-    ),
-    ...problemFamilyLines("Orphans", body.orphans, (row) => `${row.path}  ${row.title}`),
-    ...problemFamilyLines(
-      "Duplicate stems",
-      body.duplicateStems,
-      (row) => `${row.stem}  ${row.paths.join(", ")}`,
-    ),
-  ];
-}
+const problemLines = (body: KnowledgeProblemsResponse): string[] => [
+  ...problemFamilyLines(
+    "Unresolved links",
+    body.unresolvedLinks,
+    (row) => `[[${row.target}]]  ${row.sourcePath}:${row.line}`,
+  ),
+  ...problemFamilyLines(
+    "Missing embeds",
+    body.missingEmbeds,
+    (row) => `${row.target}  ${row.sourcePath}:${row.line}`,
+  ),
+  ...problemFamilyLines("Orphans", body.orphans, (row) => `${row.path}  ${row.title}`),
+  ...problemFamilyLines(
+    "Duplicate stems",
+    body.duplicateStems,
+    (row) => `${row.stem}  ${row.paths.join(", ")}`,
+  ),
+];
 
-export function problemsCommand(deps: CliDeps) {
-  return defineCommand({
-    meta: {
-      name: "problems",
-      description: "Dangling links, missing embeds, orphan notes and duplicate stems",
-    },
+export const problemsCommand = (deps: CliDeps) =>
+  defineCommand({
     args: {
-      limit: { type: "string", description: "Maximum rows per family" },
       "include-conventions": {
-        type: "boolean",
         description: "Count daily notes and templates as orphans too",
+        type: "boolean",
       },
+      limit: { description: "Maximum rows per family", type: "string" },
       ...jsonArg,
+    },
+    meta: {
+      description: "Dangling links, missing embeds, orphan notes and duplicate stems",
+      name: "problems",
     },
     run: async ({ args }) => {
       const limit = parseLimit(args.limit, KNOWLEDGE_PROBLEMS_MAX_LIMIT);
@@ -237,16 +233,15 @@ export function problemsCommand(deps: CliDeps) {
       writeLines(lines);
     },
   });
-}
 
-export function relatedCommand(deps: CliDeps) {
-  return defineCommand({
-    meta: { name: "related", description: "Notes connected to a note, and why" },
+export const relatedCommand = (deps: CliDeps) =>
+  defineCommand({
     args: {
-      path: { type: "positional", required: true, description: "The vault-relative path" },
-      limit: { type: "string", description: "Maximum results" },
+      limit: { description: "Maximum results", type: "string" },
+      path: { description: "The vault-relative path", required: true, type: "positional" },
       ...jsonArg,
     },
+    meta: { description: "Notes connected to a note, and why", name: "related" },
     run: async ({ args }) => {
       const limit = parseLimit(args.limit, KNOWLEDGE_RELATED_MAX_LIMIT);
       const api = apiFor(deps);
@@ -270,12 +265,11 @@ export function relatedCommand(deps: CliDeps) {
       );
     },
   });
-}
 
-export function tagsCommand(deps: CliDeps) {
-  return defineCommand({
-    meta: { name: "tags", description: "Every tag with its usage count, most used first" },
+export const tagsCommand = (deps: CliDeps) =>
+  defineCommand({
     args: { ...jsonArg },
+    meta: { description: "Every tag with its usage count, most used first", name: "tags" },
     run: async ({ args }) => {
       const api = apiFor(deps);
       const body = await api.knowledge.tags();
@@ -290,4 +284,3 @@ export function tagsCommand(deps: CliDeps) {
       ]);
     },
   });
-}

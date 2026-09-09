@@ -1,22 +1,24 @@
 // The only module importing katex (JS + CSS), so the ~280KB lands in a lazy chunk.
 
 import { useEffect, useRef } from "react";
-import katex from "katex";
+import { render } from "katex";
 
 import "katex/dist/katex.min.css";
 
-type Props = {
+interface Props {
   tex: string;
   displayMode: boolean;
   className?: string;
-};
+}
 
-function KatexView({ tex, displayMode, className }: Props) {
+const KatexView = ({ tex, displayMode, className }: Props) => {
   const ref = useRef<HTMLSpanElement | null>(null);
 
   useEffect(() => {
-    if (!ref.current) return;
-    katex.render(tex, ref.current, {
+    if (!ref.current) {
+      return;
+    }
+    render(tex, ref.current, {
       displayMode,
       errorColor: "#cc0000",
       output: "htmlAndMathml",
@@ -26,6 +28,6 @@ function KatexView({ tex, displayMode, className }: Props) {
   }, [tex, displayMode]);
 
   return <span ref={ref} className={className} />;
-}
+};
 
 export default KatexView;

@@ -1,8 +1,12 @@
+// oxlint-disable typescript/no-deprecated -- SELF is the only fetcher that runs in the tests'
+// own isolate; the cloudflare:workers loopback binding stands a second worker up, and its
+// first fetch costs seconds enough to time a test out.
 import { DEVICE_API_PATHS } from "@repo/api/cloud/device/device-schema";
 import { VAULT_API_PATHS } from "@repo/api/cloud/vault/vault-schema";
 import { VAULT_GIT_PATH } from "@repo/api/cloud/vault/vault-git";
 import { cloudErrorSchema } from "@repo/api/cloud/errors";
-import { env, SELF } from "cloudflare:test";
+import { SELF } from "cloudflare:test";
+import { env } from "cloudflare:workers";
 import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createDb } from "../db/client";
@@ -13,13 +17,13 @@ import { deviceHeaders, ORIGIN, loginDevice, sessionHeaders, signUpUser } from "
 const TREE = `${ORIGIN}${VAULT_API_PATHS.tree}`;
 const GIT_REFS = `${ORIGIN}${VAULT_GIT_PATH}/info/refs?service=git-upload-pack`;
 
-async function spendBudget(key: string): Promise<void> {
+const spendBudget = async (key: string): Promise<void> => {
   const spent = { count: 1_000_000, lastRequest: Date.now() };
   await createDb(env.DB)
     .insert(rateLimit)
     .values({ id: crypto.randomUUID(), key, ...spent })
-    .onConflictDoUpdate({ target: rateLimit.key, set: spent });
-}
+    .onConflictDoUpdate({ set: spent, target: rateLimit.key });
+};
 
 describe("the hosted vault's per-device budgets", () => {
   // the suite config keeps the limiter off so suites do not 429 on one another
@@ -68,9 +72,9 @@ describe("the hosted vault's per-device budgets", () => {
     await spendBudget(key);
 
     const revoked = await SELF.fetch(`${ORIGIN}${DEVICE_API_PATHS.revoke}`, {
-      method: "POST",
-      headers: { ...sessionHeaders(bearer), "content-type": "application/json" },
       body: JSON.stringify({ deviceId: device.deviceId }),
+      headers: { ...sessionHeaders(bearer), "content-type": "application/json" },
+      method: "POST",
     });
     expect(revoked.status).toBe(200);
 

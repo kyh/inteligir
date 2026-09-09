@@ -3,20 +3,26 @@ import type { WikiTarget } from "./link-graph-index";
 import { buildResolver } from "./link-resolve";
 import { normalizePath } from "./vault-path";
 
-export type RenameCandidateGraph = {
-  backlinks(path: string): ReadonlyArray<{ sourcePath: string }>;
-  forwardLinks(path: string): ReadonlyArray<{ kind: LinkKind; target: string }>;
-  wikiTargets(): readonly WikiTarget[];
-};
+export interface RenameCandidateGraph {
+  backlinks: (path: string) => readonly { sourcePath: string }[];
+  forwardLinks: (path: string) => readonly { kind: LinkKind; target: string }[];
+  wikiTargets: () => readonly WikiTarget[];
+}
 
 // a superset computed with no reads: the moved doc, its backlinks, and the shadow
 // population — every doc whose link would resolve to `to` afterwards (a rename to
 // `note.md` steals `[[note]]` from `a/note.md`), alias entries included
-export function renameCandidates(graph: RenameCandidateGraph, from: string, to: string): string[] {
+export const renameCandidates = (
+  graph: RenameCandidateGraph,
+  from: string,
+  to: string,
+): string[] => {
   const fromPath = normalizePath(from);
   const toPath = normalizePath(to);
   const candidates = new Set<string>([fromPath]);
-  for (const entry of graph.backlinks(fromPath)) candidates.add(entry.sourcePath);
+  for (const entry of graph.backlinks(fromPath)) {
+    candidates.add(entry.sourcePath);
+  }
 
   const targets = graph.wikiTargets();
   const postPathOf = (path: string): string => (path === fromPath ? toPath : path);
@@ -32,7 +38,9 @@ export function renameCandidates(graph: RenameCandidateGraph, from: string, to: 
   );
 
   for (const target of targets) {
-    if (target.type !== "doc" || candidates.has(target.path)) continue;
+    if (target.type !== "doc" || candidates.has(target.path)) {
+      continue;
+    }
     const sourcePost = postPathOf(target.path);
     for (const link of graph.forwardLinks(target.path)) {
       const hit =
@@ -46,4 +54,4 @@ export function renameCandidates(graph: RenameCandidateGraph, from: string, to: 
     }
   }
   return [...candidates];
-}
+};

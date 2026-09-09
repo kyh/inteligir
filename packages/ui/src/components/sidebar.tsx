@@ -1,29 +1,22 @@
 "use client";
 // Vendored from Fluid Functionalism (github.com/mickadesign/fluid-functionalism), MIT.
 
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  forwardRef,
-  type ReactNode,
-  type HTMLAttributes,
-} from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { HTMLAttributes, ReactNode, RefAttributes } from "react";
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { motion } from "framer-motion";
-import { motionProps, motionStyle, type MotionConflictHandler } from "@repo/ui/lib/motion-style";
+import { motionProps, motionStyle } from "@repo/ui/lib/motion-style";
+import type { MotionConflictHandler } from "@repo/ui/lib/motion-style";
 import { cn } from "cn";
 import { spring, exitFallbackMs } from "@repo/ui/lib/springs";
 import { useSurface, SurfaceProvider } from "@repo/ui/lib/surface-context";
 import { surfaceClasses } from "@repo/ui/lib/surface-classes";
 import { composeRefs } from "@repo/ui/lib/compose-refs";
-import {
-  useSidebar,
-  SidebarShell,
-  type SidebarSide,
-  type SidebarVariant,
-  type SidebarCollapsible,
+import { useSidebar, SidebarShell } from "@repo/ui/components/sidebar-core";
+import type {
+  SidebarSide,
+  SidebarVariant,
+  SidebarCollapsible,
 } from "@repo/ui/components/sidebar-core";
 
 // Base UI Dialog, not Drawer: Drawer's swipe-to-dismiss writes inline transform onto its Popup
@@ -36,7 +29,7 @@ interface SidebarSheetProps {
   children: ReactNode;
 }
 
-function SidebarSheet({ side, open, onClose, children }: SidebarSheetProps) {
+const SidebarSheet = ({ side, open, onClose, children }: SidebarSheetProps) => {
   const { widthMobile } = useSidebar();
   // the panel takes initial focus itself: left to the primitive, the trap lands on the top nav
   // row, and Chrome grants :focus-visible to script-driven focus, so it shows the keyboard ring
@@ -56,15 +49,21 @@ function SidebarSheet({ side, open, onClose, children }: SidebarSheetProps) {
 
   const wasOpen = useRef(open);
   useEffect(() => {
-    if (wasOpen.current && !open) setClosing(true);
+    if (wasOpen.current && !open) {
+      setClosing(true);
+    }
     wasOpen.current = open;
   }, [open]);
 
   // fallback: rAF-driven animation callbacks stall in throttled tabs
   useEffect(() => {
-    if (!closing) return;
+    if (!closing) {
+      return;
+    }
     const id = setTimeout(finishClose, exitFallbackMs(spring.moderate));
-    return () => clearTimeout(id);
+    return () => {
+      clearTimeout(id);
+    };
   }, [closing, finishClose]);
 
   const offscreen = side === "left" ? "-100%" : "100%";
@@ -74,7 +73,9 @@ function SidebarSheet({ side, open, onClose, children }: SidebarSheetProps) {
     <DialogPrimitive.Root
       open={open || closing}
       onOpenChange={(nextOpen) => {
-        if (!nextOpen) setClosing(true);
+        if (!nextOpen) {
+          setClosing(true);
+        }
       }}
     >
       <DialogPrimitive.Portal>
@@ -118,7 +119,9 @@ function SidebarSheet({ side, open, onClose, children }: SidebarSheetProps) {
                 animate={{ x: visible ? 0 : offscreen }}
                 transition={visible ? spring.moderate : spring.moderate.exit}
                 onAnimationComplete={() => {
-                  if (closing) finishClose();
+                  if (closing) {
+                    finishClose();
+                  }
                 }}
               >
                 <SurfaceProvider value={level}>{children}</SurfaceProvider>
@@ -129,7 +132,7 @@ function SidebarSheet({ side, open, onClose, children }: SidebarSheetProps) {
       </DialogPrimitive.Portal>
     </DialogPrimitive.Root>
   );
-}
+};
 
 interface SidebarProps extends Omit<HTMLAttributes<HTMLDivElement>, MotionConflictHandler> {
   side?: SidebarSide;
@@ -139,79 +142,83 @@ interface SidebarProps extends Omit<HTMLAttributes<HTMLDivElement>, MotionConfli
   rail?: boolean;
 }
 
-const Sidebar = forwardRef<HTMLDivElement, SidebarProps>(
-  (
-    {
-      side = "left",
-      variant = "sidebar",
-      collapsible = "offcanvas",
-      bordered = true,
-      rail = true,
-      className,
-      style,
-      children,
-      ...props
-    },
-    ref,
-  ) => {
-    const { isMobile, openMobile, setOpenMobile, width, registerSide } = useSidebar();
+const Sidebar = ({
+  side = "left",
+  variant = "sidebar",
+  collapsible = "offcanvas",
+  bordered = true,
+  rail = true,
+  className,
+  style,
+  children,
+  ref,
+  ...props
+}: SidebarProps & RefAttributes<HTMLDivElement>) => {
+  const { isMobile, openMobile, setOpenMobile, width, registerSide } = useSidebar();
 
-    useEffect(() => registerSide(side), [side, registerSide]);
+  useEffect(() => {
+    registerSide(side);
+  }, [side, registerSide]);
 
-    if (collapsible === "none") {
-      return (
-        <div
-          ref={ref}
-          data-slot="sidebar"
-          data-variant={variant}
-          data-side={side}
-          className={cn(
-            "peer sticky top-0 flex h-svh shrink-0 flex-col",
-            side === "right" && "order-last",
-            className,
-          )}
-          style={{ width, ...style }}
-          {...props}
-        >
-          <div
-            data-sidebar="sidebar"
-            className={cn(
-              "flex h-full w-full min-h-0 flex-col",
-              bordered &&
-                variant === "sidebar" &&
-                (side === "left" ? "border-r border-border" : "border-l border-border"),
-            )}
-          >
-            {children}
-          </div>
-        </div>
-      );
-    }
-
-    if (isMobile) {
-      return (
-        <SidebarSheet side={side} open={openMobile} onClose={() => setOpenMobile(false)}>
-          {children}
-        </SidebarSheet>
-      );
-    }
-
+  if (collapsible === "none") {
     return (
-      <SidebarShell
+      <div
         ref={ref}
-        side={side}
-        variant={variant}
-        bordered={bordered}
-        rail={rail}
-        className={className}
-        style={motionStyle(style)}
+        data-slot="sidebar"
+        data-variant={variant}
+        data-side={side}
+        className={cn(
+          "peer sticky top-0 flex h-svh shrink-0 flex-col",
+          side === "right" && "order-last",
+          className,
+        )}
+        style={{ width, ...style }}
         {...props}
       >
-        {children}
-      </SidebarShell>
+        <div
+          data-sidebar="sidebar"
+          className={cn(
+            "flex h-full w-full min-h-0 flex-col",
+            bordered &&
+              variant === "sidebar" &&
+              (side === "left" ? "border-r border-border" : "border-l border-border"),
+          )}
+        >
+          {children}
+        </div>
+      </div>
     );
-  },
-);
+  }
+
+  if (isMobile) {
+    return (
+      <SidebarSheet
+        side={side}
+        open={openMobile}
+        onClose={() => {
+          setOpenMobile(false);
+        }}
+      >
+        {children}
+      </SidebarSheet>
+    );
+  }
+
+  return (
+    <SidebarShell
+      ref={ref}
+      side={side}
+      variant={variant}
+      bordered={bordered}
+      rail={rail}
+      className={className}
+      style={motionStyle(style)}
+      {...props}
+    >
+      {children}
+    </SidebarShell>
+  );
+};
 Sidebar.displayName = "Sidebar";
 
 export { Sidebar };

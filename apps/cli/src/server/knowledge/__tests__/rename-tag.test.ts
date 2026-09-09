@@ -1,31 +1,35 @@
 import { mkdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import nodePath from "node:path";
 import { noopNotifier } from "@repo/domain/notifier";
 import { describe, expect, it, onTestFinished } from "vitest";
 import { makeTempDir } from "../../__tests__/temp-dir";
-import { createVaultService, type VaultService } from "../../vault/vault-service";
-import { createKnowledgeRuntime, type KnowledgeRuntime } from "../knowledge-runtime";
+import { createVaultService } from "../../vault/vault-service";
+import type { VaultService } from "../../vault/vault-service";
+import { createKnowledgeRuntime } from "../knowledge-runtime";
+import type { KnowledgeRuntime } from "../knowledge-runtime";
 import { renameTagAcrossVault } from "../rename-tag";
 import { identityLock } from "../../__tests__/identity-lock";
 
-function boot() {
+const boot = () => {
   const instanceDir = makeTempDir("inteligir-knowledge-rename-tag-");
-  const root = join(instanceDir, "vault");
-  const dataDir = join(instanceDir, "data");
+  const root = nodePath.join(instanceDir, "vault");
+  const dataDir = nodePath.join(instanceDir, "data");
   mkdirSync(root, { recursive: true });
   mkdirSync(dataDir, { recursive: true });
   let sink: KnowledgeRuntime | null = null;
   const service = createVaultService({
-    root,
     lock: identityLock,
     notifier: noopNotifier,
     onMutated: (paths) => sink?.noteVaultChange({ kind: "paths", paths }),
+    root,
   });
   const knowledge = createKnowledgeRuntime({ dataDir, vault: service, vaultRoot: root });
   sink = knowledge;
-  onTestFinished(() => knowledge.dispose());
-  return { root, service, knowledge };
-}
+  onTestFinished(async () => {
+    await knowledge.dispose();
+  });
+  return { knowledge, root, service };
+};
 
 describe("a tag rename across the vault", () => {
   it("rewrites every note holding the tag or its family, and the index agrees afterwards", async () => {
@@ -36,23 +40,24 @@ describe("a tag rename across the vault", () => {
 
     expect(await knowledge.tagRenameCandidates("project")).toEqual(["a.md", "b.md"]);
 
-    const result = await renameTagAcrossVault({ service, knowledge, from: "project", to: "work" });
+    const result = await renameTagAcrossVault({ from: "project", knowledge, service, to: "work" });
     expect(result).toEqual({
       from: "project",
-      to: "work",
       rewritten: ["a.md", "b.md"],
       skipped: [],
+      to: "work",
     });
 
-    expect(readFileSync(join(root, "a.md"), "utf8")).toContain("On #work now.");
-    expect(readFileSync(join(root, "b.md"), "utf8")).toBe(
+    expect(readFileSync(nodePath.join(root, "a.md"), "utf-8")).toContain("On #work now.");
+    expect(readFileSync(nodePath.join(root, "b.md"), "utf-8")).toBe(
       "Nested #work/alpha stays a family member.\n",
     );
-    expect(readFileSync(join(root, "c.md"), "utf8")).toBe(
+    expect(readFileSync(nodePath.join(root, "c.md"), "utf-8")).toBe(
       "No tag, though project is a word here.\n",
     );
 
-    const tags = (await knowledge.tags()).map((entry) => entry.tag).toSorted();
+    const counted = await knowledge.tags();
+    const tags = counted.map((entry) => entry.tag).toSorted();
     expect(tags).toEqual(["keep", "work", "work/alpha"]);
     expect(await knowledge.tagRenameCandidates("project")).toEqual([]);
   });
@@ -65,18 +70,20 @@ describe("a tag rename across the vault", () => {
     // the snapshot answers stale bytes for b.md, as a concurrent editor would leave them
     const stale: Pick<VaultService, "read" | "writeIfUnchanged"> = {
       read: async (path) =>
-        path === "b.md" ? { path, content: "Second #project note, older.\n" } : service.read(path),
-      writeIfUnchanged: (path, expected, content) =>
-        service.writeIfUnchanged(path, expected, content),
+        path === "b.md"
+          ? { content: "Second #project note, older.\n", path }
+          : await service.read(path),
+      writeIfUnchanged: async (path, expected, content) =>
+        await service.writeIfUnchanged(path, expected, content),
     };
     const result = await renameTagAcrossVault({
-      service: stale,
-      knowledge,
       from: "project",
+      knowledge,
+      service: stale,
       to: "work",
     });
     expect(result.rewritten).toEqual(["a.md"]);
     expect(result.skipped).toEqual([{ path: "b.md", reason: "changed" }]);
-    expect(readFileSync(join(root, "b.md"), "utf8")).toBe("Second #project note.\n");
+    expect(readFileSync(nodePath.join(root, "b.md"), "utf-8")).toBe("Second #project note.\n");
   });
 });

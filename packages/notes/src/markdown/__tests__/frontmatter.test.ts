@@ -11,15 +11,15 @@ describe("splitFrontmatter", () => {
   it("returns empty properties + full body when there is no frontmatter", () => {
     const text = "# Hello\n\nbody text\n";
     expect(splitFrontmatter(text)).toEqual({
-      properties: {},
       body: text,
+      properties: {},
     });
   });
 
   it("parses a leading yaml block into a mapping and keeps the body verbatim", () => {
     const text = "---\ntitle: Note\ntags:\n  - a\n  - b\n---\n# Body\n\ntext\n";
     const split = splitFrontmatter(text);
-    expect(split.properties).toEqual({ title: "Note", tags: ["a", "b"] });
+    expect(split.properties).toEqual({ tags: ["a", "b"], title: "Note" });
     expect(split.body).toBe("# Body\n\ntext\n");
   });
 

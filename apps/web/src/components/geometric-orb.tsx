@@ -22,6 +22,7 @@ class HelixCurve extends THREE.Curve<THREE.Vector3> {
     super();
   }
 
+  // oxlint-disable-next-line eslint/class-methods-use-this -- THREE.Curve declares getPoint as an instance method; a static one would not override it
   override getPoint(percent: number): THREE.Vector3 {
     const x = HELIX_LENGTH * Math.sin(PI2 * percent);
     const y = HELIX_AMPLITUDE * Math.cos(PI2 * 3 * percent);
@@ -39,8 +40,10 @@ class HelixCurve extends THREE.Curve<THREE.Vector3> {
   }
 }
 
-function HelixTube({ baseColor }: { baseColor: string }) {
+const HelixTube = ({ baseColor }: { baseColor: string }) => {
   const meshRef = useRef<THREE.Mesh>(null);
+  // useState as a create-once slot: these are disposable GPU resources, never set again
+  // oxlint-disable-next-line react/hook-use-state -- there is no setter to name
   const [geometry] = useState(
     () =>
       new THREE.TubeGeometry(
@@ -52,15 +55,17 @@ function HelixTube({ baseColor }: { baseColor: string }) {
       ),
   );
   // seeded with the current color so the first frame is not a flash of white
+  // oxlint-disable-next-line react/hook-use-state -- there is no setter to name
   const [material] = useState(() => new THREE.MeshBasicMaterial({ color: baseColor }));
   const targetColor = useMemo(() => new THREE.Color(baseColor), [baseColor]);
 
-  useEffect(() => {
-    return () => {
+  useEffect(
+    () => () => {
       geometry.dispose();
       material.dispose();
-    };
-  }, [geometry, material]);
+    },
+    [geometry, material],
+  );
 
   useFrame((_state, delta) => {
     material.color.lerp(targetColor, 1 - Math.exp(-COLOR_LERP_SPEED * delta));
@@ -70,12 +75,10 @@ function HelixTube({ baseColor }: { baseColor: string }) {
   });
 
   return <mesh ref={meshRef} geometry={geometry} material={material} />;
-}
+};
 
-export function GeometricOrb({ baseColor = "#eeeeee" }: { baseColor?: string }) {
-  return (
-    <Canvas camera={{ position: [0, 0, CAMERA_Z], fov: 65 }} gl={{ antialias: true, alpha: true }}>
-      <HelixTube baseColor={baseColor} />
-    </Canvas>
-  );
-}
+export const GeometricOrb = ({ baseColor = "#eeeeee" }: { baseColor?: string }) => (
+  <Canvas camera={{ fov: 65, position: [0, 0, CAMERA_Z] }} gl={{ alpha: true, antialias: true }}>
+    <HelixTube baseColor={baseColor} />
+  </Canvas>
+);

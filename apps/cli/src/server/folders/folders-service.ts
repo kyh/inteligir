@@ -2,7 +2,7 @@
 // read), so validation keeps the list honest rather than guarding access.
 
 import { realpathSync, statSync } from "node:fs";
-import { isAbsolute, resolve } from "node:path";
+import nodePath from "node:path";
 
 import { CONNECTED_FOLDERS_MAX } from "@repo/api/local/folders/folders-schema";
 import { pathContains } from "../path-containment";
@@ -13,14 +13,15 @@ export class FolderRefusedError extends Error {
 
   constructor(kind: "invalid-path" | "already-exists" | "not-found", message: string) {
     super(message);
+    this.name = "FolderRefusedError";
     this.kind = kind;
   }
 }
 
 export interface FoldersService {
-  list(): string[];
-  add(path: string): string[];
-  remove(path: string): string[];
+  list: () => string[];
+  add: (path: string) => string[];
+  remove: (path: string) => string[];
 }
 
 export interface CreateFoldersServiceArgs {
@@ -29,13 +30,13 @@ export interface CreateFoldersServiceArgs {
   dataDir: string;
 }
 
-export function createFoldersService(args: CreateFoldersServiceArgs): FoldersService {
-  const vaultDir = resolve(args.vaultDir);
-  const dataDir = resolve(args.dataDir);
+export const createFoldersService = (args: CreateFoldersServiceArgs): FoldersService => {
+  const vaultDir = nodePath.resolve(args.vaultDir);
+  const dataDir = nodePath.resolve(args.dataDir);
 
   const validate = (rawPath: string): string => {
     const trimmed = rawPath.trim();
-    if (trimmed.length === 0 || !isAbsolute(trimmed)) {
+    if (trimmed.length === 0 || !nodePath.isAbsolute(trimmed)) {
       throw new FolderRefusedError(
         "invalid-path",
         `connected folder must be an absolute path (got "${rawPath}")`,
@@ -44,7 +45,7 @@ export function createFoldersService(args: CreateFoldersServiceArgs): FoldersSer
     // realpathed so a symlinked spelling and its target are one row.
     let real: string;
     try {
-      real = realpathSync(resolve(trimmed));
+      real = realpathSync(nodePath.resolve(trimmed));
     } catch {
       throw new FolderRefusedError("invalid-path", `"${trimmed}" does not exist`);
     }
@@ -73,9 +74,6 @@ export function createFoldersService(args: CreateFoldersServiceArgs): FoldersSer
   };
 
   return {
-    list(): string[] {
-      return args.store.read();
-    },
     add(path: string): string[] {
       const real = validate(path);
       const folders = args.store.read();
@@ -92,6 +90,9 @@ export function createFoldersService(args: CreateFoldersServiceArgs): FoldersSer
       args.store.write(next);
       return next;
     },
+    list(): string[] {
+      return args.store.read();
+    },
     remove(path: string): string[] {
       // stored spelling first: a row whose directory is gone (realpath fails) must still be removable.
       const folders = args.store.read();
@@ -99,7 +100,7 @@ export function createFoldersService(args: CreateFoldersServiceArgs): FoldersSer
       if (!folders.includes(target)) {
         let real: string | null = null;
         try {
-          real = realpathSync(resolve(target));
+          real = realpathSync(nodePath.resolve(target));
         } catch {
           real = null;
         }
@@ -113,4 +114,4 @@ export function createFoldersService(args: CreateFoldersServiceArgs): FoldersSer
       return next;
     },
   };
-}
+};

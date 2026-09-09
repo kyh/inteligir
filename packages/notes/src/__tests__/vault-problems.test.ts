@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { KnowledgeIndex } from "../knowledge/knowledge-index";
 import { isConventionFolderPath } from "../knowledge/vault-problems";
 
-function seeded(): KnowledgeIndex {
+const seeded = (): KnowledgeIndex => {
   const index = new KnowledgeIndex();
   index.setDoc("Welcome.md", "# Welcome\n\nSee [[Nowhere]] and again [[nowhere]] and [[Guide]].\n");
   index.setDoc(
@@ -15,7 +15,7 @@ function seeded(): KnowledgeIndex {
   index.setDoc("a/Guide.md", "# Another guide\n\n[[Welcome]]\n");
   index.setOther("assets/logo.png");
   return index;
-}
+};
 
 describe("unresolved links", () => {
   it("lists a dangling wiki link once per source, with its line, and drops it once the note exists", () => {
@@ -23,13 +23,13 @@ describe("unresolved links", () => {
     const before = index.problems({ limit: 50 });
     expect(before.unresolvedLinks.rows).toEqual([
       {
+        embed: false,
+        kind: "wiki",
+        line: 3,
+        snippet: "See [[Nowhere]] and again [[nowhere]] and [[Guide]].",
         sourcePath: "Welcome.md",
         sourceTitle: "Welcome",
         target: "Nowhere",
-        line: 3,
-        snippet: "See [[Nowhere]] and again [[nowhere]] and [[Guide]].",
-        kind: "wiki",
-        embed: false,
       },
     ]);
     expect(before.unresolvedLinks.total).toBe(1);
@@ -39,7 +39,7 @@ describe("unresolved links", () => {
   });
 
   it("files an embed of a missing file, and a dangling asset reference, as a missing embed", () => {
-    const rows = seeded().problems({ limit: 50 }).missingEmbeds.rows;
+    const { rows } = seeded().problems({ limit: 50 }).missingEmbeds;
     expect(rows.map((row) => [row.target, row.kind, row.embed])).toEqual([
       ["missing.png", "wiki", true],
       ["gone.jpg", "image", true],
@@ -50,13 +50,13 @@ describe("unresolved links", () => {
 
 describe("orphans", () => {
   it("is a doc nothing else links to; a self-link does not count", () => {
-    const orphans = seeded().problems({ limit: 50 }).orphans;
+    const { orphans } = seeded().problems({ limit: 50 });
     expect(orphans.rows.map((row) => row.path)).toEqual(["Lonely.md", "a/Guide.md"]);
     expect(orphans.total).toBe(2);
   });
 
   it("leaves daily notes and templates out unless asked", () => {
-    const withConventions = seeded().problems({ limit: 50, includeConventionFolders: true });
+    const withConventions = seeded().problems({ includeConventionFolders: true, limit: 50 });
     expect(withConventions.orphans.rows.map((row) => row.path)).toEqual([
       "Lonely.md",
       "a/Guide.md",
@@ -72,7 +72,7 @@ describe("orphans", () => {
 describe("duplicate stems", () => {
   it("groups docs sharing a stem across folders, any case", () => {
     const duplicates = seeded().problems({ limit: 50 }).duplicateStems;
-    expect(duplicates.rows).toEqual([{ stem: "Guide", paths: ["Guide.md", "a/Guide.md"] }]);
+    expect(duplicates.rows).toEqual([{ paths: ["Guide.md", "a/Guide.md"], stem: "Guide" }]);
     expect(duplicates.total).toBe(1);
   });
 });

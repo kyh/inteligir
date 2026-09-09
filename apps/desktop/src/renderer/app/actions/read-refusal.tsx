@@ -1,6 +1,6 @@
 import { refusalMessage } from "../api";
 
-export function ReadRefusal({ lead, error }: { lead: string; error: unknown }) {
+export const ReadRefusal = ({ lead, error }: { lead: string; error: unknown }) => {
   const detail = refusalMessage(error, "");
   return (
     <div className="p-3 text-sm">
@@ -10,4 +10,4 @@ export function ReadRefusal({ lead, error }: { lead: string; error: unknown }) {
       )}
     </div>
   );
-}
+};

@@ -1,4 +1,5 @@
-import { useMemo, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from "react";
+import { useMemo, useState } from "react";
+import type { MouseEvent as ReactMouseEvent, ReactNode } from "react";
 import {
   flip,
   offset,
@@ -18,7 +19,7 @@ import {
   StrikethroughIcon,
   SparklesIcon,
 } from "lucide-react";
-import { KEYS } from "platejs";
+import { KEYS, RangeApi } from "platejs";
 import {
   useEditorRef,
   useEditorSelection,
@@ -26,8 +27,8 @@ import {
   useMarkToolbarButton,
   useMarkToolbarButtonState,
   usePluginOption,
-  type PlateEditor,
 } from "platejs/react";
+import type { PlateEditor } from "platejs/react";
 
 import { cn } from "cn";
 
@@ -57,18 +58,26 @@ import { BarButton } from "@repo/editor/toolbar-button";
 const BAR_CLASS =
   "z-50 flex items-center gap-0.5 rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-surface-4 animate-in fade-in-0 zoom-in-95";
 
-function AskAgentButton({ editor }: { editor: PlateEditor }) {
+const Sep = () => <div className="mx-0.5 h-5 w-px shrink-0 bg-border" />;
+
+const AskAgentButton = ({ editor }: { editor: PlateEditor }) => {
   const actions = useAgentRequestActions((state) => state.actions);
-  if (actions === null) return null;
+  if (actions === null) {
+    return null;
+  }
   return (
     <>
       <button
         type="button"
-        onMouseDown={(e) => e.preventDefault()}
+        onMouseDown={(e) => {
+          e.preventDefault();
+        }}
         onClick={() => {
-          const selection = editor.selection;
+          const { selection } = editor;
           const text = selection ? editor.api.string(selection) : "";
-          if (text.trim() !== "") actions.askAboutSelection(text);
+          if (text.trim() !== "") {
+            actions.askAboutSelection(text);
+          }
         }}
         className="flex h-7 items-center gap-1 rounded-md px-2 text-xs font-medium text-primary transition-colors hover:bg-accent [&_svg]:size-3.5"
       >
@@ -78,15 +87,11 @@ function AskAgentButton({ editor }: { editor: PlateEditor }) {
       <Sep />
     </>
   );
-}
-
-function Sep() {
-  return <div className="mx-0.5 h-5 w-px shrink-0 bg-border" />;
-}
+};
 
 // mousedown preventDefault keeps the editor selection alive through the click. Button styles
 // aria-expanded but not aria-pressed, so the pressed classes ride className.
-function IconButton({
+const IconButton = ({
   pressed,
   onClick,
   onMouseDown,
@@ -98,48 +103,48 @@ function IconButton({
   onMouseDown?: (e: ReactMouseEvent<HTMLButtonElement>) => void;
   title: string;
   children: ReactNode;
-}) {
-  return (
-    <Button
-      variant="ghost"
-      size="icon-compact"
-      title={title}
-      aria-pressed={pressed}
-      onMouseDown={onMouseDown}
-      onClick={onClick}
-      className="rounded-md text-foreground/80 aria-pressed:bg-accent aria-pressed:text-accent-foreground"
-    >
-      {children}
-    </Button>
-  );
-}
+}) => (
+  <Button
+    variant="ghost"
+    size="icon-compact"
+    title={title}
+    aria-pressed={pressed}
+    onMouseDown={onMouseDown}
+    onClick={onClick}
+    className="rounded-md text-foreground/80 aria-pressed:bg-accent aria-pressed:text-accent-foreground"
+  >
+    {children}
+  </Button>
+);
 
 // must be a real Menu.Trigger: a detached controlled menu anchored to a plain button closes
 // with reason `trigger-hover` as the pointer moves into the popup, so mouse clicks on items die.
-function TurnIntoTrigger({ children }: { children: ReactNode }) {
-  return (
-    <DropdownMenuTrigger
-      onMouseDown={(e) => e.preventDefault()}
-      className="flex h-7 items-center gap-1 rounded-md px-2 text-xs font-medium text-foreground/90 transition-colors hover:bg-accent [&_svg]:size-3.5"
-    >
-      {children}
-      <ChevronDownIcon className="!size-3 text-muted-foreground/70" />
-    </DropdownMenuTrigger>
-  );
-}
+const TurnIntoTrigger = ({ children }: { children: ReactNode }) => (
+  <DropdownMenuTrigger
+    onMouseDown={(e) => {
+      e.preventDefault();
+    }}
+    className="flex h-7 items-center gap-1 rounded-md px-2 text-xs font-medium text-foreground/90 transition-colors hover:bg-accent [&_svg]:size-3.5"
+  >
+    {children}
+    <ChevronDownIcon className="!size-3 text-muted-foreground/70" />
+  </DropdownMenuTrigger>
+);
 
 // the tooltip is the table's label and chord, so it cannot disagree with the palette's page;
 // a mark with no chord still needs a name on the button
-function markTitle(nodeType: string): string {
+const markTitle = (nodeType: string): string => {
   const row =
     nodeType === KEYS.code
       ? (EDITOR_SHORTCUTS.find((candidate) => candidate.action === "toggle-code-mark") ?? null)
       : markShortcut(nodeType);
-  if (row !== null) return `${row.label} ${spellHotkey(row.hotkey, platformShortcutModifier())}`;
+  if (row !== null) {
+    return `${row.label} ${spellHotkey(row.hotkey, platformShortcutModifier())}`;
+  }
   return nodeType === KEYS.strikethrough ? "Strikethrough" : nodeType;
-}
+};
 
-function MarkButton({ nodeType, children }: { nodeType: string; children: ReactNode }) {
+const MarkButton = ({ nodeType, children }: { nodeType: string; children: ReactNode }) => {
   const { props } = useMarkToolbarButton(useMarkToolbarButtonState({ nodeType }));
   return (
     <IconButton
@@ -151,15 +156,15 @@ function MarkButton({ nodeType, children }: { nodeType: string; children: ReactN
       {children}
     </IconButton>
   );
-}
+};
 
-function LinkInput({
+const LinkInput = ({
   onSubmit,
   onCancel,
 }: {
   onSubmit: (url: string) => void;
   onCancel: () => void;
-}) {
+}) => {
   const [url, setUrl] = useState("");
   return (
     <form
@@ -173,21 +178,30 @@ function LinkInput({
       <input
         autoFocus
         value={url}
-        onChange={(e) => setUrl(e.target.value)}
+        onChange={(e) => {
+          setUrl(e.target.value);
+        }}
         onKeyDown={(e) => {
-          if (e.key === "Escape") onCancel();
+          if (e.key === "Escape") {
+            onCancel();
+          }
         }}
         placeholder="Paste or type a link…"
         className="h-7 w-56 bg-transparent px-1 text-xs outline-none placeholder:text-muted-foreground"
       />
-      <BarButton variant="primary" onClick={() => onSubmit(url.trim())}>
+      <BarButton
+        variant="primary"
+        onClick={() => {
+          onSubmit(url.trim());
+        }}
+      >
         Apply
       </BarButton>
     </form>
   );
-}
+};
 
-export function SelectionToolbar() {
+export const SelectionToolbar = () => {
   const editor = useEditorRef();
 
   const [openMenu, setOpenMenu] = useState<null | "turn">(null);
@@ -199,15 +213,15 @@ export function SelectionToolbar() {
   // captured when the menu opens, not in an effect (which races Slate's throttled selection
   // sync); state rather than a ref because the type indicator reads it while rendering.
   const [savedSel, setSavedSel] = useState<typeof editor.selection>(null);
-  const remember = () => setSavedSel(editor.selection);
+  const remember = () => {
+    setSavedSel(editor.selection);
+  };
 
   const focusedEditorId = useEventEditorValue("focus");
-  const isSelectingSome = usePluginOption(BlockSelectionPlugin, "isSelectingSome");
+  const isSelectingSome = Boolean(usePluginOption(BlockSelectionPlugin, "isSelectingSome"));
 
   const floatingToolbarState = useFloatingToolbarState({
     editorId: editor.id,
-    focusedEditorId,
-    hideToolbar: isSelectingSome,
     floatingOptions: {
       middleware: [
         offset({ crossAxis: -24, mainAxis: 12 }),
@@ -219,6 +233,8 @@ export function SelectionToolbar() {
       ],
       placement: "top-start",
     },
+    focusedEditorId,
+    hideToolbar: isSelectingSome,
   });
   const {
     clickOutsideRef,
@@ -227,14 +243,18 @@ export function SelectionToolbar() {
     ref: floatingRef,
   } = useFloatingToolbar(floatingToolbarState);
 
-  const selection = useEditorSelection();
+  // platejs types useEditorSelection's return as `any`
+  const rawSelection: unknown = useEditorSelection();
+  const selection = RangeApi.isRange(rawSelection) ? rawSelection : null;
   const typeLabel = useMemo(() => {
     const at = selection ?? savedSel ?? undefined;
     const entry = effectiveBlockEntry(editor, at);
     return entry ? turnIntoOptionFor(entry[0]).label : "Text";
   }, [selection, savedSel, editor]);
 
-  if (hidden && !frozen) return null;
+  if (hidden && !frozen) {
+    return null;
+  }
 
   // ignore-click-outside/toolbar: without it a mousedown on a portaled menu item flips the
   // hook's open state, hides the bar, and the popup anchored to the hidden trigger jumps away
@@ -243,18 +263,24 @@ export function SelectionToolbar() {
     <div ref={clickOutsideRef}>
       <div
         ref={floatingRef}
+        role="toolbar"
+        tabIndex={-1}
         {...rootProps}
         className={cn(BAR_CLASS, "absolute whitespace-nowrap print:hidden")}
-        onMouseDown={(e) => e.preventDefault()}
+        onMouseDown={(e) => {
+          e.preventDefault();
+        }}
       >
         {linkMode ? (
           <LinkInput
-            onCancel={() => setLinkMode(false)}
+            onCancel={() => {
+              setLinkMode(false);
+            }}
             onSubmit={(url) => {
               setLinkMode(false);
               const at = savedSel;
               if (url && at) {
-                wrapLink(editor, { url, at, split: true });
+                wrapLink(editor, { at, split: true, url });
                 editor.tf.focus();
               }
             }}
@@ -265,7 +291,9 @@ export function SelectionToolbar() {
             <DropdownMenu
               open={openMenu === "turn"}
               onOpenChange={(o) => {
-                if (o) remember();
+                if (o) {
+                  remember();
+                }
                 setOpenMenu(o ? "turn" : null);
               }}
             >
@@ -314,7 +342,9 @@ export function SelectionToolbar() {
                 remember();
                 setLinkMode(true);
               }}
-              onMouseDown={(e) => e.preventDefault()}
+              onMouseDown={(e) => {
+                e.preventDefault();
+              }}
               title="Link"
             >
               <Link2Icon />
@@ -326,7 +356,9 @@ export function SelectionToolbar() {
               onClick={() => {
                 void extractBlocksToNote(editor, selectedTopLevelPaths(editor));
               }}
-              onMouseDown={(e) => e.preventDefault()}
+              onMouseDown={(e) => {
+                e.preventDefault();
+              }}
               title="Extract to new note"
             >
               <FileOutputIcon />
@@ -336,4 +368,4 @@ export function SelectionToolbar() {
       </div>
     </div>
   );
-}
+};

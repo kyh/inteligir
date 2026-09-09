@@ -3,15 +3,14 @@
 
 import { cp, rm } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import path from "node:path";
 import { build } from "esbuild";
 
-const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const distDir = join(packageRoot, "dist");
-const repoRoot = resolve(packageRoot, "..", "..");
+const packageRoot = path.resolve(import.meta.dirname, "..");
+const distDir = path.join(packageRoot, "dist");
+const repoRoot = path.resolve(packageRoot, "..", "..");
 
-const rendererDir = join(repoRoot, "apps", "desktop", ".output", "app", "renderer");
+const rendererDir = path.join(repoRoot, "apps", "desktop", ".output", "app", "renderer");
 
 const NODE_ESM_REQUIRE_BANNER = [
   'import { createRequire as __createRequire } from "node:module";',
@@ -36,41 +35,43 @@ const shared = {
   target: "node24",
 };
 
-await rm(distDir, { recursive: true, force: true });
+await rm(distDir, { force: true, recursive: true });
 
 await build({
   ...shared,
-  entryPoints: [join(packageRoot, "src", "index.ts")],
+  entryPoints: [path.join(packageRoot, "src", "index.ts")],
   external: NATIVE,
-  outfile: join(distDir, "index.js"),
+  outfile: path.join(distDir, "index.js"),
 });
 
 // the watcher is a forked child process, so it needs its own file beside the entry
 await build({
   ...shared,
-  entryPoints: [join(packageRoot, "src", "server", "vault", "watcher", "parcel-child-entry.ts")],
+  entryPoints: [
+    path.join(packageRoot, "src", "server", "vault", "watcher", "parcel-child-entry.ts"),
+  ],
   external: ["@parcel/watcher"],
-  outfile: join(distDir, "parcel-watcher-child.mjs"),
+  outfile: path.join(distDir, "parcel-watcher-child.mjs"),
 });
 
 // the transcriber is a worker thread, so it needs its own file beside the entry
 await build({
   ...shared,
-  entryPoints: [join(packageRoot, "src", "server", "voice", "transcribe-worker.ts")],
+  entryPoints: [path.join(packageRoot, "src", "server", "voice", "transcribe-worker.ts")],
   external: ["sherpa-onnx-node"],
-  outfile: join(distDir, "transcribe-worker.mjs"),
+  outfile: path.join(distDir, "transcribe-worker.mjs"),
 });
 
-await cp(join(repoRoot, "packages", "db", "drizzle"), join(distDir, "drizzle"), {
+await cp(path.join(repoRoot, "packages", "db", "drizzle"), path.join(distDir, "drizzle"), {
   recursive: true,
 });
 
-await cp(join(repoRoot, "packages", "agent-skills", "skills"), join(distDir, "skills"), {
+await cp(path.join(repoRoot, "packages", "agent-skills", "skills"), path.join(distDir, "skills"), {
   recursive: true,
 });
 
 // licence texts live at the repo root, which no `files` glob can name
-await cp(join(repoRoot, "tools", "licenses"), join(distDir, "licenses"), {
+await cp(path.join(repoRoot, "tools", "licenses"), path.join(distDir, "licenses"), {
   recursive: true,
 });
 
@@ -80,6 +81,6 @@ if (!existsSync(rendererDir)) {
     `the workspace UI is missing (${rendererDir}) — run \`pnpm --filter @repo/desktop build\` first`,
   );
 }
-await cp(rendererDir, join(distDir, "ui"), { recursive: true });
+await cp(rendererDir, path.join(distDir, "ui"), { recursive: true });
 
 process.stdout.write("inteligir: bundled the server, the CLI and the workspace UI\n");

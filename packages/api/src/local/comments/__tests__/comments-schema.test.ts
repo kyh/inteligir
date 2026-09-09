@@ -7,13 +7,13 @@ import {
 } from "../comments-schema";
 
 describe("a comment write's source", () => {
-  const add = { path: "notes/plan.md", id: "c1", text: "x" };
+  const add = { id: "c1", path: "notes/plan.md", text: "x" };
   const writes = [
-    { schema: commentsAddRequestSchema, request: add },
-    { schema: commentsReplyRequestSchema, request: { ...add, parentId: "c0" } },
+    { request: add, schema: commentsAddRequestSchema },
+    { request: { ...add, parentId: "c0" }, schema: commentsReplyRequestSchema },
     {
+      request: { id: add.id, path: add.path, resolved: true },
       schema: commentsResolveRequestSchema,
-      request: { path: add.path, id: add.id, resolved: true },
     },
   ];
 

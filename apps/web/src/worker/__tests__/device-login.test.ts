@@ -1,10 +1,14 @@
+// oxlint-disable typescript/no-deprecated -- SELF is the only fetcher that runs in the tests'
+// own isolate; the cloudflare:workers loopback binding stands a second worker up, and its
+// first fetch costs seconds enough to time a test out.
 import { cloudErrorSchema } from "@repo/api/cloud/errors";
 import {
   deviceLoginResponseSchema,
   listDevicesResponseSchema,
 } from "@repo/api/cloud/device/device-schema";
 import { and, eq, isNull } from "drizzle-orm";
-import { env, SELF } from "cloudflare:test";
+import { SELF } from "cloudflare:test";
+import { env } from "cloudflare:workers";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   deviceHeaders,
@@ -19,33 +23,33 @@ import {
 import { createDb } from "../db/client";
 import { account, device, session, user } from "../db/schema";
 
-function pull(credential: string): Promise<Response> {
-  return SELF.fetch(`${ORIGIN}/v1/sync/pull?afterSeq=0`, { headers: deviceHeaders(credential) });
-}
+const pull = async (credential: string): Promise<Response> =>
+  await SELF.fetch(`${ORIGIN}/v1/sync/pull?afterSeq=0`, {
+    headers: deviceHeaders(credential),
+  });
 
-async function sessionCount(userId: string): Promise<number> {
+const sessionCount = async (userId: string): Promise<number> => {
   const rows = await createDb(env.DB)
     .select({ id: session.id })
     .from(session)
     .where(eq(session.userId, userId))
     .all();
   return rows.length;
-}
+};
 
-async function activeDevices(userId: string) {
-  return await createDb(env.DB)
+const activeDevices = async (userId: string) =>
+  await createDb(env.DB)
     .select()
     .from(device)
     .where(and(eq(device.userId, userId), isNull(device.revokedAt)))
     .all();
-}
 
-async function expectInvalidCredentials(response: Response): Promise<void> {
+const expectInvalidCredentials = async (response: Response): Promise<void> => {
   expect(response.status).toBe(401);
   const body = cloudErrorSchema.parse(await response.json());
   expect(body.error.code).toBe("invalid-credentials");
   expect(body.error.message).toBe("Wrong email or password.");
-}
+};
 
 describe("device login", () => {
   it("mints a credential that reaches the sync surface, and leaves no session behind", async () => {
@@ -54,13 +58,14 @@ describe("device login", () => {
     const userId = await userIdOf(bearer);
     const sessionsBefore = await sessionCount(userId);
 
-    const response = await postLogin({ email, password: PASSWORD, deviceName: "Test Laptop" });
+    const response = await postLogin({ deviceName: "Test Laptop", email, password: PASSWORD });
     expect(response.status).toBe(200);
     expect(response.headers.get("cache-control")).toBe("no-store");
     const logged = deviceLoginResponseSchema.parse(await response.json());
     expect(logged.credential.startsWith("igd_")).toBe(true);
 
-    expect((await pull(logged.credential)).status).toBe(200);
+    const pulled = await pull(logged.credential);
+    expect(pulled.status).toBe(200);
 
     const row = await createDb(env.DB)
       .select()
@@ -78,16 +83,15 @@ describe("device login", () => {
   it("finds the account however the address is cased or padded", async () => {
     const { bearer } = await signUpUser("login-case@example.test");
     const response = await postLogin({
+      deviceName: "Laptop",
       email: "  Login-Case@Example.TEST ",
       password: PASSWORD,
-      deviceName: "Laptop",
     });
     expect(response.status).toBe(200);
-    const { devices } = listDevicesResponseSchema.parse(
-      await (
-        await SELF.fetch(`${ORIGIN}/v1/device/list`, { headers: sessionHeaders(bearer) })
-      ).json(),
-    );
+    const listed = await SELF.fetch(`${ORIGIN}/v1/device/list`, {
+      headers: sessionHeaders(bearer),
+    });
+    const { devices } = listDevicesResponseSchema.parse(await listed.json());
     expect(devices.map((row) => row.name)).toEqual(["Laptop"]);
   });
 
@@ -97,14 +101,14 @@ describe("device login", () => {
     const userId = await userIdOf(bearer);
 
     await expectInvalidCredentials(
-      await postLogin({ email, password: "not-the-password", deviceName: "Laptop" }),
+      await postLogin({ deviceName: "Laptop", email, password: "not-the-password" }),
     );
     expect(await activeDevices(userId)).toEqual([]);
   });
 
   it("refuses an address no account has, indistinguishably", async () => {
     await expectInvalidCredentials(
-      await postLogin({ email: "nobody@example.test", password: PASSWORD, deviceName: "Laptop" }),
+      await postLogin({ deviceName: "Laptop", email: "nobody@example.test", password: PASSWORD }),
     );
   });
 
@@ -112,33 +116,33 @@ describe("device login", () => {
     const db = createDb(env.DB);
     const now = new Date();
     await db.insert(user).values({
+      createdAt: now,
+      email: "passwordless@example.test",
       id: "passwordless-user",
       name: "Passwordless",
-      email: "passwordless@example.test",
-      createdAt: now,
       updatedAt: now,
     });
     await db.insert(account).values({
+      accountId: "gh-123",
+      createdAt: now,
       id: "passwordless-account",
       issuer: "github",
-      accountId: "gh-123",
       providerId: "github",
-      userId: "passwordless-user",
-      createdAt: now,
       updatedAt: now,
+      userId: "passwordless-user",
     });
 
     await expectInvalidCredentials(
-      await postLogin({ email: "passwordless@example.test", password: PASSWORD, deviceName: "L" }),
+      await postLogin({ deviceName: "L", email: "passwordless@example.test", password: PASSWORD }),
     );
     expect(await activeDevices("passwordless-user")).toEqual([]);
   });
 
   it("refuses a body it cannot read as a login", async () => {
     const response = await SELF.fetch(`${ORIGIN}/v1/device/login`, {
-      method: "POST",
+      body: JSON.stringify({ deviceName: "Laptop", email: "login-shape@example.test" }),
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email: "login-shape@example.test", deviceName: "Laptop" }),
+      method: "POST",
     });
     expect(response.status).toBe(400);
     expect(cloudErrorSchema.parse(await response.json()).error.code).toBe("bad-request");
@@ -151,27 +155,26 @@ describe("device login", () => {
     const db = createDb(env.DB);
     for (let index = 0; index < 20; index += 1) {
       await db.insert(device).values({
-        id: `cap-device-${index}`,
-        userId,
-        name: `Device ${index}`,
-        credentialHash: `hash-${index}`,
         createdAt: new Date(),
+        credentialHash: `hash-${index}`,
+        id: `cap-device-${index}`,
+        name: `Device ${index}`,
+        userId,
       });
     }
 
-    const response = await postLogin({ email, password: PASSWORD, deviceName: "One Too Many" });
+    const response = await postLogin({ deviceName: "One Too Many", email, password: PASSWORD });
     expect(response.status).toBe(409);
     expect(cloudErrorSchema.parse(await response.json()).error.code).toBe("device-limit");
     expect(await activeDevices(userId)).toHaveLength(20);
 
     await SELF.fetch(`${ORIGIN}/v1/device/revoke`, {
-      method: "POST",
-      headers: { ...sessionHeaders(bearer), "content-type": "application/json" },
       body: JSON.stringify({ deviceId: "cap-device-0" }),
+      headers: { ...sessionHeaders(bearer), "content-type": "application/json" },
+      method: "POST",
     });
-    expect(
-      (await postLogin({ email, password: PASSWORD, deviceName: "Now There's Room" })).status,
-    ).toBe(200);
+    const reopened = await postLogin({ deviceName: "Now There's Room", email, password: PASSWORD });
+    expect(reopened.status).toBe(200);
   });
 
   // which login wins is not asserted: this runtime may serialize the pair, while a deployment lands them on different isolates
@@ -182,22 +185,19 @@ describe("device login", () => {
     const db = createDb(env.DB);
     for (let index = 0; index < 19; index += 1) {
       await db.insert(device).values({
-        id: `race-device-${index}`,
-        userId,
-        name: `Device ${index}`,
-        credentialHash: `race-hash-${index}`,
         createdAt: new Date(),
+        credentialHash: `race-hash-${index}`,
+        id: `race-device-${index}`,
+        name: `Device ${index}`,
+        userId,
       });
     }
 
-    const statuses = (
-      await Promise.all([
-        postLogin({ email, password: PASSWORD, deviceName: "Racer A" }),
-        postLogin({ email, password: PASSWORD, deviceName: "Racer B" }),
-      ])
-    )
-      .map((response) => response.status)
-      .toSorted((a, b) => a - b);
+    const raced = await Promise.all([
+      postLogin({ deviceName: "Racer A", email, password: PASSWORD }),
+      postLogin({ deviceName: "Racer B", email, password: PASSWORD }),
+    ]);
+    const statuses = raced.map((response) => response.status).toSorted((a, b) => a - b);
     expect(statuses).toEqual([200, 409]);
     expect(await activeDevices(userId)).toHaveLength(20);
   });
@@ -205,12 +205,13 @@ describe("device login", () => {
   it("revocation bites on the very next request", async () => {
     const { bearer } = await signUpUser("login-revoke@example.test");
     const { deviceId, credential } = await loginDevice(bearer, "Doomed Laptop");
-    expect((await pull(credential)).status).toBe(200);
+    const pulled = await pull(credential);
+    expect(pulled.status).toBe(200);
 
     const revoke = await SELF.fetch(`${ORIGIN}/v1/device/revoke`, {
-      method: "POST",
-      headers: { ...sessionHeaders(bearer), "content-type": "application/json" },
       body: JSON.stringify({ deviceId }),
+      headers: { ...sessionHeaders(bearer), "content-type": "application/json" },
+      method: "POST",
     });
     expect(revoke.status).toBe(200);
 
@@ -223,9 +224,9 @@ describe("device login", () => {
     const first = await loginDevice(bearer, "Laptop");
     await loginDevice(bearer, "Desktop");
     await SELF.fetch(`${ORIGIN}/v1/device/revoke`, {
-      method: "POST",
-      headers: { ...sessionHeaders(bearer), "content-type": "application/json" },
       body: JSON.stringify({ deviceId: first.deviceId }),
+      headers: { ...sessionHeaders(bearer), "content-type": "application/json" },
+      method: "POST",
     });
 
     const response = await SELF.fetch(`${ORIGIN}/v1/device/list`, {
@@ -243,12 +244,13 @@ describe("device login", () => {
     const { deviceId, credential } = await loginDevice(alice.bearer, "Alice's Laptop");
 
     const response = await SELF.fetch(`${ORIGIN}/v1/device/revoke`, {
-      method: "POST",
-      headers: { ...sessionHeaders(mallory.bearer), "content-type": "application/json" },
       body: JSON.stringify({ deviceId }),
+      headers: { ...sessionHeaders(mallory.bearer), "content-type": "application/json" },
+      method: "POST",
     });
     expect(response.status).toBe(404);
-    expect((await pull(credential)).status).toBe(200);
+    const pulled = await pull(credential);
+    expect(pulled.status).toBe(200);
   });
 
   it("refuses the sync surface without a device credential", async () => {
@@ -274,9 +276,10 @@ describe("the login window", () => {
   it("closes on the eleventh attempt from one address, right or wrong", async () => {
     const email = "login-window@example.test";
     await signUpUser(email);
-    const guess = { email, password: "not-the-password", deviceName: "Guesser" };
+    const guess = { deviceName: "Guesser", email, password: "not-the-password" };
     for (let attempt = 0; attempt < 10; attempt += 1) {
-      expect((await postLogin(guess)).status).toBe(401);
+      const refused = await postLogin(guess);
+      expect(refused.status).toBe(401);
     }
     const shut = await postLogin({ ...guess, password: PASSWORD });
     expect(shut.status).toBe(429);

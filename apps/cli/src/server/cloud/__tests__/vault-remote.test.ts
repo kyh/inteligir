@@ -6,31 +6,31 @@ import { createVaultRemoteProvider, hostedVaultRemoteUrl } from "../vault-remote
 const CLOUD_URL = "https://cloud.test";
 const CREDENTIAL = `igd_${"a".repeat(64)}`;
 
-function makeDataDir(): string {
-  return makeTempDir("inteligir-vault-remote-");
-}
+const makeDataDir = (): string => makeTempDir("inteligir-vault-remote-");
 
 describe("createVaultRemoteProvider", () => {
   it("answers null for a signed-out install with no explicit remote", () => {
     const provider = createVaultRemoteProvider({
-      explicitRemote: null,
       cloudUrl: CLOUD_URL,
       dataDir: makeDataDir(),
+      explicitRemote: null,
     });
     expect(provider()).toBeNull();
   });
 
   it("derives the hosted remote from the credential, with the header env scoped to its URL", () => {
     const dataDir = makeDataDir();
-    writeDeviceCredential(dataDir, { deviceId: "dev_1", credential: CREDENTIAL });
+    writeDeviceCredential(dataDir, { credential: CREDENTIAL, deviceId: "dev_1" });
     const provider = createVaultRemoteProvider({
-      explicitRemote: null,
       cloudUrl: CLOUD_URL,
       dataDir,
+      explicitRemote: null,
     });
     const remote = provider();
     expect(remote).not.toBeNull();
-    if (remote === null) throw new Error("unreachable");
+    if (remote === null) {
+      throw new Error("unreachable");
+    }
     expect(remote.url).toBe(hostedVaultRemoteUrl(CLOUD_URL));
     expect(remote.source).toBe("account");
     expect(remote.env).toEqual({
@@ -43,12 +43,12 @@ describe("createVaultRemoteProvider", () => {
   it("flips live: signing in turns the remote on, signing out turns it off", () => {
     const dataDir = makeDataDir();
     const provider = createVaultRemoteProvider({
-      explicitRemote: null,
       cloudUrl: CLOUD_URL,
       dataDir,
+      explicitRemote: null,
     });
     expect(provider()).toBeNull();
-    writeDeviceCredential(dataDir, { deviceId: "dev_1", credential: CREDENTIAL });
+    writeDeviceCredential(dataDir, { credential: CREDENTIAL, deviceId: "dev_1" });
     expect(provider()?.source).toBe("account");
     clearDeviceCredential(dataDir);
     expect(provider()).toBeNull();
@@ -56,13 +56,13 @@ describe("createVaultRemoteProvider", () => {
 
   it("an explicit remote wins over the derivation, and carries no header env", () => {
     const dataDir = makeDataDir();
-    writeDeviceCredential(dataDir, { deviceId: "dev_1", credential: CREDENTIAL });
+    writeDeviceCredential(dataDir, { credential: CREDENTIAL, deviceId: "dev_1" });
     const provider = createVaultRemoteProvider({
-      explicitRemote: "https://github.com/kyh/vault.git",
       cloudUrl: CLOUD_URL,
       dataDir,
+      explicitRemote: "https://github.com/kyh/vault.git",
     });
     const remote = provider();
-    expect(remote).toEqual({ url: "https://github.com/kyh/vault.git", source: "explicit" });
+    expect(remote).toEqual({ source: "explicit", url: "https://github.com/kyh/vault.git" });
   });
 });

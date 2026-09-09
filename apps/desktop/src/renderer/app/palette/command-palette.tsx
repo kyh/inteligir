@@ -9,7 +9,8 @@ import type { Thread } from "@repo/api/local/threads/threads-schema";
 import type { VaultEntry } from "@repo/api/local/vault/vault-schema";
 import { basenamePath } from "@repo/notes/knowledge/vault-path";
 import { isTemplatePath } from "@repo/notes/templates/placeholders";
-import { platformShortcutModifier, type ShortcutModifier } from "@repo/editor/hotkey-spelling";
+import { platformShortcutModifier } from "@repo/editor/hotkey-spelling";
+import type { ShortcutModifier } from "@repo/editor/hotkey-spelling";
 import type { HeadingItem } from "@repo/editor/toc";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -33,7 +34,8 @@ import {
   TriangleAlertIcon,
 } from "lucide-react";
 import { useState } from "react";
-import { bindingFor, type GlobalShortcutAction } from "../global-shortcuts";
+import { bindingFor } from "../global-shortcuts";
+import type { GlobalShortcutAction } from "../global-shortcuts";
 import { planMove } from "../sidebar/tree-ops";
 import { threadActivity, THREAD_ACTIVITY_LABELS } from "../thread-activity";
 import { vaultFolders } from "../vault-hooks";
@@ -112,14 +114,22 @@ type Page =
   | "shortcuts"
   | "problems";
 
-function threadRowLabel(thread: Thread): string {
-  return thread.title ?? "Action";
-}
+const headingsEmptySentence = (
+  listHeadings: PaletteActions["listHeadings"],
+  rowCount: number,
+): string => {
+  if (listHeadings === null) {
+    return "Open a note to jump to its headings.";
+  }
+  return rowCount === 0 ? "This note has no headings." : "No heading matches.";
+};
 
-function threadRowDetail(thread: Thread): string {
+const threadRowLabel = (thread: Thread): string => thread.title ?? "Action";
+
+const threadRowDetail = (thread: Thread): string => {
   const activity = THREAD_ACTIVITY_LABELS[threadActivity(thread)];
   return thread.originDocPath === null ? activity : `${activity} · ${thread.originDocPath}`;
-}
+};
 
 interface StaticCommand {
   id: string;
@@ -131,7 +141,191 @@ interface StaticCommand {
   run: () => void;
 }
 
-export function CommandPalette({
+// Every verb the root page can run, in the order it lists them. A verb the open note does not
+// have (no pin, no outline) is simply absent.
+const rootCommands = (
+  actions: PaletteActions,
+  canSync: boolean,
+  openNotePath: string | null | undefined,
+  goTo: (next: Page) => void,
+  setMoveSubject: (path: string | null) => void,
+): StaticCommand[] => [
+  {
+    icon: <FilePlusIcon />,
+    id: "new-note",
+    label: "New note",
+    run: () => {
+      actions.newNote("");
+    },
+  },
+  {
+    icon: <FolderIcon />,
+    id: "new-note-in-folder",
+    keepOpen: true,
+    label: "New note in folder…",
+    run: () => {
+      goTo("new-note-folder");
+    },
+  },
+  {
+    icon: <LayoutTemplateIcon />,
+    id: "new-note-from-template",
+    keepOpen: true,
+    label: "New note from template…",
+    run: () => {
+      goTo("new-note-template");
+    },
+  },
+  {
+    binding: "open-daily-note",
+    icon: <CalendarIcon />,
+    id: "daily-note",
+    label: "Daily note",
+    run: () => {
+      actions.openDailyNote();
+    },
+  },
+  ...(actions.findInNote === null
+    ? []
+    : [
+        {
+          binding: "find-in-note" as const,
+          icon: <TextSearchIcon />,
+          id: "find-in-note",
+          label: "Find in note",
+          run: () => actions.findInNote?.(),
+        },
+      ]),
+  ...(actions.insertTemplate === null
+    ? []
+    : [
+        {
+          icon: <LayoutTemplateIcon />,
+          id: "insert-template",
+          keepOpen: true,
+          label: "Insert template…",
+          run: () => {
+            goTo("insert-template");
+          },
+        },
+      ]),
+  {
+    binding: "open-search",
+    icon: <SearchIcon />,
+    id: "search-vault",
+    keepOpen: true,
+    label: "Search across the vault…",
+    run: () => {
+      goTo("search");
+    },
+  },
+  ...(actions.listHeadings === null
+    ? []
+    : [
+        {
+          binding: "open-headings" as const,
+          icon: <HeadingIcon />,
+          id: "go-to-heading",
+          keepOpen: true,
+          label: "Go to heading…",
+          run: () => {
+            goTo("headings");
+          },
+        },
+      ]),
+  ...(actions.exportPdf === null
+    ? []
+    : [
+        {
+          icon: <PrinterIcon />,
+          id: "export-pdf",
+          label: "Export as PDF",
+          run: () => actions.exportPdf?.(),
+        },
+      ]),
+  ...(actions.pin === null
+    ? []
+    : [
+        {
+          icon: actions.pin.pinned ? <PinOffIcon /> : <PinIcon />,
+          id: "pin-note",
+          label: actions.pin.pinned ? "Unpin note" : "Pin note",
+          run: () => actions.pin?.toggle(),
+        },
+      ]),
+  ...(openNotePath === null
+    ? []
+    : [
+        {
+          icon: <FolderInputIcon />,
+          id: "move-note",
+          keepOpen: true,
+          label: "Move note to folder…",
+          run: () => {
+            setMoveSubject(openNotePath ?? null);
+            goTo("move-to-folder");
+          },
+        },
+      ]),
+  {
+    icon: <MessagesSquareIcon />,
+    id: "threads",
+    keepOpen: true,
+    label: "Actions",
+    run: () => {
+      goTo("threads");
+    },
+  },
+  ...(canSync
+    ? [
+        {
+          icon: <RefreshCwIcon />,
+          id: "sync-now",
+          label: "Sync now",
+          run: () => {
+            actions.syncNow();
+          },
+        },
+      ]
+    : []),
+  {
+    icon: <ArchiveRestoreIcon />,
+    id: "deleted-notes",
+    label: "Deleted notes",
+    run: () => {
+      actions.openDeletedNotes();
+    },
+  },
+  {
+    icon: <TriangleAlertIcon />,
+    id: "problems",
+    keepOpen: true,
+    label: "Problems",
+    run: () => {
+      goTo("problems");
+    },
+  },
+  {
+    icon: <KeyboardIcon />,
+    id: "keyboard-shortcuts",
+    keepOpen: true,
+    label: "Keyboard shortcuts",
+    run: () => {
+      goTo("shortcuts");
+    },
+  },
+  {
+    binding: "open-settings",
+    icon: <SettingsIcon />,
+    id: "settings",
+    label: "Settings",
+    run: () => {
+      actions.openSettings();
+    },
+  },
+];
+
+export const CommandPalette = ({
   open,
   request,
   modifier = platformShortcutModifier(),
@@ -142,7 +336,7 @@ export function CommandPalette({
   canSync,
   actions,
   openNotePath = null,
-}: CommandPaletteProps) {
+}: CommandPaletteProps) => {
   const [query, setQuery] = useState("");
   const [page, setPage] = useState<Page>(request.page);
   // the entry a move page is for: the request's, or the open note the root row named
@@ -152,15 +346,20 @@ export function CommandPalette({
   // a source, not a route: it merges the filename fallback the index cannot answer. A superseded
   // read is aborted by the cache itself: the key's last observer moving on cancels a fetch that
   // consumed its signal.
+  /* oxlint-disable sort-keys -- TanStack infers `placeholderData`'s parameter from the data
+     type, which only exists once queryKey/queryFn are above it; sorted, `previous` is `{}`. */
   const noteHitsQuery = useQuery({
     queryKey: ["palette", "note-hits", settledQuery],
-    queryFn: ({ signal }) => searchSource(settledQuery, signal).catch((): NoteSearchHit[] => []),
+    queryFn: async ({ signal }) =>
+      await searchSource(settledQuery, signal).catch((): NoteSearchHit[] => []),
     enabled: open && (page === "root" || page === "notes"),
     placeholderData: (previous) => previous,
   });
   const noteHits = noteHitsQuery.data ?? [];
 
-  const close = (): void => onOpenChange(false);
+  const close = (): void => {
+    onOpenChange(false);
+  };
   const run = (action: () => void): void => {
     close();
     action();
@@ -175,317 +374,210 @@ export function CommandPalette({
     .filter((entry) => entry.kind === "file" && isTemplatePath(entry.path))
     .map((entry) => entry.path);
 
-  const commands: StaticCommand[] = [
-    {
-      id: "new-note",
-      label: "New note",
-      icon: <FilePlusIcon />,
-      run: () => actions.newNote(""),
-    },
-    {
-      id: "new-note-in-folder",
-      label: "New note in folder…",
-      icon: <FolderIcon />,
-      keepOpen: true,
-      run: () => goTo("new-note-folder"),
-    },
-    {
-      id: "new-note-from-template",
-      label: "New note from template…",
-      icon: <LayoutTemplateIcon />,
-      keepOpen: true,
-      run: () => goTo("new-note-template"),
-    },
-    {
-      id: "daily-note",
-      label: "Daily note",
-      binding: "open-daily-note",
-      icon: <CalendarIcon />,
-      run: () => actions.openDailyNote(),
-    },
-    ...(actions.findInNote !== null
-      ? [
-          {
-            id: "find-in-note",
-            label: "Find in note",
-            binding: "find-in-note" as const,
-            icon: <TextSearchIcon />,
-            run: () => actions.findInNote?.(),
-          },
-        ]
-      : []),
-    ...(actions.insertTemplate !== null
-      ? [
-          {
-            id: "insert-template",
-            label: "Insert template…",
-            icon: <LayoutTemplateIcon />,
-            keepOpen: true,
-            run: () => goTo("insert-template"),
-          },
-        ]
-      : []),
-    {
-      id: "search-vault",
-      label: "Search across the vault…",
-      binding: "open-search",
-      icon: <SearchIcon />,
-      keepOpen: true,
-      run: () => goTo("search"),
-    },
-    ...(actions.listHeadings !== null
-      ? [
-          {
-            id: "go-to-heading",
-            label: "Go to heading…",
-            binding: "open-headings" as const,
-            icon: <HeadingIcon />,
-            keepOpen: true,
-            run: () => goTo("headings"),
-          },
-        ]
-      : []),
-    ...(actions.exportPdf !== null
-      ? [
-          {
-            id: "export-pdf",
-            label: "Export as PDF",
-            icon: <PrinterIcon />,
-            run: () => actions.exportPdf?.(),
-          },
-        ]
-      : []),
-    ...(actions.pin !== null
-      ? [
-          {
-            id: "pin-note",
-            label: actions.pin.pinned ? "Unpin note" : "Pin note",
-            icon: actions.pin.pinned ? <PinOffIcon /> : <PinIcon />,
-            run: () => actions.pin?.toggle(),
-          },
-        ]
-      : []),
-    ...(openNotePath !== null
-      ? [
-          {
-            id: "move-note",
-            label: "Move note to folder…",
-            icon: <FolderInputIcon />,
-            keepOpen: true,
-            run: () => {
-              setMoveSubject(openNotePath);
-              goTo("move-to-folder");
-            },
-          },
-        ]
-      : []),
-    {
-      id: "threads",
-      label: "Actions",
-      icon: <MessagesSquareIcon />,
-      keepOpen: true,
-      run: () => goTo("threads"),
-    },
-    ...(canSync
-      ? [
-          {
-            id: "sync-now",
-            label: "Sync now",
-            icon: <RefreshCwIcon />,
-            run: () => actions.syncNow(),
-          },
-        ]
-      : []),
-    {
-      id: "deleted-notes",
-      label: "Deleted notes",
-      icon: <ArchiveRestoreIcon />,
-      run: () => actions.openDeletedNotes(),
-    },
-    {
-      id: "problems",
-      label: "Problems",
-      icon: <TriangleAlertIcon />,
-      keepOpen: true,
-      run: () => goTo("problems"),
-    },
-    {
-      id: "keyboard-shortcuts",
-      label: "Keyboard shortcuts",
-      icon: <KeyboardIcon />,
-      keepOpen: true,
-      run: () => goTo("shortcuts"),
-    },
-    {
-      id: "settings",
-      label: "Settings",
-      binding: "open-settings",
-      icon: <SettingsIcon />,
-      run: () => actions.openSettings(),
-    },
-  ];
+  const commands = rootCommands(actions, canSync, openNotePath, goTo, setMoveSubject);
 
-  const shell = { open, onOpenChange, query, onQueryChange: setQuery };
+  const shell = { onOpenChange, onQueryChange: setQuery, open, query };
+  const handleReplaceAll = actions.replaceAll;
 
-  if (page === "headings") {
-    const rows = actions.listHeadings === null ? [] : actions.listHeadings();
-    const visible = rows.filter((row) => matchesQuery(row.title, query));
-    return (
-      <PalettePage
-        {...shell}
-        title="Go to heading"
-        description="Jump to a heading in this note"
-        placeholder="Go to heading…"
-      >
-        <CommandEmpty>
-          {actions.listHeadings === null
-            ? "Open a note to jump to its headings."
-            : rows.length === 0
-              ? "This note has no headings."
-              : "No heading matches."}
-        </CommandEmpty>
-        {visible.length > 0 ? (
-          <CommandGroup heading="Headings">
-            {visible.map((row) => (
-              <CommandItem
-                key={row.id}
-                value={row.id}
-                onSelect={() => run(() => actions.goToHeading(row))}
-              >
-                <HeadingIcon />
-                <span
-                  className="truncate"
-                  style={{ paddingLeft: `${String(12 * (row.depth - 1))}px` }}
+  // Each entry point is its own page; the root list below is what a plain open shows.
+  const subPage = (): React.ReactElement | null => {
+    if (page === "headings") {
+      const rows = actions.listHeadings === null ? [] : actions.listHeadings();
+      const visible = rows.filter((row) => matchesQuery(row.title, query));
+      return (
+        <PalettePage
+          {...shell}
+          title="Go to heading"
+          description="Jump to a heading in this note"
+          placeholder="Go to heading…"
+        >
+          <CommandEmpty>{headingsEmptySentence(actions.listHeadings, rows.length)}</CommandEmpty>
+          {visible.length > 0 ? (
+            <CommandGroup heading="Headings">
+              {visible.map((row) => (
+                <CommandItem
+                  key={row.id}
+                  value={row.id}
+                  onSelect={() => {
+                    run(() => {
+                      actions.goToHeading(row);
+                    });
+                  }}
                 >
-                  {row.title}
+                  <HeadingIcon />
+                  <span
+                    className="truncate"
+                    style={{ paddingLeft: `${String(12 * (row.depth - 1))}px` }}
+                  >
+                    {row.title}
+                  </span>
+                  <span className="ml-auto pl-3 text-xs text-muted-foreground">H{row.depth}</span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          ) : null}
+        </PalettePage>
+      );
+    }
+
+    if (page === "problems") {
+      return (
+        <ProblemsPage
+          {...shell}
+          onOpenNote={(path) => {
+            run(() => {
+              actions.openNote(path);
+            });
+          }}
+          onOpenLink={(sourcePath, target) => {
+            run(() => {
+              actions.openProblemLink(sourcePath, target);
+            });
+          }}
+        />
+      );
+    }
+
+    if (page === "shortcuts") {
+      return <ShortcutsPage {...shell} modifier={modifier} onPick={close} />;
+    }
+
+    if (page === "search") {
+      return (
+        <SearchPage
+          {...shell}
+          onOpenMatch={(match, needle) => {
+            run(() => {
+              actions.openMatch(match, needle);
+            });
+          }}
+          onReplaceAll={handleReplaceAll}
+        />
+      );
+    }
+
+    if (page === "threads") {
+      const visibleThreads = threads
+        .filter(
+          (thread) =>
+            matchesQuery(threadRowLabel(thread), query) ||
+            matchesQuery(thread.originDocPath ?? "", query),
+        )
+        .slice(0, 30);
+      return (
+        <PalettePage
+          {...shell}
+          title="Actions"
+          description="Open a recent action in the panel"
+          placeholder="Find an action…"
+        >
+          <CommandEmpty>No actions yet.</CommandEmpty>
+          <CommandGroup heading="Recent">
+            {visibleThreads.map((thread) => (
+              <CommandItem
+                key={thread.id}
+                onSelect={() => {
+                  run(() => {
+                    actions.openThread(thread.id);
+                  });
+                }}
+              >
+                <MessagesSquareIcon />
+                <span className="truncate">{threadRowLabel(thread)}</span>
+                <span className="ml-auto truncate pl-3 text-xs text-muted-foreground">
+                  {threadRowDetail(thread)}
                 </span>
-                <span className="ml-auto pl-3 text-xs text-muted-foreground">H{row.depth}</span>
               </CommandItem>
             ))}
           </CommandGroup>
-        ) : null}
-      </PalettePage>
-    );
-  }
+        </PalettePage>
+      );
+    }
 
-  if (page === "problems") {
-    return (
-      <ProblemsPage
-        {...shell}
-        onOpenNote={(path) => run(() => actions.openNote(path))}
-        onOpenLink={(sourcePath, target) => run(() => actions.openProblemLink(sourcePath, target))}
-      />
-    );
-  }
+    if (page === "new-note-template") {
+      return (
+        <PalettePage
+          {...shell}
+          title="New note from template"
+          description="Pick the template the new note starts from"
+          placeholder="New note from which template?"
+        >
+          <TemplateRows
+            templatePaths={templatePaths}
+            query={query}
+            onPick={(path) => {
+              run(() => {
+                actions.newNoteFromTemplate(path);
+              });
+            }}
+          />
+        </PalettePage>
+      );
+    }
 
-  if (page === "shortcuts") {
-    return <ShortcutsPage {...shell} modifier={modifier} onPick={close} />;
-  }
+    if (page === "insert-template") {
+      return (
+        <PalettePage
+          {...shell}
+          title="Insert template"
+          description="Pick the template to insert at the cursor"
+          placeholder="Insert which template?"
+        >
+          <TemplateRows
+            templatePaths={templatePaths}
+            query={query}
+            onPick={(path) => {
+              run(() => actions.insertTemplate?.(path));
+            }}
+          />
+        </PalettePage>
+      );
+    }
 
-  if (page === "search") {
-    return (
-      <SearchPage
-        {...shell}
-        onOpenMatch={(match, needle) => run(() => actions.openMatch(match, needle))}
-        onReplaceAll={actions.replaceAll}
-      />
-    );
-  }
-
-  if (page === "threads") {
-    const visibleThreads = threads
-      .filter(
-        (thread) =>
-          matchesQuery(threadRowLabel(thread), query) ||
-          matchesQuery(thread.originDocPath ?? "", query),
-      )
-      .slice(0, 30);
-    return (
-      <PalettePage
-        {...shell}
-        title="Actions"
-        description="Open a recent action in the panel"
-        placeholder="Find an action…"
-      >
-        <CommandEmpty>No actions yet.</CommandEmpty>
-        <CommandGroup heading="Recent">
-          {visibleThreads.map((thread) => (
-            <CommandItem key={thread.id} onSelect={() => run(() => actions.openThread(thread.id))}>
-              <MessagesSquareIcon />
-              <span className="truncate">{threadRowLabel(thread)}</span>
-              <span className="ml-auto truncate pl-3 text-xs text-muted-foreground">
-                {threadRowDetail(thread)}
-              </span>
-            </CommandItem>
-          ))}
-        </CommandGroup>
-      </PalettePage>
-    );
-  }
-
-  if (page === "new-note-template") {
-    return (
-      <PalettePage
-        {...shell}
-        title="New note from template"
-        description="Pick the template the new note starts from"
-        placeholder="New note from which template?"
-      >
-        <TemplateRows
-          templatePaths={templatePaths}
-          query={query}
-          onPick={(path) => run(() => actions.newNoteFromTemplate(path))}
+    if (page === "new-note-folder") {
+      return (
+        <FolderPage
+          {...shell}
+          title="New note in folder"
+          description="Pick the folder for the new note"
+          placeholder="New note in which folder?"
+          empty="No matching folder."
+          folders={["", ...folders].filter((dir) => dir === "" || matchesQuery(dir, query))}
+          onPick={(dir) => {
+            run(() => {
+              actions.newNote(dir);
+            });
+          }}
         />
-      </PalettePage>
-    );
-  }
+      );
+    }
 
-  if (page === "insert-template") {
-    return (
-      <PalettePage
-        {...shell}
-        title="Insert template"
-        description="Pick the template to insert at the cursor"
-        placeholder="Insert which template?"
-      >
-        <TemplateRows
-          templatePaths={templatePaths}
-          query={query}
-          onPick={(path) => run(() => actions.insertTemplate?.(path))}
+    if (page === "move-to-folder" && moveSubject !== null) {
+      const subject = moveSubject;
+      return (
+        <FolderPage
+          {...shell}
+          title={`Move ${basenamePath(subject)}`}
+          description="Pick the folder to move it into"
+          placeholder="Move to which folder?"
+          empty="No folder it can move to."
+          folders={["", ...folders].filter(
+            (dir) => planMove(subject, dir).ok && (dir === "" || matchesQuery(dir, query)),
+          )}
+          onPick={(dir) => {
+            run(() => {
+              actions.moveNote(subject, dir);
+            });
+          }}
         />
-      </PalettePage>
-    );
-  }
+      );
+    }
+    return null;
+  };
 
-  if (page === "new-note-folder") {
-    return (
-      <FolderPage
-        {...shell}
-        title="New note in folder"
-        description="Pick the folder for the new note"
-        placeholder="New note in which folder?"
-        empty="No matching folder."
-        folders={["", ...folders].filter((dir) => dir === "" || matchesQuery(dir, query))}
-        onPick={(dir) => run(() => actions.newNote(dir))}
-      />
-    );
-  }
-
-  if (page === "move-to-folder" && moveSubject !== null) {
-    const subject = moveSubject;
-    return (
-      <FolderPage
-        {...shell}
-        title={`Move ${basenamePath(subject)}`}
-        description="Pick the folder to move it into"
-        placeholder="Move to which folder?"
-        empty="No folder it can move to."
-        folders={["", ...folders].filter(
-          (dir) => planMove(subject, dir).ok && (dir === "" || matchesQuery(dir, query)),
-        )}
-        onPick={(dir) => run(() => actions.moveNote(subject, dir))}
-      />
-    );
+  const paged = subPage();
+  if (paged !== null) {
+    return paged;
   }
 
   const quickOpen = page === "notes";
@@ -504,7 +596,14 @@ export function CommandPalette({
       {noteHits.length > 0 ? (
         <CommandGroup heading="Notes">
           {noteHits.map((hit) => (
-            <CommandItem key={hit.path} onSelect={() => run(() => actions.openNote(hit.path))}>
+            <CommandItem
+              key={hit.path}
+              onSelect={() => {
+                run(() => {
+                  actions.openNote(hit.path);
+                });
+              }}
+            >
               <FileTextIcon />
               <span className="truncate">
                 {hit.title !== undefined && hit.title !== "" ? hit.title : hit.path}
@@ -523,17 +622,23 @@ export function CommandPalette({
           {visibleCommands.map((command) => (
             <CommandItem
               key={command.id}
-              onSelect={() => (command.keepOpen === true ? command.run() : run(command.run))}
+              onSelect={() => {
+                if (command.keepOpen === true) {
+                  command.run();
+                } else {
+                  run(command.run);
+                }
+              }}
             >
               {command.icon}
               {command.label}
-              {command.binding !== undefined ? (
+              {command.binding === undefined ? null : (
                 <CommandShortcut>{bindingFor(command.binding, modifier)}</CommandShortcut>
-              ) : null}
+              )}
             </CommandItem>
           ))}
         </CommandGroup>
       ) : null}
     </PalettePage>
   );
-}
+};

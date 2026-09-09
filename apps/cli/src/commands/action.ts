@@ -3,7 +3,8 @@ import { ORPCError } from "@orpc/client";
 import type { Thread } from "@repo/api/local/threads/threads-schema";
 import { defineCommand } from "citty";
 import { CliExitError, EXIT_WAIT_TIMEOUT, getErrorMessage, invalidUsage } from "../cli-error";
-import { apiFor, type CliDeps } from "../context";
+import { apiFor } from "../context";
+import type { CliDeps } from "../context";
 import { jsonArg, out, outputJson, writeLines } from "../output";
 import { formatThreadTimeline } from "./format-thread-timeline";
 
@@ -14,44 +15,63 @@ type SendOutcome =
   | { kind: "started"; turnId: string }
   | { kind: "queued"; queuedMessageId: string };
 
-function threadLine(thread: Thread): string {
+const threadLine = (thread: Thread): string => {
   const archived = thread.archivedAt === null ? "" : "  (archived)";
   const title = thread.title === null ? "" : `  ${thread.title}`;
   return `${thread.id}  ${thread.status}${title}${archived}`;
-}
+};
 
-function parsePositiveNumber(rawValue: string, flag: string): number {
+const parsePositiveNumber = (rawValue: string, flag: string): number => {
   const value = Number(rawValue);
   if (!Number.isFinite(value) || value <= 0) {
     throw invalidUsage(`${flag} must be a positive number (got "${rawValue}")`);
   }
   return value;
-}
+};
 
-function describeSendOutcome(outcome: SendOutcome): string {
+const describeSendOutcome = (outcome: SendOutcome): string => {
   switch (outcome.kind) {
-    case "started":
+    case "started": {
       return `Turn ${outcome.turnId} started`;
-    case "queued":
+    }
+    case "queued": {
       return `Queued (${outcome.queuedMessageId})`;
+    }
+    // no default
   }
-}
+};
 
 // the re-wrap keeps the refusal's own class so a --json caller branches on the same vocabulary a bare send gives.
-function sendFailureCode(cause: unknown): string {
+const sendFailureCode = (cause: unknown): string => {
   if (cause instanceof ORPCError || cause instanceof CliExitError) {
-    return cause.code;
+    return String(cause.code);
   }
   return "SEND_FAILED";
-}
+};
 
-export function actionCommand(deps: CliDeps) {
-  return defineCommand({
-    meta: { name: "action", description: "Agent actions — threads attached to notes" },
+export const actionCommand = (deps: CliDeps) =>
+  defineCommand({
+    meta: { description: "Agent actions — threads attached to notes", name: "action" },
     subCommands: {
+      archive: defineCommand({
+        args: {
+          id: { description: "The thread id", required: true, type: "positional" },
+          ...jsonArg,
+        },
+        meta: { description: "Archive a thread", name: "archive" },
+        run: async ({ args }) => {
+          const api = apiFor(deps);
+          const body = await api.threads.archive({ threadId: args.id });
+          if (outputJson(args, body)) {
+            return;
+          }
+          out.success(`Archived ${body.thread.id}`);
+        },
+      }),
+
       list: defineCommand({
-        meta: { name: "list", description: "All actions with status" },
         args: { ...jsonArg },
+        meta: { description: "All actions with status", name: "list" },
         run: async ({ args }) => {
           const api = apiFor(deps);
           const body = await api.threads.list();
@@ -63,14 +83,14 @@ export function actionCommand(deps: CliDeps) {
       }),
 
       new: defineCommand({
-        meta: {
-          name: "new",
-          description: "Start an action (optionally attached to a note) and send the first turn",
-        },
         args: {
-          prompt: { type: "positional", required: true, description: "The first turn's text" },
-          doc: { type: "string", description: "Attach the action to this note" },
+          doc: { description: "Attach the action to this note", type: "string" },
+          prompt: { description: "The first turn's text", required: true, type: "positional" },
           ...jsonArg,
+        },
+        meta: {
+          description: "Start an action (optionally attached to a note) and send the first turn",
+          name: "new",
         },
         run: async ({ args }) => {
           const api = apiFor(deps);
@@ -80,8 +100,8 @@ export function actionCommand(deps: CliDeps) {
           let outcome: SendOutcome;
           try {
             outcome = await api.threads.send({
-              threadId: createdThread.id,
               text: args.prompt,
+              threadId: createdThread.id,
             });
           } catch (error) {
             // the thread exists now; failing without its id leaves one the user cannot resume or archive.
@@ -91,7 +111,7 @@ export function actionCommand(deps: CliDeps) {
               { code: sendFailureCode(error) },
             );
           }
-          if (outputJson(args, { thread: createdThread, send: outcome })) {
+          if (outputJson(args, { send: outcome, thread: createdThread })) {
             return;
           }
           writeLines([`Action ${createdThread.id}`]);
@@ -100,20 +120,20 @@ export function actionCommand(deps: CliDeps) {
       }),
 
       send: defineCommand({
-        meta: {
-          name: "send",
-          description: "Send a follow-up; starts a turn when idle, queues behind a running one",
-        },
         args: {
-          id: { type: "positional", required: true, description: "The thread id" },
-          prompt: { type: "positional", required: true, description: "The message text" },
+          id: { description: "The thread id", required: true, type: "positional" },
+          prompt: { description: "The message text", required: true, type: "positional" },
           ...jsonArg,
+        },
+        meta: {
+          description: "Send a follow-up; starts a turn when idle, queues behind a running one",
+          name: "send",
         },
         run: async ({ args }) => {
           const api = apiFor(deps);
           const outcome = await api.threads.send({
-            threadId: args.id,
             text: args.prompt,
+            threadId: args.id,
           });
           if (outputJson(args, outcome)) {
             return;
@@ -123,11 +143,11 @@ export function actionCommand(deps: CliDeps) {
       }),
 
       show: defineCommand({
-        meta: { name: "show", description: "Action detail plus the compact timeline" },
         args: {
-          id: { type: "positional", required: true, description: "The thread id" },
+          id: { description: "The thread id", required: true, type: "positional" },
           ...jsonArg,
         },
+        meta: { description: "Action detail plus the compact timeline", name: "show" },
         run: async ({ args }) => {
           const api = apiFor(deps);
           const detail = await api.threads.get({ threadId: args.id });
@@ -139,8 +159,8 @@ export function actionCommand(deps: CliDeps) {
           }
           if (
             outputJson(args, {
-              thread: detail.thread,
               pendingInteractions: detail.pendingInteractions,
+              thread: detail.thread,
               timeline: timelineBody.timeline,
             })
           ) {
@@ -162,21 +182,21 @@ export function actionCommand(deps: CliDeps) {
       }),
 
       wait: defineCommand({
-        meta: {
-          name: "wait",
-          description: "Block until the thread settles; exit 0 idle, 1 error, 2 timeout",
-        },
         args: {
-          id: { type: "positional", required: true, description: "The thread id" },
-          timeout: {
-            type: "string",
-            description: `Give up after this long (default ${DEFAULT_WAIT_TIMEOUT_SECONDS})`,
-          },
+          id: { description: "The thread id", required: true, type: "positional" },
           "poll-interval": {
-            type: "string",
             description: `Poll cadence in milliseconds (default ${DEFAULT_WAIT_POLL_INTERVAL_MS})`,
+            type: "string",
+          },
+          timeout: {
+            description: `Give up after this long (default ${DEFAULT_WAIT_TIMEOUT_SECONDS})`,
+            type: "string",
           },
           ...jsonArg,
+        },
+        meta: {
+          description: "Block until the thread settles; exit 0 idle, 1 error, 2 timeout",
+          name: "wait",
         },
         run: async ({ args }) => {
           const timeoutSeconds =
@@ -188,28 +208,34 @@ export function actionCommand(deps: CliDeps) {
               ? DEFAULT_WAIT_POLL_INTERVAL_MS
               : parsePositiveNumber(args["poll-interval"], "--poll-interval");
           const api = apiFor(deps);
-          const deadline = Date.now() + timeoutSeconds * 1_000;
+          const deadline = Date.now() + timeoutSeconds * 1000;
           const expire = (): CliExitError =>
             new CliExitError(`Thread ${args.id} did not settle within ${timeoutSeconds}s`, {
               code: "WAIT_TIMEOUT",
               exitCode: EXIT_WAIT_TIMEOUT,
             });
+          // the request carries the deadline too: a server that accepts and never answers must not park the wait past it.
+          const readThread = async (remainingMs: number) => {
+            try {
+              return await api.threads.get(
+                { threadId: args.id },
+                { signal: AbortSignal.timeout(remainingMs) },
+              );
+            } catch (error) {
+              if (Date.now() >= deadline) {
+                throw expire();
+              }
+              throw error;
+            }
+          };
           for (;;) {
             const remainingMs = deadline - Date.now();
             if (remainingMs <= 0) {
               throw expire();
             }
-            // the request carries the deadline too: a server that accepts and never answers must not park the wait past it.
-            const { thread: current } = await api.threads
-              .get({ threadId: args.id }, { signal: AbortSignal.timeout(remainingMs) })
-              .catch((cause: unknown) => {
-                if (Date.now() >= deadline) {
-                  throw expire();
-                }
-                throw cause;
-              });
+            const { thread: current } = await readThread(remainingMs);
             if (current.status === "idle") {
-              if (outputJson(args, { threadId: args.id, status: current.status })) {
+              if (outputJson(args, { status: current.status, threadId: args.id })) {
                 return;
               }
               out.success(`Thread ${args.id} is idle.`);
@@ -228,22 +254,5 @@ export function actionCommand(deps: CliDeps) {
           }
         },
       }),
-
-      archive: defineCommand({
-        meta: { name: "archive", description: "Archive a thread" },
-        args: {
-          id: { type: "positional", required: true, description: "The thread id" },
-          ...jsonArg,
-        },
-        run: async ({ args }) => {
-          const api = apiFor(deps);
-          const body = await api.threads.archive({ threadId: args.id });
-          if (outputJson(args, body)) {
-            return;
-          }
-          out.success(`Archived ${body.thread.id}`);
-        },
-      }),
     },
   });
-}

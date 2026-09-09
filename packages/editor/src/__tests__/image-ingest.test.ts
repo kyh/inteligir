@@ -1,43 +1,44 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createSlateEditor, ElementApi, KEYS } from "platejs";
 
+import type * as HostIo from "@repo/editor/host-io";
+
 import { stringProp } from "@repo/editor/node-props";
 
 const helpers = vi.hoisted(() => ({
-  writeVaultAsset: vi.fn(() => Promise.resolve({ path: "assets/landed.png" })),
+  writeVaultAsset: vi.fn(async () => await Promise.resolve({ path: "assets/landed.png" })),
 }));
 
 vi.mock("@repo/editor/host-io", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@repo/editor/host-io")>()),
+  ...(await importOriginal<typeof HostIo>()),
   getEditorHostIo: () => ({ writeVaultAsset: helpers.writeVaultAsset }),
 }));
 
 vi.mock("@repo/ui/components/sonner", () => ({
-  toast: Object.assign(vi.fn(), { error: vi.fn(), warning: vi.fn(), success: vi.fn() }),
+  toast: Object.assign(vi.fn(), { error: vi.fn(), success: vi.fn(), warning: vi.fn() }),
 }));
 
 const { toast } = await import("@repo/ui/components/sonner");
 const { ingestImageFiles } = await import("@repo/editor/kits/image-kit");
 const { EDITOR_KIT } = await import("@repo/editor/kits/editor-kit");
 
-function newEditor() {
-  return createSlateEditor({
+const newEditor = () =>
+  createSlateEditor({
     plugins: EDITOR_KIT,
     value: [{ children: [{ text: "" }], type: "p" }],
   });
-}
 
-function imageUrls(editor: ReturnType<typeof newEditor>): string[] {
-  return editor.children.flatMap((node) => {
-    if (!ElementApi.isElement(node) || node.type !== KEYS.img) return [];
+const imageUrls = (editor: ReturnType<typeof newEditor>): string[] =>
+  editor.children.flatMap((node) => {
+    if (!ElementApi.isElement(node) || node.type !== KEYS.img) {
+      return [];
+    }
     const url = stringProp(node, "url");
     return url === undefined ? [] : [url];
   });
-}
 
-function imageFile(name: string, bytes: number): File {
-  return new File([new Uint8Array(bytes)], name, { type: "image/png" });
-}
+const imageFile = (name: string, bytes: number): File =>
+  new File([new Uint8Array(bytes)], name, { type: "image/png" });
 
 describe("image ingestion", () => {
   beforeEach(() => {

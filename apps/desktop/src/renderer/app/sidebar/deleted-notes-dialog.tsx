@@ -21,7 +21,7 @@ export interface DeletedNotesDialogProps {
   onOpenNote: (path: string) => void;
 }
 
-export function DeletedNotesDialog({ open, onOpenChange, onOpenNote }: DeletedNotesDialogProps) {
+export const DeletedNotesDialog = ({ open, onOpenChange, onOpenNote }: DeletedNotesDialogProps) => {
   const { api } = useWorkspace();
   const queryClient = useQueryClient();
   const deletedQuery = useQuery({ ...orpc.vault.deleted.queryOptions(), enabled: open });
@@ -32,7 +32,7 @@ export function DeletedNotesDialog({ open, onOpenChange, onOpenNote }: DeletedNo
   const restore = useMutation({
     mutationFn: async (entry: VaultDeletedEntry) => {
       const { content } = await api.vault.revision({ path: entry.path, sha: entry.sha });
-      const restored = await api.vault.write({ path: entry.path, content, ifAbsent: true });
+      const restored = await api.vault.write({ content, ifAbsent: true, path: entry.path });
       await restoreCommentStore(api, content, entry.sha);
       return restored;
     },
@@ -51,49 +51,54 @@ export function DeletedNotesDialog({ open, onOpenChange, onOpenNote }: DeletedNo
   // on every open anyway.
   const now = deletedQuery.dataUpdatedAt;
 
+  const rows = () => {
+    if (deletedQuery.isPending && open) {
+      return <p className="px-1 py-4 text-sm text-muted-foreground">Loading…</p>;
+    }
+    if (entries.length === 0) {
+      return <p className="px-1 py-4 text-sm text-muted-foreground">Nothing has been deleted.</p>;
+    }
+    return entries.map((entry) => {
+      const at = Date.parse(entry.deletedAt);
+      return (
+        <div
+          key={entry.path}
+          className="group flex items-center gap-3 rounded-md px-2 py-1.5 hover:bg-muted/50"
+        >
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm">{docStem(entry.path)}</p>
+            <p className="truncate text-xs text-muted-foreground">
+              {entry.path}
+              {Number.isNaN(at) ? null : ` · ${relativeTimeLabel(at, now)}`}
+            </p>
+          </div>
+          <Button
+            variant="tertiary"
+            size="compact"
+            disabled={restore.isPending}
+            onClick={() => {
+              restore.mutate(entry);
+            }}
+          >
+            Restore
+          </Button>
+        </div>
+      );
+    });
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>Deleted notes</DialogTitle>
           <DialogDescription>
-            A deleted note stays in the vault's history. Restore one to bring it back where it was.
+            A deleted note stays in the vault&apos;s history. Restore one to bring it back where it
+            was.
           </DialogDescription>
         </DialogHeader>
-        <div className="-mr-2 max-h-[60dvh] space-y-1 overflow-y-auto pr-2">
-          {deletedQuery.isPending && open ? (
-            <p className="px-1 py-4 text-sm text-muted-foreground">Loading…</p>
-          ) : entries.length === 0 ? (
-            <p className="px-1 py-4 text-sm text-muted-foreground">Nothing has been deleted.</p>
-          ) : (
-            entries.map((entry) => {
-              const at = Date.parse(entry.deletedAt);
-              return (
-                <div
-                  key={entry.path}
-                  className="group flex items-center gap-3 rounded-md px-2 py-1.5 hover:bg-muted/50"
-                >
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm">{docStem(entry.path)}</p>
-                    <p className="truncate text-xs text-muted-foreground">
-                      {entry.path}
-                      {Number.isNaN(at) ? null : ` · ${relativeTimeLabel(at, now)}`}
-                    </p>
-                  </div>
-                  <Button
-                    variant="tertiary"
-                    size="compact"
-                    disabled={restore.isPending}
-                    onClick={() => restore.mutate(entry)}
-                  >
-                    Restore
-                  </Button>
-                </div>
-              );
-            })
-          )}
-        </div>
+        <div className="-mr-2 max-h-[60dvh] space-y-1 overflow-y-auto pr-2">{rows()}</div>
       </DialogContent>
     </Dialog>
   );
-}
+};

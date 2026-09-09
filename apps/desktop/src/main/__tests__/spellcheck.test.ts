@@ -4,15 +4,15 @@ import {
   languagesConfigurableOn,
   planSpellcheck,
   senderIsWindow,
-  type SpellcheckPort,
 } from "../spellcheck";
+import type { SpellcheckPort } from "../spellcheck";
 
-function fakePort(available: string[]): SpellcheckPort & { calls: string[] } {
+const fakePort = (available: string[]): SpellcheckPort & { calls: string[] } => {
   let enabled = true;
   let languages = ["en-US"];
   const port: SpellcheckPort & { calls: string[] } = {
-    calls: [],
     availableLanguages: () => available,
+    calls: [],
     isEnabled: () => enabled,
     languages: () => languages,
     setEnabled(next) {
@@ -25,7 +25,7 @@ function fakePort(available: string[]): SpellcheckPort & { calls: string[] } {
     },
   };
   return port;
-}
+};
 
 describe("the plan", () => {
   it("keeps only languages the session offers", () => {
@@ -46,20 +46,20 @@ describe("the plan", () => {
 describe("applying a choice", () => {
   it("sets the switch and the languages where the platform honours them", () => {
     const port = fakePort(["en-US", "de-DE"]);
-    const spellcheck = createSpellcheck({ port, platform: "linux" });
+    const spellcheck = createSpellcheck({ platform: "linux", port });
     const state = spellcheck.apply({ enabled: false, languages: ["de-DE"] });
     expect(port.calls).toEqual(["enabled:false", "languages:de-DE"]);
     expect(state).toEqual({
+      available: ["en-US", "de-DE"],
       enabled: false,
       languages: ["de-DE"],
-      available: ["en-US", "de-DE"],
       languagesConfigurable: true,
     });
   });
 
   it("on macOS sets the switch alone and says the list is not its to change", () => {
     const port = fakePort(["en-US", "de-DE"]);
-    const spellcheck = createSpellcheck({ port, platform: "darwin" });
+    const spellcheck = createSpellcheck({ platform: "darwin", port });
     const state = spellcheck.apply({ enabled: false, languages: ["de-DE"] });
     expect(port.calls).toEqual(["enabled:false"]);
     expect(state.languagesConfigurable).toBe(false);

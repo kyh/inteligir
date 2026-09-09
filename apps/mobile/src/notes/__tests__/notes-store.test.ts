@@ -1,26 +1,25 @@
+// oxlint-disable eslint/require-await -- the stand-ins here answer async NoteCache and fetch ports
+// synchronously; `async` is the contract, and dropping it trips promise-function-async
 import { VAULT_API_PATHS } from "@repo/api/cloud/vault/vault-schema";
 import { describe, expect, it } from "vitest";
-import { createMemoryNoteCache, type NoteCache } from "../note-cache";
+import { createMemoryNoteCache } from "../note-cache";
+import type { NoteCache } from "../note-cache";
 import { createNotesStore } from "../notes-store";
 
 const COMMIT = "c".repeat(40);
-const CREDENTIAL = { deviceId: "dev_1", credential: `igd_${"a".repeat(64)}` };
-const OTHER_CREDENTIAL = { deviceId: "dev_2", credential: `igd_${"b".repeat(64)}` };
+const CREDENTIAL = { credential: `igd_${"a".repeat(64)}`, deviceId: "dev_1" };
+const OTHER_CREDENTIAL = { credential: `igd_${"b".repeat(64)}`, deviceId: "dev_2" };
 
-function restored(credential: typeof CREDENTIAL) {
-  return { credential, source: "restored" } as const;
-}
+const restored = (credential: typeof CREDENTIAL) => ({ credential, source: "restored" }) as const;
 
-function signedIn(credential: typeof CREDENTIAL) {
-  return { credential, source: "signed-in" } as const;
-}
+const signedIn = (credential: typeof CREDENTIAL) => ({ credential, source: "signed-in" }) as const;
 
 interface FakeCloud {
   requests: string[];
   fetch: (input: string, init?: RequestInit) => Promise<Response>;
 }
 
-function fakeCloud(extra: Record<string, string> = {}): FakeCloud {
+const fakeCloud = (extra: Record<string, string> = {}): FakeCloud => {
   const files = new Map([
     ["a.md", "# a\n"],
     ["notes/b.md", "# b\n"],
@@ -30,8 +29,7 @@ function fakeCloud(extra: Record<string, string> = {}): FakeCloud {
   const paths = [...files.keys()].toSorted();
   const requests: string[] = [];
   return {
-    requests,
-    fetch: (input) => {
+    fetch: async (input) => {
       const url = new URL(input);
       requests.push(`${url.pathname}${url.search}`);
       if (url.pathname === VAULT_API_PATHS.tree) {
@@ -39,42 +37,38 @@ function fakeCloud(extra: Record<string, string> = {}): FakeCloud {
         const from = after === null ? paths : paths.filter((path) => path > after);
         const page = from.slice(0, 2);
         const last = page.at(-1);
-        return Promise.resolve(
-          Response.json({
-            commit: COMMIT,
-            entries: page.map((path) => ({ path, size: 4 })),
-            next: from.length > page.length && last !== undefined ? last : null,
-          }),
-        );
+        return Response.json({
+          commit: COMMIT,
+          entries: page.map((path) => ({ path, size: 4 })),
+          next: from.length > page.length && last !== undefined ? last : null,
+        });
       }
       if (url.pathname === VAULT_API_PATHS.file) {
         const path = url.searchParams.get("path") ?? "";
         const content = files.get(path);
         if (content === undefined) {
-          return Promise.resolve(
-            Response.json(
-              { error: { code: "not-found", message: "That revision does not carry the path." } },
-              { status: 404 },
-            ),
+          return Response.json(
+            { error: { code: "not-found", message: "That revision does not carry the path." } },
+            { status: 404 },
           );
         }
-        return Promise.resolve(
-          Response.json({ commit: COMMIT, path, oid: "d".repeat(40), content }),
-        );
+        return Response.json({ commit: COMMIT, content, oid: "d".repeat(40), path });
       }
-      return Promise.resolve(
-        Response.json({ error: { code: "not-found", message: "No such route." } }, { status: 404 }),
+      return Response.json(
+        { error: { code: "not-found", message: "No such route." } },
+        { status: 404 },
       );
     },
+    requests,
   };
-}
+};
 
 describe("the notes store", () => {
   it("makes no request without a credential — the file is the switch here too", async () => {
     const cloud = fakeCloud();
     const store = createNotesStore({ cloudUrl: "https://cloud.test", fetch: cloud.fetch });
     await store.refresh();
-    expect(await store.readNote("a.md")).toEqual({ ok: false, message: "Not signed in." });
+    expect(await store.readNote("a.md")).toEqual({ message: "Not signed in.", ok: false });
     expect(cloud.requests).toEqual([]);
     expect(store.tree.get()).toEqual({ state: "idle" });
   });
@@ -86,13 +80,13 @@ describe("the notes store", () => {
     await store.refresh();
     const tree = store.tree.get();
     expect(tree).toEqual({
-      state: "ready",
       commit: COMMIT,
       entries: [
         { path: "a.md", size: 4 },
         { path: "notes/b.md", size: 4 },
         { path: "notes/deep/c.md", size: 4 },
       ],
+      state: "ready",
     });
     const second = cloud.requests[1] ?? "";
     expect(second).toContain(`ref=${COMMIT}`);
@@ -115,7 +109,7 @@ describe("the notes store", () => {
     await store.refresh();
     const first = await store.readNote("notes/b.md");
     const again = await store.readNote("notes/b.md");
-    expect(first).toEqual({ ok: true, path: "notes/b.md", commit: COMMIT, content: "# b\n" });
+    expect(first).toEqual({ commit: COMMIT, content: "# b\n", ok: true, path: "notes/b.md" });
     expect(again).toEqual(first);
     const fileRequests = cloud.requests.filter((line) => line.startsWith(VAULT_API_PATHS.file));
     expect(fileRequests).toHaveLength(1);
@@ -124,12 +118,10 @@ describe("the notes store", () => {
   it("reads 'no hosted vault' as the empty STATE, not an error", async () => {
     const store = createNotesStore({
       cloudUrl: "https://cloud.test",
-      fetch: () =>
-        Promise.resolve(
-          Response.json(
-            { error: { code: "not-found", message: "This account has no hosted vault yet." } },
-            { status: 404 },
-          ),
+      fetch: async () =>
+        Response.json(
+          { error: { code: "not-found", message: "This account has no hosted vault yet." } },
+          { status: 404 },
         ),
     });
     store.setCredential(restored(CREDENTIAL));
@@ -139,14 +131,17 @@ describe("the notes store", () => {
   });
 
   it("a response from the previous sign-in never lands — the generation fence", async () => {
-    const releases: Array<() => void> = [];
-    const gate = new Promise<void>((resolve) => releases.push(resolve));
+    const releases: (() => void)[] = [];
+    // oxlint-disable-next-line promise/avoid-new -- a deferred: the test releases the fetch by hand
+    const gate = new Promise<void>((resolve) => {
+      releases.push(resolve);
+    });
     const inner = fakeCloud();
     const store = createNotesStore({
       cloudUrl: "https://cloud.test",
       fetch: async (input, init) => {
         await gate;
-        return inner.fetch(input, init);
+        return await inner.fetch(input, init);
       },
     });
     store.setCredential(restored(CREDENTIAL));
@@ -176,7 +171,7 @@ describe("the notes store", () => {
     store.setCredential(null);
     expect(store.tree.get()).toEqual({ state: "idle" });
     expect(store.resolveWiki("b")).toBeNull();
-    expect(await store.readNote("a.md")).toEqual({ ok: false, message: "Not signed in." });
+    expect(await store.readNote("a.md")).toEqual({ message: "Not signed in.", ok: false });
   });
 
   it("composes an asset source pinned to the tree's commit, credential in a header", async () => {
@@ -198,40 +193,40 @@ describe("the notes store", () => {
   });
 });
 
-function recordingCache() {
+const recordingCache = () => {
   const inner = createMemoryNoteCache(100);
   const calls: string[] = [];
   return {
-    calls,
     cache: {
-      get: (commit, path) => {
-        calls.push(`get ${path}`);
-        return inner.get(commit, path);
-      },
-      set: (note) => {
-        calls.push(`set ${note.path}@${note.commit}`);
-        return inner.set(note);
-      },
-      sweep: (keepCommit) => {
-        calls.push(`sweep ${keepCommit}`);
-        return inner.sweep(keepCommit);
-      },
-      clear: () => {
+      clear: async () => {
         calls.push("clear");
-        return inner.clear();
+        await inner.clear();
+      },
+      get: async (commit, path) => {
+        calls.push(`get ${path}`);
+        return await inner.get(commit, path);
+      },
+      set: async (note) => {
+        calls.push(`set ${note.path}@${note.commit}`);
+        await inner.set(note);
+      },
+      sweep: async (keepCommit) => {
+        calls.push(`sweep ${keepCommit}`);
+        await inner.sweep(keepCommit);
       },
     } satisfies NoteCache,
+    calls,
   };
-}
+};
 
 describe("the notes store over a durable cache", () => {
   it("serves a cached note across a relaunch — no second request", async () => {
     const { cache } = recordingCache();
     const firstLaunch = fakeCloud();
     const first = createNotesStore({
+      cache,
       cloudUrl: "https://cloud.test",
       fetch: firstLaunch.fetch,
-      cache,
     });
     first.setCredential(restored(CREDENTIAL));
     await first.refresh();
@@ -239,14 +234,14 @@ describe("the notes store over a durable cache", () => {
 
     const secondLaunch = fakeCloud();
     const second = createNotesStore({
+      cache,
       cloudUrl: "https://cloud.test",
       fetch: secondLaunch.fetch,
-      cache,
     });
     second.setCredential(restored(CREDENTIAL));
     await second.refresh();
     const read = await second.readNote("notes/b.md");
-    expect(read).toEqual({ ok: true, path: "notes/b.md", commit: COMMIT, content: "# b\n" });
+    expect(read).toEqual({ commit: COMMIT, content: "# b\n", ok: true, path: "notes/b.md" });
     const fileRequests = secondLaunch.requests.filter((line) =>
       line.startsWith(VAULT_API_PATHS.file),
     );
@@ -256,7 +251,7 @@ describe("the notes store over a durable cache", () => {
   it("never caches a read the tree did not pin — 'head' moves", async () => {
     const { cache, calls } = recordingCache();
     const cloud = fakeCloud();
-    const store = createNotesStore({ cloudUrl: "https://cloud.test", fetch: cloud.fetch, cache });
+    const store = createNotesStore({ cache, cloudUrl: "https://cloud.test", fetch: cloud.fetch });
     store.setCredential(restored(CREDENTIAL));
     // no refresh on purpose: the read must be unpinned.
     const read = await store.readNote("a.md");
@@ -268,7 +263,7 @@ describe("the notes store over a durable cache", () => {
   it("sweeps to the tree's commit on every refresh", async () => {
     const { cache, calls } = recordingCache();
     const cloud = fakeCloud();
-    const store = createNotesStore({ cloudUrl: "https://cloud.test", fetch: cloud.fetch, cache });
+    const store = createNotesStore({ cache, cloudUrl: "https://cloud.test", fetch: cloud.fetch });
     store.setCredential(restored(CREDENTIAL));
     await store.refresh();
     expect(calls).toContain(`sweep ${COMMIT}`);
@@ -276,29 +271,32 @@ describe("the notes store over a durable cache", () => {
 
   it("a cache hit landing after a sign-out is refused — the fence covers the disk too", async () => {
     const inner = createMemoryNoteCache(100);
-    const releases: Array<() => void> = [];
+    const releases: (() => void)[] = [];
     const cache: NoteCache = {
       ...inner,
       get: async (commit, path) => {
-        await new Promise<void>((resolve) => releases.push(resolve));
-        return inner.get(commit, path);
+        // oxlint-disable-next-line promise/avoid-new -- a deferred: the test releases the read by hand
+        await new Promise<void>((resolve) => {
+          releases.push(resolve);
+        });
+        return await inner.get(commit, path);
       },
     };
     const cloud = fakeCloud();
-    const store = createNotesStore({ cloudUrl: "https://cloud.test", fetch: cloud.fetch, cache });
+    const store = createNotesStore({ cache, cloudUrl: "https://cloud.test", fetch: cloud.fetch });
     store.setCredential(restored(CREDENTIAL));
     await store.refresh();
-    await inner.set({ commit: COMMIT, path: "a.md", content: "# a\n" });
+    await inner.set({ commit: COMMIT, content: "# a\n", path: "a.md" });
 
     const pending = store.readNote("a.md");
     store.setCredential(null);
     releases[0]?.();
-    expect(await pending).toEqual({ ok: false, message: "Not signed in." });
+    expect(await pending).toEqual({ message: "Not signed in.", ok: false });
   });
 
   it("wipes on a sign-in and on sign-out; the boot restore keeps its rows", () => {
     const { cache, calls } = recordingCache();
-    const store = createNotesStore({ cloudUrl: "https://cloud.test", cache });
+    const store = createNotesStore({ cache, cloudUrl: "https://cloud.test" });
     store.setCredential(restored(CREDENTIAL));
     expect(calls).toEqual([]);
     store.setCredential(signedIn(CREDENTIAL));
@@ -311,25 +309,33 @@ describe("the notes store over a durable cache", () => {
 
   it("swallows a cache that throws — the guarantee is the store's, not the adapter's", async () => {
     const angry: NoteCache = {
-      get: () => Promise.reject(new Error("disk")),
-      set: () => Promise.reject(new Error("disk")),
-      sweep: () => Promise.reject(new Error("disk")),
-      clear: () => Promise.reject(new Error("disk")),
+      clear: async () => {
+        throw new Error("disk");
+      },
+      get: async () => {
+        throw new Error("disk");
+      },
+      set: async () => {
+        throw new Error("disk");
+      },
+      sweep: async () => {
+        throw new Error("disk");
+      },
     };
     const cloud = fakeCloud();
     const store = createNotesStore({
+      cache: angry,
       cloudUrl: "https://cloud.test",
       fetch: cloud.fetch,
-      cache: angry,
     });
     store.setCredential(restored(CREDENTIAL));
     await store.refresh();
     expect(store.tree.get().state).toBe("ready");
     expect(await store.readNote("notes/b.md")).toEqual({
-      ok: true,
-      path: "notes/b.md",
       commit: COMMIT,
       content: "# b\n",
+      ok: true,
+      path: "notes/b.md",
     });
   });
 });
@@ -338,17 +344,17 @@ describe("a note's comments on the phone", () => {
   const NOTE_ID = "0f6a3b1e-5c2d-4e8f-9a7b-1c3d5e7f9a0b";
   const NOTE = `---\nid: ${NOTE_ID}\n---\nThe %%i:c1:start%%plan%%i:c1:end%% holds.\n`;
   const STORE = JSON.stringify({
-    c1: { text: "Does it?", createdAt: 1, updatedAt: 1, source: "user" },
-    "c1-r1": { text: "It does.", createdAt: 2, updatedAt: 2, source: "agent", parentId: "c1" },
+    c1: { createdAt: 1, source: "user", text: "Does it?", updatedAt: 1 },
+    "c1-r1": { createdAt: 2, parentId: "c1", source: "agent", text: "It does.", updatedAt: 2 },
   });
 
-  async function signedInStore(extra: Record<string, string>) {
+  const signedInStore = async (extra: Record<string, string>) => {
     const cloud = fakeCloud(extra);
     const store = createNotesStore({ cloudUrl: "https://cloud.test", fetch: cloud.fetch });
     store.setCredential(restored(CREDENTIAL));
     await store.refresh();
     return { cloud, store };
-  }
+  };
 
   it("folds the store at the note's id against the note's own markers", async () => {
     const { store } = await signedInStore({
@@ -357,7 +363,9 @@ describe("a note's comments on the phone", () => {
     });
     const read = await store.readComments("notes/d.md");
     expect(read.ok).toBe(true);
-    if (!read.ok) return;
+    if (!read.ok) {
+      return;
+    }
     expect(read.threads.map((thread) => thread.rootId)).toEqual(["c1"]);
     expect(read.threads[0]?.anchored).toBe(true);
     expect(read.threads[0]?.replies.map((reply) => reply.entry.text)).toEqual(["It does."]);

@@ -3,15 +3,11 @@ import { z } from "zod";
 import { Workspace } from "../app/workspace";
 
 const workspaceSearchSchema = z.object({
-  note: z.string().min(1).optional().catch(undefined),
+  // oxlint-disable-next-line unicorn/no-useless-undefined, promise/valid-params, promise/prefer-await-to-then -- zod's catch, not a promise's: it takes the fallback positionally and undefined IS the fallback
+  note: z.catch(z.string().min(1).optional(), undefined),
 });
 
-export const Route = createFileRoute("/")({
-  validateSearch: workspaceSearchSchema,
-  component: Index,
-});
-
-function Index() {
+const Index = () => {
   const { note } = Route.useSearch();
   const navigate = useNavigate();
   return (
@@ -22,4 +18,9 @@ function Index() {
       }}
     />
   );
-}
+};
+
+export const Route = createFileRoute("/")({
+  component: Index,
+  validateSearch: workspaceSearchSchema,
+});

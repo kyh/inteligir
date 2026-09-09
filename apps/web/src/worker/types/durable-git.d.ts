@@ -1,4 +1,5 @@
-import { DurableObject } from "cloudflare:workers";
+// oxlint-disable eslint/max-classes-per-file -- durable-git exports both Durable Object classes, and the worker tsconfig maps the package to this one file
+import type { DurableObject } from "cloudflare:workers";
 
 // durable-git publishes TypeScript source with no .d.ts, which tsc rejects under this repo's
 // stricter flags, so the worker tsconfig's `paths` maps the package here; the bundler ignores
@@ -52,7 +53,7 @@ export interface DurableGitOptions<E extends Env = Env> {
 }
 
 export interface DurableGitHandler<E extends Env = Env> {
-  fetch(req: Request, env: E, ctx: ExecutionContext): Promise<Response>;
+  fetch: (req: Request, env: E, ctx: ExecutionContext) => Promise<Response>;
 }
 
 export function createDurableGit<E extends Env = Env>(
@@ -108,7 +109,7 @@ export interface BlobResult {
   data: Uint8Array;
 }
 
-export type RepoInfo = {
+export interface RepoInfo {
   name: string;
   desc: string;
   owner: string;
@@ -118,14 +119,14 @@ export type RepoInfo = {
   /** unix millis */
   idle: number;
   ver: number;
-};
+}
 
-export type RepoConfig = {
+export interface RepoConfig {
   desc?: string;
   owner?: string;
   section?: string;
   priv?: boolean;
-};
+}
 
 export declare class RepoCell extends DurableObject<Env> {
   fetch(req: Request): Promise<Response>;

@@ -19,15 +19,15 @@ export interface VoiceModelSpec {
 }
 
 export const VOICE_MODEL: VoiceModelSpec = {
-  id: "sherpa-onnx-nemo-streaming-fast-conformer-transducer-en-480ms-int8",
-  label: "Parakeet streaming (English)",
-  sizeBytes: 105_913_204,
-  sha256: "da93061cbf7b708b6b65976f70b29f519be29df750d8cdcabf98c65645930f13",
-  url: "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-nemo-streaming-fast-conformer-transducer-en-480ms-int8.tar.bz2",
   files: {
-    encoder: "encoder.int8.onnx",
     decoder: "decoder.int8.onnx",
+    encoder: "encoder.int8.onnx",
     joiner: "joiner.int8.onnx",
     tokens: "tokens.txt",
   },
+  id: "sherpa-onnx-nemo-streaming-fast-conformer-transducer-en-480ms-int8",
+  label: "Parakeet streaming (English)",
+  sha256: "da93061cbf7b708b6b65976f70b29f519be29df750d8cdcabf98c65645930f13",
+  sizeBytes: 105_913_204,
+  url: "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-nemo-streaming-fast-conformer-transducer-en-480ms-int8.tar.bz2",
 };

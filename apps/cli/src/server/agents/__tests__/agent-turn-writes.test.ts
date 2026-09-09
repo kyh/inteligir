@@ -17,7 +17,7 @@ interface RecordingEngine {
   wholeTreeCommits: number;
 }
 
-function recordingEngine(): RecordingEngine {
+const recordingEngine = (): RecordingEngine => {
   const scopedCommits: RecordedCommit[] = [];
   const state = {
     holds: 0,
@@ -26,42 +26,36 @@ function recordingEngine(): RecordingEngine {
     wholeTreeCommits: 0,
   };
   const git: GitEngine = {
-    scheduleCommit() {},
-    async commitNow() {
+    commitNow: async () => {
       state.wholeTreeCommits += 1;
-      return null;
+      return await Promise.resolve(null);
     },
-    async commitPaths(paths, author, subject) {
-      state.scopedCommits.push({ paths, author, subject });
-      return { files: paths.length };
+    commitPaths: async (paths, author, subject) => {
+      state.scopedCommits.push({ author, paths, subject });
+      return await Promise.resolve({ files: paths.length });
     },
+    deleted: async () => await Promise.resolve([]),
+    dispose: async () => {
+      await Promise.resolve();
+    },
+    history: async () => await Promise.resolve([]),
     holdCommits() {
       state.holds += 1;
       return () => {
         state.releases += 1;
       };
     },
-    async history() {
-      return [];
-    },
-    async revision() {
-      return "";
-    },
-    async deleted() {
-      return [];
-    },
-    async syncNow() {
-      return { state: "no-remote", lastSyncAt: null, lastError: null };
-    },
-    async status() {
-      return { state: "no-remote", lastSyncAt: null, lastError: null };
-    },
     isSyncing() {
       return false;
     },
-    runExclusive: (work) => work(),
+    revision: async () => await Promise.resolve(""),
+    runExclusive: async (work) => await work(),
+    scheduleCommit() {},
     startAutoSync() {},
-    async dispose() {},
+    status: async () =>
+      await Promise.resolve({ lastError: null, lastSyncAt: null, state: "no-remote" }),
+    syncNow: async () =>
+      await Promise.resolve({ lastError: null, lastSyncAt: null, state: "no-remote" }),
   };
   return {
     git,
@@ -78,7 +72,7 @@ function recordingEngine(): RecordingEngine {
       return state.wholeTreeCommits;
     },
   };
-}
+};
 
 describe("agent turn writes", () => {
   it("commits exactly the recorded write set, as the agent", async () => {
@@ -96,8 +90,8 @@ describe("agent turn writes", () => {
     expect(engine.scopedCommits).toHaveLength(1);
     expect(engine.scopedCommits[0]?.paths).toEqual(["a.md", "b.md"]);
     expect(engine.scopedCommits[0]?.author).toEqual({
-      name: "inteligir-agent",
       email: "agent@inteligir.local",
+      name: "inteligir-agent",
     });
     expect(engine.scopedCommits[0]?.subject).toContain("Thread: thr_1");
     expect(engine.releases).toBe(1);

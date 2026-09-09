@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import path from "node:path";
 import { expect, expectEq } from "../harness/assert";
 import { exec, hermeticProcessEnv } from "../harness/exec";
 import type { InstanceApi } from "../harness/instance";
@@ -14,52 +14,52 @@ const CONFLICT_B = "# Conflict\n\nedited on B\n";
 // every sync is an explicit call, so the divergence between A and B is deterministic.
 const NO_AUTO_SYNC = { INTELIGIR_SYNC_INTERVAL_MS: "0" };
 
-async function syncExpectClean(api: InstanceApi, label: string): Promise<void> {
+const syncExpectClean = async (api: InstanceApi, label: string): Promise<void> => {
   const status = await api.vault.syncNow();
   expect(
     status.state === "clean",
     `${label}: expected a clean sync, got "${status.state}" (lastError: ${status.lastError ?? "none"})`,
   );
-}
+};
 
 export const vaultSync: Scenario = {
-  name: "vault-sync",
   description: "two instances, one bare remote: propagation, then a typed conflict",
+  name: "vault-sync",
   async run(ctx) {
     const remote = await ctx.bareRemote();
-    const a = await ctx.boot({ name: "a", vaultRemote: remote, extraEnv: NO_AUTO_SYNC });
+    const a = await ctx.boot({ extraEnv: NO_AUTO_SYNC, name: "a", vaultRemote: remote });
 
     ctx.log("A writes notes/shared.md and syncs");
-    await a.api.vault.write({ path: "notes/shared.md", content: SHARED_CONTENT });
+    await a.api.vault.write({ content: SHARED_CONTENT, path: "notes/shared.md" });
     await syncExpectClean(a.api, "A after write");
 
-    const b = await ctx.boot({ name: "b", vaultRemote: remote, extraEnv: NO_AUTO_SYNC });
+    const b = await ctx.boot({ extraEnv: NO_AUTO_SYNC, name: "b", vaultRemote: remote });
     ctx.log("B syncs and receives the file");
     await syncExpectClean(b.api, "B first sync");
 
     const readB = await b.api.vault.read({ path: "notes/shared.md" });
     expectEq(readB.content, SHARED_CONTENT, "B's wire content");
     expectEq(
-      await readFile(join(b.vaultDir, "notes", "shared.md"), "utf8"),
+      await readFile(path.join(b.vaultDir, "notes", "shared.md"), "utf-8"),
       SHARED_CONTENT,
       "B's on-disk content",
     );
 
     ctx.log("seeding the conflict base on both sides");
-    await a.api.vault.write({ path: "conflict.md", content: CONFLICT_BASE });
+    await a.api.vault.write({ content: CONFLICT_BASE, path: "conflict.md" });
     await syncExpectClean(a.api, "A after base");
     await syncExpectClean(b.api, "B after base");
     expectEq(
-      await readFile(join(b.vaultDir, "conflict.md"), "utf8"),
+      await readFile(path.join(b.vaultDir, "conflict.md"), "utf-8"),
       CONFLICT_BASE,
       "B holds the conflict base",
     );
 
     ctx.log("A edits the shared line and syncs; B edits it differently");
-    await a.api.vault.write({ path: "conflict.md", content: CONFLICT_A });
+    await a.api.vault.write({ content: CONFLICT_A, path: "conflict.md" });
     await syncExpectClean(a.api, "A after edit");
 
-    await b.api.vault.write({ path: "conflict.md", content: CONFLICT_B });
+    await b.api.vault.write({ content: CONFLICT_B, path: "conflict.md" });
 
     ctx.log("B syncs into the conflict");
     const conflicted = await b.api.vault.syncNow();
@@ -76,7 +76,7 @@ export const vaultSync: Scenario = {
 
     ctx.log("the refused rebase was aborted: B keeps its own edit, and status stays conflict");
     expectEq(
-      await readFile(join(b.vaultDir, "conflict.md"), "utf8"),
+      await readFile(path.join(b.vaultDir, "conflict.md"), "utf-8"),
       CONFLICT_B,
       "B's working tree after the abort",
     );
@@ -93,11 +93,11 @@ export const vaultSync: Scenario = {
     );
     expectEq(porcelain.stdout.trim(), "", "B's porcelain status after the abort");
     expect(
-      !existsSync(join(b.vaultDir, ".git", "rebase-merge")),
+      !existsSync(path.join(b.vaultDir, ".git", "rebase-merge")),
       "no rebase-merge state left behind",
     );
     expect(
-      !existsSync(join(b.vaultDir, ".git", "rebase-apply")),
+      !existsSync(path.join(b.vaultDir, ".git", "rebase-apply")),
       "no rebase-apply state left behind",
     );
 

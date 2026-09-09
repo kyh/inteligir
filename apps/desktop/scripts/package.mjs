@@ -5,20 +5,21 @@
 
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import path from "node:path";
 
-const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const releaseDir = resolve(packageRoot, "../../.release");
-const notaryEnv = resolve(releaseDir, "notary.env");
+const packageRoot = path.resolve(import.meta.dirname, "..");
+const releaseDir = path.resolve(packageRoot, "../../.release");
+const notaryEnv = path.resolve(releaseDir, "notary.env");
 
 const env = { ...process.env };
 if (existsSync(notaryEnv)) {
-  for (const line of readFileSync(notaryEnv, "utf8").split("\n")) {
-    const match = /^(APPLE_[A-Z_]+)=(.+)$/u.exec(line.trim());
-    if (match === null) continue;
-    const [, name, value] = match;
-    env[name] = name === "APPLE_API_KEY" ? resolve(releaseDir, value) : value;
+  for (const line of readFileSync(notaryEnv, "utf-8").split("\n")) {
+    const match = /^(?<name>APPLE_[A-Z_]+)=(?<value>.+)$/u.exec(line.trim());
+    if (match?.groups === undefined) {
+      continue;
+    }
+    const { name, value } = match.groups;
+    env[name] = name === "APPLE_API_KEY" ? path.resolve(releaseDir, value) : value;
   }
   process.stdout.write(`package: notarizing with ${notaryEnv}\n`);
 } else {

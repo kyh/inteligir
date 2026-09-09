@@ -13,117 +13,139 @@ import type {
 } from "@repo/api/local/vault/vault-schema";
 import { orpc, refusalMessage } from "./api";
 
-export function useVaultTree() {
-  return useQuery(orpc.vault.tree.queryOptions());
-}
+export const useVaultTree = () => useQuery(orpc.vault.tree.queryOptions());
 
-export function useWikiTargets() {
-  return useQuery(orpc.knowledge.wikiTargets.queryOptions());
-}
+export const useWikiTargets = () => useQuery(orpc.knowledge.wikiTargets.queryOptions());
 
 // the index's answer, not the open buffer's: every surface that shows a pin agrees on one source
-export function usePinnedPaths(): ReadonlySet<string> {
+export const usePinnedPaths = (): ReadonlySet<string> => {
   const query = useWikiTargets();
   const targets = query.data?.targets ?? [];
   return new Set(targets.filter((target) => target.pinned === true).map((target) => target.path));
-}
+};
 
-export function useTags(enabled: boolean) {
-  return useQuery({ ...orpc.knowledge.tags.queryOptions(), enabled });
-}
+export const useTags = (enabled: boolean) =>
+  useQuery({ ...orpc.knowledge.tags.queryOptions(), enabled });
 
 // a listing by path, not a search: the family's first `limit` notes and the whole count
-export function useNotesWithTag(tag: string | null, limit: number) {
-  return useQuery({
-    ...orpc.knowledge.tagNotes.queryOptions({ input: { tag: tag ?? "none", limit } }),
+export const useNotesWithTag = (tag: string | null, limit: number) =>
+  useQuery({
+    ...orpc.knowledge.tagNotes.queryOptions({ input: { limit, tag: tag ?? "none" } }),
     enabled: tag !== null,
   });
-}
 
-export function useVaultStatus() {
-  return useQuery(orpc.vault.status.queryOptions());
-}
+export const useVaultStatus = () => useQuery(orpc.vault.status.queryOptions());
 
 // No change kind names this query, so it re-reads on every mount.
-export function useSystemStatus() {
-  return useQuery({ ...orpc.system.status.queryOptions(), staleTime: 0 });
-}
+export const useSystemStatus = () =>
+  useQuery({ ...orpc.system.status.queryOptions(), staleTime: 0 });
 
 // undefined until the status answers; the sections say nothing rather than guess
-export function useDataDirScope(): DataDirScope | undefined {
-  return useSystemStatus().data?.dataDirScope;
-}
+export const useDataDirScope = (): DataDirScope | undefined => useSystemStatus().data?.dataDirScope;
 
-export function syncStateLabel(status: VaultStatusResponse): string {
+export const syncStateLabel = (status: VaultStatusResponse): string => {
   switch (status.state) {
-    case "no-remote":
+    case "no-remote": {
       return "Local only";
-    case "clean":
+    }
+    case "clean": {
       return "Synced";
-    case "dirty":
+    }
+    case "dirty": {
       return "Unsynced changes";
-    case "syncing":
+    }
+    case "syncing": {
       return "Syncing…";
-    case "held":
+    }
+    case "held": {
       return "Waiting on an agent turn";
-    case "offline":
+    }
+    case "offline": {
       return "Offline";
-    case "unauthorized":
+    }
+    case "unauthorized": {
       return "Not authorized — sign this device in again";
-    case "account-mismatch":
+    }
+    case "account-mismatch": {
       return "This vault belongs to a different account";
-    case "conflict":
+    }
+    case "conflict": {
       return `Conflict (${status.conflict.files.length})`;
-    case "broken":
+    }
+    case "broken": {
       return "Sync broken — manual repair needed";
+    }
+    default: {
+      const exhaustive: never = status;
+      return exhaustive;
+    }
   }
-}
+};
 
-export function syncStateDotClass(status: VaultStatusResponse): string {
+export const syncStateDotClass = (status: VaultStatusResponse): string => {
   switch (status.state) {
-    case "no-remote":
+    case "no-remote": {
       return "bg-muted-foreground/40";
-    case "clean":
+    }
+    case "clean": {
       return "bg-emerald-500";
-    case "dirty":
+    }
+    case "dirty": {
       return "bg-amber-500";
-    case "syncing":
+    }
+    case "syncing": {
       return "bg-sky-500 animate-pulse";
-    case "held":
+    }
+    case "held": {
       return "bg-sky-500";
-    case "offline":
+    }
+    case "offline": {
       return "bg-muted-foreground/60";
+    }
     case "unauthorized":
     case "account-mismatch":
     case "conflict":
-    case "broken":
+    case "broken": {
       return "bg-destructive";
+    }
+    default: {
+      const exhaustive: never = status;
+      return exhaustive;
+    }
   }
-}
+};
 
-export function syncBlockedReason(status: VaultStatusResponse): string | null {
+export const syncBlockedReason = (status: VaultStatusResponse): string | null => {
   switch (status.state) {
-    case "no-remote":
+    case "no-remote": {
       return "No git remote configured";
-    case "syncing":
+    }
+    case "syncing": {
       return "A sync is already running";
-    case "held":
+    }
+    case "held": {
       return "An agent turn holds the vault; the next sync runs when it finishes";
-    case "account-mismatch":
+    }
+    case "account-mismatch": {
       return "This vault last synced with a different account — sign out, or move the vault aside";
+    }
     case "clean":
     case "dirty":
     case "offline":
     case "unauthorized":
     case "conflict":
-    case "broken":
+    case "broken": {
       return null;
+    }
+    default: {
+      const exhaustive: never = status;
+      return exhaustive;
+    }
   }
-}
+};
 
-export function canSyncNow(status: VaultStatusResponse | undefined): boolean {
-  return status !== undefined && syncBlockedReason(status) === null;
-}
+export const canSyncNow = (status: VaultStatusResponse | undefined): boolean =>
+  status !== undefined && syncBlockedReason(status) === null;
 
 interface SyncNowNotice {
   tone: "info" | "warning" | "error";
@@ -135,13 +157,66 @@ export interface SyncNowHandle {
   inFlight: boolean;
 }
 
+// Total over the states: silence is indistinguishable from a sync that worked.
+const syncNowNotice = (status: VaultStatusResponse): SyncNowNotice | null => {
+  const blocked = syncBlockedReason(status);
+  if (blocked !== null) {
+    return { message: `${blocked}.`, tone: "info" };
+  }
+  switch (status.state) {
+    case "conflict": {
+      return {
+        message: "Sync hit a conflict — both sides changed the same files.",
+        tone: "warning",
+      };
+    }
+    case "offline": {
+      return {
+        message:
+          status.lastError === null
+            ? "Could not reach the git remote."
+            : `Could not reach the git remote: ${status.lastError}`,
+        tone: "error",
+      };
+    }
+    case "unauthorized": {
+      return {
+        message:
+          "The remote refused this device's credential — sign in again in Settings → Devices.",
+        tone: "error",
+      };
+    }
+    case "clean":
+    case "dirty":
+    case "broken": {
+      return status.lastError === null
+        ? null
+        : { message: `Sync failed: ${status.lastError}`, tone: "error" };
+    }
+    case "no-remote":
+    case "syncing":
+    case "held":
+    case "account-mismatch": {
+      // Answered by the blocked branch above.
+      return null;
+    }
+    default: {
+      const exhaustive: never = status;
+      return exhaustive;
+    }
+  }
+};
+
 // `useIsMutating` over the procedure's key rather than `isPending`: each
 // caller mounts its own useMutation, so isPending would answer only for the
 // affordance that was clicked.
-export function useSyncNow(): SyncNowHandle {
+export const useSyncNow = (): SyncNowHandle => {
   const queryClient = useQueryClient();
   const { mutate } = useMutation(
     orpc.vault.syncNow.mutationOptions({
+      onError: () => {
+        toast.error("Sync failed.");
+      },
       onSuccess: (status) => {
         queryClient.setQueryData(orpc.vault.status.queryKey(), status);
         const notice = syncNowNotice(status);
@@ -149,92 +224,47 @@ export function useSyncNow(): SyncNowHandle {
           toast[notice.tone](notice.message);
         }
       },
-      onError: () => {
-        toast.error("Sync failed.");
-      },
     }),
   );
   const inFlight = useIsMutating({ mutationKey: orpc.vault.syncNow.mutationKey() }) > 0;
   const syncNow = useCallback((): void => {
     mutate();
   }, [mutate]);
-  return { syncNow, inFlight };
-}
-
-// Total over the states: silence is indistinguishable from a sync that worked.
-function syncNowNotice(status: VaultStatusResponse): SyncNowNotice | null {
-  const blocked = syncBlockedReason(status);
-  if (blocked !== null) {
-    return { tone: "info", message: `${blocked}.` };
-  }
-  switch (status.state) {
-    case "conflict":
-      return {
-        tone: "warning",
-        message: "Sync hit a conflict — both sides changed the same files.",
-      };
-    case "offline":
-      return {
-        tone: "error",
-        message:
-          status.lastError === null
-            ? "Could not reach the git remote."
-            : `Could not reach the git remote: ${status.lastError}`,
-      };
-    case "unauthorized":
-      return {
-        tone: "error",
-        message:
-          "The remote refused this device's credential — sign in again in Settings → Devices.",
-      };
-    case "clean":
-    case "dirty":
-    case "broken":
-      return status.lastError === null
-        ? null
-        : { tone: "error", message: `Sync failed: ${status.lastError}` };
-    case "no-remote":
-    case "syncing":
-    case "held":
-    case "account-mismatch":
-      // Answered by the blocked branch above.
-      return null;
-  }
-}
+  return { inFlight, syncNow };
+};
 
 export type RenameOutcome = { ok: true } | { ok: false; message: string };
 
 export interface RenameVaultApi {
   vault: {
-    rename(input: { from: string; to: string }): Promise<{ path: string; rewritten: string[] }>;
+    rename: (input: { from: string; to: string }) => Promise<{ path: string; rewritten: string[] }>;
   };
 }
 
-export async function renameVaultEntry(
+export const renameVaultEntry = async (
   api: RenameVaultApi,
   from: string,
   to: string,
-): Promise<RenameOutcome> {
+): Promise<RenameOutcome> => {
   try {
     await api.vault.rename({ from, to });
     return { ok: true };
   } catch (error) {
     return {
-      ok: false,
       message: refusalMessage(error, `Could not rename ${from}.`),
+      ok: false,
     };
   }
-}
+};
 
 // the folders a user may pick: what the rail lists, so a dot-dir is hidden here too
-export function vaultFolders(entries: readonly VaultEntry[]): string[] {
-  return entries
+export const vaultFolders = (entries: readonly VaultEntry[]): string[] =>
+  entries
     .filter((entry) => entry.kind === "dir" && !isVaultMetadataPath(entry.path))
     .map((entry) => entry.path);
-}
 
 // Lowercased: the disk may be case-insensitive, so name generation must be too.
-export function filePathsLowercased(tree: VaultTreeResponse | undefined): Set<string> {
+export const filePathsLowercased = (tree: VaultTreeResponse | undefined): Set<string> => {
   const paths = new Set<string>();
   for (const entry of tree?.entries ?? []) {
     if (entry.kind === "file") {
@@ -242,8 +272,7 @@ export function filePathsLowercased(tree: VaultTreeResponse | undefined): Set<st
     }
   }
   return paths;
-}
+};
 
-export function untitledNotePath(parentDir: string, existing: Set<string>): string {
-  return freeDocPath(parentDir, "Untitled", existing);
-}
+export const untitledNotePath = (parentDir: string, existing: Set<string>): string =>
+  freeDocPath(parentDir, "Untitled", existing);

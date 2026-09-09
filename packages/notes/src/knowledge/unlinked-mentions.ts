@@ -4,12 +4,14 @@
 // verbatim, code, links, urls, frontmatter and comment markers are withheld, because a "mention"
 // there is not prose and a Link would rewrite something that is not a sentence.
 
-import { insideVerbatim, verbatimSpans, type VerbatimSpan } from "../markdown/verbatim-spans";
+import { insideVerbatim, verbatimSpans } from "../markdown/verbatim-spans";
+import type { VerbatimSpan } from "../markdown/verbatim-spans";
 import { docStem } from "./doc-file";
 import { splitLinesKeepingTerminators } from "./source-lines";
-import { excerptAround, findTextMatches, type DocText, type TextMatch } from "./text-matches";
+import { excerptAround, findTextMatches } from "./text-matches";
+import type { DocText, TextMatch } from "./text-matches";
 
-export type UnlinkedMention = {
+export interface UnlinkedMention {
   path: string;
   title: string;
   // the first plain mention in document order: the bytes a Link rewrites
@@ -21,32 +23,37 @@ export type UnlinkedMention = {
   after: string;
   // every plain mention in the doc, the first included
   count: number;
-};
+}
 
 // `total` counts every mentioning doc; `mentions` stops at the caller's limit
-export type UnlinkedMentions = { mentions: UnlinkedMention[]; total: number };
+export interface UnlinkedMentions {
+  mentions: UnlinkedMention[];
+  total: number;
+}
 
-export type UnlinkedMentionQuery = {
+export interface UnlinkedMentionQuery {
   names: readonly string[];
   // the target itself and every doc that already links to it
   exclude: ReadonlySet<string>;
   limit: number;
-};
+}
 
 const MENTION_OPTIONS = { caseSensitive: false, wholeWord: true } as const;
 
-export function mentionNames(path: string, aliases: readonly string[]): string[] {
+export const mentionNames = (path: string, aliases: readonly string[]): string[] => {
   const seen = new Set<string>();
   const names: string[] = [];
   for (const raw of [docStem(path), ...aliases]) {
     const name = raw.trim();
     const key = name.toLowerCase();
-    if (name === "" || seen.has(key)) continue;
+    if (name === "" || seen.has(key)) {
+      continue;
+    }
     seen.add(key);
     names.push(name);
   }
   return names;
-}
+};
 
 const FRONTMATTER = /^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/u;
 const FENCE = /^(?:`{3,}|~{3,}|\$\$)/u;
@@ -71,10 +78,12 @@ const INLINE_WITHHELD = [
 // markdown constructs the scan cannot mistake for prose. the regexes overlap the editor's
 // ranges on purpose: those come back empty for a doc its grammar refuses, and a refused doc
 // still has code and math the scan must not call a sentence
-export function withheldSpans(body: string): VerbatimSpan[] {
+export const withheldSpans = (body: string): VerbatimSpan[] => {
   const spans = verbatimSpans(body);
   const frontmatter = FRONTMATTER.exec(body);
-  if (frontmatter !== null) spans.push({ start: 0, end: frontmatter[0].length });
+  if (frontmatter !== null) {
+    spans.push({ end: frontmatter[0].length, start: 0 });
+  }
   const parts = splitLinesKeepingTerminators(body);
   let offset = 0;
   let fenceStart: number | null = null;
@@ -85,14 +94,14 @@ export function withheldSpans(body: string): VerbatimSpan[] {
         if (fenceStart === null) {
           fenceStart = offset;
         } else {
-          spans.push({ start: fenceStart, end: offset + part.length });
+          spans.push({ end: offset + part.length, start: fenceStart });
           fenceStart = null;
         }
       } else if (fenceStart === null) {
         for (const pattern of INLINE_WITHHELD) {
           pattern.lastIndex = 0;
           for (let hit = pattern.exec(part); hit !== null; hit = pattern.exec(part)) {
-            spans.push({ start: offset + hit.index, end: offset + hit.index + hit[0].length });
+            spans.push({ end: offset + hit.index + hit[0].length, start: offset + hit.index });
           }
         }
       }
@@ -100,23 +109,29 @@ export function withheldSpans(body: string): VerbatimSpan[] {
     offset += part.length;
   }
   // an unclosed fence runs to the end of the doc, as the parser reads it
-  if (fenceStart !== null) spans.push({ start: fenceStart, end: body.length });
+  if (fenceStart !== null) {
+    spans.push({ end: body.length, start: fenceStart });
+  }
   return spans;
-}
+};
 
-function lineStarts(parts: readonly string[]): number[] {
+const lineStarts = (parts: readonly string[]): number[] => {
   const starts: number[] = [];
   let offset = 0;
   for (let index = 0; index < parts.length; index += 1) {
-    if (index % 2 === 0) starts.push(offset);
+    if (index % 2 === 0) {
+      starts.push(offset);
+    }
     offset += (parts[index] ?? "").length;
   }
   return starts;
-}
+};
 
-function plainMentions(body: string, names: readonly string[]): TextMatch[] {
+const plainMentions = (body: string, names: readonly string[]): TextMatch[] => {
   const raw = names.flatMap((name) => findTextMatches(body, name, MENTION_OPTIONS));
-  if (raw.length === 0) return [];
+  if (raw.length === 0) {
+    return [];
+  }
   const withheld = withheldSpans(body);
   const starts = lineStarts(splitLinesKeepingTerminators(body));
   return raw
@@ -125,49 +140,71 @@ function plainMentions(body: string, names: readonly string[]): TextMatch[] {
       return !insideVerbatim(withheld, start, start + match.length);
     })
     .toSorted((a, b) => a.line - b.line || a.column - b.column);
-}
+};
+
+const byPath = (a: DocText, b: DocText): number => {
+  if (a.path < b.path) {
+    return -1;
+  }
+  if (a.path > b.path) {
+    return 1;
+  }
+  return 0;
+};
 
 // in path order, so a re-run reads the same
-export function findUnlinkedMentions(
+export const findUnlinkedMentions = (
   docs: Iterable<DocText>,
   query: UnlinkedMentionQuery,
-): UnlinkedMentions {
-  const sorted = [...docs].toSorted((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+): UnlinkedMentions => {
+  const sorted = [...docs].toSorted(byPath);
   const mentions: UnlinkedMention[] = [];
   let total = 0;
-  if (query.names.length === 0) return { mentions, total };
+  if (query.names.length === 0) {
+    return { mentions, total };
+  }
   for (const doc of sorted) {
-    if (query.exclude.has(doc.path)) continue;
+    if (query.exclude.has(doc.path)) {
+      continue;
+    }
     const found = plainMentions(doc.body, query.names);
-    const first = found[0];
-    if (first === undefined) continue;
+    const [first] = found;
+    if (first === undefined) {
+      continue;
+    }
     total += 1;
-    if (mentions.length >= query.limit) continue;
+    if (mentions.length >= query.limit) {
+      continue;
+    }
     const line = splitLinesKeepingTerminators(doc.body)[(first.line - 1) * 2] ?? "";
     mentions.push({
       ...first,
       ...excerptAround(line, first),
+      count: found.length,
       path: doc.path,
       title: doc.title,
-      count: found.length,
     });
   }
   return { mentions, total };
-}
+};
 
 export type MentionSite = Pick<UnlinkedMention, "line" | "column" | "length" | "text">;
 
 // the exact bytes the row showed become the link, and nothing else moves; bytes that differ
 // mean the note changed since the row was read, and that is the caller's to re-read, not guess
-export function linkMention(content: string, site: MentionSite, target: string): string | null {
+export const linkMention = (content: string, site: MentionSite, target: string): string | null => {
   const parts = splitLinesKeepingTerminators(content);
   const index = (site.line - 1) * 2;
   const line = parts[index];
-  if (line === undefined) return null;
+  if (line === undefined) {
+    return null;
+  }
   const end = site.column + site.length;
   const found = line.slice(site.column, end);
-  if (found !== site.text) return null;
+  if (found !== site.text) {
+    return null;
+  }
   const link = found === target ? `[[${target}]]` : `[[${target}|${found}]]`;
   parts[index] = `${line.slice(0, site.column)}${link}${line.slice(end)}`;
   return parts.join("");
-}
+};

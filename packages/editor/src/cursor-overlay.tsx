@@ -1,26 +1,30 @@
 // Vendored from plate (github.com/udecode/plate), MIT. © Plate contributors.
 // Re-paints the model selection while a menu or popover holds DOM focus.
 
-import { useCursorOverlay, type CursorOverlayState } from "@platejs/selection/react";
+import { useCursorOverlay } from "@platejs/selection/react";
+import type { CursorOverlayState } from "@platejs/selection/react";
 import { getTableGridAbove } from "@platejs/table";
-import { RangeApi, type UnknownObject } from "platejs";
+import { RangeApi } from "platejs";
+import type { UnknownObject } from "platejs";
 import { useEditorRef } from "platejs/react";
 
 import { cn } from "cn";
 
-function Cursor({
+const Cursor = ({
   id,
   caretPosition,
   selection,
   selectionRects,
-}: CursorOverlayState<UnknownObject>) {
+}: CursorOverlayState<UnknownObject>) => {
   const editor = useEditorRef();
   const isCursor = selection ? RangeApi.isCollapsed(selection) : false;
 
   // multi-cell table selections have their own selection UI
   if (id === "selection" && selection) {
     const cellEntries = getTableGridAbove(editor, { at: selection, format: "cell" });
-    if (cellEntries.length > 1) return null;
+    if (cellEntries.length > 1) {
+      return null;
+    }
   }
 
   return (
@@ -41,16 +45,16 @@ function Cursor({
       )}
     </>
   );
-}
+};
 
-export function CursorOverlay() {
+export const CursorOverlay = () => {
   const { cursors } = useCursorOverlay();
 
   return (
     <>
       {cursors.map((cursor) => (
-        <Cursor key={cursor.id} {...cursor} />
+        <Cursor key={String(cursor.id)} {...cursor} />
       ))}
     </>
   );
-}
+};

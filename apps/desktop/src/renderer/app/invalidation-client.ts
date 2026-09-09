@@ -1,14 +1,13 @@
 import {
   realtimeSubscriptionTargetKey,
   serverMessageLenientSchema,
-  type ChangedMessage,
-  type RealtimeSubscriptionTarget,
 } from "@repo/api/local/notifications";
+import type { ChangedMessage, RealtimeSubscriptionTarget } from "@repo/api/local/notifications";
 import { z } from "zod";
 
 export interface InvalidationSocket {
-  send(data: string): void;
-  close(): void;
+  send: (data: string) => void;
+  close: () => void;
   onOpen: (() => void) | null;
   onMessage: ((event: { data: unknown }) => void) | null;
   onClose: (() => void) | null;
@@ -65,8 +64,8 @@ export class InvalidationClient {
     if (existing) {
       existing.count += 1;
     } else {
-      this.held.set(key, { target, count: 1 });
-      this.sendFrame({ type: "subscribe", target });
+      this.held.set(key, { count: 1, target });
+      this.sendFrame({ target, type: "subscribe" });
     }
     let released = false;
     return () => {
@@ -81,7 +80,7 @@ export class InvalidationClient {
       holder.count -= 1;
       if (holder.count === 0) {
         this.held.delete(key);
-        this.sendFrame({ type: "unsubscribe", target });
+        this.sendFrame({ target, type: "unsubscribe" });
       }
     };
   }
@@ -95,7 +94,7 @@ export class InvalidationClient {
       this.reconnectAttempt = 0;
       const targets = [...this.held.values()].map((holder) => holder.target);
       for (const target of targets) {
-        socket.send(JSON.stringify({ type: "subscribe", target }));
+        socket.send(JSON.stringify({ target, type: "subscribe" }));
       }
       if (this.hasConnectedBefore) {
         this.args.onReconnected?.(targets);
@@ -153,7 +152,7 @@ export class InvalidationClient {
   }
 
   private teardownSocket(): void {
-    const socket = this.socket;
+    const { socket } = this;
     if (socket === null) {
       return;
     }
@@ -166,17 +165,21 @@ export class InvalidationClient {
   }
 }
 
-export function browserInvalidationSocket(url: string): InvalidationSocket {
+export const browserInvalidationSocket = (url: string): InvalidationSocket => {
   const ws = new WebSocket(url);
   const adapter: InvalidationSocket = {
-    send: (data) => ws.send(data),
-    close: () => ws.close(),
-    onOpen: null,
-    onMessage: null,
+    close: () => {
+      ws.close();
+    },
     onClose: null,
+    onMessage: null,
+    onOpen: null,
+    send: (data) => {
+      ws.send(data);
+    },
   };
   ws.addEventListener("open", () => adapter.onOpen?.());
   ws.addEventListener("message", (event) => adapter.onMessage?.({ data: event.data }));
   ws.addEventListener("close", () => adapter.onClose?.());
   return adapter;
-}
+};

@@ -9,7 +9,7 @@ import { stringProp } from "@repo/editor/node-props";
 
 const BUTTON_CLASS = "rounded-md text-muted-foreground [&_svg:not([class*='size-'])]:size-3.5";
 
-export function MediaToolbar() {
+export const MediaToolbar = () => {
   const editor = useEditorRef();
   const element = useElement();
   const readOnly = useReadOnly();
@@ -20,24 +20,34 @@ export function MediaToolbar() {
   const url = stringProp(element, "url") ?? "";
 
   useEffect(() => {
-    if (editing) inputRef.current?.select();
+    if (editing) {
+      inputRef.current?.select();
+    }
   }, [editing]);
 
   // decided during render so the toolbar never paints an open input on an unselected embed.
-  if (editing && !selected) setEditing(false);
+  if (editing && !selected) {
+    setEditing(false);
+  }
 
-  if (readOnly) return null;
+  if (readOnly) {
+    return null;
+  }
 
   const commitUrl = () => {
-    const next = inputRef.current?.value.trim();
+    const next = inputRef.current?.value.trim() ?? "";
     const at = editor.api.findPath(element);
-    if (next && next !== url && at) editor.tf.setNodes({ url: next }, { at });
+    if (next && next !== url && at) {
+      editor.tf.setNodes({ url: next }, { at });
+    }
     setEditing(false);
   };
 
   const remove = () => {
     const at = editor.api.findPath(element);
-    if (at) editor.tf.removeNodes({ at });
+    if (at) {
+      editor.tf.removeNodes({ at });
+    }
   };
 
   return (
@@ -57,8 +67,12 @@ export function MediaToolbar() {
             placeholder="https://…"
             className="h-6 w-56 rounded-md border border-border bg-background px-2 text-xs outline-none"
             onKeyDown={(e) => {
-              if (e.key === "Enter") commitUrl();
-              if (e.key === "Escape") setEditing(false);
+              if (e.key === "Enter") {
+                commitUrl();
+              }
+              if (e.key === "Escape") {
+                setEditing(false);
+              }
             }}
           />
           <Button
@@ -78,8 +92,12 @@ export function MediaToolbar() {
             size="icon-compact"
             title="Edit URL"
             className={BUTTON_CLASS}
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => setEditing(true)}
+            onMouseDown={(e) => {
+              e.preventDefault();
+            }}
+            onClick={() => {
+              setEditing(true);
+            }}
           >
             <PencilIcon />
           </Button>
@@ -89,7 +107,9 @@ export function MediaToolbar() {
             title="Open original"
             className={BUTTON_CLASS}
             onClick={() => {
-              if (url) window.open(url, "_blank", "noopener,noreferrer");
+              if (url) {
+                window.open(url, "_blank", "noopener,noreferrer");
+              }
             }}
           >
             <ExternalLinkIcon />
@@ -110,4 +130,4 @@ export function MediaToolbar() {
       )}
     </div>
   );
-}
+};

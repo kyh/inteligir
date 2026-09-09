@@ -5,23 +5,28 @@
 import { toast } from "@repo/ui/components/sonner";
 import type { DesktopPathsBridge } from "../../types";
 
-export function desktopPaths(): DesktopPathsBridge | undefined {
-  return window.desktopBridge?.paths;
-}
+export const desktopPaths = (): DesktopPathsBridge | undefined => window.desktopBridge?.paths;
 
 // a refusal is main's, in main's words; a broken bridge is one sentence, never a stack
-export function runPathAction(
+const settlePathAction = async (
   action: () => Promise<{ ok: true } | { ok: false; reason: string }>,
   fallback: string,
-): void {
-  void action().then(
-    (result) => {
-      if (!result.ok) toast.error(result.reason);
-      return undefined;
-    },
-    () => {
-      toast.error(fallback);
-      return undefined;
-    },
-  );
-}
+): Promise<void> => {
+  let result;
+  try {
+    result = await action();
+  } catch {
+    toast.error(fallback);
+    return;
+  }
+  if (!result.ok) {
+    toast.error(result.reason);
+  }
+};
+
+export const runPathAction = (
+  action: () => Promise<{ ok: true } | { ok: false; reason: string }>,
+  fallback: string,
+): void => {
+  void settlePathAction(action, fallback);
+};

@@ -1,8 +1,13 @@
 import { readFile, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { z } from "zod";
-import { agentBrowserSession, parseEval, probeHeadlessOrSkip } from "../harness/agent-browser";
+import {
+  agentBrowserSession,
+  closeQuietly,
+  parseEval,
+  probeHeadlessOrSkip,
+} from "../harness/agent-browser";
 import { expect, expectEq } from "../harness/assert";
 import type { Scenario } from "../harness/scenario";
 
@@ -19,14 +24,14 @@ const SAVE_DEADLINE_MS = 15_000;
 const EDITOR = '[data-slate-editor="true"]';
 
 export const slashMenuBrowser: Scenario = {
-  name: "slash-menu-browser",
   description: "a typed slash opens the menu, and the picked construct lands in the file",
+  name: "slash-menu-browser",
   async run(ctx) {
     const app = await ctx.boot({
       name: "solo",
       // sorts before the seeded welcome note, so the virgin boot opens it.
       seedVault: async (vaultDir) => {
-        await writeFile(join(vaultDir, DOC_PATH), DOC, "utf8");
+        await writeFile(path.join(vaultDir, DOC_PATH), DOC, "utf-8");
       },
     });
 
@@ -113,7 +118,7 @@ export const slashMenuBrowser: Scenario = {
       const deadline = Date.now() + SAVE_DEADLINE_MS;
       let onDisk = "";
       for (;;) {
-        onDisk = await readFile(join(app.vaultDir, DOC_PATH), "utf8");
+        onDisk = await readFile(path.join(app.vaultDir, DOC_PATH), "utf-8");
         if (onDisk.includes(`## ${HEADING}`)) {
           break;
         }
@@ -123,7 +128,7 @@ export const slashMenuBrowser: Scenario = {
       expect(!onDisk.includes("/h2"), `the query text survived the insert:\n${onDisk}`);
       expect(onDisk.includes(PARAGRAPH), `the seeded paragraph was lost:\n${onDisk}`);
     } finally {
-      await agentBrowser(["close"], 30_000).catch(() => undefined);
+      await closeQuietly(agentBrowser);
     }
   },
 };

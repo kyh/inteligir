@@ -1,5 +1,5 @@
 import { mkdirSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import path from "node:path";
 import { noopNotifier } from "@repo/domain/notifier";
 import { describe, expect, it, onTestFinished } from "vitest";
 import { makeTempDir } from "../../__tests__/temp-dir";
@@ -12,15 +12,15 @@ const FILE_COUNT = 300;
 describe("a 300-file vault", () => {
   it("boots, reconciles once, and answers search/backlinks/tags", async () => {
     const instanceDir = makeTempDir("inteligir-knowledge-fixture-");
-    const root = join(instanceDir, "vault");
-    const dataDir = join(instanceDir, "data");
-    mkdirSync(join(root, "notes"), { recursive: true });
+    const root = path.join(instanceDir, "vault");
+    const dataDir = path.join(instanceDir, "data");
+    mkdirSync(path.join(root, "notes"), { recursive: true });
     mkdirSync(dataDir, { recursive: true });
 
-    for (let i = 0; i < FILE_COUNT; i++) {
+    for (let i = 0; i < FILE_COUNT; i += 1) {
       const next = (i + 1) % FILE_COUNT;
       writeFileSync(
-        join(root, "notes", `note-${i}.md`),
+        path.join(root, "notes", `note-${i}.md`),
         `# Note ${i}\n\nTagged #bucket-${i % 10}. Links to [[note-${next}]].\n` +
           `Unique marker token-${i}-marker.\n`,
       );
@@ -28,7 +28,9 @@ describe("a 300-file vault", () => {
 
     const service = createVaultService({ lock: identityLock, notifier: noopNotifier, root });
     const knowledge = createKnowledgeRuntime({ dataDir, vault: service, vaultRoot: root });
-    onTestFinished(() => knowledge.dispose());
+    onTestFinished(async () => {
+      await knowledge.dispose();
+    });
 
     await knowledge.settle();
     expect(knowledge.lastReconcile).toEqual({
@@ -38,7 +40,7 @@ describe("a 300-file vault", () => {
     });
 
     // note-149 also matches through its [[note-150]] link; the holder of the whole marker must rank first.
-    const hits = await knowledge.search({ query: "token-150-marker", limit: 5 });
+    const hits = await knowledge.search({ limit: 5, query: "token-150-marker" });
     expect(hits[0]?.path).toBe("notes/note-150.md");
 
     const backlinks = await knowledge.backlinks("notes/note-150.md");

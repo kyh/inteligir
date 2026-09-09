@@ -1,13 +1,8 @@
 import { useRef, useState } from "react";
-import {
-  KEYS,
-  createSlatePlugin,
-  NodeApi,
-  TextApi,
-  type SlateEditor,
-  type TElement,
-} from "platejs";
-import { PlateElement, type PlateElementProps } from "platejs/react";
+import { KEYS, createSlatePlugin, NodeApi, TextApi } from "platejs";
+import type { SlateEditor, TElement } from "platejs";
+import { PlateElement } from "platejs/react";
+import type { PlateElementProps } from "platejs/react";
 
 import { parseFormulaRaw } from "@repo/notes/markdown/remark-inline-constructs";
 import { parseFormulaMeta } from "@repo/notes/formulas/formula-meta";
@@ -30,7 +25,11 @@ const commentMarkerBasePlugin = createSlatePlugin({
 
 export const InlineConstructsBaseKit = [formulaPillBasePlugin, commentMarkerBasePlugin];
 
-function FormulaPillElement(props: PlateElementProps) {
+/* oxlint-disable jsx-a11y/click-events-have-key-events, jsx-a11y/prefer-tag-over-role --
+   the pill is a Slate inline void, deliberately out of the tab order, and this package reserves a
+   raw <button> for controls that carry a product Tooltip instead of a native title (see
+   __tests__/icon-button-tooltips.test.ts). */
+const FormulaPillElement = (props: PlateElementProps) => {
   const [editing, setEditing] = useState(false);
   const pillRef = useRef<HTMLSpanElement | null>(null);
   const source = stringProp(props.element, "source") ?? "";
@@ -66,35 +65,48 @@ function FormulaPillElement(props: PlateElementProps) {
       {props.children}
     </PlateElement>
   );
-}
+};
+
+/* oxlint-enable jsx-a11y/click-events-have-key-events, jsx-a11y/prefer-tag-over-role */
 
 // Renders nothing: the anchor is plumbing for the comment surface, not prose.
-function CommentMarkerElement(props: PlateElementProps) {
-  return (
-    <PlateElement {...props} as="span" className="inline-block">
-      <span contentEditable={false} aria-hidden className="sr-only" />
-      {props.children}
-    </PlateElement>
-  );
-}
+const CommentMarkerElement = (props: PlateElementProps) => (
+  <PlateElement {...props} as="span" className="inline-block">
+    <span contentEditable={false} aria-hidden className="sr-only" />
+    {props.children}
+  </PlateElement>
+);
 
 // A body with pipes is the persisted grammar and completes verbatim; a pipeless body runs the entry grammar.
-const FORMULA_COMPLETION_RE = /\{\{([^{}\n]+)\}$/u;
+const FORMULA_COMPLETION_RE = /\{\{(?<body>[^{}\n]+)\}$/u;
 
-function completeFormulaPill(editor: SlateEditor): boolean {
-  if (!editor.selection || !editor.api.isCollapsed()) return false;
-  if (editor.api.some({ match: { type: [editor.getType(KEYS.codeBlock)] } })) return false;
+const completeFormulaPill = (editor: SlateEditor): boolean => {
+  if (!editor.selection || !editor.api.isCollapsed()) {
+    return false;
+  }
+  if (editor.api.some({ match: { type: [editor.getType(KEYS.codeBlock)] } })) {
+    return false;
+  }
   const { anchor } = editor.selection;
   const leaf = NodeApi.get(editor, anchor.path);
-  if (!leaf || !TextApi.isText(leaf)) return false;
+  if (!leaf || !TextApi.isText(leaf)) {
+    return false;
+  }
   const match = FORMULA_COMPLETION_RE.exec(leaf.text.slice(0, anchor.offset));
-  if (!match) return false;
-  const [full, body] = match;
-  if (body === undefined || body === "") return false;
+  if (!match) {
+    return false;
+  }
+  const [full] = match;
+  const body = match.groups?.body;
+  if (body === undefined || body === "") {
+    return false;
+  }
   const props = body.includes("|")
     ? { ...parseFormulaRaw(body), raw: body }
     : formulaPropsFromEntry(body);
-  if (props === null) return false;
+  if (props === null) {
+    return false;
+  }
   editor.tf.withoutNormalizing(() => {
     editor.tf.delete({
       at: {
@@ -113,17 +125,19 @@ function completeFormulaPill(editor: SlateEditor): boolean {
     }),
   );
   return true;
-}
+};
 
 // Slate parks a selected inline void's caret in its empty text child.
-function selectedFormula(editor: SlateEditor) {
-  if (!editor.selection || !editor.api.isCollapsed()) return null;
+const selectedFormula = (editor: SlateEditor) => {
+  if (!editor.selection || !editor.api.isCollapsed()) {
+    return null;
+  }
   const entry = editor.api.above<TElement>({
     at: editor.selection,
     match: (node) => NodeApi.isNode(node) && "type" in node && node.type === "formulaPill",
   });
   return entry ?? null;
-}
+};
 
 export const InlineConstructsKit = [
   formulaPillBasePlugin
@@ -140,7 +154,9 @@ export const InlineConstructsKit = [
           deleteBackward(unit);
         },
         insertText(text, options) {
-          if (text === "}" && completeFormulaPill(editor)) return;
+          if (text === "}" && completeFormulaPill(editor)) {
+            return;
+          }
           insertText(text, options);
         },
       },

@@ -7,8 +7,8 @@ import { z } from "zod";
 // sync-out-of-order. a conflict aborts the rest of the batch; the accepted prefix stands.
 
 export const SYNC_API_PATHS = {
-  push: "/v1/sync/push",
   pull: "/v1/sync/pull",
+  push: "/v1/sync/push",
 } as const;
 
 // desktop marks a dispatch: a phone may start it, an agent-capable desktop picks it up
@@ -20,23 +20,38 @@ export const PUSH_MAX_THREADS = 50;
 // utf-8 bytes, not String.length's utf-16 units
 export const EVENT_MAX_BYTES = 64 * 1024;
 
+const utf8ByteLength = (code: number): number => {
+  if (code <= 0x7f) {
+    return 1;
+  }
+  if (code <= 0x7_ff) {
+    return 2;
+  }
+  if (code <= 0xff_ff) {
+    return 3;
+  }
+  return 4;
+};
+
 // for…of iterates code points, so a surrogate pair counts once, as its four bytes
-function exceedsUtf8Bytes(value: string, limit: number): boolean {
+const exceedsUtf8Bytes = (value: string, limit: number): boolean => {
   let bytes = 0;
   for (const char of value) {
     const code = char.codePointAt(0) ?? 0;
-    bytes += code <= 0x7f ? 1 : code <= 0x7ff ? 2 : code <= 0xffff ? 3 : 4;
-    if (bytes > limit) return true;
+    bytes += utf8ByteLength(code);
+    if (bytes > limit) {
+      return true;
+    }
   }
   return false;
-}
+};
 
 export const syncEventInputSchema = z
   .object({
-    threadId: z.string().min(1).max(128),
+    createdAt: z.number().int().nonnegative(),
     deviceSeq: z.number().int().nonnegative(),
     event: z.json(),
-    createdAt: z.number().int().nonnegative(),
+    threadId: z.string().min(1).max(128),
   })
   .strict()
   .refine((value) => !exceedsUtf8Bytes(JSON.stringify(value.event), EVENT_MAX_BYTES), {
@@ -47,8 +62,8 @@ export type SyncEventInput = z.infer<typeof syncEventInputSchema>;
 
 export const threadMetaInputSchema = z
   .object({
-    threadId: z.string().min(1).max(128),
     lane: threadLaneSchema,
+    threadId: z.string().min(1).max(128),
     title: z.string().max(200).optional(),
     // the client's clock: keyed on server arrival time, a delayed retry would read as the newest fact
     updatedAt: z.number().int().nonnegative(),
@@ -85,12 +100,12 @@ export type PullQuery = z.infer<typeof pullQuerySchema>;
 // deviceId is server-stamped from the pushing credential, so no device can impersonate another
 export const syncEventRowSchema = z
   .object({
-    seq: z.number().int().positive(),
-    threadId: z.string().min(1),
+    createdAt: z.number().int().nonnegative(),
     deviceId: z.string().min(1),
     deviceSeq: z.number().int().nonnegative(),
     event: z.json(),
-    createdAt: z.number().int().nonnegative(),
+    seq: z.number().int().positive(),
+    threadId: z.string().min(1),
   })
   .strict();
 export type SyncEventRow = z.infer<typeof syncEventRowSchema>;
@@ -98,8 +113,8 @@ export type SyncEventRow = z.infer<typeof syncEventRowSchema>;
 export const pullResponseSchema = z
   .object({
     events: z.array(syncEventRowSchema),
-    lastSeq: z.number().int().nonnegative(),
     hasMore: z.boolean(),
+    lastSeq: z.number().int().nonnegative(),
   })
   .strict();
 export type PullResponse = z.infer<typeof pullResponseSchema>;

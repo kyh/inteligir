@@ -4,17 +4,14 @@ import type {
   ConnectorView,
 } from "@repo/api/local/connectors/connectors-schema";
 
-import {
-  type ConnectorsStore,
-  type StoredConnector,
-  type StoredTransport,
-} from "./connectors-store";
+import type { ConnectorsStore, StoredConnector, StoredTransport } from "./connectors-store";
 
 export class ConnectorConflictError extends Error {
   readonly kind: "already-exists" | "not-found";
 
   constructor(kind: "already-exists" | "not-found", message: string) {
     super(message);
+    this.name = "ConnectorConflictError";
     this.kind = kind;
   }
 }
@@ -30,16 +27,25 @@ interface ConnectorUpdate {
 }
 
 export interface ConnectorsService {
-  list(): ConnectorView[];
-  add(request: ConnectorAddRequest): ConnectorView[];
+  list: () => ConnectorView[];
+  add: (request: ConnectorAddRequest) => ConnectorView[];
   // not a procedure: the one write that carries stored secrets across an endpoint edit.
-  update(request: ConnectorUpdate): ConnectorView[];
-  remove(name: string): ConnectorView[];
-  toggle(name: string, enabled: boolean): ConnectorView[];
-  enabledForSessions(): SessionMcpServer[];
+  update: (request: ConnectorUpdate) => ConnectorView[];
+  remove: (name: string) => ConnectorView[];
+  toggle: (name: string, enabled: boolean) => ConnectorView[];
+  enabledForSessions: () => SessionMcpServer[];
 }
 
-function toView(row: StoredConnector): ConnectorView {
+const oauthStatus = (
+  transport: Extract<StoredTransport, { kind: "oauth" }>,
+): "needs-reauth" | "needs-auth" | "connected" => {
+  if (transport.needsReauth === true) {
+    return "needs-reauth";
+  }
+  return transport.tokens === undefined ? "needs-auth" : "connected";
+};
+
+const toView = (row: StoredConnector): ConnectorView => {
   if (row.transport.kind === "stdio") {
     return {
       enabled: row.enabled,
@@ -56,12 +62,7 @@ function toView(row: StoredConnector): ConnectorView {
         clientId: row.transport.clientId,
         kind: "oauth",
         scopes: row.transport.scopes,
-        status:
-          row.transport.needsReauth === true
-            ? "needs-reauth"
-            : row.transport.tokens === undefined
-              ? "needs-auth"
-              : "connected",
+        status: oauthStatus(row.transport),
         tokenEndpoint: row.transport.tokenEndpoint,
         url: row.transport.url,
       },
@@ -76,12 +77,12 @@ function toView(row: StoredConnector): ConnectorView {
       url: row.transport.url,
     },
   };
-}
+};
 
-function toStoredTransport(
+const toStoredTransport = (
   input: ConnectorTransportInput,
-  previous: StoredTransport | undefined,
-): StoredTransport {
+  previous?: StoredTransport,
+): StoredTransport => {
   if (input.kind === "stdio") {
     return { args: input.args, command: input.command, kind: "stdio" };
   }
@@ -113,9 +114,9 @@ function toStoredTransport(
     next.headers = kept;
   }
   return next;
-}
+};
 
-export function createConnectorsService(store: ConnectorsStore): ConnectorsService {
+export const createConnectorsService = (store: ConnectorsStore): ConnectorsService => {
   const requireRow = (servers: StoredConnector[], name: string): StoredConnector => {
     const row = servers.find((candidate) => candidate.name === name);
     if (row === undefined) {
@@ -125,10 +126,6 @@ export function createConnectorsService(store: ConnectorsStore): ConnectorsServi
   };
 
   return {
-    list(): ConnectorView[] {
-      return store.read().map(toView);
-    },
-
     add(request: ConnectorAddRequest): ConnectorView[] {
       const servers = store.read();
       if (servers.some((row) => row.name === request.name)) {
@@ -140,18 +137,21 @@ export function createConnectorsService(store: ConnectorsStore): ConnectorsServi
       servers.push({
         enabled: true,
         name: request.name,
-        transport: toStoredTransport(request.transport, undefined),
+        transport: toStoredTransport(request.transport),
       });
       store.write(servers);
       return servers.map(toView);
     },
 
-    update(request: ConnectorUpdate): ConnectorView[] {
-      const servers = store.read();
-      const row = requireRow(servers, request.name);
-      row.transport = toStoredTransport(request.transport, row.transport);
-      store.write(servers);
-      return servers.map(toView);
+    enabledForSessions(): SessionMcpServer[] {
+      return store
+        .read()
+        .filter((row) => row.enabled)
+        .map((row) => ({ name: row.name, transport: row.transport }));
+    },
+
+    list(): ConnectorView[] {
+      return store.read().map(toView);
     },
 
     remove(name: string): ConnectorView[] {
@@ -169,11 +169,12 @@ export function createConnectorsService(store: ConnectorsStore): ConnectorsServi
       return servers.map(toView);
     },
 
-    enabledForSessions(): SessionMcpServer[] {
-      return store
-        .read()
-        .filter((row) => row.enabled)
-        .map((row) => ({ name: row.name, transport: row.transport }));
+    update(request: ConnectorUpdate): ConnectorView[] {
+      const servers = store.read();
+      const row = requireRow(servers, request.name);
+      row.transport = toStoredTransport(request.transport, row.transport);
+      store.write(servers);
+      return servers.map(toView);
     },
   };
-}
+};

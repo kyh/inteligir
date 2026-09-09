@@ -8,44 +8,54 @@ const editors = new Map<string, SlateEditor>();
 const paths = new WeakMap<SlateEditor, string>();
 const waiters = new Map<string, Set<(editor: SlateEditor) => void>>();
 
-export function registerLiveEditor(path: string, editor: SlateEditor): () => void {
+export const registerLiveEditor = (path: string, editor: SlateEditor): (() => void) => {
   editors.set(path, editor);
   paths.set(editor, path);
   const waiting = waiters.get(path);
   if (waiting !== undefined) {
     waiters.delete(path);
-    for (const resolve of waiting) resolve(editor);
+    for (const resolve of waiting) {
+      resolve(editor);
+    }
   }
   return () => {
-    if (editors.get(path) === editor) editors.delete(path);
+    if (editors.get(path) === editor) {
+      editors.delete(path);
+    }
   };
-}
+};
 
-export function getLiveEditor(path: string): SlateEditor | null {
-  return editors.get(path) ?? null;
-}
+export const getLiveEditor = (path: string): SlateEditor | null => editors.get(path) ?? null;
 
-export function liveEditorPath(editor: SlateEditor): string | null {
-  return paths.get(editor) ?? null;
-}
+export const liveEditorPath = (editor: SlateEditor): string | null => paths.get(editor) ?? null;
 
 // the editor serving `path` once it mounts; bounded, because a refused navigation mounts
 // nothing and the caller would otherwise wait forever
-export function whenLiveEditor(path: string, timeoutMs: number): Promise<SlateEditor | null> {
+export const whenLiveEditor = async (
+  path: string,
+  timeoutMs: number,
+): Promise<SlateEditor | null> => {
   const live = editors.get(path);
-  if (live !== undefined) return Promise.resolve(live);
-  return new Promise((resolve) => {
-    const pending = waiters.get(path) ?? new Set<(editor: SlateEditor) => void>();
-    waiters.set(path, pending);
-    const finish = (editor: SlateEditor | null): void => {
-      clearTimeout(timer);
-      pending.delete(finish);
-      if (pending.size === 0 && waiters.get(path) === pending) waiters.delete(path);
-      resolve(editor);
-    };
-    const timer = setTimeout(() => {
-      finish(null);
-    }, timeoutMs);
-    pending.add(finish);
-  });
-}
+  if (live !== undefined) {
+    return live;
+  }
+  const pending = waiters.get(path) ?? new Set<(editor: SlateEditor) => void>();
+  waiters.set(path, pending);
+  const settled = Promise.withResolvers<SlateEditor | null>();
+  const finish = (editor: SlateEditor | null): void => {
+    pending.delete(finish);
+    if (pending.size === 0 && waiters.get(path) === pending) {
+      waiters.delete(path);
+    }
+    settled.resolve(editor);
+  };
+  const timer = setTimeout(() => {
+    finish(null);
+  }, timeoutMs);
+  pending.add(finish);
+  try {
+    return await settled.promise;
+  } finally {
+    clearTimeout(timer);
+  }
+};

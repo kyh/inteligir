@@ -15,30 +15,16 @@ import {
   H3Plugin,
   HorizontalRulePlugin,
 } from "@platejs/basic-nodes/react";
-import {
-  ElementApi,
-  KEYS,
-  NodeApi,
-  TextApi,
-  createSlatePlugin,
-  type DecoratedRange,
-  type Path,
-  type SlateEditor,
-  type TElement,
-} from "platejs";
-import {
-  ParagraphPlugin,
-  PlateElement,
-  PlateLeaf,
-  type PlateEditor,
-  type PlateElementProps,
-  type PlateLeafProps,
-} from "platejs/react";
+import { ElementApi, KEYS, NodeApi, TextApi, createSlatePlugin } from "platejs";
+import type { DecoratedRange, Path, SlateEditor, TElement } from "platejs";
+import { ParagraphPlugin, PlateElement, PlateLeaf } from "platejs/react";
+import type { PlateEditor, PlateElementProps, PlateLeafProps } from "platejs/react";
 
 import { cn } from "cn";
 
 import { BlockquoteElement, alertMarkerPrefix } from "@repo/editor/nodes/blockquote-node";
 import { HrElement } from "@repo/editor/nodes/hr-node";
+import { stringProp } from "@repo/editor/node-props";
 import { CALLOUT_MARKER, CALLOUT_MARKER_LINE } from "@repo/editor/style-hooks";
 
 export const BasicBlocksBaseKit = [
@@ -51,15 +37,17 @@ export const BasicBlocksBaseKit = [
 
 // A `listStyleType` block hosts BlockList's <ul> inside it and a wikiEmbed expands into
 // block content; either inside <p>/<h*> is invalid DOM and React logs a nesting error.
-function hostsBlockContent(element: TElement): boolean {
-  if (element.listStyleType) return true;
+const hostsBlockContent = (element: TElement): boolean => {
+  if (stringProp(element, "listStyleType") !== undefined) {
+    return true;
+  }
   return element.children.some(
     (child) => ElementApi.isElement(child) && child.type === "wikiEmbed",
   );
-}
+};
 
-function element(as: keyof HTMLElementTagNameMap, className: string) {
-  return function Element(props: PlateElementProps) {
+const blockElement = (as: keyof HTMLElementTagNameMap, className: string) =>
+  function Element(props: PlateElementProps) {
     return (
       <PlateElement
         {...props}
@@ -68,59 +56,66 @@ function element(as: keyof HTMLElementTagNameMap, className: string) {
       />
     );
   };
-}
 
 // A first-child paragraph that is exactly an alert marker line collapses while the quote is
 // not being edited: the badge already shows every byte, so it would render as a stray blank line.
-function isAlertMarkerLine(editor: SlateEditor, element: TElement, path: Path): boolean {
-  if (element.children.length !== 1) return false;
-  const leaf = element.children[0];
-  if (!TextApi.isText(leaf) || !leaf.text.startsWith("[!")) return false;
+const isAlertMarkerLine = (editor: SlateEditor, element: TElement, path: Path): boolean => {
+  if (element.children.length !== 1) {
+    return false;
+  }
+  const [leaf] = element.children;
+  if (!TextApi.isText(leaf) || !leaf.text.startsWith("[!")) {
+    return false;
+  }
   const marker = alertMarkerPrefix(leaf.text);
-  if (!marker || marker.hidden < leaf.text.length) return false;
-  if (path.length === 0 || path.at(-1) !== 0) return false;
+  if (!marker || marker.hidden < leaf.text.length) {
+    return false;
+  }
+  if (path.length === 0 || path.at(-1) !== 0) {
+    return false;
+  }
   const parent = NodeApi.get(editor, path.slice(0, -1));
   return ElementApi.isElement(parent) && parent.type === editor.getType(KEYS.blockquote);
-}
+};
 
-function ParagraphElement(props: PlateElementProps) {
-  return (
-    <PlateElement
-      {...props}
-      as={hostsBlockContent(props.element) ? "div" : "p"}
-      className={cn(
-        "px-0.5",
-        isAlertMarkerLine(props.editor, props.element, props.path) && CALLOUT_MARKER_LINE,
-      )}
-    />
-  );
-}
+const ParagraphElement = (props: PlateElementProps) => (
+  <PlateElement
+    {...props}
+    as={hostsBlockContent(props.element) ? "div" : "p"}
+    className={cn(
+      "px-0.5",
+      isAlertMarkerLine(props.editor, props.element, props.path) && CALLOUT_MARKER_LINE,
+    )}
+  />
+);
 
-function heading(as: "h1" | "h2" | "h3") {
-  return element(as, "relative px-0.5");
-}
+const heading = (as: "h1" | "h2" | "h3") => blockElement(as, "relative px-0.5");
 
-function CalloutMarkerLeaf(props: PlateLeafProps) {
-  return <PlateLeaf {...props} className={cn(CALLOUT_MARKER, "text-muted-foreground")} />;
-}
+const CalloutMarkerLeaf = (props: PlateLeafProps) => (
+  <PlateLeaf {...props} className={cn(CALLOUT_MARKER, "text-muted-foreground")} />
+);
 
 // A decoration, so the marker bytes round-trip untouched; React-half only, so the serialization mirror never sees it.
 const CalloutMarkerPlugin = createSlatePlugin({
-  key: "calloutMarker",
-  node: { isLeaf: true },
   decorate: ({ editor, entry: [node, path] }) => {
-    if (!TextApi.isText(node) || !node.text.startsWith("[!")) return undefined;
-    if (path.length < 3 || path.at(-1) !== 0 || path.at(-2) !== 0) return undefined;
+    if (!TextApi.isText(node) || !node.text.startsWith("[!")) {
+      return;
+    }
+    if (path.length < 3 || path.at(-1) !== 0 || path.at(-2) !== 0) {
+      return;
+    }
     const paragraph = NodeApi.get(editor, path.slice(0, -1));
     const quote = NodeApi.get(editor, path.slice(0, -2));
     if (!ElementApi.isElement(paragraph) || paragraph.type !== editor.getType(KEYS.p)) {
-      return undefined;
+      return;
     }
     if (!ElementApi.isElement(quote) || quote.type !== editor.getType(KEYS.blockquote)) {
-      return undefined;
+      return;
     }
     const marker = alertMarkerPrefix(node.text);
-    if (!marker) return undefined;
+    if (!marker) {
+      return;
+    }
     const range: DecoratedRange & { calloutMarker: true } = {
       anchor: { offset: 0, path },
       calloutMarker: true,
@@ -128,16 +123,18 @@ const CalloutMarkerPlugin = createSlatePlugin({
     };
     return [range];
   },
+  key: "calloutMarker",
+  node: { isLeaf: true },
 }).withComponent(CalloutMarkerLeaf);
 
 // the trailing paragraph gives the caret a landing spot below the void
-export function insertHorizontalRule(editor: PlateEditor): void {
+export const insertHorizontalRule = (editor: PlateEditor): void => {
   editor.tf.insertNodes(
-    { type: HorizontalRulePlugin.key, children: [{ text: "" }] },
+    { children: [{ text: "" }], type: HorizontalRulePlugin.key },
     { select: true },
   );
-  editor.tf.insertNodes({ type: editor.getType(KEYS.p), children: [{ text: "" }] });
-}
+  editor.tf.insertNodes({ children: [{ text: "" }], type: editor.getType(KEYS.p) });
+};
 
 export const BasicBlocksKit = [
   ParagraphPlugin.withComponent(ParagraphElement),

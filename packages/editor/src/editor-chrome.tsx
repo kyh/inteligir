@@ -6,7 +6,8 @@
 // ancestor scrolls, so the container adds no overflow-y-auto.
 
 import type { HTMLAttributes } from "react";
-import { PlateContainer, PlateContent, type PlateContentProps } from "platejs/react";
+import { PlateContainer, PlateContent } from "platejs/react";
+import type { PlateContentProps } from "platejs/react";
 
 import { cn } from "cn";
 
@@ -28,10 +29,10 @@ const EDITOR_CLASS = cn(
   "**:data-slate-placeholder:top-[auto] **:data-slate-placeholder:text-muted-foreground/80 **:data-slate-placeholder:opacity-100!",
 );
 
-export function EditorContainer({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <PlateContainer className={cn(CONTAINER_CLASS, className)} {...props} />;
-}
+export const EditorContainer = ({ className, ...props }: HTMLAttributes<HTMLDivElement>) => (
+  <PlateContainer className={cn(CONTAINER_CLASS, className)} {...props} />
+);
 
-export function Editor({ className, ...props }: PlateContentProps) {
-  return <PlateContent className={cn(EDITOR_CLASS, className)} disableDefaultStyles {...props} />;
-}
+export const Editor = ({ className, ...props }: PlateContentProps) => (
+  <PlateContent className={cn(EDITOR_CLASS, className)} disableDefaultStyles {...props} />
+);

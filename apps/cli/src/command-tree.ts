@@ -14,14 +14,14 @@ export interface ResolvedCommand {
   rest: readonly string[];
 }
 
-function refuseLazy(field: string): never {
+const refuseLazy: (field: string) => never = (field) => {
   throw new Error(
     `${field} must be declared eagerly — the tree walk (help resolution, the ` +
       `guide's coverage test and the --json enforcement test) reads it synchronously`,
   );
-}
+};
 
-function subCommandsOf(command: CommandDef): SubCommandsDef | undefined {
+const subCommandsOf = (command: CommandDef): SubCommandsDef | undefined => {
   const value = command.subCommands;
   if (value === undefined) {
     return undefined;
@@ -30,16 +30,16 @@ function subCommandsOf(command: CommandDef): SubCommandsDef | undefined {
     return refuseLazy("subCommands");
   }
   return value;
-}
+};
 
-function commandOf(value: SubCommandsDef[string]): CommandDef {
+const commandOf = (value: SubCommandsDef[string]): CommandDef => {
   if (value instanceof Function || value instanceof Promise) {
     return refuseLazy("a subCommands entry");
   }
   return value;
-}
+};
 
-export function argsOf(command: CommandDef): ArgsDef {
+export const argsOf = (command: CommandDef): ArgsDef => {
   const value = command.args;
   if (value === undefined) {
     return {};
@@ -48,9 +48,9 @@ export function argsOf(command: CommandDef): ArgsDef {
     return refuseLazy("args");
   }
   return value;
-}
+};
 
-export function collectLeafCommands(command: CommandDef, prefix = ""): LeafCommand[] {
+export const collectLeafCommands = (command: CommandDef, prefix = ""): LeafCommand[] => {
   const subCommands = subCommandsOf(command);
   if (subCommands === undefined) {
     return [];
@@ -61,16 +61,19 @@ export function collectLeafCommands(command: CommandDef, prefix = ""): LeafComma
     const path = prefix.length > 0 ? `${prefix} ${name}` : name;
     const nested = collectLeafCommands(sub, path);
     if (nested.length === 0) {
-      results.push({ path, command: sub });
+      results.push({ command: sub, path });
     } else {
       results.push(...nested);
     }
   }
   return results;
-}
+};
 
 // exact only because no command with subcommands declares args, so no flag value at those levels can look like a name.
-export function resolveCommandPath(root: CommandDef, rawArgs: readonly string[]): ResolvedCommand {
+export const resolveCommandPath = (
+  root: CommandDef,
+  rawArgs: readonly string[],
+): ResolvedCommand => {
   let command = root;
   let parent: CommandDef | undefined;
   let rest = rawArgs;
@@ -89,9 +92,9 @@ export function resolveCommandPath(root: CommandDef, rawArgs: readonly string[])
     command = commandOf(entry);
     rest = rest.slice(index + 1);
   }
-}
+};
 
-export function declaredFlags(argsDef: ArgsDef): Set<string> {
+export const declaredFlags = (argsDef: ArgsDef): Set<string> => {
   const names = new Set(["help", "version"]);
   for (const [name, def] of Object.entries(argsDef)) {
     if (def.type === "positional") {
@@ -99,19 +102,21 @@ export function declaredFlags(argsDef: ArgsDef): Set<string> {
     }
     names.add(name);
     // citty aliases each name to its camelCase and kebab-case spellings.
-    names.add(name.replace(/[A-Z]/gu, (letter) => `-${letter.toLowerCase()}`));
-    names.add(name.replace(/-(\w)/gu, (_, letter: string) => letter.toUpperCase()));
+    names.add(name.replaceAll(/[A-Z]/gu, (letter) => `-${letter.toLowerCase()}`));
+    names.add(name.replaceAll(/-(?<letter>\w)/gu, (_, letter: string) => letter.toUpperCase()));
     const alias = "alias" in def ? def.alias : undefined;
-    for (const one of alias === undefined ? [] : Array.isArray(alias) ? alias : [alias]) {
-      names.add(one);
+    if (alias !== undefined) {
+      for (const one of Array.isArray(alias) ? alias : [alias]) {
+        names.add(one);
+      }
     }
   }
   return names;
-}
+};
 
 // citty runs parseArgs with `strict: false`, so an undeclared flag is dropped: `--contentt x` would make
 // `vault write` read stdin and exit 0.
-export function assertKnownFlags(rawArgs: readonly string[], argsDef: ArgsDef): void {
+export const assertKnownFlags = (rawArgs: readonly string[], argsDef: ArgsDef): void => {
   const declared = declaredFlags(argsDef);
   const unknown: string[] = [];
   for (const raw of rawArgs) {
@@ -134,4 +139,4 @@ export function assertKnownFlags(rawArgs: readonly string[], argsDef: ArgsDef): 
   if (unknown.length > 0) {
     throw invalidUsage(`unknown option${unknown.length > 1 ? "s" : ""}: ${unknown.join(" ")}`);
   }
-}
+};

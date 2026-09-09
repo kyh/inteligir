@@ -3,9 +3,12 @@ import { describe, expect, it } from "vitest";
 import type { SearchResult } from "../knowledge/knowledge-index";
 import { parseSearchQuery, searchVaultNotes } from "../knowledge/vault-search";
 
-function hit(path: string, score: number): SearchResult {
-  return { path, score, snippet: `…${path}…`, title: path.replace(/\.md$/, "") };
-}
+const hit = (path: string, score: number): SearchResult => ({
+  path,
+  score,
+  snippet: `…${path}…`,
+  title: path.replace(/\.md$/u, ""),
+});
 
 const RANKED = [hit("a.md", 3), hit("b.md", 2), hit("c.md", 1)];
 

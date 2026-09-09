@@ -20,22 +20,24 @@ const OPEN_PATH = "open.md";
 const OTHER_PATH = "other.md";
 const COMMENTED = "%%i:abc:start%%tinted words%%i:abc:end%% and plain tail\n";
 
-function openValue(): Value {
+const openValue = (): Value => {
   const parsed = parseMarkdown(COMMENTED);
-  if (!parsed.ok) throw new Error("the commented fixture must parse");
+  if (!parsed.ok) {
+    throw new Error("the commented fixture must parse");
+  }
   return parsed.value;
-}
+};
 
-function renderOpenNote() {
+const renderOpenNote = () => {
   const store = createOpenNoteStore();
   store.publishOpenPath(OPEN_PATH);
   return render(<EditorHarness value={openValue()} store={store} livePath={OPEN_PATH} />);
-}
+};
 
-function tintedLeaf(view: ReturnType<typeof renderOpenNote>): string {
+const tintedLeaf = (view: ReturnType<typeof renderOpenNote>): string => {
   const leaf = view.getByText("tinted words").closest('[data-slate-leaf="true"]');
   return leaf?.outerHTML ?? "";
-}
+};
 
 const RESOLVED_ABC = { knownIds: new Set(["abc"]), resolvedIds: new Set(["abc"]) };
 
@@ -65,7 +67,7 @@ describe("the comment surface", () => {
     setPendingCreate({
       id: "abc",
       path: OPEN_PATH,
-      rect: { bottom: 20, left: 10, top: 10, right: 10, width: 0, height: 0 },
+      rect: { bottom: 20, height: 0, left: 10, right: 10, top: 10, width: 0 },
     });
 
     expect(renderOpenNote().getAllByLabelText("Comment")).toHaveLength(1);
@@ -75,7 +77,7 @@ describe("the comment surface", () => {
     setPendingCreate({
       id: "abc",
       path: OTHER_PATH,
-      rect: { bottom: 20, left: 10, top: 10, right: 10, width: 0, height: 0 },
+      rect: { bottom: 20, height: 0, left: 10, right: 10, top: 10, width: 0 },
     });
 
     expect(renderOpenNote().queryByLabelText("Comment")).toBeNull();
@@ -85,14 +87,16 @@ describe("the comment surface", () => {
     setPendingCreate({
       id: "abc",
       path: OPEN_PATH,
-      rect: { bottom: 20, left: 10, top: 10, right: 10, width: 0, height: 0 },
+      rect: { bottom: 20, height: 0, left: 10, right: 10, top: 10, width: 0 },
     });
 
     const view = renderOpenNote();
     fireEvent.click(view.getByRole("button", { name: "Cancel" }));
 
     const editor = getLiveEditor(OPEN_PATH);
-    if (editor === null) throw new Error("the mounted editor registers itself");
+    if (editor === null) {
+      throw new Error("the mounted editor registers itself");
+    }
     expect(findCommentMarker(editor, "abc")).toBeNull();
   });
 });

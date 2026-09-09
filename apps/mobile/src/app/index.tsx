@@ -20,17 +20,64 @@ import {
   useSyncStatus,
   useThreads,
 } from "@/lib/app-runtime";
-import { RADIUS, SPACE, type Theme, useTheme } from "@/lib/theme";
+import { RADIUS, SPACE, useTheme } from "@/lib/theme";
+import type { Theme } from "@/lib/theme";
 import { defaultDeviceName } from "@/login/device-name";
 import type { SyncStatus } from "@/sync/sync-runtime";
 import { describeCloudFailure } from "@repo/api/cloud/client";
 
-export default function Index() {
-  const status = useSyncStatus();
-  return status.state === "signed-in" ? <HomeScreen /> : <SignInScreen status={status} />;
-}
+const styles = StyleSheet.create({
+  bodyText: { fontSize: 16, textAlign: "center" },
+  buttonLabel: { fontSize: 16, fontWeight: "600" },
+  captionText: { fontSize: 12 },
+  captureBox: { gap: SPACE.sm, paddingHorizontal: SPACE.lg, paddingTop: SPACE.md },
+  center: { alignItems: "center", justifyContent: "center" },
+  disabled: { opacity: 0.5 },
+  empty: { alignItems: "center", gap: SPACE.sm, paddingVertical: 96 },
+  footer: { borderTopWidth: 1, paddingHorizontal: SPACE.lg, paddingVertical: SPACE.md },
+  input: {
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    fontSize: 16,
+    paddingHorizontal: SPACE.lg,
+    paddingVertical: SPACE.md,
+  },
+  list: { paddingBottom: 32, paddingHorizontal: SPACE.lg },
+  pressed70: { opacity: 0.7 },
+  pressed80: { opacity: 0.8 },
+  primaryButton: {
+    alignItems: "center",
+    borderRadius: RADIUS.md,
+    marginTop: SPACE.sm,
+    paddingHorizontal: SPACE.xxl,
+    paddingVertical: SPACE.md,
+  },
+  screen: { flex: 1 },
+  signInBody: { alignSelf: "stretch", gap: SPACE.md, paddingHorizontal: SPACE.xxl },
+  smallLabel: { fontSize: 14, fontWeight: "600" },
+  smallText: { fontSize: 14 },
+  syncActions: { flexDirection: "row", gap: SPACE.sm },
+  syncButton: { borderRadius: RADIUS.md, paddingHorizontal: SPACE.lg, paddingVertical: SPACE.sm },
+  syncRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: SPACE.md,
+    justifyContent: "space-between",
+    paddingHorizontal: SPACE.lg,
+    paddingVertical: SPACE.md,
+  },
+  threadRow: {
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    gap: 2,
+    marginBottom: SPACE.sm,
+    paddingHorizontal: SPACE.lg,
+    paddingVertical: SPACE.md,
+  },
+  title: { fontSize: 30, fontWeight: "700" },
+});
 
-function SignInScreen({ status }: { status: SyncStatus }) {
+const SignInScreen = ({ status }: { status: SyncStatus }) => {
   const theme = useTheme();
   const signIn = useLoginState();
   const [email, setEmail] = useState("");
@@ -44,7 +91,7 @@ function SignInScreen({ status }: { status: SyncStatus }) {
       : "Sign in with your account to read your notes and threads, and capture ideas.";
   const fieldStyle = [
     styles.input,
-    { borderColor: theme.input, backgroundColor: theme.card, color: theme.foreground },
+    { backgroundColor: theme.card, borderColor: theme.input, color: theme.foreground },
   ];
 
   return (
@@ -94,7 +141,9 @@ function SignInScreen({ status }: { status: SyncStatus }) {
             (busy || !ready) && styles.disabled,
           ]}
           disabled={busy || !ready}
-          onPress={() => void login({ email, password, deviceName })}
+          onPress={() => {
+            void login({ deviceName, email, password });
+          }}
         >
           {busy ? (
             <ActivityIndicator color={theme.primaryForeground} />
@@ -105,15 +154,106 @@ function SignInScreen({ status }: { status: SyncStatus }) {
       </View>
     </SafeAreaView>
   );
-}
+};
 
-function describeStatus(status: SyncStatus): string {
-  if (status.state !== "signed-in") return "";
-  if (status.lastError !== null) return `Sync issue: ${status.lastError}`;
+const describeStatus = (status: SyncStatus): string => {
+  if (status.state !== "signed-in") {
+    return "";
+  }
+  if (status.lastError !== null) {
+    return `Sync issue: ${status.lastError}`;
+  }
   return status.lastSyncedAt === null ? "Not synced yet" : "Synced";
-}
+};
 
-function HomeScreen() {
+type CaptureNotice =
+  | { kind: "idle" }
+  | { kind: "sending" }
+  | { kind: "captured" }
+  | { kind: "failed"; message: string };
+
+const captureNoticeLine = (
+  notice: CaptureNotice,
+  theme: Theme,
+): { text: string; color: string } | null => {
+  switch (notice.kind) {
+    case "captured": {
+      return { color: theme.mutedForeground, text: "Captured" };
+    }
+    case "failed": {
+      return { color: theme.destructive, text: notice.message };
+    }
+    case "idle":
+    case "sending": {
+      return null;
+    }
+    // no default
+  }
+};
+
+const CaptureBox = () => {
+  const theme = useTheme();
+  const [text, setText] = useState("");
+  const [notice, setNotice] = useState<CaptureNotice>({ kind: "idle" });
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(
+    () => () => {
+      if (timer.current !== null) {
+        clearTimeout(timer.current);
+      }
+    },
+    [],
+  );
+
+  const capture = useCallback(async () => {
+    const value = text.trim();
+    if (value === "" || notice.kind === "sending") {
+      return;
+    }
+    if (timer.current !== null) {
+      clearTimeout(timer.current);
+    }
+    setNotice({ kind: "sending" });
+    const result = await submitCapture(value);
+    if (!result.ok) {
+      setNotice({ kind: "failed", message: describeCloudFailure(result.failure) });
+      return;
+    }
+    // clear only the words that were sent; text typed while the POST was in flight stays.
+    setText((current) => (current === text ? "" : current));
+    setNotice({ kind: "captured" });
+    timer.current = setTimeout(() => {
+      setNotice({ kind: "idle" });
+    }, 2500);
+  }, [text, notice.kind]);
+
+  const line = captureNoticeLine(notice, theme);
+  return (
+    <View style={styles.captureBox}>
+      <TextInput
+        style={[
+          styles.input,
+          { backgroundColor: theme.card, borderColor: theme.input, color: theme.foreground },
+        ]}
+        placeholder="Capture to your inbox…"
+        placeholderTextColor={theme.mutedForeground}
+        value={text}
+        onChangeText={setText}
+        returnKeyType="done"
+        submitBehavior="blurAndSubmit"
+        onSubmitEditing={() => {
+          void capture();
+        }}
+      />
+      {line === null ? null : (
+        <Text style={[styles.captionText, { color: line.color }]}>{line.text}</Text>
+      )}
+    </View>
+  );
+};
+
+const HomeScreen = () => {
   const theme = useTheme();
   const router = useRouter();
   const status = useSyncStatus();
@@ -144,7 +284,9 @@ function HomeScreen() {
               { borderColor: theme.border, borderWidth: 1 },
               pressed && styles.pressed80,
             ]}
-            onPress={() => router.push("/notes")}
+            onPress={() => {
+              router.push("/notes");
+            }}
           >
             <Text style={[styles.smallLabel, { color: theme.foreground }]}>Notes</Text>
           </Pressable>
@@ -155,7 +297,9 @@ function HomeScreen() {
               pressed && styles.pressed80,
             ]}
             disabled={refreshing}
-            onPress={() => void refresh()}
+            onPress={() => {
+              void refresh();
+            }}
           >
             <Text style={[styles.smallLabel, { color: theme.primaryForeground }]}>
               {refreshing ? "Syncing…" : "Sync"}
@@ -167,7 +311,14 @@ function HomeScreen() {
       <ScrollView
         style={styles.screen}
         contentContainerStyle={styles.list}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void refresh()} />}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => {
+              void refresh();
+            }}
+          />
+        }
       >
         {threads.length === 0 ? (
           <View style={styles.empty}>
@@ -182,31 +333,35 @@ function HomeScreen() {
               key={thread.threadId}
               style={({ pressed }) => [
                 styles.threadRow,
-                { borderColor: theme.border, backgroundColor: theme.card },
+                { backgroundColor: theme.card, borderColor: theme.border },
                 pressed && styles.pressed70,
               ]}
-              onPress={() =>
-                router.push({ pathname: "/thread/[id]", params: { id: thread.threadId } })
-              }
+              onPress={() => {
+                router.push({ params: { id: thread.threadId }, pathname: "/thread/[id]" });
+              }}
             >
               <Text style={[styles.bodyText, { color: theme.cardForeground }]} numberOfLines={1}>
                 {thread.title}
               </Text>
-              {thread.preview !== "" ? (
+              {thread.preview === "" ? null : (
                 <Text
                   style={[styles.smallText, { color: theme.mutedForeground }]}
                   numberOfLines={1}
                 >
                   {thread.preview}
                 </Text>
-              ) : null}
+              )}
             </Pressable>
           ))
         )}
       </ScrollView>
 
       <View style={[styles.footer, { borderTopColor: theme.border }]}>
-        <Pressable onPress={() => void logout()}>
+        <Pressable
+          onPress={() => {
+            void logout();
+          }}
+        >
           <Text style={[styles.smallText, { color: theme.mutedForeground }]}>
             Sign this device out
           </Text>
@@ -214,128 +369,11 @@ function HomeScreen() {
       </View>
     </SafeAreaView>
   );
-}
+};
 
-type CaptureNotice =
-  | { kind: "idle" }
-  | { kind: "sending" }
-  | { kind: "captured" }
-  | { kind: "failed"; message: string };
+const Index = () => {
+  const status = useSyncStatus();
+  return status.state === "signed-in" ? <HomeScreen /> : <SignInScreen status={status} />;
+};
 
-function captureNoticeLine(
-  notice: CaptureNotice,
-  theme: Theme,
-): { text: string; color: string } | null {
-  switch (notice.kind) {
-    case "idle":
-    case "sending":
-      return null;
-    case "captured":
-      return { text: "Captured", color: theme.mutedForeground };
-    case "failed":
-      return { text: notice.message, color: theme.destructive };
-  }
-}
-
-function CaptureBox() {
-  const theme = useTheme();
-  const [text, setText] = useState("");
-  const [notice, setNotice] = useState<CaptureNotice>({ kind: "idle" });
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(
-    () => () => {
-      if (timer.current !== null) clearTimeout(timer.current);
-    },
-    [],
-  );
-
-  const capture = useCallback(async () => {
-    const value = text.trim();
-    if (value === "" || notice.kind === "sending") return;
-    if (timer.current !== null) clearTimeout(timer.current);
-    setNotice({ kind: "sending" });
-    const result = await submitCapture(value);
-    if (!result.ok) {
-      setNotice({ kind: "failed", message: describeCloudFailure(result.failure) });
-      return;
-    }
-    // clear only the words that were sent; text typed while the POST was in flight stays.
-    setText((current) => (current === text ? "" : current));
-    setNotice({ kind: "captured" });
-    timer.current = setTimeout(() => setNotice({ kind: "idle" }), 2500);
-  }, [text, notice.kind]);
-
-  const line = captureNoticeLine(notice, theme);
-  return (
-    <View style={styles.captureBox}>
-      <TextInput
-        style={[
-          styles.input,
-          { borderColor: theme.input, backgroundColor: theme.card, color: theme.foreground },
-        ]}
-        placeholder="Capture to your inbox…"
-        placeholderTextColor={theme.mutedForeground}
-        value={text}
-        onChangeText={setText}
-        returnKeyType="done"
-        submitBehavior="blurAndSubmit"
-        onSubmitEditing={() => void capture()}
-      />
-      {line !== null ? (
-        <Text style={[styles.captionText, { color: line.color }]}>{line.text}</Text>
-      ) : null}
-    </View>
-  );
-}
-
-const styles = StyleSheet.create({
-  screen: { flex: 1 },
-  center: { alignItems: "center", justifyContent: "center" },
-  signInBody: { gap: SPACE.md, paddingHorizontal: SPACE.xxl, alignSelf: "stretch" },
-  captureBox: { gap: SPACE.sm, paddingHorizontal: SPACE.lg, paddingTop: SPACE.md },
-  input: {
-    borderRadius: RADIUS.md,
-    borderWidth: 1,
-    paddingHorizontal: SPACE.lg,
-    paddingVertical: SPACE.md,
-    fontSize: 16,
-  },
-  syncRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: SPACE.md,
-    paddingHorizontal: SPACE.lg,
-    paddingVertical: SPACE.md,
-  },
-  syncActions: { flexDirection: "row", gap: SPACE.sm },
-  syncButton: { borderRadius: RADIUS.md, paddingHorizontal: SPACE.lg, paddingVertical: SPACE.sm },
-  list: { paddingHorizontal: SPACE.lg, paddingBottom: 32 },
-  empty: { alignItems: "center", gap: SPACE.sm, paddingVertical: 96 },
-  threadRow: {
-    gap: 2,
-    marginBottom: SPACE.sm,
-    borderRadius: RADIUS.md,
-    borderWidth: 1,
-    paddingHorizontal: SPACE.lg,
-    paddingVertical: SPACE.md,
-  },
-  footer: { borderTopWidth: 1, paddingHorizontal: SPACE.lg, paddingVertical: SPACE.md },
-  primaryButton: {
-    alignItems: "center",
-    borderRadius: RADIUS.md,
-    paddingVertical: SPACE.md,
-    paddingHorizontal: SPACE.xxl,
-    marginTop: SPACE.sm,
-  },
-  title: { fontSize: 30, fontWeight: "700" },
-  bodyText: { fontSize: 16, textAlign: "center" },
-  smallText: { fontSize: 14 },
-  smallLabel: { fontSize: 14, fontWeight: "600" },
-  captionText: { fontSize: 12 },
-  buttonLabel: { fontSize: 16, fontWeight: "600" },
-  pressed70: { opacity: 0.7 },
-  pressed80: { opacity: 0.8 },
-  disabled: { opacity: 0.5 },
-});
+export default Index;

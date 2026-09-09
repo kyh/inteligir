@@ -2,28 +2,30 @@ import type { KnowledgeSearchResponse } from "@repo/api/local/knowledge/knowledg
 import type { VaultEntry } from "@repo/api/local/vault/vault-schema";
 import { describe, expect, it } from "vitest";
 
-import { createSearchSource, sortedNotePaths, type NoteSearchApi } from "../search-source";
+import { createSearchSource, sortedNotePaths } from "../search-source";
+import type { NoteSearchApi } from "../search-source";
 
 const NEVER_ABORTED = new AbortController().signal;
 
-function indexAnswering(answer: () => Promise<KnowledgeSearchResponse>) {
+const indexAnswering = (answer: () => KnowledgeSearchResponse) => {
   const asked: string[] = [];
   const api = {
     knowledge: {
-      search: (request) => {
+      // oxlint-disable-next-line require-await -- the index is an async port; this fake answers from memory
+      search: async (request) => {
         asked.push(request.q);
         return answer();
       },
     },
   } satisfies NoteSearchApi;
-  return { asked, api };
-}
+  return { api, asked };
+};
 
 const hit = (path: string): KnowledgeSearchResponse["results"][number] => ({
   path,
-  title: path,
-  snippet: "",
   score: 1,
+  snippet: "",
+  title: path,
 });
 
 const PATHS = ["notes/plans.md", "notes/tagging.md"];
@@ -43,7 +45,7 @@ describe("the palette's note paths", () => {
 
 describe("the palette's search source", () => {
   it("answers an empty box from the filenames, asking the index nothing", async () => {
-    const { api, asked } = indexAnswering(() => Promise.resolve({ results: [] }));
+    const { api, asked } = indexAnswering(() => ({ results: [] }));
     const search = createSearchSource(api, PATHS);
     await expect(search("  ", NEVER_ABORTED)).resolves.toEqual([
       { path: "notes/plans.md" },
@@ -53,21 +55,20 @@ describe("the palette's search source", () => {
   });
 
   it("carries the index's own titles and snippets", async () => {
-    const { api } = indexAnswering(() => Promise.resolve({ results: [hit("notes/plans.md")] }));
+    const { api } = indexAnswering(() => ({ results: [hit("notes/plans.md")] }));
     const search = createSearchSource(api, PATHS);
     await expect(search("plans", NEVER_ABORTED)).resolves.toEqual([
-      { path: "notes/plans.md", title: "notes/plans.md", snippet: "" },
+      { path: "notes/plans.md", snippet: "", title: "notes/plans.md" },
     ]);
   });
 
   it("falls back to the filenames when the index misses or refuses", async () => {
-    const missed = createSearchSource(
-      indexAnswering(() => Promise.resolve({ results: [] })).api,
-      PATHS,
-    );
+    const missed = createSearchSource(indexAnswering(() => ({ results: [] })).api, PATHS);
     await expect(missed("plans", NEVER_ABORTED)).resolves.toEqual([{ path: "notes/plans.md" }]);
     const refused = createSearchSource(
-      indexAnswering(() => Promise.reject(new Error("offline"))).api,
+      indexAnswering(() => {
+        throw new Error("offline");
+      }).api,
       PATHS,
     );
     await expect(refused("plans", NEVER_ABORTED)).resolves.toEqual([{ path: "notes/plans.md" }]);
@@ -76,7 +77,7 @@ describe("the palette's search source", () => {
   it("lets a tag query answer nothing rather than fuzzy-matching its own text", async () => {
     // "tag:plans" reaches `notes/tagging.md` as a subsequence, so a fallback
     // here would answer a question nobody asked with a straight face.
-    const { api } = indexAnswering(() => Promise.resolve({ results: [] }));
+    const { api } = indexAnswering(() => ({ results: [] }));
     const search = createSearchSource(api, PATHS);
     await expect(search("tag:plans", NEVER_ABORTED)).resolves.toEqual([]);
   });

@@ -1,7 +1,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
-import { agentBrowserSession, probeHeadlessOrSkip } from "../harness/agent-browser";
+import { agentBrowserSession, closeQuietly, probeHeadlessOrSkip } from "../harness/agent-browser";
 import { expect } from "../harness/assert";
 import type { Scenario } from "../harness/scenario";
 
@@ -14,24 +14,21 @@ const FOLDER_NOTE = "Zebra.md";
 const EDITOR = '[data-slate-editor="true"]';
 const DISK_DEADLINE_MS = 30_000;
 
-function row(path: string): string {
-  return `[role="tree"] [data-path="${path}"]`;
-}
+const row = (vaultPath: string): string => `[role="tree"] [data-path="${vaultPath}"]`;
 
-async function readOrNull(path: string): Promise<string | null> {
-  return readFile(path, "utf8").catch(() => null);
-}
+const readOrNull = async (filePath: string): Promise<string | null> =>
+  await readFile(filePath, "utf-8").catch(() => null);
 
 export const treeOpsBrowser: Scenario = {
-  name: "tree-ops-browser",
   description: "the tree's row menu pins a note into its frontmatter, and a drag moves it",
+  name: "tree-ops-browser",
   async run(ctx) {
     const app = await ctx.boot({
       name: "solo",
       seedVault: async (vaultDir) => {
-        await writeFile(join(vaultDir, NOTE), DOC, "utf8");
-        await mkdir(join(vaultDir, FOLDER), { recursive: true });
-        await writeFile(join(vaultDir, FOLDER, FOLDER_NOTE), "# Zebra\n", "utf8");
+        await writeFile(path.join(vaultDir, NOTE), DOC, "utf-8");
+        await mkdir(path.join(vaultDir, FOLDER), { recursive: true });
+        await writeFile(path.join(vaultDir, FOLDER, FOLDER_NOTE), "# Zebra\n", "utf-8");
       },
     });
     try {
@@ -49,7 +46,7 @@ export const treeOpsBrowser: Scenario = {
       await agentBrowser(["find", "role", "menuitem", "click", "--name", "Pin", "--exact"]);
       const pinDeadline = Date.now() + DISK_DEADLINE_MS;
       for (;;) {
-        const bytes = (await readOrNull(join(app.vaultDir, NOTE))) ?? "";
+        const bytes = (await readOrNull(path.join(app.vaultDir, NOTE))) ?? "";
         if (bytes.includes("pinned: true")) {
           expect(bytes.endsWith(DOC), `the pin rewrote more than the frontmatter:\n${bytes}`);
           break;
@@ -62,8 +59,8 @@ export const treeOpsBrowser: Scenario = {
       await agentBrowser(["drag", row(NOTE), row(FOLDER)]);
       const moveDeadline = Date.now() + DISK_DEADLINE_MS;
       for (;;) {
-        const moved = await readOrNull(join(app.vaultDir, FOLDER, NOTE));
-        const original = await readOrNull(join(app.vaultDir, NOTE));
+        const moved = await readOrNull(path.join(app.vaultDir, FOLDER, NOTE));
+        const original = await readOrNull(path.join(app.vaultDir, NOTE));
         if (moved !== null && original === null) {
           expect(moved.includes("pinned: true"), `the move dropped the frontmatter:\n${moved}`);
           break;
@@ -75,7 +72,7 @@ export const treeOpsBrowser: Scenario = {
         await delay(250);
       }
     } finally {
-      await agentBrowser(["close"], 30_000).catch(() => undefined);
+      await closeQuietly(agentBrowser);
     }
   },
 };

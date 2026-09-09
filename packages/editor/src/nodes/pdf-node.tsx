@@ -1,7 +1,8 @@
 // A note is untrusted content: only http(s) URLs reach a live iframe or a clickable href.
 
 import { FileTextIcon } from "lucide-react";
-import { PlateElement, useFocused, useSelected, type PlateElementProps } from "platejs/react";
+import { PlateElement, useFocused, useSelected } from "platejs/react";
+import type { PlateElementProps } from "platejs/react";
 
 import { isHttpUrl } from "@repo/editor/lib/wire";
 import { cn } from "cn";
@@ -9,9 +10,9 @@ import { cn } from "cn";
 import { stringProp } from "@repo/editor/node-props";
 import { MediaToolbar } from "@repo/editor/nodes/media-toolbar";
 
-const PDF_RE = /\.pdf(?:[?#]|$)/i;
+const PDF_RE = /\.pdf(?:[?#]|$)/iu;
 
-export function FileElement(props: PlateElementProps) {
+export const FileElement = (props: PlateElementProps) => {
   const selected = useSelected();
   const focused = useFocused();
   const url = stringProp(props.element, "url") ?? "";
@@ -52,4 +53,4 @@ export function FileElement(props: PlateElementProps) {
       {props.children}
     </PlateElement>
   );
-}
+};

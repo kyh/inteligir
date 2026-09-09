@@ -1,4 +1,4 @@
-import { isAbsolute, resolve } from "node:path";
+import path from "node:path";
 import { defineCommand } from "citty";
 import { invalidUsage } from "../cli-error";
 import { readCliVersion } from "../paths";
@@ -8,48 +8,50 @@ import { out, writeOut } from "../output";
 
 // relative paths resolve against the invoking cwd because the config layer refuses them outright;
 // `~` is left to that layer, since expanding it twice creates a literal `~` directory.
-function resolvePathFlag(value: string, cwd: string): string {
+const resolvePathFlag = (value: string, cwd: string): string => {
   if (value === "~" || value.startsWith("~/")) {
     return value;
   }
-  return isAbsolute(value) ? value : resolve(cwd, value);
-}
+  return path.isAbsolute(value) ? value : path.resolve(cwd, value);
+};
 
 // must accept what INTELIGIR_PORT accepts, but a bad flag is a usage error rather than a bad environment.
-function parsePort(raw: string): number {
+const parsePort = (raw: string): number => {
   try {
     return parsePortValue("--port", raw);
   } catch {
     throw invalidUsage(`--port must be a valid TCP port (got "${raw}")`);
   }
-}
+};
 
-export function serveCommand() {
-  return defineCommand({
-    meta: {
-      name: "serve",
-      description: "Run the local server: the vault, the index, the agent and the API",
-    },
+export const serveCommand = () =>
+  defineCommand({
     args: {
-      port: { type: "string", description: "TCP port for the local server (default 4664)" },
       "data-dir": {
-        type: "string",
         description: "Where the database and settings live (default ~/.inteligir)",
-      },
-      vault: {
         type: "string",
-        description: "The vault: your markdown files (default ~/Inteligir)",
       },
       open: {
-        type: "boolean",
         description: "Open the workspace in a browser once it is listening",
+        type: "boolean",
       },
+      port: { description: "TCP port for the local server (default 4664)", type: "string" },
+      vault: {
+        description: "The vault: your markdown files (default ~/Inteligir)",
+        type: "string",
+      },
+    },
+    meta: {
+      description: "Run the local server: the vault, the index, the agent and the API",
+      name: "serve",
     },
     run: async ({ args }) => {
       const cwd = process.cwd();
       // an overlay, never a `process.env` write: a global write is inherited by every child this server spawns.
       const overrides: ServeOverrides = {};
-      if (args.port !== undefined) overrides.INTELIGIR_PORT = String(parsePort(args.port));
+      if (args.port !== undefined) {
+        overrides.INTELIGIR_PORT = String(parsePort(args.port));
+      }
       if (args["data-dir"] !== undefined) {
         overrides.INTELIGIR_DATA_DIR = resolvePathFlag(args["data-dir"], cwd);
       }
@@ -73,4 +75,3 @@ export function serveCommand() {
       await systemOpenExternalUrl(uiUrl);
     },
   });
-}

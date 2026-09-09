@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { join } from "node:path";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { resolveMigrationsFolder } from "../paths";
 
@@ -9,6 +9,6 @@ describe("resolveMigrationsFolder", () => {
 
     expect(folder).toMatch(/packages[/\\]db[/\\]drizzle$/u);
     // the journal `runMigrations` reads its generation ceiling from.
-    expect(existsSync(join(folder, "meta", "_journal.json"))).toBe(true);
+    expect(existsSync(path.join(folder, "meta", "_journal.json"))).toBe(true);
   });
 });

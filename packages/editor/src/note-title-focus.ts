@@ -4,16 +4,20 @@
 
 const installed = new Map<string, () => void>();
 
-export function registerNoteTitleFocus(path: string, focus: () => void): () => void {
+export const registerNoteTitleFocus = (path: string, focus: () => void): (() => void) => {
   installed.set(path, focus);
   return () => {
-    if (installed.get(path) === focus) installed.delete(path);
+    if (installed.get(path) === focus) {
+      installed.delete(path);
+    }
   };
-}
+};
 
-export function focusNoteTitle(path: string | null): boolean {
+export const focusNoteTitle = (path: string | null): boolean => {
   const focus = path === null ? undefined : installed.get(path);
-  if (focus === undefined) return false;
+  if (focus === undefined) {
+    return false;
+  }
   focus();
   return true;
-}
+};

@@ -3,9 +3,7 @@
 
 export const CALLOUT_LANG = "inteligir-callout";
 
-export function isCalloutLang(lang: string | null | undefined): boolean {
-  return lang === CALLOUT_LANG;
-}
+export const isCalloutLang = (lang: string | null | undefined): boolean => lang === CALLOUT_LANG;
 
 export const CHART_LANG = "inteligir-chart";
 export const CANVAS_LANG = "inteligir-canvas";

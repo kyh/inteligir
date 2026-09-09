@@ -1,13 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { APPROVAL_STATE_PATTERN, createApprovalSlot, type ApprovalSlot } from "../approval-slot";
+import { APPROVAL_STATE_PATTERN, createApprovalSlot } from "../approval-slot";
+import type { ApprovalSlot } from "../approval-slot";
 
-const TTL_MS = 1_000;
+const TTL_MS = 1000;
 
-function slotWith(now?: () => number): ApprovalSlot<string> {
+const slotWith = (now?: () => number): ApprovalSlot<string> => {
   const args: Parameters<typeof createApprovalSlot>[0] = { ttlMs: TTL_MS };
-  if (now !== undefined) args.now = now;
+  if (now !== undefined) {
+    args.now = now;
+  }
   return createApprovalSlot<string>(args);
-}
+};
 
 describe("createApprovalSlot", () => {
   it("mints a fresh 128-bit state per arm and claims exactly once", () => {
@@ -36,7 +39,7 @@ describe("createApprovalSlot", () => {
   });
 
   it("expires, consuming the slot when it does", () => {
-    let nowValue = 1_000;
+    let nowValue = 1000;
     const slot = slotWith(() => nowValue);
     const state = slot.arm("payload");
     nowValue += TTL_MS;

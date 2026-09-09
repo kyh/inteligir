@@ -1,22 +1,22 @@
+import { setTimeout as delay } from "node:timers/promises";
 import { describe, expect, it } from "vitest";
-import {
-  ScriptedStreamSession,
-  STREAM_MAX_SAMPLES,
-  WorkerStreamSession,
-  type StreamHandlers,
-} from "../stream-session";
+import { ScriptedStreamSession } from "../scripted-stream-session";
+import { STREAM_MAX_SAMPLES, WorkerStreamSession } from "../stream-session";
+import type { StreamHandlers } from "../stream-session";
 import type { VoiceStreamWorkerCallbacks, VoiceStreamWorkerHandle } from "../voice-worker-host";
 import type { VoiceModelFiles } from "../worker-protocol";
 
 const MODEL: VoiceModelFiles = {
-  encoder: "/m/encoder.onnx",
   decoder: "/m/decoder.onnx",
+  encoder: "/m/encoder.onnx",
   joiner: "/m/joiner.onnx",
   tokens: "/m/tokens.txt",
 };
 
 const pcm = (samples: number): ArrayBuffer => new ArrayBuffer(samples * 2);
-const tick = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
+const tick = async (): Promise<void> => {
+  await delay(0);
+};
 
 interface FakeWorker {
   callbacks: VoiceStreamWorkerCallbacks;
@@ -25,26 +25,28 @@ interface FakeWorker {
   disposeCount: number;
 }
 
-function makeSpawn() {
+const makeSpawn = () => {
   const spawned: FakeWorker[] = [];
   const spawn = (
     _model: VoiceModelFiles,
     callbacks: VoiceStreamWorkerCallbacks,
   ): VoiceStreamWorkerHandle => {
-    const worker: FakeWorker = { callbacks, pushed: [], finalizeCount: 0, disposeCount: 0 };
+    const worker: FakeWorker = { callbacks, disposeCount: 0, finalizeCount: 0, pushed: [] };
     spawned.push(worker);
     return {
-      pushPcm: (buffer) => worker.pushed.push(buffer),
+      dispose: () => {
+        worker.disposeCount += 1;
+      },
       finalize: () => {
         worker.finalizeCount += 1;
       },
-      dispose: async () => {
-        worker.disposeCount += 1;
+      pushPcm: (buffer) => {
+        worker.pushed.push(buffer);
       },
     };
   };
   return { spawn, spawned };
-}
+};
 
 interface Recorder {
   handlers: StreamHandlers;
@@ -53,21 +55,27 @@ interface Recorder {
   errors: string[];
 }
 
-function recorder(): Recorder {
+const recorder = (): Recorder => {
   const partials: string[] = [];
   const finals: string[] = [];
   const errors: string[] = [];
   return {
-    partials,
-    finals,
     errors,
+    finals,
     handlers: {
-      onPartial: (text) => partials.push(text),
-      onFinal: (text) => finals.push(text),
-      onError: (message) => errors.push(message),
+      onError: (message) => {
+        errors.push(message);
+      },
+      onFinal: (text) => {
+        finals.push(text);
+      },
+      onPartial: (text) => {
+        partials.push(text);
+      },
     },
+    partials,
   };
-}
+};
 
 describe("WorkerStreamSession", () => {
   it("spawns ONE worker, flushes queued frames, finalizes, and tears down on the final", async () => {
@@ -75,16 +83,18 @@ describe("WorkerStreamSession", () => {
     const rec = recorder();
     const session = new WorkerStreamSession({
       handlers: rec.handlers,
-      prepare: async () => ({ ok: true, model: MODEL }),
+      onModelUnusable: () => "removed",
+      prepare: () => ({ model: MODEL, ok: true }),
       spawn,
-      onModelUnusable: async () => "removed",
     });
 
     session.pushPcm(pcm(10));
     await tick();
     expect(spawned.length).toBe(1);
-    const worker = spawned[0];
-    if (worker === undefined) throw new Error("no worker");
+    const [worker] = spawned;
+    if (worker === undefined) {
+      throw new Error("no worker");
+    }
     expect(worker.pushed.length).toBe(1);
 
     session.pushPcm(pcm(10));
@@ -115,13 +125,15 @@ describe("WorkerStreamSession", () => {
     const rec = recorder();
     const session = new WorkerStreamSession({
       handlers: rec.handlers,
-      prepare: async () => ({ ok: true, model: MODEL }),
+      onModelUnusable: () => "removed",
+      prepare: () => ({ model: MODEL, ok: true }),
       spawn,
-      onModelUnusable: async () => "removed",
     });
     await tick();
-    const worker = spawned[0];
-    if (worker === undefined) throw new Error("no worker");
+    const [worker] = spawned;
+    if (worker === undefined) {
+      throw new Error("no worker");
+    }
     worker.callbacks.onPartial("partial");
 
     await session.dispose();
@@ -135,19 +147,17 @@ describe("WorkerStreamSession", () => {
   it("does not leak a worker when disposed while prepare is still in flight", async () => {
     const { spawn, spawned } = makeSpawn();
     const rec = recorder();
-    let release: (() => void) | undefined;
-    const prepare = (): Promise<{ ok: true; model: VoiceModelFiles }> =>
-      new Promise((resolve) => {
-        release = () => resolve({ ok: true, model: MODEL });
-      });
+    const pending = Promise.withResolvers<{ ok: true; model: VoiceModelFiles }>();
+    const prepare = async (): Promise<{ ok: true; model: VoiceModelFiles }> =>
+      await pending.promise;
     const session = new WorkerStreamSession({
       handlers: rec.handlers,
+      onModelUnusable: () => "removed",
       prepare,
       spawn,
-      onModelUnusable: async () => "removed",
     });
     await session.dispose();
-    release?.();
+    pending.resolve({ model: MODEL, ok: true });
     await tick();
     expect(spawned.length).toBe(0);
     expect(rec.errors).toEqual([]);
@@ -159,16 +169,18 @@ describe("WorkerStreamSession", () => {
     let nuked = 0;
     const session = new WorkerStreamSession({
       handlers: rec.handlers,
-      prepare: async () => ({ ok: true, model: MODEL }),
-      spawn,
-      onModelUnusable: async () => {
+      onModelUnusable: () => {
         nuked += 1;
         return "The model could not be loaded and was removed.";
       },
+      prepare: () => ({ model: MODEL, ok: true }),
+      spawn,
     });
     await tick();
-    const worker = spawned[0];
-    if (worker === undefined) throw new Error("no worker");
+    const [worker] = spawned;
+    if (worker === undefined) {
+      throw new Error("no worker");
+    }
     worker.callbacks.onError("failed to open the model", true);
     await tick();
     expect(nuked).toBe(1);
@@ -183,16 +195,18 @@ describe("WorkerStreamSession", () => {
     let nuked = 0;
     const session = new WorkerStreamSession({
       handlers: rec.handlers,
-      prepare: async () => ({ ok: true, model: MODEL }),
-      spawn,
-      onModelUnusable: async () => {
+      onModelUnusable: () => {
         nuked += 1;
         return "removed";
       },
+      prepare: () => ({ model: MODEL, ok: true }),
+      spawn,
     });
     await tick();
-    const worker = spawned[0];
-    if (worker === undefined) throw new Error("no worker");
+    const [worker] = spawned;
+    if (worker === undefined) {
+      throw new Error("no worker");
+    }
     worker.callbacks.onError("the runtime choked on this clip", false);
     await tick();
     expect(nuked).toBe(0);
@@ -205,9 +219,9 @@ describe("WorkerStreamSession", () => {
     const rec = recorder();
     const session = new WorkerStreamSession({
       handlers: rec.handlers,
-      prepare: async () => ({ ok: false, reason: "needs the model" }),
+      onModelUnusable: () => "removed",
+      prepare: () => ({ ok: false, reason: "needs the model" }),
       spawn,
-      onModelUnusable: async () => "removed",
     });
     await tick();
     expect(spawned.length).toBe(0);
@@ -220,15 +234,17 @@ describe("WorkerStreamSession", () => {
     const rec = recorder();
     const session = new WorkerStreamSession({
       handlers: rec.handlers,
-      prepare: async () => ({ ok: true, model: MODEL }),
+      onModelUnusable: () => "removed",
+      prepare: () => ({ model: MODEL, ok: true }),
       spawn,
-      onModelUnusable: async () => "removed",
     });
     session.pushPcm(pcm(STREAM_MAX_SAMPLES));
     session.pushPcm(pcm(1000));
     await tick();
-    const worker = spawned[0];
-    if (worker === undefined) throw new Error("no worker");
+    const [worker] = spawned;
+    if (worker === undefined) {
+      throw new Error("no worker");
+    }
     const forwarded = worker.pushed.reduce((total, buffer) => total + buffer.byteLength / 2, 0);
     expect(forwarded).toBeLessThanOrEqual(STREAM_MAX_SAMPLES);
     expect(worker.pushed.length).toBe(1);

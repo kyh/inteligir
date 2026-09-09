@@ -1,4 +1,7 @@
+import { once } from "node:events";
+import { setTimeout as delay } from "node:timers/promises";
 import { serve } from "@hono/node-server";
+import { z } from "zod";
 import { DEV_PORT_PROBE_LIMIT } from "./dev-instance";
 import { errnoCode } from "./errno";
 
@@ -20,71 +23,60 @@ export interface ListenResult {
 
 const MAX_PORT_PROBES = DEV_PORT_PROBE_LIMIT;
 
-function isAddrInUse(cause: unknown): boolean {
-  return errnoCode(cause) === "EADDRINUSE";
-}
+const boundAddressSchema = z.object({ port: z.number().int() });
 
-function listenOnce(
+const isAddrInUse = (cause: unknown): boolean => errnoCode(cause) === "EADDRINUSE";
+
+const listenOnce = async (
   fetch: ServeOptions["fetch"],
   hostname: string,
   port: number,
-): Promise<ListenResult> {
-  return new Promise((resolve, reject) => {
-    const onError = (cause: unknown) => {
-      reject(cause instanceof Error ? cause : new Error(String(cause)));
-    };
-    const server = serve({ fetch, hostname, port }, (info) => {
-      server.removeListener("error", onError);
-      resolve({ port: info.port, server });
-    });
-    server.once("error", onError);
-  });
-}
+): Promise<ListenResult> => {
+  const server = serve({ fetch, hostname, port });
+  // rejects on the bind error, so a busy port surfaces as the exception the retry reads.
+  await once(server, "listening");
+  // a tcp listener reports an address record; port 0 lands wherever the OS put it.
+  const bound = boundAddressSchema.safeParse(server.address());
+  return { port: bound.success ? bound.data.port : port, server };
+};
 
 export interface UpgradedSockets {
-  closeAllClients(): void;
-  terminateAllClients(): void;
+  closeAllClients: () => void;
+  terminateAllClients: () => void;
 }
 
 // generous enough for a laptop waking up, far short of the step's own budget.
-const SOCKET_DRAIN_MS = 1_500;
-
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms).unref?.();
-  });
-}
+const SOCKET_DRAIN_MS = 1500;
 
 // an upgraded socket is detached from the http server's connection tracking:
 // server.close() never fires while one is open and closeAllConnections() does
 // not touch it, so the websockets are closed by name first.
-export async function closeServer(server: ServerType, sockets: UpgradedSockets): Promise<void> {
+export const closeServer = async (server: ServerType, sockets: UpgradedSockets): Promise<void> => {
   let closed = false;
-  const finished = new Promise<void>((resolve) => {
-    server.close(() => {
-      closed = true;
-      resolve();
-    });
-  });
+  const finished = (async () => {
+    await once(server, "close");
+    closed = true;
+  })();
+  server.close();
 
   sockets.closeAllClients();
   if ("closeAllConnections" in server) {
     server.closeAllConnections();
   }
 
-  await Promise.race([finished, delay(SOCKET_DRAIN_MS)]);
+  await Promise.race([finished, delay(SOCKET_DRAIN_MS, undefined, { ref: false })]);
   if (closed) {
     return;
   }
   sockets.terminateAllClients();
-  await Promise.race([finished, delay(SOCKET_DRAIN_MS)]);
+  await Promise.race([finished, delay(SOCKET_DRAIN_MS, undefined, { ref: false })]);
   if (!closed) {
     // a listener this process could not close is a port the next boot will not get.
     throw new Error(`sockets did not drain within ${SOCKET_DRAIN_MS * 2}ms`);
   }
-}
+};
 
-export async function listenWithRetry(args: ListenArgs): Promise<ListenResult> {
+export const listenWithRetry = async (args: ListenArgs): Promise<ListenResult> => {
   const attempts = args.probeOnBusyPort ? MAX_PORT_PROBES : 1;
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     const port = args.port + attempt;
@@ -102,4 +94,4 @@ export async function listenWithRetry(args: ListenArgs): Promise<ListenResult> {
     }
   }
   throw new Error(`no free port in ${args.port}–${args.port + MAX_PORT_PROBES - 1}`);
-}
+};

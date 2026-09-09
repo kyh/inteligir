@@ -3,18 +3,18 @@ import type { CliDeps } from "../context";
 import { buildProgram } from "../program";
 import { FIXTURE_REVISION_SHA } from "./fixture-server";
 
-export function testProgram(): CommandDef {
+export const testProgram = (): CommandDef => {
   const deps: CliDeps = {
     env: {},
     resolveServer: () => ({
       baseUrl: "http://127.0.0.1:0",
-      token: "unused",
       dataDir: "/fixture/data",
+      token: "unused",
       vaultDir: "/fixture/vault",
     }),
   };
   return buildProgram(deps);
-}
+};
 
 export const LEAF_INVOCATIONS = new Map<string, readonly string[]>([
   ["vault list", ["vault", "list"]],

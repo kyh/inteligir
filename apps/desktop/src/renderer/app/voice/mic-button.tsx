@@ -9,12 +9,8 @@ import { socketOrigin } from "../socket-origin";
 import { downloadPercent } from "../voice-hooks";
 import { voiceStreamUrl } from "@repo/api/local/routes";
 import { browserDictationSocket, DictationStreamClient } from "./dictation-stream";
-import {
-  microphoneProblem,
-  startStreamingCapture,
-  type DictationState,
-  type StreamCaptureHandle,
-} from "./dictation";
+import { microphoneProblem, startStreamingCapture } from "./dictation";
+import type { DictationState, StreamCaptureHandle } from "./dictation";
 
 const METER_INTERVAL_MS = 100;
 
@@ -29,25 +25,44 @@ export interface MicButtonProps {
   disabled: boolean;
 }
 
-export function micBlockedReason(status: VoiceStatusResponse | undefined): string | null {
+export const micBlockedReason = (status?: VoiceStatusResponse): string | null => {
   if (status === undefined) {
     return "Checking whether this machine can transcribe…";
   }
   switch (status.state) {
-    case "unavailable":
+    case "unavailable": {
       return status.detail;
-    case "no-model":
+    }
+    case "no-model": {
       return `Dictation needs the ${status.model.label} model (${Math.round(status.model.sizeBytes / 1_000_000)} MB). Turn on voice input in Settings.`;
-    case "downloading":
+    }
+    case "downloading": {
       return `Downloading ${status.model.label} — ${downloadPercent(status.receivedBytes, status.model.sizeBytes)}%`;
-    case "preparing":
+    }
+    case "preparing": {
       return "Preparing the speech model — this happens once.";
-    case "ready":
+    }
+    case "ready": {
       return null;
+    }
+    default: {
+      const exhaustive: never = status;
+      return exhaustive;
+    }
   }
-}
+};
 
-export function MicButton({ status, onTranscript, onPartial, disabled }: MicButtonProps) {
+const micLabel = (kind: DictationState["kind"], blocked: string | null): string => {
+  if (kind === "recording") {
+    return "Stop dictating";
+  }
+  if (kind === "finalizing") {
+    return "Transcribing";
+  }
+  return blocked ?? "Dictate";
+};
+
+export const MicButton = ({ status, onTranscript, onPartial, disabled }: MicButtonProps) => {
   const [state, setState] = useState<DictationState>({ kind: "idle" });
   const captureRef = useRef<StreamCaptureHandle | null>(null);
   const clientRef = useRef<DictationStreamClient | null>(null);
@@ -89,7 +104,9 @@ export function MicButton({ status, onTranscript, onPartial, disabled }: MicButt
         current.kind === "recording" ? { kind: "recording", level } : current,
       );
     }, METER_INTERVAL_MS);
-    return () => clearInterval(timer);
+    return () => {
+      clearInterval(timer);
+    };
   }, [state.kind]);
 
   const blocked = micBlockedReason(status);
@@ -99,20 +116,22 @@ export function MicButton({ status, onTranscript, onPartial, disabled }: MicButt
     const client = new DictationStreamClient({
       createSocket: () => browserDictationSocket(voiceStreamUrl(socketOrigin())),
       handlers: {
-        onPartial: (partial) => onPartial(partial),
-        onFinal: (transcript) => {
-          stopSession();
-          setState({ kind: "idle" });
-          if (transcript !== "") {
-            onTranscript(transcript);
-          } else {
-            toast.error("Nothing was said in that recording.");
-          }
-        },
         onError: (message) => {
           stopSession();
           setState({ kind: "idle" });
           toast.error(message);
+        },
+        onFinal: (transcript) => {
+          stopSession();
+          setState({ kind: "idle" });
+          if (transcript === "") {
+            toast.error("Nothing was said in that recording.");
+          } else {
+            onTranscript(transcript);
+          }
+        },
+        onPartial: (partial) => {
+          onPartial(partial);
         },
       },
     });
@@ -120,7 +139,9 @@ export function MicButton({ status, onTranscript, onPartial, disabled }: MicButt
     client.start();
     void (async () => {
       try {
-        captureRef.current = await startStreamingCapture((pcm) => client.pushPcm(pcm));
+        captureRef.current = await startStreamingCapture((pcm) => {
+          client.pushPcm(pcm);
+        });
         // The session may have been cancelled while permission was pending.
         if (clientRef.current === client) {
           setState({ kind: "recording", level: 0 });
@@ -160,11 +181,22 @@ export function MicButton({ status, onTranscript, onPartial, disabled }: MicButt
 
   const recording = state.kind === "recording";
   const busy = state.kind === "requesting" || state.kind === "finalizing";
-  const label = recording
-    ? "Stop dictating"
-    : state.kind === "finalizing"
-      ? "Transcribing"
-      : (blocked ?? "Dictate");
+  const label = micLabel(state.kind, blocked);
+  let glyph: React.ReactNode;
+  if (busy) {
+    glyph = <Spinner />;
+  } else if (state.kind === "recording") {
+    glyph = (
+      <SquareIcon
+        className="transition-transform"
+        style={{ transform: `scale(${(0.8 + state.level * 0.5).toFixed(2)})` }}
+      />
+    );
+  } else if (blocked === null) {
+    glyph = <MicIcon />;
+  } else {
+    glyph = <MicOffIcon className={cn("text-muted-foreground")} />;
+  }
 
   return (
     <Button
@@ -176,18 +208,7 @@ export function MicButton({ status, onTranscript, onPartial, disabled }: MicButt
       disabled={disabled || busy || (blocked !== null && !recording)}
       onClick={recording ? finish : begin}
     >
-      {busy ? (
-        <Spinner />
-      ) : recording ? (
-        <SquareIcon
-          className="transition-transform"
-          style={{ transform: `scale(${(0.8 + state.level * 0.5).toFixed(2)})` }}
-        />
-      ) : blocked === null ? (
-        <MicIcon />
-      ) : (
-        <MicOffIcon className={cn("text-muted-foreground")} />
-      )}
+      {glyph}
     </Button>
   );
-}
+};

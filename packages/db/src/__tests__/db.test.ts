@@ -1,9 +1,10 @@
 import { cpSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { sql } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
-import { createConnection, type DbConnection } from "../connection";
+import { createConnection } from "../connection";
+import type { DbConnection } from "../connection";
 import { createPrefixedId, GENERATED_ID_SUFFIX_LENGTH } from "../ids";
 import { getMetaValue, getSchemaVersion } from "../meta";
 import { runMigrations } from "../migrate";
@@ -14,36 +15,35 @@ import { makeTempDir } from "./open-temp-db";
 const MIGRATIONS_DIR = fileURLToPath(new URL("../../drizzle", import.meta.url));
 
 // derived from the journal: a hand-typed number turns every new migration into a test edit.
-function latestGeneration(): number {
-  const journalPath = join(MIGRATIONS_DIR, "meta/_journal.json");
-  const journal = parseMigrationJournal(readFileSync(journalPath, "utf8"), journalPath);
+const latestGeneration = (): number => {
+  const journalPath = path.join(MIGRATIONS_DIR, "meta/_journal.json");
+  const journal = parseMigrationJournal(readFileSync(journalPath, "utf-8"), journalPath);
   if (journal.entries.length === 0) {
     throw new Error(`${journalPath} has no entries`);
   }
   return journal.entries.length;
-}
+};
 
 const LATEST = latestGeneration();
 
 // un-migrated, unlike the shared fixture: the migrator is what these suites test.
-function openTempDb(): DbConnection {
-  return createConnection(join(makeTempDir("inteligir-db-test-"), "test.db"));
-}
+const openTempDb = (): DbConnection =>
+  createConnection(path.join(makeTempDir("inteligir-db-test-"), "test.db"));
 
-function freezeMigrationsAt(dir: string, generations: number): void {
+const freezeMigrationsAt = (dir: string, generations: number): void => {
   cpSync(MIGRATIONS_DIR, dir, { recursive: true });
-  const journalPath = join(dir, "meta", "_journal.json");
-  const journal = parseMigrationJournal(readFileSync(journalPath, "utf8"), journalPath);
+  const journalPath = path.join(dir, "meta", "_journal.json");
+  const journal = parseMigrationJournal(readFileSync(journalPath, "utf-8"), journalPath);
   const kept = journal.entries.filter((entry) => {
     if (entry.idx >= generations) {
-      unlinkSync(join(dir, `${entry.tag}.sql`));
+      unlinkSync(path.join(dir, `${entry.tag}.sql`));
       return false;
     }
     return true;
   });
-  journal.document["entries"] = kept.map((entry) => entry.source);
+  journal.document.entries = kept.map((entry) => entry.source);
   writeFileSync(journalPath, JSON.stringify(journal.document));
-}
+};
 
 describe("boot", () => {
   it("migrates on boot and bumps meta.schema_version to the latest generation", () => {
@@ -135,7 +135,7 @@ describe("ids", () => {
   it("creates prefixed ids from the reduced alphabet", () => {
     const id = createPrefixedId("thr");
     expect(id).toMatch(
-      new RegExp(`^thr_[23456789abcdefghijkmnpqrstuvwxyz]{${GENERATED_ID_SUFFIX_LENGTH}}$`),
+      new RegExp(`^thr_[23456789abcdefghijkmnpqrstuvwxyz]{${GENERATED_ID_SUFFIX_LENGTH}}$`, "u"),
     );
   });
 

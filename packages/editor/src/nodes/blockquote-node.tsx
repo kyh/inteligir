@@ -9,8 +9,10 @@ import {
   ShieldAlertIcon,
   TriangleAlertIcon,
 } from "lucide-react";
-import { ElementApi, KEYS, NodeApi, TextApi, type SlateEditor, type TElement } from "platejs";
-import { PlateElement, useSelected, type PlateElementProps } from "platejs/react";
+import { ElementApi, KEYS, NodeApi, TextApi } from "platejs";
+import type { SlateEditor, TElement } from "platejs";
+import { PlateElement, useSelected } from "platejs/react";
+import type { PlateElementProps } from "platejs/react";
 
 import { cn } from "cn";
 
@@ -28,6 +30,18 @@ interface AlertPresentation {
 }
 
 const ALERTS = {
+  CAUTION: {
+    Icon: OctagonAlertIcon,
+    accent: "border-red-500/60 bg-red-500/[0.05]",
+    icon: "text-red-600 dark:text-red-400",
+    label: "Caution",
+  },
+  IMPORTANT: {
+    Icon: ShieldAlertIcon,
+    accent: "border-violet-500/60 bg-violet-500/[0.05]",
+    icon: "text-violet-600 dark:text-violet-400",
+    label: "Important",
+  },
   NOTE: {
     Icon: InfoIcon,
     accent: "border-blue-500/60 bg-blue-500/[0.05]",
@@ -40,63 +54,57 @@ const ALERTS = {
     icon: "text-emerald-600 dark:text-emerald-400",
     label: "Tip",
   },
-  IMPORTANT: {
-    Icon: ShieldAlertIcon,
-    accent: "border-violet-500/60 bg-violet-500/[0.05]",
-    icon: "text-violet-600 dark:text-violet-400",
-    label: "Important",
-  },
   WARNING: {
     Icon: TriangleAlertIcon,
     accent: "border-amber-500/60 bg-amber-500/[0.05]",
     icon: "text-amber-600 dark:text-amber-400",
     label: "Warning",
   },
-  CAUTION: {
-    Icon: OctagonAlertIcon,
-    accent: "border-red-500/60 bg-red-500/[0.05]",
-    icon: "text-red-600 dark:text-red-400",
-    label: "Caution",
-  },
 } satisfies Record<AlertVariant, AlertPresentation>;
 
 // strict form: the marker is the whole first line; `hidden` spans the marker plus its soft break.
-const ALERT_MARKER_RE = /^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\](?:\n|$)/i;
+const ALERT_MARKER_RE = /^\[!(?<variant>NOTE|TIP|IMPORTANT|WARNING|CAUTION)\](?:\n|$)/iu;
 
 // loose form keeps the marker visible: hiding non-marker bytes would lie.
-const ALERT_LOOSE_RE = /^\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]/i;
+const ALERT_LOOSE_RE = /^\s*\[!(?<variant>NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]/iu;
 
-function toVariant(raw: string): AlertVariant | null {
+const toVariant = (raw: string): AlertVariant | null => {
   const upper = raw.toUpperCase();
   return ALERT_VARIANTS.find((variant) => variant === upper) ?? null;
-}
+};
 
-export function alertPresentation(variant: AlertVariant): AlertPresentation {
-  return ALERTS[variant];
-}
+export const alertPresentation = (variant: AlertVariant): AlertPresentation => ALERTS[variant];
 
 export type { AlertVariant };
 
-export function alertMarkerPrefix(text: string): { hidden: number; variant: AlertVariant } | null {
+export const alertMarkerPrefix = (
+  text: string,
+): { hidden: number; variant: AlertVariant } | null => {
   const match = ALERT_MARKER_RE.exec(text);
-  const variant = match ? toVariant(match[1] ?? "") : null;
-  if (!match || !variant) return null;
+  const variant = match ? toVariant(match.groups?.variant ?? "") : null;
+  if (!match || !variant) {
+    return null;
+  }
   return { hidden: match[0].length, variant };
-}
+};
 
 // the calloutMarker decoration runs the same alertMarkerPrefix, so badge and hiding cannot disagree.
-function alertQuoteMarker(
+const alertQuoteMarker = (
   editor: SlateEditor,
   quote: TElement,
-): { hidden: number; variant: AlertVariant } | null {
-  const first = quote.children[0];
-  if (!ElementApi.isElement(first) || first.type !== editor.getType(KEYS.p)) return null;
-  const leaf = first.children[0];
-  if (!TextApi.isText(leaf)) return null;
+): { hidden: number; variant: AlertVariant } | null => {
+  const [first] = quote.children;
+  if (!ElementApi.isElement(first) || first.type !== editor.getType(KEYS.p)) {
+    return null;
+  }
+  const [leaf] = first.children;
+  if (!TextApi.isText(leaf)) {
+    return null;
+  }
   return alertMarkerPrefix(leaf.text);
-}
+};
 
-export function BlockquoteElement(props: PlateElementProps) {
+export const BlockquoteElement = (props: PlateElementProps) => {
   const selected = useSelected();
   const marker = alertQuoteMarker(props.editor, props.element);
   if (marker) {
@@ -129,7 +137,7 @@ export function BlockquoteElement(props: PlateElementProps) {
     );
   }
   const loose = ALERT_LOOSE_RE.exec(NodeApi.string(props.element));
-  const looseVariant = loose ? toVariant(loose[1] ?? "") : null;
+  const looseVariant = loose ? toVariant(loose.groups?.variant ?? "") : null;
   if (looseVariant) {
     const { Icon, accent, icon } = ALERTS[looseVariant];
     return (
@@ -146,4 +154,4 @@ export function BlockquoteElement(props: PlateElementProps) {
     );
   }
   return <PlateElement {...props} as="blockquote" />;
-}
+};

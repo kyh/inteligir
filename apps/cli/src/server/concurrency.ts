@@ -1,9 +1,9 @@
 // results are in input order; a rejection propagates once every started unit has settled.
-export async function mapWithConcurrency<T, R>(
+export const mapWithConcurrency = async <T, R>(
   items: readonly T[],
   limit: number,
   work: (item: T, index: number) => Promise<R>,
-): Promise<R[]> {
+): Promise<R[]> => {
   const results: R[] = Array.from({ length: items.length });
   let next = 0;
   const runners = Array.from({ length: Math.min(limit, items.length) }, async () => {
@@ -19,4 +19,4 @@ export async function mapWithConcurrency<T, R>(
   });
   await Promise.all(runners);
   return results;
-}
+};

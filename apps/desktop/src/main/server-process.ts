@@ -2,10 +2,12 @@
 // compositor's event loop. no restart: a restarted child mints a fresh token, and
 // rebinding the protocol handler to it means re-registering the scheme, which throws.
 
-import { utilityProcess, type UtilityProcess } from "electron";
+import { setTimeout } from "node:timers/promises";
+import { utilityProcess } from "electron";
+import type { UtilityProcess } from "electron";
 import { SHUTDOWN_TIMEOUT_MS } from "inteligir/server/shutdown";
 
-const STOP_GRACE_HEADROOM_MS = 5_000;
+const STOP_GRACE_HEADROOM_MS = 5000;
 
 const STOP_GRACE_MS = SHUTDOWN_TIMEOUT_MS + STOP_GRACE_HEADROOM_MS;
 
@@ -24,15 +26,15 @@ export interface ServerProcessArgs {
 }
 
 export interface ServerProcess {
-  start(): Promise<void>;
-  stop(): Promise<void>;
+  start: () => Promise<void>;
+  stop: () => Promise<void>;
 }
 
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
+const delay = async (ms: number): Promise<void> => {
+  await setTimeout(ms);
+};
 
-export function createServerProcess(args: ServerProcessArgs): ServerProcess {
+export const createServerProcess = (args: ServerProcessArgs): ServerProcess => {
   let child: UtilityProcess | null = null;
   let exited = false;
   let becameReady = false;
@@ -41,13 +43,17 @@ export function createServerProcess(args: ServerProcessArgs): ServerProcess {
   return {
     async start() {
       const spawned = utilityProcess.fork(args.entryPath, ["serve"], {
-        stdio: "pipe",
-        serviceName: "inteligir-server",
         env: { ...process.env, ...args.env },
+        serviceName: "inteligir-server",
+        stdio: "pipe",
       });
       child = spawned;
-      spawned.stdout?.on("data", (chunk: Buffer) => args.log(chunk.toString().trimEnd()));
-      spawned.stderr?.on("data", (chunk: Buffer) => args.log(chunk.toString().trimEnd()));
+      spawned.stdout?.on("data", (chunk: Buffer) => {
+        args.log(chunk.toString().trimEnd());
+      });
+      spawned.stderr?.on("data", (chunk: Buffer) => {
+        args.log(chunk.toString().trimEnd());
+      });
       spawned.on("exit", (code) => {
         exited = true;
         args.log(`server exited (code ${String(code)})`);
@@ -98,4 +104,4 @@ export function createServerProcess(args: ServerProcessArgs): ServerProcess {
       }
     },
   };
-}
+};

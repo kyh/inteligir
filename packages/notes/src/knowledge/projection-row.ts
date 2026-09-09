@@ -4,77 +4,76 @@
 
 import { z } from "zod";
 
-import type { StoredLink } from "./projection";
-import type { DocProjection } from "./projection";
+import type { StoredLink, DocProjection } from "./projection";
 
-function fail(what: string): never {
+const fail: (what: string) => never = (what) => {
   throw new Error(`knowledge-store: stored projection ${what}`);
-}
+};
 
 const storedLinkRow = z.object({
-  kind: z.enum(["wiki", "md", "image"]),
+  // absent and a stored `null` are the same fact
+  alias: z.string().nullish(),
+  anchor: z.string().nullish(),
   embed: z.boolean(),
-  target: z.string(),
+  kind: z.enum(["wiki", "md", "image"]),
   line: z.number(),
   snippet: z.string(),
-  // absent and a stored `null` are the same fact
-  anchor: z.string().nullish(),
-  alias: z.string().nullish(),
-  targetSpan: z.object({ start: z.number(), end: z.number() }).nullish(),
+  target: z.string(),
+  targetSpan: z.object({ end: z.number(), start: z.number() }).nullish(),
 });
 
 const storedProjectionRow = z.object({
-  title: z.string(),
+  aliases: z.array(z.string()),
   headings: z.array(z.string()),
   links: z.array(storedLinkRow),
-  tags: z.array(z.string()),
-  aliases: z.array(z.string()),
-  tasks: z.array(z.object({ checked: z.boolean(), text: z.string(), line: z.number() })),
+  noteId: z.string().nullable(),
   // not optional: a PROJECTION_VERSION mismatch wipes and rebuilds, so no stored row can lack a current field
   pinned: z.boolean(),
-  noteId: z.string().nullable(),
+  tags: z.array(z.string()),
+  tasks: z.array(z.object({ checked: z.boolean(), line: z.number(), text: z.string() })),
+  title: z.string(),
 });
 
 // key by key, not spread: an absent optional must stay absent under exactOptionalPropertyTypes
-function toStoredLink(row: z.infer<typeof storedLinkRow>): StoredLink {
+const toStoredLink = (row: z.infer<typeof storedLinkRow>): StoredLink => {
   const link: StoredLink = {
-    kind: row.kind,
     embed: row.embed,
-    target: row.target,
+    kind: row.kind,
     line: row.line,
     snippet: row.snippet,
+    target: row.target,
   };
-  if (row.anchor != null) link.anchor = row.anchor;
-  if (row.alias != null) link.alias = row.alias;
-  if (row.targetSpan != null) {
-    link.targetSpan = { start: row.targetSpan.start, end: row.targetSpan.end };
+  if (row.anchor !== null && row.anchor !== undefined) {
+    link.anchor = row.anchor;
+  }
+  if (row.alias !== null && row.alias !== undefined) {
+    link.alias = row.alias;
+  }
+  if (row.targetSpan !== null && row.targetSpan !== undefined) {
+    link.targetSpan = { end: row.targetSpan.end, start: row.targetSpan.start };
   }
   return link;
-}
+};
 
-export function parseStoredProjection(json: string): DocProjection {
-  const source = z
-    .string()
-    .transform((text, ctx): z.infer<ReturnType<typeof z.json>> => {
-      try {
-        return JSON.parse(text);
-      } catch {
-        ctx.addIssue("is not valid json");
-        return z.NEVER;
-      }
-    })
-    .safeParse(json);
-  if (!source.success) fail("is not valid json");
-  const row = storedProjectionRow.safeParse(source.data);
-  if (!row.success) fail(z.prettifyError(row.error));
+export const parseStoredProjection = (json: string): DocProjection => {
+  let source: unknown;
+  try {
+    source = JSON.parse(json);
+  } catch {
+    fail("is not valid json");
+  }
+  const row = storedProjectionRow.safeParse(source);
+  if (!row.success) {
+    fail(z.prettifyError(row.error));
+  }
   return {
-    title: row.data.title,
+    aliases: row.data.aliases,
     headings: row.data.headings,
     links: row.data.links.map(toStoredLink),
-    tags: row.data.tags,
-    aliases: row.data.aliases,
-    tasks: row.data.tasks,
-    pinned: row.data.pinned,
     noteId: row.data.noteId,
+    pinned: row.data.pinned,
+    tags: row.data.tags,
+    tasks: row.data.tasks,
+    title: row.data.title,
   };
-}
+};

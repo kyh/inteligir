@@ -25,16 +25,16 @@ export type RealtimeSubscriptionTarget = z.infer<typeof realtimeSubscriptionTarg
 // only the server→client direction is lenient (a stale tab against a newer server).
 export const subscribeMessageSchema = z
   .object({
-    type: z.literal("subscribe"),
     target: realtimeSubscriptionTargetSchema,
+    type: z.literal("subscribe"),
   })
   .strict();
 export type SubscribeMessage = z.infer<typeof subscribeMessageSchema>;
 
 export const unsubscribeMessageSchema = z
   .object({
-    type: z.literal("unsubscribe"),
     target: realtimeSubscriptionTargetSchema,
+    type: z.literal("unsubscribe"),
   })
   .strict();
 export type UnsubscribeMessage = z.infer<typeof unsubscribeMessageSchema>;
@@ -45,50 +45,57 @@ export const clientMessageSchema = z.discriminatedUnion("type", [
 ]);
 export type ClientMessage = z.infer<typeof clientMessageSchema>;
 
-function assertUnhandledRealtimeSubscriptionTarget(target: never): never {
-  throw new Error(`Unhandled realtime subscription target: ${String(target)}`);
-}
+const assertUnreachable: (value: never) => never = (value) => {
+  throw new Error(`Unreachable case: ${String(value)}`);
+};
 
-export function realtimeSubscriptionTargetKey(target: RealtimeSubscriptionTarget): string {
+export const realtimeSubscriptionTargetKey = (target: RealtimeSubscriptionTarget): string => {
   switch (target.kind) {
-    case "vault":
+    case "vault": {
       return "vault";
-    case "thread-list":
+    }
+    case "thread-list": {
       return "thread-list";
-    default:
-      return assertUnhandledRealtimeSubscriptionTarget(target);
+    }
+    default: {
+      return assertUnreachable(target);
+    }
   }
-}
+};
 
 // `strict` validates the server's outgoing broadcasts; a client must not parse inbound traffic
 // with it, or a long-lived tab against a newer server drops whole messages over an additive
 // change. `lenient` strips unknown fields and filters unknown kinds instead.
-function changedMessagePair<
+const changedMessagePair = <
   TEntity extends string,
   TKind extends string,
   TIdFields extends Record<string, z.ZodType>,
->(entity: TEntity, kinds: readonly [TKind, ...TKind[]], idFields: TIdFields) {
+>(
+  entity: TEntity,
+  kinds: readonly [TKind, ...TKind[]],
+  idFields: TIdFields,
+) => {
   const known: ReadonlySet<string> = new Set(kinds);
   return {
-    strict: z
-      .object({
-        type: z.literal("changed"),
-        entity: z.literal(entity),
-        ...idFields,
-        changes: z.array(z.enum(kinds)).readonly(),
-      })
-      .strict(),
     lenient: z.object({
-      type: z.literal("changed"),
       entity: z.literal(entity),
+      type: z.literal("changed"),
       ...idFields,
       changes: z
         .array(z.string())
         .transform((values) => values.filter((value): value is TKind => known.has(value)))
         .readonly(),
     }),
+    strict: z
+      .object({
+        entity: z.literal(entity),
+        type: z.literal("changed"),
+        ...idFields,
+        changes: z.array(z.enum(kinds)).readonly(),
+      })
+      .strict(),
   };
-}
+};
 
 // `paths` is optional because absence is a claim: the post-sync consolidated notification has
 // no path list, and a client that sees none must assume everything moved
@@ -147,12 +154,17 @@ const VAULT_TARGET_KEY = realtimeSubscriptionTargetKey({ kind: "vault" });
 const THREAD_LIST_TARGET_KEY = realtimeSubscriptionTargetKey({ kind: "thread-list" });
 
 // `vault` is the doc list target: a doc change reaches it too
-export function subscriptionKeysForMessage(message: ChangedMessage): string[] {
+export const subscriptionKeysForMessage = (message: ChangedMessage): string[] => {
   switch (message.entity) {
     case "vault":
-    case "doc":
+    case "doc": {
       return [VAULT_TARGET_KEY];
-    case "thread":
+    }
+    case "thread": {
       return [THREAD_LIST_TARGET_KEY];
+    }
+    default: {
+      return assertUnreachable(message);
+    }
   }
-}
+};

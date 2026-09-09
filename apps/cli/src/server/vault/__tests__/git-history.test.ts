@@ -2,7 +2,7 @@
 
 import { existsSync } from "node:fs";
 import { mkdir, rename, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import nodePath from "node:path";
 import { describe, expect, it } from "vitest";
 import { ensureVaultRepo } from "../git-bootstrap";
 import { runGit } from "../git-run";
@@ -17,47 +17,50 @@ import { VaultServiceError } from "../vault-service";
 import { hermeticGitEnv } from "./git-test-env";
 import { makeTempDir } from "../../__tests__/temp-dir";
 
+// vitest types its asymmetric matchers `any`; naming one keeps the assertion typed.
+const anIsoTimestamp: unknown = expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/u);
+
 const env = hermeticGitEnv();
 
-async function makeVault(): Promise<{
+const makeVault = async (): Promise<{
   root: string;
   run: (args: readonly string[]) => Promise<{ stdout: string }>;
   commit: (subject: string) => Promise<void>;
-}> {
+}> => {
   const root = makeTempDir("inteligir-history-");
-  await ensureVaultRepo({ root, env });
-  const run = (args: readonly string[], options?: { env?: Record<string, string> }) =>
-    runGit(root, args, { env: { ...env, ...options?.env } });
+  await ensureVaultRepo({ env, root });
+  const run = async (args: readonly string[], options?: { env?: Record<string, string> }) =>
+    await runGit(root, args, { env: { ...env, ...options?.env } });
   return {
-    root,
-    run,
     commit: async (subject) => {
       await run(["add", "-A"]);
       await run(["-c", "commit.gpgsign=false", "commit", "-m", subject], {
         env: {
-          GIT_AUTHOR_NAME: "A",
           GIT_AUTHOR_EMAIL: "a@b.c",
-          GIT_COMMITTER_NAME: "A",
+          GIT_AUTHOR_NAME: "A",
           GIT_COMMITTER_EMAIL: "a@b.c",
+          GIT_COMMITTER_NAME: "A",
         },
       });
     },
+    root,
+    run,
   };
-}
+};
 
 describe("parseFollowLog", () => {
   it("frames a commit with no name-status block against the newer row's path", () => {
-    const stdout = ["abc".repeat(13) + "d", "2026-01-01T00:00:00+00:00", "A", "a@b.c", "s"].join(
+    const stdout = [`${"abc".repeat(13)}d`, "2026-01-01T00:00:00+00:00", "A", "a@b.c", "s"].join(
       "\0",
     );
     expect(parseFollowLog(stdout, "Note.md")).toEqual([
       {
-        sha: "abc".repeat(13) + "d",
-        authoredAt: "2026-01-01T00:00:00+00:00",
-        authorName: "A",
         authorEmail: "a@b.c",
-        subject: "s",
+        authorName: "A",
+        authoredAt: "2026-01-01T00:00:00+00:00",
         path: "Note.md",
+        sha: `${"abc".repeat(13)}d`,
+        subject: "s",
       },
     ]);
   });
@@ -76,14 +79,14 @@ describe("parseFollowLog", () => {
 describe("readNoteHistory", () => {
   it("follows a note across renames and reports the path at each revision", async () => {
     const { root, run, commit } = await makeVault();
-    await writeFile(join(root, "a note.md"), "one\n", "utf8");
+    await writeFile(nodePath.join(root, "a note.md"), "one\n", "utf-8");
     await commit("vault: update a note.md");
-    await rename(join(root, "a note.md"), join(root, "ünïcode nöte.md"));
+    await rename(nodePath.join(root, "a note.md"), nodePath.join(root, "ünïcode nöte.md"));
     await commit("vault: rename");
-    await writeFile(join(root, "ünïcode nöte.md"), "one\ntwo\n", "utf8");
+    await writeFile(nodePath.join(root, "ünïcode nöte.md"), "one\ntwo\n", "utf-8");
     await commit("vault: update ünïcode nöte.md");
 
-    const revisions = await readNoteHistory(run, "ünïcode nöte.md", { skip: 0, limit: 50 });
+    const revisions = await readNoteHistory(run, "ünïcode nöte.md", { limit: 50, skip: 0 });
     expect(revisions.map((revision) => revision.subject)).toEqual([
       "vault: update ünïcode nöte.md",
       "vault: rename",
@@ -103,27 +106,27 @@ describe("readNoteHistory", () => {
   it("paginates with skip and limit", async () => {
     const { root, run, commit } = await makeVault();
     for (const index of [1, 2, 3]) {
-      await writeFile(join(root, "Note.md"), `line ${String(index)}\n`, "utf8");
+      await writeFile(nodePath.join(root, "Note.md"), `line ${String(index)}\n`, "utf-8");
       await commit(`vault: update ${String(index)}`);
     }
-    const page = await readNoteHistory(run, "Note.md", { skip: 1, limit: 1 });
+    const page = await readNoteHistory(run, "Note.md", { limit: 1, skip: 1 });
     expect(page.map((revision) => revision.subject)).toEqual(["vault: update 2"]);
   });
 
   it("frames a commit that reports MORE THAN ONE status for the followed path", async () => {
     // a note that became a folder and a note again reports two statuses in one commit.
     const { root, run, commit } = await makeVault();
-    await writeFile(join(root, "Note.md"), "one\n", "utf8");
+    await writeFile(nodePath.join(root, "Note.md"), "one\n", "utf-8");
     await commit("vault: first");
-    await rm(join(root, "Note.md"));
-    await mkdir(join(root, "Note.md"), { recursive: true });
-    await writeFile(join(root, "Note.md", "child"), "child\n", "utf8");
+    await rm(nodePath.join(root, "Note.md"));
+    await mkdir(nodePath.join(root, "Note.md"), { recursive: true });
+    await writeFile(nodePath.join(root, "Note.md", "child"), "child\n", "utf-8");
     await commit("vault: folder");
-    await rm(join(root, "Note.md"), { recursive: true });
-    await writeFile(join(root, "Note.md"), "three\n", "utf8");
+    await rm(nodePath.join(root, "Note.md"), { recursive: true });
+    await writeFile(nodePath.join(root, "Note.md"), "three\n", "utf-8");
     await commit("vault: file again");
 
-    const revisions = await readNoteHistory(run, "Note.md", { skip: 0, limit: 50 });
+    const revisions = await readNoteHistory(run, "Note.md", { limit: 50, skip: 0 });
     expect(revisions.map((revision) => revision.subject)).toEqual([
       "vault: file again",
       "vault: folder",
@@ -135,26 +138,26 @@ describe("readNoteHistory", () => {
   it("takes a note's name literally — a pathspec is otherwise a GLOB", async () => {
     // [a].md as a pathspec matches a.md, so the history would carry another note's revisions.
     const { root, run, commit } = await makeVault();
-    await writeFile(join(root, "a.md"), "plain\n", "utf8");
-    await writeFile(join(root, "[a].md"), "bracketed\n", "utf8");
+    await writeFile(nodePath.join(root, "a.md"), "plain\n", "utf-8");
+    await writeFile(nodePath.join(root, "[a].md"), "bracketed\n", "utf-8");
     await commit("vault: both");
-    await writeFile(join(root, "a.md"), "plain edited\n", "utf8");
+    await writeFile(nodePath.join(root, "a.md"), "plain edited\n", "utf-8");
     await commit("vault: only a.md");
 
-    const revisions = await readNoteHistory(run, "[a].md", { skip: 0, limit: 50 });
+    const revisions = await readNoteHistory(run, "[a].md", { limit: 50, skip: 0 });
     expect(revisions.map((revision) => revision.subject)).toEqual(["vault: both"]);
   });
 
   it("drops a revision that only DELETED the note — every row it lists is readable", async () => {
     const { root, run, commit } = await makeVault();
-    await writeFile(join(root, "Note.md"), "one\n", "utf8");
+    await writeFile(nodePath.join(root, "Note.md"), "one\n", "utf-8");
     await commit("vault: create");
-    await rm(join(root, "Note.md"));
+    await rm(nodePath.join(root, "Note.md"));
     await commit("vault: delete");
-    await writeFile(join(root, "Note.md"), "again\n", "utf8");
+    await writeFile(nodePath.join(root, "Note.md"), "again\n", "utf-8");
     await commit("vault: recreate");
 
-    const revisions = await readNoteHistory(run, "Note.md", { skip: 0, limit: 50 });
+    const revisions = await readNoteHistory(run, "Note.md", { limit: 50, skip: 0 });
     expect(revisions.map((revision) => revision.subject)).not.toContain("vault: delete");
     for (const revision of revisions) {
       await expect(readNoteRevision(run, revision.path, revision.sha)).resolves.toEqual(
@@ -165,22 +168,22 @@ describe("readNoteHistory", () => {
 
   it("answers an empty page for a path git has never seen", async () => {
     const { run } = await makeVault();
-    expect(await readNoteHistory(run, "Never.md", { skip: 0, limit: 50 })).toEqual([]);
+    expect(await readNoteHistory(run, "Never.md", { limit: 50, skip: 0 })).toEqual([]);
   });
 });
 
 describe("readNoteRevision", () => {
   it("reads the bytes a note held at its own historical path", async () => {
     const { root, run, commit } = await makeVault();
-    await writeFile(join(root, "Old.md"), "before\n", "utf8");
+    await writeFile(nodePath.join(root, "Old.md"), "before\n", "utf-8");
     await commit("vault: update Old.md");
     // the rename is its own commit: git detects renames by similarity, so one that also rewrites the body is a delete plus an add.
-    await rename(join(root, "Old.md"), join(root, "New.md"));
+    await rename(nodePath.join(root, "Old.md"), nodePath.join(root, "New.md"));
     await commit("vault: rename Old.md");
-    await writeFile(join(root, "New.md"), "after\n", "utf8");
+    await writeFile(nodePath.join(root, "New.md"), "after\n", "utf-8");
     await commit("vault: update New.md");
 
-    const revisions = await readNoteHistory(run, "New.md", { skip: 0, limit: 50 });
+    const revisions = await readNoteHistory(run, "New.md", { limit: 50, skip: 0 });
     const oldest = revisions.at(-1);
     expect(oldest?.path).toBe("Old.md");
     expect(await readNoteRevision(run, oldest?.path ?? "", oldest?.sha ?? "")).toBe("before\n");
@@ -188,9 +191,9 @@ describe("readNoteRevision", () => {
 
   it("refuses not_found for a path absent at that revision", async () => {
     const { root, run, commit } = await makeVault();
-    await writeFile(join(root, "Note.md"), "x\n", "utf8");
+    await writeFile(nodePath.join(root, "Note.md"), "x\n", "utf-8");
     await commit("vault: update Note.md");
-    const [head] = await readNoteHistory(run, "Note.md", { skip: 0, limit: 1 });
+    const [head] = await readNoteHistory(run, "Note.md", { limit: 1, skip: 0 });
     await expect(readNoteRevision(run, "Missing.md", head?.sha ?? "")).rejects.toThrow(
       VaultServiceError,
     );
@@ -198,10 +201,10 @@ describe("readNoteRevision", () => {
 
   it("refuses not_found when the path names a folder at that revision", async () => {
     const { root, run, commit } = await makeVault();
-    await mkdir(join(root, "notes"), { recursive: true });
-    await writeFile(join(root, "notes", "Note.md"), "x\n", "utf8");
+    await mkdir(nodePath.join(root, "notes"), { recursive: true });
+    await writeFile(nodePath.join(root, "notes", "Note.md"), "x\n", "utf-8");
     await commit("vault: update notes/Note.md");
-    const [head] = await readNoteHistory(run, "notes/Note.md", { skip: 0, limit: 1 });
+    const [head] = await readNoteHistory(run, "notes/Note.md", { limit: 1, skip: 0 });
     // a folder is a legal vault path: the object exists at that revision and is a tree.
     await expect(readNoteRevision(run, "notes", head?.sha ?? "")).rejects.toThrow(
       VaultServiceError,
@@ -224,7 +227,7 @@ describe("parseDeletionLog", () => {
       "",
     ].join("\0");
     expect(parseDeletionLog(stdout)).toEqual([
-      { parent, deletedAt: "2026-01-01T00:00:00+00:00", paths: ["one.md", "two.md"] },
+      { deletedAt: "2026-01-01T00:00:00+00:00", parent, paths: ["one.md", "two.md"] },
     ]);
   });
 
@@ -233,25 +236,25 @@ describe("parseDeletionLog", () => {
   });
 });
 
-const onDisk = (root: string) => (path: string) => existsSync(join(root, path));
+const onDisk = (root: string) => (path: string) => existsSync(nodePath.join(root, path));
 
 describe("readDeletedNotes", () => {
   it("lists a committed deletion under the parent whose tree still holds the bytes, docs only", async () => {
     const { root, run, commit } = await makeVault();
-    await writeFile(join(root, "Gone.md"), "bytes\n", "utf8");
-    await writeFile(join(root, "Gone.md.comments.json"), "{}", "utf8");
-    await writeFile(join(root, "Kept.md"), "kept\n", "utf8");
+    await writeFile(nodePath.join(root, "Gone.md"), "bytes\n", "utf-8");
+    await writeFile(nodePath.join(root, "Gone.md.comments.json"), "{}", "utf-8");
+    await writeFile(nodePath.join(root, "Kept.md"), "kept\n", "utf-8");
     await commit("vault: create");
-    const [created] = await readNoteHistory(run, "Gone.md", { skip: 0, limit: 1 });
-    await rm(join(root, "Gone.md"));
-    await rm(join(root, "Gone.md.comments.json"));
+    const [created] = await readNoteHistory(run, "Gone.md", { limit: 1, skip: 0 });
+    await rm(nodePath.join(root, "Gone.md"));
+    await rm(nodePath.join(root, "Gone.md.comments.json"));
     await commit("vault: delete");
 
     const entries = await readDeletedNotes(run, onDisk(root));
     expect(entries).toEqual([
       {
+        deletedAt: anIsoTimestamp,
         path: "Gone.md",
-        deletedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/u),
         sha: created?.sha,
       },
     ]);
@@ -260,33 +263,32 @@ describe("readDeletedNotes", () => {
 
   it("lists a deletion the auto-commit has not flushed under HEAD", async () => {
     const { root, run, commit } = await makeVault();
-    await writeFile(join(root, "Fresh.md"), "fresh\n", "utf8");
+    await writeFile(nodePath.join(root, "Fresh.md"), "fresh\n", "utf-8");
     await commit("vault: create");
-    await rm(join(root, "Fresh.md"));
+    await rm(nodePath.join(root, "Fresh.md"));
 
     const entries = await readDeletedNotes(run, onDisk(root));
-    const head = (await run(["rev-parse", "HEAD"])).stdout.trim();
-    expect(entries).toEqual([
-      { path: "Fresh.md", deletedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/u), sha: head },
-    ]);
+    const headRef = await run(["rev-parse", "HEAD"]);
+    const head = headRef.stdout.trim();
+    expect(entries).toEqual([{ deletedAt: anIsoTimestamp, path: "Fresh.md", sha: head }]);
     expect(Number.isNaN(Date.parse(entries[0]?.deletedAt ?? ""))).toBe(false);
     expect(await readNoteRevision(run, "Fresh.md", head)).toBe("fresh\n");
   });
 
   it("names a path once, at its latest deletion, and not at all once it is back on disk", async () => {
     const { root, run, commit } = await makeVault();
-    await writeFile(join(root, "Twice.md"), "first\n", "utf8");
-    await writeFile(join(root, "Back.md"), "back\n", "utf8");
+    await writeFile(nodePath.join(root, "Twice.md"), "first\n", "utf-8");
+    await writeFile(nodePath.join(root, "Back.md"), "back\n", "utf-8");
     await commit("vault: create");
-    await rm(join(root, "Twice.md"));
-    await rm(join(root, "Back.md"));
+    await rm(nodePath.join(root, "Twice.md"));
+    await rm(nodePath.join(root, "Back.md"));
     await commit("vault: delete both");
-    await writeFile(join(root, "Twice.md"), "second\n", "utf8");
+    await writeFile(nodePath.join(root, "Twice.md"), "second\n", "utf-8");
     await commit("vault: recreate Twice");
-    await rm(join(root, "Twice.md"));
+    await rm(nodePath.join(root, "Twice.md"));
     await commit("vault: delete Twice again");
     // re-created and not yet committed: on disk is on disk.
-    await writeFile(join(root, "Back.md"), "back again\n", "utf8");
+    await writeFile(nodePath.join(root, "Back.md"), "back again\n", "utf-8");
 
     const entries = await readDeletedNotes(run, onDisk(root));
     expect(entries.map((entry) => entry.path)).toEqual(["Twice.md"]);
@@ -295,9 +297,9 @@ describe("readDeletedNotes", () => {
 
   it("does not report a rename as a deletion", async () => {
     const { root, run, commit } = await makeVault();
-    await writeFile(join(root, "Old.md"), "same bytes\n", "utf8");
+    await writeFile(nodePath.join(root, "Old.md"), "same bytes\n", "utf-8");
     await commit("vault: create");
-    await rename(join(root, "Old.md"), join(root, "New.md"));
+    await rename(nodePath.join(root, "Old.md"), nodePath.join(root, "New.md"));
     await commit("vault: rename");
 
     expect(await readDeletedNotes(run, onDisk(root))).toEqual([]);

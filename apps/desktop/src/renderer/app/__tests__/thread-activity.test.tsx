@@ -1,13 +1,15 @@
 // @vitest-environment jsdom
 
 import { readFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import path from "node:path";
 import { threadStatusValues } from "@repo/domain/thread-status";
 import type { Thread } from "@repo/api/local/threads/threads-schema";
 import { cleanup, fireEvent, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   defaultRequest,
+  emptySearchSource,
+  makeActions,
   renderWithQueries,
   stubKnowledgeFetch,
 } from "../palette/__tests__/palette-harness";
@@ -16,14 +18,14 @@ import { THREAD_ACTIVITY_LABELS, threadActivity } from "../thread-activity";
 afterEach(cleanup);
 
 const thread = (over: Partial<Thread> = {}): Thread => ({
-  id: "thr_1",
-  title: null,
-  status: "idle",
   activeTurnId: null,
-  originDocPath: null,
-  providerId: null,
   archivedAt: null,
   createdAt: 0,
+  id: "thr_1",
+  originDocPath: null,
+  providerId: null,
+  status: "idle",
+  title: null,
   updatedAt: 0,
   ...over,
 });
@@ -38,7 +40,7 @@ describe("threadActivity", () => {
   });
 
   it("archived beats the lifecycle", () => {
-    expect(threadActivity(thread({ status: "active", archivedAt: 1 }))).toBe("archived");
+    expect(threadActivity(thread({ archivedAt: 1, status: "active" }))).toBe("archived");
   });
 });
 
@@ -47,41 +49,23 @@ describe("the palette renders that answer and no other", () => {
     const subject = thread({ id: `thr_${status}`, status, title: "A thread" });
     stubKnowledgeFetch({});
     renderWithQueries({
+      actions: makeActions(),
+      canSync: false,
+      entries: [],
+      onOpenChange: vi.fn<() => void>(),
       open: true,
       request: defaultRequest,
-      onOpenChange: vi.fn(),
-      entries: [],
+      searchSource: emptySearchSource,
       threads: [subject],
-      searchSource: () => Promise.resolve([]),
-      canSync: false,
-      actions: {
-        openNote: vi.fn(),
-        newNote: vi.fn(),
-        newNoteFromTemplate: vi.fn(),
-        openDailyNote: vi.fn(),
-        openThread: vi.fn(),
-        syncNow: vi.fn(),
-        openSettings: vi.fn(),
-        openDeletedNotes: vi.fn(),
-        findInNote: null,
-        insertTemplate: null,
-        exportPdf: null,
-        moveNote: vi.fn(),
-        pin: null,
-        openMatch: vi.fn(),
-        replaceAll: vi.fn(),
-        listHeadings: null,
-        goToHeading: vi.fn(),
-        openProblemLink: vi.fn(),
-      },
     });
     fireEvent.click(screen.getByText("Actions"));
     expect(screen.getByText(THREAD_ACTIVITY_LABELS[threadActivity(subject)])).toBeDefined();
   });
 });
 
-const REPO_ROOT = resolve(import.meta.dirname, "../../../../../..");
-const sourceOf = (relative: string): string => readFileSync(join(REPO_ROOT, relative), "utf8");
+const REPO_ROOT = path.resolve(import.meta.dirname, "../../../../../..");
+const sourceOf = (relative: string): string =>
+  readFileSync(path.join(REPO_ROOT, relative), "utf-8");
 
 describe("only one module reads a thread's lifecycle", () => {
   const LIFECYCLE = /["'](?:starting|stopping)["']/u;

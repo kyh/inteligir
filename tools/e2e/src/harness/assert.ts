@@ -1,31 +1,29 @@
-class ScenarioFailure extends Error {
+import { ScenarioSkipError } from "./scenario-skip-error";
+
+class ScenarioFailureError extends Error {
   constructor(message: string) {
     super(message);
-    this.name = "ScenarioFailure";
+    this.name = "ScenarioFailureError";
   }
 }
 
-export class ScenarioSkip extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "ScenarioSkip";
-  }
-}
-
-export function expect(condition: boolean, message: string): asserts condition {
+export const expect: (condition: boolean, message: string) => asserts condition = (
+  condition,
+  message,
+) => {
   if (!condition) {
-    throw new ScenarioFailure(message);
+    throw new ScenarioFailureError(message);
   }
-}
+};
 
-export function expectEq<T>(actual: T, expected: T, label: string): void {
+export const expectEq = <T>(actual: T, expected: T, label: string): void => {
   if (!Object.is(actual, expected)) {
-    throw new ScenarioFailure(
+    throw new ScenarioFailureError(
       `${label}: expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`,
     );
   }
-}
+};
 
-export function skip(reason: string): never {
-  throw new ScenarioSkip(reason);
-}
+export const skip: (reason: string) => never = (reason) => {
+  throw new ScenarioSkipError(reason);
+};

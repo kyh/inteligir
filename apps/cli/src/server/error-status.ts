@@ -12,6 +12,4 @@ const STATUS_BY_CODE = new Map<string, number>([
 
 export const ERROR_STATUS_MAP = Object.fromEntries(STATUS_BY_CODE);
 
-export function errorStatus(code: string): number {
-  return STATUS_BY_CODE.get(code) ?? 500;
-}
+export const errorStatus = (code: string): number => STATUS_BY_CODE.get(code) ?? 500;

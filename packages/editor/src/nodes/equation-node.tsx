@@ -3,14 +3,8 @@
 import { Suspense, lazy, useEffect, useRef, useState } from "react";
 import { RadicalIcon } from "lucide-react";
 import type { TElement } from "platejs";
-import {
-  PlateElement,
-  useEditorRef,
-  useElement,
-  useReadOnly,
-  useSelected,
-  type PlateElementProps,
-} from "platejs/react";
+import { PlateElement, useEditorRef, useElement, useReadOnly, useSelected } from "platejs/react";
+import type { PlateElementProps } from "platejs/react";
 
 import { cn } from "cn";
 import { Button } from "@repo/ui/components/button";
@@ -18,14 +12,12 @@ import { Popover, PopoverContent, PopoverTrigger } from "@repo/ui/components/pop
 
 import { stringProp } from "@repo/editor/node-props";
 
-const KatexView = lazy(() => import("@repo/editor/nodes/equation-katex"));
+const KatexView = lazy(async () => await import("@repo/editor/nodes/equation-katex"));
 
-function tex(element: TElement): string {
-  return stringProp(element, "texExpression") ?? "";
-}
+const tex = (element: TElement): string => stringProp(element, "texExpression") ?? "";
 
 // re-derives @platejs/math's useEquationInput; the package eagerly imports katex (math-kit.tsx).
-function EquationEditor({
+const EquationEditor = ({
   isInline,
   onClose,
   placeholder,
@@ -33,11 +25,13 @@ function EquationEditor({
   isInline: boolean;
   onClose: () => void;
   placeholder: string;
-}) {
+}) => {
   const editor = useEditorRef();
   const element = useElement();
-  const [initial] = useState(() => tex(element));
-  const [value, setValue] = useState(initial);
+  const [draft, setDraft] = useState(() => {
+    const initial = tex(element);
+    return { initial, value: initial };
+  });
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
@@ -46,14 +40,18 @@ function EquationEditor({
   }, []);
 
   const write = (next: string) => {
-    setValue(next);
+    setDraft((prior) => ({ ...prior, value: next }));
     const at = editor.api.findPath(element);
-    if (at) editor.tf.setNodes({ texExpression: next }, { at });
+    if (at) {
+      editor.tf.setNodes({ texExpression: next }, { at });
+    }
   };
 
   const dismiss = () => {
     const at = editor.api.findPath(element);
-    if (at) editor.tf.setNodes({ texExpression: initial }, { at });
+    if (at) {
+      editor.tf.setNodes({ texExpression: draft.initial }, { at });
+    }
     onClose();
   };
 
@@ -61,12 +59,14 @@ function EquationEditor({
     <div className="flex items-end gap-2 p-2" contentEditable={false}>
       <textarea
         ref={inputRef}
-        value={value}
+        value={draft.value}
         placeholder={placeholder}
-        rows={isInline ? 1 : Math.max(2, value.split("\n").length)}
+        rows={isInline ? 1 : Math.max(2, draft.value.split("\n").length)}
         spellCheck={false}
         className="max-h-[40vh] min-w-64 grow resize-none rounded-md border border-border bg-background px-2 py-1.5 font-mono text-sm outline-none"
-        onChange={(e) => write(e.target.value)}
+        onChange={(e) => {
+          write(e.target.value);
+        }}
         onKeyDown={(e) => {
           if (e.key === "Enter" && !e.shiftKey) {
             e.preventDefault();
@@ -82,9 +82,9 @@ function EquationEditor({
       </Button>
     </div>
   );
-}
+};
 
-function useEquationPopover() {
+const useEquationPopover = () => {
   const editor = useEditorRef();
   const element = useElement();
   const [open, setOpen] = useState(false);
@@ -94,19 +94,26 @@ function useEquationPopover() {
     editor.tf.select(element, { focus: true, next: true });
   };
   return { close, open, setOpen };
-}
+};
 
-export function EquationElement(props: PlateElementProps) {
+export const EquationElement = (props: PlateElementProps) => {
   const readOnly = useReadOnly();
   const selected = useSelected();
   const { close, open, setOpen } = useEquationPopover();
   const expression = tex(props.element);
 
-  // the trigger is a div: a <button> cannot contain KaTeX's block-level display markup.
   return (
     <PlateElement {...props} className="my-1">
-      <Popover open={open} onOpenChange={(next) => !readOnly && setOpen(next)}>
+      <Popover
+        open={open}
+        onOpenChange={(next) => {
+          if (!readOnly) {
+            setOpen(next);
+          }
+        }}
+      >
         <PopoverTrigger
+          // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role, jsx-a11y/control-has-associated-label -- a <button> cannot contain KaTeX's block-level display markup, and Base UI merges the trigger's children into this element, which is what names it.
           render={<div role="button" />}
           nativeButton={false}
           className={cn(
@@ -140,9 +147,9 @@ export function EquationElement(props: PlateElementProps) {
       {props.children}
     </PlateElement>
   );
-}
+};
 
-export function InlineEquationElement(props: PlateElementProps) {
+export const InlineEquationElement = (props: PlateElementProps) => {
   const readOnly = useReadOnly();
   const selected = useSelected();
   const { close, open, setOpen } = useEquationPopover();
@@ -150,8 +157,16 @@ export function InlineEquationElement(props: PlateElementProps) {
 
   return (
     <PlateElement {...props} as="span" className="mx-px inline-block rounded-sm select-none">
-      <Popover open={open} onOpenChange={(next) => !readOnly && setOpen(next)}>
+      <Popover
+        open={open}
+        onOpenChange={(next) => {
+          if (!readOnly) {
+            setOpen(next);
+          }
+        }}
+      >
         <PopoverTrigger
+          // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role, jsx-a11y/control-has-associated-label -- a <button> cannot contain KaTeX's markup, and Base UI merges the trigger's children into this element, which is what names it.
           render={<span role="button" />}
           nativeButton={false}
           className={cn(
@@ -183,4 +198,4 @@ export function InlineEquationElement(props: PlateElementProps) {
       {props.children}
     </PlateElement>
   );
-}
+};

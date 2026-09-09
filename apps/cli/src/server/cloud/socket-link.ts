@@ -1,6 +1,6 @@
 import type { CloudSocket, CloudSocketOpener, OpenCloudSocketArgs } from "@repo/api/cloud/client";
 
-const RECONNECT_BASE_MS = 1_000;
+const RECONNECT_BASE_MS = 1000;
 const RECONNECT_MAX_MS = 60_000;
 
 // rfc 6455 policy violation, what the cloud closes a revoked device's socket
@@ -12,40 +12,27 @@ export interface SocketLinkArgs {
   /** null is poll-only; the socket carries only invalidation pings. */
   openSocket: CloudSocketOpener | null;
   platform: OpenCloudSocketArgs["platform"];
-  canConnect(): boolean;
-  credential(): string | null;
+  canConnect: () => boolean;
+  credential: () => string | null;
   onPing: OpenCloudSocketArgs["onPing"];
-  onSevered(): void;
+  onSevered: () => void;
 }
 
 export interface SocketLink {
-  connect(): void;
-  close(): void;
-  resetBackoff(): void;
-  isConnected(): boolean;
+  connect: () => void;
+  close: () => void;
+  resetBackoff: () => void;
+  isConnected: () => boolean;
 }
 
-export function createSocketLink(args: SocketLinkArgs): SocketLink {
+export const createSocketLink = (args: SocketLinkArgs): SocketLink => {
   let socket: CloudSocket | null = null;
   let connected = false;
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   let reconnectAttempt = 0;
   let socketGeneration = 0;
 
-  function scheduleReconnect(): void {
-    if (!args.canConnect() || args.openSocket === null || reconnectTimer !== null) {
-      return;
-    }
-    const delay = Math.min(RECONNECT_MAX_MS, RECONNECT_BASE_MS * 2 ** reconnectAttempt);
-    reconnectAttempt += 1;
-    reconnectTimer = setTimeout(() => {
-      reconnectTimer = null;
-      connect();
-    }, delay);
-    reconnectTimer.unref?.();
-  }
-
-  function connect(): void {
+  const connect = (): void => {
     if (!args.canConnect() || socket !== null || args.openSocket === null) {
       return;
     }
@@ -53,6 +40,18 @@ export function createSocketLink(args: SocketLinkArgs): SocketLink {
     if (credential === null) {
       return;
     }
+    const scheduleReconnect = (): void => {
+      if (!args.canConnect() || args.openSocket === null || reconnectTimer !== null) {
+        return;
+      }
+      const delay = Math.min(RECONNECT_MAX_MS, RECONNECT_BASE_MS * 2 ** reconnectAttempt);
+      reconnectAttempt += 1;
+      reconnectTimer = setTimeout(() => {
+        reconnectTimer = null;
+        connect();
+      }, delay);
+      reconnectTimer.unref?.();
+    };
     // an opener may report a terminal failure before it returns; without the
     // generation the assignment below overwrites the null its own onClose just wrote.
     const generation = socketGeneration + 1;
@@ -60,15 +59,6 @@ export function createSocketLink(args: SocketLinkArgs): SocketLink {
     const opened = args.openSocket({
       baseUrl: args.baseUrl,
       credential,
-      platform: args.platform,
-      onOpen: () => {
-        if (generation !== socketGeneration) {
-          return;
-        }
-        connected = true;
-        reconnectAttempt = 0;
-      },
-      onPing: args.onPing,
       onClose: (code) => {
         if (generation !== socketGeneration) {
           return;
@@ -81,15 +71,22 @@ export function createSocketLink(args: SocketLinkArgs): SocketLink {
         }
         scheduleReconnect();
       },
+      onOpen: () => {
+        if (generation !== socketGeneration) {
+          return;
+        }
+        connected = true;
+        reconnectAttempt = 0;
+      },
+      onPing: args.onPing,
+      platform: args.platform,
     });
     if (generation === socketGeneration) {
       socket = opened;
     }
-  }
+  };
 
   return {
-    connect,
-
     close() {
       if (reconnectTimer !== null) {
         clearTimeout(reconnectTimer);
@@ -101,10 +98,12 @@ export function createSocketLink(args: SocketLinkArgs): SocketLink {
       connected = false;
     },
 
+    connect,
+
+    isConnected: () => connected,
+
     resetBackoff() {
       reconnectAttempt = 0;
     },
-
-    isConnected: () => connected,
   };
-}
+};

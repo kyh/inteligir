@@ -1,37 +1,40 @@
 import { describe, expect, it } from "vitest";
-import { DictationStreamClient, type DictationSocket } from "../dictation-stream";
+import { DictationStreamClient } from "../dictation-stream";
+import type { DictationSocket } from "../dictation-stream";
 
-function fakeSocket() {
-  const sent: Array<string | ArrayBuffer> = [];
+const fakeSocket = () => {
+  const sent: (string | ArrayBuffer)[] = [];
   let closed = false;
   const socket: DictationSocket = {
-    send: (data) => sent.push(data),
     close: () => {
       closed = true;
     },
-    onOpen: null,
-    onMessage: null,
     onClose: null,
     onError: null,
+    onMessage: null,
+    onOpen: null,
+    send: (data) => {
+      sent.push(data);
+    },
   };
-  return { socket, sent, isClosed: () => closed };
-}
+  return { isClosed: () => closed, sent, socket };
+};
 
-function recorder() {
+const recorder = () => {
   const partials: string[] = [];
   const finals: string[] = [];
   const errors: string[] = [];
   return {
-    partials,
-    finals,
     errors,
+    finals,
     handlers: {
-      onPartial: (text: string) => partials.push(text),
-      onFinal: (text: string) => finals.push(text),
       onError: (message: string) => errors.push(message),
+      onFinal: (text: string) => finals.push(text),
+      onPartial: (text: string) => partials.push(text),
     },
+    partials,
   };
-}
+};
 
 describe("DictationStreamClient", () => {
   it("queues frames until the socket opens, then flushes and streams live", () => {
@@ -81,9 +84,9 @@ describe("DictationStreamClient", () => {
     client.start();
     fake.socket.onOpen?.();
 
-    fake.socket.onMessage?.({ data: JSON.stringify({ type: "partial", text: "hel" }) });
-    fake.socket.onMessage?.({ data: JSON.stringify({ type: "partial", text: "hello" }) });
-    fake.socket.onMessage?.({ data: JSON.stringify({ type: "final", text: "hello world" }) });
+    fake.socket.onMessage?.({ data: JSON.stringify({ text: "hel", type: "partial" }) });
+    fake.socket.onMessage?.({ data: JSON.stringify({ text: "hello", type: "partial" }) });
+    fake.socket.onMessage?.({ data: JSON.stringify({ text: "hello world", type: "final" }) });
 
     expect(rec.partials).toEqual(["hel", "hello"]);
     expect(rec.finals).toEqual(["hello world"]);
@@ -99,10 +102,10 @@ describe("DictationStreamClient", () => {
     });
     client.start();
     fake.socket.onOpen?.();
-    fake.socket.onMessage?.({ data: JSON.stringify({ type: "partial", text: "hel" }) });
+    fake.socket.onMessage?.({ data: JSON.stringify({ text: "hel", type: "partial" }) });
     client.finalize();
-    fake.socket.onMessage?.({ data: JSON.stringify({ type: "partial", text: "hello wor" }) });
-    fake.socket.onMessage?.({ data: JSON.stringify({ type: "final", text: "hello world" }) });
+    fake.socket.onMessage?.({ data: JSON.stringify({ text: "hello wor", type: "partial" }) });
+    fake.socket.onMessage?.({ data: JSON.stringify({ text: "hello world", type: "final" }) });
     expect(rec.partials).toEqual(["hel"]);
     expect(rec.finals).toEqual(["hello world"]);
   });
@@ -116,7 +119,7 @@ describe("DictationStreamClient", () => {
     });
     client.start();
     fake.socket.onOpen?.();
-    fake.socket.onMessage?.({ data: JSON.stringify({ type: "error", message: "no runtime" }) });
+    fake.socket.onMessage?.({ data: JSON.stringify({ message: "no runtime", type: "error" }) });
     expect(rec.errors).toEqual(["no runtime"]);
     expect(rec.finals).toEqual([]);
     expect(fake.isClosed()).toBe(true);

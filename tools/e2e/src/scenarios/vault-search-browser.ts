@@ -1,8 +1,13 @@
 import { readFile, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { z } from "zod";
-import { agentBrowserSession, parseEval, probeHeadlessOrSkip } from "../harness/agent-browser";
+import {
+  agentBrowserSession,
+  closeQuietly,
+  parseEval,
+  probeHeadlessOrSkip,
+} from "../harness/agent-browser";
 import { expect } from "../harness/assert";
 import type { Scenario } from "../harness/scenario";
 
@@ -24,7 +29,7 @@ const ROWS_DEADLINE_MS = 20_000;
 const DISK_DEADLINE_MS = 30_000;
 const OPTION_COUNT = "String(document.querySelectorAll('[role=option]').length)";
 
-async function waitForRows(expected: number, what: string): Promise<void> {
+const waitForRows = async (expected: number, what: string): Promise<void> => {
   const deadline = Date.now() + ROWS_DEADLINE_MS;
   for (;;) {
     const count = parseEval(await agentBrowser(["eval", OPTION_COUNT]), z.string());
@@ -34,27 +39,27 @@ async function waitForRows(expected: number, what: string): Promise<void> {
     expect(Date.now() < deadline, `${what}: expected ${String(expected)} rows, saw ${count}`);
     await delay(250);
   }
-}
+};
 
-async function openSearch(): Promise<void> {
+const openSearch = async (): Promise<void> => {
   await agentBrowser(["click", EDITOR]);
   await agentBrowser(["press", SEARCH_CHORD]);
   await agentBrowser(["wait", SEARCH_INPUT], 30_000);
   await agentBrowser(["fill", SEARCH_INPUT, NEEDLE]);
   // one row per occurrence: one in the first note, two in the second
   await waitForRows(3, "the search page");
-}
+};
 
 export const vaultSearchBrowser: Scenario = {
-  name: "vault-search-browser",
   description:
     "⌘⇧F lists every match; Enter lands the find bar on one; Replace all rewrites the notes on disk",
+  name: "vault-search-browser",
   async run(ctx) {
     const app = await ctx.boot({
       name: "solo",
       seedVault: async (vaultDir) => {
-        await writeFile(join(vaultDir, NOTE_ONE), DOC_ONE, "utf8");
-        await writeFile(join(vaultDir, NOTE_TWO), DOC_TWO, "utf8");
+        await writeFile(path.join(vaultDir, NOTE_ONE), DOC_ONE, "utf-8");
+        await writeFile(path.join(vaultDir, NOTE_TWO), DOC_TWO, "utf-8");
       },
     });
     try {
@@ -107,8 +112,8 @@ export const vaultSearchBrowser: Scenario = {
 
       const diskDeadline = Date.now() + DISK_DEADLINE_MS;
       for (;;) {
-        const one = await readFile(join(app.vaultDir, NOTE_ONE), "utf8");
-        const two = await readFile(join(app.vaultDir, NOTE_TWO), "utf8");
+        const one = await readFile(path.join(app.vaultDir, NOTE_ONE), "utf-8");
+        const two = await readFile(path.join(app.vaultDir, NOTE_TWO), "utf-8");
         if (!one.includes(NEEDLE) && !two.includes(NEEDLE)) {
           expect(
             one === DOC_ONE.replaceAll(NEEDLE, REPLACEMENT),
@@ -124,7 +129,7 @@ export const vaultSearchBrowser: Scenario = {
         await delay(250);
       }
     } finally {
-      await agentBrowser(["close"], 30_000).catch(() => undefined);
+      await closeQuietly(agentBrowser);
     }
   },
 };

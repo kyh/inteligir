@@ -1,5 +1,5 @@
 import { mkdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { createFoldersService, FolderRefusedError } from "../folders-service";
@@ -16,9 +16,9 @@ beforeEach(() => {
   // realpath'd up front: mkdtemp under macOS's /var symlink would otherwise
   // make every containment comparison a symlink-vs-target mismatch.
   root = makeTempDir("folders-test-", { realpath: true });
-  dataDir = join(root, "data");
-  vaultDir = join(root, "vault");
-  refDir = join(root, "reference");
+  dataDir = path.join(root, "data");
+  vaultDir = path.join(root, "vault");
+  refDir = path.join(root, "reference");
   mkdirSync(dataDir, { recursive: true });
   mkdirSync(vaultDir, { recursive: true });
   mkdirSync(refDir, { recursive: true });
@@ -26,11 +26,9 @@ beforeEach(() => {
 
 afterEach(() => {});
 
-function service() {
-  return createFoldersService({ store: new FoldersStore(dataDir), dataDir, vaultDir });
-}
+const service = () => createFoldersService({ dataDir, store: new FoldersStore(dataDir), vaultDir });
 
-function refusalKind(run: () => string[]): string | null {
+const refusalKind = (run: () => string[]): string | null => {
   try {
     run();
   } catch (error) {
@@ -40,7 +38,7 @@ function refusalKind(run: () => string[]): string | null {
     throw error;
   }
   return null;
-}
+};
 
 describe("folders store", () => {
   it("round-trips through the file and answers [] for a missing one", () => {
@@ -52,7 +50,7 @@ describe("folders store", () => {
   });
 
   it("surfaces a malformed file as an error, never an empty list", () => {
-    writeFileSync(join(dataDir, "connected-folders.json"), "{nope", "utf8");
+    writeFileSync(path.join(dataDir, "connected-folders.json"), "{nope", "utf-8");
     expect(() => new FoldersStore(dataDir).read()).toThrow(JsonFileStoreError);
   });
 });
@@ -67,17 +65,17 @@ describe("folders service validation", () => {
   });
 
   it("refuses a missing path", () => {
-    expect(refusalKind(() => service().add(join(root, "nope")))).toBe("invalid-path");
+    expect(refusalKind(() => service().add(path.join(root, "nope")))).toBe("invalid-path");
   });
 
   it("refuses a file", () => {
-    const file = join(root, "a-file.txt");
-    writeFileSync(file, "x", "utf8");
+    const file = path.join(root, "a-file.txt");
+    writeFileSync(file, "x", "utf-8");
     expect(refusalKind(() => service().add(file))).toBe("invalid-path");
   });
 
   it("refuses a folder inside the vault, and the vault itself", () => {
-    const nested = join(vaultDir, "notes");
+    const nested = path.join(vaultDir, "notes");
     mkdirSync(nested);
     expect(refusalKind(() => service().add(nested))).toBe("invalid-path");
     expect(refusalKind(() => service().add(vaultDir))).toBe("invalid-path");
@@ -88,7 +86,7 @@ describe("folders service validation", () => {
   });
 
   it("dedupes through symlinked spellings", () => {
-    const alias = join(root, "reference-alias");
+    const alias = path.join(root, "reference-alias");
     symlinkSync(refDir, alias);
     const folders = service();
     folders.add(refDir);

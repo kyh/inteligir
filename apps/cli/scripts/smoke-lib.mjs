@@ -2,21 +2,18 @@
 // A workspace seam only: `publishConfig.exports` drops it from the published package.
 
 import { writeFileSync } from "node:fs";
-import { join } from "node:path";
+import path from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
 
 const WATCHER_TIMEOUT_MS = 20_000;
-
-function delay(ms) {
-  return new Promise((resolvePromise) => setTimeout(resolvePromise, ms));
-}
 
 // the watcher is a forked child its proxy respawns forever, so a child that cannot load its
 // platform binding never reaches the server's status; an external write reaching the index is
 // the only proof it lives. Written again on each round: the first can land before the child's
 // first subscribe.
-export async function proveWatcherAlive({ rpc, vaultDir, fail, log }) {
+export const proveWatcherAlive = async ({ rpc, vaultDir, fail, log }) => {
   const token = `smokewatch${Date.now()}`;
-  const note = join(vaultDir, "Smoke Watch.md");
+  const note = path.join(vaultDir, "Smoke Watch.md");
   const deadline = Date.now() + WATCHER_TIMEOUT_MS;
   let seen = false;
   for (let round = 0; !seen && Date.now() < deadline; round += 1) {
@@ -34,4 +31,4 @@ export async function proveWatcherAlive({ rpc, vaultDir, fail, log }) {
     );
   }
   log("the watcher reported an external write");
-}
+};

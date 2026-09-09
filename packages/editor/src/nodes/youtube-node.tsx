@@ -2,7 +2,9 @@
 
 import { lazy, Suspense } from "react";
 import { parseVideoUrl } from "@platejs/media";
-import { PlateElement, useFocused, useSelected, type PlateElementProps } from "platejs/react";
+import type { EmbedUrlData } from "@platejs/media";
+import { PlateElement, useFocused, useSelected } from "platejs/react";
+import type { PlateElementProps } from "platejs/react";
 
 import { cn } from "cn";
 
@@ -10,11 +12,12 @@ import { stringProp } from "@repo/editor/node-props";
 import { MediaToolbar } from "@repo/editor/nodes/media-toolbar";
 
 // the stylesheet rides the lazy chunk; a static import would land it in the initial bundle.
-const LiteYouTubeEmbed = lazy(() =>
-  Promise.all([
-    import("react-lite-youtube-embed"),
-    import("react-lite-youtube-embed/dist/LiteYouTubeEmbed.css"),
-  ]).then(([mod]) => ({ default: mod.default })),
+const LiteYouTubeEmbed = lazy(
+  async () =>
+    await Promise.all([
+      import("react-lite-youtube-embed"),
+      import("react-lite-youtube-embed/dist/LiteYouTubeEmbed.css"),
+    ]).then(([mod]) => ({ default: mod.default })),
 );
 
 // a Map, not a record: the provider name is an open string.
@@ -25,7 +28,57 @@ const PROVIDER_ASPECT = new Map([
   ["youku", "pb-[56.25%]"],
 ]);
 
-export function VideoElement(props: PlateElementProps) {
+const VideoBody = ({
+  embed,
+  focused,
+  selected,
+  url,
+  youtubeId,
+}: {
+  embed: EmbedUrlData | undefined;
+  focused: boolean;
+  selected: boolean;
+  url: string;
+  youtubeId: string;
+}) => {
+  if (youtubeId) {
+    return (
+      <div
+        className={cn(
+          "overflow-hidden rounded-md",
+          focused && selected && "ring-2 ring-ring ring-offset-2",
+        )}
+      >
+        <Suspense fallback={<div className="aspect-video w-full animate-pulse bg-muted" />}>
+          <LiteYouTubeEmbed id={youtubeId} title="YouTube video" />
+        </Suspense>
+      </div>
+    );
+  }
+  if (embed) {
+    return (
+      <div className={cn("relative", PROVIDER_ASPECT.get(embed.provider ?? "") ?? "pb-[56.25%]")}>
+        <iframe
+          allowFullScreen
+          sandbox="allow-scripts allow-presentation"
+          className={cn(
+            "absolute top-0 left-0 size-full rounded-md border-0",
+            focused && selected && "ring-2 ring-ring ring-offset-2",
+          )}
+          src={embed.url}
+          title="Video embed"
+        />
+      </div>
+    );
+  }
+  return (
+    <div className="rounded-md border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+      Video: <span className="break-all">{url || "no URL"}</span>
+    </div>
+  );
+};
+
+export const VideoElement = (props: PlateElementProps) => {
   const selected = useSelected();
   const focused = useFocused();
   const url = stringProp(props.element, "url") ?? "";
@@ -34,40 +87,16 @@ export function VideoElement(props: PlateElementProps) {
   return (
     <PlateElement {...props} className="py-2.5">
       <figure className="group/media relative m-0 w-full" contentEditable={false}>
-        {embed?.provider === "youtube" && embed.id ? (
-          <div
-            className={cn(
-              "overflow-hidden rounded-md",
-              focused && selected && "ring-2 ring-ring ring-offset-2",
-            )}
-          >
-            <Suspense fallback={<div className="aspect-video w-full animate-pulse bg-muted" />}>
-              <LiteYouTubeEmbed id={embed.id} title="YouTube video" />
-            </Suspense>
-          </div>
-        ) : embed ? (
-          <div
-            className={cn("relative", PROVIDER_ASPECT.get(embed.provider ?? "") ?? "pb-[56.25%]")}
-          >
-            <iframe
-              allowFullScreen
-              sandbox="allow-scripts allow-presentation"
-              className={cn(
-                "absolute top-0 left-0 size-full rounded-md border-0",
-                focused && selected && "ring-2 ring-ring ring-offset-2",
-              )}
-              src={embed.url}
-              title="Video embed"
-            />
-          </div>
-        ) : (
-          <div className="rounded-md border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
-            Video: <span className="break-all">{url || "no URL"}</span>
-          </div>
-        )}
+        <VideoBody
+          embed={embed}
+          focused={focused}
+          selected={selected}
+          url={url}
+          youtubeId={embed?.provider === "youtube" ? (embed.id ?? "") : ""}
+        />
         <MediaToolbar />
       </figure>
       {props.children}
     </PlateElement>
   );
-}
+};

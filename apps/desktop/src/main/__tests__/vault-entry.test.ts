@@ -12,20 +12,20 @@ const REAL = new Map<string, string>([
   [`${VAULT}/keys.md`, "/Users/me/.ssh/id_ed25519"],
 ]);
 
-function realpath(candidate: string): string {
+const realpath = (candidate: string): string => {
   const real = REAL.get(candidate);
-  if (real === undefined) throw new Error(`ENOENT ${candidate}`);
+  if (real === undefined) {
+    throw new Error(`ENOENT ${candidate}`);
+  }
   return real;
-}
+};
 
-function resolve(path: string) {
-  return resolveVaultEntry({ vaultDir: VAULT, path, realpath });
-}
+const resolve = (path: string) => resolveVaultEntry({ path, realpath, vaultDir: VAULT });
 
 describe("an entry the page asks the OS to show", () => {
   it("resolves to its real path under the vault", () => {
-    expect(resolve("notes/ideas.md")).toEqual({ ok: true, absPath: `${VAULT}/notes/ideas.md` });
-    expect(resolve("Welcome.md")).toEqual({ ok: true, absPath: `${VAULT}/Welcome.md` });
+    expect(resolve("notes/ideas.md")).toEqual({ absPath: `${VAULT}/notes/ideas.md`, ok: true });
+    expect(resolve("Welcome.md")).toEqual({ absPath: `${VAULT}/Welcome.md`, ok: true });
   });
 
   it("refuses a path that climbs out or is absolute, before touching the disk", () => {

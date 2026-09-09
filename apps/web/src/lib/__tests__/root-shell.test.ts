@@ -8,8 +8,8 @@ import { Route as rootRoute } from "../../routes/__root";
 describe("the marketing document shell", () => {
   it("renders a path nothing serves inside the <html> shell", async () => {
     const router = createRouter({
-      routeTree: rootRoute,
       history: createMemoryHistory({ initialEntries: ["/no-such-page"] }),
+      routeTree: rootRoute,
     });
     await router.load();
 

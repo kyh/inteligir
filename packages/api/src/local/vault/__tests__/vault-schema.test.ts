@@ -50,12 +50,12 @@ describe("a revision's object name", () => {
 describe("a revision row", () => {
   it("carries the path AT that revision, and the rename only when there was one", () => {
     const row = {
-      sha: "a".repeat(40),
-      authoredAt: "2026-01-01T00:00:00+00:00",
-      authorName: "inteligir",
       authorEmail: "vault@inteligir.local",
-      subject: "vault: update Note.md",
+      authorName: "inteligir",
+      authoredAt: "2026-01-01T00:00:00+00:00",
       path: "Note.md",
+      sha: "a".repeat(40),
+      subject: "vault: update Note.md",
     };
     expect(vaultRevisionSchema.parse(row)).toEqual(row);
     expect(vaultRevisionSchema.parse({ ...row, renamedFrom: "Old.md" }).renamedFrom).toBe("Old.md");
@@ -68,8 +68,8 @@ describe("a history request", () => {
     expect(vaultHistoryRequestSchema.parse({ path: "notes//a.md" }).path).toBe("notes/a.md");
     expect(vaultHistoryRequestSchema.safeParse({ path: "./notes/a.md" }).success).toBe(false);
     expect(vaultHistoryRequestSchema.safeParse({ path: "../escape.md" }).success).toBe(false);
-    expect(vaultHistoryRequestSchema.safeParse({ path: "a.md", limit: 0 }).success).toBe(false);
-    expect(vaultHistoryRequestSchema.safeParse({ path: "a.md", limit: 10_000 }).success).toBe(
+    expect(vaultHistoryRequestSchema.safeParse({ limit: 0, path: "a.md" }).success).toBe(false);
+    expect(vaultHistoryRequestSchema.safeParse({ limit: 10_000, path: "a.md" }).success).toBe(
       false,
     );
     expect(vaultHistoryRequestSchema.safeParse({ path: "a.md", skip: -1 }).success).toBe(false);
@@ -86,16 +86,16 @@ describe("assetWrite", () => {
   it("holds `dir` to the vault path grammar", () => {
     expect(
       vaultAssetWriteRequestSchema.safeParse({
-        dir: "../outside",
         baseName: "a.png",
         bytesBase64: "AA==",
+        dir: "../outside",
       }).success,
     ).toBe(false);
     expect(
       vaultAssetWriteRequestSchema.safeParse({
-        dir: "assets",
         baseName: "a.png",
         bytesBase64: "AA==",
+        dir: "assets",
       }).success,
     ).toBe(true);
   });

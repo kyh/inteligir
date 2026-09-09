@@ -1,32 +1,31 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import path from "node:path";
 import { onTestFinished } from "vitest";
-import { createConnection, type DbConnection } from "../connection";
+import { createConnection } from "../connection";
+import type { DbConnection } from "../connection";
 import { runMigrations } from "../migrate";
 
 // vitest runs onTestFinished hooks in reverse order, so anything created inside is disposed
 // before the dir.
-export function makeTempDir(prefix: string): string {
-  const dir = mkdtempSync(join(tmpdir(), prefix));
+export const makeTempDir = (prefix: string): string => {
+  const dir = mkdtempSync(path.join(tmpdir(), prefix));
   onTestFinished(() => {
-    rmSync(dir, { recursive: true, force: true });
+    rmSync(dir, { force: true, recursive: true });
   });
   return dir;
-}
-
-export function openTempDb(): DbConnection {
-  return openTempDbWithPath().db;
-}
+};
 
 export interface TempDb {
   db: DbConnection;
   databasePath: string;
 }
 
-export function openTempDbWithPath(): TempDb {
-  const databasePath = join(makeTempDir("inteligir-db-test-"), "test.db");
+export const openTempDbWithPath = (): TempDb => {
+  const databasePath = path.join(makeTempDir("inteligir-db-test-"), "test.db");
   const db = createConnection(databasePath);
   runMigrations(db);
-  return { db, databasePath };
-}
+  return { databasePath, db };
+};
+
+export const openTempDb = (): DbConnection => openTempDbWithPath().db;

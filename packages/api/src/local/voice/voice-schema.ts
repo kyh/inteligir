@@ -23,25 +23,25 @@ export type VoiceModel = z.infer<typeof voiceModelSchema>;
 
 export const voiceStatusResponseSchema = z.discriminatedUnion("state", [
   // the native runtime cannot load on this machine (no prebuilt binary, or too old a macos).
-  z.object({ state: z.literal("unavailable"), detail: z.string().min(1) }).strict(),
+  z.object({ detail: z.string().min(1), state: z.literal("unavailable") }).strict(),
   z
     .object({
-      state: z.literal("no-model"),
-      model: voiceModelSchema,
       lastError: z.string().min(1).nullable(),
+      model: voiceModelSchema,
+      state: z.literal("no-model"),
     })
     .strict(),
   z
     .object({
-      state: z.literal("downloading"),
       model: voiceModelSchema,
       receivedBytes: z.number().int().min(0),
+      state: z.literal("downloading"),
     })
     .strict(),
   // loading the model once after download, so a model that passed the digest gate but cannot
   // be opened is caught at install rather than at first dictation.
-  z.object({ state: z.literal("preparing"), model: voiceModelSchema }).strict(),
-  z.object({ state: z.literal("ready"), model: voiceModelSchema }).strict(),
+  z.object({ model: voiceModelSchema, state: z.literal("preparing") }).strict(),
+  z.object({ model: voiceModelSchema, state: z.literal("ready") }).strict(),
 ]);
 export type VoiceStatusResponse = z.infer<typeof voiceStatusResponseSchema>;
 
@@ -61,8 +61,8 @@ export type VoiceStreamUpMessage = z.infer<typeof voiceStreamUpMessageSchema>;
 // partials rewrite as audio arrives; one `final` or one `error` ends the session and the server
 // closes the socket.
 export const voiceStreamDownMessageSchema = z.discriminatedUnion("type", [
-  z.object({ type: z.literal("partial"), text: z.string() }).strict(),
-  z.object({ type: z.literal("final"), text: z.string() }).strict(),
-  z.object({ type: z.literal("error"), message: z.string().min(1) }).strict(),
+  z.object({ text: z.string(), type: z.literal("partial") }).strict(),
+  z.object({ text: z.string(), type: z.literal("final") }).strict(),
+  z.object({ message: z.string().min(1), type: z.literal("error") }).strict(),
 ]);
 export type VoiceStreamDownMessage = z.infer<typeof voiceStreamDownMessageSchema>;

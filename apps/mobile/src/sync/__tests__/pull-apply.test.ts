@@ -11,12 +11,12 @@ describe("pull-apply by global seq", () => {
   it("applies another device's rows, moves the cursor, and merges a thread's run", () => {
     const store = createMemorySyncStore();
     const rows = [
-      logRow({ seq: 1, deviceId: OTHER, deviceSeq: 0, event: userRequest("thr_1", "hi") }),
+      logRow({ deviceId: OTHER, deviceSeq: 0, event: userRequest("thr_1", "hi"), seq: 1 }),
       logRow({
-        seq: 2,
         deviceId: OTHER,
         deviceSeq: 1,
         event: agentMessage("thr_1", "t1", "m1", "hello back"),
+        seq: 2,
       }),
     ];
     const plan = planPage(rows, SELF);
@@ -31,12 +31,12 @@ describe("pull-apply by global seq", () => {
   it("applies idempotently — the same page twice lands each row once", () => {
     const store = createMemorySyncStore();
     const rows = [
-      logRow({ seq: 5, deviceId: OTHER, deviceSeq: 0, event: userRequest("thr_1", "one") }),
+      logRow({ deviceId: OTHER, deviceSeq: 0, event: userRequest("thr_1", "one"), seq: 5 }),
       logRow({
-        seq: 6,
         deviceId: OTHER,
         deviceSeq: 1,
         event: agentMessage("thr_1", "t1", "m1", "two"),
+        seq: 6,
       }),
     ];
     applyPlan(store, planPage(rows, SELF).steps);
@@ -49,12 +49,12 @@ describe("pull-apply by global seq", () => {
   it("skips this device's own rows but still advances the cursor past them", () => {
     const store = createMemorySyncStore();
     const rows = [
-      logRow({ seq: 10, deviceId: SELF, deviceSeq: 0, event: userRequest("thr_1", "mine") }),
+      logRow({ deviceId: SELF, deviceSeq: 0, event: userRequest("thr_1", "mine"), seq: 10 }),
       logRow({
-        seq: 11,
         deviceId: OTHER,
         deviceSeq: 0,
         event: agentMessage("thr_1", "t1", "m1", "theirs"),
+        seq: 11,
       }),
     ];
     applyPlan(store, planPage(rows, SELF).steps);
@@ -66,12 +66,12 @@ describe("pull-apply by global seq", () => {
   it("reports and skips a row in a grammar this build does not understand", () => {
     const store = createMemorySyncStore();
     const bad = {
-      seq: 20,
-      threadId: "thr_1",
+      createdAt: 0,
       deviceId: OTHER,
       deviceSeq: 0,
       event: { type: "nope" },
-      createdAt: 0,
+      seq: 20,
+      threadId: "thr_1",
     };
     const plan = planPage([bad], SELF);
     expect(plan.skipped).toHaveLength(1);

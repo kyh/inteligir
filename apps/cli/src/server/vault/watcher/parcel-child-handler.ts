@@ -9,25 +9,24 @@ import type {
 import { toWatchErrorMessage } from "./parcel-backend";
 import type { ChildToParentMessage, ParentToChildMessage, SerializedParcelEvent } from "./messages";
 
-function serializeEvents(events: ParcelWatcherEventBatch): SerializedParcelEvent[] {
-  return events.map((event) => ({ path: event.path, type: event.type }));
-}
+const serializeEvents = (events: ParcelWatcherEventBatch): SerializedParcelEvent[] =>
+  events.map((event) => ({ path: event.path, type: event.type }));
 
 export interface ParcelChildHandler {
-  handleMessage(message: ParentToChildMessage): void;
-  dispose(): Promise<void>;
+  handleMessage: (message: ParentToChildMessage) => void;
+  dispose: () => Promise<void>;
 }
 
-export function createParcelChildHandler(args: {
+export const createParcelChildHandler = (args: {
   parcel: ParcelWatcherBackend;
   send: (message: ChildToParentMessage) => void;
   listEntries: (dir: string) => Promise<string[]>;
-}): ParcelChildHandler {
+}): ParcelChildHandler => {
   const subscriptions = new Map<string, ParcelAsyncSubscription>();
   // ids unsubscribed before their subscribe() resolved: torn down on arrival rather than leaked.
   const cancelledBeforeReady = new Set<string>();
 
-  async function emitRescan(id: string, dir: string): Promise<void> {
+  const emitRescan = async (id: string, dir: string): Promise<void> => {
     let entries: string[];
     try {
       entries = await args.listEntries(dir);
@@ -38,16 +37,16 @@ export function createParcelChildHandler(args: {
       return;
     }
     args.send({
-      kind: "events",
-      id,
       events: entries.map((entry) => ({
         path: path.join(dir, entry),
         type: "update",
       })),
+      id,
+      kind: "events",
     });
-  }
+  };
 
-  function handleSubscribe(message: Extract<ParentToChildMessage, { kind: "subscribe" }>): void {
+  const handleSubscribe = (message: Extract<ParentToChildMessage, { kind: "subscribe" }>): void => {
     void (async () => {
       let subscription: ParcelAsyncSubscription;
       try {
@@ -56,16 +55,16 @@ export function createParcelChildHandler(args: {
           (error, events) => {
             if (error) {
               args.send({
-                kind: "watch-error",
                 id: message.id,
+                kind: "watch-error",
                 message: toWatchErrorMessage(error),
               });
               return;
             }
             args.send({
-              kind: "events",
-              id: message.id,
               events: serializeEvents(events),
+              id: message.id,
+              kind: "events",
             });
           },
           message.opts,
@@ -73,25 +72,29 @@ export function createParcelChildHandler(args: {
       } catch (error) {
         cancelledBeforeReady.delete(message.id);
         args.send({
-          kind: "subscribe-failed",
           id: message.id,
+          kind: "subscribe-failed",
           message: toWatchErrorMessage(error),
         });
         return;
       }
       if (cancelledBeforeReady.delete(message.id)) {
-        void subscription.unsubscribe().catch(() => {});
+        try {
+          await subscription.unsubscribe();
+        } catch {
+          // cancelled before it was ever reported; nothing to tell the parent.
+        }
         return;
       }
       subscriptions.set(message.id, subscription);
-      args.send({ kind: "subscribed", id: message.id });
+      args.send({ id: message.id, kind: "subscribed" });
       if (message.rescan) {
         await emitRescan(message.id, message.dir);
       }
     })();
-  }
+  };
 
-  async function handleUnsubscribe(id: string): Promise<void> {
+  const handleUnsubscribe = async (id: string): Promise<void> => {
     const subscription = subscriptions.get(id);
     if (subscription) {
       subscriptions.delete(id);
@@ -103,28 +106,38 @@ export function createParcelChildHandler(args: {
     } else {
       cancelledBeforeReady.add(id);
     }
-    args.send({ kind: "unsubscribed", id });
-  }
+    args.send({ id, kind: "unsubscribed" });
+  };
 
   return {
-    handleMessage(message) {
-      switch (message.kind) {
-        case "subscribe":
-          handleSubscribe(message);
-          break;
-        case "unsubscribe":
-          void handleUnsubscribe(message.id);
-          break;
-        case "ping":
-          args.send({ kind: "pong" });
-          break;
-      }
-    },
     async dispose() {
       const pending = [...subscriptions.values()];
       subscriptions.clear();
       cancelledBeforeReady.clear();
-      await Promise.all(pending.map((subscription) => subscription.unsubscribe().catch(() => {})));
+      await Promise.all(
+        pending.map(async (subscription) => {
+          await subscription.unsubscribe().catch(() => {
+            /* empty */
+          });
+        }),
+      );
+    },
+    handleMessage(message) {
+      switch (message.kind) {
+        case "subscribe": {
+          handleSubscribe(message);
+          break;
+        }
+        case "unsubscribe": {
+          void handleUnsubscribe(message.id);
+          break;
+        }
+        case "ping": {
+          args.send({ kind: "pong" });
+          break;
+        }
+        // no default
+      }
     },
   };
-}
+};

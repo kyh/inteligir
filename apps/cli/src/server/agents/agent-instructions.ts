@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import path from "node:path";
 import { errnoCode } from "../errno";
 import { headCapUtf8 } from "../head-cap-utf8";
 import type { AgentSessionFacts } from "./agent-shell-env";
@@ -19,16 +19,15 @@ SKILL.md there (inteligir-notes first) before authoring or editing constructs, a
 follow it exactly; the app parses what it specifies.`;
 
 // states the user's intent only: nothing here can enforce read-only, so the wording must not claim to.
-function connectedFoldersInstructions(dirs: readonly string[]): string {
-  return `The user connected these folders as reference context: \
+const connectedFoldersInstructions = (dirs: readonly string[]): string =>
+  `The user connected these folders as reference context: \
 ${dirs.join(", ")} (also in $INTELIGIR_CONNECTED_DIRS). Treat them as \
 read-only reference material — read freely, do not modify them.`;
-}
 
-function loadVaultInstructions(vaultDir: string): string | undefined {
+const loadVaultInstructions = (vaultDir: string): string | undefined => {
   let raw: string;
   try {
-    raw = readFileSync(join(vaultDir, AGENT_INSTRUCTIONS_FILE), "utf8");
+    raw = readFileSync(path.join(vaultDir, AGENT_INSTRUCTIONS_FILE), "utf-8");
   } catch (error) {
     if (errnoCode(error) === "ENOENT" || errnoCode(error) === "EISDIR") {
       return undefined;
@@ -40,10 +39,10 @@ function loadVaultInstructions(vaultDir: string): string | undefined {
     return undefined;
   }
   return headCapUtf8(trimmed, AGENT_INSTRUCTIONS_MAX_BYTES);
-}
+};
 
 // each pointer is stated only when `toShellEnv` keeps the promise from the same facts.
-export function toInstructions(facts: AgentSessionFacts, vaultDir: string): string | undefined {
+export const toInstructions = (facts: AgentSessionFacts, vaultDir: string): string | undefined => {
   const parts: string[] = [];
   if (facts.cliBinDir !== null) {
     parts.push(CLI_POINTER_INSTRUCTIONS);
@@ -59,4 +58,4 @@ export function toInstructions(facts: AgentSessionFacts, vaultDir: string): stri
     parts.push(vaultInstructions);
   }
   return parts.length === 0 ? undefined : parts.join("\n\n");
-}
+};

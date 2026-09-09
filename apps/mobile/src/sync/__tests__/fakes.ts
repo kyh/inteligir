@@ -1,61 +1,58 @@
+// oxlint-disable eslint/require-await -- every method here is a synchronous stand-in for an async
+// CloudClient method; `async` is the contract, and dropping it trips promise-function-async
 import type {
   AckCapturesRequest,
-  AckCapturesResponse,
   CaptureRequest,
   CaptureResponse,
-  ClaimCapturesResponse,
 } from "@repo/api/cloud/captures/captures-schema";
 import type {
   PullQuery,
   PullResponse,
   PushRequest,
-  PushResponse,
   SyncEventRow,
 } from "@repo/api/cloud/sync/sync-schema";
 import { threadScope, turnScope } from "@repo/domain/thread-event-scope";
 import type { ThreadEvent } from "@repo/domain/provider-event";
-import type { VaultFileResponse } from "@repo/api/cloud/vault/vault-schema";
 import type { CloudClient, CloudResult } from "@repo/api/cloud/client";
 
-export function userRequest(threadId: string, text: string): ThreadEvent {
-  return { type: "client/turn/requested", threadId, text, scope: threadScope() };
-}
+export const userRequest = (threadId: string, text: string): ThreadEvent => ({
+  scope: threadScope(),
+  text,
+  threadId,
+  type: "client/turn/requested",
+});
 
-export function agentMessage(
+export const agentMessage = (
   threadId: string,
   turnId: string,
   id: string,
   text: string,
-): ThreadEvent {
-  return {
-    type: "item/completed",
-    threadId,
-    item: { type: "agentMessage", id, text },
-    scope: turnScope(turnId),
-  };
-}
+): ThreadEvent => ({
+  item: { id, text, type: "agentMessage" },
+  scope: turnScope(turnId),
+  threadId,
+  type: "item/completed",
+});
 
-export function logRow(args: {
+export const logRow = (args: {
   seq: number;
   deviceId: string;
   deviceSeq: number;
   event: ThreadEvent;
-}): SyncEventRow {
+}): SyncEventRow => {
   // SAFETY: a ThreadEvent is valid JSON; planPage re-parses the opaque field at the boundary.
   const event = args.event as SyncEventRow["event"];
   return {
-    seq: args.seq,
-    threadId: args.event.threadId,
+    createdAt: 0,
     deviceId: args.deviceId,
     deviceSeq: args.deviceSeq,
     event,
-    createdAt: 0,
+    seq: args.seq,
+    threadId: args.event.threadId,
   };
-}
+};
 
-export function ok<T>(value: T): CloudResult<T> {
-  return { ok: true, value };
-}
+export const ok = <T>(value: T): CloudResult<T> => ({ ok: true, value });
 
 export interface FakeCloud {
   client: CloudClient;
@@ -66,52 +63,41 @@ export interface FakeCloud {
   captureResults: CloudResult<CaptureResponse>[];
 }
 
-export function createFakeCloud(): FakeCloud {
+export const createFakeCloud = (): FakeCloud => {
   const fake: FakeCloud = {
-    pushes: [],
-    claims: 0,
-    captures: [],
-    pullResults: [],
     captureResults: [],
+    captures: [],
+    claims: 0,
     client: {
-      push: (request) => {
-        fake.pushes.push(request);
-        return Promise.resolve<CloudResult<PushResponse>>(
-          ok({ accepted: request.events.length, duplicates: 0, lastSeq: 0 }),
-        );
-      },
-      pull: (query: PullQuery) =>
-        Promise.resolve(
-          fake.pullResults.shift() ?? ok({ events: [], lastSeq: query.afterSeq, hasMore: false }),
-        ),
-      createCapture: (request) => {
-        fake.captures.push(request);
-        return Promise.resolve(
-          fake.captureResults.shift() ?? ok({ id: "cap_1", createdAt: 0, duplicate: false }),
-        );
-      },
-      claimCaptures: () => {
+      account: async () => ok({ email: "signed-in@example.test", id: "user_fake" }),
+      ackCaptures: async (request: AckCapturesRequest) =>
+        ok({ results: request.ids.map((id) => ({ id, outcome: "deleted" as const })) }),
+      claimCaptures: async () => {
         fake.claims += 1;
-        return Promise.resolve<CloudResult<ClaimCapturesResponse>>(
-          ok({ claimToken: "tok", captures: [], expiresAt: 1 }),
-        );
+        return ok({ captures: [], claimToken: "tok", expiresAt: 1 });
       },
-      ackCaptures: (request: AckCapturesRequest) =>
-        Promise.resolve<CloudResult<AckCapturesResponse>>(
-          ok({ results: request.ids.map((id) => ({ id, outcome: "deleted" as const })) }),
-        ),
-      account: () => Promise.resolve(ok({ id: "user_fake", email: "signed-in@example.test" })),
-      vaultTree: () => Promise.resolve(ok({ commit: "0".repeat(40), entries: [], next: null })),
+      createCapture: async (request) => {
+        fake.captures.push(request);
+        return fake.captureResults.shift() ?? ok({ createdAt: 0, duplicate: false, id: "cap_1" });
+      },
+      pull: async (query: PullQuery) =>
+        fake.pullResults.shift() ?? ok({ events: [], hasMore: false, lastSeq: query.afterSeq }),
+      push: async (request) => {
+        fake.pushes.push(request);
+        return ok({ accepted: request.events.length, duplicates: 0, lastSeq: 0 });
+      },
       vaultAssetSource: (query) => ({
-        uri: `https://cloud.test/v1/vault/asset?path=${query.path}&ref=${query.ref}`,
         headers: { authorization: "Bearer igd_fake" },
+        uri: `https://cloud.test/v1/vault/asset?path=${query.path}&ref=${query.ref}`,
       }),
-      vaultFile: () =>
-        Promise.resolve<CloudResult<VaultFileResponse>>({
-          ok: false,
-          failure: { kind: "refused", code: "not-found", message: "empty fake", deviceSeq: null },
-        }),
+      vaultFile: async () => ({
+        failure: { code: "not-found", deviceSeq: null, kind: "refused", message: "empty fake" },
+        ok: false,
+      }),
+      vaultTree: async () => ok({ commit: "0".repeat(40), entries: [], next: null }),
     },
+    pullResults: [],
+    pushes: [],
   };
   return fake;
-}
+};

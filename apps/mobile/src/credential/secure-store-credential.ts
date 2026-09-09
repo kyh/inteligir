@@ -6,19 +6,19 @@ import { parseStoredCredential, serializeCredential } from "./credential-codec";
 
 const CREDENTIAL_KEY = "device-credential";
 
-export async function readDeviceCredential(): Promise<DeviceCredential | null> {
+export const readDeviceCredential = async (): Promise<DeviceCredential | null> => {
   const raw = await SecureStore.getItemAsync(CREDENTIAL_KEY);
   return parseStoredCredential(raw);
-}
+};
 
 // AFTER_FIRST_UNLOCK: a background sync can read it after a reboot without exposing it on the
 // lock screen.
-export function writeDeviceCredential(credential: DeviceCredential): Promise<void> {
-  return SecureStore.setItemAsync(CREDENTIAL_KEY, serializeCredential(credential), {
+export const writeDeviceCredential = async (credential: DeviceCredential): Promise<void> => {
+  await SecureStore.setItemAsync(CREDENTIAL_KEY, serializeCredential(credential), {
     keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK,
   });
-}
+};
 
-export function clearDeviceCredential(): Promise<void> {
-  return SecureStore.deleteItemAsync(CREDENTIAL_KEY);
-}
+export const clearDeviceCredential = async (): Promise<void> => {
+  await SecureStore.deleteItemAsync(CREDENTIAL_KEY);
+};

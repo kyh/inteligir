@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { createSlateEditor, ElementApi, type Descendant } from "platejs";
+import { createSlateEditor, ElementApi } from "platejs";
+import type { Descendant } from "platejs";
 import { serializeMd } from "@platejs/markdown";
 
 import { BASE_KIT } from "@repo/editor/kits/base-kit";
@@ -26,12 +27,16 @@ describe("owned parse (probe1/2/3 translations)", () => {
     for (const md of parseErrors) {
       const result = parseMdast(md);
       expect(result.ok, md).toBe(false);
-      if (result.ok) continue;
+      if (result.ok) {
+        continue;
+      }
       expect(result.failure.message.length).toBeGreaterThan(0);
     }
     const positioned = parseMdast("first\n\n<Foo>broken</Bar>\n");
     expect(positioned.ok).toBe(false);
-    if (!positioned.ok) expect(positioned.failure.line).toBe(3);
+    if (!positioned.ok) {
+      expect(positioned.failure.line).toBe(3);
+    }
   });
 
   it("keeps html-ish bytes inside inline code intact (htmlToJsx regression)", () => {
@@ -53,28 +58,36 @@ describe("owned parse (probe1/2/3 translations)", () => {
   });
 });
 
-function opaqueValues(md: string): string[] {
+const opaqueValues = (md: string): string[] => {
   const parsed = parseMarkdown(md);
   expect(parsed.ok, md).toBe(true);
-  if (!parsed.ok) return [];
+  if (!parsed.ok) {
+    return [];
+  }
   const values: string[] = [];
   const walk = (node: Descendant): void => {
-    if (!ElementApi.isElement(node)) return;
+    if (!ElementApi.isElement(node)) {
+      return;
+    }
     if (node.type === "opaqueBlock" || node.type === "opaqueInline") {
       values.push(stringProp(node, "value") ?? "");
       return;
     }
-    node.children.forEach(walk);
+    for (const child of node.children) {
+      walk(child);
+    }
   };
-  parsed.value.forEach(walk);
+  for (const child of parsed.value) {
+    walk(child);
+  }
   return values;
-}
+};
 
-function expectOpaque(md: string, values: string[]): void {
+const expectOpaque = (md: string, values: string[]): void => {
   expect(opaqueValues(md), md).toEqual(values);
   expect(roundTrip(md), md).toBe(md);
   expect(analyzeMarkdown(md).canonical, md).toBe(true);
-}
+};
 
 describe("opaque nodes (constructs with no editor node)", () => {
   it("carries unknown components verbatim", () => {
@@ -175,7 +188,9 @@ describe("wiki links (probe4 translations)", () => {
     );
     const parsed = parseMdast("[x](https://example.com/y) and ![alt](https://example.com/i.png)\n");
     expect(parsed.ok).toBe(true);
-    if (!parsed.ok) return;
+    if (!parsed.ok) {
+      return;
+    }
     const json = JSON.stringify(parsed.root);
     expect(json).toContain('"type":"link"');
     expect(json).toContain('"type":"image"');
@@ -191,13 +206,17 @@ describe("wiki links (probe4 translations)", () => {
     for (const md of ["[[]] empty\n", "an [[not closed\n", "a [[a]b]] partial\n"]) {
       const parsed = parseMarkdown(md);
       expect(parsed.ok).toBe(true);
-      if (!parsed.ok) continue;
+      if (!parsed.ok) {
+        continue;
+      }
       expect(JSON.stringify(parsed.value)).not.toContain("wikiLink");
       expect(JSON.stringify(parsed.value)).not.toContain("wikiEmbed");
     }
     const nested = parseMarkdown("[[a[[b]] weird\n");
     expect(nested.ok).toBe(true);
-    if (!nested.ok) return;
+    if (!nested.ok) {
+      return;
+    }
     const json = JSON.stringify(nested.value);
     expect(json).toContain('"text":"[[a"');
     expect(json).toContain('"body":"b"');
@@ -206,7 +225,9 @@ describe("wiki links (probe4 translations)", () => {
   it("produces inline-void nodes with verbatim body", () => {
     const parsed = parseMarkdown("See [[Some Note|alias]] and ![[embed.png]].\n");
     expect(parsed.ok).toBe(true);
-    if (!parsed.ok) return;
+    if (!parsed.ok) {
+      return;
+    }
     const json = JSON.stringify(parsed.value);
     expect(json).toContain('"type":"wikiLink"');
     expect(json).toContain('"body":"Some Note|alias"');
@@ -382,7 +403,9 @@ describe("gate API", () => {
     const md = "# Hi\n\n- one\n- two\n\n> [!NOTE]\n> alert\n";
     const parsed = parseMarkdown(md);
     expect(parsed.ok).toBe(true);
-    if (!parsed.ok) return;
+    if (!parsed.ok) {
+      return;
+    }
     const out = serializeMd(createSlateEditor({ plugins: BASE_KIT }), {
       remarkStringifyOptions: MD_STRINGIFY,
       value: parsed.value,
@@ -393,7 +416,9 @@ describe("gate API", () => {
   it("parseMarkdown surfaces the raw reason instead of a degraded value", () => {
     const parsed = parseMarkdown("<Steps>x</Step>\n");
     expect(parsed.ok).toBe(false);
-    if (parsed.ok) return;
+    if (parsed.ok) {
+      return;
+    }
     expect(parsed.reason.kind).toBe("parse-error");
   });
 
@@ -405,13 +430,13 @@ describe("gate API", () => {
       expect(error).toBeInstanceOf(ParseFailedError);
       if (error instanceof ParseFailedError) {
         expect(error.reason.kind).toBe("parse-error");
-        expect(describeRawReason(error.reason)).toMatch(/^Parse error at line 1/);
+        expect(describeRawReason(error.reason)).toMatch(/^Parse error at line 1/u);
       }
     }
   });
 
   it("classifies conversion stack overflow as Raw instead of throwing (V1)", () => {
-    const deep = "> ".repeat(3000) + "x\n";
+    const deep = `${"> ".repeat(3000)}x\n`;
     const analysis = analyzeMarkdown(deep);
     expect(analysis.richSafe).toBe(false);
     expect(analysis.canonical).toBe(false);
@@ -436,7 +461,9 @@ describe("gate API", () => {
 const variantsOf = (md: string): string => {
   const parsed = parseMarkdown(md);
   expect(parsed.ok).toBe(true);
-  if (!parsed.ok) return "";
+  if (!parsed.ok) {
+    return "";
+  }
   return JSON.stringify(parsed.value);
 };
 

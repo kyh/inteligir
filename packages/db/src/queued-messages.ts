@@ -1,7 +1,8 @@
 // Vendored from bb (github.com/get-bb/bb), MIT. © bb contributors.
 
 import { and, asc, desc, eq, isNotNull, isNull } from "drizzle-orm";
-import { writeTransaction, type DbConnection, type DbTransaction } from "./connection";
+import { writeTransaction } from "./connection";
+import type { DbConnection, DbTransaction } from "./connection";
 import { createPrefixedId, createQueuedThreadMessageId } from "./ids";
 import type { DbNotifier } from "@repo/domain/notifier";
 import { queuedThreadMessages } from "./schema";
@@ -13,14 +14,14 @@ export interface ClaimedQueuedThreadMessageRow extends QueuedThreadMessageRow {
   claimToken: string;
 }
 
-function requireClaimedQueuedThreadMessage(
+const requireClaimedQueuedThreadMessage = (
   row: QueuedThreadMessageRow | undefined,
-): ClaimedQueuedThreadMessageRow | null {
+): ClaimedQueuedThreadMessageRow | null => {
   if (!row || row.claimedAt === null || row.claimToken === null) {
     return null;
   }
-  return { ...row, claimedAt: row.claimedAt, claimToken: row.claimToken };
-}
+  return { ...row, claimToken: row.claimToken, claimedAt: row.claimedAt };
+};
 
 export interface CreateQueuedThreadMessageInput {
   threadId: string;
@@ -29,18 +30,18 @@ export interface CreateQueuedThreadMessageInput {
 
 // fixed-width ms timestamp so lexicographic order is arrival order; extended past the tail when
 // a burst lands inside one millisecond, because the drain's id tie-break is a random nanoid.
-function createSortKeyAfter(tailSortKey: string | null, now: number): string {
+const createSortKeyAfter = (tailSortKey: string | null, now: number): string => {
   const candidate = String(now).padStart(14, "0");
   if (tailSortKey === null || candidate > tailSortKey) {
     return candidate;
   }
   return `${tailSortKey}~`;
-}
+};
 
-export function createQueuedThreadMessageInTransaction(
+export const createQueuedThreadMessageInTransaction = (
   tx: DbTransaction,
   input: CreateQueuedThreadMessageInput,
-): QueuedThreadMessageRow {
+): QueuedThreadMessageRow => {
   const now = Date.now();
   const tail = tx
     .select({ sortKey: queuedThreadMessages.sortKey })
@@ -52,34 +53,34 @@ export function createQueuedThreadMessageInTransaction(
   return tx
     .insert(queuedThreadMessages)
     .values({
-      id: createQueuedThreadMessageId(),
-      threadId: input.threadId,
-      text: input.text,
-      claimedAt: null,
       claimToken: null,
-      sortKey: createSortKeyAfter(tail?.sortKey ?? null, now),
+      claimedAt: null,
       createdAt: now,
+      id: createQueuedThreadMessageId(),
+      sortKey: createSortKeyAfter(tail?.sortKey ?? null, now),
+      text: input.text,
+      threadId: input.threadId,
       updatedAt: now,
     })
     .returning()
     .get();
-}
+};
 
-export function createQueuedThreadMessage(
+export const createQueuedThreadMessage = (
   db: DbConnection,
   notifier: DbNotifier,
   input: CreateQueuedThreadMessageInput,
-): QueuedThreadMessageRow {
+): QueuedThreadMessageRow => {
   const row = writeTransaction(db, (tx) => createQueuedThreadMessageInTransaction(tx, input));
   notifier.notifyThread(input.threadId, ["queue-changed"]);
   return row;
-}
+};
 
-export function listQueuedThreadMessages(
+export const listQueuedThreadMessages = (
   db: DbConnection,
   threadId: string,
-): QueuedThreadMessageRow[] {
-  return db
+): QueuedThreadMessageRow[] =>
+  db
     .select()
     .from(queuedThreadMessages)
     .where(
@@ -91,14 +92,13 @@ export function listQueuedThreadMessages(
     )
     .orderBy(asc(queuedThreadMessages.sortKey), asc(queuedThreadMessages.id))
     .all();
-}
 
 // select then cas-update in one transaction: the loser of a race matches nothing and takes the
 // next row.
-export function claimNextQueuedThreadMessageInTransaction(
+export const claimNextQueuedThreadMessageInTransaction = (
   tx: DbTransaction,
   threadId: string,
-): ClaimedQueuedThreadMessageRow | null {
+): ClaimedQueuedThreadMessageRow | null => {
   const next = tx
     .select()
     .from(queuedThreadMessages)
@@ -119,7 +119,7 @@ export function claimNextQueuedThreadMessageInTransaction(
   const now = Date.now();
   const updated = tx
     .update(queuedThreadMessages)
-    .set({ claimedAt: now, claimToken: createPrefixedId("claim"), updatedAt: now })
+    .set({ claimToken: createPrefixedId("claim"), claimedAt: now, updatedAt: now })
     .where(
       and(
         eq(queuedThreadMessages.id, next.id),
@@ -130,13 +130,13 @@ export function claimNextQueuedThreadMessageInTransaction(
     .returning()
     .get();
   return requireClaimedQueuedThreadMessage(updated);
-}
+};
 
-export function claimNextQueuedThreadMessage(
+export const claimNextQueuedThreadMessage = (
   db: DbConnection,
   notifier: DbNotifier,
   threadId: string,
-): ClaimedQueuedThreadMessageRow | null {
+): ClaimedQueuedThreadMessageRow | null => {
   const claimed = writeTransaction(db, (tx) =>
     claimNextQueuedThreadMessageInTransaction(tx, threadId),
   );
@@ -144,36 +144,30 @@ export function claimNextQueuedThreadMessage(
     notifier.notifyThread(claimed.threadId, ["queue-changed"]);
   }
   return claimed;
-}
+};
 
 export interface ClaimedQueuedThreadMessageKey {
   id: string;
   claimToken: string;
 }
 
-export function deleteClaimedQueuedThreadMessageInTransaction(
+export const deleteClaimedQueuedThreadMessageInTransaction = (
   tx: DbTransaction,
   key: ClaimedQueuedThreadMessageKey,
-): boolean {
-  return (
-    tx
-      .delete(queuedThreadMessages)
-      .where(
-        and(
-          eq(queuedThreadMessages.id, key.id),
-          eq(queuedThreadMessages.claimToken, key.claimToken),
-        ),
-      )
-      .returning({ threadId: queuedThreadMessages.threadId })
-      .get() !== undefined
-  );
-}
+): boolean =>
+  tx
+    .delete(queuedThreadMessages)
+    .where(
+      and(eq(queuedThreadMessages.id, key.id), eq(queuedThreadMessages.claimToken, key.claimToken)),
+    )
+    .returning({ threadId: queuedThreadMessages.threadId })
+    .get() !== undefined;
 
-export function deleteClaimedQueuedThreadMessage(
+export const deleteClaimedQueuedThreadMessage = (
   db: DbConnection,
   notifier: DbNotifier,
   key: ClaimedQueuedThreadMessageKey,
-): boolean {
+): boolean => {
   const result = db
     .delete(queuedThreadMessages)
     .where(
@@ -181,40 +175,39 @@ export function deleteClaimedQueuedThreadMessage(
     )
     .returning({ threadId: queuedThreadMessages.threadId })
     .get();
-  if (result) {
+  if (result !== undefined) {
     notifier.notifyThread(result.threadId, ["queue-changed"]);
     return true;
   }
   return false;
-}
+};
 
 // a claim has no ttl, so a kill between the drain's ingest commit and its delete would hide the
 // row forever. one server owns a data dir, so no claim can be live at boot.
-export function releaseAllQueuedMessageClaims(db: DbConnection): number {
-  return db
+export const releaseAllQueuedMessageClaims = (db: DbConnection): number =>
+  db
     .update(queuedThreadMessages)
-    .set({ claimedAt: null, claimToken: null, updatedAt: Date.now() })
+    .set({ claimToken: null, claimedAt: null, updatedAt: Date.now() })
     .where(isNotNull(queuedThreadMessages.claimToken))
     .returning({ id: queuedThreadMessages.id })
     .all().length;
-}
 
-export function releaseQueuedMessageClaim(
+export const releaseQueuedMessageClaim = (
   db: DbConnection,
   notifier: DbNotifier,
   key: ClaimedQueuedThreadMessageKey,
-): boolean {
+): boolean => {
   const result = db
     .update(queuedThreadMessages)
-    .set({ claimedAt: null, claimToken: null, updatedAt: Date.now() })
+    .set({ claimToken: null, claimedAt: null, updatedAt: Date.now() })
     .where(
       and(eq(queuedThreadMessages.id, key.id), eq(queuedThreadMessages.claimToken, key.claimToken)),
     )
     .returning({ threadId: queuedThreadMessages.threadId })
     .get();
-  if (result) {
+  if (result !== undefined) {
     notifier.notifyThread(result.threadId, ["queue-changed"]);
     return true;
   }
   return false;
-}
+};

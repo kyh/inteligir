@@ -1,5 +1,5 @@
 import { writeFileSync } from "node:fs";
-import { join } from "node:path";
+import path from "node:path";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { bootTestApp } from "inteligir/server/testing";
@@ -14,20 +14,20 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-function mountTab(docPath: string): void {
+const mountTab = (docPath: string): void => {
   render(
     <QueryClientProvider client={createWorkspaceQueryClient()}>
       <CommentsTab docPath={docPath} focusIds={[]} />
     </QueryClientProvider>,
   );
-}
+};
 
 describe("the comments tab under a refused read", () => {
   it("renders the refusal, never an eternal Loading…", async () => {
     const booted = await bootTestApp();
     routeRendererFetch(booted);
-    writeFileSync(join(booted.vaultDir, "note.md"), "note\n", "utf8");
-    writeFileSync(join(booted.vaultDir, "note.md.comments.json"), "{not json", "utf8");
+    writeFileSync(path.join(booted.vaultDir, "note.md"), "note\n", "utf-8");
+    writeFileSync(path.join(booted.vaultDir, "note.md.comments.json"), "{not json", "utf-8");
 
     mountTab("note.md");
     await waitFor(() => {

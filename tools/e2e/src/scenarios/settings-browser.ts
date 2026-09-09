@@ -1,7 +1,12 @@
 import { setTimeout as delay } from "node:timers/promises";
 import { writeDeviceCredential } from "inteligir/server/cloud/credential-store";
 import { z } from "zod";
-import { agentBrowserSession, parseEval, probeHeadlessOrSkip } from "../harness/agent-browser";
+import {
+  agentBrowserSession,
+  closeQuietly,
+  parseEval,
+  probeHeadlessOrSkip,
+} from "../harness/agent-browser";
 import { expect } from "../harness/assert";
 import type { Scenario } from "../harness/scenario";
 
@@ -27,18 +32,19 @@ const CLICK_ADD = `(() => {
 })()`;
 
 export const settingsBrowser: Scenario = {
-  name: "settings-browser",
   description:
     "/settings hosts the dialog and the toaster: Sign out confirms, a refused add toasts",
+  name: "settings-browser",
   async run(ctx) {
     const app = await ctx.boot({
-      name: "solo",
       extraEnv: { INTELIGIR_CLOUD_URL: DEAD_CLOUD_URL, INTELIGIR_SYNC_INTERVAL_MS: "0" },
-      seedData: (dataDir) =>
+      name: "solo",
+      seedData: (dataDir) => {
         writeDeviceCredential(dataDir, {
-          deviceId: "dev_settings_e2e",
           credential: `igd_${"0".repeat(64)}`,
-        }),
+          deviceId: "dev_settings_e2e",
+        });
+      },
     });
     // the row the form's add will collide with.
     await app.api.connectors.add({
@@ -95,7 +101,7 @@ export const settingsBrowser: Scenario = {
         `the toast did not carry the refusal:\n${toastText}`,
       );
     } finally {
-      await agentBrowser(["close"], 30_000).catch(() => undefined);
+      await closeQuietly(agentBrowser);
     }
   },
 };

@@ -13,27 +13,29 @@ export interface TreeState {
   collapseAll: () => void;
 }
 
-export function useTreeState(): TreeState {
+export const useTreeState = (): TreeState => {
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set());
   const [activePath, setActivePath] = useState<string | null>(null);
   return {
-    expanded,
-    setExpanded,
     activePath,
-    setActivePath,
     collapseAll: () => {
       setExpanded(new Set());
     },
+    expanded,
+    setActivePath,
+    setExpanded,
   };
-}
+};
 
 // where a create from outside the tree lands: the selected folder, or the selected file's, else
 // the listing's root; `isDir` answers for the active path, since the listing knows its kind
-export function createDirFor(
+export const createDirFor = (
   rootDir: string,
   activePath: string | null,
   isDir: (path: string) => boolean,
-): string {
-  if (activePath === null) return rootDir;
+): string => {
+  if (activePath === null) {
+    return rootDir;
+  }
   return isDir(activePath) ? activePath : dirnamePath(activePath);
-}
+};

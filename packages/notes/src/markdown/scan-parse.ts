@@ -13,7 +13,7 @@ import { unified } from "unified";
 
 import { remarkWikiLink } from "./remark-wiki-link";
 
-const remarkPlainBlocks: Plugin = function (this: Processor): undefined {
+const remarkPlainBlocks: Plugin = function remarkPlainBlocks(this: Processor): undefined {
   const data = this.data();
   (data.micromarkExtensions ??= []).push({ disable: { null: ["codeIndented", "htmlFlow"] } });
 };
@@ -25,6 +25,4 @@ const processor = unified()
   .use(remarkGfm)
   .use(remarkWikiLink);
 
-export function parseScan(source: string): Root {
-  return processor.parse(source);
-}
+export const parseScan = (source: string): Root => processor.parse(source);

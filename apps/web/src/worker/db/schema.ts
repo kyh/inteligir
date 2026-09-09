@@ -6,6 +6,9 @@ import { index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqli
 // `UPDATE <table> SET <col> = <col> * 1000` every stored date reads as 1970 and every session
 // expires. When a plugin needs columns, run the generator and port them, keeping this mode.
 
+/* oxlint-disable sort-keys -- a table's column order is the CREATE TABLE order drizzle-kit
+   emits, and it mirrors what `@better-auth/cli generate` prints; sorting it makes the next
+   generated migration recreate every table. */
 export const user = sqliteTable("user", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),

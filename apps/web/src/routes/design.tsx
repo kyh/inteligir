@@ -14,13 +14,7 @@ const GalleryPage = lazy(async () => {
   return { default: module.GalleryPage };
 });
 
-export const Route = createFileRoute("/design")({
-  ssr: false,
-  head: () => ({ meta: [{ title: "inteligir design system" }] }),
-  component: DesignPage,
-});
-
-function DesignPage() {
+const DesignPage = () => {
   const navigate = useNavigate();
   return (
     <ThemeProvider>
@@ -37,4 +31,10 @@ function DesignPage() {
       </TooltipProvider>
     </ThemeProvider>
   );
-}
+};
+
+export const Route = createFileRoute("/design")({
+  ssr: false,
+  head: () => ({ meta: [{ title: "inteligir design system" }] }),
+  component: DesignPage,
+});

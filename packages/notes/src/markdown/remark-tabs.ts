@@ -33,7 +33,7 @@ declare module "mdast" {
 
 const OPEN_LINE = ":::tabs";
 const CLOSE_LINE = ":::";
-const PANEL_RE = /^=== (.+)$/;
+const PANEL_RE = /^=== (?<label>.+)$/u;
 
 type Segment =
   | { kind: "open" }
@@ -41,16 +41,22 @@ type Segment =
   | { kind: "close" }
   | { kind: "content"; nodes: PhrasingContent[] };
 
-function markerFor(line: string): Segment | null {
-  if (line === OPEN_LINE) return { kind: "open" };
-  if (line === CLOSE_LINE) return { kind: "close" };
+const markerFor = (line: string): Segment | null => {
+  if (line === OPEN_LINE) {
+    return { kind: "open" };
+  }
+  if (line === CLOSE_LINE) {
+    return { kind: "close" };
+  }
   const panel = PANEL_RE.exec(line);
-  const label = panel?.[1];
-  if (label !== undefined) return { kind: "panel", label };
+  const label = panel?.groups?.label;
+  if (label !== undefined) {
+    return { kind: "panel", label };
+  }
   return null;
-}
+};
 
-function splitParagraph(children: PhrasingContent[]): Segment[] {
+const splitParagraph = (children: PhrasingContent[]): Segment[] => {
   const segments: Segment[] = [];
   let current: PhrasingContent[] = [];
   let atLineStart = true;
@@ -62,10 +68,15 @@ function splitParagraph(children: PhrasingContent[]): Segment[] {
     }
   };
   const pushText = (value: string): void => {
-    if (value === "") return;
+    if (value === "") {
+      return;
+    }
     const last = current.at(-1);
-    if (last?.type === "text") last.value += value;
-    else current.push({ type: "text", value });
+    if (last?.type === "text") {
+      last.value += value;
+    } else {
+      current.push({ type: "text", value });
+    }
   };
 
   for (const [index, child] of children.entries()) {
@@ -81,45 +92,51 @@ function splitParagraph(children: PhrasingContent[]): Segment[] {
       const endsParagraph = lineIndex === lines.length - 1 && index === children.length - 1;
       const marker =
         startsLine && (endsAtNewline || endsParagraph) && line !== "" ? markerFor(line) : null;
-      if (marker !== null) {
+      if (marker === null) {
+        // restore the newline the split consumed, only between kept lines.
+        if (lineIndex > 0 && current.length > 0) {
+          pushText("\n");
+        }
+        pushText(line);
+      } else {
         flush();
         segments.push(marker);
-      } else {
-        // restore the newline the split consumed, only between kept lines.
-        if (lineIndex > 0 && current.length > 0) pushText("\n");
-        pushText(line);
       }
     }
     atLineStart = child.value.endsWith("\n");
   }
   flush();
   return segments;
+};
+
+const hasMarker = (segments: Segment[]): boolean =>
+  segments.some((segment) => segment.kind !== "content");
+
+interface PanelDraft {
+  label: string;
+  children: PanelContent[];
 }
 
-function hasMarker(segments: Segment[]): boolean {
-  return segments.some((segment) => segment.kind !== "content");
-}
-
-type PanelDraft = { label: string; children: PanelContent[] };
-
-function asPanelContent(node: RootChild): PanelContent | null {
+const asPanelContent = (node: RootChild): PanelContent | null => {
   if (node.type === "yaml" || node.type === "tabGroup" || node.type === "tabPanel") {
     return null;
   }
   return node;
-}
+};
 
-type Collect = {
+interface Collect {
   panels: PanelDraft[];
   closed: boolean;
   aborted: boolean;
   trailing: PhrasingContent[] | null;
-};
+}
 
-function acceptSegments(collect: Collect, segments: Segment[], from: number): void {
-  for (let index = from; index < segments.length; index++) {
+const acceptSegments = (collect: Collect, segments: Segment[], from: number): void => {
+  for (let index = from; index < segments.length; index += 1) {
     const segment = segments[index];
-    if (segment === undefined) continue;
+    if (segment === undefined) {
+      continue;
+    }
     if (collect.closed) {
       // a second marker after the close in the same paragraph is ambiguous: refuse whole.
       if (segment.kind !== "content") {
@@ -130,43 +147,58 @@ function acceptSegments(collect: Collect, segments: Segment[], from: number): vo
       continue;
     }
     switch (segment.kind) {
-      case "open":
-        collect.aborted = true; // nested opener — refuse the whole construct
+      case "open": {
+        // nested opener — refuse the whole construct
+        collect.aborted = true;
         return;
-      case "panel":
+      }
+      case "panel": {
         collect.panels.push({ children: [], label: segment.label });
         break;
-      case "close":
+      }
+      case "close": {
         collect.closed = true;
         break;
+      }
       case "content": {
         const panel = collect.panels.at(-1);
+        // content before the first `=== ` header
         if (panel === undefined) {
-          collect.aborted = true; // content before the first `=== ` header
+          collect.aborted = true;
           return;
         }
         panel.children.push({ children: segment.nodes, type: "paragraph" });
         break;
       }
+      // a new `Segment` kind must fail tsc here rather than fall through a catch-all.
+      // no default
     }
   }
-}
+};
 
-function rewriteRoot(root: Root): void {
-  for (let start = 0; start < root.children.length; start++) {
+const rewriteRoot = (root: Root): void => {
+  for (let start = 0; start < root.children.length; start += 1) {
     const opener = root.children[start];
-    if (opener?.type !== "paragraph") continue;
+    if (opener?.type !== "paragraph") {
+      continue;
+    }
     const openerSegments = splitParagraph(opener.children);
-    if (openerSegments[0]?.kind !== "open") continue;
+    if (openerSegments[0]?.kind !== "open") {
+      continue;
+    }
 
     const collect: Collect = { aborted: false, closed: false, panels: [], trailing: null };
     acceptSegments(collect, openerSegments, 1);
 
     let end = start;
-    for (let index = start + 1; index < root.children.length; index++) {
-      if (collect.closed || collect.aborted) break;
+    for (let index = start + 1; index < root.children.length; index += 1) {
+      if (collect.closed || collect.aborted) {
+        break;
+      }
       const node = root.children[index];
-      if (node === undefined) break;
+      if (node === undefined) {
+        break;
+      }
       end = index;
       if (node.type === "paragraph") {
         const segments = splitParagraph(node.children);
@@ -184,7 +216,9 @@ function rewriteRoot(root: Root): void {
       panel.children.push(content);
     }
 
-    if (collect.aborted || !collect.closed || collect.panels.length === 0) continue;
+    if (collect.aborted || !collect.closed || collect.panels.length === 0) {
+      continue;
+    }
 
     const tabs: TabGroup = {
       children: collect.panels.map((panel): TabPanel => ({
@@ -200,11 +234,9 @@ function rewriteRoot(root: Root): void {
     }
     root.children.splice(start, end - start + 1, ...replacement);
   }
-}
+};
 
-function isRoot(node: Node): node is Root {
-  return node.type === "root";
-}
+const isRoot = (node: Node): node is Root => node.type === "root";
 
 const tabsToMarkdown: ToMarkdownExtension = {
   handlers: {
@@ -221,10 +253,12 @@ const tabsToMarkdown: ToMarkdownExtension = {
 };
 
 // a function expression: remark plugins receive the processor as `this`.
-export const remarkTabs: Plugin = function (this: Processor): Transformer {
+export const remarkTabs: Plugin = function remarkTabs(this: Processor): Transformer {
   const data = this.data();
   (data.toMarkdownExtensions ??= []).push(tabsToMarkdown);
   return (tree) => {
-    if (isRoot(tree)) rewriteRoot(tree);
+    if (isRoot(tree)) {
+      rewriteRoot(tree);
+    }
   };
 };

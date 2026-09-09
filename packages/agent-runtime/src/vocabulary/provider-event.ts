@@ -12,7 +12,8 @@ import type {
 } from "@repo/domain/provider-event";
 import type { ThreadEventScope } from "@repo/domain/thread-event-scope";
 import { z } from "zod";
-import { jsonValueSchema, type JsonObject } from "./json-value";
+import { jsonValueSchema } from "./json-value";
+import type { JsonObject } from "./json-value";
 
 export const providerErrorCategoryValues = [
   "active-turn-not-steerable",
@@ -118,8 +119,8 @@ export type ProviderEventItem =
 export type ProviderEventItemType = ProviderEventItem["type"];
 
 export const providerRawEventSchema = z.object({
-  jsonrpc: z.literal("2.0"),
   id: z.union([z.string(), z.number()]).optional(),
+  jsonrpc: z.literal("2.0"),
   method: z.string(),
   params: jsonValueSchema.optional(),
 });

@@ -4,7 +4,8 @@
 // a guess about a note that moved.
 
 import { contentHashHex } from "@repo/api/local/vault/vault-schema";
-import { isDefinedError, refusalMessage, safe, type client } from "../api";
+import { isDefinedError, refusalMessage, safe } from "../api";
+import type { client } from "../api";
 
 export interface RewriteNoteApi {
   vault: Pick<(typeof client)["vault"], "read" | "write">;
@@ -19,22 +20,30 @@ export type RewriteNoteOutcome<TWritten> =
   | { kind: "changed" }
   | { kind: "failed"; message: string };
 
-export async function rewriteNote<TWritten>(
+export const rewriteNote = async <TWritten>(
   api: RewriteNoteApi,
   path: string,
   edit: (content: string) => { content: string; result: TWritten } | null,
-): Promise<RewriteNoteOutcome<TWritten>> {
+): Promise<RewriteNoteOutcome<TWritten>> => {
   const read = await safe(api.vault.read({ path }));
   if (read.error !== null) {
     return { kind: "failed", message: refusalMessage(read.error, "could not read it") };
   }
-  const content = read.data.content;
+  const { content } = read.data;
   const edited = edit(content);
-  if (edited === null) return { kind: "changed" };
-  if (edited.content === content) return { kind: "unchanged", result: edited.result };
+  if (edited === null) {
+    return { kind: "changed" };
+  }
+  if (edited.content === content) {
+    return { kind: "unchanged", result: edited.result };
+  }
   const expectedHash = await contentHashHex(content);
-  const { error } = await safe(api.vault.write({ path, content: edited.content, expectedHash }));
-  if (error === null) return { kind: "written", result: edited.result };
-  if (isDefinedError(error) && error.code === "CAS_MISMATCH") return { kind: "changed" };
+  const { error } = await safe(api.vault.write({ content: edited.content, expectedHash, path }));
+  if (error === null) {
+    return { kind: "written", result: edited.result };
+  }
+  if (isDefinedError(error) && error.code === "CAS_MISMATCH") {
+    return { kind: "changed" };
+  }
   return { kind: "failed", message: refusalMessage(error, "the write was refused") };
-}
+};

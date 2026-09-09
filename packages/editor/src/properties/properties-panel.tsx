@@ -1,14 +1,17 @@
-import { type KeyboardEvent, useCallback, useMemo, useReducer, useState } from "react";
+import { useCallback, useMemo, useReducer, useState } from "react";
+import type { KeyboardEvent } from "react";
 import { PlusIcon } from "lucide-react";
 import type { SlateEditor } from "platejs";
 
 import {
-  type ParsedProperties,
-  type PropertyType,
-  type TypedProperty,
   parseProperties,
   serializeProperties,
   typeNewProperty,
+} from "@repo/notes/markdown/frontmatter";
+import type {
+  ParsedProperties,
+  PropertyType,
+  TypedProperty,
 } from "@repo/notes/markdown/frontmatter";
 import { Input } from "@repo/ui/components/input";
 
@@ -22,42 +25,50 @@ import {
 } from "@repo/editor/properties/property-fields";
 
 // only strings are ambiguous (text and date serialize identically); overrides are session-only.
-function overrideOptions(prop: TypedProperty): PropertyType[] {
-  return prop.type === "text" || prop.type === "date" ? ["text", "date"] : [prop.type];
-}
+const overrideOptions = (prop: TypedProperty): PropertyType[] =>
+  prop.type === "text" || prop.type === "date" ? ["text", "date"] : [prop.type];
 
 const TYPE_LABEL = {
-  text: "Text",
-  number: "Number",
   checkbox: "Checkbox",
   date: "Date",
+  number: "Number",
   tags: "Tags",
+  text: "Text",
   unsupported: "Unsupported",
 } satisfies Record<PropertyType, string>;
 
-function Field({
+const Field = ({
   prop,
   onChange,
 }: {
   prop: TypedProperty;
   onChange: (next: TypedProperty) => void;
-}) {
+}) => {
   switch (prop.type) {
-    case "checkbox":
+    case "checkbox": {
       return <CheckboxField prop={prop} onChange={onChange} />;
-    case "number":
+    }
+    case "number": {
       return <NumberField prop={prop} onChange={onChange} />;
-    case "tags":
+    }
+    case "tags": {
       return <TagsField prop={prop} onChange={onChange} />;
-    case "unsupported":
+    }
+    case "unsupported": {
       return <UnsupportedField prop={prop} />;
+    }
     case "text":
-    case "date":
+    case "date": {
       return <TextField prop={prop} onChange={onChange} />;
+    }
+    default: {
+      const exhaustive: never = prop;
+      return exhaustive;
+    }
   }
-}
+};
 
-function PropertyRow({
+const PropertyRow = ({
   prop,
   onChange,
   onDelete,
@@ -67,7 +78,7 @@ function PropertyRow({
   onChange: (next: TypedProperty) => void;
   onDelete: () => void;
   onOverrideType: (type: PropertyType) => void;
-}) {
+}) => {
   const options = overrideOptions(prop);
   return (
     <div className="group grid grid-cols-[9rem_1fr] items-start gap-2">
@@ -80,7 +91,9 @@ function PropertyRow({
             value={prop.type}
             onChange={(e) => {
               const type = e.target.value;
-              if (type === "text" || type === "date") onOverrideType(type);
+              if (type === "text" || type === "date") {
+                onOverrideType(type);
+              }
             }}
             aria-label={`${prop.key} type`}
             className="w-fit rounded-[4px] bg-transparent text-[10px] text-muted-foreground/70 outline-none hover:text-foreground"
@@ -108,9 +121,9 @@ function PropertyRow({
       </div>
     </div>
   );
-}
+};
 
-function AddProperty({ onAdd }: { onAdd: (key: string, value: string) => void }) {
+const AddProperty = ({ onAdd }: { onAdd: (key: string, value: string) => void }) => {
   const [open, setOpen] = useState(false);
   const [key, setKey] = useState("");
   const [value, setValue] = useState("");
@@ -143,7 +156,9 @@ function AddProperty({ onAdd }: { onAdd: (key: string, value: string) => void })
     return (
       <button
         type="button"
-        onClick={() => setOpen(true)}
+        onClick={() => {
+          setOpen(true);
+        }}
         className="flex items-center gap-1 rounded-[6px] px-1.5 py-1 text-sm text-muted-foreground transition-colors hover:bg-hover hover:text-foreground"
       >
         <PlusIcon className="size-3.5" />
@@ -156,7 +171,9 @@ function AddProperty({ onAdd }: { onAdd: (key: string, value: string) => void })
       <Input
         autoFocus
         value={key}
-        onChange={(e) => setKey(e.target.value)}
+        onChange={(e) => {
+          setKey(e.target.value);
+        }}
         onKeyDown={onKeyDown}
         placeholder="Property"
         spellCheck={false}
@@ -164,7 +181,9 @@ function AddProperty({ onAdd }: { onAdd: (key: string, value: string) => void })
       />
       <Input
         value={value}
-        onChange={(e) => setValue(e.target.value)}
+        onChange={(e) => {
+          setValue(e.target.value);
+        }}
         onKeyDown={onKeyDown}
         onBlur={submit}
         placeholder="Value"
@@ -173,9 +192,9 @@ function AddProperty({ onAdd }: { onAdd: (key: string, value: string) => void })
       />
     </div>
   );
-}
+};
 
-export function PropertiesPanel({ editor }: { editor: SlateEditor }) {
+export const PropertiesPanel = ({ editor }: { editor: SlateEditor }) => {
   // no useEditorSelector: the drawer remounts the panel on each open, and `commit` bumps
   // the tick to re-render over its own writes.
   const [, bumpRead] = useReducer((n: number) => n + 1, 0);
@@ -199,7 +218,9 @@ export function PropertiesPanel({ editor }: { editor: SlateEditor }) {
 
   const applyOverride = (prop: TypedProperty): TypedProperty => {
     const forced = overrides[prop.key];
-    if (forced === undefined || forced === prop.type) return prop;
+    if (forced === undefined || forced === prop.type) {
+      return prop;
+    }
     if (
       (prop.type === "text" || prop.type === "date") &&
       (forced === "text" || forced === "date")
@@ -210,7 +231,7 @@ export function PropertiesPanel({ editor }: { editor: SlateEditor }) {
   };
 
   const handleChange = (index: number, nextProp: TypedProperty) => {
-    const next = properties.slice();
+    const next = [...properties];
     next[index] = nextProp;
     commit(next);
   };
@@ -219,7 +240,9 @@ export function PropertiesPanel({ editor }: { editor: SlateEditor }) {
   };
   const handleAdd = (key: string, value: string) => {
     // a duplicate key would make the whole block invalid.
-    if (properties.some((p) => p.key === key)) return;
+    if (properties.some((p) => p.key === key)) {
+      return;
+    }
     commit([...properties, typeNewProperty(key, value)]);
   };
 
@@ -240,13 +263,19 @@ export function PropertiesPanel({ editor }: { editor: SlateEditor }) {
           <PropertyRow
             key={prop.key}
             prop={shown}
-            onChange={(nextProp) => handleChange(index, nextProp)}
-            onDelete={() => handleDelete(index)}
-            onOverrideType={(type) => setOverrides((prev) => ({ ...prev, [prop.key]: type }))}
+            onChange={(nextProp) => {
+              handleChange(index, nextProp);
+            }}
+            onDelete={() => {
+              handleDelete(index);
+            }}
+            onOverrideType={(type) => {
+              setOverrides((prev) => ({ ...prev, [prop.key]: type }));
+            }}
           />
         );
       })}
       <AddProperty onAdd={handleAdd} />
     </div>
   );
-}
+};

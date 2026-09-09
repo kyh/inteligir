@@ -4,27 +4,27 @@
 
 import { chmodSync, mkdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
-import { dirname } from "node:path";
+import nodePath from "node:path";
 
-export function stagedWriteFileSync(
+export const stagedWriteFileSync = (
   path: string,
   contents: string,
   options?: { mode?: number },
-): void {
-  mkdirSync(dirname(path), { recursive: true });
+): void => {
+  mkdirSync(nodePath.dirname(path), { recursive: true });
   const staged = `${path}.tmp-${String(process.pid)}-${randomBytes(4).toString("hex")}`;
   try {
     const mode = options?.mode;
-    if (mode !== undefined) {
-      writeFileSync(staged, contents, { encoding: "utf8", mode });
+    if (mode === undefined) {
+      writeFileSync(staged, contents, "utf-8");
+    } else {
+      writeFileSync(staged, contents, { encoding: "utf-8", mode });
       // writeFileSync's mode applies only on create and is subject to the umask.
       chmodSync(staged, mode);
-    } else {
-      writeFileSync(staged, contents, "utf8");
     }
     renameSync(staged, path);
   } catch (error) {
     rmSync(staged, { force: true });
     throw error;
   }
-}
+};

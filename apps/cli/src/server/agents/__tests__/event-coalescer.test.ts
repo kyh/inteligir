@@ -6,24 +6,20 @@ import { ProviderEventCoalescer } from "../event-coalescer";
 
 const scope = turnScope("turn_1");
 
-function delta(threadId: string, n: number): ThreadEvent {
-  return {
-    type: "item/agentMessage/delta",
-    threadId,
-    itemId: "item_1",
-    delta: `d${n}`,
-    scope,
-  };
-}
+const delta = (threadId: string, n: number): ThreadEvent => ({
+  delta: `d${n}`,
+  itemId: "item_1",
+  scope,
+  threadId,
+  type: "item/agentMessage/delta",
+});
 
-function completed(threadId: string): ThreadEvent {
-  return {
-    type: "item/completed",
-    threadId,
-    item: { type: "agentMessage", id: "item_1", text: "done" },
-    scope,
-  };
-}
+const completed = (threadId: string): ThreadEvent => ({
+  item: { id: "item_1", text: "done", type: "agentMessage" },
+  scope,
+  threadId,
+  type: "item/completed",
+});
 
 describe("ProviderEventCoalescer", () => {
   it("a burst of N deltas produces ONE ingest call carrying all of them in order", async () => {
@@ -45,9 +41,9 @@ describe("ProviderEventCoalescer", () => {
     const a = delta("thr_1", 1);
     const b = delta("thr_1", 2);
     const done = completed("thr_1");
-    coalescer.push("thr_1", a);
-    coalescer.push("thr_1", b);
-    coalescer.push("thr_1", done);
+    for (const event of [a, b, done]) {
+      coalescer.push("thr_1", event);
+    }
     expect(ingest).toHaveBeenCalledTimes(1);
     expect(ingest).toHaveBeenCalledWith("thr_1", [a, b, done]);
     // The still-scheduled tick finds nothing left and ingests nothing more.
@@ -60,8 +56,12 @@ describe("ProviderEventCoalescer", () => {
     const coalescer = new ProviderEventCoalescer(ingest);
     const one = delta("thr_1", 1);
     const two = delta("thr_2", 2);
-    coalescer.push("thr_1", one);
-    coalescer.push("thr_2", two);
+    for (const [threadId, event] of [
+      ["thr_1", one],
+      ["thr_2", two],
+    ] as const) {
+      coalescer.push(threadId, event);
+    }
     coalescer.flush("thr_1");
     expect(ingest).toHaveBeenCalledTimes(1);
     expect(ingest).toHaveBeenCalledWith("thr_1", [one]);

@@ -23,21 +23,20 @@ export interface RelatedRow {
   action?: { label: string; run: () => void };
 }
 
-export function plainSnippet(snippet: string): string {
-  return snippet
-    .replace(/!?\[\[([^\]]+)\]\]/gu, (_match, body: string) => {
+export const plainSnippet = (snippet: string): string =>
+  snippet
+    .replaceAll(/!?\[\[(?<body>[^\]]+)\]\]/gu, (_match, body: string) => {
       const parts = body.split("|");
       const target = parts[0] ?? body;
       const alias = parts.length > 1 ? parts.at(-1) : undefined;
       const label = alias !== undefined && !isUuidWikiAlias(alias) ? alias : target;
       return label.split("#")[0] ?? label;
     })
-    .replace(/\{\{([^{}]*)\}\}/gu, (_match, body: string) => body.split("|")[1] ?? "")
-    .replace(/%%i:[^%]*%%/gu, "")
+    .replaceAll(/\{\{(?<body>[^{}]*)\}\}/gu, (_match, body: string) => body.split("|")[1] ?? "")
+    .replaceAll(/%%i:[^%]*%%/gu, "")
     .replace(/^[\s>#*-]+/u, "")
-    .replace(/\s+/gu, " ")
+    .replaceAll(/\s+/gu, " ")
     .trim();
-}
 
 interface BacklinkGroup {
   sourcePath: string;
@@ -46,39 +45,39 @@ interface BacklinkGroup {
 }
 
 // one row per linking note, not per mention.
-export function groupBacklinks(
+export const groupBacklinks = (
   backlinks: readonly { sourcePath: string; snippet: string }[],
-): BacklinkGroup[] {
+): BacklinkGroup[] => {
   const groups = new Map<string, BacklinkGroup>();
   for (const backlink of backlinks) {
     const existing = groups.get(backlink.sourcePath);
     if (existing === undefined) {
       groups.set(backlink.sourcePath, {
-        sourcePath: backlink.sourcePath,
-        snippet: backlink.snippet,
         count: 1,
+        snippet: backlink.snippet,
+        sourcePath: backlink.sourcePath,
       });
       continue;
     }
     existing.count += 1;
   }
   return [...groups.values()];
-}
+};
 
-export function linkedMentionsSummary(shown: number, total: number): string {
+export const linkedMentionsSummary = (shown: number, total: number): string => {
   const counted = plural(total, "linked mention");
   return shown < total ? `${counted} (${shown} shown)` : counted;
-}
+};
 
-export function unlinkedMentionDetail(mention: UnlinkedMentionWire): string {
+export const unlinkedMentionDetail = (mention: UnlinkedMentionWire): string => {
   const sentence = plainSnippet(`${mention.before}${mention.text}${mention.after}`);
   return mention.count > 1
     ? `Mentions ${String(mention.count)}× · ${sentence}`
     : `Mentions · ${sentence}`;
-}
+};
 
 // suggestions fetch only while open: that read settles the index and runs a lexical probe per title token.
-function useRelatedRows(docPath: string, open: boolean) {
+const useRelatedRows = (docPath: string, open: boolean) => {
   const backlinksQuery = useQuery(
     orpc.knowledge.backlinks.queryOptions({ input: { path: docPath } }),
   );
@@ -91,15 +90,73 @@ function useRelatedRows(docPath: string, open: boolean) {
     enabled: open,
   });
   return { backlinksQuery, relatedQuery, unlinkedQuery };
-}
+};
 
-export function RelatedInline({
+export const RelatedRows = ({
+  rows,
+  settledEmpty,
+  suggestionsFailed,
+  onOpenDoc,
+}: {
+  rows: readonly RelatedRow[];
+  settledEmpty: boolean;
+  suggestionsFailed: boolean;
+  onOpenDoc: (path: string) => void;
+}) => (
+  <div className="max-h-64 overflow-y-auto px-1.5 pb-2">
+    {rows.length === 0 ? (
+      <p className="px-1.5 pb-1 text-xs text-muted-foreground">
+        {settledEmpty ? "Nothing links here or shares this note's links, tags or words." : "…"}
+      </p>
+    ) : (
+      <ul className="space-y-0.5">
+        {rows.map((row) => {
+          const { action } = row;
+          return (
+            <li key={row.path + row.detail} className="flex items-center gap-1">
+              <button
+                type="button"
+                className="min-w-0 flex-1 rounded-md px-1.5 py-1 text-left hover:bg-surface-raised"
+                onClick={() => {
+                  onOpenDoc(row.path);
+                }}
+              >
+                <span className="block truncate text-sm" title={row.path}>
+                  {row.label}
+                </span>
+                <span className="block truncate text-xs text-muted-foreground">{row.detail}</span>
+              </button>
+              {action === undefined ? null : (
+                <Button
+                  variant="tertiary"
+                  size="compact"
+                  onClick={() => {
+                    action.run();
+                  }}
+                >
+                  {action.label}
+                </Button>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    )}
+    {suggestionsFailed ? (
+      <p className="px-1.5 pt-1 text-xs text-muted-foreground">
+        Could not read suggestions just now.
+      </p>
+    ) : null}
+  </div>
+);
+
+export const RelatedInline = ({
   docPath,
   onOpenDoc,
 }: {
   docPath: string;
   onOpenDoc: (path: string) => void;
-}) {
+}) => {
   const [open, setOpen] = useState(readRelatedOpen);
   const { api } = useWorkspace();
   const queryClient = useQueryClient();
@@ -123,28 +180,28 @@ export function RelatedInline({
 
   const rows: RelatedRow[] = [
     ...groupBacklinks(backlinks).map((group) => ({
-      path: group.sourcePath,
-      label: docStem(group.sourcePath),
       detail:
         group.count === 1
           ? `Links here · ${plainSnippet(group.snippet)}`
           : `Links here ${String(group.count)}× · ${plainSnippet(group.snippet)}`,
+      label: docStem(group.sourcePath),
+      path: group.sourcePath,
     })),
     ...related.map((entry) => ({
-      path: entry.path,
-      label: entry.title,
       detail: entry.reasons.join(" · "),
+      label: entry.title,
+      path: entry.path,
     })),
     ...unlinked.map((mention) => ({
-      path: mention.path,
-      label: docStem(mention.path),
-      detail: unlinkedMentionDetail(mention),
       action: {
         label: "Link",
         run: () => {
           link(mention);
         },
       },
+      detail: unlinkedMentionDetail(mention),
+      label: docStem(mention.path),
+      path: mention.path,
     })),
   ];
 
@@ -176,55 +233,4 @@ export function RelatedInline({
       />
     </FoldSection>
   );
-}
-
-export function RelatedRows({
-  rows,
-  settledEmpty,
-  suggestionsFailed,
-  onOpenDoc,
-}: {
-  rows: readonly RelatedRow[];
-  settledEmpty: boolean;
-  suggestionsFailed: boolean;
-  onOpenDoc: (path: string) => void;
-}) {
-  return (
-    <div className="max-h-64 overflow-y-auto px-1.5 pb-2">
-      {rows.length === 0 ? (
-        <p className="px-1.5 pb-1 text-xs text-muted-foreground">
-          {settledEmpty ? "Nothing links here or shares this note's links, tags or words." : "…"}
-        </p>
-      ) : (
-        <ul className="space-y-0.5">
-          {rows.map((row) => (
-            <li key={row.path + row.detail} className="flex items-center gap-1">
-              <button
-                type="button"
-                className="min-w-0 flex-1 rounded-md px-1.5 py-1 text-left hover:bg-surface-raised"
-                onClick={() => {
-                  onOpenDoc(row.path);
-                }}
-              >
-                <span className="block truncate text-sm" title={row.path}>
-                  {row.label}
-                </span>
-                <span className="block truncate text-xs text-muted-foreground">{row.detail}</span>
-              </button>
-              {row.action === undefined ? null : (
-                <Button variant="tertiary" size="compact" onClick={row.action.run}>
-                  {row.action.label}
-                </Button>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
-      {suggestionsFailed ? (
-        <p className="px-1.5 pt-1 text-xs text-muted-foreground">
-          Could not read suggestions just now.
-        </p>
-      ) : null}
-    </div>
-  );
-}
+};

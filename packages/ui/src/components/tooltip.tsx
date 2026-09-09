@@ -4,6 +4,7 @@
 import * as React from "react";
 import { Tooltip as TooltipPrimitive } from "@base-ui/react/tooltip";
 import { motion, useMotionValue } from "framer-motion";
+import type { MotionStyle } from "framer-motion";
 
 import { cn } from "cn";
 import { motionProps, motionStyle } from "@repo/ui/lib/motion-style";
@@ -23,15 +24,13 @@ interface TooltipProviderProps {
   delay?: number;
 }
 
-function TooltipProvider({ children, delay = DEFAULT_DELAY }: TooltipProviderProps) {
-  return (
-    <TooltipGroupContext.Provider value={true}>
-      <TooltipPrimitive.Provider delay={delay} timeout={SKIP_DELAY_TIMEOUT}>
-        {children}
-      </TooltipPrimitive.Provider>
-    </TooltipGroupContext.Provider>
-  );
-}
+const TooltipProvider = ({ children, delay = DEFAULT_DELAY }: TooltipProviderProps) => (
+  <TooltipGroupContext.Provider value={true}>
+    <TooltipPrimitive.Provider delay={delay} timeout={SKIP_DELAY_TIMEOUT}>
+      {children}
+    </TooltipPrimitive.Provider>
+  </TooltipGroupContext.Provider>
+);
 
 type TooltipSide = "top" | "right" | "bottom" | "left";
 
@@ -48,20 +47,14 @@ interface TooltipProps {
   onOpenChange?: (open: boolean) => void;
 }
 
-function getSlideOffset(side: TooltipSide) {
-  switch (side) {
-    case "top":
-      return { y: 4 };
-    case "bottom":
-      return { y: -4 };
-    case "left":
-      return { x: 4 };
-    case "right":
-      return { x: -4 };
-  }
-}
+const slideOffsets: Record<TooltipSide, { x: number } | { y: number }> = {
+  bottom: { y: -4 },
+  left: { x: 4 },
+  right: { x: -4 },
+  top: { y: 4 },
+};
 
-function Tooltip({
+const Tooltip = ({
   content,
   children,
   side = "top",
@@ -71,18 +64,20 @@ function Tooltip({
   forceOpen,
   onOpenChange: onOpenChangeProp,
   followCursor,
-}: TooltipProps) {
+}: TooltipProps) => {
   const [internalOpen, setInternalOpen] = React.useState(false);
-  const open = forceOpen !== undefined ? forceOpen : internalOpen;
+  const open = forceOpen ?? internalOpen;
   const radius = useRadius();
   const hasAmbientProvider = React.useContext(TooltipGroupContext);
 
-  const slideOffset = getSlideOffset(side);
+  const slideOffset = slideOffsets[side];
 
   // a motion value, not state, so per-move updates skip React re-renders
   const followOffset = useMotionValue(0);
   const handleFollowMove = (event: React.PointerEvent) => {
-    if (!followCursor) return;
+    if (!followCursor) {
+      return;
+    }
     const rect = event.currentTarget.getBoundingClientRect();
     followOffset.set(
       followCursor === "y"
@@ -110,12 +105,12 @@ function Tooltip({
             render={(props, state) => {
               const exiting = state.transitionStatus === "ending";
               const { style: baseStyle, ...rest } = motionProps(props);
-              const followStyle =
-                followCursor === "y"
-                  ? { y: followOffset }
-                  : followCursor === "x"
-                    ? { x: followOffset }
-                    : undefined;
+              let followStyle: MotionStyle | undefined;
+              if (followCursor === "y") {
+                followStyle = { y: followOffset };
+              } else if (followCursor === "x") {
+                followStyle = { x: followOffset };
+              }
               // the cursor-follow transform and the enter/exit slide sit on separate elements so
               // they do not fight
               return (
@@ -143,11 +138,13 @@ function Tooltip({
     </TooltipPrimitive.Root>
   );
 
-  if (hasAmbientProvider) return tooltip;
+  if (hasAmbientProvider) {
+    return tooltip;
+  }
 
   return (
     <TooltipPrimitive.Provider delay={delay ?? DEFAULT_DELAY}>{tooltip}</TooltipPrimitive.Provider>
   );
-}
+};
 
 export { Tooltip, TooltipProvider };

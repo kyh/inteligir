@@ -5,8 +5,8 @@ import { voiceStreamDownMessageSchema } from "@repo/api/local/voice/voice-schema
 import { z } from "zod";
 
 export interface DictationSocket {
-  send(data: string | ArrayBuffer): void;
-  close(): void;
+  send: (data: string | ArrayBuffer) => void;
+  close: () => void;
   onOpen: (() => void) | null;
   onMessage: ((event: { data: unknown }) => void) | null;
   onClose: (() => void) | null;
@@ -14,9 +14,9 @@ export interface DictationSocket {
 }
 
 export interface DictationStreamHandlers {
-  onPartial(text: string): void;
-  onFinal(text: string): void;
-  onError(message: string): void;
+  onPartial: (text: string) => void;
+  onFinal: (text: string) => void;
+  onError: (message: string) => void;
 }
 
 export interface DictationStreamClientArgs {
@@ -73,29 +73,44 @@ export class DictationStreamClient {
       }
       const down = parsed.data;
       switch (down.type) {
-        case "partial":
+        case "partial": {
           // A partial in flight at finalize is stale and would reappear after
           // the preview was cleared.
           if (!this.#settled && !this.#finalizing) {
             this.#handlers.onPartial(down.text);
           }
           break;
-        case "final":
-          this.#settle(() => this.#handlers.onFinal(down.text));
+        }
+        case "final": {
+          this.#settle(() => {
+            this.#handlers.onFinal(down.text);
+          });
           break;
-        case "error":
-          this.#settle(() => this.#handlers.onError(down.message));
+        }
+        case "error": {
+          this.#settle(() => {
+            this.#handlers.onError(down.message);
+          });
           break;
+        }
+        default: {
+          const exhaustive: never = down;
+          return exhaustive;
+        }
       }
     };
     socket.onClose = () => {
       if (!this.#settled && !this.#cancelled) {
-        this.#settle(() => this.#handlers.onError("The dictation connection closed."));
+        this.#settle(() => {
+          this.#handlers.onError("The dictation connection closed.");
+        });
       }
     };
     socket.onError = () => {
       if (!this.#settled && !this.#cancelled) {
-        this.#settle(() => this.#handlers.onError("The dictation connection failed."));
+        this.#settle(() => {
+          this.#handlers.onError("The dictation connection failed.");
+        });
       }
     };
   }
@@ -156,20 +171,24 @@ export class DictationStreamClient {
   }
 }
 
-export function browserDictationSocket(url: string): DictationSocket {
+export const browserDictationSocket = (url: string): DictationSocket => {
   const ws = new WebSocket(url);
   ws.binaryType = "arraybuffer";
   const adapter: DictationSocket = {
-    send: (data) => ws.send(data),
-    close: () => ws.close(),
-    onOpen: null,
-    onMessage: null,
+    close: () => {
+      ws.close();
+    },
     onClose: null,
     onError: null,
+    onMessage: null,
+    onOpen: null,
+    send: (data) => {
+      ws.send(data);
+    },
   };
   ws.addEventListener("open", () => adapter.onOpen?.());
   ws.addEventListener("message", (event) => adapter.onMessage?.({ data: event.data }));
   ws.addEventListener("close", () => adapter.onClose?.());
   ws.addEventListener("error", () => adapter.onError?.());
   return adapter;
-}
+};

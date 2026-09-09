@@ -1,98 +1,115 @@
-import type { ProgressInfo, UpdateInfo } from "electron-updater";
+import type { ProgressInfo } from "electron-updater";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  createUpdates,
-  UPDATE_POLL_INTERVAL_MS,
-  UPDATE_STARTUP_DELAY_MS,
-  type UpdaterHandlers,
-  type UpdaterPort,
-} from "../updates";
+import { createUpdates, UPDATE_POLL_INTERVAL_MS, UPDATE_STARTUP_DELAY_MS } from "../updates";
+import type { UpdaterHandlers, UpdaterPort, UpdateVersionInfo } from "../updates";
 import type { UpdateState } from "../../update-state";
 
 const noop = (): void => {};
 
-function updateInfo(version: string): UpdateInfo {
-  return { version, files: [], path: "", sha512: "", releaseDate: "" };
+const updateInfo = (version: string): UpdateVersionInfo => ({ version });
+
+// a step held open until the test releases it
+interface Deferred {
+  promise: Promise<void>;
+  release: () => void;
 }
 
-function progress(percent: number): ProgressInfo {
-  return { percent, total: 100, delta: 0, transferred: percent, bytesPerSecond: 0 };
-}
+const deferred = (): Deferred => {
+  let release: () => void = noop;
+  // oxlint-disable-next-line promise/avoid-new -- no callback API to wrap: the test itself is the resolver
+  const promise = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  return { promise, release };
+};
+
+const progress = (percent: number): ProgressInfo => ({
+  bytesPerSecond: 0,
+  delta: 0,
+  percent,
+  total: 100,
+  transferred: percent,
+});
 
 interface FakeUpdater extends UpdaterPort {
   calls: string[];
-  checkResult: () => Promise<void>;
-  downloadResult: () => Promise<void>;
+  checkResult: () => void | Promise<void>;
+  downloadResult: () => void | Promise<void>;
   installThrows: Error | null;
   handlers: UpdaterHandlers;
 }
 
-function fakeUpdater(): FakeUpdater {
+const fakeUpdater = (): FakeUpdater => {
   const updater: FakeUpdater = {
     calls: [],
-    checkResult: () => Promise.resolve(),
-    downloadResult: () => Promise.resolve(),
-    installThrows: null,
-    handlers: {
-      updateAvailable: noop,
-      updateNotAvailable: noop,
-      downloadProgress: noop,
-      updateDownloaded: noop,
-      error: noop,
-    },
-    disarmAutomation() {
-      updater.calls.push("disarm");
-    },
     async checkForUpdates() {
       updater.calls.push("check");
       await updater.checkResult();
       return null;
     },
+    checkResult: noop,
+    disarmAutomation() {
+      updater.calls.push("disarm");
+    },
+    downloadResult: noop,
     async downloadUpdate() {
       updater.calls.push("download");
       await updater.downloadResult();
       return [];
     },
+    handlers: {
+      downloadProgress: noop,
+      error: noop,
+      updateAvailable: noop,
+      updateDownloaded: noop,
+      updateNotAvailable: noop,
+    },
+    installThrows: null,
     quitAndInstall(isSilent, isForceRunAfter) {
       updater.calls.push(`quitAndInstall(${String(isSilent)},${String(isForceRunAfter)})`);
-      if (updater.installThrows !== null) throw updater.installThrows;
+      if (updater.installThrows !== null) {
+        throw updater.installThrows;
+      }
     },
     subscribe(handlers) {
       updater.handlers = handlers;
     },
   };
   return updater;
-}
+};
 
-function harness(disabledReason: string | null = null) {
+const harness = (disabledReason: string | null = null) => {
   const updater = fakeUpdater();
   const broadcasts: UpdateState[] = [];
   const log: string[] = [];
   const updates = createUpdates({
-    updater,
+    broadcast: (state) => {
+      broadcasts.push(state);
+    },
     currentVersion: "0.4.0",
     disabledReason,
+    log: (message) => {
+      log.push(message);
+    },
+    now: () => "2026-09-04T10:00:00.000Z",
     stopServer: async () => {
       updater.calls.push("stopServer");
+      await Promise.resolve();
     },
-    broadcast: (state) => broadcasts.push(state),
-    log: (message) => log.push(message),
-    now: () => "2026-09-04T10:00:00.000Z",
+    updater,
   });
   const findsVersion = (version: string): void => {
     updater.checkResult = () => {
       updater.handlers.updateAvailable(updateInfo(version));
-      return Promise.resolve();
     };
   };
   const downloadsVersion = (version: string): void => {
     updater.downloadResult = () => {
       updater.handlers.updateDownloaded(updateInfo(version));
-      return Promise.resolve();
     };
   };
-  return { updater, updates, broadcasts, log, findsVersion, downloadsVersion };
-}
+  return { broadcasts, downloadsVersion, findsVersion, log, updater, updates };
+};
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -120,9 +137,12 @@ describe("the updater policy", () => {
     updates.start();
     await vi.advanceTimersByTimeAsync(UPDATE_STARTUP_DELAY_MS + UPDATE_POLL_INTERVAL_MS);
     expect(updater.calls).toEqual([]);
-    expect((await updates.check("menu")).status).toBe("disabled");
-    expect((await updates.download()).status).toBe("disabled");
-    expect((await updates.install()).kind).toBe("refused");
+    const checked = await updates.check("menu");
+    expect(checked.status).toBe("disabled");
+    const downloaded = await updates.download();
+    expect(downloaded.status).toBe("disabled");
+    const installed = await updates.install();
+    expect(installed.kind).toBe("refused");
   });
 
   it("a check lands available through the event and a rejection lands as an error", async () => {
@@ -133,7 +153,9 @@ describe("the updater policy", () => {
     expect(state.availableVersion).toBe("0.5.0");
     expect(broadcasts.map((b) => b.status)).toEqual(["checking", "available"]);
 
-    updater.checkResult = () => Promise.reject(new Error("feed unreachable"));
+    updater.checkResult = () => {
+      throw new Error("feed unreachable");
+    };
     const failed = await updates.check("poll");
     expect(failed.status).toBe("error");
     expect(failed.message).toBe("feed unreachable");
@@ -145,31 +167,34 @@ describe("the updater policy", () => {
     const { updater, updates, log, findsVersion } = harness();
     findsVersion("0.5.0");
     await updates.check("startup");
-    let finishDownload: () => void = noop;
-    updater.downloadResult = () =>
-      new Promise<void>((resolve) => {
-        finishDownload = resolve;
-      });
+    const download = deferred();
+    updater.downloadResult = async () => {
+      await download.promise;
+    };
     const downloading = updates.download();
     expect(updates.state().status).toBe("downloading");
-    expect((await updates.check("poll")).status).toBe("downloading");
+    const checked = await updates.check("poll");
+    expect(checked.status).toBe("downloading");
     updater.handlers.downloadProgress(progress(50.7));
     expect(updates.state().downloadPercent).toBe(50);
     updater.handlers.updateDownloaded(updateInfo("0.5.0"));
-    finishDownload();
-    expect((await downloading).status).toBe("downloaded");
+    download.release();
+    const downloaded = await downloading;
+    expect(downloaded.status).toBe("downloaded");
     expect(updater.calls).toEqual(["check", "download"]);
     expect(log.some((line) => line.includes("skipped"))).toBe(true);
   });
 
   it("install stops the server first, then hands Squirrel a silent forced relaunch", async () => {
     const { updater, updates, findsVersion, downloadsVersion } = harness();
-    expect((await updates.install()).kind).toBe("refused");
+    const refused = await updates.install();
+    expect(refused.kind).toBe("refused");
     findsVersion("0.5.0");
     await updates.check("menu");
     downloadsVersion("0.5.0");
     await updates.download();
-    expect((await updates.install()).kind).toBe("quitting");
+    const installed = await updates.install();
+    expect(installed.kind).toBe("quitting");
     expect(updater.calls.slice(-2)).toEqual(["stopServer", "quitAndInstall(true,true)"]);
   });
 
@@ -190,16 +215,16 @@ describe("the updater policy", () => {
     const { updater, updates } = harness();
     updater.handlers.error(new Error("background"));
     expect(updates.state().status).toBe("error");
-    let finishCheck: () => void = noop;
-    updater.checkResult = () =>
-      new Promise<void>((resolve) => {
-        finishCheck = resolve;
-      });
+    const check = deferred();
+    updater.checkResult = async () => {
+      await check.promise;
+    };
     const checking = updates.check("menu");
     updater.handlers.error(new Error("during the check"));
     expect(updates.state().status).toBe("checking");
     updater.handlers.updateNotAvailable();
-    finishCheck();
-    expect((await checking).status).toBe("up-to-date");
+    check.release();
+    const checked = await checking;
+    expect(checked.status).toBe("up-to-date");
   });
 });
