@@ -1,5 +1,5 @@
-// oxlint-disable eslint/require-await -- the in-memory cache answers the async NoteCache port
-// synchronously; `async` is the contract, and dropping it trips promise-function-async
+// oxlint-disable eslint/require-await -- the in-memory cache answers the async NoteCache
+// port synchronously; `async` is the contract it implements
 // keyed by (commit, path): content at a commit is immutable, so a row never goes stale, only
 // unreachable. best-effort is held in notes-store, which swallows every refusal, so an
 // implementation may throw.

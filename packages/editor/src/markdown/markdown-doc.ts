@@ -180,7 +180,6 @@ export const parseMarkdown = (
   }
   // SAFETY: mdast root children are flow nodes, so every converted descendant
   // is an element; Plate's own deserializeMd performs this exact widening.
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- mdast root children are flow nodes, see the SAFETY note above
   return { ok: true, value: converted.value as Value };
 };
 

@@ -1,6 +1,3 @@
-// oxlint-disable typescript/no-deprecated -- SELF is the only fetcher that runs in the tests'
-// own isolate; the cloudflare:workers loopback binding stands a second worker up, and its
-// first fetch costs seconds enough to time a test out.
 import { DEVICE_API_PATHS } from "@repo/api/cloud/device/device-schema";
 import { VAULT_API_PATHS } from "@repo/api/cloud/vault/vault-schema";
 import { VAULT_GIT_PATH } from "@repo/api/cloud/vault/vault-git";

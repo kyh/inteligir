@@ -9,10 +9,6 @@ const tests = ["**/__tests__/**", "**/*.test.ts", "**/*.test.tsx"];
 export default defineConfig({
   extends: [core, react, tanstack, antiSlop],
   ignorePatterns: [...core.ignorePatterns, ".claude", ".codex", "*.tsbuildinfo", ".tanstack"],
-  // The type-aware rules the presets list only run with this on; it spawns the
-  // `oxlint-tsgolint` devDependency. Every @repo/* exports TS source, so there
-  // is no build to stage first.
-  options: { typeAware: true },
   overrides: [
     {
       // The Plate editor's tests stub platejs/react and the host-io singleton at
@@ -21,32 +17,11 @@ export default defineConfig({
       rules: { "anti-slop/no-module-mocking": "off" },
     },
     {
-      // A test builds the shapes production code receives from the wire, so it
-      // asserts where production parses; `expect(fake.method)` reads a member
-      // detached, which is the assertion. And a synchronous stand-in for an
-      // async port still has to be spelled `async`: promise-function-async
-      // rejects the non-async form, so require-await has nothing to flag in a
-      // fake but the contract it is honouring.
+      // A stand-in for an async port is spelled `async` to match the contract
+      // it stands in for, with nothing inside to await.
       files: tests,
       rules: {
         "require-await": "off",
-        "typescript/consistent-type-assertions": "off",
-        "typescript/no-unsafe-type-assertion": "off",
-        "typescript/unbound-method": "off",
-      },
-    },
-    {
-      // Plain JS sits in no tsconfig program, so oxlint-tsgolint types every
-      // value as `error` and the unsafe-* family flags each line unconditionally.
-      files: ["**/*.js", "**/*.cjs", "**/*.mjs"],
-      rules: {
-        "typescript/no-unsafe-argument": "off",
-        "typescript/no-unsafe-assignment": "off",
-        "typescript/no-unsafe-call": "off",
-        "typescript/no-unsafe-member-access": "off",
-        "typescript/no-unsafe-return": "off",
-        "typescript/strict-boolean-expressions": "off",
-        "typescript/strict-void-return": "off",
       },
     },
     {

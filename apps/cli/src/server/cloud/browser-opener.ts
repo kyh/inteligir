@@ -1,7 +1,6 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
-// oxlint-disable-next-line typescript/strict-void-return -- execFile returns the ChildProcess promisify's parameter type calls void; the promise keeps it as `.child`.
 const run = promisify(execFile);
 
 export type OpenExternalUrl = (url: string) => Promise<boolean>;

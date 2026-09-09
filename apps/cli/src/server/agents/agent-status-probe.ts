@@ -19,7 +19,6 @@ export interface HarnessProbe {
   loginCommand: string;
 }
 
-// oxlint-disable-next-line typescript/strict-void-return -- execFile returns the ChildProcess promisify's parameter type calls void; the promise keeps it as `.child`.
 const execFileAsync = promisify(execFile);
 
 const keychainHasEntry = async (service: string): Promise<boolean> => {

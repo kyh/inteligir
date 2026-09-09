@@ -189,7 +189,6 @@ describe("reconcileInsertionCaret (the first-commit caret quirk)", () => {
     for (const word of ["deep", "tada"]) {
       let value = "";
       let caret = 0;
-      // oxlint-disable-next-line typescript/no-misused-spread -- "deep" and "tada" are ASCII; the per-character sequence is the subject
       for (const [i, char] of [...word].entries()) {
         const next = value.slice(0, caret) + char + value.slice(caret);
         const reported = i === 0 ? caret : caret + 1;
