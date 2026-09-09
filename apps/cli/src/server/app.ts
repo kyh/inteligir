@@ -136,7 +136,6 @@ export const createApp = (args: CreateAppArgs) => {
         args.bus.unregisterClient(socket);
       },
       onMessage: (event, socket) => {
-        // oxlint-disable-next-line typescript/no-unsafe-argument, typescript/no-unsafe-member-access -- the linter's checker does not resolve @types/node's conditional MessageEvent global; tsc does
         args.bus.handleMessage(socket, event.data);
       },
       onOpen: (_event, socket) => {
@@ -157,7 +156,6 @@ export const createApp = (args: CreateAppArgs) => {
           connection = null;
         },
         onMessage: (event) => {
-          // oxlint-disable-next-line typescript/no-unsafe-argument, typescript/no-unsafe-member-access -- the linter's checker does not resolve @types/node's conditional MessageEvent global; tsc does
           connection?.receive(event.data);
         },
         onOpen: (_event, socket) => {

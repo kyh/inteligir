@@ -334,9 +334,6 @@ importers:
       oxlint:
         specifier: ^1.81.0
         version: 1.81.0(oxlint-tsgolint@7.0.2001)
-      oxlint-tsgolint:
-        specifier: ^7.0.2001
-        version: 7.0.2001
       turbo:
         specifier: ^2.10.12
         version: 2.10.12
@@ -19042,6 +19039,7 @@ snapshots:
       '@oxlint-tsgolint/linux-x64': 7.0.2001
       '@oxlint-tsgolint/win32-arm64': 7.0.2001
       '@oxlint-tsgolint/win32-x64': 7.0.2001
+    optional: true
 
   oxlint@1.81.0(oxlint-tsgolint@7.0.2001):
     optionalDependencies:

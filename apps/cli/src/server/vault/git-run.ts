@@ -2,7 +2,6 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { z } from "zod";
 
-// oxlint-disable-next-line typescript/strict-void-return -- execFile returns the ChildProcess promisify's parameter type calls void; the promise keeps it as `.child`.
 const execFileAsync = promisify(execFile);
 
 const LOCAL_GIT_TIMEOUT_MS = 30_000;

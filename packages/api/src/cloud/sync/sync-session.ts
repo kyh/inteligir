@@ -162,7 +162,6 @@ export const createSingleFlight = (): SingleFlight => {
   let dirty = false;
   return {
     // null is the signal a teardown reads; an async wrapper would hide it inside a promise.
-    // oxlint-disable-next-line typescript/promise-function-async -- see above
     inflight: () => inflight,
 
     async run(args) {

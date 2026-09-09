@@ -140,7 +140,6 @@ export const startStreamingCapture = async (
     // 16 kHz so the context's own resampler does the work.
     context = new AudioContext({ sampleRate: VOICE_SAMPLE_RATE });
     const source = context.createMediaStreamSource(stream);
-    // oxlint-disable-next-line typescript/no-deprecated -- the AudioWorklet replacement needs a worklet module bundled and served apart from the page
     const processor = context.createScriptProcessor(FRAME_SAMPLES, 1, 1);
     const analyser = context.createAnalyser();
     analyser.fftSize = 512;
@@ -152,7 +151,6 @@ export const startStreamingCapture = async (
     const meterFrame = new Float32Array(analyser.fftSize);
     const sourceRate = context.sampleRate;
 
-    // oxlint-disable-next-line typescript/no-deprecated -- ScriptProcessorNode's only event; see createScriptProcessor above
     processor.onaudioprocess = ({ inputBuffer }) => {
       onFrame(toPcm16(resampleTo16k(inputBuffer.getChannelData(0), sourceRate)));
     };
@@ -164,7 +162,6 @@ export const startStreamingCapture = async (
         return levelFrom(meterFrame);
       },
       stop: () => {
-        // oxlint-disable-next-line typescript/no-deprecated -- see createScriptProcessor above
         processor.onaudioprocess = null;
         processor.disconnect();
         source.disconnect();
