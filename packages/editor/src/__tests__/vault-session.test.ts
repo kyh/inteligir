@@ -10,11 +10,8 @@ const sessionOver = (options: { exists: boolean; createRefuses?: boolean }) => {
   const notices: string[] = [];
   const entries: VaultEntry[] = [];
   const ports: VaultSessionPorts = {
-    // oxlint-disable-next-line require-await -- the contract is a promise; nothing here waits.
     boot: async () => ({ entries, openNote: null, root: "/vault" }),
-    // oxlint-disable-next-line require-await -- the contract is a promise; nothing here waits.
     exists: async () => options.exists,
-    // oxlint-disable-next-line require-await -- the contract is a promise; nothing here waits.
     list: async () => entries,
     note: {
       create: async (path, content) => {
@@ -24,11 +21,8 @@ const sessionOver = (options: { exists: boolean; createRefuses?: boolean }) => {
           throw new Error("A file already exists at Fresh.md");
         }
       },
-      // oxlint-disable-next-line require-await -- the contract is a promise; nothing here waits.
       read: async () => "",
-      // oxlint-disable-next-line require-await -- the contract is a promise; nothing here waits.
       remove: async () => ({ outcome: "removed" }),
-      // oxlint-disable-next-line require-await -- the contract is a promise; nothing here waits.
       write: async (path, content) => {
         noteCalls.push(["write", path, content]);
       },
@@ -41,7 +35,6 @@ const sessionOver = (options: { exists: boolean; createRefuses?: boolean }) => {
     publishOpenPath: () => {},
     publishRoot: () => {},
     refresh: async () => {},
-    // oxlint-disable-next-line require-await -- the contract is a promise; nothing here waits.
     rename: async () => ({ ok: true }),
     showEditor: () => {},
   };

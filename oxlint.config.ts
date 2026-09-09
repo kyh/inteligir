@@ -32,6 +32,13 @@ export default defineConfig({
       },
     },
     {
+      // A synchronous stand-in for an async port still has to be spelled `async`:
+      // promise-function-async rejects the non-async form, so require-await has
+      // nothing to flag in a fake but the contract it is honouring.
+      files: tests,
+      rules: { "require-await": "off" },
+    },
+    {
       // Plain JS sits in no tsconfig program, so oxlint-tsgolint types every
       // value as `error` and the unsafe-* family flags each line unconditionally.
       files: ["**/*.js", "**/*.cjs", "**/*.mjs"],

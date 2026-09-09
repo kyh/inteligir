@@ -54,7 +54,6 @@ describe("what the client calls a doc, and what it calls it by", () => {
 });
 
 const renameApi = (answer: () => { path: string; rewritten: string[] }): RenameVaultApi => ({
-  // oxlint-disable-next-line require-await -- `vault.rename` is an async port; this fake answers from memory
   vault: { rename: async () => answer() },
 });
 

@@ -1,5 +1,3 @@
-// oxlint-disable eslint/require-await -- the stand-ins here answer async NoteCache and fetch ports
-// synchronously; `async` is the contract, and dropping it trips promise-function-async
 import { VAULT_API_PATHS } from "@repo/api/cloud/vault/vault-schema";
 import { describe, expect, it } from "vitest";
 import { createMemoryNoteCache } from "../note-cache";

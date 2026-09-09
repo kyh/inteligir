@@ -11,7 +11,6 @@ const indexAnswering = (answer: () => KnowledgeSearchResponse) => {
   const asked: string[] = [];
   const api = {
     knowledge: {
-      // oxlint-disable-next-line require-await -- the index is an async port; this fake answers from memory
       search: async (request) => {
         asked.push(request.q);
         return answer();

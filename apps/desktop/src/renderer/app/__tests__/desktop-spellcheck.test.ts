@@ -18,7 +18,6 @@ const installBridge = () => {
   const log = { applied, reads: 0 };
   window.desktopBridge = {
     ...inertBridge(),
-    /* oxlint-disable require-await -- the bridge is an async port; this fake answers from memory */
     spellcheck: {
       apply: async (choice) => {
         log.applied.push(choice);
@@ -29,7 +28,6 @@ const installBridge = () => {
         return state(null);
       },
     },
-    /* oxlint-enable require-await */
   };
   return log;
 };

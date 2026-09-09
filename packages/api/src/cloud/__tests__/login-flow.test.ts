@@ -21,7 +21,6 @@ interface RecordedLogin {
 
 const loginOk = () => {
   const calls: RecordedLogin[] = [];
-  // oxlint-disable-next-line require-await -- the contract is a promise; nothing here waits.
   const fetch: CloudFetch = async (input, init) => {
     calls.push({ body: z.string().parse(init?.body), url: input });
     return Response.json(LOGGED_IN);
@@ -29,7 +28,6 @@ const loginOk = () => {
   return { calls, fetch };
 };
 
-// oxlint-disable-next-line require-await -- the contract is a promise; nothing here waits.
 const loginRefused: CloudFetch = async () =>
   Response.json(
     { error: { code: "invalid-credentials", message: "Wrong email or password." } },
@@ -43,7 +41,6 @@ const loginUnreachable: CloudFetch = () => {
 const memoryStore = () => {
   const written: DeviceCredential[] = [];
   const store: DeviceCredentialStore = {
-    // oxlint-disable-next-line require-await -- the contract is a promise; nothing here waits.
     write: async (credential) => {
       written.push(credential);
     },

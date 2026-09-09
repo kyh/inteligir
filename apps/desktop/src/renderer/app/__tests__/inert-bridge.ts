@@ -19,7 +19,6 @@ const inertSpellcheck = {
   languagesConfigurable: false,
 };
 
-/* oxlint-disable require-await -- the bridge is an async port; these fakes answer from memory */
 export const inertBridge = (): DesktopBridge => ({
   paths: {
     open: async () => ({ ok: true }),
@@ -44,4 +43,3 @@ export const inertBridge = (): DesktopBridge => ({
     pick: async () => inertVaults,
   },
 });
-/* oxlint-enable require-await */

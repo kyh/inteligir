@@ -38,7 +38,6 @@ const specFor = (archive: Buffer): VoiceModelSpec => ({
 // two chunks, so progress is observable.
 const fetchServing =
   (body: Buffer): typeof fetch =>
-  // oxlint-disable-next-line require-await -- `fetch` is an async port; this fake answers from memory
   async () =>
     new Response(
       new ReadableStream<Uint8Array>({
@@ -141,7 +140,6 @@ describe("downloadModel", () => {
     const modelDir = makeTempDir("inteligir-models-");
     await expect(
       downloadModel({
-        // oxlint-disable-next-line require-await -- `fetch` is an async port; this fake answers from memory
         fetchImpl: async () => new Response("gone", { status: 404 }),
         modelDir,
         onProgress: () => {},

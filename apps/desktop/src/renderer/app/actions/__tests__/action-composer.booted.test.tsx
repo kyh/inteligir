@@ -12,7 +12,6 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-// oxlint-disable-next-line require-await -- reading the view is an async port; this fake answers from memory
 const noViewContext = async () => null;
 
 describe("the composer under a refused first send", () => {

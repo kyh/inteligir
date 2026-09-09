@@ -33,7 +33,6 @@ const ENTRIES: VaultEntry[] = [
 
 const FILE_PATHS = ENTRIES.filter((entry) => entry.kind === "file").map((entry) => entry.path);
 
-// oxlint-disable-next-line require-await -- the search source is an async port; this fake answers from memory
 const filenameSource: NoteSearchSource = async (query) => searchNotesByFilename(query, FILE_PATHS);
 
 type PaletteProps = React.ComponentProps<typeof CommandPalette>;
@@ -130,7 +129,6 @@ const EMPTY_FAMILY = { rows: [], total: 0 };
 
 const searchBox = (): HTMLElement => screen.getByPlaceholderText("Search notes or commands…");
 
-/* oxlint-disable require-await -- the search source is an async port; these fakes answer from memory */
 const titledSource: NoteSearchSource = async () => [
   { path: "notes/ideas.md", snippet: "…the big idea is…", title: "Big Ideas" },
 ];
@@ -138,7 +136,6 @@ const titledSource: NoteSearchSource = async () => [
 const failingSource: NoteSearchSource = async () => {
   throw new Error("index down");
 };
-/* oxlint-enable require-await */
 
 interface Deferred<T> {
   promise: Promise<T>;
@@ -192,7 +189,6 @@ describe("note search", () => {
 
   it("debounces: a query superseded within the window never reaches the source", async () => {
     const asked: string[] = [];
-    // oxlint-disable-next-line require-await -- the search source is an async port; this fake answers from memory
     const source: NoteSearchSource = async (query) => {
       asked.push(query);
       return [{ path: `${query}.md` }];

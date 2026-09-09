@@ -1,5 +1,3 @@
-// oxlint-disable eslint/require-await -- the CloudFetch and credential-store stand-ins here answer
-// synchronously; `async` is the port's contract, and dropping it trips promise-function-async
 import type { CloudFetch } from "@repo/api/cloud/client";
 import type { DeviceCredential } from "@repo/api/cloud/device/device-schema";
 import { describe, expect, it } from "vitest";

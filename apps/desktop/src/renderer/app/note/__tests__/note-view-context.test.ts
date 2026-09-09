@@ -6,7 +6,6 @@ import type { OpenNoteView } from "../note-view-context";
 const openNote = (disk: { content: string }, buffer: string) => {
   const calls: string[] = [];
   const view: OpenNoteView = {
-    // oxlint-disable-next-line require-await -- the view's save is an async port; this fake answers from memory
     flush: async () => {
       calls.push("flush");
       disk.content = buffer;
@@ -40,7 +39,6 @@ describe("readNoteViewContext", () => {
   it("still answers when the save failed — the buffer is what the user sees", async () => {
     const buffer = "unsaved";
     const view: OpenNoteView = {
-      // oxlint-disable-next-line require-await -- the view's save is an async port; this fake refuses from memory
       flush: async () => {
         throw new Error("the note could not be saved");
       },

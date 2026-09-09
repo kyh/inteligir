@@ -28,7 +28,6 @@ const ok = <T>(value: T): CloudResult<T> => ({ ok: true, value });
 
 const noop = (): void => {};
 
-// oxlint-disable-next-line require-await -- callers `await` this to match the CloudClient contract.
 const unreachable = async <T>(): Promise<CloudResult<T>> => ({
   failure: { kind: "unreachable", message: "fake" },
   ok: false,
@@ -189,7 +188,6 @@ const pageLoop = (args: {
       }
     },
     client: {
-      // oxlint-disable-next-line require-await -- the contract is a promise; nothing here waits.
       pull: async (query) => {
         loop.pages.push(query.afterSeq);
         return args.results.shift() ?? ok({ events: [], hasMore: false, lastSeq: loop.cursor });

@@ -49,7 +49,6 @@ const answer = (json: KnowledgeMatchesResponse | KnowledgeProblemsResponse): Res
 
 // every procedure the palette's pages call; anything else is a 404 the query reports as an error
 export const stubKnowledgeFetch = (fakes: KnowledgeFakes): void => {
-  // oxlint-disable-next-line require-await -- `fetch` is an async port; this fake answers from memory
   vi.stubGlobal("fetch", async (input: string | URL | Request, init?: RequestInit) => {
     const url = new URL(String(input instanceof Request ? input.url : input), "http://localhost");
     const procedure = url.pathname.slice(`${RPC_PREFIX}/`.length);
@@ -67,7 +66,6 @@ export const stubKnowledgeFetch = (fakes: KnowledgeFakes): void => {
 
 export const defaultRequest: PaletteRequest = { nonce: 1, page: "root" };
 
-// oxlint-disable-next-line require-await -- the search source is an async port; this fake answers from memory
 export const emptySearchSource: NoteSearchSource = async () => [];
 
 // Every verb the palette can run, each a mock typed by the contract it stands for. A test

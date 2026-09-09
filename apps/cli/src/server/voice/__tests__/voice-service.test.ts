@@ -11,7 +11,6 @@ import { ParakeetVoiceService } from "../voice-service";
 import type { VoiceStreamWorkerCallbacks, VoiceStreamWorkerHandle } from "../voice-worker-host";
 import type { VoiceModelFiles, VoiceWorkerResponse } from "../worker-protocol";
 
-// oxlint-disable-next-line require-await -- the worker port is async; this fake answers from memory
 const workerOk = async (): Promise<VoiceWorkerResponse> => ({ kind: "probed" });
 
 // non-empty, or isModelInstalled refuses it.
@@ -48,7 +47,6 @@ describe("ParakeetVoiceService", () => {
   it("reports a runtime that will not load as unavailable, and refuses install", async () => {
     const service = new ParakeetVoiceService({
       modelDir: makeTempDir("inteligir-voice-"),
-      // oxlint-disable-next-line require-await -- the worker port is async; this fake answers from memory
       runWorker: async () => ({
         kind: "failed",
         message: "dlopen: image not found",
@@ -68,7 +66,6 @@ describe("ParakeetVoiceService", () => {
     let probes = 0;
     const service = new ParakeetVoiceService({
       modelDir: makeTempDir("inteligir-voice-"),
-      // oxlint-disable-next-line require-await -- the worker port is async; this fake answers from memory
       runWorker: async () => {
         probes += 1;
         return { kind: "probed" };
@@ -115,7 +112,6 @@ describe("ParakeetVoiceService", () => {
     // reading the slot and claiming it.
     let downloads = 0;
     const service = new ParakeetVoiceService({
-      // oxlint-disable-next-line require-await -- `fetch` is an async port; this fake answers from memory
       fetchImpl: async () => {
         downloads += 1;
         return new Response("nope", { status: 500 });
@@ -134,7 +130,6 @@ describe("ParakeetVoiceService", () => {
 
   it("reports a failed download as the reason it has no model", async () => {
     const service = new ParakeetVoiceService({
-      // oxlint-disable-next-line require-await -- `fetch` is an async port; this fake answers from memory
       fetchImpl: async () => new Response("nope", { status: 500 }),
       modelDir: makeTempDir("inteligir-voice-"),
       runWorker: workerOk,

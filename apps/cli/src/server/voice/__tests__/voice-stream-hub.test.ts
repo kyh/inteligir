@@ -74,11 +74,9 @@ const fakeVoice = () => {
     dispose: async () => {
       // nothing to stop
     },
-    /* oxlint-disable require-await -- VoiceService is an async port; this fake answers from memory */
     install: async () => ({ model, state: "ready" }),
     remove: async () => ({ model, state: "ready" }),
     status: async () => ({ model, state: "ready" }),
-    /* oxlint-enable require-await */
   };
   return { created: () => created, sessions, voice };
 };
