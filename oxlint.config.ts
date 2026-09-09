@@ -23,20 +23,17 @@ export default defineConfig({
     {
       // A test builds the shapes production code receives from the wire, so it
       // asserts where production parses; `expect(fake.method)` reads a member
-      // detached, which is the assertion.
+      // detached, which is the assertion. And a synchronous stand-in for an
+      // async port still has to be spelled `async`: promise-function-async
+      // rejects the non-async form, so require-await has nothing to flag in a
+      // fake but the contract it is honouring.
       files: tests,
       rules: {
+        "require-await": "off",
         "typescript/consistent-type-assertions": "off",
         "typescript/no-unsafe-type-assertion": "off",
         "typescript/unbound-method": "off",
       },
-    },
-    {
-      // A synchronous stand-in for an async port still has to be spelled `async`:
-      // promise-function-async rejects the non-async form, so require-await has
-      // nothing to flag in a fake but the contract it is honouring.
-      files: tests,
-      rules: { "require-await": "off" },
     },
     {
       // Plain JS sits in no tsconfig program, so oxlint-tsgolint types every
