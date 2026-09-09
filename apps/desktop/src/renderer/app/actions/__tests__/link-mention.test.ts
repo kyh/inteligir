@@ -22,7 +22,6 @@ const apiOver = (content: string): LinkMentionApi & { writes: VaultWriteRequest[
   return {
     vault: {
       read: vi.fn<LinkMentionApi["vault"]["read"]>().mockResolvedValue({ content, path: "a.md" }),
-      // oxlint-disable-next-line require-await -- the vault is an async port; this fake answers from memory
       write: vi.fn(async (input: VaultWriteRequest) => {
         writes.push(input);
         return { hash: "x", path: "a.md" };

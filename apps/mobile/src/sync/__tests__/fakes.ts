@@ -1,5 +1,3 @@
-// oxlint-disable eslint/require-await -- every method here is a synchronous stand-in for an async
-// CloudClient method; `async` is the contract, and dropping it trips promise-function-async
 import type {
   AckCapturesRequest,
   CaptureRequest,

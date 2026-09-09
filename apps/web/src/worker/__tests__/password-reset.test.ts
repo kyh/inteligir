@@ -25,7 +25,6 @@ interface EmailRecorder {
 const recordingEmail = (): EmailRecorder => {
   const sent: RecordedEmail[] = [];
   const EMAIL: SendEmail = {
-    // oxlint-disable-next-line eslint/require-await -- the binding's send is async; this stand-in has nothing to await
     send: async (message: EmailMessage | EmailMessageBuilder): Promise<EmailSendResult> => {
       if (!("subject" in message)) {
         throw new Error("unexpected raw EmailMessage send");

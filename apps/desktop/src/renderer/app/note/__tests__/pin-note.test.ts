@@ -11,7 +11,6 @@ interface Written {
 }
 
 const fakeApi = (disk: string, writes: Written[], refuse: string | null = null): PinNoteApi => ({
-  /* oxlint-disable require-await -- the vault is an async port; these fakes answer from memory */
   vault: {
     read: async () => ({ content: disk, path: "notes/a.md" }),
     write: async (input) => {

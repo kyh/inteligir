@@ -20,7 +20,6 @@ const historyOver = (count: number) => {
   return {
     api: {
       vault: {
-        // oxlint-disable-next-line require-await -- the vault is an async port; this fake answers from memory
         history: async (input: VaultHistoryRequest) => {
           requests.push(input);
           const skip = input.skip ?? 0;
